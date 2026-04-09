@@ -57,13 +57,31 @@ export async function GET(req: NextRequest) {
       ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=128`
       : `https://cdn.discordapp.com/embed/avatars/${parseInt(discordUser.discriminator || '0') % 5}.png`;
 
+    // Create or update Firebase Auth user profile
+    // Cela permet de récupérer displayName et photoURL directement depuis fbUser,
+    // sans dépendre de Firestore au refresh
+    try {
+      await getAuth().updateUser(uid, {
+        displayName: discordUser.username,
+        photoURL: avatarUrl,
+      });
+    } catch (err: any) {
+      if (err.code === 'auth/user-not-found') {
+        await getAuth().createUser({
+          uid,
+          displayName: discordUser.username,
+          photoURL: avatarUrl,
+        });
+      }
+    }
+
     // Create Firebase custom token
     const firebaseToken = await getAuth().createCustomToken(uid, {
       discordId: discordUser.id,
       discordUsername: discordUser.username,
     });
 
-    // Write user profile server-side (Admin SDK — bypass security rules)
+    // Write user profile to Firestore (Admin SDK — bypass security rules)
     const db = getFirestore();
     const userRef = db.collection('users').doc(uid);
     const userSnap = await userRef.get();

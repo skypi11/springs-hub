@@ -13,6 +13,8 @@ const firebaseConfig = {
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-export const db = initializeFirestore(app, { experimentalForceLongPolling: true });
+// experimentalAutoDetectLongPolling : tente WebSocket d'abord,
+// bascule automatiquement en long-polling si bloqué (ex: adblocker)
+export const db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
 export const auth = getAuth(app);
 export { app };

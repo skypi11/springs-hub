@@ -30,7 +30,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Handle Discord OAuth callback — le profil est déjà écrit côté serveur
+  // Handle Discord OAuth callback — signInWithCustomToken déclenche onAuthStateChanged
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const ft = params.get('ft');
@@ -38,56 +38,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const du = params.get('du');
     const da = params.get('da');
 
-    if (ft) {
-      // Affichage immédiat
-      if (du && did) {
-        setUser({
-          uid: `discord_${did}`,
-          discordId: did,
-          discordUsername: du,
-          discordAvatar: da ?? '',
-          displayName: du,
-        });
-      }
+    if (!ft) return;
 
-      signInWithCustomToken(auth, ft)
-        .then(() => {
-          const url = new URL(window.location.href);
-          ['ft', 'did', 'du', 'da', 'auth_error'].forEach(p => url.searchParams.delete(p));
-          window.history.replaceState({}, '', url.toString());
-        })
-        .catch(err => console.error('[Auth] signInWithCustomToken FAILED:', err.code, err.message));
+    // Affichage optimiste immédiat pendant que signInWithCustomToken s'exécute
+    if (du && did) {
+      setUser({
+        uid: `discord_${did}`,
+        discordId: did,
+        discordUsername: du,
+        discordAvatar: da ?? '',
+        displayName: du,
+      });
     }
+
+    signInWithCustomToken(auth, ft)
+      .then(() => {
+        const url = new URL(window.location.href);
+        ['ft', 'did', 'du', 'da', 'auth_error'].forEach(p => url.searchParams.delete(p));
+        window.history.replaceState({}, '', url.toString());
+      })
+      .catch(err => console.error('[Auth] signInWithCustomToken FAILED:', err.code, err.message));
   }, []);
 
-  // Lecture du profil Firestore dans onAuthStateChanged
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (fbUser) => {
+    return onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
 
-      if (fbUser) {
-        try {
-          // Force token refresh pour que Firestore SDK reçoive le token à temps
-          await fbUser.getIdToken();
-
-          const snap = await getDoc(doc(db, 'users', fbUser.uid));
-          if (snap.exists()) {
-            setUser({ uid: fbUser.uid, ...snap.data() } as SpringsUser);
-          }
-          const adminSnap = await getDoc(doc(db, 'admins', fbUser.uid));
-          setIsAdmin(adminSnap.exists());
-        } catch (err) {
-          console.error('[Auth] Firestore read error:', err);
-        }
-      } else {
+      if (!fbUser) {
         setUser(null);
         setIsAdmin(false);
+        setLoading(false);
+        return;
       }
 
+      // Affichage immédiat depuis Firebase Auth — fonctionne même sans Firestore
+      // displayName et photoURL sont mis à jour côté serveur à chaque connexion
+      setUser({
+        uid: fbUser.uid,
+        discordId: fbUser.uid.replace('discord_', ''),
+        discordUsername: fbUser.displayName ?? '',
+        discordAvatar: fbUser.photoURL ?? '',
+        displayName: fbUser.displayName ?? '',
+      });
       setLoading(false);
-    });
 
-    return unsub;
+      // Enrichissement depuis Firestore en arrière-plan (bio, games, rang, etc.)
+      try {
+        await fbUser.getIdToken();
+        const [snap, adminSnap] = await Promise.all([
+          getDoc(doc(db, 'users', fbUser.uid)),
+          getDoc(doc(db, 'admins', fbUser.uid)),
+        ]);
+        if (snap.exists()) {
+          setUser({ uid: fbUser.uid, ...snap.data() } as SpringsUser);
+        }
+        setIsAdmin(adminSnap.exists());
+      } catch (err) {
+        console.error('[Auth] Firestore read error:', err);
+        // L'utilisateur reste connecté grâce aux données Firebase Auth ci-dessus
+      }
+    });
   }, []);
 
   function signInWithDiscord() {
