@@ -67,6 +67,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (fbUser) {
         try {
+          // Force token refresh pour que Firestore SDK reçoive le token à temps
+          await fbUser.getIdToken();
+
           const snap = await getDoc(doc(db, 'users', fbUser.uid));
           if (snap.exists()) {
             setUser({ uid: fbUser.uid, ...snap.data() } as SpringsUser);
