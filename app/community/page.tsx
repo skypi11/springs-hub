@@ -1,25 +1,25 @@
 import Link from 'next/link';
-import { Users, Trophy, Search, ArrowRight, Shield, Star, Clock } from 'lucide-react';
+import { Users, Trophy, Search, ArrowRight, Shield, Star, Clock, UserPlus } from 'lucide-react';
 
 const features = [
   {
     icon: Shield,
     title: 'Gestion de structure',
-    description: 'Roster, membres, sous-équipes, planning — tout au même endroit.',
+    description: 'Roster, membres, sous-équipes, planning — tout au même endroit pour les fondateurs.',
     color: '#7B2FBE',
     soon: false,
   },
   {
     icon: Search,
     title: 'Recrutement',
-    description: 'Trouve des joueurs libres ou mets-toi en disponibilité.',
+    description: 'Trouve des joueurs libres ou mets-toi en disponibilité pour être repéré par une structure.',
     color: '#FFB800',
     soon: true,
   },
   {
     icon: Trophy,
-    title: 'Compétitions',
-    description: 'Inscris ta structure aux compétitions Springs directement.',
+    title: 'Inscriptions',
+    description: 'Inscris ta structure aux compétitions Springs directement depuis ton espace.',
     color: '#22c55e',
     soon: true,
   },
@@ -28,123 +28,140 @@ const features = [
 export default function CommunityPage() {
   return (
     <div className="min-h-screen">
-      {/* Header */}
-      <section className="relative overflow-hidden px-8 pt-14 pb-12">
-        <div className="absolute top-0 right-0 w-[600px] h-[400px] pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse, rgba(123,47,190,0.1) 0%, transparent 65%)' }} />
 
-        <div className="relative max-w-4xl animate-fade-in">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-6 text-xs font-semibold uppercase tracking-wider"
-            style={{ background: 'rgba(123,47,190,0.12)', border: '1px solid rgba(123,47,190,0.25)', color: '#c084fc' }}>
-            <Users size={11} />
+      {/* ─── HEADER ───────────────────────────────────────────────────────── */}
+      <section className="relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-[600px] h-[400px] pointer-events-none"
+          style={{ background: 'radial-gradient(ellipse at 80% 0%, rgba(123,47,190,0.09) 0%, transparent 65%)' }} />
+
+        <div className="relative px-10 pt-14 pb-12 animate-fade-in">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-5 text-xs font-bold uppercase tracking-widest"
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(192,132,252,0.9)' }}>
+            <Users size={10} />
             Communauté
           </div>
-          <h1 className="text-5xl font-black mb-4 leading-tight tracking-tight">
-            <span style={{ color: '#f0f0f8' }}>Espace </span>
-            <span className="gradient-text">Communautaire</span>
+          <h1 className="font-display leading-none mb-2" style={{ fontSize: 'clamp(52px, 6vw, 90px)', color: '#f0f0f8' }}>
+            ESPACE
           </h1>
-          <p className="text-lg max-w-xl leading-relaxed" style={{ color: 'rgba(160,160,192,0.7)' }}>
+          <h1 className="font-display gradient-text leading-none mb-6" style={{ fontSize: 'clamp(52px, 6vw, 90px)' }}>
+            COMMUNAUTAIRE
+          </h1>
+          <p className="text-base max-w-xl leading-relaxed" style={{ color: 'rgba(160,160,192,0.65)' }}>
             La plateforme de gestion pour les structures esport de l&apos;écosystème Springs.
             Rocket League, Trackmania, et plus à venir.
           </p>
         </div>
+
+        <div className="absolute bottom-0 left-0 right-0 h-px"
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent)' }} />
       </section>
 
-      {/* Features */}
-      <section className="px-8 pb-10">
-        <div className="grid grid-cols-3 gap-4 max-w-4xl">
+      {/* ─── FEATURES ─────────────────────────────────────────────────────── */}
+      <section className="px-10 py-8">
+        <div className="grid grid-cols-3 gap-5">
           {features.map(({ icon: Icon, title, description, color, soon }) => (
-            <div key={title} className="rounded-2xl p-5 relative card-hover"
-              style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(123,47,190,0.12)' }}>
+            <div key={title} className="card p-6 relative">
               {soon && (
-                <div className="absolute top-4 right-4 flex items-center gap-1 px-2 py-0.5 rounded-full text-xs"
-                  style={{ background: 'rgba(255,184,0,0.1)', color: '#FFB800', border: '1px solid rgba(255,184,0,0.2)' }}>
-                  <Clock size={10} />
+                <div className="absolute top-5 right-5 flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold"
+                  style={{ background: 'rgba(255,184,0,0.08)', color: '#FFB800', border: '1px solid rgba(255,184,0,0.18)' }}>
+                  <Clock size={9} />
                   Bientôt
                 </div>
               )}
-              <div className="p-2 rounded-xl w-fit mb-4" style={{ background: `${color}12` }}>
+              <div className="p-2.5 rounded-xl w-fit mb-4" style={{ background: `${color}12`, border: `1px solid ${color}20` }}>
                 <Icon size={20} style={{ color }} />
               </div>
-              <h3 className="font-bold mb-2" style={{ color: '#f0f0f8' }}>{title}</h3>
-              <p className="text-sm leading-relaxed" style={{ color: 'rgba(160,160,192,0.6)' }}>{description}</p>
+              <h3 className="font-semibold mb-2" style={{ color: '#f0f0f8' }}>{title}</h3>
+              <p className="text-sm leading-relaxed" style={{ color: 'rgba(160,160,192,0.55)' }}>{description}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Divider */}
-      <div className="px-8 mb-8">
-        <div className="h-px max-w-4xl" style={{ background: 'linear-gradient(90deg, rgba(123,47,190,0.25), transparent)' }} />
-      </div>
+      {/* ─── REJOINDRE ────────────────────────────────────────────────────── */}
+      <section className="px-10 pb-8">
+        <h2 className="font-display mb-6" style={{ fontSize: '2rem', color: '#f0f0f8' }}>
+          REJOINDRE LA COMMUNAUTÉ
+        </h2>
 
-      {/* Créer une structure */}
-      <section className="px-8 pb-10">
-        <div className="max-w-4xl">
-          <h2 className="text-lg font-bold mb-5" style={{ color: '#f0f0f8' }}>Rejoindre la communauté</h2>
-
-          <div className="grid grid-cols-2 gap-4">
-            {/* Créer une structure */}
-            <div className="rounded-2xl p-6"
-              style={{ background: 'linear-gradient(135deg, rgba(123,47,190,0.15), rgba(123,47,190,0.05))', border: '1px solid rgba(123,47,190,0.25)' }}>
-              <div className="flex items-center gap-2 mb-3">
-                <Star size={16} style={{ color: '#FFB800' }} />
-                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: '#FFB800' }}>Fondateur</span>
+        <div className="grid grid-cols-2 gap-5">
+          {/* Fondateur */}
+          <div className="rounded-2xl p-7 relative overflow-hidden"
+            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <div className="absolute right-0 top-0 bottom-0 w-40 pointer-events-none"
+              style={{ background: 'radial-gradient(ellipse at 100% 50%, rgba(255,184,0,0.06) 0%, transparent 70%)' }} />
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 rounded-lg" style={{ background: 'rgba(255,184,0,0.1)' }}>
+                  <Star size={16} style={{ color: '#FFB800' }} />
+                </div>
+                <span className="text-xs font-black uppercase tracking-widest" style={{ color: '#FFB800' }}>Fondateur</span>
               </div>
-              <h3 className="text-lg font-black mb-2" style={{ color: '#f0f0f8' }}>
-                Créer ta structure
+              <h3 className="font-display mb-2" style={{ fontSize: '1.7rem', color: '#f0f0f8', lineHeight: 1.1 }}>
+                CRÉER TA STRUCTURE
               </h3>
-              <p className="text-sm mb-5 leading-relaxed" style={{ color: 'rgba(160,160,192,0.6)' }}>
+              <p className="text-sm mb-6 leading-relaxed" style={{ color: 'rgba(160,160,192,0.55)' }}>
                 Tu gères une orga ou une équipe esport ? Fais une demande à l&apos;équipe Springs pour obtenir les droits fondateur.
               </p>
               <Link href="/community/create-structure"
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 hover:scale-[1.02] w-fit"
-                style={{ background: 'linear-gradient(135deg, #7B2FBE, #9d4fe0)', color: '#fff', boxShadow: '0 4px 20px rgba(123,47,190,0.35)' }}>
-                Faire une demande
-                <ArrowRight size={14} />
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 hover:scale-[1.02] glow-gold"
+                style={{ background: 'linear-gradient(135deg, #FFB800, #cc9400)', color: '#07070f' }}>
+                Faire une demande <ArrowRight size={14} />
               </Link>
             </div>
+          </div>
 
-            {/* Rejoindre */}
-            <div className="rounded-2xl p-6"
-              style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(123,47,190,0.12)' }}>
-              <div className="flex items-center gap-2 mb-3">
-                <Users size={16} style={{ color: '#9d4fe0' }} />
-                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: '#9d4fe0' }}>Joueur</span>
+          {/* Joueur */}
+          <div className="rounded-2xl p-7 relative overflow-hidden"
+            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <div className="absolute right-0 top-0 bottom-0 w-40 pointer-events-none"
+              style={{ background: 'radial-gradient(ellipse at 100% 50%, rgba(123,47,190,0.06) 0%, transparent 70%)' }} />
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 rounded-lg" style={{ background: 'rgba(123,47,190,0.1)' }}>
+                  <UserPlus size={16} style={{ color: '#9d4fe0' }} />
+                </div>
+                <span className="text-xs font-black uppercase tracking-widest" style={{ color: '#9d4fe0' }}>Joueur</span>
               </div>
-              <h3 className="text-lg font-black mb-2" style={{ color: '#f0f0f8' }}>
-                Rejoindre une structure
+              <h3 className="font-display mb-2" style={{ fontSize: '1.7rem', color: '#f0f0f8', lineHeight: 1.1 }}>
+                REJOINDRE UNE STRUCTURE
               </h3>
-              <p className="text-sm mb-5 leading-relaxed" style={{ color: 'rgba(160,160,192,0.6)' }}>
-                Consulte l&apos;annuaire des structures actives et postule à celles qui recrutent.
+              <p className="text-sm mb-6 leading-relaxed" style={{ color: 'rgba(160,160,192,0.55)' }}>
+                Consulte l&apos;annuaire des structures actives et postule à celles qui recrutent des joueurs.
               </p>
               <Link href="/community/structures"
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 hover:scale-[1.02] w-fit"
-                style={{ background: 'rgba(123,47,190,0.12)', color: '#c084fc', border: '1px solid rgba(123,47,190,0.25)' }}>
-                Voir les structures
-                <ArrowRight size={14} />
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 hover:scale-[1.02] glow-violet"
+                style={{ background: 'linear-gradient(135deg, #7B2FBE, #9d4fe0)', color: '#fff' }}>
+                Voir les structures <ArrowRight size={14} />
               </Link>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Annuaire placeholder */}
-      <section className="px-8 pb-16">
-        <div className="max-w-4xl">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-lg font-bold" style={{ color: '#f0f0f8' }}>Structures actives</h2>
+      {/* ─── STRUCTURES ACTIVES ───────────────────────────────────────────── */}
+      <section className="px-10 pb-14">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="font-display" style={{ fontSize: '2rem', color: '#f0f0f8' }}>
+            STRUCTURES ACTIVES
+          </h2>
+        </div>
+
+        <div className="rounded-2xl p-14 text-center"
+          style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.08)' }}>
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <Users size={22} style={{ color: 'rgba(160,160,192,0.35)' }} />
           </div>
-          <div className="rounded-2xl p-12 text-center"
-            style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(123,47,190,0.2)' }}>
-            <Users size={32} className="mx-auto mb-3" style={{ color: 'rgba(123,47,190,0.4)' }} />
-            <p className="font-semibold mb-1" style={{ color: 'rgba(160,160,192,0.5)' }}>Aucune structure pour le moment</p>
-            <p className="text-sm" style={{ color: 'rgba(160,160,192,0.3)' }}>
-              La section communautaire est en cours de construction.
-            </p>
-          </div>
+          <p className="font-semibold mb-1.5" style={{ color: 'rgba(160,160,192,0.45)' }}>
+            Aucune structure pour le moment
+          </p>
+          <p className="text-sm" style={{ color: 'rgba(160,160,192,0.28)' }}>
+            La section communautaire est en cours de construction.
+          </p>
         </div>
       </section>
+
     </div>
   );
 }
