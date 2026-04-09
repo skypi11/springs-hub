@@ -81,38 +81,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function loadUserProfile(fbUser: User): Promise<SpringsUser | null> {
     try {
+      console.log('[Auth] loadUserProfile uid:', fbUser.uid);
       const snap = await getDoc(doc(db, 'users', fbUser.uid));
       if (snap.exists()) {
         return { uid: fbUser.uid, ...snap.data() } as SpringsUser;
       }
       return null;
-    } catch {
+    } catch (err) {
+      console.error('[Auth] loadUserProfile error:', err);
       return null;
     }
   }
 
   async function upsertUserProfile(fbUser: User, discordData: { discordId: string; discordUsername: string; discordAvatar: string }) {
-    const ref = doc(db, 'users', fbUser.uid);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) {
-      await setDoc(ref, {
-        discordId: discordData.discordId,
-        discordUsername: discordData.discordUsername,
-        discordAvatar: discordData.discordAvatar,
-        displayName: discordData.discordUsername,
-        games: [],
-        isFan: false,
-        createdAt: serverTimestamp(),
-      });
-    } else {
-      await setDoc(ref, {
-        discordId: discordData.discordId,
-        discordUsername: discordData.discordUsername,
-        discordAvatar: discordData.discordAvatar,
-      }, { merge: true });
+    try {
+      console.log('[Auth] upsertUserProfile uid:', fbUser.uid);
+      const ref = doc(db, 'users', fbUser.uid);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) {
+        console.log('[Auth] creating new user doc');
+        await setDoc(ref, {
+          discordId: discordData.discordId,
+          discordUsername: discordData.discordUsername,
+          discordAvatar: discordData.discordAvatar,
+          displayName: discordData.discordUsername,
+          games: [],
+          isFan: false,
+          createdAt: serverTimestamp(),
+        });
+      } else {
+        console.log('[Auth] updating existing user doc');
+        await setDoc(ref, {
+          discordId: discordData.discordId,
+          discordUsername: discordData.discordUsername,
+          discordAvatar: discordData.discordAvatar,
+        }, { merge: true });
+      }
+      const updated = await loadUserProfile(fbUser);
+      setUser(updated);
+    } catch (err) {
+      console.error('[Auth] upsertUserProfile error:', err);
     }
-    const updated = await loadUserProfile(fbUser);
-    setUser(updated);
   }
 
   function signInWithDiscord() {
