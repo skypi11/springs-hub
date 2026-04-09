@@ -49,7 +49,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           displayName: du,
         });
       }
+      console.log('[Auth] signInWithCustomToken start, uid will be: discord_' + did);
       signInWithCustomToken(auth, ft).then(async (cred) => {
+        console.log('[Auth] signInWithCustomToken SUCCESS, uid:', cred.user.uid);
         if (did && du) {
           await upsertUserProfile(cred.user, { discordId: did, discordUsername: du, discordAvatar: da || '' });
         }
@@ -57,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const url = new URL(window.location.href);
         ['ft', 'did', 'du', 'da', 'auth_error'].forEach(p => url.searchParams.delete(p));
         window.history.replaceState({}, '', url.toString());
-      }).catch(console.error);
+      }).catch(err => console.error('[Auth] signInWithCustomToken FAILED:', err.code, err.message));
     }
   }, []);
 
