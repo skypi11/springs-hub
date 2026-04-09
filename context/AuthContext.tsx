@@ -39,6 +39,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const da = params.get('da');
 
     if (ft) {
+      // Set a basic user immediately so the UI reacts without waiting for Firestore
+      if (du) {
+        setUser({
+          uid: `discord_${did}`,
+          discordId: did ?? '',
+          discordUsername: du,
+          discordAvatar: da ?? '',
+          displayName: du,
+        });
+      }
       signInWithCustomToken(auth, ft).then(async (cred) => {
         if (did && du) {
           await upsertUserProfile(cred.user, { discordId: did, discordUsername: du, discordAvatar: da || '' });
