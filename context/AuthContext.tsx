@@ -66,6 +66,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
       if (fbUser) {
+        try {
+          await fbUser.getIdToken(true); // force token refresh before Firestore calls
+        } catch (e) {
+          console.error('[Auth] token refresh failed:', e);
+        }
         const profile = await loadUserProfile(fbUser);
         setUser(profile);
         const adminSnap = await getDoc(doc(db, 'admins', fbUser.uid));
