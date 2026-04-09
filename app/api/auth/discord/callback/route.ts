@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 
 function initAdmin() {
   if (!getApps().length) {
@@ -12,7 +13,6 @@ function initAdmin() {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const code = searchParams.get('code');
-  const state = searchParams.get('state') ?? 'hub';
   const origin = req.nextUrl.origin;
 
   if (!code) {
@@ -63,6 +63,29 @@ export async function GET(req: NextRequest) {
       discordUsername: discordUser.username,
     });
 
+    // Write user profile server-side (Admin SDK — bypass security rules)
+    const db = getFirestore();
+    const userRef = db.collection('users').doc(uid);
+    const userSnap = await userRef.get();
+
+    if (!userSnap.exists) {
+      await userRef.set({
+        discordId: discordUser.id,
+        discordUsername: discordUser.username,
+        discordAvatar: avatarUrl,
+        displayName: discordUser.username,
+        games: [],
+        isFan: false,
+        createdAt: new Date(),
+      });
+    } else {
+      await userRef.update({
+        discordId: discordUser.id,
+        discordUsername: discordUser.username,
+        discordAvatar: avatarUrl,
+      });
+    }
+
     // Redirect back to app with token
     const params = new URLSearchParams({
       ft: firebaseToken,
@@ -71,7 +94,6 @@ export async function GET(req: NextRequest) {
       da: avatarUrl,
     });
 
-    // state = 'hub' → accueil, other states can redirect elsewhere later
     return NextResponse.redirect(`${origin}/?${params.toString()}`);
   } catch (err) {
     console.error('Discord auth error:', err);

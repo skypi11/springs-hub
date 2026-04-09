@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, signInWithCustomToken, signOut as firebaseSignOut, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import type { SpringsUser } from '@/types';
 
@@ -30,8 +30,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Handle Discord OAuth callback — signInWithCustomToken uniquement
-  // Toutes les opérations Firestore sont dans onAuthStateChanged
+  // Handle Discord OAuth callback — le profil est déjà écrit côté serveur
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const ft = params.get('ft');
@@ -40,7 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const da = params.get('da');
 
     if (ft) {
-      // Affichage immédiat pendant que Firebase Auth traite
+      // Affichage immédiat
       if (du && did) {
         setUser({
           uid: `discord_${did}`,
@@ -53,7 +52,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       signInWithCustomToken(auth, ft)
         .then(() => {
-          // Nettoyer l'URL — Firestore sera géré par onAuthStateChanged
           const url = new URL(window.location.href);
           ['ft', 'did', 'du', 'da', 'auth_error'].forEach(p => url.searchParams.delete(p));
           window.history.replaceState({}, '', url.toString());
@@ -62,28 +60,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Toutes les opérations Firestore ici — Firebase garantit que le token est prêt
+  // Lecture du profil Firestore dans onAuthStateChanged
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
 
       if (fbUser) {
-        // Récupérer les params Discord depuis l'URL si présents (login en cours)
-        const params = new URLSearchParams(window.location.search);
-        const did = params.get('did');
-        const du = params.get('du');
-        const da = params.get('da');
-        const isFreshLogin = !!params.get('ft');
-
-        if (isFreshLogin && did && du) {
-          await upsertUserProfile(fbUser, { discordId: did, discordUsername: du, discordAvatar: da || '' });
-        } else {
-          const profile = await loadUserProfile(fbUser);
-          setUser(profile);
+        try {
+          const snap = await getDoc(doc(db, 'users', fbUser.uid));
+          if (snap.exists()) {
+            setUser({ uid: fbUser.uid, ...snap.data() } as SpringsUser);
+          }
+          const adminSnap = await getDoc(doc(db, 'admins', fbUser.uid));
+          setIsAdmin(adminSnap.exists());
+        } catch (err) {
+          console.error('[Auth] Firestore read error:', err);
         }
-
-        const adminSnap = await getDoc(doc(db, 'admins', fbUser.uid));
-        setIsAdmin(adminSnap.exists());
       } else {
         setUser(null);
         setIsAdmin(false);
@@ -94,45 +86,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return unsub;
   }, []);
-
-  async function loadUserProfile(fbUser: User): Promise<SpringsUser | null> {
-    try {
-      const snap = await getDoc(doc(db, 'users', fbUser.uid));
-      if (snap.exists()) return { uid: fbUser.uid, ...snap.data() } as SpringsUser;
-      return null;
-    } catch (err) {
-      console.error('[Auth] loadUserProfile error:', err);
-      return null;
-    }
-  }
-
-  async function upsertUserProfile(fbUser: User, discordData: { discordId: string; discordUsername: string; discordAvatar: string }) {
-    try {
-      const ref = doc(db, 'users', fbUser.uid);
-      const snap = await getDoc(ref);
-      if (!snap.exists()) {
-        await setDoc(ref, {
-          discordId: discordData.discordId,
-          discordUsername: discordData.discordUsername,
-          discordAvatar: discordData.discordAvatar,
-          displayName: discordData.discordUsername,
-          games: [],
-          isFan: false,
-          createdAt: serverTimestamp(),
-        });
-      } else {
-        await setDoc(ref, {
-          discordId: discordData.discordId,
-          discordUsername: discordData.discordUsername,
-          discordAvatar: discordData.discordAvatar,
-        }, { merge: true });
-      }
-      const updated = await loadUserProfile(fbUser);
-      setUser(updated);
-    } catch (err) {
-      console.error('[Auth] upsertUserProfile error:', err);
-    }
-  }
 
   function signInWithDiscord() {
     const clientId = '1483592495215673407';
