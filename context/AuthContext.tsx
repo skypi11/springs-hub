@@ -106,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   function signInWithDiscord() {
-    const clientId = process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID;
+    const clientId = '1483592495215673407';
     const redirectUri = encodeURIComponent(`${window.location.origin}/api/auth/discord/callback`);
     const state = 'hub';
     window.location.href = `https://discord.com/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify&state=${state}`;
