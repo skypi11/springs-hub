@@ -23,12 +23,23 @@ Remplace progressivement le site actuel (`site cup monthly` / `springs-esport.ve
 - **Hébergement** : Vercel → `springs-hub.vercel.app` (URL dev)
 - **Repo GitHub** : `skypi11/springs-hub`
 - **Domaine final** : custom à venir (~10-15€/an sur Namecheap ou Porkbun)
+- **Polices** : Outfit (corps) + Bebas Neue (titres display, via `font-display` CSS)
 
 ### Firebase config (projet existant `monthly-cup`)
-Réutiliser les credentials Firebase du projet `site cup monthly`.
-- Auth Discord : flow existant via `/api/discord-callback` (à adapter pour Next.js)
 - UID Discord : `discord_SNOWFLAKE`
 - UID Admin : Google UID (collection `admins`)
+- `experimentalAutoDetectLongPolling: true` sur Firestore (WebSocket + fallback long-polling)
+
+### Auth Discord — flow déployé et fonctionnel
+1. Client → `signInWithDiscord()` → redirect Discord OAuth
+2. Discord → `/api/auth/discord/callback` (serveur)
+3. Serveur : échange code → token Discord → infos utilisateur
+4. Serveur : `createUser`/`updateUser` Firebase Auth (displayName + photoURL)
+5. Serveur : `set`/`update` Firestore collection `users` (Admin SDK, bypass rules)
+6. Serveur : `createCustomToken` → redirect `/?ft=TOKEN&did=...&du=...&da=...`
+7. Client : `signInWithCustomToken` → `onAuthStateChanged` → affichage immédiat depuis `fbUser`
+8. Client : Firestore enrichit le profil en arrière-plan (bio, games, etc.)
+- **Refresh** : fonctionne — `fbUser.displayName`/`photoURL` disponibles depuis localStorage sans Firestore
 
 ---
 
@@ -49,16 +60,24 @@ Réutiliser les credentials Firebase du projet `site cup monthly`.
 
 ### Style visuel
 - Dark gaming premium (références : Faceit, Battlefy, Elite Gamers Arena)
-- **Layout sidebar fixe** à gauche + contenu principal à droite
-- Effets de glow/lumière violet sur les éléments actifs
-- Typographie : bold uppercase pour les titres, Inter ou Outfit
+- **Layout sidebar fixe** (260px) à gauche + contenu principal **pleine largeur** à droite (pas de max-w contrainte)
+- Violet utilisé avec **parcimonie** : uniquement pour CTAs actifs, bordures d'accent, glows sur éléments interactifs
+- Borders des cards : `rgba(255,255,255,0.07)` neutre (pas violet)
+- Glows de fond : opacité max 0.09–0.10 (très subtils)
+- Bebas Neue pour tous les titres (`font-display`), Outfit pour le texte courant
 - Animations subtiles, transitions fluides
-- Cards avec bordures violet subtiles et hover glow
 
 ### Logo
-Fichier : `assets/springs-logo.png` (copié depuis site actuel)
+Fichier : `public/springs-logo.png`
 - Blanc + or + violet sur fond noir
-- À afficher en haut de la sidebar
+- Affiché en haut de la sidebar (120×36px)
+
+### Fichiers clés
+- `lib/firebase.ts` — init Firebase client (Firestore + Auth)
+- `context/AuthContext.tsx` — auth global (Discord OAuth + état utilisateur)
+- `app/api/auth/discord/callback/route.ts` — callback OAuth serveur (Admin SDK)
+- `components/layout/Sidebar.tsx` — sidebar fixe avec nav + profil
+- `firestore.rules` — règles Firestore complètes (copier-coller dans Firebase Console)
 
 ---
 
@@ -283,11 +302,13 @@ Fichier : `assets/springs-logo.png` (copié depuis site actuel)
 ## Phases de développement
 
 ### Phase 1 — Fondations (3 semaines)
-- [ ] Setup Next.js + Tailwind + Firebase
-- [ ] Layout global : sidebar fixe, navigation, design système Springs
-- [ ] Auth Discord + Google
-- [ ] Page profil utilisateur (création/édition)
-- [ ] Deploy Vercel
+- [x] Setup Next.js + Tailwind + Firebase
+- [x] Layout global : sidebar fixe, navigation, design système Springs (Bebas Neue)
+- [x] Auth Discord fonctionnelle (login + persistance refresh + photo profil)
+- [x] Pages : Accueil, Communauté (placeholder), Compétitions (liens vers ancien site)
+- [x] Deploy Vercel — `springs-hub.vercel.app`
+- [x] Règles Firestore complètes — fichier `firestore.rules` à la racine du repo
+- [ ] Page profil utilisateur (création/édition) ← PROCHAINE ÉTAPE
 
 ### Phase 2 — Communauté (4 semaines)
 - [ ] Demande de création de structure + validation admin
