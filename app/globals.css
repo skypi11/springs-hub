@@ -1,26 +1,146 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* Springs Brand Colors */
+  --color-springs-violet: #7B2FBE;
+  --color-springs-violet-dark: #5a1f8e;
+  --color-springs-violet-light: #9d4fe0;
+  --color-springs-violet-glow: rgba(123, 47, 190, 0.35);
+  --color-springs-gold: #FFB800;
+  --color-springs-gold-dark: #cc9400;
+
+  /* Backgrounds */
+  --color-bg-base: #07070f;
+  --color-bg-surface: #0d0d1a;
+  --color-bg-card: #111124;
+  --color-bg-elevated: #171730;
+  --color-bg-hover: #1c1c38;
+
+  /* Text */
+  --color-text-primary: #f0f0f8;
+  --color-text-secondary: #a0a0c0;
+  --color-text-muted: #606080;
+
+  /* Borders */
+  --color-border: rgba(123, 47, 190, 0.18);
+  --color-border-hover: rgba(123, 47, 190, 0.4);
+
+  /* Status */
+  --color-success: #22c55e;
+  --color-warning: #FFB800;
+  --color-danger: #ef4444;
+
+  /* Fonts */
+  --font-sans: var(--font-outfit);
+  --font-display: var(--font-outfit);
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  height: 100%;
+  background-color: #07070f;
+  color: #f0f0f8;
+  font-family: var(--font-outfit), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(123, 47, 190, 0.3);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(123, 47, 190, 0.6);
+}
+
+/* Glow utilities */
+.glow-violet {
+  box-shadow: 0 0 24px rgba(123, 47, 190, 0.4), 0 0 60px rgba(123, 47, 190, 0.15);
+}
+.glow-violet-sm {
+  box-shadow: 0 0 12px rgba(123, 47, 190, 0.3);
+}
+.glow-gold {
+  box-shadow: 0 0 20px rgba(255, 184, 0, 0.35);
+}
+.text-glow-violet {
+  text-shadow: 0 0 20px rgba(123, 47, 190, 0.6), 0 0 40px rgba(123, 47, 190, 0.3);
+}
+.text-glow-gold {
+  text-shadow: 0 0 20px rgba(255, 184, 0, 0.5);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #fff 0%, #c084fc 50%, #FFB800 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.gradient-text-violet {
+  background: linear-gradient(135deg, #c084fc 0%, #7B2FBE 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Animated gradient bg */
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Ambient glow orb */
+.orb-violet {
+  background: radial-gradient(circle, rgba(123, 47, 190, 0.25) 0%, transparent 70%);
+}
+.orb-gold {
+  background: radial-gradient(circle, rgba(255, 184, 0, 0.15) 0%, transparent 70%);
+}
+
+/* Card hover effect */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(123, 47, 190, 0.25);
+  border-color: rgba(123, 47, 190, 0.4);
+}
+
+/* Fade in animation */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fade-in 0.4s ease forwards;
+}
+
+/* Pulse glow */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 12px rgba(123, 47, 190, 0.3); }
+  50% { box-shadow: 0 0 24px rgba(123, 47, 190, 0.6), 0 0 48px rgba(123, 47, 190, 0.2); }
+}
+.animate-pulse-glow {
+  animation: pulse-glow 2.5s ease-in-out infinite;
 }
