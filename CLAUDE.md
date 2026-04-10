@@ -335,6 +335,48 @@ Fichier : `public/springs-logo.png`
 
 ---
 
+## Bonnes pratiques Firebase — lectures Firestore
+
+### Règle principale : ne jamais poller
+**Interdit** : `setInterval(() => getDocs(...), N)` — lit toute la collection N fois par heure pour rien.
+
+### Chargement initial
+`getDocs` ou `onSnapshot` une seule fois par session utilisateur.
+
+### Mises à jour en temps réel
+Utiliser `onSnapshot` sur les collections qui changent en cours d'usage :
+```typescript
+let first = true;
+onSnapshot(query(collection(db, 'ma_collection'), where(...)), snap => {
+  if (first) { first = false; return; } // skip initial fire (déjà chargé)
+  // mettre à jour le state et re-rendre
+});
+```
+- Le premier fire est ignoré (correspond au chargement initial déjà fait)
+- Les fires suivants = changements réels → coût = seulement les documents modifiés
+
+### Après une écriture (action utilisateur ou admin)
+Appeler `reloadData()` immédiatement après le `addDoc`/`updateDoc`/`deleteDoc` :
+- La personne qui fait l'action voit le résultat de suite (sans attendre onSnapshot)
+- Les autres visiteurs le voient via onSnapshot quelques secondes après
+
+### Debounce si plusieurs collections
+Si plusieurs onSnapshot peuvent se déclencher en même temps :
+```typescript
+let _timer: ReturnType<typeof setTimeout> | null = null;
+function scheduleReload() {
+  if (_timer) clearTimeout(_timer);
+  _timer = setTimeout(loadData, 500);
+}
+```
+
+### Coût réel
+- `onSnapshot` initial : même coût qu'un `getDocs` (1 lecture par document)
+- `onSnapshot` update : seulement les documents modifiés
+- `getDocs` après écriture : 1 lecture par document (inévitable, justifié)
+
+---
+
 ## Conventions de code
 
 - **Next.js App Router** — pas de `pages/`, tout dans `app/`
