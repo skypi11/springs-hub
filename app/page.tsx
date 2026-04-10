@@ -11,6 +11,8 @@ const activeComps = [
     date: 'Saison 2026',
     tag: 'RL',
     tagColor: '#0081FF',
+    bgFrom: '#001f4d',
+    bgTo: '#000d1a',
     href: 'https://springs-esport.vercel.app/rocket-league/',
     description: 'Ligue compétitive 3v3. Round-robin par poule, top 8 qualifiés pour la LAN finale.',
   },
@@ -23,6 +25,8 @@ const activeComps = [
     date: 'Chaque mois',
     tag: 'TM',
     tagColor: '#00D936',
+    bgFrom: '#003311',
+    bgTo: '#000d05',
     href: 'https://springs-esport.vercel.app/trackmania/cup.html?cup=monthly',
     description: 'Compétition mensuelle solo sur les maps officielles Springs.',
   },
@@ -35,7 +39,7 @@ export default function HomePage() {
       {/* ─── HERO ─────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden" style={{ minHeight: '400px' }}>
         <div className="absolute top-0 right-0 w-[800px] h-[500px] pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse at 80% 0%, rgba(123,47,190,0.1) 0%, transparent 65%)' }} />
+          style={{ background: 'radial-gradient(ellipse at 80% 0%, rgba(255,184,0,0.06) 0%, transparent 65%)' }} />
         <div className="absolute bottom-0 left-0 w-[400px] h-[300px] pointer-events-none"
           style={{ background: 'radial-gradient(ellipse at 0% 100%, rgba(255,184,0,0.04) 0%, transparent 65%)' }} />
 
@@ -43,7 +47,7 @@ export default function HomePage() {
           {/* Left */}
           <div className="flex-1 animate-fade-in">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-5 text-xs font-semibold uppercase tracking-widest"
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(192,132,252,0.9)' }}>
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(240,240,248,0.6)' }}>
               <Zap size={10} />
               Hub Communautaire
             </div>
@@ -63,8 +67,8 @@ export default function HomePage() {
 
             <div className="flex items-center gap-4 flex-wrap">
               <Link href="/community"
-                className="inline-flex items-center gap-2.5 px-7 py-3.5 rounded-xl font-bold text-sm transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] glow-violet"
-                style={{ background: 'linear-gradient(135deg, #7B2FBE, #9d4fe0)', color: '#fff' }}>
+                className="inline-flex items-center gap-2.5 px-7 py-3.5 rounded-xl font-bold text-sm transition-all duration-200 hover:scale-[1.03] active:scale-[0.98]"
+                style={{ background: '#ffffff', color: '#07070f', boxShadow: '0 4px 20px rgba(255,255,255,0.15)' }}>
                 Rejoindre la communauté
                 <ArrowRight size={15} />
               </Link>
@@ -81,7 +85,7 @@ export default function HomePage() {
           <div className="w-[320px] flex-shrink-0 animate-fade-in-delay hidden lg:block">
             <div className="rounded-2xl overflow-hidden"
               style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
-              <div className="h-0.5" style={{ background: 'linear-gradient(90deg, #7B2FBE, #FFB800)' }} />
+              <div className="h-0.5" style={{ background: 'linear-gradient(90deg, #0081FF, #00D936)' }} />
               <div className="p-5">
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'rgba(160,160,192,0.45)' }}>
@@ -101,13 +105,13 @@ export default function HomePage() {
                         style={{ background: `${comp.tagColor}18`, color: comp.tagColor }}>
                         {comp.tag}
                       </span>
-                      <span className="text-sm font-semibold group-hover:text-purple-300 transition-colors truncate" style={{ color: '#f0f0f8' }}>
+                      <span className="text-sm font-semibold truncate" style={{ color: '#f0f0f8' }}>
                         {comp.name.replace('\n', ' ')}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs" style={{ color: 'rgba(160,160,192,0.4)' }}>{comp.game}</span>
-                      <span className="text-xs font-medium flex items-center gap-1" style={{ color: '#9d4fe0' }}>
+                      <span className="text-xs font-medium flex items-center gap-1" style={{ color: 'rgba(160,160,192,0.5)' }}>
                         Voir <ArrowRight size={10} />
                       </span>
                     </div>
@@ -132,7 +136,7 @@ export default function HomePage() {
         <div className="grid grid-cols-3 gap-5">
           {[
             { label: 'Compétitions actives', value: '2', sub: 'Rocket League + Trackmania', icon: Trophy, color: '#FFB800' },
-            { label: 'Structures', value: 'Bientôt', sub: 'Fonctionnalité en développement', icon: Shield, color: '#7B2FBE' },
+            { label: 'Structures', value: 'Bientôt', sub: 'Fonctionnalité en développement', icon: Shield, color: '#f0f0f8' },
             { label: 'Joueurs inscrits', value: 'Bientôt', sub: 'Annuaire en développement', icon: Gamepad2, color: '#22c55e' },
           ].map(({ label, value, sub, icon: Icon, color }) => (
             <div key={label} className="card p-6">
@@ -159,7 +163,7 @@ export default function HomePage() {
             </p>
           </div>
           <Link href="/competitions" className="flex items-center gap-1.5 text-sm font-semibold mb-1 hover:opacity-80 transition-opacity"
-            style={{ color: '#9d4fe0' }}>
+            style={{ color: 'rgba(160,160,192,0.6)' }}>
             Tout voir <ChevronRight size={15} />
           </Link>
         </div>
@@ -168,10 +172,22 @@ export default function HomePage() {
           {activeComps.map((comp) => (
             <a key={comp.id} href={comp.href} target="_blank" rel="noopener noreferrer"
               className="group block card overflow-hidden">
-              <div className="p-7">
-                <div className="flex items-center justify-between mb-6">
-                  <span className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider"
-                    style={{ background: `${comp.tagColor}15`, color: comp.tagColor, border: `1px solid ${comp.tagColor}28` }}>
+
+              {/* Visual header */}
+              <div className="h-28 relative overflow-hidden"
+                style={{ background: `linear-gradient(135deg, ${comp.bgFrom} 0%, ${comp.bgTo} 100%)` }}>
+                {/* Watermark */}
+                <span className="absolute -bottom-3 right-3 font-display select-none pointer-events-none"
+                  style={{ fontSize: '6.5rem', color: comp.tagColor, opacity: 0.10, lineHeight: 1 }}>
+                  {comp.tag}
+                </span>
+                {/* Glow */}
+                <div className="absolute inset-0 pointer-events-none"
+                  style={{ background: `radial-gradient(ellipse at 20% 50%, ${comp.tagColor}18 0%, transparent 70%)` }} />
+                {/* Top row */}
+                <div className="absolute top-4 left-5 right-5 flex items-center justify-between">
+                  <span className="px-2.5 py-1 rounded-lg text-xs font-black"
+                    style={{ background: `${comp.tagColor}25`, color: comp.tagColor, border: `1px solid ${comp.tagColor}35` }}>
                     {comp.tag} — {comp.game}
                   </span>
                   <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: comp.statusColor }}>
@@ -179,22 +195,27 @@ export default function HomePage() {
                     {comp.status}
                   </span>
                 </div>
-                <h3 className="font-display mb-3 group-hover:text-purple-300 transition-colors"
-                  style={{ fontSize: '1.9rem', color: '#f0f0f8', lineHeight: 1.1, whiteSpace: 'pre-line' }}>
+              </div>
+
+              {/* Content */}
+              <div className="p-6">
+                <h3 className="font-display mb-2 transition-colors"
+                  style={{ fontSize: '1.8rem', color: '#f0f0f8', lineHeight: 1.1, whiteSpace: 'pre-line' }}>
                   {comp.name}
                 </h3>
-                <p className="text-sm mb-6 leading-relaxed" style={{ color: 'rgba(160,160,192,0.5)' }}>{comp.description}</p>
+                <p className="text-sm mb-5 leading-relaxed" style={{ color: 'rgba(160,160,192,0.5)' }}>{comp.description}</p>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs" style={{ color: 'rgba(160,160,192,0.35)' }}>
                     <Calendar size={11} />
                     {comp.date}
                   </div>
                   <div className="flex items-center gap-1.5 text-sm font-bold transition-all group-hover:gap-2.5"
-                    style={{ color: '#9d4fe0' }}>
+                    style={{ color: comp.tagColor }}>
                     Voir <ArrowRight size={13} />
                   </div>
                 </div>
               </div>
+
               <div className="h-0.5 w-0 group-hover:w-full transition-all duration-500"
                 style={{ background: `linear-gradient(90deg, ${comp.tagColor}, transparent)` }} />
             </a>
@@ -207,7 +228,7 @@ export default function HomePage() {
         <div className="rounded-2xl relative overflow-hidden"
           style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}>
           <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
-            style={{ background: 'linear-gradient(180deg, #7B2FBE, #FFB800)' }} />
+            style={{ background: 'linear-gradient(180deg, #FFB800, rgba(255,184,0,0.3))' }} />
           <div className="absolute right-0 top-0 bottom-0 w-[400px] pointer-events-none"
             style={{ background: 'radial-gradient(ellipse at 100% 50%, rgba(255,184,0,0.05) 0%, transparent 65%)' }} />
 

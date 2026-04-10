@@ -20,7 +20,7 @@ export default function Sidebar() {
     <aside className="fixed left-0 top-0 h-screen w-[260px] flex flex-col z-50"
       style={{
         background: 'linear-gradient(180deg, #0a0a1a 0%, #08081500 100%), #09091a',
-        borderRight: '1px solid rgba(123, 47, 190, 0.15)',
+        borderRight: '1px solid rgba(255,255,255,0.06)',
       }}>
 
       {/* Logo */}
@@ -38,7 +38,7 @@ export default function Sidebar() {
       </div>
 
       {/* Separator */}
-      <div className="mx-4 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(123,47,190,0.4), transparent)' }} />
+      <div className="mx-4 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)' }} />
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
@@ -110,20 +110,20 @@ export default function Sidebar() {
 
       {/* Bottom: user */}
       <div className="p-4">
-        <div className="h-px mb-4" style={{ background: 'linear-gradient(90deg, transparent, rgba(123,47,190,0.3), transparent)' }} />
+        <div className="h-px mb-4" style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent)' }} />
 
         {loading ? (
           <div className="flex items-center gap-3 px-3 py-2">
-            <div className="w-9 h-9 rounded-full animate-pulse" style={{ background: 'rgba(123,47,190,0.2)' }} />
+            <div className="w-9 h-9 rounded-full animate-pulse" style={{ background: 'rgba(255,255,255,0.08)' }} />
             <div className="flex-1 space-y-1.5">
-              <div className="h-2.5 rounded-full animate-pulse" style={{ background: 'rgba(123,47,190,0.15)', width: '70%' }} />
-              <div className="h-2 rounded-full animate-pulse" style={{ background: 'rgba(123,47,190,0.1)', width: '50%' }} />
+              <div className="h-2.5 rounded-full animate-pulse" style={{ background: 'rgba(255,255,255,0.07)', width: '70%' }} />
+              <div className="h-2 rounded-full animate-pulse" style={{ background: 'rgba(255,255,255,0.05)', width: '50%' }} />
             </div>
           </div>
         ) : user ? (
           <div className="group">
             <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200"
-              style={{ background: 'rgba(123,47,190,0.08)', border: '1px solid rgba(123,47,190,0.15)' }}>
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
               {user.discordAvatar ? (
                 <Image
                   src={user.discordAvatar}
@@ -131,7 +131,7 @@ export default function Sidebar() {
                   width={36}
                   height={36}
                   className="rounded-full flex-shrink-0"
-                  style={{ border: '2px solid rgba(123,47,190,0.5)' }}
+                  style={{ border: '2px solid rgba(255,255,255,0.15)' }}
                 />
               ) : (
                 <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold"

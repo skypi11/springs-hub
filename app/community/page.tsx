@@ -36,7 +36,7 @@ export default function CommunityPage() {
 
         <div className="relative px-10 pt-14 pb-12 animate-fade-in">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-5 text-xs font-bold uppercase tracking-widest"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(192,132,252,0.9)' }}>
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(240,240,248,0.6)' }}>
             <Users size={10} />
             Communauté
           </div>
@@ -118,10 +118,10 @@ export default function CommunityPage() {
               style={{ background: 'radial-gradient(ellipse at 100% 50%, rgba(123,47,190,0.06) 0%, transparent 70%)' }} />
             <div className="relative">
               <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 rounded-lg" style={{ background: 'rgba(123,47,190,0.1)' }}>
-                  <UserPlus size={16} style={{ color: '#9d4fe0' }} />
+                <div className="p-2 rounded-lg" style={{ background: 'rgba(255,255,255,0.07)' }}>
+                  <UserPlus size={16} style={{ color: 'rgba(240,240,248,0.7)' }} />
                 </div>
-                <span className="text-xs font-black uppercase tracking-widest" style={{ color: '#9d4fe0' }}>Joueur</span>
+                <span className="text-xs font-black uppercase tracking-widest" style={{ color: 'rgba(240,240,248,0.7)' }}>Joueur</span>
               </div>
               <h3 className="font-display mb-2" style={{ fontSize: '1.7rem', color: '#f0f0f8', lineHeight: 1.1 }}>
                 REJOINDRE UNE STRUCTURE
@@ -130,8 +130,8 @@ export default function CommunityPage() {
                 Consulte l&apos;annuaire des structures actives et postule à celles qui recrutent des joueurs.
               </p>
               <Link href="/community/structures"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 hover:scale-[1.02] glow-violet"
-                style={{ background: 'linear-gradient(135deg, #7B2FBE, #9d4fe0)', color: '#fff' }}>
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 hover:scale-[1.02]"
+                style={{ background: '#ffffff', color: '#07070f', boxShadow: '0 4px 16px rgba(255,255,255,0.12)' }}>
                 Voir les structures <ArrowRight size={14} />
               </Link>
             </div>

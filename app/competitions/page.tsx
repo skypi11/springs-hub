@@ -143,8 +143,8 @@ export default function CompetitionsPage() {
                 {/* CTA */}
                 <div className="flex-shrink-0 flex flex-col items-end justify-between h-full gap-4">
                   <a href={comp.href} target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all duration-200 hover:scale-[1.03] glow-violet whitespace-nowrap"
-                    style={{ background: 'linear-gradient(135deg, #7B2FBE, #9d4fe0)', color: '#fff' }}>
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all duration-200 hover:scale-[1.03] whitespace-nowrap"
+                    style={{ background: '#ffffff', color: '#07070f', boxShadow: '0 4px 16px rgba(255,255,255,0.1)' }}>
                     Voir la compétition
                     <ExternalLink size={13} />
                   </a>
