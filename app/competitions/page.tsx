@@ -14,6 +14,9 @@ const competitions = [
     format: 'Ligue · 2 Poules · Round Robin · BO7',
     teams: 32,
     prize: '1 600€',
+    bgFrom: '#001f4d',
+    bgMid: '#000d2a',
+    bgTo: '#07070f',
     href: 'https://springs-esport.vercel.app/rocket-league/',
     description: '32 équipes réparties en 2 poules. Top 8 de chaque poule qualifié pour la LAN finale. Format 3v3.',
   },
@@ -30,6 +33,9 @@ const competitions = [
     format: 'Cup · Solo · Qualifications + Finale',
     teams: null,
     prize: null,
+    bgFrom: '#003311',
+    bgMid: '#001a09',
+    bgTo: '#07070f',
     href: 'https://springs-esport.vercel.app/trackmania/cup.html?cup=monthly',
     description: 'Compétition mensuelle en solo. Qualifications sur plusieurs maps officielles Springs puis finale.',
   },
@@ -40,13 +46,23 @@ export default function CompetitionsPage() {
     <div className="min-h-screen">
 
       {/* ─── HEADER ───────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-[600px] h-[400px] pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse at 80% 0%, rgba(255,184,0,0.07) 0%, transparent 65%)' }} />
+      <section className="relative overflow-hidden section-cut">
 
-        <div className="relative px-10 pt-14 pb-12 animate-fade-in">
+        {/* Lighting */}
+        <div className="absolute top-0 left-[30%] w-[500px] h-[300px] pointer-events-none"
+          style={{ background: 'radial-gradient(ellipse at center, rgba(255,184,0,0.05) 0%, transparent 70%)' }} />
+
+        {/* Geometric decorations */}
+        <svg className="absolute -top-10 -right-10 w-[280px] h-[280px] opacity-[0.04] animate-float" viewBox="0 0 200 200">
+          <polygon points="100,5 195,52 195,148 100,195 5,148 5,52" fill="none" stroke="#FFB800" strokeWidth="0.6"/>
+          <polygon points="100,25 175,62 175,138 100,175 25,138 25,62" fill="none" stroke="#FFB800" strokeWidth="0.3"/>
+        </svg>
+        <div className="geo-accent cross absolute top-[25%] right-[20%] w-4 h-4" />
+        <div className="geo-accent cross absolute top-[55%] right-[30%] w-3 h-3" />
+
+        <div className="relative px-10 pt-16 pb-20 animate-fade-in">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-5 text-xs font-bold uppercase tracking-widest"
-            style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.18)', color: '#FFB800' }}>
+            style={{ background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.15)', color: '#FFB800' }}>
             <Trophy size={10} />
             Compétitions
           </div>
@@ -61,9 +77,6 @@ export default function CompetitionsPage() {
             Rocket League, Trackmania, et plus à venir.
           </p>
         </div>
-
-        <div className="absolute bottom-0 left-0 right-0 h-px"
-          style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent)' }} />
       </section>
 
       {/* ─── FILTRES ──────────────────────────────────────────────────────── */}
@@ -84,29 +97,54 @@ export default function CompetitionsPage() {
       </section>
 
       {/* ─── LISTE ────────────────────────────────────────────────────────── */}
-      <section className="px-10 pb-14 space-y-5">
+      <section className="px-10 pb-16 space-y-6">
         {competitions.map((comp) => (
-          <div key={comp.id} className="card overflow-hidden">
-            {/* Accent bar top */}
-            <div className="h-0.5" style={{ background: `linear-gradient(90deg, ${comp.gameColor}, transparent 50%)` }} />
+          <div key={comp.id} className="rounded-2xl overflow-hidden border transition-all duration-300"
+            style={{ borderColor: 'rgba(255,255,255,0.07)', background: '#07070f' }}>
 
-            <div className="p-8">
+            {/* Visual header */}
+            <div className="h-32 relative overflow-hidden"
+              style={{ background: `linear-gradient(160deg, ${comp.bgFrom} 0%, ${comp.bgMid} 50%, ${comp.bgTo} 100%)` }}>
+
+              {/* Hex decorations */}
+              <svg className="absolute -top-4 -right-4 w-[140px] h-[140px] opacity-[0.07]" viewBox="0 0 200 200">
+                <polygon points="100,5 195,52 195,148 100,195 5,148 5,52" fill="none" stroke={comp.gameColor} strokeWidth="1.2"/>
+              </svg>
+              <svg className="absolute bottom-2 left-[30%] w-[70px] h-[70px] opacity-[0.04]" viewBox="0 0 200 200">
+                <polygon points="100,5 195,52 195,148 100,195 5,148 5,52" fill="none" stroke="white" strokeWidth="1"/>
+              </svg>
+
+              {/* Colored beam */}
+              <div className="absolute inset-0 pointer-events-none"
+                style={{ background: `radial-gradient(ellipse at 10% 80%, ${comp.gameColor}25 0%, transparent 55%)` }} />
+
+              {/* Watermark */}
+              <span className="absolute -bottom-3 right-6 font-display select-none pointer-events-none"
+                style={{ fontSize: '6rem', color: comp.gameColor, opacity: 0.07, lineHeight: 1 }}>
+                {comp.tag}
+              </span>
+
+              {/* Tag + status */}
+              <div className="absolute top-5 left-6 right-6 flex items-center justify-between">
+                <span className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider backdrop-blur-sm"
+                  style={{ background: `${comp.gameColor}20`, color: comp.gameColor, border: `1px solid ${comp.gameColor}35` }}>
+                  {comp.tag} — {comp.game}
+                </span>
+                <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: comp.statusColor }}>
+                  <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: comp.statusColor }} />
+                  {comp.statusLabel}
+                </span>
+              </div>
+
+              {/* Neon bottom line */}
+              <div className="absolute bottom-0 left-0 right-0 h-[2px]"
+                style={{ background: `linear-gradient(90deg, ${comp.gameColor}, ${comp.gameColor}40, transparent)`, boxShadow: `0 0 10px ${comp.gameColor}30` }} />
+            </div>
+
+            {/* Content */}
+            <div className="p-8" style={{ background: 'rgba(255,255,255,0.02)' }}>
               <div className="flex items-start gap-8">
-                {/* Left content */}
                 <div className="flex-1">
-                  {/* Tag + status */}
-                  <div className="flex items-center gap-3 mb-5">
-                    <span className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider"
-                      style={{ background: `${comp.gameColor}15`, color: comp.gameColor, border: `1px solid ${comp.gameColor}28` }}>
-                      {comp.tag} — {comp.game}
-                    </span>
-                    <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: comp.statusColor }}>
-                      <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: comp.statusColor }} />
-                      {comp.statusLabel}
-                    </span>
-                  </div>
-
-                  {/* Name + edition */}
                   <h2 className="font-display mb-1" style={{ fontSize: '2.4rem', color: '#f0f0f8', lineHeight: 1 }}>
                     {comp.name}
                   </h2>
@@ -115,7 +153,6 @@ export default function CompetitionsPage() {
                     {comp.description}
                   </p>
 
-                  {/* Meta infos */}
                   <div className="flex items-center gap-6 flex-wrap">
                     <div className="flex items-center gap-2 text-xs" style={{ color: 'rgba(160,160,192,0.45)' }}>
                       <Gamepad2 size={12} />
@@ -140,11 +177,10 @@ export default function CompetitionsPage() {
                   </div>
                 </div>
 
-                {/* CTA */}
-                <div className="flex-shrink-0 flex flex-col items-end justify-between h-full gap-4">
+                <div className="flex-shrink-0">
                   <a href={comp.href} target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all duration-200 hover:scale-[1.03] whitespace-nowrap"
-                    style={{ background: '#ffffff', color: '#07070f', boxShadow: '0 4px 16px rgba(255,255,255,0.1)' }}>
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all duration-200 hover:scale-[1.03] glow-white whitespace-nowrap"
+                    style={{ background: '#ffffff', color: '#07070f' }}>
                     Voir la compétition
                     <ExternalLink size={13} />
                   </a>
@@ -155,8 +191,9 @@ export default function CompetitionsPage() {
         ))}
 
         {/* Coming soon */}
-        <div className="rounded-2xl p-12 text-center"
+        <div className="rounded-2xl p-12 text-center relative overflow-hidden"
           style={{ background: 'rgba(255,255,255,0.015)', border: '1px dashed rgba(255,255,255,0.07)' }}>
+          <div className="geo-accent cross absolute top-6 right-10 w-3 h-3" />
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4"
             style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
             <Trophy size={22} style={{ color: 'rgba(255,184,0,0.3)' }} />
