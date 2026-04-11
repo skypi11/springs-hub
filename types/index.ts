@@ -58,15 +58,45 @@ export interface TMStats {
 export interface Structure {
   id: string;
   name: string;
-  tag: string;
-  logoUrl?: string;
+  tag: string;                  // ex: "EXA"
+  logoUrl?: string;             // URL logo carré, fond transparent
   description?: string;
-  games: string[];
+  games: string[];              // ['rocket_league', 'trackmania']
+  legalStatus?: string;         // 'none' | 'asso_1901' | 'auto_entreprise' | 'sas_sarl' | 'other'
+  teamCount?: number;           // nombre d'équipes actuelles
+  staffCount?: number;          // nombre de staff (co-fondateur, manager, coach)
+  discordUrl?: string;          // lien serveur Discord
+  message?: string;             // message optionnel (demande de création)
+  // Réseaux sociaux
+  socials?: {
+    twitter?: string;
+    youtube?: string;
+    twitch?: string;
+    instagram?: string;
+    tiktok?: string;
+    website?: string;
+  };
+  // Recrutement
+  recruiting?: {
+    active: boolean;
+    positions: { game: string; role: string }[];  // ex: [{ game: 'rocket_league', role: 'joueur' }]
+  };
+  // Palmarès
+  achievements?: { title: string; date?: string; competition?: string }[];
+  // Rôles
   founderId: string;
   coFounderIds?: string[];
   managerIds?: string[];
   coachIds?: string[];
+  // Statut
   status: 'pending_validation' | 'active' | 'suspended' | 'deletion_scheduled';
+  reviewComment?: string;       // commentaire admin (approbation/refus)
+  reviewedBy?: string;          // uid admin
+  requestedAt?: Date;
+  validatedAt?: Date;
+  suspendedAt?: Date;
+  suspendedBy?: string;
+  deletionRequestedAt?: Date;
   createdAt?: Date;
 }
 
