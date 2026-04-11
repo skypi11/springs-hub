@@ -120,38 +120,59 @@
     0% var(--bevel-sm)
   );
 }
-/* Bevel-sm avec bordure visible (clip-path coupe les borders normales) */
-.bevel-sm-border {
+
+/* Bevel avec bordure visible — pour boutons et éléments où la border doit apparaître */
+/* Le clip-path normal coupe les border CSS, donc on simule via pseudo-éléments */
+.bevel-border, .bevel-sm-border {
   position: relative;
   clip-path: none !important;
   border: none !important;
   background: transparent !important;
 }
-.bevel-sm-border::before {
+.bevel-border::before, .bevel-sm-border::before {
   content: '';
   position: absolute;
   inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: rgba(255,255,255,0.15);
+}
+.bevel-border::after, .bevel-sm-border::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--s-surface);
+}
+.bevel-border > *, .bevel-sm-border > * { position: relative; z-index: 1; }
+.bevel-border:hover::before, .bevel-sm-border:hover::before { background: rgba(255,255,255,0.25); }
+.bevel-border:hover::after, .bevel-sm-border:hover::after { background: var(--s-elevated); }
+
+.bevel-border::before {
+  clip-path: polygon(
+    var(--bevel) 0%, 100% 0%, 100% calc(100% - var(--bevel)),
+    calc(100% - var(--bevel)) 100%, 0% 100%, 0% var(--bevel)
+  );
+}
+.bevel-border::after {
+  clip-path: polygon(
+    calc(var(--bevel) - 0.5px) 0%, 100% 0%, 100% calc(100% - var(--bevel) + 0.5px),
+    calc(100% - var(--bevel) + 0.5px) 100%, 0% 100%, 0% calc(var(--bevel) - 0.5px)
+  );
+}
+.bevel-sm-border::before {
   clip-path: polygon(
     var(--bevel-sm) 0%, 100% 0%, 100% calc(100% - var(--bevel-sm)),
     calc(100% - var(--bevel-sm)) 100%, 0% 100%, 0% var(--bevel-sm)
   );
-  background: rgba(255,255,255,0.15);
-  z-index: 0;
 }
 .bevel-sm-border::after {
-  content: '';
-  position: absolute;
-  inset: 1px;
   clip-path: polygon(
     calc(var(--bevel-sm) - 0.5px) 0%, 100% 0%, 100% calc(100% - var(--bevel-sm) + 0.5px),
     calc(100% - var(--bevel-sm) + 0.5px) 100%, 0% 100%, 0% calc(var(--bevel-sm) - 0.5px)
   );
-  background: var(--s-surface);
-  z-index: 0;
 }
-.bevel-sm-border > * { position: relative; z-index: 1; }
-.bevel-sm-border:hover::before { background: rgba(255,255,255,0.25); }
-.bevel-sm-border:hover::after { background: var(--s-elevated); }
 
 /* Bevel top-left only */
 .bevel-tl {
