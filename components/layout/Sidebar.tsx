@@ -3,13 +3,14 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Home, Users, Trophy, LogOut, Swords } from 'lucide-react';
+import { Home, Users, Trophy, LogOut, Swords, Settings } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 const navItems = [
   { href: '/', icon: Home, label: 'Accueil' },
   { href: '/community', icon: Users, label: 'Communauté' },
   { href: '/competitions', icon: Trophy, label: 'Compétitions' },
+  { href: '/settings', icon: Settings, label: 'Mon profil' },
 ];
 
 export default function Sidebar() {

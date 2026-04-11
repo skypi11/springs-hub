@@ -4,23 +4,49 @@ export interface SpringsUser {
   discordUsername: string;
   discordAvatar?: string;
   displayName: string;
+  avatarUrl?: string;          // URL custom, sinon discordAvatar
   bio?: string;
   country?: string;
-  games?: string[];
+  dateOfBirth?: string;        // ISO string "YYYY-MM-DD" — jamais affiché, sert à calculer l'âge
+  games?: string[];            // ['rocket_league', 'trackmania']
   isFan?: boolean;
   isAdmin?: boolean;
   isFounderApproved?: boolean;
   structurePerGame?: Record<string, string>;
-  // Rocket League
-  epicAccountId?: string;
-  rlTrackerUrl?: string;
-  rlRank?: string;
+  // Recrutement
   isAvailableForRecruitment?: boolean;
-  availableRole?: string;
+  recruitmentRole?: string;    // 'joueur' | 'coach' | 'manager'
+  recruitmentMessage?: string; // message libre
+  // Rocket League
+  epicAccountId?: string;      // pseudo Epic Games
+  rlTrackerUrl?: string;       // lien RL Tracker
+  rlRank?: string;
+  rlMmr?: number;
+  rlStats?: RLStats;           // stats auto via API TRN
   // Trackmania
-  pseudoTM?: string;
-  loginTM?: string;
+  pseudoTM?: string;           // pseudo affiché en course
+  loginTM?: string;            // identifiant Ubisoft/Nadeo
+  tmIoUrl?: string;            // URL trackmania.io du joueur
+  tmStats?: TMStats;           // stats auto via API
   createdAt?: Date;
+}
+
+export interface RLStats {
+  rank?: string;               // ex: "Champion II"
+  division?: string;           // ex: "Division III"
+  mmr?: number;
+  playlist?: string;           // ex: "Ranked Doubles 2v2"
+  iconUrl?: string;            // URL icône du rang
+  updatedAt?: string;          // ISO date dernière mise à jour
+}
+
+export interface TMStats {
+  displayName?: string;
+  trophies?: number;
+  echelon?: number;            // 1-9
+  cotdBestRank?: number;
+  cotdBestDiv?: number;
+  updatedAt?: string;
 }
 
 export interface Structure {
