@@ -12,6 +12,19 @@ import {
   Trophy, Target, Crosshair, Medal
 } from 'lucide-react';
 
+function CountryFlag({ code, size = 16 }: { code: string; size?: number }) {
+  if (!code || code === 'OTHER') return <span>🌍</span>;
+  return (
+    <img
+      src={`https://flagcdn.com/w40/${code.toLowerCase()}.png`}
+      alt={code}
+      width={size}
+      height={Math.round(size * 0.75)}
+      style={{ display: 'inline-block', verticalAlign: 'middle' }}
+    />
+  );
+}
+
 function getAge(dateStr: string): number {
   const birth = new Date(dateStr);
   const now = new Date();
@@ -159,7 +172,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
             <div className="flex items-center gap-4 mt-2">
               {country && (
                 <span className="t-mono flex items-center gap-1.5" style={{ color: 'var(--s-text-dim)' }}>
-                  <Globe size={12} /> {country.flag} {country.name}
+                  <CountryFlag code={country.code} size={14} /> {country.name}
                 </span>
               )}
               {age !== null && (
@@ -481,7 +494,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                   <div className="divider" />
                   <div className="flex items-center justify-between">
                     <span className="t-body">Pays</span>
-                    <span className="t-mono">{country.flag} {country.name}</span>
+                    <span className="t-mono flex items-center gap-1.5"><CountryFlag code={country.code} size={16} /> {country.name}</span>
                   </div>
                 </>
               )}
