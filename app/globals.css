@@ -1,24 +1,19 @@
 @import "tailwindcss";
+@import "./design-system.css";
 
 @theme {
   --color-springs-violet: #7B2FBE;
-  --color-springs-violet-dark: #5a1f8e;
-  --color-springs-violet-light: #9d4fe0;
   --color-springs-gold: #FFB800;
-  --color-springs-gold-dark: #cc9400;
 
   --color-bg-base: #07070f;
-  --color-bg-surface: #0d0d1a;
-  --color-bg-card: #111124;
-  --color-bg-elevated: #171730;
-  --color-bg-hover: #1c1c38;
+  --color-bg-surface: #13131f;
+  --color-bg-elevated: #1a1a2e;
 
-  --color-text-primary: #f0f0f8;
-  --color-text-secondary: #a0a0c0;
-  --color-text-muted: #606080;
+  --color-text-primary: #e0e0e8;
+  --color-text-secondary: #6a6a85;
+  --color-text-muted: #44445a;
 
-  --color-border: rgba(255, 255, 255, 0.07);
-  --color-border-accent: rgba(123, 47, 190, 0.25);
+  --color-border: #2a2a40;
 
   --color-success: #22c55e;
   --color-warning: #FFB800;
@@ -26,19 +21,14 @@
 
   --font-sans: var(--font-outfit);
   --font-display: var(--font-bebas);
-
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
 }
 
 * { box-sizing: border-box; }
 
 html, body {
   height: 100%;
-  background-color: #07070f;
-  color: #f0f0f8;
+  background-color: var(--s-bg);
+  color: var(--s-text);
   font-family: var(--font-outfit), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -49,168 +39,18 @@ html, body {
   letter-spacing: 0.04em;
 }
 
-/* ── Geometric background pattern ──────────────────────────────────── */
-.geo-bg {
-  position: relative;
-}
-.geo-bg::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  /* Subtle hex-inspired grid */
-  background-image:
-    /* Diagonal lines */
-    repeating-linear-gradient(
-      -30deg,
-      transparent,
-      transparent 80px,
-      rgba(255,255,255,0.015) 80px,
-      rgba(255,255,255,0.015) 81px
-    ),
-    repeating-linear-gradient(
-      30deg,
-      transparent,
-      transparent 80px,
-      rgba(255,255,255,0.015) 80px,
-      rgba(255,255,255,0.015) 81px
-    ),
-    /* Horizontal lines to complete the hex feel */
-    repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 46px,
-      rgba(255,255,255,0.012) 46px,
-      rgba(255,255,255,0.012) 47px
-    );
-}
-
-/* ── Floating geometric accents (CSS-only) ─────────────────────────── */
-.geo-accent {
-  position: absolute;
-  pointer-events: none;
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 2px;
-}
-.geo-accent.hex {
-  width: 120px;
-  height: 120px;
-  border-radius: 0;
-  border: none;
-  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-  background: rgba(255,255,255,0.02);
-}
-.geo-accent.cross::before,
-.geo-accent.cross::after {
-  content: '';
-  position: absolute;
-  background: rgba(255,255,255,0.08);
-}
-.geo-accent.cross::before {
-  top: 50%;
-  left: 0;
-  width: 100%;
-  height: 1px;
-  transform: translateY(-50%);
-}
-.geo-accent.cross::after {
-  top: 0;
-  left: 50%;
-  width: 1px;
-  height: 100%;
-  transform: translateX(-50%);
-}
-.geo-accent.diamond {
-  transform: rotate(45deg);
-  border-color: rgba(255,184,0,0.12);
-}
-
 /* Scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
-
-/* Glow */
-.glow-gold   { box-shadow: 0 4px 24px rgba(255,184,0,0.35); }
-.glow-white  { box-shadow: 0 4px 20px rgba(255,255,255,0.15); }
-.text-glow-gold { text-shadow: 0 0 30px rgba(255,184,0,0.4); }
-
-/* Gradient text */
-.gradient-text {
-  background: linear-gradient(135deg, #ffffff 0%, #FFB800 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-.gradient-text-gold {
-  background: linear-gradient(135deg, #FFB800 0%, #ff8c00 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* Card */
-.card {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.07);
-  border-radius: 16px;
-  backdrop-filter: blur(8px);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-}
-.card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 60px rgba(255,184,0,0.04);
-  border-color: rgba(255,255,255,0.14);
-}
-
-/* ── Diagonal section divider ──────────────────────────────────────── */
-.section-cut {
-  position: relative;
-}
-.section-cut::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  right: 0;
-  height: 60px;
-  background: linear-gradient(to bottom right, transparent 49.5%, #07070f 50%);
-  pointer-events: none;
-}
+::-webkit-scrollbar-thumb { background: #2a2a40; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #3a3a55; }
 
 /* Fade in */
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(14px); }
+  from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-@keyframes fade-in-left {
-  from { opacity: 0; transform: translateX(-20px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-8px); }
-}
-@keyframes pulse-glow {
-  0%, 100% { opacity: 0.5; }
-  50%       { opacity: 1; }
-}
-.animate-fade-in         { animation: fade-in 0.5s ease forwards; }
-.animate-fade-in-delay   { animation: fade-in 0.5s ease 0.15s both; }
-.animate-fade-in-delay-2 { animation: fade-in 0.5s ease 0.3s both; }
-.animate-fade-in-left    { animation: fade-in-left 0.6s ease both; }
-.animate-float           { animation: float 4s ease-in-out infinite; }
-.animate-pulse-glow      { animation: pulse-glow 2s ease-in-out infinite; }
-
-/* ── Neon line accents ─────────────────────────────────────────────── */
-.neon-line {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,184,0,0.3), transparent);
-}
-.neon-line-gold {
-  height: 2px;
-  background: linear-gradient(90deg, #FFB800, rgba(255,184,0,0.1));
-  box-shadow: 0 0 8px rgba(255,184,0,0.3), 0 0 20px rgba(255,184,0,0.1);
-}
+.animate-fade-in       { animation: fade-in 0.35s ease forwards; }
+.animate-fade-in-d1    { animation: fade-in 0.35s ease 0.08s both; }
+.animate-fade-in-d2    { animation: fade-in 0.35s ease 0.16s both; }
+.animate-fade-in-d3    { animation: fade-in 0.35s ease 0.24s both; }

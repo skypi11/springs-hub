@@ -28,10 +28,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="h-full flex" style={{ background: '#07070f', color: '#f0f0f8' }}>
         <AuthProvider>
           <Sidebar />
-          <div className="flex-1 ml-[260px] min-h-screen overflow-x-hidden geo-bg">
-            <div className="relative z-[1]">
-              {children}
-            </div>
+          <div className="flex-1 ml-[260px] min-h-screen overflow-x-hidden">
+            {children}
           </div>
         </AuthProvider>
       </body>

@@ -1,322 +1,229 @@
 import Link from 'next/link';
-import { Trophy, Users, Gamepad2, ArrowRight, Zap, Calendar, ChevronRight, Shield } from 'lucide-react';
+import { Trophy, Users, ArrowRight, ExternalLink, Calendar, Gamepad2, UserPlus, Shield } from 'lucide-react';
 
-const activeComps = [
+const competitions = [
   {
     id: 'rl-s2',
     game: 'Rocket League',
-    name: 'Springs League\nSeries S2',
-    status: 'En cours',
-    statusColor: '#22c55e',
-    date: 'Saison 2026',
     tag: 'RL',
-    tagColor: '#0081FF',
-    bgFrom: '#001f4d',
-    bgMid: '#000d2a',
-    bgTo: '#07070f',
+    tagClass: 'tag-blue',
+    accentClass: 'panel-accent-blue',
+    name: 'Springs League Series S2',
+    format: 'Ligue · 3v3 · Round Robin · BO7',
+    status: 'En cours',
+    statusClass: 'status-live',
+    date: 'Saison 2026',
+    teams: '32 équipes · 2 poules',
+    prize: '1 600€',
     href: 'https://springs-esport.vercel.app/rocket-league/',
-    description: 'Ligue compétitive 3v3. Round-robin par poule, top 8 qualifiés pour la LAN finale.',
   },
   {
     id: 'tm-monthly',
     game: 'Trackmania',
-    name: 'Monthly Cup',
-    status: 'Mensuel',
-    statusColor: '#00D936',
-    date: 'Chaque mois',
     tag: 'TM',
-    tagColor: '#00D936',
-    bgFrom: '#003311',
-    bgMid: '#001a09',
-    bgTo: '#07070f',
+    tagClass: 'tag-green',
+    accentClass: 'panel-accent-green',
+    name: 'Monthly Cup',
+    format: 'Cup · Solo · Qualifs + Finale',
+    status: 'Mensuel',
+    statusClass: 'status-live',
+    date: 'Chaque mois',
+    teams: 'Solo — inscription individuelle',
+    prize: null,
     href: 'https://springs-esport.vercel.app/trackmania/cup.html?cup=monthly',
-    description: 'Compétition mensuelle solo sur les maps officielles Springs.',
   },
 ];
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen p-6 space-y-6">
 
-      {/* ─── HERO ─────────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden section-cut" style={{ minHeight: '460px' }}>
-
-        {/* Lighting effects */}
-        <div className="absolute top-0 left-[30%] w-[600px] h-[400px] pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse at center, rgba(255,184,0,0.06) 0%, transparent 70%)' }} />
-        <div className="absolute bottom-0 right-[10%] w-[500px] h-[300px] pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.03) 0%, transparent 70%)' }} />
-
-        {/* Geometric decorations */}
-        {/* Large hexagon outline — top right */}
-        <svg className="absolute -top-14 -right-14 w-[340px] h-[340px] opacity-[0.04] animate-float" viewBox="0 0 200 200">
-          <polygon points="100,5 195,52 195,148 100,195 5,148 5,52" fill="none" stroke="white" strokeWidth="0.6"/>
-          <polygon points="100,25 175,62 175,138 100,175 25,138 25,62" fill="none" stroke="white" strokeWidth="0.3"/>
-        </svg>
-        {/* Small hexagon — left */}
-        <svg className="absolute top-[60%] left-[5%] w-[100px] h-[100px] opacity-[0.05]" viewBox="0 0 200 200">
-          <polygon points="100,5 195,52 195,148 100,195 5,148 5,52" fill="none" stroke="#FFB800" strokeWidth="1"/>
-        </svg>
-        {/* Cross accents */}
-        <div className="geo-accent cross absolute top-[18%] right-[22%] w-4 h-4" />
-        <div className="geo-accent cross absolute top-[65%] right-[35%] w-3 h-3" />
-        <div className="geo-accent cross absolute top-[30%] left-[40%] w-2.5 h-2.5" />
-        {/* Diamond accents */}
-        <div className="geo-accent diamond absolute top-[25%] right-[15%] w-3 h-3" />
-        <div className="geo-accent diamond absolute bottom-[30%] left-[15%] w-2 h-2 opacity-60" />
-        {/* Diagonal accent line */}
-        <div className="absolute top-0 left-[55%] w-px h-[500px] pointer-events-none opacity-[0.06]"
-          style={{ background: 'linear-gradient(180deg, transparent, rgba(255,184,0,0.6), transparent)', transform: 'rotate(20deg)' }} />
-        <div className="absolute top-0 left-[58%] w-px h-[400px] pointer-events-none opacity-[0.03]"
-          style={{ background: 'linear-gradient(180deg, transparent, rgba(255,255,255,0.8), transparent)', transform: 'rotate(20deg)' }} />
-
-        {/* Content */}
-        <div className="relative px-10 pt-16 pb-20 flex items-start gap-14">
-          {/* Left */}
-          <div className="flex-1 animate-fade-in">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-5 text-xs font-semibold uppercase tracking-widest"
-              style={{ background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.15)', color: '#FFB800' }}>
-              <Zap size={10} />
-              Hub Communautaire
+      {/* ─── HEADER — identité + contexte, pas "hero" ────────────────────── */}
+      <header className="animate-fade-in">
+        <div className="panel" style={{ borderTop: '3px solid var(--s-violet)' }}>
+          <div className="flex items-start justify-between p-6">
+            <div>
+              <div className="flex items-center gap-3 mb-3">
+                <span className="tag tag-violet">Plateforme officielle</span>
+                <span className="status status-live">Opérationnelle</span>
+              </div>
+              <h1 className="t-display" style={{ fontSize: '48px' }}>SPRINGS E-SPORT</h1>
+              <p className="t-body mt-2 max-w-xl">
+                Console de gestion des structures, des joueurs et des compétitions
+                de l&apos;écosystème Springs E-Sport.
+              </p>
             </div>
-
-            <h1 className="font-display leading-none mb-2" style={{ fontSize: 'clamp(60px, 7vw, 110px)', color: '#f0f0f8' }}>
-              LA PLATEFORME
-            </h1>
-            <h1 className="font-display gradient-text leading-none mb-7"
-              style={{ fontSize: 'clamp(60px, 7vw, 110px)' }}>
-              SPRINGS E-SPORT
-            </h1>
-
-            <p className="text-base mb-9 max-w-lg leading-relaxed" style={{ color: 'rgba(160,160,192,0.65)' }}>
-              Gère ta structure, suis les compétitions, recrute des joueurs.
-              Rejoins la communauté officielle Springs E-Sport.
-            </p>
-
-            <div className="flex items-center gap-4 flex-wrap">
-              <Link href="/community"
-                className="inline-flex items-center gap-2.5 px-7 py-3.5 rounded-xl font-bold text-sm transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] glow-white"
-                style={{ background: '#ffffff', color: '#07070f' }}>
-                Rejoindre la communauté
-                <ArrowRight size={15} />
+            <div className="flex gap-3 mt-1">
+              <Link href="/community" className="btn-springs btn-primary">
+                Rejoindre <ArrowRight size={14} />
               </Link>
-              <Link href="/competitions"
-                className="inline-flex items-center gap-2.5 px-7 py-3.5 rounded-xl font-bold text-sm transition-all duration-200 hover:scale-[1.02]"
-                style={{ background: 'rgba(255,184,0,0.08)', color: '#FFB800', border: '1px solid rgba(255,184,0,0.2)' }}>
-                <Trophy size={15} />
+              <Link href="/competitions" className="btn-springs btn-secondary">
                 Compétitions
               </Link>
             </div>
           </div>
+        </div>
+      </header>
 
-          {/* Right — card compétitions */}
-          <div className="w-[320px] flex-shrink-0 animate-fade-in-delay hidden lg:block">
-            <div className="rounded-2xl overflow-hidden relative"
-              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' }}>
-              <div className="neon-line-gold" />
-              <div className="p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'rgba(160,160,192,0.45)' }}>
-                    Compétitions
-                  </span>
-                  <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: '#22c55e' }}>
-                    <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#22c55e' }} />
-                    2 actives
-                  </span>
-                </div>
-                {activeComps.map((comp) => (
-                  <a key={comp.id} href={comp.href} target="_blank" rel="noopener noreferrer"
-                    className="block mb-2.5 last:mb-0 p-4 rounded-xl group transition-all duration-200 hover:scale-[1.02]"
-                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                    <div className="flex items-center gap-2.5 mb-1.5">
-                      <span className="px-2 py-0.5 rounded text-xs font-black"
-                        style={{ background: `${comp.tagColor}18`, color: comp.tagColor }}>
-                        {comp.tag}
-                      </span>
-                      <span className="text-sm font-semibold truncate" style={{ color: '#f0f0f8' }}>
-                        {comp.name.replace('\n', ' ')}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs" style={{ color: 'rgba(160,160,192,0.4)' }}>{comp.game}</span>
-                      <span className="text-xs font-medium flex items-center gap-1 transition-colors group-hover:text-white/80" style={{ color: 'rgba(160,160,192,0.45)' }}>
-                        Voir <ArrowRight size={10} />
-                      </span>
-                    </div>
-                  </a>
-                ))}
-                <Link href="/competitions"
-                  className="mt-3 block text-center text-xs font-semibold py-2.5 rounded-xl transition-all hover:opacity-80"
-                  style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(160,160,192,0.6)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                  Toutes les compétitions →
-                </Link>
-              </div>
-            </div>
+      {/* ─── 3 PILIERS — modules produit, pas stats ─────────────────────── */}
+      <section className="grid-3 animate-fade-in-d1">
+
+        {/* Structures */}
+        <div className="panel panel-accent-gold">
+          <div className="panel-header">
+            <span className="t-label" style={{ color: 'var(--s-gold)' }}>
+              <Shield size={11} style={{ display: 'inline', verticalAlign: '-1px', marginRight: '5px' }} />
+              Gestion de structure
+            </span>
+            <span className="tag tag-gold">Pilier 1</span>
           </div>
-        </div>
-      </section>
-
-      {/* ─── STATS ────────────────────────────────────────────────────────── */}
-      <section className="px-10 py-10 relative">
-        <div className="grid grid-cols-3 gap-5">
-          {[
-            { label: 'Compétitions actives', value: '2', sub: 'Rocket League + Trackmania', icon: Trophy, color: '#FFB800' },
-            { label: 'Structures', value: 'Bientôt', sub: 'Fonctionnalité en développement', icon: Shield, color: '#f0f0f8' },
-            { label: 'Joueurs inscrits', value: 'Bientôt', sub: 'Annuaire en développement', icon: Gamepad2, color: '#22c55e' },
-          ].map(({ label, value, sub, icon: Icon, color }, i) => (
-            <div key={label} className={`card p-6 relative overflow-hidden ${i === 0 ? 'animate-fade-in' : i === 1 ? 'animate-fade-in-delay' : 'animate-fade-in-delay-2'}`}>
-              {/* Subtle colored glow inside card */}
-              <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full pointer-events-none"
-                style={{ background: `radial-gradient(circle, ${color}10 0%, transparent 70%)` }} />
-              <div className="relative">
-                <div className="p-2.5 rounded-xl w-fit mb-4" style={{ background: `${color}12`, border: `1px solid ${color}20` }}>
-                  <Icon size={20} style={{ color }} />
-                </div>
-                <p className="font-display mb-1" style={{ fontSize: '2.8rem', color, lineHeight: 1 }}>{value}</p>
-                <p className="text-sm font-semibold mb-1" style={{ color: '#f0f0f8' }}>{label}</p>
-                <p className="text-xs" style={{ color: 'rgba(160,160,192,0.4)' }}>{sub}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ─── NEON SEPARATOR ───────────────────────────────────────────────── */}
-      <div className="mx-10 neon-line" />
-
-      {/* ─── COMPÉTITIONS ─────────────────────────────────────────────────── */}
-      <section className="px-10 py-10">
-        <div className="flex items-end justify-between mb-7">
-          <div>
-            <h2 className="font-display" style={{ fontSize: '2.2rem', color: '#f0f0f8' }}>
-              COMPÉTITIONS ACTIVES
-            </h2>
-            <p className="text-sm mt-1" style={{ color: 'rgba(160,160,192,0.45)' }}>
-              Suis et participe aux événements Springs
+          <div className="panel-body space-y-3">
+            <p className="t-body">
+              Crée ta structure, gère ton roster, tes sous-équipes et ton planning.
+              Inscris-toi aux compétitions Springs.
             </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="tag tag-neutral">Roster</span>
+              <span className="tag tag-neutral">Équipes</span>
+              <span className="tag tag-neutral">Planning</span>
+              <span className="tag tag-neutral">Inscriptions</span>
+            </div>
+            <div className="divider" />
+            <Link href="/community" className="btn-springs btn-ghost" style={{ padding: '6px 8px' }}>
+              Accéder <ArrowRight size={12} />
+            </Link>
           </div>
-          <Link href="/competitions" className="flex items-center gap-1.5 text-sm font-semibold mb-1 hover:opacity-80 transition-opacity"
-            style={{ color: 'rgba(160,160,192,0.6)' }}>
-            Tout voir <ChevronRight size={15} />
-          </Link>
         </div>
 
-        <div className="grid grid-cols-2 gap-6">
-          {activeComps.map((comp) => (
-            <a key={comp.id} href={comp.href} target="_blank" rel="noopener noreferrer"
-              className="group block rounded-2xl overflow-hidden border transition-all duration-300 hover:-translate-y-1"
-              style={{ borderColor: 'rgba(255,255,255,0.07)', background: '#07070f' }}>
+        {/* Vivier joueurs */}
+        <div className="panel panel-accent-violet">
+          <div className="panel-header">
+            <span className="t-label" style={{ color: '#a364d9' }}>
+              <UserPlus size={11} style={{ display: 'inline', verticalAlign: '-1px', marginRight: '5px' }} />
+              Vivier de joueurs
+            </span>
+            <span className="tag tag-violet">Pilier 2</span>
+          </div>
+          <div className="panel-body space-y-3">
+            <p className="t-body">
+              Annuaire des joueurs de l&apos;écosystème. Profils, rangs, disponibilité
+              pour le recrutement. Base de talents Springs.
+            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="tag tag-neutral">Profils</span>
+              <span className="tag tag-neutral">Recrutement</span>
+              <span className="tag tag-neutral">Rangs</span>
+              <span className="tag tag-neutral">Disponibilité</span>
+            </div>
+            <div className="divider" />
+            <Link href="/community/players" className="btn-springs btn-ghost" style={{ padding: '6px 8px' }}>
+              Accéder <ArrowRight size={12} />
+            </Link>
+          </div>
+        </div>
 
-              {/* Visual header with game atmosphere */}
-              <div className="h-36 relative overflow-hidden"
-                style={{ background: `linear-gradient(160deg, ${comp.bgFrom} 0%, ${comp.bgMid} 50%, ${comp.bgTo} 100%)` }}>
+        {/* Compétitions */}
+        <div className="panel">
+          <div className="panel-header">
+            <span className="t-label">
+              <Trophy size={11} style={{ display: 'inline', verticalAlign: '-1px', marginRight: '5px' }} />
+              Compétitions
+            </span>
+            <span className="tag tag-neutral">Pilier 3</span>
+          </div>
+          <div className="panel-body space-y-3">
+            <p className="t-body">
+              Événements et saisons Springs. Classements, résultats, inscriptions.
+              Connecté aux structures et aux joueurs.
+            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="tag tag-blue">Rocket League</span>
+              <span className="tag tag-green">Trackmania</span>
+            </div>
+            <div className="divider" />
+            <Link href="/competitions" className="btn-springs btn-ghost" style={{ padding: '6px 8px' }}>
+              Accéder <ArrowRight size={12} />
+            </Link>
+          </div>
+        </div>
+      </section>
 
-                {/* Hex decoration in header */}
-                <svg className="absolute -top-6 -right-6 w-[160px] h-[160px] opacity-[0.08]" viewBox="0 0 200 200">
-                  <polygon points="100,5 195,52 195,148 100,195 5,148 5,52" fill="none" stroke={comp.tagColor} strokeWidth="1.2"/>
-                </svg>
-                <svg className="absolute bottom-4 left-[40%] w-[80px] h-[80px] opacity-[0.05]" viewBox="0 0 200 200">
-                  <polygon points="100,5 195,52 195,148 100,195 5,148 5,52" fill="none" stroke="white" strokeWidth="1"/>
-                </svg>
+      {/* ─── COMPÉTITIONS EN COURS — fiches officielles ──────────────────── */}
+      <section className="animate-fade-in-d2">
+        <div className="section-title">
+          <span className="t-label">Compétitions actives</span>
+        </div>
 
-                {/* Colored light beam */}
-                <div className="absolute inset-0 pointer-events-none"
-                  style={{ background: `radial-gradient(ellipse at 15% 80%, ${comp.tagColor}25 0%, transparent 60%)` }} />
+        <div className="space-y-3">
+          {competitions.map((comp) => (
+            <div key={comp.id} className={`fiche ${comp.accentClass}`}>
+              <div className="flex items-stretch">
 
-                {/* Watermark */}
-                <span className="absolute -bottom-4 right-4 font-display select-none pointer-events-none"
-                  style={{ fontSize: '7rem', color: comp.tagColor, opacity: 0.08, lineHeight: 1 }}>
-                  {comp.tag}
-                </span>
+                {/* Main content */}
+                <div className="flex-1 p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className={`tag ${comp.tagClass}`}>{comp.tag}</span>
+                    <span className="t-sub" style={{ fontSize: '16px' }}>{comp.name}</span>
+                    <span className={`status ${comp.statusClass} ml-auto`}>{comp.status}</span>
+                  </div>
 
-                {/* Top row: tag + status */}
-                <div className="absolute top-5 left-5 right-5 flex items-center justify-between">
-                  <span className="px-2.5 py-1 rounded-lg text-xs font-black backdrop-blur-sm"
-                    style={{ background: `${comp.tagColor}20`, color: comp.tagColor, border: `1px solid ${comp.tagColor}35` }}>
-                    {comp.tag} — {comp.game}
-                  </span>
-                  <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: comp.statusColor }}>
-                    <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: comp.statusColor }} />
-                    {comp.status}
-                  </span>
+                  <div className="flex items-center gap-6 flex-wrap">
+                    <span className="t-mono flex items-center gap-1.5">
+                      <Gamepad2 size={12} /> {comp.format}
+                    </span>
+                    <span className="t-mono flex items-center gap-1.5">
+                      <Users size={12} /> {comp.teams}
+                    </span>
+                    <span className="t-mono flex items-center gap-1.5">
+                      <Calendar size={12} /> {comp.date}
+                    </span>
+                    {comp.prize && (
+                      <span className="t-mono flex items-center gap-1.5" style={{ color: 'var(--s-gold)' }}>
+                        <Trophy size={12} /> {comp.prize}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                {/* Bottom neon line */}
-                <div className="absolute bottom-0 left-0 right-0 h-[2px]"
-                  style={{ background: `linear-gradient(90deg, ${comp.tagColor}, ${comp.tagColor}40, transparent)`, boxShadow: `0 0 12px ${comp.tagColor}40` }} />
-              </div>
-
-              {/* Content */}
-              <div className="p-6" style={{ background: 'rgba(255,255,255,0.02)' }}>
-                <h3 className="font-display mb-2 transition-colors"
-                  style={{ fontSize: '1.9rem', color: '#f0f0f8', lineHeight: 1.1, whiteSpace: 'pre-line' }}>
-                  {comp.name}
-                </h3>
-                <p className="text-sm mb-5 leading-relaxed" style={{ color: 'rgba(160,160,192,0.5)' }}>{comp.description}</p>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs" style={{ color: 'rgba(160,160,192,0.35)' }}>
-                    <Calendar size={11} />
-                    {comp.date}
-                  </div>
-                  <div className="flex items-center gap-1.5 text-sm font-bold transition-all group-hover:gap-2.5"
-                    style={{ color: comp.tagColor }}>
-                    Voir <ArrowRight size={13} />
-                  </div>
+                {/* Action */}
+                <div className="flex items-center px-5" style={{ borderLeft: '1px solid var(--s-border)' }}>
+                  <a href={comp.href} target="_blank" rel="noopener noreferrer"
+                    className="btn-springs btn-secondary whitespace-nowrap">
+                    Ouvrir <ExternalLink size={12} />
+                  </a>
                 </div>
               </div>
-            </a>
+            </div>
           ))}
         </div>
       </section>
 
-      {/* ─── CTA STRUCTURES ───────────────────────────────────────────────── */}
-      <section className="px-10 pb-16 pt-4">
-        <div className="rounded-2xl relative overflow-hidden"
-          style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}>
+      {/* ─── ACCÈS RAPIDES ────────────────────────────────────────────────── */}
+      <section className="animate-fade-in-d3">
+        <div className="section-title">
+          <span className="t-label">Accès rapides</span>
+        </div>
 
-          {/* Decorative elements inside CTA */}
-          <svg className="absolute -bottom-8 -left-8 w-[200px] h-[200px] opacity-[0.04]" viewBox="0 0 200 200">
-            <polygon points="100,5 195,52 195,148 100,195 5,148 5,52" fill="none" stroke="#FFB800" strokeWidth="1"/>
-          </svg>
-          <div className="geo-accent cross absolute top-6 right-[20%] w-3 h-3" />
-
-          {/* Gold accent line — left edge */}
-          <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
-            style={{ background: 'linear-gradient(180deg, #FFB800, rgba(255,184,0,0.2))', boxShadow: '0 0 12px rgba(255,184,0,0.3)' }} />
-
-          {/* Glow */}
-          <div className="absolute right-0 top-0 bottom-0 w-[400px] pointer-events-none"
-            style={{ background: 'radial-gradient(ellipse at 100% 50%, rgba(255,184,0,0.05) 0%, transparent 65%)' }} />
-
-          <div className="relative pl-12 pr-10 py-10 flex items-center justify-between gap-12">
-            <div className="flex-1">
-              <div className="flex items-center gap-2.5 mb-4">
-                <Users size={16} style={{ color: '#FFB800' }} />
-                <span className="text-xs font-black uppercase tracking-widest" style={{ color: '#FFB800' }}>
-                  Espace Structures
-                </span>
+        <div className="grid-4">
+          {[
+            { label: 'Créer une structure', desc: 'Demande de création → validation Springs', href: '/community/create-structure', icon: Shield },
+            { label: 'Mon profil', desc: 'Jeux, rang, disponibilité recrutement', href: '/settings', icon: Users },
+            { label: 'Annuaire structures', desc: 'Structures actives de l\'écosystème', href: '/community/structures', icon: UserPlus },
+            { label: 'Classements', desc: 'Scores et résultats des compétitions', href: '/competitions', icon: Trophy },
+          ].map(({ label, desc, href, icon: Icon }) => (
+            <Link key={label} href={href} className="fiche p-4 block group">
+              <div className="flex items-start gap-3">
+                <div className="p-2" style={{ background: 'var(--s-elevated)', borderRadius: 'var(--s-radius)', border: '1px solid var(--s-border)' }}>
+                  <Icon size={15} style={{ color: 'var(--s-text-dim)' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="t-sub text-sm group-hover:text-white transition-colors">{label}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--s-text-muted)' }}>{desc}</p>
+                </div>
+                <ArrowRight size={14} className="mt-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--s-text-dim)' }} />
               </div>
-              <h2 className="font-display mb-3" style={{ fontSize: '2.6rem', color: '#f0f0f8', lineHeight: 1 }}>
-                TU AS UNE STRUCTURE ESPORT ?
-              </h2>
-              <p className="text-sm leading-relaxed max-w-lg" style={{ color: 'rgba(160,160,192,0.6)' }}>
-                Gère ton roster, organise tes entraînements, inscris-toi aux compétitions Springs.
-                Fais une demande pour accéder à l&apos;outil de gestion.
-              </p>
-            </div>
-            <div className="flex flex-col gap-3 flex-shrink-0">
-              <Link href="/community"
-                className="inline-flex items-center gap-2.5 px-7 py-3.5 rounded-xl font-bold text-sm transition-all duration-200 hover:scale-[1.03] glow-gold"
-                style={{ background: 'linear-gradient(135deg, #FFB800, #cc9400)', color: '#07070f' }}>
-                Découvrir la communauté <ArrowRight size={15} />
-              </Link>
-              <Link href="/community/structures"
-                className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl font-semibold text-sm transition-all hover:opacity-80"
-                style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(240,240,248,0.8)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                Voir les structures
-              </Link>
-            </div>
-          </div>
+            </Link>
+          ))}
         </div>
       </section>
 
