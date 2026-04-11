@@ -116,36 +116,13 @@ export default function HomePage() {
               Gère ta structure, recrute des joueurs, participe aux compétitions.
             </p>
 
-            <div className="flex items-center gap-3 mb-8">
+            <div className="flex items-center gap-3">
               <Link href="/community" className="btn-springs btn-primary bevel-sm">
                 Rejoindre la communauté <ArrowRight size={14} />
               </Link>
               <Link href="/competitions" className="btn-springs btn-secondary bevel-sm">
                 <Trophy size={14} /> Compétitions
               </Link>
-            </div>
-
-            {/* Inline stats row */}
-            <div className="flex items-center gap-8">
-              <div className="flex items-center gap-3">
-                <span className="font-display text-3xl" style={{ color: 'var(--s-gold)', lineHeight: 1 }}>2</span>
-                <div>
-                  <span className="t-label block" style={{ fontSize: '9px' }}>Compétitions</span>
-                  <span className="t-label block" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>Actives</span>
-                </div>
-              </div>
-              <div className="h-8 w-px" style={{ background: 'var(--s-border)' }} />
-              <div className="flex items-center gap-3">
-                <div className="flex gap-1.5">
-                  <span className="tag tag-blue" style={{ fontSize: '9px', padding: '2px 6px' }}>RL</span>
-                  <span className="tag tag-green" style={{ fontSize: '9px', padding: '2px 6px' }}>TM</span>
-                </div>
-                <span className="t-label" style={{ fontSize: '9px' }}>Jeux couverts</span>
-              </div>
-              <div className="h-8 w-px" style={{ background: 'var(--s-border)' }} />
-              <div className="flex items-center gap-2">
-                <span className="status status-live" style={{ fontSize: '11px' }}>En ligne</span>
-              </div>
             </div>
           </div>
 
