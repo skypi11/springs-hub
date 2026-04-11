@@ -88,11 +88,17 @@ export default function HomePage() {
     <div className="min-h-screen px-8 py-8 space-y-10">
 
       {/* ─── HERO HEADER ──────────────────────────────────────────────────── */}
-      <header className="bevel animate-fade-in" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+      <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
         {/* Violet accent top */}
         <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), var(--s-violet-light), transparent 80%)' }} />
 
-        <div className="p-10 flex items-start justify-between gap-10">
+        {/* Background glow effects */}
+        <div className="absolute top-0 left-0 w-[500px] h-[400px] pointer-events-none opacity-[0.06]"
+          style={{ background: 'radial-gradient(ellipse at top left, var(--s-violet), transparent 70%)' }} />
+        <div className="absolute bottom-0 right-[300px] w-[400px] h-[300px] pointer-events-none opacity-[0.04]"
+          style={{ background: 'radial-gradient(ellipse at bottom, var(--s-gold), transparent 70%)' }} />
+
+        <div className="relative z-[1] p-10 flex items-start justify-between gap-10">
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-5">
               <span className="tag tag-violet">Springs E-Sport</span>
@@ -105,18 +111,41 @@ export default function HomePage() {
               <span style={{ color: 'var(--s-gold)' }}>COMPÉTITIONS</span>
             </h1>
 
-            <p className="t-body max-w-xl mb-8" style={{ fontSize: '15px' }}>
+            <p className="t-body max-w-xl mb-6" style={{ fontSize: '15px' }}>
               Tout l&apos;écosystème Springs E-Sport réuni sur une plateforme.
               Gère ta structure, recrute des joueurs, participe aux compétitions.
             </p>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 mb-8">
               <Link href="/community" className="btn-springs btn-primary bevel-sm">
                 Rejoindre la communauté <ArrowRight size={14} />
               </Link>
               <Link href="/competitions" className="btn-springs btn-secondary bevel-sm">
                 <Trophy size={14} /> Compétitions
               </Link>
+            </div>
+
+            {/* Inline stats row */}
+            <div className="flex items-center gap-8">
+              <div className="flex items-center gap-3">
+                <span className="font-display text-3xl" style={{ color: 'var(--s-gold)', lineHeight: 1 }}>2</span>
+                <div>
+                  <span className="t-label block" style={{ fontSize: '9px' }}>Compétitions</span>
+                  <span className="t-label block" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>Actives</span>
+                </div>
+              </div>
+              <div className="h-8 w-px" style={{ background: 'var(--s-border)' }} />
+              <div className="flex items-center gap-3">
+                <div className="flex gap-1.5">
+                  <span className="tag tag-blue" style={{ fontSize: '9px', padding: '2px 6px' }}>RL</span>
+                  <span className="tag tag-green" style={{ fontSize: '9px', padding: '2px 6px' }}>TM</span>
+                </div>
+                <span className="t-label" style={{ fontSize: '9px' }}>Jeux couverts</span>
+              </div>
+              <div className="h-8 w-px" style={{ background: 'var(--s-border)' }} />
+              <div className="flex items-center gap-2">
+                <span className="status status-live" style={{ fontSize: '11px' }}>En ligne</span>
+              </div>
             </div>
           </div>
 
@@ -145,6 +174,11 @@ export default function HomePage() {
                   <span className="t-body">Structures</span>
                   <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Bientôt</span>
                 </div>
+                <div className="divider" />
+                <div className="flex items-center justify-between">
+                  <span className="t-body">Joueurs inscrits</span>
+                  <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Bientôt</span>
+                </div>
               </div>
             </div>
           </div>
@@ -160,8 +194,7 @@ export default function HomePage() {
         <div className="grid grid-cols-3 gap-5">
           {pillars.map(({ icon: Icon, title, tag, tagClass, accent, iconColor, desc, features, href, stat, statLabel }) => (
             <Link key={title} href={href}
-              className="pillar-card group block relative overflow-hidden transition-all duration-200"
-              style={{ border: '1px solid var(--s-border)', borderRadius: 'var(--s-radius)' }}>
+              className="pillar-card panel group block relative overflow-hidden transition-all duration-200">
 
               {/* Colored accent bar top */}
               <div className="h-[3px]"
@@ -170,9 +203,6 @@ export default function HomePage() {
               {/* Subtle colored glow in top-right corner */}
               <div className="absolute top-0 right-0 w-[200px] h-[200px] pointer-events-none opacity-[0.07] transition-opacity duration-300 group-hover:opacity-[0.12]"
                 style={{ background: `radial-gradient(circle at top right, ${accent}, transparent 70%)` }} />
-
-              {/* Background */}
-              <div className="absolute inset-0 pointer-events-none" style={{ background: 'var(--s-surface)' }} />
 
               {/* Content */}
               <div className="relative z-[1]">
@@ -300,8 +330,7 @@ export default function HomePage() {
         <div className="grid grid-cols-4 gap-4">
           {quickLinks.map(({ label, desc, href, icon: Icon, accent }) => (
             <Link key={label} href={href}
-              className="group block relative overflow-hidden transition-all duration-150 hover:border-[rgba(255,255,255,0.15)]"
-              style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', borderRadius: 'var(--s-radius)' }}>
+              className="quick-link panel group block relative overflow-hidden transition-all duration-150">
               {/* Accent line left */}
               <div className="absolute left-0 top-0 bottom-0 w-[2px] transition-all duration-200 group-hover:w-[3px]"
                 style={{ background: accent }} />

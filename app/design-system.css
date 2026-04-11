@@ -282,6 +282,13 @@
   z-index: 1;
 }
 
+/* ── PILLAR CARD ─────────────────────────────────────────────────── */
+.pillar-card:hover,
+.quick-link:hover {
+  border-color: rgba(255,255,255,0.18) !important;
+  background: var(--s-elevated);
+}
+
 /* ── SECTION LABEL ────────────────────────────────────────────────── */
 .section-label {
   display: flex;
