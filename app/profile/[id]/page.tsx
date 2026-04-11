@@ -27,6 +27,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const [profile, setProfile] = useState<SpringsUser | null>(null);
   const [rlStats, setRlStats] = useState<RLStats | null>(null);
   const [rlTrackerUrl, setRlTrackerUrl] = useState('');
+  const [tmStats, setTmStats] = useState<{ trophies: number | null; echelon: number | null; cotdBestRank: number | null; cotdBestDiv: number | null; profileUrl: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -47,14 +48,29 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         // Fetch RL stats si le joueur joue à RL
         if (data.games?.includes('rocket_league') && data.epicAccountId) {
           try {
-            const res = await fetch(`/api/rl-stats?epicId=${encodeURIComponent(data.epicAccountId)}`);
-            if (res.ok) {
-              const stats = await res.json();
+            const rlRes = await fetch(`/api/rl-stats?epicId=${encodeURIComponent(data.epicAccountId)}`);
+            if (rlRes.ok) {
+              const stats = await rlRes.json();
               if (stats.rank) setRlStats(stats.rank);
               if (stats.trackerUrl) setRlTrackerUrl(stats.trackerUrl);
             }
           } catch (err) {
             console.error('[Profile] RL stats fetch error:', err);
+          }
+        }
+
+        // Fetch TM stats si le joueur joue à TM
+        if (data.games?.includes('trackmania') && (data.tmIoUrl || data.pseudoTM)) {
+          try {
+            const params = new URLSearchParams();
+            if (data.tmIoUrl) params.set('url', data.tmIoUrl);
+            if (data.pseudoTM) params.set('pseudo', data.pseudoTM);
+            const tmRes = await fetch(`/api/tm-stats?${params.toString()}`);
+            if (tmRes.ok) {
+              setTmStats(await tmRes.json());
+            }
+          } catch (err) {
+            console.error('[Profile] TM stats fetch error:', err);
           }
         }
       } catch (err) {
@@ -250,7 +266,42 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                 </span>
               </div>
               <div className="panel-body">
-                <div className="flex items-center gap-6">
+                {tmStats && (tmStats.trophies !== null || tmStats.cotdBestRank !== null) ? (
+                  <div className="flex items-center gap-8">
+                    {/* Trophées */}
+                    {tmStats.trophies !== null && (
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5" style={{ background: 'rgba(0,217,54,0.08)', border: '1px solid rgba(0,217,54,0.2)' }}>
+                          <Trophy size={20} style={{ color: '#33ff66' }} />
+                        </div>
+                        <div>
+                          <p className="font-display text-2xl" style={{ color: '#33ff66', lineHeight: 1 }}>
+                            {tmStats.trophies.toLocaleString()}
+                          </p>
+                          <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>Trophées</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Echelon */}
+                    {tmStats.echelon !== null && tmStats.echelon > 0 && (
+                      <div className="text-center">
+                        <p className="font-display text-3xl" style={{ color: '#33ff66', lineHeight: 1 }}>{tmStats.echelon}</p>
+                        <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>Échelon</p>
+                      </div>
+                    )}
+
+                    {/* COTD */}
+                    {tmStats.cotdBestRank !== null && (
+                      <div className="text-center">
+                        <p className="font-display text-3xl" style={{ color: '#33ff66', lineHeight: 1 }}>#{tmStats.cotdBestRank}</p>
+                        <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>
+                          Best COTD{tmStats.cotdBestDiv ? ` (Div ${tmStats.cotdBestDiv})` : ''}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
                   <div className="flex items-center gap-3">
                     <div className="p-2.5" style={{ background: 'rgba(0,217,54,0.08)', border: '1px solid rgba(0,217,54,0.2)' }}>
                       <Trophy size={20} style={{ color: '#33ff66' }} />
@@ -260,12 +311,13 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       <p className="t-mono" style={{ color: 'var(--s-text-muted)' }}>Joueur Trackmania</p>
                     </div>
                   </div>
-                </div>
+                )}
 
-                {profile.tmIoUrl && (
+                {/* Lien trackmania.io */}
+                {(tmStats?.profileUrl || profile.tmIoUrl) && (
                   <>
                     <div className="divider my-4" />
-                    <a href={profile.tmIoUrl} target="_blank" rel="noopener noreferrer"
+                    <a href={tmStats?.profileUrl || profile.tmIoUrl} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider transition-colors hover:text-white"
                       style={{ color: '#33ff66' }}>
                       Voir sur Trackmania.io <ExternalLink size={11} />
