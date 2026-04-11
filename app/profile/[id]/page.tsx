@@ -28,6 +28,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const [rlStats, setRlStats] = useState<RLStats | null>(null);
   const [rlTrackerUrl, setRlTrackerUrl] = useState('');
   const [tmStats, setTmStats] = useState<{
+    displayName: string | null;
     trophies: number | null; echelon: number | null;
     clubTag: string | null;
     trophyTiers: { tier: number; count: number }[];
