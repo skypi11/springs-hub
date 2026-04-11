@@ -14,7 +14,7 @@ const competitions = [
     teams: '32 équipes',
     prize: '1 600€',
     accent: '#0081FF',
-    bgImage: 'https://i.postimg.cc/hjTKjc8H/rocket-league-une.jpg',
+    bgImage: '/rocket-league.webp',
     href: 'https://springs-esport.vercel.app/rocket-league/',
   },
   {
@@ -29,7 +29,7 @@ const competitions = [
     teams: 'Solo',
     prize: null,
     accent: '#00D936',
-    bgImage: 'https://i.postimg.cc/PfCmScfj/5e8d98a35cdf9a12c868c890-bg.webp',
+    bgImage: '/tm.webp',
     href: 'https://springs-esport.vercel.app/trackmania/cup.html?cup=monthly',
   },
 ];
@@ -39,42 +39,48 @@ const pillars = [
     icon: Shield,
     title: 'STRUCTURES',
     tag: 'Gestion',
-    accentClass: 'accent-left-gold',
     tagClass: 'tag-gold',
+    accent: '#FFB800',
     iconColor: 'var(--s-gold)',
     desc: 'Crée ta structure, gère ton roster et tes sous-équipes. Inscris-toi aux compétitions Springs.',
     features: ['Roster', 'Sous-équipes', 'Planning', 'Inscriptions'],
     href: '/community',
+    stat: '0',
+    statLabel: 'Structures',
   },
   {
     icon: UserPlus,
     title: 'VIVIER JOUEURS',
     tag: 'Recrutement',
-    accentClass: 'accent-left-violet',
     tagClass: 'tag-violet',
+    accent: '#7B2FBE',
     iconColor: 'var(--s-violet-light)',
     desc: 'Annuaire des joueurs de l\'écosystème. Profils, rangs, disponibilité pour le recrutement.',
     features: ['Profils', 'Rangs', 'Recrutement', 'Disponibilité'],
     href: '/community/players',
+    stat: '—',
+    statLabel: 'Joueurs',
   },
   {
     icon: Trophy,
     title: 'COMPÉTITIONS',
     tag: 'Événements',
-    accentClass: '',
-    tagClass: 'tag-neutral',
-    iconColor: 'var(--s-text-dim)',
+    tagClass: 'tag-blue',
+    accent: '#0081FF',
+    iconColor: '#4da6ff',
     desc: 'Saisons, cups, tournois Springs. Classements, résultats, inscriptions connectées aux structures.',
     features: ['Rocket League', 'Trackmania'],
     href: '/competitions',
+    stat: '2',
+    statLabel: 'Actives',
   },
 ];
 
 const quickLinks = [
-  { label: 'Créer une structure', desc: 'Demande de création → validation par Springs', href: '/community/create-structure', icon: Shield, iconColor: 'var(--s-gold)' },
-  { label: 'Mon profil', desc: 'Jeux pratiqués, rang, disponibilité recrutement', href: '/settings', icon: Users, iconColor: 'var(--s-violet-light)' },
-  { label: 'Annuaire structures', desc: 'Toutes les structures actives de l\'écosystème', href: '/community/structures', icon: UserPlus, iconColor: 'var(--s-text-dim)' },
-  { label: 'Classements', desc: 'Scores, résultats et statistiques des compétitions', href: '/competitions', icon: Trophy, iconColor: 'var(--s-text-dim)' },
+  { label: 'Créer une structure', desc: 'Demande de création → validation par Springs', href: '/community/create-structure', icon: Shield, accent: '#FFB800' },
+  { label: 'Mon profil', desc: 'Jeux pratiqués, rang, disponibilité recrutement', href: '/settings', icon: Users, accent: '#7B2FBE' },
+  { label: 'Annuaire structures', desc: 'Toutes les structures actives de l\'écosystème', href: '/community/structures', icon: UserPlus, accent: '#0081FF' },
+  { label: 'Classements', desc: 'Scores, résultats et statistiques des compétitions', href: '/competitions', icon: Trophy, accent: '#00D936' },
 ];
 
 export default function HomePage() {
@@ -152,39 +158,65 @@ export default function HomePage() {
         </div>
 
         <div className="grid grid-cols-3 gap-5">
-          {pillars.map(({ icon: Icon, title, tag, accentClass, tagClass, iconColor, desc, features, href }) => (
+          {pillars.map(({ icon: Icon, title, tag, tagClass, accent, iconColor, desc, features, href, stat, statLabel }) => (
             <Link key={title} href={href}
-              className={`panel ${accentClass} group block transition-all duration-200 hover:border-[rgba(255,255,255,0.15)]`}>
-              <div className="panel-header">
-                <div className="flex items-center gap-2">
-                  <Icon size={13} style={{ color: iconColor }} />
-                  <span className="t-label" style={{ color: 'var(--s-text)' }}>{title}</span>
-                </div>
-                <span className={`tag ${tagClass}`}>{tag}</span>
-              </div>
-              <div className="panel-body" style={{ padding: '20px' }}>
-                {/* Icône grande */}
-                <div className="mb-4 p-3 w-fit" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                  <Icon size={24} style={{ color: iconColor }} />
-                </div>
+              className="pillar-card group block relative overflow-hidden transition-all duration-200"
+              style={{ border: '1px solid var(--s-border)', borderRadius: 'var(--s-radius)' }}>
 
-                {/* Titre Bebas */}
-                <h3 className="font-display text-xl mb-2" style={{ letterSpacing: '0.03em', color: 'var(--s-text)' }}>{title}</h3>
+              {/* Colored accent bar top */}
+              <div className="h-[3px]"
+                style={{ background: `linear-gradient(90deg, ${accent}, ${accent}50, transparent 70%)` }} />
 
-                <p className="t-body mb-5">{desc}</p>
+              {/* Subtle colored glow in top-right corner */}
+              <div className="absolute top-0 right-0 w-[200px] h-[200px] pointer-events-none opacity-[0.07] transition-opacity duration-300 group-hover:opacity-[0.12]"
+                style={{ background: `radial-gradient(circle at top right, ${accent}, transparent 70%)` }} />
 
-                {/* Feature tags */}
-                <div className="flex items-center gap-2 flex-wrap mb-5">
-                  {features.map(f => (
-                    <span key={f} className="tag tag-neutral">{f}</span>
-                  ))}
+              {/* Background */}
+              <div className="absolute inset-0 pointer-events-none" style={{ background: 'var(--s-surface)' }} />
+
+              {/* Content */}
+              <div className="relative z-[1]">
+                <div className="panel-header">
+                  <div className="flex items-center gap-2">
+                    <Icon size={13} style={{ color: iconColor }} />
+                    <span className="t-label" style={{ color: 'var(--s-text)' }}>{title}</span>
+                  </div>
+                  <span className={`tag ${tagClass}`}>{tag}</span>
                 </div>
 
-                <div className="divider mb-4" />
-                <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors group-hover:text-white"
-                  style={{ color: 'var(--s-text-dim)' }}>
-                  Accéder <ChevronRight size={13} />
-                </span>
+                <div className="p-5">
+                  {/* Icon + stat row */}
+                  <div className="flex items-start justify-between mb-5">
+                    <div className="p-3.5" style={{ background: `${accent}10`, border: `1px solid ${accent}25` }}>
+                      <Icon size={28} style={{ color: iconColor }} />
+                    </div>
+                    <div className="text-right">
+                      <span className="font-display text-4xl block" style={{ color: accent, letterSpacing: '0.02em', lineHeight: 1 }}>{stat}</span>
+                      <span className="t-label" style={{ color: 'var(--s-text-muted)', fontSize: '9px' }}>{statLabel}</span>
+                    </div>
+                  </div>
+
+                  {/* Title */}
+                  <h3 className="font-display text-2xl mb-2" style={{ letterSpacing: '0.03em', color: 'var(--s-text)' }}>{title}</h3>
+
+                  <p className="t-body mb-5">{desc}</p>
+
+                  {/* Feature tags */}
+                  <div className="flex items-center gap-2 flex-wrap mb-5">
+                    {features.map(f => (
+                      <span key={f} className="tag tag-neutral">{f}</span>
+                    ))}
+                  </div>
+
+                  <div className="divider mb-4" />
+                  <div className="flex items-center justify-between">
+                    <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Springs Hub</span>
+                    <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors group-hover:text-white"
+                      style={{ color: iconColor }}>
+                      Accéder <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
+                    </span>
+                  </div>
+                </div>
               </div>
             </Link>
           ))}
@@ -266,18 +298,23 @@ export default function HomePage() {
         </div>
 
         <div className="grid grid-cols-4 gap-4">
-          {quickLinks.map(({ label, desc, href, icon: Icon, iconColor }) => (
+          {quickLinks.map(({ label, desc, href, icon: Icon, accent }) => (
             <Link key={label} href={href}
-              className="panel group block transition-all duration-150 hover:border-[rgba(255,255,255,0.15)]"
-              style={{ padding: '20px' }}>
-              <div className="flex items-start gap-4">
-                <div className="p-2.5 flex-shrink-0" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                  <Icon size={18} style={{ color: iconColor }} />
+              className="group block relative overflow-hidden transition-all duration-150 hover:border-[rgba(255,255,255,0.15)]"
+              style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', borderRadius: 'var(--s-radius)' }}>
+              {/* Accent line left */}
+              <div className="absolute left-0 top-0 bottom-0 w-[2px] transition-all duration-200 group-hover:w-[3px]"
+                style={{ background: accent }} />
+              <div className="p-5 pl-6 flex items-start gap-4">
+                <div className="p-2.5 flex-shrink-0" style={{ background: `${accent}10`, border: `1px solid ${accent}20` }}>
+                  <Icon size={18} style={{ color: accent }} />
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold mb-1 transition-colors group-hover:text-white" style={{ color: 'var(--s-text)' }}>{label}</p>
                   <p className="text-xs leading-relaxed" style={{ color: 'var(--s-text-muted)' }}>{desc}</p>
                 </div>
+                <ChevronRight size={14} className="flex-shrink-0 mt-1 transition-all opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0"
+                  style={{ color: accent }} />
               </div>
             </Link>
           ))}
