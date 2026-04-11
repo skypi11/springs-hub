@@ -317,7 +317,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                               style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                               <span className="t-body text-xs" style={{ color: 'var(--s-text-dim)' }}>{zr.zone}</span>
                               <span className="font-display text-base" style={{ color: '#33ff66' }}>
-                                {zr.rank.toLocaleString()}<span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>{zr.rank === 1 ? 'er' : 'e'}</span>
+                                {new Intl.NumberFormat('fr-FR').format(zr.rank)} <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>{zr.rank === 1 ? 'er' : 'e'}</span>
                               </span>
                             </div>
                           ))}
@@ -481,7 +481,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                   <div className="divider" />
                   <div className="flex items-center justify-between">
                     <span className="t-body">Pays</span>
-                    <span className="t-mono">{country.flag} {country.code}</span>
+                    <span className="t-mono">{country.flag} {country.name}</span>
                   </div>
                 </>
               )}
