@@ -209,6 +209,9 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
   const mainColor = structure.games?.includes('rocket_league') ? 'var(--s-blue)' : structure.games?.includes('trackmania') ? 'var(--s-green)' : 'var(--s-gold)';
   const mainColorRaw = structure.games?.includes('rocket_league') ? '0,129,255' : structure.games?.includes('trackmania') ? '0,217,54' : '255,184,0';
 
+  // Fondateurs et co-fondateurs pour le header
+  const leaders = structure.members.filter(m => m.role === 'fondateur' || m.role === 'co_fondateur');
+
   return (
     <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
       <div className="relative z-[1] space-y-8">
@@ -223,102 +226,129 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
           <div className="absolute bottom-0 right-0 w-[300px] h-[200px] pointer-events-none opacity-[0.04]"
             style={{ background: `radial-gradient(ellipse at bottom right, var(--s-gold), transparent 70%)` }} />
 
-          <div className="relative z-[1] p-10 flex items-start gap-8">
-            {/* Logo — grand et imposant */}
-            <div className="flex-shrink-0 w-28 h-28 relative overflow-hidden bevel-sm"
-              style={{ background: 'var(--s-elevated)', border: `2px solid rgba(${mainColorRaw},0.2)` }}>
-              {structure.logoUrl ? (
-                <Image src={structure.logoUrl} alt={structure.name} fill className="object-contain p-2" unoptimized />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <Shield size={44} style={{ color: 'var(--s-text-muted)' }} />
-                </div>
-              )}
-            </div>
-
-            <div className="flex-1 min-w-0">
-              {/* Tags */}
-              <div className="flex items-center gap-2 mb-3 flex-wrap">
-                <span className="tag tag-gold">{structure.tag}</span>
-                {structure.games?.map(g => (
-                  <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}>
-                    {g === 'rocket_league' ? 'Rocket League' : 'Trackmania'}
-                  </span>
-                ))}
-                {structure.recruiting?.active && (
-                  <span className="tag" style={{ background: 'rgba(0,217,54,0.1)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.25)' }}>
-                    <Search size={9} /> Recrute activement
-                  </span>
+          <div className="relative z-[1] p-10">
+            <div className="flex items-start gap-8">
+              {/* Logo */}
+              <div className="flex-shrink-0 w-28 h-28 relative overflow-hidden bevel-sm"
+                style={{ background: 'var(--s-elevated)', border: `2px solid rgba(${mainColorRaw},0.2)` }}>
+                {structure.logoUrl ? (
+                  <Image src={structure.logoUrl} alt={structure.name} fill className="object-contain p-2" unoptimized />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Shield size={44} style={{ color: 'var(--s-text-muted)' }} />
+                  </div>
                 )}
               </div>
 
-              {/* Nom */}
-              <h1 className="t-display mb-3">
-                {structure.name}
-              </h1>
-
-              {/* Description courte inline */}
-              {structure.description && (
-                <p className="t-body max-w-2xl mb-4 line-clamp-2" style={{ fontSize: '14px', color: 'var(--s-text-dim)' }}>
-                  {structure.description.replace(/[#*_\[\]]/g, '').substring(0, 160)}{structure.description.length > 160 ? '...' : ''}
-                </p>
-              )}
-
-              {/* Stats rapides */}
-              <div className="flex items-center gap-6">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 flex items-center justify-center" style={{ background: `rgba(${mainColorRaw},0.08)`, border: `1px solid rgba(${mainColorRaw},0.2)` }}>
-                    <Users size={14} style={{ color: mainColor }} />
-                  </div>
-                  <div>
-                    <span className="font-display text-lg block leading-none">{structure.members.length}</span>
-                    <span className="t-label" style={{ fontSize: '8px' }}>MEMBRES</span>
-                  </div>
+              <div className="flex-1 min-w-0">
+                {/* Tags */}
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
+                  <span className="tag tag-gold">{structure.tag}</span>
+                  {structure.games?.map(g => (
+                    <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}>
+                      {g === 'rocket_league' ? 'Rocket League' : 'Trackmania'}
+                    </span>
+                  ))}
+                  {structure.recruiting?.active && (
+                    <span className="tag" style={{ background: 'rgba(255,184,0,0.1)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.25)' }}>
+                      <Search size={9} /> Recrute
+                    </span>
+                  )}
                 </div>
-                {teams.length > 0 && (
+
+                {/* Nom */}
+                <h1 className="t-display mb-4">
+                  {structure.name}
+                </h1>
+
+                {/* Stats rapides */}
+                <div className="flex items-center gap-6">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 flex items-center justify-center" style={{ background: `rgba(${mainColorRaw},0.08)`, border: `1px solid rgba(${mainColorRaw},0.2)` }}>
-                      <Gamepad2 size={14} style={{ color: mainColor }} />
+                      <Users size={14} style={{ color: mainColor }} />
                     </div>
                     <div>
-                      <span className="font-display text-lg block leading-none">{teams.length}</span>
-                      <span className="t-label" style={{ fontSize: '8px' }}>ÉQUIPE{teams.length > 1 ? 'S' : ''}</span>
+                      <span className="font-display text-lg block leading-none">{structure.members.length}</span>
+                      <span className="t-label" style={{ fontSize: '8px' }}>MEMBRES</span>
                     </div>
                   </div>
-                )}
-                {structure.achievements && structure.achievements.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 flex items-center justify-center" style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.2)' }}>
-                      <Trophy size={14} style={{ color: 'var(--s-gold)' }} />
+                  {teams.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 flex items-center justify-center" style={{ background: `rgba(${mainColorRaw},0.08)`, border: `1px solid rgba(${mainColorRaw},0.2)` }}>
+                        <Gamepad2 size={14} style={{ color: mainColor }} />
+                      </div>
+                      <div>
+                        <span className="font-display text-lg block leading-none">{teams.length}</span>
+                        <span className="t-label" style={{ fontSize: '8px' }}>ÉQUIPE{teams.length > 1 ? 'S' : ''}</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="font-display text-lg block leading-none">{structure.achievements.length}</span>
-                      <span className="t-label" style={{ fontSize: '8px' }}>RÉSULTATS</span>
+                  )}
+                  {structure.achievements && structure.achievements.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 flex items-center justify-center" style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.2)' }}>
+                        <Trophy size={14} style={{ color: 'var(--s-gold)' }} />
+                      </div>
+                      <div>
+                        <span className="font-display text-lg block leading-none">{structure.achievements.length}</span>
+                        <span className="t-label" style={{ fontSize: '8px' }}>RÉSULTATS</span>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex-shrink-0 flex flex-col items-end gap-3 pt-1">
+                {isOwner ? (
+                  <Link href="/community/my-structure" className="btn-springs btn-secondary bevel-sm flex items-center gap-2">
+                    <Shield size={13} /> Gérer
+                  </Link>
+                ) : firebaseUser && !isMember && !joinSent ? (
+                  <button onClick={() => setShowJoinForm(!showJoinForm)}
+                    className="btn-springs btn-primary bevel-sm flex items-center gap-2">
+                    <UserPlus size={14} /> Rejoindre
+                  </button>
+                ) : joinSent ? (
+                  <span className="flex items-center gap-2 text-xs font-bold" style={{ color: '#33ff66' }}>
+                    <CheckCircle size={14} /> Demande envoyée
+                  </span>
+                ) : isMember ? (
+                  <span className="tag tag-gold" style={{ fontSize: '10px', padding: '4px 12px' }}>Membre</span>
+                ) : null}
               </div>
             </div>
 
-            {/* Actions */}
-            <div className="flex-shrink-0 flex flex-col items-end gap-3 pt-1">
-              {isOwner ? (
-                <Link href="/community/my-structure" className="btn-springs btn-secondary bevel-sm flex items-center gap-2">
-                  <Shield size={13} /> Gérer
-                </Link>
-              ) : firebaseUser && !isMember && !joinSent ? (
-                <button onClick={() => setShowJoinForm(!showJoinForm)}
-                  className="btn-springs btn-primary bevel-sm flex items-center gap-2">
-                  <UserPlus size={14} /> Rejoindre
-                </button>
-              ) : joinSent ? (
-                <span className="flex items-center gap-2 text-xs font-bold" style={{ color: '#33ff66' }}>
-                  <CheckCircle size={14} /> Demande envoyée
-                </span>
-              ) : isMember ? (
-                <span className="tag tag-gold" style={{ fontSize: '10px', padding: '4px 12px' }}>Membre</span>
-              ) : null}
-            </div>
+            {/* Fondateur(s) dans le header */}
+            {leaders.length > 0 && (
+              <div className="mt-6 pt-5 flex items-center gap-5" style={{ borderTop: '1px solid var(--s-border)' }}>
+                <span className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>DIRECTION</span>
+                <div className="flex items-center gap-4">
+                  {leaders.map(l => {
+                    const avatar = l.avatarUrl || l.discordAvatar;
+                    const roleConf = ROLE_LABELS[l.role] ?? { label: l.role, color: 'var(--s-gold)' };
+                    return (
+                      <Link key={l.id} href={`/profile/${l.userId}`}
+                        className="flex items-center gap-2.5 px-3 py-1.5 transition-colors duration-150 hover:bg-[var(--s-elevated)]"
+                        style={{ background: 'rgba(255,184,0,0.04)', border: '1px solid rgba(255,184,0,0.12)' }}>
+                        {avatar ? (
+                          <div className="w-7 h-7 relative flex-shrink-0 overflow-hidden" style={{ border: '1px solid rgba(255,184,0,0.2)' }}>
+                            <Image src={avatar} alt={l.displayName} fill className="object-cover" unoptimized />
+                          </div>
+                        ) : (
+                          <div className="w-7 h-7 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-elevated)', border: '1px solid rgba(255,184,0,0.2)' }}>
+                            <User size={12} style={{ color: 'var(--s-gold)' }} />
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-xs font-semibold" style={{ color: 'var(--s-text)' }}>{l.displayName}</p>
+                          <p className="text-xs" style={{ color: roleConf.color, fontSize: '9px' }}>{roleConf.label}</p>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </header>
 
@@ -569,19 +599,19 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
           {/* ─── COLONNE DROITE (1/3) ────────────────────────────────────── */}
           <div className="space-y-6">
 
-            {/* Recrutement */}
+            {/* Recrutement — couleur or (distinct du vert Trackmania) */}
             {structure.recruiting?.active && structure.recruiting.positions.length > 0 && (
               <div className="pillar-card panel relative overflow-hidden group transition-all duration-200">
-                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, #33ff66, rgba(0,217,54,0.3), transparent 70%)' }} />
+                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
                 <div className="absolute top-0 right-0 w-[150px] h-[150px] pointer-events-none opacity-[0.07]"
-                  style={{ background: 'radial-gradient(circle at top right, rgba(0,217,54,1), transparent 70%)' }} />
+                  style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
                 <div className="relative z-[1]">
                   <div className="panel-header">
                     <div className="flex items-center gap-2">
-                      <Search size={13} style={{ color: '#33ff66' }} />
+                      <UserPlus size={13} style={{ color: 'var(--s-gold)' }} />
                       <span className="t-label" style={{ color: 'var(--s-text)' }}>RECRUTEMENT</span>
                     </div>
-                    <span className="tag" style={{ background: 'rgba(0,217,54,0.12)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.3)', fontSize: '9px' }}>OUVERT</span>
+                    <span className="tag tag-gold" style={{ fontSize: '9px' }}>OUVERT</span>
                   </div>
                   <div className="p-5 space-y-2">
                     {structure.recruiting.positions.map((p, i) => (
@@ -596,12 +626,17 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                         </span>
                       </div>
                     ))}
-                    {firebaseUser && !isMember && !joinSent && (
+                    {firebaseUser && !isMember && !joinSent ? (
                       <button onClick={() => setShowJoinForm(true)}
                         className="btn-springs btn-primary bevel-sm w-full flex items-center justify-center gap-2 text-xs mt-3">
                         <UserPlus size={12} /> Postuler
                       </button>
-                    )}
+                    ) : joinSent ? (
+                      <div className="flex items-center justify-center gap-2 mt-3 py-2">
+                        <CheckCircle size={12} style={{ color: '#33ff66' }} />
+                        <span className="text-xs font-bold" style={{ color: '#33ff66' }}>Demande envoyée</span>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -637,8 +672,8 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                       <a key={key} href={url} target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-3 px-3.5 py-2.5 transition-colors duration-150 hover:bg-[var(--s-hover)]"
                         style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                        <Globe size={14} style={{ color: social.color }} />
-                        <span className="text-sm font-medium" style={{ color: social.color }}>{social.label}</span>
+                        <Globe size={14} style={{ color: 'var(--s-text-dim)' }} />
+                        <span className="text-sm font-medium" style={{ color: 'var(--s-text)' }}>{social.label}</span>
                         <ExternalLink size={10} className="ml-auto" style={{ color: 'var(--s-text-muted)' }} />
                       </a>
                     );
