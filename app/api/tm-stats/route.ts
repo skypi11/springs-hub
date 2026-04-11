@@ -63,9 +63,47 @@ export async function GET(req: NextRequest) {
       const echelon = trophyData.echelon ?? 0;
       const points = trophyData.points ?? 0;
 
+      // Trophées par tier (T1=le plus bas → T9=le plus haut)
+      const counts = trophyData.counts ?? [];
+      // trackmania.io renvoie counts[0]=T1, counts[1]=T2, ... counts[8]=T9
+      const trophyTiers: { tier: number; count: number }[] = [];
+      for (let i = 0; i < counts.length; i++) {
+        if (counts[i] > 0) {
+          trophyTiers.push({ tier: i + 1, count: counts[i] });
+        }
+      }
+
+      // Classements par zone (Var, PACA, France, Europe, World)
+      const zoneRankings: { zone: string; rank: number }[] = [];
+      const zones = trophyData.zonepositions ?? [];
+
+      // L'API renvoie les zones dans player.trophies.zone (objet imbriqué parent→enfant)
+      // et les positions dans trophyData.zonepositions (array parallèle)
+      if (zones.length > 0) {
+        // Extraire les noms de zones depuis la structure imbriquée
+        const names: string[] = [];
+        let z = player.trophies?.zone;
+        while (z) {
+          names.push(z.name ?? z.flag ?? '');
+          z = z.parent;
+        }
+        // names = [city, region, country, continent, world] — du plus spécifique au plus large
+        // zones = positions dans le même ordre
+        for (let i = 0; i < Math.min(zones.length, names.length); i++) {
+          if (zones[i] > 0 && names[i]) {
+            zoneRankings.push({ zone: names[i], rank: zones[i] });
+          }
+        }
+      }
+
+      // Club tag
+      const clubTag = player.clubtag ?? null;
+
       // Récupérer les infos COTD si disponibles
       let cotdBestRank = null;
       let cotdBestDiv = null;
+      let cotdCount = 0;
+      let cotdAvgRank = null;
 
       try {
         const cotdRes = await fetch(`${TM_IO_API}/player/${accountId}/cotd/0`, {
@@ -75,17 +113,25 @@ export async function GET(req: NextRequest) {
         if (cotdRes.ok) {
           const cotdData = await cotdRes.json();
           const cotds = cotdData.cotds ?? [];
+          cotdCount = cotdData.total ?? cotds.length;
+
           if (cotds.length > 0) {
-            // Trouver le meilleur résultat
             let bestRank = Infinity;
+            let totalRank = 0;
+            let counted = 0;
             for (const cotd of cotds) {
               const rank = cotd.rank ?? cotd.resultRank;
-              if (rank && rank < bestRank) {
-                bestRank = rank;
-                cotdBestDiv = cotd.div ?? Math.ceil(rank / 64);
+              if (rank && rank > 0) {
+                if (rank < bestRank) {
+                  bestRank = rank;
+                  cotdBestDiv = cotd.div ?? Math.ceil(rank / 64);
+                }
+                totalRank += rank;
+                counted++;
               }
             }
             if (bestRank < Infinity) cotdBestRank = bestRank;
+            if (counted > 0) cotdAvgRank = Math.round(totalRank / counted);
           }
         }
       } catch {
@@ -97,8 +143,13 @@ export async function GET(req: NextRequest) {
         accountId,
         trophies: points,
         echelon,
+        clubTag,
+        trophyTiers,
+        zoneRankings,
         cotdBestRank,
         cotdBestDiv,
+        cotdCount,
+        cotdAvgRank,
         profileUrl: `https://trackmania.io/#/player/${accountId}`,
       });
     }

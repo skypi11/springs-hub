@@ -44,8 +44,14 @@ export interface TMStats {
   displayName?: string;
   trophies?: number;
   echelon?: number;            // 1-9
+  clubTag?: string;
+  trophyTiers?: { tier: number; count: number }[];
+  zoneRankings?: { zone: string; rank: number }[];
   cotdBestRank?: number;
   cotdBestDiv?: number;
+  cotdCount?: number;
+  cotdAvgRank?: number;
+  profileUrl?: string;
   updatedAt?: string;
 }
 

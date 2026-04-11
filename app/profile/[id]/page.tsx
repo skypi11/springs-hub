@@ -27,7 +27,15 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const [profile, setProfile] = useState<SpringsUser | null>(null);
   const [rlStats, setRlStats] = useState<RLStats | null>(null);
   const [rlTrackerUrl, setRlTrackerUrl] = useState('');
-  const [tmStats, setTmStats] = useState<{ trophies: number | null; echelon: number | null; cotdBestRank: number | null; cotdBestDiv: number | null; profileUrl: string | null } | null>(null);
+  const [tmStats, setTmStats] = useState<{
+    trophies: number | null; echelon: number | null;
+    clubTag: string | null;
+    trophyTiers: { tier: number; count: number }[];
+    zoneRankings: { zone: string; rank: number }[];
+    cotdBestRank: number | null; cotdBestDiv: number | null;
+    cotdCount: number; cotdAvgRank: number | null;
+    profileUrl: string | null;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -261,46 +269,114 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                   <Gamepad2 size={13} style={{ color: '#33ff66' }} />
                   <span className="t-label" style={{ color: 'var(--s-text)' }}>TRACKMANIA</span>
                 </div>
-                <span className="tag tag-green">
-                  {profile.pseudoTM}
-                </span>
+                <div className="flex items-center gap-2">
+                  {tmStats?.clubTag && (
+                    <span className="tag" style={{ background: 'rgba(0,217,54,0.1)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.25)' }}>
+                      {tmStats.clubTag}
+                    </span>
+                  )}
+                  <span className="tag tag-green">
+                    {tmStats?.displayName || profile.pseudoTM}
+                  </span>
+                </div>
               </div>
               <div className="panel-body">
                 {tmStats && (tmStats.trophies !== null || tmStats.cotdBestRank !== null) ? (
-                  <div className="flex items-center gap-8">
-                    {/* Trophées */}
-                    {tmStats.trophies !== null && (
+                  <>
+                    {/* Ligne principale : trophées + échelon */}
+                    <div className="flex items-center gap-8 mb-5">
                       <div className="flex items-center gap-3">
                         <div className="p-2.5" style={{ background: 'rgba(0,217,54,0.08)', border: '1px solid rgba(0,217,54,0.2)' }}>
                           <Trophy size={20} style={{ color: '#33ff66' }} />
                         </div>
                         <div>
                           <p className="font-display text-2xl" style={{ color: '#33ff66', lineHeight: 1 }}>
-                            {tmStats.trophies.toLocaleString()}
+                            {tmStats.trophies?.toLocaleString() ?? '—'}
                           </p>
                           <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>Trophées</p>
                         </div>
                       </div>
+
+                      {tmStats.echelon !== null && tmStats.echelon > 0 && (
+                        <div className="text-center">
+                          <p className="font-display text-3xl" style={{ color: '#33ff66', lineHeight: 1 }}>{tmStats.echelon}</p>
+                          <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>Échelon</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Classements par zone */}
+                    {tmStats.zoneRankings && tmStats.zoneRankings.length > 0 && (
+                      <>
+                        <div className="divider mb-4" />
+                        <p className="t-label mb-3" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>CLASSEMENT PAR ZONE</p>
+                        <div className="grid grid-cols-2 gap-2 mb-5">
+                          {tmStats.zoneRankings.map((zr) => (
+                            <div key={zr.zone} className="flex items-center justify-between px-3 py-2"
+                              style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                              <span className="t-body text-xs" style={{ color: 'var(--s-text-dim)' }}>{zr.zone}</span>
+                              <span className="font-display text-sm" style={{ color: '#33ff66' }}>
+                                {zr.rank.toLocaleString()}{zr.rank === 1 ? 'er' : 'e'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
                     )}
 
-                    {/* Echelon */}
-                    {tmStats.echelon !== null && tmStats.echelon > 0 && (
-                      <div className="text-center">
-                        <p className="font-display text-3xl" style={{ color: '#33ff66', lineHeight: 1 }}>{tmStats.echelon}</p>
-                        <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>Échelon</p>
-                      </div>
+                    {/* Trophées par tier */}
+                    {tmStats.trophyTiers && tmStats.trophyTiers.length > 0 && (
+                      <>
+                        <div className="divider mb-4" />
+                        <p className="t-label mb-3" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>TROPHÉES PAR TIER</p>
+                        <div className="flex gap-3 flex-wrap mb-5">
+                          {tmStats.trophyTiers.sort((a, b) => b.tier - a.tier).map((t) => {
+                            const tierColors = ['#cd7f32', '#cd7f32', '#cd7f32', '#c0c0c0', '#c0c0c0', '#c0c0c0', '#ffd700', '#ffd700', '#ffd700'];
+                            const color = tierColors[t.tier - 1] ?? '#33ff66';
+                            return (
+                              <div key={t.tier} className="text-center px-3 py-2"
+                                style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', minWidth: '70px' }}>
+                                <p className="font-display text-lg" style={{ color, lineHeight: 1 }}>
+                                  {t.count.toLocaleString()}
+                                </p>
+                                <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>Tier {t.tier}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
                     )}
 
                     {/* COTD */}
-                    {tmStats.cotdBestRank !== null && (
-                      <div className="text-center">
-                        <p className="font-display text-3xl" style={{ color: '#33ff66', lineHeight: 1 }}>#{tmStats.cotdBestRank}</p>
-                        <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>
-                          Best COTD{tmStats.cotdBestDiv ? ` (Div ${tmStats.cotdBestDiv})` : ''}
-                        </p>
-                      </div>
+                    {(tmStats.cotdBestRank !== null || tmStats.cotdCount > 0) && (
+                      <>
+                        <div className="divider mb-4" />
+                        <p className="t-label mb-3" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>CUP OF THE DAY</p>
+                        <div className="flex items-center gap-6">
+                          {tmStats.cotdBestRank !== null && (
+                            <div className="text-center">
+                              <p className="font-display text-2xl" style={{ color: '#33ff66', lineHeight: 1 }}>#{tmStats.cotdBestRank}</p>
+                              <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>
+                                Best{tmStats.cotdBestDiv ? ` (Div ${tmStats.cotdBestDiv})` : ''}
+                              </p>
+                            </div>
+                          )}
+                          {tmStats.cotdAvgRank !== null && (
+                            <div className="text-center">
+                              <p className="font-display text-2xl" style={{ color: 'var(--s-text)', lineHeight: 1 }}>#{tmStats.cotdAvgRank}</p>
+                              <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>Moy.</p>
+                            </div>
+                          )}
+                          {tmStats.cotdCount > 0 && (
+                            <div className="text-center">
+                              <p className="font-display text-2xl" style={{ color: 'var(--s-text)', lineHeight: 1 }}>{tmStats.cotdCount}</p>
+                              <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>Participations</p>
+                            </div>
+                          )}
+                        </div>
+                      </>
                     )}
-                  </div>
+                  </>
                 ) : (
                   <div className="flex items-center gap-3">
                     <div className="p-2.5" style={{ background: 'rgba(0,217,54,0.08)', border: '1px solid rgba(0,217,54,0.2)' }}>
