@@ -301,7 +301,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       {tmStats.echelon !== null && tmStats.echelon > 0 && (
                         <div className="text-center">
                           <p className="font-display text-3xl" style={{ color: 'var(--s-text)', lineHeight: 1 }}>{tmStats.echelon}</p>
-                          <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>Échelon</p>
+                          <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>Niveau</p>
                         </div>
                       )}
                     </div>
@@ -332,15 +332,14 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                         <p className="t-label mb-3" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>TROPHÉES</p>
                         <div className="flex gap-2 flex-wrap mb-5">
                           {tmStats.trophyTiers.sort((a, b) => b.tier - a.tier).map((t) => {
-                            // Vraies couleurs Trackmania
-                            const tierData: Record<number, { label: string; color: string; bg: string; border: string }> = {
-                              1: { label: 'Bronze', color: '#cd7f32', bg: 'rgba(205,127,50,0.12)', border: 'rgba(205,127,50,0.35)' },
-                              2: { label: 'Argent', color: '#c0c0c0', bg: 'rgba(192,192,192,0.1)', border: 'rgba(192,192,192,0.3)' },
-                              3: { label: 'Or', color: '#ffd700', bg: 'rgba(255,215,0,0.12)', border: 'rgba(255,215,0,0.35)' },
-                              4: { label: 'Auteur', color: '#00d936', bg: 'rgba(0,217,54,0.1)', border: 'rgba(0,217,54,0.3)' },
-                              5: { label: 'Champion', color: '#ff3333', bg: 'rgba(255,51,51,0.1)', border: 'rgba(255,51,51,0.3)' },
+                            // Couleurs TM : T1-3 Bronze, T4-6 Argent, T7-9 Or
+                            const tierGroup = t.tier <= 3 ? 'bronze' : t.tier <= 6 ? 'argent' : 'or';
+                            const tierStyles = {
+                              bronze: { color: '#cd7f32', bg: 'rgba(205,127,50,0.12)', border: 'rgba(205,127,50,0.35)' },
+                              argent: { color: '#c0c0c0', bg: 'rgba(192,192,192,0.1)', border: 'rgba(192,192,192,0.3)' },
+                              or:     { color: '#ffd700', bg: 'rgba(255,215,0,0.12)', border: 'rgba(255,215,0,0.35)' },
                             };
-                            const td = tierData[t.tier] ?? { label: `T${t.tier}`, color: 'var(--s-text-dim)', bg: 'transparent', border: 'var(--s-border)' };
+                            const td = { label: `T${t.tier}`, ...tierStyles[tierGroup] };
                             return (
                               <div key={t.tier} className="text-center px-4 py-3"
                                 style={{ background: td.bg, border: `1px solid ${td.border}`, minWidth: '80px' }}>
