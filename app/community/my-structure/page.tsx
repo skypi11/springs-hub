@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -149,6 +149,8 @@ export default function MyStructurePage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [showEmojis, setShowEmojis] = useState(false);
+  const descRef = useRef<HTMLTextAreaElement>(null);
 
   async function loadStructures() {
     if (!firebaseUser) return;
@@ -458,9 +460,50 @@ export default function MyStructurePage() {
             <SectionPanel accent="var(--s-violet)" icon={MessageSquare} title="DESCRIPTION"
               collapsed={collapsed.desc} onToggle={() => toggle('desc')}>
               <div className="space-y-3">
-                <textarea className="settings-input w-full" rows={5}
-                  value={editDesc} onChange={e => setEditDesc(e.target.value)}
-                  placeholder="Présente ta structure... (Markdown supporté : **gras**, *italique*, - listes)" />
+                <div className="relative">
+                  <textarea ref={descRef} className="settings-input w-full" rows={5}
+                    value={editDesc} onChange={e => setEditDesc(e.target.value)}
+                    placeholder="Présente ta structure..." />
+                  {/* Emoji picker toggle */}
+                  <div className="relative inline-block">
+                    <button type="button" onClick={() => setShowEmojis(!showEmojis)}
+                      className="mt-1.5 text-xs flex items-center gap-1.5 px-2 py-1 transition-colors duration-150"
+                      style={{ color: showEmojis ? 'var(--s-gold)' : 'var(--s-text-muted)', background: showEmojis ? 'rgba(255,184,0,0.08)' : 'transparent', border: `1px solid ${showEmojis ? 'rgba(255,184,0,0.2)' : 'var(--s-border)'}` }}>
+                      <span style={{ fontSize: '14px' }}>😀</span> Emojis
+                    </button>
+                    {showEmojis && (
+                      <div className="absolute left-0 top-full mt-1 p-2 z-10 grid grid-cols-10 gap-1" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+                        {['🏆', '🥇', '🥈', '🥉', '⭐', '🔥', '💪', '🎮', '🎯', '🚀', '⚽', '🏎️', '🏁', '👑', '💎', '🛡️', '⚔️', '🎉', '📢', '💬', '✅', '❌', '🔵', '🟢', '🟡', '🔴', '⚡', '💥', '🌟', '🏅', '👊', '🤝', '📊', '📈', '🗓️', '🎪', '🏟️', '🎖️', '🧩', '🕹️'].map(emoji => (
+                          <button key={emoji} type="button" className="w-7 h-7 flex items-center justify-center text-base hover:scale-125 transition-transform duration-100"
+                            style={{ background: 'transparent' }}
+                            onClick={() => {
+                              const ta = descRef.current;
+                              if (ta) {
+                                const start = ta.selectionStart;
+                                const end = ta.selectionEnd;
+                                const newVal = editDesc.slice(0, start) + emoji + editDesc.slice(end);
+                                setEditDesc(newVal);
+                                setTimeout(() => { ta.focus(); ta.selectionStart = ta.selectionEnd = start + emoji.length; }, 0);
+                              } else {
+                                setEditDesc(editDesc + emoji);
+                              }
+                            }}>
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {/* Légende markdown */}
+                <div className="flex flex-wrap gap-x-4 gap-y-1 px-1" style={{ color: 'var(--s-text-muted)', fontSize: '10px' }}>
+                  <span><strong style={{ color: 'var(--s-text-dim)' }}>**gras**</strong></span>
+                  <span><em>*italique*</em></span>
+                  <span>## Titre</span>
+                  <span>- liste</span>
+                  <span>[lien](url)</span>
+                  <span>&gt; citation</span>
+                </div>
                 {editDesc.trim() && (
                   <div>
                     <p className="t-label mb-2" style={{ color: 'var(--s-text-muted)' }}>APERÇU</p>
