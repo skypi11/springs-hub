@@ -22,6 +22,22 @@ type Member = {
   country: string;
 };
 
+type TeamPlayer = {
+  uid: string;
+  displayName: string;
+  discordAvatar: string;
+  avatarUrl: string;
+};
+
+type Team = {
+  id: string;
+  name: string;
+  game: string;
+  players: TeamPlayer[];
+  subs: TeamPlayer[];
+  staff: TeamPlayer[];
+};
+
 type StructureData = {
   id: string;
   name: string;
@@ -82,6 +98,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
   const [joinSent, setJoinSent] = useState(false);
   const [joinError, setJoinError] = useState('');
   const [showJoinForm, setShowJoinForm] = useState(false);
+  const [teams, setTeams] = useState<Team[]>([]);
 
   useEffect(() => {
     // Attendre que l'auth soit résolu avant de charger
@@ -102,6 +119,15 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
         }
         const data = await res.json();
         setStructure(data);
+
+        // Charger les équipes
+        try {
+          const teamsRes = await fetch(`/api/structures/teams?structureId=${id}`);
+          if (teamsRes.ok) {
+            const teamsData = await teamsRes.json();
+            setTeams(teamsData.teams ?? []);
+          }
+        } catch { /* ignore */ }
       } catch (err) {
         console.error('[Structure] load error:', err);
         setNotFound(true);
@@ -331,6 +357,127 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
               )}
             </div>
           </div>
+
+          {/* Équipes */}
+          {teams.length > 0 && (
+            <div className="panel">
+              <div className="panel-header">
+                <div className="flex items-center gap-2">
+                  <Gamepad2 size={13} style={{ color: 'var(--s-blue)' }} />
+                  <span className="t-label" style={{ color: 'var(--s-text)' }}>ÉQUIPES</span>
+                </div>
+                <span className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>{teams.length}</span>
+              </div>
+              <div className="panel-body space-y-4">
+                {teams.map(team => {
+                  const gameColor = team.game === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)';
+                  const gameLabel = team.game === 'rocket_league' ? 'RL' : 'TM';
+                  return (
+                    <div key={team.id} className="relative overflow-hidden"
+                      style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                      <div className="h-[2px]" style={{ background: `linear-gradient(90deg, ${gameColor}, transparent 70%)` }} />
+                      <div className="p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="font-display text-sm tracking-wider">{team.name}</span>
+                          <span className={`tag ${team.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
+                            style={{ fontSize: '8px', padding: '1px 5px' }}>{gameLabel}</span>
+                        </div>
+
+                        {/* Titulaires */}
+                        {team.players.length > 0 && (
+                          <div className="mb-2">
+                            <span className="t-label block mb-1.5" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>TITULAIRES</span>
+                            <div className="flex flex-wrap gap-2">
+                              {team.players.map(p => {
+                                const av = p.avatarUrl || p.discordAvatar;
+                                return (
+                                  <Link key={p.uid} href={`/profile/${p.uid}`}
+                                    className="flex items-center gap-2 px-2.5 py-1.5 transition-colors duration-150 hover:bg-[var(--s-hover)]"
+                                    style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                                    {av ? (
+                                      <div className="w-6 h-6 relative flex-shrink-0 overflow-hidden">
+                                        <Image src={av} alt={p.displayName} fill className="object-cover" unoptimized />
+                                      </div>
+                                    ) : (
+                                      <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-elevated)' }}>
+                                        <User size={10} style={{ color: 'var(--s-text-muted)' }} />
+                                      </div>
+                                    )}
+                                    <span className="text-xs font-semibold" style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Remplaçants */}
+                        {team.subs.length > 0 && (
+                          <div className="mb-2">
+                            <span className="t-label block mb-1.5" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>REMPLAÇANTS</span>
+                            <div className="flex flex-wrap gap-2">
+                              {team.subs.map(p => {
+                                const av = p.avatarUrl || p.discordAvatar;
+                                return (
+                                  <Link key={p.uid} href={`/profile/${p.uid}`}
+                                    className="flex items-center gap-2 px-2.5 py-1.5 transition-colors duration-150 hover:bg-[var(--s-hover)]"
+                                    style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                                    {av ? (
+                                      <div className="w-6 h-6 relative flex-shrink-0 overflow-hidden">
+                                        <Image src={av} alt={p.displayName} fill className="object-cover" unoptimized />
+                                      </div>
+                                    ) : (
+                                      <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-elevated)' }}>
+                                        <User size={10} style={{ color: 'var(--s-text-muted)' }} />
+                                      </div>
+                                    )}
+                                    <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{p.displayName}</span>
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Staff */}
+                        {team.staff.length > 0 && (
+                          <div>
+                            <span className="t-label block mb-1.5" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>STAFF</span>
+                            <div className="flex flex-wrap gap-2">
+                              {team.staff.map(p => {
+                                const av = p.avatarUrl || p.discordAvatar;
+                                return (
+                                  <Link key={p.uid} href={`/profile/${p.uid}`}
+                                    className="flex items-center gap-2 px-2.5 py-1.5 transition-colors duration-150 hover:bg-[var(--s-hover)]"
+                                    style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                                    {av ? (
+                                      <div className="w-6 h-6 relative flex-shrink-0 overflow-hidden">
+                                        <Image src={av} alt={p.displayName} fill className="object-cover" unoptimized />
+                                      </div>
+                                    ) : (
+                                      <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-elevated)' }}>
+                                        <User size={10} style={{ color: 'var(--s-text-muted)' }} />
+                                      </div>
+                                    )}
+                                    <span className="text-xs" style={{ color: 'var(--s-violet-light)' }}>{p.displayName}</span>
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Équipe vide */}
+                        {team.players.length === 0 && team.subs.length === 0 && team.staff.length === 0 && (
+                          <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucun membre dans cette équipe.</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Palmarès */}
           {structure.achievements && structure.achievements.length > 0 && (
