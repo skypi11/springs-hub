@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import ReactMarkdown from 'react-markdown';
 import { useAuth } from '@/context/AuthContext';
 import {
   Shield, Users, Gamepad2, ExternalLink, Trophy, Loader2, AlertCircle,
@@ -221,7 +222,9 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                 <span className="t-label" style={{ color: 'var(--s-text)' }}>À PROPOS</span>
               </div>
               <div className="panel-body">
-                <p className="t-body" style={{ whiteSpace: 'pre-wrap' }}>{structure.description}</p>
+                <div className="prose-springs text-sm">
+                  <ReactMarkdown>{structure.description}</ReactMarkdown>
+                </div>
               </div>
             </div>
           )}

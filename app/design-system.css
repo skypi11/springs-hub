@@ -388,3 +388,29 @@
   background: var(--s-border);
   margin-left: 12px;
 }
+
+/* ── PROSE SPRINGS — Markdown rendering ─────────────────────────────── */
+.prose-springs { color: var(--s-text); line-height: 1.65; }
+.prose-springs p { margin: 0.4em 0; }
+.prose-springs strong { color: #fff; font-weight: 700; }
+.prose-springs em { color: var(--s-text-dim); font-style: italic; }
+.prose-springs ul, .prose-springs ol { margin: 0.4em 0; padding-left: 1.4em; }
+.prose-springs li { margin: 0.15em 0; }
+.prose-springs li::marker { color: var(--s-text-muted); }
+.prose-springs h1, .prose-springs h2, .prose-springs h3 {
+  font-family: var(--font-display); text-transform: uppercase;
+  letter-spacing: 0.04em; color: #fff; margin: 0.6em 0 0.3em;
+}
+.prose-springs h1 { font-size: 1.25rem; }
+.prose-springs h2 { font-size: 1.1rem; }
+.prose-springs h3 { font-size: 0.95rem; }
+.prose-springs a { color: var(--s-blue); text-decoration: underline; }
+.prose-springs code {
+  background: var(--s-elevated); padding: 0.15em 0.4em;
+  font-size: 0.85em; color: var(--s-violet-light);
+}
+.prose-springs blockquote {
+  border-left: 3px solid var(--s-violet);
+  padding-left: 0.8em; margin: 0.5em 0;
+  color: var(--s-text-dim); font-style: italic;
+}

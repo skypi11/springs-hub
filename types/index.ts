@@ -82,7 +82,7 @@ export interface Structure {
     positions: { game: string; role: string }[];  // ex: [{ game: 'rocket_league', role: 'joueur' }]
   };
   // Palmarès
-  achievements?: { title: string; date?: string; competition?: string }[];
+  achievements?: Achievement[];
   // Rôles
   founderId: string;
   coFounderIds?: string[];
@@ -97,6 +97,24 @@ export interface Structure {
   suspendedAt?: Date;
   suspendedBy?: string;
   deletionRequestedAt?: Date;
+  createdAt?: Date;
+}
+
+export interface Achievement {
+  placement: string;          // "1er", "2e", "Top 4", "Demi-finale"
+  competition: string;        // "Springs Cup Saison 2"
+  game: string;               // 'rocket_league' | 'trackmania'
+  date: string;               // "2026-03" (mois/année)
+}
+
+export interface SubTeam {
+  id: string;
+  structureId: string;
+  game: string;               // 'rocket_league' | 'trackmania'
+  name: string;               // "Équipe principale", "Équipe B"
+  playerIds: string[];         // joueurs titulaires
+  subIds: string[];            // remplaçants
+  staffIds: string[];          // managers/coachs rattachés à cette équipe
   createdAt?: Date;
 }
 

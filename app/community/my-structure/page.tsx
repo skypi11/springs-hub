@@ -8,8 +8,9 @@ import { useAuth } from '@/context/AuthContext';
 import {
   Shield, Users, Gamepad2, Trophy, Loader2, AlertCircle,
   User, Save, Plus, Trash2, Eye, Clock, Ban, CheckCircle,
-  Search, ChevronUp, Link2, MessageSquare, Settings
+  Search, ChevronUp, ChevronDown, Link2, MessageSquare, Settings, LucideIcon
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 type Member = {
   id: string;
@@ -66,6 +67,54 @@ const SOCIAL_LABELS: Record<string, string> = {
   website: 'Site web',
 };
 
+// ─── Collapsible section panel — OUTSIDE the component to avoid remount ─
+function SectionPanel({ accent, icon: Icon, title, action, children, collapsed, onToggle }: {
+  accent: string;
+  icon: LucideIcon;
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  collapsed?: boolean;
+  onToggle?: () => void;
+}) {
+  return (
+    <div className="bevel relative overflow-hidden transition-all duration-200"
+      style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+      {/* Accent bar */}
+      <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${accent}, ${accent}50, transparent 70%)` }} />
+      {/* Glow */}
+      <div className="absolute top-0 right-0 w-48 h-48 pointer-events-none"
+        style={{ background: `radial-gradient(circle at 100% 0%, ${accent}08, transparent 70%)` }} />
+      {/* Header — clickable to collapse */}
+      <div className="relative z-[1] px-5 py-3.5 flex items-center justify-between cursor-pointer select-none"
+        style={{ borderBottom: collapsed ? 'none' : '1px solid var(--s-border)' }}
+        onClick={onToggle}>
+        <div className="flex items-center gap-3">
+          <div className="w-7 h-7 flex items-center justify-center" style={{ background: `${accent}10`, border: `1px solid ${accent}25` }}>
+            <Icon size={13} style={{ color: accent }} />
+          </div>
+          <span className="font-display text-sm tracking-wider">{title}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Stop propagation on action buttons so clicking them doesn't toggle the section */}
+          {!collapsed && action && <div onClick={e => e.stopPropagation()}>{action}</div>}
+          {onToggle && (
+            <div className="w-6 h-6 flex items-center justify-center" style={{ color: 'var(--s-text-muted)' }}>
+              {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+            </div>
+          )}
+        </div>
+      </div>
+      {/* Body — hidden when collapsed */}
+      {!collapsed && (
+        <div className="relative z-[1] p-5">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MyStructurePage() {
   const { firebaseUser, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -99,6 +148,7 @@ export default function MyStructurePage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   async function loadStructures() {
     if (!firebaseUser) return;
@@ -279,39 +329,7 @@ export default function MyStructurePage() {
   const StatusIcon = statusInfo.icon;
   const canEdit = s.status === 'active';
 
-  // ─── Helper: Section panel with accent bar + glow ────────────────────
-  function SectionPanel({ accent, icon: Icon, title, action, children }: {
-    accent: string;
-    icon: typeof Shield;
-    title: string;
-    action?: React.ReactNode;
-    children: React.ReactNode;
-  }) {
-    return (
-      <div className="bevel relative overflow-hidden transition-all duration-200"
-        style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-        {/* Accent bar */}
-        <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${accent}, ${accent}50, transparent 70%)` }} />
-        {/* Glow */}
-        <div className="absolute top-0 right-0 w-48 h-48 pointer-events-none"
-          style={{ background: `radial-gradient(circle at 100% 0%, ${accent}08, transparent 70%)` }} />
-        {/* Header */}
-        <div className="relative z-[1] px-5 py-3.5 flex items-center justify-between" style={{ borderBottom: '1px solid var(--s-border)' }}>
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 flex items-center justify-center" style={{ background: `${accent}10`, border: `1px solid ${accent}25` }}>
-              <Icon size={13} style={{ color: accent }} />
-            </div>
-            <span className="font-display text-sm tracking-wider">{title}</span>
-          </div>
-          {action}
-        </div>
-        {/* Body */}
-        <div className="relative z-[1] p-5">
-          {children}
-        </div>
-      </div>
-    );
-  }
+  const toggle = (key: string) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }));
 
   // ─── Not active state ────────────────────────────────────────────────
 
@@ -437,14 +455,26 @@ export default function MyStructurePage() {
           <div className="col-span-2 space-y-6 animate-fade-in-d1">
 
             {/* Description */}
-            <SectionPanel accent="var(--s-violet)" icon={MessageSquare} title="DESCRIPTION">
-              <textarea className="settings-input w-full" rows={4}
-                value={editDesc} onChange={e => setEditDesc(e.target.value)}
-                placeholder="Présente ta structure en quelques lignes..." />
+            <SectionPanel accent="var(--s-violet)" icon={MessageSquare} title="DESCRIPTION"
+              collapsed={collapsed.desc} onToggle={() => toggle('desc')}>
+              <div className="space-y-3">
+                <textarea className="settings-input w-full" rows={5}
+                  value={editDesc} onChange={e => setEditDesc(e.target.value)}
+                  placeholder="Présente ta structure... (Markdown supporté : **gras**, *italique*, - listes)" />
+                {editDesc.trim() && (
+                  <div>
+                    <p className="t-label mb-2" style={{ color: 'var(--s-text-muted)' }}>APERÇU</p>
+                    <div className="p-3 prose-springs text-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                      <ReactMarkdown>{editDesc}</ReactMarkdown>
+                    </div>
+                  </div>
+                )}
+              </div>
             </SectionPanel>
 
             {/* Configuration */}
-            <SectionPanel accent="var(--s-gold)" icon={Settings} title="CONFIGURATION">
+            <SectionPanel accent="var(--s-gold)" icon={Settings} title="CONFIGURATION"
+              collapsed={collapsed.config} onToggle={() => toggle('config')}>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -465,7 +495,8 @@ export default function MyStructurePage() {
             </SectionPanel>
 
             {/* Réseaux sociaux */}
-            <SectionPanel accent="#5865F2" icon={Link2} title="RÉSEAUX SOCIAUX">
+            <SectionPanel accent="#5865F2" icon={Link2} title="RÉSEAUX SOCIAUX"
+              collapsed={collapsed.socials} onToggle={() => toggle('socials')}>
               <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                 {Object.entries(SOCIAL_LABELS).map(([key, label]) => (
                   <div key={key}>
@@ -479,7 +510,8 @@ export default function MyStructurePage() {
             </SectionPanel>
 
             {/* Recrutement */}
-            <SectionPanel accent="#33ff66" icon={Search} title="RECRUTEMENT">
+            <SectionPanel accent="#33ff66" icon={Search} title="RECRUTEMENT"
+              collapsed={collapsed.recruit} onToggle={() => toggle('recruit')}>
               <div className="space-y-4">
                 <label className="flex items-center gap-3 cursor-pointer select-none">
                   <div className="relative w-10 h-5 transition-colors duration-200"
@@ -548,6 +580,7 @@ export default function MyStructurePage() {
 
             {/* Palmarès */}
             <SectionPanel accent="var(--s-gold)" icon={Trophy} title="PALMARÈS"
+              collapsed={collapsed.palmares} onToggle={() => toggle('palmares')}
               action={
                 <button type="button" onClick={() => setEditAchievements([...editAchievements, { placement: '', competition: '', game: s.games[0] || 'rocket_league', date: '' }])}
                   className="flex items-center gap-1.5 text-xs font-bold transition-colors duration-150" style={{ color: 'var(--s-gold)' }}>
@@ -631,6 +664,7 @@ export default function MyStructurePage() {
 
             {/* ═══ Équipes ═══ */}
             <SectionPanel accent="var(--s-blue)" icon={Gamepad2} title="ÉQUIPES"
+              collapsed={collapsed.teams} onToggle={() => toggle('teams')}
               action={
                 <button type="button" onClick={() => setShowNewTeam(!showNewTeam)}
                   className="flex items-center gap-1.5 text-xs font-bold transition-colors duration-150" style={{ color: 'var(--s-blue)' }}>
