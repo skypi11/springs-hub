@@ -48,8 +48,8 @@
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.4;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 66L0 50L0 16L28 0L56 16L56 50L28 66ZM28 100L0 84L0 50L28 34L56 50L56 84L28 100Z' fill='none' stroke='%23ffffff' stroke-width='0.5' opacity='0.08'/%3E%3C/svg%3E");
+  opacity: 1;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 66L0 50L0 16L28 0L56 16L56 50L28 66ZM28 100L0 84L0 50L28 34L56 50L56 84L28 100Z' fill='none' stroke='%23ffffff' stroke-width='0.4' opacity='0.045'/%3E%3C/svg%3E");
   background-size: 56px 100px;
 }
 .hex-bg > * {
@@ -268,14 +268,14 @@
   inset: 0;
   background-size: cover;
   background-position: center;
-  opacity: 0.2;
-  transition: opacity 0.3s, transform 0.5s;
+  opacity: 0.35;
+  transition: opacity 0.4s, transform 0.6s;
 }
-.comp-card:hover .comp-card-bg { opacity: 0.28; transform: scale(1.03); }
+.comp-card:hover .comp-card-bg { opacity: 0.5; transform: scale(1.04); }
 .comp-card-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(8,8,15,0.92) 0%, rgba(8,8,15,0.75) 100%);
+  background: linear-gradient(160deg, rgba(8,8,15,0.85) 0%, rgba(8,8,15,0.55) 100%);
 }
 .comp-card-content {
   position: relative;
