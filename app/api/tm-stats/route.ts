@@ -8,6 +8,17 @@ const USER_AGENT = 'springs-hub/1.0 (https://springs-hub.vercel.app)';
 // Formats supportés :
 //   https://trackmania.io/#/player/xxxx-xxxx-xxxx
 //   https://trackmania.io/player/xxxx-xxxx-xxxx
+// Nettoyer les codes de formatage Trackmania ($XXX = couleur, $S/$I/$O/$W/$N/$Z = style)
+function stripTmFormatting(text: string): string {
+  if (!text) return '';
+  // $RGB (3 chars hex), $RRGGBB (6 chars hex), $L[url], $H[url], et lettres de style ($S, $I, $O, $W, $N, $Z, $T)
+  return text
+    .replace(/\$[lhp]\[[^\]]*\]/gi, '')       // $L[...], $H[...], $P[...]
+    .replace(/\$[0-9a-fA-F]{3}/g, '')          // $RGB
+    .replace(/\$[siownzt]/gi, '')              // style codes
+    .replace(/\$\$/g, '$');                     // escaped $
+}
+
 function extractAccountId(url: string): string | null {
   // Format avec hash : /#/player/ACCOUNT_ID
   const hashMatch = url.match(/trackmania\.io\/#\/player\/([a-f0-9-]{36})/i);
@@ -96,8 +107,9 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // Club tag
-      const clubTag = player.clubtag ?? null;
+      // Club tag — nettoyer les codes de formatage TM
+      const rawClubTag = player.clubtag ?? null;
+      const clubTag = rawClubTag ? stripTmFormatting(rawClubTag) : null;
 
       // Récupérer les infos COTD si disponibles
       let cotdBestRank = null;

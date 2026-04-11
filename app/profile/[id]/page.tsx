@@ -311,13 +311,13 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       <>
                         <div className="divider mb-4" />
                         <p className="t-label mb-3" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>CLASSEMENT PAR ZONE</p>
-                        <div className="grid grid-cols-2 gap-2 mb-5">
+                        <div className="space-y-1.5 mb-5">
                           {tmStats.zoneRankings.map((zr) => (
                             <div key={zr.zone} className="flex items-center justify-between px-3 py-2"
                               style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                               <span className="t-body text-xs" style={{ color: 'var(--s-text-dim)' }}>{zr.zone}</span>
-                              <span className="font-display text-sm" style={{ color: '#33ff66' }}>
-                                {zr.rank.toLocaleString()}{zr.rank === 1 ? 'er' : 'e'}
+                              <span className="font-display text-base" style={{ color: '#33ff66' }}>
+                                {zr.rank.toLocaleString()}<span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>{zr.rank === 1 ? 'er' : 'e'}</span>
                               </span>
                             </div>
                           ))}
@@ -330,17 +330,28 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       <>
                         <div className="divider mb-4" />
                         <p className="t-label mb-3" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>TROPHÉES PAR TIER</p>
-                        <div className="flex gap-3 flex-wrap mb-5">
+                        <div className="flex gap-2 flex-wrap mb-5">
                           {tmStats.trophyTiers.sort((a, b) => b.tier - a.tier).map((t) => {
-                            const tierColors = ['#cd7f32', '#cd7f32', '#cd7f32', '#c0c0c0', '#c0c0c0', '#c0c0c0', '#ffd700', '#ffd700', '#ffd700'];
-                            const color = tierColors[t.tier - 1] ?? '#33ff66';
+                            // Couleurs distinctes par tier : T1-2 bronze, T3-4 argent, T5-6 or, T7+ diamant
+                            const tierStyles: Record<number, { color: string; bg: string; border: string }> = {
+                              1: { color: '#b87333', bg: 'rgba(184,115,51,0.1)', border: 'rgba(184,115,51,0.3)' },
+                              2: { color: '#cd8c52', bg: 'rgba(205,140,82,0.1)', border: 'rgba(205,140,82,0.3)' },
+                              3: { color: '#c0c0c0', bg: 'rgba(192,192,192,0.08)', border: 'rgba(192,192,192,0.25)' },
+                              4: { color: '#d4d4d4', bg: 'rgba(212,212,212,0.08)', border: 'rgba(212,212,212,0.25)' },
+                              5: { color: '#ffd700', bg: 'rgba(255,215,0,0.1)', border: 'rgba(255,215,0,0.3)' },
+                              6: { color: '#ffdf33', bg: 'rgba(255,223,51,0.1)', border: 'rgba(255,223,51,0.3)' },
+                              7: { color: '#00e5ff', bg: 'rgba(0,229,255,0.1)', border: 'rgba(0,229,255,0.3)' },
+                              8: { color: '#40efff', bg: 'rgba(64,239,255,0.1)', border: 'rgba(64,239,255,0.3)' },
+                              9: { color: '#ff4081', bg: 'rgba(255,64,129,0.1)', border: 'rgba(255,64,129,0.3)' },
+                            };
+                            const style = tierStyles[t.tier] ?? { color: '#33ff66', bg: 'transparent', border: 'var(--s-border)' };
                             return (
-                              <div key={t.tier} className="text-center px-3 py-2"
-                                style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', minWidth: '70px' }}>
-                                <p className="font-display text-lg" style={{ color, lineHeight: 1 }}>
+                              <div key={t.tier} className="text-center px-4 py-2.5"
+                                style={{ background: style.bg, border: `1px solid ${style.border}`, minWidth: '75px' }}>
+                                <p className="font-display text-xl" style={{ color: style.color, lineHeight: 1 }}>
                                   {t.count.toLocaleString()}
                                 </p>
-                                <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>Tier {t.tier}</p>
+                                <p className="t-label mt-1" style={{ fontSize: '9px', color: style.color, opacity: 0.7 }}>Tier {t.tier}</p>
                               </div>
                             );
                           })}
