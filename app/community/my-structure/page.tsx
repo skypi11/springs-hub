@@ -35,7 +35,7 @@ type MyStructure = {
   discordUrl: string;
   socials: Record<string, string>;
   recruiting: { active: boolean; positions: { game: string; role: string }[] };
-  achievements: { title: string; date?: string; competition?: string }[];
+  achievements: { placement?: string; title?: string; competition?: string; game?: string; date?: string }[];
   status: string;
   reviewComment?: string;
   founderId: string;
@@ -72,7 +72,23 @@ export default function MyStructurePage() {
   const [editDiscordUrl, setEditDiscordUrl] = useState('');
   const [editSocials, setEditSocials] = useState<Record<string, string>>({});
   const [editRecruiting, setEditRecruiting] = useState<{ active: boolean; positions: { game: string; role: string }[] }>({ active: false, positions: [] });
-  const [editAchievements, setEditAchievements] = useState<{ title: string; date?: string; competition?: string }[]>([]);
+  const [editAchievements, setEditAchievements] = useState<{ placement: string; competition: string; game: string; date: string }[]>([]);
+  // Teams state
+  type TeamData = {
+    id: string;
+    name: string;
+    game: string;
+    players: { uid: string; displayName: string; avatarUrl: string; discordAvatar: string }[];
+    subs: { uid: string; displayName: string; avatarUrl: string; discordAvatar: string }[];
+    staff: { uid: string; displayName: string; avatarUrl: string; discordAvatar: string }[];
+  };
+  const [teams, setTeams] = useState<TeamData[]>([]);
+  const [teamsLoading, setTeamsLoading] = useState(false);
+  const [newTeamName, setNewTeamName] = useState('');
+  const [newTeamGame, setNewTeamGame] = useState('');
+  const [showNewTeam, setShowNewTeam] = useState(false);
+  const [teamActionLoading, setTeamActionLoading] = useState<string | null>(null);
+
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -97,6 +113,20 @@ export default function MyStructurePage() {
     setLoading(false);
   }
 
+  async function loadTeams(structureId: string) {
+    setTeamsLoading(true);
+    try {
+      const res = await fetch(`/api/structures/teams?structureId=${structureId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setTeams(data.teams ?? []);
+      }
+    } catch (err) {
+      console.error('[MyStructure] load teams error:', err);
+    }
+    setTeamsLoading(false);
+  }
+
   function selectStructure(s: MyStructure) {
     setActiveStructure(s);
     setEditDesc(s.description || '');
@@ -104,9 +134,63 @@ export default function MyStructurePage() {
     setEditDiscordUrl(s.discordUrl || '');
     setEditSocials(s.socials || {});
     setEditRecruiting(s.recruiting || { active: false, positions: [] });
-    setEditAchievements(s.achievements || []);
+    setEditAchievements((s.achievements || []).map(a => ({
+      placement: a.placement || a.title || '',
+      competition: a.competition || '',
+      game: a.game || s.games?.[0] || 'rocket_league',
+      date: a.date || '',
+    })));
     setSaved(false);
     setError('');
+    setShowNewTeam(false);
+    loadTeams(s.id);
+  }
+
+  async function handleCreateTeam() {
+    if (!activeStructure || !firebaseUser || !newTeamName.trim() || !newTeamGame) return;
+    setTeamActionLoading('create');
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/structures/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({
+          action: 'create',
+          structureId: activeStructure.id,
+          name: newTeamName,
+          game: newTeamGame,
+          playerIds: [],
+          subIds: [],
+          staffIds: [],
+        }),
+      });
+      if (res.ok) {
+        setNewTeamName('');
+        setShowNewTeam(false);
+        await loadTeams(activeStructure.id);
+      }
+    } catch (err) {
+      console.error('[MyStructure] create team error:', err);
+    }
+    setTeamActionLoading(null);
+  }
+
+  async function handleDeleteTeam(teamId: string, teamName: string) {
+    if (!activeStructure || !firebaseUser) return;
+    if (!confirm(`Supprimer l'équipe "${teamName}" ? Cette action est irréversible.`)) return;
+    setTeamActionLoading(teamId);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      await fetch('/api/structures/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ action: 'delete', structureId: activeStructure.id, teamId }),
+      });
+      await loadTeams(activeStructure.id);
+    } catch (err) {
+      console.error('[MyStructure] delete team error:', err);
+    }
+    setTeamActionLoading(null);
   }
 
   useEffect(() => {
@@ -138,7 +222,7 @@ export default function MyStructurePage() {
           discordUrl: editDiscordUrl,
           socials: editSocials,
           recruiting: editRecruiting,
-          achievements: editAchievements.filter(a => a.title.trim()),
+          achievements: editAchievements.filter(a => a.placement.trim() && a.competition.trim()),
         }),
       });
 
@@ -374,31 +458,221 @@ export default function MyStructurePage() {
                   <span className="t-label" style={{ color: 'var(--s-text)' }}>PALMARÈS</span>
                 </div>
               </div>
-              <div className="panel-body space-y-3">
+              <div className="panel-body space-y-4">
                 {editAchievements.map((a, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <input type="text" className="settings-input flex-1" placeholder="Titre (ex: 1er Springs Cup S2)"
-                      value={a.title} onChange={e => {
-                        const achs = [...editAchievements];
-                        achs[i] = { ...a, title: e.target.value };
-                        setEditAchievements(achs);
-                      }} />
-                    <input type="text" className="settings-input w-28" placeholder="Date"
-                      value={a.date || ''} onChange={e => {
-                        const achs = [...editAchievements];
-                        achs[i] = { ...a, date: e.target.value };
-                        setEditAchievements(achs);
-                      }} />
-                    <button type="button" onClick={() => setEditAchievements(editAchievements.filter((_, j) => j !== i))}
-                      style={{ color: '#ff5555' }}>
-                      <Trash2 size={14} />
-                    </button>
+                  <div key={i} className="p-3 space-y-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <label className="t-label block mb-1" style={{ fontSize: '9px' }}>Placement *</label>
+                        <select className="settings-input w-full" value={a.placement}
+                          onChange={e => {
+                            const achs = [...editAchievements];
+                            achs[i] = { ...a, placement: e.target.value };
+                            setEditAchievements(achs);
+                          }}>
+                          <option value="">Choisir...</option>
+                          <option value="1er">1er</option>
+                          <option value="2e">2e</option>
+                          <option value="3e">3e</option>
+                          <option value="Top 4">Top 4</option>
+                          <option value="Top 8">Top 8</option>
+                          <option value="Top 16">Top 16</option>
+                          <option value="Demi-finale">Demi-finale</option>
+                          <option value="Quart de finale">Quart de finale</option>
+                          <option value="Participant">Participant</option>
+                        </select>
+                      </div>
+                      <button type="button" onClick={() => setEditAchievements(editAchievements.filter((_, j) => j !== i))}
+                        className="mt-4" style={{ color: '#ff5555' }}>
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    <div>
+                      <label className="t-label block mb-1" style={{ fontSize: '9px' }}>Compétition *</label>
+                      <input type="text" className="settings-input w-full" placeholder="Ex: Springs Cup Saison 2"
+                        value={a.competition} onChange={e => {
+                          const achs = [...editAchievements];
+                          achs[i] = { ...a, competition: e.target.value };
+                          setEditAchievements(achs);
+                        }} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="t-label block mb-1" style={{ fontSize: '9px' }}>Jeu</label>
+                        <select className="settings-input w-full" value={a.game}
+                          onChange={e => {
+                            const achs = [...editAchievements];
+                            achs[i] = { ...a, game: e.target.value };
+                            setEditAchievements(achs);
+                          }}>
+                          <option value="rocket_league">Rocket League</option>
+                          <option value="trackmania">Trackmania</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="t-label block mb-1" style={{ fontSize: '9px' }}>Date (mois/année)</label>
+                        <input type="month" className="settings-input w-full"
+                          value={a.date} onChange={e => {
+                            const achs = [...editAchievements];
+                            achs[i] = { ...a, date: e.target.value };
+                            setEditAchievements(achs);
+                          }} />
+                      </div>
+                    </div>
                   </div>
                 ))}
-                <button type="button" onClick={() => setEditAchievements([...editAchievements, { title: '', date: '' }])}
+                <button type="button" onClick={() => setEditAchievements([...editAchievements, { placement: '', competition: '', game: s.games[0] || 'rocket_league', date: '' }])}
                   className="flex items-center gap-2 text-xs font-bold" style={{ color: 'var(--s-gold)' }}>
                   <Plus size={12} /> Ajouter un résultat
                 </button>
+              </div>
+            </div>
+
+            {/* Équipes */}
+            <div className="panel">
+              <div className="panel-header">
+                <div className="flex items-center gap-2">
+                  <Gamepad2 size={13} style={{ color: 'var(--s-blue)' }} />
+                  <span className="t-label" style={{ color: 'var(--s-text)' }}>ÉQUIPES</span>
+                </div>
+                <button type="button" onClick={() => setShowNewTeam(!showNewTeam)}
+                  className="flex items-center gap-1 text-xs font-bold" style={{ color: 'var(--s-blue)' }}>
+                  {showNewTeam ? <ChevronUp size={12} /> : <Plus size={12} />}
+                  {showNewTeam ? 'Annuler' : 'Nouvelle équipe'}
+                </button>
+              </div>
+              <div className="panel-body space-y-4">
+
+                {/* Formulaire nouvelle équipe */}
+                {showNewTeam && (
+                  <div className="p-3 space-y-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                    <div>
+                      <label className="t-label block mb-1">Nom de l&apos;équipe *</label>
+                      <input type="text" className="settings-input w-full" placeholder="Ex: Équipe principale"
+                        value={newTeamName} onChange={e => setNewTeamName(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="t-label block mb-1">Jeu *</label>
+                      <select className="settings-input w-full" value={newTeamGame}
+                        onChange={e => setNewTeamGame(e.target.value)}>
+                        <option value="">Choisir un jeu...</option>
+                        {s.games?.includes('rocket_league') && <option value="rocket_league">Rocket League</option>}
+                        {s.games?.includes('trackmania') && <option value="trackmania">Trackmania</option>}
+                      </select>
+                    </div>
+                    <button type="button" onClick={handleCreateTeam}
+                      disabled={!newTeamName.trim() || !newTeamGame || teamActionLoading === 'create'}
+                      className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-xs"
+                      style={{ opacity: (!newTeamName.trim() || !newTeamGame) ? 0.5 : 1 }}>
+                      {teamActionLoading === 'create' ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+                      <span>Créer l&apos;équipe</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Liste des équipes */}
+                {teamsLoading ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 size={16} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
+                  </div>
+                ) : teams.length === 0 ? (
+                  <div className="text-center py-6">
+                    <Gamepad2 size={24} className="mx-auto mb-2" style={{ color: 'var(--s-text-muted)' }} />
+                    <p className="t-body" style={{ color: 'var(--s-text-muted)' }}>Aucune équipe créée.</p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>Crée une équipe pour y ajouter des joueurs.</p>
+                  </div>
+                ) : (
+                  teams.map(team => (
+                    <div key={team.id} className="p-4 space-y-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                      {/* En-tête équipe */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={`tag ${team.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '9px', padding: '2px 6px' }}>
+                            {team.game === 'rocket_league' ? 'RL' : 'TM'}
+                          </span>
+                          <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>{team.name}</span>
+                        </div>
+                        <button type="button" onClick={() => handleDeleteTeam(team.id, team.name)}
+                          disabled={teamActionLoading === team.id}
+                          style={{ color: '#ff5555', opacity: teamActionLoading === team.id ? 0.5 : 1 }}>
+                          {teamActionLoading === team.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                        </button>
+                      </div>
+
+                      {/* Titulaires */}
+                      <div>
+                        <p className="t-label mb-1" style={{ fontSize: '9px' }}>
+                          Titulaires {team.game === 'rocket_league' && <span style={{ color: 'var(--s-text-muted)' }}>(max 3)</span>}
+                        </p>
+                        {team.players.length === 0 ? (
+                          <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucun titulaire</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {team.players.map(p => (
+                              <div key={p.uid} className="flex items-center gap-1.5 px-2 py-1" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                                {(p.avatarUrl || p.discordAvatar) ? (
+                                  <Image src={p.avatarUrl || p.discordAvatar} alt={p.displayName} width={16} height={16} className="flex-shrink-0" unoptimized />
+                                ) : (
+                                  <User size={10} style={{ color: 'var(--s-text-muted)' }} />
+                                )}
+                                <span className="text-xs" style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Remplaçants */}
+                      <div>
+                        <p className="t-label mb-1" style={{ fontSize: '9px' }}>
+                          Remplaçants {team.game === 'rocket_league' && <span style={{ color: 'var(--s-text-muted)' }}>(max 2)</span>}
+                        </p>
+                        {team.subs.length === 0 ? (
+                          <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucun remplaçant</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {team.subs.map(p => (
+                              <div key={p.uid} className="flex items-center gap-1.5 px-2 py-1" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                                {(p.avatarUrl || p.discordAvatar) ? (
+                                  <Image src={p.avatarUrl || p.discordAvatar} alt={p.displayName} width={16} height={16} className="flex-shrink-0" unoptimized />
+                                ) : (
+                                  <User size={10} style={{ color: 'var(--s-text-muted)' }} />
+                                )}
+                                <span className="text-xs" style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Staff */}
+                      <div>
+                        <p className="t-label mb-1" style={{ fontSize: '9px' }}>Staff</p>
+                        {team.staff.length === 0 ? (
+                          <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucun staff assigné</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {team.staff.map(p => (
+                              <div key={p.uid} className="flex items-center gap-1.5 px-2 py-1" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                                {(p.avatarUrl || p.discordAvatar) ? (
+                                  <Image src={p.avatarUrl || p.discordAvatar} alt={p.displayName} width={16} height={16} className="flex-shrink-0" unoptimized />
+                                ) : (
+                                  <User size={10} style={{ color: 'var(--s-text-muted)' }} />
+                                )}
+                                <span className="text-xs" style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Note : gestion membres d'équipe via les membres de la structure */}
+                      <p className="text-xs italic" style={{ color: 'var(--s-text-muted)' }}>
+                        Pour ajouter/retirer des joueurs, utilise la gestion des membres.
+                      </p>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 

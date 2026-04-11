@@ -31,7 +31,7 @@ type StructureData = {
   discordUrl: string;
   socials: Record<string, string>;
   recruiting: { active: boolean; positions: { game: string; role: string }[] };
-  achievements: { title: string; date?: string; competition?: string }[];
+  achievements: { placement?: string; title?: string; competition?: string; game?: string; date?: string }[];
   status: string;
   founderId: string;
   members: Member[];
@@ -69,7 +69,7 @@ function CountryFlag({ code, size = 16 }: { code: string; size?: number }) {
 
 export default function StructurePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { firebaseUser, user } = useAuth();
+  const { firebaseUser } = useAuth();
   const [structure, setStructure] = useState<StructureData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -283,17 +283,32 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                 </div>
               </div>
               <div className="panel-body space-y-2">
-                {structure.achievements.map((a, i) => (
-                  <div key={i} className="flex items-center gap-3 px-3 py-2"
-                    style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                    <Trophy size={14} style={{ color: 'var(--s-gold)' }} />
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>{a.title}</p>
-                      {a.competition && <p className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>{a.competition}</p>}
+                {structure.achievements.map((a, i) => {
+                  const isFirst = a.placement === '1er';
+                  const medalColor = isFirst ? 'var(--s-gold)' : a.placement === '2e' ? '#c0c0c0' : a.placement === '3e' ? '#cd7f32' : 'var(--s-text-dim)';
+                  return (
+                    <div key={i} className="flex items-center gap-3 px-3 py-2.5"
+                      style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                      <div className="flex-shrink-0 w-10 text-center">
+                        <span className="font-display text-sm" style={{ color: medalColor }}>{a.placement}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{a.competition}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className={`tag ${a.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
+                            style={{ fontSize: '8px', padding: '0px 4px' }}>
+                            {a.game === 'rocket_league' ? 'RL' : 'TM'}
+                          </span>
+                          {a.date && (
+                            <span className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                              {new Date(a.date + '-01').toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    {a.date && <span className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>{a.date}</span>}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
