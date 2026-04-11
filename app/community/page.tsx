@@ -16,9 +16,9 @@ const features = [
     title: 'RECRUTEMENT',
     desc: 'Trouve des joueurs libres ou mets-toi en disponibilité pour être repéré par une structure.',
     accent: '#00D936',
-    tag: 'Bientôt',
+    tag: 'Disponible',
     tagClass: 'tag-green',
-    soon: true,
+    soon: false,
   },
   {
     icon: Trophy,
@@ -165,22 +165,46 @@ export default function CommunityPage() {
         </div>
       </section>
 
-      {/* ─── STRUCTURES ACTIVES ───────────────────────────────────────────── */}
+      {/* ─── ANNUAIRES ──────────────────────────────────────────────────── */}
       <section className="animate-fade-in-d3">
         <div className="section-label">
-          <span className="t-label">Structures actives</span>
+          <span className="t-label">Explorer</span>
         </div>
 
-        <div className="panel p-14 text-center">
-          <div className="p-3 w-fit mx-auto mb-4" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-            <Users size={22} style={{ color: 'var(--s-text-muted)' }} />
-          </div>
-          <p className="t-sub mb-1.5" style={{ color: 'var(--s-text-dim)' }}>
-            Aucune structure pour le moment
-          </p>
-          <p className="t-body">
-            La section communautaire est en cours de construction.
-          </p>
+        <div className="grid grid-cols-2 gap-5">
+          <Link href="/community/structures"
+            className="pillar-card panel group relative overflow-hidden transition-all duration-200">
+            <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
+            <div className="absolute top-0 right-0 w-36 h-36 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+              style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,184,0,0.07), transparent 70%)' }} />
+            <div className="relative z-[1] p-6 flex items-center gap-5">
+              <div className="p-3" style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.2)' }}>
+                <Shield size={24} style={{ color: 'var(--s-gold)' }} />
+              </div>
+              <div>
+                <h3 className="font-display text-xl mb-1 tracking-wider">STRUCTURES</h3>
+                <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>Toutes les structures actives de la communauté</p>
+              </div>
+              <ChevronRight size={18} className="ml-auto" style={{ color: 'var(--s-text-muted)' }} />
+            </div>
+          </Link>
+
+          <Link href="/community/players"
+            className="pillar-card panel group relative overflow-hidden transition-all duration-200">
+            <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-blue), rgba(0,129,255,0.3), transparent 70%)' }} />
+            <div className="absolute top-0 right-0 w-36 h-36 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+              style={{ background: 'radial-gradient(circle at 100% 0%, rgba(0,129,255,0.07), transparent 70%)' }} />
+            <div className="relative z-[1] p-6 flex items-center gap-5">
+              <div className="p-3" style={{ background: 'rgba(0,129,255,0.08)', border: '1px solid rgba(0,129,255,0.2)' }}>
+                <Users size={24} style={{ color: 'var(--s-blue)' }} />
+              </div>
+              <div>
+                <h3 className="font-display text-xl mb-1 tracking-wider">JOUEURS</h3>
+                <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>Tous les joueurs inscrits et ceux disponibles au recrutement</p>
+              </div>
+              <ChevronRight size={18} className="ml-auto" style={{ color: 'var(--s-text-muted)' }} />
+            </div>
+          </Link>
         </div>
       </section>
 

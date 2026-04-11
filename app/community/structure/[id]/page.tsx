@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import { useAuth } from '@/context/AuthContext';
 import {
   Shield, Users, Gamepad2, ExternalLink, Trophy, Loader2, AlertCircle,
-  User, Globe, Lock, Search, MessageSquare
+  User, Globe, Lock, Search, MessageSquare, UserPlus, CheckCircle
 } from 'lucide-react';
 import { countries } from '@/lib/countries';
 
@@ -152,7 +152,40 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
   }
 
   const isOwner = firebaseUser?.uid === structure.founderId;
+  const isMember = structure.members.some(m => m.userId === firebaseUser?.uid);
   const socialEntries = Object.entries(structure.socials).filter(([, v]) => v);
+
+  // Join request state
+  const [joinGame, setJoinGame] = useState('');
+  const [joinMessage, setJoinMessage] = useState('');
+  const [joinLoading, setJoinLoading] = useState(false);
+  const [joinSent, setJoinSent] = useState(false);
+  const [joinError, setJoinError] = useState('');
+  const [showJoinForm, setShowJoinForm] = useState(false);
+
+  async function handleJoinRequest() {
+    if (!firebaseUser || !joinGame || !structure) return;
+    setJoinLoading(true);
+    setJoinError('');
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/structures/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ action: 'request_join', structureId: structure.id, game: joinGame, message: joinMessage }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setJoinSent(true);
+        setShowJoinForm(false);
+      } else {
+        setJoinError(data.error || 'Erreur');
+      }
+    } catch {
+      setJoinError('Erreur réseau');
+    }
+    setJoinLoading(false);
+  }
 
   return (
     <div className="min-h-screen px-8 py-8 space-y-8">
@@ -202,13 +235,64 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
             </div>
           </div>
 
-          {isOwner && (
+          {isOwner ? (
             <Link href="/community/my-structure" className="btn-springs btn-secondary bevel-sm-border flex-shrink-0">
               <span>Gérer</span>
             </Link>
-          )}
+          ) : firebaseUser && !isMember && !joinSent ? (
+            <button onClick={() => setShowJoinForm(!showJoinForm)}
+              className="btn-springs btn-primary bevel-sm flex-shrink-0 flex items-center gap-2">
+              <UserPlus size={14} /> Rejoindre
+            </button>
+          ) : joinSent ? (
+            <span className="flex items-center gap-2 text-xs font-bold" style={{ color: '#33ff66' }}>
+              <CheckCircle size={14} /> Demande envoyée
+            </span>
+          ) : isMember ? (
+            <span className="tag tag-gold" style={{ fontSize: '10px', padding: '3px 10px' }}>Membre</span>
+          ) : null}
         </div>
       </header>
+
+      {/* Formulaire de demande */}
+      {showJoinForm && (
+        <div className="bevel p-5 space-y-4 animate-fade-in" style={{ background: 'var(--s-surface)', border: '1px solid rgba(0,129,255,0.2)' }}>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-7 h-7 flex items-center justify-center" style={{ background: 'rgba(0,129,255,0.08)', border: '1px solid rgba(0,129,255,0.2)' }}>
+              <UserPlus size={13} style={{ color: 'var(--s-blue)' }} />
+            </div>
+            <span className="font-display text-sm tracking-wider">DEMANDE DE REJOINDRE</span>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="t-label block mb-1.5">Jeu *</label>
+              <select className="settings-input w-full" value={joinGame} onChange={e => setJoinGame(e.target.value)}>
+                <option value="">Choisir...</option>
+                {structure.games?.includes('rocket_league') && <option value="rocket_league">Rocket League</option>}
+                {structure.games?.includes('trackmania') && <option value="trackmania">Trackmania</option>}
+              </select>
+            </div>
+            <div>
+              <label className="t-label block mb-1.5">Message (optionnel)</label>
+              <input type="text" className="settings-input w-full" placeholder="Pourquoi rejoindre..."
+                value={joinMessage} onChange={e => setJoinMessage(e.target.value)} />
+            </div>
+          </div>
+          {joinError && <p className="text-xs" style={{ color: '#ff5555' }}>{joinError}</p>}
+          <div className="flex gap-3">
+            <button onClick={handleJoinRequest} disabled={!joinGame || joinLoading}
+              className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-xs"
+              style={{ opacity: joinGame ? 1 : 0.5 }}>
+              {joinLoading ? <Loader2 size={12} className="animate-spin" /> : <UserPlus size={12} />}
+              Envoyer la demande
+            </button>
+            <button onClick={() => setShowJoinForm(false)}
+              className="btn-springs btn-ghost text-xs">
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-6 animate-fade-in-d1">
 

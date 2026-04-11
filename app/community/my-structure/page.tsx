@@ -8,7 +8,8 @@ import { useAuth } from '@/context/AuthContext';
 import {
   Shield, Users, Gamepad2, Trophy, Loader2, AlertCircle,
   User, Save, Plus, Trash2, Eye, Clock, Ban, CheckCircle,
-  Search, ChevronUp, ChevronDown, Link2, MessageSquare, Settings, LucideIcon
+  Search, ChevronUp, ChevronDown, Link2, MessageSquare, Settings, LucideIcon,
+  Copy, Check, UserPlus, UserMinus, Mail
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -145,6 +146,15 @@ export default function MyStructurePage() {
   const [showNewTeam, setShowNewTeam] = useState(false);
   const [teamActionLoading, setTeamActionLoading] = useState<string | null>(null);
 
+  // Invitations state
+  type InviteLink = { id: string; token: string; status: string; createdAt: string };
+  type JoinRequest = { id: string; applicantId: string; displayName: string; discordAvatar: string; avatarUrl: string; message: string; game: string; createdAt: string };
+  const [inviteLinks, setInviteLinks] = useState<InviteLink[]>([]);
+  const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
+  const [invLoading, setInvLoading] = useState(false);
+  const [invActionLoading, setInvActionLoading] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState('');
+
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -203,6 +213,7 @@ export default function MyStructurePage() {
     setError('');
     setShowNewTeam(false);
     loadTeams(s.id);
+    loadInvitations(s.id);
   }
 
   async function handleCreateTeam() {
@@ -332,6 +343,106 @@ export default function MyStructurePage() {
   const canEdit = s.status === 'active';
 
   const toggle = (key: string) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }));
+
+  async function loadInvitations(structureId: string) {
+    if (!firebaseUser) return;
+    setInvLoading(true);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch(`/api/structures/invitations?structureId=${structureId}`, {
+        headers: { 'Authorization': `Bearer ${idToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setInviteLinks(data.links ?? []);
+        setJoinRequests(data.requests ?? []);
+      }
+    } catch (err) {
+      console.error('[MyStructure] load invitations error:', err);
+    }
+    setInvLoading(false);
+  }
+
+  async function handleCreateLink() {
+    if (!activeStructure || !firebaseUser) return;
+    setInvActionLoading('create_link');
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/structures/invitations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ action: 'create_link', structureId: activeStructure.id }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const link = `${window.location.origin}/community/join/${data.token}`;
+        await navigator.clipboard.writeText(link);
+        setCopiedLink(data.token);
+        setTimeout(() => setCopiedLink(''), 3000);
+        await loadInvitations(activeStructure.id);
+      }
+    } catch (err) {
+      console.error('[MyStructure] create link error:', err);
+    }
+    setInvActionLoading(null);
+  }
+
+  async function handleRevokeLink(invitationId: string) {
+    if (!activeStructure || !firebaseUser) return;
+    setInvActionLoading(invitationId);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      await fetch('/api/structures/invitations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ action: 'revoke_link', structureId: activeStructure.id, invitationId }),
+      });
+      await loadInvitations(activeStructure.id);
+    } catch (err) {
+      console.error('[MyStructure] revoke link error:', err);
+    }
+    setInvActionLoading(null);
+  }
+
+  async function handleRequestAction(invitationId: string, accept: boolean) {
+    if (!activeStructure || !firebaseUser) return;
+    setInvActionLoading(invitationId);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      await fetch('/api/structures/invitations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({
+          action: accept ? 'accept_request' : 'decline_request',
+          structureId: activeStructure.id,
+          invitationId,
+        }),
+      });
+      await loadInvitations(activeStructure.id);
+      if (accept) await loadStructures();
+    } catch (err) {
+      console.error('[MyStructure] request action error:', err);
+    }
+    setInvActionLoading(null);
+  }
+
+  async function handleRemoveMember(memberId: string, memberName: string) {
+    if (!activeStructure || !firebaseUser) return;
+    if (!confirm(`Retirer ${memberName} de la structure ? Il sera aussi retiré de ses équipes.`)) return;
+    setInvActionLoading(memberId);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      await fetch('/api/structures/invitations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ action: 'remove_member', structureId: activeStructure.id, memberId }),
+      });
+      await loadStructures();
+    } catch (err) {
+      console.error('[MyStructure] remove member error:', err);
+    }
+    setInvActionLoading(null);
+  }
 
   // ─── Not active state ────────────────────────────────────────────────
 
@@ -877,6 +988,99 @@ export default function MyStructurePage() {
           {/* ─── Colonne droite ─────────────────────────────────────────── */}
           <div className="space-y-6 animate-fade-in-d2">
 
+            {/* Invitations & demandes */}
+            <SectionPanel accent="#33ff66" icon={UserPlus} title="INVITATIONS"
+              collapsed={collapsed.invitations} onToggle={() => toggle('invitations')}
+              action={
+                <button type="button" onClick={handleCreateLink}
+                  disabled={invActionLoading === 'create_link'}
+                  className="flex items-center gap-1.5 text-xs font-bold" style={{ color: '#33ff66' }}>
+                  {invActionLoading === 'create_link' ? <Loader2 size={10} className="animate-spin" /> : <Plus size={10} />}
+                  Créer un lien
+                </button>
+              }>
+              <div className="space-y-4">
+                {/* Liens actifs */}
+                {inviteLinks.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-dim)' }}>LIENS D&apos;INVITATION</p>
+                    {inviteLinks.map(link => (
+                      <div key={link.id} className="flex items-center gap-2 p-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                        <div className="flex-1 min-w-0">
+                          <p className="t-mono text-xs truncate" style={{ color: 'var(--s-text-dim)' }}>
+                            /join/{link.token.slice(0, 8)}...
+                          </p>
+                        </div>
+                        <button type="button" onClick={() => {
+                          navigator.clipboard.writeText(`${window.location.origin}/community/join/${link.token}`);
+                          setCopiedLink(link.token);
+                          setTimeout(() => setCopiedLink(''), 2000);
+                        }}
+                          className="p-1" style={{ color: copiedLink === link.token ? '#33ff66' : 'var(--s-text-dim)' }}>
+                          {copiedLink === link.token ? <Check size={12} /> : <Copy size={12} />}
+                        </button>
+                        <button type="button" onClick={() => handleRevokeLink(link.id)}
+                          disabled={invActionLoading === link.id}
+                          className="p-1" style={{ color: '#ff5555' }}>
+                          {invActionLoading === link.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Demandes en attente */}
+                {joinRequests.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-gold)' }}>
+                      DEMANDES EN ATTENTE ({joinRequests.length})
+                    </p>
+                    {joinRequests.map(jr => {
+                      const jrAvatar = jr.avatarUrl || jr.discordAvatar;
+                      return (
+                        <div key={jr.id} className="p-3" style={{ background: 'var(--s-elevated)', border: '1px solid rgba(255,184,0,0.15)' }}>
+                          <div className="flex items-center gap-3 mb-2">
+                            {jrAvatar ? (
+                              <div className="w-8 h-8 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                                <Image src={jrAvatar} alt={jr.displayName} fill className="object-cover" unoptimized />
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                                <User size={12} style={{ color: 'var(--s-text-muted)' }} />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold truncate">{jr.displayName}</p>
+                              {jr.message && <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--s-text-dim)' }}>{jr.message}</p>}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button type="button" onClick={() => handleRequestAction(jr.id, true)}
+                              disabled={invActionLoading === jr.id}
+                              className="btn-springs btn-primary bevel-sm flex-1 justify-center text-xs py-1.5">
+                              {invActionLoading === jr.id ? <Loader2 size={11} className="animate-spin" /> : <><Check size={11} /> Accepter</>}
+                            </button>
+                            <button type="button" onClick={() => handleRequestAction(jr.id, false)}
+                              disabled={invActionLoading === jr.id}
+                              className="btn-springs btn-secondary bevel-sm-border flex-1 justify-center text-xs py-1.5"
+                              style={{ color: '#ff5555', borderColor: 'rgba(255,85,85,0.3)' }}>
+                              <Trash2 size={11} /> Refuser
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-3">
+                    <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                      {invLoading ? 'Chargement...' : inviteLinks.length === 0 ? 'Crée un lien pour inviter des joueurs.' : 'Aucune demande en attente.'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </SectionPanel>
+
             {/* Membres */}
             <div className="bevel relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
               <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
@@ -902,26 +1106,36 @@ export default function MyStructurePage() {
                     {s.members.map(m => {
                       const avatar = m.avatarUrl || m.discordAvatar;
                       const roleColor = m.role === 'fondateur' ? 'var(--s-gold)' : m.role === 'co_fondateur' ? 'var(--s-gold)' : 'var(--s-text-muted)';
+                      const canRemove = m.role !== 'fondateur';
                       return (
-                        <Link key={m.id} href={`/profile/${m.userId}`}
-                          className="flex items-center gap-3 px-5 py-3 transition-all duration-150"
+                        <div key={m.id} className="flex items-center gap-3 px-5 py-3 group transition-all duration-150"
                           style={{ background: 'transparent' }}
                           onMouseEnter={e => (e.currentTarget.style.background = 'var(--s-elevated)')}
                           onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                          {avatar ? (
-                            <div className="w-8 h-8 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                              <Image src={avatar} alt={m.displayName} fill className="object-cover" unoptimized />
+                          <Link href={`/profile/${m.userId}`} className="flex items-center gap-3 flex-1 min-w-0">
+                            {avatar ? (
+                              <div className="w-8 h-8 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                                <Image src={avatar} alt={m.displayName} fill className="object-cover" unoptimized />
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                                <User size={12} style={{ color: 'var(--s-text-muted)' }} />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold truncate" style={{ color: 'var(--s-text)' }}>{m.displayName}</p>
+                              <p className="t-mono" style={{ fontSize: '10px', color: roleColor }}>{ROLE_LABELS[m.role] ?? m.role}</p>
                             </div>
-                          ) : (
-                            <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                              <User size={12} style={{ color: 'var(--s-text-muted)' }} />
-                            </div>
+                          </Link>
+                          {canRemove && (
+                            <button type="button" onClick={() => handleRemoveMember(m.id, m.displayName)}
+                              disabled={invActionLoading === m.id}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 p-1"
+                              style={{ color: '#ff5555' }} title="Retirer">
+                              {invActionLoading === m.id ? <Loader2 size={11} className="animate-spin" /> : <UserMinus size={11} />}
+                            </button>
                           )}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold truncate" style={{ color: 'var(--s-text)' }}>{m.displayName}</p>
-                            <p className="t-mono" style={{ fontSize: '10px', color: roleColor }}>{ROLE_LABELS[m.role] ?? m.role}</p>
-                          </div>
-                        </Link>
+                        </div>
                       );
                     })}
                   </div>
