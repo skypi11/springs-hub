@@ -285,22 +285,22 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                 {tmStats && (tmStats.trophies !== null || tmStats.cotdBestRank !== null) ? (
                   <>
                     {/* Ligne principale : trophées + échelon */}
-                    <div className="flex items-center gap-8 mb-5">
+                    <div className="flex items-center gap-10 mb-5">
                       <div className="flex items-center gap-3">
                         <div className="p-2.5" style={{ background: 'rgba(0,217,54,0.08)', border: '1px solid rgba(0,217,54,0.2)' }}>
                           <Trophy size={20} style={{ color: '#33ff66' }} />
                         </div>
                         <div>
-                          <p className="font-display text-2xl" style={{ color: '#33ff66', lineHeight: 1 }}>
-                            {tmStats.trophies?.toLocaleString() ?? '—'}
+                          <p className="font-display text-3xl" style={{ color: '#33ff66', lineHeight: 1 }}>
+                            {tmStats.trophies != null ? new Intl.NumberFormat('fr-FR').format(tmStats.trophies) : '—'}
                           </p>
-                          <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>Trophées</p>
+                          <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>Points trophées</p>
                         </div>
                       </div>
 
                       {tmStats.echelon !== null && tmStats.echelon > 0 && (
                         <div className="text-center">
-                          <p className="font-display text-3xl" style={{ color: '#33ff66', lineHeight: 1 }}>{tmStats.echelon}</p>
+                          <p className="font-display text-3xl" style={{ color: 'var(--s-text)', lineHeight: 1 }}>{tmStats.echelon}</p>
                           <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>Échelon</p>
                         </div>
                       )}
@@ -329,29 +329,25 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     {tmStats.trophyTiers && tmStats.trophyTiers.length > 0 && (
                       <>
                         <div className="divider mb-4" />
-                        <p className="t-label mb-3" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>TROPHÉES PAR TIER</p>
+                        <p className="t-label mb-3" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>TROPHÉES</p>
                         <div className="flex gap-2 flex-wrap mb-5">
                           {tmStats.trophyTiers.sort((a, b) => b.tier - a.tier).map((t) => {
-                            // Couleurs distinctes par tier : T1-2 bronze, T3-4 argent, T5-6 or, T7+ diamant
-                            const tierStyles: Record<number, { color: string; bg: string; border: string }> = {
-                              1: { color: '#b87333', bg: 'rgba(184,115,51,0.1)', border: 'rgba(184,115,51,0.3)' },
-                              2: { color: '#cd8c52', bg: 'rgba(205,140,82,0.1)', border: 'rgba(205,140,82,0.3)' },
-                              3: { color: '#c0c0c0', bg: 'rgba(192,192,192,0.08)', border: 'rgba(192,192,192,0.25)' },
-                              4: { color: '#d4d4d4', bg: 'rgba(212,212,212,0.08)', border: 'rgba(212,212,212,0.25)' },
-                              5: { color: '#ffd700', bg: 'rgba(255,215,0,0.1)', border: 'rgba(255,215,0,0.3)' },
-                              6: { color: '#ffdf33', bg: 'rgba(255,223,51,0.1)', border: 'rgba(255,223,51,0.3)' },
-                              7: { color: '#00e5ff', bg: 'rgba(0,229,255,0.1)', border: 'rgba(0,229,255,0.3)' },
-                              8: { color: '#40efff', bg: 'rgba(64,239,255,0.1)', border: 'rgba(64,239,255,0.3)' },
-                              9: { color: '#ff4081', bg: 'rgba(255,64,129,0.1)', border: 'rgba(255,64,129,0.3)' },
+                            // Vraies couleurs Trackmania
+                            const tierData: Record<number, { label: string; color: string; bg: string; border: string }> = {
+                              1: { label: 'Bronze', color: '#cd7f32', bg: 'rgba(205,127,50,0.12)', border: 'rgba(205,127,50,0.35)' },
+                              2: { label: 'Argent', color: '#c0c0c0', bg: 'rgba(192,192,192,0.1)', border: 'rgba(192,192,192,0.3)' },
+                              3: { label: 'Or', color: '#ffd700', bg: 'rgba(255,215,0,0.12)', border: 'rgba(255,215,0,0.35)' },
+                              4: { label: 'Auteur', color: '#00d936', bg: 'rgba(0,217,54,0.1)', border: 'rgba(0,217,54,0.3)' },
+                              5: { label: 'Champion', color: '#ff3333', bg: 'rgba(255,51,51,0.1)', border: 'rgba(255,51,51,0.3)' },
                             };
-                            const style = tierStyles[t.tier] ?? { color: '#33ff66', bg: 'transparent', border: 'var(--s-border)' };
+                            const td = tierData[t.tier] ?? { label: `T${t.tier}`, color: 'var(--s-text-dim)', bg: 'transparent', border: 'var(--s-border)' };
                             return (
-                              <div key={t.tier} className="text-center px-4 py-2.5"
-                                style={{ background: style.bg, border: `1px solid ${style.border}`, minWidth: '75px' }}>
-                                <p className="font-display text-xl" style={{ color: style.color, lineHeight: 1 }}>
-                                  {t.count.toLocaleString()}
+                              <div key={t.tier} className="text-center px-4 py-3"
+                                style={{ background: td.bg, border: `1px solid ${td.border}`, minWidth: '80px' }}>
+                                <p className="font-display text-xl" style={{ color: td.color, lineHeight: 1 }}>
+                                  {new Intl.NumberFormat('fr-FR').format(t.count)}
                                 </p>
-                                <p className="t-label mt-1" style={{ fontSize: '9px', color: style.color, opacity: 0.7 }}>Tier {t.tier}</p>
+                                <p className="t-label mt-1" style={{ fontSize: '9px', color: td.color, opacity: 0.8 }}>{td.label}</p>
                               </div>
                             );
                           })}
