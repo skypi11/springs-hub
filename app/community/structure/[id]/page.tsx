@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import { useAuth } from '@/context/AuthContext';
 import {
   Shield, Users, Gamepad2, ExternalLink, Trophy, Loader2, AlertCircle,
-  User, Globe, Lock, Search, MessageSquare, UserPlus, CheckCircle
+  User, Globe, Search, MessageSquare, UserPlus, CheckCircle
 } from 'lucide-react';
 import { countries } from '@/lib/countries';
 
@@ -70,18 +70,27 @@ function CountryFlag({ code, size = 16 }: { code: string; size?: number }) {
 
 export default function StructurePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { firebaseUser } = useAuth();
+  const { firebaseUser, loading: authLoading } = useAuth();
   const [structure, setStructure] = useState<StructureData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [needsLogin, setNeedsLogin] = useState(false);
+
+  // Join request state — MUST be before any early returns (React hooks rules)
+  const [joinGame, setJoinGame] = useState('');
+  const [joinMessage, setJoinMessage] = useState('');
+  const [joinLoading, setJoinLoading] = useState(false);
+  const [joinSent, setJoinSent] = useState(false);
+  const [joinError, setJoinError] = useState('');
+  const [showJoinForm, setShowJoinForm] = useState(false);
 
   useEffect(() => {
+    // Attendre que l'auth soit résolu avant de charger
+    if (authLoading) return;
+
     async function load() {
       try {
         const res = await fetch(`/api/structures/${id}`);
         if (res.status === 403) {
-          // Structure non visible — soit suspendue soit non validée
           setNotFound(true);
           setLoading(false);
           return;
@@ -93,11 +102,6 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
         }
         const data = await res.json();
         setStructure(data);
-
-        // Si pas connecté, on montre juste le nom
-        if (!firebaseUser) {
-          setNeedsLogin(true);
-        }
       } catch (err) {
         console.error('[Structure] load error:', err);
         setNotFound(true);
@@ -105,9 +109,9 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
       setLoading(false);
     }
     load();
-  }, [id, firebaseUser]);
+  }, [id, authLoading]);
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="min-h-screen px-8 py-8 flex items-center justify-center">
         <Loader2 size={24} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
@@ -127,41 +131,9 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
     );
   }
 
-  // Non connecté = juste le nom
-  if (needsLogin) {
-    return (
-      <div className="min-h-screen px-8 py-8 flex items-center justify-center">
-        <div className="panel p-10 text-center max-w-md">
-          <div className="mx-auto w-20 h-20 relative mb-4" style={{ background: 'var(--s-elevated)' }}>
-            {structure.logoUrl ? (
-              <Image src={structure.logoUrl} alt={structure.name} fill className="object-contain" unoptimized />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <Shield size={32} style={{ color: 'var(--s-text-muted)' }} />
-              </div>
-            )}
-          </div>
-          <h2 className="font-display text-3xl mb-1">{structure.name}</h2>
-          <span className="tag tag-neutral">{structure.tag}</span>
-          <div className="divider my-5" />
-          <Lock size={18} className="mx-auto mb-3" style={{ color: 'var(--s-text-muted)' }} />
-          <p className="t-body mb-4">Connecte-toi pour voir le profil complet de cette structure.</p>
-        </div>
-      </div>
-    );
-  }
-
   const isOwner = firebaseUser?.uid === structure.founderId;
   const isMember = structure.members.some(m => m.userId === firebaseUser?.uid);
   const socialEntries = Object.entries(structure.socials).filter(([, v]) => v);
-
-  // Join request state
-  const [joinGame, setJoinGame] = useState('');
-  const [joinMessage, setJoinMessage] = useState('');
-  const [joinLoading, setJoinLoading] = useState(false);
-  const [joinSent, setJoinSent] = useState(false);
-  const [joinError, setJoinError] = useState('');
-  const [showJoinForm, setShowJoinForm] = useState(false);
 
   async function handleJoinRequest() {
     if (!firebaseUser || !joinGame || !structure) return;
