@@ -116,6 +116,55 @@ function SectionPanel({ accent, icon: Icon, title, action, children, collapsed, 
   );
 }
 
+// ─── Roster slot component — OUTSIDE to avoid remount ─────────────────
+function RosterSlot({ label, labelColor, members, available, canAdd, loading, onAdd, onRemove }: {
+  label: string;
+  labelColor: string;
+  members: { uid: string; displayName: string; avatarUrl: string; discordAvatar: string }[];
+  available: { id: string; userId: string; displayName: string; avatarUrl: string; discordAvatar: string }[];
+  canAdd: boolean;
+  loading: boolean;
+  onAdd: (uid: string) => void;
+  onRemove: (uid: string) => void;
+}) {
+  return (
+    <div className="p-2.5" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+      <p className="t-label mb-2" style={{ fontSize: '9px', color: labelColor }}>{label}</p>
+      <div className="space-y-1.5">
+        {members.map(p => (
+          <div key={p.uid} className="flex items-center gap-1.5 group/slot">
+            {(p.avatarUrl || p.discordAvatar) ? (
+              <Image src={p.avatarUrl || p.discordAvatar} alt={p.displayName} width={14} height={14} className="flex-shrink-0" unoptimized />
+            ) : (
+              <User size={10} style={{ color: 'var(--s-text-muted)' }} />
+            )}
+            <span className="text-xs truncate flex-1" style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
+            <button type="button" onClick={() => onRemove(p.uid)}
+              className="opacity-0 group-hover/slot:opacity-100 transition-opacity duration-100 p-0.5"
+              style={{ color: '#ff5555' }}>
+              <Trash2 size={9} />
+            </button>
+          </div>
+        ))}
+      </div>
+      {/* Ajouter un membre */}
+      {canAdd && available.length > 0 && (
+        <select
+          className="settings-input w-full mt-2 text-xs"
+          style={{ padding: '3px 6px', fontSize: '10px' }}
+          value=""
+          disabled={loading}
+          onChange={e => { if (e.target.value) onAdd(e.target.value); }}>
+          <option value="">{loading ? '...' : '+ Ajouter'}</option>
+          {available.map(m => (
+            <option key={m.userId} value={m.userId}>{m.displayName}</option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
+
 export default function MyStructurePage() {
   const { firebaseUser, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -241,6 +290,33 @@ export default function MyStructurePage() {
       }
     } catch (err) {
       console.error('[MyStructure] create team error:', err);
+    }
+    setTeamActionLoading(null);
+  }
+
+  async function handleUpdateTeamRoster(teamId: string, field: 'playerIds' | 'subIds' | 'staffIds', ids: string[]) {
+    if (!activeStructure || !firebaseUser) return;
+    setTeamActionLoading(`${teamId}_${field}`);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/structures/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({
+          action: 'update',
+          structureId: activeStructure.id,
+          teamId,
+          [field]: ids,
+        }),
+      });
+      if (res.ok) {
+        await loadTeams(activeStructure.id);
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Erreur');
+      }
+    } catch (err) {
+      console.error('[MyStructure] update team roster error:', err);
     }
     setTeamActionLoading(null);
   }
@@ -870,6 +946,14 @@ export default function MyStructurePage() {
                 <div className="space-y-3">
                   {teams.map(team => {
                     const gameColor = team.game === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)';
+                    // IDs déjà assignés dans cette équipe
+                    const assignedIds = [...team.players.map(p => p.uid), ...team.subs.map(p => p.uid), ...team.staff.map(p => p.uid)];
+                    // Membres de la structure non assignés à cette équipe
+                    const availableMembers = s.members.filter(m => !assignedIds.includes(m.userId));
+                    const isRL = team.game === 'rocket_league';
+                    const canAddPlayer = !isRL || team.players.length < 3;
+                    const canAddSub = !isRL || team.subs.length < 2;
+
                     return (
                       <div key={team.id} className="relative overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                         {/* Mini accent */}
@@ -891,74 +975,41 @@ export default function MyStructurePage() {
                             </button>
                           </div>
 
-                          {/* Roster grid */}
+                          {/* Roster grid — interactif */}
                           <div className="grid grid-cols-3 gap-3">
                             {/* Titulaires */}
-                            <div className="p-2.5" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-                              <p className="t-label mb-2" style={{ fontSize: '9px', color: gameColor }}>
-                                TITULAIRES {team.game === 'rocket_league' && '(3)'}
-                              </p>
-                              {team.players.length === 0 ? (
-                                <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>—</p>
-                              ) : (
-                                <div className="space-y-1.5">
-                                  {team.players.map(p => (
-                                    <div key={p.uid} className="flex items-center gap-1.5">
-                                      {(p.avatarUrl || p.discordAvatar) ? (
-                                        <Image src={p.avatarUrl || p.discordAvatar} alt={p.displayName} width={14} height={14} className="flex-shrink-0" unoptimized />
-                                      ) : (
-                                        <User size={10} style={{ color: 'var(--s-text-muted)' }} />
-                                      )}
-                                      <span className="text-xs truncate" style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-
+                            <RosterSlot
+                              label={`TITULAIRES${isRL ? ' (max 3)' : ''}`}
+                              labelColor={gameColor}
+                              members={team.players}
+                              available={availableMembers}
+                              canAdd={canAddPlayer}
+                              loading={teamActionLoading === `${team.id}_playerIds`}
+                              onAdd={(uid) => handleUpdateTeamRoster(team.id, 'playerIds', [...team.players.map(p => p.uid), uid])}
+                              onRemove={(uid) => handleUpdateTeamRoster(team.id, 'playerIds', team.players.filter(p => p.uid !== uid).map(p => p.uid))}
+                            />
                             {/* Remplaçants */}
-                            <div className="p-2.5" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-                              <p className="t-label mb-2" style={{ fontSize: '9px', color: 'var(--s-text-dim)' }}>
-                                REMPLAÇANTS {team.game === 'rocket_league' && '(2)'}
-                              </p>
-                              {team.subs.length === 0 ? (
-                                <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>—</p>
-                              ) : (
-                                <div className="space-y-1.5">
-                                  {team.subs.map(p => (
-                                    <div key={p.uid} className="flex items-center gap-1.5">
-                                      {(p.avatarUrl || p.discordAvatar) ? (
-                                        <Image src={p.avatarUrl || p.discordAvatar} alt={p.displayName} width={14} height={14} className="flex-shrink-0" unoptimized />
-                                      ) : (
-                                        <User size={10} style={{ color: 'var(--s-text-muted)' }} />
-                                      )}
-                                      <span className="text-xs truncate" style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-
+                            <RosterSlot
+                              label={`REMPLAÇANTS${isRL ? ' (max 2)' : ''}`}
+                              labelColor="var(--s-text-dim)"
+                              members={team.subs}
+                              available={availableMembers}
+                              canAdd={canAddSub}
+                              loading={teamActionLoading === `${team.id}_subIds`}
+                              onAdd={(uid) => handleUpdateTeamRoster(team.id, 'subIds', [...team.subs.map(p => p.uid), uid])}
+                              onRemove={(uid) => handleUpdateTeamRoster(team.id, 'subIds', team.subs.filter(p => p.uid !== uid).map(p => p.uid))}
+                            />
                             {/* Staff */}
-                            <div className="p-2.5" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-                              <p className="t-label mb-2" style={{ fontSize: '9px', color: 'var(--s-gold)' }}>STAFF</p>
-                              {team.staff.length === 0 ? (
-                                <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>—</p>
-                              ) : (
-                                <div className="space-y-1.5">
-                                  {team.staff.map(p => (
-                                    <div key={p.uid} className="flex items-center gap-1.5">
-                                      {(p.avatarUrl || p.discordAvatar) ? (
-                                        <Image src={p.avatarUrl || p.discordAvatar} alt={p.displayName} width={14} height={14} className="flex-shrink-0" unoptimized />
-                                      ) : (
-                                        <User size={10} style={{ color: 'var(--s-text-muted)' }} />
-                                      )}
-                                      <span className="text-xs truncate" style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
+                            <RosterSlot
+                              label="STAFF"
+                              labelColor="var(--s-gold)"
+                              members={team.staff}
+                              available={availableMembers}
+                              canAdd={true}
+                              loading={teamActionLoading === `${team.id}_staffIds`}
+                              onAdd={(uid) => handleUpdateTeamRoster(team.id, 'staffIds', [...team.staff.map(p => p.uid), uid])}
+                              onRemove={(uid) => handleUpdateTeamRoster(team.id, 'staffIds', team.staff.filter(p => p.uid !== uid).map(p => p.uid))}
+                            />
                           </div>
                         </div>
                       </div>
