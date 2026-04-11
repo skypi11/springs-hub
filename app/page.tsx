@@ -14,7 +14,7 @@ const competitions = [
     teams: '32 équipes',
     prize: '1 600€',
     accent: '#0081FF',
-    bgImage: 'https://rocketleague.media.zestyio.com/rl_home_hero-bg.jpg',
+    bgImage: 'https://i.postimg.cc/hjTKjc8H/rocket-league-une.jpg',
     href: 'https://springs-esport.vercel.app/rocket-league/',
   },
   {
@@ -29,7 +29,7 @@ const competitions = [
     teams: 'Solo',
     prize: null,
     accent: '#00D936',
-    bgImage: 'https://www.trackmania.com/build/images/tm2020-og.jpg',
+    bgImage: 'https://i.postimg.cc/PfCmScfj/5e8d98a35cdf9a12c868c890-bg.webp',
     href: 'https://springs-esport.vercel.app/trackmania/cup.html?cup=monthly',
   },
 ];
