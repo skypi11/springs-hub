@@ -16,20 +16,16 @@ export async function GET(req: NextRequest) {
     if (!(await isAdmin(uid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
 
     const db = getAdminDb();
+
+    // Récupérer tout et filtrer côté serveur — évite les indexes composites Firestore
     const statusFilter = req.nextUrl.searchParams.get('status');
-
-    let query = db.collection('structures').orderBy('createdAt', 'desc');
-    if (statusFilter) {
-      query = db.collection('structures')
-        .where('status', '==', statusFilter)
-        .orderBy('createdAt', 'desc');
-    }
-
-    const snap = await query.get();
+    const snap = await db.collection('structures').get();
     const structures = [];
 
     for (const doc of snap.docs) {
       const data = doc.data();
+      // Filtre côté serveur
+      if (statusFilter && data.status !== statusFilter) continue;
       // Enrichir avec le nom du fondateur
       let founderName = '';
       try {
