@@ -2,8 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, signInWithCustomToken, signOut as firebaseSignOut, User } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import type { SpringsUser } from '@/types';
 
 interface AuthContextType {
@@ -72,7 +71,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Affichage immédiat depuis Firebase Auth — fonctionne même sans Firestore
-      // displayName et photoURL sont mis à jour côté serveur à chaque connexion
       setUser({
         uid: fbUser.uid,
         discordId: fbUser.uid.replace('discord_', ''),
@@ -82,19 +80,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       setLoading(false);
 
-      // Enrichissement depuis Firestore en arrière-plan (bio, games, rang, etc.)
+      // Enrichissement via API serveur (pas Firestore client — évite les erreurs de permissions)
       try {
-        await fbUser.getIdToken();
-        const [snap, adminSnap] = await Promise.all([
-          getDoc(doc(db, 'users', fbUser.uid)),
-          getDoc(doc(db, 'admins', fbUser.uid)),
-        ]);
-        if (snap.exists()) {
-          setUser({ uid: fbUser.uid, ...snap.data() } as SpringsUser);
+        const idToken = await fbUser.getIdToken();
+        const res = await fetch('/api/auth/me', {
+          headers: { 'Authorization': `Bearer ${idToken}` },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            setUser({ uid: fbUser.uid, ...data.user } as SpringsUser);
+          }
+          setIsAdmin(data.isAdmin ?? false);
         }
-        setIsAdmin(adminSnap.exists());
       } catch (err) {
-        console.error('[Auth] Firestore read error:', err);
+        console.error('[Auth] API /auth/me error:', err);
         // L'utilisateur reste connecté grâce aux données Firebase Auth ci-dessus
       }
     });
