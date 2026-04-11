@@ -3,8 +3,6 @@
 import { useState, useEffect, use } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import { countries } from '@/lib/countries';
 import type { SpringsUser, RLStats } from '@/types';
@@ -37,13 +35,13 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   useEffect(() => {
     async function load() {
       try {
-        const snap = await getDoc(doc(db, 'users', id));
-        if (!snap.exists()) {
+        const res = await fetch(`/api/profile?uid=${encodeURIComponent(id)}`);
+        if (!res.ok) {
           setNotFound(true);
           setLoading(false);
           return;
         }
-        const data = { uid: id, ...snap.data() } as SpringsUser;
+        const data = { uid: id, ...await res.json() } as SpringsUser;
         setProfile(data);
 
         // Fetch RL stats si le joueur joue à RL

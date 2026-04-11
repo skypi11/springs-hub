@@ -3,9 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
+import { auth } from '@/lib/firebase';
 import { countries } from '@/lib/countries';
 import {
   Save, User, Gamepad2, Shield, Search, ChevronRight,
@@ -20,12 +19,9 @@ type FormData = {
   country: string;
   dateOfBirth: string;
   games: string[];
-  // RL
   epicAccountId: string;
-  // TM
   pseudoTM: string;
   tmIoUrl: string;
-  // Recrutement
   isAvailableForRecruitment: boolean;
   recruitmentRole: string;
   recruitmentMessage: string;
@@ -55,15 +51,15 @@ export default function SettingsPage() {
   const [error, setError] = useState('');
   const [loaded, setLoaded] = useState(false);
 
-  // Charger les données existantes
+  // Charger les données existantes via API serveur
   useEffect(() => {
     if (authLoading || !firebaseUser) return;
 
     async function loadProfile() {
       try {
-        const snap = await getDoc(doc(db, 'users', firebaseUser!.uid));
-        if (snap.exists()) {
-          const data = snap.data();
+        const res = await fetch(`/api/profile?uid=${encodeURIComponent(firebaseUser!.uid)}`);
+        if (res.ok) {
+          const data = await res.json();
           setForm({
             displayName: data.displayName ?? firebaseUser!.displayName ?? '',
             avatarUrl: data.avatarUrl ?? '',
@@ -79,7 +75,7 @@ export default function SettingsPage() {
             recruitmentMessage: data.recruitmentMessage ?? '',
           });
         } else {
-          // Pré-remplir avec les infos Discord
+          // Profil pas encore créé — pré-remplir avec les infos Discord
           setForm(prev => ({
             ...prev,
             displayName: firebaseUser!.displayName ?? '',
@@ -94,7 +90,6 @@ export default function SettingsPage() {
     loadProfile();
   }, [authLoading, firebaseUser]);
 
-  // Redirect si non connecté
   if (!authLoading && !firebaseUser) {
     return (
       <div className="min-h-screen px-8 py-8 flex items-center justify-center">
@@ -135,7 +130,6 @@ export default function SettingsPage() {
     if (form.games.includes('trackmania') && !form.pseudoTM.trim()) {
       return 'Le pseudo Ubisoft/Nadeo est obligatoire pour Trackmania.';
     }
-    // Vérifier l'âge (minimum 13 ans)
     if (form.dateOfBirth) {
       const birth = new Date(form.dateOfBirth);
       const age = Math.floor((Date.now() - birth.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
@@ -156,33 +150,32 @@ export default function SettingsPage() {
     setSaved(false);
 
     try {
-      const uid = firebaseUser!.uid;
-      await setDoc(doc(db, 'users', uid), {
-        uid,
-        discordId: user?.discordId ?? uid.replace('discord_', ''),
-        discordUsername: user?.discordUsername ?? '',
-        discordAvatar: user?.discordAvatar ?? '',
-        displayName: form.displayName.trim(),
-        avatarUrl: form.avatarUrl.trim(),
-        bio: form.bio.trim(),
-        country: form.country,
-        dateOfBirth: form.dateOfBirth,
-        games: form.games,
-        epicAccountId: form.games.includes('rocket_league') ? form.epicAccountId.trim() : '',
-        pseudoTM: form.games.includes('trackmania') ? form.pseudoTM.trim() : '',
-        tmIoUrl: form.games.includes('trackmania') ? form.tmIoUrl.trim() : '',
-        isAvailableForRecruitment: form.isAvailableForRecruitment,
-        recruitmentRole: form.isAvailableForRecruitment ? form.recruitmentRole : '',
-        recruitmentMessage: form.isAvailableForRecruitment ? form.recruitmentMessage.trim() : '',
-        updatedAt: serverTimestamp(),
-        ...(!loaded ? { createdAt: serverTimestamp() } : {}),
-      }, { merge: true });
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) {
+        setError('Session expirée. Reconnecte-toi.');
+        setSaving(false);
+        return;
+      }
 
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      const res = await fetch('/api/profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify(form),
+      });
+
+      if (res.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      } else {
+        const data = await res.json();
+        setError(data.error || 'Erreur lors de la sauvegarde.');
+      }
     } catch (err) {
       console.error('[Settings] save error:', err);
-      setError('Erreur lors de la sauvegarde. Réessaie.');
+      setError('Erreur réseau. Réessaie.');
     }
 
     setSaving(false);
@@ -200,7 +193,6 @@ export default function SettingsPage() {
           style={{ background: 'radial-gradient(ellipse at top left, var(--s-violet), transparent 70%)' }} />
 
         <div className="relative z-[1] p-8 flex items-center gap-6">
-          {/* Avatar preview */}
           <div className="flex-shrink-0 w-20 h-20 relative overflow-hidden"
             style={{ background: 'var(--s-elevated)', border: '2px solid var(--s-border)' }}>
             {avatarSrc ? (
@@ -240,8 +232,6 @@ export default function SettingsPage() {
               <span className="tag tag-neutral">Obligatoire</span>
             </div>
             <div className="panel-body space-y-5">
-
-              {/* Pseudo */}
               <div>
                 <label className="t-label block mb-2">Pseudo affiché</label>
                 <input type="text" value={form.displayName}
@@ -249,7 +239,6 @@ export default function SettingsPage() {
                   className="settings-input" placeholder="Ton pseudo Springs" maxLength={32} />
               </div>
 
-              {/* Avatar URL */}
               <div>
                 <label className="t-label block mb-2">
                   <ImageIcon size={10} className="inline mr-1" />
@@ -260,7 +249,6 @@ export default function SettingsPage() {
                   className="settings-input" placeholder="https://exemple.com/mon-avatar.png" />
               </div>
 
-              {/* Pays */}
               <div>
                 <label className="t-label block mb-2">
                   <Globe size={10} className="inline mr-1" />
@@ -276,7 +264,6 @@ export default function SettingsPage() {
                 </select>
               </div>
 
-              {/* Date de naissance */}
               <div>
                 <label className="t-label block mb-2">
                   <Calendar size={10} className="inline mr-1" />
@@ -290,7 +277,6 @@ export default function SettingsPage() {
                 </p>
               </div>
 
-              {/* Bio */}
               <div>
                 <label className="t-label block mb-2">
                   <MessageSquare size={10} className="inline mr-1" />
@@ -314,7 +300,6 @@ export default function SettingsPage() {
               <span className="tag tag-neutral">Min. 1</span>
             </div>
             <div className="panel-body space-y-4">
-              {/* Game toggles */}
               <div className="grid grid-cols-2 gap-4">
                 <button type="button" onClick={() => toggleGame('rocket_league')}
                   className="p-4 text-left transition-all duration-150"
@@ -341,7 +326,6 @@ export default function SettingsPage() {
                 </button>
               </div>
 
-              {/* RL fields */}
               {form.games.includes('rocket_league') && (
                 <div className="p-4 space-y-4" style={{ background: 'rgba(0,129,255,0.04)', border: '1px solid rgba(0,129,255,0.15)' }}>
                   <div className="flex items-center gap-2 mb-1">
@@ -360,7 +344,6 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {/* TM fields */}
               {form.games.includes('trackmania') && (
                 <div className="p-4 space-y-4" style={{ background: 'rgba(0,217,54,0.04)', border: '1px solid rgba(0,217,54,0.15)' }}>
                   <div className="flex items-center gap-2 mb-1">
@@ -400,7 +383,6 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="panel-body space-y-4">
-              {/* Toggle */}
               <button type="button"
                 onClick={() => setForm(prev => ({ ...prev, isAvailableForRecruitment: !prev.isAvailableForRecruitment }))}
                 className="w-full p-4 flex items-center justify-between transition-all duration-150"
@@ -426,7 +408,6 @@ export default function SettingsPage() {
 
               {form.isAvailableForRecruitment && (
                 <>
-                  {/* Rôle */}
                   <div>
                     <label className="t-label block mb-2">Rôle recherché</label>
                     <div className="flex gap-2">
@@ -447,7 +428,6 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  {/* Message */}
                   <div>
                     <label className="t-label block mb-2">Message</label>
                     <textarea value={form.recruitmentMessage}
@@ -470,7 +450,6 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="panel-body space-y-3">
-              {/* Error */}
               {error && (
                 <div className="p-3 flex items-start gap-2" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
                   <AlertCircle size={14} className="flex-shrink-0 mt-0.5" style={{ color: '#ef4444' }} />
@@ -478,7 +457,6 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {/* Success */}
               {saved && (
                 <div className="p-3 flex items-center gap-2" style={{ background: 'rgba(0,217,54,0.08)', border: '1px solid rgba(0,217,54,0.25)' }}>
                   <CheckCircle size={14} style={{ color: '#00D936' }} />
