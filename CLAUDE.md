@@ -43,29 +43,113 @@ Remplace progressivement le site actuel (`site cup monthly` / `springs-esport.ve
 
 ---
 
-## Design system
+## Design system — Direction artistique Springs
 
-### Palette
+### Identité visuelle — origine
+L'identité visuelle Springs vient des **overlays de stream** de l'association :
+- **Texture hexagonale** en fond (pas décorative, en TEXTURE subtile sur tout le contenu)
+- **Biseaux/coins coupés** (clip-path polygon) — signature Springs, pas de coins arrondis
+- Dark gaming premium, professionnel — "le soin du détail qui fait la différence entre un pro et un amateur"
+
+### Références visuelles
+Faceit, Battlefy, Elite Gamers Arena — mais avec l'identité propre Springs (hex + biseaux)
+
+### Fichier central : `app/design-system.css`
+Tout le système de design est centralisé ici. **Toujours utiliser les classes et tokens existants** avant de créer du CSS custom.
+
+### Palette — tokens CSS (dans `:root`)
 ```css
---bg-base: #080810          /* fond principal très sombre */
---bg-surface: #0f0f1a       /* cartes, sidebar */
---bg-elevated: #16162a      /* éléments surélevés */
---springs-violet: #7B2FBE   /* accent principal */
---springs-gold: #FFB800     /* accent secondaire */
---springs-white: #FFFFFF
---text-primary: #F0F0F0
---text-secondary: #8888AA
---border: rgba(123,47,190,0.2)  /* bordures subtiles violet */
+/* Surfaces — du plus sombre au plus clair */
+--s-bg:         #08080f     /* fond page */
+--s-surface:    #0e0e1a     /* cards, panels, sidebar */
+--s-elevated:   #151525     /* éléments surélevés, hover states */
+--s-hover:      #1c1c30     /* hover intense */
+
+/* Brand — 4 couleurs */
+--s-violet:       #7B2FBE   /* accent système/navigation UNIQUEMENT */
+--s-violet-light: #a364d9   /* variante claire */
+--s-gold:         #FFB800   /* rare et précieux — CTA principal, récompenses */
+--s-blue:         #0081FF   /* Rocket League */
+--s-green:        #00D936   /* Trackmania */
+
+/* Texte */
+--s-text:       #eaeaf0     /* principal */
+--s-text-dim:   #7a7a95     /* secondaire */
+--s-text-muted: #4a4a60     /* tertiaire, labels discrets */
+
+/* Bordures */
+--s-border:     rgba(255,255,255,0.08)   /* NEUTRE — pas violet ! */
 ```
 
-### Style visuel
-- Dark gaming premium (références : Faceit, Battlefy, Elite Gamers Arena)
-- **Layout sidebar fixe** (260px) à gauche + contenu principal **pleine largeur** à droite (pas de max-w contrainte)
-- Violet utilisé avec **parcimonie** : uniquement pour CTAs actifs, bordures d'accent, glows sur éléments interactifs
-- Borders des cards : `rgba(255,255,255,0.07)` neutre (pas violet)
-- Glows de fond : opacité max 0.09–0.10 (très subtils)
-- Bebas Neue pour tous les titres (`font-display`), Outfit pour le texte courant
-- Animations subtiles, transitions fluides
+### Règles couleur STRICTES
+- **Violet = système/navigation uniquement** : sidebar active, accent-top sur panels système, glows très subtils. PAS sur les cards de contenu, PAS partout
+- **Or = rare et précieux** : bouton CTA principal, prix/récompenses, structures. Si l'or est partout il perd sa valeur
+- **Bleu = Rocket League**, **Vert = Trackmania** : chaque jeu a sa couleur propre
+- **Bordures des cards = toujours neutres** (`--s-border`, blanc 8% opacity), JAMAIS violet
+- **Glows** : opacité max 0.07–0.12, TRÈS subtils. Au hover on peut monter à 0.12 max
+
+### Typographie
+- **Bebas Neue** (`font-display`, `t-display`, `t-heading`) : tous les titres, en uppercase
+- **Outfit** (`font-sans`) : tout le texte courant
+- Classes : `t-display` (hero), `t-heading` (28px), `t-sub` (14px bold), `t-body` (14px), `t-label` (10px uppercase tracking), `t-mono` (12px tabular)
+
+### Composants clés (classes CSS)
+
+#### Layout
+- **Sidebar fixe** 260px à gauche, contenu `ml-[260px]` pleine largeur
+- **Fond hex** : classe `hex-bg` sur le wrapper contenu (SVG pattern fixe, opacity 0.045)
+- **Espacement pages** : `px-8 py-8 space-y-10` sur le conteneur principal
+
+#### Cards & panels
+- `.panel` : card de base (surface + border neutre + radius 4px)
+- `.bevel` / `.bevel-sm` : coins biseautés via clip-path (--bevel: 14px, --bevel-sm: 8px)
+- `.pillar-card` : card enrichie avec hover (border blanche + bg elevated)
+- `.comp-card` : card compétition avec image de fond (voir ci-dessous)
+- `.panel-header` / `.panel-body` : structure interne des panels
+
+#### Cards compétition (avec image)
+Pattern validé — structure obligatoire :
+1. `.comp-card` container (position relative, overflow hidden, bevel)
+2. `.comp-card-bg` : image de fond (opacity 0.35, hover → 0.5 + scale 1.04)
+3. `.comp-card-overlay` : gradient sombre (0.85 → 0.55)
+4. Accent bar colorée en haut (3px, gradient de la couleur du jeu)
+5. `.comp-card-content` : contenu par-dessus (z-index 1)
+- **Les images de jeux sont dans `/public/`** (rocket-league.webp, tm.webp)
+
+#### Cards pilier/section (sans image)
+Quand une card n'a pas d'image de fond, elle doit quand même avoir de la présence :
+- **Accent bar colorée** en haut (3px, gradient de la couleur du pilier)
+- **Glow subtil** dans un coin (radial-gradient de la couleur, opacity 0.07 → 0.12 au hover)
+- **Icône encadrée** avec fond teinté de la couleur (`${accent}10` bg, `${accent}25` border)
+- **Stat counter** en Bebas Neue si pertinent
+- **Hover** : border passe à `rgba(255,255,255,0.18)`, bg passe à `--s-elevated`
+
+#### Tags
+`.tag` + variantes : `.tag-violet`, `.tag-gold`, `.tag-blue`, `.tag-green`, `.tag-neutral`
+- 10px, uppercase, bold, avec border colorée
+
+#### Boutons
+`.btn-springs` + `.btn-primary` (or, texte noir) | `.btn-secondary` (transparent, border blanche) | `.btn-ghost`
+- Toujours avec `.bevel-sm` pour les coins coupés
+
+#### Séparateurs
+`.divider` (1px, couleur --s-border)
+`.section-label` : label de section avec barre violet à gauche + ligne horizontale
+
+### Anti-patterns — NE PAS FAIRE
+- **Violet partout** → "on dirait une grosse myrtille" — violet = navigation/système uniquement
+- **Coins arrondis** (`rounded-lg`, `rounded-xl`) → utiliser les biseaux clip-path
+- **Hexagones flottants / néons / formes décoratives** → la texture hex suffit, pas de déco
+- **Fond trop uni sans texture** → toujours la texture hex via `.hex-bg`
+- **Cards plates sans aucun accent** → chaque card doit avoir une identité couleur
+- **Inline border + Tailwind hover** → Tailwind ne peut pas override un inline style, utiliser une classe CSS dédiée avec `!important`
+- **Images en hotlink** depuis des sites de jeux (ils bloquent) → toujours `/public/`
+- **Doublons d'information** → ne pas afficher la même stat à deux endroits
+
+### Animations
+- `animate-fade-in` : apparition douce (0.4s ease)
+- `animate-fade-in-d1/d2/d3` : décalées de 0.1/0.2/0.3s pour effet cascade
+- Transitions hover : `duration-150` à `duration-200`, jamais plus
 
 ### Logo
 Fichier : `public/springs-logo.png`
@@ -73,6 +157,8 @@ Fichier : `public/springs-logo.png`
 - Affiché en haut de la sidebar (120×36px)
 
 ### Fichiers clés
+- `app/design-system.css` — **système de design complet** (tokens, composants, classes)
+- `app/globals.css` — imports + theme Tailwind + animations
 - `lib/firebase.ts` — init Firebase client (Firestore + Auth)
 - `context/AuthContext.tsx` — auth global (Discord OAuth + état utilisateur)
 - `app/api/auth/discord/callback/route.ts` — callback OAuth serveur (Admin SDK)
