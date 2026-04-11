@@ -184,7 +184,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           </div>
 
           {isOwner && (
-            <Link href="/settings" className="btn-springs btn-secondary bevel-sm flex-shrink-0">
+            <Link href="/settings" className="btn-springs btn-secondary bevel-sm-border flex-shrink-0" style={{ padding: '10px 20px' }}>
               <Settings size={14} /> Modifier
             </Link>
           )}
