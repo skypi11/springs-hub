@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Trophy, Users, ArrowRight, ExternalLink, Calendar, Gamepad2, UserPlus, Shield } from 'lucide-react';
+import { Trophy, Users, ArrowRight, ExternalLink, Calendar, Gamepad2, UserPlus, Shield, ChevronRight } from 'lucide-react';
 
 const competitions = [
   {
@@ -7,14 +7,14 @@ const competitions = [
     game: 'Rocket League',
     tag: 'RL',
     tagClass: 'tag-blue',
-    accentClass: 'panel-accent-blue',
-    name: 'Springs League Series S2',
+    name: 'SPRINGS LEAGUE SERIES S2',
     format: 'Ligue · 3v3 · Round Robin · BO7',
     status: 'En cours',
-    statusClass: 'status-live',
     date: 'Saison 2026',
-    teams: '32 équipes · 2 poules',
+    teams: '32 équipes',
     prize: '1 600€',
+    accent: '#0081FF',
+    bgImage: 'https://rocketleague.media.zestyio.com/rl_home_hero-bg.jpg',
     href: 'https://springs-esport.vercel.app/rocket-league/',
   },
   {
@@ -22,14 +22,14 @@ const competitions = [
     game: 'Trackmania',
     tag: 'TM',
     tagClass: 'tag-green',
-    accentClass: 'panel-accent-green',
-    name: 'Monthly Cup',
-    format: 'Cup · Solo · Qualifs + Finale',
+    name: 'MONTHLY CUP',
+    format: 'Cup · Solo · Qualifications + Finale',
     status: 'Mensuel',
-    statusClass: 'status-live',
     date: 'Chaque mois',
-    teams: 'Solo — inscription individuelle',
+    teams: 'Solo',
     prize: null,
+    accent: '#00D936',
+    bgImage: 'https://www.trackmania.com/build/images/tm2020-og.jpg',
     href: 'https://springs-esport.vercel.app/trackmania/cup.html?cup=monthly',
   },
 ];
@@ -38,189 +38,208 @@ export default function HomePage() {
   return (
     <div className="min-h-screen p-6 space-y-6">
 
-      {/* ─── HEADER — identité + contexte, pas "hero" ────────────────────── */}
-      <header className="animate-fade-in">
-        <div className="panel" style={{ borderTop: '3px solid var(--s-violet)' }}>
-          <div className="flex items-start justify-between p-6">
-            <div>
-              <div className="flex items-center gap-3 mb-3">
-                <span className="tag tag-violet">Plateforme officielle</span>
-                <span className="status status-live">Opérationnelle</span>
-              </div>
-              <h1 className="t-display" style={{ fontSize: '48px' }}>SPRINGS E-SPORT</h1>
-              <p className="t-body mt-2 max-w-xl">
-                Console de gestion des structures, des joueurs et des compétitions
-                de l&apos;écosystème Springs E-Sport.
-              </p>
+      {/* ─── HERO HEADER ──────────────────────────────────────────────────── */}
+      <header className="bevel animate-fade-in" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+        {/* Violet accent top */}
+        <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), var(--s-violet-light), transparent 80%)' }} />
+
+        <div className="p-8 flex items-start justify-between gap-8">
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="tag tag-violet">Springs E-Sport</span>
+              <span className="tag tag-gold">Plateforme Officielle</span>
+              <span className="status status-live ml-2">En ligne</span>
             </div>
-            <div className="flex gap-3 mt-1">
-              <Link href="/community" className="btn-springs btn-primary">
+
+            <h1 className="t-display mb-3">
+              LA BASE OPÉRATIONNELLE<br />
+              <span style={{ color: 'var(--s-gold)' }}>DE L&apos;ESPORT SPRINGS</span>
+            </h1>
+
+            <p className="t-body max-w-xl mb-6">
+              Structures, joueurs, compétitions — tout l&apos;écosystème Springs E-Sport
+              réuni sur une seule plateforme. Gère, recrute, compétitionne.
+            </p>
+
+            <div className="flex items-center gap-3">
+              <Link href="/community" className="btn-springs btn-primary bevel-sm">
                 Rejoindre <ArrowRight size={14} />
               </Link>
-              <Link href="/competitions" className="btn-springs btn-secondary">
-                Compétitions
+              <Link href="/competitions" className="btn-springs btn-secondary bevel-sm">
+                <Trophy size={14} /> Compétitions
               </Link>
+            </div>
+          </div>
+
+          {/* Quick stats panel */}
+          <div className="flex-shrink-0 w-[260px] hidden lg:block">
+            <div className="panel accent-top-violet">
+              <div className="panel-header">
+                <span className="t-label">Activité</span>
+                <span className="status status-live" style={{ fontSize: '10px' }}>Live</span>
+              </div>
+              <div className="panel-body space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="t-body">Compétitions actives</span>
+                  <span className="font-display text-2xl" style={{ color: 'var(--s-gold)', letterSpacing: '0.02em' }}>2</span>
+                </div>
+                <div className="divider" />
+                <div className="flex items-center justify-between">
+                  <span className="t-body">Jeux</span>
+                  <div className="flex gap-2">
+                    <span className="tag tag-blue" style={{ fontSize: '9px', padding: '2px 6px' }}>RL</span>
+                    <span className="tag tag-green" style={{ fontSize: '9px', padding: '2px 6px' }}>TM</span>
+                  </div>
+                </div>
+                <div className="divider" />
+                <div className="flex items-center justify-between">
+                  <span className="t-body">Structures</span>
+                  <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Bientôt</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </header>
 
-      {/* ─── 3 PILIERS — modules produit, pas stats ─────────────────────── */}
-      <section className="grid-3 animate-fade-in-d1">
-
-        {/* Structures */}
-        <div className="panel panel-accent-gold">
-          <div className="panel-header">
-            <span className="t-label" style={{ color: 'var(--s-gold)' }}>
-              <Shield size={11} style={{ display: 'inline', verticalAlign: '-1px', marginRight: '5px' }} />
-              Gestion de structure
-            </span>
-            <span className="tag tag-gold">Pilier 1</span>
-          </div>
-          <div className="panel-body space-y-3">
-            <p className="t-body">
-              Crée ta structure, gère ton roster, tes sous-équipes et ton planning.
-              Inscris-toi aux compétitions Springs.
-            </p>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="tag tag-neutral">Roster</span>
-              <span className="tag tag-neutral">Équipes</span>
-              <span className="tag tag-neutral">Planning</span>
-              <span className="tag tag-neutral">Inscriptions</span>
-            </div>
-            <div className="divider" />
-            <Link href="/community" className="btn-springs btn-ghost" style={{ padding: '6px 8px' }}>
-              Accéder <ArrowRight size={12} />
-            </Link>
-          </div>
+      {/* ─── 3 PILIERS ────────────────────────────────────────────────────── */}
+      <section className="animate-fade-in-d1">
+        <div className="section-label">
+          <span className="t-label">Écosystème Springs</span>
         </div>
 
-        {/* Vivier joueurs */}
-        <div className="panel panel-accent-violet">
-          <div className="panel-header">
-            <span className="t-label" style={{ color: '#a364d9' }}>
-              <UserPlus size={11} style={{ display: 'inline', verticalAlign: '-1px', marginRight: '5px' }} />
-              Vivier de joueurs
-            </span>
-            <span className="tag tag-violet">Pilier 2</span>
-          </div>
-          <div className="panel-body space-y-3">
-            <p className="t-body">
-              Annuaire des joueurs de l&apos;écosystème. Profils, rangs, disponibilité
-              pour le recrutement. Base de talents Springs.
-            </p>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="tag tag-neutral">Profils</span>
-              <span className="tag tag-neutral">Recrutement</span>
-              <span className="tag tag-neutral">Rangs</span>
-              <span className="tag tag-neutral">Disponibilité</span>
-            </div>
-            <div className="divider" />
-            <Link href="/community/players" className="btn-springs btn-ghost" style={{ padding: '6px 8px' }}>
-              Accéder <ArrowRight size={12} />
+        <div className="grid grid-cols-3 gap-4">
+          {[
+            {
+              icon: Shield, label: 'Structures', tag: 'Gestion',
+              accent: 'var(--s-gold)', accentClass: 'accent-left-gold', tagClass: 'tag-gold',
+              desc: 'Crée ta structure, gère ton roster et tes sous-équipes. Inscris-toi aux compétitions Springs.',
+              href: '/community',
+            },
+            {
+              icon: UserPlus, label: 'Vivier', tag: 'Recrutement',
+              accent: 'var(--s-violet)', accentClass: 'accent-left-violet', tagClass: 'tag-violet',
+              desc: 'Annuaire des joueurs. Profils, rangs, disponibilité. La base de talents de l\'écosystème.',
+              href: '/community/players',
+            },
+            {
+              icon: Trophy, label: 'Compétitions', tag: 'Événements',
+              accent: 'var(--s-text-dim)', accentClass: '', tagClass: 'tag-neutral',
+              desc: 'Saisons, cups, tournois Springs. Classements, résultats, inscriptions connectées.',
+              href: '/competitions',
+            },
+          ].map(({ icon: Icon, label, tag, accentClass, tagClass, desc, href }, i) => (
+            <Link key={label} href={href}
+              className={`panel ${accentClass} group block transition-all duration-200 hover:border-[rgba(255,255,255,0.15)]`}>
+              <div className="panel-header">
+                <div className="flex items-center gap-2">
+                  <Icon size={13} style={{ color: 'var(--s-text-dim)' }} />
+                  <span className="t-label" style={{ color: 'var(--s-text)' }}>{label}</span>
+                </div>
+                <span className={`tag ${tagClass}`}>{tag}</span>
+              </div>
+              <div className="panel-body">
+                <p className="t-body mb-4">{desc}</p>
+                <span className="btn-ghost flex items-center gap-1 text-xs font-semibold uppercase tracking-wider transition-colors group-hover:text-white"
+                  style={{ color: 'var(--s-text-dim)', padding: 0 }}>
+                  Accéder <ChevronRight size={12} />
+                </span>
+              </div>
             </Link>
-          </div>
-        </div>
-
-        {/* Compétitions */}
-        <div className="panel">
-          <div className="panel-header">
-            <span className="t-label">
-              <Trophy size={11} style={{ display: 'inline', verticalAlign: '-1px', marginRight: '5px' }} />
-              Compétitions
-            </span>
-            <span className="tag tag-neutral">Pilier 3</span>
-          </div>
-          <div className="panel-body space-y-3">
-            <p className="t-body">
-              Événements et saisons Springs. Classements, résultats, inscriptions.
-              Connecté aux structures et aux joueurs.
-            </p>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="tag tag-blue">Rocket League</span>
-              <span className="tag tag-green">Trackmania</span>
-            </div>
-            <div className="divider" />
-            <Link href="/competitions" className="btn-springs btn-ghost" style={{ padding: '6px 8px' }}>
-              Accéder <ArrowRight size={12} />
-            </Link>
-          </div>
+          ))}
         </div>
       </section>
 
-      {/* ─── COMPÉTITIONS EN COURS — fiches officielles ──────────────────── */}
+      {/* ─── COMPÉTITIONS — fiches avec images de fond ────────────────────── */}
       <section className="animate-fade-in-d2">
-        <div className="section-title">
+        <div className="section-label">
           <span className="t-label">Compétitions actives</span>
         </div>
 
-        <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-4">
           {competitions.map((comp) => (
-            <div key={comp.id} className={`fiche ${comp.accentClass}`}>
-              <div className="flex items-stretch">
+            <a key={comp.id} href={comp.href} target="_blank" rel="noopener noreferrer"
+              className="comp-card bevel group block">
 
-                {/* Main content */}
-                <div className="flex-1 p-5">
-                  <div className="flex items-center gap-3 mb-3">
+              {/* Background image */}
+              <div className="comp-card-bg" style={{ backgroundImage: `url(${comp.bgImage})` }} />
+              <div className="comp-card-overlay" />
+
+              {/* Accent bar */}
+              <div className="absolute top-0 left-0 right-0 h-[2px] z-[2]"
+                style={{ background: `linear-gradient(90deg, ${comp.accent}, transparent 70%)` }} />
+
+              {/* Content */}
+              <div className="comp-card-content p-6">
+                {/* Top row */}
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-2">
                     <span className={`tag ${comp.tagClass}`}>{comp.tag}</span>
-                    <span className="t-sub" style={{ fontSize: '16px' }}>{comp.name}</span>
-                    <span className={`status ${comp.statusClass} ml-auto`}>{comp.status}</span>
+                    <span className="t-label" style={{ color: 'var(--s-text-dim)' }}>{comp.game}</span>
                   </div>
-
-                  <div className="flex items-center gap-6 flex-wrap">
-                    <span className="t-mono flex items-center gap-1.5">
-                      <Gamepad2 size={12} /> {comp.format}
-                    </span>
-                    <span className="t-mono flex items-center gap-1.5">
-                      <Users size={12} /> {comp.teams}
-                    </span>
-                    <span className="t-mono flex items-center gap-1.5">
-                      <Calendar size={12} /> {comp.date}
-                    </span>
-                    {comp.prize && (
-                      <span className="t-mono flex items-center gap-1.5" style={{ color: 'var(--s-gold)' }}>
-                        <Trophy size={12} /> {comp.prize}
-                      </span>
-                    )}
-                  </div>
+                  <span className="status status-live">{comp.status}</span>
                 </div>
 
-                {/* Action */}
-                <div className="flex items-center px-5" style={{ borderLeft: '1px solid var(--s-border)' }}>
-                  <a href={comp.href} target="_blank" rel="noopener noreferrer"
-                    className="btn-springs btn-secondary whitespace-nowrap">
-                    Ouvrir <ExternalLink size={12} />
-                  </a>
+                {/* Title */}
+                <h3 className="font-display text-3xl mb-4" style={{ letterSpacing: '0.03em', color: 'var(--s-text)' }}>
+                  {comp.name}
+                </h3>
+
+                {/* Meta */}
+                <div className="flex items-center gap-5 mb-5 flex-wrap">
+                  <span className="t-mono flex items-center gap-1.5">
+                    <Gamepad2 size={11} /> {comp.format}
+                  </span>
+                  <span className="t-mono flex items-center gap-1.5">
+                    <Users size={11} /> {comp.teams}
+                  </span>
+                  <span className="t-mono flex items-center gap-1.5">
+                    <Calendar size={11} /> {comp.date}
+                  </span>
+                  {comp.prize && (
+                    <span className="t-mono flex items-center gap-1.5" style={{ color: 'var(--s-gold)' }}>
+                      <Trophy size={11} /> {comp.prize}
+                    </span>
+                  )}
+                </div>
+
+                {/* Separator + CTA */}
+                <div className="divider mb-4" />
+                <div className="flex items-center justify-between">
+                  <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Springs E-Sport</span>
+                  <span className="btn-springs btn-secondary bevel-sm transition-all group-hover:border-[rgba(255,255,255,0.3)]"
+                    style={{ padding: '6px 14px', fontSize: '11px' }}>
+                    Ouvrir <ExternalLink size={11} />
+                  </span>
                 </div>
               </div>
-            </div>
+            </a>
           ))}
         </div>
       </section>
 
       {/* ─── ACCÈS RAPIDES ────────────────────────────────────────────────── */}
       <section className="animate-fade-in-d3">
-        <div className="section-title">
+        <div className="section-label">
           <span className="t-label">Accès rapides</span>
         </div>
 
-        <div className="grid-4">
+        <div className="grid grid-cols-4 gap-3">
           {[
-            { label: 'Créer une structure', desc: 'Demande de création → validation Springs', href: '/community/create-structure', icon: Shield },
-            { label: 'Mon profil', desc: 'Jeux, rang, disponibilité recrutement', href: '/settings', icon: Users },
-            { label: 'Annuaire structures', desc: 'Structures actives de l\'écosystème', href: '/community/structures', icon: UserPlus },
-            { label: 'Classements', desc: 'Scores et résultats des compétitions', href: '/competitions', icon: Trophy },
-          ].map(({ label, desc, href, icon: Icon }) => (
-            <Link key={label} href={href} className="fiche p-4 block group">
-              <div className="flex items-start gap-3">
-                <div className="p-2" style={{ background: 'var(--s-elevated)', borderRadius: 'var(--s-radius)', border: '1px solid var(--s-border)' }}>
-                  <Icon size={15} style={{ color: 'var(--s-text-dim)' }} />
+            { label: 'Créer une structure', desc: 'Demande → validation Springs', href: '/community/create-structure', icon: Shield, accent: 'var(--s-gold)' },
+            { label: 'Mon profil', desc: 'Jeux, rang, recrutement', href: '/settings', icon: Users, accent: 'var(--s-violet-light)' },
+            { label: 'Annuaire', desc: 'Structures de l\'écosystème', href: '/community/structures', icon: UserPlus, accent: 'var(--s-text-dim)' },
+            { label: 'Classements', desc: 'Scores et résultats', href: '/competitions', icon: Trophy, accent: 'var(--s-text-dim)' },
+          ].map(({ label, desc, href, icon: Icon, accent }) => (
+            <Link key={label} href={href}
+              className="panel group block transition-all duration-150 hover:border-[rgba(255,255,255,0.15)]"
+              style={{ padding: '14px 16px' }}>
+              <div className="flex items-center gap-3">
+                <Icon size={16} style={{ color: accent, flexShrink: 0 }} />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold truncate transition-colors group-hover:text-white" style={{ color: 'var(--s-text)' }}>{label}</p>
+                  <p className="text-xs truncate" style={{ color: 'var(--s-text-muted)' }}>{desc}</p>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="t-sub text-sm group-hover:text-white transition-colors">{label}</p>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--s-text-muted)' }}>{desc}</p>
-                </div>
-                <ArrowRight size={14} className="mt-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--s-text-dim)' }} />
               </div>
             </Link>
           ))}

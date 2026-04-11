@@ -1,63 +1,71 @@
 /* ══════════════════════════════════════════════════════════════════════
    SPRINGS E-SPORT — DESIGN SYSTEM
-   Console officielle · Centre de contrôle de ligue · Base opérationnelle
+   Identité visuelle Springs · Hexagonal · Biseaux · Pro-grade
    ══════════════════════════════════════════════════════════════════════ */
 
 /* ── TOKENS ──────────────────────────────────────────────────────────── */
 :root {
   /* Surfaces */
-  --s-bg:         #07070f;
-  --s-surface:    #13131f;
-  --s-elevated:   #1a1a2e;
-  --s-hover:      #22223a;
+  --s-bg:         #08080f;
+  --s-surface:    #0e0e1a;
+  --s-elevated:   #151525;
+  --s-hover:      #1c1c30;
 
   /* Brand */
   --s-violet:     #7B2FBE;
-  --s-violet-dim: #5c2390;
+  --s-violet-light: #a364d9;
+  --s-violet-glow: rgba(123,47,190,0.15);
   --s-gold:       #FFB800;
   --s-gold-dim:   #b88200;
   --s-blue:       #0081FF;
   --s-green:      #00D936;
 
   /* Text */
-  --s-text:       #e0e0e8;
-  --s-text-dim:   #6a6a85;
-  --s-text-muted: #44445a;
+  --s-text:       #eaeaf0;
+  --s-text-dim:   #7a7a95;
+  --s-text-muted: #4a4a60;
 
   /* Borders */
-  --s-border:     #2a2a40;
-  --s-border-dim: #1e1e30;
+  --s-border:     rgba(255,255,255,0.08);
+  --s-border-accent: rgba(123,47,190,0.25);
 
-  /* Radius — volontairement bas */
-  --s-radius:     3px;
+  /* Radius — biseaux */
+  --s-radius:     4px;
   --s-radius-sm:  2px;
 
-  /* Spacing scale (4px base) */
-  --sp-1: 4px;
-  --sp-2: 8px;
-  --sp-3: 12px;
-  --sp-4: 16px;
-  --sp-5: 20px;
-  --sp-6: 24px;
-  --sp-8: 32px;
-  --sp-10: 40px;
-  --sp-12: 48px;
-  --sp-16: 64px;
+  /* Bevel size for clip-path */
+  --bevel: 14px;
+  --bevel-sm: 8px;
+}
+
+/* ── HEXAGONAL BACKGROUND ────────────────────────────────────────────── */
+.hex-bg {
+  position: relative;
+}
+.hex-bg::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.4;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 66L0 50L0 16L28 0L56 16L56 50L28 66ZM28 100L0 84L0 50L28 34L56 50L56 84L28 100Z' fill='none' stroke='%23ffffff' stroke-width='0.5' opacity='0.08'/%3E%3C/svg%3E");
+  background-size: 56px 100px;
+}
+.hex-bg > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* ── TYPOGRAPHY ──────────────────────────────────────────────────────── */
-
-/* Display — titres de section */
 .t-display {
   font-family: var(--font-bebas), system-ui, sans-serif;
-  font-size: 56px;
-  line-height: 1;
+  font-size: clamp(48px, 5vw, 72px);
+  line-height: 0.95;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--s-text);
 }
-
-/* Heading — titres de panneaux */
 .t-heading {
   font-family: var(--font-bebas), system-ui, sans-serif;
   font-size: 28px;
@@ -66,32 +74,24 @@
   text-transform: uppercase;
   color: var(--s-text);
 }
-
-/* Subheading */
 .t-sub {
   font-size: 14px;
   font-weight: 600;
   color: var(--s-text);
 }
-
-/* Body */
 .t-body {
   font-size: 14px;
   font-weight: 400;
-  line-height: 1.6;
+  line-height: 1.65;
   color: var(--s-text-dim);
 }
-
-/* Label système — tags, catégories, méta */
 .t-label {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   color: var(--s-text-dim);
 }
-
-/* Mono — scores, dates, IDs */
 .t-mono {
   font-size: 12px;
   font-weight: 500;
@@ -99,55 +99,104 @@
   color: var(--s-text-dim);
 }
 
-/* ── PANEL — bloc structuré principal ────────────────────────────────── */
+/* ── BEVELED CARD — coins biseautés signature Springs ────────────────── */
+.bevel {
+  clip-path: polygon(
+    var(--bevel) 0%,
+    100% 0%,
+    100% calc(100% - var(--bevel)),
+    calc(100% - var(--bevel)) 100%,
+    0% 100%,
+    0% var(--bevel)
+  );
+}
+.bevel-sm {
+  clip-path: polygon(
+    var(--bevel-sm) 0%,
+    100% 0%,
+    100% calc(100% - var(--bevel-sm)),
+    calc(100% - var(--bevel-sm)) 100%,
+    0% 100%,
+    0% var(--bevel-sm)
+  );
+}
+/* Bevel top-left only */
+.bevel-tl {
+  clip-path: polygon(
+    var(--bevel) 0%,
+    100% 0%,
+    100% 100%,
+    0% 100%,
+    0% var(--bevel)
+  );
+}
+/* Bevel bottom-right only */
+.bevel-br {
+  clip-path: polygon(
+    0% 0%,
+    100% 0%,
+    100% calc(100% - var(--bevel)),
+    calc(100% - var(--bevel)) 100%,
+    0% 100%
+  );
+}
+
+/* Beveled card with visible border (uses an outer wrapper trick) */
+.bevel-card {
+  position: relative;
+  background: var(--s-border);
+  padding: 1px;
+}
+.bevel-card-inner {
+  background: var(--s-surface);
+  width: 100%;
+  height: 100%;
+}
+
+/* ── PANEL ────────────────────────────────────────────────────────────── */
 .panel {
   background: var(--s-surface);
   border: 1px solid var(--s-border);
   border-radius: var(--s-radius);
 }
-
-/* Panel avec accent coloré (barre 3px à gauche) */
-.panel-accent-gold   { border-left: 3px solid var(--s-gold); }
-.panel-accent-violet { border-left: 3px solid var(--s-violet); }
-.panel-accent-blue   { border-left: 3px solid var(--s-blue); }
-.panel-accent-green  { border-left: 3px solid var(--s-green); }
-
-/* Panel header — barre de titre */
 .panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--sp-3) var(--sp-4);
+  padding: 10px 16px;
   border-bottom: 1px solid var(--s-border);
-  background: var(--s-elevated);
-  border-radius: var(--s-radius) var(--s-radius) 0 0;
 }
-
 .panel-body {
-  padding: var(--sp-4);
+  padding: 16px;
 }
 
-/* ── TAG — badge système ─────────────────────────────────────────────── */
+/* Accent borders */
+.accent-left-gold   { border-left: 3px solid var(--s-gold); }
+.accent-left-violet { border-left: 3px solid var(--s-violet); }
+.accent-left-blue   { border-left: 3px solid var(--s-blue); }
+.accent-left-green  { border-left: 3px solid var(--s-green); }
+.accent-top-gold    { border-top: 2px solid var(--s-gold); }
+.accent-top-violet  { border-top: 2px solid var(--s-violet); }
+
+/* ── TAG ──────────────────────────────────────────────────────────────── */
 .tag {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px;
+  padding: 3px 8px;
   font-size: 10px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  border-radius: var(--s-radius-sm);
   border: 1px solid;
 }
+.tag-violet  { background: rgba(123,47,190,0.12); color: #a364d9; border-color: rgba(123,47,190,0.3); }
+.tag-gold    { background: rgba(255,184,0,0.1);   color: var(--s-gold); border-color: rgba(255,184,0,0.25); }
+.tag-blue    { background: rgba(0,129,255,0.1);   color: #4da6ff; border-color: rgba(0,129,255,0.25); }
+.tag-green   { background: rgba(0,217,54,0.08);   color: #33ff66; border-color: rgba(0,217,54,0.2); }
+.tag-neutral { background: rgba(255,255,255,0.04); color: var(--s-text-dim); border-color: var(--s-border); }
 
-.tag-violet { background: rgba(123,47,190,0.12); color: #a364d9; border-color: rgba(123,47,190,0.3); }
-.tag-gold   { background: rgba(255,184,0,0.1);   color: #FFB800; border-color: rgba(255,184,0,0.25); }
-.tag-blue   { background: rgba(0,129,255,0.1);   color: #4da6ff; border-color: rgba(0,129,255,0.25); }
-.tag-green  { background: rgba(0,217,54,0.1);    color: #33ff66; border-color: rgba(0,217,54,0.25); }
-.tag-neutral { background: rgba(255,255,255,0.05); color: var(--s-text-dim); border-color: var(--s-border); }
-
-/* ── STATUS — indicateur live / état ─────────────────────────────────── */
+/* ── STATUS ───────────────────────────────────────────────────────────── */
 .status {
   display: inline-flex;
   align-items: center;
@@ -162,16 +211,14 @@
   border-radius: 50%;
   background: currentColor;
 }
-.status-live::before { animation: status-pulse 1.5s ease-in-out infinite; }
-@keyframes status-pulse {
-  0%, 100% { opacity: 0.5; }
+.status-live { color: #22c55e; }
+.status-live::before { animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
   50%      { opacity: 1; }
 }
-.status-live   { color: #22c55e; }
-.status-upcoming { color: var(--s-gold); }
-.status-ended  { color: var(--s-text-muted); }
 
-/* ── BUTTON ──────────────────────────────────────────────────────────── */
+/* ── BUTTONS ──────────────────────────────────────────────────────────── */
 .btn-springs {
   display: inline-flex;
   align-items: center;
@@ -179,111 +226,80 @@
   padding: 10px 20px;
   font-size: 13px;
   font-weight: 700;
-  border-radius: var(--s-radius);
   border: 1px solid;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: all 0.15s;
   text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
-
 .btn-primary {
   background: var(--s-gold);
-  color: #07070f;
+  color: #0a0a0f;
   border-color: var(--s-gold);
 }
-.btn-primary:hover {
-  background: #e6a600;
-  border-color: #e6a600;
-}
-
+.btn-primary:hover { background: #e6a600; }
 .btn-secondary {
   background: transparent;
   color: var(--s-text);
-  border-color: var(--s-border);
+  border-color: rgba(255,255,255,0.15);
 }
-.btn-secondary:hover {
-  background: var(--s-elevated);
-  border-color: #3a3a55;
-}
-
+.btn-secondary:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.25); }
 .btn-ghost {
   background: transparent;
   color: var(--s-text-dim);
   border-color: transparent;
-  padding: 10px 12px;
 }
-.btn-ghost:hover {
-  color: var(--s-text);
-  background: rgba(255,255,255,0.04);
+.btn-ghost:hover { color: var(--s-text); }
+
+/* ── DIVIDER ──────────────────────────────────────────────────────────── */
+.divider { height: 1px; background: var(--s-border); }
+
+/* ── COMPETITION CARD — with bg image ─────────────────────────────── */
+.comp-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--s-border);
+  transition: border-color 0.2s;
+}
+.comp-card:hover { border-color: rgba(255,255,255,0.15); }
+.comp-card-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.2;
+  transition: opacity 0.3s, transform 0.5s;
+}
+.comp-card:hover .comp-card-bg { opacity: 0.28; transform: scale(1.03); }
+.comp-card-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(8,8,15,0.92) 0%, rgba(8,8,15,0.75) 100%);
+}
+.comp-card-content {
+  position: relative;
+  z-index: 1;
 }
 
-/* ── DIVIDER ─────────────────────────────────────────────────────────── */
-.divider {
+/* ── SECTION LABEL ────────────────────────────────────────────────── */
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.section-label::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  background: var(--s-violet);
+  flex-shrink: 0;
+}
+.section-label::after {
+  content: '';
+  flex: 1;
   height: 1px;
   background: var(--s-border);
-  border: none;
+  margin-left: 12px;
 }
-
-/* ── STAT VALUE — chiffre clé, sobre ──────────────────────────────── */
-.stat-value {
-  font-family: var(--font-bebas), system-ui, sans-serif;
-  font-size: 36px;
-  line-height: 1;
-  letter-spacing: 0.02em;
-  color: var(--s-text);
-}
-
-/* ── FICHE — card-like mais angulaire, officielle ────────────────── */
-.fiche {
-  background: var(--s-surface);
-  border: 1px solid var(--s-border);
-  border-radius: var(--s-radius);
-  transition: border-color 0.15s;
-}
-.fiche:hover {
-  border-color: #3a3a55;
-}
-
-/* ── SECTION TITLE — titre + sous-titre de section ───────────────── */
-.section-title {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: var(--sp-5);
-}
-.section-title .t-label {
-  position: relative;
-  padding-left: 12px;
-}
-.section-title .t-label::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 12px;
-  background: var(--s-violet);
-  border-radius: 1px;
-}
-
-/* ── NAV INDICATOR — barre active sidebar ────────────────────────── */
-.nav-active {
-  background: rgba(123,47,190,0.1);
-  border: 1px solid rgba(123,47,190,0.2);
-}
-.nav-active-bar {
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 20px;
-  background: var(--s-violet);
-  border-radius: 0 2px 2px 0;
-}
-
-/* ── GRID LAYOUT helpers ─────────────────────────────────────────── */
-.grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--sp-4); }
-.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-4); }
-.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-4); }
