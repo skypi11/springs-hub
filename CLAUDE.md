@@ -10,7 +10,7 @@ Remplace progressivement le site actuel (`site cup monthly` / `springs-esport.ve
 - Le site actuel (`C:\Users\mattm\site cup monthly`) reste intact pendant tout le développement
 - Une fois Springs Hub prêt, il devient le point d'entrée principal
 - Les pages RL et TM actuelles deviennent des archives accessibles en lien
-- **Ne jamais modifier le repo `site cup monthly`** depuis ce projet
+- **Ne jamais modifier le repo `site cup monthly`** depuis ce projet — **seule exception automatique** : sync de `firestore.rules` (voir "Règles Firestore" plus bas), car le fichier est partagé avec le Hub sur le même projet Firebase. Toute autre modification du vieux site nécessite une autorisation explicite de l'utilisateur au cas par cas.
 
 ---
 
@@ -29,6 +29,23 @@ Remplace progressivement le site actuel (`site cup monthly` / `springs-esport.ve
 - UID Discord : `discord_SNOWFLAKE`
 - UID Admin : Google UID (collection `admins`)
 - `experimentalAutoDetectLongPolling: true` sur Firestore (WebSocket + fallback long-polling)
+
+### Règles Firestore — workflow important
+Les deux repos (`springs-hub` et `site cup monthly`) partagent **le même projet Firebase** `monthly-cup`. Il n'y a donc **qu'un seul fichier `firestore.rules` réellement déployé** sur Firebase, même si chaque repo en contient une copie.
+
+- **Source de vérité** : `c:\Users\mattm\springs-hub\firestore.rules` — toute modification commence ici.
+- **Copie synchronisée** : `c:\Users\mattm\site cup monthly\firestore.rules` — doit être identique.
+- **Déploiement** : `firebase deploy --only firestore:rules` depuis le Hub (`firebase.json` + `.firebaserc` y sont présents).
+- **Ne jamais déployer depuis le vieux site** pour éviter d'écraser avec une copie désynchronisée.
+
+**Workflow automatique à suivre quand on touche aux règles :**
+1. Modifier `firestore.rules` dans le Hub.
+2. Copier le fichier dans le vieux site (`cp` du même contenu).
+3. Committer les deux repos séparément.
+4. Lancer `firebase deploy --only firestore:rules` depuis le Hub.
+5. Confirmer à l'utilisateur que les règles sont live sur Firebase.
+
+Cette exception est la **seule** raison légitime de toucher au repo vieux site depuis ce projet.
 
 ### Auth Discord — flow déployé et fonctionnel
 1. Client → `signInWithDiscord()` → redirect Discord OAuth
@@ -163,7 +180,7 @@ Fichier : `public/springs-logo.png`
 - `context/AuthContext.tsx` — auth global (Discord OAuth + état utilisateur)
 - `app/api/auth/discord/callback/route.ts` — callback OAuth serveur (Admin SDK)
 - `components/layout/Sidebar.tsx` — sidebar fixe avec nav + profil
-- `firestore.rules` — règles Firestore complètes (copier-coller dans Firebase Console)
+- `firestore.rules` — règles Firestore complètes. Voir section "Règles Firestore" ci-dessous pour le workflow.
 
 ---
 
