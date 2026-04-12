@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/ui/ConfirmModal';
 import {
   Shield, Users, Gamepad2, Trophy, Loader2, AlertCircle,
   User, Save, Plus, Trash2, Eye, Clock, Ban, CheckCircle,
@@ -167,6 +169,8 @@ function RosterSlot({ label, labelColor, members, available, canAdd, loading, on
 
 export default function MyStructurePage() {
   const { firebaseUser, loading: authLoading } = useAuth();
+  const toast = useToast();
+  const confirm = useConfirm();
   const router = useRouter();
   const [structures, setStructures] = useState<MyStructure[]>([]);
   const [loading, setLoading] = useState(true);
@@ -313,28 +317,42 @@ export default function MyStructurePage() {
         await loadTeams(activeStructure.id);
       } else {
         const data = await res.json();
-        alert(data.error || 'Erreur');
+        toast.error(data.error || 'Erreur');
       }
     } catch (err) {
       console.error('[MyStructure] update team roster error:', err);
+      toast.error('Erreur réseau');
     }
     setTeamActionLoading(null);
   }
 
   async function handleDeleteTeam(teamId: string, teamName: string) {
     if (!activeStructure || !firebaseUser) return;
-    if (!confirm(`Supprimer l'équipe "${teamName}" ? Cette action est irréversible.`)) return;
+    const ok = await confirm({
+      title: 'Supprimer l\'équipe',
+      message: `Supprimer l'équipe "${teamName}" ? Cette action est irréversible.`,
+      variant: 'danger',
+      confirmLabel: 'Supprimer',
+    });
+    if (!ok) return;
     setTeamActionLoading(teamId);
     try {
       const idToken = await firebaseUser.getIdToken();
-      await fetch('/api/structures/teams', {
+      const res = await fetch('/api/structures/teams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
         body: JSON.stringify({ action: 'delete', structureId: activeStructure.id, teamId }),
       });
-      await loadTeams(activeStructure.id);
+      if (res.ok) {
+        await loadTeams(activeStructure.id);
+        toast.success('Équipe supprimée');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Erreur');
+      }
     } catch (err) {
       console.error('[MyStructure] delete team error:', err);
+      toast.error('Erreur réseau');
     }
     setTeamActionLoading(null);
   }
@@ -504,18 +522,31 @@ export default function MyStructurePage() {
 
   async function handleRemoveMember(memberId: string, memberName: string) {
     if (!activeStructure || !firebaseUser) return;
-    if (!confirm(`Retirer ${memberName} de la structure ? Il sera aussi retiré de ses équipes.`)) return;
+    const ok = await confirm({
+      title: 'Retirer le membre',
+      message: `Retirer ${memberName} de la structure ? Il sera aussi retiré de ses équipes.`,
+      variant: 'danger',
+      confirmLabel: 'Retirer',
+    });
+    if (!ok) return;
     setInvActionLoading(memberId);
     try {
       const idToken = await firebaseUser.getIdToken();
-      await fetch('/api/structures/invitations', {
+      const res = await fetch('/api/structures/invitations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
         body: JSON.stringify({ action: 'remove_member', structureId: activeStructure.id, memberId }),
       });
-      await loadStructures();
+      if (res.ok) {
+        await loadStructures();
+        toast.success(`${memberName} retiré de la structure`);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Erreur');
+      }
     } catch (err) {
       console.error('[MyStructure] remove member error:', err);
+      toast.error('Erreur réseau');
     }
     setInvActionLoading(null);
   }

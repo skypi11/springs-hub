@@ -6,6 +6,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { countries } from '@/lib/countries';
+import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/ui/ConfirmModal';
 import {
   Shield, Building2, CheckCircle, XCircle, Trash2,
   Loader2, ChevronDown, ChevronUp, ExternalLink, Users, Gamepad2,
@@ -88,6 +90,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 
 export default function AdminPage() {
   const { isAdmin, firebaseUser, loading: authLoading } = useAuth();
+  const toast = useToast();
+  const confirm = useConfirm();
   const router = useRouter();
   const [tab, setTab] = useState<'structures' | 'users'>('structures');
 
@@ -190,12 +194,17 @@ export default function AdminPage() {
           comment: commentMap[structureId] || '',
         }),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         await loadStructures();
         setExpandedId(null);
+        toast.success('Action effectuée');
+      } else {
+        toast.error(data.error || 'Erreur');
       }
     } catch (err) {
       console.error('[Admin] action error:', err);
+      toast.error('Erreur réseau');
     }
     setActionLoading(null);
   }
@@ -220,11 +229,12 @@ export default function AdminPage() {
         await loadUsers();
         setConfirmAction(null);
         setEditingUser(null);
+        toast.success(data.message || 'Action effectuée');
       } else {
-        alert(data.error || 'Erreur');
+        toast.error(data.error || 'Erreur');
       }
     } catch {
-      alert('Erreur réseau');
+      toast.error('Erreur réseau');
     }
     setUserActionLoading(null);
   }
@@ -500,10 +510,14 @@ export default function AdminPage() {
                             </button>
                           )}
 
-                          <button onClick={() => {
-                            if (confirm(`Supprimer définitivement "${s.name}" ? Cette action est irréversible.`)) {
-                              handleAction(s.id, 'delete');
-                            }
+                          <button onClick={async () => {
+                            const ok = await confirm({
+                              title: 'Supprimer la structure',
+                              message: `Supprimer définitivement "${s.name}" ? Cette action est irréversible.`,
+                              variant: 'danger',
+                              confirmLabel: 'Supprimer',
+                            });
+                            if (ok) handleAction(s.id, 'delete');
                           }}
                             disabled={!!actionLoading}
                             className="btn-springs bevel-sm flex items-center gap-2"
@@ -728,10 +742,14 @@ export default function AdminPage() {
                                       </div>
                                     </div>
                                     <button
-                                      onClick={() => {
-                                        if (confirm(`Retirer ${u.displayName} de ${m.structureName} ?`)) {
-                                          handleUserAction(u.uid, 'remove_from_structure', { membershipStructureId: m.structureId });
-                                        }
+                                      onClick={async () => {
+                                        const ok = await confirm({
+                                          title: 'Retirer de la structure',
+                                          message: `Retirer ${u.displayName} de ${m.structureName} ?`,
+                                          variant: 'danger',
+                                          confirmLabel: 'Retirer',
+                                        });
+                                        if (ok) handleUserAction(u.uid, 'remove_from_structure', { membershipStructureId: m.structureId });
                                       }}
                                       disabled={!!userActionLoading}
                                       className="flex-shrink-0 p-1.5 transition-colors duration-150 hover:bg-[var(--s-hover)]"

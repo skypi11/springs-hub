@@ -3,6 +3,8 @@ import { Outfit, Bebas_Neue } from 'next/font/google';
 import './globals.css';
 import Sidebar from '@/components/layout/Sidebar';
 import { AuthProvider } from '@/context/AuthContext';
+import { ToastProvider } from '@/components/ui/Toast';
+import { ConfirmProvider } from '@/components/ui/ConfirmModal';
 
 const outfit = Outfit({
   variable: '--font-outfit',
@@ -27,10 +29,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="fr" className={`${outfit.variable} ${bebasNeue.variable} h-full`}>
       <body className="h-full flex" style={{ background: '#07070f', color: '#f0f0f8' }}>
         <AuthProvider>
-          <Sidebar />
-          <div className="flex-1 ml-[260px] min-h-screen overflow-x-hidden hex-bg">
-            {children}
-          </div>
+          <ToastProvider>
+            <ConfirmProvider>
+              <Sidebar />
+              <div className="flex-1 ml-[260px] min-h-screen overflow-x-hidden hex-bg">
+                {children}
+              </div>
+            </ConfirmProvider>
+          </ToastProvider>
         </AuthProvider>
       </body>
     </html>
