@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { FieldValue } from 'firebase-admin/firestore';
+import { safeUrl, clampString, LIMITS } from '@/lib/validation';
 
 // GET /api/structures/my — récupérer les structures où l'utilisateur est fondateur/co-fondateur
 export async function GET(req: NextRequest) {
@@ -109,15 +110,34 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Structure suspendue — modifications bloquées.' }, { status: 403 });
     }
 
-    // Champs modifiables par le fondateur
-    const allowedFields = [
-      'description', 'logoUrl', 'discordUrl', 'socials', 'recruiting', 'achievements',
-    ];
+    // Champs modifiables par le fondateur — chaque champ est validé/sanitized
     const safeUpdates: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
-    for (const key of allowedFields) {
-      if (updates[key] !== undefined) {
-        safeUpdates[key] = updates[key];
-      }
+    if (updates.description !== undefined) {
+      safeUpdates.description = clampString(updates.description, LIMITS.structureDescription);
+    }
+    if (updates.logoUrl !== undefined) {
+      safeUpdates.logoUrl = safeUrl(updates.logoUrl);
+    }
+    if (updates.discordUrl !== undefined) {
+      safeUpdates.discordUrl = safeUrl(updates.discordUrl);
+    }
+    if (updates.socials !== undefined && typeof updates.socials === 'object' && updates.socials !== null) {
+      const s = updates.socials as Record<string, unknown>;
+      safeUpdates.socials = {
+        twitter: safeUrl(s.twitter),
+        youtube: safeUrl(s.youtube),
+        twitch: safeUrl(s.twitch),
+        instagram: safeUrl(s.instagram),
+        tiktok: safeUrl(s.tiktok),
+        website: safeUrl(s.website),
+      };
+    }
+    if (updates.recruiting !== undefined) {
+      safeUpdates.recruiting = updates.recruiting;
+    }
+    if (updates.achievements !== undefined && Array.isArray(updates.achievements)) {
+      // Cap à 50 entrées pour limiter la taille du document
+      safeUpdates.achievements = updates.achievements.slice(0, 50);
     }
 
     await ref.update(safeUpdates);

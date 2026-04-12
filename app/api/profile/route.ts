@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { resolveEpicAccount } from '@/lib/tracker-gg';
+import { safeUrl, clampString, LIMITS } from '@/lib/validation';
 
 // GET /api/profile?uid=discord_XXX — lire un profil
 export async function GET(req: NextRequest) {
@@ -98,21 +99,21 @@ export async function POST(req: NextRequest) {
 
     const profileData: Record<string, unknown> = {
       uid,
-      displayName: body.displayName.trim(),
-      avatarUrl: body.avatarUrl?.trim() || '',
-      bio: body.bio?.trim() || '',
+      displayName: clampString(body.displayName, LIMITS.displayName),
+      avatarUrl: safeUrl(body.avatarUrl),
+      bio: clampString(body.bio, LIMITS.bio),
       country: body.country,
       dateOfBirth: body.dateOfBirth,
       games: body.games,
       epicAccountId,
       epicDisplayName,
-      rlTrackerUrl: body.games.includes('rocket_league') ? body.rlTrackerUrl?.trim() || '' : '',
+      rlTrackerUrl: body.games.includes('rocket_league') ? safeUrl(body.rlTrackerUrl) : '',
       pseudoTM: body.games.includes('trackmania') ? body.pseudoTM?.trim() || '' : '',
       loginTM: body.games.includes('trackmania') ? body.loginTM?.trim() || '' : '',
-      tmIoUrl: body.games.includes('trackmania') ? body.tmIoUrl?.trim() || '' : '',
+      tmIoUrl: body.games.includes('trackmania') ? safeUrl(body.tmIoUrl) : '',
       isAvailableForRecruitment: body.isAvailableForRecruitment || false,
       recruitmentRole: body.isAvailableForRecruitment ? body.recruitmentRole || '' : '',
-      recruitmentMessage: body.isAvailableForRecruitment ? body.recruitmentMessage?.trim() || '' : '',
+      recruitmentMessage: body.isAvailableForRecruitment ? clampString(body.recruitmentMessage, LIMITS.recruitmentMessage) : '',
       updatedAt: FieldValue.serverTimestamp(),
     };
 

@@ -138,3 +138,28 @@ export interface Competition {
 
 export type GameType = 'rocket_league' | 'trackmania';
 export type UserRole = 'visitor' | 'player' | 'fan' | 'coach' | 'manager' | 'founder' | 'admin';
+
+// Constantes utilisables côté serveur et client pour éviter les magic strings
+export const GAMES = {
+  RL: 'rocket_league' as const,
+  TM: 'trackmania' as const,
+};
+export const ALL_GAMES: GameType[] = [GAMES.RL, GAMES.TM];
+
+export const STRUCTURE_ROLES = {
+  FOUNDER: 'fondateur' as const,
+  CO_FOUNDER: 'cofondateur' as const,
+  MANAGER: 'manager' as const,
+  COACH: 'coach' as const,
+  PLAYER: 'joueur' as const,
+};
+export type StructureRole = typeof STRUCTURE_ROLES[keyof typeof STRUCTURE_ROLES];
+
+export const STRUCTURE_STATUS = {
+  PENDING: 'pending_validation' as const,
+  ACTIVE: 'active' as const,
+  REJECTED: 'rejected' as const,
+  SUSPENDED: 'suspended' as const,
+  DELETION_SCHEDULED: 'deletion_scheduled' as const,
+};
+export type StructureStatus = typeof STRUCTURE_STATUS[keyof typeof STRUCTURE_STATUS];

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, getAdminAuth, verifyAuth, isAdmin } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { resolveEpicAccount } from '@/lib/tracker-gg';
+import { safeUrl, clampString, LIMITS } from '@/lib/validation';
 
 // Plafond dur sur le nombre d'utilisateurs renvoyés en une seule fois — protège
 // la facture Firestore quand la base grossit. Au-delà, prévoir une vraie pagination + recherche.
@@ -196,7 +197,13 @@ export async function POST(req: NextRequest) {
         };
         const updates: Record<string, unknown> = {};
         for (const [key, val] of Object.entries(editObj)) {
-          if (allowed[key]) updates[key] = val;
+          if (!allowed[key]) continue;
+          // Sanitization par champ — URLs passent par safeUrl, textes par clampString
+          if (key === 'displayName') updates[key] = clampString(val, LIMITS.displayName);
+          else if (key === 'bio') updates[key] = clampString(val, LIMITS.bio);
+          else if (key === 'recruitmentMessage') updates[key] = clampString(val, LIMITS.recruitmentMessage);
+          else if (key === 'rlTrackerUrl' || key === 'tmIoUrl') updates[key] = safeUrl(val);
+          else updates[key] = val;
         }
         if (Object.keys(updates).length === 0) {
           return NextResponse.json({ error: 'Aucun champ modifiable fourni' }, { status: 400 });

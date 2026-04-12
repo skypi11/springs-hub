@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { safeUrl, clampString, LIMITS } from '@/lib/validation';
 
 const LEGAL_STATUSES = ['none', 'asso_1901', 'auto_entreprise', 'sas_sarl', 'other'];
 
@@ -63,17 +64,17 @@ export async function POST(req: NextRequest) {
 
     // Créer la demande
     const structureData = {
-      name: body.name.trim(),
+      name: clampString(body.name, LIMITS.structureName),
       nameLower,
       tag: tagUpper,
-      logoUrl: body.logoUrl?.trim() || '',
-      description: body.description.trim(),
+      logoUrl: safeUrl(body.logoUrl),
+      description: clampString(body.description, LIMITS.structureDescription),
       games: body.games,
       legalStatus: body.legalStatus || 'none',
       teamCount: Math.max(0, parseInt(body.teamCount) || 0),
       staffCount: Math.max(0, parseInt(body.staffCount) || 0),
-      discordUrl: body.discordUrl?.trim() || '',
-      message: body.message?.trim() || '',
+      discordUrl: safeUrl(body.discordUrl),
+      message: clampString(body.message, 1000),
       founderId: uid,
       coFounderIds: [],
       managerIds: [],

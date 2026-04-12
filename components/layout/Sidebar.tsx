@@ -35,7 +35,12 @@ export default function Sidebar() {
         </div>
 
         {navItems.map(({ href, icon: Icon, label }) => {
-          const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
+          // /community/my-structure a sa propre entrée — ne pas l'inclure dans "Communauté"
+          const active = href === '/'
+            ? pathname === '/'
+            : href === '/community'
+              ? pathname.startsWith('/community') && !pathname.startsWith('/community/my-structure')
+              : pathname.startsWith(href);
           return (
             <Link key={href} href={href}
               className="flex items-center gap-3 px-3 py-2.5 relative transition-all duration-150"
