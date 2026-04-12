@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { captureApiError } from '@/lib/sentry';
+import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 // GET /api/structures/[id] — page publique d'une structure
 export async function GET(
@@ -9,6 +10,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const blocked = await checkRateLimit(limiters.read, rateLimitKey(req));
+    if (blocked) return blocked;
+
     const { id } = await params;
     const db = getAdminDb();
     const snap = await db.collection('structures').doc(id).get();

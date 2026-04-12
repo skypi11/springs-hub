@@ -4,6 +4,7 @@ import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { FieldValue } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
 import { captureApiError } from '@/lib/sentry';
+import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 // Vérifier fondateur/co-fondateur/manager
 async function checkManageAccess(uid: string, structureId: string) {
@@ -81,6 +82,9 @@ export async function POST(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
     if (!uid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+
+    const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
+    if (blocked) return blocked;
 
     const body = await req.json();
     const { action, structureId, invitationId, game, role } = body;

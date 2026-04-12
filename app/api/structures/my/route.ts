@@ -4,6 +4,7 @@ import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { FieldValue } from 'firebase-admin/firestore';
 import { safeUrl, clampString, LIMITS } from '@/lib/validation';
 import { captureApiError } from '@/lib/sentry';
+import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 // GET /api/structures/my — récupérer les structures où l'utilisateur est fondateur/co-fondateur
 export async function GET(req: NextRequest) {
@@ -81,6 +82,9 @@ export async function PUT(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
     if (!uid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+
+    const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
+    if (blocked) return blocked;
 
     const body = await req.json();
     const { structureId, ...updates } = body;

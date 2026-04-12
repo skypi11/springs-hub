@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
+import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 export async function GET(req: NextRequest) {
+  const blocked = await checkRateLimit(limiters.oauth, rateLimitKey(req));
+  if (blocked) return blocked;
+
   const origin = req.nextUrl.origin;
   const clientId = process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID || process.env.DISCORD_CLIENT_ID;
 

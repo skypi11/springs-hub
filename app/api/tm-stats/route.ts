@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 // Trackmania.io API — nécessite un User-Agent custom
 const TM_IO_API = 'https://trackmania.io/api';
@@ -36,6 +37,9 @@ function extractAccountId(url: string): string | null {
 }
 
 export async function GET(req: NextRequest) {
+  const blocked = await checkRateLimit(limiters.read, rateLimitKey(req));
+  if (blocked) return blocked;
+
   const tmIoUrl = req.nextUrl.searchParams.get('url');
   const pseudoTM = req.nextUrl.searchParams.get('pseudo');
 

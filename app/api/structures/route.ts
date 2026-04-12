@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
+import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 // GET /api/structures — liste publique des structures actives
 export async function GET(req: NextRequest) {
   try {
+    const blocked = await checkRateLimit(limiters.read, rateLimitKey(req));
+    if (blocked) return blocked;
+
     const db = getAdminDb();
     const game = req.nextUrl.searchParams.get('game');
 

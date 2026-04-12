@@ -4,6 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { resolveEpicAccount } from '@/lib/tracker-gg';
 import { safeUrl, clampString, LIMITS } from '@/lib/validation';
 import { captureApiError } from '@/lib/sentry';
+import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 // Plafond dur sur le nombre d'utilisateurs renvoyés en une seule fois — protège
 // la facture Firestore quand la base grossit. Au-delà, prévoir une vraie pagination + recherche.
@@ -111,6 +112,9 @@ export async function POST(req: NextRequest) {
     const adminUid = await verifyAuth(req);
     if (!adminUid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     if (!(await isAdmin(adminUid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+
+    const blocked = await checkRateLimit(limiters.admin, rateLimitKey(req, adminUid));
+    if (blocked) return blocked;
 
     const body = await req.json();
     const { userId, action, reason, editData, membershipStructureId } = body;

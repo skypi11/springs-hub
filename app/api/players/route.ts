@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
+import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 // Plafond dur — protège contre les coûts qui explosent quand l'annuaire grossit.
 // La recherche/le filtrage par texte se fait toujours côté client sur ce sous-ensemble.
@@ -11,6 +12,9 @@ const MAX_PLAYERS = 200;
 // GET /api/players — liste publique des joueurs
 export async function GET(req: NextRequest) {
   try {
+    const blocked = await checkRateLimit(limiters.read, rateLimitKey(req));
+    if (blocked) return blocked;
+
     const db = getAdminDb();
     const game = req.nextUrl.searchParams.get('game');
     const recruitingOnly = req.nextUrl.searchParams.get('recruiting') === 'true';

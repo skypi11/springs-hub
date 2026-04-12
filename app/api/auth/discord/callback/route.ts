@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 export async function GET(req: NextRequest) {
+  // Rate limit OAuth par IP — protège contre le bruteforce de codes Discord
+  const blocked = await checkRateLimit(limiters.oauth, rateLimitKey(req));
+  if (blocked) return blocked;
+
   const { searchParams } = new URL(req.url);
   const code = searchParams.get('code');
   const stateFromUrl = searchParams.get('state');

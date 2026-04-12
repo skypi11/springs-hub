@@ -3,6 +3,7 @@ import { getAdminDb, verifyAuth, isAdmin } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
+import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 const MAX_STRUCTURES = 500;
 
@@ -55,6 +56,9 @@ export async function POST(req: NextRequest) {
     const uid = await verifyAuth(req);
     if (!uid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     if (!(await isAdmin(uid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+
+    const blocked = await checkRateLimit(limiters.admin, rateLimitKey(req, uid));
+    if (blocked) return blocked;
 
     const body = await req.json();
     const { structureId, action, comment } = body;

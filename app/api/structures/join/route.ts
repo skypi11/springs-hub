@@ -2,12 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
+import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 // POST /api/structures/join — rejoindre une structure (via lien ou demande)
 export async function POST(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
     if (!uid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+
+    const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
+    if (blocked) return blocked;
 
     const body = await req.json();
     const { action, structureId, token, game, message } = body;

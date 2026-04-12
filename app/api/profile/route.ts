@@ -4,6 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { resolveEpicAccount } from '@/lib/tracker-gg';
 import { safeUrl, clampString, LIMITS } from '@/lib/validation';
 import { captureApiError } from '@/lib/sentry';
+import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 // Champs privés — jamais renvoyés aux autres utilisateurs.
 // `dateOfBirth` sert uniquement à calculer l'âge côté serveur.
@@ -67,6 +68,10 @@ export async function POST(req: NextRequest) {
     const idToken = authHeader.split('Bearer ')[1];
     const decoded = await getAdminAuth().verifyIdToken(idToken);
     const uid = decoded.uid;
+
+    // Rate limit après auth — on peut utiliser le uid comme clé
+    const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
+    if (blocked) return blocked;
 
     const body = await req.json();
 

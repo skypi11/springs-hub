@@ -3,6 +3,7 @@ import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { FieldValue, DocumentData } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
+import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 // Vérifier que l'utilisateur a les droits sur la structure (fondateur ou co-fondateur)
 async function checkStructureAccess(uid: string, structureId: string) {
@@ -78,6 +79,9 @@ export async function POST(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
     if (!uid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+
+    const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
+    if (blocked) return blocked;
 
     const body = await req.json();
     const { action, structureId, teamId, name, game, playerIds, subIds, staffIds } = body;

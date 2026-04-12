@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 const TRN_API_KEY = process.env.TRN_API_KEY;
 const TRN_BASE = 'https://public-api.tracker.gg/v2/rocket-league/standard/profile';
 
 export async function GET(req: NextRequest) {
+  const blocked = await checkRateLimit(limiters.read, rateLimitKey(req));
+  if (blocked) return blocked;
+
   const epicId = req.nextUrl.searchParams.get('epicId');
 
   if (!epicId) {
