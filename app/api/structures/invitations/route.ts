@@ -3,6 +3,7 @@ import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { FieldValue } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
+import { captureApiError } from '@/lib/sentry';
 
 // Vérifier fondateur/co-fondateur/manager
 async function checkManageAccess(uid: string, structureId: string) {
@@ -70,7 +71,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ links, requests });
   } catch (err) {
-    console.error('[API Invitations] GET error:', err);
+    captureApiError('API Invitations GET error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
@@ -253,7 +254,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Action invalide' }, { status: 400 });
     }
   } catch (err) {
-    console.error('[API Invitations] POST error:', err);
+    captureApiError('API Invitations POST error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

@@ -3,6 +3,7 @@ import { getAdminDb, getAdminAuth, verifyAuth, isAdmin } from '@/lib/firebase-ad
 import { FieldValue } from 'firebase-admin/firestore';
 import { resolveEpicAccount } from '@/lib/tracker-gg';
 import { safeUrl, clampString, LIMITS } from '@/lib/validation';
+import { captureApiError } from '@/lib/sentry';
 
 // Plafond dur sur le nombre d'utilisateurs renvoyés en une seule fois — protège
 // la facture Firestore quand la base grossit. Au-delà, prévoir une vraie pagination + recherche.
@@ -99,7 +100,7 @@ export async function GET(req: NextRequest) {
       max: MAX_USERS,
     });
   } catch (err) {
-    console.error('[API Admin/Users] GET error:', err);
+    captureApiError('API Admin/Users GET error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
@@ -297,7 +298,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: `Action inconnue : ${action}` }, { status: 400 });
     }
   } catch (err) {
-    console.error('[API Admin/Users] POST error:', err);
+    captureApiError('API Admin/Users POST error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

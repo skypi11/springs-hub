@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
+import { captureApiError } from '@/lib/sentry';
 
 // GET /api/structures/[id] — page publique d'une structure
 export async function GET(
@@ -70,7 +71,7 @@ export async function GET(
 
     return NextResponse.json(structure);
   } catch (err) {
-    console.error('[API Structures/id] GET error:', err);
+    captureApiError('API Structures/id GET error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

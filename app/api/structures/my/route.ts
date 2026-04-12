@@ -3,6 +3,7 @@ import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { FieldValue } from 'firebase-admin/firestore';
 import { safeUrl, clampString, LIMITS } from '@/lib/validation';
+import { captureApiError } from '@/lib/sentry';
 
 // GET /api/structures/my — récupérer les structures où l'utilisateur est fondateur/co-fondateur
 export async function GET(req: NextRequest) {
@@ -70,7 +71,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ structures });
   } catch (err) {
-    console.error('[API Structures/my] GET error:', err);
+    captureApiError('API Structures/my GET error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
@@ -143,7 +144,7 @@ export async function PUT(req: NextRequest) {
     await ref.update(safeUpdates);
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('[API Structures/my] PUT error:', err);
+    captureApiError('API Structures/my PUT error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

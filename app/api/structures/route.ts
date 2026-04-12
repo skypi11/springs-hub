@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
+import { captureApiError } from '@/lib/sentry';
 
 // GET /api/structures — liste publique des structures actives
 export async function GET(req: NextRequest) {
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ structures });
   } catch (err) {
-    console.error('[API Structures] GET error:', err);
+    captureApiError('API Structures GET error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { captureApiError } from '@/lib/sentry';
 
 // POST /api/structures/join — rejoindre une structure (via lien ou demande)
 export async function POST(req: NextRequest) {
@@ -185,7 +186,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Action invalide' }, { status: 400 });
     }
   } catch (err) {
-    console.error('[API Join] POST error:', err);
+    captureApiError('API Join POST error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

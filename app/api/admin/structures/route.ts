@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth, isAdmin } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { FieldValue } from 'firebase-admin/firestore';
+import { captureApiError } from '@/lib/sentry';
 
 const MAX_STRUCTURES = 500;
 
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest) {
       max: MAX_STRUCTURES,
     });
   } catch (err) {
-    console.error('[API Admin/Structures] GET error:', err);
+    captureApiError('API Admin/Structures GET error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
@@ -164,7 +165,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('[API Admin/Structures] POST error:', err);
+    captureApiError('API Admin/Structures POST error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

@@ -3,6 +3,7 @@ import { getAdminAuth, getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { resolveEpicAccount } from '@/lib/tracker-gg';
 import { safeUrl, clampString, LIMITS } from '@/lib/validation';
+import { captureApiError } from '@/lib/sentry';
 
 // Champs privés — jamais renvoyés aux autres utilisateurs.
 // `dateOfBirth` sert uniquement à calculer l'âge côté serveur.
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest) {
     for (const field of PRIVATE_FIELDS) delete publicData[field];
     return NextResponse.json(publicData);
   } catch (err) {
-    console.error('[API Profile] GET error:', err);
+    captureApiError('API Profile GET error', err);
     return NextResponse.json({ error: 'server_error' }, { status: 500 });
   }
 }
@@ -153,7 +154,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('[API Profile] POST error:', err);
+    captureApiError('API Profile POST error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
+import { captureApiError } from '@/lib/sentry';
 
 // Plafond dur — protège contre les coûts qui explosent quand l'annuaire grossit.
 // La recherche/le filtrage par texte se fait toujours côté client sur ce sous-ensemble.
@@ -67,7 +68,7 @@ export async function GET(req: NextRequest) {
       max: MAX_PLAYERS,
     });
   } catch (err) {
-    console.error('[API Players] GET error:', err);
+    captureApiError('API Players GET error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

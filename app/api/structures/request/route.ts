@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { safeUrl, clampString, LIMITS } from '@/lib/validation';
+import { captureApiError } from '@/lib/sentry';
 
 const LEGAL_STATUSES = ['none', 'asso_1901', 'auto_entreprise', 'sas_sarl', 'other'];
 
@@ -88,7 +89,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, id: docRef.id });
   } catch (err) {
-    console.error('[API Structures/request] POST error:', err);
+    captureApiError('API Structures/request POST error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
@@ -111,7 +112,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ structures });
   } catch (err) {
-    console.error('[API Structures/request] GET error:', err);
+    captureApiError('API Structures/request GET error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

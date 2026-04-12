@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
+import { captureApiError } from '@/lib/sentry';
 
 // GET /api/auth/me — retourne le profil utilisateur + statut admin
 // Note : on ne passe pas par verifyAuth() car celui-ci bloque les bannis,
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
       isAdmin: adminSnap.exists,
     });
   } catch (err) {
-    console.error('[API Auth/me] error:', err);
+    captureApiError('API Auth/me error', err);
     return NextResponse.json({ error: 'server_error' }, { status: 500 });
   }
 }

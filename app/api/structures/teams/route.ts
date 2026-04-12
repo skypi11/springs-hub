@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { FieldValue, DocumentData } from 'firebase-admin/firestore';
+import { captureApiError } from '@/lib/sentry';
 
 // Vérifier que l'utilisateur a les droits sur la structure (fondateur ou co-fondateur)
 async function checkStructureAccess(uid: string, structureId: string) {
@@ -67,7 +68,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ teams });
   } catch (err) {
-    console.error('[API Structures/teams] GET error:', err);
+    captureApiError('API Structures/teams GET error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
@@ -185,7 +186,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Action invalide' }, { status: 400 });
     }
   } catch (err) {
-    console.error('[API Structures/teams] POST error:', err);
+    captureApiError('API Structures/teams POST error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
