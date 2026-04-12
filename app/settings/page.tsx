@@ -184,302 +184,325 @@ export default function SettingsPage() {
   const avatarSrc = form.avatarUrl || user?.discordAvatar || '';
 
   return (
-    <div className="min-h-screen px-8 py-8 space-y-8">
+    <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
+      <div className="relative z-[1] space-y-8">
 
-      {/* ─── HEADER ───────────────────────────────────────────────────────── */}
-      <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-        <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), var(--s-violet-light), transparent 80%)' }} />
-        <div className="absolute top-0 left-0 w-[400px] h-[300px] pointer-events-none opacity-[0.05]"
-          style={{ background: 'radial-gradient(ellipse at top left, var(--s-violet), transparent 70%)' }} />
+        {/* ─── HEADER ──────────────────────────────────────────────────────── */}
+        <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 80%)' }} />
+          <div className="absolute top-0 left-0 w-[500px] h-[400px] pointer-events-none opacity-[0.06]"
+            style={{ background: 'radial-gradient(ellipse at top left, var(--s-gold), transparent 70%)' }} />
 
-        <div className="relative z-[1] p-8 flex items-center gap-6">
-          <div className="flex-shrink-0 w-20 h-20 relative overflow-hidden"
-            style={{ background: 'var(--s-elevated)', border: '2px solid var(--s-border)' }}>
-            {avatarSrc ? (
-              <Image src={avatarSrc} alt="Avatar" fill className="object-cover" unoptimized />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <User size={32} style={{ color: 'var(--s-text-muted)' }} />
-              </div>
-            )}
-          </div>
-
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <span className="tag tag-violet">Paramètres</span>
-              <span className="tag tag-neutral">Profil</span>
-            </div>
-            <h1 className="font-display text-3xl" style={{ letterSpacing: '0.03em' }}>
-              {form.displayName || 'MON PROFIL'}
-            </h1>
-            <p className="t-body mt-1">Modifie tes informations, tes jeux et ta disponibilité.</p>
-          </div>
-        </div>
-      </header>
-
-      <div className="grid grid-cols-3 gap-6 animate-fade-in-d1">
-
-        {/* ─── COLONNE GAUCHE : Infos perso ────────────────────────────────── */}
-        <div className="col-span-2 space-y-6">
-
-          {/* Identité */}
-          <div className="panel">
-            <div className="panel-header">
-              <div className="flex items-center gap-2">
-                <User size={13} style={{ color: 'var(--s-violet-light)' }} />
-                <span className="t-label" style={{ color: 'var(--s-text)' }}>IDENTITÉ</span>
-              </div>
-              <span className="tag tag-neutral">Obligatoire</span>
-            </div>
-            <div className="panel-body space-y-5">
-              <div>
-                <label className="t-label block mb-2">Pseudo affiché</label>
-                <input type="text" value={form.displayName}
-                  onChange={e => setForm(prev => ({ ...prev, displayName: e.target.value }))}
-                  className="settings-input" placeholder="Ton pseudo Springs" maxLength={32} />
-              </div>
-
-              <div>
-                <label className="t-label block mb-2">
-                  <ImageIcon size={10} className="inline mr-1" />
-                  Avatar (URL image) — laisse vide pour garder ta photo Discord
-                </label>
-                <input type="url" value={form.avatarUrl}
-                  onChange={e => setForm(prev => ({ ...prev, avatarUrl: e.target.value }))}
-                  className="settings-input" placeholder="https://exemple.com/mon-avatar.png" />
-              </div>
-
-              <div>
-                <label className="t-label block mb-2">
-                  <Globe size={10} className="inline mr-1" />
-                  Pays
-                </label>
-                <select value={form.country}
-                  onChange={e => setForm(prev => ({ ...prev, country: e.target.value }))}
-                  className="settings-input">
-                  <option value="">Sélectionner un pays</option>
-                  {countries.map(c => (
-                    <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="t-label block mb-2">
-                  <Calendar size={10} className="inline mr-1" />
-                  Date de naissance
-                </label>
-                <input type="date" value={form.dateOfBirth}
-                  onChange={e => setForm(prev => ({ ...prev, dateOfBirth: e.target.value }))}
-                  className="settings-input" max={new Date().toISOString().split('T')[0]} />
-                <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
-                  Jamais affichée publiquement — seul ton âge sera visible.
-                </p>
-              </div>
-
-              <div>
-                <label className="t-label block mb-2">
-                  <MessageSquare size={10} className="inline mr-1" />
-                  Bio (optionnel)
-                </label>
-                <textarea value={form.bio}
-                  onChange={e => setForm(prev => ({ ...prev, bio: e.target.value }))}
-                  className="settings-input" rows={3} placeholder="Quelques mots sur toi..." maxLength={300}
-                  style={{ resize: 'vertical' }} />
-              </div>
-            </div>
-          </div>
-
-          {/* Jeux pratiqués */}
-          <div className="panel">
-            <div className="panel-header">
-              <div className="flex items-center gap-2">
-                <Gamepad2 size={13} style={{ color: 'var(--s-text-dim)' }} />
-                <span className="t-label" style={{ color: 'var(--s-text)' }}>JEUX PRATIQUÉS</span>
-              </div>
-              <span className="tag tag-neutral">Min. 1</span>
-            </div>
-            <div className="panel-body space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <button type="button" onClick={() => toggleGame('rocket_league')}
-                  className="p-4 text-left transition-all duration-150"
-                  style={{
-                    background: form.games.includes('rocket_league') ? 'rgba(0,129,255,0.08)' : 'var(--s-elevated)',
-                    border: form.games.includes('rocket_league') ? '2px solid rgba(0,129,255,0.4)' : '2px solid var(--s-border)',
-                  }}>
-                  <div className="flex items-center gap-3">
-                    <span className="tag tag-blue">RL</span>
-                    <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>Rocket League</span>
-                  </div>
-                </button>
-
-                <button type="button" onClick={() => toggleGame('trackmania')}
-                  className="p-4 text-left transition-all duration-150"
-                  style={{
-                    background: form.games.includes('trackmania') ? 'rgba(0,217,54,0.08)' : 'var(--s-elevated)',
-                    border: form.games.includes('trackmania') ? '2px solid rgba(0,217,54,0.4)' : '2px solid var(--s-border)',
-                  }}>
-                  <div className="flex items-center gap-3">
-                    <span className="tag tag-green">TM</span>
-                    <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>Trackmania</span>
-                  </div>
-                </button>
-              </div>
-
-              {form.games.includes('rocket_league') && (
-                <div className="p-4 space-y-4" style={{ background: 'rgba(0,129,255,0.04)', border: '1px solid rgba(0,129,255,0.15)' }}>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="tag tag-blue" style={{ fontSize: '9px', padding: '2px 6px' }}>RL</span>
-                    <span className="t-label" style={{ color: '#4da6ff' }}>Informations Rocket League</span>
-                  </div>
-                  <div>
-                    <label className="t-label block mb-2">Pseudo Epic Games *</label>
-                    <input type="text" value={form.epicAccountId}
-                      onChange={e => setForm(prev => ({ ...prev, epicAccountId: e.target.value }))}
-                      className="settings-input" placeholder="Ton pseudo Epic Games" />
-                    <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
-                      Utilisé pour récupérer tes stats automatiquement via RL Tracker.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {form.games.includes('trackmania') && (
-                <div className="p-4 space-y-4" style={{ background: 'rgba(0,217,54,0.04)', border: '1px solid rgba(0,217,54,0.15)' }}>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="tag tag-green" style={{ fontSize: '9px', padding: '2px 6px' }}>TM</span>
-                    <span className="t-label" style={{ color: '#33ff66' }}>Informations Trackmania</span>
-                  </div>
-                  <div>
-                    <label className="t-label block mb-2">Pseudo Ubisoft/Nadeo *</label>
-                    <input type="text" value={form.pseudoTM}
-                      onChange={e => setForm(prev => ({ ...prev, pseudoTM: e.target.value }))}
-                      className="settings-input" placeholder="Ton pseudo en jeu" />
-                  </div>
-                  <div>
-                    <label className="t-label block mb-2">URL Trackmania.io (optionnel)</label>
-                    <input type="url" value={form.tmIoUrl}
-                      onChange={e => setForm(prev => ({ ...prev, tmIoUrl: e.target.value }))}
-                      className="settings-input" placeholder="https://trackmania.io/#/player/..." />
-                    <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
-                      Pour afficher tes stats TM sur ton profil.
-                    </p>
-                  </div>
+          <div className="relative z-[1] p-10 flex items-center gap-8">
+            <div className="flex-shrink-0 w-24 h-24 relative overflow-hidden bevel-sm"
+              style={{ background: 'var(--s-elevated)', border: '2px solid rgba(255,184,0,0.15)' }}>
+              {avatarSrc ? (
+                <Image src={avatarSrc} alt="Avatar" fill className="object-cover" unoptimized />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <User size={36} style={{ color: 'var(--s-text-muted)' }} />
                 </div>
               )}
             </div>
-          </div>
-        </div>
 
-        {/* ─── COLONNE DROITE : Recrutement + Actions ──────────────────────── */}
-        <div className="space-y-6">
-
-          {/* Recrutement */}
-          <div className="panel">
-            <div className="panel-header">
-              <div className="flex items-center gap-2">
-                <Search size={13} style={{ color: 'var(--s-text-dim)' }} />
-                <span className="t-label" style={{ color: 'var(--s-text)' }}>RECRUTEMENT</span>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="tag tag-gold">Paramètres</span>
+                <span className="tag tag-neutral">Profil</span>
               </div>
+              <h1 className="t-display mb-1">
+                {form.displayName || 'MON PROFIL'}
+              </h1>
+              <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>Modifie tes informations, tes jeux et ta disponibilité.</p>
             </div>
-            <div className="panel-body space-y-4">
-              <button type="button"
-                onClick={() => setForm(prev => ({ ...prev, isAvailableForRecruitment: !prev.isAvailableForRecruitment }))}
-                className="w-full p-4 flex items-center justify-between transition-all duration-150"
-                style={{
-                  background: form.isAvailableForRecruitment ? 'rgba(0,217,54,0.08)' : 'var(--s-elevated)',
-                  border: form.isAvailableForRecruitment ? '1px solid rgba(0,217,54,0.3)' : '1px solid var(--s-border)',
-                }}>
-                <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
-                  Je suis disponible
-                </span>
-                <div className="w-10 h-5 relative" style={{
-                  background: form.isAvailableForRecruitment ? '#00D936' : 'var(--s-elevated)',
-                  border: `1px solid ${form.isAvailableForRecruitment ? '#00D936' : 'var(--s-border)'}`,
-                  borderRadius: '2px',
-                }}>
-                  <div className="absolute top-[2px] w-4 h-3.5 transition-all duration-200"
-                    style={{
-                      background: form.isAvailableForRecruitment ? '#fff' : 'var(--s-text-muted)',
-                      left: form.isAvailableForRecruitment ? '20px' : '2px',
-                    }} />
-                </div>
-              </button>
+          </div>
+        </header>
 
-              {form.isAvailableForRecruitment && (
-                <>
-                  <div>
-                    <label className="t-label block mb-2">Rôle recherché</label>
-                    <div className="flex gap-2">
-                      {['joueur', 'coach', 'manager'].map(role => (
-                        <button key={role} type="button"
-                          onClick={() => setForm(prev => ({ ...prev, recruitmentRole: role }))}
-                          className="tag transition-all duration-150 cursor-pointer"
-                          style={{
-                            background: form.recruitmentRole === role ? 'rgba(0,217,54,0.12)' : 'rgba(255,255,255,0.03)',
-                            color: form.recruitmentRole === role ? '#33ff66' : 'var(--s-text-dim)',
-                            borderColor: form.recruitmentRole === role ? 'rgba(0,217,54,0.3)' : 'var(--s-border)',
-                            padding: '5px 12px',
-                            fontSize: '11px',
-                          }}>
-                          {role.charAt(0).toUpperCase() + role.slice(1)}
-                        </button>
-                      ))}
+        <div className="grid grid-cols-3 gap-6 animate-fade-in-d1">
+
+          {/* ─── COLONNE GAUCHE ────────────────────────────────────────────── */}
+          <div className="col-span-2 space-y-6">
+
+            {/* Identité */}
+            <div className="pillar-card panel relative overflow-hidden group transition-all duration-200">
+              <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
+              <div className="absolute top-0 right-0 w-[180px] h-[180px] pointer-events-none opacity-[0.05]"
+                style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
+              <div className="relative z-[1]">
+                <div className="panel-header">
+                  <div className="flex items-center gap-2">
+                    <User size={13} style={{ color: 'var(--s-gold)' }} />
+                    <span className="t-label" style={{ color: 'var(--s-text)' }}>IDENTITÉ</span>
+                  </div>
+                  <span className="tag tag-gold" style={{ fontSize: '8px' }}>OBLIGATOIRE</span>
+                </div>
+                <div className="p-5 space-y-5">
+                  <div className="grid grid-cols-2 gap-5">
+                    <div>
+                      <label className="t-label block mb-2">Pseudo affiché *</label>
+                      <input type="text" value={form.displayName}
+                        onChange={e => setForm(prev => ({ ...prev, displayName: e.target.value }))}
+                        className="settings-input w-full" placeholder="Ton pseudo Springs" maxLength={32} />
+                    </div>
+                    <div>
+                      <label className="t-label block mb-2">Avatar (URL image)</label>
+                      <input type="url" value={form.avatarUrl}
+                        onChange={e => setForm(prev => ({ ...prev, avatarUrl: e.target.value }))}
+                        className="settings-input w-full" placeholder="https://..." />
+                      <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>Vide = photo Discord</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-5">
+                    <div>
+                      <label className="t-label block mb-2">Pays *</label>
+                      <select value={form.country}
+                        onChange={e => setForm(prev => ({ ...prev, country: e.target.value }))}
+                        className="settings-input w-full">
+                        <option value="">Sélectionner...</option>
+                        {countries.map(c => (
+                          <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="t-label block mb-2">Date de naissance *</label>
+                      <input type="date" value={form.dateOfBirth}
+                        onChange={e => setForm(prev => ({ ...prev, dateOfBirth: e.target.value }))}
+                        className="settings-input w-full" max={new Date().toISOString().split('T')[0]} />
+                      <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>Seul ton âge sera visible</p>
                     </div>
                   </div>
 
                   <div>
-                    <label className="t-label block mb-2">Message</label>
-                    <textarea value={form.recruitmentMessage}
-                      onChange={e => setForm(prev => ({ ...prev, recruitmentMessage: e.target.value }))}
-                      className="settings-input" rows={3} maxLength={500}
-                      placeholder="Dispo le soir, je cherche une équipe RL compétitive..."
+                    <label className="t-label block mb-2">Bio (optionnel)</label>
+                    <textarea value={form.bio}
+                      onChange={e => setForm(prev => ({ ...prev, bio: e.target.value }))}
+                      className="settings-input w-full" rows={3} placeholder="Quelques mots sur toi..." maxLength={300}
                       style={{ resize: 'vertical' }} />
                   </div>
-                </>
-              )}
+                </div>
+              </div>
+            </div>
+
+            {/* Jeux pratiqués */}
+            <div className="pillar-card panel relative overflow-hidden group transition-all duration-200">
+              <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.2), transparent 60%)' }} />
+              <div className="relative z-[1]">
+                <div className="panel-header">
+                  <div className="flex items-center gap-2">
+                    <Gamepad2 size={13} style={{ color: 'var(--s-text-dim)' }} />
+                    <span className="t-label" style={{ color: 'var(--s-text)' }}>JEUX PRATIQUÉS</span>
+                  </div>
+                  <span className="tag tag-neutral" style={{ fontSize: '8px' }}>MIN. 1</span>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <button type="button" onClick={() => toggleGame('rocket_league')}
+                      className="p-4 text-left transition-all duration-150 relative overflow-hidden"
+                      style={{
+                        background: form.games.includes('rocket_league') ? 'rgba(0,129,255,0.08)' : 'var(--s-elevated)',
+                        border: form.games.includes('rocket_league') ? '2px solid rgba(0,129,255,0.4)' : '2px solid var(--s-border)',
+                        cursor: 'pointer',
+                      }}>
+                      {form.games.includes('rocket_league') && (
+                        <div className="absolute top-0 right-0 w-24 h-24 pointer-events-none opacity-[0.08]"
+                          style={{ background: 'radial-gradient(circle at top right, var(--s-blue), transparent 70%)' }} />
+                      )}
+                      <div className="relative z-[1] flex items-center gap-3">
+                        <div className="w-8 h-8 flex items-center justify-center" style={{ background: 'rgba(0,129,255,0.1)', border: '1px solid rgba(0,129,255,0.2)' }}>
+                          <Gamepad2 size={14} style={{ color: 'var(--s-blue)' }} />
+                        </div>
+                        <span className="text-sm font-semibold" style={{ color: form.games.includes('rocket_league') ? 'var(--s-blue)' : 'var(--s-text)' }}>Rocket League</span>
+                        {form.games.includes('rocket_league') && <CheckCircle size={14} className="ml-auto" style={{ color: 'var(--s-blue)' }} />}
+                      </div>
+                    </button>
+
+                    <button type="button" onClick={() => toggleGame('trackmania')}
+                      className="p-4 text-left transition-all duration-150 relative overflow-hidden"
+                      style={{
+                        background: form.games.includes('trackmania') ? 'rgba(0,217,54,0.08)' : 'var(--s-elevated)',
+                        border: form.games.includes('trackmania') ? '2px solid rgba(0,217,54,0.4)' : '2px solid var(--s-border)',
+                        cursor: 'pointer',
+                      }}>
+                      {form.games.includes('trackmania') && (
+                        <div className="absolute top-0 right-0 w-24 h-24 pointer-events-none opacity-[0.08]"
+                          style={{ background: 'radial-gradient(circle at top right, var(--s-green), transparent 70%)' }} />
+                      )}
+                      <div className="relative z-[1] flex items-center gap-3">
+                        <div className="w-8 h-8 flex items-center justify-center" style={{ background: 'rgba(0,217,54,0.1)', border: '1px solid rgba(0,217,54,0.2)' }}>
+                          <Gamepad2 size={14} style={{ color: 'var(--s-green)' }} />
+                        </div>
+                        <span className="text-sm font-semibold" style={{ color: form.games.includes('trackmania') ? 'var(--s-green)' : 'var(--s-text)' }}>Trackmania</span>
+                        {form.games.includes('trackmania') && <CheckCircle size={14} className="ml-auto" style={{ color: 'var(--s-green)' }} />}
+                      </div>
+                    </button>
+                  </div>
+
+                  {form.games.includes('rocket_league') && (
+                    <div className="p-4 space-y-4 relative overflow-hidden" style={{ background: 'rgba(0,129,255,0.04)', border: '1px solid rgba(0,129,255,0.15)' }}>
+                      <div className="h-[2px] -mt-4 -mx-4 mb-4" style={{ background: 'linear-gradient(90deg, var(--s-blue), transparent 60%)' }} />
+                      <div className="flex items-center gap-2">
+                        <span className="tag tag-blue" style={{ fontSize: '9px' }}>RL</span>
+                        <span className="t-label" style={{ color: 'var(--s-blue)' }}>Config Rocket League</span>
+                      </div>
+                      <div>
+                        <label className="t-label block mb-2">Pseudo Epic Games *</label>
+                        <input type="text" value={form.epicAccountId}
+                          onChange={e => setForm(prev => ({ ...prev, epicAccountId: e.target.value }))}
+                          className="settings-input w-full" placeholder="Ton pseudo Epic Games" />
+                        <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
+                          Stats récupérées automatiquement via RL Tracker.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {form.games.includes('trackmania') && (
+                    <div className="p-4 space-y-4 relative overflow-hidden" style={{ background: 'rgba(0,217,54,0.04)', border: '1px solid rgba(0,217,54,0.15)' }}>
+                      <div className="h-[2px] -mt-4 -mx-4 mb-4" style={{ background: 'linear-gradient(90deg, var(--s-green), transparent 60%)' }} />
+                      <div className="flex items-center gap-2">
+                        <span className="tag tag-green" style={{ fontSize: '9px' }}>TM</span>
+                        <span className="t-label" style={{ color: 'var(--s-green)' }}>Config Trackmania</span>
+                      </div>
+                      <div>
+                        <label className="t-label block mb-2">Pseudo Ubisoft/Nadeo *</label>
+                        <input type="text" value={form.pseudoTM}
+                          onChange={e => setForm(prev => ({ ...prev, pseudoTM: e.target.value }))}
+                          className="settings-input w-full" placeholder="Ton pseudo en jeu" />
+                      </div>
+                      <div>
+                        <label className="t-label block mb-2">URL Trackmania.io (optionnel)</label>
+                        <input type="url" value={form.tmIoUrl}
+                          onChange={e => setForm(prev => ({ ...prev, tmIoUrl: e.target.value }))}
+                          className="settings-input w-full" placeholder="https://trackmania.io/#/player/..." />
+                        <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
+                          Pour afficher tes stats TM sur ton profil.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="panel">
-            <div className="panel-header">
-              <div className="flex items-center gap-2">
-                <Shield size={13} style={{ color: 'var(--s-text-dim)' }} />
-                <span className="t-label" style={{ color: 'var(--s-text)' }}>ACTIONS</span>
+          {/* ─── COLONNE DROITE ────────────────────────────────────────────── */}
+          <div className="space-y-6">
+
+            {/* Sauvegarder (en haut pour être visible) */}
+            <div className="pillar-card panel relative overflow-hidden group transition-all duration-200">
+              <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
+              <div className="absolute top-0 right-0 w-[150px] h-[150px] pointer-events-none opacity-[0.06]"
+                style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
+              <div className="relative z-[1] p-5 space-y-3">
+                {error && (
+                  <div className="p-3 flex items-start gap-2" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
+                    <AlertCircle size={14} className="flex-shrink-0 mt-0.5" style={{ color: '#ef4444' }} />
+                    <p className="text-xs" style={{ color: '#ef4444' }}>{error}</p>
+                  </div>
+                )}
+
+                {saved && (
+                  <div className="p-3 flex items-center gap-2" style={{ background: 'rgba(0,217,54,0.08)', border: '1px solid rgba(0,217,54,0.25)' }}>
+                    <CheckCircle size={14} style={{ color: '#00D936' }} />
+                    <p className="text-xs font-semibold" style={{ color: '#00D936' }}>Profil sauvegardé !</p>
+                  </div>
+                )}
+
+                <button onClick={handleSave} disabled={saving}
+                  className="btn-springs btn-primary bevel-sm w-full justify-center">
+                  {saving ? (
+                    <><Loader2 size={14} className="animate-spin" /> Sauvegarde...</>
+                  ) : (
+                    <><Save size={14} /> Sauvegarder</>
+                  )}
+                </button>
+
+                <button onClick={() => router.push(`/profile/${firebaseUser?.uid}`)}
+                  className="btn-springs btn-secondary bevel-sm w-full justify-center">
+                  Voir mon profil <ChevronRight size={14} />
+                </button>
               </div>
             </div>
-            <div className="panel-body space-y-3">
-              {error && (
-                <div className="p-3 flex items-start gap-2" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
-                  <AlertCircle size={14} className="flex-shrink-0 mt-0.5" style={{ color: '#ef4444' }} />
-                  <p className="text-xs" style={{ color: '#ef4444' }}>{error}</p>
-                </div>
+
+            {/* Recrutement */}
+            <div className="pillar-card panel relative overflow-hidden group transition-all duration-200">
+              <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${form.isAvailableForRecruitment ? 'var(--s-gold)' : 'rgba(255,255,255,0.15)'}, transparent 60%)` }} />
+              {form.isAvailableForRecruitment && (
+                <div className="absolute top-0 right-0 w-[150px] h-[150px] pointer-events-none opacity-[0.06]"
+                  style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
               )}
-
-              {saved && (
-                <div className="p-3 flex items-center gap-2" style={{ background: 'rgba(0,217,54,0.08)', border: '1px solid rgba(0,217,54,0.25)' }}>
-                  <CheckCircle size={14} style={{ color: '#00D936' }} />
-                  <p className="text-xs font-semibold" style={{ color: '#00D936' }}>Profil sauvegardé !</p>
+              <div className="relative z-[1]">
+                <div className="panel-header">
+                  <div className="flex items-center gap-2">
+                    <Search size={13} style={{ color: form.isAvailableForRecruitment ? 'var(--s-gold)' : 'var(--s-text-dim)' }} />
+                    <span className="t-label" style={{ color: 'var(--s-text)' }}>RECRUTEMENT</span>
+                  </div>
                 </div>
-              )}
+                <div className="p-5 space-y-4">
+                  <button type="button"
+                    onClick={() => setForm(prev => ({ ...prev, isAvailableForRecruitment: !prev.isAvailableForRecruitment }))}
+                    className="w-full p-3.5 flex items-center justify-between transition-all duration-150"
+                    style={{
+                      background: form.isAvailableForRecruitment ? 'rgba(255,184,0,0.08)' : 'var(--s-elevated)',
+                      border: form.isAvailableForRecruitment ? '1px solid rgba(255,184,0,0.25)' : '1px solid var(--s-border)',
+                      cursor: 'pointer',
+                    }}>
+                    <span className="text-xs font-semibold" style={{ color: form.isAvailableForRecruitment ? 'var(--s-gold)' : 'var(--s-text-dim)' }}>
+                      Je suis disponible
+                    </span>
+                    <div className="w-9 h-[18px] relative" style={{
+                      background: form.isAvailableForRecruitment ? 'var(--s-gold)' : 'var(--s-elevated)',
+                      border: `1px solid ${form.isAvailableForRecruitment ? 'var(--s-gold)' : 'var(--s-border)'}`,
+                    }}>
+                      <div className="absolute top-[2px] w-3 h-[12px] transition-all duration-200"
+                        style={{
+                          background: form.isAvailableForRecruitment ? '#000' : 'var(--s-text-muted)',
+                          left: form.isAvailableForRecruitment ? '18px' : '2px',
+                        }} />
+                    </div>
+                  </button>
 
-              <button onClick={handleSave} disabled={saving}
-                className="btn-springs btn-primary bevel-sm w-full justify-center">
-                {saving ? (
-                  <><Loader2 size={14} className="animate-spin" /> Sauvegarde...</>
-                ) : (
-                  <><Save size={14} /> Sauvegarder</>
-                )}
-              </button>
+                  {form.isAvailableForRecruitment && (
+                    <>
+                      <div>
+                        <label className="t-label block mb-2">Rôle recherché</label>
+                        <div className="flex gap-2 flex-wrap">
+                          {['joueur', 'coach', 'manager'].map(role => (
+                            <button key={role} type="button"
+                              onClick={() => setForm(prev => ({ ...prev, recruitmentRole: role }))}
+                              className="tag transition-all duration-150"
+                              style={{
+                                background: form.recruitmentRole === role ? 'rgba(255,184,0,0.1)' : 'transparent',
+                                color: form.recruitmentRole === role ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                                borderColor: form.recruitmentRole === role ? 'rgba(255,184,0,0.3)' : 'var(--s-border)',
+                                padding: '5px 12px',
+                                fontSize: '11px',
+                                cursor: 'pointer',
+                              }}>
+                              {role.charAt(0).toUpperCase() + role.slice(1)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
 
-              <button onClick={() => router.push(`/profile/${firebaseUser?.uid}`)}
-                className="btn-springs btn-secondary bevel-sm w-full justify-center">
-                Voir mon profil public <ChevronRight size={14} />
-              </button>
+                      <div>
+                        <label className="t-label block mb-2">Message</label>
+                        <textarea value={form.recruitmentMessage}
+                          onChange={e => setForm(prev => ({ ...prev, recruitmentMessage: e.target.value }))}
+                          className="settings-input w-full" rows={3} maxLength={500}
+                          placeholder="Dispo le soir, je cherche une équipe RL compétitive..."
+                          style={{ resize: 'vertical' }} />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
+
       </div>
     </div>
   );
