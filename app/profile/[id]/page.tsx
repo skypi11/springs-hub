@@ -237,11 +237,11 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
           {/* Stats RL */}
           {profile.games?.includes('rocket_league') && (
-            <div className="pillar-card panel relative overflow-hidden group transition-all duration-200">
+            <div className="pillar-card panel relative overflow-hidden group transition-all duration-200 h-full flex flex-col">
               <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-blue), rgba(0,129,255,0.3), transparent 70%)' }} />
               <div className="absolute top-0 right-0 w-[200px] h-[200px] pointer-events-none opacity-[0.06]"
                 style={{ background: 'radial-gradient(circle at top right, var(--s-blue), transparent 70%)' }} />
-              <div className="relative z-[1]">
+              <div className="relative z-[1] flex-1 flex flex-col">
                 <div className="panel-header">
                   <div className="flex items-center gap-2">
                     <Gamepad2 size={13} style={{ color: 'var(--s-blue)' }} />
@@ -251,7 +251,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     <span className="tag tag-blue" style={{ fontSize: '8px' }}>{profile.epicAccountId}</span>
                   )}
                 </div>
-                <div className="p-5">
+                <div className="p-5 flex-1 flex flex-col">
                   {rlStats ? (
                     <div className="space-y-5">
                       <div className="flex items-center gap-5">
@@ -294,14 +294,14 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                   )}
 
                   {(rlTrackerUrl || profile.rlTrackerUrl) && (
-                    <>
-                      <div className="divider my-4" />
+                    <div className="mt-auto pt-4">
+                      <div className="divider mb-4" />
                       <a href={rlTrackerUrl || profile.rlTrackerUrl} target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider transition-colors hover:text-white"
                         style={{ color: 'var(--s-blue)' }}>
                         Voir sur RL Tracker <ExternalLink size={11} />
                       </a>
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
@@ -310,11 +310,11 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
           {/* Stats TM */}
           {profile.games?.includes('trackmania') && (
-            <div className="pillar-card panel relative overflow-hidden group transition-all duration-200">
+            <div className="pillar-card panel relative overflow-hidden group transition-all duration-200 h-full flex flex-col">
               <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-green), rgba(0,217,54,0.3), transparent 70%)' }} />
               <div className="absolute top-0 right-0 w-[200px] h-[200px] pointer-events-none opacity-[0.06]"
                 style={{ background: 'radial-gradient(circle at top right, var(--s-green), transparent 70%)' }} />
-              <div className="relative z-[1]">
+              <div className="relative z-[1] flex-1 flex flex-col">
                 <div className="panel-header">
                   <div className="flex items-center gap-2">
                     <Gamepad2 size={13} style={{ color: 'var(--s-green)' }} />
@@ -331,7 +331,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     </span>
                   </div>
                 </div>
-                <div className="p-5">
+                <div className="p-5 flex-1 flex flex-col">
                   {tmStats && (tmStats.trophies !== null || tmStats.cotdBestRank !== null) ? (
                     <div className="space-y-5">
                       {/* Trophées + Niveau */}
@@ -437,14 +437,14 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                   )}
 
                   {(tmStats?.profileUrl || profile.tmIoUrl) && (
-                    <>
-                      <div className="divider my-4" />
+                    <div className="mt-auto pt-4">
+                      <div className="divider mb-4" />
                       <a href={tmStats?.profileUrl || profile.tmIoUrl} target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider transition-colors hover:text-white"
                         style={{ color: 'var(--s-green)' }}>
                         Voir sur Trackmania.io <ExternalLink size={11} />
                       </a>
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
