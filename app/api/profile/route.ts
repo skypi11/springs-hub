@@ -5,21 +5,11 @@ import { resolveEpicAccount } from '@/lib/tracker-gg';
 import { safeUrl, clampString, LIMITS } from '@/lib/validation';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { computeAge } from '@/lib/age';
 
 // Champs privés — jamais renvoyés aux autres utilisateurs.
 // `dateOfBirth` sert uniquement à calculer l'âge côté serveur.
 const PRIVATE_FIELDS = ['dateOfBirth', 'discordId', 'isBanned', 'banReason', 'bannedAt', 'bannedBy'];
-
-function computeAge(dateStr: unknown): number | null {
-  if (typeof dateStr !== 'string' || !dateStr) return null;
-  const birth = new Date(dateStr);
-  if (isNaN(birth.getTime())) return null;
-  const now = new Date();
-  let age = now.getFullYear() - birth.getFullYear();
-  const m = now.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
-  return age >= 0 && age < 150 ? age : null;
-}
 
 // GET /api/profile?uid=discord_XXX — lire un profil
 // Si le requester est le propriétaire (token Firebase), renvoie le document complet.
