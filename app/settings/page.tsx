@@ -50,11 +50,11 @@ function MarkdownEditor({ value, onChange, placeholder, maxLength, rows = 3, lab
             <span style={{ fontSize: '14px' }}>😀</span> Emojis
           </button>
           {showEmojis && (
-            <div className="absolute left-0 top-full mt-1 p-2 z-10 flex flex-wrap" style={{ width: '280px', background: 'var(--s-surface)', border: '1px solid var(--s-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+            <div className="absolute left-0 top-full mt-1 p-2 z-50 flex flex-wrap" style={{ width: '280px', background: 'var(--s-surface)', border: '1px solid var(--s-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
               {EMOJIS.map(emoji => (
                 <button key={emoji} type="button"
                   className="hover:bg-[var(--s-hover)] transition-colors duration-100"
-                  style={{ width: '28px', height: '28px', fontSize: '15px', lineHeight: '28px', textAlign: 'center', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
+                  style={{ width: '28px', height: '28px', fontSize: '16px', lineHeight: '28px', textAlign: 'center', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif' }}
                   onClick={() => insertEmoji(emoji)}>
                   {emoji}
                 </button>
@@ -298,7 +298,7 @@ export default function SettingsPage() {
           <div className="col-span-2 space-y-6">
 
             {/* Identité */}
-            <div className="pillar-card panel relative overflow-hidden group transition-all duration-200">
+            <div className="pillar-card panel relative group transition-all duration-200">
               <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
               <div className="absolute top-0 right-0 w-[180px] h-[180px] pointer-events-none opacity-[0.05]"
                 style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
@@ -503,7 +503,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Recrutement */}
-            <div className="pillar-card panel relative overflow-hidden group transition-all duration-200">
+            <div className="pillar-card panel relative group transition-all duration-200">
               <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${form.isAvailableForRecruitment ? 'var(--s-gold)' : 'rgba(255,255,255,0.15)'}, transparent 60%)` }} />
               {form.isAvailableForRecruitment && (
                 <div className="absolute top-0 right-0 w-[150px] h-[150px] pointer-events-none opacity-[0.06]"

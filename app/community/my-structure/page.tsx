@@ -79,7 +79,7 @@ function SectionPanel({ accent, icon: Icon, title, action, children, collapsed, 
   onToggle?: () => void;
 }) {
   return (
-    <div className="bevel relative overflow-hidden transition-all duration-200"
+    <div className="bevel relative transition-all duration-200"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
       {/* Accent bar */}
       <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${accent}, ${accent}50, transparent 70%)` }} />
@@ -659,11 +659,11 @@ export default function MyStructurePage() {
                       <span style={{ fontSize: '14px' }}>😀</span> Emojis
                     </button>
                     {showEmojis && (
-                      <div className="absolute left-0 top-full mt-1 p-2 z-10 flex flex-wrap" style={{ width: '320px', background: 'var(--s-surface)', border: '1px solid var(--s-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+                      <div className="absolute left-0 top-full mt-1 p-2 z-50 flex flex-wrap" style={{ width: '320px', background: 'var(--s-surface)', border: '1px solid var(--s-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
                         {['🏆', '🥇', '🥈', '🥉', '⭐', '🔥', '💪', '🎮', '🎯', '🚀', '⚽', '🏎️', '🏁', '👑', '💎', '🛡️', '⚔️', '🎉', '📢', '💬', '✅', '❌', '🔵', '🟢', '🟡', '🔴', '⚡', '💥', '🌟', '🏅', '👊', '🤝', '📊', '📈', '🗓️', '🎪', '🏟️', '🎖️', '🧩', '🕹️'].map(emoji => (
                           <button key={emoji} type="button"
                             className="hover:bg-[var(--s-hover)] transition-colors duration-100"
-                            style={{ width: '30px', height: '30px', fontSize: '16px', lineHeight: '30px', textAlign: 'center', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
+                            style={{ width: '30px', height: '30px', fontSize: '16px', lineHeight: '30px', textAlign: 'center', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif' }}
                             onClick={() => {
                               const ta = descRef.current;
                               if (ta) {
