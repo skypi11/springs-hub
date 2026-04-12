@@ -135,7 +135,11 @@ export default function SettingsPage() {
 
     async function loadProfile() {
       try {
-        const res = await fetch(`/api/profile?uid=${encodeURIComponent(firebaseUser!.uid)}`);
+        // Token requis pour récupérer les champs privés (dateOfBirth)
+        const idToken = await firebaseUser!.getIdToken();
+        const res = await fetch(`/api/profile?uid=${encodeURIComponent(firebaseUser!.uid)}`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
         if (res.ok) {
           const data = await res.json();
           setForm({

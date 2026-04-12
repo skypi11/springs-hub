@@ -1,10 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
+import { getAdminAuth, getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { resolveEpicAccount } from '@/lib/tracker-gg';
 import { safeUrl, clampString, LIMITS } from '@/lib/validation';
 
+// Champs privés — jamais renvoyés aux autres utilisateurs.
+// `dateOfBirth` sert uniquement à calculer l'âge côté serveur.
+const PRIVATE_FIELDS = ['dateOfBirth', 'discordId', 'isBanned', 'banReason', 'bannedAt', 'bannedBy'];
+
+function computeAge(dateStr: unknown): number | null {
+  if (typeof dateStr !== 'string' || !dateStr) return null;
+  const birth = new Date(dateStr);
+  if (isNaN(birth.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const m = now.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
+  return age >= 0 && age < 150 ? age : null;
+}
+
 // GET /api/profile?uid=discord_XXX — lire un profil
+// Si le requester est le propriétaire (token Firebase), renvoie le document complet.
+// Sinon, masque les champs privés et expose uniquement `age` calculé serveur.
 export async function GET(req: NextRequest) {
   const uid = req.nextUrl.searchParams.get('uid');
   if (!uid) {
@@ -19,7 +36,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 });
     }
 
-    return NextResponse.json(snap.data());
+    const data = snap.data() ?? {};
+    const requesterUid = await verifyAuth(req);
+    const isOwner = requesterUid === uid;
+
+    if (isOwner) {
+      return NextResponse.json(data);
+    }
+
+    // Vue publique : on calcule l'âge et on retire les champs privés
+    const publicData: Record<string, unknown> = { ...data, age: computeAge(data.dateOfBirth) };
+    for (const field of PRIVATE_FIELDS) delete publicData[field];
+    return NextResponse.json(publicData);
   } catch (err) {
     console.error('[API Profile] GET error:', err);
     return NextResponse.json({ error: 'server_error' }, { status: 500 });

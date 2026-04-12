@@ -26,19 +26,10 @@ function CountryFlag({ code, size = 16 }: { code: string; size?: number }) {
   );
 }
 
-function getAge(dateStr: string): number {
-  const birth = new Date(dateStr);
-  const now = new Date();
-  let age = now.getFullYear() - birth.getFullYear();
-  const m = now.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
-  return age;
-}
-
 export default function ProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { firebaseUser } = useAuth();
-  const [profile, setProfile] = useState<SpringsUser | null>(null);
+  const [profile, setProfile] = useState<(SpringsUser & { age?: number | null }) | null>(null);
   const [rlStats, setRlStats] = useState<RLStats | null>(null);
   const [rlStatsLoaded, setRlStatsLoaded] = useState(false);
   const [rlTrackerUrl, setRlTrackerUrl] = useState('');
@@ -66,7 +57,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           setLoading(false);
           return;
         }
-        const data = { uid: id, ...await res.json() } as SpringsUser;
+        const data = { uid: id, ...await res.json() } as SpringsUser & { age?: number | null };
         setProfile(data);
 
         // Fetch RL stats si le joueur joue à RL
@@ -131,7 +122,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
   const country = countries.find(c => c.code === profile.country);
   const avatarSrc = profile.avatarUrl || profile.discordAvatar || '';
-  const age = profile.dateOfBirth ? getAge(profile.dateOfBirth) : null;
+  const age = profile.age ?? null;
 
   return (
     <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
