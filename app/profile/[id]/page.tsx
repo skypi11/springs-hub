@@ -40,6 +40,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const { firebaseUser } = useAuth();
   const [profile, setProfile] = useState<SpringsUser | null>(null);
   const [rlStats, setRlStats] = useState<RLStats | null>(null);
+  const [rlStatsLoaded, setRlStatsLoaded] = useState(false);
   const [rlTrackerUrl, setRlTrackerUrl] = useState('');
   const [tmStats, setTmStats] = useState<{
     displayName: string | null;
@@ -80,6 +81,9 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           } catch (err) {
             console.error('[Profile] RL stats fetch error:', err);
           }
+          // Utiliser l'URL tracker du profil si l'API n'en a pas retourné
+          if (data.rlTrackerUrl) setRlTrackerUrl(prev => prev || data.rlTrackerUrl || '');
+          setRlStatsLoaded(true);
         }
 
         // Fetch TM stats si le joueur joue à TM
@@ -277,6 +281,11 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                         </div>
                       )}
                     </div>
+                  ) : rlStatsLoaded ? (
+                    <div className="text-center py-4">
+                      <Gamepad2 size={24} className="mx-auto mb-2" style={{ color: 'var(--s-text-muted)' }} />
+                      <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Stats indisponibles</p>
+                    </div>
                   ) : (
                     <div className="flex items-center gap-3">
                       <Loader2 size={16} className="animate-spin" style={{ color: 'var(--s-blue)' }} />
@@ -284,10 +293,10 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     </div>
                   )}
 
-                  {rlTrackerUrl && (
+                  {(rlTrackerUrl || profile.rlTrackerUrl) && (
                     <>
                       <div className="divider my-4" />
-                      <a href={rlTrackerUrl} target="_blank" rel="noopener noreferrer"
+                      <a href={rlTrackerUrl || profile.rlTrackerUrl} target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider transition-colors hover:text-white"
                         style={{ color: 'var(--s-blue)' }}>
                         Voir sur RL Tracker <ExternalLink size={11} />
