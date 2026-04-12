@@ -56,6 +56,11 @@ type UserEntry = {
   isBanned: boolean;
   banReason: string;
   isAdmin: boolean;
+  epicAccountId: string;
+  rlTrackerUrl: string;
+  pseudoTM: string;
+  loginTM: string;
+  tmIoUrl: string;
   memberships: UserMembership[];
   createdAt?: string;
 };
@@ -98,12 +103,15 @@ export default function AdminPage() {
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersLoaded, setUsersLoaded] = useState(false);
   const [userSearch, setUserSearch] = useState('');
-  const [userFilter, setUserFilter] = useState<'all' | 'admin' | 'banned' | 'recruiting'>('all');
+  const [userFilter, setUserFilter] = useState<string>('all');
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [userActionLoading, setUserActionLoading] = useState<string | null>(null);
   const [banReasonMap, setBanReasonMap] = useState<Record<string, string>>({});
   const [editingUser, setEditingUser] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<{ displayName: string; bio: string; country: string }>({ displayName: '', bio: '', country: '' });
+  const [editForm, setEditForm] = useState<{
+    displayName: string; bio: string; country: string; games: string[];
+    epicAccountId: string; rlTrackerUrl: string; pseudoTM: string; loginTM: string; tmIoUrl: string;
+  }>({ displayName: '', bio: '', country: '', games: [], epicAccountId: '', rlTrackerUrl: '', pseudoTM: '', loginTM: '', tmIoUrl: '' });
   const [confirmAction, setConfirmAction] = useState<{ userId: string; action: string; label: string } | null>(null);
 
   // ─── Load structures ─────────────────────────────────────────────────────
@@ -246,6 +254,10 @@ export default function AdminPage() {
   if (userFilter === 'admin') filteredUsers = filteredUsers.filter(u => u.isAdmin);
   if (userFilter === 'banned') filteredUsers = filteredUsers.filter(u => u.isBanned);
   if (userFilter === 'recruiting') filteredUsers = filteredUsers.filter(u => u.isAvailableForRecruitment);
+  if (userFilter === 'fondateur') filteredUsers = filteredUsers.filter(u => u.memberships.some(m => m.role === 'fondateur' || m.role === 'co_fondateur'));
+  if (userFilter === 'manager') filteredUsers = filteredUsers.filter(u => u.memberships.some(m => m.role === 'manager'));
+  if (userFilter === 'coach') filteredUsers = filteredUsers.filter(u => u.memberships.some(m => m.role === 'coach'));
+  if (userFilter === 'joueur') filteredUsers = filteredUsers.filter(u => u.memberships.some(m => m.role === 'joueur'));
 
   return (
     <div className="min-h-screen px-8 py-8 space-y-8">
@@ -520,13 +532,17 @@ export default function AdminPage() {
                 placeholder="Rechercher par pseudo, Discord ou UID..."
                 value={userSearch} onChange={e => setUserSearch(e.target.value)} />
             </div>
-            <div className="flex gap-1.5 flex-shrink-0">
-              {([
+            <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
+              {[
                 { value: 'all', label: 'Tous' },
                 { value: 'admin', label: 'Admins' },
+                { value: 'fondateur', label: 'Fondateurs' },
+                { value: 'manager', label: 'Managers' },
+                { value: 'coach', label: 'Coachs' },
+                { value: 'joueur', label: 'Joueurs' },
                 { value: 'banned', label: 'Bannis' },
                 { value: 'recruiting', label: 'Dispo' },
-              ] as const).map(f => (
+              ].map(f => (
                 <button key={f.value} onClick={() => setUserFilter(f.value)}
                   className="tag transition-all duration-150"
                   style={{
@@ -741,13 +757,15 @@ export default function AdminPage() {
                         {isEditing && (
                           <>
                             <div className="divider" />
-                            <div className="p-4 space-y-3" style={{ background: 'rgba(123,47,190,0.03)', border: '1px solid rgba(123,47,190,0.15)' }}>
-                              <div className="flex items-center justify-between mb-2">
+                            <div className="p-4 space-y-4" style={{ background: 'rgba(123,47,190,0.03)', border: '1px solid rgba(123,47,190,0.15)' }}>
+                              <div className="flex items-center justify-between mb-1">
                                 <span className="t-label" style={{ color: 'var(--s-violet-light)' }}>MODIFIER LE PROFIL</span>
                                 <button onClick={() => setEditingUser(null)} style={{ color: 'var(--s-text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}>
                                   <X size={14} />
                                 </button>
                               </div>
+
+                              {/* Identité */}
                               <div className="grid grid-cols-2 gap-3">
                                 <div>
                                   <label className="t-label block mb-1">Pseudo</label>
@@ -765,11 +783,92 @@ export default function AdminPage() {
                                   </select>
                                 </div>
                               </div>
+
                               <div>
                                 <label className="t-label block mb-1">Bio</label>
                                 <textarea className="settings-input w-full" rows={2} value={editForm.bio}
                                   onChange={e => setEditForm(p => ({ ...p, bio: e.target.value }))} />
                               </div>
+
+                              {/* Jeux pratiqués */}
+                              <div>
+                                <label className="t-label block mb-1.5">Jeux pratiqués</label>
+                                <div className="flex gap-2">
+                                  {[
+                                    { value: 'rocket_league', label: 'Rocket League', tagClass: 'tag-blue' },
+                                    { value: 'trackmania', label: 'Trackmania', tagClass: 'tag-green' },
+                                  ].map(g => {
+                                    const active = editForm.games.includes(g.value);
+                                    return (
+                                      <button key={g.value} type="button"
+                                        onClick={() => {
+                                          setEditForm(p => ({
+                                            ...p,
+                                            games: active
+                                              ? p.games.filter(x => x !== g.value)
+                                              : [...p.games, g.value],
+                                          }));
+                                        }}
+                                        className={`tag ${active ? g.tagClass : ''} transition-all duration-150`}
+                                        style={{
+                                          padding: '5px 12px', fontSize: '11px', cursor: 'pointer',
+                                          opacity: active ? 1 : 0.4,
+                                        }}>
+                                        {g.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* Comptes Rocket League */}
+                              {editForm.games.includes('rocket_league') && (
+                                <div className="p-3 space-y-3" style={{ background: 'rgba(0,129,255,0.04)', border: '1px solid rgba(0,129,255,0.15)' }}>
+                                  <span className="t-label" style={{ color: 'var(--s-blue)', fontSize: '9px' }}>COMPTES ROCKET LEAGUE</span>
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                      <label className="t-label block mb-1">Epic Account ID</label>
+                                      <input type="text" className="settings-input w-full" value={editForm.epicAccountId}
+                                        placeholder="ID Epic permanent"
+                                        onChange={e => setEditForm(p => ({ ...p, epicAccountId: e.target.value }))} />
+                                    </div>
+                                    <div>
+                                      <label className="t-label block mb-1">RL Tracker URL</label>
+                                      <input type="text" className="settings-input w-full" value={editForm.rlTrackerUrl}
+                                        placeholder="https://rocketleague.tracker.network/..."
+                                        onChange={e => setEditForm(p => ({ ...p, rlTrackerUrl: e.target.value }))} />
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Comptes Trackmania */}
+                              {editForm.games.includes('trackmania') && (
+                                <div className="p-3 space-y-3" style={{ background: 'rgba(0,217,54,0.04)', border: '1px solid rgba(0,217,54,0.15)' }}>
+                                  <span className="t-label" style={{ color: 'var(--s-green)', fontSize: '9px' }}>COMPTES TRACKMANIA</span>
+                                  <div className="grid grid-cols-3 gap-3">
+                                    <div>
+                                      <label className="t-label block mb-1">Pseudo TM</label>
+                                      <input type="text" className="settings-input w-full" value={editForm.pseudoTM}
+                                        placeholder="Pseudo en course"
+                                        onChange={e => setEditForm(p => ({ ...p, pseudoTM: e.target.value }))} />
+                                    </div>
+                                    <div>
+                                      <label className="t-label block mb-1">Login TM</label>
+                                      <input type="text" className="settings-input w-full" value={editForm.loginTM}
+                                        placeholder="Identifiant Ubisoft"
+                                        onChange={e => setEditForm(p => ({ ...p, loginTM: e.target.value }))} />
+                                    </div>
+                                    <div>
+                                      <label className="t-label block mb-1">Trackmania.io URL</label>
+                                      <input type="text" className="settings-input w-full" value={editForm.tmIoUrl}
+                                        placeholder="https://trackmania.io/..."
+                                        onChange={e => setEditForm(p => ({ ...p, tmIoUrl: e.target.value }))} />
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
                               <button
                                 onClick={() => handleUserAction(u.uid, 'edit', { editData: editForm })}
                                 disabled={!!userActionLoading}
@@ -809,7 +908,11 @@ export default function AdminPage() {
                             if (isEditing) {
                               setEditingUser(null);
                             } else {
-                              setEditForm({ displayName: u.displayName, bio: u.bio, country: u.country });
+                              setEditForm({
+                                displayName: u.displayName, bio: u.bio, country: u.country, games: [...u.games],
+                                epicAccountId: u.epicAccountId, rlTrackerUrl: u.rlTrackerUrl,
+                                pseudoTM: u.pseudoTM, loginTM: u.loginTM, tmIoUrl: u.tmIoUrl,
+                              });
                               setEditingUser(u.uid);
                             }
                           }}

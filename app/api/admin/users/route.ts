@@ -74,6 +74,11 @@ export async function GET(req: NextRequest) {
         isBanned: data.isBanned || false,
         banReason: data.banReason || '',
         isAdmin: adminSet.has(doc.id),
+        epicAccountId: data.epicAccountId || '',
+        rlTrackerUrl: data.rlTrackerUrl || '',
+        pseudoTM: data.pseudoTM || '',
+        loginTM: data.loginTM || '',
+        tmIoUrl: data.tmIoUrl || '',
         memberships,
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
       };
@@ -177,6 +182,7 @@ export async function POST(req: NextRequest) {
         const allowed: Record<string, boolean> = {
           displayName: true, bio: true, country: true, games: true,
           isAvailableForRecruitment: true, recruitmentRole: true, recruitmentMessage: true,
+          epicAccountId: true, rlTrackerUrl: true, pseudoTM: true, loginTM: true, tmIoUrl: true,
         };
         const updates: Record<string, unknown> = {};
         for (const [key, val] of Object.entries(editData)) {
