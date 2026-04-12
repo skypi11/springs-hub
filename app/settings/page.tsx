@@ -92,7 +92,9 @@ type FormData = {
   dateOfBirth: string;
   games: string[];
   epicAccountId: string;
+  rlTrackerUrl: string;
   pseudoTM: string;
+  loginTM: string;
   tmIoUrl: string;
   isAvailableForRecruitment: boolean;
   recruitmentRole: string;
@@ -107,7 +109,9 @@ const defaultForm: FormData = {
   dateOfBirth: '',
   games: [],
   epicAccountId: '',
+  rlTrackerUrl: '',
   pseudoTM: '',
+  loginTM: '',
   tmIoUrl: '',
   isAvailableForRecruitment: false,
   recruitmentRole: '',
@@ -142,7 +146,9 @@ export default function SettingsPage() {
             dateOfBirth: data.dateOfBirth ?? '',
             games: data.games ?? [],
             epicAccountId: data.epicAccountId ?? '',
+            rlTrackerUrl: data.rlTrackerUrl ?? '',
             pseudoTM: data.pseudoTM ?? '',
+            loginTM: data.loginTM ?? '',
             tmIoUrl: data.tmIoUrl ?? '',
             isAvailableForRecruitment: data.isAvailableForRecruitment ?? false,
             recruitmentRole: data.recruitmentRole ?? '',
@@ -422,14 +428,19 @@ export default function SettingsPage() {
                         <span className="tag tag-blue" style={{ fontSize: '9px' }}>RL</span>
                         <span className="t-label" style={{ color: 'var(--s-blue)' }}>Config Rocket League</span>
                       </div>
-                      <div>
-                        <label className="t-label block mb-2">Pseudo Epic Games *</label>
-                        <input type="text" value={form.epicAccountId}
-                          onChange={e => setForm(prev => ({ ...prev, epicAccountId: e.target.value }))}
-                          className="settings-input w-full" placeholder="Ton pseudo Epic Games" />
-                        <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
-                          Stats récupérées automatiquement via RL Tracker.
-                        </p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="t-label block mb-2">Pseudo Epic Games *</label>
+                          <input type="text" value={form.epicAccountId}
+                            onChange={e => setForm(prev => ({ ...prev, epicAccountId: e.target.value }))}
+                            className="settings-input w-full" placeholder="Ton pseudo Epic Games" />
+                        </div>
+                        <div>
+                          <label className="t-label block mb-2">RL Tracker URL (optionnel)</label>
+                          <input type="url" value={form.rlTrackerUrl}
+                            onChange={e => setForm(prev => ({ ...prev, rlTrackerUrl: e.target.value }))}
+                            className="settings-input w-full" placeholder="https://rocketleague.tracker.network/..." />
+                        </div>
                       </div>
                     </div>
                   )}
@@ -441,20 +452,25 @@ export default function SettingsPage() {
                         <span className="tag tag-green" style={{ fontSize: '9px' }}>TM</span>
                         <span className="t-label" style={{ color: 'var(--s-green)' }}>Config Trackmania</span>
                       </div>
-                      <div>
-                        <label className="t-label block mb-2">Pseudo Ubisoft/Nadeo *</label>
-                        <input type="text" value={form.pseudoTM}
-                          onChange={e => setForm(prev => ({ ...prev, pseudoTM: e.target.value }))}
-                          className="settings-input w-full" placeholder="Ton pseudo en jeu" />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="t-label block mb-2">Pseudo Ubisoft/Nadeo *</label>
+                          <input type="text" value={form.pseudoTM}
+                            onChange={e => setForm(prev => ({ ...prev, pseudoTM: e.target.value }))}
+                            className="settings-input w-full" placeholder="Ton pseudo en jeu" />
+                        </div>
+                        <div>
+                          <label className="t-label block mb-2">Login TM (optionnel)</label>
+                          <input type="text" value={form.loginTM}
+                            onChange={e => setForm(prev => ({ ...prev, loginTM: e.target.value }))}
+                            className="settings-input w-full" placeholder="Identifiant Ubisoft/Nadeo" />
+                        </div>
                       </div>
                       <div>
                         <label className="t-label block mb-2">URL Trackmania.io (optionnel)</label>
                         <input type="url" value={form.tmIoUrl}
                           onChange={e => setForm(prev => ({ ...prev, tmIoUrl: e.target.value }))}
                           className="settings-input w-full" placeholder="https://trackmania.io/#/player/..." />
-                        <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
-                          Pour afficher tes stats TM sur ton profil.
-                        </p>
                       </div>
                     </div>
                   )}
