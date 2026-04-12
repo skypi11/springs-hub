@@ -102,9 +102,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   function signInWithDiscord() {
-    const clientId = '1483592495215673407';
-    const redirectUri = encodeURIComponent(`${window.location.origin}/api/auth/discord/callback`);
-    window.location.href = `https://discord.com/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify&state=hub`;
+    // Le serveur génère le state CSRF et pose le cookie httpOnly avant la redirection vers Discord
+    window.location.href = '/api/auth/discord/start';
   }
 
   async function signOut() {

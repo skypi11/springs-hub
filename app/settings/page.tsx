@@ -145,7 +145,7 @@ export default function SettingsPage() {
             country: data.country ?? '',
             dateOfBirth: data.dateOfBirth ?? '',
             games: data.games ?? [],
-            epicAccountId: data.epicAccountId ?? '',
+            epicAccountId: data.epicDisplayName ?? data.epicAccountId ?? '',
             rlTrackerUrl: data.rlTrackerUrl ?? '',
             pseudoTM: data.pseudoTM ?? '',
             loginTM: data.loginTM ?? '',

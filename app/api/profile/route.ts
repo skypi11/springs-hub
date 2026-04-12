@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
-
-function initAdmin() {
-  if (!getApps().length) {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT!);
-    initializeApp({ credential: cert(serviceAccount) });
-  }
-}
+import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
+import { resolveEpicAccount } from '@/lib/tracker-gg';
 
 // GET /api/profile?uid=discord_XXX — lire un profil
 export async function GET(req: NextRequest) {
@@ -18,8 +11,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    initAdmin();
-    const db = getFirestore();
+    const db = getAdminDb();
     const snap = await db.collection('users').doc(uid).get();
 
     if (!snap.exists) {
@@ -36,8 +28,6 @@ export async function GET(req: NextRequest) {
 // POST /api/profile — sauvegarder son profil
 export async function POST(req: NextRequest) {
   try {
-    initAdmin();
-
     // Vérifier le token Firebase de l'utilisateur
     const authHeader = req.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
@@ -45,7 +35,7 @@ export async function POST(req: NextRequest) {
     }
 
     const idToken = authHeader.split('Bearer ')[1];
-    const decoded = await getAuth().verifyIdToken(idToken);
+    const decoded = await getAdminAuth().verifyIdToken(idToken);
     const uid = decoded.uid;
 
     const body = await req.json();
@@ -70,16 +60,41 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Le pseudo Ubisoft est obligatoire pour TM.' }, { status: 400 });
     }
 
-    // Vérifier âge minimum
+    // Vérifier âge minimum (calcul précis : on compare année/mois/jour)
     const birth = new Date(body.dateOfBirth);
-    const age = Math.floor((Date.now() - birth.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
     if (age < 13) {
       return NextResponse.json({ error: 'Tu dois avoir au moins 13 ans.' }, { status: 400 });
     }
 
-    const db = getFirestore();
+    const db = getAdminDb();
     const userRef = db.collection('users').doc(uid);
     const existing = await userRef.get();
+    const existingData = existing.data() ?? {};
+
+    // Résolution Epic — on stocke l'ID Epic permanent (et pas le pseudo qui peut changer)
+    let epicAccountId = '';
+    let epicDisplayName = '';
+    if (body.games.includes('rocket_league')) {
+      const typed = body.epicAccountId?.trim() || '';
+      epicDisplayName = typed;
+      // Si la saisie a changé, on retente la résolution. Sinon on garde l'ID stocké.
+      if (typed && typed !== existingData.epicDisplayName) {
+        const resolved = await resolveEpicAccount(typed);
+        if (resolved) {
+          epicAccountId = resolved.id;
+          epicDisplayName = resolved.displayName;
+        } else {
+          // Fallback : on garde la saisie comme identifiant de lookup
+          epicAccountId = typed;
+        }
+      } else {
+        epicAccountId = existingData.epicAccountId || typed;
+      }
+    }
 
     const profileData: Record<string, unknown> = {
       uid,
@@ -89,7 +104,8 @@ export async function POST(req: NextRequest) {
       country: body.country,
       dateOfBirth: body.dateOfBirth,
       games: body.games,
-      epicAccountId: body.games.includes('rocket_league') ? body.epicAccountId?.trim() || '' : '',
+      epicAccountId,
+      epicDisplayName,
       rlTrackerUrl: body.games.includes('rocket_league') ? body.rlTrackerUrl?.trim() || '' : '',
       pseudoTM: body.games.includes('trackmania') ? body.pseudoTM?.trim() || '' : '',
       loginTM: body.games.includes('trackmania') ? body.loginTM?.trim() || '' : '',
@@ -97,11 +113,11 @@ export async function POST(req: NextRequest) {
       isAvailableForRecruitment: body.isAvailableForRecruitment || false,
       recruitmentRole: body.isAvailableForRecruitment ? body.recruitmentRole || '' : '',
       recruitmentMessage: body.isAvailableForRecruitment ? body.recruitmentMessage?.trim() || '' : '',
-      updatedAt: new Date(),
+      updatedAt: FieldValue.serverTimestamp(),
     };
 
     if (!existing.exists) {
-      profileData.createdAt = new Date();
+      profileData.createdAt = FieldValue.serverTimestamp();
     }
 
     await userRef.set(profileData, { merge: true });

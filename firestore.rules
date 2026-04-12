@@ -22,46 +22,62 @@ service cloud.firestore {
     }
 
     // ── Springs Hub — Profils joueurs globaux ────────────────────────────────
+    // Toutes les écritures passent par les API routes (Admin SDK).
+    // Le client ne fait que lire pour les profils publics.
     match /users/{uid} {
-      // Tout utilisateur connecté peut lire les profils (profils publics)
       allow read: if request.auth != null;
-      // Seul le propriétaire peut créer/modifier son profil
-      allow create: if request.auth != null && request.auth.uid == uid;
-      allow update: if request.auth != null && request.auth.uid == uid;
-      // Suppression interdite côté client
-      allow delete: if false;
+      allow write: if false;
     }
 
     // ── Springs Hub — Structures ──────────────────────────────────────────────
+    // Lecture publique (annuaire). Toutes les écritures via API routes (Admin SDK).
     match /structures/{id} {
       allow read: if true;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null && (
-        isAdmin() ||
-        request.auth.uid == resource.data.founderId ||
-        request.auth.uid in resource.data.managerIds
-      );
-      allow delete: if isAdmin() || request.auth.uid == resource.data.founderId;
+      allow write: if false;
     }
 
     // ── Springs Hub — Membres de structure ────────────────────────────────────
+    // Toute la logique d'invitation/join passe par les API routes — pas d'écriture client.
     match /structure_members/{id} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow write: if false;
+    }
+
+    // ── Springs Hub — Sous-équipes ───────────────────────────────────────────
+    match /sub_teams/{id} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // ── Springs Hub — Invitations / demandes de rejoindre ────────────────────
+    match /structure_invitations/{id} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // ── Springs Hub — Événements de structure ────────────────────────────────
+    match /structure_events/{id} {
+      allow read: if request.auth != null;
+      allow write: if false;
     }
 
     // ── Springs Hub — Compétitions ────────────────────────────────────────────
     match /competitions/{id} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if false;
     }
 
     // ── Springs Hub — Inscriptions aux compétitions ───────────────────────────
+    // L'inscription passe par une API route qui valide la structure / le solo.
     match /competition_registrations/{id} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow write: if false;
+    }
+
+    // ── Springs Hub — Notifications in-app ───────────────────────────────────
+    match /notifications/{id} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow write: if false;
     }
 
     // ── TM — Participants ─────────────────────────────────────────────────────

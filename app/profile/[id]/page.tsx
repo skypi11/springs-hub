@@ -247,8 +247,8 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     <Gamepad2 size={13} style={{ color: 'var(--s-blue)' }} />
                     <span className="t-label" style={{ color: 'var(--s-text)' }}>ROCKET LEAGUE</span>
                   </div>
-                  {profile.epicAccountId && (
-                    <span className="tag tag-blue" style={{ fontSize: '8px' }}>{profile.epicAccountId}</span>
+                  {(profile.epicDisplayName || profile.epicAccountId) && (
+                    <span className="tag tag-blue" style={{ fontSize: '8px' }}>{profile.epicDisplayName || profile.epicAccountId}</span>
                   )}
                 </div>
                 <div className="p-5 flex-1 flex flex-col">

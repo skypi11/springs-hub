@@ -18,7 +18,8 @@ export interface SpringsUser {
   recruitmentRole?: string;    // 'joueur' | 'coach' | 'manager'
   recruitmentMessage?: string; // message libre
   // Rocket League
-  epicAccountId?: string;      // pseudo Epic Games
+  epicAccountId?: string;      // ID Epic permanent (résolu via Tracker.gg) — sert aux lookups stats
+  epicDisplayName?: string;    // pseudo Epic actuel — affiché dans l'UI, peut changer
   rlTrackerUrl?: string;       // lien RL Tracker
   rlRank?: string;
   rlMmr?: number;

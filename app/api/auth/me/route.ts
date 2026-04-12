@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
-
-function initAdmin() {
-  if (!getApps().length) {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT!);
-    initializeApp({ credential: cert(serviceAccount) });
-  }
-}
+import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 
 // GET /api/auth/me — retourne le profil utilisateur + statut admin
+// Note : on ne passe pas par verifyAuth() car celui-ci bloque les bannis,
+// or ici on veut pouvoir détecter le ban côté client pour afficher un message clair.
 export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
@@ -18,17 +11,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Token manquant' }, { status: 401 });
     }
 
-    initAdmin();
-
     const idToken = authHeader.split('Bearer ')[1];
-    const decoded = await getAuth().verifyIdToken(idToken);
+    const decoded = await getAdminAuth().verifyIdToken(idToken);
     const uid = decoded.uid;
 
-    const db = getFirestore();
+    const db = getAdminDb();
     const [userSnap, adminSnap] = await Promise.all([
       db.collection('users').doc(uid).get(),
       db.collection('admins').doc(uid).get(),
     ]);
+
+    // Si l'utilisateur est banni, on coupe immédiatement
+    if (userSnap.exists && userSnap.data()?.isBanned === true) {
+      return NextResponse.json({ error: 'banned' }, { status: 403 });
+    }
 
     return NextResponse.json({
       user: userSnap.exists ? userSnap.data() : null,

@@ -1,12 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
-
-// Vérifier que l'utilisateur est admin Springs
-async function isAdmin(uid: string): Promise<boolean> {
-  const db = getAdminDb();
-  const snap = await db.collection('admins').doc(uid).get();
-  return snap.exists;
-}
+import { getAdminDb, verifyAuth, isAdmin } from '@/lib/firebase-admin';
 
 // GET /api/admin/structures — lister toutes les structures (admin only)
 export async function GET(req: NextRequest) {

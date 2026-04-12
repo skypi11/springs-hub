@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDb, getAdminAuth, verifyAuth } from '@/lib/firebase-admin';
-
-async function isAdmin(uid: string): Promise<boolean> {
-  const db = getAdminDb();
-  const snap = await db.collection('admins').doc(uid).get();
-  return snap.exists;
-}
+import { getAdminDb, getAdminAuth, verifyAuth, isAdmin } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
+import { resolveEpicAccount } from '@/lib/tracker-gg';
 
 // GET /api/admin/users — lister tous les utilisateurs inscrits (admin only)
 export async function GET(req: NextRequest) {
@@ -75,6 +71,7 @@ export async function GET(req: NextRequest) {
         banReason: data.banReason || '',
         isAdmin: adminSet.has(doc.id),
         epicAccountId: data.epicAccountId || '',
+        epicDisplayName: data.epicDisplayName || '',
         rlTrackerUrl: data.rlTrackerUrl || '',
         pseudoTM: data.pseudoTM || '',
         loginTM: data.loginTM || '',
@@ -178,6 +175,7 @@ export async function POST(req: NextRequest) {
         if (!editData || typeof editData !== 'object') {
           return NextResponse.json({ error: 'editData requis' }, { status: 400 });
         }
+        const editObj = editData as Record<string, unknown>;
         // Seuls certains champs sont modifiables par l'admin
         const allowed: Record<string, boolean> = {
           displayName: true, bio: true, country: true, games: true,
@@ -185,12 +183,32 @@ export async function POST(req: NextRequest) {
           epicAccountId: true, rlTrackerUrl: true, pseudoTM: true, loginTM: true, tmIoUrl: true,
         };
         const updates: Record<string, unknown> = {};
-        for (const [key, val] of Object.entries(editData)) {
+        for (const [key, val] of Object.entries(editObj)) {
           if (allowed[key]) updates[key] = val;
         }
         if (Object.keys(updates).length === 0) {
           return NextResponse.json({ error: 'Aucun champ modifiable fourni' }, { status: 400 });
         }
+
+        // Si l'admin a modifié le pseudo Epic, on retente la résolution
+        if (typeof editObj.epicAccountId === 'string') {
+          const typed = editObj.epicAccountId.trim();
+          const existingData = userSnap.data() ?? {};
+          if (typed && typed !== existingData.epicDisplayName) {
+            const resolved = await resolveEpicAccount(typed);
+            if (resolved) {
+              updates.epicAccountId = resolved.id;
+              updates.epicDisplayName = resolved.displayName;
+            } else {
+              updates.epicAccountId = typed;
+              updates.epicDisplayName = typed;
+            }
+          } else if (!typed) {
+            updates.epicAccountId = '';
+            updates.epicDisplayName = '';
+          }
+        }
+
         await userRef.update(updates);
         return NextResponse.json({ ok: true, message: 'Profil mis à jour' });
       }

@@ -1,26 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
-
-function initAdmin() {
-  if (!getApps().length) {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT!);
-    initializeApp({ credential: cert(serviceAccount) });
-  }
-}
+import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const code = searchParams.get('code');
+  const stateFromUrl = searchParams.get('state');
   const origin = req.nextUrl.origin;
 
   if (!code) {
     return NextResponse.redirect(`${origin}/?auth_error=no_code`);
   }
 
+  // Vérification CSRF state — comparer au cookie posé avant la redirection vers Discord
+  const stateCookie = req.cookies.get('discord_oauth_state')?.value;
+  if (!stateFromUrl || !stateCookie || stateFromUrl !== stateCookie) {
+    return NextResponse.redirect(`${origin}/?auth_error=invalid_state`);
+  }
+
   try {
-    initAdmin();
 
     // Exchange code for Discord access token
     const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
@@ -57,35 +55,45 @@ export async function GET(req: NextRequest) {
       ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=128`
       : `https://cdn.discordapp.com/embed/avatars/${parseInt(discordUser.discriminator || '0') % 5}.png`;
 
+    // Bloquer les utilisateurs bannis AVANT de générer un nouveau token
+    const db = getAdminDb();
+    const userRef = db.collection('users').doc(uid);
+    const userSnap = await userRef.get();
+    if (userSnap.exists && userSnap.data()?.isBanned === true) {
+      const res = NextResponse.redirect(`${origin}/?auth_error=banned`);
+      res.cookies.delete('discord_oauth_state');
+      return res;
+    }
+
     // Create or update Firebase Auth user profile
     // Cela permet de récupérer displayName et photoURL directement depuis fbUser,
     // sans dépendre de Firestore au refresh
+    const adminAuth = getAdminAuth();
     try {
-      await getAuth().updateUser(uid, {
+      await adminAuth.updateUser(uid, {
         displayName: discordUser.username,
         photoURL: avatarUrl,
       });
-    } catch (err: any) {
-      if (err.code === 'auth/user-not-found') {
-        await getAuth().createUser({
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === 'auth/user-not-found') {
+        await adminAuth.createUser({
           uid,
           displayName: discordUser.username,
           photoURL: avatarUrl,
         });
+      } else {
+        console.error('[Discord callback] updateUser failed:', code, err);
       }
     }
 
     // Create Firebase custom token
-    const firebaseToken = await getAuth().createCustomToken(uid, {
+    const firebaseToken = await adminAuth.createCustomToken(uid, {
       discordId: discordUser.id,
       discordUsername: discordUser.username,
     });
 
     // Write user profile to Firestore (Admin SDK — bypass security rules)
-    const db = getFirestore();
-    const userRef = db.collection('users').doc(uid);
-    const userSnap = await userRef.get();
-
     if (!userSnap.exists) {
       await userRef.set({
         discordId: discordUser.id,
@@ -94,7 +102,8 @@ export async function GET(req: NextRequest) {
         displayName: discordUser.username,
         games: [],
         isFan: false,
-        createdAt: new Date(),
+        isBanned: false,
+        createdAt: FieldValue.serverTimestamp(),
       });
     } else {
       await userRef.update({
@@ -104,15 +113,16 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Redirect back to app with token
+    // Redirect back to app with token (et nettoyer le cookie state)
     const params = new URLSearchParams({
       ft: firebaseToken,
       did: discordUser.id,
       du: discordUser.username,
       da: avatarUrl,
     });
-
-    return NextResponse.redirect(`${origin}/?${params.toString()}`);
+    const res = NextResponse.redirect(`${origin}/?${params.toString()}`);
+    res.cookies.delete('discord_oauth_state');
+    return res;
   } catch (err) {
     console.error('Discord auth error:', err);
     return NextResponse.redirect(`${origin}/?auth_error=server_error`);

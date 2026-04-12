@@ -57,6 +57,7 @@ type UserEntry = {
   banReason: string;
   isAdmin: boolean;
   epicAccountId: string;
+  epicDisplayName: string;
   rlTrackerUrl: string;
   pseudoTM: string;
   loginTM: string;
@@ -910,7 +911,7 @@ export default function AdminPage() {
                             } else {
                               setEditForm({
                                 displayName: u.displayName, bio: u.bio, country: u.country, games: [...u.games],
-                                epicAccountId: u.epicAccountId, rlTrackerUrl: u.rlTrackerUrl,
+                                epicAccountId: u.epicDisplayName || u.epicAccountId, rlTrackerUrl: u.rlTrackerUrl,
                                 pseudoTM: u.pseudoTM, loginTM: u.loginTM, tmIoUrl: u.tmIoUrl,
                               });
                               setEditingUser(u.uid);
