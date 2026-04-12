@@ -404,37 +404,48 @@ Fichier : `public/springs-logo.png`
 
 ## Phases de développement
 
-### Phase 1 — Fondations (3 semaines)
+### Phase 1 — Fondations — TERMINÉE
 - [x] Setup Next.js + Tailwind + Firebase
 - [x] Layout global : sidebar fixe, navigation, design système Springs (Bebas Neue)
 - [x] Auth Discord fonctionnelle (login + persistance refresh + photo profil)
-- [x] Pages : Accueil, Communauté (placeholder), Compétitions (liens vers ancien site)
+- [x] Pages : Accueil, Communauté, Compétitions (liens vers ancien site)
 - [x] Deploy Vercel — `springs-hub.vercel.app`
 - [x] Règles Firestore complètes — fichier `firestore.rules` à la racine du repo
-- [ ] Page profil utilisateur (création/édition) ← PROCHAINE ÉTAPE
+- [x] Page profil utilisateur (création/édition) + profil public avec stats RL/TM
 
-### Phase 2 — Communauté (4 semaines)
-- [ ] Demande de création de structure + validation admin
-- [ ] Dashboard fondateur : infos structure, membres, roster
-- [ ] Gestion membres : invitations, demandes rejoindre
-- [ ] Sous-équipes RL
-- [ ] Annuaire public structures
-- [ ] Annuaire joueurs libres / recrutement
+### Phase 2 — Communauté — quasi-terminée
+- [x] Demande de création de structure + validation admin
+- [x] Dashboard fondateur : infos structure, membres, roster
+- [x] Gestion membres : invitations, demandes rejoindre
+- [x] Sous-équipes RL
+- [x] Annuaire public structures
+- [x] Annuaire joueurs libres / recrutement
+- [x] Page publique structure (refonte UX complète)
+- [x] Panel admin structures (approuver/refuser/suspendre/supprimer)
+- [x] Panel admin utilisateurs (ban, edit, admin, déco forcée, supprimer)
+- [ ] **Calendrier des structures** (events + présences) ← initialement mis en Phase 4 par erreur, c'est une feature communauté
+- [ ] **Gestion co-fondateurs** (câbler `coFounderIds` : ajout/retrait/transfert) ← skippé pour le MVP, à finir avant Phase 3
 
-### Phase 3 — Compétitions (4 semaines)
+### Phase 3 — Compétitions (~4 semaines)
 - [ ] Section compétitions : liste, pages individuelles
 - [ ] Rebuild TM Monthly Cup (lecture données Firestore existantes)
 - [ ] Classements RL et TM
 - [ ] Inscription équipe/solo à une comp
 - [ ] Panel admin : créer/gérer compétitions
 
-### Phase 4 — Finitions (3 semaines)
-- [ ] Calendrier des structures (événements + présences)
+### Phase 4 — Finitions (~3 semaines)
 - [ ] Notifications in-app
 - [ ] Discord webhooks
 - [ ] Fan zone (prédictions, suivre équipes)
 - [ ] Optimisation mobile
 - [ ] Migration liens depuis ancien site
+
+### Hors phases — déjà fait (durcissement / qualité)
+- [x] Sentry (observabilité) + helper `captureApiError`
+- [x] Rate limiting Upstash Redis (4 profils)
+- [x] Toast/Modal DA Springs (suppression `alert()`/`confirm()` natifs)
+- [x] Suite Vitest 49 tests sur `lib/`
+- [x] Durcissement sécurité complet (CSRF OAuth, validation, rules, batch writes, hard caps)
 
 ---
 
