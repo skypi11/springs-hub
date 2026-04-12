@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import ReactMarkdown from 'react-markdown';
 import { useAuth } from '@/context/AuthContext';
 import { auth } from '@/lib/firebase';
 import { countries } from '@/lib/countries';
@@ -11,6 +12,77 @@ import {
   Calendar, Globe, MessageSquare, Image as ImageIcon,
   AlertCircle, CheckCircle, Loader2
 } from 'lucide-react';
+
+const EMOJIS = ['🏆', '🥇', '🥈', '🥉', '⭐', '🔥', '💪', '🎮', '🎯', '🚀', '⚽', '🏎️', '🏁', '👑', '💎', '🛡️', '⚔️', '🎉', '📢', '💬', '✅', '❌', '🔵', '🟢', '🟡', '🔴', '⚡', '💥', '🌟', '🏅', '👊', '🤝', '📊', '📈', '🗓️', '🎪', '🏟️', '🎖️', '🧩', '🕹️'];
+
+function MarkdownEditor({ value, onChange, placeholder, maxLength, rows = 3, label, taRef }: {
+  value: string; onChange: (v: string) => void; placeholder: string; maxLength: number; rows?: number; label: string;
+  taRef: React.RefObject<HTMLTextAreaElement | null>;
+}) {
+  const [showEmojis, setShowEmojis] = useState(false);
+
+  function insertEmoji(emoji: string) {
+    const ta = taRef.current;
+    if (ta) {
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const newVal = value.slice(0, start) + emoji + value.slice(end);
+      onChange(newVal);
+      setTimeout(() => { ta.focus(); ta.selectionStart = ta.selectionEnd = start + emoji.length; }, 0);
+    } else {
+      onChange(value + emoji);
+    }
+  }
+
+  return (
+    <div>
+      <label className="t-label block mb-2">{label}</label>
+      <textarea ref={taRef} value={value} onChange={e => onChange(e.target.value)}
+        className="settings-input w-full" rows={rows} placeholder={placeholder} maxLength={maxLength}
+        style={{ resize: 'vertical' }} />
+
+      {/* Toolbar : emojis + légende */}
+      <div className="flex items-start gap-3 mt-1.5">
+        <div className="relative">
+          <button type="button" onClick={() => setShowEmojis(!showEmojis)}
+            className="text-xs flex items-center gap-1.5 px-2 py-1 transition-colors duration-150"
+            style={{ color: showEmojis ? 'var(--s-gold)' : 'var(--s-text-muted)', background: showEmojis ? 'rgba(255,184,0,0.08)' : 'transparent', border: `1px solid ${showEmojis ? 'rgba(255,184,0,0.2)' : 'var(--s-border)'}`, cursor: 'pointer' }}>
+            <span style={{ fontSize: '14px' }}>😀</span> Emojis
+          </button>
+          {showEmojis && (
+            <div className="absolute left-0 top-full mt-1 p-2 z-10 flex flex-wrap" style={{ width: '280px', background: 'var(--s-surface)', border: '1px solid var(--s-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+              {EMOJIS.map(emoji => (
+                <button key={emoji} type="button"
+                  className="hover:bg-[var(--s-hover)] transition-colors duration-100"
+                  style={{ width: '28px', height: '28px', fontSize: '15px', lineHeight: '28px', textAlign: 'center', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
+                  onClick={() => insertEmoji(emoji)}>
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-x-3 gap-y-1" style={{ color: 'var(--s-text-muted)', fontSize: '9px' }}>
+          <span><strong style={{ color: 'var(--s-text-dim)' }}>**gras**</strong></span>
+          <span><em>*italique*</em></span>
+          <span>## Titre</span>
+          <span>- liste</span>
+          <span>[lien](url)</span>
+        </div>
+      </div>
+
+      {/* Preview */}
+      {value.trim() && (
+        <div className="mt-3 p-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+          <span className="t-label block mb-2" style={{ fontSize: '8px', color: 'var(--s-text-muted)' }}>APERÇU</span>
+          <div className="prose-springs text-xs">
+            <ReactMarkdown>{value}</ReactMarkdown>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 type FormData = {
   displayName: string;
@@ -50,6 +122,8 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const [loaded, setLoaded] = useState(false);
+  const bioRef = useRef<HTMLTextAreaElement | null>(null);
+  const recruitRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Charger les données existantes via API serveur
   useEffect(() => {
@@ -274,13 +348,15 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="t-label block mb-2">Bio (optionnel)</label>
-                    <textarea value={form.bio}
-                      onChange={e => setForm(prev => ({ ...prev, bio: e.target.value }))}
-                      className="settings-input w-full" rows={3} placeholder="Quelques mots sur toi..." maxLength={300}
-                      style={{ resize: 'vertical' }} />
-                  </div>
+                  <MarkdownEditor
+                    label="Bio (optionnel)"
+                    value={form.bio}
+                    onChange={v => setForm(prev => ({ ...prev, bio: v }))}
+                    placeholder="Quelques mots sur toi..."
+                    maxLength={300}
+                    rows={3}
+                    taRef={bioRef}
+                  />
                 </div>
               </div>
             </div>
@@ -487,14 +563,15 @@ export default function SettingsPage() {
                         </div>
                       </div>
 
-                      <div>
-                        <label className="t-label block mb-2">Message</label>
-                        <textarea value={form.recruitmentMessage}
-                          onChange={e => setForm(prev => ({ ...prev, recruitmentMessage: e.target.value }))}
-                          className="settings-input w-full" rows={3} maxLength={500}
-                          placeholder="Dispo le soir, je cherche une équipe RL compétitive..."
-                          style={{ resize: 'vertical' }} />
-                      </div>
+                      <MarkdownEditor
+                        label="Message"
+                        value={form.recruitmentMessage}
+                        onChange={v => setForm(prev => ({ ...prev, recruitmentMessage: v }))}
+                        placeholder="Dispo le soir, je cherche une équipe RL compétitive..."
+                        maxLength={500}
+                        rows={3}
+                        taRef={recruitRef}
+                      />
                     </>
                   )}
                 </div>

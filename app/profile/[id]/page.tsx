@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import ReactMarkdown from 'react-markdown';
 import { useAuth } from '@/context/AuthContext';
 import { countries } from '@/lib/countries';
 import type { SpringsUser, RLStats } from '@/types';
@@ -219,7 +220,9 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                 </div>
               </div>
               <div className="p-5">
-                <p className="t-body" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{profile.bio}</p>
+                <div className="prose-springs text-sm">
+                  <ReactMarkdown>{profile.bio}</ReactMarkdown>
+                </div>
               </div>
             </div>
           </div>
@@ -467,7 +470,9 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     </div>
                   )}
                   {profile.recruitmentMessage && (
-                    <p className="text-xs" style={{ color: 'var(--s-text-dim)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{profile.recruitmentMessage}</p>
+                    <div className="prose-springs text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                      <ReactMarkdown>{profile.recruitmentMessage}</ReactMarkdown>
+                    </div>
                   )}
                 </div>
               </div>
