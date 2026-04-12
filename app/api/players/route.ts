@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 
+// Plafond dur — protège contre les coûts qui explosent quand l'annuaire grossit.
+// La recherche/le filtrage par texte se fait toujours côté client sur ce sous-ensemble.
+// Pour passer à l'échelle (>500 users) il faudra un service de recherche (Algolia, Meilisearch)
+// car Firestore n'a pas de full-text search.
+const MAX_PLAYERS = 200;
+
 // GET /api/players — liste publique des joueurs
 export async function GET(req: NextRequest) {
   try {
@@ -8,17 +14,21 @@ export async function GET(req: NextRequest) {
     const game = req.nextUrl.searchParams.get('game');
     const recruitingOnly = req.nextUrl.searchParams.get('recruiting') === 'true';
 
-    const snap = await db.collection('users').get();
+    // Filtres poussés côté Firestore quand c'est possible
+    let query: FirebaseFirestore.Query = db.collection('users');
+    if (recruitingOnly) {
+      query = query.where('isAvailableForRecruitment', '==', true);
+    }
+    if (game) {
+      // array-contains : nécessite un index simple sur `games`
+      query = query.where('games', 'array-contains', game);
+    }
+
+    const snap = await query.limit(MAX_PLAYERS).get();
 
     const players = [];
     for (const doc of snap.docs) {
       const data = doc.data();
-
-      // Filtre par jeu si demandé
-      if (game && !(data.games || []).includes(game)) continue;
-
-      // Filtre recrutement
-      if (recruitingOnly && !data.isAvailableForRecruitment) continue;
 
       players.push({
         uid: doc.id,
@@ -51,7 +61,11 @@ export async function GET(req: NextRequest) {
       return a.displayName.localeCompare(b.displayName);
     });
 
-    return NextResponse.json({ players });
+    return NextResponse.json({
+      players,
+      truncated: snap.size >= MAX_PLAYERS,
+      max: MAX_PLAYERS,
+    });
   } catch (err) {
     console.error('[API Players] GET error:', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });

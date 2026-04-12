@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
+import { fetchDocsByIds } from '@/lib/firestore-helpers';
 
 // GET /api/structures/[id] — page publique d'une structure
 export async function GET(
@@ -27,39 +28,28 @@ export async function GET(
       return NextResponse.json({ error: 'Structure non validée' }, { status: 403 });
     }
 
-    // Récupérer les membres
+    // Récupérer les membres puis tous les profils en un seul batch
     const membersSnap = await db.collection('structure_members')
       .where('structureId', '==', id)
       .get();
 
-    const memberIds = membersSnap.docs.map(d => d.data().userId);
-    const members = [];
+    const userIds = membersSnap.docs.map(d => d.data().userId).filter(Boolean);
+    const usersById = await fetchDocsByIds(db, 'users', userIds);
 
-    for (const doc of membersSnap.docs) {
+    const members = membersSnap.docs.map(doc => {
       const memberData = doc.data();
-      // Récupérer les infos du joueur
-      let playerInfo = { displayName: '', discordAvatar: '', avatarUrl: '', country: '' };
-      try {
-        const userSnap = await db.collection('users').doc(memberData.userId).get();
-        if (userSnap.exists) {
-          const u = userSnap.data()!;
-          playerInfo = {
-            displayName: u.displayName || u.discordUsername || '',
-            discordAvatar: u.discordAvatar || '',
-            avatarUrl: u.avatarUrl || '',
-            country: u.country || '',
-          };
-        }
-      } catch { /* skip */ }
-
-      members.push({
+      const u = usersById.get(memberData.userId);
+      return {
         id: doc.id,
         userId: memberData.userId,
         game: memberData.game,
         role: memberData.role,
-        ...playerInfo,
-      });
-    }
+        displayName: u?.displayName || u?.discordUsername || '',
+        discordAvatar: u?.discordAvatar || '',
+        avatarUrl: u?.avatarUrl || '',
+        country: u?.country || '',
+      };
+    });
 
     // Données publiques
     const structure = {

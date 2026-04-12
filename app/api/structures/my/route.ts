@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
+import { fetchDocsByIds } from '@/lib/firestore-helpers';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // GET /api/structures/my — récupérer les structures où l'utilisateur est fondateur/co-fondateur
 export async function GET(req: NextRequest) {
@@ -14,45 +16,56 @@ export async function GET(req: NextRequest) {
       .where('founderId', '==', uid)
       .get();
 
-    const structures = [];
+    if (founderSnap.empty) {
+      return NextResponse.json({ structures: [] });
+    }
 
-    for (const doc of founderSnap.docs) {
-      const data = doc.data();
+    // Charger tous les memberships des structures de l'utilisateur en une requête,
+    // puis tous les profils joueurs en un seul batch.
+    const structureIds = founderSnap.docs.map(d => d.id);
+    const membersByStructure = new Map<string, FirebaseFirestore.QueryDocumentSnapshot[]>();
+    const allUserIds: string[] = [];
 
-      // Récupérer les membres
-      const membersSnap = await db.collection('structure_members')
-        .where('structureId', '==', doc.id)
-        .get();
-
-      const members = [];
-      for (const mDoc of membersSnap.docs) {
-        const mData = mDoc.data();
-        let playerInfo = { displayName: '', discordUsername: '', discordAvatar: '', avatarUrl: '', country: '' };
-        try {
-          const userSnap = await db.collection('users').doc(mData.userId).get();
-          if (userSnap.exists) {
-            const u = userSnap.data()!;
-            playerInfo = {
-              displayName: u.displayName || u.discordUsername || '',
-              discordUsername: u.discordUsername || '',
-              discordAvatar: u.discordAvatar || '',
-              avatarUrl: u.avatarUrl || '',
-              country: u.country || '',
-            };
-          }
-        } catch { /* skip */ }
-        members.push({ id: mDoc.id, ...mData, ...playerInfo });
+    // Firestore 'in' max 30 — paginer si beaucoup de structures (rare ici, max 2 par fondateur)
+    for (let i = 0; i < structureIds.length; i += 30) {
+      const chunk = structureIds.slice(i, i + 30);
+      const snap = await db.collection('structure_members').where('structureId', 'in', chunk).get();
+      for (const mDoc of snap.docs) {
+        const m = mDoc.data();
+        if (!membersByStructure.has(m.structureId)) membersByStructure.set(m.structureId, []);
+        membersByStructure.get(m.structureId)!.push(mDoc);
+        if (m.userId) allUserIds.push(m.userId);
       }
+    }
 
-      structures.push({
+    const usersById = await fetchDocsByIds(db, 'users', allUserIds);
+
+    const structures = founderSnap.docs.map(doc => {
+      const data = doc.data();
+      const memberDocs = membersByStructure.get(doc.id) ?? [];
+      const members = memberDocs.map(mDoc => {
+        const mData = mDoc.data();
+        const u = usersById.get(mData.userId);
+        return {
+          id: mDoc.id,
+          ...mData,
+          displayName: u?.displayName || u?.discordUsername || '',
+          discordUsername: u?.discordUsername || '',
+          discordAvatar: u?.discordAvatar || '',
+          avatarUrl: u?.avatarUrl || '',
+          country: u?.country || '',
+        };
+      });
+
+      return {
         id: doc.id,
         ...data,
         members,
         requestedAt: data.requestedAt?.toDate?.()?.toISOString() ?? null,
         validatedAt: data.validatedAt?.toDate?.()?.toISOString() ?? null,
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
-      });
-    }
+      };
+    });
 
     return NextResponse.json({ structures });
   } catch (err) {
@@ -100,7 +113,7 @@ export async function PUT(req: NextRequest) {
     const allowedFields = [
       'description', 'logoUrl', 'discordUrl', 'socials', 'recruiting', 'achievements',
     ];
-    const safeUpdates: Record<string, unknown> = { updatedAt: new Date() };
+    const safeUpdates: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
     for (const key of allowedFields) {
       if (updates[key] !== undefined) {
         safeUpdates[key] = updates[key];

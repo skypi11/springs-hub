@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth, isAdmin } from '@/lib/firebase-admin';
+import { fetchDocsByIds } from '@/lib/firestore-helpers';
+import { FieldValue } from 'firebase-admin/firestore';
+
+const MAX_STRUCTURES = 500;
 
 // GET /api/admin/structures — lister toutes les structures (admin only)
 export async function GET(req: NextRequest) {
@@ -10,35 +14,34 @@ export async function GET(req: NextRequest) {
 
     const db = getAdminDb();
 
-    // Récupérer tout et filtrer côté serveur — évite les indexes composites Firestore
+    // Filtre status pousé côté Firestore quand fourni
     const statusFilter = req.nextUrl.searchParams.get('status');
-    const snap = await db.collection('structures').get();
-    const structures = [];
+    let query: FirebaseFirestore.Query = db.collection('structures');
+    if (statusFilter) query = query.where('status', '==', statusFilter);
+    const snap = await query.limit(MAX_STRUCTURES).get();
 
-    for (const doc of snap.docs) {
+    // Charger tous les fondateurs en un seul batch
+    const founderIds = snap.docs.map(d => d.data().founderId).filter(Boolean);
+    const foundersById = await fetchDocsByIds(db, 'users', founderIds);
+
+    const structures = snap.docs.map(doc => {
       const data = doc.data();
-      // Filtre côté serveur
-      if (statusFilter && data.status !== statusFilter) continue;
-      // Enrichir avec le nom du fondateur
-      let founderName = '';
-      try {
-        const founderSnap = await db.collection('users').doc(data.founderId).get();
-        if (founderSnap.exists) {
-          founderName = founderSnap.data()?.displayName || founderSnap.data()?.discordUsername || '';
-        }
-      } catch { /* skip */ }
-
-      structures.push({
+      const founder = foundersById.get(data.founderId);
+      return {
         id: doc.id,
         ...data,
-        founderName,
+        founderName: founder?.displayName || founder?.discordUsername || '',
         requestedAt: data.requestedAt?.toDate?.()?.toISOString() ?? null,
         validatedAt: data.validatedAt?.toDate?.()?.toISOString() ?? null,
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
-      });
-    }
+      };
+    });
 
-    return NextResponse.json({ structures });
+    return NextResponse.json({
+      structures,
+      truncated: snap.size >= MAX_STRUCTURES,
+      max: MAX_STRUCTURES,
+    });
   } catch (err) {
     console.error('[API Admin/Structures] GET error:', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
@@ -70,33 +73,35 @@ export async function POST(req: NextRequest) {
     const data = snap.data()!;
 
     switch (action) {
-      case 'approve':
-        await ref.update({
+      case 'approve': {
+        // Atomique : status structure + isFounderApproved + ajout membre fondateur
+        const memberRef = db.collection('structure_members').doc();
+        const userRef = db.collection('users').doc(data.founderId);
+        const batch = db.batch();
+        batch.update(ref, {
           status: 'active',
           reviewComment: comment || '',
           reviewedBy: uid,
-          validatedAt: new Date(),
+          validatedAt: FieldValue.serverTimestamp(),
         });
-        // Marquer le fondateur comme approuvé
-        await db.collection('users').doc(data.founderId).update({
-          isFounderApproved: true,
-        });
-        // Ajouter le fondateur comme membre de la structure
-        await db.collection('structure_members').add({
+        batch.update(userRef, { isFounderApproved: true });
+        batch.set(memberRef, {
           structureId,
           userId: data.founderId,
           game: data.games?.[0] || 'rocket_league',
           role: 'fondateur',
-          joinedAt: new Date(),
+          joinedAt: FieldValue.serverTimestamp(),
         });
+        await batch.commit();
         break;
+      }
 
       case 'reject':
         await ref.update({
           status: 'rejected',
           reviewComment: comment || '',
           reviewedBy: uid,
-          validatedAt: new Date(),
+          validatedAt: FieldValue.serverTimestamp(),
         });
         break;
 
@@ -105,7 +110,7 @@ export async function POST(req: NextRequest) {
           status: 'suspended',
           reviewComment: comment || '',
           suspendedBy: uid,
-          suspendedAt: new Date(),
+          suspendedAt: FieldValue.serverTimestamp(),
         });
         break;
 
@@ -118,8 +123,32 @@ export async function POST(req: NextRequest) {
         });
         break;
 
-      case 'delete':
-        // Supprimer les membres associés
+      case 'schedule_deletion': {
+        // Marquer pour suppression dans 7 jours — le délai laisse la possibilité d'annuler
+        const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+        await ref.update({
+          status: 'deletion_scheduled',
+          reviewComment: comment || '',
+          deletionScheduledAt: FieldValue.serverTimestamp(),
+          deletionExecutesAt: new Date(Date.now() + sevenDaysMs),
+          deletionRequestedBy: uid,
+        });
+        break;
+      }
+
+      case 'cancel_deletion':
+        await ref.update({
+          status: 'active',
+          deletionScheduledAt: null,
+          deletionExecutesAt: null,
+          deletionRequestedBy: null,
+        });
+        break;
+
+      case 'delete': {
+        // Suppression immédiate — atomique avec les memberships associés.
+        // Réservé aux cas où la suppression différée n'est pas adaptée
+        // (rejet d'une demande, structure abandonnée).
         const members = await db.collection('structure_members')
           .where('structureId', '==', structureId).get();
         const batch = db.batch();
@@ -127,6 +156,7 @@ export async function POST(req: NextRequest) {
         batch.delete(ref);
         await batch.commit();
         break;
+      }
 
       default:
         return NextResponse.json({ error: 'Action invalide' }, { status: 400 });

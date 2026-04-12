@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
+import { fetchDocsByIds } from '@/lib/firestore-helpers';
+import { FieldValue, DocumentData } from 'firebase-admin/firestore';
 
 // Vérifier que l'utilisateur a les droits sur la structure (fondateur ou co-fondateur)
 async function checkStructureAccess(uid: string, structureId: string) {
@@ -28,41 +30,40 @@ export async function GET(req: NextRequest) {
       .where('structureId', '==', structureId)
       .get();
 
-    const teams = [];
+    // Collecter tous les IDs de joueurs/staff de toutes les équipes en un seul batch
+    const allUserIds: string[] = [];
     for (const doc of snap.docs) {
       const data = doc.data();
+      for (const id of data.playerIds || []) allUserIds.push(id);
+      for (const id of data.subIds || []) allUserIds.push(id);
+      for (const id of data.staffIds || []) allUserIds.push(id);
+    }
+    const usersById = await fetchDocsByIds(db, 'users', allUserIds);
 
-      // Enrichir les IDs avec les noms des joueurs/staff
-      const enrichIds = async (ids: string[]) => {
-        const result = [];
-        for (const id of ids || []) {
-          try {
-            const userSnap = await db.collection('users').doc(id).get();
-            if (userSnap.exists) {
-              const u = userSnap.data()!;
-              result.push({
-                uid: id,
-                displayName: u.displayName || u.discordUsername || '',
-                discordAvatar: u.discordAvatar || '',
-                avatarUrl: u.avatarUrl || '',
-              });
-            }
-          } catch { /* skip */ }
-        }
-        return result;
-      };
+    const enrich = (ids: string[] | undefined) => (ids ?? []).flatMap(id => {
+      const u = usersById.get(id);
+      if (!u) return [];
+      return [{
+        uid: id,
+        displayName: u.displayName || u.discordUsername || '',
+        discordAvatar: u.discordAvatar || '',
+        avatarUrl: u.avatarUrl || '',
+      }];
+    });
 
-      teams.push({
+    const teams = snap.docs.map(doc => {
+      const data: DocumentData = doc.data();
+      return {
         id: doc.id,
         structureId: data.structureId,
         game: data.game,
         name: data.name,
-        players: await enrichIds(data.playerIds || []),
-        subs: await enrichIds(data.subIds || []),
-        staff: await enrichIds(data.staffIds || []),
+        players: enrich(data.playerIds),
+        subs: enrich(data.subIds),
+        staff: enrich(data.staffIds),
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
-      });
-    }
+      };
+    });
 
     return NextResponse.json({ teams });
   } catch (err) {
@@ -117,7 +118,7 @@ export async function POST(req: NextRequest) {
           playerIds: playerIds || [],
           subIds: subIds || [],
           staffIds: staffIds || [],
-          createdAt: new Date(),
+          createdAt: FieldValue.serverTimestamp(),
         });
 
         return NextResponse.json({ success: true, id: docRef.id });
@@ -151,7 +152,7 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        const updates: Record<string, unknown> = { updatedAt: new Date() };
+        const updates: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
         if (name !== undefined) updates.name = name.trim();
         if (game !== undefined) updates.game = game;
         if (playerIds !== undefined) updates.playerIds = playerIds;

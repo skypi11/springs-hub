@@ -3,6 +3,10 @@ import { getAdminDb, getAdminAuth, verifyAuth, isAdmin } from '@/lib/firebase-ad
 import { FieldValue } from 'firebase-admin/firestore';
 import { resolveEpicAccount } from '@/lib/tracker-gg';
 
+// Plafond dur sur le nombre d'utilisateurs renvoyés en une seule fois — protège
+// la facture Firestore quand la base grossit. Au-delà, prévoir une vraie pagination + recherche.
+const MAX_USERS = 500;
+
 // GET /api/admin/users — lister tous les utilisateurs inscrits (admin only)
 export async function GET(req: NextRequest) {
   try {
@@ -12,9 +16,9 @@ export async function GET(req: NextRequest) {
 
     const db = getAdminDb();
 
-    // Charger users + admins + structure_members en parallèle
+    // Charger users (plafonné) + admins + structure_members en parallèle
     const [usersSnap, adminsSnap, membersSnap] = await Promise.all([
-      db.collection('users').get(),
+      db.collection('users').limit(MAX_USERS).get(),
       db.collection('admins').get(),
       db.collection('structure_members').get(),
     ]);
@@ -87,7 +91,12 @@ export async function GET(req: NextRequest) {
       return b.createdAt.localeCompare(a.createdAt);
     });
 
-    return NextResponse.json({ users, total: users.length });
+    return NextResponse.json({
+      users,
+      total: users.length,
+      truncated: usersSnap.size >= MAX_USERS,
+      max: MAX_USERS,
+    });
   } catch (err) {
     console.error('[API Admin/Users] GET error:', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
@@ -123,7 +132,7 @@ export async function POST(req: NextRequest) {
         await userRef.update({
           isBanned: true,
           banReason: reason || '',
-          bannedAt: new Date(),
+          bannedAt: FieldValue.serverTimestamp(),
           bannedBy: adminUid,
         });
         // Révoquer les tokens Firebase pour forcer la déconnexion
@@ -157,7 +166,10 @@ export async function POST(req: NextRequest) {
         if (userId === adminUid) {
           return NextResponse.json({ error: 'Tu ne peux pas te modifier toi-même' }, { status: 400 });
         }
-        await db.collection('admins').doc(userId).set({ addedBy: adminUid, addedAt: new Date() });
+        await db.collection('admins').doc(userId).set({
+          addedBy: adminUid,
+          addedAt: FieldValue.serverTimestamp(),
+        });
         return NextResponse.json({ ok: true, message: 'Droits admin ajoutés' });
       }
 
@@ -251,22 +263,25 @@ export async function POST(req: NextRequest) {
           }, { status: 400 });
         }
 
-        // 2. Supprimer tous les memberships
-        const allMembers = await db.collection('structure_members').where('userId', '==', userId).get();
-        if (!allMembers.empty) {
-          const batch = db.batch();
-          allMembers.docs.forEach(doc => batch.delete(doc.ref));
-          await batch.commit();
+        // 2. Supprimer Firebase Auth EN PREMIER — si Firestore est supprimé d'abord
+        // et que Auth échoue, on se retrouve avec un compte connectable sans profil.
+        try {
+          await authAdmin.deleteUser(userId);
+        } catch (err) {
+          const code = (err as { code?: string })?.code;
+          if (code !== 'auth/user-not-found') {
+            console.error('[API Admin/Users] deleteUser failed:', code, err);
+            return NextResponse.json({ error: 'Impossible de supprimer le compte Auth' }, { status: 500 });
+          }
         }
 
-        // 3. Supprimer le doc admin s'il existe
-        try { await db.collection('admins').doc(userId).delete(); } catch { /* ignore */ }
-
-        // 4. Supprimer le profil Firestore
-        await userRef.delete();
-
-        // 5. Supprimer l'utilisateur Firebase Auth
-        try { await authAdmin.deleteUser(userId); } catch { /* user might not exist in Auth */ }
+        // 3. Atomique : memberships + admin doc + profil Firestore
+        const allMembers = await db.collection('structure_members').where('userId', '==', userId).get();
+        const batch = db.batch();
+        allMembers.docs.forEach(doc => batch.delete(doc.ref));
+        batch.delete(db.collection('admins').doc(userId));
+        batch.delete(userRef);
+        await batch.commit();
 
         return NextResponse.json({ ok: true, message: 'Compte supprimé définitivement' });
       }

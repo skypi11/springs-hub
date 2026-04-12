@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const LEGAL_STATUSES = ['none', 'asso_1901', 'auto_entreprise', 'sas_sarl', 'other'];
 
@@ -45,10 +46,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Tu ne peux pas créer plus de 2 structures.' }, { status: 400 });
     }
 
-    // Vérifier que le nom ou tag n'est pas déjà pris
+    // Vérifier que le nom ou tag n'est pas déjà pris (case-insensitive sur le nom)
+    const nameLower = body.name.trim().toLowerCase();
+    const tagUpper = body.tag.trim().toUpperCase();
     const [nameCheck, tagCheck] = await Promise.all([
-      db.collection('structures').where('name', '==', body.name.trim()).get(),
-      db.collection('structures').where('tag', '==', body.tag.trim().toUpperCase()).get(),
+      db.collection('structures').where('nameLower', '==', nameLower).get(),
+      db.collection('structures').where('tag', '==', tagUpper).get(),
     ]);
 
     if (!nameCheck.empty) {
@@ -61,7 +64,8 @@ export async function POST(req: NextRequest) {
     // Créer la demande
     const structureData = {
       name: body.name.trim(),
-      tag: body.tag.trim().toUpperCase(),
+      nameLower,
+      tag: tagUpper,
       logoUrl: body.logoUrl?.trim() || '',
       description: body.description.trim(),
       games: body.games,
@@ -75,8 +79,8 @@ export async function POST(req: NextRequest) {
       managerIds: [],
       coachIds: [],
       status: 'pending_validation',
-      requestedAt: new Date(),
-      createdAt: new Date(),
+      requestedAt: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     };
 
     const docRef = await db.collection('structures').add(structureData);

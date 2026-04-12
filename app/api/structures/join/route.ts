@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // POST /api/structures/join — rejoindre une structure (via lien ou demande)
 export async function POST(req: NextRequest) {
@@ -61,24 +62,26 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'Tu as déjà une structure pour ce jeu.' }, { status: 400 });
         }
 
-        // Ajouter comme membre
-        await db.collection('structure_members').add({
+        // Lire le profil joueur pour préparer structurePerGame
+        const userRef = db.collection('users').doc(uid);
+        const userSnap = await userRef.get();
+        const spg = (userSnap.exists && (userSnap.data()!.structurePerGame || {})) || {};
+        spg[joinGame] = sid;
+
+        // Atomique : ajout member + update structurePerGame
+        const batch = db.batch();
+        const newMemberRef = db.collection('structure_members').doc();
+        batch.set(newMemberRef, {
           structureId: sid,
           userId: uid,
           game: joinGame,
           role: 'joueur',
-          joinedAt: new Date(),
+          joinedAt: FieldValue.serverTimestamp(),
         });
-
-        // Mettre à jour structurePerGame
-        const userRef = db.collection('users').doc(uid);
-        const userSnap = await userRef.get();
         if (userSnap.exists) {
-          const userData = userSnap.data()!;
-          const spg = userData.structurePerGame || {};
-          spg[joinGame] = sid;
-          await userRef.update({ structurePerGame: spg });
+          batch.update(userRef, { structurePerGame: spg });
         }
+        await batch.commit();
 
         return NextResponse.json({ success: true, structureId: sid, structureName: structData.name });
       }
@@ -120,7 +123,7 @@ export async function POST(req: NextRequest) {
           game: game || null,
           message: message?.trim() || '',
           status: 'pending',
-          createdAt: new Date(),
+          createdAt: FieldValue.serverTimestamp(),
         });
 
         return NextResponse.json({ success: true });
@@ -147,32 +150,34 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'Le fondateur ne peut pas quitter sa structure. Transfère la propriété d\'abord.' }, { status: 400 });
         }
 
-        // Nettoyer structurePerGame
+        // Préparer toutes les updates en un seul batch atomique
         const userRef = db.collection('users').doc(uid);
-        const userSnap = await userRef.get();
+        const [userSnap, teamsSnap] = await Promise.all([
+          userRef.get(),
+          db.collection('sub_teams').where('structureId', '==', structureId).get(),
+        ]);
+
+        const batch = db.batch();
+        batch.delete(memberDoc.ref);
+
         if (userSnap.exists) {
-          const userData = userSnap.data()!;
-          const spg = userData.structurePerGame || {};
+          const spg = userSnap.data()!.structurePerGame || {};
           if (spg[memberData.game] === structureId) {
             delete spg[memberData.game];
-            await userRef.update({ structurePerGame: spg });
+            batch.update(userRef, { structurePerGame: spg });
           }
         }
 
-        // Retirer des équipes
-        const teamsSnap = await db.collection('sub_teams')
-          .where('structureId', '==', structureId)
-          .get();
         for (const teamDoc of teamsSnap.docs) {
           const td = teamDoc.data();
           const updates: Record<string, unknown> = {};
           if (td.playerIds?.includes(uid)) updates.playerIds = td.playerIds.filter((id: string) => id !== uid);
           if (td.subIds?.includes(uid)) updates.subIds = td.subIds.filter((id: string) => id !== uid);
           if (td.staffIds?.includes(uid)) updates.staffIds = td.staffIds.filter((id: string) => id !== uid);
-          if (Object.keys(updates).length > 0) await teamDoc.ref.update(updates);
+          if (Object.keys(updates).length > 0) batch.update(teamDoc.ref, updates);
         }
 
-        await memberDoc.ref.delete();
+        await batch.commit();
         return NextResponse.json({ success: true });
       }
 

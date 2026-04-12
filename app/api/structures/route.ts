@@ -7,21 +7,23 @@ export async function GET(req: NextRequest) {
     const db = getAdminDb();
     const game = req.nextUrl.searchParams.get('game');
 
-    const snap = await db.collection('structures')
-      .where('status', '==', 'active')
-      .get();
+    // Charger structures + tous les memberships en parallèle (1 read pour tous les memberships)
+    const [structuresSnap, allMembersSnap] = await Promise.all([
+      db.collection('structures').where('status', '==', 'active').get(),
+      db.collection('structure_members').get(),
+    ]);
+
+    // Compter les membres par structure une seule fois
+    const memberCountByStructure = new Map<string, number>();
+    for (const doc of allMembersSnap.docs) {
+      const sid = doc.data().structureId;
+      if (sid) memberCountByStructure.set(sid, (memberCountByStructure.get(sid) ?? 0) + 1);
+    }
 
     const structures = [];
-    for (const doc of snap.docs) {
+    for (const doc of structuresSnap.docs) {
       const data = doc.data();
-
-      // Filtre par jeu si demandé
       if (game && !(data.games || []).includes(game)) continue;
-
-      // Compter les membres
-      const membersSnap = await db.collection('structure_members')
-        .where('structureId', '==', doc.id)
-        .get();
 
       structures.push({
         id: doc.id,
@@ -30,7 +32,7 @@ export async function GET(req: NextRequest) {
         logoUrl: data.logoUrl || '',
         games: data.games || [],
         recruiting: data.recruiting || { active: false, positions: [] },
-        memberCount: membersSnap.size,
+        memberCount: memberCountByStructure.get(doc.id) ?? 0,
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
       });
     }
