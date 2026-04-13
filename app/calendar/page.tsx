@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
+import AvailabilityGrid from '@/components/calendar/AvailabilityGrid';
 import type { EventType, EventStatus, PresenceStatus } from '@/lib/event-permissions';
 
 type MyPresence = {
@@ -73,6 +74,7 @@ export default function MyCalendarPage() {
   const { firebaseUser, loading: authLoading } = useAuth();
   const toast = useToast();
   const router = useRouter();
+  const [tab, setTab] = useState<'events' | 'availability'>('events');
   const [events, setEvents] = useState<MyEvent[]>([]);
   const [structures, setStructures] = useState<Record<string, StructureInfo>>({});
   const [loading, setLoading] = useState(true);
@@ -170,8 +172,31 @@ export default function MyCalendarPage() {
           </div>
         </header>
 
-        {/* Content */}
-        {loading ? (
+        {/* Tabs */}
+        <div className="flex gap-2 animate-fade-in">
+          {([
+            { key: 'events', label: 'ÉVÉNEMENTS' },
+            { key: 'availability', label: 'MES DISPOS' },
+          ] as const).map(t => (
+            <button key={t.key} type="button"
+              onClick={() => setTab(t.key)}
+              className="bevel-sm px-4 py-2 font-display transition-all duration-150"
+              style={{
+                fontSize: '12px',
+                letterSpacing: '0.05em',
+                background: tab === t.key ? 'var(--s-violet)' : 'var(--s-surface)',
+                border: `1px solid ${tab === t.key ? 'var(--s-violet)' : 'var(--s-border)'}`,
+                color: tab === t.key ? '#fff' : 'var(--s-text-dim)',
+                cursor: 'pointer',
+              }}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'availability' ? (
+          <AvailabilityGrid />
+        ) : loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 size={20} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
           </div>

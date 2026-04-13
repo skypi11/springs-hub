@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import CalendarSection from '@/components/calendar/CalendarSection';
+import TeamMatchingPanel from '@/components/calendar/TeamMatchingPanel';
 import type { UserContext } from '@/lib/event-permissions';
 
 type DashboardTab = 'general' | 'teams' | 'recruitment' | 'members' | 'calendar';
@@ -246,6 +247,7 @@ export default function MyStructurePage() {
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamGame, setNewTeamGame] = useState('');
   const [showNewTeam, setShowNewTeam] = useState(false);
+  const [matchingOpen, setMatchingOpen] = useState<Record<string, boolean>>({});
   const [teamActionLoading, setTeamActionLoading] = useState<string | null>(null);
 
   // Invitations state
@@ -1387,6 +1389,32 @@ export default function MyStructurePage() {
                               onRemove={(uid) => handleUpdateTeamRoster(team.id, 'staffIds', team.staff.filter(p => p.uid !== uid).map(p => p.uid))}
                             />
                           </div>
+
+                          {/* Dispos & matching — staff de l'équipe ou dirigeant */}
+                          {(() => {
+                            const isDirigeant = isFounderOfActive || isCoFounderOfActive;
+                            const isStaffOfThisTeam = isDirigeant || staffedTeamIds.includes(team.id);
+                            if (!isStaffOfThisTeam) return null;
+                            const open = !!matchingOpen[team.id];
+                            return (
+                              <div className="pt-2">
+                                <button type="button"
+                                  onClick={() => setMatchingOpen(prev => ({ ...prev, [team.id]: !prev[team.id] }))}
+                                  className="flex items-center gap-1.5 text-xs font-bold transition-colors duration-150"
+                                  style={{ color: 'var(--s-violet-light)' }}>
+                                  {open ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                                  {open ? 'Masquer dispos & matching' : 'Voir dispos & matching'}
+                                </button>
+                                {open && (
+                                  <TeamMatchingPanel
+                                    structureId={s.id}
+                                    teamId={team.id}
+                                    canEditConfig={isDirigeant}
+                                  />
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     );
