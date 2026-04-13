@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Home, Users, Trophy, LogOut, Swords, Settings, Building2 } from 'lucide-react';
+import { Home, Users, Trophy, LogOut, Swords, Settings, Building2, Calendar } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 const navItems = [
@@ -66,6 +66,20 @@ export default function Sidebar() {
             }}>
             <Building2 size={17} style={{ color: pathname.startsWith('/community/my-structure') ? 'var(--s-gold)' : 'var(--s-text-muted)', flexShrink: 0 }} />
             <span className="font-medium text-sm">Ma structure</span>
+          </Link>
+        )}
+
+        {/* Mon calendrier */}
+        {user && (
+          <Link href="/calendar"
+            className="flex items-center gap-3 px-3 py-2.5 relative transition-all duration-150"
+            style={{
+              background: pathname.startsWith('/calendar') ? 'rgba(255,184,0,0.08)' : 'transparent',
+              color: pathname.startsWith('/calendar') ? 'var(--s-gold)' : 'var(--s-text-dim)',
+              borderLeft: pathname.startsWith('/calendar') ? '3px solid var(--s-gold)' : '3px solid transparent',
+            }}>
+            <Calendar size={17} style={{ color: pathname.startsWith('/calendar') ? 'var(--s-gold)' : 'var(--s-text-muted)', flexShrink: 0 }} />
+            <span className="font-medium text-sm">Mon calendrier</span>
           </Link>
         )}
 

@@ -14,6 +14,8 @@ import {
   Copy, Check, UserPlus, UserMinus, Mail
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import CalendarSection from '@/components/calendar/CalendarSection';
+import type { UserContext } from '@/lib/event-permissions';
 
 type Member = {
   id: string;
@@ -46,6 +48,7 @@ type MyStructure = {
   members: Member[];
   requestedAt?: string;
   validatedAt?: string;
+  accessLevel?: 'dirigeant' | 'staff';
 };
 
 const DEPARTURE_NOTICE_DAYS = 7;
@@ -446,13 +449,29 @@ export default function MyStructurePage() {
   const s = activeStructure!;
   const statusInfo = STATUS_INFO[s.status] ?? STATUS_INFO.pending_validation;
   const StatusIcon = statusInfo.icon;
-  const canEdit = s.status === 'active';
+  const isStaffOnly = s.accessLevel === 'staff';
+  const canEdit = s.status === 'active' && !isStaffOnly;
   // Le dashboard est ouvert au fondateur ET aux co-fondateurs. Certaines actions
   // sont réservées au fondateur (promouvoir/rétrograder, transférer, supprimer).
   const isFounderOfActive = !!firebaseUser && s.founderId === firebaseUser.uid;
   const isCoFounderOfActive = !!firebaseUser && (s.coFounderIds ?? []).includes(firebaseUser.uid);
   const myDepartureIso = firebaseUser ? s.coFounderDepartures?.[firebaseUser.uid] : null;
   const myDepartureRemainingMs = myDepartureIso ? Math.max(0, new Date(myDepartureIso).getTime() + DEPARTURE_NOTICE_MS - now) : null;
+
+  // Contexte user pour le calendrier (derivé des données déjà chargées).
+  const myMemberRole = firebaseUser ? s.members.find(m => m.userId === firebaseUser.uid)?.role : undefined;
+  const staffedTeamIds = firebaseUser
+    ? teams.filter(t => t.staff.some(st => st.uid === firebaseUser.uid)).map(t => t.id)
+    : [];
+  const userContext: UserContext = {
+    uid: firebaseUser?.uid ?? '',
+    isFounder: isFounderOfActive,
+    isCoFounder: isCoFounderOfActive,
+    isManager: myMemberRole === 'manager',
+    isCoach: myMemberRole === 'coach',
+    staffedTeamIds,
+  };
+  const calendarTeams = teams.map(t => ({ id: t.id, name: t.name, game: t.game }));
 
   const toggle = (key: string) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }));
 
@@ -715,6 +734,88 @@ export default function MyStructurePage() {
       toast.error('Erreur réseau');
     }
     setInvActionLoading(null);
+  }
+
+  // ─── Staff-only mode (manager/coach) ─────────────────────────────────
+  // L'user n'est pas dirigeant : on affiche juste header + calendrier.
+  if (isStaffOnly) {
+    return (
+      <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
+        <div className="relative z-[1] space-y-8">
+          {/* Sélecteur si plusieurs structures */}
+          {structures.length > 1 && (
+            <div className="flex gap-3 animate-fade-in flex-wrap">
+              {structures.map(st => (
+                <button key={st.id} onClick={() => selectStructure(st)}
+                  className="tag transition-all duration-150"
+                  style={{
+                    background: st.id === s.id ? 'rgba(255,184,0,0.15)' : 'transparent',
+                    color: st.id === s.id ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                    borderColor: st.id === s.id ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
+                    cursor: 'pointer', padding: '8px 16px', fontSize: '12px',
+                  }}>
+                  {st.name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Header structure */}
+          <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+            <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), rgba(123,47,190,0.3), transparent 80%)' }} />
+            <div className="absolute top-0 left-0 w-64 h-64 pointer-events-none"
+              style={{ background: 'radial-gradient(circle at 0% 0%, rgba(123,47,190,0.06), transparent 60%)' }} />
+            <div className="relative z-[1] p-8 flex items-center gap-6">
+              <div className="flex-shrink-0 w-16 h-16 relative overflow-hidden bevel-sm" style={{ background: 'var(--s-elevated)', border: '2px solid var(--s-border)' }}>
+                {s.logoUrl ? (
+                  <Image src={s.logoUrl} alt={s.name} fill className="object-contain p-1" unoptimized />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Shield size={28} style={{ color: 'var(--s-text-muted)' }} />
+                  </div>
+                )}
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-1">
+                  <h1 className="font-display text-3xl" style={{ letterSpacing: '0.03em' }}>{s.name}</h1>
+                  <span className="tag tag-neutral">{s.tag}</span>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="tag tag-violet" style={{ fontSize: '9px', padding: '2px 8px' }}>
+                    Accès staff
+                  </span>
+                  <span style={{ color: 'var(--s-text-muted)' }}>·</span>
+                  <div className="flex gap-1.5">
+                    {s.games?.map(g => (
+                      <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
+                        style={{ fontSize: '9px', padding: '2px 6px' }}>
+                        {g === 'rocket_league' ? 'RL' : 'TM'}
+                      </span>
+                    ))}
+                  </div>
+                  <span style={{ color: 'var(--s-text-muted)' }}>·</span>
+                  <span className="t-mono text-xs" style={{ color: 'var(--s-text-dim)' }}>{s.members.length} membre{s.members.length > 1 ? 's' : ''}</span>
+                </div>
+              </div>
+              <Link href={`/community/structure/${s.id}`} className="btn-springs btn-secondary bevel-sm-border">
+                <span><Eye size={14} /></span> <span>Page publique</span>
+              </Link>
+            </div>
+          </header>
+
+          {/* Calendrier */}
+          <div className="animate-fade-in-d1">
+            <CalendarSection
+              structureId={s.id}
+              structureGames={s.games ?? []}
+              members={s.members}
+              teams={calendarTeams}
+              userContext={userContext}
+            />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // ─── Not active state ────────────────────────────────────────────────
@@ -1510,6 +1611,17 @@ export default function MyStructurePage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* ═══ Calendrier ═══ */}
+        <div className="animate-fade-in-d3">
+          <CalendarSection
+            structureId={s.id}
+            structureGames={s.games ?? []}
+            members={s.members}
+            teams={calendarTeams}
+            userContext={userContext}
+          />
         </div>
       </div>
     </div>
