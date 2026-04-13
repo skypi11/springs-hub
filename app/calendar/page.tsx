@@ -242,72 +242,72 @@ function MyEventCard({
     <div className="bevel-sm relative overflow-hidden transition-all duration-150 hover:border-white/20"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
       <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${typeInfo.color}, ${typeInfo.color}50, transparent 70%)` }} />
-      <div className="p-6 flex gap-6 items-center">
+      <div className="p-4 flex gap-4 items-center">
         {/* Date block */}
-        <div className="flex-shrink-0 text-center" style={{ minWidth: '104px' }}>
-          <p className="font-display text-7xl leading-none" style={{ color: typeInfo.color }}>
+        <div className="flex-shrink-0 text-center" style={{ minWidth: '64px' }}>
+          <p className="font-display text-3xl leading-none" style={{ color: typeInfo.color }}>
             {event.startsAt ? new Date(event.startsAt).getDate() : '–'}
           </p>
-          <p className="t-label mt-2" style={{ fontSize: '14px' }}>
+          <p className="t-label mt-1" style={{ fontSize: '9px' }}>
             {event.startsAt
               ? new Date(event.startsAt).toLocaleDateString('fr-FR', { month: 'short' }).toUpperCase()
               : ''}
           </p>
-          <p className="t-mono mt-1.5" style={{ fontSize: '16px', color: 'var(--s-text-dim)' }}>
+          <p className="t-mono mt-1" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>
             {fmtTime(event.startsAt)}
           </p>
         </div>
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2.5 mb-3 flex-wrap">
-            <span className="tag" style={{ background: `${typeInfo.color}15`, color: typeInfo.color, borderColor: `${typeInfo.color}35`, fontSize: '13px', padding: '4px 12px' }}>
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <span className="tag" style={{ background: `${typeInfo.color}15`, color: typeInfo.color, borderColor: `${typeInfo.color}35`, fontSize: '9px', padding: '2px 6px' }}>
               {typeInfo.label}
             </span>
             {event.status !== 'scheduled' && (
-              <span className="tag" style={{ background: `${statusInfo.color}15`, color: statusInfo.color, borderColor: `${statusInfo.color}35`, fontSize: '13px', padding: '4px 12px' }}>
+              <span className="tag" style={{ background: `${statusInfo.color}15`, color: statusInfo.color, borderColor: `${statusInfo.color}35`, fontSize: '9px', padding: '2px 6px' }}>
                 {statusInfo.label}
               </span>
             )}
           </div>
           <Link href={`/community/structure/${event.structureId}`}
-            className="flex items-center gap-2.5 mb-2 group">
+            className="flex items-center gap-2 mb-1 group">
             {structure?.logoUrl ? (
-              <Image src={structure.logoUrl} alt={structure.name} width={22} height={22} unoptimized className="flex-shrink-0" />
+              <Image src={structure.logoUrl} alt={structure.name} width={14} height={14} unoptimized className="flex-shrink-0" />
             ) : (
-              <Shield size={18} style={{ color: 'var(--s-text-muted)' }} />
+              <Shield size={12} style={{ color: 'var(--s-text-muted)' }} />
             )}
-            <span className="t-mono text-base group-hover:text-white transition-colors" style={{ color: 'var(--s-text-dim)' }}>
+            <span className="t-mono text-xs group-hover:text-white transition-colors" style={{ color: 'var(--s-text-dim)' }}>
               {structure?.name ?? 'Structure'}
             </span>
           </Link>
-          <p className="text-xl font-semibold truncate" style={{ color: 'var(--s-text)' }}>{event.title}</p>
-          <div className="flex items-center gap-5 mt-3 flex-wrap">
-            <span className="t-mono flex items-center gap-1.5" style={{ fontSize: '14px', color: 'var(--s-text-dim)' }}>
-              <Clock size={14} /> {dateStr}
+          <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{event.title}</p>
+          <div className="flex items-center gap-3 mt-1 flex-wrap">
+            <span className="t-mono flex items-center gap-1" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>
+              <Clock size={9} /> {dateStr}
             </span>
             {event.location && (
-              <span className="t-mono flex items-center gap-1.5" style={{ fontSize: '14px', color: 'var(--s-text-dim)' }}>
-                <MapPin size={14} /> {event.location}
+              <span className="t-mono flex items-center gap-1" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>
+                <MapPin size={9} /> {event.location}
               </span>
             )}
             {(event.type === 'match' || event.type === 'scrim') && event.adversaire && (
-              <span className="t-mono flex items-center gap-1.5" style={{ fontSize: '14px', color: 'var(--s-text-dim)' }}>
-                <Target size={14} /> vs {event.adversaire}
+              <span className="t-mono flex items-center gap-1" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>
+                <Target size={9} /> vs {event.adversaire}
               </span>
             )}
           </div>
           {(event.compteRendu || event.aTravailler) && event.status === 'done' && (
-            <div className="mt-4 pt-4 space-y-2" style={{ borderTop: '1px solid var(--s-border)' }}>
+            <div className="mt-2 pt-2 space-y-1" style={{ borderTop: '1px solid var(--s-border)' }}>
               {event.compteRendu && (
-                <p className="text-base whitespace-pre-wrap" style={{ color: 'var(--s-text-dim)' }}>
-                  <span className="t-label mr-2" style={{ fontSize: '11px' }}>CR :</span>
+                <p className="text-xs whitespace-pre-wrap" style={{ color: 'var(--s-text-dim)' }}>
+                  <span className="t-label mr-1" style={{ fontSize: '8px' }}>CR :</span>
                   {event.compteRendu}
                 </p>
               )}
               {event.aTravailler && (
-                <p className="text-base whitespace-pre-wrap" style={{ color: 'var(--s-text-dim)' }}>
-                  <span className="t-label mr-2" style={{ fontSize: '11px' }}>À TRAVAILLER :</span>
+                <p className="text-xs whitespace-pre-wrap" style={{ color: 'var(--s-text-dim)' }}>
+                  <span className="t-label mr-1" style={{ fontSize: '8px' }}>À TRAVAILLER :</span>
                   {event.aTravailler}
                 </p>
               )}
@@ -316,20 +316,20 @@ function MyEventCard({
         </div>
 
         {/* My response */}
-        <div className="flex-shrink-0 flex flex-col items-end gap-3">
+        <div className="flex-shrink-0 flex flex-col items-end gap-2">
           {my && event.status === 'scheduled' && (
-            <div className="flex gap-2">
+            <div className="flex gap-1">
               {(['present', 'maybe', 'absent'] as const).map(s => (
                 <button key={s} type="button"
                   onClick={() => onRespond(event.structureId, event.id, s)}
                   title={PRESENCE_INFO[s].label}
                   className="transition-all duration-150"
                   style={{
-                    width: '42px', height: '42px',
+                    width: '28px', height: '28px',
                     background: my.status === s ? `${PRESENCE_INFO[s].color}20` : 'transparent',
                     border: `1px solid ${my.status === s ? PRESENCE_INFO[s].color : 'var(--s-border)'}`,
                     color: my.status === s ? PRESENCE_INFO[s].color : 'var(--s-text-muted)',
-                    fontSize: '19px',
+                    fontSize: '12px',
                     cursor: 'pointer',
                   }}>
                   {s === 'present' ? '✓' : s === 'maybe' ? '?' : '✗'}
@@ -342,12 +342,12 @@ function MyEventCard({
               background: `${PRESENCE_INFO[my.status].color}15`,
               color: PRESENCE_INFO[my.status].color,
               borderColor: `${PRESENCE_INFO[my.status].color}35`,
-              fontSize: '13px', padding: '4px 12px',
+              fontSize: '9px', padding: '2px 8px',
             }}>
               {PRESENCE_INFO[my.status].label}
             </span>
           )}
-          <ChevronRight size={20} style={{ color: 'var(--s-text-muted)' }} />
+          <ChevronRight size={12} style={{ color: 'var(--s-text-muted)' }} />
         </div>
       </div>
     </div>

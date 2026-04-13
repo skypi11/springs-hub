@@ -261,24 +261,24 @@ export default function CalendarSection({
         style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,184,0,0.08), transparent 70%)' }} />
 
       {/* Header */}
-      <div className="relative z-[1] px-7 py-6 flex items-center justify-between" style={{ borderBottom: '1px solid var(--s-border)' }}>
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 flex items-center justify-center" style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.2)' }}>
-            <CalendarIcon size={22} style={{ color: 'var(--s-gold)' }} />
+      <div className="relative z-[1] px-5 py-3.5 flex items-center justify-between" style={{ borderBottom: '1px solid var(--s-border)' }}>
+        <div className="flex items-center gap-3">
+          <div className="w-7 h-7 flex items-center justify-center" style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.2)' }}>
+            <CalendarIcon size={13} style={{ color: 'var(--s-gold)' }} />
           </div>
-          <span className="font-display text-3xl tracking-wider">CALENDRIER</span>
+          <span className="font-display text-sm tracking-wider">CALENDRIER</span>
         </div>
         {canCreateAnything && (
           <button type="button" onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 text-base font-bold transition-colors duration-150" style={{ color: 'var(--s-gold)' }}>
-            <Plus size={18} />
+            className="flex items-center gap-1.5 text-xs font-bold transition-colors duration-150" style={{ color: 'var(--s-gold)' }}>
+            <Plus size={11} />
             Nouvel événement
           </button>
         )}
       </div>
 
       {/* Filters */}
-      <div className="relative z-[1] px-7 pt-6 flex gap-2.5">
+      <div className="relative z-[1] px-5 pt-4 flex gap-2">
         {(['upcoming', 'past', 'all'] as const).map(f => (
           <button key={f} type="button" onClick={() => setFilter(f)}
             className="tag transition-all duration-150"
@@ -286,7 +286,7 @@ export default function CalendarSection({
               background: filter === f ? 'rgba(255,184,0,0.15)' : 'transparent',
               color: filter === f ? 'var(--s-gold)' : 'var(--s-text-dim)',
               borderColor: filter === f ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
-              cursor: 'pointer', padding: '10px 18px', fontSize: '14px',
+              cursor: 'pointer', padding: '4px 10px', fontSize: '10px',
             }}>
             {f === 'upcoming' ? 'À venir' : f === 'past' ? 'Passés' : 'Tous'}
           </button>
@@ -294,20 +294,20 @@ export default function CalendarSection({
       </div>
 
       {/* Body */}
-      <div className="relative z-[1] p-7">
+      <div className="relative z-[1] p-5">
         {loading ? (
-          <div className="flex items-center justify-center py-14">
-            <Loader2 size={24} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
+          <div className="flex items-center justify-center py-8">
+            <Loader2 size={16} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
           </div>
         ) : filteredEvents.length === 0 ? (
-          <div className="text-center py-20">
-            <CalendarIcon size={40} className="mx-auto mb-5" style={{ color: 'var(--s-text-muted)' }} />
-            <p className="text-base" style={{ color: 'var(--s-text-muted)' }}>
+          <div className="text-center py-10">
+            <CalendarIcon size={24} className="mx-auto mb-3" style={{ color: 'var(--s-text-muted)' }} />
+            <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
               Aucun événement {filter === 'upcoming' ? 'à venir' : filter === 'past' ? 'passé' : ''}.
             </p>
           </div>
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-3">
             {filteredEvents.map(ev => (
               <EventCard
                 key={ev.id}
@@ -396,46 +396,46 @@ function EventCard({
       style={{ background: 'var(--s-elevated)', border: `1px solid var(--s-border)` }}>
       <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${typeInfo.color}, ${typeInfo.color}50, transparent 70%)` }} />
 
-      <div className="p-6 flex gap-6 items-center">
+      <div className="p-4 flex gap-4">
         {/* Date block */}
-        <div className="flex-shrink-0 text-center" style={{ minWidth: '100px' }}>
-          <p className="font-display text-6xl leading-none" style={{ color: typeInfo.color }}>
+        <div className="flex-shrink-0 text-center" style={{ minWidth: '56px' }}>
+          <p className="font-display text-xl leading-none" style={{ color: typeInfo.color }}>
             {event.startsAt ? new Date(event.startsAt).getDate() : '–'}
           </p>
-          <p className="t-label mt-2" style={{ fontSize: '13px' }}>
+          <p className="t-label mt-1" style={{ fontSize: '8px' }}>
             {event.startsAt
               ? new Date(event.startsAt).toLocaleDateString('fr-FR', { month: 'short' }).toUpperCase()
               : ''}
           </p>
-          <p className="t-mono mt-1.5" style={{ fontSize: '15px', color: 'var(--s-text-dim)' }}>
+          <p className="t-mono mt-1" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>
             {fmtTime(event.startsAt)}
           </p>
         </div>
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2.5 mb-3 flex-wrap">
-            <span className="tag" style={{ background: `${typeInfo.color}15`, color: typeInfo.color, borderColor: `${typeInfo.color}35`, fontSize: '13px', padding: '4px 12px' }}>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="tag" style={{ background: `${typeInfo.color}15`, color: typeInfo.color, borderColor: `${typeInfo.color}35`, fontSize: '9px', padding: '1px 6px' }}>
               {typeInfo.label}
             </span>
             {event.status !== 'scheduled' && (
-              <span className="tag" style={{ background: `${statusInfo.color}15`, color: statusInfo.color, borderColor: `${statusInfo.color}35`, fontSize: '13px', padding: '4px 12px' }}>
+              <span className="tag" style={{ background: `${statusInfo.color}15`, color: statusInfo.color, borderColor: `${statusInfo.color}35`, fontSize: '9px', padding: '1px 6px' }}>
                 {statusInfo.label}
               </span>
             )}
           </div>
-          <p className="text-lg font-semibold truncate" style={{ color: 'var(--s-text)' }}>{event.title}</p>
-          <div className="flex items-center gap-5 mt-2.5 flex-wrap">
-            <span className="t-mono flex items-center gap-1.5" style={{ fontSize: '14px', color: 'var(--s-text-dim)' }}>
-              <Target size={14} /> {targetLabel}
+          <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{event.title}</p>
+          <div className="flex items-center gap-3 mt-1 flex-wrap">
+            <span className="t-mono flex items-center gap-1" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>
+              <Target size={9} /> {targetLabel}
             </span>
             {event.location && (
-              <span className="t-mono flex items-center gap-1.5" style={{ fontSize: '14px', color: 'var(--s-text-dim)' }}>
-                <MapPin size={14} /> {event.location}
+              <span className="t-mono flex items-center gap-1" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>
+                <MapPin size={9} /> {event.location}
               </span>
             )}
             {(event.type === 'match' || event.type === 'scrim') && event.adversaire && (
-              <span className="t-mono" style={{ fontSize: '14px', color: 'var(--s-text-dim)' }}>
+              <span className="t-mono" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>
                 vs {event.adversaire}
               </span>
             )}
@@ -443,31 +443,31 @@ function EventCard({
         </div>
 
         {/* Presence counts + my response */}
-        <div className="flex-shrink-0 flex flex-col items-end gap-3" onClick={e => e.stopPropagation()}>
-          <div className="flex gap-2">
-            <span className="tag" style={{ background: 'rgba(51,255,102,0.1)', color: '#33ff66', borderColor: 'rgba(51,255,102,0.3)', fontSize: '14px', padding: '4px 11px' }}>
+        <div className="flex-shrink-0 flex flex-col items-end gap-2" onClick={e => e.stopPropagation()}>
+          <div className="flex gap-1.5">
+            <span className="tag" style={{ background: 'rgba(51,255,102,0.1)', color: '#33ff66', borderColor: 'rgba(51,255,102,0.3)', fontSize: '9px', padding: '1px 5px' }}>
               {counts.present}
             </span>
-            <span className="tag" style={{ background: 'rgba(255,184,0,0.1)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.3)', fontSize: '14px', padding: '4px 11px' }}>
+            <span className="tag" style={{ background: 'rgba(255,184,0,0.1)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.3)', fontSize: '9px', padding: '1px 5px' }}>
               {counts.maybe}
             </span>
-            <span className="tag" style={{ background: 'rgba(255,85,85,0.1)', color: '#ff5555', borderColor: 'rgba(255,85,85,0.3)', fontSize: '14px', padding: '4px 11px' }}>
+            <span className="tag" style={{ background: 'rgba(255,85,85,0.1)', color: '#ff5555', borderColor: 'rgba(255,85,85,0.3)', fontSize: '9px', padding: '1px 5px' }}>
               {counts.absent}
             </span>
           </div>
           {myPresence && event.status === 'scheduled' && (
-            <div className="flex gap-2">
+            <div className="flex gap-1">
               {(['present', 'maybe', 'absent'] as const).map(s => (
                 <button key={s} type="button"
                   onClick={() => onRespond(event.id, s)}
                   title={PRESENCE_INFO[s].label}
                   className="transition-all duration-150"
                   style={{
-                    width: '40px', height: '40px',
+                    width: '20px', height: '20px',
                     background: myPresence.status === s ? `${PRESENCE_INFO[s].color}20` : 'transparent',
                     border: `1px solid ${myPresence.status === s ? PRESENCE_INFO[s].color : 'var(--s-border)'}`,
                     color: myPresence.status === s ? PRESENCE_INFO[s].color : 'var(--s-text-muted)',
-                    fontSize: '18px',
+                    fontSize: '9px',
                     cursor: 'pointer',
                   }}>
                   {s === 'present' ? '✓' : s === 'maybe' ? '?' : '✗'}
@@ -475,7 +475,7 @@ function EventCard({
               ))}
             </div>
           )}
-          <ChevronRight size={20} style={{ color: 'var(--s-text-muted)' }} />
+          <ChevronRight size={12} style={{ color: 'var(--s-text-muted)' }} />
         </div>
       </div>
     </div>
