@@ -138,6 +138,58 @@ export interface Competition {
   createdAt?: Date;
 }
 
+// ── Calendrier / Événements de structure ──────────────────────────────────
+export type EventType = 'training' | 'scrim' | 'match' | 'springs' | 'autre';
+export type EventScope = 'structure' | 'teams' | 'game';
+export type EventStatus = 'scheduled' | 'done' | 'cancelled';
+export type PresenceStatus = 'present' | 'absent' | 'maybe' | 'pending';
+
+export interface EventTarget {
+  scope: EventScope;
+  teamIds?: string[];
+  game?: string;
+}
+
+export interface StructureEvent {
+  id: string;
+  structureId: string;
+  createdBy: string;
+  createdAt?: string;           // ISO pour le client
+  updatedAt?: string;
+  // Contenu
+  title: string;
+  type: EventType;
+  description?: string;
+  location?: string;
+  startsAt: string;             // ISO
+  endsAt: string;               // ISO
+  // Cible
+  target: EventTarget;
+  // État
+  status: EventStatus;
+  completedAt?: string | null;
+  completedBy?: string | null;
+  cancelledAt?: string | null;
+  cancelledBy?: string | null;
+  cancelReason?: string | null;
+  // Post-event
+  compteRendu?: string;
+  aTravailler?: string;
+  adversaire?: string | null;
+  resultat?: string | null;
+}
+
+export interface EventPresence {
+  id: string;
+  eventId: string;
+  structureId: string;
+  userId: string;
+  status: PresenceStatus;
+  wasStructureMember: boolean;
+  respondedAt?: string | null;
+  updatedBy?: string | null;
+}
+
 export type GameType = 'rocket_league' | 'trackmania';
 export type UserRole = 'visitor' | 'player' | 'fan' | 'coach' | 'manager' | 'founder' | 'admin';
 

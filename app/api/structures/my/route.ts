@@ -48,7 +48,10 @@ async function processExpiredDepartures(
   return { ...data, coFounderIds: nextCoFounderIds, coFounderDepartures: nextDepartures };
 }
 
-// GET /api/structures/my — récupérer les structures où l'utilisateur est fondateur/co-fondateur
+// GET /api/structures/my — récupère les structures où l'utilisateur a un accès dirigeant ou staff.
+// - dirigeant : fondateur ou co-fondateur → accessLevel: 'dirigeant' (tout le dashboard)
+// - staff     : manager ou coach (via structure_members.role OU sub_teams.staffIds)
+//               → accessLevel: 'staff' (header + liste membres read-only + calendrier)
 export async function GET(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -56,34 +59,92 @@ export async function GET(req: NextRequest) {
 
     const db = getAdminDb();
 
-    // Deux requêtes parallèles : en tant que fondateur ET en tant que co-fondateur
-    const [founderSnap, coFounderSnap] = await Promise.all([
+    // 4 requêtes parallèles :
+    //   - fondateur
+    //   - co-fondateur
+    //   - membre staff (role in [manager, coach])
+    //   - staff d'une équipe (sub_teams.staffIds array-contains)
+    const [founderSnap, coFounderSnap, memberSnap, teamStaffSnap] = await Promise.all([
       db.collection('structures').where('founderId', '==', uid).get(),
       db.collection('structures').where('coFounderIds', 'array-contains', uid).get(),
+      db.collection('structure_members').where('userId', '==', uid).get(),
+      db.collection('sub_teams').where('staffIds', 'array-contains', uid).get(),
     ]);
 
-    // Dédupliquer par id (théoriquement impossible qu'on soit les deux, mais on blinde)
+    // Structures où l'user est dirigeant (accessLevel = 'dirigeant')
+    const dirigeantIds = new Set<string>();
     const structureDocs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
-    for (const d of founderSnap.docs) structureDocs.set(d.id, d);
-    for (const d of coFounderSnap.docs) structureDocs.set(d.id, d);
+    for (const d of founderSnap.docs) {
+      dirigeantIds.add(d.id);
+      structureDocs.set(d.id, d);
+    }
+    for (const d of coFounderSnap.docs) {
+      dirigeantIds.add(d.id);
+      structureDocs.set(d.id, d);
+    }
+
+    // Structures où l'user est staff non-dirigeant
+    const staffStructureIds = new Set<string>();
+    for (const m of memberSnap.docs) {
+      const role = m.data().role as string | undefined;
+      const structureId = m.data().structureId as string | undefined;
+      if (structureId && (role === 'manager' || role === 'coach')) {
+        staffStructureIds.add(structureId);
+      }
+    }
+    for (const t of teamStaffSnap.docs) {
+      const structureId = t.data().structureId as string | undefined;
+      if (structureId) staffStructureIds.add(structureId);
+    }
+    // Ne pas dédoubler : si on est déjà dirigeant, on ne considère pas comme staff seul
+    for (const id of dirigeantIds) staffStructureIds.delete(id);
+
+    // Fetch les structures staff-only (celles qu'on n'a pas encore)
+    if (staffStructureIds.size > 0) {
+      const ids = Array.from(staffStructureIds);
+      for (let i = 0; i < ids.length; i += 30) {
+        const chunk = ids.slice(i, i + 30);
+        const snap = await db.collection('structures')
+          .where('__name__', 'in', chunk)
+          .get();
+        for (const d of snap.docs) structureDocs.set(d.id, d);
+      }
+    }
 
     if (structureDocs.size === 0) {
       return NextResponse.json({ structures: [] });
     }
 
-    // Lazy-process les préavis expirés sur chaque structure avant de répondre
+    // Lazy-process les préavis expirés uniquement sur les structures où l'user est dirigeant
     const structureDataById = new Map<string, FirebaseFirestore.DocumentData>();
     for (const [id, doc] of structureDocs) {
-      const processed = await processExpiredDepartures(db, id, doc.data());
-      structureDataById.set(id, processed);
+      if (dirigeantIds.has(id)) {
+        const processed = await processExpiredDepartures(db, id, doc.data());
+        structureDataById.set(id, processed);
+      } else {
+        structureDataById.set(id, doc.data());
+      }
     }
 
     // Si l'utilisateur vient de perdre son siège de co-fondateur (préavis expiré),
-    // on retire la structure de sa liste "mes structures"
+    // on retire la structure de sa liste "dirigeant" — mais si c'est aussi une structure
+    // staff, on la garde avec accessLevel 'staff'.
     for (const [id, data] of structureDataById) {
+      if (!dirigeantIds.has(id)) continue;
       const isFounder = data.founderId === uid;
       const isCoFounder = (data.coFounderIds ?? []).includes(uid);
-      if (!isFounder && !isCoFounder) structureDataById.delete(id);
+      if (!isFounder && !isCoFounder) {
+        dirigeantIds.delete(id);
+        if (!staffStructureIds.has(id)) {
+          structureDataById.delete(id);
+        }
+      }
+    }
+
+    // Filtrer les structures staff-only qui ne sont pas active (pas de calendrier sur suspended/pending)
+    for (const [id, data] of structureDataById) {
+      if (dirigeantIds.has(id)) continue;
+      if (data.status !== 'active') structureDataById.delete(id);
     }
 
     if (structureDataById.size === 0) {
@@ -140,6 +201,7 @@ export async function GET(req: NextRequest) {
         ...data,
         coFounderDepartures,
         members,
+        accessLevel: dirigeantIds.has(id) ? 'dirigeant' : 'staff',
         requestedAt: data.requestedAt?.toDate?.()?.toISOString() ?? null,
         validatedAt: data.validatedAt?.toDate?.()?.toISOString() ?? null,
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,

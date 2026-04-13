@@ -56,7 +56,15 @@ service cloud.firestore {
     }
 
     // ── Springs Hub — Événements de structure ────────────────────────────────
+    // Lecture pour tout user connecté ; toutes les écritures via API routes (Admin SDK).
     match /structure_events/{id} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // ── Springs Hub — Présences aux événements ──────────────────────────────
+    // Une ligne par couple (eventId, userId). Écritures via API routes.
+    match /event_presences/{id} {
       allow read: if request.auth != null;
       allow write: if false;
     }
