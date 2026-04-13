@@ -4,6 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { safeUrl, clampString, LIMITS } from '@/lib/validation';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { countDirigeantSeats, MAX_SEATS_PER_PERSON, type DirigeantRef } from '@/lib/structure-roles';
 
 const LEGAL_STATUSES = ['none', 'asso_1901', 'auto_entreprise', 'sas_sarl', 'other'];
 
@@ -42,14 +43,30 @@ export async function POST(req: NextRequest) {
 
     const db = getAdminDb();
 
-    // Vérifier que l'utilisateur n'a pas déjà 2 structures en tant que fondateur
-    const existingStructures = await db.collection('structures')
-      .where('founderId', '==', uid)
-      .where('status', 'in', ['pending_validation', 'active'])
-      .get();
-
-    if (existingStructures.size >= 2) {
-      return NextResponse.json({ error: 'Tu ne peux pas créer plus de 2 structures.' }, { status: 400 });
+    // Vérifier que l'utilisateur n'a pas déjà 2 sièges dirigeant (fondateur + co-fondateur cumulés)
+    // Deux requêtes séparées car Firestore n'aime pas combiner array-contains et plusieurs filtres
+    const [asFounderSnap, asCoFounderSnap] = await Promise.all([
+      db.collection('structures').where('founderId', '==', uid).get(),
+      db.collection('structures').where('coFounderIds', 'array-contains', uid).get(),
+    ]);
+    const refs: DirigeantRef[] = [
+      ...asFounderSnap.docs.map(d => ({
+        id: d.id,
+        founderId: d.data().founderId,
+        coFounderIds: d.data().coFounderIds ?? [],
+        status: d.data().status,
+      })),
+      ...asCoFounderSnap.docs.map(d => ({
+        id: d.id,
+        founderId: d.data().founderId,
+        coFounderIds: d.data().coFounderIds ?? [],
+        status: d.data().status,
+      })),
+    ];
+    if (countDirigeantSeats(refs, uid) >= MAX_SEATS_PER_PERSON) {
+      return NextResponse.json({
+        error: `Tu occupes déjà le maximum de ${MAX_SEATS_PER_PERSON} sièges dirigeant (fondateur + co-fondateur).`,
+      }, { status: 400 });
     }
 
     // Vérifier que le nom ou tag n'est pas déjà pris (case-insensitive sur le nom)

@@ -6,6 +6,70 @@ import { safeUrl, clampString, LIMITS } from '@/lib/validation';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
+// Quand un fondateur est banni/supprimé, on essaie de promouvoir son premier co-fondateur
+// pour ne pas laisser une structure sans tête. Si pas de co-fondateur, on passe la
+// structure en `orphaned` (non éditable, mais visible) — l'admin devra intervenir.
+// Retourne la liste des structures orphelines pour info.
+async function reassignOrOrphanFoundedStructures(
+  db: FirebaseFirestore.Firestore,
+  founderUid: string
+): Promise<{ promoted: string[]; orphaned: string[] }> {
+  const snap = await db.collection('structures').where('founderId', '==', founderUid).get();
+  const promoted: string[] = [];
+  const orphaned: string[] = [];
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    const coFounders: string[] = data.coFounderIds ?? [];
+    const batch = db.batch();
+    if (coFounders.length > 0) {
+      const newFounder = coFounders[0];
+      const nextCoFounders = coFounders.slice(1);
+      const updates: Record<string, unknown> = {
+        founderId: newFounder,
+        coFounderIds: nextCoFounders,
+        transferredAt: FieldValue.serverTimestamp(),
+        transferredBy: 'system:founder_removed',
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      // Si le nouveau fondateur avait un préavis en cours, on le retire
+      const departures = (data.coFounderDepartures ?? {}) as Record<string, unknown>;
+      if (departures[newFounder]) {
+        updates[`coFounderDepartures.${newFounder}`] = FieldValue.delete();
+      }
+      batch.update(doc.ref, updates);
+      // Promouvoir le membre en fondateur côté structure_members
+      const newFounderMember = await db.collection('structure_members')
+        .where('structureId', '==', doc.id)
+        .where('userId', '==', newFounder)
+        .get();
+      for (const m of newFounderMember.docs) batch.update(m.ref, { role: 'fondateur' });
+      // Retirer le membership de l'ancien fondateur (il est banni/supprimé)
+      const oldFounderMember = await db.collection('structure_members')
+        .where('structureId', '==', doc.id)
+        .where('userId', '==', founderUid)
+        .get();
+      for (const m of oldFounderMember.docs) batch.delete(m.ref);
+      await batch.commit();
+      promoted.push(doc.id);
+    } else {
+      batch.update(doc.ref, {
+        status: 'orphaned',
+        orphanedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      // Retirer le membership de l'ancien fondateur
+      const oldFounderMember = await db.collection('structure_members')
+        .where('structureId', '==', doc.id)
+        .where('userId', '==', founderUid)
+        .get();
+      for (const m of oldFounderMember.docs) batch.delete(m.ref);
+      await batch.commit();
+      orphaned.push(doc.id);
+    }
+  }
+  return { promoted, orphaned };
+}
+
 // Plafond dur sur le nombre d'utilisateurs renvoyés en une seule fois — protège
 // la facture Firestore quand la base grossit. Au-delà, prévoir une vraie pagination + recherche.
 const MAX_USERS = 500;
@@ -143,7 +207,12 @@ export async function POST(req: NextRequest) {
         });
         // Révoquer les tokens Firebase pour forcer la déconnexion
         try { await authAdmin.revokeRefreshTokens(userId); } catch { /* user might not exist in Auth */ }
-        return NextResponse.json({ ok: true, message: 'Utilisateur banni' });
+        // Relais de propriété : promotion auto du 1er co-fondateur ou passage en `orphaned`
+        const { promoted, orphaned } = await reassignOrOrphanFoundedStructures(db, userId);
+        const parts = [`Utilisateur banni`];
+        if (promoted.length) parts.push(`${promoted.length} structure(s) transférée(s) au premier co-fondateur`);
+        if (orphaned.length) parts.push(`${orphaned.length} structure(s) orpheline(s)`);
+        return NextResponse.json({ ok: true, message: parts.join(' — ') });
       }
 
       // ─── Débannir ───────────────────────────────────────────────────────
@@ -263,19 +332,26 @@ export async function POST(req: NextRequest) {
 
       // ─── Supprimer le compte ────────────────────────────────────────────
       case 'delete': {
-        // 1. Vérifier qu'il n'est pas fondateur d'une structure active
-        const structuresSnap = await db.collection('structures')
-          .where('founderId', '==', userId)
-          .where('status', '==', 'active')
+        // 1. Relais de propriété sur les structures qu'il a fondées : le 1er co-fondateur
+        // devient fondateur, sinon la structure passe en `orphaned`. Après ça, l'utilisateur
+        // n'est plus fondateur de rien donc on peut le supprimer.
+        const { promoted, orphaned } = await reassignOrOrphanFoundedStructures(db, userId);
+
+        // 2. Retirer l'utilisateur des coFounderIds de toutes les structures où il est co-fondateur
+        const asCoFounderSnap = await db.collection('structures')
+          .where('coFounderIds', 'array-contains', userId)
           .get();
-        if (!structuresSnap.empty) {
-          const names = structuresSnap.docs.map(d => d.data().name).join(', ');
-          return NextResponse.json({
-            error: `Impossible de supprimer : fondateur de structure(s) active(s) — ${names}. Supprimer ou transférer la structure d'abord.`
-          }, { status: 400 });
+        for (const doc of asCoFounderSnap.docs) {
+          const updates: Record<string, unknown> = {
+            coFounderIds: FieldValue.arrayRemove(userId),
+            updatedAt: FieldValue.serverTimestamp(),
+          };
+          const departures = (doc.data().coFounderDepartures ?? {}) as Record<string, unknown>;
+          if (departures[userId]) updates[`coFounderDepartures.${userId}`] = FieldValue.delete();
+          await doc.ref.update(updates);
         }
 
-        // 2. Supprimer Firebase Auth EN PREMIER — si Firestore est supprimé d'abord
+        // 3. Supprimer Firebase Auth EN PREMIER — si Firestore est supprimé d'abord
         // et que Auth échoue, on se retrouve avec un compte connectable sans profil.
         try {
           await authAdmin.deleteUser(userId);
@@ -287,7 +363,7 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // 3. Atomique : memberships + admin doc + profil Firestore
+        // 4. Atomique : memberships restants + admin doc + profil Firestore
         const allMembers = await db.collection('structure_members').where('userId', '==', userId).get();
         const batch = db.batch();
         allMembers.docs.forEach(doc => batch.delete(doc.ref));
@@ -295,7 +371,10 @@ export async function POST(req: NextRequest) {
         batch.delete(userRef);
         await batch.commit();
 
-        return NextResponse.json({ ok: true, message: 'Compte supprimé définitivement' });
+        const parts = ['Compte supprimé définitivement'];
+        if (promoted.length) parts.push(`${promoted.length} structure(s) transférée(s) au 1er co-fondateur`);
+        if (orphaned.length) parts.push(`${orphaned.length} structure(s) orpheline(s)`);
+        return NextResponse.json({ ok: true, message: parts.join(' — ') });
       }
 
       default:

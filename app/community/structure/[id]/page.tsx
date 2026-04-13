@@ -51,6 +51,7 @@ type StructureData = {
   achievements: { placement?: string; title?: string; competition?: string; game?: string; date?: string }[];
   status: string;
   founderId: string;
+  coFounderIds?: string[];
   members: Member[];
 };
 
@@ -140,7 +141,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
     );
   }
 
-  const isOwner = firebaseUser?.uid === structure.founderId;
+  const isOwner = firebaseUser?.uid === structure.founderId || (structure.coFounderIds ?? []).includes(firebaseUser?.uid ?? '');
   const isMember = structure.members.some(m => m.userId === firebaseUser?.uid);
   const socialEntries = Object.entries(structure.socials).filter(([, v]) => v);
   const mainColor = structure.games?.includes('rocket_league') ? 'var(--s-blue)' : structure.games?.includes('trackmania') ? 'var(--s-green)' : 'var(--s-gold)';

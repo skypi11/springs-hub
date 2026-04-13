@@ -5,6 +5,48 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { safeUrl, clampString, LIMITS } from '@/lib/validation';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { expiredDepartures } from '@/lib/structure-roles';
+
+// Lazy-process les préavis de départ de co-fondateurs expirés sur une structure.
+// Appelée au moment des lectures (pas de cron). Retire du coFounderIds, nettoie la map
+// coFounderDepartures et rétrograde le membre en 'joueur' — le tout en batch.
+// Retourne la data mise à jour (mergée localement) pour éviter un re-fetch.
+async function processExpiredDepartures(
+  db: FirebaseFirestore.Firestore,
+  structureId: string,
+  data: FirebaseFirestore.DocumentData
+): Promise<FirebaseFirestore.DocumentData> {
+  const departures = data.coFounderDepartures as Record<string, unknown> | undefined;
+  const expired = expiredDepartures(departures);
+  if (expired.length === 0) return data;
+
+  const batch = db.batch();
+  const structureRef = db.collection('structures').doc(structureId);
+  const updates: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
+  for (const expiredUid of expired) {
+    updates[`coFounderDepartures.${expiredUid}`] = FieldValue.delete();
+  }
+  updates.coFounderIds = FieldValue.arrayRemove(...expired);
+  batch.update(structureRef, updates);
+
+  // Rétrograder les membres correspondants
+  for (const expiredUid of expired) {
+    const memberSnap = await db.collection('structure_members')
+      .where('structureId', '==', structureId)
+      .where('userId', '==', expiredUid)
+      .get();
+    for (const mDoc of memberSnap.docs) {
+      batch.update(mDoc.ref, { role: 'joueur' });
+    }
+  }
+  await batch.commit();
+
+  // Merge local : on retire les expirés du coFounderIds et de la map
+  const nextCoFounderIds = (data.coFounderIds ?? []).filter((id: string) => !expired.includes(id));
+  const nextDepartures = { ...(departures ?? {}) };
+  for (const u of expired) delete nextDepartures[u];
+  return { ...data, coFounderIds: nextCoFounderIds, coFounderDepartures: nextDepartures };
+}
 
 // GET /api/structures/my — récupérer les structures où l'utilisateur est fondateur/co-fondateur
 export async function GET(req: NextRequest) {
@@ -14,22 +56,47 @@ export async function GET(req: NextRequest) {
 
     const db = getAdminDb();
 
-    // Structures en tant que fondateur
-    const founderSnap = await db.collection('structures')
-      .where('founderId', '==', uid)
-      .get();
+    // Deux requêtes parallèles : en tant que fondateur ET en tant que co-fondateur
+    const [founderSnap, coFounderSnap] = await Promise.all([
+      db.collection('structures').where('founderId', '==', uid).get(),
+      db.collection('structures').where('coFounderIds', 'array-contains', uid).get(),
+    ]);
 
-    if (founderSnap.empty) {
+    // Dédupliquer par id (théoriquement impossible qu'on soit les deux, mais on blinde)
+    const structureDocs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+    for (const d of founderSnap.docs) structureDocs.set(d.id, d);
+    for (const d of coFounderSnap.docs) structureDocs.set(d.id, d);
+
+    if (structureDocs.size === 0) {
+      return NextResponse.json({ structures: [] });
+    }
+
+    // Lazy-process les préavis expirés sur chaque structure avant de répondre
+    const structureDataById = new Map<string, FirebaseFirestore.DocumentData>();
+    for (const [id, doc] of structureDocs) {
+      const processed = await processExpiredDepartures(db, id, doc.data());
+      structureDataById.set(id, processed);
+    }
+
+    // Si l'utilisateur vient de perdre son siège de co-fondateur (préavis expiré),
+    // on retire la structure de sa liste "mes structures"
+    for (const [id, data] of structureDataById) {
+      const isFounder = data.founderId === uid;
+      const isCoFounder = (data.coFounderIds ?? []).includes(uid);
+      if (!isFounder && !isCoFounder) structureDataById.delete(id);
+    }
+
+    if (structureDataById.size === 0) {
       return NextResponse.json({ structures: [] });
     }
 
     // Charger tous les memberships des structures de l'utilisateur en une requête,
     // puis tous les profils joueurs en un seul batch.
-    const structureIds = founderSnap.docs.map(d => d.id);
+    const structureIds = Array.from(structureDataById.keys());
     const membersByStructure = new Map<string, FirebaseFirestore.QueryDocumentSnapshot[]>();
     const allUserIds: string[] = [];
 
-    // Firestore 'in' max 30 — paginer si beaucoup de structures (rare ici, max 2 par fondateur)
+    // Firestore 'in' max 30 — paginer si beaucoup de structures (rare ici, max 2 par personne)
     for (let i = 0; i < structureIds.length; i += 30) {
       const chunk = structureIds.slice(i, i + 30);
       const snap = await db.collection('structure_members').where('structureId', 'in', chunk).get();
@@ -43,9 +110,9 @@ export async function GET(req: NextRequest) {
 
     const usersById = await fetchDocsByIds(db, 'users', allUserIds);
 
-    const structures = founderSnap.docs.map(doc => {
-      const data = doc.data();
-      const memberDocs = membersByStructure.get(doc.id) ?? [];
+    const structures = structureIds.map(id => {
+      const data = structureDataById.get(id)!;
+      const memberDocs = membersByStructure.get(id) ?? [];
       const members = memberDocs.map(mDoc => {
         const mData = mDoc.data();
         const u = usersById.get(mData.userId);
@@ -60,13 +127,24 @@ export async function GET(req: NextRequest) {
         };
       });
 
+      // Sérialiser la map des préavis (Timestamps → ISO) pour le client
+      const departuresRaw = (data.coFounderDepartures ?? {}) as Record<string, unknown>;
+      const coFounderDepartures: Record<string, string | null> = {};
+      for (const [k, v] of Object.entries(departuresRaw)) {
+        const t = v as { toDate?: () => Date } | null;
+        coFounderDepartures[k] = t?.toDate?.()?.toISOString?.() ?? null;
+      }
+
       return {
-        id: doc.id,
+        id,
         ...data,
+        coFounderDepartures,
         members,
         requestedAt: data.requestedAt?.toDate?.()?.toISOString() ?? null,
         validatedAt: data.validatedAt?.toDate?.()?.toISOString() ?? null,
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
+        updatedAt: data.updatedAt?.toDate?.()?.toISOString() ?? null,
+        transferredAt: data.transferredAt?.toDate?.()?.toISOString() ?? null,
       };
     });
 

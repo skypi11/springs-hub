@@ -41,10 +41,15 @@ type MyStructure = {
   status: string;
   reviewComment?: string;
   founderId: string;
+  coFounderIds?: string[];
+  coFounderDepartures?: Record<string, string | null>;
   members: Member[];
   requestedAt?: string;
   validatedAt?: string;
 };
+
+const DEPARTURE_NOTICE_DAYS = 7;
+const DEPARTURE_NOTICE_MS = DEPARTURE_NOTICE_DAYS * 24 * 60 * 60 * 1000;
 
 const STATUS_INFO: Record<string, { label: string; color: string; icon: typeof CheckCircle; desc: string }> = {
   pending_validation: { label: 'En attente de validation', color: '#FFB800', icon: Clock, desc: 'Ta demande est en cours de traitement. Un entretien vocal sera organisé.' },
@@ -214,6 +219,13 @@ export default function MyStructurePage() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [showEmojis, setShowEmojis] = useState(false);
   const descRef = useRef<HTMLTextAreaElement>(null);
+  // `now` est utilisé pour calculer le temps restant sur les préavis de départ.
+  // Lazy-init : appelé une seule fois au montage, puis refresh toutes les 60s.
+  const [now, setNow] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   async function loadStructures() {
     if (!firebaseUser) return;
@@ -435,6 +447,12 @@ export default function MyStructurePage() {
   const statusInfo = STATUS_INFO[s.status] ?? STATUS_INFO.pending_validation;
   const StatusIcon = statusInfo.icon;
   const canEdit = s.status === 'active';
+  // Le dashboard est ouvert au fondateur ET aux co-fondateurs. Certaines actions
+  // sont réservées au fondateur (promouvoir/rétrograder, transférer, supprimer).
+  const isFounderOfActive = !!firebaseUser && s.founderId === firebaseUser.uid;
+  const isCoFounderOfActive = !!firebaseUser && (s.coFounderIds ?? []).includes(firebaseUser.uid);
+  const myDepartureIso = firebaseUser ? s.coFounderDepartures?.[firebaseUser.uid] : null;
+  const myDepartureRemainingMs = myDepartureIso ? Math.max(0, new Date(myDepartureIso).getTime() + DEPARTURE_NOTICE_MS - now) : null;
 
   const toggle = (key: string) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }));
 
@@ -516,6 +534,154 @@ export default function MyStructurePage() {
       if (accept) await loadStructures();
     } catch (err) {
       console.error('[MyStructure] request action error:', err);
+    }
+    setInvActionLoading(null);
+  }
+
+  async function handlePromoteToCoFounder(userId: string, memberName: string) {
+    if (!activeStructure || !firebaseUser) return;
+    const ok = await confirm({
+      title: 'Promouvoir co-fondateur',
+      message: `Promouvoir ${memberName} en co-fondateur ? Il pourra gérer la structure comme toi (sauf transfert, suppression et gestion des co-fondateurs).`,
+      confirmLabel: 'Promouvoir',
+    });
+    if (!ok) return;
+    setInvActionLoading(userId);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/structures/co-founders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ structureId: activeStructure.id, targetUserId: userId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        await loadStructures();
+        toast.success(`${memberName} promu co-fondateur`);
+      } else {
+        toast.error(data.error || 'Erreur');
+      }
+    } catch {
+      toast.error('Erreur réseau');
+    }
+    setInvActionLoading(null);
+  }
+
+  async function handleDemoteCoFounder(userId: string, memberName: string) {
+    if (!activeStructure || !firebaseUser) return;
+    const ok = await confirm({
+      title: 'Rétrograder le co-fondateur',
+      message: `Retirer les droits de co-fondateur à ${memberName} ? Il redevient simple joueur de la structure.`,
+      variant: 'danger',
+      confirmLabel: 'Rétrograder',
+    });
+    if (!ok) return;
+    setInvActionLoading(userId);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/structures/co-founders', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ structureId: activeStructure.id, targetUserId: userId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        await loadStructures();
+        toast.success(`${memberName} rétrogradé`);
+      } else {
+        toast.error(data.error || 'Erreur');
+      }
+    } catch {
+      toast.error('Erreur réseau');
+    }
+    setInvActionLoading(null);
+  }
+
+  async function handleTransferOwnership(userId: string, memberName: string) {
+    if (!activeStructure || !firebaseUser) return;
+    const keepAsCoFounder = await confirm({
+      title: `Transférer à ${memberName}`,
+      message: `${memberName} deviendra le nouveau fondateur. Veux-tu rester dans la structure en tant que co-fondateur ?\n\n(Clique "Non" pour redevenir simple joueur à la place.)`,
+      confirmLabel: 'Oui, co-fondateur',
+      cancelLabel: 'Non, simple joueur',
+    });
+    const confirmTransfer = await confirm({
+      title: 'Confirmer le transfert',
+      message: `Tu vas transférer la propriété de ${activeStructure.name} à ${memberName}. Cette action est réversible seulement si le nouveau fondateur accepte de te retransférer la structure. Confirmer ?`,
+      variant: 'danger',
+      confirmLabel: 'Transférer',
+    });
+    if (!confirmTransfer) return;
+    setInvActionLoading(userId);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/structures/transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ structureId: activeStructure.id, newFounderId: userId, keepAsCoFounder }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        await loadStructures();
+        toast.success(`Propriété transférée à ${memberName}`);
+      } else {
+        toast.error(data.error || 'Erreur');
+      }
+    } catch {
+      toast.error('Erreur réseau');
+    }
+    setInvActionLoading(null);
+  }
+
+  async function handleLeaveAsCoFounder() {
+    if (!activeStructure || !firebaseUser) return;
+    const ok = await confirm({
+      title: 'Quitter en tant que co-fondateur',
+      message: `Tu vas déposer un préavis de ${DEPARTURE_NOTICE_DAYS} jours. Passé ce délai tu seras automatiquement retiré du rôle de co-fondateur et redeviendra simple joueur. Tu peux annuler ton préavis à tout moment avant expiration.`,
+      variant: 'danger',
+      confirmLabel: 'Déposer le préavis',
+    });
+    if (!ok) return;
+    setInvActionLoading('leave');
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/structures/co-founders/leave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ structureId: activeStructure.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        await loadStructures();
+        toast.success('Préavis déposé');
+      } else {
+        toast.error(data.error || 'Erreur');
+      }
+    } catch {
+      toast.error('Erreur réseau');
+    }
+    setInvActionLoading(null);
+  }
+
+  async function handleCancelLeave() {
+    if (!activeStructure || !firebaseUser) return;
+    setInvActionLoading('leave');
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/structures/co-founders/leave', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ structureId: activeStructure.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        await loadStructures();
+        toast.success('Préavis annulé');
+      } else {
+        toast.error(data.error || 'Erreur');
+      }
+    } catch {
+      toast.error('Erreur réseau');
     }
     setInvActionLoading(null);
   }
@@ -662,9 +828,29 @@ export default function MyStructurePage() {
                 <span className="t-mono text-xs" style={{ color: 'var(--s-text-dim)' }}>{s.members.length} membre{s.members.length > 1 ? 's' : ''}</span>
               </div>
             </div>
-            <Link href={`/community/structure/${s.id}`} className="btn-springs btn-secondary bevel-sm-border flex-shrink-0">
-              <span><Eye size={14} /></span> <span>Page publique</span>
-            </Link>
+            <div className="flex flex-col gap-2 flex-shrink-0">
+              <Link href={`/community/structure/${s.id}`} className="btn-springs btn-secondary bevel-sm-border">
+                <span><Eye size={14} /></span> <span>Page publique</span>
+              </Link>
+              {isCoFounderOfActive && !myDepartureIso && (
+                <button type="button" onClick={handleLeaveAsCoFounder}
+                  disabled={invActionLoading === 'leave'}
+                  className="btn-springs btn-secondary bevel-sm-border text-xs"
+                  style={{ color: '#ff8888', borderColor: 'rgba(255,85,85,0.3)' }}>
+                  {invActionLoading === 'leave' ? <Loader2 size={12} className="animate-spin" /> : <UserMinus size={12} />}
+                  <span>Quitter (préavis {DEPARTURE_NOTICE_DAYS}j)</span>
+                </button>
+              )}
+              {isCoFounderOfActive && myDepartureIso && myDepartureRemainingMs != null && (
+                <button type="button" onClick={handleCancelLeave}
+                  disabled={invActionLoading === 'leave'}
+                  className="btn-springs btn-secondary bevel-sm-border text-xs"
+                  style={{ color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.35)' }}>
+                  {invActionLoading === 'leave' ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                  <span>Annuler préavis ({Math.ceil(myDepartureRemainingMs / (24 * 60 * 60 * 1000))}j restants)</span>
+                </button>
+              )}
+            </div>
           </div>
         </header>
 
@@ -1188,8 +1374,13 @@ export default function MyStructurePage() {
                   <div className="divide-y" style={{ borderColor: 'var(--s-border)' }}>
                     {s.members.map(m => {
                       const avatar = m.avatarUrl || m.discordAvatar;
-                      const roleColor = m.role === 'fondateur' ? 'var(--s-gold)' : m.role === 'co_fondateur' ? 'var(--s-gold)' : 'var(--s-text-muted)';
-                      const canRemove = m.role !== 'fondateur';
+                      const isFounderRow = m.role === 'fondateur';
+                      const isCoFounderRow = m.role === 'co_fondateur';
+                      const roleColor = isFounderRow ? 'var(--s-gold)' : isCoFounderRow ? 'var(--s-gold)' : 'var(--s-text-muted)';
+                      const canRemove = !isFounderRow && !isCoFounderRow;
+                      const memberDepartureIso = s.coFounderDepartures?.[m.userId];
+                      const memberRemainingMs = memberDepartureIso ? Math.max(0, new Date(memberDepartureIso).getTime() + DEPARTURE_NOTICE_MS - now) : null;
+                      const daysLeft = memberRemainingMs != null ? Math.ceil(memberRemainingMs / (24 * 60 * 60 * 1000)) : null;
                       return (
                         <div key={m.id} className="flex items-center gap-3 px-5 py-3 group transition-all duration-150"
                           style={{ background: 'transparent' }}
@@ -1207,9 +1398,41 @@ export default function MyStructurePage() {
                             )}
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-semibold truncate" style={{ color: 'var(--s-text)' }}>{m.displayName}</p>
-                              <p className="t-mono" style={{ fontSize: '10px', color: roleColor }}>{ROLE_LABELS[m.role] ?? m.role}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="t-mono" style={{ fontSize: '10px', color: roleColor }}>{ROLE_LABELS[m.role] ?? m.role}</p>
+                                {isCoFounderRow && daysLeft != null && (
+                                  <span className="tag" style={{ fontSize: '8px', padding: '1px 6px', background: 'rgba(255,85,85,0.1)', color: '#ff8888', borderColor: 'rgba(255,85,85,0.3)' }}>
+                                    Préavis : {daysLeft}j
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </Link>
+                          {/* Actions fondateur */}
+                          {isFounderOfActive && !isFounderRow && (
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                              {isCoFounderRow ? (
+                                <>
+                                  <button type="button" onClick={() => handleTransferOwnership(m.userId, m.displayName)}
+                                    disabled={invActionLoading === m.userId}
+                                    className="p-1" style={{ color: 'var(--s-gold)' }} title="Transférer la propriété">
+                                    <Shield size={11} />
+                                  </button>
+                                  <button type="button" onClick={() => handleDemoteCoFounder(m.userId, m.displayName)}
+                                    disabled={invActionLoading === m.userId}
+                                    className="p-1" style={{ color: 'var(--s-text-dim)' }} title="Rétrograder">
+                                    <ChevronDown size={11} />
+                                  </button>
+                                </>
+                              ) : (
+                                <button type="button" onClick={() => handlePromoteToCoFounder(m.userId, m.displayName)}
+                                  disabled={invActionLoading === m.userId}
+                                  className="p-1" style={{ color: 'var(--s-gold)' }} title="Promouvoir co-fondateur">
+                                  <ChevronUp size={11} />
+                                </button>
+                              )}
+                            </div>
+                          )}
                           {canRemove && (
                             <button type="button" onClick={() => handleRemoveMember(m.id, m.displayName)}
                               disabled={invActionLoading === m.id}

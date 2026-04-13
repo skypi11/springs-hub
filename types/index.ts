@@ -89,8 +89,10 @@ export interface Structure {
   coFounderIds?: string[];
   managerIds?: string[];
   coachIds?: string[];
+  // Préavis de départ co-fondateur (7 jours) — clé = uid, valeur = timestamp du dépôt
+  coFounderDepartures?: Record<string, Date | string | number>;
   // Statut
-  status: 'pending_validation' | 'active' | 'suspended' | 'deletion_scheduled';
+  status: 'pending_validation' | 'active' | 'suspended' | 'deletion_scheduled' | 'orphaned';
   reviewComment?: string;       // commentaire admin (approbation/refus)
   reviewedBy?: string;          // uid admin
   requestedAt?: Date;
@@ -161,5 +163,6 @@ export const STRUCTURE_STATUS = {
   REJECTED: 'rejected' as const,
   SUSPENDED: 'suspended' as const,
   DELETION_SCHEDULED: 'deletion_scheduled' as const,
+  ORPHANED: 'orphaned' as const,
 };
 export type StructureStatus = typeof STRUCTURE_STATUS[keyof typeof STRUCTURE_STATUS];
