@@ -413,7 +413,7 @@ Fichier : `public/springs-logo.png`
 - [x] Règles Firestore complètes — fichier `firestore.rules` à la racine du repo
 - [x] Page profil utilisateur (création/édition) + profil public avec stats RL/TM
 
-### Phase 2 — Communauté — TERMINÉE
+### Phase 2 — Communauté — EN COURS (MVP2 calendrier)
 - [x] Demande de création de structure + validation admin
 - [x] Dashboard fondateur : infos structure, membres, roster
 - [x] Gestion membres : invitations, demandes rejoindre
@@ -423,8 +423,10 @@ Fichier : `public/springs-logo.png`
 - [x] Page publique structure (refonte UX complète)
 - [x] Panel admin structures (approuver/refuser/suspendre/supprimer)
 - [x] Panel admin utilisateurs (ban, edit, admin, déco forcée, supprimer)
-- [x] **Calendrier des structures** (events + présences, MVP1 shippé 2026-04-13) + page `/calendar` perso
+- [x] **Calendrier MVP1** (events + présences, shippé 2026-04-13) + page `/calendar` perso
 - [x] **Gestion co-fondateurs** (ajout/retrait/transfert + préavis de départ 7j)
+- [ ] **Calendrier MVP2a** — dispos perso + matching automatique (voir specs ci-dessous)
+- [ ] **Calendrier MVP2b** — devoirs individualisés checklist (voir specs ci-dessous)
 
 ### Phase 3 — Compétitions (~4 semaines)
 - [ ] Section compétitions : liste, pages individuelles
@@ -446,6 +448,120 @@ Fichier : `public/springs-logo.png`
 - [x] Toast/Modal DA Springs (suppression `alert()`/`confirm()` natifs)
 - [x] Suite Vitest 49 tests sur `lib/`
 - [x] Durcissement sécurité complet (CSRF OAuth, validation, rules, batch writes, hard caps)
+
+---
+
+## Calendrier — specs MVP2 (validées 2026-04-13)
+
+Extension du calendrier MVP1. Découpé en 2 lots livrables indépendamment : **MVP2a** (dispos + matching), puis **MVP2b** (devoirs).
+
+### MVP2a — Dispos perso + matching automatique
+
+**Objectif** : chaque joueur renseigne ses créneaux de disponibilité par semaine. Quand assez de joueurs d'une sous-équipe sont dispos en même temps, le staff voit une suggestion de créneau et peut créer l'event en un click.
+
+#### Horaires par jour (slots de 30 min)
+- **Lun/Mar/Jeu/Ven** : 17h → 02h (les slots 00h/00h30/01h/01h30 comptent comme le jour précédent qui déborde sur la nuit)
+- **Mer** : 12h → 02h
+- **Sam/Dim** : 10h → 02h
+- Horizon affiché : semaine en cours + semaine suivante (2 semaines visibles simultanément)
+- Jours passés : **read-only gris** (pas d'édition)
+
+#### UI dispos perso — sur `/calendar`
+- Nouvelle section en haut, au-dessus des events
+- 2 panneaux côte à côte (cette semaine / semaine prochaine)
+- 7 colonnes jour × lignes slots 30 min, click pour toggle (vert = dispo / gris = pas dispo)
+- **Drag** pour sélectionner plusieurs slots d'un coup
+- **Bouton "Copier la semaine précédente"** pour démarrer vite chaque semaine
+- Visibilité : un joueur remplit **une seule fois**, ses dispos servent à **toutes ses sous-équipes**
+- Les coéquipiers et staff de ses sous-équipes voient ses dispos
+
+#### Schéma Firestore
+**`user_availability`** — dispos d'un joueur sur une semaine ISO
+```javascript
+// doc id = `{userId}_{isoWeek}` (ex: "discord_12345_2026-W16")
+{
+  userId: "discord_...",
+  isoWeek: "2026-W16",
+  weekStart: "2026-04-13",        // ISO date du lundi
+  slots: ["2026-04-14T20:00", "2026-04-14T20:30", ...],  // array de datetime ISO des slots cochés
+  updatedAt: Timestamp
+}
+```
+Slots non cochés = absents de l'array (doc léger, 0-100 strings max).
+
+**`sub_teams`** — champs ajoutés pour le matching
+```javascript
+{
+  // ... champs existants
+  minPlayersForMatch: 3,          // défaut 3 pour RL, configurable par l'équipe, librement réglable (TM n'a pas de défaut)
+  minMatchDurationMinutes: 60,    // défaut 60 min
+}
+```
+Éditables uniquement par **dirigeant de la structure** (fondateur/co-fondateur), pas par coach/manager (pour éviter qu'ils s'auto-lâchent la bride).
+
+#### Backend MVP2a
+- `GET /api/availability/me?weeks=current,next` → renvoie mes 2 grilles (+ semaine N-1 en bonus pour alimenter "copier la semaine précédente")
+- `PUT /api/availability/me` → upsert une semaine entière (batch write)
+- `GET /api/structures/:id/sub-teams/:id/availability` → dispos de tous les membres d'une équipe (staff only)
+- `GET /api/structures/:id/sub-teams/:id/match-suggestions` → retourne les blocs continus où `≥ minPlayersForMatch` joueurs sont dispos ET libres d'event conflictuel, sur ≥ `minMatchDurationMinutes` minutes, sur les 2 semaines visibles. Croise `user_availability` × `structure_events` existants pour exclure les conflits.
+- `PATCH /api/structures/:id/sub-teams/:id` étendu pour `minPlayersForMatch` + `minMatchDurationMinutes` (dirigeant structure only)
+
+#### UI matching — côté dashboard structure
+- **Nouvelle section "CRÉNEAUX SUGGÉRÉS"** en haut de l'onglet Calendrier de `/community/my-structure`, **visible staff d'équipe uniquement**
+- Une card par suggestion : "Mardi 14 avril 20h-22h — 4/4 joueurs dispos — [Équipe principale]"
+- Bouton "Créer un event" → ouvre le form event avec date/heure/équipe préremplis
+- Dismissable côté client (cache local, réapparaît si config change)
+- **Section "Dispos de l'équipe"** dans le détail d'une sous-équipe (onglet ÉQUIPES) : compteur par slot, click pour voir la liste nominative
+
+### MVP2b — Devoirs individualisés (checklist)
+
+**Objectif** : le staff assigne des petites tâches à un ou plusieurs joueurs (checklist). Chaque joueur coche ses devoirs indépendamment. Le staff voit un tableau de bord "qui a fait quoi".
+
+#### Schéma Firestore
+**`structure_todos`** — un document par (devoir × joueur assigné)
+```javascript
+{
+  structureId: "",
+  subTeamId: "",              // required — scope à une sous-équipe
+  assigneeId: "discord_...",  // 1 doc par joueur (multi-assign = N docs)
+  title: "",                  // court, ex: "Regarder VOD match du 12/04"
+  description: "",            // optionnel
+  eventId: null,              // optionnel — si lié à un event structure_events
+  deadline: null,             // optionnel — ISO date
+  done: false,
+  doneAt: null,
+  doneBy: null,               // = assigneeId en général (peut être un staff qui marque fait à la place)
+  createdBy: "discord_...",
+  createdAt: Timestamp
+}
+```
+
+#### Permissions devoirs
+- **Créer** : staff de la sous-équipe concernée (fondateur, co-fondateur, manager, coach)
+- **Éditer/supprimer** : staff de l'équipe ou créateur
+- **Cocher "fait"** : uniquement l'`assigneeId` (ou staff, exceptionnel)
+- **Voir** :
+  - Le joueur voit uniquement ses propres devoirs
+  - Staff d'une sous-équipe voit tous les devoirs des membres de cette sous-équipe
+  - Dirigeant de structure (fondateur/co-fondateur) voit toutes les équipes
+
+#### Backend MVP2b
+- `POST /api/structures/:id/todos` — body `{ subTeamId, assigneeIds[], title, description?, eventId?, deadline? }` — batch write : crée 1 doc par assignee
+- `GET /api/structures/:id/sub-teams/:id/todos?status=pending|done|all` — staff only
+- `GET /api/todos/me` — tous mes devoirs à travers toutes les structures
+- `PATCH /api/structures/:id/todos/:id` — toggle done (assignee only) ou modifier (staff only)
+- `DELETE /api/structures/:id/todos/:id` — staff de l'équipe
+
+#### UI devoirs
+- **Section "Mes devoirs"** sur `/calendar` perso :
+  - "À faire" en gros au-dessus de la liste d'events
+  - Chaque item : titre, description, deadline si mise, mention "À la suite de [event]" si lié (pas de lien vers le détail event, juste la mention texte)
+  - Checkbox pour marquer fait
+  - Sous-section pliable **"Historique (X fait)"** en dessous
+- **Section "Devoirs de l'équipe"** dans le détail d'une sous-équipe (onglet ÉQUIPES du dashboard structure) :
+  - Tableau compact avec filtre "à faire / fait / tous"
+  - Visible par staff d'équipe + dirigeants structure (fondateur/co-fondateur toutes équipes)
+  - Bouton "Nouveau devoir" → form avec : titre, description, **multi-select joueurs** de l'équipe (case à cocher par joueur), deadline optionnelle, lien event optionnel (dropdown des events à venir/passés de l'équipe)
 
 ---
 
