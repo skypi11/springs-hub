@@ -187,16 +187,16 @@ export default function AvailabilityGrid() {
     <div className="space-y-8">
       {/* Intro */}
       <div className="bevel p-5 animate-fade-in" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-        <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+        <p className="text-base" style={{ color: 'var(--s-text-dim)' }}>
           Indique quand tu es dispo pour jouer. Chaque case = 30 minutes. Le staff de ton équipe verra ces créneaux pour proposer des matchs et entraînements.
         </p>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 t-mono" style={{ fontSize: '10px', color: 'var(--s-text-muted)' }}>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block" style={{ width: '12px', height: '10px', background: 'var(--s-violet)', border: '1px solid rgba(163,100,217,0.4)' }} />
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 text-sm" style={{ color: 'var(--s-text-muted)' }}>
+          <span className="flex items-center gap-2">
+            <span className="inline-block" style={{ width: '16px', height: '14px', background: 'var(--s-violet)', border: '1px solid rgba(163,100,217,0.5)' }} />
             Dispo
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block" style={{ width: '12px', height: '10px', background: 'var(--s-elevated)', border: '1px solid var(--s-bg)' }} />
+          <span className="flex items-center gap-2">
+            <span className="inline-block" style={{ width: '16px', height: '14px', background: 'var(--s-elevated)', border: '1px solid var(--s-bg)' }} />
             Non dispo
           </span>
           <span style={{ color: 'var(--s-text-dim)' }}>
@@ -321,11 +321,11 @@ function WeekPanel({
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
           <div>
-            <h3 className="font-display text-xl flex items-center gap-2" style={{ letterSpacing: '0.03em' }}>
+            <h3 className="font-display text-2xl flex items-center gap-2" style={{ letterSpacing: '0.03em' }}>
               {title}
               {dirty && (
-                <span className="t-label px-1.5 py-0.5 bevel-sm animate-pulse" style={{
-                  fontSize: '8px',
+                <span className="t-label px-2 py-0.5 bevel-sm animate-pulse" style={{
+                  fontSize: '10px',
                   background: 'rgba(255,184,0,0.15)',
                   border: '1px solid rgba(255,184,0,0.4)',
                   color: 'var(--s-gold)',
@@ -334,37 +334,37 @@ function WeekPanel({
                 </span>
               )}
             </h3>
-            <p className="t-mono mt-1" style={{ fontSize: '11px', color: 'var(--s-text-dim)' }}>
+            <p className="t-mono mt-1.5" style={{ fontSize: '13px', color: 'var(--s-text-dim)' }}>
               {rangeLabel} · {countSelected} créneaux sélectionnés
             </p>
           </div>
           <div className="flex items-center gap-2">
             {copyLabel && (
               <button type="button" onClick={onCopy}
-                className="btn-springs bevel-sm flex items-center gap-1.5 px-3 py-1.5"
+                className="btn-springs bevel-sm flex items-center gap-2 px-4 py-2"
                 style={{
-                  fontSize: '11px',
+                  fontSize: '13px',
                   background: isEmpty ? 'rgba(123,47,190,0.12)' : 'transparent',
                   border: isEmpty ? '1px solid rgba(163,100,217,0.4)' : '1px solid var(--s-border)',
                   color: isEmpty ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
                   cursor: 'pointer',
                   fontWeight: isEmpty ? 600 : 400,
                 }}>
-                <Copy size={12} /> {copyLabel}
+                <Copy size={14} /> {copyLabel}
               </button>
             )}
             <button type="button" onClick={onSave}
               disabled={!dirty || saving}
-              className="btn-springs bevel-sm flex items-center gap-1.5 px-4 py-1.5"
+              className="btn-springs bevel-sm flex items-center gap-2 px-5 py-2"
               style={{
-                fontSize: '11px',
+                fontSize: '13px',
                 background: dirty ? 'var(--s-gold)' : 'transparent',
                 border: `1px solid ${dirty ? 'var(--s-gold)' : 'var(--s-border)'}`,
                 color: dirty ? '#000' : 'var(--s-text-muted)',
                 cursor: dirty && !saving ? 'pointer' : 'not-allowed',
                 fontWeight: 600,
               }}>
-              {saving ? <Loader2 size={12} className="animate-spin" /> : dirty ? <Save size={12} /> : <Check size={12} />}
+              {saving ? <Loader2 size={14} className="animate-spin" /> : dirty ? <Save size={14} /> : <Check size={14} />}
               {saving ? 'Enregistrement…' : dirty ? 'Enregistrer' : 'À jour'}
             </button>
           </div>
@@ -372,49 +372,68 @@ function WeekPanel({
 
         {/* Grid */}
         <div className="overflow-x-auto">
-          <table className="border-collapse" style={{ minWidth: '560px', userSelect: 'none' }}>
+          <table className="border-collapse" style={{ minWidth: '640px', userSelect: 'none' }}>
             <thead>
               <tr>
-                <th className="t-label text-right pr-2" style={{ fontSize: '9px', color: 'var(--s-text-muted)', fontWeight: 600, width: '52px' }}></th>
+                <th style={{ width: '64px' }} />
                 {weekGrid.days.map((day, i) => {
                   const date = new Date(day.gridYmd + 'T12:00:00');
                   const dayLabel = DAY_LABELS[i];
                   const dayNum = date.getDate();
                   return (
-                    <th key={day.gridYmd} className="t-label pb-2" style={{
-                      fontSize: '10px',
+                    <th key={day.gridYmd} className="t-label pb-3" style={{
+                      fontSize: '12px',
                       color: day.isPast ? 'var(--s-text-muted)' : 'var(--s-text-dim)',
                       fontWeight: 600,
-                      width: '60px',
+                      width: '76px',
                       opacity: day.isPast ? 0.5 : 1,
                     }}>
                       <div>{dayLabel}</div>
-                      <div className="font-display text-base" style={{ letterSpacing: '0.02em' }}>{dayNum}</div>
+                      <div className="font-display text-xl" style={{ letterSpacing: '0.02em' }}>{dayNum}</div>
                     </th>
                   );
                 })}
               </tr>
             </thead>
             <tbody>
-              {TIME_AXIS.map((axis, rowIdx) => (
+              {TIME_AXIS.map((axis, rowIdx) => {
+                const isHourStart = axis.mm === '00';
+                const ROW_HEIGHT = 22;
+                return (
                 <tr key={rowIdx}>
-                  <td className="t-mono text-right pr-2" style={{
-                    fontSize: '10px',
+                  {/* Colonne des heures : label "17:00" positionné au niveau du bord
+                     supérieur de la case 17:00 → 17:30, avec un offset négatif pour
+                     que le milieu du texte soit ALIGNÉ sur la ligne de séparation
+                     horaire (visuellement « sur » la frontière entre deux heures). */}
+                  <td className="t-mono text-right pr-3" style={{
+                    fontSize: '12px',
                     color: 'var(--s-text-dim)',
                     verticalAlign: 'top',
-                    paddingTop: axis.mm === '00' ? '1px' : '0',
                     lineHeight: 1,
                     fontWeight: 500,
+                    position: 'relative',
+                    height: `${ROW_HEIGHT}px`,
                   }}>
-                    {axis.mm === '00' ? axis.label : ''}
+                    {isHourStart && (
+                      <span style={{
+                        position: 'absolute',
+                        right: '12px',
+                        top: 0,
+                        transform: 'translateY(-50%)',
+                        background: 'var(--s-surface)',
+                        padding: '0 4px',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {axis.label}
+                      </span>
+                    )}
                   </td>
                   {weekGrid.days.map((day) => {
                     const slot = slotForCell(day, axis.hh, axis.mm);
                     if (!slot) {
-                      return <td key={day.gridYmd} style={{ width: '60px', height: '14px', background: 'transparent' }} />;
+                      return <td key={day.gridYmd} style={{ width: '76px', height: `${ROW_HEIGHT}px`, background: 'transparent' }} />;
                     }
                     const isSelected = slots.has(slot);
-                    // Past : slot sur un jour passé (current week) OU slot dont la date < today (pour les overlaps après minuit)
                     const slotDayYmd = slot.slice(0, 10);
                     const isPast = day.isPast || slotDayYmd < today;
 
@@ -437,15 +456,19 @@ function WeekPanel({
                           else if (!shouldAdd && isSelected) onToggle(slot);
                         }}
                         style={{
-                          width: '60px',
-                          height: '14px',
+                          width: '76px',
+                          height: `${ROW_HEIGHT}px`,
                           background: isPast
                             ? (isSelected ? 'rgba(123,47,190,0.15)' : 'rgba(255,255,255,0.02)')
                             : isSelected
                               ? 'var(--s-violet)'
                               : 'var(--s-elevated)',
-                          border: '1px solid var(--s-bg)',
-                          borderTop: axis.mm === '00' ? '1px solid rgba(255,255,255,0.06)' : '1px solid var(--s-bg)',
+                          borderLeft: '1px solid var(--s-bg)',
+                          borderRight: '1px solid var(--s-bg)',
+                          borderTop: isHourStart
+                            ? '2px solid rgba(255,255,255,0.14)'
+                            : '1px solid rgba(255,255,255,0.04)',
+                          borderBottom: 'none',
                           cursor: isPast ? 'not-allowed' : dragActive ? 'grabbing' : 'pointer',
                           opacity: isPast ? 0.5 : 1,
                           transition: 'background-color 100ms',
@@ -454,7 +477,8 @@ function WeekPanel({
                     );
                   })}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -232,50 +232,52 @@ export default function TeamMatchingPanel({
       ) : (
         <>
           {/* ═══ SUGGESTIONS — section la plus importante ═══ */}
-          <div className="bevel-sm p-3 relative overflow-hidden"
+          <div className="bevel-sm p-4 relative overflow-hidden"
             style={{
               background: 'rgba(255,184,0,0.03)',
               border: '1px solid rgba(255,184,0,0.18)',
             }}>
-            <div className="absolute top-0 left-0 right-0 h-[2px]"
+            <div className="absolute top-0 left-0 right-0 h-[3px]"
               style={{ background: 'linear-gradient(90deg, var(--s-gold), transparent 80%)' }} />
-            <div className="flex items-center gap-1.5 mb-2">
-              <Zap size={12} style={{ color: 'var(--s-gold)' }} />
-              <p className="t-label" style={{ fontSize: '10px', color: 'var(--s-gold)' }}>
+            <div className="flex items-center gap-2 mb-2.5 flex-wrap">
+              <Zap size={14} style={{ color: 'var(--s-gold)' }} />
+              <p className="t-label" style={{ fontSize: '12px', color: 'var(--s-gold)' }}>
                 CRÉNEAUX SUGGÉRÉS ({allBlocks.length})
               </p>
-              <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+              <span className="text-sm" style={{ color: 'var(--s-text-muted)' }}>
                 · ≥{data.team.minPlayersForMatch} joueurs, ≥{data.team.minMatchDurationMinutes / 60}h
               </span>
             </div>
             {allBlocks.length === 0 ? (
-              <p className="text-xs italic" style={{ color: 'var(--s-text-muted)' }}>
+              <p className="text-sm italic" style={{ color: 'var(--s-text-muted)' }}>
                 Aucun créneau commun pour le moment — regarde la heatmap ci-dessous pour voir où les dispos se chevauchent.
               </p>
             ) : (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {data.weeks.map((week, wi) => (
                   week.blocks.length > 0 && (
                     <div key={week.weekId}>
-                      <p className="t-mono mb-1" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>
+                      <p className="t-mono mb-1.5" style={{ fontSize: '10px', color: 'var(--s-text-muted)' }}>
                         {wi === 0 ? 'SEMAINE COURANTE' : 'SEMAINE SUIVANTE'}
                       </p>
-                      {week.blocks.map((block, bi) => {
-                        const names = block.playerIds
-                          .map(id => data.members.find(m => m.uid === id)?.displayName ?? id.slice(0, 8))
-                          .join(', ');
-                        return (
-                          <div key={bi} className="flex items-center gap-2 px-2.5 py-1.5 bevel-sm"
-                            style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.25)' }}>
-                            <span className="text-xs font-semibold" style={{ color: 'var(--s-gold)' }}>
-                              {formatBlockLabel(block)}
-                            </span>
-                            <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                              · {block.playerIds.length} joueur{block.playerIds.length > 1 ? 's' : ''} ({names})
-                            </span>
-                          </div>
-                        );
-                      })}
+                      <div className="space-y-1">
+                        {week.blocks.map((block, bi) => {
+                          const names = block.playerIds
+                            .map(id => data.members.find(m => m.uid === id)?.displayName ?? id.slice(0, 8))
+                            .join(', ');
+                          return (
+                            <div key={bi} className="flex items-center gap-2 flex-wrap px-3 py-2 bevel-sm"
+                              style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.25)' }}>
+                              <span className="text-sm font-semibold" style={{ color: 'var(--s-gold)' }}>
+                                {formatBlockLabel(block)}
+                              </span>
+                              <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                                · {block.playerIds.length} joueur{block.playerIds.length > 1 ? 's' : ''} ({names})
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )
                 ))}
@@ -285,75 +287,99 @@ export default function TeamMatchingPanel({
 
           {/* ═══ HEATMAP des dispos par joueur ═══ */}
           <div>
-            <div className="flex items-center gap-1.5 mb-2">
-              <Users size={11} style={{ color: 'var(--s-text-dim)' }} />
-              <p className="t-label" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Users size={14} style={{ color: 'var(--s-text-dim)' }} />
+              <p className="t-label" style={{ fontSize: '12px', color: 'var(--s-text-dim)' }}>
                 DISPOS DES JOUEURS
               </p>
+              <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                · violet plus foncé = plus d&apos;heures ce jour-là
+              </span>
             </div>
 
-            {/* Header : 2 semaines × 7 jours */}
-            <div className="flex items-center gap-2 px-2 mb-1 pl-[calc(16px+0.5rem+1px)]">
-              <div className="flex-1" />
-              <div className="flex gap-2 t-mono" style={{ fontSize: '8px', color: 'var(--s-text-muted)' }}>
-                <div className="flex">
-                  <span className="w-[70px]">S. COURANTE</span>
-                </div>
-                <div className="flex">
-                  <span className="w-[70px]">S. SUIVANTE</span>
-                </div>
-              </div>
-              <div className="w-[68px] text-right t-mono" style={{ fontSize: '8px', color: 'var(--s-text-muted)' }}>
-                S1 / S2
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              {data.members.map(m => {
-                const counts1 = countSlotsByDay(m.slotsByWeek[weekMondays[0]] ?? [], weekMondays[0]);
-                const counts2 = countSlotsByDay(m.slotsByWeek[weekMondays[1]] ?? [], weekMondays[1]);
-                const total1 = counts1.reduce((a, b) => a + b, 0);
-                const total2 = counts2.reduce((a, b) => a + b, 0);
-                const hours1 = total1 * 0.5;
-                const hours2 = total2 * 0.5;
-                const avatar = m.avatarUrl || m.discordAvatar;
-
-                return (
-                  <div key={m.uid} className="flex items-center gap-2 px-2 py-1.5"
-                    style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                    {avatar ? (
-                      <Image src={avatar} alt="" width={16} height={16} unoptimized className="flex-shrink-0 rounded-full" />
-                    ) : (
-                      <div className="w-4 h-4 flex-shrink-0" style={{ background: 'var(--s-surface)' }} />
-                    )}
-                    <span className="text-xs flex-1 truncate min-w-0" style={{ color: 'var(--s-text)' }}>
-                      {m.displayName}
-                      {!m.isTitulaire && (
-                        <span className="ml-1.5 t-label" style={{ fontSize: '8px', color: 'var(--s-text-muted)' }}>
-                          REMP
-                        </span>
-                      )}
+            {/* En-tête : noms de semaines + labels jours */}
+            <div className="overflow-x-auto">
+              <div style={{ minWidth: '520px' }}>
+                <div className="flex items-end gap-3 mb-1.5" style={{ paddingLeft: '160px' }}>
+                  <div className="flex flex-col" style={{ width: '196px' }}>
+                    <span className="t-label mb-1" style={{ fontSize: '10px', color: 'var(--s-text-muted)' }}>
+                      S. COURANTE
                     </span>
-
-                    {/* Mini-timeline : 2 semaines de 7 jours */}
-                    <div className="flex gap-2 flex-shrink-0">
-                      <DayStrip counts={counts1} />
-                      <DayStrip counts={counts2} />
-                    </div>
-
-                    {/* Totaux par semaine */}
-                    <div className="w-[68px] text-right t-mono flex-shrink-0" style={{ fontSize: '10px' }}>
-                      <span style={{ color: total1 === 0 ? 'var(--s-text-muted)' : 'var(--s-text-dim)' }}>
-                        {total1 === 0 ? '—' : `${hours1}h`}
-                      </span>
-                      <span style={{ color: 'var(--s-text-muted)' }}> / </span>
-                      <span style={{ color: total2 === 0 ? 'var(--s-text-muted)' : 'var(--s-text-dim)' }}>
-                        {total2 === 0 ? '—' : `${hours2}h`}
-                      </span>
+                    <div className="flex gap-[3px]">
+                      {DAY_INITIALS.map((d, i) => (
+                        <div key={i} className="text-center t-mono"
+                          style={{ width: '25px', fontSize: '10px', color: 'var(--s-text-muted)' }}>
+                          {d}
+                        </div>
+                      ))}
                     </div>
                   </div>
-                );
-              })}
+                  <div className="flex flex-col" style={{ width: '196px' }}>
+                    <span className="t-label mb-1" style={{ fontSize: '10px', color: 'var(--s-text-muted)' }}>
+                      S. SUIVANTE
+                    </span>
+                    <div className="flex gap-[3px]">
+                      {DAY_INITIALS.map((d, i) => (
+                        <div key={i} className="text-center t-mono"
+                          style={{ width: '25px', fontSize: '10px', color: 'var(--s-text-muted)' }}>
+                          {d}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  {data.members.map(m => {
+                    const counts1 = countSlotsByDay(m.slotsByWeek[weekMondays[0]] ?? [], weekMondays[0]);
+                    const counts2 = countSlotsByDay(m.slotsByWeek[weekMondays[1]] ?? [], weekMondays[1]);
+                    const total1 = counts1.reduce((a, b) => a + b, 0);
+                    const total2 = counts2.reduce((a, b) => a + b, 0);
+                    const hours1 = total1 * 0.5;
+                    const hours2 = total2 * 0.5;
+                    const avatar = m.avatarUrl || m.discordAvatar;
+
+                    return (
+                      <div key={m.uid} className="flex items-center gap-3 px-3 py-2"
+                        style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                        <div className="flex items-center gap-2 flex-shrink-0" style={{ width: '148px' }}>
+                          {avatar ? (
+                            <Image src={avatar} alt="" width={22} height={22} unoptimized className="flex-shrink-0 rounded-full" />
+                          ) : (
+                            <div className="w-[22px] h-[22px] flex-shrink-0 rounded-full" style={{ background: 'var(--s-surface)' }} />
+                          )}
+                          <span className="text-sm truncate min-w-0" style={{ color: 'var(--s-text)' }}>
+                            {m.displayName}
+                            {!m.isTitulaire && (
+                              <span className="ml-1.5 t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>
+                                REMP
+                              </span>
+                            )}
+                          </span>
+                        </div>
+
+                        {/* Semaine courante */}
+                        <DayStrip counts={counts1} />
+                        {/* Semaine suivante */}
+                        <DayStrip counts={counts2} />
+
+                        <div className="flex-1" />
+
+                        {/* Totaux par semaine */}
+                        <div className="t-mono flex-shrink-0 text-right" style={{ fontSize: '12px', minWidth: '90px' }}>
+                          <span style={{ color: total1 === 0 ? 'var(--s-text-muted)' : 'var(--s-text)' }}>
+                            {total1 === 0 ? '—' : `${hours1}h`}
+                          </span>
+                          <span style={{ color: 'var(--s-text-muted)' }}> / </span>
+                          <span style={{ color: total2 === 0 ? 'var(--s-text-muted)' : 'var(--s-text)' }}>
+                            {total2 === 0 ? '—' : `${hours2}h`}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         </>
@@ -364,36 +390,39 @@ export default function TeamMatchingPanel({
 
 // ─── Mini composant : bande de 7 cellules pour une semaine ────────────
 // Couleur remplie en fonction de la densité (0 → opacity 0.05, max → 1)
+// Chaque case affiche les heures dispo ce jour-là quand > 0.
 function DayStrip({ counts }: { counts: number[] }) {
   // Cap de normalisation — plafonné à 12 slots = 6h sur un jour (très actif)
   const MAX = 12;
   return (
-    <div className="flex gap-[2px]">
+    <div className="flex gap-[3px] flex-shrink-0">
       {counts.map((c, i) => {
         const norm = Math.min(1, c / MAX);
         const filled = c > 0;
+        const hours = c * 0.5;
         const bg = filled
-          ? `rgba(123, 47, 190, ${0.25 + norm * 0.75})`
-          : 'rgba(255,255,255,0.03)';
+          ? `rgba(123, 47, 190, ${0.3 + norm * 0.6})`
+          : 'rgba(255,255,255,0.025)';
         const border = filled
-          ? 'rgba(163, 100, 217, 0.4)'
+          ? 'rgba(163, 100, 217, 0.5)'
           : 'rgba(255,255,255,0.06)';
+        const textColor = filled ? '#fff' : 'var(--s-text-muted)';
         return (
           <div
             key={i}
-            title={c === 0 ? `${DAY_LABELS_SHORT[i]} : —` : `${DAY_LABELS_SHORT[i]} : ${c * 0.5}h`}
-            className="flex items-center justify-center"
+            title={c === 0 ? `${DAY_LABELS_SHORT[i]} : non dispo` : `${DAY_LABELS_SHORT[i]} : ${hours}h dispo`}
+            className="flex items-center justify-center t-mono"
             style={{
-              width: '10px',
-              height: '14px',
+              width: '25px',
+              height: '26px',
               background: bg,
               border: `1px solid ${border}`,
-              fontSize: '7px',
-              color: 'var(--s-text-muted)',
-              fontFamily: 'var(--font-mono, monospace)',
+              fontSize: '10px',
+              fontWeight: filled ? 600 : 400,
+              color: textColor,
             }}
           >
-            {DAY_INITIALS[i]}
+            {filled ? (hours % 1 === 0 ? `${hours}` : hours.toFixed(1)) : '·'}
           </div>
         );
       })}
