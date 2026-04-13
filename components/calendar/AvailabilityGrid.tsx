@@ -188,9 +188,21 @@ export default function AvailabilityGrid() {
       {/* Intro */}
       <div className="bevel p-5 animate-fade-in" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
         <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-          Indique quand tu es dispo pour jouer. Chaque case = 30 minutes. Clique pour sélectionner ou désélectionner.
-          Le staff de ton équipe verra ces créneaux pour proposer des matchs et entraînements.
+          Indique quand tu es dispo pour jouer. Chaque case = 30 minutes. Le staff de ton équipe verra ces créneaux pour proposer des matchs et entraînements.
         </p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 t-mono" style={{ fontSize: '10px', color: 'var(--s-text-muted)' }}>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block" style={{ width: '12px', height: '10px', background: 'var(--s-violet)', border: '1px solid rgba(163,100,217,0.4)' }} />
+            Dispo
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block" style={{ width: '12px', height: '10px', background: 'var(--s-elevated)', border: '1px solid var(--s-bg)' }} />
+            Non dispo
+          </span>
+          <span style={{ color: 'var(--s-text-dim)' }}>
+            · Clique ou <strong style={{ color: 'var(--s-text)' }}>glisse</strong> pour sélectionner plusieurs créneaux à la fois
+          </span>
+        </div>
       </div>
 
       <WeekPanel
@@ -290,14 +302,38 @@ function WeekPanel({
     return c;
   }, [slots, weekGrid]);
 
+  const isEmpty = countSelected === 0;
+
   return (
-    <div className="bevel animate-fade-in-d1 relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), var(--s-violet)50, transparent 70%)' }} />
+    <div className="bevel animate-fade-in-d1 relative overflow-hidden" style={{
+      background: 'var(--s-surface)',
+      border: dirty ? '1px solid rgba(255,184,0,0.35)' : '1px solid var(--s-border)',
+      boxShadow: dirty ? '0 0 0 1px rgba(255,184,0,0.15), 0 0 24px rgba(255,184,0,0.08)' : 'none',
+      transition: 'border-color 200ms, box-shadow 200ms',
+    }}>
+      <div className="h-[3px]" style={{
+        background: dirty
+          ? 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.4), transparent 70%)'
+          : 'linear-gradient(90deg, var(--s-violet), rgba(123,47,190,0.4), transparent 70%)',
+        transition: 'background 200ms',
+      }} />
       <div className="p-5">
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
           <div>
-            <h3 className="font-display text-xl" style={{ letterSpacing: '0.03em' }}>{title}</h3>
+            <h3 className="font-display text-xl flex items-center gap-2" style={{ letterSpacing: '0.03em' }}>
+              {title}
+              {dirty && (
+                <span className="t-label px-1.5 py-0.5 bevel-sm animate-pulse" style={{
+                  fontSize: '8px',
+                  background: 'rgba(255,184,0,0.15)',
+                  border: '1px solid rgba(255,184,0,0.4)',
+                  color: 'var(--s-gold)',
+                }}>
+                  NON SAUVEGARDÉ
+                </span>
+              )}
+            </h3>
             <p className="t-mono mt-1" style={{ fontSize: '11px', color: 'var(--s-text-dim)' }}>
               {rangeLabel} · {countSelected} créneaux sélectionnés
             </p>
@@ -308,10 +344,11 @@ function WeekPanel({
                 className="btn-springs bevel-sm flex items-center gap-1.5 px-3 py-1.5"
                 style={{
                   fontSize: '11px',
-                  background: 'transparent',
-                  border: '1px solid var(--s-border)',
-                  color: 'var(--s-text-dim)',
+                  background: isEmpty ? 'rgba(123,47,190,0.12)' : 'transparent',
+                  border: isEmpty ? '1px solid rgba(163,100,217,0.4)' : '1px solid var(--s-border)',
+                  color: isEmpty ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
                   cursor: 'pointer',
+                  fontWeight: isEmpty ? 600 : 400,
                 }}>
                 <Copy size={12} /> {copyLabel}
               </button>
@@ -362,11 +399,12 @@ function WeekPanel({
               {TIME_AXIS.map((axis, rowIdx) => (
                 <tr key={rowIdx}>
                   <td className="t-mono text-right pr-2" style={{
-                    fontSize: '9px',
-                    color: 'var(--s-text-muted)',
+                    fontSize: '10px',
+                    color: 'var(--s-text-dim)',
                     verticalAlign: 'top',
-                    paddingTop: axis.mm === '00' ? '2px' : '0',
+                    paddingTop: axis.mm === '00' ? '1px' : '0',
                     lineHeight: 1,
+                    fontWeight: 500,
                   }}>
                     {axis.mm === '00' ? axis.label : ''}
                   </td>

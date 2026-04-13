@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import { Loader2, Users, Zap, Settings as SettingsIcon, Save, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -42,9 +42,38 @@ type ApiResponse = {
 };
 
 const DAY_LABELS_SHORT = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+const DAY_INITIALS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+
+function addDays(ymd: string, n: number): string {
+  const d = new Date(ymd + 'T12:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+// Pour un slot "YYYY-MM-DDTHH:MM", détermine à quel jour de grille il appartient.
+// Les slots après minuit (00:00-01:30) appartiennent au jour précédent.
+function slotToGridDay(slot: string, mondayYmd: string): number | null {
+  const dateYmd = slot.slice(0, 10);
+  const hour = parseInt(slot.slice(11, 13), 10);
+  const afterMidnight = hour < 6;
+  const effectiveYmd = afterMidnight ? addDays(dateYmd, -1) : dateYmd;
+  // Index 0 = lundi … 6 = dimanche
+  for (let i = 0; i < 7; i++) {
+    if (addDays(mondayYmd, i) === effectiveYmd) return i;
+  }
+  return null;
+}
+
+function countSlotsByDay(slots: string[], mondayYmd: string): number[] {
+  const counts = [0, 0, 0, 0, 0, 0, 0];
+  for (const s of slots) {
+    const idx = slotToGridDay(s, mondayYmd);
+    if (idx !== null) counts[idx]++;
+  }
+  return counts;
+}
 
 function formatBlockLabel(block: MatchBlock): string {
-  // startSlot = "YYYY-MM-DDTHH:MM" → "Lun 14/04 20:00 → 22:00 (2h)"
   const startDate = new Date(block.startSlot.slice(0, 10) + 'T12:00:00');
   const dayLabel = DAY_LABELS_SHORT[(startDate.getDay() + 6) % 7];
   const dayNum = startDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
@@ -74,9 +103,8 @@ export default function TeamMatchingPanel({
   const [savingConfig, setSavingConfig] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
 
-  // Config editor state (synced with data on load)
   const [minPlayers, setMinPlayers] = useState(2);
-  const [minDurationHours, setMinDurationHours] = useState(1); // en heures pour l'UI (convertit en min)
+  const [minDurationHours, setMinDurationHours] = useState(1);
 
   const load = useCallback(async () => {
     if (!firebaseUser) return;
@@ -135,6 +163,8 @@ export default function TeamMatchingPanel({
     setSavingConfig(false);
   }
 
+  const weekMondays = useMemo(() => (data ? data.weeks.map(w => w.mondayYmd) : []), [data]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-6">
@@ -149,19 +179,19 @@ export default function TeamMatchingPanel({
   const allBlocks = data.weeks.flatMap(w => w.blocks);
 
   return (
-    <div className="space-y-3 pt-3" style={{ borderTop: '1px dashed var(--s-border)' }}>
-      {/* Config — dirigeants only */}
+    <div className="space-y-4 pt-3 mt-1" style={{ borderTop: '1px dashed var(--s-border)' }}>
+      {/* ═══ Config (dirigeant only) — discret, en haut ═══ */}
       {canEditConfig && (
         <div>
           <button type="button" onClick={() => setConfigOpen(v => !v)}
-            className="flex items-center gap-1.5 text-xs font-bold transition-colors duration-150"
-            style={{ color: 'var(--s-text-dim)' }}>
-            <SettingsIcon size={11} />
+            className="flex items-center gap-1.5 t-label transition-opacity duration-150 hover:opacity-80"
+            style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>
+            <SettingsIcon size={10} />
             CONFIGURATION DU MATCHING
-            {configOpen ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+            {configOpen ? <ChevronUp size={9} /> : <ChevronDown size={9} />}
           </button>
           {configOpen && (
-            <div className="mt-2 p-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+            <div className="mt-2 p-3 bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="t-label block mb-1.5" style={{ fontSize: '9px' }}>
@@ -201,20 +231,26 @@ export default function TeamMatchingPanel({
         </p>
       ) : (
         <>
-          {/* Suggestions */}
-          <div>
+          {/* ═══ SUGGESTIONS — section la plus importante ═══ */}
+          <div className="bevel-sm p-3 relative overflow-hidden"
+            style={{
+              background: 'rgba(255,184,0,0.03)',
+              border: '1px solid rgba(255,184,0,0.18)',
+            }}>
+            <div className="absolute top-0 left-0 right-0 h-[2px]"
+              style={{ background: 'linear-gradient(90deg, var(--s-gold), transparent 80%)' }} />
             <div className="flex items-center gap-1.5 mb-2">
-              <Zap size={11} style={{ color: 'var(--s-gold)' }} />
-              <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-gold)' }}>
+              <Zap size={12} style={{ color: 'var(--s-gold)' }} />
+              <p className="t-label" style={{ fontSize: '10px', color: 'var(--s-gold)' }}>
                 CRÉNEAUX SUGGÉRÉS ({allBlocks.length})
               </p>
               <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                · ≥{data.team.minPlayersForMatch} joueurs, ≥{(data.team.minMatchDurationMinutes / 60)}h
+                · ≥{data.team.minPlayersForMatch} joueurs, ≥{data.team.minMatchDurationMinutes / 60}h
               </span>
             </div>
             {allBlocks.length === 0 ? (
               <p className="text-xs italic" style={{ color: 'var(--s-text-muted)' }}>
-                Aucun créneau commun pour le moment.
+                Aucun créneau commun pour le moment — regarde la heatmap ci-dessous pour voir où les dispos se chevauchent.
               </p>
             ) : (
               <div className="space-y-1.5">
@@ -230,7 +266,7 @@ export default function TeamMatchingPanel({
                           .join(', ');
                         return (
                           <div key={bi} className="flex items-center gap-2 px-2.5 py-1.5 bevel-sm"
-                            style={{ background: 'rgba(255,184,0,0.05)', border: '1px solid rgba(255,184,0,0.2)' }}>
+                            style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.25)' }}>
                             <span className="text-xs font-semibold" style={{ color: 'var(--s-gold)' }}>
                               {formatBlockLabel(block)}
                             </span>
@@ -247,28 +283,50 @@ export default function TeamMatchingPanel({
             )}
           </div>
 
-          {/* Résumé des dispos par joueur */}
+          {/* ═══ HEATMAP des dispos par joueur ═══ */}
           <div>
             <div className="flex items-center gap-1.5 mb-2">
               <Users size={11} style={{ color: 'var(--s-text-dim)' }} />
-              <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-dim)' }}>
-                DISPOS DES JOUEURS (2 SEMAINES)
+              <p className="t-label" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>
+                DISPOS DES JOUEURS
               </p>
             </div>
+
+            {/* Header : 2 semaines × 7 jours */}
+            <div className="flex items-center gap-2 px-2 mb-1 pl-[calc(16px+0.5rem+1px)]">
+              <div className="flex-1" />
+              <div className="flex gap-2 t-mono" style={{ fontSize: '8px', color: 'var(--s-text-muted)' }}>
+                <div className="flex">
+                  <span className="w-[70px]">S. COURANTE</span>
+                </div>
+                <div className="flex">
+                  <span className="w-[70px]">S. SUIVANTE</span>
+                </div>
+              </div>
+              <div className="w-[68px] text-right t-mono" style={{ fontSize: '8px', color: 'var(--s-text-muted)' }}>
+                S1 / S2
+              </div>
+            </div>
+
             <div className="space-y-1">
               {data.members.map(m => {
-                const totalSlots = Object.values(m.slotsByWeek).reduce((acc, s) => acc + s.length, 0);
-                const hours = (totalSlots * 30) / 60;
+                const counts1 = countSlotsByDay(m.slotsByWeek[weekMondays[0]] ?? [], weekMondays[0]);
+                const counts2 = countSlotsByDay(m.slotsByWeek[weekMondays[1]] ?? [], weekMondays[1]);
+                const total1 = counts1.reduce((a, b) => a + b, 0);
+                const total2 = counts2.reduce((a, b) => a + b, 0);
+                const hours1 = total1 * 0.5;
+                const hours2 = total2 * 0.5;
                 const avatar = m.avatarUrl || m.discordAvatar;
+
                 return (
-                  <div key={m.uid} className="flex items-center gap-2 px-2 py-1"
+                  <div key={m.uid} className="flex items-center gap-2 px-2 py-1.5"
                     style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                     {avatar ? (
                       <Image src={avatar} alt="" width={16} height={16} unoptimized className="flex-shrink-0 rounded-full" />
                     ) : (
                       <div className="w-4 h-4 flex-shrink-0" style={{ background: 'var(--s-surface)' }} />
                     )}
-                    <span className="text-xs flex-1 truncate" style={{ color: 'var(--s-text)' }}>
+                    <span className="text-xs flex-1 truncate min-w-0" style={{ color: 'var(--s-text)' }}>
                       {m.displayName}
                       {!m.isTitulaire && (
                         <span className="ml-1.5 t-label" style={{ fontSize: '8px', color: 'var(--s-text-muted)' }}>
@@ -276,9 +334,23 @@ export default function TeamMatchingPanel({
                         </span>
                       )}
                     </span>
-                    <span className="t-mono text-xs flex-shrink-0" style={{ color: totalSlots === 0 ? 'var(--s-text-muted)' : 'var(--s-text-dim)' }}>
-                      {totalSlots === 0 ? '— dispo' : `${hours}h dispo`}
-                    </span>
+
+                    {/* Mini-timeline : 2 semaines de 7 jours */}
+                    <div className="flex gap-2 flex-shrink-0">
+                      <DayStrip counts={counts1} />
+                      <DayStrip counts={counts2} />
+                    </div>
+
+                    {/* Totaux par semaine */}
+                    <div className="w-[68px] text-right t-mono flex-shrink-0" style={{ fontSize: '10px' }}>
+                      <span style={{ color: total1 === 0 ? 'var(--s-text-muted)' : 'var(--s-text-dim)' }}>
+                        {total1 === 0 ? '—' : `${hours1}h`}
+                      </span>
+                      <span style={{ color: 'var(--s-text-muted)' }}> / </span>
+                      <span style={{ color: total2 === 0 ? 'var(--s-text-muted)' : 'var(--s-text-dim)' }}>
+                        {total2 === 0 ? '—' : `${hours2}h`}
+                      </span>
+                    </div>
                   </div>
                 );
               })}
@@ -286,6 +358,45 @@ export default function TeamMatchingPanel({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ─── Mini composant : bande de 7 cellules pour une semaine ────────────
+// Couleur remplie en fonction de la densité (0 → opacity 0.05, max → 1)
+function DayStrip({ counts }: { counts: number[] }) {
+  // Cap de normalisation — plafonné à 12 slots = 6h sur un jour (très actif)
+  const MAX = 12;
+  return (
+    <div className="flex gap-[2px]">
+      {counts.map((c, i) => {
+        const norm = Math.min(1, c / MAX);
+        const filled = c > 0;
+        const bg = filled
+          ? `rgba(123, 47, 190, ${0.25 + norm * 0.75})`
+          : 'rgba(255,255,255,0.03)';
+        const border = filled
+          ? 'rgba(163, 100, 217, 0.4)'
+          : 'rgba(255,255,255,0.06)';
+        return (
+          <div
+            key={i}
+            title={c === 0 ? `${DAY_LABELS_SHORT[i]} : —` : `${DAY_LABELS_SHORT[i]} : ${c * 0.5}h`}
+            className="flex items-center justify-center"
+            style={{
+              width: '10px',
+              height: '14px',
+              background: bg,
+              border: `1px solid ${border}`,
+              fontSize: '7px',
+              color: 'var(--s-text-muted)',
+              fontFamily: 'var(--font-mono, monospace)',
+            }}
+          >
+            {DAY_INITIALS[i]}
+          </div>
+        );
+      })}
     </div>
   );
 }

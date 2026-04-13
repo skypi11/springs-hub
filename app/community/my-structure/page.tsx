@@ -1400,10 +1400,12 @@ export default function MyStructurePage() {
                               <div className="pt-2">
                                 <button type="button"
                                   onClick={() => setMatchingOpen(prev => ({ ...prev, [team.id]: !prev[team.id] }))}
-                                  className="flex items-center gap-1.5 text-xs font-bold transition-colors duration-150"
-                                  style={{ color: 'var(--s-violet-light)' }}>
+                                  className="flex items-center gap-1.5 text-xs transition-colors duration-150 hover:opacity-80"
+                                  style={{ color: 'var(--s-text-dim)' }}>
                                   {open ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-                                  {open ? 'Masquer dispos & matching' : 'Voir dispos & matching'}
+                                  <span className="t-label" style={{ fontSize: '10px' }}>
+                                    {open ? 'Masquer dispos & matching' : 'Voir dispos & matching'}
+                                  </span>
                                 </button>
                                 {open && (
                                   <TeamMatchingPanel
