@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import Portal from './Portal';
 
 type ConfirmVariant = 'default' | 'danger';
 
@@ -63,6 +64,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
     <ConfirmContext.Provider value={{ confirm }}>
       {children}
       {active && (
+        <Portal>
         <div
           role="dialog"
           aria-modal="true"
@@ -144,6 +146,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </ConfirmContext.Provider>
   );

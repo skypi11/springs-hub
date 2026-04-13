@@ -413,7 +413,7 @@ Fichier : `public/springs-logo.png`
 - [x] Règles Firestore complètes — fichier `firestore.rules` à la racine du repo
 - [x] Page profil utilisateur (création/édition) + profil public avec stats RL/TM
 
-### Phase 2 — Communauté — quasi-terminée
+### Phase 2 — Communauté — TERMINÉE
 - [x] Demande de création de structure + validation admin
 - [x] Dashboard fondateur : infos structure, membres, roster
 - [x] Gestion membres : invitations, demandes rejoindre
@@ -423,8 +423,8 @@ Fichier : `public/springs-logo.png`
 - [x] Page publique structure (refonte UX complète)
 - [x] Panel admin structures (approuver/refuser/suspendre/supprimer)
 - [x] Panel admin utilisateurs (ban, edit, admin, déco forcée, supprimer)
-- [ ] **Calendrier des structures** (events + présences) ← initialement mis en Phase 4 par erreur, c'est une feature communauté
-- [ ] **Gestion co-fondateurs** (câbler `coFounderIds` : ajout/retrait/transfert) ← skippé pour le MVP, à finir avant Phase 3
+- [x] **Calendrier des structures** (events + présences, MVP1 shippé 2026-04-13) + page `/calendar` perso
+- [x] **Gestion co-fondateurs** (ajout/retrait/transfert + préavis de départ 7j)
 
 ### Phase 3 — Compétitions (~4 semaines)
 - [ ] Section compétitions : liste, pages individuelles

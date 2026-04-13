@@ -17,6 +17,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
+import Portal from '@/components/ui/Portal';
 import type {
   UserContext,
   EventType,
@@ -583,6 +584,7 @@ function EventFormModal({
   const isMatchOrScrim = type === 'match' || type === 'scrim';
 
   return (
+    <Portal>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.75)' }} onClick={onClose}>
       <div className="bevel relative w-full max-w-2xl max-h-[90vh] overflow-y-auto"
@@ -742,6 +744,7 @@ function EventFormModal({
         </div>
       </div>
     </div>
+    </Portal>
   );
 }
 
@@ -833,6 +836,7 @@ function EventDetailModal({
   };
 
   return (
+    <Portal>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.75)' }} onClick={onClose}>
       <div className="bevel relative w-full max-w-3xl max-h-[90vh] overflow-y-auto"
@@ -1013,5 +1017,6 @@ function EventDetailModal({
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

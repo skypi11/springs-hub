@@ -17,6 +17,47 @@ import ReactMarkdown from 'react-markdown';
 import CalendarSection from '@/components/calendar/CalendarSection';
 import type { UserContext } from '@/lib/event-permissions';
 
+type DashboardTab = 'general' | 'teams' | 'recruitment' | 'members' | 'calendar';
+
+const TAB_DEFS: { key: DashboardTab; label: string; color: string }[] = [
+  { key: 'general', label: 'Général', color: 'var(--s-violet-light)' },
+  { key: 'teams', label: 'Équipes', color: 'var(--s-blue)' },
+  { key: 'recruitment', label: 'Recrutement', color: '#33ff66' },
+  { key: 'members', label: 'Membres', color: 'var(--s-gold)' },
+  { key: 'calendar', label: 'Calendrier', color: 'var(--s-gold)' },
+];
+
+function TabBar({ active, onChange }: { active: DashboardTab; onChange: (t: DashboardTab) => void }) {
+  return (
+    <div className="flex items-end gap-1 relative" style={{ borderBottom: '1px solid var(--s-border)' }}>
+      {TAB_DEFS.map(t => {
+        const isActive = active === t.key;
+        return (
+          <button key={t.key} type="button" onClick={() => onChange(t.key)}
+            className="relative font-display text-sm tracking-wider transition-all duration-150 cursor-pointer"
+            style={{
+              padding: '10px 20px',
+              color: isActive ? t.color : 'var(--s-text-dim)',
+              background: isActive ? 'rgba(255,255,255,0.03)' : 'transparent',
+              borderLeft: '1px solid var(--s-border)',
+              borderTop: '1px solid var(--s-border)',
+              borderRight: '1px solid var(--s-border)',
+              borderBottom: isActive ? '1px solid transparent' : '1px solid var(--s-border)',
+              marginBottom: '-1px',
+              letterSpacing: '0.05em',
+            }}>
+            {isActive && (
+              <span className="absolute left-0 right-0 top-0 h-[2px]"
+                style={{ background: t.color }} />
+            )}
+            {t.label.toUpperCase()}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 type Member = {
   id: string;
   userId: string;
@@ -221,6 +262,7 @@ export default function MyStructurePage() {
   const [error, setError] = useState('');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [showEmojis, setShowEmojis] = useState(false);
+  const [tab, setTab] = useState<DashboardTab>('general');
   const descRef = useRef<HTMLTextAreaElement>(null);
   // `now` est utilisé pour calculer le temps restant sur les préavis de départ.
   // Lazy-init : appelé une seule fois au montage, puis refresh toutes les 60s.
@@ -955,13 +997,22 @@ export default function MyStructurePage() {
           </div>
         </header>
 
-        {/* ═══ Dashboard grid ═══ */}
-        <div className="grid grid-cols-3 gap-6">
+        {/* ═══ Onglets ═══ */}
+        <TabBar active={tab} onChange={setTab} />
 
-          {/* ─── Colonne gauche — édition ──────────────────────────────── */}
-          <div className="col-span-2 space-y-6 animate-fade-in-d1">
+        {/* ═══ Dashboard — layout dynamique par onglet ═══ */}
+        {tab !== 'calendar' && (
+        <div className={`grid gap-6 animate-fade-in ${tab === 'general' ? 'grid-cols-3' : 'grid-cols-1'}`}>
 
-            {/* Description */}
+          {/* ─── Colonne gauche (ou pleine largeur hors général) ──────── */}
+          <div className={
+            tab === 'general' ? 'col-span-2 space-y-6'
+            : tab === 'members' ? 'hidden'
+            : 'space-y-6'
+          }>
+
+            {/* ═══ GÉNÉRAL — Description / Configuration / Réseaux sociaux ═══ */}
+            {tab === 'general' && (<>
             <SectionPanel accent="var(--s-violet)" icon={MessageSquare} title="DESCRIPTION"
               collapsed={collapsed.desc} onToggle={() => toggle('desc')}>
               <div className="space-y-3">
@@ -1057,8 +1108,10 @@ export default function MyStructurePage() {
                 ))}
               </div>
             </SectionPanel>
+            </>)}
 
-            {/* Recrutement */}
+            {/* ═══ RECRUTEMENT ═══ */}
+            {tab === 'recruitment' && (
             <SectionPanel accent="#33ff66" icon={Search} title="RECRUTEMENT"
               collapsed={collapsed.recruit} onToggle={() => toggle('recruit')}>
               <div className="space-y-4">
@@ -1126,8 +1179,10 @@ export default function MyStructurePage() {
                 )}
               </div>
             </SectionPanel>
+            )}
 
-            {/* Palmarès */}
+            {/* ═══ GÉNÉRAL — Palmarès ═══ */}
+            {tab === 'general' && (
             <SectionPanel accent="var(--s-gold)" icon={Trophy} title="PALMARÈS"
               collapsed={collapsed.palmares} onToggle={() => toggle('palmares')}
               action={
@@ -1210,8 +1265,10 @@ export default function MyStructurePage() {
                 </div>
               )}
             </SectionPanel>
+            )}
 
-            {/* ═══ Équipes ═══ */}
+            {/* ═══ ÉQUIPES ═══ */}
+            {tab === 'teams' && (
             <SectionPanel accent="var(--s-blue)" icon={Gamepad2} title="ÉQUIPES"
               collapsed={collapsed.teams} onToggle={() => toggle('teams')}
               action={
@@ -1337,8 +1394,10 @@ export default function MyStructurePage() {
                 </div>
               )}
             </SectionPanel>
+            )}
 
-            {/* ═══ Save button ═══ */}
+            {/* ═══ Save button — visible pour les onglets éditables ═══ */}
+            {(tab === 'general' || tab === 'recruitment') && (<>
             {error && (
               <div className="flex items-center gap-2 px-4 py-3 bevel-sm" style={{ background: 'rgba(255,50,50,0.08)', border: '1px solid rgba(255,50,50,0.25)' }}>
                 <AlertCircle size={14} style={{ color: '#ff5555' }} />
@@ -1353,12 +1412,18 @@ export default function MyStructurePage() {
                 {saving ? 'SAUVEGARDE...' : saved ? 'SAUVEGARDÉ !' : 'SAUVEGARDER'}
               </span>
             </button>
+            </>)}
           </div>
 
-          {/* ─── Colonne droite ─────────────────────────────────────────── */}
-          <div className="space-y-6 animate-fade-in-d2">
+          {/* ─── Colonne droite ─ Invites+Membres (members) ou Info+Stats (general) ──── */}
+          <div className={
+            tab === 'general' ? 'space-y-6 animate-fade-in-d2'
+            : tab === 'members' ? 'space-y-6 animate-fade-in-d2'
+            : 'hidden'
+          }>
 
-            {/* Invitations & demandes */}
+            {/* ═══ MEMBRES — Invitations & demandes ═══ */}
+            {tab === 'members' && (
             <SectionPanel accent="#33ff66" icon={UserPlus} title="INVITATIONS"
               collapsed={collapsed.invitations} onToggle={() => toggle('invitations')}
               action={
@@ -1450,8 +1515,10 @@ export default function MyStructurePage() {
                 )}
               </div>
             </SectionPanel>
+            )}
 
-            {/* Membres */}
+            {/* ═══ MEMBRES — Liste des membres ═══ */}
+            {tab === 'members' && (
             <div className="bevel relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
               <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
               <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none"
@@ -1549,8 +1616,10 @@ export default function MyStructurePage() {
                 )}
               </div>
             </div>
+            )}
 
-            {/* Infos */}
+            {/* ═══ GÉNÉRAL — Informations ═══ */}
+            {tab === 'general' && (
             <div className="bevel relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
               <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), rgba(123,47,190,0.3), transparent 70%)' }} />
               <div className="relative z-[1] px-5 py-3.5" style={{ borderBottom: '1px solid var(--s-border)' }}>
@@ -1596,8 +1665,10 @@ export default function MyStructurePage() {
                 )}
               </div>
             </div>
+            )}
 
-            {/* Quick stats */}
+            {/* ═══ GÉNÉRAL — Quick stats ═══ */}
+            {tab === 'general' && (
             <div className="grid grid-cols-2 gap-3">
               <div className="bevel-sm p-4 text-center relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
                 <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(0,129,255,0.06), transparent 70%)' }} />
@@ -1610,10 +1681,13 @@ export default function MyStructurePage() {
                 <p className="t-label mt-1 relative z-[1]" style={{ fontSize: '8px' }}>ÉQUIPES TM</p>
               </div>
             </div>
+            )}
           </div>
         </div>
+        )}
 
-        {/* ═══ Calendrier ═══ */}
+        {/* ═══ CALENDRIER ═══ */}
+        {tab === 'calendar' && (
         <div className="animate-fade-in-d3">
           <CalendarSection
             structureId={s.id}
@@ -1623,6 +1697,7 @@ export default function MyStructurePage() {
             userContext={userContext}
           />
         </div>
+        )}
       </div>
     </div>
   );
