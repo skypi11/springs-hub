@@ -168,6 +168,46 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true });
       }
 
+      case 'updateMatchConfig': {
+        // Réservé aux dirigeants (fondateur / co-fondateur) — pas aux managers.
+        const isFounder = structureData.founderId === uid;
+        const isCoFounder = (structureData.coFounderIds ?? []).includes(uid);
+        if (!isFounder && !isCoFounder) {
+          return NextResponse.json({ error: 'Réservé aux dirigeants.' }, { status: 403 });
+        }
+        if (!teamId) {
+          return NextResponse.json({ error: 'teamId requis' }, { status: 400 });
+        }
+
+        const mp = typeof body.minPlayersForMatch === 'number' ? body.minPlayersForMatch : null;
+        const md = typeof body.minMatchDurationMinutes === 'number' ? body.minMatchDurationMinutes : null;
+        if (mp === null || md === null) {
+          return NextResponse.json({ error: 'minPlayersForMatch et minMatchDurationMinutes requis' }, { status: 400 });
+        }
+        if (!Number.isInteger(mp) || mp < 1 || mp > 10) {
+          return NextResponse.json({ error: 'minPlayersForMatch doit être entre 1 et 10.' }, { status: 400 });
+        }
+        if (!Number.isInteger(md) || md < 30 || md > 480 || md % 30 !== 0) {
+          return NextResponse.json({ error: 'minMatchDurationMinutes doit être un multiple de 30 entre 30 et 480.' }, { status: 400 });
+        }
+
+        const ref = db.collection('sub_teams').doc(teamId);
+        const teamSnap = await ref.get();
+        if (!teamSnap.exists) {
+          return NextResponse.json({ error: 'Équipe introuvable' }, { status: 404 });
+        }
+        if (teamSnap.data()!.structureId !== structureId) {
+          return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+        }
+
+        await ref.update({
+          minPlayersForMatch: mp,
+          minMatchDurationMinutes: md,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        return NextResponse.json({ success: true });
+      }
+
       case 'delete': {
         if (!teamId) {
           return NextResponse.json({ error: 'teamId requis' }, { status: 400 });

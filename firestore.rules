@@ -69,6 +69,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── Springs Hub — Dispos perso MVP2a ────────────────────────────────────
+    // Une ligne par (userId, semaine ISO). Écritures via API route.
+    match /user_availability/{id} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
     // ── Springs Hub — Compétitions ────────────────────────────────────────────
     match /competitions/{id} {
       allow read: if true;
