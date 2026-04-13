@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "structures",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "founderId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
