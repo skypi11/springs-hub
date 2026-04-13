@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
-import { Timestamp } from 'firebase-admin/firestore';
+import type { Timestamp } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
@@ -122,16 +122,16 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Events de la structure sur la fenêtre (pour exclure les conflits d'agenda)
-    // Fenêtre UTC large (buffer ±3 jours) — le filtrage fin se fait via parisIsoMinute.
+    // Events de la structure — on lit tout (capé à 200 comme l'API events)
+    // puis on filtre en mémoire sur la fenêtre (2 semaines). Cette approche évite
+    // une requête range sur startsAt qui nécessiterait un autre index composite.
     const windowStartMs = Date.parse(`${currentMonday}T00:00:00Z`) - 3 * 24 * 3600 * 1000;
     const windowEndMs = Date.parse(`${addDays(nextMonday, 7)}T00:00:00Z`) + 24 * 3600 * 1000;
 
     const evSnap = await db.collection('structure_events')
       .where('structureId', '==', structureId)
-      .where('startsAt', '>=', Timestamp.fromMillis(windowStartMs))
-      .where('startsAt', '<', Timestamp.fromMillis(windowEndMs))
-      .limit(500)
+      .orderBy('startsAt', 'desc')
+      .limit(200)
       .get();
 
     // Liste des membres de la structure (pour évaluer getInvitedUserIds sur scope=structure/game)
@@ -158,6 +158,12 @@ export async function GET(req: NextRequest) {
       if (ev.status === 'cancelled') continue;
       const target = ev.target as EventTarget | undefined;
       if (!target) continue;
+
+      // Filtrer en mémoire sur la fenêtre (semaine courante + suivante, avec buffer)
+      const startMs = (ev.startsAt as Timestamp).toMillis();
+      const endMs = (ev.endsAt as Timestamp).toMillis();
+      if (endMs <= windowStartMs) continue;
+      if (startMs >= windowEndMs) continue;
 
       const invited = getInvitedUserIds(target, allMembers, teamsAsRefs);
       const relevant = invited.filter(mid => memberSet.has(mid));
