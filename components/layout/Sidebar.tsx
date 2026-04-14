@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Home, Users, Trophy, LogOut, Swords, Settings, Building2, Calendar, Search } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import NotificationsBell from '@/components/ui/NotificationsBell';
 
 const navItems = [
   { href: '/', icon: Home, label: 'Accueil' },
@@ -167,7 +168,7 @@ export default function Sidebar() {
           </div>
         ) : user ? (
           <div className="group">
-            <div className="flex items-center gap-3 px-3 py-2.5"
+            <div className="flex items-center gap-2 px-3 py-2.5"
               style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
               {user.discordAvatar ? (
                 <Image src={user.discordAvatar} alt={user.displayName} width={34} height={34}
@@ -186,6 +187,7 @@ export default function Sidebar() {
                   {isAdmin ? 'Admin Springs' : 'Joueur'}
                 </p>
               </div>
+              <NotificationsBell />
               <button onClick={signOut}
                 className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5"
                 style={{ color: '#ef4444' }} title="Déconnexion">

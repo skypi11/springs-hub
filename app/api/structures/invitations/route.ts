@@ -5,6 +5,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { createNotification } from '@/lib/notifications';
 
 // Vérifier fondateur/co-fondateur/manager
 async function checkManageAccess(uid: string, structureId: string) {
@@ -180,6 +181,16 @@ export async function POST(req: NextRequest) {
         }
         await batch.commit();
 
+        // Notifier le joueur que sa demande a été acceptée
+        await createNotification(db, {
+          userId: applicantId,
+          type: 'join_request_accepted',
+          title: 'Demande acceptée',
+          message: `Bienvenue dans ${structureData.name} !`,
+          link: `/community/structure/${structureId}`,
+          metadata: { structureId },
+        });
+
         return NextResponse.json({ success: true });
       }
 
@@ -191,11 +202,25 @@ export async function POST(req: NextRequest) {
         if (!snap.exists || snap.data()!.structureId !== structureId) {
           return NextResponse.json({ error: 'Demande introuvable' }, { status: 404 });
         }
+        const declineData = snap.data()!;
         await ref.update({
           status: 'declined',
           declinedBy: uid,
           declinedAt: FieldValue.serverTimestamp(),
         });
+
+        // Notifier le joueur que sa demande a été refusée
+        if (declineData.applicantId) {
+          await createNotification(db, {
+            userId: declineData.applicantId,
+            type: 'join_request_declined',
+            title: 'Demande refusée',
+            message: `${structureData.name} n'a pas retenu ta candidature pour le moment.`,
+            link: '/community/structures',
+            metadata: { structureId },
+          });
+        }
+
         return NextResponse.json({ success: true });
       }
 

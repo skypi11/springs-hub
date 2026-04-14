@@ -3,6 +3,7 @@ import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { createNotifications } from '@/lib/notifications';
 
 // POST /api/structures/join — rejoindre une structure (via lien ou demande)
 export async function POST(req: NextRequest) {
@@ -130,6 +131,26 @@ export async function POST(req: NextRequest) {
           status: 'pending',
           createdAt: FieldValue.serverTimestamp(),
         });
+
+        // Notifier les dirigeants (fondateur + co-fondateurs + managers)
+        const structData = structSnap.data()!;
+        const leaderIds = Array.from(new Set([
+          structData.founderId,
+          ...(structData.coFounderIds ?? []),
+          ...(structData.managerIds ?? []),
+        ].filter(Boolean)));
+        const applicantSnap = await db.collection('users').doc(uid).get();
+        const applicantName = applicantSnap.exists
+          ? (applicantSnap.data()!.displayName || applicantSnap.data()!.discordUsername || 'Un joueur')
+          : 'Un joueur';
+        await createNotifications(db, leaderIds.map(lid => ({
+          userId: lid,
+          type: 'join_request_received' as const,
+          title: 'Nouvelle demande de recrutement',
+          message: `${applicantName} souhaite rejoindre ${structData.name}`,
+          link: '/community/my-structure',
+          metadata: { structureId, applicantId: uid },
+        })));
 
         return NextResponse.json({ success: true });
       }
