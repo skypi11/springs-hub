@@ -16,6 +16,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import AvailabilityGrid from '@/components/calendar/AvailabilityGrid';
+import MyTodosSection from '@/components/calendar/MyTodosSection';
 import type { EventType, EventStatus, PresenceStatus } from '@/lib/event-permissions';
 
 type MyPresence = {
@@ -171,6 +172,9 @@ export default function MyCalendarPage() {
             </div>
           </div>
         </header>
+
+        {/* Mes devoirs */}
+        <MyTodosSection />
 
         {/* Tabs */}
         <div className="flex gap-2 animate-fade-in">
