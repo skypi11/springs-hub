@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Home, Users, Trophy, LogOut, Swords, Settings, Building2, Calendar, Search } from 'lucide-react';
+import { Home, Users, Trophy, LogOut, Swords, Settings, Building2, Calendar, Search, Menu, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import NotificationsBell from '@/components/ui/NotificationsBell';
 
@@ -19,12 +19,27 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { user, isAdmin, loading, signInWithDiscord, signOut } = useAuth();
   const [isMac, setIsMac] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     if (typeof navigator !== 'undefined') {
       setIsMac(/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent));
     }
   }, []);
+
+  // Close drawer on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  // Lock body scroll when drawer open
+  useEffect(() => {
+    if (mobileOpen) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = prev; };
+    }
+  }, [mobileOpen]);
 
   function openPalette() {
     if (typeof window !== 'undefined') {
@@ -33,12 +48,53 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-[260px] flex flex-col z-50"
-      style={{ background: 'var(--s-surface)', borderRight: '1px solid var(--s-border)' }}>
+    <>
+      {/* Mobile hamburger — visible <lg */}
+      <button
+        type="button"
+        onClick={() => setMobileOpen(true)}
+        aria-label="Ouvrir le menu"
+        className="lg:hidden fixed top-3 left-3 z-[60] w-11 h-11 flex items-center justify-center bevel-sm transition-colors duration-150"
+        style={{
+          background: 'var(--s-surface)',
+          border: '1px solid var(--s-border)',
+          color: 'var(--s-text)',
+          boxShadow: '0 8px 20px rgba(0,0,0,0.5)',
+        }}
+      >
+        <Menu size={20} />
+      </button>
 
-      {/* Logo */}
-      <div className="px-6 py-5">
+      {/* Mobile backdrop */}
+      {mobileOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-[55] animate-fade-in"
+          style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      <aside
+        className={`fixed left-0 top-0 h-screen w-[260px] flex flex-col z-[56] lg:z-50 transition-transform duration-200 lg:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        style={{
+          background: 'var(--s-surface)',
+          borderRight: '1px solid var(--s-border)',
+        }}
+        data-mobile-open={mobileOpen ? 'true' : 'false'}
+      >
+
+      {/* Logo + close button (mobile only) */}
+      <div className="px-6 py-5 flex items-center justify-between">
         <Image src="/springs-logo.png" alt="Springs E-Sport" width={120} height={36} className="object-contain" priority />
+        <button
+          type="button"
+          onClick={() => setMobileOpen(false)}
+          aria-label="Fermer le menu"
+          className="lg:hidden w-9 h-9 flex items-center justify-center bevel-sm transition-colors duration-150"
+          style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', color: 'var(--s-text-dim)' }}
+        >
+          <X size={18} />
+        </button>
       </div>
 
       <div className="mx-5 divider" />
@@ -206,6 +262,7 @@ export default function Sidebar() {
           </button>
         )}
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

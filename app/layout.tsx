@@ -33,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ToastProvider>
             <ConfirmProvider>
               <Sidebar />
-              <div className="flex-1 ml-[260px] min-h-screen overflow-x-hidden hex-bg">
+              <div className="flex-1 lg:ml-[260px] min-h-screen overflow-x-hidden hex-bg pt-14 lg:pt-0">
                 {children}
               </div>
               <CommandPalette />

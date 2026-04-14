@@ -35,9 +35,8 @@ export default function CompactStickyHeader({
 
   return (
     <div
-      className="fixed top-0 right-0 z-40 transition-all duration-200"
+      className="fixed top-0 right-0 left-0 lg:left-[260px] z-40 transition-all duration-200"
       style={{
-        left: '260px',
         transform: visible ? 'translateY(0)' : 'translateY(-100%)',
         opacity: visible ? 1 : 0,
         background: 'rgba(14,14,26,0.92)',
