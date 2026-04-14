@@ -8,10 +8,17 @@ import { useAuth } from '@/context/AuthContext';
 import { auth } from '@/lib/firebase';
 import { countries } from '@/lib/countries';
 import {
-  Save, User, Gamepad2, Search, ChevronRight, ExternalLink,
-  AlertCircle, CheckCircle, Loader2, UserCircle, LogOut,
+  Save, User, Gamepad2, Search, ExternalLink,
+  AlertCircle, CheckCircle, Loader2, UserCircle, LogOut, Star,
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
+import PublicPreviewFrame from '@/components/ui/PublicPreviewFrame';
+
+const RECRUIT_ROLE_LABEL: Record<string, string> = {
+  joueur: 'Joueur',
+  coach: 'Coach',
+  manager: 'Manager',
+};
 
 const EMOJIS = ['🏆', '🥇', '🥈', '🥉', '⭐', '🔥', '💪', '🎮', '🎯', '🚀', '⚽', '🏎️', '🏁', '👑', '💎', '🛡️', '⚔️', '🎉', '📢', '💬', '✅', '❌', '🔵', '🟢', '🟡', '🔴', '⚡', '💥', '🌟', '🏅', '👊', '🤝', '📊', '📈', '🗓️', '🎪', '🏟️', '🎖️', '🧩', '🕹️'];
 
@@ -722,19 +729,134 @@ export default function SettingsPage() {
 
                     <div className="divider" />
 
-                    <div>
-                      <label className="t-label block mb-2">Aperçu public</label>
-                      <p className="text-xs mb-3" style={{ color: 'var(--s-text-dim)' }}>
-                        Ce que les autres joueurs voient quand ils visitent ton profil.
-                      </p>
-                      <button
-                        onClick={() => router.push(`/profile/${firebaseUser?.uid}`)}
-                        className="btn-springs btn-secondary bevel-sm"
-                        style={{ padding: '8px 14px', fontSize: '12px' }}
+                    <PublicPreviewFrame
+                      href={`/profile/${firebaseUser?.uid}`}
+                      helper="Ta carte telle qu'elle apparaît dans l'annuaire des joueurs et les feeds communauté."
+                    >
+                      <div
+                        className="panel bevel-sm relative overflow-hidden"
+                        style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
                       >
-                        Voir mon profil public <ChevronRight size={14} />
-                      </button>
-                    </div>
+                        {form.isAvailableForRecruitment && (
+                          <div
+                            className="h-[3px]"
+                            style={{ background: 'linear-gradient(90deg, var(--s-green), transparent 80%)' }}
+                          />
+                        )}
+                        <div className="p-4">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div
+                              className="w-12 h-12 relative overflow-hidden flex-shrink-0"
+                              style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}
+                            >
+                              {avatarSrc ? (
+                                <Image src={avatarSrc} alt="" fill className="object-cover" unoptimized />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <User size={16} style={{ color: 'var(--s-text-muted)' }} />
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p
+                                className="text-sm font-semibold truncate"
+                                style={{ color: 'var(--s-text)' }}
+                              >
+                                {form.displayName || user?.displayName || 'Ton pseudo'}
+                              </p>
+                              <div className="flex items-center gap-1.5 mt-1">
+                                {form.country && (
+                                  <Image
+                                    src={`https://flagcdn.com/16x12/${form.country.toLowerCase()}.png`}
+                                    alt={form.country}
+                                    width={14}
+                                    height={10}
+                                    className="flex-shrink-0"
+                                    unoptimized
+                                  />
+                                )}
+                                <div className="flex gap-1">
+                                  {(form.games.length ? form.games : ['—']).map((g) =>
+                                    g === '—' ? (
+                                      <span
+                                        key={g}
+                                        className="tag tag-neutral"
+                                        style={{ fontSize: '9px', padding: '1px 5px' }}
+                                      >
+                                        Aucun jeu
+                                      </span>
+                                    ) : (
+                                      <span
+                                        key={g}
+                                        className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
+                                        style={{ fontSize: '9px', padding: '1px 5px' }}
+                                      >
+                                        {g === 'rocket_league' ? 'RL' : 'TM'}
+                                      </span>
+                                    ),
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {(form.pseudoTM || form.rlTrackerUrl) && (
+                            <div
+                              className="space-y-1.5 pt-3 mt-3"
+                              style={{ borderTop: '1px dashed var(--s-border)' }}
+                            >
+                              {form.rlTrackerUrl && (
+                                <div className="flex items-center gap-2">
+                                  <Gamepad2 size={11} style={{ color: 'var(--s-blue)' }} />
+                                  <span
+                                    className="text-xs truncate"
+                                    style={{ color: 'var(--s-text-dim)' }}
+                                  >
+                                    Profil Rocket League
+                                  </span>
+                                </div>
+                              )}
+                              {form.pseudoTM && (
+                                <div className="flex items-center gap-2">
+                                  <Gamepad2 size={11} style={{ color: 'var(--s-green)' }} />
+                                  <span
+                                    className="text-xs truncate"
+                                    style={{ color: 'var(--s-text-dim)' }}
+                                  >
+                                    {form.pseudoTM}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {form.isAvailableForRecruitment && (
+                            <div
+                              className="mt-3 pt-2.5"
+                              style={{ borderTop: '1px solid rgba(0,217,54,0.2)' }}
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <Star size={11} style={{ color: '#33ff66', fill: '#33ff66' }} />
+                                <span
+                                  className="text-xs font-bold"
+                                  style={{ color: '#33ff66' }}
+                                >
+                                  Cherche {RECRUIT_ROLE_LABEL[form.recruitmentRole] || 'équipe'}
+                                </span>
+                              </div>
+                              {form.recruitmentMessage && (
+                                <p
+                                  className="text-xs mt-1 line-clamp-2"
+                                  style={{ color: 'var(--s-text-muted)' }}
+                                >
+                                  {form.recruitmentMessage}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </PublicPreviewFrame>
 
                     <div className="divider" />
 

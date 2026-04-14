@@ -18,6 +18,7 @@ import CalendarSection from '@/components/calendar/CalendarSection';
 import TeamDetailDrawer, { type DrawerTab, type DrawerTeam } from '@/components/calendar/TeamDetailDrawer';
 import { CalendarClock, ClipboardList } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
+import PublicPreviewFrame from '@/components/ui/PublicPreviewFrame';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import type { UserContext } from '@/lib/event-permissions';
 
@@ -1033,6 +1034,82 @@ export default function MyStructurePage() {
             </div>
           </div>
         </header>
+
+        {/* ═══ Aperçu public (onglet général uniquement) ═══ */}
+        {tab === 'general' && s.status === 'active' && (
+          <PublicPreviewFrame
+            href={`/community/structure/${s.id}`}
+            helper="Ta carte telle qu'elle apparaît dans l'annuaire des structures et les feeds communauté."
+          >
+            <div
+              className="panel bevel relative overflow-hidden"
+              style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
+            >
+              <div
+                className="h-[3px]"
+                style={{
+                  background: s.games.includes('rocket_league')
+                    ? 'linear-gradient(90deg, var(--s-blue), transparent 70%)'
+                    : 'linear-gradient(90deg, var(--s-green), transparent 70%)',
+                }}
+              />
+              <div className="p-5">
+                <div className="flex items-center gap-4 mb-4">
+                  <div
+                    className="w-14 h-14 flex-shrink-0 relative overflow-hidden"
+                    style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}
+                  >
+                    {s.logoUrl ? (
+                      <Image src={s.logoUrl} alt={s.name} fill className="object-contain p-1" unoptimized />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Shield size={20} style={{ color: 'var(--s-text-muted)' }} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-display text-lg tracking-wider truncate">{s.name}</h3>
+                      <span
+                        className="tag tag-neutral"
+                        style={{ fontSize: '9px', padding: '1px 5px', flexShrink: 0 }}
+                      >
+                        {s.tag}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {s.games.map((g) => (
+                        <span
+                          key={g}
+                          className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
+                          style={{ fontSize: '9px', padding: '1px 6px' }}
+                        >
+                          {g === 'rocket_league' ? 'RL' : 'TM'}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div
+                  className="flex items-center justify-between pt-3"
+                  style={{ borderTop: '1px dashed var(--s-border)' }}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Users size={12} style={{ color: 'var(--s-text-muted)' }} />
+                    <span className="t-mono text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                      {s.members.length} membre{s.members.length > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  {s.recruiting?.active && (
+                    <span className="tag tag-green" style={{ fontSize: '9px', padding: '2px 7px' }}>
+                      RECRUTE
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </PublicPreviewFrame>
+        )}
 
         {/* ═══ Onglets ═══ */}
         <TabBar active={tab} onChange={setTab} />
