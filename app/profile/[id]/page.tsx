@@ -13,6 +13,7 @@ import {
   Trophy, History, Sparkles,
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
+import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 
 function CountryFlag({ code, size = 16 }: { code: string; size?: number }) {
   if (!code || code === 'OTHER') return <span>🌍</span>;
@@ -140,6 +141,11 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
   return (
     <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
+      <CompactStickyHeader
+        icon={User}
+        title={profile.displayName || 'Joueur'}
+        accent="var(--s-gold)"
+      />
       <div className="relative z-[1] space-y-8">
 
         <Breadcrumbs items={[

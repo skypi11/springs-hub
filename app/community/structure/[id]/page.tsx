@@ -10,6 +10,7 @@ import {
   User, Globe, Search, MessageSquare, UserPlus, CheckCircle, Calendar,
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
+import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 
 type Member = {
   id: string;
@@ -199,6 +200,11 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
 
   return (
     <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
+      <CompactStickyHeader
+        icon={Shield}
+        title={structure.name}
+        accent={mainColor}
+      />
       <div className="relative z-[1] space-y-8">
 
         <Breadcrumbs items={[

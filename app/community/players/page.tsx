@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { User, Search, Loader2, Gamepad2, ArrowUpDown, Sparkles, Star } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
+import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 
 type PlayerCard = {
   uid: string;
@@ -97,6 +98,11 @@ export default function PlayersPage() {
 
   return (
     <div className="min-h-screen hex-bg px-8 py-8 space-y-6">
+      <CompactStickyHeader
+        icon={User}
+        title="Joueurs"
+        accent="var(--s-violet-light)"
+      />
       <div className="relative z-[1] space-y-6">
         <Breadcrumbs items={[
           { label: 'Communauté', href: '/community' },

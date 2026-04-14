@@ -16,6 +16,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
+import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import AvailabilityCollapsible from '@/components/calendar/AvailabilityCollapsible';
 import MyTodosSection from '@/components/calendar/MyTodosSection';
 import type { EventType, EventStatus, PresenceStatus } from '@/lib/event-permissions';
@@ -180,6 +181,11 @@ export default function MyCalendarPage() {
 
   return (
     <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
+      <CompactStickyHeader
+        icon={CalendarIcon}
+        title="Mon calendrier"
+        accent="var(--s-gold)"
+      />
       <div className="relative z-[1] space-y-8">
         <Breadcrumbs items={[{ label: 'Mon calendrier' }]} />
         {/* Header */}

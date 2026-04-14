@@ -18,6 +18,7 @@ import CalendarSection from '@/components/calendar/CalendarSection';
 import TeamDetailDrawer, { type DrawerTab, type DrawerTeam } from '@/components/calendar/TeamDetailDrawer';
 import { CalendarClock, ClipboardList } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
+import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import type { UserContext } from '@/lib/event-permissions';
 
 type DashboardTab = 'general' | 'teams' | 'recruitment' | 'members' | 'calendar';
@@ -938,6 +939,11 @@ export default function MyStructurePage() {
 
   return (
     <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
+      <CompactStickyHeader
+        icon={Shield}
+        title={s.name || 'Ma structure'}
+        accent="var(--s-gold)"
+      />
       <div className="relative z-[1] space-y-8">
 
         <Breadcrumbs items={[
