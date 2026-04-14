@@ -1,213 +1,422 @@
-import Link from 'next/link';
-import { Users, Trophy, Search, ArrowRight, Shield, Clock, UserPlus, ChevronRight } from 'lucide-react';
+'use client';
 
-const features = [
-  {
-    icon: Shield,
-    title: 'GESTION DE STRUCTURE',
-    desc: 'Roster, membres, sous-équipes, planning — tout au même endroit pour les fondateurs.',
-    accent: '#FFB800',
-    tag: 'Disponible',
-    tagClass: 'tag-gold',
-    soon: false,
-  },
-  {
-    icon: Search,
-    title: 'RECRUTEMENT',
-    desc: 'Trouve des joueurs libres ou mets-toi en disponibilité pour être repéré par une structure.',
-    accent: '#00D936',
-    tag: 'Disponible',
-    tagClass: 'tag-green',
-    soon: false,
-  },
-  {
-    icon: Trophy,
-    title: 'INSCRIPTIONS',
-    desc: 'Inscris ta structure aux compétitions Springs directement depuis ton espace.',
-    accent: '#0081FF',
-    tag: 'Bientôt',
-    tagClass: 'tag-blue',
-    soon: true,
-  },
-];
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import {
+  Users,
+  Shield,
+  ArrowRight,
+  ChevronRight,
+  Loader2,
+  Star,
+  Plus,
+  Megaphone,
+} from 'lucide-react';
+
+type StructureSummary = {
+  id: string;
+  name: string;
+  tag: string;
+  logoUrl: string;
+  games: string[];
+  recruiting: { active: boolean; positions: { game: string; role: string }[] };
+  memberCount: number;
+  createdAt: string | null;
+};
+
+type PlayerSummary = {
+  uid: string;
+  displayName: string;
+  discordAvatar: string;
+  avatarUrl: string;
+  country: string;
+  games: string[];
+  isAvailableForRecruitment: boolean;
+  recruitmentRole: string;
+  recruitmentMessage: string;
+  rlRank: string;
+  pseudoTM: string;
+};
+
+const ROLE_LABELS: Record<string, string> = {
+  joueur: 'Joueur',
+  coach: 'Coach',
+  manager: 'Manager',
+};
 
 export default function CommunityPage() {
+  const [structures, setStructures] = useState<StructureSummary[]>([]);
+  const [availablePlayers, setAvailablePlayers] = useState<PlayerSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const [sRes, pRes] = await Promise.all([
+          fetch('/api/structures'),
+          fetch('/api/players?recruiting=true'),
+        ]);
+        if (cancelled) return;
+        if (sRes.ok) {
+          const data = await sRes.json();
+          setStructures(data.structures ?? []);
+        }
+        if (pRes.ok) {
+          const data = await pRes.json();
+          setAvailablePlayers(data.players ?? []);
+        }
+      } catch (err) {
+        console.error('[Community] load error:', err);
+      }
+      if (!cancelled) setLoading(false);
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const recentStructures = [...structures]
+    .sort((a, b) => {
+      const ad = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bd = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bd - ad;
+    })
+    .slice(0, 6);
+
+  const recruitingStructures = structures.filter(s => s.recruiting?.active).slice(0, 6);
+  const topPlayers = availablePlayers.slice(0, 8);
+
   return (
-    <div className="min-h-screen px-8 py-8 space-y-10">
+    <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
+      <div className="relative z-[1] space-y-8">
 
-      {/* ─── HEADER ───────────────────────────────────────────────────────── */}
-      <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-        <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), var(--s-gold-dim), transparent 80%)' }} />
-
-        {/* Glow */}
-        <div className="absolute top-0 left-0 w-[400px] h-[300px] pointer-events-none opacity-[0.06]"
-          style={{ background: 'radial-gradient(ellipse at top left, var(--s-gold), transparent 70%)' }} />
-
-        <div className="relative z-[1] p-10">
-          <div className="flex items-center gap-3 mb-5">
-            <span className="tag tag-gold">Communauté</span>
-            <span className="tag tag-neutral">Springs E-Sport</span>
-          </div>
-
-          <h1 className="t-display mb-4">
-            ESPACE<br />
-            <span style={{ color: 'var(--s-gold)' }}>COMMUNAUTAIRE</span>
-          </h1>
-
-          <p className="t-body max-w-xl" style={{ fontSize: '15px' }}>
-            La plateforme de gestion pour les structures esport de l&apos;écosystème Springs.
-            Rocket League, Trackmania, et plus à venir.
-          </p>
-        </div>
-      </header>
-
-      {/* ─── FEATURES ─────────────────────────────────────────────────────── */}
-      <section className="animate-fade-in-d1">
-        <div className="section-label">
-          <span className="t-label">Fonctionnalités</span>
-        </div>
-
-        <div className="grid grid-cols-3 gap-5">
-          {features.map(({ icon: Icon, title, desc, accent, tag, tagClass, soon }) => (
-            <div key={title}
-              className="pillar-card panel group relative overflow-hidden transition-all duration-200">
-
-              <div className="h-[3px]"
-                style={{ background: `linear-gradient(90deg, ${accent}, ${accent}50, transparent 70%)` }} />
-
-              <div className="absolute top-0 right-0 w-[180px] h-[180px] pointer-events-none opacity-[0.07]"
-                style={{ background: `radial-gradient(circle at top right, ${accent}, transparent 70%)` }} />
-
-              <div className="relative z-[1]">
-                <div className="panel-header">
-                  <div className="flex items-center gap-2">
-                    <Icon size={13} style={{ color: accent }} />
-                    <span className="t-label" style={{ color: 'var(--s-text)' }}>{title}</span>
-                  </div>
-                  <span className={`tag ${tagClass}`}>
-                    {soon && <Clock size={9} />}
-                    {tag}
-                  </span>
-                </div>
-
-                <div className="p-5">
-                  <div className="p-3.5 w-fit mb-5" style={{ background: `${accent}10`, border: `1px solid ${accent}25` }}>
-                    <Icon size={28} style={{ color: accent }} />
-                  </div>
-
-                  <h3 className="font-display text-2xl mb-2" style={{ letterSpacing: '0.03em', color: 'var(--s-text)' }}>{title}</h3>
-                  <p className="t-body">{desc}</p>
-                </div>
+        {/* Header compact */}
+        <header
+          className="bevel relative overflow-hidden animate-fade-in"
+          style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
+        >
+          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
+          <div className="absolute top-0 left-0 w-[400px] h-[300px] pointer-events-none opacity-[0.05]"
+            style={{ background: 'radial-gradient(ellipse at top left, var(--s-gold), transparent 70%)' }} />
+          <div className="relative z-[1] px-8 py-6 flex items-center gap-5 flex-wrap">
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <div className="w-12 h-12 flex items-center justify-center bevel-sm" style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.2)' }}>
+                <Users size={22} style={{ color: 'var(--s-gold)' }} />
+              </div>
+              <div>
+                <p className="t-label mb-1" style={{ color: 'var(--s-text-muted)' }}>SPRINGS HUB</p>
+                <h1 className="font-display text-2xl tracking-wider leading-none">COMMUNAUTÉ</h1>
+                <p className="t-mono text-xs mt-1.5" style={{ color: 'var(--s-text-dim)' }}>
+                  {loading
+                    ? 'Chargement…'
+                    : `${structures.length} structure${structures.length > 1 ? 's' : ''} · ${availablePlayers.length} joueur${availablePlayers.length > 1 ? 's' : ''} dispo au recrutement`}
+                </p>
               </div>
             </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ─── REJOINDRE ────────────────────────────────────────────────────── */}
-      <section className="animate-fade-in-d2">
-        <div className="section-label">
-          <span className="t-label">Rejoindre la communauté</span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-5">
-          {/* Fondateur */}
-          <div className="pillar-card panel group relative overflow-hidden transition-all duration-200">
-            <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
-            <div className="absolute top-0 right-0 w-[200px] h-[200px] pointer-events-none opacity-[0.07]"
-              style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
-
-            <div className="relative z-[1] p-7">
-              <div className="flex items-center gap-2 mb-5">
-                <div className="p-2.5" style={{ background: 'rgba(255,184,0,0.1)', border: '1px solid rgba(255,184,0,0.25)' }}>
-                  <Shield size={18} style={{ color: 'var(--s-gold)' }} />
-                </div>
-                <span className="t-label" style={{ color: 'var(--s-gold)' }}>Fondateur</span>
-              </div>
-
-              <h3 className="font-display text-3xl mb-3" style={{ letterSpacing: '0.03em', color: 'var(--s-text)' }}>
-                CRÉER TA STRUCTURE
-              </h3>
-              <p className="t-body mb-6">
-                Tu gères une orga ou une équipe esport ? Fais une demande à l&apos;équipe Springs pour obtenir les droits fondateur.
-              </p>
-
-              <Link href="/community/create-structure" className="btn-springs btn-primary bevel-sm">
-                Faire une demande <ArrowRight size={14} />
-              </Link>
-            </div>
-          </div>
-
-          {/* Joueur */}
-          <div className="pillar-card panel group relative overflow-hidden transition-all duration-200">
-            <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.3), rgba(255,255,255,0.05), transparent 70%)' }} />
-
-            <div className="relative z-[1] p-7">
-              <div className="flex items-center gap-2 mb-5">
-                <div className="p-2.5" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--s-border)' }}>
-                  <UserPlus size={18} style={{ color: 'var(--s-text-dim)' }} />
-                </div>
-                <span className="t-label">Joueur</span>
-              </div>
-
-              <h3 className="font-display text-3xl mb-3" style={{ letterSpacing: '0.03em', color: 'var(--s-text)' }}>
-                REJOINDRE UNE STRUCTURE
-              </h3>
-              <p className="t-body mb-6">
-                Consulte l&apos;annuaire des structures actives et postule à celles qui recrutent des joueurs.
-              </p>
-
+            <div className="flex-1" />
+            <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
               <Link href="/community/structures" className="btn-springs btn-secondary bevel-sm">
-                Voir les structures <ChevronRight size={14} />
+                <Shield size={14} />
+                Toutes les structures
+              </Link>
+              <Link href="/community/players" className="btn-springs btn-secondary bevel-sm">
+                <Users size={14} />
+                Tous les joueurs
+              </Link>
+              <Link href="/community/create-structure" className="btn-springs btn-primary bevel-sm">
+                <Plus size={14} />
+                Créer ma structure
               </Link>
             </div>
           </div>
-        </div>
-      </section>
+        </header>
 
-      {/* ─── ANNUAIRES ──────────────────────────────────────────────────── */}
-      <section className="animate-fade-in-d3">
-        <div className="section-label">
-          <span className="t-label">Explorer</span>
-        </div>
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 size={24} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
+          </div>
+        ) : (
+          <>
+            {/* Section structures récentes */}
+            <Section
+              label="Structures récentes"
+              accent="var(--s-gold)"
+              href="/community/structures"
+              linkLabel="Voir toutes"
+              delay="d1"
+            >
+              {recentStructures.length === 0 ? (
+                <CommunityEmpty
+                  icon={<Shield size={28} style={{ color: 'var(--s-gold)' }} />}
+                  title="Aucune structure validée"
+                  desc="Sois le premier à créer une structure sur Springs Hub."
+                  ctaHref="/community/create-structure"
+                  ctaLabel="Créer ma structure"
+                  ctaIcon={<Plus size={14} />}
+                />
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {recentStructures.map(s => <StructureFeedCard key={s.id} s={s} />)}
+                </div>
+              )}
+            </Section>
 
-        <div className="grid grid-cols-2 gap-5">
-          <Link href="/community/structures"
-            className="pillar-card panel group relative overflow-hidden transition-all duration-200">
-            <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
-            <div className="absolute top-0 right-0 w-36 h-36 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-              style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,184,0,0.07), transparent 70%)' }} />
-            <div className="relative z-[1] p-6 flex items-center gap-5">
-              <div className="p-3" style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.2)' }}>
-                <Shield size={24} style={{ color: 'var(--s-gold)' }} />
+            {/* Section joueurs dispo au recrutement */}
+            <Section
+              label="Joueurs disponibles au recrutement"
+              accent="var(--s-blue)"
+              href="/community/players?recruiting=1"
+              linkLabel="Voir tous"
+              delay="d2"
+            >
+              {topPlayers.length === 0 ? (
+                <CommunityEmpty
+                  icon={<Star size={28} style={{ color: 'var(--s-blue)' }} />}
+                  title="Aucun joueur disponible"
+                  desc="Personne n'est actuellement marqué comme disponible au recrutement."
+                  ctaHref="/settings"
+                  ctaLabel="Marque-toi disponible"
+                  ctaIcon={<Star size={14} />}
+                />
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {topPlayers.map(p => <PlayerFeedCard key={p.uid} p={p} />)}
+                </div>
+              )}
+            </Section>
+
+            {/* Section structures qui recrutent */}
+            <Section
+              label="Structures qui recrutent"
+              accent="var(--s-green)"
+              href="/community/structures"
+              linkLabel="Voir toutes"
+              delay="d3"
+            >
+              {recruitingStructures.length === 0 ? (
+                <CommunityEmpty
+                  icon={<Megaphone size={28} style={{ color: 'var(--s-green)' }} />}
+                  title="Aucune offre ouverte"
+                  desc="Aucune structure n'est actuellement en phase de recrutement."
+                  ctaHref="/community/structures"
+                  ctaLabel="Voir toutes les structures"
+                  ctaIcon={<ChevronRight size={14} />}
+                />
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {recruitingStructures.map(s => <RecruitingStructureCard key={s.id} s={s} />)}
+                </div>
+              )}
+            </Section>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Section({
+  label,
+  accent,
+  href,
+  linkLabel,
+  delay,
+  children,
+}: {
+  label: string;
+  accent: string;
+  href: string;
+  linkLabel: string;
+  delay: 'd1' | 'd2' | 'd3';
+  children: React.ReactNode;
+}) {
+  return (
+    <section className={`animate-fade-in-${delay}`}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-1 h-5" style={{ background: accent }} />
+          <span className="t-label" style={{ color: 'var(--s-text)' }}>{label}</span>
+        </div>
+        <Link href={href} className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider transition-colors hover:text-white"
+          style={{ color: accent }}>
+          {linkLabel} <ArrowRight size={12} />
+        </Link>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function StructureFeedCard({ s }: { s: StructureSummary }) {
+  const primaryGame = s.games.includes('rocket_league') ? 'rocket_league' : 'trackmania';
+  const accentColor = primaryGame === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)';
+
+  return (
+    <Link href={`/community/structure/${s.id}`}
+      className="pillar-card panel bevel-sm relative overflow-hidden group transition-all duration-200"
+      style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+      <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${accentColor}, transparent 70%)` }} />
+      <div className="relative z-[1] p-4">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 flex-shrink-0 relative overflow-hidden"
+            style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+            {s.logoUrl ? (
+              <Image src={s.logoUrl} alt={s.name} fill className="object-contain p-1" unoptimized />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Shield size={18} style={{ color: 'var(--s-text-muted)' }} />
               </div>
-              <div>
-                <h3 className="font-display text-xl mb-1 tracking-wider">STRUCTURES</h3>
-                <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>Toutes les structures actives de la communauté</p>
-              </div>
-              <ChevronRight size={18} className="ml-auto" style={{ color: 'var(--s-text-muted)' }} />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <p className="font-display text-base tracking-wider truncate">{s.name}</p>
+              <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '1px 5px', flexShrink: 0 }}>{s.tag}</span>
             </div>
-          </Link>
-
-          <Link href="/community/players"
-            className="pillar-card panel group relative overflow-hidden transition-all duration-200">
-            <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-blue), rgba(0,129,255,0.3), transparent 70%)' }} />
-            <div className="absolute top-0 right-0 w-36 h-36 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-              style={{ background: 'radial-gradient(circle at 100% 0%, rgba(0,129,255,0.07), transparent 70%)' }} />
-            <div className="relative z-[1] p-6 flex items-center gap-5">
-              <div className="p-3" style={{ background: 'rgba(0,129,255,0.08)', border: '1px solid rgba(0,129,255,0.2)' }}>
-                <Users size={24} style={{ color: 'var(--s-blue)' }} />
-              </div>
-              <div>
-                <h3 className="font-display text-xl mb-1 tracking-wider">JOUEURS</h3>
-                <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>Tous les joueurs inscrits et ceux disponibles au recrutement</p>
-              </div>
-              <ChevronRight size={18} className="ml-auto" style={{ color: 'var(--s-text-muted)' }} />
+            <div className="flex items-center gap-1.5">
+              {s.games.map(g => (
+                <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
+                  style={{ fontSize: '9px', padding: '1px 5px' }}>
+                  {g === 'rocket_league' ? 'RL' : 'TM'}
+                </span>
+              ))}
+              <span className="t-mono text-xs ml-1" style={{ color: 'var(--s-text-muted)' }}>
+                · {s.memberCount} membre{s.memberCount > 1 ? 's' : ''}
+              </span>
             </div>
-          </Link>
+          </div>
         </div>
-      </section>
+      </div>
+    </Link>
+  );
+}
 
+function PlayerFeedCard({ p }: { p: PlayerSummary }) {
+  const avatar = p.avatarUrl || p.discordAvatar;
+  return (
+    <Link href={`/profile/${p.uid}`}
+      className="pillar-card panel bevel-sm relative overflow-hidden group transition-all duration-200"
+      style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+      <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-blue), transparent 70%)' }} />
+      <div className="relative z-[1] p-4">
+        <div className="flex items-center gap-3 mb-3">
+          {avatar ? (
+            <div className="w-11 h-11 relative flex-shrink-0 overflow-hidden"
+              style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+              <Image src={avatar} alt={p.displayName} fill className="object-cover" unoptimized />
+            </div>
+          ) : (
+            <div className="w-11 h-11 flex-shrink-0 flex items-center justify-center"
+              style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+              <Users size={16} style={{ color: 'var(--s-text-muted)' }} />
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{p.displayName}</p>
+            <div className="flex items-center gap-1 mt-1">
+              {p.games.map(g => (
+                <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
+                  style={{ fontSize: '9px', padding: '1px 5px' }}>
+                  {g === 'rocket_league' ? 'RL' : 'TM'}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 pt-2" style={{ borderTop: '1px dashed var(--s-border)' }}>
+          <Star size={11} style={{ color: '#33ff66', fill: '#33ff66' }} />
+          <span className="text-xs font-bold truncate" style={{ color: '#33ff66' }}>
+            Cherche {ROLE_LABELS[p.recruitmentRole] || 'équipe'}
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function RecruitingStructureCard({ s }: { s: StructureSummary }) {
+  const positions = s.recruiting?.positions ?? [];
+  return (
+    <Link href={`/community/structure/${s.id}`}
+      className="pillar-card panel bevel-sm relative overflow-hidden group transition-all duration-200"
+      style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+      <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-green), transparent 70%)' }} />
+      <div className="relative z-[1] p-4">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-11 h-11 flex-shrink-0 relative overflow-hidden"
+            style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+            {s.logoUrl ? (
+              <Image src={s.logoUrl} alt={s.name} fill className="object-contain p-1" unoptimized />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Shield size={18} style={{ color: 'var(--s-text-muted)' }} />
+              </div>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-display text-base tracking-wider truncate">{s.name}</p>
+            <p className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>
+              [{s.tag}] · {s.memberCount} membre{s.memberCount > 1 ? 's' : ''}
+            </p>
+          </div>
+          <span className="tag tag-green flex-shrink-0" style={{ fontSize: '9px', padding: '2px 6px' }}>RECRUTE</span>
+        </div>
+        {positions.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5 pt-2" style={{ borderTop: '1px dashed var(--s-border)' }}>
+            {positions.slice(0, 3).map((pos, i) => (
+              <span key={i} className="tag tag-neutral" style={{ fontSize: '9px', padding: '1px 6px' }}>
+                {pos.game === 'rocket_league' ? 'RL' : 'TM'} · {ROLE_LABELS[pos.role] || pos.role}
+              </span>
+            ))}
+            {positions.length > 3 && (
+              <span className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                +{positions.length - 3}
+              </span>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs pt-2" style={{ borderTop: '1px dashed var(--s-border)', color: 'var(--s-text-dim)' }}>
+            Postes ouverts
+          </p>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+function CommunityEmpty({
+  icon,
+  title,
+  desc,
+  ctaHref,
+  ctaLabel,
+  ctaIcon,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+  ctaHref: string;
+  ctaLabel: string;
+  ctaIcon: React.ReactNode;
+}) {
+  return (
+    <div className="bevel p-8 text-center relative overflow-hidden"
+      style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+      <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(255,255,255,0.02), transparent 60%)' }} />
+      <div className="relative z-[1]">
+        <div className="mx-auto mb-3 w-12 h-12 flex items-center justify-center">
+          {icon}
+        </div>
+        <h3 className="font-display text-lg tracking-wider mb-2">{title}</h3>
+        <p className="text-sm mb-4 max-w-md mx-auto" style={{ color: 'var(--s-text-dim)' }}>
+          {desc}
+        </p>
+        <Link href={ctaHref} className="btn-springs btn-secondary bevel-sm inline-flex items-center gap-2">
+          {ctaIcon}
+          {ctaLabel}
+        </Link>
+      </div>
     </div>
   );
 }
