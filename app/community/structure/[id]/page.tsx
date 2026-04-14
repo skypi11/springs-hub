@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
+import { SkeletonPageHeader, SkeletonCard } from '@/components/ui/Skeleton';
 
 type Member = {
   id: string;
@@ -138,8 +139,19 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
 
   if (loading || authLoading) {
     return (
-      <div className="min-h-screen px-8 py-8 flex items-center justify-center">
-        <Loader2 size={24} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
+      <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
+        <div className="space-y-6 animate-fade-in">
+          <SkeletonPageHeader accent="var(--s-gold)" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className="lg:col-span-2 space-y-5">
+              <SkeletonCard height={260} accent="var(--s-blue)" />
+              <SkeletonCard height={220} accent="var(--s-gold)" />
+            </div>
+            <div className="space-y-5">
+              <SkeletonCard height={180} accent="var(--s-violet)" />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

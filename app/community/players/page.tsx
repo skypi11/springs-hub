@@ -3,9 +3,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { User, Search, Loader2, Gamepad2, ArrowUpDown, Sparkles, Star } from 'lucide-react';
+import { User, Search, Gamepad2, ArrowUpDown, Sparkles, Star } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
+import { SkeletonGrid } from '@/components/ui/Skeleton';
 
 type PlayerCard = {
   uid: string;
@@ -183,9 +184,7 @@ export default function PlayersPage() {
 
         {/* Liste */}
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 size={24} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
-          </div>
+          <SkeletonGrid count={8} cols="grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" cardHeight={220} accent="var(--s-violet)" />
         ) : filtered.length === 0 ? (
           <EmptyState
             hasFilters={hasFilters}

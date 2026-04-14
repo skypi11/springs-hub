@@ -3,9 +3,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Shield, Users, Search, Loader2, Sparkles, ArrowUpDown, Plus } from 'lucide-react';
+import { Shield, Users, Search, Sparkles, ArrowUpDown, Plus } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
+import { SkeletonGrid } from '@/components/ui/Skeleton';
 
 type StructureCard = {
   id: string;
@@ -149,9 +150,7 @@ export default function StructuresPage() {
 
         {/* Liste */}
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 size={24} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
-          </div>
+          <SkeletonGrid count={6} cols="grid-cols-1 md:grid-cols-2 lg:grid-cols-3" cardHeight={190} accent="var(--s-gold)" />
         ) : filtered.length === 0 ? (
           <EmptyState hasFilters={hasFilters} totalCount={structures.length} onReset={() => { setSearch(''); setGameFilter(''); }} />
         ) : (

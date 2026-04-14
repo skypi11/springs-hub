@@ -8,11 +8,11 @@ import {
   Shield,
   ArrowRight,
   ChevronRight,
-  Loader2,
   Star,
   Plus,
   Megaphone,
 } from 'lucide-react';
+import { SkeletonGrid } from '@/components/ui/Skeleton';
 
 type StructureSummary = {
   id: string;
@@ -133,8 +133,9 @@ export default function CommunityPage() {
         </header>
 
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 size={24} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
+          <div className="space-y-6">
+            <SkeletonGrid count={3} cols="grid-cols-1 md:grid-cols-2 lg:grid-cols-3" cardHeight={150} accent="var(--s-gold)" />
+            <SkeletonGrid count={4} cols="grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" cardHeight={170} accent="var(--s-violet)" />
           </div>
         ) : (
           <>
