@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Home, Users, Trophy, LogOut, Swords, Settings, Building2, Calendar } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Home, Users, Trophy, LogOut, Swords, Settings, Building2, Calendar, Search } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 const navItems = [
@@ -16,6 +17,19 @@ const navItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, isAdmin, loading, signInWithDiscord, signOut } = useAuth();
+  const [isMac, setIsMac] = useState(false);
+
+  useEffect(() => {
+    if (typeof navigator !== 'undefined') {
+      setIsMac(/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent));
+    }
+  }, []);
+
+  function openPalette() {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('open-command-palette'));
+    }
+  }
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-[260px] flex flex-col z-50"
@@ -28,8 +42,44 @@ export default function Sidebar() {
 
       <div className="mx-5 divider" />
 
+      {/* Command palette trigger */}
+      <div className="px-5 pt-4 pb-1">
+        <button
+          onClick={openPalette}
+          className="w-full flex items-center gap-2.5 px-3 py-2 transition-colors duration-150 group"
+          style={{
+            background: 'var(--s-elevated)',
+            border: '1px solid var(--s-border)',
+            color: 'var(--s-text-muted)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--s-hover)';
+            e.currentTarget.style.borderColor = 'rgba(123,47,190,0.35)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'var(--s-elevated)';
+            e.currentTarget.style.borderColor = 'var(--s-border)';
+          }}
+        >
+          <Search size={14} style={{ flexShrink: 0 }} />
+          <span className="flex-1 text-left text-sm">Rechercher…</span>
+          <kbd
+            className="font-mono"
+            style={{
+              fontSize: '10px',
+              background: 'var(--s-bg)',
+              border: '1px solid var(--s-border)',
+              padding: '1px 5px',
+              color: 'var(--s-text-dim)',
+            }}
+          >
+            {isMac ? '⌘K' : 'Ctrl K'}
+          </kbd>
+        </button>
+      </div>
+
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto">
         <div className="px-3 py-2">
           <span className="t-label">Navigation</span>
         </div>

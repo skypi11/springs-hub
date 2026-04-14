@@ -5,6 +5,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import { AuthProvider } from '@/context/AuthContext';
 import { ToastProvider } from '@/components/ui/Toast';
 import { ConfirmProvider } from '@/components/ui/ConfirmModal';
+import CommandPalette from '@/components/ui/CommandPalette';
 
 const outfit = Outfit({
   variable: '--font-outfit',
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <div className="flex-1 ml-[260px] min-h-screen overflow-x-hidden hex-bg">
                 {children}
               </div>
+              <CommandPalette />
             </ConfirmProvider>
           </ToastProvider>
         </AuthProvider>
