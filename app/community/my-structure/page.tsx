@@ -16,6 +16,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import CalendarSection from '@/components/calendar/CalendarSection';
 import TeamMatchingPanel from '@/components/calendar/TeamMatchingPanel';
+import TeamTodosPanel from '@/components/calendar/TeamTodosPanel';
 import type { UserContext } from '@/lib/event-permissions';
 
 type DashboardTab = 'general' | 'teams' | 'recruitment' | 'members' | 'calendar';
@@ -1390,30 +1391,42 @@ export default function MyStructurePage() {
                             />
                           </div>
 
-                          {/* Dispos & matching — staff de l'équipe ou dirigeant */}
+                          {/* Dispos & matching + Devoirs — staff de l'équipe ou dirigeant */}
                           {(() => {
                             const isDirigeant = isFounderOfActive || isCoFounderOfActive;
                             const isStaffOfThisTeam = isDirigeant || staffedTeamIds.includes(team.id);
                             if (!isStaffOfThisTeam) return null;
                             const open = !!matchingOpen[team.id];
                             return (
-                              <div className="pt-2">
-                                <button type="button"
-                                  onClick={() => setMatchingOpen(prev => ({ ...prev, [team.id]: !prev[team.id] }))}
-                                  className="flex items-center gap-1.5 text-xs transition-colors duration-150 hover:opacity-80"
-                                  style={{ color: 'var(--s-text-dim)' }}>
-                                  {open ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-                                  <span className="t-label" style={{ fontSize: '10px' }}>
-                                    {open ? 'Masquer dispos & matching' : 'Voir dispos & matching'}
-                                  </span>
-                                </button>
-                                {open && (
-                                  <TeamMatchingPanel
-                                    structureId={s.id}
-                                    teamId={team.id}
-                                    canEditConfig={isDirigeant}
-                                  />
-                                )}
+                              <div className="pt-2 space-y-3">
+                                <div>
+                                  <button type="button"
+                                    onClick={() => setMatchingOpen(prev => ({ ...prev, [team.id]: !prev[team.id] }))}
+                                    className="flex items-center gap-1.5 text-xs transition-colors duration-150 hover:opacity-80"
+                                    style={{ color: 'var(--s-text-dim)' }}>
+                                    {open ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                                    <span className="t-label" style={{ fontSize: '12px' }}>
+                                      {open ? 'Masquer dispos & matching' : 'Voir dispos & matching'}
+                                    </span>
+                                  </button>
+                                  {open && (
+                                    <TeamMatchingPanel
+                                      structureId={s.id}
+                                      teamId={team.id}
+                                      canEditConfig={isDirigeant}
+                                    />
+                                  )}
+                                </div>
+                                <TeamTodosPanel
+                                  structureId={s.id}
+                                  team={{
+                                    id: team.id,
+                                    name: team.name,
+                                    players: team.players,
+                                    subs: team.subs,
+                                    staff: team.staff,
+                                  }}
+                                />
                               </div>
                             );
                           })()}
