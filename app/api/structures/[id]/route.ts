@@ -113,6 +113,8 @@ export async function GET(
       status: data.status,
       founderId: data.founderId,
       coFounderIds: data.coFounderIds ?? [],
+      managerIds: data.managerIds ?? [],
+      coachIds: data.coachIds ?? [],
       members,
       createdAtMs,
       eventsCount,

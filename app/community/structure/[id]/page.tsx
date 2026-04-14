@@ -55,6 +55,8 @@ type StructureData = {
   status: string;
   founderId: string;
   coFounderIds?: string[];
+  managerIds?: string[];
+  coachIds?: string[];
   members: Member[];
   createdAtMs: number | null;
   eventsCount: number;
@@ -525,6 +527,8 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                         const roleConf = ROLE_LABELS[m.role] ?? { label: m.role, color: 'var(--s-text-dim)' };
                         const avatar = m.avatarUrl || m.discordAvatar;
                         const isLeader = m.role === 'fondateur' || m.role === 'co_fondateur';
+                        const isManager = (structure.managerIds ?? []).includes(m.userId);
+                        const isCoach = (structure.coachIds ?? []).includes(m.userId);
                         return (
                           <Link
                             key={m.userId}
@@ -549,6 +553,40 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                             <div className="w-full min-w-0">
                               <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{m.displayName}</p>
                               <p className="t-label mt-0.5" style={{ color: roleConf.color }}>{roleConf.label}</p>
+                              {(isManager || isCoach) && (
+                                <div className="flex items-center justify-center gap-1 mt-1.5 flex-wrap">
+                                  {isManager && (
+                                    <span
+                                      className="t-label"
+                                      style={{
+                                        fontSize: '9px',
+                                        padding: '2px 6px',
+                                        background: 'rgba(123,47,190,0.15)',
+                                        border: '1px solid rgba(123,47,190,0.35)',
+                                        color: 'var(--s-violet-light)',
+                                        letterSpacing: '0.06em',
+                                      }}
+                                    >
+                                      MANAGER
+                                    </span>
+                                  )}
+                                  {isCoach && (
+                                    <span
+                                      className="t-label"
+                                      style={{
+                                        fontSize: '9px',
+                                        padding: '2px 6px',
+                                        background: 'rgba(0,129,255,0.15)',
+                                        border: '1px solid rgba(0,129,255,0.35)',
+                                        color: '#4da6ff',
+                                        letterSpacing: '0.06em',
+                                      }}
+                                    >
+                                      COACH
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             <div className="flex items-center gap-1.5">
                               {m.country && (
