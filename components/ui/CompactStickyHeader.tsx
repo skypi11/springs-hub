@@ -19,12 +19,18 @@ export default function CompactStickyHeader({
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    function onScroll() {
-      setVisible(window.scrollY > threshold);
+    function onScroll(e: Event) {
+      const target = e.target as HTMLElement | Document | null;
+      let scrollTop = 0;
+      if (target && target !== document && (target as HTMLElement).scrollTop !== undefined) {
+        scrollTop = (target as HTMLElement).scrollTop;
+      } else {
+        scrollTop = window.scrollY || document.documentElement.scrollTop;
+      }
+      setVisible(scrollTop > threshold);
     }
-    window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-    return () => window.removeEventListener('scroll', onScroll);
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    return () => document.removeEventListener('scroll', onScroll, { capture: true });
   }, [threshold]);
 
   return (
