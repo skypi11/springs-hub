@@ -227,7 +227,8 @@ function PlayerItem({ p }: { p: PlayerCard }) {
 
   return (
     <Link href={`/profile/${p.uid}`}
-      className="pillar-card bevel-sm relative overflow-hidden group transition-all duration-200">
+      className="pillar-card panel bevel-sm relative overflow-hidden group transition-all duration-200"
+      style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
       {/* Accent top */}
       {p.isAvailableForRecruitment && (
         <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-green), transparent 80%)' }} />

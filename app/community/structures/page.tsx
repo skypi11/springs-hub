@@ -191,7 +191,8 @@ function StructureItem({ s }: { s: StructureCard }) {
 
   return (
     <Link href={`/community/structure/${s.id}`}
-      className="pillar-card bevel relative overflow-hidden group transition-all duration-200">
+      className="pillar-card panel bevel relative overflow-hidden group transition-all duration-200"
+      style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
       <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${accentColor}, transparent 70%)` }} />
       <div className="absolute top-0 right-0 w-40 h-40 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200"
         style={{ background: `radial-gradient(circle at 100% 0%, ${glowColor}, transparent 70%)` }} />
