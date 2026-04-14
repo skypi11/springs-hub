@@ -91,6 +91,8 @@ type MyStructure = {
   founderId: string;
   coFounderIds?: string[];
   coFounderDepartures?: Record<string, string | null>;
+  managerIds?: string[];
+  coachIds?: string[];
   members: Member[];
   requestedAt?: string;
   validatedAt?: string;
@@ -537,8 +539,8 @@ export default function MyStructurePage() {
     uid: firebaseUser?.uid ?? '',
     isFounder: isFounderOfActive,
     isCoFounder: isCoFounderOfActive,
-    isManager: myMemberRole === 'manager',
-    isCoach: myMemberRole === 'coach',
+    isManager: myMemberRole === 'manager' || (firebaseUser ? (s.managerIds ?? []).includes(firebaseUser.uid) : false),
+    isCoach: myMemberRole === 'coach' || (firebaseUser ? (s.coachIds ?? []).includes(firebaseUser.uid) : false),
     staffedTeamIds,
   };
   const calendarTeams = teams.map(t => ({ id: t.id, name: t.name, game: t.game }));
@@ -677,6 +679,30 @@ export default function MyStructurePage() {
       if (res.ok) {
         await loadStructures();
         toast.success(`${memberName} rétrogradé`);
+      } else {
+        toast.error(data.error || 'Erreur');
+      }
+    } catch {
+      toast.error('Erreur réseau');
+    }
+    setInvActionLoading(null);
+  }
+
+  async function handleToggleStaffRole(userId: string, memberName: string, role: 'manager' | 'coach', enabled: boolean) {
+    if (!activeStructure || !firebaseUser) return;
+    setInvActionLoading(`${userId}:${role}`);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/structures/staff-role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ structureId: activeStructure.id, targetUserId: userId, role, enabled }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        await loadStructures();
+        const label = role === 'manager' ? 'Manager' : 'Coach';
+        toast.success(enabled ? `${memberName} est maintenant ${label}` : `${memberName} n'est plus ${label}`);
       } else {
         toast.error(data.error || 'Erreur');
       }
@@ -1689,8 +1715,11 @@ export default function MyStructurePage() {
                       const avatar = m.avatarUrl || m.discordAvatar;
                       const isFounderRow = m.role === 'fondateur';
                       const isCoFounderRow = m.role === 'co_fondateur';
-                      const roleColor = isFounderRow ? 'var(--s-gold)' : isCoFounderRow ? 'var(--s-gold)' : 'var(--s-text-muted)';
+                      const isManagerRow = (s.managerIds ?? []).includes(m.userId);
+                      const isCoachRow = (s.coachIds ?? []).includes(m.userId);
+                      const structuralColor = isFounderRow || isCoFounderRow ? 'var(--s-gold)' : 'var(--s-text-muted)';
                       const canRemove = !isFounderRow && !isCoFounderRow;
+                      const canManageStaffRoles = (isFounderOfActive || isCoFounderOfActive) && !isFounderRow;
                       const memberDepartureIso = s.coFounderDepartures?.[m.userId];
                       const memberRemainingMs = memberDepartureIso ? Math.max(0, new Date(memberDepartureIso).getTime() + DEPARTURE_NOTICE_MS - now) : null;
                       const daysLeft = memberRemainingMs != null ? Math.ceil(memberRemainingMs / (24 * 60 * 60 * 1000)) : null;
@@ -1711,8 +1740,18 @@ export default function MyStructurePage() {
                             )}
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-semibold truncate" style={{ color: 'var(--s-text)' }}>{m.displayName}</p>
-                              <div className="flex items-center gap-2">
-                                <p className="t-mono" style={{ fontSize: '10px', color: roleColor }}>{ROLE_LABELS[m.role] ?? m.role}</p>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="t-mono" style={{ fontSize: '10px', color: structuralColor }}>{ROLE_LABELS[m.role] ?? m.role}</p>
+                                {isManagerRow && (
+                                  <span className="tag" style={{ fontSize: '8px', padding: '1px 6px', background: 'rgba(123,47,190,0.1)', color: 'var(--s-violet-light)', borderColor: 'rgba(123,47,190,0.3)' }}>
+                                    Manager
+                                  </span>
+                                )}
+                                {isCoachRow && (
+                                  <span className="tag" style={{ fontSize: '8px', padding: '1px 6px', background: 'rgba(0,129,255,0.1)', color: '#4db1ff', borderColor: 'rgba(0,129,255,0.3)' }}>
+                                    Coach
+                                  </span>
+                                )}
                                 {isCoFounderRow && daysLeft != null && (
                                   <span className="tag" style={{ fontSize: '8px', padding: '1px 6px', background: 'rgba(255,85,85,0.1)', color: '#ff8888', borderColor: 'rgba(255,85,85,0.3)' }}>
                                     Préavis : {daysLeft}j
@@ -1721,7 +1760,42 @@ export default function MyStructurePage() {
                               </div>
                             </div>
                           </Link>
-                          {/* Actions fondateur */}
+                          {/* Toggles staff (coach / manager) — fondateur ET co-fondateurs */}
+                          {canManageStaffRoles && (
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
+                              <button type="button"
+                                onClick={() => handleToggleStaffRole(m.userId, m.displayName, 'coach', !isCoachRow)}
+                                disabled={invActionLoading === `${m.userId}:coach`}
+                                className="px-1.5 py-0.5 transition-colors duration-150"
+                                style={{
+                                  fontSize: '9px',
+                                  letterSpacing: '0.06em',
+                                  textTransform: 'uppercase',
+                                  background: isCoachRow ? 'rgba(0,129,255,0.15)' : 'transparent',
+                                  color: isCoachRow ? '#4db1ff' : 'var(--s-text-muted)',
+                                  border: `1px solid ${isCoachRow ? 'rgba(0,129,255,0.4)' : 'var(--s-border)'}`,
+                                }}
+                                title={isCoachRow ? 'Retirer Coach' : 'Promouvoir Coach'}>
+                                {invActionLoading === `${m.userId}:coach` ? '…' : 'Coach'}
+                              </button>
+                              <button type="button"
+                                onClick={() => handleToggleStaffRole(m.userId, m.displayName, 'manager', !isManagerRow)}
+                                disabled={invActionLoading === `${m.userId}:manager`}
+                                className="px-1.5 py-0.5 transition-colors duration-150"
+                                style={{
+                                  fontSize: '9px',
+                                  letterSpacing: '0.06em',
+                                  textTransform: 'uppercase',
+                                  background: isManagerRow ? 'rgba(123,47,190,0.15)' : 'transparent',
+                                  color: isManagerRow ? 'var(--s-violet-light)' : 'var(--s-text-muted)',
+                                  border: `1px solid ${isManagerRow ? 'rgba(123,47,190,0.4)' : 'var(--s-border)'}`,
+                                }}
+                                title={isManagerRow ? 'Retirer Manager' : 'Promouvoir Manager'}>
+                                {invActionLoading === `${m.userId}:manager` ? '…' : 'Manager'}
+                              </button>
+                            </div>
+                          )}
+                          {/* Actions co-fondateur — fondateur uniquement */}
                           {isFounderOfActive && !isFounderRow && (
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                               {isCoFounderRow ? (
@@ -1733,7 +1807,8 @@ export default function MyStructurePage() {
                                   </button>
                                   <button type="button" onClick={() => handleDemoteCoFounder(m.userId, m.displayName)}
                                     disabled={invActionLoading === m.userId}
-                                    className="p-1" style={{ color: 'var(--s-text-dim)' }} title="Rétrograder">
+                                    className="p-1" style={{ color: 'var(--s-text-dim)' }} title="Rétrograder co-fondateur"
+                                  >
                                     <ChevronDown size={11} />
                                   </button>
                                 </>

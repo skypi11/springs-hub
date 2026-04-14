@@ -59,14 +59,18 @@ export async function GET(req: NextRequest) {
 
     const db = getAdminDb();
 
-    // 4 requêtes parallèles :
+    // 6 requêtes parallèles :
     //   - fondateur
     //   - co-fondateur
-    //   - membre staff (role in [manager, coach])
+    //   - manager au niveau structure (structures.managerIds)
+    //   - coach au niveau structure (structures.coachIds)
+    //   - membre staff via structure_members.role (legacy, gardé pour compat)
     //   - staff d'une équipe (sub_teams.staffIds array-contains)
-    const [founderSnap, coFounderSnap, memberSnap, teamStaffSnap] = await Promise.all([
+    const [founderSnap, coFounderSnap, managerSnap, coachSnap, memberSnap, teamStaffSnap] = await Promise.all([
       db.collection('structures').where('founderId', '==', uid).get(),
       db.collection('structures').where('coFounderIds', 'array-contains', uid).get(),
+      db.collection('structures').where('managerIds', 'array-contains', uid).get(),
+      db.collection('structures').where('coachIds', 'array-contains', uid).get(),
       db.collection('structure_members').where('userId', '==', uid).get(),
       db.collection('sub_teams').where('staffIds', 'array-contains', uid).get(),
     ]);
@@ -85,6 +89,16 @@ export async function GET(req: NextRequest) {
 
     // Structures où l'user est staff non-dirigeant
     const staffStructureIds = new Set<string>();
+    // 1. Via structures.managerIds / coachIds (source de vérité multi-rôle)
+    for (const d of managerSnap.docs) {
+      staffStructureIds.add(d.id);
+      structureDocs.set(d.id, d);
+    }
+    for (const d of coachSnap.docs) {
+      staffStructureIds.add(d.id);
+      structureDocs.set(d.id, d);
+    }
+    // 2. Via structure_members.role (legacy, un seul rôle staff par membre)
     for (const m of memberSnap.docs) {
       const role = m.data().role as string | undefined;
       const structureId = m.data().structureId as string | undefined;
@@ -92,6 +106,7 @@ export async function GET(req: NextRequest) {
         staffStructureIds.add(structureId);
       }
     }
+    // 3. Via sub_teams.staffIds (rattaché à une équipe uniquement)
     for (const t of teamStaffSnap.docs) {
       const structureId = t.data().structureId as string | undefined;
       if (structureId) staffStructureIds.add(structureId);
