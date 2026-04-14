@@ -425,8 +425,10 @@ Fichier : `public/springs-logo.png`
 - [x] Panel admin utilisateurs (ban, edit, admin, déco forcée, supprimer)
 - [x] **Calendrier MVP1** (events + présences, shippé 2026-04-13) + page `/calendar` perso
 - [x] **Gestion co-fondateurs** (ajout/retrait/transfert + préavis de départ 7j)
-- [ ] **Calendrier MVP2a** — dispos perso + matching automatique (voir specs ci-dessous)
-- [ ] **Calendrier MVP2b** — devoirs individualisés checklist (voir specs ci-dessous)
+- [x] **Calendrier MVP2a** — dispos perso + matching automatique (shippé 2026-04-14)
+- [x] **Calendrier MVP2b** — devoirs individualisés checklist (shippé 2026-04-14)
+- [x] **Refactor drawer ÉQUIPES** dans my-structure (dispos + devoirs en drawer latéral, shippé 2026-04-14)
+- [ ] **Roadmap UX globale** — audit complet + 14 améliorations à shipper une par une (voir section "Roadmap UX" ci-dessous)
 
 ### Phase 3 — Compétitions (~4 semaines)
 - [ ] Section compétitions : liste, pages individuelles
@@ -448,6 +450,40 @@ Fichier : `public/springs-logo.png`
 - [x] Toast/Modal DA Springs (suppression `alert()`/`confirm()` natifs)
 - [x] Suite Vitest 49 tests sur `lib/`
 - [x] Durcissement sécurité complet (CSRF OAuth, validation, rules, batch writes, hard caps)
+
+---
+
+## Roadmap UX globale (audit 2026-04-14, validée)
+
+Après l'audit UX complet du site, 14 améliorations planifiées — à shipper **une par une**, chacune avec commit + push + test live Playwright. Ordre imposé par la priorisation impact×effort.
+
+### MUST (max impact)
+1. [ ] **Listes sparses** — `/community/structures` et `/community/players` (header compact, tri, empty states riches, grille responsive adaptative)
+2. [ ] **Accueil connecté** — `/` split visiteur/connecté, widgets perso (next event, devoirs, invit) + feed commu
+3. [ ] **`/community` en vrai feed** — supprimer doublon sidebar, carrousels structures/joueurs récents + offres recrutement + events
+4. [ ] **Profil public** — `/profile/[id]` : empty state RL séduisant, labels+tooltips TM, section historique Springs
+5. [ ] **Structure publique** — `/community/structure/[id]` : cover image, logo large, stats vivantes, membres grille avatars, CTA postuler
+
+### SHOULD
+6. [ ] **Command palette ⌘K** — global, fuzzy search navigation (pages, structures, joueurs, comps)
+7. [ ] **Badge notifs sidebar** — cloche + panel dropdown (collection `notifications` déjà prévue)
+8. [ ] **Calendar** — dispos perso collapsed en haut, devoirs trié par échéance, events timeline verticale
+9. [ ] **Settings** — sous-navigation latérale (Profil/Jeux/Confidentialité/Compte/Danger), SAUVEGARDER sticky, preview profil
+
+### NICE
+10. [ ] Breadcrumbs contextuels
+11. [ ] Sticky page headers (compactent au scroll)
+12. [ ] Loading skeletons cohérents
+13. [ ] Mobile drawer sidebar (actuellement 260px fixe casse mobile)
+14. [ ] Preview "page publique" depuis dashboards privés
+
+**Détails et contraintes** : voir mémoire [project_ux_roadmap.md](../.claude/projects/c--Users-mattm-springs-hub/memory/project_ux_roadmap.md) — cocher `[x]` ici ET dans la mémoire au fil de l'eau.
+
+**Règles d'exécution** :
+- Un item = un commit dédié, testé live sur Vercel avec Playwright, poussé auto
+- Jamais de scroll horizontal (feedback durable)
+- Body ≥ 14px (feedback durable)
+- Respect DA Springs (biseaux, violet=système, or=rare, RL=bleu, TM=vert)
 
 ---
 
