@@ -11,6 +11,7 @@ import {
   Save, User, Gamepad2, Search, ChevronRight, ExternalLink,
   AlertCircle, CheckCircle, Loader2, UserCircle, LogOut,
 } from 'lucide-react';
+import Breadcrumbs from '@/components/ui/Breadcrumbs';
 
 const EMOJIS = ['🏆', '🥇', '🥈', '🥉', '⭐', '🔥', '💪', '🎮', '🎯', '🚀', '⚽', '🏎️', '🏁', '👑', '💎', '🛡️', '⚔️', '🎉', '📢', '💬', '✅', '❌', '🔵', '🟢', '🟡', '🔴', '⚡', '💥', '🌟', '🏅', '👊', '🤝', '📊', '📈', '🗓️', '🎪', '🏟️', '🎖️', '🧩', '🕹️'];
 
@@ -284,6 +285,8 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen hex-bg px-8 py-8">
       <div className="relative z-[1] space-y-6">
+
+        <Breadcrumbs items={[{ label: 'Mon profil' }]} />
 
         {/* Sticky top bar */}
         <div

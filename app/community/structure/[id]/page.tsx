@@ -9,6 +9,7 @@ import {
   Shield, Users, Gamepad2, ExternalLink, Trophy, Loader2, AlertCircle,
   User, Globe, Search, MessageSquare, UserPlus, CheckCircle, Calendar,
 } from 'lucide-react';
+import Breadcrumbs from '@/components/ui/Breadcrumbs';
 
 type Member = {
   id: string;
@@ -199,6 +200,12 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
   return (
     <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
       <div className="relative z-[1] space-y-8">
+
+        <Breadcrumbs items={[
+          { label: 'Communauté', href: '/community' },
+          { label: 'Structures', href: '/community/structures' },
+          { label: structure.name },
+        ]} />
 
         {/* ═══════════════════════════════════════════════════════════════════
             HERO HEADER — cover vivante + stats

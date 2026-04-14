@@ -10,6 +10,7 @@ import {
   AlertCircle, CheckCircle, Loader2, ExternalLink, Hash, Building2,
   ChevronRight
 } from 'lucide-react';
+import Breadcrumbs from '@/components/ui/Breadcrumbs';
 
 const LEGAL_STATUSES = [
   { value: 'none', label: 'Aucune' },
@@ -155,6 +156,12 @@ export default function CreateStructurePage() {
 
   return (
     <div className="min-h-screen px-8 py-8 space-y-8 max-w-3xl">
+
+      <Breadcrumbs items={[
+        { label: 'Communauté', href: '/community' },
+        { label: 'Structures', href: '/community/structures' },
+        { label: 'Créer une structure' },
+      ]} />
 
       {/* Header */}
       <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>

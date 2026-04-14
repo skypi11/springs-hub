@@ -12,6 +12,7 @@ import {
   ExternalLink, Settings, Loader2, AlertCircle,
   Trophy, History, Sparkles,
 } from 'lucide-react';
+import Breadcrumbs from '@/components/ui/Breadcrumbs';
 
 function CountryFlag({ code, size = 16 }: { code: string; size?: number }) {
   if (!code || code === 'OTHER') return <span>🌍</span>;
@@ -140,6 +141,12 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   return (
     <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
       <div className="relative z-[1] space-y-8">
+
+        <Breadcrumbs items={[
+          { label: 'Communauté', href: '/community' },
+          { label: 'Joueurs', href: '/community/players' },
+          { label: profile.displayName || 'Joueur' },
+        ]} />
 
         {/* ─── HERO HEADER ─────────────────────────────────────────────────── */}
         <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>

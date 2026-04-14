@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Shield, Users, Search, Loader2, Sparkles, ArrowUpDown, Plus } from 'lucide-react';
+import Breadcrumbs from '@/components/ui/Breadcrumbs';
 
 type StructureCard = {
   id: string;
@@ -73,6 +74,10 @@ export default function StructuresPage() {
   return (
     <div className="min-h-screen hex-bg px-8 py-8 space-y-6">
       <div className="relative z-[1] space-y-6">
+        <Breadcrumbs items={[
+          { label: 'Communauté', href: '/community' },
+          { label: 'Structures' },
+        ]} />
         {/* Header compact */}
         <header
           className="bevel relative overflow-hidden animate-fade-in"

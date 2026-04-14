@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { User, Search, Loader2, Gamepad2, ArrowUpDown, Sparkles, Star } from 'lucide-react';
+import Breadcrumbs from '@/components/ui/Breadcrumbs';
 
 type PlayerCard = {
   uid: string;
@@ -97,6 +98,10 @@ export default function PlayersPage() {
   return (
     <div className="min-h-screen hex-bg px-8 py-8 space-y-6">
       <div className="relative z-[1] space-y-6">
+        <Breadcrumbs items={[
+          { label: 'Communauté', href: '/community' },
+          { label: 'Joueurs' },
+        ]} />
         {/* Header compact */}
         <header
           className="bevel relative overflow-hidden animate-fade-in"
