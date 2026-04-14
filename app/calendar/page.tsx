@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
-import AvailabilityGrid from '@/components/calendar/AvailabilityGrid';
+import AvailabilityCollapsible from '@/components/calendar/AvailabilityCollapsible';
 import MyTodosSection from '@/components/calendar/MyTodosSection';
 import type { EventType, EventStatus, PresenceStatus } from '@/lib/event-permissions';
 
@@ -75,7 +75,6 @@ export default function MyCalendarPage() {
   const { firebaseUser, loading: authLoading } = useAuth();
   const toast = useToast();
   const router = useRouter();
-  const [tab, setTab] = useState<'events' | 'availability'>('events');
   const [events, setEvents] = useState<MyEvent[]>([]);
   const [structures, setStructures] = useState<Record<string, StructureInfo>>({});
   const [loading, setLoading] = useState(true);
@@ -133,7 +132,7 @@ export default function MyCalendarPage() {
     }
   }
 
-  const { upcoming, past } = useMemo(() => {
+  const { upcomingGroups, past } = useMemo(() => {
     const upcomingList: MyEvent[] = [];
     const pastList: MyEvent[] = [];
     for (const e of events) {
@@ -141,7 +140,33 @@ export default function MyCalendarPage() {
       if (end >= now && e.status === 'scheduled') upcomingList.push(e);
       else pastList.push(e);
     }
-    return { upcoming: upcomingList, past: pastList };
+    upcomingList.sort((a, b) => {
+      const ta = a.startsAt ? new Date(a.startsAt).getTime() : 0;
+      const tb = b.startsAt ? new Date(b.startsAt).getTime() : 0;
+      return ta - tb;
+    });
+
+    // Grouper par jour (YYYY-MM-DD)
+    const groupsMap = new Map<string, { ymd: string; label: string; events: MyEvent[] }>();
+    for (const ev of upcomingList) {
+      if (!ev.startsAt) continue;
+      const d = new Date(ev.startsAt);
+      const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (!groupsMap.has(ymd)) {
+        const todayD = new Date(now);
+        const todayYmd = `${todayD.getFullYear()}-${String(todayD.getMonth() + 1).padStart(2, '0')}-${String(todayD.getDate()).padStart(2, '0')}`;
+        const diffDays = Math.round((d.setHours(0, 0, 0, 0) - new Date(todayYmd).setHours(0, 0, 0, 0)) / 86_400_000);
+        let label: string;
+        if (diffDays === 0) label = "AUJOURD'HUI";
+        else if (diffDays === 1) label = 'DEMAIN';
+        else if (diffDays < 7) label = new Date(ev.startsAt).toLocaleDateString('fr-FR', { weekday: 'long' }).toUpperCase();
+        else label = new Date(ev.startsAt).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' }).toUpperCase();
+        groupsMap.set(ymd, { ymd, label, events: [] });
+      }
+      groupsMap.get(ymd)!.events.push(ev);
+    }
+
+    return { upcomingGroups: [...groupsMap.values()], past: pastList };
   }, [events, now]);
 
   if (authLoading || !firebaseUser) {
@@ -173,34 +198,13 @@ export default function MyCalendarPage() {
           </div>
         </header>
 
+        {/* Dispos collapsible */}
+        <AvailabilityCollapsible />
+
         {/* Mes devoirs */}
         <MyTodosSection />
 
-        {/* Tabs */}
-        <div className="flex gap-2 animate-fade-in">
-          {([
-            { key: 'events', label: 'ÉVÉNEMENTS' },
-            { key: 'availability', label: 'MES DISPOS' },
-          ] as const).map(t => (
-            <button key={t.key} type="button"
-              onClick={() => setTab(t.key)}
-              className="bevel-sm px-4 py-2 font-display transition-all duration-150"
-              style={{
-                fontSize: '12px',
-                letterSpacing: '0.05em',
-                background: tab === t.key ? 'var(--s-violet)' : 'var(--s-surface)',
-                border: `1px solid ${tab === t.key ? 'var(--s-violet)' : 'var(--s-border)'}`,
-                color: tab === t.key ? '#fff' : 'var(--s-text-dim)',
-                cursor: 'pointer',
-              }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {tab === 'availability' ? (
-          <AvailabilityGrid />
-        ) : loading ? (
+        {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 size={20} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
           </div>
@@ -214,17 +218,55 @@ export default function MyCalendarPage() {
           </div>
         ) : (
           <>
-            {/* À venir */}
+            {/* À venir — timeline groupée par jour */}
             <section className="animate-fade-in-d1 space-y-4">
               <div className="section-label">
-                <span className="font-display text-sm tracking-wider">À VENIR ({upcoming.length})</span>
+                <span className="font-display text-sm tracking-wider">
+                  À VENIR ({upcomingGroups.reduce((n, g) => n + g.events.length, 0)})
+                </span>
               </div>
-              {upcoming.length === 0 ? (
+
+              {/* Trait MAINTENANT */}
+              {upcomingGroups.length > 0 && <NowMarker />}
+
+              {upcomingGroups.length === 0 ? (
                 <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucun événement à venir.</p>
               ) : (
-                <div className="space-y-3">
-                  {upcoming.map(ev => (
-                    <MyEventCard key={ev.id} event={ev} structure={structures[ev.structureId]} onRespond={respond} />
+                <div className="space-y-6">
+                  {upcomingGroups.map((g) => (
+                    <div key={g.ymd} className="space-y-2">
+                      <div className="flex items-center gap-3">
+                        <span
+                          className="font-display"
+                          style={{
+                            fontSize: '13px',
+                            letterSpacing: '0.08em',
+                            color: g.label === "AUJOURD'HUI" ? 'var(--s-gold)' : 'var(--s-text)',
+                          }}
+                        >
+                          {g.label}
+                        </span>
+                        <div
+                          className="flex-1 h-px"
+                          style={{
+                            background: g.label === "AUJOURD'HUI"
+                              ? 'linear-gradient(90deg, rgba(255,184,0,0.3), transparent)'
+                              : 'var(--s-border)',
+                          }}
+                        />
+                        <span
+                          className="t-mono"
+                          style={{ fontSize: '10px', color: 'var(--s-text-muted)' }}
+                        >
+                          {g.events.length} event{g.events.length > 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div className="space-y-3">
+                        {g.events.map((ev) => (
+                          <MyEventCard key={ev.id} event={ev} structure={structures[ev.structureId]} onRespond={respond} />
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
@@ -246,6 +288,28 @@ export default function MyCalendarPage() {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function NowMarker() {
+  const timeLabel = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return (
+    <div className="flex items-center gap-3 py-1">
+      <span
+        className="w-2 h-2 flex-shrink-0"
+        style={{ background: 'var(--s-gold)', borderRadius: '50%', boxShadow: '0 0 8px rgba(255,184,0,0.6)' }}
+      />
+      <span
+        className="font-display"
+        style={{ fontSize: '11px', letterSpacing: '0.1em', color: 'var(--s-gold)' }}
+      >
+        MAINTENANT · {timeLabel}
+      </span>
+      <div
+        className="flex-1 h-px"
+        style={{ background: 'linear-gradient(90deg, rgba(255,184,0,0.5), transparent)' }}
+      />
     </div>
   );
 }
