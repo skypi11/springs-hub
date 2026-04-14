@@ -7,9 +7,8 @@ import ReactMarkdown from 'react-markdown';
 import { useAuth } from '@/context/AuthContext';
 import {
   Shield, Users, Gamepad2, ExternalLink, Trophy, Loader2, AlertCircle,
-  User, Globe, Search, MessageSquare, UserPlus, CheckCircle
+  User, Globe, Search, MessageSquare, UserPlus, CheckCircle, Calendar,
 } from 'lucide-react';
-import { countries } from '@/lib/countries';
 
 type Member = {
   id: string;
@@ -43,6 +42,7 @@ type StructureData = {
   name: string;
   tag: string;
   logoUrl: string;
+  coverUrl: string;
   description: string;
   games: string[];
   discordUrl: string;
@@ -53,7 +53,20 @@ type StructureData = {
   founderId: string;
   coFounderIds?: string[];
   members: Member[];
+  createdAtMs: number | null;
+  eventsCount: number;
 };
+
+function formatAgeSince(ms: number | null): string {
+  if (!ms) return '';
+  const days = Math.max(0, Math.floor((Date.now() - ms) / 86_400_000));
+  if (days === 0) return "aujourd'hui";
+  if (days === 1) return 'hier';
+  if (days < 7) return `${days} jours`;
+  if (days < 30) return `${Math.floor(days / 7)} sem.`;
+  if (days < 365) return `${Math.floor(days / 30)} mois`;
+  return `${Math.floor(days / 365)} an${days >= 730 ? 's' : ''}`;
+}
 
 const ROLE_ORDER = ['fondateur', 'co_fondateur', 'manager', 'coach', 'joueur'];
 const ROLE_LABELS: Record<string, { label: string; color: string }> = {
@@ -149,6 +162,20 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
   const leaders = structure.members.filter(m => m.role === 'fondateur' || m.role === 'co_fondateur');
   const sortedMembers = [...structure.members].sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
 
+  // Dedupe par userId pour la grille membres : un joueur RL + TM ne doit apparaître qu'une fois
+  const uniqueMembers: (Member & { games: string[] })[] = [];
+  const seen = new Map<string, Member & { games: string[] }>();
+  for (const m of sortedMembers) {
+    const existing = seen.get(m.userId);
+    if (existing) {
+      if (!existing.games.includes(m.game)) existing.games.push(m.game);
+      continue;
+    }
+    const entry = { ...m, games: [m.game] };
+    seen.set(m.userId, entry);
+    uniqueMembers.push(entry);
+  }
+
   async function handleJoinRequest() {
     if (!firebaseUser || !joinGame || !structure) return;
     setJoinLoading(true);
@@ -174,29 +201,43 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
       <div className="relative z-[1] space-y-8">
 
         {/* ═══════════════════════════════════════════════════════════════════
-            HERO HEADER
+            HERO HEADER — cover vivante + stats
         ═══════════════════════════════════════════════════════════════════ */}
         <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
           <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${mainColor}, rgba(${mainColorRaw},0.3), transparent 80%)` }} />
 
-          <div className="absolute top-0 left-0 w-[500px] h-[400px] pointer-events-none opacity-[0.06]"
-            style={{ background: `radial-gradient(ellipse at top left, rgba(${mainColorRaw},1), transparent 70%)` }} />
+          {/* Cover : image si fournie, sinon gradient vivant aux couleurs du jeu */}
+          <div className="relative h-[180px] overflow-hidden"
+            style={{ background: `linear-gradient(135deg, rgba(${mainColorRaw},0.22) 0%, rgba(${mainColorRaw},0.05) 40%, var(--s-surface) 100%)` }}>
+            {structure.coverUrl ? (
+              <Image src={structure.coverUrl} alt="" fill className="object-cover opacity-50" unoptimized />
+            ) : (
+              <>
+                <div className="absolute inset-0 hex-bg opacity-70 pointer-events-none" />
+                <div className="absolute top-0 right-0 w-[500px] h-[300px] pointer-events-none"
+                  style={{ background: `radial-gradient(ellipse at top right, rgba(${mainColorRaw},0.18), transparent 70%)` }} />
+                <div className="absolute bottom-0 left-0 w-[400px] h-[250px] pointer-events-none"
+                  style={{ background: `radial-gradient(ellipse at bottom left, rgba(${mainColorRaw},0.12), transparent 70%)` }} />
+              </>
+            )}
+            <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 0%, transparent 50%, var(--s-surface) 100%)' }} />
+          </div>
 
-          <div className="relative z-[1] p-8 pb-6">
-            <div className="flex items-start gap-7">
-              {/* Logo */}
-              <div className="flex-shrink-0 w-24 h-24 relative overflow-hidden bevel-sm"
-                style={{ background: 'var(--s-elevated)', border: `2px solid rgba(${mainColorRaw},0.2)` }}>
+          <div className="relative z-[1] px-8 pb-6 -mt-[70px]">
+            <div className="flex items-end gap-7 mb-5">
+              {/* Logo plus grand */}
+              <div className="flex-shrink-0 w-36 h-36 relative overflow-hidden bevel-sm"
+                style={{ background: 'var(--s-elevated)', border: `3px solid rgba(${mainColorRaw},0.35)`, boxShadow: `0 0 32px rgba(${mainColorRaw},0.15)` }}>
                 {structure.logoUrl ? (
-                  <Image src={structure.logoUrl} alt={structure.name} fill className="object-contain p-2" unoptimized />
+                  <Image src={structure.logoUrl} alt={structure.name} fill className="object-contain p-3" unoptimized />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    <Shield size={36} style={{ color: 'var(--s-text-muted)' }} />
+                    <Shield size={56} style={{ color: 'var(--s-text-muted)' }} />
                   </div>
                 )}
               </div>
 
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 pb-2">
                 {/* Tags */}
                 <div className="flex items-center gap-2 mb-2 flex-wrap">
                   <span className="tag tag-gold">{structure.tag}</span>
@@ -213,61 +254,91 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                 </div>
 
                 {/* Nom */}
-                <h1 className="font-display text-4xl tracking-wider mb-3" style={{ color: 'var(--s-text)' }}>
+                <h1 className="font-display tracking-wider" style={{ color: 'var(--s-text)', fontSize: '48px', lineHeight: 1 }}>
                   {structure.name}
                 </h1>
-
-                {/* Direction — fondateurs inline */}
-                {leaders.length > 0 && (
-                  <div className="flex items-center gap-3">
-                    <span className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>DIRECTION</span>
-                    <div className="flex items-center gap-3">
-                      {leaders.map(l => {
-                        const avatar = l.avatarUrl || l.discordAvatar;
-                        const roleConf = ROLE_LABELS[l.role] ?? { label: l.role, color: 'var(--s-gold)' };
-                        return (
-                          <Link key={l.id} href={`/profile/${l.userId}`}
-                            className="flex items-center gap-2 px-2.5 py-1 transition-colors duration-150 hover:bg-[var(--s-elevated)]"
-                            style={{ background: 'rgba(255,184,0,0.04)', border: '1px solid rgba(255,184,0,0.12)' }}>
-                            {avatar ? (
-                              <div className="w-6 h-6 relative flex-shrink-0 overflow-hidden" style={{ border: '1px solid rgba(255,184,0,0.2)' }}>
-                                <Image src={avatar} alt={l.displayName} fill className="object-cover" unoptimized />
-                              </div>
-                            ) : (
-                              <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-elevated)', border: '1px solid rgba(255,184,0,0.2)' }}>
-                                <User size={10} style={{ color: 'var(--s-gold)' }} />
-                              </div>
-                            )}
-                            <span className="text-xs font-semibold" style={{ color: 'var(--s-text)' }}>{l.displayName}</span>
-                            <span className="text-xs" style={{ color: roleConf.color, fontSize: '9px' }}>{roleConf.label}</span>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
               </div>
 
-              {/* Actions */}
-              <div className="flex-shrink-0 flex flex-col items-end gap-2 pt-1">
+              {/* CTA principal bien visible */}
+              <div className="flex-shrink-0 flex flex-col items-end gap-2 pb-2">
                 {isOwner ? (
                   <Link href="/community/my-structure" className="btn-springs btn-secondary bevel-sm flex items-center gap-2">
-                    <Shield size={13} /> Gérer
+                    <Shield size={14} /> Gérer
                   </Link>
                 ) : firebaseUser && !isMember && !joinSent ? (
                   <button onClick={() => setShowJoinForm(!showJoinForm)}
-                    className="btn-springs btn-primary bevel-sm flex items-center gap-2">
-                    <UserPlus size={14} /> Rejoindre
+                    className="btn-springs btn-primary bevel-sm flex items-center gap-2"
+                    style={{ padding: '10px 20px', fontSize: '13px' }}>
+                    <UserPlus size={15} /> Postuler
                   </button>
                 ) : joinSent ? (
-                  <span className="flex items-center gap-2 text-xs font-bold" style={{ color: '#33ff66' }}>
-                    <CheckCircle size={14} /> Demande envoyée
+                  <span className="flex items-center gap-2 text-sm font-bold" style={{ color: '#33ff66' }}>
+                    <CheckCircle size={15} /> Demande envoyée
                   </span>
                 ) : isMember ? (
-                  <span className="tag tag-gold" style={{ fontSize: '10px', padding: '4px 12px' }}>Membre</span>
+                  <span className="tag tag-gold" style={{ fontSize: '11px', padding: '6px 14px' }}>Membre</span>
                 ) : null}
               </div>
             </div>
+
+            {/* Stats line */}
+            <div className="flex items-center gap-6 flex-wrap mb-5 pl-1">
+              <HeroStat
+                icon={<Users size={13} style={{ color: 'var(--s-gold)' }} />}
+                value={String(structure.members.length)}
+                label={structure.members.length > 1 ? 'membres' : 'membre'}
+              />
+              {structure.createdAtMs && (
+                <HeroStat
+                  icon={<Calendar size={13} style={{ color: 'var(--s-text-dim)' }} />}
+                  value={formatAgeSince(structure.createdAtMs)}
+                  label="d'activité"
+                />
+              )}
+              <HeroStat
+                icon={<Trophy size={13} style={{ color: mainColor }} />}
+                value={String(structure.eventsCount)}
+                label={structure.eventsCount > 1 ? 'événements' : 'événement'}
+              />
+              {structure.recruiting?.active && structure.recruiting.positions.length > 0 && (
+                <HeroStat
+                  icon={<Search size={13} style={{ color: 'var(--s-gold)' }} />}
+                  value={String(structure.recruiting.positions.length)}
+                  label={structure.recruiting.positions.length > 1 ? 'postes ouverts' : 'poste ouvert'}
+                  highlight
+                />
+              )}
+            </div>
+
+            {/* Direction — fondateurs inline */}
+            {leaders.length > 0 && (
+              <div className="flex items-center gap-3 flex-wrap pl-1">
+                <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>DIRECTION</span>
+                <div className="flex items-center gap-3 flex-wrap">
+                  {leaders.map(l => {
+                    const avatar = l.avatarUrl || l.discordAvatar;
+                    const roleConf = ROLE_LABELS[l.role] ?? { label: l.role, color: 'var(--s-gold)' };
+                    return (
+                      <Link key={l.id} href={`/profile/${l.userId}`}
+                        className="flex items-center gap-2 px-2.5 py-1 transition-colors duration-150 hover:bg-[var(--s-elevated)]"
+                        style={{ background: 'rgba(255,184,0,0.04)', border: '1px solid rgba(255,184,0,0.12)' }}>
+                        {avatar ? (
+                          <div className="w-6 h-6 relative flex-shrink-0 overflow-hidden" style={{ border: '1px solid rgba(255,184,0,0.2)' }}>
+                            <Image src={avatar} alt={l.displayName} fill className="object-cover" unoptimized />
+                          </div>
+                        ) : (
+                          <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-elevated)', border: '1px solid rgba(255,184,0,0.2)' }}>
+                            <User size={10} style={{ color: 'var(--s-gold)' }} />
+                          </div>
+                        )}
+                        <span className="text-xs font-semibold" style={{ color: 'var(--s-text)' }}>{l.displayName}</span>
+                        <span className="t-label" style={{ color: roleConf.color }}>{roleConf.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </header>
 
@@ -417,46 +488,64 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                   </div>
                   <span className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>{structure.members.length}</span>
                 </div>
-                <div className="divide-y" style={{ borderColor: 'var(--s-border)' }}>
-                  {structure.members.length === 0 ? (
-                    <div className="p-6 text-center">
-                      <Users size={24} className="mx-auto mb-2" style={{ color: 'var(--s-text-muted)' }} />
+                <div className="p-5">
+                  {uniqueMembers.length === 0 ? (
+                    <div className="py-6 text-center">
+                      <Users size={26} className="mx-auto mb-3" style={{ color: 'var(--s-text-muted)' }} />
                       <p className="t-body" style={{ color: 'var(--s-text-muted)' }}>Aucun membre pour le moment.</p>
                     </div>
                   ) : (
-                    sortedMembers.map(m => {
-                      const roleConf = ROLE_LABELS[m.role] ?? { label: m.role, color: 'var(--s-text-dim)' };
-                      const avatar = m.avatarUrl || m.discordAvatar;
-                      return (
-                        <Link key={m.id} href={`/profile/${m.userId}`}
-                          className="flex items-center gap-4 px-5 py-3 transition-colors duration-150 hover:bg-[var(--s-elevated)]">
-                          {avatar ? (
-                            <div className="w-9 h-9 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                              <Image src={avatar} alt={m.displayName} fill className="object-cover" unoptimized />
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {uniqueMembers.map(m => {
+                        const roleConf = ROLE_LABELS[m.role] ?? { label: m.role, color: 'var(--s-text-dim)' };
+                        const avatar = m.avatarUrl || m.discordAvatar;
+                        const isLeader = m.role === 'fondateur' || m.role === 'co_fondateur';
+                        return (
+                          <Link
+                            key={m.userId}
+                            href={`/profile/${m.userId}`}
+                            className="flex flex-col items-center text-center gap-2 px-3 py-4 transition-all duration-150 hover:bg-[var(--s-elevated)]"
+                            style={{
+                              background: 'var(--s-surface)',
+                              border: `1px solid ${isLeader ? 'rgba(255,184,0,0.22)' : 'var(--s-border)'}`,
+                            }}
+                          >
+                            {avatar ? (
+                              <div className="w-14 h-14 relative flex-shrink-0 overflow-hidden"
+                                style={{ background: 'var(--s-elevated)', border: `1px solid ${isLeader ? 'rgba(255,184,0,0.3)' : 'var(--s-border)'}` }}>
+                                <Image src={avatar} alt={m.displayName} fill className="object-cover" unoptimized />
+                              </div>
+                            ) : (
+                              <div className="w-14 h-14 flex-shrink-0 flex items-center justify-center"
+                                style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                                <User size={18} style={{ color: 'var(--s-text-muted)' }} />
+                              </div>
+                            )}
+                            <div className="w-full min-w-0">
+                              <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{m.displayName}</p>
+                              <p className="t-label mt-0.5" style={{ color: roleConf.color }}>{roleConf.label}</p>
                             </div>
-                          ) : (
-                            <div className="w-9 h-9 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                              <User size={14} style={{ color: 'var(--s-text-muted)' }} />
+                            <div className="flex items-center gap-1.5">
+                              {m.country && (
+                                <Image
+                                  src={`https://flagcdn.com/w40/${m.country.toLowerCase()}.png`}
+                                  alt={m.country}
+                                  width={14}
+                                  height={10}
+                                  unoptimized
+                                />
+                              )}
+                              {m.games.map(g => (
+                                <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
+                                  style={{ fontSize: '9px', padding: '1px 5px' }}>
+                                  {g === 'rocket_league' ? 'RL' : 'TM'}
+                                </span>
+                              ))}
                             </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{m.displayName}</p>
-                            <p className="t-mono text-xs" style={{ color: roleConf.color }}>{roleConf.label}</p>
-                          </div>
-                          {m.country && (
-                            <img
-                              src={`https://flagcdn.com/w40/${m.country.toLowerCase()}.png`}
-                              alt={m.country} width={14} height={10}
-                              style={{ display: 'inline-block', verticalAlign: 'middle' }}
-                            />
-                          )}
-                          <span className={`tag ${m.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                            style={{ fontSize: '9px', padding: '1px 6px' }}>
-                            {m.game === 'rocket_league' ? 'RL' : 'TM'}
-                          </span>
-                        </Link>
-                      );
-                    })
+                          </Link>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
               </div>
@@ -597,6 +686,35 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
           </div>
         </div>
 
+      </div>
+    </div>
+  );
+}
+
+function HeroStat({
+  icon, value, label, highlight = false,
+}: {
+  icon: React.ReactNode;
+  value: string;
+  label: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <div
+        className="w-7 h-7 flex items-center justify-center flex-shrink-0"
+        style={{
+          background: highlight ? 'rgba(255,184,0,0.1)' : 'rgba(255,255,255,0.04)',
+          border: `1px solid ${highlight ? 'rgba(255,184,0,0.25)' : 'var(--s-border)'}`,
+        }}
+      >
+        {icon}
+      </div>
+      <div className="leading-tight">
+        <p className="font-display" style={{ color: highlight ? 'var(--s-gold)' : 'var(--s-text)', fontSize: '18px', lineHeight: 1 }}>
+          {value}
+        </p>
+        <p className="t-label mt-0.5" style={{ color: 'var(--s-text-muted)' }}>{label}</p>
       </div>
     </div>
   );

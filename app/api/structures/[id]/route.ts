@@ -83,12 +83,27 @@ export async function GET(
       };
     });
 
+    // Stats vivantes : nombre d'events créés (tous types confondus) depuis toujours
+    let eventsCount = 0;
+    try {
+      const eventsAgg = await db.collection('structure_events')
+        .where('structureId', '==', id)
+        .count()
+        .get();
+      eventsCount = eventsAgg.data().count || 0;
+    } catch {
+      // pas bloquant
+    }
+
+    const createdAtMs = data.createdAt?.toMillis ? data.createdAt.toMillis() : null;
+
     // Données publiques
     const structure = {
       id: snap.id,
       name: data.name,
       tag: data.tag,
       logoUrl: data.logoUrl || '',
+      coverUrl: data.coverUrl || '',
       description: data.description || '',
       games: data.games || [],
       discordUrl: data.discordUrl || '',
@@ -99,6 +114,8 @@ export async function GET(
       founderId: data.founderId,
       coFounderIds: data.coFounderIds ?? [],
       members,
+      createdAtMs,
+      eventsCount,
     };
 
     return NextResponse.json(structure);
