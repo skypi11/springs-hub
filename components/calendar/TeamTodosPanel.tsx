@@ -53,9 +53,11 @@ function formatDeadlineShort(ymd: string, today: string): { label: string; color
 export default function TeamTodosPanel({
   structureId,
   team,
+  embedded,
 }: {
   structureId: string;
   team: TeamRef;
+  embedded?: boolean;
 }) {
   const { firebaseUser } = useAuth();
   const toast = useToast();
@@ -211,25 +213,37 @@ export default function TeamTodosPanel({
   }
 
   return (
-    <div className="space-y-3 pt-3" style={{ borderTop: '1px dashed var(--s-border)' }}>
+    <div
+      className={embedded ? 'space-y-4' : 'space-y-3 pt-3'}
+      style={embedded ? undefined : { borderTop: '1px dashed var(--s-border)' }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <ClipboardList size={14} style={{ color: 'var(--s-violet-light)' }} />
-          <span className="t-label" style={{ fontSize: '12px', color: 'var(--s-text-dim)', letterSpacing: '0.05em' }}>
-            DEVOIRS DE L&apos;ÉQUIPE
+          <ClipboardList size={embedded ? 16 : 14} style={{ color: 'var(--s-violet-light)' }} />
+          <span className="t-label" style={{ fontSize: embedded ? '13px' : '12px', color: 'var(--s-text-dim)', letterSpacing: '0.05em' }}>
+            {embedded ? 'DEVOIRS' : "DEVOIRS DE L'ÉQUIPE"}
           </span>
           <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
             ({counts.pending} à faire · {counts.done} fait{counts.done > 1 ? 's' : ''})
           </span>
         </div>
-        <button type="button"
-          onClick={() => setShowForm(v => !v)}
-          className="flex items-center gap-1.5 text-xs font-bold transition-colors duration-150"
-          style={{ color: 'var(--s-violet-light)' }}>
-          {showForm ? <X size={11} /> : <Plus size={11} />}
-          {showForm ? 'Annuler' : 'Nouveau devoir'}
-        </button>
+        {embedded ? (
+          <button type="button"
+            onClick={() => setShowForm(v => !v)}
+            className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-xs">
+            {showForm ? <X size={12} /> : <Plus size={12} />}
+            {showForm ? 'Annuler' : 'Nouveau devoir'}
+          </button>
+        ) : (
+          <button type="button"
+            onClick={() => setShowForm(v => !v)}
+            className="flex items-center gap-1.5 text-xs font-bold transition-colors duration-150"
+            style={{ color: 'var(--s-violet-light)' }}>
+            {showForm ? <X size={11} /> : <Plus size={11} />}
+            {showForm ? 'Annuler' : 'Nouveau devoir'}
+          </button>
+        )}
       </div>
 
       {/* Formulaire */}

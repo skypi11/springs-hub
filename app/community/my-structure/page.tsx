@@ -15,8 +15,8 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import CalendarSection from '@/components/calendar/CalendarSection';
-import TeamMatchingPanel from '@/components/calendar/TeamMatchingPanel';
-import TeamTodosPanel from '@/components/calendar/TeamTodosPanel';
+import TeamDetailDrawer, { type DrawerTab, type DrawerTeam } from '@/components/calendar/TeamDetailDrawer';
+import { CalendarClock, ClipboardList } from 'lucide-react';
 import type { UserContext } from '@/lib/event-permissions';
 
 type DashboardTab = 'general' | 'teams' | 'recruitment' | 'members' | 'calendar';
@@ -218,6 +218,27 @@ function RosterSlot({ label, labelColor, members, available, canAdd, loading, on
   );
 }
 
+// ─── Chip action dans les cards équipe — ouvre le drawer détail ───────
+function TeamActionChip({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bevel-sm transition-all duration-150 hover:opacity-100"
+      style={{
+        background: 'var(--s-surface)',
+        border: '1px solid var(--s-border)',
+        color: 'var(--s-text-dim)',
+        opacity: 0.92,
+        cursor: 'pointer',
+      }}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
+
 export default function MyStructurePage() {
   const { firebaseUser, loading: authLoading } = useAuth();
   const toast = useToast();
@@ -248,8 +269,9 @@ export default function MyStructurePage() {
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamGame, setNewTeamGame] = useState('');
   const [showNewTeam, setShowNewTeam] = useState(false);
-  const [matchingOpen, setMatchingOpen] = useState<Record<string, boolean>>({});
   const [teamActionLoading, setTeamActionLoading] = useState<string | null>(null);
+  // Drawer détail équipe (Dispos + Devoirs) — ouvert via chips des cards équipe
+  const [drawerState, setDrawerState] = useState<{ team: DrawerTeam; tab: DrawerTab; canEditConfig: boolean } | null>(null);
 
   // Invitations state
   type InviteLink = { id: string; token: string; status: string; createdAt: string };
@@ -1391,41 +1413,32 @@ export default function MyStructurePage() {
                             />
                           </div>
 
-                          {/* Dispos & matching + Devoirs — staff de l'équipe ou dirigeant */}
+                          {/* Chips accès drawer détail équipe — staff de l'équipe ou dirigeant */}
                           {(() => {
                             const isDirigeant = isFounderOfActive || isCoFounderOfActive;
                             const isStaffOfThisTeam = isDirigeant || staffedTeamIds.includes(team.id);
                             if (!isStaffOfThisTeam) return null;
-                            const open = !!matchingOpen[team.id];
+                            const drawerTeam: DrawerTeam = {
+                              id: team.id,
+                              name: team.name,
+                              game: team.game,
+                              players: team.players,
+                              subs: team.subs,
+                              staff: team.staff,
+                            };
+                            const openDrawer = (tab: DrawerTab) =>
+                              setDrawerState({ team: drawerTeam, tab, canEditConfig: isDirigeant });
                             return (
-                              <div className="pt-2 space-y-3">
-                                <div>
-                                  <button type="button"
-                                    onClick={() => setMatchingOpen(prev => ({ ...prev, [team.id]: !prev[team.id] }))}
-                                    className="flex items-center gap-1.5 text-xs transition-colors duration-150 hover:opacity-80"
-                                    style={{ color: 'var(--s-text-dim)' }}>
-                                    {open ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-                                    <span className="t-label" style={{ fontSize: '12px' }}>
-                                      {open ? 'Masquer dispos & matching' : 'Voir dispos & matching'}
-                                    </span>
-                                  </button>
-                                  {open && (
-                                    <TeamMatchingPanel
-                                      structureId={s.id}
-                                      teamId={team.id}
-                                      canEditConfig={isDirigeant}
-                                    />
-                                  )}
-                                </div>
-                                <TeamTodosPanel
-                                  structureId={s.id}
-                                  team={{
-                                    id: team.id,
-                                    name: team.name,
-                                    players: team.players,
-                                    subs: team.subs,
-                                    staff: team.staff,
-                                  }}
+                              <div className="flex items-center gap-2 pt-1 flex-wrap" style={{ borderTop: '1px dashed var(--s-border)', paddingTop: '10px' }}>
+                                <TeamActionChip
+                                  icon={<CalendarClock size={13} />}
+                                  label="Dispos & matching"
+                                  onClick={() => openDrawer('availability')}
+                                />
+                                <TeamActionChip
+                                  icon={<ClipboardList size={13} />}
+                                  label="Devoirs"
+                                  onClick={() => openDrawer('todos')}
                                 />
                               </div>
                             );
@@ -1742,6 +1755,15 @@ export default function MyStructurePage() {
         </div>
         )}
       </div>
+      {/* Drawer détail équipe (Dispos + Devoirs) */}
+      <TeamDetailDrawer
+        open={drawerState !== null}
+        onClose={() => setDrawerState(null)}
+        structureId={s.id}
+        team={drawerState?.team ?? null}
+        initialTab={drawerState?.tab ?? 'availability'}
+        canEditConfig={drawerState?.canEditConfig ?? false}
+      />
     </div>
   );
 }
