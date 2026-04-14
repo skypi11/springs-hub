@@ -9,8 +9,8 @@ import { countries } from '@/lib/countries';
 import type { SpringsUser, RLStats } from '@/types';
 import {
   User, Globe, Calendar, Gamepad2, Search, Shield,
-  ExternalLink, ChevronRight, Settings, Loader2, AlertCircle,
-  Trophy, Target, Crosshair, Medal
+  ExternalLink, Settings, Loader2, AlertCircle,
+  Trophy, History, Sparkles,
 } from 'lucide-react';
 
 function CountryFlag({ code, size = 16 }: { code: string; size?: number }) {
@@ -43,6 +43,10 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
     cotdCount: number; cotdAvgRank: number | null;
     profileUrl: string | null;
   } | null>(null);
+  const [history, setHistory] = useState<{
+    tm: { editionsPlayed: number; finalesReached: number; bestFinalePosition: number | null } | null;
+    rl: { competitions: { id: string; name: string; status: string }[] };
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -61,20 +65,29 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         setProfile(data);
 
         // Fetch RL stats si le joueur joue à RL
-        if (data.games?.includes('rocket_league') && data.epicAccountId) {
-          try {
-            const rlRes = await fetch(`/api/rl-stats?epicId=${encodeURIComponent(data.epicAccountId)}`);
-            if (rlRes.ok) {
-              const stats = await rlRes.json();
-              if (stats.rank) setRlStats(stats.rank);
-              if (stats.trackerUrl) setRlTrackerUrl(stats.trackerUrl);
+        if (data.games?.includes('rocket_league')) {
+          if (data.epicAccountId) {
+            try {
+              const rlRes = await fetch(`/api/rl-stats?epicId=${encodeURIComponent(data.epicAccountId)}`);
+              if (rlRes.ok) {
+                const stats = await rlRes.json();
+                if (stats.rank) setRlStats(stats.rank);
+                if (stats.trackerUrl) setRlTrackerUrl(stats.trackerUrl);
+              }
+            } catch (err) {
+              console.error('[Profile] RL stats fetch error:', err);
             }
-          } catch (err) {
-            console.error('[Profile] RL stats fetch error:', err);
+            if (data.rlTrackerUrl) setRlTrackerUrl(prev => prev || data.rlTrackerUrl || '');
           }
-          // Utiliser l'URL tracker du profil si l'API n'en a pas retourné
-          if (data.rlTrackerUrl) setRlTrackerUrl(prev => prev || data.rlTrackerUrl || '');
           setRlStatsLoaded(true);
+        }
+
+        // Historique Springs (Monthly Cup + League Series)
+        try {
+          const hRes = await fetch(`/api/profile/history?uid=${encodeURIComponent(id)}`);
+          if (hRes.ok) setHistory(await hRes.json());
+        } catch (err) {
+          console.error('[Profile] history fetch error:', err);
         }
 
         // Fetch TM stats si le joueur joue à TM
@@ -259,28 +272,39 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                         </div>
                         {rlStats.mmr && (
                           <div className="text-right">
-                            <p className="font-display text-3xl" style={{ color: 'var(--s-blue)', lineHeight: 1 }}>{rlStats.mmr}</p>
-                            <p className="t-label" style={{ fontSize: '8px' }}>MMR</p>
+                            <p
+                              className="font-display text-3xl"
+                              style={{ color: 'var(--s-blue)', lineHeight: 1 }}
+                              title="Matchmaking Rating : score du classement compétitif"
+                            >
+                              {rlStats.mmr}
+                            </p>
+                            <p className="t-label" style={{ fontSize: '9px' }}>MMR</p>
                           </div>
                         )}
                       </div>
 
                       {rlStats.playlist && (
                         <div className="flex items-center gap-2 px-3 py-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                          <span className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>PLAYLIST</span>
+                          <span className="t-label" style={{ fontSize: '10px', color: 'var(--s-text-muted)' }}>PLAYLIST</span>
                           <span className="text-xs font-semibold ml-auto" style={{ color: 'var(--s-text)' }}>{rlStats.playlist}</span>
                         </div>
                       )}
                     </div>
+                  ) : rlStatsLoaded && !profile.epicAccountId ? (
+                    <RLEmptyState isOwner={isOwner} />
                   ) : rlStatsLoaded ? (
                     <div className="text-center py-4">
                       <Gamepad2 size={24} className="mx-auto mb-2" style={{ color: 'var(--s-text-muted)' }} />
-                      <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Stats indisponibles</p>
+                      <p className="text-sm" style={{ color: 'var(--s-text-muted)' }}>Stats indisponibles</p>
+                      <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
+                        L&apos;API Tracker.gg n&apos;a rien retourné pour ce compte.
+                      </p>
                     </div>
                   ) : (
                     <div className="flex items-center gap-3">
                       <Loader2 size={16} className="animate-spin" style={{ color: 'var(--s-blue)' }} />
-                      <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Chargement des stats...</span>
+                      <span className="text-sm" style={{ color: 'var(--s-text-muted)' }}>Chargement des stats...</span>
                     </div>
                   )}
 
@@ -339,9 +363,9 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                           </div>
                         </div>
                         {tmStats.echelon !== null && tmStats.echelon > 0 && (
-                          <div>
+                          <div title="Échelon Trackmania : niveau global calculé à partir des trophées (1 à 9)">
                             <p className="font-display text-2xl" style={{ color: 'var(--s-text)', lineHeight: 1 }}>{tmStats.echelon}</p>
-                            <p className="t-label" style={{ fontSize: '8px' }}>NIVEAU</p>
+                            <p className="t-label" style={{ fontSize: '9px' }}>ÉCHELON</p>
                           </div>
                         )}
                       </div>
@@ -367,7 +391,13 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       {/* Trophées par tier */}
                       {tmStats.trophyTiers && tmStats.trophyTiers.length > 0 && (
                         <div>
-                          <span className="t-label block mb-2" style={{ fontSize: '9px' }}>TROPHÉES PAR TIER</span>
+                          <span
+                            className="t-label block mb-2"
+                            style={{ fontSize: '10px' }}
+                            title="Les trophées sont classés en 9 tiers : T1-T3 bronze, T4-T6 argent, T7-T9 or"
+                          >
+                            TROPHÉES PAR TIER
+                          </span>
                           <div className="flex gap-1.5 flex-wrap">
                             {tmStats.trophyTiers.sort((a, b) => b.tier - a.tier).map((t) => {
                               const tierGroup = t.tier <= 3 ? 'bronze' : t.tier <= 6 ? 'argent' : 'or';
@@ -377,13 +407,18 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                                 or:     { color: '#ffd700', bg: 'rgba(255,215,0,0.1)', border: 'rgba(255,215,0,0.3)' },
                               };
                               const td = tierStyles[tierGroup];
+                              const tierLabel = tierGroup === 'bronze' ? 'Bronze' : tierGroup === 'argent' ? 'Argent' : 'Or';
                               return (
-                                <div key={t.tier} className="text-center px-3 py-2"
-                                  style={{ background: td.bg, border: `1px solid ${td.border}`, minWidth: '60px' }}>
+                                <div
+                                  key={t.tier}
+                                  className="text-center px-3 py-2"
+                                  style={{ background: td.bg, border: `1px solid ${td.border}`, minWidth: '64px' }}
+                                  title={`Tier ${t.tier} (${tierLabel}) — ${t.count} trophée${t.count > 1 ? 's' : ''}`}
+                                >
                                   <p className="font-display text-base" style={{ color: td.color, lineHeight: 1 }}>
                                     {new Intl.NumberFormat('fr-FR').format(t.count)}
                                   </p>
-                                  <p className="t-label mt-0.5" style={{ fontSize: '8px', color: td.color, opacity: 0.8 }}>T{t.tier}</p>
+                                  <p className="t-label mt-0.5" style={{ fontSize: '9px', color: td.color, opacity: 0.85 }}>T{t.tier}</p>
                                 </div>
                               );
                             })}
@@ -394,26 +429,44 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       {/* COTD */}
                       {(tmStats.cotdBestRank !== null || tmStats.cotdCount > 0) && (
                         <div>
-                          <span className="t-label block mb-2" style={{ fontSize: '9px' }}>CUP OF THE DAY</span>
-                          <div className="flex items-center gap-4">
+                          <span
+                            className="t-label block mb-2"
+                            style={{ fontSize: '10px' }}
+                            title="Cup of the Day : compétition quotidienne Trackmania (qualifications puis bracket à élimination directe)"
+                          >
+                            CUP OF THE DAY
+                          </span>
+                          <div className="flex items-center gap-4 flex-wrap">
                             {tmStats.cotdBestRank !== null && (
-                              <div className="text-center px-3 py-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', minWidth: '70px' }}>
+                              <div
+                                className="text-center px-3 py-2"
+                                style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', minWidth: '78px' }}
+                                title={`Meilleur classement en COTD${tmStats.cotdBestDiv ? ` — Division ${tmStats.cotdBestDiv}` : ''}`}
+                              >
                                 <p className="font-display text-lg" style={{ color: '#33ff66', lineHeight: 1 }}>#{tmStats.cotdBestRank}</p>
-                                <p className="t-label mt-0.5" style={{ fontSize: '7px' }}>
-                                  BEST{tmStats.cotdBestDiv ? ` (D${tmStats.cotdBestDiv})` : ''}
+                                <p className="t-label mt-0.5" style={{ fontSize: '9px' }}>
+                                  MEILLEUR{tmStats.cotdBestDiv ? ` (D${tmStats.cotdBestDiv})` : ''}
                                 </p>
                               </div>
                             )}
                             {tmStats.cotdAvgRank !== null && (
-                              <div className="text-center px-3 py-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', minWidth: '70px' }}>
+                              <div
+                                className="text-center px-3 py-2"
+                                style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', minWidth: '78px' }}
+                                title="Classement moyen sur toutes les COTD jouées"
+                              >
                                 <p className="font-display text-lg" style={{ color: 'var(--s-text)', lineHeight: 1 }}>#{tmStats.cotdAvgRank}</p>
-                                <p className="t-label mt-0.5" style={{ fontSize: '7px' }}>MOY.</p>
+                                <p className="t-label mt-0.5" style={{ fontSize: '9px' }}>MOYENNE</p>
                               </div>
                             )}
                             {tmStats.cotdCount > 0 && (
-                              <div className="text-center px-3 py-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', minWidth: '70px' }}>
+                              <div
+                                className="text-center px-3 py-2"
+                                style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', minWidth: '78px' }}
+                                title="Nombre total de COTD jouées"
+                              >
                                 <p className="font-display text-lg" style={{ color: 'var(--s-text)', lineHeight: 1 }}>{tmStats.cotdCount}</p>
-                                <p className="t-label mt-0.5" style={{ fontSize: '7px' }}>COTD</p>
+                                <p className="t-label mt-0.5" style={{ fontSize: '9px' }}>JOUÉES</p>
                               </div>
                             )}
                           </div>
@@ -442,6 +495,14 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
             </div>
           )}
         </div>
+
+        {/* ─── HISTORIQUE SPRINGS ────────────────────────────────────────── */}
+        <SpringsHistoryPanel
+          history={history}
+          games={profile.games ?? []}
+          hasTmIdentity={Boolean((profile.pseudoTM || '').trim() || (profile.loginTM || '').trim())}
+          isOwner={isOwner}
+        />
 
         {/* ─── SIDEBAR INFO ──────────────────────────────────────────────── */}
         <div className="grid grid-cols-3 gap-6 animate-fade-in-d2">
@@ -543,6 +604,218 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         </div>
 
       </div>
+    </div>
+  );
+}
+
+function RLEmptyState({ isOwner }: { isOwner: boolean }) {
+  return (
+    <div className="flex flex-col items-center justify-center text-center py-6 px-3">
+      <div
+        className="w-14 h-14 flex items-center justify-center mb-4"
+        style={{ background: 'rgba(0,129,255,0.08)', border: '1px solid rgba(0,129,255,0.25)' }}
+      >
+        <Gamepad2 size={26} style={{ color: 'var(--s-blue)' }} />
+      </div>
+      <p className="text-sm font-semibold mb-2" style={{ color: 'var(--s-text)' }}>
+        {isOwner ? 'Lie ton compte Epic' : 'Aucun tracker RL lié'}
+      </p>
+      <p className="text-xs mb-4 max-w-[220px]" style={{ color: 'var(--s-text-muted)' }}>
+        {isOwner
+          ? 'Ajoute ton pseudo Epic Games pour afficher ton rang et ton MMR en direct depuis Rocket League.'
+          : 'Ce joueur n\'a pas encore renseigné son identifiant Epic Games.'}
+      </p>
+      {isOwner && (
+        <Link href="/settings" className="btn-springs btn-secondary bevel-sm inline-flex items-center gap-2">
+          <Settings size={12} /> Ajouter mon pseudo Epic
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function SpringsHistoryPanel({
+  history,
+  games,
+  hasTmIdentity,
+  isOwner,
+}: {
+  history: {
+    tm: { editionsPlayed: number; finalesReached: number; bestFinalePosition: number | null } | null;
+    rl: { competitions: { id: string; name: string; status: string }[] };
+  } | null;
+  games: string[];
+  hasTmIdentity: boolean;
+  isOwner: boolean;
+}) {
+  const playsTM = games.includes('trackmania');
+  const playsRL = games.includes('rocket_league');
+  const tmCount = history?.tm?.editionsPlayed ?? 0;
+  const rlCount = history?.rl?.competitions.length ?? 0;
+  const loading = history === null;
+
+  return (
+    <div className="pillar-card panel bevel-sm relative overflow-hidden animate-fade-in-d2"
+      style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+      <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), var(--s-violet-light), transparent 80%)' }} />
+      <div className="absolute top-0 right-0 w-[200px] h-[200px] pointer-events-none opacity-[0.05]"
+        style={{ background: 'radial-gradient(circle at top right, var(--s-violet), transparent 70%)' }} />
+      <div className="relative z-[1]">
+        <div className="panel-header">
+          <div className="flex items-center gap-2">
+            <History size={13} style={{ color: 'var(--s-violet-light)' }} />
+            <span className="t-label" style={{ color: 'var(--s-text)' }}>HISTORIQUE SPRINGS</span>
+          </div>
+          <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Compétitions officielles</span>
+        </div>
+        <div className="p-5">
+          {loading ? (
+            <div className="flex items-center gap-3">
+              <Loader2 size={14} className="animate-spin" style={{ color: 'var(--s-violet-light)' }} />
+              <span className="text-sm" style={{ color: 'var(--s-text-muted)' }}>Chargement de l&apos;historique...</span>
+            </div>
+          ) : tmCount === 0 && rlCount === 0 ? (
+            <HistoryEmpty
+              playsTM={playsTM}
+              playsRL={playsRL}
+              hasTmIdentity={hasTmIdentity}
+              isOwner={isOwner}
+            />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {playsTM && (
+                <HistoryBlock
+                  accent="var(--s-green)"
+                  icon={<Trophy size={18} style={{ color: '#33ff66' }} />}
+                  title="MONTHLY CUP"
+                  subtitle="Trackmania"
+                >
+                  {history?.tm ? (
+                    <div className="flex items-center gap-5 flex-wrap">
+                      <HistoryStat
+                        value={String(history.tm.editionsPlayed)}
+                        label="ÉDITIONS JOUÉES"
+                        tooltip="Nombre d'éditions Monthly Cup auxquelles ce joueur a participé"
+                      />
+                      <HistoryStat
+                        value={String(history.tm.finalesReached)}
+                        label="FINALES ATTEINTES"
+                        tooltip="Nombre de fois qualifié en finale"
+                      />
+                      {history.tm.bestFinalePosition !== null && (
+                        <HistoryStat
+                          value={`#${history.tm.bestFinalePosition}`}
+                          label="MEILLEURE PLACE"
+                          tooltip="Meilleure position en phase finale"
+                          highlight
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm" style={{ color: 'var(--s-text-muted)' }}>
+                      {hasTmIdentity
+                        ? 'Aucune participation enregistrée pour le pseudo TM actuel.'
+                        : 'Pseudo Trackmania non renseigné — impossible de croiser les résultats.'}
+                    </p>
+                  )}
+                </HistoryBlock>
+              )}
+              {playsRL && (
+                <HistoryBlock
+                  accent="var(--s-blue)"
+                  icon={<Sparkles size={18} style={{ color: 'var(--s-blue)' }} />}
+                  title="LEAGUE SERIES"
+                  subtitle="Rocket League"
+                >
+                  {history?.rl.competitions.length ? (
+                    <ul className="space-y-1.5">
+                      {history.rl.competitions.slice(0, 5).map(c => (
+                        <li key={c.id} className="flex items-center justify-between gap-3 px-3 py-2"
+                          style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                          <span className="text-sm truncate" style={{ color: 'var(--s-text)' }}>{c.name}</span>
+                          <span className="t-label flex-shrink-0" style={{ color: 'var(--s-text-muted)' }}>{c.status}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm" style={{ color: 'var(--s-text-muted)' }}>
+                      Aucune inscription à une compétition Springs pour l&apos;instant.
+                    </p>
+                  )}
+                </HistoryBlock>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HistoryBlock({
+  accent, icon, title, subtitle, children,
+}: {
+  accent: string;
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="p-4 relative overflow-hidden"
+      style={{ background: 'var(--s-elevated)', border: `1px solid ${accent}25` }}>
+      <div className="h-[2px] -mx-4 -mt-4 mb-3" style={{ background: `linear-gradient(90deg, ${accent}, ${accent}40, transparent 80%)` }} />
+      <div className="flex items-center gap-2.5 mb-3">
+        {icon}
+        <div>
+          <p className="font-display text-base" style={{ color: 'var(--s-text)', lineHeight: 1 }}>{title}</p>
+          <p className="t-label mt-0.5" style={{ color: 'var(--s-text-muted)' }}>{subtitle}</p>
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function HistoryStat({
+  value, label, tooltip, highlight = false,
+}: {
+  value: string;
+  label: string;
+  tooltip?: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div title={tooltip}>
+      <p className="font-display text-2xl" style={{ color: highlight ? 'var(--s-gold)' : 'var(--s-text)', lineHeight: 1 }}>{value}</p>
+      <p className="t-label mt-1" style={{ color: 'var(--s-text-muted)' }}>{label}</p>
+    </div>
+  );
+}
+
+function HistoryEmpty({
+  playsTM, playsRL, hasTmIdentity, isOwner,
+}: {
+  playsTM: boolean;
+  playsRL: boolean;
+  hasTmIdentity: boolean;
+  isOwner: boolean;
+}) {
+  return (
+    <div className="text-center py-2">
+      <History size={22} className="mx-auto mb-3" style={{ color: 'var(--s-text-muted)' }} />
+      <p className="text-sm mb-1" style={{ color: 'var(--s-text)' }}>Aucune participation enregistrée</p>
+      <p className="text-xs max-w-md mx-auto" style={{ color: 'var(--s-text-muted)' }}>
+        {playsTM && !hasTmIdentity && isOwner
+          ? 'Renseigne ton pseudo Trackmania dans les paramètres pour croiser ton historique Monthly Cup.'
+          : playsTM && playsRL
+          ? 'Les participations aux compétitions Springs (Monthly Cup TM, League Series RL) apparaîtront ici.'
+          : playsTM
+          ? 'Les participations à la Monthly Cup Trackmania apparaîtront ici.'
+          : playsRL
+          ? 'Les participations aux Springs League Series RL apparaîtront ici.'
+          : 'Les participations aux compétitions Springs apparaîtront ici.'}
+      </p>
     </div>
   );
 }
