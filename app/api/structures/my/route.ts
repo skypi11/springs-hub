@@ -292,8 +292,23 @@ export async function PUT(req: NextRequest) {
         website: safeUrl(s.website),
       };
     }
-    if (updates.recruiting !== undefined) {
-      safeUpdates.recruiting = updates.recruiting;
+    if (updates.recruiting !== undefined && typeof updates.recruiting === 'object' && updates.recruiting !== null) {
+      const r = updates.recruiting as { active?: unknown; positions?: unknown; message?: unknown };
+      const positions = Array.isArray(r.positions)
+        ? r.positions
+            .filter((p): p is { game: unknown; role: unknown } => typeof p === 'object' && p !== null)
+            .map(p => ({
+              game: typeof p.game === 'string' ? p.game : '',
+              role: typeof p.role === 'string' ? p.role : '',
+            }))
+            .filter(p => p.game && p.role)
+            .slice(0, 20)
+        : [];
+      safeUpdates.recruiting = {
+        active: Boolean(r.active),
+        positions,
+        message: clampString(r.message, LIMITS.structureRecruitmentMessage),
+      };
     }
     if (updates.achievements !== undefined && Array.isArray(updates.achievements)) {
       // Cap à 50 entrées pour limiter la taille du document

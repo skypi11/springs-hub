@@ -22,6 +22,8 @@ import PublicPreviewFrame from '@/components/ui/PublicPreviewFrame';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import type { UserContext } from '@/lib/event-permissions';
 import PlayerStructureView, { type PlayerStructure } from '@/components/structure/PlayerStructureView';
+import MarkdownEditor from '@/components/ui/MarkdownEditor';
+import { LIMITS } from '@/lib/validation';
 
 type DashboardTab = 'general' | 'teams' | 'recruitment' | 'members' | 'calendar';
 
@@ -86,7 +88,7 @@ type MyStructure = {
   games: string[];
   discordUrl: string;
   socials: Record<string, string>;
-  recruiting: { active: boolean; positions: { game: string; role: string }[] };
+  recruiting: { active: boolean; positions: { game: string; role: string }[]; message?: string };
   achievements: { placement?: string; title?: string; competition?: string; game?: string; date?: string }[];
   status: string;
   reviewComment?: string;
@@ -261,7 +263,8 @@ export default function MyStructurePage() {
   const [editLogoUrl, setEditLogoUrl] = useState('');
   const [editDiscordUrl, setEditDiscordUrl] = useState('');
   const [editSocials, setEditSocials] = useState<Record<string, string>>({});
-  const [editRecruiting, setEditRecruiting] = useState<{ active: boolean; positions: { game: string; role: string }[] }>({ active: false, positions: [] });
+  const [editRecruiting, setEditRecruiting] = useState<{ active: boolean; positions: { game: string; role: string }[]; message: string }>({ active: false, positions: [], message: '' });
+  const recruitMessageRef = useRef<HTMLTextAreaElement>(null);
   const [editAchievements, setEditAchievements] = useState<{ placement: string; competition: string; game: string; date: string }[]>([]);
   // Teams state
   type TeamData = {
@@ -376,7 +379,11 @@ export default function MyStructurePage() {
     setEditLogoUrl(s.logoUrl || '');
     setEditDiscordUrl(s.discordUrl || '');
     setEditSocials(s.socials || {});
-    setEditRecruiting(s.recruiting || { active: false, positions: [] });
+    setEditRecruiting({
+      active: s.recruiting?.active ?? false,
+      positions: s.recruiting?.positions ?? [],
+      message: s.recruiting?.message ?? '',
+    });
     setEditAchievements((s.achievements || []).map(a => ({
       placement: a.placement || a.title || '',
       competition: a.competition || '',
@@ -1311,7 +1318,16 @@ export default function MyStructurePage() {
                 </label>
 
                 {editRecruiting.active && (
-                  <div className="space-y-3 pt-2" style={{ borderTop: '1px solid var(--s-border)' }}>
+                  <div className="space-y-4 pt-2" style={{ borderTop: '1px solid var(--s-border)' }}>
+                    <MarkdownEditor
+                      label="Annonce de recrutement (optionnelle)"
+                      value={editRecruiting.message}
+                      onChange={v => setEditRecruiting({ ...editRecruiting, message: v })}
+                      placeholder="Décris ton projet, l'ambiance, ce que tu cherches exactement… (markdown supporté)"
+                      maxLength={LIMITS.structureRecruitmentMessage}
+                      rows={5}
+                      taRef={recruitMessageRef}
+                    />
                     <p className="t-label" style={{ color: '#33ff66' }}>Postes recherchés</p>
                     {editRecruiting.positions.map((p, i) => (
                       <div key={i} className="flex items-center gap-2">

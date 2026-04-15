@@ -106,7 +106,11 @@ export async function POST() {
     managerIds: ['discord_dev_manager'],
     coachIds: ['discord_dev_coach'],
     status: 'active',
-    recruiting: { active: true, positions: [{ game: 'rocket_league', role: 'joueur' }] },
+    recruiting: {
+      active: true,
+      positions: [{ game: 'rocket_league', role: 'joueur' }],
+      message: '## On cherche un **4e joueur** 🚀\n\nSquad Diamant/Champion qui scrim **3 soirs/semaine**. Ambiance détendue mais compétitive.\n\n- Niveau **min. Diamant III**\n- Dispo soirées + weekends\n- Communication vocale obligatoire\n\nEnvoie ta candidature, on papote sur Discord !',
+    },
     achievements: [],
     socials: {},
     discordUrl: '',

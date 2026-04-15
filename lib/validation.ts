@@ -30,6 +30,7 @@ export function clampString(input: unknown, max: number): string {
 export const LIMITS = {
   bio: 500,
   recruitmentMessage: 500,
+  structureRecruitmentMessage: 1500,
   structureDescription: 5000,
   structureName: 50,
   structureTag: 5,

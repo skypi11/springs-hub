@@ -50,7 +50,7 @@ type StructureData = {
   games: string[];
   discordUrl: string;
   socials: Record<string, string>;
-  recruiting: { active: boolean; positions: { game: string; role: string }[] };
+  recruiting: { active: boolean; positions: { game: string; role: string }[]; message?: string };
   achievements: { placement?: string; title?: string; competition?: string; game?: string; date?: string }[];
   status: string;
   founderId: string;
@@ -674,7 +674,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
           <div className="space-y-6 animate-fade-in-d2">
 
             {/* 1. RECRUTEMENT */}
-            {structure.recruiting?.active && structure.recruiting.positions.length > 0 && (
+            {structure.recruiting?.active && (structure.recruiting.positions.length > 0 || structure.recruiting.message) && (
               <div className="pillar-card panel relative overflow-hidden group transition-all duration-200">
                 <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
                 <div className="absolute top-0 right-0 w-[150px] h-[150px] pointer-events-none opacity-[0.07]"
@@ -685,9 +685,15 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                       <UserPlus size={13} style={{ color: 'var(--s-gold)' }} />
                       <span className="t-label" style={{ color: 'var(--s-text)' }}>RECRUTEMENT</span>
                     </div>
-                    <span className="tag tag-gold" style={{ fontSize: '9px' }}>OUVERT</span>
+                    <span className="tag tag-gold" style={{ fontSize: '12px' }}>OUVERT</span>
                   </div>
-                  <div className="p-5 space-y-2">
+                  <div className="p-5 space-y-3">
+                    {structure.recruiting.message && (
+                      <div className="prose-springs text-xs p-3"
+                        style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                        <ReactMarkdown>{structure.recruiting.message}</ReactMarkdown>
+                      </div>
+                    )}
                     {structure.recruiting.positions.map((p, i) => {
                       const canApply = firebaseUser && !isMember && !joinSent;
                       return (
@@ -719,7 +725,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                         </button>
                       );
                     })}
-                    {firebaseUser && !isMember && !joinSent ? (
+                    {structure.recruiting.positions.length > 0 && firebaseUser && !isMember && !joinSent ? (
                       <button onClick={() => setShowJoinForm(true)}
                         className="btn-springs btn-primary bevel-sm w-full flex items-center justify-center gap-2 text-xs mt-3">
                         <UserPlus size={12} /> Postuler

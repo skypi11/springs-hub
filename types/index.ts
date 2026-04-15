@@ -81,6 +81,7 @@ export interface Structure {
   recruiting?: {
     active: boolean;
     positions: { game: string; role: string }[];  // ex: [{ game: 'rocket_league', role: 'joueur' }]
+    message?: string;                              // annonce libre (markdown) affichée au-dessus des positions
   };
   // Palmarès
   achievements?: Achievement[];
