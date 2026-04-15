@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
         avatarUrl: u?.avatarUrl || '',
         country: u?.country || '',
         rlRank: u?.rlStats?.rank || u?.rlRank || '',
-        rlMmr: u?.rlStats?.mmr || null,
+        rlMmr: u?.rlStats?.mmr || u?.rlMmr || null,
         pseudoTM: u?.pseudoTM || '',
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
       };
@@ -111,7 +111,7 @@ export async function GET(req: NextRequest) {
         avatarUrl: u?.avatarUrl || '',
         country: u?.country || '',
         rlRank: u?.rlStats?.rank || u?.rlRank || '',
-        rlMmr: u?.rlStats?.mmr || null,
+        rlMmr: u?.rlStats?.mmr || u?.rlMmr || null,
         pseudoTM: u?.pseudoTM || '',
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
       };

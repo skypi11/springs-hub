@@ -1445,31 +1445,47 @@ export default function MyStructurePage() {
                     const jrAvatar = jr.avatarUrl || jr.discordAvatar;
                     return (
                       <div key={jr.id} className="p-3" style={{ background: 'var(--s-elevated)', border: '1px solid rgba(255,184,0,0.15)' }}>
-                        <div className="flex items-center gap-3 mb-2">
+                        <div className="flex items-start gap-3 mb-2">
                           {jrAvatar ? (
-                            <div className="w-10 h-10 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                            <div className="w-12 h-12 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
                               <Image src={jrAvatar} alt={jr.displayName} fill className="object-cover" unoptimized />
                             </div>
                           ) : (
-                            <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-                              <User size={14} style={{ color: 'var(--s-text-muted)' }} />
+                            <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                              <User size={16} style={{ color: 'var(--s-text-muted)' }} />
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <Link href={`/profile/${jr.applicantId}`} className="text-sm font-semibold truncate hover:underline">{jr.displayName}</Link>
-                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <Link href={`/profile/${jr.applicantId}`} className="text-sm font-semibold truncate hover:underline">{jr.displayName}</Link>
+                              {jr.country && (
+                                <Image src={`https://flagcdn.com/16x12/${jr.country.toLowerCase()}.png`}
+                                  alt={jr.country} width={14} height={10} className="flex-shrink-0" unoptimized />
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                               {jr.game && (
-                                <span className={`tag ${jr.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '9px', padding: '1px 5px' }}>
+                                <span className={`tag ${jr.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px', padding: '1px 6px' }}>
                                   {jr.game === 'rocket_league' ? 'RL' : 'TM'}
                                 </span>
                               )}
                               {jr.role && jr.role !== 'joueur' && (
-                                <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '1px 5px' }}>{jr.role}</span>
+                                <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 6px' }}>{jr.role}</span>
                               )}
-                              {jr.rlRank && <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{jr.rlRank}</span>}
+                              {jr.rlRank && (
+                                <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                                  {jr.rlRank}{jr.rlMmr ? ` · ${jr.rlMmr}` : ''}
+                                </span>
+                              )}
                               {jr.pseudoTM && <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{jr.pseudoTM}</span>}
                             </div>
                           </div>
+                          <Link href={`/profile/${jr.applicantId}`} target="_blank" rel="noopener"
+                            className="p-1.5 flex-shrink-0 transition-colors duration-150 hover:bg-[var(--s-hover)]"
+                            style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
+                            title="Voir profil">
+                            <Eye size={12} style={{ color: 'var(--s-text-dim)' }} />
+                          </Link>
                         </div>
                         {jr.message && (
                           <p className="text-xs mb-2 italic p-2" style={{ background: 'var(--s-surface)', color: 'var(--s-text-dim)' }}>
@@ -1509,34 +1525,54 @@ export default function MyStructurePage() {
                     const diAvatar = di.avatarUrl || di.discordAvatar;
                     return (
                       <div key={di.id} className="p-3" style={{ background: 'var(--s-elevated)', border: '1px solid rgba(123,47,190,0.2)' }}>
-                        <div className="flex items-center gap-3 mb-2">
+                        <div className="flex items-start gap-3 mb-2">
                           {diAvatar ? (
-                            <div className="w-10 h-10 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                            <div className="w-12 h-12 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
                               <Image src={diAvatar} alt={di.displayName} fill className="object-cover" unoptimized />
                             </div>
                           ) : (
-                            <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-                              <User size={14} style={{ color: 'var(--s-text-muted)' }} />
+                            <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                              <User size={16} style={{ color: 'var(--s-text-muted)' }} />
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <Link href={`/profile/${di.targetUserId}`} className="text-sm font-semibold truncate hover:underline">{di.displayName}</Link>
-                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <Link href={`/profile/${di.targetUserId}`} className="text-sm font-semibold truncate hover:underline">{di.displayName}</Link>
+                              {di.country && (
+                                <Image src={`https://flagcdn.com/16x12/${di.country.toLowerCase()}.png`}
+                                  alt={di.country} width={14} height={10} className="flex-shrink-0" unoptimized />
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                               {di.game && (
-                                <span className={`tag ${di.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '9px', padding: '1px 5px' }}>
+                                <span className={`tag ${di.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px', padding: '1px 6px' }}>
                                   {di.game === 'rocket_league' ? 'RL' : 'TM'}
                                 </span>
                               )}
                               {di.role && di.role !== 'joueur' && (
-                                <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '1px 5px' }}>{di.role}</span>
+                                <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 6px' }}>{di.role}</span>
                               )}
-                              <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>En attente</span>
+                              {di.rlRank && (
+                                <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                                  {di.rlRank}{di.rlMmr ? ` · ${di.rlMmr}` : ''}
+                                </span>
+                              )}
+                              {di.pseudoTM && <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{di.pseudoTM}</span>}
+                              <span className="text-xs italic" style={{ color: 'var(--s-text-muted)' }}>· En attente</span>
                             </div>
                           </div>
-                          <button type="button" onClick={() => handleCancelDirectInvite(di.id)} disabled={invActionLoading === di.id}
-                            className="p-1.5" style={{ color: '#ff5555' }} title="Annuler">
-                            {invActionLoading === di.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                          </button>
+                          <div className="flex flex-col gap-1 flex-shrink-0">
+                            <Link href={`/profile/${di.targetUserId}`} target="_blank" rel="noopener"
+                              className="p-1.5 transition-colors duration-150 hover:bg-[var(--s-hover)]"
+                              style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
+                              title="Voir profil">
+                              <Eye size={12} style={{ color: 'var(--s-text-dim)' }} />
+                            </Link>
+                            <button type="button" onClick={() => handleCancelDirectInvite(di.id)} disabled={invActionLoading === di.id}
+                              className="p-1.5" style={{ color: '#ff5555', background: 'var(--s-surface)', border: '1px solid rgba(255,85,85,0.2)' }} title="Annuler">
+                              {invActionLoading === di.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -1561,29 +1597,40 @@ export default function MyStructurePage() {
                   {suggestions.slice(0, 10).map(sg => {
                     const sgAvatar = sg.avatarUrl || sg.discordAvatar;
                     return (
-                      <Link key={sg.uid} href={`/profile/${sg.uid}`} className="flex items-center gap-3 p-2.5 transition-colors duration-150 hover:bg-[var(--s-hover)]"
+                      <Link key={sg.uid} href={`/profile/${sg.uid}`} className="flex items-start gap-3 p-2.5 transition-colors duration-150 hover:bg-[var(--s-hover)]"
                         style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                         {sgAvatar ? (
-                          <div className="w-9 h-9 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                          <div className="w-12 h-12 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
                             <Image src={sgAvatar} alt={sg.displayName} fill className="object-cover" unoptimized />
                           </div>
                         ) : (
-                          <div className="w-9 h-9 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-                            <User size={12} style={{ color: 'var(--s-text-muted)' }} />
+                          <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                            <User size={14} style={{ color: 'var(--s-text-muted)' }} />
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold truncate">{sg.displayName}</p>
-                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold truncate">{sg.displayName}</p>
+                            {sg.country && (
+                              <Image src={`https://flagcdn.com/16x12/${sg.country.toLowerCase()}.png`}
+                                alt={sg.country} width={14} height={10} className="flex-shrink-0" unoptimized />
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                             {sg.matchingGames.map(g => (
-                              <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '9px', padding: '1px 5px' }}>
+                              <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px', padding: '1px 6px' }}>
                                 {g === 'rocket_league' ? 'RL' : 'TM'}
                               </span>
                             ))}
-                            {sg.rlRank && <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{sg.rlRank}</span>}
+                            {sg.rlRank && (
+                              <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                                {sg.rlRank}{sg.rlMmr ? ` · ${sg.rlMmr}` : ''}
+                              </span>
+                            )}
                             {sg.pseudoTM && <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{sg.pseudoTM}</span>}
                           </div>
                         </div>
+                        <Eye size={14} className="flex-shrink-0 mt-1" style={{ color: 'var(--s-text-muted)' }} />
                       </Link>
                     );
                   })}
