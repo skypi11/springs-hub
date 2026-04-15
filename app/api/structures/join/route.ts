@@ -41,6 +41,11 @@ export async function POST(req: NextRequest) {
         const linkData = linkDoc.data();
         const sid = linkData.structureId;
 
+        // Lien ciblé : seul le joueur visé peut l'utiliser
+        if (linkData.targetUserId && linkData.targetUserId !== uid) {
+          return NextResponse.json({ error: 'Ce lien d\'invitation n\'est pas pour toi.' }, { status: 403 });
+        }
+
         // Vérifier que la structure est active
         const structSnap = await db.collection('structures').doc(sid).get();
         if (!structSnap.exists || structSnap.data()!.status !== 'active') {
@@ -75,7 +80,7 @@ export async function POST(req: NextRequest) {
         const spg = (userSnap.exists && (userSnap.data()!.structurePerGame || {})) || {};
         spg[joinGame] = sid;
 
-        // Atomique : ajout member + update structurePerGame
+        // Atomique : ajout member + update structurePerGame + (si ciblé) marquer le lien used
         // Doc ID déterministe pour qu'un double-clic écrive sur le même doc (idempotent).
         const batch = db.batch();
         const newMemberRef = db.collection('structure_members').doc(`${sid}_${uid}`);
@@ -88,6 +93,14 @@ export async function POST(req: NextRequest) {
         });
         if (userSnap.exists) {
           batch.update(userRef, { structurePerGame: spg });
+        }
+        // Lien ciblé : single-use → on le bascule en 'used' pour bloquer toute réutilisation
+        if (linkData.targetUserId) {
+          batch.update(linkDoc.ref, {
+            status: 'used',
+            usedAt: FieldValue.serverTimestamp(),
+            usedBy: uid,
+          });
         }
         await batch.commit();
 

@@ -26,6 +26,12 @@ export async function GET(req: NextRequest) {
     }
 
     const linkData = linksSnap.docs[0].data();
+
+    // Lien ciblé : seul le joueur visé peut l'ouvrir
+    if (linkData.targetUserId && linkData.targetUserId !== uid) {
+      return NextResponse.json({ error: 'Ce lien d\'invitation n\'est pas pour toi.' }, { status: 403 });
+    }
+
     const structSnap = await db.collection('structures').doc(linkData.structureId).get();
     if (!structSnap.exists || structSnap.data()!.status !== 'active') {
       return NextResponse.json({ error: 'Structure inactive' }, { status: 400 });
@@ -39,6 +45,7 @@ export async function GET(req: NextRequest) {
       structureLogoUrl: structData.logoUrl || '',
       structureGames: structData.games || [],
       presetGame: linkData.game || null,
+      targeted: !!linkData.targetUserId,
     });
   } catch (err) {
     captureApiError('API Invitations Link-Info GET error', err);

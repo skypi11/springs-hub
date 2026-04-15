@@ -147,12 +147,53 @@ export async function POST(req: NextRequest) {
 
     switch (action) {
       // ── Créer un lien d'invitation ──
+      // Variante 1 : lien générique (réutilisable)
+      // Variante 2 : lien ciblé single-use (si targetUserId fourni) — Phase 3 item M
       case 'create_link': {
         // Jeu optionnel mais pré-rempli côté joueur quand fourni → évite le double choix.
         const linkGame = game && typeof game === 'string' ? game : null;
         if (linkGame && structureData.games && !structureData.games.includes(linkGame)) {
           return NextResponse.json({ error: 'Jeu non supporté par la structure' }, { status: 400 });
         }
+
+        const targetedUserId = typeof targetUserId === 'string' && targetUserId.trim() ? targetUserId.trim() : null;
+        if (targetedUserId) {
+          if (targetedUserId === uid) {
+            return NextResponse.json({ error: 'Impossible de se cibler soi-même' }, { status: 400 });
+          }
+          // Le joueur doit exister
+          const tSnap = await db.collection('users').doc(targetedUserId).get();
+          if (!tSnap.exists) {
+            return NextResponse.json({ error: 'Joueur introuvable' }, { status: 404 });
+          }
+          // Pas déjà membre pour ce jeu si le jeu est précisé
+          if (linkGame) {
+            const already = await db.collection('structure_members')
+              .where('userId', '==', targetedUserId)
+              .where('game', '==', linkGame)
+              .get();
+            if (!already.empty) {
+              return NextResponse.json({ error: 'Ce joueur a déjà une structure pour ce jeu' }, { status: 400 });
+            }
+          }
+          // Un seul lien ciblé actif à la fois pour un (structure, target, game)
+          const existing = await db.collection('structure_invitations')
+            .where('structureId', '==', structureId)
+            .where('type', '==', 'invite_link')
+            .where('targetUserId', '==', targetedUserId)
+            .where('status', '==', 'active')
+            .get();
+          const sameGame = existing.docs.find(d => (d.data().game || null) === linkGame);
+          if (sameGame) {
+            return NextResponse.json({
+              success: true,
+              token: sameGame.data().token,
+              targeted: true,
+              reused: true,
+            });
+          }
+        }
+
         const token = randomUUID();
         await db.collection('structure_invitations').add({
           type: 'invite_link',
@@ -160,10 +201,11 @@ export async function POST(req: NextRequest) {
           createdBy: uid,
           token,
           game: linkGame,
+          targetUserId: targetedUserId,
           status: 'active',
           createdAt: FieldValue.serverTimestamp(),
         });
-        return NextResponse.json({ success: true, token });
+        return NextResponse.json({ success: true, token, targeted: !!targetedUserId });
       }
 
       // ── Révoquer un lien d'invitation ──

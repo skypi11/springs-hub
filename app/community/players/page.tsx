@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { User, Search, Gamepad2, ArrowUpDown, Sparkles, Star, Target, SlidersHorizontal, X, Bookmark, BookmarkCheck } from 'lucide-react';
+import { User, Search, Gamepad2, ArrowUpDown, Sparkles, Star, Target, SlidersHorizontal, X, Bookmark, BookmarkCheck, Link2, Check } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
@@ -178,6 +178,46 @@ export default function PlayersPage() {
       }
     })();
     return () => { cancelled = true; };
+  }, [firebaseUser, viewerStructureId]);
+
+  // État du bouton "Lien perso" : uid du joueur → timestamp (pour afficher "Copié !")
+  const [copiedLinkFor, setCopiedLinkFor] = useState<string | null>(null);
+
+  // Génère un lien d'invitation ciblé (single-use) pour un joueur et le copie dans le presse-papier.
+  const generateTargetedLink = useCallback(async (targetUid: string, targetGame: string) => {
+    if (!firebaseUser || !viewerStructureId) return;
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/structures/invitations', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'create_link',
+          structureId: viewerStructureId,
+          targetUserId: targetUid,
+          game: targetGame,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.token) {
+        alert(data.error || 'Impossible de générer le lien');
+        return;
+      }
+      const url = `${window.location.origin}/community/join/${data.token}`;
+      try {
+        await navigator.clipboard.writeText(url);
+      } catch {
+        // Fallback : afficher le lien dans un prompt
+        window.prompt('Lien copié impossible — copie manuellement :', url);
+      }
+      setCopiedLinkFor(targetUid);
+      setTimeout(() => setCopiedLinkFor(prev => (prev === targetUid ? null : prev)), 2000);
+    } catch {
+      alert('Erreur réseau');
+    }
   }, [firebaseUser, viewerStructureId]);
 
   // Toggle shortlist : ajoute ou retire le joueur de la shortlist de la structure active.
@@ -555,6 +595,8 @@ export default function PlayersPage() {
                 canShortlist={!!viewerStructureId}
                 isShortlisted={shortlistIds.has(player.uid)}
                 onToggleShortlist={() => toggleShortlist(player.uid)}
+                linkCopied={copiedLinkFor === player.uid}
+                onGenerateLink={() => generateTargetedLink(player.uid, player.games?.[0] || 'rocket_league')}
               />
             ))}
           </div>
@@ -595,13 +637,15 @@ function FilterChip({
 }
 
 function PlayerItem({
-  p, matches, canShortlist, isShortlisted, onToggleShortlist,
+  p, matches, canShortlist, isShortlisted, onToggleShortlist, linkCopied, onGenerateLink,
 }: {
   p: PlayerCard;
   matches: OpenPosition[];
   canShortlist: boolean;
   isShortlisted: boolean;
   onToggleShortlist: () => void;
+  linkCopied: boolean;
+  onGenerateLink: () => void;
 }) {
   const avatar = p.avatarUrl || p.discordAvatar;
   const hasAny = p.rlRank || p.pseudoTM;
@@ -620,22 +664,38 @@ function PlayerItem({
       {(hasMatch || p.isAvailableForRecruitment) && (
         <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-green), transparent 80%)' }} />
       )}
-      {/* Bouton shortlist — visible si viewer est dirigeant d'une structure active */}
+      {/* Boutons dirigeants — shortlist + générer lien ciblé */}
       {canShortlist && (
-        <button
-          type="button"
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleShortlist(); }}
-          className="absolute top-2 left-2 z-[3] w-7 h-7 flex items-center justify-center transition-colors duration-150 bevel-sm"
-          style={{
-            background: isShortlisted ? 'rgba(255,184,0,0.15)' : 'var(--s-elevated)',
-            border: `1px solid ${isShortlisted ? 'rgba(255,184,0,0.5)' : 'var(--s-border)'}`,
-            color: isShortlisted ? 'var(--s-gold)' : 'var(--s-text-muted)',
-          }}
-          aria-label={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}
-          title={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}
-        >
-          {isShortlisted ? <BookmarkCheck size={14} /> : <Bookmark size={14} />}
-        </button>
+        <div className="absolute top-2 left-2 z-[3] flex gap-1">
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleShortlist(); }}
+            className="w-7 h-7 flex items-center justify-center transition-colors duration-150 bevel-sm"
+            style={{
+              background: isShortlisted ? 'rgba(255,184,0,0.15)' : 'var(--s-elevated)',
+              border: `1px solid ${isShortlisted ? 'rgba(255,184,0,0.5)' : 'var(--s-border)'}`,
+              color: isShortlisted ? 'var(--s-gold)' : 'var(--s-text-muted)',
+            }}
+            aria-label={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}
+            title={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}
+          >
+            {isShortlisted ? <BookmarkCheck size={14} /> : <Bookmark size={14} />}
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onGenerateLink(); }}
+            className="w-7 h-7 flex items-center justify-center transition-colors duration-150 bevel-sm"
+            style={{
+              background: linkCopied ? 'rgba(0,217,54,0.15)' : 'var(--s-elevated)',
+              border: `1px solid ${linkCopied ? 'rgba(0,217,54,0.5)' : 'var(--s-border)'}`,
+              color: linkCopied ? '#33ff66' : 'var(--s-text-muted)',
+            }}
+            aria-label={linkCopied ? 'Lien copié' : 'Générer un lien d\'invitation perso'}
+            title={linkCopied ? 'Lien copié !' : 'Générer un lien d\'invitation perso (single-use)'}
+          >
+            {linkCopied ? <Check size={14} /> : <Link2 size={14} />}
+          </button>
+        </div>
       )}
       {/* Badge Match en absolu — tape la carte en coin haut droit */}
       {hasMatch && (
