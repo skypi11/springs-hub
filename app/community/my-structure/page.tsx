@@ -11,7 +11,7 @@ import {
   Shield, Users, Gamepad2, Trophy, Loader2, AlertCircle,
   User, Save, Plus, Trash2, Eye, Clock, Ban, CheckCircle,
   Search, ChevronUp, ChevronDown, Link2, MessageSquare, Settings, LucideIcon,
-  Copy, Check, UserPlus, UserMinus, Mail
+  Copy, Check, UserPlus, UserMinus, Mail, Bookmark, X,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import CalendarSection from '@/components/calendar/CalendarSection';
@@ -294,6 +294,24 @@ export default function MyStructurePage() {
   const [directInvites, setDirectInvites] = useState<DirectInvite[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  // Shortlist — favoris à suivre (Phase 3 item L)
+  type ShortlistItem = {
+    uid: string;
+    displayName: string;
+    avatarUrl: string;
+    discordAvatar: string;
+    country: string;
+    games: string[];
+    recruitmentRole: string;
+    isAvailableForRecruitment: boolean;
+    rlRank: string;
+    rlMmr: number | null;
+    pseudoTM: string;
+    addedAt: number | null;
+    note: string;
+  };
+  const [shortlist, setShortlist] = useState<ShortlistItem[]>([]);
+  const [shortlistLoading, setShortlistLoading] = useState(false);
   const [invLoading, setInvLoading] = useState(false);
   const [invActionLoading, setInvActionLoading] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState('');
@@ -407,6 +425,9 @@ export default function MyStructurePage() {
     const isDirigeantLocal = !!uid && (s.founderId === uid || (s.coFounderIds ?? []).includes(uid));
     if (isDirigeantLocal && s.recruiting?.active) loadSuggestions(s.id);
     else setSuggestions([]);
+    // Shortlist : dirigeant (founder/cofounder/manager) uniquement
+    if (canLoadInvitations) loadShortlist(s.id);
+    else setShortlist([]);
   }
 
   async function handleCreateTeam() {
@@ -668,6 +689,43 @@ export default function MyStructurePage() {
       console.error('[MyStructure] load suggestions error:', err);
     }
     setSuggestionsLoading(false);
+  }
+
+  async function loadShortlist(structureId: string) {
+    if (!firebaseUser) return;
+    setShortlistLoading(true);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch(`/api/structures/${structureId}/shortlist`, {
+        headers: { 'Authorization': `Bearer ${idToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setShortlist(data.shortlist ?? []);
+      }
+    } catch (err) {
+      console.error('[MyStructure] load shortlist error:', err);
+    }
+    setShortlistLoading(false);
+  }
+
+  async function handleRemoveFromShortlist(targetUserId: string) {
+    if (!activeStructure || !firebaseUser) return;
+    // Optimistic update
+    setShortlist(prev => prev.filter(s => s.uid !== targetUserId));
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch(
+        `/api/structures/${activeStructure.id}/shortlist?userId=${encodeURIComponent(targetUserId)}`,
+        { method: 'DELETE', headers: { 'Authorization': `Bearer ${idToken}` } },
+      );
+      if (!res.ok) {
+        // Rollback
+        await loadShortlist(activeStructure.id);
+      }
+    } catch {
+      await loadShortlist(activeStructure.id);
+    }
   }
 
   async function handleCreateLink() {
@@ -1583,6 +1641,84 @@ export default function MyStructurePage() {
             )}
 
             {/* ═══ RECRUTEMENT — Candidats suggérés ═══ */}
+            {tab === 'recruitment' && isDirigeantOfActive && (
+            <SectionPanel accent="var(--s-gold)" icon={Bookmark} title="SHORTLIST"
+              collapsed={collapsed.shortlist} onToggle={() => toggle('shortlist')}>
+              {shortlistLoading ? (
+                <p className="text-xs text-center py-3" style={{ color: 'var(--s-text-muted)' }}>Chargement...</p>
+              ) : shortlist.length === 0 ? (
+                <p className="text-xs text-center py-3" style={{ color: 'var(--s-text-muted)' }}>
+                  Aucun joueur en shortlist. Ajoute des favoris depuis l&apos;annuaire <Link href="/community/players" className="underline" style={{ color: 'var(--s-gold)' }}>joueurs</Link>.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {shortlist.map(sl => {
+                    const slAvatar = sl.avatarUrl || sl.discordAvatar;
+                    return (
+                      <div key={sl.uid} className="flex items-start gap-3 p-2.5"
+                        style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                        {slAvatar ? (
+                          <div className="w-12 h-12 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                            <Image src={slAvatar} alt={sl.displayName} fill className="object-cover" unoptimized />
+                          </div>
+                        ) : (
+                          <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                            <User size={14} style={{ color: 'var(--s-text-muted)' }} />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold truncate">{sl.displayName}</p>
+                            {sl.country && (
+                              <Image src={`https://flagcdn.com/16x12/${sl.country.toLowerCase()}.png`}
+                                alt={sl.country} width={14} height={10} className="flex-shrink-0" unoptimized />
+                            )}
+                            {sl.isAvailableForRecruitment && (
+                              <span className="tag tag-green" style={{ fontSize: '12px', padding: '1px 6px' }}>DISPO</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            {sl.games.map(g => (
+                              <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px', padding: '1px 6px' }}>
+                                {g === 'rocket_league' ? 'RL' : 'TM'}
+                              </span>
+                            ))}
+                            {sl.rlRank && (
+                              <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                                {sl.rlRank}{sl.rlMmr ? ` · ${sl.rlMmr}` : ''}
+                              </span>
+                            )}
+                            {sl.pseudoTM && <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{sl.pseudoTM}</span>}
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1 flex-shrink-0">
+                          <Link
+                            href={`/profile/${sl.uid}`}
+                            target="_blank"
+                            className="flex items-center justify-center w-7 h-7 transition-colors duration-150"
+                            style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', color: 'var(--s-text-dim)' }}
+                            title="Voir profil"
+                          >
+                            <Eye size={13} />
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFromShortlist(sl.uid)}
+                            className="flex items-center justify-center w-7 h-7 transition-colors duration-150"
+                            style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', color: '#ff5555' }}
+                            title="Retirer de la shortlist"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </SectionPanel>
+            )}
+
             {tab === 'recruitment' && isDirigeantOfActive && s.recruiting?.active && (
             <SectionPanel accent="var(--s-gold)" icon={Search} title="CANDIDATS SUGGÉRÉS"
               collapsed={collapsed.suggestions} onToggle={() => toggle('suggestions')}>

@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { User, Search, Gamepad2, ArrowUpDown, Sparkles, Star, Target, SlidersHorizontal, X } from 'lucide-react';
+import { User, Search, Gamepad2, ArrowUpDown, Sparkles, Star, Target, SlidersHorizontal, X, Bookmark, BookmarkCheck } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
@@ -86,6 +86,10 @@ export default function PlayersPage() {
   // Positions ouvertes agrégées sur toutes les structures où le viewer est dirigeant.
   // Sert à afficher un badge « Match » sur les cards de joueurs qui correspondent.
   const [viewerOpenPositions, setViewerOpenPositions] = useState<OpenPosition[]>([]);
+  // Structure active où le viewer est dirigeant (première trouvée).
+  // Si défini → on active le bouton shortlist + le chargement de la liste.
+  const [viewerStructureId, setViewerStructureId] = useState<string | null>(null);
+  const [shortlistIds, setShortlistIds] = useState<Set<string>>(new Set());
 
   const loadPlayers = useCallback(async () => {
     setLoading(true);
@@ -108,11 +112,12 @@ export default function PlayersPage() {
     loadPlayers();
   }, [loadPlayers]);
 
-  // Charge les positions ouvertes des structures où le viewer est dirigeant.
-  // Déconnecté ou non-dirigeant → liste vide → pas de badges Match.
+  // Charge les positions ouvertes + l'ID de la structure dirigeant du viewer.
+  // Déconnecté ou non-dirigeant → tout vide → pas de badges Match ni de shortlist.
   useEffect(() => {
     if (!firebaseUser) {
       setViewerOpenPositions([]);
+      setViewerStructureId(null);
       return;
     }
     let cancelled = false;
@@ -122,24 +127,96 @@ export default function PlayersPage() {
         const res = await fetch('/api/structures/my', {
           headers: { 'Authorization': `Bearer ${idToken}` },
         });
-        if (!res.ok) { if (!cancelled) setViewerOpenPositions([]); return; }
+        if (!res.ok) {
+          if (!cancelled) { setViewerOpenPositions([]); setViewerStructureId(null); }
+          return;
+        }
         const data = await res.json();
         const positions: OpenPosition[] = [];
+        let firstDirigeantActive: string | null = null;
         for (const s of data.structures || []) {
           if (s.accessLevel !== 'dirigeant') continue;
           if (s.status !== 'active') continue;
+          if (!firstDirigeantActive) firstDirigeantActive = s.id;
           if (!s.recruiting?.active) continue;
           for (const p of s.recruiting.positions || []) {
             if (p?.game && p?.role) positions.push({ game: p.game, role: p.role });
           }
         }
-        if (!cancelled) setViewerOpenPositions(positions);
+        if (!cancelled) {
+          setViewerOpenPositions(positions);
+          setViewerStructureId(firstDirigeantActive);
+        }
       } catch {
-        if (!cancelled) setViewerOpenPositions([]);
+        if (!cancelled) { setViewerOpenPositions([]); setViewerStructureId(null); }
       }
     })();
     return () => { cancelled = true; };
   }, [firebaseUser]);
+
+  // Charge la shortlist de la structure active — uniquement si viewer est dirigeant.
+  useEffect(() => {
+    if (!firebaseUser || !viewerStructureId) {
+      setShortlistIds(new Set());
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const idToken = await firebaseUser.getIdToken();
+        const res = await fetch(`/api/structures/${viewerStructureId}/shortlist`, {
+          headers: { 'Authorization': `Bearer ${idToken}` },
+        });
+        if (!res.ok) { if (!cancelled) setShortlistIds(new Set()); return; }
+        const data = await res.json();
+        if (!cancelled) {
+          const ids = new Set<string>((data.shortlist || []).map((s: { uid: string }) => s.uid));
+          setShortlistIds(ids);
+        }
+      } catch {
+        if (!cancelled) setShortlistIds(new Set());
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [firebaseUser, viewerStructureId]);
+
+  // Toggle shortlist : ajoute ou retire le joueur de la shortlist de la structure active.
+  const toggleShortlist = useCallback(async (targetUid: string) => {
+    if (!firebaseUser || !viewerStructureId) return;
+    const alreadyIn = shortlistIds.has(targetUid);
+    // Optimistic update
+    setShortlistIds(prev => {
+      const next = new Set(prev);
+      if (alreadyIn) next.delete(targetUid); else next.add(targetUid);
+      return next;
+    });
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const url = `/api/structures/${viewerStructureId}/shortlist${alreadyIn ? `?userId=${encodeURIComponent(targetUid)}` : ''}`;
+      const res = await fetch(url, {
+        method: alreadyIn ? 'DELETE' : 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: alreadyIn ? undefined : JSON.stringify({ userId: targetUid }),
+      });
+      if (!res.ok) {
+        // Rollback
+        setShortlistIds(prev => {
+          const next = new Set(prev);
+          if (alreadyIn) next.add(targetUid); else next.delete(targetUid);
+          return next;
+        });
+      }
+    } catch {
+      setShortlistIds(prev => {
+        const next = new Set(prev);
+        if (alreadyIn) next.add(targetUid); else next.delete(targetUid);
+        return next;
+      });
+    }
+  }, [firebaseUser, viewerStructureId, shortlistIds]);
 
   // Enrichit chaque joueur avec ses positions matching (calcul local, pas de round-trip)
   const playersWithMatches = useMemo(() => {
@@ -470,7 +547,16 @@ export default function PlayersPage() {
           />
         ) : (
           <div className={`grid ${gridCols} gap-4 animate-fade-in-d2`}>
-            {filtered.map(({ player, matches }) => <PlayerItem key={player.uid} p={player} matches={matches} />)}
+            {filtered.map(({ player, matches }) => (
+              <PlayerItem
+                key={player.uid}
+                p={player}
+                matches={matches}
+                canShortlist={!!viewerStructureId}
+                isShortlisted={shortlistIds.has(player.uid)}
+                onToggleShortlist={() => toggleShortlist(player.uid)}
+              />
+            ))}
           </div>
         )}
       </div>
@@ -508,7 +594,15 @@ function FilterChip({
   );
 }
 
-function PlayerItem({ p, matches }: { p: PlayerCard; matches: OpenPosition[] }) {
+function PlayerItem({
+  p, matches, canShortlist, isShortlisted, onToggleShortlist,
+}: {
+  p: PlayerCard;
+  matches: OpenPosition[];
+  canShortlist: boolean;
+  isShortlisted: boolean;
+  onToggleShortlist: () => void;
+}) {
   const avatar = p.avatarUrl || p.discordAvatar;
   const hasAny = p.rlRank || p.pseudoTM;
   const hasMatch = matches.length > 0;
@@ -525,6 +619,23 @@ function PlayerItem({ p, matches }: { p: PlayerCard; matches: OpenPosition[] }) 
       {/* Accent top */}
       {(hasMatch || p.isAvailableForRecruitment) && (
         <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-green), transparent 80%)' }} />
+      )}
+      {/* Bouton shortlist — visible si viewer est dirigeant d'une structure active */}
+      {canShortlist && (
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleShortlist(); }}
+          className="absolute top-2 left-2 z-[3] w-7 h-7 flex items-center justify-center transition-colors duration-150 bevel-sm"
+          style={{
+            background: isShortlisted ? 'rgba(255,184,0,0.15)' : 'var(--s-elevated)',
+            border: `1px solid ${isShortlisted ? 'rgba(255,184,0,0.5)' : 'var(--s-border)'}`,
+            color: isShortlisted ? 'var(--s-gold)' : 'var(--s-text-muted)',
+          }}
+          aria-label={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}
+          title={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}
+        >
+          {isShortlisted ? <BookmarkCheck size={14} /> : <Bookmark size={14} />}
+        </button>
       )}
       {/* Badge Match en absolu — tape la carte en coin haut droit */}
       {hasMatch && (

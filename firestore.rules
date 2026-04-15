@@ -34,6 +34,11 @@ service cloud.firestore {
     match /structures/{id} {
       allow read: if true;
       allow write: if false;
+
+      // Shortlist de recrutement (subcollection) — dirigeants only, via API route
+      match /shortlist/{playerId} {
+        allow read, write: if false;
+      }
     }
 
     // ── Springs Hub — Membres de structure ────────────────────────────────────
