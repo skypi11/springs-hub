@@ -15,6 +15,7 @@ import {
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import { SkeletonPageHeader, SkeletonCard } from '@/components/ui/Skeleton';
+import InviteToStructureButton from '@/components/community/InviteToStructureButton';
 
 function CountryFlag({ code, size = 16 }: { code: string; size?: number }) {
   if (!code || code === 'OTHER') return <span>🌍</span>;
@@ -561,6 +562,13 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       <ReactMarkdown>{profile.recruitmentMessage}</ReactMarkdown>
                     </div>
                   )}
+                  <InviteToStructureButton
+                    targetUserId={id}
+                    targetDisplayName={profile.displayName || 'ce joueur'}
+                    targetGames={profile.games ?? []}
+                    isAvailableForRecruitment={profile.isAvailableForRecruitment}
+                    className="w-full justify-center"
+                  />
                 </div>
               </div>
             </div>

@@ -282,13 +282,19 @@ export default function MyStructurePage() {
   const [drawerState, setDrawerState] = useState<{ team: DrawerTeam; tab: DrawerTab; canEditConfig: boolean } | null>(null);
 
   // Invitations state
-  type InviteLink = { id: string; token: string; status: string; createdAt: string };
-  type JoinRequest = { id: string; applicantId: string; displayName: string; discordAvatar: string; avatarUrl: string; message: string; game: string; createdAt: string };
+  type InviteLink = { id: string; token: string; status: string; createdAt: string; game: string | null };
+  type JoinRequest = { id: string; applicantId: string; displayName: string; discordAvatar: string; avatarUrl: string; message: string; game: string; role: string; country: string; rlRank: string; rlMmr: number | null; pseudoTM: string; createdAt: string };
+  type DirectInvite = { id: string; targetUserId: string; displayName: string; discordAvatar: string; avatarUrl: string; message: string; game: string; role: string; country: string; rlRank: string; rlMmr: number | null; pseudoTM: string; createdAt: string };
+  type Suggestion = { uid: string; displayName: string; discordAvatar: string; avatarUrl: string; country: string; games: string[]; matchingGames: string[]; recruitmentRole: string; recruitmentMessage: string; rlRank: string; rlMmr: number | null; pseudoTM: string };
   const [inviteLinks, setInviteLinks] = useState<InviteLink[]>([]);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
+  const [directInvites, setDirectInvites] = useState<DirectInvite[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [invLoading, setInvLoading] = useState(false);
   const [invActionLoading, setInvActionLoading] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState('');
+  const [newLinkGame, setNewLinkGame] = useState<string>('');
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -389,7 +395,11 @@ export default function MyStructurePage() {
       (s.managerIds ?? []).includes(uid)
     );
     if (canLoadInvitations) loadInvitations(s.id);
-    else { setInviteLinks([]); setJoinRequests([]); }
+    else { setInviteLinks([]); setJoinRequests([]); setDirectInvites([]); }
+    // Suggestions : dirigeant uniquement
+    const isDirigeantLocal = !!uid && (s.founderId === uid || (s.coFounderIds ?? []).includes(uid));
+    if (isDirigeantLocal && s.recruiting?.active) loadSuggestions(s.id);
+    else setSuggestions([]);
   }
 
   async function handleCreateTeam() {
@@ -627,11 +637,30 @@ export default function MyStructurePage() {
         const data = await res.json();
         setInviteLinks(data.links ?? []);
         setJoinRequests(data.requests ?? []);
+        setDirectInvites(data.directInvites ?? []);
       }
     } catch (err) {
       console.error('[MyStructure] load invitations error:', err);
     }
     setInvLoading(false);
+  }
+
+  async function loadSuggestions(structureId: string) {
+    if (!firebaseUser) return;
+    setSuggestionsLoading(true);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch(`/api/structures/${structureId}/recruitment-suggestions`, {
+        headers: { 'Authorization': `Bearer ${idToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSuggestions(data.suggestions ?? []);
+      }
+    } catch (err) {
+      console.error('[MyStructure] load suggestions error:', err);
+    }
+    setSuggestionsLoading(false);
   }
 
   async function handleCreateLink() {
@@ -642,7 +671,11 @@ export default function MyStructurePage() {
       const res = await fetch('/api/structures/invitations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ action: 'create_link', structureId: activeStructure.id }),
+        body: JSON.stringify({
+          action: 'create_link',
+          structureId: activeStructure.id,
+          game: newLinkGame || null,
+        }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -671,6 +704,23 @@ export default function MyStructurePage() {
       await loadInvitations(activeStructure.id);
     } catch (err) {
       console.error('[MyStructure] revoke link error:', err);
+    }
+    setInvActionLoading(null);
+  }
+
+  async function handleCancelDirectInvite(invitationId: string) {
+    if (!activeStructure || !firebaseUser) return;
+    setInvActionLoading(invitationId);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      await fetch('/api/structures/invitations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ action: 'cancel_direct_invite', structureId: activeStructure.id, invitationId }),
+      });
+      await loadInvitations(activeStructure.id);
+    } catch (err) {
+      console.error('[MyStructure] cancel direct invite error:', err);
     }
     setInvActionLoading(null);
   }
@@ -1304,6 +1354,225 @@ export default function MyStructurePage() {
                   </div>
                 )}
               </div>
+            </SectionPanel>
+            )}
+
+            {/* ═══ RECRUTEMENT — Liens d'invitation ═══ */}
+            {tab === 'recruitment' && isDirigeantOfActive && (
+            <SectionPanel accent="#33ff66" icon={UserPlus} title="LIENS D'INVITATION"
+              collapsed={collapsed.inviteLinks} onToggle={() => toggle('inviteLinks')}>
+              <div className="space-y-3">
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <label className="t-label block mb-1">Jeu (optionnel — pré-rempli pour le joueur)</label>
+                    <select className="settings-input w-full" value={newLinkGame} onChange={e => setNewLinkGame(e.target.value)}>
+                      <option value="">Tous les jeux</option>
+                      {s.games?.includes('rocket_league') && <option value="rocket_league">Rocket League</option>}
+                      {s.games?.includes('trackmania') && <option value="trackmania">Trackmania</option>}
+                    </select>
+                  </div>
+                  <button type="button" onClick={handleCreateLink} disabled={invActionLoading === 'create_link'}
+                    className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-xs">
+                    {invActionLoading === 'create_link' ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+                    Créer
+                  </button>
+                </div>
+                {inviteLinks.length > 0 ? (
+                  <div className="space-y-2">
+                    {inviteLinks.map(link => (
+                      <div key={link.id} className="flex items-center gap-2 p-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                        <div className="flex-1 min-w-0">
+                          <p className="t-mono text-xs truncate" style={{ color: 'var(--s-text-dim)' }}>
+                            /join/{link.token.slice(0, 8)}...
+                          </p>
+                          {link.game && (
+                            <span className={`tag ${link.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '9px', padding: '1px 5px' }}>
+                              {link.game === 'rocket_league' ? 'RL' : 'TM'}
+                            </span>
+                          )}
+                        </div>
+                        <button type="button" onClick={() => {
+                          navigator.clipboard.writeText(`${window.location.origin}/community/join/${link.token}`);
+                          setCopiedLink(link.token);
+                          setTimeout(() => setCopiedLink(''), 2000);
+                        }}
+                          className="p-1" style={{ color: copiedLink === link.token ? '#33ff66' : 'var(--s-text-dim)' }}>
+                          {copiedLink === link.token ? <Check size={12} /> : <Copy size={12} />}
+                        </button>
+                        <button type="button" onClick={() => handleRevokeLink(link.id)} disabled={invActionLoading === link.id}
+                          className="p-1" style={{ color: '#ff5555' }}>
+                          {invActionLoading === link.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-center py-2" style={{ color: 'var(--s-text-muted)' }}>
+                    Aucun lien actif. Crée-en un pour inviter des joueurs.
+                  </p>
+                )}
+              </div>
+            </SectionPanel>
+            )}
+
+            {/* ═══ RECRUTEMENT — Demandes reçues ═══ */}
+            {tab === 'recruitment' && isDirigeantOfActive && (
+            <SectionPanel accent="var(--s-gold)" icon={UserPlus} title={`DEMANDES REÇUES${joinRequests.length > 0 ? ` (${joinRequests.length})` : ''}`}
+              collapsed={collapsed.joinRequests} onToggle={() => toggle('joinRequests')}>
+              {joinRequests.length === 0 ? (
+                <p className="text-xs text-center py-3" style={{ color: 'var(--s-text-muted)' }}>
+                  {invLoading ? 'Chargement...' : 'Aucune demande en attente.'}
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {joinRequests.map(jr => {
+                    const jrAvatar = jr.avatarUrl || jr.discordAvatar;
+                    return (
+                      <div key={jr.id} className="p-3" style={{ background: 'var(--s-elevated)', border: '1px solid rgba(255,184,0,0.15)' }}>
+                        <div className="flex items-center gap-3 mb-2">
+                          {jrAvatar ? (
+                            <div className="w-10 h-10 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                              <Image src={jrAvatar} alt={jr.displayName} fill className="object-cover" unoptimized />
+                            </div>
+                          ) : (
+                            <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                              <User size={14} style={{ color: 'var(--s-text-muted)' }} />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <Link href={`/profile/${jr.applicantId}`} className="text-sm font-semibold truncate hover:underline">{jr.displayName}</Link>
+                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                              {jr.game && (
+                                <span className={`tag ${jr.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '9px', padding: '1px 5px' }}>
+                                  {jr.game === 'rocket_league' ? 'RL' : 'TM'}
+                                </span>
+                              )}
+                              {jr.role && jr.role !== 'joueur' && (
+                                <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '1px 5px' }}>{jr.role}</span>
+                              )}
+                              {jr.rlRank && <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{jr.rlRank}</span>}
+                              {jr.pseudoTM && <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{jr.pseudoTM}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        {jr.message && (
+                          <p className="text-xs mb-2 italic p-2" style={{ background: 'var(--s-surface)', color: 'var(--s-text-dim)' }}>
+                            « {jr.message} »
+                          </p>
+                        )}
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => handleRequestAction(jr.id, true)} disabled={invActionLoading === jr.id}
+                            className="btn-springs btn-primary bevel-sm flex-1 justify-center text-xs py-1.5">
+                            {invActionLoading === jr.id ? <Loader2 size={11} className="animate-spin" /> : <><Check size={11} /> Accepter</>}
+                          </button>
+                          <button type="button" onClick={() => handleRequestAction(jr.id, false)} disabled={invActionLoading === jr.id}
+                            className="btn-springs btn-secondary bevel-sm-border flex-1 justify-center text-xs py-1.5"
+                            style={{ color: '#ff5555', borderColor: 'rgba(255,85,85,0.3)' }}>
+                            <Trash2 size={11} /> Refuser
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </SectionPanel>
+            )}
+
+            {/* ═══ RECRUTEMENT — Invitations envoyées ═══ */}
+            {tab === 'recruitment' && isDirigeantOfActive && (
+            <SectionPanel accent="var(--s-violet)" icon={UserPlus} title={`INVITATIONS ENVOYÉES${directInvites.length > 0 ? ` (${directInvites.length})` : ''}`}
+              collapsed={collapsed.sentInvites} onToggle={() => toggle('sentInvites')}>
+              {directInvites.length === 0 ? (
+                <p className="text-xs text-center py-3" style={{ color: 'var(--s-text-muted)' }}>
+                  Aucune invitation envoyée en attente. Invite des joueurs depuis l&apos;annuaire ou leurs profils.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {directInvites.map(di => {
+                    const diAvatar = di.avatarUrl || di.discordAvatar;
+                    return (
+                      <div key={di.id} className="p-3" style={{ background: 'var(--s-elevated)', border: '1px solid rgba(123,47,190,0.2)' }}>
+                        <div className="flex items-center gap-3 mb-2">
+                          {diAvatar ? (
+                            <div className="w-10 h-10 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                              <Image src={diAvatar} alt={di.displayName} fill className="object-cover" unoptimized />
+                            </div>
+                          ) : (
+                            <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                              <User size={14} style={{ color: 'var(--s-text-muted)' }} />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <Link href={`/profile/${di.targetUserId}`} className="text-sm font-semibold truncate hover:underline">{di.displayName}</Link>
+                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                              {di.game && (
+                                <span className={`tag ${di.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '9px', padding: '1px 5px' }}>
+                                  {di.game === 'rocket_league' ? 'RL' : 'TM'}
+                                </span>
+                              )}
+                              {di.role && di.role !== 'joueur' && (
+                                <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '1px 5px' }}>{di.role}</span>
+                              )}
+                              <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>En attente</span>
+                            </div>
+                          </div>
+                          <button type="button" onClick={() => handleCancelDirectInvite(di.id)} disabled={invActionLoading === di.id}
+                            className="p-1.5" style={{ color: '#ff5555' }} title="Annuler">
+                            {invActionLoading === di.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </SectionPanel>
+            )}
+
+            {/* ═══ RECRUTEMENT — Candidats suggérés ═══ */}
+            {tab === 'recruitment' && isDirigeantOfActive && s.recruiting?.active && (
+            <SectionPanel accent="var(--s-gold)" icon={Search} title="CANDIDATS SUGGÉRÉS"
+              collapsed={collapsed.suggestions} onToggle={() => toggle('suggestions')}>
+              {suggestionsLoading ? (
+                <p className="text-xs text-center py-3" style={{ color: 'var(--s-text-muted)' }}>Chargement...</p>
+              ) : suggestions.length === 0 ? (
+                <p className="text-xs text-center py-3" style={{ color: 'var(--s-text-muted)' }}>
+                  Aucun candidat correspondant pour le moment. Les joueurs dispos au recrutement apparaîtront ici.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {suggestions.slice(0, 10).map(sg => {
+                    const sgAvatar = sg.avatarUrl || sg.discordAvatar;
+                    return (
+                      <Link key={sg.uid} href={`/profile/${sg.uid}`} className="flex items-center gap-3 p-2.5 transition-colors duration-150 hover:bg-[var(--s-hover)]"
+                        style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                        {sgAvatar ? (
+                          <div className="w-9 h-9 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                            <Image src={sgAvatar} alt={sg.displayName} fill className="object-cover" unoptimized />
+                          </div>
+                        ) : (
+                          <div className="w-9 h-9 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                            <User size={12} style={{ color: 'var(--s-text-muted)' }} />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate">{sg.displayName}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            {sg.matchingGames.map(g => (
+                              <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '9px', padding: '1px 5px' }}>
+                                {g === 'rocket_league' ? 'RL' : 'TM'}
+                              </span>
+                            ))}
+                            {sg.rlRank && <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{sg.rlRank}</span>}
+                            {sg.pseudoTM && <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{sg.pseudoTM}</span>}
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </SectionPanel>
             )}
 

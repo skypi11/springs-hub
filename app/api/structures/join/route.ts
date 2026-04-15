@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     if (blocked) return blocked;
 
     const body = await req.json();
-    const { action, structureId, token, game, message } = body;
+    const { action, structureId, token, game, role, message } = body;
 
     if (!action) return NextResponse.json({ error: 'action requis' }, { status: 400 });
 
@@ -48,7 +48,8 @@ export async function POST(req: NextRequest) {
         }
 
         const structData = structSnap.data()!;
-        const joinGame = game || structData.games?.[0] || 'rocket_league';
+        // Priorité : jeu stocké sur le lien (pré-rempli par le fondateur) > body > premier jeu de la structure
+        const joinGame = linkData.game || game || structData.games?.[0] || 'rocket_league';
 
         // Vérifier pas déjà membre
         const existingSnap = await db.collection('structure_members')
@@ -123,12 +124,26 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'Tu as déjà une demande en cours.' }, { status: 400 });
         }
 
+        // Cap : un joueur ne peut pas spammer 50 structures.
+        const MAX_PENDING_APPLICATIONS_PER_USER = 5;
+        const allPendingSnap = await db.collection('structure_invitations')
+          .where('applicantId', '==', uid)
+          .where('type', '==', 'join_request')
+          .where('status', '==', 'pending')
+          .get();
+        if (allPendingSnap.size >= MAX_PENDING_APPLICATIONS_PER_USER) {
+          return NextResponse.json({
+            error: `Limite atteinte : ${MAX_PENDING_APPLICATIONS_PER_USER} candidatures en attente maximum. Annule-en une d'abord.`,
+          }, { status: 400 });
+        }
+
         await db.collection('structure_invitations').add({
           type: 'join_request',
           structureId,
           applicantId: uid,
           game: game || null,
-          message: message?.trim() || '',
+          role: role || 'joueur',
+          message: message?.trim().slice(0, 500) || '',
           status: 'pending',
           createdAt: FieldValue.serverTimestamp(),
         });

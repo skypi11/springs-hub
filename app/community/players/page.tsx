@@ -7,6 +7,7 @@ import { User, Search, Gamepad2, ArrowUpDown, Sparkles, Star } from 'lucide-reac
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
+import InviteToStructureButton from '@/components/community/InviteToStructureButton';
 
 type PlayerCard = {
   uid: string;
@@ -236,9 +237,10 @@ function PlayerItem({ p }: { p: PlayerCard }) {
   const hasAny = p.rlRank || p.pseudoTM;
 
   return (
-    <Link href={`/profile/${p.uid}`}
+    <div
       className="pillar-card panel bevel-sm relative overflow-hidden group transition-all duration-200"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+      <Link href={`/profile/${p.uid}`} className="absolute inset-0 z-[2]" aria-label={p.displayName} />
       {/* Accent top */}
       {p.isAvailableForRecruitment && (
         <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-green), transparent 80%)' }} />
@@ -307,10 +309,19 @@ function PlayerItem({ p }: { p: PlayerCard }) {
                 {p.recruitmentMessage}
               </p>
             )}
+            <div className="relative z-[3] mt-3">
+              <InviteToStructureButton
+                targetUserId={p.uid}
+                targetDisplayName={p.displayName}
+                targetGames={p.games}
+                isAvailableForRecruitment={p.isAvailableForRecruitment}
+                compact
+              />
+            </div>
           </div>
         )}
       </div>
-    </Link>
+    </div>
   );
 }
 

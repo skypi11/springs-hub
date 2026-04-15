@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Home, Users, Trophy, LogOut, Swords, Settings, Building2, Calendar, Search, Menu, X } from 'lucide-react';
+import { Home, Users, Trophy, LogOut, Swords, Settings, Building2, Calendar, Search, Menu, X, Inbox } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import NotificationsBell from '@/components/ui/NotificationsBell';
 import DevSwitcher from '@/components/dev/DevSwitcher';
@@ -174,6 +174,20 @@ export default function Sidebar() {
             }}>
             <Building2 size={17} style={{ color: pathname.startsWith('/community/my-structure') ? 'var(--s-gold)' : 'var(--s-text-muted)', flexShrink: 0 }} />
             <span className="font-medium text-sm">Ma structure</span>
+          </Link>
+        )}
+
+        {/* Mes candidatures */}
+        {user && (
+          <Link href="/community/my-applications"
+            className="flex items-center gap-3 px-3 py-2.5 relative transition-all duration-150"
+            style={{
+              background: pathname.startsWith('/community/my-applications') ? 'rgba(255,184,0,0.08)' : 'transparent',
+              color: pathname.startsWith('/community/my-applications') ? 'var(--s-gold)' : 'var(--s-text-dim)',
+              borderLeft: pathname.startsWith('/community/my-applications') ? '3px solid var(--s-gold)' : '3px solid transparent',
+            }}>
+            <Inbox size={17} style={{ color: pathname.startsWith('/community/my-applications') ? 'var(--s-gold)' : 'var(--s-text-muted)', flexShrink: 0 }} />
+            <span className="font-medium text-sm">Mes candidatures</span>
           </Link>
         )}
 

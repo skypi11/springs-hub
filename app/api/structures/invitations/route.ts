@@ -21,7 +21,11 @@ async function checkManageAccess(uid: string, structureId: string) {
   return data;
 }
 
-// GET /api/structures/invitations?structureId=xxx — lister les invitations & demandes
+// Cap — nombre max d'invitations directes pending qu'une structure peut avoir en cours.
+// Empêche le spam à l'inverse du cap côté joueur.
+const MAX_PENDING_DIRECT_INVITES_PER_STRUCTURE = 10;
+
+// GET /api/structures/invitations?structureId=xxx — lister les invitations, demandes et invites directes
 export async function GET(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -35,43 +39,85 @@ export async function GET(req: NextRequest) {
 
     const db = getAdminDb();
 
-    // Liens d'invitation actifs
-    const linksSnap = await db.collection('structure_invitations')
-      .where('structureId', '==', structureId)
-      .where('type', '==', 'invite_link')
-      .get();
+    // Tout d'un coup — un seul where par type
+    const [linksSnap, requestsSnap, directInvitesSnap] = await Promise.all([
+      db.collection('structure_invitations')
+        .where('structureId', '==', structureId)
+        .where('type', '==', 'invite_link').get(),
+      db.collection('structure_invitations')
+        .where('structureId', '==', structureId)
+        .where('type', '==', 'join_request').get(),
+      db.collection('structure_invitations')
+        .where('structureId', '==', structureId)
+        .where('type', '==', 'direct_invite').get(),
+    ]);
 
     const links = linksSnap.docs
       .filter(d => d.data().status === 'active')
       .map(d => {
         const data = d.data();
-        return { id: d.id, ...data, createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null };
+        return {
+          id: d.id,
+          token: data.token,
+          game: data.game || null,
+          createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
+        };
       });
 
-    // Demandes de rejoindre en attente
-    const requestsSnap = await db.collection('structure_invitations')
-      .where('structureId', '==', structureId)
-      .where('type', '==', 'join_request')
-      .get();
+    // Demandes en attente (joueur → structure) — enrichies avec le profil
+    const pendingRequestDocs = requestsSnap.docs.filter(d => d.data().status === 'pending');
+    const applicantIds = pendingRequestDocs.map(d => d.data().applicantId).filter(Boolean);
 
-    const pendingDocs = requestsSnap.docs.filter(d => d.data().status === 'pending');
-    const applicantIds = pendingDocs.map(d => d.data().applicantId).filter(Boolean);
-    const usersById = await fetchDocsByIds(db, 'users', applicantIds);
+    // Invites directes envoyées — on ne retourne que ce qui est encore pending ou cancelled récent
+    const pendingInviteDocs = directInvitesSnap.docs.filter(d => d.data().status === 'pending');
+    const targetIds = pendingInviteDocs.map(d => d.data().targetUserId).filter(Boolean);
 
-    const requests = pendingDocs.map(doc => {
+    const allUserIds = Array.from(new Set([...applicantIds, ...targetIds]));
+    const usersById = await fetchDocsByIds(db, 'users', allUserIds);
+
+    const requests = pendingRequestDocs.map(doc => {
       const data = doc.data();
       const u = usersById.get(data.applicantId);
       return {
         id: doc.id,
-        ...data,
+        type: 'join_request' as const,
+        applicantId: data.applicantId,
+        game: data.game || '',
+        role: data.role || 'joueur',
+        message: data.message || '',
         displayName: u?.displayName || u?.discordUsername || '',
         discordAvatar: u?.discordAvatar || '',
         avatarUrl: u?.avatarUrl || '',
+        country: u?.country || '',
+        rlRank: u?.rlStats?.rank || u?.rlRank || '',
+        rlMmr: u?.rlStats?.mmr || null,
+        pseudoTM: u?.pseudoTM || '',
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
       };
     });
 
-    return NextResponse.json({ links, requests });
+    const directInvites = pendingInviteDocs.map(doc => {
+      const data = doc.data();
+      const u = usersById.get(data.targetUserId);
+      return {
+        id: doc.id,
+        type: 'direct_invite' as const,
+        targetUserId: data.targetUserId,
+        game: data.game || '',
+        role: data.role || 'joueur',
+        message: data.message || '',
+        displayName: u?.displayName || u?.discordUsername || '',
+        discordAvatar: u?.discordAvatar || '',
+        avatarUrl: u?.avatarUrl || '',
+        country: u?.country || '',
+        rlRank: u?.rlStats?.rank || u?.rlRank || '',
+        rlMmr: u?.rlStats?.mmr || null,
+        pseudoTM: u?.pseudoTM || '',
+        createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
+      };
+    });
+
+    return NextResponse.json({ links, requests, directInvites });
   } catch (err) {
     captureApiError('API Invitations GET error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
@@ -88,7 +134,7 @@ export async function POST(req: NextRequest) {
     if (blocked) return blocked;
 
     const body = await req.json();
-    const { action, structureId, invitationId, game, role } = body;
+    const { action, structureId, invitationId, game, role, targetUserId, message } = body;
 
     if (!structureId || !action) {
       return NextResponse.json({ error: 'structureId et action requis' }, { status: 400 });
@@ -102,12 +148,18 @@ export async function POST(req: NextRequest) {
     switch (action) {
       // ── Créer un lien d'invitation ──
       case 'create_link': {
+        // Jeu optionnel mais pré-rempli côté joueur quand fourni → évite le double choix.
+        const linkGame = game && typeof game === 'string' ? game : null;
+        if (linkGame && structureData.games && !structureData.games.includes(linkGame)) {
+          return NextResponse.json({ error: 'Jeu non supporté par la structure' }, { status: 400 });
+        }
         const token = randomUUID();
         await db.collection('structure_invitations').add({
           type: 'invite_link',
           structureId,
           createdBy: uid,
           token,
+          game: linkGame,
           status: 'active',
           createdAt: FieldValue.serverTimestamp(),
         });
@@ -139,7 +191,8 @@ export async function POST(req: NextRequest) {
 
         const applicantId = data.applicantId;
         const joinGame = game || data.game || structureData.games?.[0] || 'rocket_league';
-        const joinRole = role || 'joueur';
+        // On persiste le rôle demandé par le joueur (si valide), sinon fallback sur le body, sinon joueur.
+        const joinRole = data.role || role || 'joueur';
 
         // Vérifications hors-transaction (lecture seule, on tolère un petit risque de race
         // car les writes sont atomiques juste après et ce flow est manuel par un fondateur)
@@ -277,6 +330,105 @@ export async function POST(req: NextRequest) {
         }
 
         await batch.commit();
+        return NextResponse.json({ success: true });
+      }
+
+      // ── Inviter un joueur précis depuis un profil / annuaire ──
+      case 'direct_invite': {
+        if (!targetUserId || typeof targetUserId !== 'string') {
+          return NextResponse.json({ error: 'targetUserId requis' }, { status: 400 });
+        }
+        if (!game || typeof game !== 'string') {
+          return NextResponse.json({ error: 'game requis' }, { status: 400 });
+        }
+        if (structureData.games && !structureData.games.includes(game)) {
+          return NextResponse.json({ error: 'Jeu non supporté par la structure' }, { status: 400 });
+        }
+        if (targetUserId === uid) {
+          return NextResponse.json({ error: 'Impossible de s\'inviter soi-même' }, { status: 400 });
+        }
+
+        // Le joueur existe et est ouvert au recrutement
+        const targetRef = db.collection('users').doc(targetUserId);
+        const targetSnap = await targetRef.get();
+        if (!targetSnap.exists) {
+          return NextResponse.json({ error: 'Joueur introuvable' }, { status: 404 });
+        }
+        const targetData = targetSnap.data()!;
+        if (!targetData.isAvailableForRecruitment) {
+          return NextResponse.json({ error: 'Ce joueur n\'est pas ouvert au recrutement' }, { status: 400 });
+        }
+
+        // Déjà membre d'une structure pour ce jeu ?
+        const alreadyMemberSnap = await db.collection('structure_members')
+          .where('userId', '==', targetUserId)
+          .where('game', '==', game)
+          .get();
+        if (!alreadyMemberSnap.empty) {
+          return NextResponse.json({ error: 'Ce joueur a déjà une structure pour ce jeu' }, { status: 400 });
+        }
+
+        // Cap : anti-spam côté structure
+        const existingInvitesSnap = await db.collection('structure_invitations')
+          .where('structureId', '==', structureId)
+          .where('type', '==', 'direct_invite')
+          .where('status', '==', 'pending')
+          .get();
+        if (existingInvitesSnap.size >= MAX_PENDING_DIRECT_INVITES_PER_STRUCTURE) {
+          return NextResponse.json({
+            error: `Limite atteinte : ${MAX_PENDING_DIRECT_INVITES_PER_STRUCTURE} invitations en attente maximum`,
+          }, { status: 400 });
+        }
+
+        // Pas déjà une invite pending pour ce joueur+jeu
+        const duplicate = existingInvitesSnap.docs.find(d => {
+          const dd = d.data();
+          return dd.targetUserId === targetUserId && dd.game === game;
+        });
+        if (duplicate) {
+          return NextResponse.json({ error: 'Une invitation est déjà en attente pour ce joueur' }, { status: 400 });
+        }
+
+        const inviteRef = await db.collection('structure_invitations').add({
+          type: 'direct_invite',
+          structureId,
+          createdBy: uid,
+          targetUserId,
+          game,
+          role: role || 'joueur',
+          message: typeof message === 'string' ? message.trim().slice(0, 500) : '',
+          status: 'pending',
+          createdAt: FieldValue.serverTimestamp(),
+        });
+
+        await createNotification(db, {
+          userId: targetUserId,
+          type: 'direct_invite_received',
+          title: 'Invitation reçue',
+          message: `${structureData.name} t'invite à rejoindre la structure`,
+          link: '/community/my-applications',
+          metadata: { structureId, invitationId: inviteRef.id, game },
+        });
+
+        return NextResponse.json({ success: true, invitationId: inviteRef.id });
+      }
+
+      // ── Annuler une invitation directe envoyée ──
+      case 'cancel_direct_invite': {
+        if (!invitationId) return NextResponse.json({ error: 'invitationId requis' }, { status: 400 });
+        const ref = db.collection('structure_invitations').doc(invitationId);
+        const snap = await ref.get();
+        if (!snap.exists || snap.data()!.structureId !== structureId || snap.data()!.type !== 'direct_invite') {
+          return NextResponse.json({ error: 'Invitation introuvable' }, { status: 404 });
+        }
+        if (snap.data()!.status !== 'pending') {
+          return NextResponse.json({ error: 'Invitation déjà traitée' }, { status: 400 });
+        }
+        await ref.update({
+          status: 'cancelled',
+          cancelledBy: uid,
+          cancelledAt: FieldValue.serverTimestamp(),
+        });
         return NextResponse.json({ success: true });
       }
 

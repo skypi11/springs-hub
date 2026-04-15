@@ -109,6 +109,8 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [joinGame, setJoinGame] = useState('');
+  const [joinRole, setJoinRole] = useState('joueur');
+  const [joinPositionIdx, setJoinPositionIdx] = useState<number | null>(null);
   const [joinMessage, setJoinMessage] = useState('');
   const [joinLoading, setJoinLoading] = useState(false);
   const [joinSent, setJoinSent] = useState(false);
@@ -201,7 +203,13 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
       const res = await fetch('/api/structures/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ action: 'request_join', structureId: structure.id, game: joinGame, message: joinMessage }),
+        body: JSON.stringify({
+          action: 'request_join',
+          structureId: structure.id,
+          game: joinGame,
+          role: joinRole,
+          message: joinMessage,
+        }),
       });
       const data = await res.json();
       if (res.ok) { setJoinSent(true); setShowJoinForm(false); }
@@ -379,21 +387,68 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
               </div>
               <span className="font-display text-base tracking-wider">DEMANDE DE REJOINDRE</span>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="t-label block mb-1.5">Jeu *</label>
-                <select className="settings-input w-full" value={joinGame} onChange={e => setJoinGame(e.target.value)}>
-                  <option value="">Choisir...</option>
-                  {structure.games?.includes('rocket_league') && <option value="rocket_league">Rocket League</option>}
-                  {structure.games?.includes('trackmania') && <option value="trackmania">Trackmania</option>}
-                </select>
-              </div>
-              <div>
-                <label className="t-label block mb-1.5">Message (optionnel)</label>
-                <input type="text" className="settings-input w-full" placeholder="Pourquoi rejoindre..."
-                  value={joinMessage} onChange={e => setJoinMessage(e.target.value)} />
-              </div>
-            </div>
+            {(() => {
+              const positions = structure.recruiting?.active ? (structure.recruiting.positions || []) : [];
+              const hasPositions = positions.length > 0;
+              const gameLabel = (g: string) => g === 'rocket_league' ? 'Rocket League' : g === 'trackmania' ? 'Trackmania' : g;
+              const roleLabel = (r: string) => {
+                const map: Record<string, string> = { joueur: 'Joueur', titulaire: 'Titulaire', sub: 'Remplaçant', coach: 'Coach', manager: 'Manager' };
+                return map[r] || r;
+              };
+              return (
+                <>
+                  {hasPositions ? (
+                    <div>
+                      <label className="t-label block mb-1.5">Poste visé *</label>
+                      <select
+                        className="settings-input w-full"
+                        value={joinPositionIdx ?? ''}
+                        onChange={e => {
+                          const idx = e.target.value === '' ? null : Number(e.target.value);
+                          setJoinPositionIdx(idx);
+                          if (idx !== null) {
+                            const p = positions[idx];
+                            setJoinGame(p.game);
+                            setJoinRole(p.role);
+                          } else {
+                            setJoinGame('');
+                            setJoinRole('joueur');
+                          }
+                        }}
+                      >
+                        <option value="">Choisir un poste ouvert...</option>
+                        {positions.map((p, i) => (
+                          <option key={i} value={i}>
+                            {gameLabel(p.game)} — {roleLabel(p.role)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="t-label block mb-1.5">Jeu *</label>
+                      <select className="settings-input w-full" value={joinGame} onChange={e => { setJoinGame(e.target.value); setJoinRole('joueur'); }}>
+                        <option value="">Choisir...</option>
+                        {structure.games?.includes('rocket_league') && <option value="rocket_league">Rocket League</option>}
+                        {structure.games?.includes('trackmania') && <option value="trackmania">Trackmania</option>}
+                      </select>
+                    </div>
+                  )}
+                  <div>
+                    <label className="t-label block mb-1.5">Message (optionnel)</label>
+                    <textarea
+                      className="settings-input w-full"
+                      rows={3}
+                      maxLength={500}
+                      placeholder="Présente-toi rapidement : ton niveau, tes dispos, pourquoi cette structure..."
+                      value={joinMessage}
+                      onChange={e => setJoinMessage(e.target.value)}
+                    />
+                    <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>{joinMessage.length}/500</p>
+                  </div>
+                </>
+              );
+            })()}
             {joinError && <p className="text-xs" style={{ color: '#ff5555' }}>{joinError}</p>}
             <div className="flex gap-3">
               <button onClick={handleJoinRequest} disabled={!joinGame || joinLoading}
@@ -633,18 +688,37 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                     <span className="tag tag-gold" style={{ fontSize: '9px' }}>OUVERT</span>
                   </div>
                   <div className="p-5 space-y-2">
-                    {structure.recruiting.positions.map((p, i) => (
-                      <div key={i} className="flex items-center justify-between px-3 py-2.5"
-                        style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                        <span className="text-sm font-medium" style={{ color: 'var(--s-text)' }}>
-                          {p.role.charAt(0).toUpperCase() + p.role.slice(1)}
-                        </span>
-                        <span className={`tag ${p.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                          style={{ fontSize: '9px', padding: '1px 6px' }}>
-                          {p.game === 'rocket_league' ? 'RL' : 'TM'}
-                        </span>
-                      </div>
-                    ))}
+                    {structure.recruiting.positions.map((p, i) => {
+                      const canApply = firebaseUser && !isMember && !joinSent;
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          disabled={!canApply}
+                          onClick={() => {
+                            if (!canApply) return;
+                            setJoinPositionIdx(i);
+                            setJoinGame(p.game);
+                            setJoinRole(p.role);
+                            setShowJoinForm(true);
+                          }}
+                          className="w-full flex items-center justify-between px-3 py-2.5 transition-colors duration-150"
+                          style={{
+                            background: 'var(--s-elevated)',
+                            border: '1px solid var(--s-border)',
+                            cursor: canApply ? 'pointer' : 'default',
+                          }}
+                        >
+                          <span className="text-sm font-medium" style={{ color: 'var(--s-text)' }}>
+                            {p.role.charAt(0).toUpperCase() + p.role.slice(1)}
+                          </span>
+                          <span className={`tag ${p.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
+                            style={{ fontSize: '9px', padding: '1px 6px' }}>
+                            {p.game === 'rocket_league' ? 'RL' : 'TM'}
+                          </span>
+                        </button>
+                      );
+                    })}
                     {firebaseUser && !isMember && !joinSent ? (
                       <button onClick={() => setShowJoinForm(true)}
                         className="btn-springs btn-primary bevel-sm w-full flex items-center justify-center gap-2 text-xs mt-3">
