@@ -689,7 +689,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                   </div>
                   <div className="p-5 space-y-3">
                     {structure.recruiting.message && (
-                      <div className="prose-springs text-xs p-3"
+                      <div className="prose-springs text-sm p-3"
                         style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                         <ReactMarkdown>{structure.recruiting.message}</ReactMarkdown>
                       </div>
@@ -719,7 +719,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                             {p.role.charAt(0).toUpperCase() + p.role.slice(1)}
                           </span>
                           <span className={`tag ${p.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                            style={{ fontSize: '9px', padding: '1px 6px' }}>
+                            style={{ fontSize: '12px', padding: '2px 8px' }}>
                             {p.game === 'rocket_league' ? 'RL' : 'TM'}
                           </span>
                         </button>
