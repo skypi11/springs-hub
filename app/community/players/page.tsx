@@ -3,11 +3,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { User, Search, Gamepad2, ArrowUpDown, Sparkles, Star } from 'lucide-react';
+import { User, Search, Gamepad2, ArrowUpDown, Sparkles, Star, Target } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
 import InviteToStructureButton from '@/components/community/InviteToStructureButton';
+import { useAuth } from '@/context/AuthContext';
 
 type PlayerCard = {
   uid: string;
@@ -28,7 +29,9 @@ type PlayerCard = {
   structurePerGame: Record<string, string>;
 };
 
-type SortKey = 'default' | 'alpha' | 'available' | 'mmr';
+type SortKey = 'default' | 'alpha' | 'available' | 'mmr' | 'match';
+
+type OpenPosition = { game: string; role: string };
 
 const ROLE_LABELS: Record<string, string> = {
   joueur: 'Joueur',
@@ -36,13 +39,44 @@ const ROLE_LABELS: Record<string, string> = {
   manager: 'Manager',
 };
 
+const GAME_SHORT: Record<string, string> = {
+  rocket_league: 'RL',
+  trackmania: 'TM',
+};
+
+// Retourne la liste (dédupliquée) des positions ouvertes qui matchent un joueur.
+// Un match = le poste ouvert a le même `role` que le `recruitmentRole` du joueur
+// ET le jeu du poste est dans les jeux pratiqués par le joueur.
+function matchPositions(
+  playerRole: string,
+  playerGames: string[],
+  positions: OpenPosition[]
+): OpenPosition[] {
+  if (!playerRole || positions.length === 0) return [];
+  const matches: OpenPosition[] = [];
+  const seen = new Set<string>();
+  for (const p of positions) {
+    if (p.role !== playerRole) continue;
+    if (!playerGames.includes(p.game)) continue;
+    const key = `${p.game}:${p.role}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    matches.push(p);
+  }
+  return matches;
+}
+
 export default function PlayersPage() {
+  const { firebaseUser } = useAuth();
   const [players, setPlayers] = useState<PlayerCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [gameFilter, setGameFilter] = useState('');
   const [recruitingFilter, setRecruitingFilter] = useState(false);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('default');
+  // Positions ouvertes agrégées sur toutes les structures où le viewer est dirigeant.
+  // Sert à afficher un badge « Match » sur les cards de joueurs qui correspondent.
+  const [viewerOpenPositions, setViewerOpenPositions] = useState<OpenPosition[]>([]);
 
   const loadPlayers = useCallback(async () => {
     setLoading(true);
@@ -65,28 +99,75 @@ export default function PlayersPage() {
     loadPlayers();
   }, [loadPlayers]);
 
+  // Charge les positions ouvertes des structures où le viewer est dirigeant.
+  // Déconnecté ou non-dirigeant → liste vide → pas de badges Match.
+  useEffect(() => {
+    if (!firebaseUser) {
+      setViewerOpenPositions([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const idToken = await firebaseUser.getIdToken();
+        const res = await fetch('/api/structures/my', {
+          headers: { 'Authorization': `Bearer ${idToken}` },
+        });
+        if (!res.ok) { if (!cancelled) setViewerOpenPositions([]); return; }
+        const data = await res.json();
+        const positions: OpenPosition[] = [];
+        for (const s of data.structures || []) {
+          if (s.accessLevel !== 'dirigeant') continue;
+          if (s.status !== 'active') continue;
+          if (!s.recruiting?.active) continue;
+          for (const p of s.recruiting.positions || []) {
+            if (p?.game && p?.role) positions.push({ game: p.game, role: p.role });
+          }
+        }
+        if (!cancelled) setViewerOpenPositions(positions);
+      } catch {
+        if (!cancelled) setViewerOpenPositions([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [firebaseUser]);
+
+  // Enrichit chaque joueur avec ses positions matching (calcul local, pas de round-trip)
+  const playersWithMatches = useMemo(() => {
+    if (viewerOpenPositions.length === 0) return players.map(p => ({ player: p, matches: [] as OpenPosition[] }));
+    return players.map(p => ({
+      player: p,
+      matches: p.isAvailableForRecruitment
+        ? matchPositions(p.recruitmentRole, p.games, viewerOpenPositions)
+        : [],
+    }));
+  }, [players, viewerOpenPositions]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const base = q
-      ? players.filter(p =>
+      ? playersWithMatches.filter(({ player: p }) =>
           p.displayName.toLowerCase().includes(q) ||
           (p.pseudoTM && p.pseudoTM.toLowerCase().includes(q))
         )
-      : players;
+      : playersWithMatches;
     const arr = [...base];
     switch (sortKey) {
       case 'alpha':
-        arr.sort((a, b) => a.displayName.localeCompare(b.displayName));
+        arr.sort((a, b) => a.player.displayName.localeCompare(b.player.displayName));
         break;
       case 'available':
-        arr.sort((a, b) => Number(b.isAvailableForRecruitment) - Number(a.isAvailableForRecruitment));
+        arr.sort((a, b) => Number(b.player.isAvailableForRecruitment) - Number(a.player.isAvailableForRecruitment));
         break;
       case 'mmr':
-        arr.sort((a, b) => (b.rlMmr ?? -1) - (a.rlMmr ?? -1));
+        arr.sort((a, b) => (b.player.rlMmr ?? -1) - (a.player.rlMmr ?? -1));
+        break;
+      case 'match':
+        arr.sort((a, b) => b.matches.length - a.matches.length);
         break;
     }
     return arr;
-  }, [players, search, sortKey]);
+  }, [playersWithMatches, search, sortKey]);
 
   const availableCount = players.filter(p => p.isAvailableForRecruitment).length;
   const count = filtered.length;
@@ -170,6 +251,7 @@ export default function PlayersPage() {
                 <option value="alpha">A → Z</option>
                 <option value="available">Disponibles en 1er</option>
                 <option value="mmr">MMR RL décroissant</option>
+                {viewerOpenPositions.length > 0 && <option value="match">Match avec ma structure</option>}
               </select>
             </div>
           </div>
@@ -194,7 +276,7 @@ export default function PlayersPage() {
           />
         ) : (
           <div className={`grid ${gridCols} gap-4 animate-fade-in-d2`}>
-            {filtered.map(p => <PlayerItem key={p.uid} p={p} />)}
+            {filtered.map(({ player, matches }) => <PlayerItem key={player.uid} p={player} matches={matches} />)}
           </div>
         )}
       </div>
@@ -232,18 +314,41 @@ function FilterChip({
   );
 }
 
-function PlayerItem({ p }: { p: PlayerCard }) {
+function PlayerItem({ p, matches }: { p: PlayerCard; matches: OpenPosition[] }) {
   const avatar = p.avatarUrl || p.discordAvatar;
   const hasAny = p.rlRank || p.pseudoTM;
+  const hasMatch = matches.length > 0;
 
   return (
     <div
       className="pillar-card panel bevel-sm relative overflow-hidden group transition-all duration-200"
-      style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+      style={{
+        background: 'var(--s-surface)',
+        border: hasMatch ? '1px solid rgba(0,217,54,0.35)' : '1px solid var(--s-border)',
+        boxShadow: hasMatch ? '0 0 0 1px rgba(0,217,54,0.1) inset' : undefined,
+      }}>
       <Link href={`/profile/${p.uid}`} className="absolute inset-0 z-[2]" aria-label={p.displayName} />
       {/* Accent top */}
-      {p.isAvailableForRecruitment && (
+      {(hasMatch || p.isAvailableForRecruitment) && (
         <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-green), transparent 80%)' }} />
+      )}
+      {/* Badge Match en absolu — tape la carte en coin haut droit */}
+      {hasMatch && (
+        <div className="absolute top-2 right-2 z-[3] flex flex-wrap gap-1 justify-end max-w-[65%]">
+          {matches.map((m, i) => (
+            <span key={i} className="tag inline-flex items-center gap-1"
+              style={{
+                fontSize: '12px', padding: '2px 7px',
+                background: 'rgba(0,217,54,0.15)',
+                color: '#33ff66',
+                borderColor: 'rgba(0,217,54,0.45)',
+                fontWeight: 700,
+              }}>
+              <Target size={10} />
+              Match {ROLE_LABELS[m.role] || m.role} {GAME_SHORT[m.game] || m.game.toUpperCase()}
+            </span>
+          ))}
+        </div>
       )}
       <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200"
         style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,255,255,0.05), transparent 70%)' }} />

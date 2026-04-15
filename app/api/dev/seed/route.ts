@@ -79,7 +79,7 @@ export async function POST() {
       rlRank: r.rlRank,
       rlMmr: r.rlMmr,
       isAvailableForRecruitment: true,
-      availableRole: 'joueur',
+      recruitmentRole: 'joueur',
       recruitmentMessage: `Salut, je suis ${r.displayName} (${r.rlRank}), dispo en soirée et weekends. À la recherche d'une structure sérieuse pour progresser.`,
       isDev: true,
       createdAt: FieldValue.serverTimestamp(),

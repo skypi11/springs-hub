@@ -31,10 +31,11 @@ export async function GET(req: NextRequest) {
 
     const snap = await query.limit(MAX_PLAYERS).get();
 
+    const isDevEnv = process.env.NODE_ENV === 'development';
     const players = [];
     for (const doc of snap.docs) {
       const data = doc.data();
-      if (data.isDev === true) continue;
+      if (data.isDev === true && !isDevEnv) continue;
 
       players.push({
         uid: doc.id,

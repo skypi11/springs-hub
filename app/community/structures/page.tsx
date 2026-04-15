@@ -3,10 +3,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Shield, Users, Search, Sparkles, ArrowUpDown, Plus } from 'lucide-react';
+import { Shield, Users, Search, Sparkles, ArrowUpDown, Plus, Target } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
+import { useAuth } from '@/context/AuthContext';
 
 type StructureCard = {
   id: string;
@@ -18,9 +19,26 @@ type StructureCard = {
   memberCount: number;
 };
 
-type SortKey = 'default' | 'alpha' | 'members' | 'recruiting';
+type SortKey = 'default' | 'alpha' | 'members' | 'recruiting' | 'match';
+
+// Un « match » pour un joueur dispo = la structure a une position ouverte dont le jeu
+// est pratiqué par le joueur ET dont le rôle == recruitmentRole du joueur.
+function structureMatches(
+  recruiting: { active: boolean; positions: { game: string; role: string }[] } | undefined,
+  viewerRole: string,
+  viewerGames: string[]
+): boolean {
+  if (!recruiting?.active || !viewerRole || viewerGames.length === 0) return false;
+  return (recruiting.positions || []).some(
+    p => p.role === viewerRole && viewerGames.includes(p.game)
+  );
+}
 
 export default function StructuresPage() {
+  const { user } = useAuth();
+  const viewerIsAvailable = Boolean(user?.isAvailableForRecruitment);
+  const viewerRole = user?.recruitmentRole ?? '';
+  const viewerGames = useMemo(() => user?.games ?? [], [user]);
   const [structures, setStructures] = useState<StructureCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [gameFilter, setGameFilter] = useState('');
@@ -46,25 +64,39 @@ export default function StructuresPage() {
     loadStructures();
   }, [loadStructures]);
 
+  // Enrichit chaque structure avec un flag `match` pour les joueurs dispo
+  const structuresWithMatch = useMemo(() => {
+    if (!viewerIsAvailable || !viewerRole || viewerGames.length === 0) {
+      return structures.map(s => ({ structure: s, match: false }));
+    }
+    return structures.map(s => ({
+      structure: s,
+      match: structureMatches(s.recruiting, viewerRole, viewerGames),
+    }));
+  }, [structures, viewerIsAvailable, viewerRole, viewerGames]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const base = q
-      ? structures.filter(s => s.name.toLowerCase().includes(q) || s.tag.toLowerCase().includes(q))
-      : structures;
+      ? structuresWithMatch.filter(({ structure: s }) => s.name.toLowerCase().includes(q) || s.tag.toLowerCase().includes(q))
+      : structuresWithMatch;
     const arr = [...base];
     switch (sortKey) {
       case 'alpha':
-        arr.sort((a, b) => a.name.localeCompare(b.name));
+        arr.sort((a, b) => a.structure.name.localeCompare(b.structure.name));
         break;
       case 'members':
-        arr.sort((a, b) => (b.memberCount ?? 0) - (a.memberCount ?? 0));
+        arr.sort((a, b) => (b.structure.memberCount ?? 0) - (a.structure.memberCount ?? 0));
         break;
       case 'recruiting':
-        arr.sort((a, b) => Number(b.recruiting?.active) - Number(a.recruiting?.active));
+        arr.sort((a, b) => Number(b.structure.recruiting?.active) - Number(a.structure.recruiting?.active));
+        break;
+      case 'match':
+        arr.sort((a, b) => Number(b.match) - Number(a.match));
         break;
     }
     return arr;
-  }, [structures, search, sortKey]);
+  }, [structuresWithMatch, search, sortKey]);
 
   const recruitingCount = structures.filter(s => s.recruiting?.active).length;
   const count = filtered.length;
@@ -135,6 +167,9 @@ export default function StructuresPage() {
                 <option value="alpha">A → Z</option>
                 <option value="members">Plus de membres</option>
                 <option value="recruiting">Qui recrutent en 1er</option>
+                {viewerIsAvailable && viewerRole && (
+                  <option value="match">Match avec mon profil</option>
+                )}
               </select>
             </div>
           </div>
@@ -155,7 +190,9 @@ export default function StructuresPage() {
           <EmptyState hasFilters={hasFilters} totalCount={structures.length} onReset={() => { setSearch(''); setGameFilter(''); }} />
         ) : (
           <div className={`grid ${gridCols} gap-5 animate-fade-in-d2`}>
-            {filtered.map(s => <StructureItem key={s.id} s={s} />)}
+            {filtered.map(({ structure, match }) => (
+              <StructureItem key={structure.id} s={structure} match={match} />
+            ))}
           </div>
         )}
       </div>
@@ -193,7 +230,7 @@ function FilterChip({
   );
 }
 
-function StructureItem({ s }: { s: StructureCard }) {
+function StructureItem({ s, match }: { s: StructureCard; match: boolean }) {
   const isRecruiting = s.recruiting?.active;
   const primaryGame = s.games.includes('rocket_league') ? 'rocket_league' : 'trackmania';
   const accentColor = primaryGame === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)';
@@ -202,7 +239,11 @@ function StructureItem({ s }: { s: StructureCard }) {
   return (
     <Link href={`/community/structure/${s.id}`}
       className="pillar-card panel bevel relative overflow-hidden group transition-all duration-200"
-      style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+      style={{
+        background: 'var(--s-surface)',
+        border: match ? '1px solid rgba(0,217,54,0.55)' : '1px solid var(--s-border)',
+        boxShadow: match ? 'inset 0 0 0 1px rgba(0,217,54,0.2)' : undefined,
+      }}>
       <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${accentColor}, transparent 70%)` }} />
       <div className="absolute top-0 right-0 w-40 h-40 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200"
         style={{ background: `radial-gradient(circle at 100% 0%, ${glowColor}, transparent 70%)` }} />
@@ -239,9 +280,25 @@ function StructureItem({ s }: { s: StructureCard }) {
               {s.memberCount} membre{s.memberCount > 1 ? 's' : ''}
             </span>
           </div>
-          {isRecruiting && (
-            <span className="tag tag-green" style={{ fontSize: '9px', padding: '2px 7px' }}>RECRUTE</span>
-          )}
+          <div className="flex items-center gap-1.5">
+            {match && (
+              <span className="tag inline-flex items-center gap-1"
+                style={{
+                  fontSize: '12px',
+                  padding: '2px 7px',
+                  background: 'rgba(0,217,54,0.15)',
+                  color: '#33ff66',
+                  borderColor: 'rgba(0,217,54,0.45)',
+                  fontWeight: 700,
+                }}>
+                <Target size={10} />
+                Match ton rôle
+              </span>
+            )}
+            {isRecruiting && (
+              <span className="tag tag-green" style={{ fontSize: '12px', padding: '2px 7px' }}>RECRUTE</span>
+            )}
+          </div>
         </div>
       </div>
     </Link>
