@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Bell, Check, UserPlus, CheckCircle2, XCircle, Calendar, Trophy, Inbox,
+  Bell, Check, UserPlus, CheckCircle2, XCircle, Calendar, Trophy, Inbox, Clock,
 } from 'lucide-react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -40,6 +40,7 @@ function iconFor(type: string) {
     case 'join_request_received': return { Icon: UserPlus, color: 'var(--s-violet-light)' };
     case 'join_request_accepted': return { Icon: CheckCircle2, color: 'var(--s-gold)' };
     case 'join_request_declined': return { Icon: XCircle, color: '#ef4444' };
+    case 'invitation_expired': return { Icon: Clock, color: 'var(--s-text-muted)' };
     case 'invitation': return { Icon: UserPlus, color: 'var(--s-violet-light)' };
     case 'new_event': return { Icon: Calendar, color: 'var(--s-blue)' };
     case 'new_competition': return { Icon: Trophy, color: 'var(--s-gold)' };

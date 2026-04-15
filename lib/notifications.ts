@@ -8,6 +8,7 @@ export type NotificationType =
   | 'direct_invite_received'
   | 'direct_invite_accepted'
   | 'direct_invite_declined'
+  | 'invitation_expired'
   | 'invitation'
   | 'new_event'
   | 'new_competition'
