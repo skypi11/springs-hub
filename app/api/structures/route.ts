@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
     const structures = [];
     for (const doc of structuresSnap.docs) {
       const data = doc.data();
+      if (data.isDev === true) continue;
       if (game && !(data.games || []).includes(game)) continue;
 
       structures.push({

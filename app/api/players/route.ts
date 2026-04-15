@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
     const players = [];
     for (const doc of snap.docs) {
       const data = doc.data();
+      if (data.isDev === true) continue;
 
       players.push({
         uid: doc.id,

@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { Home, Users, Trophy, LogOut, Swords, Settings, Building2, Calendar, Search, Menu, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import NotificationsBell from '@/components/ui/NotificationsBell';
+import DevSwitcher from '@/components/dev/DevSwitcher';
 
 const navItems = [
   { href: '/', icon: Home, label: 'Accueil' },
@@ -261,6 +262,8 @@ export default function Sidebar() {
             Connexion Discord
           </button>
         )}
+
+        <DevSwitcher />
       </div>
       </aside>
     </>
