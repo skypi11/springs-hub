@@ -162,8 +162,9 @@ export async function POST(req: NextRequest) {
         spg[joinGame] = structureId;
 
         // 3 writes atomiques : member + invitation status + user.structurePerGame
+        // Doc ID déterministe pour qu'un double-clic écrive sur le même doc (idempotent).
         const batch = db.batch();
-        const newMemberRef = db.collection('structure_members').doc();
+        const newMemberRef = db.collection('structure_members').doc(`${structureId}_${applicantId}`);
         batch.set(newMemberRef, {
           structureId,
           userId: applicantId,

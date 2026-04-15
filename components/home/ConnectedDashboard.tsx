@@ -144,7 +144,7 @@ export default function ConnectedDashboard({ user }: { user: SpringsUser }) {
     loadAll();
   }, [loadAll]);
 
-  const firstName = (user.displayName || user.discordUsername || 'joueur').split(/\s+/)[0];
+  const firstName = (user.displayName || user.discordUsername || 'joueur').trim();
   const avatar = user.avatarUrl || user.discordAvatar || '';
   const primaryStructure = structures[0] ?? null;
   const todoCount = pendingTodos.length;

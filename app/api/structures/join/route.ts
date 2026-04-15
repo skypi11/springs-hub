@@ -75,8 +75,9 @@ export async function POST(req: NextRequest) {
         spg[joinGame] = sid;
 
         // Atomique : ajout member + update structurePerGame
+        // Doc ID déterministe pour qu'un double-clic écrive sur le même doc (idempotent).
         const batch = db.batch();
-        const newMemberRef = db.collection('structure_members').doc();
+        const newMemberRef = db.collection('structure_members').doc(`${sid}_${uid}`);
         batch.set(newMemberRef, {
           structureId: sid,
           userId: uid,

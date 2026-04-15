@@ -80,7 +80,8 @@ export async function POST(req: NextRequest) {
     switch (action) {
       case 'approve': {
         // Atomique : status structure + isFounderApproved + ajout membre fondateur
-        const memberRef = db.collection('structure_members').doc();
+        // Doc ID déterministe pour qu'un double-clic écrive sur le même doc (idempotent).
+        const memberRef = db.collection('structure_members').doc(`${structureId}_${data.founderId}`);
         const userRef = db.collection('users').doc(data.founderId);
         const batch = db.batch();
         batch.update(ref, {
