@@ -1513,37 +1513,6 @@ export default function MyStructurePage() {
                               onRemove={(uid) => handleUpdateTeamRoster(team.id, 'staffIds', team.staff.filter(p => p.uid !== uid).map(p => p.uid))}
                             />
                           </div>
-
-                          {/* Chips accès drawer détail équipe — staff de l'équipe ou dirigeant */}
-                          {(() => {
-                            const isDirigeant = isFounderOfActive || isCoFounderOfActive;
-                            const isStaffOfThisTeam = isDirigeant || staffedTeamIds.includes(team.id);
-                            if (!isStaffOfThisTeam) return null;
-                            const drawerTeam: DrawerTeam = {
-                              id: team.id,
-                              name: team.name,
-                              game: team.game,
-                              players: team.players,
-                              subs: team.subs,
-                              staff: team.staff,
-                            };
-                            const openDrawer = (tab: DrawerTab) =>
-                              setDrawerState({ team: drawerTeam, tab, canEditConfig: isDirigeant });
-                            return (
-                              <div className="flex items-center gap-2 pt-1 flex-wrap" style={{ borderTop: '1px dashed var(--s-border)', paddingTop: '10px' }}>
-                                <TeamActionChip
-                                  icon={<CalendarClock size={13} />}
-                                  label="Dispos & matching"
-                                  onClick={() => openDrawer('availability')}
-                                />
-                                <TeamActionChip
-                                  icon={<ClipboardList size={13} />}
-                                  label="Devoirs"
-                                  onClick={() => openDrawer('todos')}
-                                />
-                              </div>
-                            );
-                          })()}
                         </div>
                       </div>
                     );
