@@ -11,6 +11,7 @@ const COLLECTIONS_WITH_ISDEV = [
   'structure_members',
   'sub_teams',
   'structure_events',
+  'event_presences',
   'admins',
 ];
 

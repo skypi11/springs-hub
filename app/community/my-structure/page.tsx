@@ -21,6 +21,7 @@ import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import PublicPreviewFrame from '@/components/ui/PublicPreviewFrame';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import type { UserContext } from '@/lib/event-permissions';
+import PlayerStructureView, { type PlayerStructure } from '@/components/structure/PlayerStructureView';
 
 type DashboardTab = 'general' | 'teams' | 'recruitment' | 'members' | 'calendar';
 
@@ -32,10 +33,11 @@ const TAB_DEFS: { key: DashboardTab; label: string; color: string }[] = [
   { key: 'calendar', label: 'Calendrier', color: 'var(--s-gold)' },
 ];
 
-function TabBar({ active, onChange }: { active: DashboardTab; onChange: (t: DashboardTab) => void }) {
+function TabBar({ active, onChange, visible }: { active: DashboardTab; onChange: (t: DashboardTab) => void; visible: DashboardTab[] }) {
+  const tabsToShow = TAB_DEFS.filter(t => visible.includes(t.key));
   return (
-    <div className="flex items-end gap-1 relative" style={{ borderBottom: '1px solid var(--s-border)' }}>
-      {TAB_DEFS.map(t => {
+    <div className="flex items-end gap-1 relative flex-wrap" style={{ borderBottom: '1px solid var(--s-border)' }}>
+      {tabsToShow.map(t => {
         const isActive = active === t.key;
         return (
           <button key={t.key} type="button" onClick={() => onChange(t.key)}
@@ -250,6 +252,7 @@ export default function MyStructurePage() {
   const confirm = useConfirm();
   const router = useRouter();
   const [structures, setStructures] = useState<MyStructure[]>([]);
+  const [playerStructures, setPlayerStructures] = useState<PlayerStructure[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeStructure, setActiveStructure] = useState<MyStructure | null>(null);
 
@@ -302,19 +305,44 @@ export default function MyStructurePage() {
     return () => clearInterval(t);
   }, []);
 
+  // Si le tab actif n'est pas visible pour le rôle de l'user sur la structure active,
+  // on rabat sur le premier tab visible. Calculé ici pour rester au niveau hooks top-level.
+  useEffect(() => {
+    if (!activeStructure || !firebaseUser) return;
+    const isFounder = activeStructure.founderId === firebaseUser.uid;
+    const isCoFounder = (activeStructure.coFounderIds ?? []).includes(firebaseUser.uid);
+    const isDirigeant = isFounder || isCoFounder;
+    const isManager = !isDirigeant && (activeStructure.managerIds ?? []).includes(firebaseUser.uid);
+    const isCoach = !isDirigeant && !isManager && (activeStructure.coachIds ?? []).includes(firebaseUser.uid);
+    const visible: DashboardTab[] = isDirigeant
+      ? ['general', 'teams', 'recruitment', 'members', 'calendar']
+      : isManager
+      ? ['teams', 'members', 'calendar']
+      : isCoach
+      ? ['members', 'calendar']
+      : ['calendar'];
+    if (!visible.includes(tab)) setTab(visible[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeStructure?.id, firebaseUser?.uid]);
+
   async function loadStructures() {
     if (!firebaseUser) return;
     try {
       const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/my', {
-        headers: { 'Authorization': `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
+      const [staffRes, playerRes] = await Promise.all([
+        fetch('/api/structures/my', { headers: { 'Authorization': `Bearer ${idToken}` } }),
+        fetch('/api/structures/my-player', { headers: { 'Authorization': `Bearer ${idToken}` } }),
+      ]);
+      if (staffRes.ok) {
+        const data = await staffRes.json();
         setStructures(data.structures ?? []);
         if (data.structures?.length > 0 && !activeStructure) {
           selectStructure(data.structures[0]);
         }
+      }
+      if (playerRes.ok) {
+        const data = await playerRes.json();
+        setPlayerStructures(data.structures ?? []);
       }
     } catch (err) {
       console.error('[MyStructure] load error:', err);
@@ -353,7 +381,15 @@ export default function MyStructurePage() {
     setError('');
     setShowNewTeam(false);
     loadTeams(s.id);
-    loadInvitations(s.id);
+    // Invitations : API réservée aux dirigeant/manager — on évite le 403 côté coach.
+    const uid = firebaseUser?.uid;
+    const canLoadInvitations = !!uid && (
+      s.founderId === uid ||
+      (s.coFounderIds ?? []).includes(uid) ||
+      (s.managerIds ?? []).includes(uid)
+    );
+    if (canLoadInvitations) loadInvitations(s.id);
+    else { setInviteLinks([]); setJoinRequests([]); }
   }
 
   async function handleCreateTeam() {
@@ -502,6 +538,21 @@ export default function MyStructurePage() {
   }
 
   if (structures.length === 0) {
+    // Vue dédiée joueur : l'user n'est dirigeant/staff nulle part, mais il est
+    // membre simple d'au moins une structure — on affiche le layout joueur.
+    if (playerStructures.length > 0) {
+      return (
+        <div className="min-h-screen hex-bg px-4 md:px-8 py-8">
+          <div className="relative z-[1] max-w-6xl mx-auto space-y-10">
+            <Breadcrumbs items={[{ label: 'Communauté', href: '/community' }, { label: 'Ma structure' }]} />
+            {playerStructures.map(ps => (
+              <PlayerStructureView key={ps.id} structure={ps} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen hex-bg px-8 py-8 flex items-center justify-center">
         <div className="relative z-[1] bevel p-10 text-center max-w-md" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
@@ -521,12 +572,29 @@ export default function MyStructurePage() {
   const s = activeStructure!;
   const statusInfo = STATUS_INFO[s.status] ?? STATUS_INFO.pending_validation;
   const StatusIcon = statusInfo.icon;
-  const isStaffOnly = s.accessLevel === 'staff';
-  const canEdit = s.status === 'active' && !isStaffOnly;
   // Le dashboard est ouvert au fondateur ET aux co-fondateurs. Certaines actions
   // sont réservées au fondateur (promouvoir/rétrograder, transférer, supprimer).
   const isFounderOfActive = !!firebaseUser && s.founderId === firebaseUser.uid;
   const isCoFounderOfActive = !!firebaseUser && (s.coFounderIds ?? []).includes(firebaseUser.uid);
+  const isDirigeantOfActive = isFounderOfActive || isCoFounderOfActive;
+  const isManagerOfActive = !!firebaseUser && !isDirigeantOfActive && (s.managerIds ?? []).includes(firebaseUser.uid);
+  const isCoachOfActive = !!firebaseUser && !isDirigeantOfActive && !isManagerOfActive && (s.coachIds ?? []).includes(firebaseUser.uid);
+  // Matrice de capacités par rôle — cf. visibleTabs ci-dessous pour la vue d'ensemble.
+  // Les tabs filtrent déjà 95% des boutons write ; les quelques actions exposées sur des tabs
+  // partagés (Membres = dirigeant+manager+coach) sont gatées à la volée via isDirigeantOfActive.
+  // Onglets visibles selon le rôle. Les tabs cachés retirent à la fois le contenu
+  // et l'entrée de la barre — aucun faux positif possible côté UI.
+  // - Dirigeant : tout
+  // - Manager   : équipes + membres (invitations côté manager OK, kick/role = dirigeant) + calendrier
+  // - Coach     : membres (readonly) + calendrier (avec dispos/todos par équipe)
+  // La branding et le toggle recrutement restent dirigeant-only (PUT API gate).
+  const visibleTabs: DashboardTab[] = isDirigeantOfActive
+    ? ['general', 'teams', 'recruitment', 'members', 'calendar']
+    : isManagerOfActive
+    ? ['teams', 'members', 'calendar']
+    : isCoachOfActive
+    ? ['members', 'calendar']
+    : ['calendar'];
   const myDepartureIso = firebaseUser ? s.coFounderDepartures?.[firebaseUser.uid] : null;
   const myDepartureRemainingMs = myDepartureIso ? Math.max(0, new Date(myDepartureIso).getTime() + DEPARTURE_NOTICE_MS - now) : null;
 
@@ -832,91 +900,9 @@ export default function MyStructurePage() {
     setInvActionLoading(null);
   }
 
-  // ─── Staff-only mode (manager/coach) ─────────────────────────────────
-  // L'user n'est pas dirigeant : on affiche juste header + calendrier.
-  if (isStaffOnly) {
-    return (
-      <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
-        <div className="relative z-[1] space-y-8">
-          {/* Sélecteur si plusieurs structures */}
-          {structures.length > 1 && (
-            <div className="flex gap-3 animate-fade-in flex-wrap">
-              {structures.map(st => (
-                <button key={st.id} onClick={() => selectStructure(st)}
-                  className="tag transition-all duration-150"
-                  style={{
-                    background: st.id === s.id ? 'rgba(255,184,0,0.15)' : 'transparent',
-                    color: st.id === s.id ? 'var(--s-gold)' : 'var(--s-text-dim)',
-                    borderColor: st.id === s.id ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
-                    cursor: 'pointer', padding: '8px 16px', fontSize: '12px',
-                  }}>
-                  {st.name}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Header structure */}
-          <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-            <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), rgba(123,47,190,0.3), transparent 80%)' }} />
-            <div className="absolute top-0 left-0 w-64 h-64 pointer-events-none"
-              style={{ background: 'radial-gradient(circle at 0% 0%, rgba(123,47,190,0.06), transparent 60%)' }} />
-            <div className="relative z-[1] p-8 flex items-center gap-6">
-              <div className="flex-shrink-0 w-16 h-16 relative overflow-hidden bevel-sm" style={{ background: 'var(--s-elevated)', border: '2px solid var(--s-border)' }}>
-                {s.logoUrl ? (
-                  <Image src={s.logoUrl} alt={s.name} fill className="object-contain p-1" unoptimized />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Shield size={28} style={{ color: 'var(--s-text-muted)' }} />
-                  </div>
-                )}
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-1">
-                  <h1 className="font-display text-3xl" style={{ letterSpacing: '0.03em' }}>{s.name}</h1>
-                  <span className="tag tag-neutral">{s.tag}</span>
-                </div>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className="tag tag-violet" style={{ fontSize: '9px', padding: '2px 8px' }}>
-                    Accès staff
-                  </span>
-                  <span style={{ color: 'var(--s-text-muted)' }}>·</span>
-                  <div className="flex gap-1.5">
-                    {s.games?.map(g => (
-                      <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                        style={{ fontSize: '9px', padding: '2px 6px' }}>
-                        {g === 'rocket_league' ? 'RL' : 'TM'}
-                      </span>
-                    ))}
-                  </div>
-                  <span style={{ color: 'var(--s-text-muted)' }}>·</span>
-                  <span className="t-mono text-xs" style={{ color: 'var(--s-text-dim)' }}>{s.members.length} membre{s.members.length > 1 ? 's' : ''}</span>
-                </div>
-              </div>
-              <Link href={`/community/structure/${s.id}`} className="btn-springs btn-secondary bevel-sm-border">
-                <span><Eye size={14} /></span> <span>Page publique</span>
-              </Link>
-            </div>
-          </header>
-
-          {/* Calendrier */}
-          <div className="animate-fade-in-d1">
-            <CalendarSection
-              structureId={s.id}
-              structureGames={s.games ?? []}
-              members={s.members}
-              teams={calendarTeams}
-              userContext={userContext}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // ─── Not active state ────────────────────────────────────────────────
-
-  if (!canEdit) {
+  // Structure en attente, suspendue ou refusée — vue minimale pour tous les rôles.
+  if (s.status !== 'active') {
     return (
       <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
         <div className="relative z-[1]">
@@ -1138,7 +1124,7 @@ export default function MyStructurePage() {
         )}
 
         {/* ═══ Onglets ═══ */}
-        <TabBar active={tab} onChange={setTab} />
+        <TabBar active={tab} onChange={setTab} visible={visibleTabs} />
 
         {/* ═══ Dashboard — layout dynamique par onglet ═══ */}
         {tab !== 'calendar' && (
@@ -1594,7 +1580,7 @@ export default function MyStructurePage() {
           }>
 
             {/* ═══ MEMBRES — Invitations & demandes ═══ */}
-            {tab === 'members' && (
+            {tab === 'members' && (isDirigeantOfActive || isManagerOfActive) && (
             <SectionPanel accent="#33ff66" icon={UserPlus} title="INVITATIONS"
               collapsed={collapsed.invitations} onToggle={() => toggle('invitations')}
               action={
@@ -1718,7 +1704,7 @@ export default function MyStructurePage() {
                       const isManagerRow = (s.managerIds ?? []).includes(m.userId);
                       const isCoachRow = (s.coachIds ?? []).includes(m.userId);
                       const structuralColor = isFounderRow || isCoFounderRow ? 'var(--s-gold)' : 'var(--s-text-muted)';
-                      const canRemove = !isFounderRow && !isCoFounderRow;
+                      const canRemove = !isFounderRow && !isCoFounderRow && isDirigeantOfActive;
                       const canManageStaffRoles = (isFounderOfActive || isCoFounderOfActive) && !isFounderRow;
                       const memberDepartureIso = s.coFounderDepartures?.[m.userId];
                       const memberRemainingMs = memberDepartureIso ? Math.max(0, new Date(memberDepartureIso).getTime() + DEPARTURE_NOTICE_MS - now) : null;
@@ -1908,7 +1894,71 @@ export default function MyStructurePage() {
 
         {/* ═══ CALENDRIER ═══ */}
         {tab === 'calendar' && (
-        <div className="animate-fade-in-d3">
+        <div className="animate-fade-in-d3 space-y-6">
+          {/* Launcher Dispos & matching : une carte par équipe accessible (staff ou dirigeant).
+              Cœur de l'UX — le coach accède aux dispos de son équipe depuis ici, le manager
+              et le dirigeant voient toutes les équipes pour préparer les rosters côté calendrier. */}
+          {(() => {
+            const isDirigeant = isDirigeantOfActive;
+            const isManagerLevel = isDirigeant || isManagerOfActive;
+            // Équipes visibles :
+            // - dirigeant/manager : toutes les équipes de la structure
+            // - coach : uniquement celles dont il est staff (via staffedTeamIds)
+            const visibleTeams = isManagerLevel
+              ? teams
+              : teams.filter(t => staffedTeamIds.includes(t.id));
+            if (visibleTeams.length === 0) return null;
+            return (
+              <div className="bevel relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), rgba(123,47,190,0.3), transparent 70%)' }} />
+                <div className="absolute top-0 right-0 w-40 h-40 pointer-events-none"
+                  style={{ background: 'radial-gradient(circle at 100% 0%, rgba(123,47,190,0.06), transparent 70%)' }} />
+                <div className="relative z-[1] px-5 py-3.5 flex items-center gap-3" style={{ borderBottom: '1px solid var(--s-border)' }}>
+                  <div className="w-7 h-7 flex items-center justify-center" style={{ background: 'rgba(123,47,190,0.1)', border: '1px solid rgba(123,47,190,0.25)' }}>
+                    <CalendarClock size={13} style={{ color: 'var(--s-violet-light)' }} />
+                  </div>
+                  <div className="flex-1">
+                    <h2 className="font-display text-sm tracking-wider">DISPOS &amp; DEVOIRS PAR ÉQUIPE</h2>
+                    <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>Ouvre une équipe pour voir le matching des dispos et les devoirs en cours.</p>
+                  </div>
+                </div>
+                <div className="relative z-[1] p-5 grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
+                  {visibleTeams.map(team => {
+                    const drawerTeam: DrawerTeam = {
+                      id: team.id,
+                      name: team.name,
+                      game: team.game,
+                      players: team.players,
+                      subs: team.subs,
+                      staff: team.staff,
+                    };
+                    const gameTag = team.game === 'rocket_league' ? 'RL' : team.game === 'trackmania' ? 'TM' : team.game;
+                    const gameClass = team.game === 'rocket_league' ? 'tag-blue' : 'tag-green';
+                    return (
+                      <div key={team.id} className="p-3 bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className={`tag ${gameClass}`} style={{ fontSize: '9px', padding: '2px 6px' }}>{gameTag}</span>
+                          <span className="font-display text-sm tracking-wider flex-1 truncate">{team.name.toUpperCase()}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <TeamActionChip
+                            icon={<CalendarClock size={12} />}
+                            label="Dispos & matching"
+                            onClick={() => setDrawerState({ team: drawerTeam, tab: 'availability', canEditConfig: isDirigeant })}
+                          />
+                          <TeamActionChip
+                            icon={<ClipboardList size={12} />}
+                            label="Devoirs"
+                            onClick={() => setDrawerState({ team: drawerTeam, tab: 'todos', canEditConfig: isDirigeant })}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
           <CalendarSection
             structureId={s.id}
             structureGames={s.games ?? []}

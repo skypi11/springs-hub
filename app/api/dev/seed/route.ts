@@ -126,6 +126,14 @@ export async function POST() {
   const in3d = Timestamp.fromMillis(now + 3 * 86400 * 1000);
   const in3dEnd = Timestamp.fromMillis(now + 3 * 86400 * 1000 + 90 * 60 * 1000);
 
+  // Utilisateurs invités pour chaque event (target = teams) = titulaires + subs + staff
+  // de la sous-équipe ciblée. Même pattern que /api/structures/[id]/events (route POST).
+  const invitedUserIds = [
+    'discord_dev_player1', 'discord_dev_player2', 'discord_dev_player3',
+    'discord_dev_player4',
+    'discord_dev_coach', 'discord_dev_manager',
+  ];
+
   batch.set(db.collection('structure_events').doc('dev_event_training'), {
     structureId: DEV_STRUCTURE_ID,
     createdBy: 'discord_dev_coach',
@@ -172,6 +180,26 @@ export async function POST() {
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   });
+
+  // 7) Presences — une ligne par (event, user invité). Sans ces rows,
+  //    /api/calendar/me ne renverra pas les events (il query event_presences
+  //    WHERE userId==uid), et la vue joueur sera vide.
+  for (const eventId of ['dev_event_training', 'dev_event_scrim']) {
+    for (const userId of invitedUserIds) {
+      const pRef = db.collection('event_presences').doc(`${eventId}_${userId}`);
+      batch.set(pRef, {
+        eventId,
+        structureId: DEV_STRUCTURE_ID,
+        userId,
+        status: 'pending',
+        wasStructureMember: true,
+        respondedAt: null,
+        updatedBy: null,
+        history: [],
+        isDev: true,
+      });
+    }
+  }
 
   await batch.commit();
   return NextResponse.json({ ok: true, users: DEV_USERS.length, structure: DEV_STRUCTURE_ID });
