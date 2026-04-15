@@ -20,6 +20,9 @@ const DEV_ACCOUNTS = [
   { uid: 'discord_dev_player2',   label: 'Joueur 2',     color: 'var(--s-text)' },
   { uid: 'discord_dev_player3',   label: 'Joueur 3',     color: 'var(--s-text)' },
   { uid: 'discord_dev_player4',   label: 'Joueur 4',     color: 'var(--s-text)' },
+  { uid: 'discord_dev_recruit1',  label: 'Recrue 1',     color: 'var(--s-blue)' },
+  { uid: 'discord_dev_recruit2',  label: 'Recrue 2',     color: 'var(--s-blue)' },
+  { uid: 'discord_dev_recruit3',  label: 'Recrue 3',     color: 'var(--s-blue)' },
   { uid: 'discord_dev_admin',     label: 'Admin Springs', color: 'var(--s-gold)' },
 ];
 

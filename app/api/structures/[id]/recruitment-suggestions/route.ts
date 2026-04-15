@@ -90,7 +90,7 @@ export async function GET(
       if (invitedIds.has(doc.id)) continue;
 
       const data = doc.data();
-      if (data.isDev === true) continue;
+      if (data.isDev === true && process.env.NODE_ENV === 'production') continue;
 
       const playerGames: string[] = data.games || [];
       const matchingGames = openGames.filter(g => playerGames.includes(g));

@@ -12,6 +12,7 @@ const COLLECTIONS_WITH_ISDEV = [
   'sub_teams',
   'structure_events',
   'event_presences',
+  'structure_invitations',
   'admins',
 ];
 
@@ -32,6 +33,30 @@ export async function POST() {
     report[col] = snap.size;
   }
 
+  // Nettoyer les structure_members orphelins rattachés à la structure dev —
+  // les accept/auto-join créent ces docs sans hériter du flag isDev du seed.
+  const orphanMembersSnap = await db.collection('structure_members')
+    .where('structureId', '==', 'dev_test_structure')
+    .get();
+  if (orphanMembersSnap.size > 0) {
+    const batch = db.batch();
+    for (const doc of orphanMembersSnap.docs) batch.delete(doc.ref);
+    await batch.commit();
+  }
+  report.orphanMembers = orphanMembersSnap.size;
+
+  // Même raison : les invitations créées en runtime (join_request, direct_invite,
+  // invite_link, auto-join) ne portent pas isDev et trainent après un reset.
+  const orphanInvSnap = await db.collection('structure_invitations')
+    .where('structureId', '==', 'dev_test_structure')
+    .get();
+  if (orphanInvSnap.size > 0) {
+    const batch = db.batch();
+    for (const doc of orphanInvSnap.docs) batch.delete(doc.ref);
+    await batch.commit();
+  }
+  report.orphanInvitations = orphanInvSnap.size;
+
   // Supprimer les comptes Firebase Auth dev
   const devUids = [
     'discord_dev_founder',
@@ -43,6 +68,9 @@ export async function POST() {
     'discord_dev_player3',
     'discord_dev_player4',
     'discord_dev_admin',
+    'discord_dev_recruit1',
+    'discord_dev_recruit2',
+    'discord_dev_recruit3',
   ];
   let authDeleted = 0;
   for (const uid of devUids) {

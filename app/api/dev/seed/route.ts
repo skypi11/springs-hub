@@ -21,6 +21,15 @@ const DEV_USERS = [
   { uid: 'discord_dev_admin',     displayName: 'Admin Dev',        username: 'admin_dev' },
 ] as const;
 
+// Joueurs libres dispos au recrutement — pas membres de la structure dev.
+// Servent à tester le flow recrutement : demandes de rejoindre, invitations
+// directes depuis le hub dirigeant, suggestions de candidats, etc.
+const DEV_RECRUITS = [
+  { uid: 'discord_dev_recruit1', displayName: 'Recrue 1 Dev', username: 'recruit1_dev', rlRank: 'Champion III', rlMmr: 1320 },
+  { uid: 'discord_dev_recruit2', displayName: 'Recrue 2 Dev', username: 'recruit2_dev', rlRank: 'Diamant II',   rlMmr: 1020 },
+  { uid: 'discord_dev_recruit3', displayName: 'Recrue 3 Dev', username: 'recruit3_dev', rlRank: 'Grand Champion I', rlMmr: 1480 },
+] as const;
+
 export async function POST() {
   if (process.env.NODE_ENV !== 'development') {
     return NextResponse.json({ error: 'Dev only' }, { status: 403 });
@@ -46,6 +55,32 @@ export async function POST() {
       discordAvatar: '',
       games: ['rocket_league'],
       country: 'FR',
+      isDev: true,
+      createdAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  }
+
+  // 1bis) Recrues — joueurs libres, dispo au recrutement, pas membres de la structure dev
+  for (const r of DEV_RECRUITS) {
+    try {
+      await adminAuth.getUser(r.uid);
+    } catch {
+      await adminAuth.createUser({ uid: r.uid, displayName: r.displayName });
+    }
+    const userRef = db.collection('users').doc(r.uid);
+    batch.set(userRef, {
+      uid: r.uid,
+      discordId: r.uid.replace('discord_', ''),
+      discordUsername: r.username,
+      displayName: r.displayName,
+      discordAvatar: '',
+      games: ['rocket_league'],
+      country: 'FR',
+      rlRank: r.rlRank,
+      rlMmr: r.rlMmr,
+      isAvailableForRecruitment: true,
+      availableRole: 'joueur',
+      recruitmentMessage: `Salut, je suis ${r.displayName} (${r.rlRank}), dispo en soirée et weekends. À la recherche d'une structure sérieuse pour progresser.`,
       isDev: true,
       createdAt: FieldValue.serverTimestamp(),
     }, { merge: true });
@@ -201,6 +236,26 @@ export async function POST() {
     }
   }
 
+  // 8) Une demande de rejoindre pending — de recruit1 vers Dev Test Squad.
+  //    Permet de tester accept/decline dans le hub recrutement côté dirigeant.
+  batch.set(db.collection('structure_invitations').doc('dev_join_request_recruit1'), {
+    type: 'join_request',
+    structureId: DEV_STRUCTURE_ID,
+    applicantId: 'discord_dev_recruit1',
+    createdBy: 'discord_dev_recruit1',
+    game: 'rocket_league',
+    role: 'joueur',
+    message: 'Salut, Champion 3 RL, je cherche une structure pour grind vers le GC. Dispo soir + weekends.',
+    status: 'pending',
+    isDev: true,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
   await batch.commit();
-  return NextResponse.json({ ok: true, users: DEV_USERS.length, structure: DEV_STRUCTURE_ID });
+  return NextResponse.json({
+    ok: true,
+    users: DEV_USERS.length,
+    recruits: DEV_RECRUITS.length,
+    structure: DEV_STRUCTURE_ID,
+  });
 }
