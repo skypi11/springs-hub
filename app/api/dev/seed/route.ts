@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminDb, getAdminAuth } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 // POST /api/dev/seed — peuple Firestore avec des comptes et une structure de test.
 // Dev-only : bloqué en production. Tous les documents créés ont `isDev: true` pour
@@ -118,11 +118,13 @@ export async function POST() {
   });
 
   // 6) Deux events (un à venir, un dans quelques jours)
+  //    startsAt/endsAt DOIVENT être des Firestore Timestamp — les API serveur
+  //    appellent `.toMillis()` / `.toDate()` dessus (cf availability route).
   const now = Date.now();
-  const in2h = new Date(now + 2 * 3600 * 1000).toISOString();
-  const in3h = new Date(now + 3 * 3600 * 1000).toISOString();
-  const in3d = new Date(now + 3 * 86400 * 1000).toISOString();
-  const in3dEnd = new Date(now + 3 * 86400 * 1000 + 90 * 60 * 1000).toISOString();
+  const in2h = Timestamp.fromMillis(now + 2 * 3600 * 1000);
+  const in3h = Timestamp.fromMillis(now + 3 * 3600 * 1000);
+  const in3d = Timestamp.fromMillis(now + 3 * 86400 * 1000);
+  const in3dEnd = Timestamp.fromMillis(now + 3 * 86400 * 1000 + 90 * 60 * 1000);
 
   batch.set(db.collection('structure_events').doc('dev_event_training'), {
     structureId: DEV_STRUCTURE_ID,
@@ -130,12 +132,22 @@ export async function POST() {
     title: 'Entraînement Mécaniques',
     type: 'training',
     description: 'Session mécaniques + aerials',
+    location: '',
     startsAt: in2h,
     endsAt: in3h,
     target: { scope: 'teams', teamIds: [DEV_SUBTEAM_ID] },
     status: 'scheduled',
+    completedAt: null,
+    completedBy: null,
+    cancelledAt: null,
+    cancelledBy: null,
+    cancelReason: null,
+    compteRendu: '',
+    aTravailler: '',
+    adversaire: null,
     isDev: true,
     createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   });
   batch.set(db.collection('structure_events').doc('dev_event_scrim'), {
     structureId: DEV_STRUCTURE_ID,
@@ -143,12 +155,22 @@ export async function POST() {
     title: 'Scrim vs équipe X',
     type: 'scrim',
     description: '',
+    location: '',
     startsAt: in3d,
     endsAt: in3dEnd,
     target: { scope: 'teams', teamIds: [DEV_SUBTEAM_ID] },
     status: 'scheduled',
+    completedAt: null,
+    completedBy: null,
+    cancelledAt: null,
+    cancelledBy: null,
+    cancelReason: null,
+    compteRendu: '',
+    aTravailler: '',
+    adversaire: 'Équipe X',
     isDev: true,
     createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   });
 
   await batch.commit();
