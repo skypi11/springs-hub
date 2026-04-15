@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { User, Search, Gamepad2, ArrowUpDown, Sparkles, Star, Target } from 'lucide-react';
+import { User, Search, Gamepad2, ArrowUpDown, Sparkles, Star, Target, SlidersHorizontal, X } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
@@ -74,6 +74,15 @@ export default function PlayersPage() {
   const [recruitingFilter, setRecruitingFilter] = useState(false);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('default');
+  // Filtres avancés (expanded panel)
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [roleFilter, setRoleFilter] = useState('');
+  const [countryFilter, setCountryFilter] = useState('');
+  const [mmrMin, setMmrMin] = useState('');
+  const [mmrMax, setMmrMax] = useState('');
+  const [echelonMin, setEchelonMin] = useState('');
+  const [echelonMax, setEchelonMax] = useState('');
+  const [noStructureFilter, setNoStructureFilter] = useState(false);
   // Positions ouvertes agrégées sur toutes les structures où le viewer est dirigeant.
   // Sert à afficher un badge « Match » sur les cards de joueurs qui correspondent.
   const [viewerOpenPositions, setViewerOpenPositions] = useState<OpenPosition[]>([]);
@@ -143,14 +152,36 @@ export default function PlayersPage() {
     }));
   }, [players, viewerOpenPositions]);
 
+  // Liste unique des pays présents chez les joueurs actuellement chargés.
+  // Dérivée du dataset plutôt que codée en dur — si seule la FR est représentée,
+  // on n'affiche que FR dans le select pour éviter des filtres qui retournent 0.
+  const availableCountries = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of players) if (p.country) set.add(p.country);
+    return [...set].sort();
+  }, [players]);
+
+  const mmrMinNum = mmrMin ? parseInt(mmrMin, 10) : null;
+  const mmrMaxNum = mmrMax ? parseInt(mmrMax, 10) : null;
+  const echelonMinNum = echelonMin ? parseInt(echelonMin, 10) : null;
+  const echelonMaxNum = echelonMax ? parseInt(echelonMax, 10) : null;
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const base = q
-      ? playersWithMatches.filter(({ player: p }) =>
-          p.displayName.toLowerCase().includes(q) ||
-          (p.pseudoTM && p.pseudoTM.toLowerCase().includes(q))
-        )
-      : playersWithMatches;
+    const base = playersWithMatches.filter(({ player: p }) => {
+      if (q && !(p.displayName.toLowerCase().includes(q) || (p.pseudoTM && p.pseudoTM.toLowerCase().includes(q)))) return false;
+      if (roleFilter && p.recruitmentRole !== roleFilter) return false;
+      if (countryFilter && p.country !== countryFilter) return false;
+      if (mmrMinNum !== null && (p.rlMmr == null || p.rlMmr < mmrMinNum)) return false;
+      if (mmrMaxNum !== null && (p.rlMmr == null || p.rlMmr > mmrMaxNum)) return false;
+      if (echelonMinNum !== null && (p.tmEchelon == null || p.tmEchelon < echelonMinNum)) return false;
+      if (echelonMaxNum !== null && (p.tmEchelon == null || p.tmEchelon > echelonMaxNum)) return false;
+      if (noStructureFilter) {
+        const hasAny = Object.values(p.structurePerGame || {}).some(Boolean);
+        if (hasAny) return false;
+      }
+      return true;
+    });
     const arr = [...base];
     switch (sortKey) {
       case 'alpha':
@@ -167,11 +198,18 @@ export default function PlayersPage() {
         break;
     }
     return arr;
-  }, [playersWithMatches, search, sortKey]);
+  }, [playersWithMatches, search, sortKey, roleFilter, countryFilter, mmrMinNum, mmrMaxNum, echelonMinNum, echelonMaxNum, noStructureFilter]);
 
   const availableCount = players.filter(p => p.isAvailableForRecruitment).length;
   const count = filtered.length;
-  const hasFilters = search.trim() !== '' || gameFilter !== '' || recruitingFilter;
+  const hasAdvancedFilters = roleFilter !== '' || countryFilter !== '' || mmrMin !== '' || mmrMax !== '' || echelonMin !== '' || echelonMax !== '' || noStructureFilter;
+  const hasFilters = search.trim() !== '' || gameFilter !== '' || recruitingFilter || hasAdvancedFilters;
+
+  const resetAll = () => {
+    setSearch(''); setGameFilter(''); setRecruitingFilter(false);
+    setRoleFilter(''); setCountryFilter(''); setMmrMin(''); setMmrMax('');
+    setEchelonMin(''); setEchelonMax(''); setNoStructureFilter(false);
+  };
 
   const gridCols = count < 4
     ? 'grid-cols-1 md:grid-cols-2'
@@ -254,7 +292,163 @@ export default function PlayersPage() {
                 {viewerOpenPositions.length > 0 && <option value="match">Match avec ma structure</option>}
               </select>
             </div>
+
+            {/* Toggle filtres avancés */}
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(v => !v)}
+              className="tag transition-all duration-150 inline-flex items-center gap-1.5"
+              style={{
+                background: showAdvanced || hasAdvancedFilters ? 'rgba(123,47,190,0.12)' : 'transparent',
+                color: showAdvanced || hasAdvancedFilters ? 'var(--s-violet-light)' : 'var(--s-text-muted)',
+                borderColor: showAdvanced || hasAdvancedFilters ? 'rgba(123,47,190,0.35)' : 'var(--s-border)',
+                cursor: 'pointer',
+              }}
+            >
+              <SlidersHorizontal size={12} />
+              Filtres avancés
+              {hasAdvancedFilters && (
+                <span className="tag" style={{ fontSize: '12px', padding: '0 5px', background: 'rgba(123,47,190,0.25)', color: 'var(--s-violet-light)', borderColor: 'transparent' }}>
+                  {[roleFilter, countryFilter, mmrMin, mmrMax, echelonMin, echelonMax, noStructureFilter ? '1' : ''].filter(Boolean).length}
+                </span>
+              )}
+            </button>
           </div>
+
+          {/* Panel filtres avancés (expand) */}
+          {showAdvanced && (
+            <div className="relative z-[1] px-6 py-4 border-t animate-fade-in-d1" style={{ borderColor: 'var(--s-border)', background: 'rgba(123,47,190,0.03)' }}>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Rôle recherché */}
+                <div className="space-y-1.5">
+                  <label className="t-label" style={{ color: 'var(--s-text-dim)' }}>Rôle recherché</label>
+                  <select
+                    value={roleFilter}
+                    onChange={e => setRoleFilter(e.target.value)}
+                    className="settings-input w-full"
+                    style={{ fontSize: '13px', padding: '6px 10px', cursor: 'pointer' }}
+                  >
+                    <option value="">Tous</option>
+                    <option value="joueur">Joueur</option>
+                    <option value="coach">Coach</option>
+                    <option value="manager">Manager</option>
+                  </select>
+                </div>
+
+                {/* Pays */}
+                <div className="space-y-1.5">
+                  <label className="t-label" style={{ color: 'var(--s-text-dim)' }}>Pays</label>
+                  <select
+                    value={countryFilter}
+                    onChange={e => setCountryFilter(e.target.value)}
+                    className="settings-input w-full"
+                    style={{ fontSize: '13px', padding: '6px 10px', cursor: 'pointer' }}
+                    disabled={availableCountries.length === 0}
+                  >
+                    <option value="">Tous</option>
+                    {availableCountries.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Sans structure */}
+                <div className="space-y-1.5">
+                  <label className="t-label" style={{ color: 'var(--s-text-dim)' }}>Statut structure</label>
+                  <button
+                    type="button"
+                    onClick={() => setNoStructureFilter(v => !v)}
+                    className="tag transition-all duration-150 inline-flex items-center gap-1.5 w-full justify-center"
+                    style={{
+                      background: noStructureFilter ? 'rgba(0,217,54,0.12)' : 'transparent',
+                      color: noStructureFilter ? '#33ff66' : 'var(--s-text-muted)',
+                      borderColor: noStructureFilter ? 'rgba(0,217,54,0.35)' : 'var(--s-border)',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      padding: '6px 10px',
+                    }}
+                  >
+                    {noStructureFilter && <Star size={11} />}
+                    Sans structure uniquement
+                  </button>
+                </div>
+
+                {/* MMR RL min/max */}
+                <div className="space-y-1.5">
+                  <label className="t-label" style={{ color: 'var(--s-text-dim)' }}>MMR RL (min / max)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      placeholder="min"
+                      value={mmrMin}
+                      onChange={e => setMmrMin(e.target.value)}
+                      className="settings-input w-full"
+                      style={{ fontSize: '13px', padding: '6px 10px' }}
+                    />
+                    <span style={{ color: 'var(--s-text-muted)' }}>→</span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      placeholder="max"
+                      value={mmrMax}
+                      onChange={e => setMmrMax(e.target.value)}
+                      className="settings-input w-full"
+                      style={{ fontSize: '13px', padding: '6px 10px' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Échelon TM min/max */}
+                <div className="space-y-1.5">
+                  <label className="t-label" style={{ color: 'var(--s-text-dim)' }}>Échelon TM (min / max)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      placeholder="min"
+                      value={echelonMin}
+                      onChange={e => setEchelonMin(e.target.value)}
+                      className="settings-input w-full"
+                      style={{ fontSize: '13px', padding: '6px 10px' }}
+                    />
+                    <span style={{ color: 'var(--s-text-muted)' }}>→</span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      placeholder="max"
+                      value={echelonMax}
+                      onChange={e => setEchelonMax(e.target.value)}
+                      className="settings-input w-full"
+                      style={{ fontSize: '13px', padding: '6px 10px' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Reset */}
+                <div className="space-y-1.5 flex flex-col justify-end">
+                  {hasAdvancedFilters && (
+                    <button
+                      type="button"
+                      onClick={resetAll}
+                      className="tag transition-all duration-150 inline-flex items-center gap-1.5 justify-center"
+                      style={{
+                        background: 'transparent',
+                        color: '#ff5555',
+                        borderColor: 'rgba(255,85,85,0.3)',
+                        cursor: 'pointer',
+                        fontSize: '13px',
+                        padding: '6px 10px',
+                      }}
+                    >
+                      <X size={11} />
+                      Réinitialiser
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </header>
 
         {/* Compteur de résultats */}
@@ -272,7 +466,7 @@ export default function PlayersPage() {
           <EmptyState
             hasFilters={hasFilters}
             totalCount={players.length}
-            onReset={() => { setSearch(''); setGameFilter(''); setRecruitingFilter(false); }}
+            onReset={resetAll}
           />
         ) : (
           <div className={`grid ${gridCols} gap-4 animate-fade-in-d2`}>
