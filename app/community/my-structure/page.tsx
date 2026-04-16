@@ -440,9 +440,13 @@ export default function MyStructurePage() {
     );
     if (canLoadInvitations) loadInvitations(s.id);
     else { setInviteLinks([]); setJoinRequests([]); setDirectInvites([]); }
-    // Suggestions : dirigeant uniquement
-    const isDirigeantLocal = !!uid && (s.founderId === uid || (s.coFounderIds ?? []).includes(uid));
-    if (isDirigeantLocal && s.recruiting?.active) loadSuggestions(s.id);
+    // Suggestions : dirigeant ou manager
+    const canSeeSuggestions = !!uid && (
+      s.founderId === uid ||
+      (s.coFounderIds ?? []).includes(uid) ||
+      (s.managerIds ?? []).includes(uid)
+    );
+    if (canSeeSuggestions && s.recruiting?.active) loadSuggestions(s.id);
     else setSuggestions([]);
     // Shortlist : dirigeant (founder/cofounder/manager) uniquement
     if (canLoadInvitations) loadShortlist(s.id);
@@ -645,13 +649,14 @@ export default function MyStructurePage() {
   // Onglets visibles selon le rôle. Les tabs cachés retirent à la fois le contenu
   // et l'entrée de la barre — aucun faux positif possible côté UI.
   // - Dirigeant : tout
-  // - Manager   : équipes + membres (invitations côté manager OK, kick/role = dirigeant) + calendrier
+  // - Manager   : équipes + recrutement (liens/demandes/invites/shortlist/suggestions — toggle ON/OFF
+  //               + message public = dirigeant-only via PUT API gate) + membres + calendrier
   // - Coach     : membres (readonly) + calendrier (avec dispos/todos par équipe)
   // La branding et le toggle recrutement restent dirigeant-only (PUT API gate).
   const visibleTabs: DashboardTab[] = isDirigeantOfActive
     ? ['general', 'teams', 'recruitment', 'members', 'calendar']
     : isManagerOfActive
-    ? ['teams', 'members', 'calendar']
+    ? ['teams', 'recruitment', 'members', 'calendar']
     : isCoachOfActive
     ? ['members', 'calendar']
     : ['calendar'];
@@ -1392,7 +1397,7 @@ export default function MyStructurePage() {
             </>)}
 
             {/* ═══ RECRUTEMENT ═══ */}
-            {tab === 'recruitment' && (
+            {tab === 'recruitment' && isDirigeantOfActive && (
             <SectionPanel accent="#33ff66" icon={Search} title="RECRUTEMENT"
               collapsed={collapsed.recruit} onToggle={() => toggle('recruit')}>
               <div className="space-y-4">
@@ -1472,7 +1477,7 @@ export default function MyStructurePage() {
             )}
 
             {/* ═══ RECRUTEMENT — Liens d'invitation ═══ */}
-            {tab === 'recruitment' && isDirigeantOfActive && (
+            {tab === 'recruitment' && (isDirigeantOfActive || isManagerOfActive) && (
             <SectionPanel accent="#33ff66" icon={UserPlus} title="LIENS D'INVITATION"
               collapsed={collapsed.inviteLinks} onToggle={() => toggle('inviteLinks')}>
               <div className="space-y-3">
@@ -1530,7 +1535,7 @@ export default function MyStructurePage() {
             )}
 
             {/* ═══ RECRUTEMENT — Demandes reçues ═══ */}
-            {tab === 'recruitment' && isDirigeantOfActive && (
+            {tab === 'recruitment' && (isDirigeantOfActive || isManagerOfActive) && (
             <SectionPanel accent="var(--s-gold)" icon={UserPlus} title={`DEMANDES REÇUES${joinRequests.length > 0 ? ` (${joinRequests.length})` : ''}`}
               collapsed={collapsed.joinRequests} onToggle={() => toggle('joinRequests')}>
               {joinRequests.length === 0 ? (
@@ -1610,7 +1615,7 @@ export default function MyStructurePage() {
             )}
 
             {/* ═══ RECRUTEMENT — Invitations envoyées ═══ */}
-            {tab === 'recruitment' && isDirigeantOfActive && (
+            {tab === 'recruitment' && (isDirigeantOfActive || isManagerOfActive) && (
             <SectionPanel accent="var(--s-violet)" icon={UserPlus} title={`INVITATIONS ENVOYÉES${directInvites.length > 0 ? ` (${directInvites.length})` : ''}`}
               collapsed={collapsed.sentInvites} onToggle={() => toggle('sentInvites')}>
               {directInvites.length === 0 ? (
@@ -1681,7 +1686,7 @@ export default function MyStructurePage() {
             )}
 
             {/* ═══ RECRUTEMENT — Candidats suggérés ═══ */}
-            {tab === 'recruitment' && isDirigeantOfActive && (
+            {tab === 'recruitment' && (isDirigeantOfActive || isManagerOfActive) && (
             <SectionPanel accent="var(--s-gold)" icon={Bookmark} title="SHORTLIST"
               collapsed={collapsed.shortlist} onToggle={() => toggle('shortlist')}>
               {shortlistLoading ? (
@@ -1759,7 +1764,7 @@ export default function MyStructurePage() {
             </SectionPanel>
             )}
 
-            {tab === 'recruitment' && isDirigeantOfActive && s.recruiting?.active && (
+            {tab === 'recruitment' && (isDirigeantOfActive || isManagerOfActive) && s.recruiting?.active && (
             <SectionPanel accent="var(--s-gold)" icon={Search} title="CANDIDATS SUGGÉRÉS"
               collapsed={collapsed.suggestions} onToggle={() => toggle('suggestions')}>
               {suggestionsLoading ? (
@@ -2030,8 +2035,8 @@ export default function MyStructurePage() {
             </SectionPanel>
             )}
 
-            {/* ═══ Save button — visible pour les onglets éditables ═══ */}
-            {(tab === 'general' || tab === 'recruitment') && (<>
+            {/* ═══ Save button — visible pour les onglets éditables (dirigeant only) ═══ */}
+            {(tab === 'general' || tab === 'recruitment') && isDirigeantOfActive && (<>
             {error && (
               <div className="flex items-center gap-2 px-4 py-3 bevel-sm" style={{ background: 'rgba(255,50,50,0.08)', border: '1px solid rgba(255,50,50,0.25)' }}>
                 <AlertCircle size={14} style={{ color: '#ff5555' }} />
