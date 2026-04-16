@@ -306,14 +306,14 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                             >
                               {rlStats.mmr}
                             </p>
-                            <p className="t-label" style={{ fontSize: '9px' }}>MMR</p>
+                            <p className="t-label">MMR</p>
                           </div>
                         )}
                       </div>
 
                       {rlStats.playlist && (
                         <div className="flex items-center gap-2 px-3 py-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                          <span className="t-label" style={{ fontSize: '10px', color: 'var(--s-text-muted)' }}>PLAYLIST</span>
+                          <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>PLAYLIST</span>
                           <span className="text-xs font-semibold ml-auto" style={{ color: 'var(--s-text)' }}>{rlStats.playlist}</span>
                         </div>
                       )}
@@ -386,13 +386,13 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                             <p className="font-display text-2xl" style={{ color: '#33ff66', lineHeight: 1 }}>
                               {tmStats.trophies != null ? new Intl.NumberFormat('fr-FR').format(tmStats.trophies) : '—'}
                             </p>
-                            <p className="t-label" style={{ fontSize: '8px' }}>TROPHÉES</p>
+                            <p className="t-label">TROPHÉES</p>
                           </div>
                         </div>
                         {tmStats.echelon !== null && tmStats.echelon > 0 && (
                           <div title="Échelon Trackmania : niveau global calculé à partir des trophées (1 à 9)">
                             <p className="font-display text-2xl" style={{ color: 'var(--s-text)', lineHeight: 1 }}>{tmStats.echelon}</p>
-                            <p className="t-label" style={{ fontSize: '9px' }}>ÉCHELON</p>
+                            <p className="t-label">ÉCHELON</p>
                           </div>
                         )}
                       </div>
@@ -400,7 +400,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       {/* Classements par zone */}
                       {tmStats.zoneRankings && tmStats.zoneRankings.length > 0 && (
                         <div>
-                          <span className="t-label block mb-2" style={{ fontSize: '9px' }}>CLASSEMENT PAR ZONE</span>
+                          <span className="t-label block mb-2">CLASSEMENT PAR ZONE</span>
                           <div className="space-y-1">
                             {tmStats.zoneRankings.map((zr) => (
                               <div key={zr.zone} className="flex items-center justify-between px-3 py-2"
@@ -420,7 +420,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                         <div>
                           <span
                             className="t-label block mb-2"
-                            style={{ fontSize: '10px' }}
                             title="Les trophées sont classés en 9 tiers : T1-T3 bronze, T4-T6 argent, T7-T9 or"
                           >
                             TROPHÉES PAR TIER
@@ -445,7 +444,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                                   <p className="font-display text-base" style={{ color: td.color, lineHeight: 1 }}>
                                     {new Intl.NumberFormat('fr-FR').format(t.count)}
                                   </p>
-                                  <p className="t-label mt-0.5" style={{ fontSize: '9px', color: td.color, opacity: 0.85 }}>T{t.tier}</p>
+                                  <p className="t-label mt-0.5" style={{ color: td.color, opacity: 0.85 }}>T{t.tier}</p>
                                 </div>
                               );
                             })}
@@ -458,7 +457,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                         <div>
                           <span
                             className="t-label block mb-2"
-                            style={{ fontSize: '10px' }}
                             title="Cup of the Day : compétition quotidienne Trackmania (qualifications puis bracket à élimination directe)"
                           >
                             CUP OF THE DAY
@@ -471,7 +469,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                                 title={`Meilleur classement en COTD${tmStats.cotdBestDiv ? ` — Division ${tmStats.cotdBestDiv}` : ''}`}
                               >
                                 <p className="font-display text-lg" style={{ color: '#33ff66', lineHeight: 1 }}>#{tmStats.cotdBestRank}</p>
-                                <p className="t-label mt-0.5" style={{ fontSize: '9px' }}>
+                                <p className="t-label mt-0.5">
                                   MEILLEUR{tmStats.cotdBestDiv ? ` (D${tmStats.cotdBestDiv})` : ''}
                                 </p>
                               </div>
@@ -483,7 +481,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                                 title="Classement moyen sur toutes les COTD jouées"
                               >
                                 <p className="font-display text-lg" style={{ color: 'var(--s-text)', lineHeight: 1 }}>#{tmStats.cotdAvgRank}</p>
-                                <p className="t-label mt-0.5" style={{ fontSize: '9px' }}>MOYENNE</p>
+                                <p className="t-label mt-0.5">MOYENNE</p>
                               </div>
                             )}
                             {tmStats.cotdCount > 0 && (
@@ -493,7 +491,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                                 title="Nombre total de COTD jouées"
                               >
                                 <p className="font-display text-lg" style={{ color: 'var(--s-text)', lineHeight: 1 }}>{tmStats.cotdCount}</p>
-                                <p className="t-label mt-0.5" style={{ fontSize: '9px' }}>JOUÉES</p>
+                                <p className="t-label mt-0.5">JOUÉES</p>
                               </div>
                             )}
                           </div>
@@ -551,7 +549,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                 <div className="p-5 space-y-3">
                   {profile.recruitmentRole && (
                     <div className="flex items-center gap-2 px-3 py-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                      <span className="t-label" style={{ fontSize: '9px' }}>RÔLE</span>
+                      <span className="t-label">RÔLE</span>
                       <span className="text-sm font-semibold ml-auto" style={{ color: 'var(--s-text)' }}>
                         {profile.recruitmentRole.charAt(0).toUpperCase() + profile.recruitmentRole.slice(1)}
                       </span>

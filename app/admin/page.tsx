@@ -843,7 +843,7 @@ export default function AdminPage() {
                               {/* Comptes Rocket League */}
                               {editForm.games.includes('rocket_league') && (
                                 <div className="p-3 space-y-3" style={{ background: 'rgba(0,129,255,0.04)', border: '1px solid rgba(0,129,255,0.15)' }}>
-                                  <span className="t-label" style={{ color: 'var(--s-blue)', fontSize: '9px' }}>COMPTES ROCKET LEAGUE</span>
+                                  <span className="t-label" style={{ color: 'var(--s-blue)' }}>COMPTES ROCKET LEAGUE</span>
                                   <div className="grid grid-cols-2 gap-3">
                                     <div>
                                       <label className="t-label block mb-1">Epic Account ID</label>
@@ -864,7 +864,7 @@ export default function AdminPage() {
                               {/* Comptes Trackmania */}
                               {editForm.games.includes('trackmania') && (
                                 <div className="p-3 space-y-3" style={{ background: 'rgba(0,217,54,0.04)', border: '1px solid rgba(0,217,54,0.15)' }}>
-                                  <span className="t-label" style={{ color: 'var(--s-green)', fontSize: '9px' }}>COMPTES TRACKMANIA</span>
+                                  <span className="t-label" style={{ color: 'var(--s-green)' }}>COMPTES TRACKMANIA</span>
                                   <div className="grid grid-cols-3 gap-3">
                                     <div>
                                       <label className="t-label block mb-1">Pseudo TM</label>

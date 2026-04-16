@@ -191,7 +191,7 @@ function RosterSlot({ label, labelColor, members, available, canAdd, loading, on
 }) {
   return (
     <div className="p-2.5" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <p className="t-label mb-2" style={{ fontSize: '9px', color: labelColor }}>{label}</p>
+      <p className="t-label mb-2" style={{ color: labelColor }}>{label}</p>
       <div className="space-y-1.5">
         {members.map(p => (
           <div key={p.uid} className="flex items-center gap-1.5 group/slot">
@@ -1334,7 +1334,7 @@ export default function MyStructurePage() {
                   </div>
                 </div>
                 {/* Légende markdown */}
-                <div className="flex flex-wrap gap-x-4 gap-y-1 px-1" style={{ color: 'var(--s-text-muted)', fontSize: '10px' }}>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 px-1" style={{ color: 'var(--s-text-muted)', fontSize: '12px' }}>
                   <span><strong style={{ color: 'var(--s-text-dim)' }}>**gras**</strong></span>
                   <span><em>*italique*</em></span>
                   <span>## Titre</span>
@@ -1837,7 +1837,7 @@ export default function MyStructurePage() {
                       <div className="flex items-start gap-2">
                         <div className="flex-1 grid grid-cols-2 gap-2">
                           <div>
-                            <label className="t-label block mb-1" style={{ fontSize: '9px' }}>Placement *</label>
+                            <label className="t-label block mb-1">Placement *</label>
                             <select className="settings-input w-full" value={a.placement}
                               onChange={e => {
                                 const achs = [...editAchievements];
@@ -1857,7 +1857,7 @@ export default function MyStructurePage() {
                             </select>
                           </div>
                           <div>
-                            <label className="t-label block mb-1" style={{ fontSize: '9px' }}>Compétition *</label>
+                            <label className="t-label block mb-1">Compétition *</label>
                             <input type="text" className="settings-input w-full" placeholder="Springs Cup S2"
                               value={a.competition} onChange={e => {
                                 const achs = [...editAchievements];
@@ -1873,7 +1873,7 @@ export default function MyStructurePage() {
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="t-label block mb-1" style={{ fontSize: '9px' }}>Jeu</label>
+                          <label className="t-label block mb-1">Jeu</label>
                           <select className="settings-input w-full" value={a.game}
                             onChange={e => {
                               const achs = [...editAchievements];
@@ -1885,7 +1885,7 @@ export default function MyStructurePage() {
                           </select>
                         </div>
                         <div>
-                          <label className="t-label block mb-1" style={{ fontSize: '9px' }}>Date</label>
+                          <label className="t-label block mb-1">Date</label>
                           <input type="month" className="settings-input w-full"
                             value={a.date} onChange={e => {
                               const achs = [...editAchievements];
@@ -2072,7 +2072,7 @@ export default function MyStructurePage() {
                 {/* Liens actifs */}
                 {inviteLinks.length > 0 && (
                   <div className="space-y-2">
-                    <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-dim)' }}>LIENS D&apos;INVITATION</p>
+                    <p className="t-label">LIENS D&apos;INVITATION</p>
                     {inviteLinks.map(link => (
                       <div key={link.id} className="flex items-center gap-2 p-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                         <div className="flex-1 min-w-0">
@@ -2101,7 +2101,7 @@ export default function MyStructurePage() {
                 {/* Demandes en attente */}
                 {joinRequests.length > 0 ? (
                   <div className="space-y-2">
-                    <p className="t-label" style={{ fontSize: '9px', color: 'var(--s-gold)' }}>
+                    <p className="t-label" style={{ color: 'var(--s-gold)' }}>
                       DEMANDES EN ATTENTE ({joinRequests.length})
                     </p>
                     {joinRequests.map(jr => {
@@ -2448,12 +2448,12 @@ export default function MyStructurePage() {
               <div className="bevel-sm p-4 text-center relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
                 <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(0,129,255,0.06), transparent 70%)' }} />
                 <p className="font-display text-2xl relative z-[1]" style={{ color: 'var(--s-blue)' }}>{teams.filter(t => t.game === 'rocket_league').length}</p>
-                <p className="t-label mt-1 relative z-[1]" style={{ fontSize: '8px' }}>ÉQUIPES RL</p>
+                <p className="t-label mt-1 relative z-[1]">ÉQUIPES RL</p>
               </div>
               <div className="bevel-sm p-4 text-center relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
                 <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(0,217,54,0.06), transparent 70%)' }} />
                 <p className="font-display text-2xl relative z-[1]" style={{ color: 'var(--s-green)' }}>{teams.filter(t => t.game === 'trackmania').length}</p>
-                <p className="t-label mt-1 relative z-[1]" style={{ fontSize: '8px' }}>ÉQUIPES TM</p>
+                <p className="t-label mt-1 relative z-[1]">ÉQUIPES TM</p>
               </div>
             </div>
             )}

@@ -454,7 +454,7 @@ function NewTodoForm({
   return (
     <div className="p-3 space-y-3" style={{ background: 'var(--s-surface)', border: '1px solid rgba(123,47,190,0.25)' }}>
       <div>
-        <label className="t-label block mb-1" style={{ fontSize: '11px' }}>Titre *</label>
+        <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Titre *</label>
         <input type="text" className="settings-input w-full text-sm"
           placeholder="Regarder la VOD du match de samedi"
           maxLength={TODO_TITLE_MAX}
@@ -462,7 +462,7 @@ function NewTodoForm({
       </div>
 
       <div>
-        <label className="t-label block mb-1" style={{ fontSize: '11px' }}>Description (optionnelle)</label>
+        <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Description (optionnelle)</label>
         <textarea rows={2} className="settings-input w-full text-sm"
           placeholder="Noter 2 situations à retravailler avant mardi"
           maxLength={TODO_DESCRIPTION_MAX}
@@ -471,7 +471,7 @@ function NewTodoForm({
 
       <div>
         <div className="flex items-center justify-between mb-1.5">
-          <label className="t-label" style={{ fontSize: '11px' }}>Assigner à * ({assigneeIds.length})</label>
+          <label className="t-label" style={{ fontSize: '12px' }}>Assigner à * ({assigneeIds.length})</label>
           <button type="button" onClick={selectAll}
             className="text-xs transition-colors" style={{ color: 'var(--s-violet-light)', cursor: 'pointer' }}>
             Tout sélectionner
@@ -523,12 +523,12 @@ function NewTodoForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="t-label block mb-1" style={{ fontSize: '11px' }}>Deadline (optionnelle)</label>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Deadline (optionnelle)</label>
           <input type="date" className="settings-input w-full text-sm"
             value={deadline} onChange={e => setDeadline(e.target.value)} />
         </div>
         <div>
-          <label className="t-label block mb-1" style={{ fontSize: '11px' }}>Event lié (optionnel)</label>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Event lié (optionnel)</label>
           <select className="settings-input w-full text-sm"
             value={eventId} onChange={e => setEventId(e.target.value)}>
             <option value="">— Aucun —</option>

@@ -524,7 +524,7 @@ function ConsensusHeatmap({
 
         {/* Legend */}
         <div className="flex items-center gap-3 mt-3 pt-3 flex-wrap" style={{ borderTop: '1px solid var(--s-border)' }}>
-          <span className="t-label" style={{ fontSize: '10px', color: 'var(--s-text-muted)' }}>CHAQUE CASE = 30 MIN</span>
+          <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>CHAQUE CASE = 30 MIN</span>
           <div className="flex items-center gap-1.5">
             <LegendSwatch color="rgba(255,255,255,0.04)" />
             <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>0 joueur</span>
@@ -731,7 +731,7 @@ function SlotDetailCard({
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <p className="t-label mb-2" style={{ fontSize: '11px', color: 'var(--s-gold)' }}>
+          <p className="t-label mb-2" style={{ color: 'var(--s-gold)' }}>
             DISPO ({available.length})
           </p>
           {available.length === 0 ? (
@@ -745,7 +745,7 @@ function SlotDetailCard({
           )}
         </div>
         <div>
-          <p className="t-label mb-2" style={{ fontSize: '11px', color: 'var(--s-text-muted)' }}>
+          <p className="t-label mb-2" style={{ color: 'var(--s-text-muted)' }}>
             PAS DISPO ({unavailable.length})
           </p>
           {unavailable.length === 0 ? (
@@ -776,10 +776,10 @@ function MemberLine({ member, conflicted, dim }: { member: Member; conflicted: b
         {member.displayName}
       </span>
       {!member.isTitulaire && (
-        <span className="t-label" style={{ fontSize: '9px', color: 'var(--s-text-muted)' }}>REMP</span>
+        <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>REMP</span>
       )}
       {conflicted && (
-        <span className="t-label" style={{ fontSize: '9px', color: '#ff9955' }}>EVENT</span>
+        <span className="t-label" style={{ color: '#ff9955' }}>EVENT</span>
       )}
     </div>
   );
@@ -864,9 +864,9 @@ function PlayerHeatmapCard({
           {member.displayName}
         </span>
         {!member.isTitulaire && (
-          <span className="t-label" style={{ fontSize: '10px', color: 'var(--s-text-muted)' }}>REMP</span>
+          <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>REMP</span>
         )}
-        <span className="ml-auto t-mono flex-shrink-0" style={{ fontSize: '11px', color: 'var(--s-text-dim)' }}>
+        <span className="ml-auto t-mono flex-shrink-0" style={{ fontSize: '12px', color: 'var(--s-text-dim)' }}>
           {totals ? `${totals.hours}h dispo${totals.conflictHours > 0 ? ` · ${totals.conflictHours}h d'event` : ''}` : '—'}
         </span>
       </div>

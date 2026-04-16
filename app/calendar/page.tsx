@@ -349,12 +349,12 @@ function MyEventCard({
           <p className="font-display text-3xl leading-none" style={{ color: typeInfo.color }}>
             {event.startsAt ? new Date(event.startsAt).getDate() : '–'}
           </p>
-          <p className="t-label mt-1" style={{ fontSize: '9px' }}>
+          <p className="t-label mt-1">
             {event.startsAt
               ? new Date(event.startsAt).toLocaleDateString('fr-FR', { month: 'short' }).toUpperCase()
               : ''}
           </p>
-          <p className="t-mono mt-1" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>
+          <p className="t-mono mt-1" style={{ color: 'var(--s-text-dim)' }}>
             {fmtTime(event.startsAt)}
           </p>
         </div>
@@ -384,16 +384,16 @@ function MyEventCard({
           </Link>
           <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{event.title}</p>
           <div className="flex items-center gap-3 mt-1 flex-wrap">
-            <span className="t-mono flex items-center gap-1" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>
+            <span className="t-mono flex items-center gap-1" style={{ color: 'var(--s-text-dim)' }}>
               <Clock size={9} /> {dateStr}
             </span>
             {event.location && (
-              <span className="t-mono flex items-center gap-1" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>
+              <span className="t-mono flex items-center gap-1" style={{ color: 'var(--s-text-dim)' }}>
                 <MapPin size={9} /> {event.location}
               </span>
             )}
             {(event.type === 'match' || event.type === 'scrim') && event.adversaire && (
-              <span className="t-mono flex items-center gap-1" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>
+              <span className="t-mono flex items-center gap-1" style={{ color: 'var(--s-text-dim)' }}>
                 <Target size={9} /> vs {event.adversaire}
               </span>
             )}
@@ -402,13 +402,13 @@ function MyEventCard({
             <div className="mt-2 pt-2 space-y-1" style={{ borderTop: '1px solid var(--s-border)' }}>
               {event.compteRendu && (
                 <p className="text-xs whitespace-pre-wrap" style={{ color: 'var(--s-text-dim)' }}>
-                  <span className="t-label mr-1" style={{ fontSize: '8px' }}>CR :</span>
+                  <span className="t-label mr-1">CR :</span>
                   {event.compteRendu}
                 </p>
               )}
               {event.aTravailler && (
                 <p className="text-xs whitespace-pre-wrap" style={{ color: 'var(--s-text-dim)' }}>
-                  <span className="t-label mr-1" style={{ fontSize: '8px' }}>À TRAVAILLER :</span>
+                  <span className="t-label mr-1">À TRAVAILLER :</span>
                   {event.aTravailler}
                 </p>
               )}

@@ -523,7 +523,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                           <div className="p-5 space-y-3">
                             {team.players.length > 0 && (
                               <div>
-                                <span className="t-label block mb-2" style={{ fontSize: '9px' }}>TITULAIRES</span>
+                                <span className="t-label block mb-2">TITULAIRES</span>
                                 <div className="space-y-1.5">
                                   {team.players.map(p => <PlayerRow key={p.uid} player={p} color="var(--s-text)" />)}
                                 </div>
@@ -531,7 +531,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                             )}
                             {team.subs.length > 0 && (
                               <div>
-                                <span className="t-label block mb-2" style={{ fontSize: '9px' }}>REMPLAÇANTS</span>
+                                <span className="t-label block mb-2">REMPLAÇANTS</span>
                                 <div className="space-y-1.5">
                                   {team.subs.map(p => <PlayerRow key={p.uid} player={p} color="var(--s-text-dim)" />)}
                                 </div>
@@ -539,7 +539,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                             )}
                             {team.staff.length > 0 && (
                               <div>
-                                <span className="t-label block mb-2" style={{ fontSize: '9px' }}>STAFF</span>
+                                <span className="t-label block mb-2">STAFF</span>
                                 <div className="space-y-1.5">
                                   {team.staff.map(p => <PlayerRow key={p.uid} player={p} color="var(--s-violet-light)" />)}
                                 </div>
@@ -614,7 +614,6 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                                     <span
                                       className="t-label"
                                       style={{
-                                        fontSize: '9px',
                                         padding: '2px 6px',
                                         background: 'rgba(123,47,190,0.15)',
                                         border: '1px solid rgba(123,47,190,0.35)',
@@ -629,7 +628,6 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                                     <span
                                       className="t-label"
                                       style={{
-                                        fontSize: '9px',
                                         padding: '2px 6px',
                                         background: 'rgba(0,129,255,0.15)',
                                         border: '1px solid rgba(0,129,255,0.35)',

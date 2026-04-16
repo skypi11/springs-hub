@@ -276,7 +276,7 @@ export default function CommandPalette() {
             <kbd
               className="font-mono hidden sm:inline"
               style={{
-                fontSize: '11px',
+                fontSize: '12px',
                 color: 'var(--s-text-muted)',
                 background: 'var(--s-elevated)',
                 border: '1px solid var(--s-border)',
@@ -448,11 +448,11 @@ export default function CommandPalette() {
           >
             <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--s-text-muted)' }}>
               <span className="flex items-center gap-1.5">
-                <kbd className="font-mono" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', padding: '1px 5px', fontSize: '10px' }}>↑↓</kbd>
+                <kbd className="font-mono" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', padding: '1px 5px', fontSize: '12px' }}>↑↓</kbd>
                 naviguer
               </span>
               <span className="flex items-center gap-1.5">
-                <kbd className="font-mono" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', padding: '1px 5px', fontSize: '10px' }}>↵</kbd>
+                <kbd className="font-mono" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', padding: '1px 5px', fontSize: '12px' }}>↵</kbd>
                 ouvrir
               </span>
             </div>

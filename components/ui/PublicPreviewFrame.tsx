@@ -40,7 +40,7 @@ export default function PublicPreviewFrame({
         <Eye size={12} style={{ color: 'var(--s-text-muted)' }} />
         <span
           className="t-label flex-1 truncate"
-          style={{ fontSize: '9px', letterSpacing: '0.14em', color: 'var(--s-text-muted)' }}
+          style={{ letterSpacing: '0.14em', color: 'var(--s-text-muted)' }}
         >
           {label}
         </span>

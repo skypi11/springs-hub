@@ -402,12 +402,12 @@ function EventCard({
           <p className="font-display text-xl leading-none" style={{ color: typeInfo.color }}>
             {event.startsAt ? new Date(event.startsAt).getDate() : '–'}
           </p>
-          <p className="t-label mt-1" style={{ fontSize: '8px' }}>
+          <p className="t-label mt-1">
             {event.startsAt
               ? new Date(event.startsAt).toLocaleDateString('fr-FR', { month: 'short' }).toUpperCase()
               : ''}
           </p>
-          <p className="t-mono mt-1" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>
+          <p className="t-mono mt-1" style={{ color: 'var(--s-text-dim)' }}>
             {fmtTime(event.startsAt)}
           </p>
         </div>

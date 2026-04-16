@@ -124,7 +124,7 @@ export default function Sidebar() {
           <kbd
             className="font-mono"
             style={{
-              fontSize: '10px',
+              fontSize: '12px',
               background: 'var(--s-bg)',
               border: '1px solid var(--s-border)',
               padding: '1px 5px',

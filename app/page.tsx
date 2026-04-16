@@ -186,7 +186,7 @@ export default function HomePage() {
                       </div>
                       <div className="text-right">
                         <span className="font-display text-3xl block" style={{ color: accent, letterSpacing: '0.02em', lineHeight: 1 }}>{stat}</span>
-                        <span className="t-label" style={{ color: 'var(--s-text-muted)', fontSize: '9px' }}>{statLabel}</span>
+                        <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>{statLabel}</span>
                       </div>
                     </div>
                     <h3 className="font-display text-xl mb-2" style={{ letterSpacing: '0.03em', color: 'var(--s-text)' }}>{title}</h3>
@@ -283,7 +283,7 @@ function VisitorHero() {
           <div className="panel accent-top-violet">
             <div className="panel-header">
               <span className="t-label">Activité Springs</span>
-              <span className="status status-live" style={{ fontSize: '10px' }}>Live</span>
+              <span className="status status-live">Live</span>
             </div>
             <div className="panel-body space-y-4">
               <div className="flex items-center justify-between">

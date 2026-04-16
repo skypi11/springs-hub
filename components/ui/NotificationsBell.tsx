@@ -176,7 +176,7 @@ export default function NotificationsBell() {
             style={{
               background: 'var(--s-gold)',
               color: '#000',
-              fontSize: '10px',
+              fontSize: '12px',
               lineHeight: 1,
               border: '2px solid var(--s-surface)',
             }}
