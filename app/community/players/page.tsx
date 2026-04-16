@@ -133,11 +133,14 @@ export default function PlayersPage() {
         }
         const data = await res.json();
         const positions: OpenPosition[] = [];
-        let firstDirigeantActive: string | null = null;
+        let firstRecruiterActive: string | null = null;
+        const uid = firebaseUser.uid;
         for (const s of data.structures || []) {
-          if (s.accessLevel !== 'dirigeant') continue;
           if (s.status !== 'active') continue;
-          if (!firstDirigeantActive) firstDirigeantActive = s.id;
+          const isDirigeant = s.accessLevel === 'dirigeant';
+          const isManager = (s.managerIds ?? []).includes(uid);
+          if (!isDirigeant && !isManager) continue;
+          if (!firstRecruiterActive) firstRecruiterActive = s.id;
           if (!s.recruiting?.active) continue;
           for (const p of s.recruiting.positions || []) {
             if (p?.game && p?.role) positions.push({ game: p.game, role: p.role });
@@ -145,7 +148,7 @@ export default function PlayersPage() {
         }
         if (!cancelled) {
           setViewerOpenPositions(positions);
-          setViewerStructureId(firstDirigeantActive);
+          setViewerStructureId(firstRecruiterActive);
         }
       } catch {
         if (!cancelled) { setViewerOpenPositions([]); setViewerStructureId(null); }
@@ -664,55 +667,63 @@ function PlayerItem({
       {(hasMatch || p.isAvailableForRecruitment) && (
         <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-green), transparent 80%)' }} />
       )}
-      {/* Boutons dirigeants — shortlist + générer lien ciblé */}
-      {canShortlist && (
-        <div className="absolute top-2 left-2 z-[3] flex gap-1">
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleShortlist(); }}
-            className="w-7 h-7 flex items-center justify-center transition-colors duration-150 bevel-sm"
-            style={{
-              background: isShortlisted ? 'rgba(255,184,0,0.15)' : 'var(--s-elevated)',
-              border: `1px solid ${isShortlisted ? 'rgba(255,184,0,0.5)' : 'var(--s-border)'}`,
-              color: isShortlisted ? 'var(--s-gold)' : 'var(--s-text-muted)',
-            }}
-            aria-label={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}
-            title={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}
-          >
-            {isShortlisted ? <BookmarkCheck size={14} /> : <Bookmark size={14} />}
-          </button>
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onGenerateLink(); }}
-            className="w-7 h-7 flex items-center justify-center transition-colors duration-150 bevel-sm"
-            style={{
-              background: linkCopied ? 'rgba(0,217,54,0.15)' : 'var(--s-elevated)',
-              border: `1px solid ${linkCopied ? 'rgba(0,217,54,0.5)' : 'var(--s-border)'}`,
-              color: linkCopied ? '#33ff66' : 'var(--s-text-muted)',
-            }}
-            aria-label={linkCopied ? 'Lien copié' : 'Générer un lien d\'invitation perso'}
-            title={linkCopied ? 'Lien copié !' : 'Générer un lien d\'invitation perso (single-use)'}
-          >
-            {linkCopied ? <Check size={14} /> : <Link2 size={14} />}
-          </button>
-        </div>
-      )}
-      {/* Badge Match en absolu — tape la carte en coin haut droit */}
-      {hasMatch && (
-        <div className="absolute top-2 right-2 z-[3] flex flex-wrap gap-1 justify-end max-w-[65%]">
-          {matches.map((m, i) => (
-            <span key={i} className="tag inline-flex items-center gap-1"
-              style={{
-                fontSize: '12px', padding: '2px 7px',
-                background: 'rgba(0,217,54,0.15)',
-                color: '#33ff66',
-                borderColor: 'rgba(0,217,54,0.45)',
-                fontWeight: 700,
-              }}>
-              <Target size={10} />
-              Match {ROLE_LABELS[m.role] || m.role} {GAME_SHORT[m.game] || m.game.toUpperCase()}
-            </span>
-          ))}
+      {/* Toolbar — actions dirigeant/manager + badge match (évite de chevaucher l'avatar) */}
+      {(canShortlist || hasMatch) && (
+        <div
+          className="relative z-[3] flex items-center justify-between gap-2 px-2 py-1.5"
+          style={{ background: 'var(--s-elevated)', borderBottom: '1px solid var(--s-border)' }}
+        >
+          <div className="flex gap-1">
+            {canShortlist && (
+              <>
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleShortlist(); }}
+                  className="w-7 h-7 flex items-center justify-center transition-colors duration-150 bevel-sm"
+                  style={{
+                    background: isShortlisted ? 'rgba(255,184,0,0.15)' : 'var(--s-surface)',
+                    border: `1px solid ${isShortlisted ? 'rgba(255,184,0,0.5)' : 'var(--s-border)'}`,
+                    color: isShortlisted ? 'var(--s-gold)' : 'var(--s-text-muted)',
+                  }}
+                  aria-label={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}
+                  title={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}
+                >
+                  {isShortlisted ? <BookmarkCheck size={14} /> : <Bookmark size={14} />}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onGenerateLink(); }}
+                  className="w-7 h-7 flex items-center justify-center transition-colors duration-150 bevel-sm"
+                  style={{
+                    background: linkCopied ? 'rgba(0,217,54,0.15)' : 'var(--s-surface)',
+                    border: `1px solid ${linkCopied ? 'rgba(0,217,54,0.5)' : 'var(--s-border)'}`,
+                    color: linkCopied ? '#33ff66' : 'var(--s-text-muted)',
+                  }}
+                  aria-label={linkCopied ? 'Lien copié' : 'Générer un lien d\'invitation perso'}
+                  title={linkCopied ? 'Lien copié !' : 'Générer un lien d\'invitation perso (single-use)'}
+                >
+                  {linkCopied ? <Check size={14} /> : <Link2 size={14} />}
+                </button>
+              </>
+            )}
+          </div>
+          {hasMatch && (
+            <div className="flex flex-wrap gap-1 justify-end max-w-[65%]">
+              {matches.map((m, i) => (
+                <span key={i} className="tag inline-flex items-center gap-1"
+                  style={{
+                    fontSize: '12px', padding: '2px 7px',
+                    background: 'rgba(0,217,54,0.15)',
+                    color: '#33ff66',
+                    borderColor: 'rgba(0,217,54,0.45)',
+                    fontWeight: 700,
+                  }}>
+                  <Target size={10} />
+                  Match {ROLE_LABELS[m.role] || m.role} {GAME_SHORT[m.game] || m.game.toUpperCase()}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
       <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200"
