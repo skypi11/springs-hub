@@ -54,6 +54,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── Springs Hub — Historique d'appartenance (Phase 3 item N) ─────────────
+    // Lecture pour tout user connecté ; toutes les écritures via API routes (Admin SDK).
+    match /structure_member_history/{id} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
     // ── Springs Hub — Invitations / demandes de rejoindre ────────────────────
     match /structure_invitations/{id} {
       allow read: if request.auth != null;

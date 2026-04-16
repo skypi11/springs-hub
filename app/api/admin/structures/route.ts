@@ -4,6 +4,7 @@ import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { addJoinHistory } from '@/lib/member-history';
 
 const MAX_STRUCTURES = 500;
 
@@ -97,6 +98,13 @@ export async function POST(req: NextRequest) {
           game: data.games?.[0] || 'rocket_league',
           role: 'fondateur',
           joinedAt: FieldValue.serverTimestamp(),
+        });
+        addJoinHistory(db, batch, {
+          structureId,
+          userId: data.founderId,
+          game: data.games?.[0] || 'rocket_league',
+          role: 'fondateur',
+          reason: 'founder',
         });
         await batch.commit();
         break;

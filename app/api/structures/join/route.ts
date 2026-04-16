@@ -4,6 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { createNotifications } from '@/lib/notifications';
+import { addJoinHistory, closeOpenHistory } from '@/lib/member-history';
 
 // POST /api/structures/join — rejoindre une structure (via lien ou demande)
 export async function POST(req: NextRequest) {
@@ -102,6 +103,13 @@ export async function POST(req: NextRequest) {
             usedBy: uid,
           });
         }
+        addJoinHistory(db, batch, {
+          structureId: sid,
+          userId: uid,
+          game: joinGame,
+          role: 'joueur',
+          reason: linkData.targetUserId ? 'targeted_link' : 'invite_link',
+        });
         await batch.commit();
 
         return NextResponse.json({ success: true, structureId: sid, structureName: structData.name });
@@ -231,6 +239,13 @@ export async function POST(req: NextRequest) {
           if (td.staffIds?.includes(uid)) updates.staffIds = td.staffIds.filter((id: string) => id !== uid);
           if (Object.keys(updates).length > 0) batch.update(teamDoc.ref, updates);
         }
+
+        await closeOpenHistory(db, batch, {
+          structureId,
+          userId: uid,
+          game: memberData.game,
+          reason: 'left',
+        });
 
         await batch.commit();
         return NextResponse.json({ success: true });

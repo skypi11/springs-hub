@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { createNotification } from '@/lib/notifications';
+import { addJoinHistory, closeOpenHistory } from '@/lib/member-history';
 
 // Vérifier fondateur/co-fondateur/manager
 async function checkManageAccess(uid: string, structureId: string) {
@@ -256,7 +257,7 @@ export async function POST(req: NextRequest) {
         const spg = (userSnap.exists && (userSnap.data()!.structurePerGame || {})) || {};
         spg[joinGame] = structureId;
 
-        // 3 writes atomiques : member + invitation status + user.structurePerGame
+        // 3 writes atomiques : member + invitation status + user.structurePerGame + history
         // Doc ID déterministe pour qu'un double-clic écrive sur le même doc (idempotent).
         const batch = db.batch();
         const newMemberRef = db.collection('structure_members').doc(`${structureId}_${applicantId}`);
@@ -275,6 +276,13 @@ export async function POST(req: NextRequest) {
         if (userSnap.exists) {
           batch.update(userRef, { structurePerGame: spg });
         }
+        addJoinHistory(db, batch, {
+          structureId,
+          userId: applicantId,
+          game: joinGame,
+          role: joinRole,
+          reason: 'join_request',
+        });
         await batch.commit();
 
         // Notifier le joueur que sa demande a été acceptée
@@ -370,6 +378,13 @@ export async function POST(req: NextRequest) {
             batch.update(teamDoc.ref, updates);
           }
         }
+
+        await closeOpenHistory(db, batch, {
+          structureId,
+          userId: memberData.userId,
+          game: memberData.game,
+          reason: 'removed',
+        });
 
         await batch.commit();
         return NextResponse.json({ success: true });

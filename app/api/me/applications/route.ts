@@ -5,6 +5,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { createNotification } from '@/lib/notifications';
+import { addJoinHistory } from '@/lib/member-history';
 
 // GET /api/me/applications
 // Retourne les demandes envoyées (join_request pending) + invitations reçues (direct_invite pending)
@@ -158,7 +159,7 @@ export async function POST(req: NextRequest) {
         const spg = (userSnap.exists && (userSnap.data()!.structurePerGame || {})) || {};
         spg[joinGame] = structureId;
 
-        // Atomique : member + invite accepted + user.structurePerGame
+        // Atomique : member + invite accepted + user.structurePerGame + history
         const batch = db.batch();
         const newMemberRef = db.collection('structure_members').doc(`${structureId}_${uid}`);
         batch.set(newMemberRef, {
@@ -175,6 +176,13 @@ export async function POST(req: NextRequest) {
         if (userSnap.exists) {
           batch.update(userRef, { structurePerGame: spg });
         }
+        addJoinHistory(db, batch, {
+          structureId,
+          userId: uid,
+          game: joinGame,
+          role: joinRole,
+          reason: 'direct_invite',
+        });
         await batch.commit();
 
         // Notifier le fondateur qui a envoyé l'invite

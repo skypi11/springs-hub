@@ -142,6 +142,19 @@ export async function POST() {
       isDev: true,
       joinedAt: FieldValue.serverTimestamp(),
     });
+    // Entrée d'historique ouverte pour chaque membre seed (Phase 3 item N)
+    const historyRef = db.collection('structure_member_history').doc();
+    batch.set(historyRef, {
+      structureId: DEV_STRUCTURE_ID,
+      userId: m.uid,
+      game: 'rocket_league',
+      role: m.role,
+      joinReason: m.role === 'fondateur' ? 'founder' : 'other',
+      joinedAt: FieldValue.serverTimestamp(),
+      leftAt: null,
+      leftReason: null,
+      isDev: true,
+    });
   }
 
   // 5) Une sous-équipe RL avec 3 titulaires + 1 remplaçant

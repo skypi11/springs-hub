@@ -312,6 +312,25 @@ export default function MyStructurePage() {
   };
   const [shortlist, setShortlist] = useState<ShortlistItem[]>([]);
   const [shortlistLoading, setShortlistLoading] = useState(false);
+  // Historique d'appartenance (Phase 3 item N)
+  type HistoryItem = {
+    id: string;
+    userId: string;
+    displayName: string;
+    avatarUrl: string;
+    discordAvatar: string;
+    country: string;
+    game: string;
+    role: string;
+    joinReason: string;
+    leftReason: string | null;
+    joinedAt: number | null;
+    leftAt: number | null;
+    durationDays: number | null;
+    isOpen: boolean;
+  };
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [invLoading, setInvLoading] = useState(false);
   const [invActionLoading, setInvActionLoading] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState('');
@@ -428,6 +447,9 @@ export default function MyStructurePage() {
     // Shortlist : dirigeant (founder/cofounder/manager) uniquement
     if (canLoadInvitations) loadShortlist(s.id);
     else setShortlist([]);
+    // Historique d'appartenance : dirigeant uniquement (Phase 3 item N)
+    if (canLoadInvitations) loadHistory(s.id);
+    else setHistory([]);
   }
 
   async function handleCreateTeam() {
@@ -707,6 +729,24 @@ export default function MyStructurePage() {
       console.error('[MyStructure] load shortlist error:', err);
     }
     setShortlistLoading(false);
+  }
+
+  async function loadHistory(structureId: string) {
+    if (!firebaseUser) return;
+    setHistoryLoading(true);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch(`/api/structures/${structureId}/history`, {
+        headers: { 'Authorization': `Bearer ${idToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setHistory(data.history ?? []);
+      }
+    } catch (err) {
+      console.error('[MyStructure] load history error:', err);
+    }
+    setHistoryLoading(false);
   }
 
   async function handleRemoveFromShortlist(targetUserId: string) {
@@ -2252,6 +2292,98 @@ export default function MyStructurePage() {
                               {invActionLoading === m.id ? <Loader2 size={11} className="animate-spin" /> : <UserMinus size={11} />}
                             </button>
                           )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+            )}
+
+            {/* ═══ MEMBRES — Historique d'appartenance (dirigeants only) — Phase 3 item N ═══ */}
+            {tab === 'members' && (isDirigeantOfActive || isManagerOfActive) && (
+            <div className="bevel relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+              <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-text-dim), rgba(122,122,149,0.3), transparent 70%)' }} />
+              <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none"
+                style={{ background: 'radial-gradient(circle at 100% 0%, rgba(122,122,149,0.06), transparent 70%)' }} />
+              <div className="relative z-[1] px-5 py-3.5 flex items-center justify-between" style={{ borderBottom: '1px solid var(--s-border)' }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-7 h-7 flex items-center justify-center" style={{ background: 'rgba(122,122,149,0.08)', border: '1px solid rgba(122,122,149,0.2)' }}>
+                    <Clock size={13} style={{ color: 'var(--s-text-dim)' }} />
+                  </div>
+                  <span className="font-display text-sm tracking-wider">HISTORIQUE</span>
+                </div>
+                <span className="font-display text-lg" style={{ color: 'var(--s-text-dim)' }}>{history.length}</span>
+              </div>
+              <div className="relative z-[1]">
+                {historyLoading ? (
+                  <div className="p-6 text-center">
+                    <Loader2 size={16} className="animate-spin mx-auto" style={{ color: 'var(--s-text-muted)' }} />
+                  </div>
+                ) : history.length === 0 ? (
+                  <div className="p-6 text-center">
+                    <Clock size={20} className="mx-auto mb-2" style={{ color: 'var(--s-text-muted)' }} />
+                    <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucun passage enregistré.</p>
+                  </div>
+                ) : (
+                  <div className="divide-y" style={{ borderColor: 'var(--s-border)' }}>
+                    {history.map(h => {
+                      const avatar = h.avatarUrl || h.discordAvatar;
+                      const joinLabel = h.joinedAt ? new Date(h.joinedAt).toLocaleDateString('fr-FR') : '—';
+                      const leftLabel = h.leftAt ? new Date(h.leftAt).toLocaleDateString('fr-FR') : null;
+                      const reasonMap: Record<string, string> = {
+                        founder: 'Fondateur',
+                        direct_invite: 'Invite directe',
+                        join_request: 'Candidature',
+                        invite_link: 'Lien',
+                        targeted_link: 'Lien perso',
+                        other: '—',
+                      };
+                      const leftReasonMap: Record<string, string> = {
+                        removed: 'Retiré',
+                        left: 'Parti',
+                        structure_deleted: 'Structure dissoute',
+                        other: '—',
+                      };
+                      return (
+                        <div key={h.id} className="flex items-center gap-3 px-5 py-3 group transition-all duration-150"
+                          style={{ background: 'transparent' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--s-elevated)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                          <Link href={`/profile/${h.userId}`} className="flex items-center gap-3 flex-1 min-w-0">
+                            {avatar ? (
+                              <div className="w-8 h-8 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                                <Image src={avatar} alt={h.displayName} fill className="object-cover" unoptimized />
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                                <User size={12} style={{ color: 'var(--s-text-muted)' }} />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{h.displayName || h.userId}</p>
+                                <span className={`tag ${h.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px', padding: '2px 8px' }}>
+                                  {h.game === 'rocket_league' ? 'RL' : 'TM'}
+                                </span>
+                                {h.isOpen ? (
+                                  <span className="tag" style={{ fontSize: '12px', padding: '2px 8px', background: 'rgba(0,217,54,0.12)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.35)' }}>
+                                    Actif
+                                  </span>
+                                ) : (
+                                  <span className="tag" style={{ fontSize: '12px', padding: '2px 8px', background: 'rgba(255,85,85,0.1)', color: '#ff8888', borderColor: 'rgba(255,85,85,0.3)' }}>
+                                    {leftReasonMap[h.leftReason || 'other'] || 'Parti'}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs mt-0.5" style={{ color: 'var(--s-text-dim)' }}>
+                                {reasonMap[h.joinReason] || '—'} · {joinLabel}
+                                {leftLabel && ` → ${leftLabel}`}
+                                {h.durationDays != null && ` · ${h.durationDays}j`}
+                              </p>
+                            </div>
+                          </Link>
                         </div>
                       );
                     })}

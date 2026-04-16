@@ -13,6 +13,7 @@ const COLLECTIONS_WITH_ISDEV = [
   'structure_events',
   'event_presences',
   'structure_invitations',
+  'structure_member_history',
   'admins',
 ];
 
@@ -56,6 +57,17 @@ export async function POST() {
     await batch.commit();
   }
   report.orphanInvitations = orphanInvSnap.size;
+
+  // Historique : les accept/leave en runtime n'héritent pas du flag isDev, on cible par structureId
+  const orphanHistorySnap = await db.collection('structure_member_history')
+    .where('structureId', '==', 'dev_test_structure')
+    .get();
+  if (orphanHistorySnap.size > 0) {
+    const batch = db.batch();
+    for (const doc of orphanHistorySnap.docs) batch.delete(doc.ref);
+    await batch.commit();
+  }
+  report.orphanHistory = orphanHistorySnap.size;
 
   // Supprimer les comptes Firebase Auth dev
   const devUids = [
