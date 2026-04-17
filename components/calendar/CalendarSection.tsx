@@ -415,7 +415,7 @@ function TeamFilterDropdown({
     onChange(value.includes(id) ? value.filter(x => x !== id) : [...value, id]);
 
   return (
-    <div className="relative z-[1] px-5 pt-3 flex items-center gap-2" data-team-filter-root>
+    <div className={`relative ${open ? 'z-40' : 'z-[1]'} px-5 pt-3 flex items-center gap-2`} data-team-filter-root>
       <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Équipes :</span>
       <button type="button" onClick={() => setOpen(o => !o)}
         className="flex items-center gap-1.5 transition-all duration-150"
