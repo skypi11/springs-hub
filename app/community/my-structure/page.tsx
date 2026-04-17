@@ -78,6 +78,7 @@ type Member = {
   discordAvatar: string;
   avatarUrl: string;
   country: string;
+  joinedAt?: number | null;
 };
 
 type MyStructure = {
@@ -737,12 +738,19 @@ export default function MyStructurePage() {
   //               + message public = dirigeant-only via PUT API gate) + membres + calendrier
   // - Coach     : membres (readonly) + calendrier (avec dispos/todos par équipe)
   // La branding et le toggle recrutement restent dirigeant-only (PUT API gate).
+  // Capitaine-seul : accès uniquement à "son" équipe via ÉQUIPES (scope automatique)
+  // et au calendrier. Pas de recrutement ni de membres structure-wide.
+  const captainOnlyAccess = !isDirigeantOfActive && !isManagerOfActive && !isCoachOfActive && firebaseUser
+    ? teams.some(t => t.captainId === firebaseUser.uid)
+    : false;
   const visibleTabs: DashboardTab[] = isDirigeantOfActive
     ? ['general', 'teams', 'recruitment', 'members', 'calendar']
     : isManagerOfActive
     ? ['teams', 'recruitment', 'members', 'calendar']
     : isCoachOfActive
     ? ['members', 'calendar']
+    : captainOnlyAccess
+    ? ['teams', 'calendar']
     : ['calendar'];
   const myDepartureIso = firebaseUser ? s.coFounderDepartures?.[firebaseUser.uid] : null;
   const myDepartureRemainingMs = myDepartureIso ? Math.max(0, new Date(myDepartureIso).getTime() + DEPARTURE_NOTICE_MS - now) : null;
@@ -752,6 +760,16 @@ export default function MyStructurePage() {
   const staffedTeamIds = firebaseUser
     ? teams.filter(t => t.staff.some(st => st.uid === firebaseUser.uid)).map(t => t.id)
     : [];
+  const captainOfTeamIds = firebaseUser
+    ? teams.filter(t => t.captainId === firebaseUser.uid).map(t => t.id)
+    : [];
+  // Vue scopée sur ÉQUIPES pour tout rôle non-dirigeant (manager, coach, capitaine) :
+  // n'affiche que les équipes où l'utilisateur est staff ou capitaine.
+  const teamScopeActive = !isDirigeantOfActive && !!firebaseUser;
+  const isTeamInScope = (team: TeamData) =>
+    !teamScopeActive ||
+    team.staff.some(st => st.uid === firebaseUser?.uid) ||
+    team.captainId === firebaseUser?.uid;
   const userContext: UserContext = {
     uid: firebaseUser?.uid ?? '',
     isFounder: isFounderOfActive,
@@ -759,6 +777,7 @@ export default function MyStructurePage() {
     isManager: myMemberRole === 'manager' || (firebaseUser ? (s.managerIds ?? []).includes(firebaseUser.uid) : false),
     isCoach: myMemberRole === 'coach' || (firebaseUser ? (s.coachIds ?? []).includes(firebaseUser.uid) : false),
     staffedTeamIds,
+    captainOfTeamIds,
   };
   const calendarTeams = teams.map(t => ({ id: t.id, name: t.name, game: t.game }));
 
@@ -2001,9 +2020,9 @@ export default function MyStructurePage() {
                 const allMembers = [...t.players, ...t.subs, ...t.staff];
                 return allMembers.some(m => (m.displayName ?? '').toLowerCase().includes(q));
               };
-              const activeTeams = teams.filter(t => (t.status ?? 'active') === 'active' && matchTeam(t));
-              const archivedTeams = teams.filter(t => t.status === 'archived' && matchTeam(t));
-              const archivedCount = teams.filter(t => t.status === 'archived').length;
+              const activeTeams = teams.filter(t => (t.status ?? 'active') === 'active' && matchTeam(t) && isTeamInScope(t));
+              const archivedTeams = teams.filter(t => t.status === 'archived' && matchTeam(t) && isTeamInScope(t));
+              const archivedCount = teams.filter(t => t.status === 'archived' && isTeamInScope(t)).length;
 
               // Grouper par label (label vide = "Sans label")
               type Group = { label: string; displayLabel: string; groupOrder: number; teams: TeamData[] };
@@ -2183,7 +2202,7 @@ export default function MyStructurePage() {
               const noActiveAtAll = !teamsLoading && teams.filter(t => (t.status ?? 'active') === 'active').length === 0;
 
               return (
-            <SectionPanel accent="var(--s-blue)" icon={Gamepad2} title={`ÉQUIPES${teams.length > 0 ? ` · ${teams.filter(t => (t.status ?? 'active') === 'active').length}` : ''}`}
+            <SectionPanel accent="var(--s-blue)" icon={Gamepad2} title={`ÉQUIPES${teams.length > 0 ? ` · ${teams.filter(t => (t.status ?? 'active') === 'active' && isTeamInScope(t)).length}` : ''}`}
               collapsed={collapsed.teams} onToggle={() => toggle('teams')}
               action={isDirigeantOfActive ? (
                 <button type="button" onClick={() => setShowNewTeam(!showNewTeam)}
@@ -2192,6 +2211,16 @@ export default function MyStructurePage() {
                   {showNewTeam ? 'Annuler' : 'Nouvelle équipe'}
                 </button>
               ) : null}>
+
+              {/* Banner vue scopée — manager/coach/capitaine ne voit que ses équipes */}
+              {teamScopeActive && (
+                <div className="flex items-center gap-2 mb-3 px-3 py-2 bevel-sm" style={{ background: 'rgba(123,47,190,0.08)', border: '1px solid rgba(123,47,190,0.25)' }}>
+                  <Eye size={12} style={{ color: 'var(--s-violet-light)', flexShrink: 0 }} />
+                  <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                    Vue limitée aux équipes où tu es <span style={{ color: 'var(--s-violet-light)' }}>staff</span> ou <span style={{ color: 'var(--s-gold)' }}>capitaine</span>.
+                  </span>
+                </div>
+              )}
 
               {/* Toolbar : recherche */}
               <div className="flex items-center gap-2 mb-4">
@@ -2328,6 +2357,91 @@ export default function MyStructurePage() {
             : tab === 'members' ? 'space-y-6 animate-fade-in-d2'
             : 'hidden'
           }>
+
+            {/* ═══ MEMBRES — Joueurs sans équipe + bannière nouvelle recrue ═══ */}
+            {tab === 'members' && isDirigeantOfActive && (() => {
+              // Uids assignés à une équipe active (player, sub, staff, capitaine)
+              const assignedUids = new Set<string>();
+              for (const t of teams) {
+                if ((t.status ?? 'active') !== 'active') continue;
+                for (const p of t.players) assignedUids.add(p.uid);
+                for (const p of t.subs) assignedUids.add(p.uid);
+                for (const p of t.staff) assignedUids.add(p.uid);
+                if (t.captainId) assignedUids.add(t.captainId);
+              }
+              const unassigned = s.members.filter(m =>
+                m.role !== 'fondateur' && m.role !== 'co_fondateur' && !assignedUids.has(m.userId)
+              );
+              if (unassigned.length === 0) return null;
+              const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+              const recentRecruits = unassigned.filter(m => (m.joinedAt ?? 0) >= sevenDaysAgo);
+              return (
+                <div className="bevel relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid rgba(255,184,0,0.35)' }}>
+                  <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
+                  <div className="relative z-[1] px-5 py-3.5 flex items-center justify-between" style={{ borderBottom: '1px solid var(--s-border)' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-7 h-7 flex items-center justify-center" style={{ background: 'rgba(255,184,0,0.1)', border: '1px solid rgba(255,184,0,0.25)' }}>
+                        <UserPlus size={13} style={{ color: 'var(--s-gold)' }} />
+                      </div>
+                      <div>
+                        <span className="font-display text-sm tracking-wider">SANS ÉQUIPE</span>
+                        {recentRecruits.length > 0 && (
+                          <p className="text-xs mt-0.5" style={{ color: 'var(--s-gold)' }}>
+                            {recentRecruits.length} nouvelle{recentRecruits.length > 1 ? 's' : ''} recrue{recentRecruits.length > 1 ? 's' : ''} cette semaine à placer
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <span className="font-display text-lg" style={{ color: 'var(--s-gold)' }}>{unassigned.length}</span>
+                  </div>
+                  <div className="relative z-[1] divide-y" style={{ borderColor: 'var(--s-border)' }}>
+                    {unassigned.map(m => {
+                      const avatar = m.avatarUrl || m.discordAvatar;
+                      const isRecentRecruit = (m.joinedAt ?? 0) >= sevenDaysAgo;
+                      const daysSince = m.joinedAt ? Math.floor((Date.now() - m.joinedAt) / (24 * 60 * 60 * 1000)) : null;
+                      return (
+                        <div key={m.id} className="flex items-center gap-3 px-5 py-3">
+                          <Link href={`/profile/${m.userId}`} className="flex items-center gap-3 flex-1 min-w-0">
+                            {avatar ? (
+                              <div className="w-8 h-8 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                                <Image src={avatar} alt={m.displayName} fill className="object-cover" unoptimized />
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                                <User size={12} style={{ color: 'var(--s-text-muted)' }} />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{m.displayName}</p>
+                                <span className={`tag ${m.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '9px', padding: '2px 6px' }}>
+                                  {m.game === 'rocket_league' ? 'RL' : 'TM'}
+                                </span>
+                                {isRecentRecruit && (
+                                  <span className="tag" style={{ fontSize: '9px', padding: '2px 6px', background: 'rgba(255,184,0,0.12)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.35)' }}>
+                                    NOUVELLE RECRUE
+                                  </span>
+                                )}
+                              </div>
+                              {daysSince != null && (
+                                <p className="text-xs mt-0.5" style={{ color: 'var(--s-text-muted)' }}>
+                                  Rejoint il y a {daysSince === 0 ? "aujourd'hui" : `${daysSince}j`}
+                                </p>
+                              )}
+                            </div>
+                          </Link>
+                          <button type="button" onClick={() => setTab('teams')}
+                            className="text-xs font-semibold px-3 py-1.5 transition-colors duration-150 bevel-sm"
+                            style={{ background: 'rgba(255,184,0,0.12)', color: 'var(--s-gold)', border: '1px solid rgba(255,184,0,0.3)' }}>
+                            Placer en équipe
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* ═══ MEMBRES — Liste des membres ═══ */}
             {tab === 'members' && (

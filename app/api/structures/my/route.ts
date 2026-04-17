@@ -192,9 +192,11 @@ export async function GET(req: NextRequest) {
       const members = memberDocs.map(mDoc => {
         const mData = mDoc.data();
         const u = usersById.get(mData.userId);
+        const joinedAtMs: number | null = mData.joinedAt?.toMillis?.() ?? null;
         return {
           id: mDoc.id,
           ...mData,
+          joinedAt: joinedAtMs,
           displayName: u?.displayName || u?.discordUsername || '',
           discordUsername: u?.discordUsername || '',
           discordAvatar: u?.discordAvatar || '',
