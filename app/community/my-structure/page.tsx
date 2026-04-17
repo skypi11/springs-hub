@@ -409,6 +409,7 @@ export default function MyStructurePage() {
   const [showArchived, setShowArchived] = useState(false);
   const [healthOpen, setHealthOpen] = useState<boolean | null>(null);
   const [teamMenuOpen, setTeamMenuOpen] = useState<string | null>(null);
+  const [captainPickerOpen, setCaptainPickerOpen] = useState<string | null>(null);
   // Drawer détail équipe (Dispos + Devoirs) — ouvert via chips des cards équipe
   const [drawerState, setDrawerState] = useState<{ team: DrawerTeam; tab: DrawerTab; canEditConfig: boolean } | null>(null);
 
@@ -2220,14 +2221,73 @@ export default function MyStructurePage() {
                           {isArchived && (
                             <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '2px 7px' }}>ARCHIVÉE</span>
                           )}
-                          {captainId && !isArchived && (() => {
-                            const cap = team.players.find(p => p.uid === captainId);
-                            return cap ? (
-                              <span className="inline-flex items-center gap-1 text-xs" style={{ color: 'var(--s-gold)' }}>
-                                <Crown size={11} />
-                                <span className="font-semibold">{cap.displayName}</span>
-                              </span>
-                            ) : null;
+                          {(() => {
+                            const cap = captainId ? team.players.find(p => p.uid === captainId) : null;
+                            const canPick = canManageTeam && !isArchived && team.players.length > 0;
+                            const pickerOpen = captainPickerOpen === team.id;
+                            const busyCaptain = teamActionLoading === `${team.id}_captain`;
+
+                            if (!canPick) {
+                              return cap && !isArchived ? (
+                                <span className="inline-flex items-center gap-1 text-xs" style={{ color: 'var(--s-gold)' }}>
+                                  <Crown size={11} />
+                                  <span className="font-semibold">{cap.displayName}</span>
+                                </span>
+                              ) : null;
+                            }
+
+                            return (
+                              <div className="relative inline-flex">
+                                <button
+                                  type="button"
+                                  onClick={() => setCaptainPickerOpen(pickerOpen ? null : team.id)}
+                                  disabled={busyCaptain}
+                                  title={cap ? 'Changer le capitaine' : 'Désigner un capitaine'}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs transition-colors duration-150 disabled:opacity-50"
+                                  style={{
+                                    color: cap ? 'var(--s-gold)' : 'var(--s-text-muted)',
+                                    border: `1px solid ${cap ? 'rgba(255,184,0,0.35)' : 'var(--s-border)'}`,
+                                    background: pickerOpen ? 'var(--s-hover)' : 'transparent',
+                                  }}
+                                >
+                                  <Crown size={11} />
+                                  <span className="font-semibold">
+                                    {cap ? cap.displayName : 'Désigner capitaine'}
+                                  </span>
+                                </button>
+                                {pickerOpen && (
+                                  <>
+                                    <div className="fixed inset-0 z-10" onClick={() => setCaptainPickerOpen(null)} />
+                                    <div
+                                      className="absolute left-0 top-full mt-1 z-20 min-w-[200px] py-1 bevel-sm"
+                                      style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
+                                    >
+                                      <div className="px-3 py-1.5 t-label" style={{ color: 'var(--s-text-muted)' }}>Capitaine</div>
+                                      <div className="space-y-0.5">
+                                        {team.players.map(p => (
+                                          <button
+                                            key={p.uid}
+                                            type="button"
+                                            onClick={() => {
+                                              handleSetCaptain(team.id, captainId === p.uid ? null : p.uid);
+                                              setCaptainPickerOpen(null);
+                                            }}
+                                            disabled={busyCaptain}
+                                            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs transition-colors text-left hover:bg-[var(--s-hover)] disabled:opacity-50"
+                                          >
+                                            <Crown size={11} style={{ color: captainId === p.uid ? 'var(--s-gold)' : 'var(--s-text-muted)' }} />
+                                            <span style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
+                                            {captainId === p.uid && (
+                                              <span className="ml-auto text-xs" style={{ color: 'var(--s-gold)' }}>actuel</span>
+                                            )}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            );
                           })()}
                         </div>
                         {canManageTeam && (
@@ -2244,25 +2304,6 @@ export default function MyStructurePage() {
                                 <div className="fixed inset-0 z-10" onClick={() => setTeamMenuOpen(null)} />
                                 <div className="absolute right-0 top-full mt-1 z-20 min-w-[200px] py-1 bevel-sm"
                                   style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-                                  {!isArchived && team.players.length > 0 && (
-                                    <div className="px-3 py-2 border-b" style={{ borderColor: 'var(--s-border)' }}>
-                                      <div className="t-label mb-1.5" style={{ color: 'var(--s-text-muted)' }}>Capitaine</div>
-                                      <div className="space-y-0.5">
-                                        {team.players.map(p => (
-                                          <button key={p.uid} type="button"
-                                            onClick={() => handleSetCaptain(team.id, captainId === p.uid ? null : p.uid)}
-                                            disabled={teamActionLoading === `${team.id}_captain`}
-                                            className="w-full flex items-center gap-2 px-2 py-1.5 text-xs transition-colors text-left hover:bg-[var(--s-hover)]">
-                                            <Crown size={11} style={{ color: captainId === p.uid ? 'var(--s-gold)' : 'var(--s-text-muted)' }} />
-                                            <span style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
-                                            {captainId === p.uid && (
-                                              <span className="ml-auto text-xs" style={{ color: 'var(--s-gold)' }}>actuel</span>
-                                            )}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
                                   {!isArchived ? (
                                     <button type="button"
                                       onClick={() => handleArchiveTeam(team.id, true)}
