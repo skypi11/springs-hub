@@ -48,3 +48,7 @@ next-env.d.ts
 /*.jpeg
 /*.yml
 /structure-snapshot.md
+
+# Claude Code local settings (personnelles par machine)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock

@@ -63,7 +63,16 @@ export async function GET(req: NextRequest) {
         players: enrich(data.playerIds),
         subs: enrich(data.subIds),
         staff: enrich(data.staffIds),
+        captainId: data.captainId ?? null,
+        label: data.label ?? '',
+        order: typeof data.order === 'number' ? data.order : 0,
+        groupOrder: typeof data.groupOrder === 'number' ? data.groupOrder : 0,
+        status: (data.status as 'active' | 'archived') ?? 'active',
+        archivedAt: data.archivedAt?.toDate?.()?.toISOString() ?? null,
+        minPlayersForMatch: typeof data.minPlayersForMatch === 'number' ? data.minPlayersForMatch : null,
+        minMatchDurationMinutes: typeof data.minMatchDurationMinutes === 'number' ? data.minMatchDurationMinutes : null,
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
+        updatedAt: data.updatedAt?.toDate?.()?.toISOString() ?? null,
       };
     });
 
@@ -84,7 +93,7 @@ export async function POST(req: NextRequest) {
     if (blocked) return blocked;
 
     const body = await req.json();
-    const { action, structureId, teamId, name, game, playerIds, subIds, staffIds } = body;
+    const { action, structureId, teamId, name, game, playerIds, subIds, staffIds, captainId, label, order, groupOrder } = body;
 
     if (!structureId || !action) {
       return NextResponse.json({ error: 'structureId et action requis' }, { status: 400 });
@@ -95,16 +104,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Accès refusé ou structure introuvable' }, { status: 403 });
     }
 
+    const isFounder = structureData.founderId === uid;
+    const isCoFounder = (structureData.coFounderIds ?? []).includes(uid);
+    const isDirigeant = isFounder || isCoFounder;
+
     const db = getAdminDb();
 
     switch (action) {
       case 'create': {
+        // Création : dirigeants uniquement (les managers ne créent pas d'équipes).
+        if (!isDirigeant) {
+          return NextResponse.json({ error: 'Réservé aux dirigeants.' }, { status: 403 });
+        }
         if (!name?.trim()) {
           return NextResponse.json({ error: "Le nom de l'équipe est obligatoire." }, { status: 400 });
         }
         if (!game) {
           return NextResponse.json({ error: 'Le jeu est obligatoire.' }, { status: 400 });
         }
+        // label optionnel au niveau API pour compat ascendante ; l'UX l'impose.
+        const labelStr = typeof label === 'string' ? label.trim() : '';
 
         // Vérifier les limites RL : max 3 titulaires, 2 remplaçants
         if (game === 'rocket_league') {
@@ -116,13 +135,27 @@ export async function POST(req: NextRequest) {
           }
         }
 
+        // Calculer l'ordre par défaut : dernier dans son label
+        const existingSnap = await db.collection('sub_teams')
+          .where('structureId', '==', structureId)
+          .get();
+        const sameLabel = existingSnap.docs.filter(d => (d.data().label ?? '') === labelStr);
+        const maxOrder = sameLabel.reduce((acc, d) => Math.max(acc, typeof d.data().order === 'number' ? d.data().order : 0), -1);
+
+        const captainToStore = captainId && (playerIds || []).includes(captainId) ? captainId : null;
+
         const docRef = await db.collection('sub_teams').add({
           structureId,
           game,
           name: name.trim(),
+          label: labelStr,
+          order: typeof order === 'number' ? order : maxOrder + 1,
+          groupOrder: typeof groupOrder === 'number' ? groupOrder : 0,
+          status: 'active' as const,
           playerIds: playerIds || [],
           subIds: subIds || [],
           staffIds: staffIds || [],
+          captainId: captainToStore,
           createdAt: FieldValue.serverTimestamp(),
         });
 
@@ -164,15 +197,114 @@ export async function POST(req: NextRequest) {
         if (subIds !== undefined) updates.subIds = subIds;
         if (staffIds !== undefined) updates.staffIds = staffIds;
 
+        // label : dirigeants uniquement (le manager ne change pas le niveau d'une équipe)
+        if (label !== undefined) {
+          if (!isDirigeant) {
+            return NextResponse.json({ error: 'Le label est réservé aux dirigeants.' }, { status: 403 });
+          }
+          if (typeof label !== 'string' || !label.trim()) {
+            return NextResponse.json({ error: 'Le label ne peut pas être vide.' }, { status: 400 });
+          }
+          updates.label = label.trim();
+        }
+
+        // captainId : dirigeants uniquement, et doit être un joueur de l'équipe
+        if (captainId !== undefined) {
+          if (!isDirigeant) {
+            return NextResponse.json({ error: 'Le capitaine est désigné par les dirigeants.' }, { status: 403 });
+          }
+          if (captainId === null || captainId === '') {
+            updates.captainId = null;
+          } else {
+            const finalPlayers = playerIds !== undefined ? playerIds : (teamData.playerIds ?? []);
+            if (!finalPlayers.includes(captainId)) {
+              return NextResponse.json({ error: 'Le capitaine doit être un titulaire de l\'équipe.' }, { status: 400 });
+            }
+            updates.captainId = captainId;
+          }
+        } else if (playerIds !== undefined && teamData.captainId) {
+          // Si on retire le capitaine actuel des titulaires, on nettoie captainId
+          if (!playerIds.includes(teamData.captainId)) {
+            updates.captainId = null;
+          }
+        }
+
         await ref.update(updates);
+        return NextResponse.json({ success: true });
+      }
+
+      case 'reorder': {
+        // Batch : [{ teamId, order?, groupOrder?, label? }]. Dirigeants uniquement.
+        if (!isDirigeant) {
+          return NextResponse.json({ error: 'Réservé aux dirigeants.' }, { status: 403 });
+        }
+        const items = Array.isArray(body.items) ? body.items : null;
+        if (!items || items.length === 0) {
+          return NextResponse.json({ error: 'items requis' }, { status: 400 });
+        }
+        if (items.length > 100) {
+          return NextResponse.json({ error: 'Trop d\'items (max 100).' }, { status: 400 });
+        }
+
+        // Charger tout le snapshot pour valider que chaque teamId appartient bien à cette structure
+        const allSnap = await db.collection('sub_teams')
+          .where('structureId', '==', structureId)
+          .get();
+        const validIds = new Set(allSnap.docs.map(d => d.id));
+
+        const batch = db.batch();
+        for (const item of items) {
+          if (!item?.teamId || !validIds.has(item.teamId)) continue;
+          const upd: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
+          if (typeof item.order === 'number') upd.order = item.order;
+          if (typeof item.groupOrder === 'number') upd.groupOrder = item.groupOrder;
+          if (typeof item.label === 'string' && item.label.trim()) upd.label = item.label.trim();
+          if (Object.keys(upd).length > 1) {
+            batch.update(db.collection('sub_teams').doc(item.teamId), upd);
+          }
+        }
+        await batch.commit();
+        return NextResponse.json({ success: true });
+      }
+
+      case 'archive':
+      case 'unarchive': {
+        // Archivage : dirigeants uniquement.
+        if (!isDirigeant) {
+          return NextResponse.json({ error: 'Réservé aux dirigeants.' }, { status: 403 });
+        }
+        if (!teamId) {
+          return NextResponse.json({ error: 'teamId requis' }, { status: 400 });
+        }
+        const ref = db.collection('sub_teams').doc(teamId);
+        const teamSnap = await ref.get();
+        if (!teamSnap.exists) {
+          return NextResponse.json({ error: 'Équipe introuvable' }, { status: 404 });
+        }
+        if (teamSnap.data()!.structureId !== structureId) {
+          return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+        }
+        if (action === 'archive') {
+          await ref.update({
+            status: 'archived',
+            archivedAt: FieldValue.serverTimestamp(),
+            archivedBy: uid,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        } else {
+          await ref.update({
+            status: 'active',
+            archivedAt: FieldValue.delete(),
+            archivedBy: FieldValue.delete(),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        }
         return NextResponse.json({ success: true });
       }
 
       case 'updateMatchConfig': {
         // Réservé aux dirigeants (fondateur / co-fondateur) — pas aux managers.
-        const isFounder = structureData.founderId === uid;
-        const isCoFounder = (structureData.coFounderIds ?? []).includes(uid);
-        if (!isFounder && !isCoFounder) {
+        if (!isDirigeant) {
           return NextResponse.json({ error: 'Réservé aux dirigeants.' }, { status: 403 });
         }
         if (!teamId) {
@@ -209,6 +341,11 @@ export async function POST(req: NextRequest) {
       }
 
       case 'delete': {
+        // Suppression définitive : fondateur uniquement (destructif, pas d'historique).
+        // Les dirigeants peuvent préférer l'action 'archive'.
+        if (!isFounder) {
+          return NextResponse.json({ error: 'La suppression est réservée au fondateur. Utilisez "archiver".' }, { status: 403 });
+        }
         if (!teamId) {
           return NextResponse.json({ error: 'teamId requis' }, { status: 400 });
         }

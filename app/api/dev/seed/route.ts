@@ -158,13 +158,19 @@ export async function POST() {
   }
 
   // 5) Une sous-équipe RL avec 3 titulaires + 1 remplaçant
+  //    captainId = player1 pour pouvoir tester le rôle capitaine côté calendrier
   batch.set(db.collection('sub_teams').doc(DEV_SUBTEAM_ID), {
     structureId: DEV_STRUCTURE_ID,
     game: 'rocket_league',
     name: 'Équipe Principale',
+    label: 'Elite',
+    order: 0,
+    groupOrder: 0,
+    status: 'active' as const,
     playerIds: ['discord_dev_player1', 'discord_dev_player2', 'discord_dev_player3'],
     subIds: ['discord_dev_player4'],
     staffIds: ['discord_dev_coach', 'discord_dev_manager'],
+    captainId: 'discord_dev_player1',
     isDev: true,
     createdAt: FieldValue.serverTimestamp(),
   });

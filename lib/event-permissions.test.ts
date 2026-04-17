@@ -5,6 +5,9 @@ import {
   isStaffOfTeam,
   isStaffOfAllTeams,
   isStaffOfAnyTeam,
+  isCaptainOfTeam,
+  isCaptainOfAnyTeam,
+  isTeamEventManager,
   canAccessCalendar,
   canCreateEvent,
   canEditEvent,
@@ -40,6 +43,8 @@ const managerOfTeams = (uid: string, teams: string[]) =>
   ctx({ uid, isManager: true, staffedTeamIds: teams });
 const coachOfTeams = (uid: string, teams: string[]) =>
   ctx({ uid, isCoach: true, staffedTeamIds: teams });
+const captainOfTeams = (uid: string, teams: string[]) =>
+  ctx({ uid, captainOfTeamIds: teams });
 const player = (uid = 'u1') => ctx({ uid });
 
 const event = (partial: Partial<EventRef> = {}): EventRef => ({
@@ -119,6 +124,47 @@ describe('isStaffOfAnyTeam', () => {
   });
 });
 
+// ---------- Capitaine ----------
+
+describe('isCaptainOfTeam', () => {
+  it('true si teamId dans captainOfTeamIds', () => {
+    expect(isCaptainOfTeam(captainOfTeams('u1', ['t1']), 't1')).toBe(true);
+  });
+  it('false si teamId absent', () => {
+    expect(isCaptainOfTeam(captainOfTeams('u1', ['t2']), 't1')).toBe(false);
+  });
+  it('false si captainOfTeamIds absent (ancien contexte)', () => {
+    expect(isCaptainOfTeam(player(), 't1')).toBe(false);
+  });
+  it('false si teamId vide', () => {
+    expect(isCaptainOfTeam(captainOfTeams('u1', ['t1']), '')).toBe(false);
+  });
+});
+
+describe('isCaptainOfAnyTeam', () => {
+  it('true si au moins une correspondance', () => {
+    expect(isCaptainOfAnyTeam(captainOfTeams('u1', ['t2']), ['t1', 't2'])).toBe(true);
+  });
+  it('false si aucune correspondance', () => {
+    expect(isCaptainOfAnyTeam(captainOfTeams('u1', ['t3']), ['t1', 't2'])).toBe(false);
+  });
+});
+
+describe('isTeamEventManager', () => {
+  it('true pour staff', () => {
+    expect(isTeamEventManager(managerOfTeams('u1', ['t1']), 't1')).toBe(true);
+  });
+  it('true pour capitaine', () => {
+    expect(isTeamEventManager(captainOfTeams('u1', ['t1']), 't1')).toBe(true);
+  });
+  it('true pour dirigeant', () => {
+    expect(isTeamEventManager(founder(), 't1')).toBe(true);
+  });
+  it('false pour joueur sans rôle', () => {
+    expect(isTeamEventManager(player(), 't1')).toBe(false);
+  });
+});
+
 // ---------- Calendrier ----------
 
 describe('canAccessCalendar', () => {
@@ -170,6 +216,55 @@ describe('canCreateEvent — scope=teams', () => {
   it('joueur KO', () => {
     const target: EventTarget = { scope: 'teams', teamIds: ['t1'] };
     expect(canCreateEvent(player(), target)).toBe(false);
+  });
+  it('capitaine de SON équipe → OK', () => {
+    const target: EventTarget = { scope: 'teams', teamIds: ['t1'] };
+    expect(canCreateEvent(captainOfTeams('u1', ['t1']), target)).toBe(true);
+  });
+  it('capitaine mais une équipe n\'est pas la sienne → KO', () => {
+    const target: EventTarget = { scope: 'teams', teamIds: ['t1', 't2'] };
+    expect(canCreateEvent(captainOfTeams('u1', ['t1']), target)).toBe(false);
+  });
+  it('capitaine ne peut pas créer scope=structure', () => {
+    expect(canCreateEvent(captainOfTeams('u1', ['t1']), { scope: 'structure' })).toBe(false);
+  });
+  it('capitaine ne peut pas créer scope=game', () => {
+    expect(canCreateEvent(captainOfTeams('u1', ['t1']), { scope: 'game', game: 'rocket_league' })).toBe(false);
+  });
+});
+
+describe('canAccessCalendar — capitaine', () => {
+  it('capitaine seul → OK (pour gérer le calendrier de son équipe)', () => {
+    expect(canAccessCalendar(captainOfTeams('u1', ['t1']))).toBe(true);
+  });
+  it('joueur non capitaine → KO', () => {
+    expect(canAccessCalendar(player())).toBe(false);
+  });
+});
+
+describe('canEditEvent — capitaine', () => {
+  it('capitaine peut éditer un event de son équipe', () => {
+    const e = event({ target: { scope: 'teams', teamIds: ['t1'] } });
+    expect(canEditEvent(captainOfTeams('u1', ['t1']), e)).toBe(true);
+  });
+  it('capitaine ne peut pas éditer un event d\'une autre équipe', () => {
+    const e = event({ target: { scope: 'teams', teamIds: ['t2'] } });
+    expect(canEditEvent(captainOfTeams('u1', ['t1']), e)).toBe(false);
+  });
+  it('capitaine ne peut pas éditer scope=structure', () => {
+    const e = event({ target: { scope: 'structure' } });
+    expect(canEditEvent(captainOfTeams('u1', ['t1']), e)).toBe(false);
+  });
+});
+
+describe('canModifyOthersPresence — capitaine', () => {
+  it('capitaine peut corriger la présence sur un event teams de son équipe', () => {
+    const e = event({ target: { scope: 'teams', teamIds: ['t1'] } });
+    expect(canModifyOthersPresence(captainOfTeams('u1', ['t1']), e)).toBe(true);
+  });
+  it('capitaine ne peut pas sur scope=structure', () => {
+    const e = event({ target: { scope: 'structure' } });
+    expect(canModifyOthersPresence(captainOfTeams('u1', ['t1']), e)).toBe(false);
   });
 });
 

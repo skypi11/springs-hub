@@ -61,9 +61,11 @@ export async function resolveUserContext(
   const memberRole = membership?.role as string | undefined;
 
   const staffedTeamIds: string[] = [];
+  const captainOfTeamIds: string[] = [];
   for (const t of teams) {
     const staffIds = Array.isArray(t.staffIds) ? t.staffIds : [];
     if (staffIds.includes(uid)) staffedTeamIds.push(t.id);
+    if (t.captainId && t.captainId === uid) captainOfTeamIds.push(t.id);
   }
 
   const isManager = inStructureManagerIds || memberRole === 'manager';
@@ -76,6 +78,7 @@ export async function resolveUserContext(
     isManager,
     isCoach,
     staffedTeamIds,
+    captainOfTeamIds,
   };
 
   return { structure, context, membership, teams };

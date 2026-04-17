@@ -27,7 +27,9 @@ export interface EventRef {
 
 // Contexte de l'utilisateur courant, dérivé de la structure + structure_members + sub_teams.
 // Les booléens dirigeant/manager/coach couvrent la structure entière ;
-// staffedTeamIds liste les sub_teams où l'user figure dans staffIds.
+// staffedTeamIds liste les sub_teams où l'user figure dans staffIds ;
+// captainOfTeamIds liste les sub_teams dont il est captainId (une seule normalement,
+// mais typé en array par précaution).
 export interface UserContext {
   uid: string;
   isFounder: boolean;
@@ -35,6 +37,7 @@ export interface UserContext {
   isManager: boolean;
   isCoach: boolean;
   staffedTeamIds: string[];
+  captainOfTeamIds?: string[];
 }
 
 export interface MemberRef {
@@ -75,27 +78,53 @@ export function isStaffOfAnyTeam(ctx: UserContext, teamIds: string[]): boolean {
   return teamIds.some(id => ctx.staffedTeamIds.includes(id));
 }
 
+// ---------- Capitaine d'équipe ----------
+// Le capitaine est un joueur désigné par le fondateur pour gérer le calendrier
+// de son équipe quand il n'y a pas de staff rattaché. Périmètre LIMITÉ :
+// - peut créer/éditer des événements pour SON équipe uniquement
+// - NE peut PAS modifier le roster (titulaires/remplaçants/staff)
+// - NE peut PAS archiver/supprimer l'équipe
+
+export function isCaptainOfTeam(ctx: UserContext, teamId: string): boolean {
+  if (!teamId) return false;
+  return (ctx.captainOfTeamIds ?? []).includes(teamId);
+}
+
+export function isCaptainOfAnyTeam(ctx: UserContext, teamIds: string[]): boolean {
+  const caps = ctx.captainOfTeamIds ?? [];
+  return teamIds.some(id => caps.includes(id));
+}
+
+// Est-ce un "gestionnaire" d'une équipe (staff OU capitaine) — pour décider
+// de l'accès aux actions calendrier uniquement.
+export function isTeamEventManager(ctx: UserContext, teamId: string): boolean {
+  return isStaffOfTeam(ctx, teamId) || isCaptainOfTeam(ctx, teamId);
+}
+
 // ---------- Accès au calendrier ----------
 
-// Qui voit la section CALENDRIER dans le dashboard de structure : tout le staff.
+// Qui voit la section CALENDRIER dans le dashboard de structure : tout le staff
+// + les capitaines (pour gérer le calendrier de leur équipe).
 // Les joueurs simples ne gèrent pas d'événements ; ils voient leurs invitations via /calendar.
 export function canAccessCalendar(ctx: UserContext): boolean {
-  return isStaff(ctx);
+  if (isStaff(ctx)) return true;
+  return (ctx.captainOfTeamIds ?? []).length > 0;
 }
 
 // ---------- Création ----------
 
 // - structure : dirigeants only
 // - game      : dirigeants only (affecte toute la structure)
-// - teams     : dirigeants OU staff de TOUTES les équipes ciblées
+// - teams     : dirigeants OU staff/capitaine de TOUTES les équipes ciblées
 export function canCreateEvent(ctx: UserContext, target: EventTarget): boolean {
-  if (!isStaff(ctx)) return false;
   if (target.scope === 'structure') return isDirigeant(ctx);
   if (target.scope === 'game') return isDirigeant(ctx);
   if (target.scope === 'teams') {
     const teamIds = target.teamIds ?? [];
     if (teamIds.length === 0) return false;
-    return isStaffOfAllTeams(ctx, teamIds);
+    if (isDirigeant(ctx)) return true;
+    // Pour chaque équipe : être staff OU capitaine de cette équipe
+    return teamIds.every(id => isStaffOfTeam(ctx, id) || isCaptainOfTeam(ctx, id));
   }
   return false;
 }
@@ -103,13 +132,15 @@ export function canCreateEvent(ctx: UserContext, target: EventTarget): boolean {
 // ---------- Édition / cycle de vie ----------
 
 // Éditer un événement (titre, dates, description, compte rendu, à travailler, adversaire, résultat).
-// Autorisé pour : créateur, dirigeants, staff d'au moins une équipe ciblée (si scope=teams).
+// Autorisé pour : créateur, dirigeants, staff ou capitaine d'au moins une équipe ciblée (si scope=teams).
 export function canEditEvent(ctx: UserContext, event: EventRef): boolean {
   if (!ctx.uid) return false;
   if (event.createdBy === ctx.uid) return true;
   if (isDirigeant(ctx)) return true;
   if (event.target.scope === 'teams') {
-    return isStaffOfAnyTeam(ctx, event.target.teamIds ?? []);
+    const teamIds = event.target.teamIds ?? [];
+    if (isStaffOfAnyTeam(ctx, teamIds)) return true;
+    if (isCaptainOfAnyTeam(ctx, teamIds)) return true;
   }
   return false;
 }
@@ -147,12 +178,15 @@ export function canRespondToPresence(
 
 // Modifier la présence de quelqu'un d'autre : le staff peut corriger pour ses joueurs.
 // - dirigeants : oui sur tous les événements
-// - manager/coach : oui si event.scope=teams ET staff d'une équipe ciblée
-// - manager/coach : non sur scope=structure ou scope=game (trop large pour eux)
+// - manager/coach/capitaine : oui si event.scope=teams ET rattaché (staff ou capitaine) à une équipe ciblée
+// - scope=structure ou scope=game : dirigeants uniquement
 export function canModifyOthersPresence(ctx: UserContext, event: EventRef): boolean {
   if (isDirigeant(ctx)) return true;
   if (event.target.scope !== 'teams') return false;
-  return isStaffOfAnyTeam(ctx, event.target.teamIds ?? []);
+  const teamIds = event.target.teamIds ?? [];
+  if (isStaffOfAnyTeam(ctx, teamIds)) return true;
+  if (isCaptainOfAnyTeam(ctx, teamIds)) return true;
+  return false;
 }
 
 // ---------- Liste des invités ----------

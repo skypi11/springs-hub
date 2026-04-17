@@ -111,6 +111,8 @@ export interface Achievement {
   date: string;               // "2026-03" (mois/année)
 }
 
+export type SubTeamStatus = 'active' | 'archived';
+
 export interface SubTeam {
   id: string;
   structureId: string;
@@ -119,7 +121,15 @@ export interface SubTeam {
   playerIds: string[];         // joueurs titulaires
   subIds: string[];            // remplaçants
   staffIds: string[];          // managers/coachs rattachés à cette équipe
+  captainId?: string;         // joueur capitaine (peut gérer calendrier de SON équipe, pas le roster)
+  label?: string;             // label de niveau (ex: "Elite", "Academy", "Amateur") — groupement + tri
+  order?: number;             // ordre manuel au sein d'un label (drag&drop)
+  groupOrder?: number;        // ordre du label lui-même dans la liste (drag&drop entre groupes)
+  status?: SubTeamStatus;     // active (défaut) | archived
+  archivedAt?: Date | string;
+  archivedBy?: string;
   createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface Competition {
