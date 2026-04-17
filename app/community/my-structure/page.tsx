@@ -26,7 +26,7 @@ import type { UserContext } from '@/lib/event-permissions';
 import PlayerStructureView, { type PlayerStructure } from '@/components/structure/PlayerStructureView';
 import MarkdownEditor from '@/components/ui/MarkdownEditor';
 import { LIMITS } from '@/lib/validation';
-import { computeMemberRole, groupAffiliations, PRIMARY_ROLE_LABELS, type MemberRoleTeam } from '@/lib/member-role';
+import { computeMemberRole, groupAffiliations, PRIMARY_ROLE_LABELS, type MemberRoleTeam, type PrimaryRole } from '@/lib/member-role';
 
 type DashboardTab = 'general' | 'teams' | 'recruitment' | 'members' | 'calendar';
 
@@ -109,6 +109,24 @@ type MyStructure = {
 
 const DEPARTURE_NOTICE_DAYS = 7;
 const DEPARTURE_NOTICE_MS = DEPARTURE_NOTICE_DAYS * 24 * 60 * 60 * 1000;
+
+// Ordre d'affichage des membres — basé sur le rôle dérivé (cf. lib/member-role).
+const PRIMARY_ROLE_ORDER: PrimaryRole[] = [
+  'fondateur', 'co_fondateur', 'responsable', 'coach_structure',
+  'manager_equipe', 'coach_equipe', 'capitaine', 'joueur', 'membre',
+];
+// Couleur du label principal selon le rôle dérivé.
+const PRIMARY_ROLE_COLORS: Record<PrimaryRole, string> = {
+  fondateur: 'var(--s-gold)',
+  co_fondateur: 'var(--s-gold)',
+  responsable: 'var(--s-violet-light)',
+  coach_structure: '#FFB800',
+  manager_equipe: 'var(--s-violet-light)',
+  coach_equipe: '#4da6ff',
+  capitaine: 'var(--s-gold)',
+  joueur: 'var(--s-text-dim)',
+  membre: 'var(--s-text-muted)',
+};
 
 const STATUS_INFO: Record<string, { label: string; color: string; icon: typeof CheckCircle; desc: string }> = {
   pending_validation: { label: 'En attente de validation', color: '#FFB800', icon: Clock, desc: 'Ta demande est en cours de traitement. Un entretien vocal sera organisé.' },
@@ -2663,31 +2681,30 @@ export default function MyStructurePage() {
                   </div>
                 ) : (
                   <div className="divide-y" style={{ borderColor: 'var(--s-border)' }}>
-                    {s.members.map(m => {
+                    {[...s.members]
+                      .map(m => ({
+                        m,
+                        derived: computeMemberRole({
+                          userId: m.userId,
+                          founderId: s.founderId,
+                          coFounderIds: s.coFounderIds ?? [],
+                          managerIds: s.managerIds ?? [],
+                          coachIds: s.coachIds ?? [],
+                          teams: teams as unknown as MemberRoleTeam[],
+                        }),
+                      }))
+                      .sort((a, b) =>
+                        PRIMARY_ROLE_ORDER.indexOf(a.derived.primary) - PRIMARY_ROLE_ORDER.indexOf(b.derived.primary)
+                      )
+                      .map(({ m, derived }) => {
                       const avatar = m.avatarUrl || m.discordAvatar;
-                      // Rôle dérivé à la volée — la vérité d'affichage vient de l'état réel
-                      // (fondation, managerIds, affectations d'équipe), jamais du champ stocké.
-                      const derived = computeMemberRole({
-                        userId: m.userId,
-                        founderId: s.founderId,
-                        coFounderIds: s.coFounderIds ?? [],
-                        managerIds: s.managerIds ?? [],
-                        coachIds: s.coachIds ?? [],
-                        teams: teams as unknown as MemberRoleTeam[],
-                      });
                       const primaryLabel = PRIMARY_ROLE_LABELS[derived.primary];
                       const affiliationBadges = groupAffiliations(derived.affiliations);
                       const isFounderRow = derived.primary === 'fondateur';
                       const isCoFounderRow = derived.primary === 'co_fondateur';
-                      const isResponsableRow = derived.primary === 'responsable';
                       const isManagerRow = (s.managerIds ?? []).includes(m.userId);
                       const isCoachRow = (s.coachIds ?? []).includes(m.userId);
-                      // Or = fondation ; violet = responsabilité structure ; muted = reste
-                      const structuralColor = isFounderRow || isCoFounderRow
-                        ? 'var(--s-gold)'
-                        : isResponsableRow
-                          ? 'var(--s-violet-light)'
-                          : 'var(--s-text-muted)';
+                      const structuralColor = PRIMARY_ROLE_COLORS[derived.primary];
                       const canRemove = !isFounderRow && !isCoFounderRow && isDirigeantOfActive;
                       const canManageStaffRoles = (isFounderOfActive || isCoFounderOfActive) && !isFounderRow;
                       const memberDepartureIso = s.coFounderDepartures?.[m.userId];
