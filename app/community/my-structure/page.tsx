@@ -25,6 +25,7 @@ import type { UserContext } from '@/lib/event-permissions';
 import PlayerStructureView, { type PlayerStructure } from '@/components/structure/PlayerStructureView';
 import MarkdownEditor from '@/components/ui/MarkdownEditor';
 import { LIMITS } from '@/lib/validation';
+import { computeMemberRole, groupAffiliations, PRIMARY_ROLE_LABELS, type MemberRoleTeam } from '@/lib/member-role';
 
 type DashboardTab = 'general' | 'teams' | 'recruitment' | 'members' | 'calendar';
 
@@ -113,14 +114,6 @@ const STATUS_INFO: Record<string, { label: string; color: string; icon: typeof C
   active: { label: 'Active', color: '#33ff66', icon: CheckCircle, desc: 'Ta structure est active et visible publiquement.' },
   suspended: { label: 'Suspendue', color: '#ff5555', icon: Ban, desc: 'Ta structure est suspendue. Contacte un admin Springs.' },
   rejected: { label: 'Refusée', color: '#ff5555', icon: AlertCircle, desc: 'Ta demande a été refusée.' },
-};
-
-const ROLE_LABELS: Record<string, string> = {
-  fondateur: 'Fondateur',
-  co_fondateur: 'Co-fondateur',
-  manager: 'Manager',
-  coach: 'Coach',
-  joueur: 'Joueur',
 };
 
 const SOCIAL_LABELS: Record<string, string> = {
@@ -285,6 +278,7 @@ export default function MyStructurePage() {
     players: { uid: string; displayName: string; avatarUrl: string; discordAvatar: string }[];
     subs: { uid: string; displayName: string; avatarUrl: string; discordAvatar: string }[];
     staff: { uid: string; displayName: string; avatarUrl: string; discordAvatar: string }[];
+    staffRoles?: Record<string, 'coach' | 'manager'>;
     captainId?: string | null;
     label?: string;
     order?: number;
@@ -2531,16 +2525,41 @@ export default function MyStructurePage() {
                   <div className="divide-y" style={{ borderColor: 'var(--s-border)' }}>
                     {s.members.map(m => {
                       const avatar = m.avatarUrl || m.discordAvatar;
-                      const isFounderRow = m.role === 'fondateur';
-                      const isCoFounderRow = m.role === 'co_fondateur';
+                      // Rôle dérivé à la volée — la vérité d'affichage vient de l'état réel
+                      // (fondation, managerIds, affectations d'équipe), jamais du champ stocké.
+                      const derived = computeMemberRole({
+                        userId: m.userId,
+                        founderId: s.founderId,
+                        coFounderIds: s.coFounderIds ?? [],
+                        managerIds: s.managerIds ?? [],
+                        coachIds: s.coachIds ?? [],
+                        teams: teams as unknown as MemberRoleTeam[],
+                      });
+                      const primaryLabel = PRIMARY_ROLE_LABELS[derived.primary];
+                      const affiliationBadges = groupAffiliations(derived.affiliations);
+                      const isFounderRow = derived.primary === 'fondateur';
+                      const isCoFounderRow = derived.primary === 'co_fondateur';
+                      const isResponsableRow = derived.primary === 'responsable';
                       const isManagerRow = (s.managerIds ?? []).includes(m.userId);
                       const isCoachRow = (s.coachIds ?? []).includes(m.userId);
-                      const structuralColor = isFounderRow || isCoFounderRow ? 'var(--s-gold)' : 'var(--s-text-muted)';
+                      // Or = fondation ; violet = responsabilité structure ; muted = reste
+                      const structuralColor = isFounderRow || isCoFounderRow
+                        ? 'var(--s-gold)'
+                        : isResponsableRow
+                          ? 'var(--s-violet-light)'
+                          : 'var(--s-text-muted)';
                       const canRemove = !isFounderRow && !isCoFounderRow && isDirigeantOfActive;
                       const canManageStaffRoles = (isFounderOfActive || isCoFounderOfActive) && !isFounderRow;
                       const memberDepartureIso = s.coFounderDepartures?.[m.userId];
                       const memberRemainingMs = memberDepartureIso ? Math.max(0, new Date(memberDepartureIso).getTime() + DEPARTURE_NOTICE_MS - now) : null;
                       const daysLeft = memberRemainingMs != null ? Math.ceil(memberRemainingMs / (24 * 60 * 60 * 1000)) : null;
+                      const badgeColors: Record<string, { bg: string; fg: string; border: string }> = {
+                        manager: { bg: 'rgba(123,47,190,0.1)', fg: 'var(--s-violet-light)', border: 'rgba(123,47,190,0.3)' },
+                        coach: { bg: 'rgba(0,129,255,0.1)', fg: '#4db1ff', border: 'rgba(0,129,255,0.3)' },
+                        capitaine: { bg: 'rgba(255,184,0,0.1)', fg: 'var(--s-gold)', border: 'rgba(255,184,0,0.3)' },
+                        joueur: { bg: 'rgba(255,255,255,0.05)', fg: 'var(--s-text-dim)', border: 'var(--s-border)' },
+                        remplacant: { bg: 'rgba(255,255,255,0.05)', fg: 'var(--s-text-muted)', border: 'var(--s-border)' },
+                      };
                       return (
                         <div key={m.id} className="flex items-center gap-3 px-5 py-3 group transition-all duration-150"
                           style={{ background: 'transparent' }}
@@ -2559,17 +2578,20 @@ export default function MyStructurePage() {
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-semibold truncate" style={{ color: 'var(--s-text)' }}>{m.displayName}</p>
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <p className="t-mono" style={{ fontSize: '10px', color: structuralColor }}>{ROLE_LABELS[m.role] ?? m.role}</p>
-                                {isManagerRow && (
-                                  <span className="tag" style={{ fontSize: '8px', padding: '1px 6px', background: 'rgba(123,47,190,0.1)', color: 'var(--s-violet-light)', borderColor: 'rgba(123,47,190,0.3)' }}>
-                                    Manager
-                                  </span>
-                                )}
-                                {isCoachRow && (
-                                  <span className="tag" style={{ fontSize: '8px', padding: '1px 6px', background: 'rgba(0,129,255,0.1)', color: '#4db1ff', borderColor: 'rgba(0,129,255,0.3)' }}>
-                                    Coach
-                                  </span>
-                                )}
+                                <p className="t-mono" style={{ fontSize: '10px', color: structuralColor }}>{primaryLabel}</p>
+                                {affiliationBadges.map(b => {
+                                  const c = badgeColors[b.key] ?? badgeColors.joueur;
+                                  const names = b.teamNames.join(', ');
+                                  return (
+                                    <span key={b.key} className="tag" title={names}
+                                      style={{ fontSize: '8px', padding: '1px 6px', background: c.bg, color: c.fg, borderColor: c.border }}>
+                                      {b.label}
+                                      {b.teamNames.length > 0 && (
+                                        <span style={{ opacity: 0.75, marginLeft: 4 }}>· {names}</span>
+                                      )}
+                                    </span>
+                                  );
+                                })}
                                 {isCoFounderRow && daysLeft != null && (
                                   <span className="tag" style={{ fontSize: '8px', padding: '1px 6px', background: 'rgba(255,85,85,0.1)', color: '#ff8888', borderColor: 'rgba(255,85,85,0.3)' }}>
                                     Préavis : {daysLeft}j

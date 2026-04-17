@@ -13,6 +13,7 @@ import {
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import { SkeletonPageHeader, SkeletonCard } from '@/components/ui/Skeleton';
+import { computeMemberRole, groupAffiliations, PRIMARY_ROLE_LABELS, type MemberRoleTeam, type PrimaryRole } from '@/lib/member-role';
 
 type Member = {
   id: string;
@@ -39,6 +40,7 @@ type Team = {
   players: TeamPlayer[];
   subs: TeamPlayer[];
   staff: TeamPlayer[];
+  staffRoles?: Record<string, 'coach' | 'manager'>;
   captainId?: string | null;
   label?: string;
   order?: number;
@@ -79,13 +81,21 @@ function formatAgeSince(ms: number | null): string {
   return `${Math.floor(days / 365)} an${days >= 730 ? 's' : ''}`;
 }
 
-const ROLE_ORDER = ['fondateur', 'co_fondateur', 'manager', 'coach', 'joueur'];
-const ROLE_LABELS: Record<string, { label: string; color: string }> = {
-  fondateur: { label: 'Fondateur', color: 'var(--s-gold)' },
-  co_fondateur: { label: 'Co-fondateur', color: 'var(--s-gold)' },
-  manager: { label: 'Manager', color: 'var(--s-violet-light)' },
-  coach: { label: 'Coach', color: '#4da6ff' },
-  joueur: { label: 'Joueur', color: 'var(--s-text)' },
+// Ordre d'affichage des membres — basé sur le rôle dérivé, pas le stocké.
+const PRIMARY_ROLE_ORDER: PrimaryRole[] = [
+  'fondateur', 'co_fondateur', 'responsable', 'manager_equipe',
+  'coach_equipe', 'capitaine', 'joueur', 'membre',
+];
+// Couleur du label principal selon le rôle dérivé.
+const PRIMARY_ROLE_COLORS: Record<PrimaryRole, string> = {
+  fondateur: 'var(--s-gold)',
+  co_fondateur: 'var(--s-gold)',
+  responsable: 'var(--s-violet-light)',
+  manager_equipe: 'var(--s-violet-light)',
+  coach_equipe: '#4da6ff',
+  capitaine: 'var(--s-gold)',
+  joueur: 'var(--s-text)',
+  membre: 'var(--s-text-dim)',
 };
 
 function ArchivedTeamsSection({ teams, renderCard }: { teams: Team[]; renderCard: (team: Team, isArchived: boolean) => React.ReactNode }) {
@@ -208,8 +218,30 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
   const socialEntries = Object.entries(structure.socials).filter(([, v]) => v);
   const mainColor = structure.games?.includes('rocket_league') ? 'var(--s-blue)' : structure.games?.includes('trackmania') ? 'var(--s-green)' : 'var(--s-gold)';
   const mainColorRaw = structure.games?.includes('rocket_league') ? '0,129,255' : structure.games?.includes('trackmania') ? '0,217,54' : '255,184,0';
-  const leaders = structure.members.filter(m => m.role === 'fondateur' || m.role === 'co_fondateur');
-  const sortedMembers = [...structure.members].sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
+  // Calcul du rôle dérivé pour chaque membre — vérité d'affichage unique,
+  // même source que le dashboard privé. On cache le résultat par userId pour ne pas recalculer.
+  const roleByUser = new Map<string, ReturnType<typeof computeMemberRole>>();
+  const roleFor = (userId: string) => {
+    const hit = roleByUser.get(userId);
+    if (hit) return hit;
+    const r = computeMemberRole({
+      userId,
+      founderId: structure.founderId,
+      coFounderIds: structure.coFounderIds ?? [],
+      managerIds: structure.managerIds ?? [],
+      coachIds: structure.coachIds ?? [],
+      teams: teams as unknown as MemberRoleTeam[],
+    });
+    roleByUser.set(userId, r);
+    return r;
+  };
+  const leaders = structure.members.filter(m => {
+    const p = roleFor(m.userId).primary;
+    return p === 'fondateur' || p === 'co_fondateur';
+  });
+  const sortedMembers = [...structure.members].sort((a, b) =>
+    PRIMARY_ROLE_ORDER.indexOf(roleFor(a.userId).primary) - PRIMARY_ROLE_ORDER.indexOf(roleFor(b.userId).primary),
+  );
 
   // Dedupe par userId pour la grille membres : un joueur RL + TM ne doit apparaître qu'une fois
   const uniqueMembers: (Member & { games: string[] })[] = [];
@@ -383,7 +415,8 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                 <div className="flex items-center gap-3 flex-wrap">
                   {leaders.map(l => {
                     const avatar = l.avatarUrl || l.discordAvatar;
-                    const roleConf = ROLE_LABELS[l.role] ?? { label: l.role, color: 'var(--s-gold)' };
+                    const leaderPrimary = roleFor(l.userId).primary;
+                    const roleConf = { label: PRIMARY_ROLE_LABELS[leaderPrimary], color: PRIMARY_ROLE_COLORS[leaderPrimary] };
                     return (
                       <Link key={l.id} href={`/profile/${l.userId}`}
                         className="flex items-center gap-2 px-2.5 py-1 transition-colors duration-150 hover:bg-[var(--s-elevated)]"
@@ -690,11 +723,11 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                   ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                       {uniqueMembers.map(m => {
-                        const roleConf = ROLE_LABELS[m.role] ?? { label: m.role, color: 'var(--s-text-dim)' };
+                        const derived = roleFor(m.userId);
+                        const roleConf = { label: PRIMARY_ROLE_LABELS[derived.primary], color: PRIMARY_ROLE_COLORS[derived.primary] };
                         const avatar = m.avatarUrl || m.discordAvatar;
-                        const isLeader = m.role === 'fondateur' || m.role === 'co_fondateur';
-                        const isManager = (structure.managerIds ?? []).includes(m.userId);
-                        const isCoach = (structure.coachIds ?? []).includes(m.userId);
+                        const isLeader = derived.primary === 'fondateur' || derived.primary === 'co_fondateur';
+                        const affiliations = groupAffiliations(derived.affiliations);
                         return (
                           <Link
                             key={m.userId}
@@ -719,36 +752,24 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                             <div className="w-full min-w-0">
                               <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{m.displayName}</p>
                               <p className="t-label mt-0.5" style={{ color: roleConf.color }}>{roleConf.label}</p>
-                              {(isManager || isCoach) && (
+                              {affiliations.length > 0 && (
                                 <div className="flex items-center justify-center gap-1 mt-1.5 flex-wrap">
-                                  {isManager && (
-                                    <span
-                                      className="t-label"
-                                      style={{
-                                        padding: '2px 6px',
-                                        background: 'rgba(123,47,190,0.15)',
-                                        border: '1px solid rgba(123,47,190,0.35)',
-                                        color: 'var(--s-violet-light)',
-                                        letterSpacing: '0.06em',
-                                      }}
-                                    >
-                                      MANAGER
-                                    </span>
-                                  )}
-                                  {isCoach && (
-                                    <span
-                                      className="t-label"
-                                      style={{
-                                        padding: '2px 6px',
-                                        background: 'rgba(0,129,255,0.15)',
-                                        border: '1px solid rgba(0,129,255,0.35)',
-                                        color: '#4da6ff',
-                                        letterSpacing: '0.06em',
-                                      }}
-                                    >
-                                      COACH
-                                    </span>
-                                  )}
+                                  {affiliations.map(b => {
+                                    const colors: Record<string, { bg: string; fg: string; border: string }> = {
+                                      manager: { bg: 'rgba(123,47,190,0.15)', fg: 'var(--s-violet-light)', border: 'rgba(123,47,190,0.35)' },
+                                      coach: { bg: 'rgba(0,129,255,0.15)', fg: '#4da6ff', border: 'rgba(0,129,255,0.35)' },
+                                      capitaine: { bg: 'rgba(255,184,0,0.15)', fg: 'var(--s-gold)', border: 'rgba(255,184,0,0.35)' },
+                                      joueur: { bg: 'rgba(255,255,255,0.04)', fg: 'var(--s-text-dim)', border: 'var(--s-border)' },
+                                      remplacant: { bg: 'rgba(255,255,255,0.04)', fg: 'var(--s-text-muted)', border: 'var(--s-border)' },
+                                    };
+                                    const c = colors[b.key] ?? colors.joueur;
+                                    return (
+                                      <span key={b.key} className="t-label" title={b.teamNames.join(', ')}
+                                        style={{ padding: '2px 6px', background: c.bg, border: `1px solid ${c.border}`, color: c.fg, letterSpacing: '0.06em' }}>
+                                        {b.label.toUpperCase()}
+                                      </span>
+                                    );
+                                  })}
                                 </div>
                               )}
                             </div>
