@@ -17,6 +17,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import CalendarSection from '@/components/calendar/CalendarSection';
 import TeamDetailDrawer, { type DrawerTab, type DrawerTeam } from '@/components/calendar/TeamDetailDrawer';
+import MemberActionsMenu from '@/components/structure/MemberActionsMenu';
 import { CalendarClock, ClipboardList } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import PublicPreviewFrame from '@/components/ui/PublicPreviewFrame';
@@ -2739,75 +2740,23 @@ export default function MyStructurePage() {
                               </div>
                             </div>
                           </Link>
-                          {/* Toggles staff (coach / manager) — fondateur ET co-fondateurs */}
-                          {canManageStaffRoles && (
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
-                              <button type="button"
-                                onClick={() => handleToggleStaffRole(m.userId, m.displayName, 'coach', !isCoachRow)}
-                                disabled={invActionLoading === `${m.userId}:coach`}
-                                className="px-1.5 py-0.5 transition-colors duration-150"
-                                style={{
-                                  fontSize: '9px',
-                                  letterSpacing: '0.06em',
-                                  textTransform: 'uppercase',
-                                  background: isCoachRow ? 'rgba(0,129,255,0.15)' : 'transparent',
-                                  color: isCoachRow ? '#4db1ff' : 'var(--s-text-muted)',
-                                  border: `1px solid ${isCoachRow ? 'rgba(0,129,255,0.4)' : 'var(--s-border)'}`,
-                                }}
-                                title={isCoachRow ? 'Retirer Coach' : 'Promouvoir Coach'}>
-                                {invActionLoading === `${m.userId}:coach` ? '…' : 'Coach'}
-                              </button>
-                              <button type="button"
-                                onClick={() => handleToggleStaffRole(m.userId, m.displayName, 'manager', !isManagerRow)}
-                                disabled={invActionLoading === `${m.userId}:manager`}
-                                className="px-1.5 py-0.5 transition-colors duration-150"
-                                style={{
-                                  fontSize: '9px',
-                                  letterSpacing: '0.06em',
-                                  textTransform: 'uppercase',
-                                  background: isManagerRow ? 'rgba(123,47,190,0.15)' : 'transparent',
-                                  color: isManagerRow ? 'var(--s-violet-light)' : 'var(--s-text-muted)',
-                                  border: `1px solid ${isManagerRow ? 'rgba(123,47,190,0.4)' : 'var(--s-border)'}`,
-                                }}
-                                title={isManagerRow ? 'Retirer Manager' : 'Promouvoir Manager'}>
-                                {invActionLoading === `${m.userId}:manager` ? '…' : 'Manager'}
-                              </button>
-                            </div>
-                          )}
-                          {/* Actions co-fondateur — fondateur uniquement */}
-                          {isFounderOfActive && !isFounderRow && (
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                              {isCoFounderRow ? (
-                                <>
-                                  <button type="button" onClick={() => handleTransferOwnership(m.userId, m.displayName)}
-                                    disabled={invActionLoading === m.userId}
-                                    className="p-1" style={{ color: 'var(--s-gold)' }} title="Transférer la propriété">
-                                    <Shield size={11} />
-                                  </button>
-                                  <button type="button" onClick={() => handleDemoteCoFounder(m.userId, m.displayName)}
-                                    disabled={invActionLoading === m.userId}
-                                    className="p-1" style={{ color: 'var(--s-text-dim)' }} title="Rétrograder co-fondateur"
-                                  >
-                                    <ChevronDown size={11} />
-                                  </button>
-                                </>
-                              ) : (
-                                <button type="button" onClick={() => handlePromoteToCoFounder(m.userId, m.displayName)}
-                                  disabled={invActionLoading === m.userId}
-                                  className="p-1" style={{ color: 'var(--s-gold)' }} title="Promouvoir co-fondateur">
-                                  <ChevronUp size={11} />
-                                </button>
-                              )}
-                            </div>
-                          )}
-                          {canRemove && (
-                            <button type="button" onClick={() => handleRemoveMember(m.id, m.displayName)}
-                              disabled={invActionLoading === m.id}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 p-1"
-                              style={{ color: '#ff5555' }} title="Retirer">
-                              {invActionLoading === m.id ? <Loader2 size={11} className="animate-spin" /> : <UserMinus size={11} />}
-                            </button>
-                          )}
+                          <MemberActionsMenu
+                            canManageStaffRoles={canManageStaffRoles}
+                            canManageCoFounder={isFounderOfActive && !isFounderRow}
+                            canRemove={canRemove}
+                            isCoach={isCoachRow}
+                            isManager={isManagerRow}
+                            isCoFounder={isCoFounderRow}
+                            busyKey={invActionLoading}
+                            memberId={m.id}
+                            userId={m.userId}
+                            onToggleCoach={() => handleToggleStaffRole(m.userId, m.displayName, 'coach', !isCoachRow)}
+                            onToggleManager={() => handleToggleStaffRole(m.userId, m.displayName, 'manager', !isManagerRow)}
+                            onPromoteCoFounder={() => handlePromoteToCoFounder(m.userId, m.displayName)}
+                            onDemoteCoFounder={() => handleDemoteCoFounder(m.userId, m.displayName)}
+                            onTransferOwnership={() => handleTransferOwnership(m.userId, m.displayName)}
+                            onRemove={() => handleRemoveMember(m.id, m.displayName)}
+                          />
                         </div>
                       );
                     })}
