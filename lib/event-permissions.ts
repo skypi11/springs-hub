@@ -116,15 +116,26 @@ export function canAccessCalendar(ctx: UserContext): boolean {
 // - structure : dirigeants only
 // - game      : dirigeants only (affecte toute la structure)
 // - teams     : dirigeants OU staff/capitaine de TOUTES les équipes ciblées
-export function canCreateEvent(ctx: UserContext, target: EventTarget): boolean {
+//              OU coach structure (uniquement pour training/scrim sur n'importe
+//              quelle équipe — coach mobile rémunéré par la structure)
+export function canCreateEvent(ctx: UserContext, target: EventTarget, type?: EventType): boolean {
   if (target.scope === 'structure') return isDirigeant(ctx);
   if (target.scope === 'game') return isDirigeant(ctx);
   if (target.scope === 'teams') {
     const teamIds = target.teamIds ?? [];
     if (teamIds.length === 0) return false;
     if (isDirigeant(ctx)) return true;
-    // Pour chaque équipe : être staff OU capitaine de cette équipe
-    return teamIds.every(id => isStaffOfTeam(ctx, id) || isCaptainOfTeam(ctx, id));
+    // Staff / capitaine de TOUTES les équipes ciblées → OK pour tout type
+    if (teamIds.every(id => isStaffOfTeam(ctx, id) || isCaptainOfTeam(ctx, id))) {
+      return true;
+    }
+    // Coach structure (coachIds) : intervient à la demande sur n'importe quelle
+    // équipe, mais uniquement pour des entraînements / scrims — pas de match officiel
+    // ni d'événement Springs (ceux-là restent dirigeants).
+    if (ctx.isCoach && type && (type === 'training' || type === 'scrim')) {
+      return true;
+    }
+    return false;
   }
   return false;
 }

@@ -43,6 +43,8 @@ const managerOfTeams = (uid: string, teams: string[]) =>
   ctx({ uid, isManager: true, staffedTeamIds: teams });
 const coachOfTeams = (uid: string, teams: string[]) =>
   ctx({ uid, isCoach: true, staffedTeamIds: teams });
+// Coach structure = coachIds sans être rattaché à une équipe précise (staffedTeamIds vide).
+const coachStructure = (uid = 'u1') => ctx({ uid, isCoach: true, staffedTeamIds: [] });
 const captainOfTeams = (uid: string, teams: string[]) =>
   ctx({ uid, captainOfTeamIds: teams });
 const player = (uid = 'u1') => ctx({ uid });
@@ -230,6 +232,30 @@ describe('canCreateEvent — scope=teams', () => {
   });
   it('capitaine ne peut pas créer scope=game', () => {
     expect(canCreateEvent(captainOfTeams('u1', ['t1']), { scope: 'game', game: 'rocket_league' })).toBe(false);
+  });
+
+  // Coach structure — intervenant mobile (coachIds) : training/scrim sur n'importe quelle équipe
+  it('coach structure → OK training sur équipe quelconque', () => {
+    const target: EventTarget = { scope: 'teams', teamIds: ['t7'] };
+    expect(canCreateEvent(coachStructure(), target, 'training')).toBe(true);
+  });
+  it('coach structure → OK scrim sur plusieurs équipes', () => {
+    const target: EventTarget = { scope: 'teams', teamIds: ['t1', 't2', 't3'] };
+    expect(canCreateEvent(coachStructure(), target, 'scrim')).toBe(true);
+  });
+  it('coach structure → KO match (réservé aux dirigeants/staff d\'équipe)', () => {
+    const target: EventTarget = { scope: 'teams', teamIds: ['t7'] };
+    expect(canCreateEvent(coachStructure(), target, 'match')).toBe(false);
+  });
+  it('coach structure → KO scope=structure', () => {
+    expect(canCreateEvent(coachStructure(), { scope: 'structure' }, 'training')).toBe(false);
+  });
+  it('coach structure → KO scope=game', () => {
+    expect(canCreateEvent(coachStructure(), { scope: 'game', game: 'rocket_league' }, 'training')).toBe(false);
+  });
+  it('coach structure → KO si type non fourni (sécurité par défaut)', () => {
+    const target: EventTarget = { scope: 'teams', teamIds: ['t7'] };
+    expect(canCreateEvent(coachStructure(), target)).toBe(false);
   });
 });
 

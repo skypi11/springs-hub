@@ -147,6 +147,54 @@ export async function POST(req: NextRequest) {
       return out;
     };
 
+    // Règle : 1 joueur = max 1 équipe active par jeu dans la structure.
+    // Staff libre (un coach/manager peut couvrir plusieurs équipes). Les équipes
+    // archivées ne bloquent pas. Le joueur reste libre d'être dans une équipe RL
+    // ET une équipe TM en parallèle (c'est un autre jeu).
+    const checkPlayerExclusivity = async (
+      candidatePlayerIds: string[],
+      candidateSubIds: string[],
+      teamGame: string,
+      excludeTeamId?: string,
+    ): Promise<{ ok: true } | { ok: false; error: string }> => {
+      const candidates = new Set<string>([...candidatePlayerIds, ...candidateSubIds].filter(Boolean));
+      if (candidates.size === 0) return { ok: true };
+
+      const snap = await db.collection('sub_teams')
+        .where('structureId', '==', structureId)
+        .where('game', '==', teamGame)
+        .get();
+
+      const conflicts: { userId: string; teamName: string }[] = [];
+      for (const d of snap.docs) {
+        if (d.id === excludeTeamId) continue;
+        const t = d.data();
+        if (t.status === 'archived') continue;
+        const occupied = new Set<string>([
+          ...((t.playerIds ?? []) as string[]),
+          ...((t.subIds ?? []) as string[]),
+        ]);
+        for (const uid of candidates) {
+          if (occupied.has(uid)) conflicts.push({ userId: uid, teamName: t.name ?? '?' });
+        }
+      }
+
+      if (conflicts.length === 0) return { ok: true };
+
+      // Résoudre les displayName pour un message clair
+      const ids = Array.from(new Set(conflicts.map(c => c.userId)));
+      const usersById = await fetchDocsByIds(db, 'users', ids);
+      const parts = conflicts.map(c => {
+        const u = usersById.get(c.userId);
+        const name = u?.displayName || u?.discordUsername || c.userId;
+        return `${name} (déjà dans ${c.teamName})`;
+      });
+      return {
+        ok: false,
+        error: `Un joueur ne peut être que dans une seule équipe par jeu : ${parts.join(', ')}.`,
+      };
+    };
+
     switch (action) {
       case 'create': {
         // Création : dirigeants ou responsables (managers) de la structure.
@@ -178,6 +226,12 @@ export async function POST(req: NextRequest) {
           .get();
         const sameLabel = existingSnap.docs.filter(d => (d.data().label ?? '') === labelStr);
         const maxOrder = sameLabel.reduce((acc, d) => Math.max(acc, typeof d.data().order === 'number' ? d.data().order : 0), -1);
+
+        // Règle 1 joueur = 1 équipe par jeu
+        const excl = await checkPlayerExclusivity(playerIds || [], subIds || [], game);
+        if (!excl.ok) {
+          return NextResponse.json({ error: excl.error }, { status: 400 });
+        }
 
         const captainToStore = captainId && (playerIds || []).includes(captainId) ? captainId : null;
         const finalStaffIds: string[] = staffIds || [];
@@ -233,6 +287,16 @@ export async function POST(req: NextRequest) {
           }
           if (subIds && subIds.length > 2) {
             return NextResponse.json({ error: 'Max 2 remplaçants pour une équipe RL.' }, { status: 400 });
+          }
+        }
+
+        // Règle 1 joueur = 1 équipe par jeu. On ne check que si playerIds ou subIds changent.
+        if (playerIds !== undefined || subIds !== undefined) {
+          const finalPlayers = (playerIds !== undefined ? playerIds : (teamData.playerIds ?? [])) as string[];
+          const finalSubs = (subIds !== undefined ? subIds : (teamData.subIds ?? [])) as string[];
+          const excl = await checkPlayerExclusivity(finalPlayers, finalSubs, teamGame, teamId);
+          if (!excl.ok) {
+            return NextResponse.json({ error: excl.error }, { status: 400 });
           }
         }
 

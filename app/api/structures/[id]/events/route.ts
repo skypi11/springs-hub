@@ -207,7 +207,7 @@ export async function POST(
     }
 
     // Permissions
-    if (!canCreateEvent(resolved.context, target)) {
+    if (!canCreateEvent(resolved.context, target, type)) {
       return NextResponse.json({ error: 'Permissions insuffisantes pour cette cible.' }, { status: 403 });
     }
 
