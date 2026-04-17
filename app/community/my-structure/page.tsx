@@ -300,6 +300,7 @@ export default function MyStructurePage() {
   const [teamActionLoading, setTeamActionLoading] = useState<string | null>(null);
   const [teamSearch, setTeamSearch] = useState('');
   const [showArchived, setShowArchived] = useState(false);
+  const [healthOpen, setHealthOpen] = useState<boolean | null>(null);
   const [teamMenuOpen, setTeamMenuOpen] = useState<string | null>(null);
   // Drawer détail équipe (Dispos + Devoirs) — ouvert via chips des cards équipe
   const [drawerState, setDrawerState] = useState<{ team: DrawerTeam; tab: DrawerTab; canEditConfig: boolean } | null>(null);
@@ -2222,7 +2223,7 @@ export default function MyStructurePage() {
                 </div>
               )}
 
-              {/* Dashboard santé équipes — dirigeant only — Lot 6 */}
+              {/* Dashboard santé équipes — dirigeant only — Lot 6 (collapsible à partir de 5 flags) */}
               {isDirigeantOfActive && !teamsLoading && (() => {
                 const activeAll = teams.filter(t => (t.status ?? 'active') === 'active');
                 if (activeAll.length === 0) return null;
@@ -2231,6 +2232,9 @@ export default function MyStructurePage() {
                 const rlIncomplete = activeAll.filter(t => t.game === 'rocket_league' && t.players.length < 3);
                 const totalFlagged = noCaptain.length + noStaff.length + rlIncomplete.length;
                 if (totalFlagged === 0) return null;
+                // Auto-collapse si beaucoup de flags (>5), sauf override utilisateur
+                const defaultOpen = totalFlagged <= 5;
+                const isOpen = healthOpen ?? defaultOpen;
                 const flagRow = (
                   label: string,
                   list: TeamData[],
@@ -2259,18 +2263,24 @@ export default function MyStructurePage() {
                   <div className="mb-4 p-3 bevel-sm relative overflow-hidden"
                     style={{ background: 'rgba(255,184,0,0.05)', border: '1px solid rgba(255,184,0,0.25)' }}>
                     <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), transparent 70%)' }} />
-                    <div className="flex items-center gap-2 mb-2">
+                    <button type="button" onClick={() => setHealthOpen(!isOpen)}
+                      className="w-full flex items-center gap-2 transition-colors duration-150"
+                      style={{ cursor: 'pointer' }}>
                       <AlertCircle size={13} style={{ color: 'var(--s-gold)' }} />
                       <span className="t-label" style={{ color: 'var(--s-gold)' }}>Santé des équipes</span>
                       <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
                         · {totalFlagged} point{totalFlagged > 1 ? 's' : ''} d&apos;attention
                       </span>
-                    </div>
-                    <div className="divide-y" style={{ borderColor: 'var(--s-border)' }}>
-                      {flagRow('Sans capitaine', noCaptain, '#ffb800')}
-                      {flagRow('Sans staff (manager/coach)', noStaff, '#7a7a95')}
-                      {flagRow('Roster RL incomplet (<3 titulaires)', rlIncomplete, '#0081ff')}
-                    </div>
+                      <div className="flex-1" />
+                      {isOpen ? <ChevronUp size={12} style={{ color: 'var(--s-text-dim)' }} /> : <ChevronDown size={12} style={{ color: 'var(--s-text-dim)' }} />}
+                    </button>
+                    {isOpen && (
+                      <div className="mt-2 divide-y" style={{ borderColor: 'var(--s-border)' }}>
+                        {flagRow('Sans capitaine', noCaptain, '#ffb800')}
+                        {flagRow('Sans staff (manager/coach)', noStaff, '#7a7a95')}
+                        {flagRow('Roster RL incomplet (<3 titulaires)', rlIncomplete, '#0081ff')}
+                      </div>
+                    )}
                   </div>
                 );
               })()}

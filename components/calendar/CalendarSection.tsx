@@ -12,7 +12,10 @@ import {
   MapPin,
   Target,
   ChevronRight,
+  ChevronDown,
   Trash2,
+  Check,
+  Users,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
@@ -306,38 +309,9 @@ export default function CalendarSection({
         ))}
       </div>
 
-      {/* Team filter — actif quand il y a plus d'une équipe, masque les events scope=structure/game si une sélection est posée */}
+      {/* Team filter — dropdown multi-select, scalable jusqu'à 20+ équipes */}
       {teams.length > 1 && (
-        <div className="relative z-[1] px-5 pt-3 flex flex-wrap gap-1.5 items-center">
-          <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Équipe :</span>
-          <button type="button" onClick={() => setTeamFilter([])}
-            className="tag transition-all duration-150"
-            style={{
-              background: teamFilter.length === 0 ? 'rgba(255,184,0,0.15)' : 'transparent',
-              color: teamFilter.length === 0 ? 'var(--s-gold)' : 'var(--s-text-dim)',
-              borderColor: teamFilter.length === 0 ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
-              cursor: 'pointer', padding: '3px 9px', fontSize: '10px',
-            }}>
-            Toutes
-          </button>
-          {teams.map(t => {
-            const selected = teamFilter.includes(t.id);
-            const isRL = t.game === 'rocket_league';
-            return (
-              <button key={t.id} type="button"
-                onClick={() => setTeamFilter(prev => selected ? prev.filter(x => x !== t.id) : [...prev, t.id])}
-                className="tag transition-all duration-150"
-                style={{
-                  background: selected ? (isRL ? 'rgba(0,129,255,0.15)' : 'rgba(0,217,54,0.15)') : 'transparent',
-                  color: selected ? (isRL ? 'var(--s-blue)' : 'var(--s-green)') : 'var(--s-text-dim)',
-                  borderColor: selected ? (isRL ? 'rgba(0,129,255,0.4)' : 'rgba(0,217,54,0.4)') : 'var(--s-border)',
-                  cursor: 'pointer', padding: '3px 9px', fontSize: '10px',
-                }}>
-                {t.name}
-              </button>
-            );
-          })}
-        </div>
+        <TeamFilterDropdown teams={teams} value={teamFilter} onChange={setTeamFilter} />
       )}
 
       {/* Body */}
@@ -397,6 +371,104 @@ export default function CalendarSection({
           onDelete={handleDelete}
           onReload={loadEvents}
         />
+      )}
+    </div>
+  );
+}
+
+// ─── Team filter dropdown (scalable) ───────────────────────────────────
+
+function TeamFilterDropdown({
+  teams,
+  value,
+  onChange,
+}: {
+  teams: Team[];
+  value: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (!t.closest('[data-team-filter-root]')) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open]);
+
+  const query = q.trim().toLowerCase();
+  const filtered = query
+    ? teams.filter(t => t.name.toLowerCase().includes(query))
+    : teams;
+
+  const label = value.length === 0
+    ? 'Toutes'
+    : value.length === 1
+      ? (teams.find(t => t.id === value[0])?.name ?? `${value.length}/${teams.length}`)
+      : `${value.length}/${teams.length}`;
+
+  const toggle = (id: string) =>
+    onChange(value.includes(id) ? value.filter(x => x !== id) : [...value, id]);
+
+  return (
+    <div className="relative z-[1] px-5 pt-3 flex items-center gap-2" data-team-filter-root>
+      <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Équipes :</span>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 transition-all duration-150"
+        style={{
+          background: value.length > 0 ? 'rgba(255,184,0,0.12)' : 'transparent',
+          color: value.length > 0 ? 'var(--s-gold)' : 'var(--s-text-dim)',
+          border: `1px solid ${value.length > 0 ? 'rgba(255,184,0,0.35)' : 'var(--s-border)'}`,
+          cursor: 'pointer', padding: '4px 10px', fontSize: '11px',
+          textTransform: 'uppercase', letterSpacing: '0.04em',
+        }}>
+        <Users size={11} />
+        <span>{label}</span>
+        <ChevronDown size={11} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+      </button>
+      {value.length > 0 && (
+        <button type="button" onClick={() => onChange([])}
+          className="text-xs transition-colors duration-150"
+          style={{ color: 'var(--s-text-muted)', padding: '2px 6px' }}>
+          Réinitialiser
+        </button>
+      )}
+      {open && (
+        <div className="absolute left-5 top-full mt-1 z-30 w-[280px] max-h-[320px] overflow-hidden flex flex-col bevel-sm"
+          style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+          {teams.length > 6 && (
+            <div className="p-2" style={{ borderBottom: '1px solid var(--s-border)' }}>
+              <input type="text" value={q} onChange={e => setQ(e.target.value)} autoFocus
+                placeholder="Rechercher une équipe..."
+                className="settings-input w-full text-xs" />
+            </div>
+          )}
+          <div className="overflow-y-auto flex-1">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-4 text-center">
+                <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucune équipe.</span>
+              </div>
+            ) : filtered.map(t => {
+              const selected = value.includes(t.id);
+              const color = t.game === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)';
+              return (
+                <button key={t.id} type="button" onClick={() => toggle(t.id)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors duration-150 hover:bg-[var(--s-hover)]">
+                  <span className="w-4 h-4 flex items-center justify-center flex-shrink-0"
+                    style={{ border: `1px solid ${selected ? 'var(--s-gold)' : 'var(--s-border)'}`, background: selected ? 'rgba(255,184,0,0.15)' : 'transparent' }}>
+                    {selected && <Check size={10} style={{ color: 'var(--s-gold)' }} />}
+                  </span>
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                  <span className="text-xs flex-1 truncate" style={{ color: selected ? 'var(--s-text)' : 'var(--s-text-dim)' }}>{t.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       )}
     </div>
   );

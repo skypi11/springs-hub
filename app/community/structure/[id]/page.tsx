@@ -144,6 +144,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
   const [joinMessage, setJoinMessage] = useState('');
   const [joinLoading, setJoinLoading] = useState(false);
   const [joinSent, setJoinSent] = useState(false);
+  const [teamSearch, setTeamSearch] = useState('');
   const [joinError, setJoinError] = useState('');
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -526,8 +527,18 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
 
             {/* 2. ÉQUIPES — groupées par label, actives en tête, archivées pliées */}
             {teams.length > 0 && (() => {
-              const activeList = teams.filter(t => (t.status ?? 'active') === 'active');
-              const archivedList = teams.filter(t => t.status === 'archived');
+              const q = teamSearch.trim().toLowerCase();
+              const matchTeam = (t: Team) => {
+                if (!q) return true;
+                if (t.name?.toLowerCase().includes(q)) return true;
+                if ((t.label ?? '').toLowerCase().includes(q)) return true;
+                const allMembers = [...t.players, ...t.subs, ...t.staff];
+                return allMembers.some(m => (m.displayName ?? '').toLowerCase().includes(q));
+              };
+              const activeList = teams.filter(t => (t.status ?? 'active') === 'active' && matchTeam(t));
+              const archivedList = teams.filter(t => t.status === 'archived' && matchTeam(t));
+              const showSearch = teams.length > 4;
+              const noMatch = q && activeList.length === 0 && archivedList.length === 0;
 
               // Groupes par label pour les actives (tri groupOrder puis alpha label,
               // puis tri order puis nom à l'intérieur du groupe — mêmes règles que le dashboard)
@@ -614,6 +625,23 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
 
               return (
                 <div className="space-y-6">
+                  {/* Barre de recherche — affichée à partir de 5 équipes */}
+                  {showSearch && (
+                    <div className="relative">
+                      <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--s-text-muted)' }} />
+                      <input type="text" value={teamSearch} onChange={e => setTeamSearch(e.target.value)}
+                        placeholder={`Rechercher parmi ${teams.length} équipes (nom, label, joueur)...`}
+                        className="settings-input w-full pl-7 text-sm" />
+                    </div>
+                  )}
+
+                  {noMatch && (
+                    <div className="text-center py-6">
+                      <Search size={20} className="mx-auto mb-2" style={{ color: 'var(--s-text-muted)' }} />
+                      <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucun résultat pour « {teamSearch} ».</p>
+                    </div>
+                  )}
+
                   {/* Groupes actifs */}
                   {groups.map(g => (
                     <div key={g.label || '__nolabel__'} className="space-y-4">
