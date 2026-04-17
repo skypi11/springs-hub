@@ -83,14 +83,15 @@ function formatAgeSince(ms: number | null): string {
 
 // Ordre d'affichage des membres — basé sur le rôle dérivé, pas le stocké.
 const PRIMARY_ROLE_ORDER: PrimaryRole[] = [
-  'fondateur', 'co_fondateur', 'responsable', 'manager_equipe',
-  'coach_equipe', 'capitaine', 'joueur', 'membre',
+  'fondateur', 'co_fondateur', 'responsable', 'coach_structure',
+  'manager_equipe', 'coach_equipe', 'capitaine', 'joueur', 'membre',
 ];
 // Couleur du label principal selon le rôle dérivé.
 const PRIMARY_ROLE_COLORS: Record<PrimaryRole, string> = {
   fondateur: 'var(--s-gold)',
   co_fondateur: 'var(--s-gold)',
   responsable: 'var(--s-violet-light)',
+  coach_structure: '#FFB800',
   manager_equipe: 'var(--s-violet-light)',
   coach_equipe: '#4da6ff',
   capitaine: 'var(--s-gold)',

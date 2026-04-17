@@ -51,6 +51,38 @@ describe('computeMemberRole — primary', () => {
     expect(res.primary).toBe('responsable');
   });
 
+  it('coach structure (coachIds) gagne sur manager d\'équipe', () => {
+    const res = computeMemberRole({
+      userId: 'u1',
+      founderId: 'other',
+      coachIds: ['u1'],
+      teams: [baseTeam({ staffIds: ['u1'], staffRoles: { u1: 'manager' } })],
+    });
+    expect(res.primary).toBe('coach_structure');
+  });
+
+  it('coach structure sans aucune équipe = primary coach_structure', () => {
+    const res = computeMemberRole({
+      userId: 'u1',
+      founderId: 'other',
+      coachIds: ['u1'],
+      teams: [],
+    });
+    expect(res.primary).toBe('coach_structure');
+    expect(res.affiliations).toHaveLength(0);
+  });
+
+  it('responsable gagne sur coach structure', () => {
+    const res = computeMemberRole({
+      userId: 'u1',
+      founderId: 'other',
+      managerIds: ['u1'],
+      coachIds: ['u1'],
+      teams: [],
+    });
+    expect(res.primary).toBe('responsable');
+  });
+
   it('manager d\'équipe gagne sur coach d\'équipe', () => {
     const res = computeMemberRole({
       userId: 'u1',
@@ -71,6 +103,24 @@ describe('computeMemberRole — primary', () => {
     });
     expect(res.primary).toBe('coach_equipe');
     expect(res.affiliations[0].role).toBe('coach');
+  });
+
+  it('coach d\'équipe (staff) ≠ coach structure (coachIds)', () => {
+    // Même user, deux voies : coach_equipe via staff vs coach_structure via coachIds
+    const teamCoach = computeMemberRole({
+      userId: 'u1',
+      founderId: 'other',
+      teams: [baseTeam({ staffIds: ['u1'], staffRoles: { u1: 'coach' } })],
+    });
+    expect(teamCoach.primary).toBe('coach_equipe');
+
+    const structCoach = computeMemberRole({
+      userId: 'u1',
+      founderId: 'other',
+      coachIds: ['u1'],
+      teams: [],
+    });
+    expect(structCoach.primary).toBe('coach_structure');
   });
 
   it('capitaine sans être staff = primary capitaine', () => {

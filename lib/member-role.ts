@@ -6,13 +6,19 @@
 // à chaque lecture, ce qui rend impossible toute désync.
 //
 // Hiérarchie de priorité pour le `primary` (ce qui s'affiche comme label principal) :
-//   Fondateur > Co-fondateur > Responsable (structure)
+//   Fondateur > Co-fondateur > Responsable (structure) > Coach structure
 //   > Manager d'équipe > Coach d'équipe > Capitaine > Joueur > Membre
+//
+// Coach structure : coach rémunéré par la structure, intervient à la demande
+// sur toutes les équipes, n'est pas attribué à une en particulier. Identifié
+// par `coachIds` (champ structure). Distinct du "coach d'équipe" (staff d'une
+// équipe précise avec staffRoles[uid] = 'coach').
 
 export type PrimaryRole =
   | 'fondateur'
   | 'co_fondateur'
   | 'responsable'
+  | 'coach_structure'
   | 'manager_equipe'
   | 'coach_equipe'
   | 'capitaine'
@@ -61,6 +67,7 @@ export const PRIMARY_ROLE_LABELS: Record<PrimaryRole, string> = {
   fondateur: 'Fondateur',
   co_fondateur: 'Co-fondateur',
   responsable: 'Responsable',
+  coach_structure: 'Coach structure',
   manager_equipe: "Manager d'équipe",
   coach_equipe: 'Coach',
   capitaine: 'Capitaine',
@@ -109,9 +116,13 @@ export function computeMemberRole(input: MemberRoleInput): MemberRoleResult {
     primary = 'co_fondateur';
   } else if (managerIds.includes(userId)) {
     primary = 'responsable';
+  } else if (coachIds.includes(userId)) {
+    // Coach structure = coach rémunéré mobile (via coachIds), prioritaire
+    // sur les rôles d'équipe pour bien refléter son statut transverse.
+    primary = 'coach_structure';
   } else if (affiliations.some(a => a.role === 'manager')) {
     primary = 'manager_equipe';
-  } else if (affiliations.some(a => a.role === 'coach') || coachIds.includes(userId)) {
+  } else if (affiliations.some(a => a.role === 'coach')) {
     primary = 'coach_equipe';
   } else if (affiliations.some(a => a.role === 'capitaine')) {
     primary = 'capitaine';
