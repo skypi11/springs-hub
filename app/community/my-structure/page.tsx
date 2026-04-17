@@ -231,6 +231,100 @@ function RosterSlot({ label, labelColor, members, available, canAdd, loading, on
   );
 }
 
+// ─── Staff slot : role picker (Coach / Manager) à l'ajout + toggle sur membre existant
+function StaffRosterSlot({ label, labelColor, members, staffRoles, available, canAdd, loading, onAdd, onRemove, onChangeRole }: {
+  label: string;
+  labelColor: string;
+  members: { uid: string; displayName: string; avatarUrl: string; discordAvatar: string }[];
+  staffRoles: Record<string, 'coach' | 'manager'>;
+  available: { id: string; userId: string; displayName: string; avatarUrl: string; discordAvatar: string }[];
+  canAdd: boolean;
+  loading: boolean;
+  onAdd: (uid: string, role: 'coach' | 'manager') => void;
+  onRemove: (uid: string) => void;
+  onChangeRole: (uid: string, role: 'coach' | 'manager') => void;
+}) {
+  const [pendingUid, setPendingUid] = useState('');
+  const [pendingRole, setPendingRole] = useState<'coach' | 'manager'>('coach');
+  return (
+    <div className="p-2.5" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+      <p className="t-label mb-2" style={{ color: labelColor }}>{label}</p>
+      <div className="space-y-1.5">
+        {members.map(p => {
+          const role = staffRoles[p.uid] ?? 'coach';
+          const isManager = role === 'manager';
+          const pillBg = isManager ? 'rgba(123,47,190,0.15)' : 'rgba(0,129,255,0.12)';
+          const pillFg = isManager ? 'var(--s-violet-light)' : '#4db1ff';
+          const pillBorder = isManager ? 'rgba(123,47,190,0.35)' : 'rgba(0,129,255,0.3)';
+          return (
+            <div key={p.uid} className="flex items-center gap-1.5 group/slot">
+              {(p.avatarUrl || p.discordAvatar) ? (
+                <Image src={p.avatarUrl || p.discordAvatar} alt={p.displayName} width={14} height={14} className="flex-shrink-0" unoptimized />
+              ) : (
+                <User size={10} style={{ color: 'var(--s-text-muted)' }} />
+              )}
+              <span className="text-xs truncate flex-1" style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
+              <button type="button"
+                onClick={() => onChangeRole(p.uid, isManager ? 'coach' : 'manager')}
+                disabled={loading}
+                title={isManager ? 'Passer en Coach' : 'Passer en Manager'}
+                className="flex-shrink-0"
+                style={{
+                  fontSize: '8px', padding: '1px 5px', letterSpacing: '0.06em', textTransform: 'uppercase',
+                  background: pillBg, color: pillFg, border: `1px solid ${pillBorder}`, cursor: 'pointer',
+                }}>
+                {isManager ? 'Mgr' : 'Coach'}
+              </button>
+              <button type="button" onClick={() => onRemove(p.uid)}
+                className="opacity-0 group-hover/slot:opacity-100 transition-opacity duration-100 p-0.5"
+                style={{ color: '#ff5555' }}>
+                <Trash2 size={9} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      {canAdd && available.length > 0 && (
+        <div className="mt-2 flex items-center gap-1.5">
+          <select
+            className="settings-input flex-1 text-xs"
+            style={{ padding: '3px 6px', fontSize: '10px' }}
+            value={pendingUid}
+            disabled={loading}
+            onChange={e => setPendingUid(e.target.value)}>
+            <option value="">{loading ? '...' : '+ Ajouter'}</option>
+            {available.map(m => (
+              <option key={m.userId} value={m.userId}>{m.displayName}</option>
+            ))}
+          </select>
+          <select
+            className="settings-input text-xs"
+            style={{ padding: '3px 6px', fontSize: '10px', width: 70 }}
+            value={pendingRole}
+            disabled={loading || !pendingUid}
+            onChange={e => setPendingRole(e.target.value as 'coach' | 'manager')}>
+            <option value="coach">Coach</option>
+            <option value="manager">Manager</option>
+          </select>
+          <button type="button"
+            disabled={loading || !pendingUid}
+            onClick={() => { if (pendingUid) { onAdd(pendingUid, pendingRole); setPendingUid(''); setPendingRole('coach'); } }}
+            style={{
+              fontSize: '10px', padding: '3px 8px',
+              background: pendingUid ? 'var(--s-gold)' : 'var(--s-elevated)',
+              color: pendingUid ? '#0a0a13' : 'var(--s-text-muted)',
+              border: '1px solid var(--s-border)',
+              cursor: pendingUid ? 'pointer' : 'not-allowed',
+              fontWeight: 700,
+            }}>
+            OK
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Chip action dans les cards équipe — ouvre le drawer détail ───────
 function TeamActionChip({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
   return (
@@ -588,6 +682,37 @@ export default function MyStructurePage() {
       }
     } catch (err) {
       console.error('[MyStructure] update team roster error:', err);
+      toast.error('Erreur réseau');
+    }
+    setTeamActionLoading(null);
+  }
+
+  // Met à jour staffIds + staffRoles simultanément. Utilisé quand on ajoute/retire
+  // un staff ou quand on toggle son rôle (coach ↔ manager).
+  async function handleUpdateTeamStaff(teamId: string, staffIds: string[], staffRoles: Record<string, 'coach' | 'manager'>) {
+    if (!activeStructure || !firebaseUser) return;
+    setTeamActionLoading(`${teamId}_staffIds`);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/structures/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({
+          action: 'update',
+          structureId: activeStructure.id,
+          teamId,
+          staffIds,
+          staffRoles,
+        }),
+      });
+      if (res.ok) {
+        await loadTeams(activeStructure.id);
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Erreur');
+      }
+    } catch (err) {
+      console.error('[MyStructure] update team staff error:', err);
       toast.error('Erreur réseau');
     }
     setTeamActionLoading(null);
@@ -2177,15 +2302,29 @@ export default function MyStructurePage() {
                           onAdd={(uid) => handleUpdateTeamRoster(team.id, 'subIds', [...team.subs.map(p => p.uid), uid])}
                           onRemove={(uid) => handleUpdateTeamRoster(team.id, 'subIds', team.subs.filter(p => p.uid !== uid).map(p => p.uid))}
                         />
-                        <RosterSlot
+                        <StaffRosterSlot
                           label="STAFF"
                           labelColor="var(--s-gold)"
                           members={team.staff}
+                          staffRoles={team.staffRoles ?? {}}
                           available={availableMembers}
                           canAdd={!isArchived}
                           loading={teamActionLoading === `${team.id}_staffIds`}
-                          onAdd={(uid) => handleUpdateTeamRoster(team.id, 'staffIds', [...team.staff.map(p => p.uid), uid])}
-                          onRemove={(uid) => handleUpdateTeamRoster(team.id, 'staffIds', team.staff.filter(p => p.uid !== uid).map(p => p.uid))}
+                          onAdd={(uid, role) => {
+                            const newStaffIds = [...team.staff.map(p => p.uid), uid];
+                            const newRoles = { ...(team.staffRoles ?? {}), [uid]: role };
+                            handleUpdateTeamStaff(team.id, newStaffIds, newRoles);
+                          }}
+                          onRemove={(uid) => {
+                            const newStaffIds = team.staff.filter(p => p.uid !== uid).map(p => p.uid);
+                            const nextRoles = { ...(team.staffRoles ?? {}) };
+                            delete nextRoles[uid];
+                            handleUpdateTeamStaff(team.id, newStaffIds, nextRoles);
+                          }}
+                          onChangeRole={(uid, role) => {
+                            const newRoles = { ...(team.staffRoles ?? {}), [uid]: role };
+                            handleUpdateTeamStaff(team.id, team.staff.map(p => p.uid), newRoles);
+                          }}
                         />
                       </div>
                     </div>
