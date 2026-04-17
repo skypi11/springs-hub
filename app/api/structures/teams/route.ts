@@ -56,6 +56,11 @@ export async function GET(req: NextRequest) {
 
     const teams = snap.docs.map(doc => {
       const data: DocumentData = doc.data();
+      const rawStaffRoles = (data.staffRoles ?? {}) as Record<string, unknown>;
+      const staffRoles: Record<string, 'coach' | 'manager'> = {};
+      for (const [k, v] of Object.entries(rawStaffRoles)) {
+        if (v === 'manager' || v === 'coach') staffRoles[k] = v;
+      }
       return {
         id: doc.id,
         structureId: data.structureId,
@@ -64,6 +69,7 @@ export async function GET(req: NextRequest) {
         players: enrich(data.playerIds),
         subs: enrich(data.subIds),
         staff: enrich(data.staffIds),
+        staffRoles,
         captainId: data.captainId ?? null,
         label: data.label ?? '',
         order: typeof data.order === 'number' ? data.order : 0,
@@ -94,7 +100,7 @@ export async function POST(req: NextRequest) {
     if (blocked) return blocked;
 
     const body = await req.json();
-    const { action, structureId, teamId, name, game, playerIds, subIds, staffIds, captainId, label, order, groupOrder } = body;
+    const { action, structureId, teamId, name, game, playerIds, subIds, staffIds, staffRoles, captainId, label, order, groupOrder } = body;
 
     if (!structureId || !action) {
       return NextResponse.json({ error: 'structureId et action requis' }, { status: 400 });
@@ -108,14 +114,44 @@ export async function POST(req: NextRequest) {
     const isFounder = structureData.founderId === uid;
     const isCoFounder = (structureData.coFounderIds ?? []).includes(uid);
     const isDirigeant = isFounder || isCoFounder;
+    // Responsable structure (managerIds) : droits admin sur toutes les équipes,
+    // sauf les actions strictement fondateur (delete, promotions, transfert).
+    const isResponsable = (structureData.managerIds ?? []).includes(uid);
+    const isAdminOfStructure = isDirigeant || isResponsable;
 
     const db = getAdminDb();
 
+    // Helper : l'utilisateur est-il manager-d'équipe de cette équipe précise ?
+    // Regarde team.staff + staffRoles[uid] === 'manager'.
+    const isTeamManagerOf = (teamData: DocumentData): boolean => {
+      if (!teamData) return false;
+      const staff = (teamData.staffIds ?? []) as string[];
+      if (!staff.includes(uid)) return false;
+      const roles = (teamData.staffRoles ?? {}) as Record<string, unknown>;
+      return roles[uid] === 'manager';
+    };
+
+    // Valide que staffRoles ne contient que des uid présents dans staffIds
+    // et que les valeurs sont 'coach' ou 'manager'. Renvoie un objet nettoyé.
+    const sanitizeStaffRoles = (
+      rawRoles: unknown,
+      effectiveStaffIds: string[],
+    ): Record<string, 'coach' | 'manager'> => {
+      const out: Record<string, 'coach' | 'manager'> = {};
+      if (!rawRoles || typeof rawRoles !== 'object') return out;
+      const allowed = new Set(effectiveStaffIds);
+      for (const [k, v] of Object.entries(rawRoles as Record<string, unknown>)) {
+        if (!allowed.has(k)) continue;
+        if (v === 'manager' || v === 'coach') out[k] = v;
+      }
+      return out;
+    };
+
     switch (action) {
       case 'create': {
-        // Création : dirigeants uniquement (les managers ne créent pas d'équipes).
-        if (!isDirigeant) {
-          return NextResponse.json({ error: 'Réservé aux dirigeants.' }, { status: 403 });
+        // Création : dirigeants ou responsables (managers) de la structure.
+        if (!isAdminOfStructure) {
+          return NextResponse.json({ error: 'Réservé aux dirigeants ou responsables.' }, { status: 403 });
         }
         if (!name?.trim()) {
           return NextResponse.json({ error: "Le nom de l'équipe est obligatoire." }, { status: 400 });
@@ -144,6 +180,8 @@ export async function POST(req: NextRequest) {
         const maxOrder = sameLabel.reduce((acc, d) => Math.max(acc, typeof d.data().order === 'number' ? d.data().order : 0), -1);
 
         const captainToStore = captainId && (playerIds || []).includes(captainId) ? captainId : null;
+        const finalStaffIds: string[] = staffIds || [];
+        const finalStaffRoles = sanitizeStaffRoles(staffRoles, finalStaffIds);
 
         const docRef = await db.collection('sub_teams').add({
           structureId,
@@ -155,7 +193,8 @@ export async function POST(req: NextRequest) {
           status: 'active' as const,
           playerIds: playerIds || [],
           subIds: subIds || [],
-          staffIds: staffIds || [],
+          staffIds: finalStaffIds,
+          staffRoles: finalStaffRoles,
           captainId: captainToStore,
           createdAt: FieldValue.serverTimestamp(),
         });
@@ -179,6 +218,12 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
         }
 
+        // Autorisation globale : admin structure OU manager-d'équipe de CETTE équipe.
+        const isTeamManagerHere = isTeamManagerOf(teamData);
+        if (!isAdminOfStructure && !isTeamManagerHere) {
+          return NextResponse.json({ error: 'Accès refusé à cette équipe.' }, { status: 403 });
+        }
+
         const teamGame = game || teamData.game;
 
         // Vérifier les limites RL
@@ -193,12 +238,30 @@ export async function POST(req: NextRequest) {
 
         const updates: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
         if (name !== undefined) updates.name = name.trim();
-        if (game !== undefined) updates.game = game;
+        // game : changement de jeu = décision structurelle, admin structure uniquement
+        if (game !== undefined) {
+          if (!isAdminOfStructure) {
+            return NextResponse.json({ error: "Le changement de jeu est réservé aux dirigeants/responsables." }, { status: 403 });
+          }
+          updates.game = game;
+        }
         if (playerIds !== undefined) updates.playerIds = playerIds;
         if (subIds !== undefined) updates.subIds = subIds;
         if (staffIds !== undefined) updates.staffIds = staffIds;
 
-        // label : dirigeants uniquement (le manager ne change pas le niveau d'une équipe)
+        // staffRoles : autorisé si on peut éditer le staff. Nettoyé en fonction
+        // du staffIds effectif (celui passé OU celui stocké si inchangé).
+        if (staffRoles !== undefined) {
+          const effectiveStaffIds: string[] = staffIds !== undefined ? staffIds : (teamData.staffIds ?? []);
+          updates.staffRoles = sanitizeStaffRoles(staffRoles, effectiveStaffIds);
+        } else if (staffIds !== undefined) {
+          // Si on change staffIds sans envoyer staffRoles, on nettoie les rôles
+          // pour les UID retirés du staff.
+          const prevRoles = (teamData.staffRoles ?? {}) as Record<string, 'coach' | 'manager'>;
+          updates.staffRoles = sanitizeStaffRoles(prevRoles, staffIds);
+        }
+
+        // label : dirigeants uniquement (décision structurelle, ni responsable ni team-manager)
         if (label !== undefined) {
           if (!isDirigeant) {
             return NextResponse.json({ error: 'Le label est réservé aux dirigeants.' }, { status: 403 });
@@ -209,11 +272,8 @@ export async function POST(req: NextRequest) {
           updates.label = label.trim();
         }
 
-        // captainId : dirigeants uniquement, et doit être un joueur de l'équipe
+        // captainId : admin structure OU manager-d'équipe. Doit être titulaire.
         if (captainId !== undefined) {
-          if (!isDirigeant) {
-            return NextResponse.json({ error: 'Le capitaine est désigné par les dirigeants.' }, { status: 403 });
-          }
           if (captainId === null || captainId === '') {
             updates.captainId = null;
           } else {
@@ -254,9 +314,9 @@ export async function POST(req: NextRequest) {
       }
 
       case 'reorder': {
-        // Batch : [{ teamId, order?, groupOrder?, label? }]. Dirigeants uniquement.
-        if (!isDirigeant) {
-          return NextResponse.json({ error: 'Réservé aux dirigeants.' }, { status: 403 });
+        // Batch : [{ teamId, order?, groupOrder?, label? }]. Dirigeants ou responsables.
+        if (!isAdminOfStructure) {
+          return NextResponse.json({ error: 'Réservé aux dirigeants ou responsables.' }, { status: 403 });
         }
         const items = Array.isArray(body.items) ? body.items : null;
         if (!items || items.length === 0) {
@@ -289,9 +349,9 @@ export async function POST(req: NextRequest) {
 
       case 'archive':
       case 'unarchive': {
-        // Archivage : dirigeants uniquement.
-        if (!isDirigeant) {
-          return NextResponse.json({ error: 'Réservé aux dirigeants.' }, { status: 403 });
+        // Archivage : dirigeants ou responsables (admin structure).
+        if (!isAdminOfStructure) {
+          return NextResponse.json({ error: 'Réservé aux dirigeants ou responsables.' }, { status: 403 });
         }
         if (!teamId) {
           return NextResponse.json({ error: 'teamId requis' }, { status: 400 });
