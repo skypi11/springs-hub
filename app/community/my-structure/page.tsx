@@ -12,6 +12,7 @@ import {
   User, Save, Plus, Trash2, Eye, Clock, Ban, CheckCircle,
   Search, ChevronUp, ChevronDown, Link2, MessageSquare, Settings, LucideIcon,
   Copy, Check, UserPlus, UserMinus, Mail, Bookmark, X,
+  Crown, Archive, ArchiveRestore, MoreVertical, Tag,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import CalendarSection from '@/components/calendar/CalendarSection';
@@ -179,7 +180,7 @@ function SectionPanel({ accent, icon: Icon, title, action, children, collapsed, 
 }
 
 // ─── Roster slot component — OUTSIDE to avoid remount ─────────────────
-function RosterSlot({ label, labelColor, members, available, canAdd, loading, onAdd, onRemove }: {
+function RosterSlot({ label, labelColor, members, available, canAdd, loading, onAdd, onRemove, captainId }: {
   label: string;
   labelColor: string;
   members: { uid: string; displayName: string; avatarUrl: string; discordAvatar: string }[];
@@ -188,26 +189,35 @@ function RosterSlot({ label, labelColor, members, available, canAdd, loading, on
   loading: boolean;
   onAdd: (uid: string) => void;
   onRemove: (uid: string) => void;
+  captainId?: string | null;
 }) {
   return (
     <div className="p-2.5" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
       <p className="t-label mb-2" style={{ color: labelColor }}>{label}</p>
       <div className="space-y-1.5">
-        {members.map(p => (
-          <div key={p.uid} className="flex items-center gap-1.5 group/slot">
-            {(p.avatarUrl || p.discordAvatar) ? (
-              <Image src={p.avatarUrl || p.discordAvatar} alt={p.displayName} width={14} height={14} className="flex-shrink-0" unoptimized />
-            ) : (
-              <User size={10} style={{ color: 'var(--s-text-muted)' }} />
-            )}
-            <span className="text-xs truncate flex-1" style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
-            <button type="button" onClick={() => onRemove(p.uid)}
-              className="opacity-0 group-hover/slot:opacity-100 transition-opacity duration-100 p-0.5"
-              style={{ color: '#ff5555' }}>
-              <Trash2 size={9} />
-            </button>
-          </div>
-        ))}
+        {members.map(p => {
+          const isCaptain = !!captainId && captainId === p.uid;
+          return (
+            <div key={p.uid} className="flex items-center gap-1.5 group/slot">
+              {(p.avatarUrl || p.discordAvatar) ? (
+                <Image src={p.avatarUrl || p.discordAvatar} alt={p.displayName} width={14} height={14} className="flex-shrink-0" unoptimized />
+              ) : (
+                <User size={10} style={{ color: 'var(--s-text-muted)' }} />
+              )}
+              <span className="text-xs truncate flex-1" style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
+              {isCaptain && (
+                <span title="Capitaine" className="inline-flex items-center flex-shrink-0" style={{ color: 'var(--s-gold)' }}>
+                  <Crown size={10} />
+                </span>
+              )}
+              <button type="button" onClick={() => onRemove(p.uid)}
+                className="opacity-0 group-hover/slot:opacity-100 transition-opacity duration-100 p-0.5"
+                style={{ color: '#ff5555' }}>
+                <Trash2 size={9} />
+              </button>
+            </div>
+          );
+        })}
       </div>
       {/* Ajouter un membre */}
       {canAdd && available.length > 0 && (
@@ -274,13 +284,22 @@ export default function MyStructurePage() {
     players: { uid: string; displayName: string; avatarUrl: string; discordAvatar: string }[];
     subs: { uid: string; displayName: string; avatarUrl: string; discordAvatar: string }[];
     staff: { uid: string; displayName: string; avatarUrl: string; discordAvatar: string }[];
+    captainId?: string | null;
+    label?: string;
+    order?: number;
+    groupOrder?: number;
+    status?: 'active' | 'archived';
   };
   const [teams, setTeams] = useState<TeamData[]>([]);
   const [teamsLoading, setTeamsLoading] = useState(false);
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamGame, setNewTeamGame] = useState('');
+  const [newTeamLabel, setNewTeamLabel] = useState('');
   const [showNewTeam, setShowNewTeam] = useState(false);
   const [teamActionLoading, setTeamActionLoading] = useState<string | null>(null);
+  const [teamSearch, setTeamSearch] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
+  const [teamMenuOpen, setTeamMenuOpen] = useState<string | null>(null);
   // Drawer détail équipe (Dispos + Devoirs) — ouvert via chips des cards équipe
   const [drawerState, setDrawerState] = useState<{ team: DrawerTeam; tab: DrawerTab; canEditConfig: boolean } | null>(null);
 
@@ -457,7 +476,7 @@ export default function MyStructurePage() {
   }
 
   async function handleCreateTeam() {
-    if (!activeStructure || !firebaseUser || !newTeamName.trim() || !newTeamGame) return;
+    if (!activeStructure || !firebaseUser || !newTeamName.trim() || !newTeamGame || !newTeamLabel.trim()) return;
     setTeamActionLoading('create');
     try {
       const idToken = await firebaseUser.getIdToken();
@@ -469,6 +488,7 @@ export default function MyStructurePage() {
           structureId: activeStructure.id,
           name: newTeamName,
           game: newTeamGame,
+          label: newTeamLabel.trim(),
           playerIds: [],
           subIds: [],
           staffIds: [],
@@ -476,11 +496,75 @@ export default function MyStructurePage() {
       });
       if (res.ok) {
         setNewTeamName('');
+        setNewTeamLabel('');
         setShowNewTeam(false);
         await loadTeams(activeStructure.id);
+        toast.success('Équipe créée');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Erreur');
       }
     } catch (err) {
       console.error('[MyStructure] create team error:', err);
+      toast.error('Erreur réseau');
+    }
+    setTeamActionLoading(null);
+  }
+
+  async function handleArchiveTeam(teamId: string, archive: boolean) {
+    if (!activeStructure || !firebaseUser) return;
+    setTeamActionLoading(teamId);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/structures/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({
+          action: archive ? 'archive' : 'unarchive',
+          structureId: activeStructure.id,
+          teamId,
+        }),
+      });
+      if (res.ok) {
+        await loadTeams(activeStructure.id);
+        toast.success(archive ? 'Équipe archivée' : 'Équipe désarchivée');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Erreur');
+      }
+    } catch (err) {
+      console.error('[MyStructure] archive team error:', err);
+      toast.error('Erreur réseau');
+    }
+    setTeamActionLoading(null);
+    setTeamMenuOpen(null);
+  }
+
+  async function handleSetCaptain(teamId: string, captainId: string | null) {
+    if (!activeStructure || !firebaseUser) return;
+    setTeamActionLoading(`${teamId}_captain`);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/structures/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({
+          action: 'update',
+          structureId: activeStructure.id,
+          teamId,
+          captainId,
+        }),
+      });
+      if (res.ok) {
+        await loadTeams(activeStructure.id);
+        toast.success(captainId ? 'Capitaine désigné' : 'Capitaine retiré');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Erreur');
+      }
+    } catch (err) {
+      console.error('[MyStructure] set captain error:', err);
+      toast.error('Erreur réseau');
     }
     setTeamActionLoading(null);
   }
@@ -1907,25 +1991,237 @@ export default function MyStructurePage() {
             )}
 
             {/* ═══ ÉQUIPES ═══ */}
-            {tab === 'teams' && (
-            <SectionPanel accent="var(--s-blue)" icon={Gamepad2} title="ÉQUIPES"
+            {tab === 'teams' && (() => {
+              // Filtrage par recherche (nom équipe / label / pseudo joueur)
+              const q = teamSearch.trim().toLowerCase();
+              const matchTeam = (t: TeamData) => {
+                if (!q) return true;
+                if (t.name?.toLowerCase().includes(q)) return true;
+                if ((t.label ?? '').toLowerCase().includes(q)) return true;
+                const allMembers = [...t.players, ...t.subs, ...t.staff];
+                return allMembers.some(m => (m.displayName ?? '').toLowerCase().includes(q));
+              };
+              const activeTeams = teams.filter(t => (t.status ?? 'active') === 'active' && matchTeam(t));
+              const archivedTeams = teams.filter(t => t.status === 'archived' && matchTeam(t));
+              const archivedCount = teams.filter(t => t.status === 'archived').length;
+
+              // Grouper par label (label vide = "Sans label")
+              type Group = { label: string; displayLabel: string; groupOrder: number; teams: TeamData[] };
+              const groupsMap = new Map<string, Group>();
+              for (const t of activeTeams) {
+                const label = (t.label ?? '').trim();
+                const key = label || '__nolabel__';
+                if (!groupsMap.has(key)) {
+                  groupsMap.set(key, {
+                    label,
+                    displayLabel: label || 'Sans label',
+                    groupOrder: typeof t.groupOrder === 'number' ? t.groupOrder : 0,
+                    teams: [],
+                  });
+                } else {
+                  // Garder le plus petit groupOrder trouvé (cohérence)
+                  const g = groupsMap.get(key)!;
+                  if (typeof t.groupOrder === 'number' && t.groupOrder < g.groupOrder) g.groupOrder = t.groupOrder;
+                }
+                groupsMap.get(key)!.teams.push(t);
+              }
+              const groups = Array.from(groupsMap.values())
+                .sort((a, b) => a.groupOrder - b.groupOrder || a.displayLabel.localeCompare(b.displayLabel));
+              for (const g of groups) {
+                g.teams.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name));
+              }
+
+              // Helpers UI
+              const renderTeamCard = (team: TeamData, isArchived: boolean) => {
+                const gameColor = team.game === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)';
+                const assignedIds = [...team.players.map(p => p.uid), ...team.subs.map(p => p.uid), ...team.staff.map(p => p.uid)];
+                const availableMembers = s.members.filter(m => !assignedIds.includes(m.userId));
+                const isRL = team.game === 'rocket_league';
+                const canAddPlayer = !isRL || team.players.length < 3;
+                const canAddSub = !isRL || team.subs.length < 2;
+                const captainId = team.captainId ?? null;
+                const canManageTeam = isDirigeantOfActive;
+                const canDeleteTeam = isFounderOfActive;
+                const menuOpen = teamMenuOpen === team.id;
+
+                return (
+                  <div key={team.id} className="relative overflow-hidden"
+                    style={{
+                      background: 'var(--s-elevated)',
+                      border: '1px solid var(--s-border)',
+                      opacity: isArchived ? 0.65 : 1,
+                    }}>
+                    <div className="h-[2px]" style={{ background: `linear-gradient(90deg, ${gameColor}, transparent 60%)` }} />
+                    <div className="p-4 space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className={`tag ${team.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '9px', padding: '2px 7px' }}>
+                            {team.game === 'rocket_league' ? 'RL' : 'TM'}
+                          </span>
+                          <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>{team.name}</span>
+                          {isArchived && (
+                            <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '2px 7px' }}>ARCHIVÉE</span>
+                          )}
+                          {captainId && !isArchived && (() => {
+                            const cap = team.players.find(p => p.uid === captainId);
+                            return cap ? (
+                              <span className="inline-flex items-center gap-1 text-xs" style={{ color: 'var(--s-gold)' }}>
+                                <Crown size={11} />
+                                <span className="font-semibold">{cap.displayName}</span>
+                              </span>
+                            ) : null;
+                          })()}
+                        </div>
+                        {canManageTeam && (
+                          <div className="relative">
+                            <button type="button"
+                              onClick={() => setTeamMenuOpen(menuOpen ? null : team.id)}
+                              className="p-1.5 transition-opacity duration-150"
+                              style={{ color: 'var(--s-text-dim)', opacity: 0.7 }}
+                              aria-label="Menu de l'équipe">
+                              <MoreVertical size={14} />
+                            </button>
+                            {menuOpen && (
+                              <>
+                                <div className="fixed inset-0 z-10" onClick={() => setTeamMenuOpen(null)} />
+                                <div className="absolute right-0 top-full mt-1 z-20 min-w-[200px] py-1 bevel-sm"
+                                  style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                                  {!isArchived && team.players.length > 0 && (
+                                    <div className="px-3 py-2 border-b" style={{ borderColor: 'var(--s-border)' }}>
+                                      <div className="t-label mb-1.5" style={{ color: 'var(--s-text-muted)' }}>Capitaine</div>
+                                      <div className="space-y-0.5">
+                                        {team.players.map(p => (
+                                          <button key={p.uid} type="button"
+                                            onClick={() => handleSetCaptain(team.id, captainId === p.uid ? null : p.uid)}
+                                            disabled={teamActionLoading === `${team.id}_captain`}
+                                            className="w-full flex items-center gap-2 px-2 py-1.5 text-xs transition-colors text-left hover:bg-[var(--s-hover)]">
+                                            <Crown size={11} style={{ color: captainId === p.uid ? 'var(--s-gold)' : 'var(--s-text-muted)' }} />
+                                            <span style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
+                                            {captainId === p.uid && (
+                                              <span className="ml-auto text-xs" style={{ color: 'var(--s-gold)' }}>actuel</span>
+                                            )}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {!isArchived ? (
+                                    <button type="button"
+                                      onClick={() => handleArchiveTeam(team.id, true)}
+                                      disabled={teamActionLoading === team.id}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-[var(--s-hover)] text-left"
+                                      style={{ color: 'var(--s-text)' }}>
+                                      <Archive size={12} />
+                                      <span>Archiver l&apos;équipe</span>
+                                    </button>
+                                  ) : (
+                                    <button type="button"
+                                      onClick={() => handleArchiveTeam(team.id, false)}
+                                      disabled={teamActionLoading === team.id}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-[var(--s-hover)] text-left"
+                                      style={{ color: 'var(--s-text)' }}>
+                                      <ArchiveRestore size={12} />
+                                      <span>Désarchiver</span>
+                                    </button>
+                                  )}
+                                  {canDeleteTeam && (
+                                    <button type="button"
+                                      onClick={() => { setTeamMenuOpen(null); handleDeleteTeam(team.id, team.name); }}
+                                      disabled={teamActionLoading === team.id}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-[var(--s-hover)] text-left border-t"
+                                      style={{ color: '#ff5555', borderColor: 'var(--s-border)' }}>
+                                      <Trash2 size={12} />
+                                      <span>Supprimer définitivement</span>
+                                    </button>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-3">
+                        <RosterSlot
+                          label={`TITULAIRES${isRL ? ' (max 3)' : ''}`}
+                          labelColor={gameColor}
+                          members={team.players}
+                          available={availableMembers}
+                          canAdd={canAddPlayer && !isArchived}
+                          loading={teamActionLoading === `${team.id}_playerIds`}
+                          captainId={captainId}
+                          onAdd={(uid) => handleUpdateTeamRoster(team.id, 'playerIds', [...team.players.map(p => p.uid), uid])}
+                          onRemove={(uid) => handleUpdateTeamRoster(team.id, 'playerIds', team.players.filter(p => p.uid !== uid).map(p => p.uid))}
+                        />
+                        <RosterSlot
+                          label={`REMPLAÇANTS${isRL ? ' (max 2)' : ''}`}
+                          labelColor="var(--s-text-dim)"
+                          members={team.subs}
+                          available={availableMembers}
+                          canAdd={canAddSub && !isArchived}
+                          loading={teamActionLoading === `${team.id}_subIds`}
+                          onAdd={(uid) => handleUpdateTeamRoster(team.id, 'subIds', [...team.subs.map(p => p.uid), uid])}
+                          onRemove={(uid) => handleUpdateTeamRoster(team.id, 'subIds', team.subs.filter(p => p.uid !== uid).map(p => p.uid))}
+                        />
+                        <RosterSlot
+                          label="STAFF"
+                          labelColor="var(--s-gold)"
+                          members={team.staff}
+                          available={availableMembers}
+                          canAdd={!isArchived}
+                          loading={teamActionLoading === `${team.id}_staffIds`}
+                          onAdd={(uid) => handleUpdateTeamRoster(team.id, 'staffIds', [...team.staff.map(p => p.uid), uid])}
+                          onRemove={(uid) => handleUpdateTeamRoster(team.id, 'staffIds', team.staff.filter(p => p.uid !== uid).map(p => p.uid))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              };
+
+              const emptyQueryMatches = !teamsLoading && activeTeams.length === 0 && archivedTeams.length === 0;
+              const noActiveAtAll = !teamsLoading && teams.filter(t => (t.status ?? 'active') === 'active').length === 0;
+
+              return (
+            <SectionPanel accent="var(--s-blue)" icon={Gamepad2} title={`ÉQUIPES${teams.length > 0 ? ` · ${teams.filter(t => (t.status ?? 'active') === 'active').length}` : ''}`}
               collapsed={collapsed.teams} onToggle={() => toggle('teams')}
-              action={
+              action={isDirigeantOfActive ? (
                 <button type="button" onClick={() => setShowNewTeam(!showNewTeam)}
                   className="flex items-center gap-1.5 text-xs font-bold transition-colors duration-150" style={{ color: 'var(--s-blue)' }}>
                   {showNewTeam ? <ChevronUp size={11} /> : <Plus size={11} />}
                   {showNewTeam ? 'Annuler' : 'Nouvelle équipe'}
                 </button>
-              }>
+              ) : null}>
+
+              {/* Toolbar : recherche */}
+              <div className="flex items-center gap-2 mb-4">
+                <div className="flex-1 relative">
+                  <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--s-text-muted)' }} />
+                  <input type="text" value={teamSearch} onChange={e => setTeamSearch(e.target.value)}
+                    placeholder="Rechercher une équipe, un label, un joueur..."
+                    className="settings-input w-full pl-7 text-sm" />
+                </div>
+              </div>
 
               {/* Formulaire nouvelle équipe */}
-              {showNewTeam && (
+              {showNewTeam && isDirigeantOfActive && (
                 <div className="p-4 mb-4 space-y-3" style={{ background: 'var(--s-elevated)', border: '1px solid rgba(0,129,255,0.2)' }}>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="t-label block mb-1.5">Nom de l&apos;équipe *</label>
                       <input type="text" className="settings-input w-full" placeholder="Équipe principale"
                         value={newTeamName} onChange={e => setNewTeamName(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="t-label block mb-1.5">Label de niveau *</label>
+                      <input type="text" className="settings-input w-full" placeholder="Elite, Academy, Amateur..."
+                        value={newTeamLabel} onChange={e => setNewTeamLabel(e.target.value)}
+                        list="team-labels-datalist" />
+                      <datalist id="team-labels-datalist">
+                        {Array.from(new Set(teams.map(t => (t.label ?? '').trim()).filter(Boolean))).map(l => (
+                          <option key={l} value={l} />
+                        ))}
+                      </datalist>
                     </div>
                     <div>
                       <label className="t-label block mb-1.5">Jeu *</label>
@@ -1938,102 +2234,74 @@ export default function MyStructurePage() {
                     </div>
                   </div>
                   <button type="button" onClick={handleCreateTeam}
-                    disabled={!newTeamName.trim() || !newTeamGame || teamActionLoading === 'create'}
+                    disabled={!newTeamName.trim() || !newTeamLabel.trim() || !newTeamGame || teamActionLoading === 'create'}
                     className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-xs"
-                    style={{ opacity: (!newTeamName.trim() || !newTeamGame) ? 0.5 : 1 }}>
+                    style={{ opacity: (!newTeamName.trim() || !newTeamLabel.trim() || !newTeamGame) ? 0.5 : 1 }}>
                     {teamActionLoading === 'create' ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
                     <span>Créer</span>
                   </button>
                 </div>
               )}
 
-              {/* Liste des équipes */}
               {teamsLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 size={16} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
                 </div>
-              ) : teams.length === 0 && !showNewTeam ? (
+              ) : noActiveAtAll && archivedCount === 0 ? (
                 <div className="text-center py-6">
                   <Gamepad2 size={20} className="mx-auto mb-2" style={{ color: 'var(--s-text-muted)' }} />
                   <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucune équipe créée.</p>
                 </div>
+              ) : emptyQueryMatches ? (
+                <div className="text-center py-6">
+                  <Search size={20} className="mx-auto mb-2" style={{ color: 'var(--s-text-muted)' }} />
+                  <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucun résultat pour « {teamSearch} ».</p>
+                </div>
               ) : (
-                <div className="space-y-3">
-                  {teams.map(team => {
-                    const gameColor = team.game === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)';
-                    // IDs déjà assignés dans cette équipe
-                    const assignedIds = [...team.players.map(p => p.uid), ...team.subs.map(p => p.uid), ...team.staff.map(p => p.uid)];
-                    // Membres de la structure non assignés à cette équipe
-                    const availableMembers = s.members.filter(m => !assignedIds.includes(m.userId));
-                    const isRL = team.game === 'rocket_league';
-                    const canAddPlayer = !isRL || team.players.length < 3;
-                    const canAddSub = !isRL || team.subs.length < 2;
-
-                    return (
-                      <div key={team.id} className="relative overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                        {/* Mini accent */}
-                        <div className="h-[2px]" style={{ background: `linear-gradient(90deg, ${gameColor}, transparent 60%)` }} />
-                        <div className="p-4 space-y-3">
-                          {/* En-tête équipe */}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2.5">
-                              <span className={`tag ${team.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '9px', padding: '2px 7px' }}>
-                                {team.game === 'rocket_league' ? 'RL' : 'TM'}
-                              </span>
-                              <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>{team.name}</span>
-                            </div>
-                            <button type="button" onClick={() => handleDeleteTeam(team.id, team.name)}
-                              disabled={teamActionLoading === team.id}
-                              className="p-1.5 transition-opacity duration-150"
-                              style={{ color: '#ff5555', opacity: teamActionLoading === team.id ? 0.5 : 0.6 }}>
-                              {teamActionLoading === team.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                            </button>
-                          </div>
-
-                          {/* Roster grid — interactif */}
-                          <div className="grid grid-cols-3 gap-3">
-                            {/* Titulaires */}
-                            <RosterSlot
-                              label={`TITULAIRES${isRL ? ' (max 3)' : ''}`}
-                              labelColor={gameColor}
-                              members={team.players}
-                              available={availableMembers}
-                              canAdd={canAddPlayer}
-                              loading={teamActionLoading === `${team.id}_playerIds`}
-                              onAdd={(uid) => handleUpdateTeamRoster(team.id, 'playerIds', [...team.players.map(p => p.uid), uid])}
-                              onRemove={(uid) => handleUpdateTeamRoster(team.id, 'playerIds', team.players.filter(p => p.uid !== uid).map(p => p.uid))}
-                            />
-                            {/* Remplaçants */}
-                            <RosterSlot
-                              label={`REMPLAÇANTS${isRL ? ' (max 2)' : ''}`}
-                              labelColor="var(--s-text-dim)"
-                              members={team.subs}
-                              available={availableMembers}
-                              canAdd={canAddSub}
-                              loading={teamActionLoading === `${team.id}_subIds`}
-                              onAdd={(uid) => handleUpdateTeamRoster(team.id, 'subIds', [...team.subs.map(p => p.uid), uid])}
-                              onRemove={(uid) => handleUpdateTeamRoster(team.id, 'subIds', team.subs.filter(p => p.uid !== uid).map(p => p.uid))}
-                            />
-                            {/* Staff */}
-                            <RosterSlot
-                              label="STAFF"
-                              labelColor="var(--s-gold)"
-                              members={team.staff}
-                              available={availableMembers}
-                              canAdd={true}
-                              loading={teamActionLoading === `${team.id}_staffIds`}
-                              onAdd={(uid) => handleUpdateTeamRoster(team.id, 'staffIds', [...team.staff.map(p => p.uid), uid])}
-                              onRemove={(uid) => handleUpdateTeamRoster(team.id, 'staffIds', team.staff.filter(p => p.uid !== uid).map(p => p.uid))}
-                            />
-                          </div>
-                        </div>
+                <div className="space-y-6">
+                  {/* Groupes actifs par label */}
+                  {groups.map(g => (
+                    <div key={g.label || '__nolabel__'} className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Tag size={12} style={{ color: 'var(--s-gold)' }} />
+                        <h3 className="t-label" style={{ color: 'var(--s-gold)' }}>
+                          {g.displayLabel}
+                        </h3>
+                        <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                          {g.teams.length} équipe{g.teams.length > 1 ? 's' : ''}
+                        </span>
+                        <div className="flex-1 h-px" style={{ background: 'var(--s-border)' }} />
                       </div>
-                    );
-                  })}
+                      <div className="space-y-3">
+                        {g.teams.map(t => renderTeamCard(t, false))}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Section archivées (collapse) */}
+                  {archivedCount > 0 && (
+                    <div className="pt-2">
+                      <button type="button" onClick={() => setShowArchived(!showArchived)}
+                        className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide transition-colors"
+                        style={{ color: 'var(--s-text-dim)' }}>
+                        <Archive size={12} />
+                        <span>Archivées · {archivedCount}</span>
+                        {showArchived ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                      </button>
+                      {showArchived && (
+                        <div className="mt-3 space-y-3">
+                          {archivedTeams.length === 0 ? (
+                            <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucune archive ne correspond à la recherche.</p>
+                          ) : archivedTeams.map(t => renderTeamCard(t, true))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </SectionPanel>
-            )}
+              );
+            })()}
 
             {/* ═══ Save button — visible pour les onglets éditables (dirigeant only) ═══ */}
             {(tab === 'general' || tab === 'recruitment') && isDirigeantOfActive && (<>
