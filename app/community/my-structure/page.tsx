@@ -2194,7 +2194,23 @@ export default function MyStructurePage() {
               const renderTeamCard = (team: TeamData, isArchived: boolean) => {
                 const gameColor = team.game === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)';
                 const assignedIds = [...team.players.map(p => p.uid), ...team.subs.map(p => p.uid), ...team.staff.map(p => p.uid)];
-                const availableMembers = s.members.filter(m => !assignedIds.includes(m.userId));
+                // "1 joueur = 1 équipe par jeu" : exclure les joueurs déjà titulaires/remplaçants
+                // d'une AUTRE équipe active du même jeu (staff autorisé sur plusieurs équipes).
+                const rosterLockedIds = new Set<string>();
+                for (const t of teams) {
+                  if (t.id === team.id) continue;
+                  if ((t.status ?? 'active') !== 'active') continue;
+                  if (t.game !== team.game) continue;
+                  for (const p of t.players) rosterLockedIds.add(p.uid);
+                  for (const p of t.subs) rosterLockedIds.add(p.uid);
+                }
+                const availableForRoster = s.members.filter(m =>
+                  m.game === team.game && !assignedIds.includes(m.userId) && !rosterLockedIds.has(m.userId)
+                );
+                // Staff pas verrouillé par jeu — un coach peut encadrer plusieurs équipes.
+                const availableForStaff = s.members.filter(m =>
+                  m.game === team.game && !assignedIds.includes(m.userId)
+                );
                 const isRL = team.game === 'rocket_league';
                 const canAddPlayer = !isRL || team.players.length < 3;
                 const canAddSub = !isRL || team.subs.length < 2;
@@ -2345,7 +2361,7 @@ export default function MyStructurePage() {
                           label={`TITULAIRES${isRL ? ' (max 3)' : ''}`}
                           labelColor={gameColor}
                           members={team.players}
-                          available={availableMembers}
+                          available={availableForRoster}
                           canAdd={canAddPlayer && !isArchived}
                           loading={teamActionLoading === `${team.id}_playerIds`}
                           captainId={captainId}
@@ -2356,7 +2372,7 @@ export default function MyStructurePage() {
                           label={`REMPLAÇANTS${isRL ? ' (max 2)' : ''}`}
                           labelColor="var(--s-text-dim)"
                           members={team.subs}
-                          available={availableMembers}
+                          available={availableForRoster}
                           canAdd={canAddSub && !isArchived}
                           loading={teamActionLoading === `${team.id}_subIds`}
                           onAdd={(uid) => handleUpdateTeamRoster(team.id, 'subIds', [...team.subs.map(p => p.uid), uid])}
@@ -2367,7 +2383,7 @@ export default function MyStructurePage() {
                           labelColor="var(--s-gold)"
                           members={team.staff}
                           staffRoles={team.staffRoles ?? {}}
-                          available={availableMembers}
+                          available={availableForStaff}
                           canAdd={!isArchived}
                           loading={teamActionLoading === `${team.id}_staffIds`}
                           onAdd={(uid, role) => {
