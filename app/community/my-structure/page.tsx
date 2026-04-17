@@ -2064,7 +2064,7 @@ export default function MyStructurePage() {
                 const menuOpen = teamMenuOpen === team.id;
 
                 return (
-                  <div key={team.id} className="relative overflow-hidden"
+                  <div key={team.id} id={`team-${team.id}`} className="relative overflow-hidden"
                     style={{
                       background: 'var(--s-elevated)',
                       border: '1px solid var(--s-border)',
@@ -2221,6 +2221,59 @@ export default function MyStructurePage() {
                   </span>
                 </div>
               )}
+
+              {/* Dashboard santé équipes — dirigeant only — Lot 6 */}
+              {isDirigeantOfActive && !teamsLoading && (() => {
+                const activeAll = teams.filter(t => (t.status ?? 'active') === 'active');
+                if (activeAll.length === 0) return null;
+                const noCaptain = activeAll.filter(t => !t.captainId);
+                const noStaff = activeAll.filter(t => t.staff.length === 0);
+                const rlIncomplete = activeAll.filter(t => t.game === 'rocket_league' && t.players.length < 3);
+                const totalFlagged = noCaptain.length + noStaff.length + rlIncomplete.length;
+                if (totalFlagged === 0) return null;
+                const flagRow = (
+                  label: string,
+                  list: TeamData[],
+                  color: string,
+                ) => list.length === 0 ? null : (
+                  <div key={label} className="flex items-start gap-2 py-1.5">
+                    <AlertCircle size={12} style={{ color, flexShrink: 0, marginTop: 2 }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-semibold mb-0.5" style={{ color: 'var(--s-text)' }}>
+                        {label} <span className="font-normal" style={{ color: 'var(--s-text-muted)' }}>· {list.length}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {list.map(t => (
+                          <button key={t.id} type="button"
+                            onClick={() => { if (t.id) document.getElementById(`team-${t.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
+                            className="text-xs px-1.5 py-0.5 transition-colors duration-150"
+                            style={{ background: 'var(--s-elevated)', border: `1px solid ${color}40`, color: 'var(--s-text-dim)' }}>
+                            {t.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+                return (
+                  <div className="mb-4 p-3 bevel-sm relative overflow-hidden"
+                    style={{ background: 'rgba(255,184,0,0.05)', border: '1px solid rgba(255,184,0,0.25)' }}>
+                    <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), transparent 70%)' }} />
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertCircle size={13} style={{ color: 'var(--s-gold)' }} />
+                      <span className="t-label" style={{ color: 'var(--s-gold)' }}>Santé des équipes</span>
+                      <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                        · {totalFlagged} point{totalFlagged > 1 ? 's' : ''} d&apos;attention
+                      </span>
+                    </div>
+                    <div className="divide-y" style={{ borderColor: 'var(--s-border)' }}>
+                      {flagRow('Sans capitaine', noCaptain, '#ffb800')}
+                      {flagRow('Sans staff (manager/coach)', noStaff, '#7a7a95')}
+                      {flagRow('Roster RL incomplet (<3 titulaires)', rlIncomplete, '#0081ff')}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Toolbar : recherche */}
               <div className="flex items-center gap-2 mb-4">

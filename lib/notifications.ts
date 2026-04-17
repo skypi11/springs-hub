@@ -12,6 +12,8 @@ export type NotificationType =
   | 'invitation'
   | 'new_event'
   | 'new_competition'
+  | 'team_captain_assigned'
+  | 'team_archived'
   | 'generic';
 
 export type NotificationPayload = {

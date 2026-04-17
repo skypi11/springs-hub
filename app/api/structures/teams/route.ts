@@ -4,6 +4,7 @@ import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { FieldValue, DocumentData } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { createNotification, createNotifications, type NotificationPayload } from '@/lib/notifications';
 
 // Vérifier que l'utilisateur a les droits sur la structure (fondateur ou co-fondateur)
 async function checkStructureAccess(uid: string, structureId: string) {
@@ -230,6 +231,25 @@ export async function POST(req: NextRequest) {
         }
 
         await ref.update(updates);
+
+        // Notifier le nouveau capitaine si captainId a changé et n'est pas null
+        const prevCaptainId = teamData.captainId ?? null;
+        const nextCaptainId = (updates.captainId as string | null | undefined);
+        if (nextCaptainId !== undefined && nextCaptainId !== null && nextCaptainId !== prevCaptainId) {
+          try {
+            await createNotification(db, {
+              userId: nextCaptainId as string,
+              type: 'team_captain_assigned',
+              title: 'Tu es capitaine',
+              message: `Tu as été désigné(e) capitaine de ${teamData.name}.`,
+              link: '/community/my-structure',
+              metadata: { structureId, teamId },
+            });
+          } catch (e) {
+            captureApiError('teams/update captain notification', e);
+          }
+        }
+
         return NextResponse.json({ success: true });
       }
 
@@ -284,6 +304,7 @@ export async function POST(req: NextRequest) {
         if (teamSnap.data()!.structureId !== structureId) {
           return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
         }
+        const teamDataArch = teamSnap.data()!;
         if (action === 'archive') {
           await ref.update({
             status: 'archived',
@@ -291,6 +312,27 @@ export async function POST(req: NextRequest) {
             archivedBy: uid,
             updatedAt: FieldValue.serverTimestamp(),
           });
+
+          // Notifier tous les membres de l'équipe (titulaires + remplaçants + staff + capitaine)
+          try {
+            const recipients = new Set<string>();
+            for (const id of (teamDataArch.playerIds ?? []) as string[]) recipients.add(id);
+            for (const id of (teamDataArch.subIds ?? []) as string[]) recipients.add(id);
+            for (const id of (teamDataArch.staffIds ?? []) as string[]) recipients.add(id);
+            if (teamDataArch.captainId) recipients.add(teamDataArch.captainId as string);
+            recipients.delete(uid);
+            const payloads: NotificationPayload[] = Array.from(recipients).map(userId => ({
+              userId,
+              type: 'team_archived' as const,
+              title: 'Équipe archivée',
+              message: `L'équipe ${teamDataArch.name} a été archivée.`,
+              link: '/community/my-structure',
+              metadata: { structureId, teamId },
+            }));
+            await createNotifications(db, payloads);
+          } catch (e) {
+            captureApiError('teams/archive notification', e);
+          }
         } else {
           await ref.update({
             status: 'active',
