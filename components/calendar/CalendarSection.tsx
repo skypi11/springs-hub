@@ -141,6 +141,10 @@ export default function CalendarSection({
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'upcoming' | 'past' | 'all'>('upcoming');
+  // Filtre équipe : si vide → toutes ; sinon → seulement les events avec au moins
+  // une équipe ciblée dans la sélection. Les events scope=structure/game sont
+  // exclus dès qu'un filtre équipe est actif, pour coller à l'intention utilisateur.
+  const [teamFilter, setTeamFilter] = useState<string[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [openEventId, setOpenEventId] = useState<string | null>(null);
   const [now, setNow] = useState<number>(() => Date.now());
@@ -173,12 +177,19 @@ export default function CalendarSection({
 
   const filteredEvents = useMemo(() => {
     return events.filter(e => {
-      if (filter === 'all') return true;
-      const end = e.endsAt ? new Date(e.endsAt).getTime() : 0;
-      if (filter === 'upcoming') return end >= now && e.status !== 'cancelled';
-      return end < now || e.status === 'cancelled' || e.status === 'done';
+      if (filter !== 'all') {
+        const end = e.endsAt ? new Date(e.endsAt).getTime() : 0;
+        if (filter === 'upcoming' && !(end >= now && e.status !== 'cancelled')) return false;
+        if (filter === 'past' && !(end < now || e.status === 'cancelled' || e.status === 'done')) return false;
+      }
+      if (teamFilter.length > 0) {
+        if (e.target.scope !== 'teams') return false;
+        const ids = e.target.teamIds ?? [];
+        if (!ids.some(id => teamFilter.includes(id))) return false;
+      }
+      return true;
     });
-  }, [events, filter, now]);
+  }, [events, filter, now, teamFilter]);
 
   async function handleRespond(eventId: string, status: PresenceStatus) {
     if (!firebaseUser) return;
@@ -249,7 +260,9 @@ export default function CalendarSection({
     }
   }
 
-  const canCreateAnything = isDirigeant(userContext) || userContext.staffedTeamIds.length > 0;
+  const canCreateAnything = isDirigeant(userContext)
+    || userContext.staffedTeamIds.length > 0
+    || (userContext.captainOfTeamIds?.length ?? 0) > 0;
   const openEvent = events.find(e => e.id === openEventId) ?? null;
   const membersById = new Map(members.map(m => [m.userId, m]));
 
@@ -292,6 +305,40 @@ export default function CalendarSection({
           </button>
         ))}
       </div>
+
+      {/* Team filter — actif quand il y a plus d'une équipe, masque les events scope=structure/game si une sélection est posée */}
+      {teams.length > 1 && (
+        <div className="relative z-[1] px-5 pt-3 flex flex-wrap gap-1.5 items-center">
+          <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Équipe :</span>
+          <button type="button" onClick={() => setTeamFilter([])}
+            className="tag transition-all duration-150"
+            style={{
+              background: teamFilter.length === 0 ? 'rgba(255,184,0,0.15)' : 'transparent',
+              color: teamFilter.length === 0 ? 'var(--s-gold)' : 'var(--s-text-dim)',
+              borderColor: teamFilter.length === 0 ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
+              cursor: 'pointer', padding: '3px 9px', fontSize: '10px',
+            }}>
+            Toutes
+          </button>
+          {teams.map(t => {
+            const selected = teamFilter.includes(t.id);
+            const isRL = t.game === 'rocket_league';
+            return (
+              <button key={t.id} type="button"
+                onClick={() => setTeamFilter(prev => selected ? prev.filter(x => x !== t.id) : [...prev, t.id])}
+                className="tag transition-all duration-150"
+                style={{
+                  background: selected ? (isRL ? 'rgba(0,129,255,0.15)' : 'rgba(0,217,54,0.15)') : 'transparent',
+                  color: selected ? (isRL ? 'var(--s-blue)' : 'var(--s-green)') : 'var(--s-text-dim)',
+                  borderColor: selected ? (isRL ? 'rgba(0,129,255,0.4)' : 'rgba(0,217,54,0.4)') : 'var(--s-border)',
+                  cursor: 'pointer', padding: '3px 9px', fontSize: '10px',
+                }}>
+                {t.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Body */}
       <div className="relative z-[1] p-5">
@@ -522,7 +569,10 @@ function EventFormModal({
   //   - sinon → uniquement celles dont l'user est staff
   const selectableTeams = isDirigeant(userContext)
     ? teams
-    : teams.filter(t => userContext.staffedTeamIds.includes(t.id));
+    : teams.filter(t =>
+        userContext.staffedTeamIds.includes(t.id) ||
+        (userContext.captainOfTeamIds ?? []).includes(t.id)
+      );
 
   function toggleTeam(id: string) {
     setSelectedTeamIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
