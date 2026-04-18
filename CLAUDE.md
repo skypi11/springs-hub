@@ -412,6 +412,17 @@ Fichier : `public/springs-logo.png`
 
 Durcissement déjà en place : Sentry, rate limiting Upstash, Toast/Modal DA Springs, suite Vitest, sécurité (CSRF OAuth, validation, rules, batch writes, hard caps).
 
+**Audit sécurité structure/équipes/membres (clos 2026-04-18, Lots 9.1→9.7)** :
+- Invariant "1 structure par jeu" atomique via `db.runTransaction()` sur les 3 chemins d'acceptation (`users.structurePerGame` comme source de vérité)
+- Transfert de propriété en 2 étapes avec fenêtre 24h (actions `initiate`/`cancel`/`confirm` sur `/api/structures/transfer`, champ `transferPending`)
+- Rules durcies : `structure_members` lecture admin OR self uniquement ; `structure_audit_logs` admin-only
+- Collection `structure_audit_logs` + helper `lib/audit-log.ts` sur toutes les actions critiques (transfert, promotion/rétrogradation, retrait, invitations…)
+- Invitations : expiration 30j des tokens, historique d'appartenance via `structure_member_history` + `lib/member-history.ts`
+- `firestore.indexes.json` déclare tous les composites utilisés (13 indexes déployés)
+- Confirm remove member contextuel (équipes impactées + rôles perdus), pagination douce des groupes d'équipes (cap 12)
+
+Pièges à éviter lors des futurs refactors : **pas de `.where` dans une transaction Firestore** (uniquement des lookups doc — pattern ID déterministe `${structureId}_${userId}`), et les helpers `addAuditLog`/`addJoinHistory`/`closeOpenHistory` acceptent `BatchOrTx = WriteBatch | Transaction` mais cast en interne vers une `interface Writer` structurelle (les overloads TS sont incompatibles en union).
+
 ---
 
 ## Bonnes pratiques Firebase — lectures Firestore
