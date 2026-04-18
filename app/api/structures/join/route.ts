@@ -5,6 +5,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { createNotifications } from '@/lib/notifications';
 import { addJoinHistory, closeOpenHistory } from '@/lib/member-history';
+import { addAuditLog } from '@/lib/audit-log';
 
 // POST /api/structures/join — rejoindre une structure (via lien ou demande)
 export async function POST(req: NextRequest) {
@@ -121,6 +122,17 @@ export async function POST(req: NextRequest) {
           game: joinGame,
           role: 'joueur',
           reason: linkData.targetUserId ? 'targeted_link' : 'invite_link',
+        });
+        addAuditLog(db, batch, {
+          structureId: sid,
+          action: 'member_joined',
+          actorUid: uid,
+          targetUid: uid,
+          targetId: linkDoc.id,
+          metadata: {
+            game: joinGame,
+            via: linkData.targetUserId ? 'targeted_link' : 'invite_link',
+          },
         });
         await batch.commit();
 
@@ -257,6 +269,13 @@ export async function POST(req: NextRequest) {
           userId: uid,
           game: memberData.game,
           reason: 'left',
+        });
+        addAuditLog(db, batch, {
+          structureId,
+          action: 'member_left',
+          actorUid: uid,
+          targetUid: uid,
+          metadata: { game: memberData.game, previousRole: memberData.role ?? null },
         });
 
         await batch.commit();

@@ -7,6 +7,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { createNotification } from '@/lib/notifications';
 import { addJoinHistory, closeOpenHistory } from '@/lib/member-history';
+import { addAuditLog, writeAuditLog } from '@/lib/audit-log';
 
 // Durée de validité d'un lien d'invitation. Au-delà, le lien est inactivable
 // automatiquement à la consommation, pour éviter qu'un token leaké il y a 6 mois
@@ -220,7 +221,7 @@ export async function POST(req: NextRequest) {
 
         const token = randomUUID();
         const expiresAt = Timestamp.fromMillis(Date.now() + INVITE_LINK_TTL_MS);
-        await db.collection('structure_invitations').add({
+        const newLinkRef = await db.collection('structure_invitations').add({
           type: 'invite_link',
           structureId,
           createdBy: uid,
@@ -230,6 +231,14 @@ export async function POST(req: NextRequest) {
           status: 'active',
           createdAt: FieldValue.serverTimestamp(),
           expiresAt,
+        });
+        await writeAuditLog(db, {
+          structureId,
+          action: 'invite_link_created',
+          actorUid: uid,
+          targetUid: targetedUserId ?? null,
+          targetId: newLinkRef.id,
+          metadata: { game: linkGame, targeted: !!targetedUserId },
         });
         return NextResponse.json({
           success: true,
@@ -248,6 +257,12 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'Invitation introuvable' }, { status: 404 });
         }
         await ref.update({ status: 'expired' });
+        await writeAuditLog(db, {
+          structureId,
+          action: 'invite_link_revoked',
+          actorUid: uid,
+          targetId: invitationId,
+        });
         return NextResponse.json({ success: true });
       }
 
@@ -313,6 +328,14 @@ export async function POST(req: NextRequest) {
           role: joinRole,
           reason: 'join_request',
         });
+        addAuditLog(db, batch, {
+          structureId,
+          action: 'join_request_accepted',
+          actorUid: uid,
+          targetUid: applicantId,
+          targetId: invitationId,
+          metadata: { game: joinGame, role: joinRole },
+        });
         await batch.commit();
 
         // Notifier le joueur que sa demande a été acceptée
@@ -341,6 +364,13 @@ export async function POST(req: NextRequest) {
           status: 'declined',
           declinedBy: uid,
           declinedAt: FieldValue.serverTimestamp(),
+        });
+        await writeAuditLog(db, {
+          structureId,
+          action: 'join_request_declined',
+          actorUid: uid,
+          targetUid: declineData.applicantId ?? null,
+          targetId: invitationId,
         });
 
         // Notifier le joueur que sa demande a été refusée
@@ -414,6 +444,13 @@ export async function POST(req: NextRequest) {
           userId: memberData.userId,
           game: memberData.game,
           reason: 'removed',
+        });
+        addAuditLog(db, batch, {
+          structureId,
+          action: 'member_removed',
+          actorUid: uid,
+          targetUid: memberData.userId,
+          metadata: { game: memberData.game, previousRole: memberData.role ?? null },
         });
 
         await batch.commit();
@@ -497,6 +534,15 @@ export async function POST(req: NextRequest) {
           metadata: { structureId, invitationId: inviteRef.id, game },
         });
 
+        await writeAuditLog(db, {
+          structureId,
+          action: 'direct_invite_sent',
+          actorUid: uid,
+          targetUid: targetUserId,
+          targetId: inviteRef.id,
+          metadata: { game, role: role || 'joueur' },
+        });
+
         return NextResponse.json({ success: true, invitationId: inviteRef.id });
       }
 
@@ -515,6 +561,13 @@ export async function POST(req: NextRequest) {
           status: 'cancelled',
           cancelledBy: uid,
           cancelledAt: FieldValue.serverTimestamp(),
+        });
+        await writeAuditLog(db, {
+          structureId,
+          action: 'direct_invite_cancelled',
+          actorUid: uid,
+          targetUid: snap.data()!.targetUserId ?? null,
+          targetId: invitationId,
         });
         return NextResponse.json({ success: true });
       }

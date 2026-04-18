@@ -9,6 +9,7 @@ import {
   countDirigeantSeats,
   type DirigeantRef,
 } from '@/lib/structure-roles';
+import { addAuditLog } from '@/lib/audit-log';
 
 // POST /api/structures/transfer — transfert de propriété d'une structure
 // Seul le fondateur actuel peut déclencher. Par défaut l'ancien fondateur redevient
@@ -116,6 +117,17 @@ export async function POST(req: NextRequest) {
     for (const doc of oldFounderMemberSnap.docs) {
       batch.update(doc.ref, { role: oldRole });
     }
+    addAuditLog(db, batch, {
+      structureId,
+      action: 'transfer_confirmed',
+      actorUid: uid,
+      targetUid: newFounderId,
+      metadata: {
+        previousFounderId: uid,
+        keepAsCoFounder: !!keepAsCoFounder,
+        oldRoleAfter: oldRole,
+      },
+    });
     await batch.commit();
 
     return NextResponse.json({ success: true });

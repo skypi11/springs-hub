@@ -9,6 +9,7 @@ import {
   countDirigeantSeats,
   type DirigeantRef,
 } from '@/lib/structure-roles';
+import { addAuditLog } from '@/lib/audit-log';
 
 // POST — le fondateur promeut un membre en co-fondateur
 // DELETE — le fondateur rétrograde un co-fondateur en joueur
@@ -101,6 +102,12 @@ export async function POST(req: NextRequest) {
     for (const memberDoc of memberSnap.docs) {
       batch.update(memberDoc.ref, { role: 'co_fondateur' });
     }
+    addAuditLog(db, batch, {
+      structureId,
+      action: 'cofounder_promoted',
+      actorUid: uid,
+      targetUid: targetUserId,
+    });
     await batch.commit();
 
     return NextResponse.json({ success: true });
@@ -161,6 +168,15 @@ export async function DELETE(req: NextRequest) {
     for (const memberDoc of memberSnap.docs) {
       batch.update(memberDoc.ref, { role: 'joueur' });
     }
+    addAuditLog(db, batch, {
+      structureId,
+      action: 'cofounder_demoted',
+      actorUid: uid,
+      targetUid: targetUserId,
+      metadata: {
+        hadPendingDeparture: !!departures[targetUserId],
+      },
+    });
     await batch.commit();
 
     return NextResponse.json({ success: true });
