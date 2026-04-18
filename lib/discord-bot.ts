@@ -175,9 +175,8 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
   // reste visible via author.icon_url.
   const isOfficialMatch = input.type === 'match' && !!input.adversaire;
 
-  const authorParts = [isOfficialMatch ? '⚔ MATCH OFFICIEL' : typeLabel];
+  const authorParts = [isOfficialMatch ? 'MATCH OFFICIEL' : typeLabel];
   if (input.structureName) authorParts.push(input.structureName);
-  if (input.teamName && input.teamName !== input.structureName) authorParts.push(input.teamName);
   const authorName = authorParts.join(' · ').slice(0, 256);
 
   // Titre : pour un match, "ÉQUIPE VS ADVERSAIRE" (en majuscules pour le punch).

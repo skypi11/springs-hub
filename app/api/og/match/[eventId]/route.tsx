@@ -11,6 +11,22 @@ export const runtime = 'nodejs';
 const WIDTH = 1200;
 const HEIGHT = 630;
 
+// Bebas Neue en TTF depuis jsDelivr (CDN fiable, caché). On charge la font
+// une seule fois par cold-start (fetch est caché par Next) pour que Satori
+// puisse rendre le "VS" en Bebas Neue (display font Springs).
+const BEBAS_URL =
+  'https://cdn.jsdelivr.net/npm/@fontsource/bebas-neue/files/bebas-neue-latin-400-normal.ttf';
+
+async function loadBebas(): Promise<ArrayBuffer | null> {
+  try {
+    const res = await fetch(BEBAS_URL, { cache: 'force-cache' });
+    if (!res.ok) return null;
+    return await res.arrayBuffer();
+  } catch {
+    return null;
+  }
+}
+
 function initials(name: string): string {
   return name.trim().slice(0, 3).toUpperCase() || '?';
 }
@@ -93,6 +109,8 @@ export async function GET(
     const teamLabel = teamName.toUpperCase().slice(0, 22);
     const advLabel = adversaire.toUpperCase().slice(0, 22);
 
+    const bebas = await loadBebas();
+
     return new ImageResponse(
       (
         <div
@@ -131,9 +149,10 @@ export async function GET(
               background: 'rgba(255,184,0,0.08)',
               border: '1px solid rgba(255,184,0,0.35)',
               display: 'flex',
+              fontFamily: bebas ? 'Bebas Neue' : 'sans-serif',
             }}
           >
-            ⚔ MATCH OFFICIEL
+            MATCH OFFICIEL
           </div>
           <div
             style={{
@@ -149,12 +168,13 @@ export async function GET(
             />
             <div
               style={{
-                fontSize: 140,
-                fontWeight: 900,
+                fontSize: 180,
                 color: '#FFB800',
                 letterSpacing: '8px',
                 padding: '0 60px',
                 display: 'flex',
+                fontFamily: bebas ? 'Bebas Neue' : 'sans-serif',
+                lineHeight: 1,
               }}
             >
               VS
@@ -180,10 +200,10 @@ export async function GET(
                 width: 340,
                 display: 'flex',
                 justifyContent: 'center',
-                fontSize: 44,
-                fontWeight: 800,
+                fontSize: 56,
                 color: '#eaeaf0',
-                letterSpacing: '2px',
+                letterSpacing: '4px',
+                fontFamily: bebas ? 'Bebas Neue' : 'sans-serif',
               }}
             >
               {teamLabel}
@@ -194,10 +214,10 @@ export async function GET(
                 width: 340,
                 display: 'flex',
                 justifyContent: 'center',
-                fontSize: 44,
-                fontWeight: 800,
+                fontSize: 56,
                 color: '#eaeaf0',
-                letterSpacing: '2px',
+                letterSpacing: '4px',
+                fontFamily: bebas ? 'Bebas Neue' : 'sans-serif',
               }}
             >
               {advLabel}
@@ -220,6 +240,9 @@ export async function GET(
       {
         width: WIDTH,
         height: HEIGHT,
+        fonts: bebas
+          ? [{ name: 'Bebas Neue', data: bebas, style: 'normal', weight: 400 }]
+          : undefined,
         headers: {
           'Cache-Control': 'public, max-age=3600, s-maxage=86400, immutable',
         },
