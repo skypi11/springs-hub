@@ -11,16 +11,17 @@ export const runtime = 'nodejs';
 const WIDTH = 1200;
 const HEIGHT = 630;
 
-// Bebas Neue depuis Google Fonts. Satori ne supporte pas woff2 (format par défaut
-// pour les UA modernes), donc on fake un UA Chrome ancien : Google Fonts sert
-// alors un TTF classique que Satori peut rendre. Astuce officielle Vercel OG.
+// Rajdhani 700 depuis Google Fonts. Police esport/gaming angulaire qui rime avec
+// les biseaux/clip-path de la DA Springs. Satori ne supporte pas woff2 (format
+// par défaut pour les UA modernes), donc on fake un UA Chrome ancien : Google
+// Fonts sert alors un TTF classique. Astuce officielle Vercel OG.
 const LEGACY_UA =
   'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.118 Safari/537.36';
 
-async function loadBebas(): Promise<ArrayBuffer | null> {
+async function loadRajdhani(): Promise<ArrayBuffer | null> {
   try {
     const cssRes = await fetch(
-      'https://fonts.googleapis.com/css2?family=Bebas+Neue',
+      'https://fonts.googleapis.com/css2?family=Rajdhani:wght@700',
       { headers: { 'User-Agent': LEGACY_UA }, cache: 'force-cache' },
     );
     if (!cssRes.ok) return null;
@@ -126,7 +127,7 @@ export async function GET(
     const advLabel = adversaire.toUpperCase().slice(0, 22);
     const namesSize = nameFontSize(Math.max(teamLabel.length, advLabel.length));
 
-    const bebas = await loadBebas();
+    const rajdhani = await loadRajdhani();
 
     return new ImageResponse(
       (
@@ -166,7 +167,7 @@ export async function GET(
               background: 'rgba(255,184,0,0.08)',
               border: '1px solid rgba(255,184,0,0.35)',
               display: 'flex',
-              fontFamily: bebas ? 'Bebas Neue' : 'sans-serif',
+              fontFamily: rajdhani ? 'Rajdhani' : 'sans-serif',
             }}
           >
             MATCH OFFICIEL
@@ -190,7 +191,7 @@ export async function GET(
                 letterSpacing: '8px',
                 padding: '0 60px',
                 display: 'flex',
-                fontFamily: bebas ? 'Bebas Neue' : 'sans-serif',
+                fontFamily: rajdhani ? 'Rajdhani' : 'sans-serif',
                 lineHeight: 1,
               }}
             >
@@ -220,7 +221,7 @@ export async function GET(
                 fontSize: namesSize,
                 color: '#eaeaf0',
                 letterSpacing: '4px',
-                fontFamily: bebas ? 'Bebas Neue' : 'sans-serif',
+                fontFamily: rajdhani ? 'Rajdhani' : 'sans-serif',
                 whiteSpace: 'nowrap',
               }}
             >
@@ -235,7 +236,7 @@ export async function GET(
                 fontSize: namesSize,
                 color: '#eaeaf0',
                 letterSpacing: '4px',
-                fontFamily: bebas ? 'Bebas Neue' : 'sans-serif',
+                fontFamily: rajdhani ? 'Rajdhani' : 'sans-serif',
                 whiteSpace: 'nowrap',
               }}
             >
@@ -259,8 +260,8 @@ export async function GET(
       {
         width: WIDTH,
         height: HEIGHT,
-        fonts: bebas
-          ? [{ name: 'Bebas Neue', data: bebas, style: 'normal', weight: 400 }]
+        fonts: rajdhani
+          ? [{ name: 'Rajdhani', data: rajdhani, style: 'normal', weight: 700 }]
           : undefined,
         headers: {
           'Cache-Control': 'public, max-age=3600, s-maxage=86400, immutable',
