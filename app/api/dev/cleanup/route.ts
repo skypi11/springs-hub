@@ -70,6 +70,28 @@ export async function POST() {
   }
   report.orphanHistory = orphanHistorySnap.size;
 
+  // Équipes créées à la main via l'UI "Nouvelle équipe" — pas de flag isDev, on cible par structureId
+  const orphanTeamsSnap = await db.collection('sub_teams')
+    .where('structureId', '==', DEV_STRUCTURE_ID)
+    .get();
+  if (orphanTeamsSnap.size > 0) {
+    const batch = db.batch();
+    for (const doc of orphanTeamsSnap.docs) batch.delete(doc.ref);
+    await batch.commit();
+  }
+  report.orphanTeams = orphanTeamsSnap.size;
+
+  // Événements calendrier créés en runtime — idem
+  const orphanEventsSnap = await db.collection('structure_events')
+    .where('structureId', '==', DEV_STRUCTURE_ID)
+    .get();
+  if (orphanEventsSnap.size > 0) {
+    const batch = db.batch();
+    for (const doc of orphanEventsSnap.docs) batch.delete(doc.ref);
+    await batch.commit();
+  }
+  report.orphanEvents = orphanEventsSnap.size;
+
   // Supprimer les comptes Firebase Auth dev — source de vérité : DEV_UIDS du seed.
   // + anciens UIDs des seeds précédents (au cas où il traine des comptes Auth en local).
   const devUids = [
