@@ -269,76 +269,83 @@ export async function POST(req: NextRequest) {
       // ── Accepter une demande de rejoindre ──
       case 'accept_request': {
         if (!invitationId) return NextResponse.json({ error: 'invitationId requis' }, { status: 400 });
-        const ref = db.collection('structure_invitations').doc(invitationId);
-        const snap = await ref.get();
-        if (!snap.exists) return NextResponse.json({ error: 'Demande introuvable' }, { status: 404 });
-        const data = snap.data()!;
-        if (data.structureId !== structureId || data.status !== 'pending') {
-          return NextResponse.json({ error: 'Demande invalide' }, { status: 400 });
+        const invRef = db.collection('structure_invitations').doc(invitationId);
+
+        // Transaction atomique. Invariant "1 structure par jeu" : on lit `users.structurePerGame`
+        // en tx — deux acceptations concurrentes sur deux structures différentes pour le même jeu
+        // seront sérialisées par Firestore (l'une retry et verra la valeur écrite par l'autre).
+        let applicantId: string = '';
+        let joinGame: string = '';
+        let joinRole: string = '';
+        try {
+          await db.runTransaction(async (tx) => {
+            const invDoc = await tx.get(invRef);
+            if (!invDoc.exists) throw new Error('NOT_FOUND');
+            const data = invDoc.data()!;
+            if (data.structureId !== structureId || data.status !== 'pending') {
+              throw new Error('INVALID_REQUEST');
+            }
+
+            applicantId = data.applicantId;
+            joinGame = game || data.game || structureData.games?.[0] || 'rocket_league';
+            joinRole = data.role || role || 'joueur';
+
+            const memberRef = db.collection('structure_members').doc(`${structureId}_${applicantId}`);
+            const memberDoc = await tx.get(memberRef);
+            if (memberDoc.exists) throw new Error('ALREADY_MEMBER');
+
+            const userRef = db.collection('users').doc(applicantId);
+            const userDoc = await tx.get(userRef);
+            const spg = (userDoc.exists && (userDoc.data()!.structurePerGame || {})) || {};
+            if (spg[joinGame] && spg[joinGame] !== structureId) {
+              throw new Error('ALREADY_HAS_GAME_STRUCTURE');
+            }
+
+            tx.set(memberRef, {
+              structureId,
+              userId: applicantId,
+              game: joinGame,
+              role: joinRole,
+              joinedAt: FieldValue.serverTimestamp(),
+            });
+            tx.update(invRef, {
+              status: 'accepted',
+              acceptedBy: uid,
+              acceptedAt: FieldValue.serverTimestamp(),
+            });
+            if (userDoc.exists) {
+              tx.update(userRef, { [`structurePerGame.${joinGame}`]: structureId });
+            }
+            addJoinHistory(db, tx, {
+              structureId,
+              userId: applicantId,
+              game: joinGame,
+              role: joinRole,
+              reason: 'join_request',
+            });
+            addAuditLog(db, tx, {
+              structureId,
+              action: 'join_request_accepted',
+              actorUid: uid,
+              targetUid: applicantId,
+              targetId: invitationId,
+              metadata: { game: joinGame, role: joinRole },
+            });
+          });
+        } catch (err) {
+          const code = (err as Error).message;
+          const map: Record<string, { msg: string; status: number }> = {
+            NOT_FOUND:                 { msg: 'Demande introuvable', status: 404 },
+            INVALID_REQUEST:           { msg: 'Demande invalide', status: 400 },
+            ALREADY_MEMBER:            { msg: 'Déjà membre de cette structure', status: 400 },
+            ALREADY_HAS_GAME_STRUCTURE:{ msg: 'Ce joueur a déjà une structure pour ce jeu.', status: 400 },
+          };
+          const handled = map[code];
+          if (handled) return NextResponse.json({ error: handled.msg }, { status: handled.status });
+          throw err;
         }
 
-        const applicantId = data.applicantId;
-        const joinGame = game || data.game || structureData.games?.[0] || 'rocket_league';
-        // On persiste le rôle demandé par le joueur (si valide), sinon fallback sur le body, sinon joueur.
-        const joinRole = data.role || role || 'joueur';
-
-        // Vérifications hors-transaction (lecture seule, on tolère un petit risque de race
-        // car les writes sont atomiques juste après et ce flow est manuel par un fondateur)
-        const [existingSnap, playerStructSnap] = await Promise.all([
-          db.collection('structure_members').where('structureId', '==', structureId).where('userId', '==', applicantId).get(),
-          db.collection('structure_members').where('userId', '==', applicantId).where('game', '==', joinGame).get(),
-        ]);
-        if (!existingSnap.empty) {
-          await ref.update({ status: 'accepted' });
-          return NextResponse.json({ error: 'Déjà membre de cette structure' }, { status: 400 });
-        }
-        if (!playerStructSnap.empty) {
-          return NextResponse.json({ error: `Ce joueur a déjà une structure pour ce jeu.` }, { status: 400 });
-        }
-
-        // Lire le profil joueur pour mettre à jour structurePerGame
-        const userRef = db.collection('users').doc(applicantId);
-        const userSnap = await userRef.get();
-        const spg = (userSnap.exists && (userSnap.data()!.structurePerGame || {})) || {};
-        spg[joinGame] = structureId;
-
-        // 3 writes atomiques : member + invitation status + user.structurePerGame + history
-        // Doc ID déterministe pour qu'un double-clic écrive sur le même doc (idempotent).
-        const batch = db.batch();
-        const newMemberRef = db.collection('structure_members').doc(`${structureId}_${applicantId}`);
-        batch.set(newMemberRef, {
-          structureId,
-          userId: applicantId,
-          game: joinGame,
-          role: joinRole,
-          joinedAt: FieldValue.serverTimestamp(),
-        });
-        batch.update(ref, {
-          status: 'accepted',
-          acceptedBy: uid,
-          acceptedAt: FieldValue.serverTimestamp(),
-        });
-        if (userSnap.exists) {
-          batch.update(userRef, { structurePerGame: spg });
-        }
-        addJoinHistory(db, batch, {
-          structureId,
-          userId: applicantId,
-          game: joinGame,
-          role: joinRole,
-          reason: 'join_request',
-        });
-        addAuditLog(db, batch, {
-          structureId,
-          action: 'join_request_accepted',
-          actorUid: uid,
-          targetUid: applicantId,
-          targetId: invitationId,
-          metadata: { game: joinGame, role: joinRole },
-        });
-        await batch.commit();
-
-        // Notifier le joueur que sa demande a été acceptée
+        // Notifier le joueur que sa demande a été acceptée (hors tx, best-effort)
         await createNotification(db, {
           userId: applicantId,
           type: 'join_request_accepted',

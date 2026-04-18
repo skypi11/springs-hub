@@ -6,6 +6,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { createNotification } from '@/lib/notifications';
 import { addJoinHistory } from '@/lib/member-history';
+import { addAuditLog } from '@/lib/audit-log';
 
 // GET /api/me/applications
 // Retourne les demandes envoyées (join_request pending) + invitations reçues (direct_invite pending)
@@ -133,71 +134,90 @@ export async function POST(req: NextRequest) {
         const joinGame = data.game;
         const joinRole = data.role || 'joueur';
 
-        // Structure encore active ?
-        const structRef = db.collection('structures').doc(structureId);
-        const structSnap = await structRef.get();
-        if (!structSnap.exists || structSnap.data()!.status !== 'active') {
-          return NextResponse.json({ error: 'Structure inactive' }, { status: 400 });
-        }
-        const structData = structSnap.data()!;
+        // Transaction atomique pour l'invariant "1 structure par jeu"
+        // (voir commentaire équivalent dans /api/structures/join).
+        let structureName = '';
+        try {
+          await db.runTransaction(async (tx) => {
+            const invDoc = await tx.get(ref);
+            if (!invDoc.exists || invDoc.data()!.status !== 'pending') {
+              throw new Error('INVALID_INVITE');
+            }
 
-        // Vérifs : pas déjà membre + pas déjà une autre structure pour ce jeu
-        const [existingSnap, playerStructSnap] = await Promise.all([
-          db.collection('structure_members').where('structureId', '==', structureId).where('userId', '==', uid).get(),
-          db.collection('structure_members').where('userId', '==', uid).where('game', '==', joinGame).get(),
-        ]);
-        if (!existingSnap.empty) {
-          await ref.update({ status: 'accepted' });
-          return NextResponse.json({ error: 'Déjà membre de cette structure' }, { status: 400 });
-        }
-        if (!playerStructSnap.empty) {
-          return NextResponse.json({ error: 'Tu as déjà une structure pour ce jeu' }, { status: 400 });
+            const structRef = db.collection('structures').doc(structureId);
+            const structDoc = await tx.get(structRef);
+            if (!structDoc.exists || structDoc.data()!.status !== 'active') {
+              throw new Error('STRUCTURE_INACTIVE');
+            }
+            structureName = structDoc.data()!.name;
+
+            const memberRef = db.collection('structure_members').doc(`${structureId}_${uid}`);
+            const memberDoc = await tx.get(memberRef);
+            if (memberDoc.exists) throw new Error('ALREADY_MEMBER');
+
+            const userRef = db.collection('users').doc(uid);
+            const userDoc = await tx.get(userRef);
+            const spg = (userDoc.exists && (userDoc.data()!.structurePerGame || {})) || {};
+            if (spg[joinGame] && spg[joinGame] !== structureId) {
+              throw new Error('ALREADY_HAS_GAME_STRUCTURE');
+            }
+
+            tx.set(memberRef, {
+              structureId,
+              userId: uid,
+              game: joinGame,
+              role: joinRole,
+              joinedAt: FieldValue.serverTimestamp(),
+            });
+            tx.update(ref, {
+              status: 'accepted',
+              acceptedAt: FieldValue.serverTimestamp(),
+            });
+            if (userDoc.exists) {
+              tx.update(userRef, { [`structurePerGame.${joinGame}`]: structureId });
+            }
+            addJoinHistory(db, tx, {
+              structureId,
+              userId: uid,
+              game: joinGame,
+              role: joinRole,
+              reason: 'direct_invite',
+            });
+            addAuditLog(db, tx, {
+              structureId,
+              action: 'member_joined',
+              actorUid: uid,
+              targetUid: uid,
+              targetId: invitationId,
+              metadata: { game: joinGame, role: joinRole, via: 'direct_invite' },
+            });
+          });
+        } catch (err) {
+          const code = (err as Error).message;
+          const map: Record<string, { msg: string; status: number }> = {
+            INVALID_INVITE:            { msg: 'Invitation déjà traitée', status: 400 },
+            STRUCTURE_INACTIVE:        { msg: 'Structure inactive', status: 400 },
+            ALREADY_MEMBER:            { msg: 'Déjà membre de cette structure', status: 400 },
+            ALREADY_HAS_GAME_STRUCTURE:{ msg: 'Tu as déjà une structure pour ce jeu', status: 400 },
+          };
+          const handled = map[code];
+          if (handled) return NextResponse.json({ error: handled.msg }, { status: handled.status });
+          throw err;
         }
 
-        const userRef = db.collection('users').doc(uid);
-        const userSnap = await userRef.get();
-        const spg = (userSnap.exists && (userSnap.data()!.structurePerGame || {})) || {};
-        spg[joinGame] = structureId;
-
-        // Atomique : member + invite accepted + user.structurePerGame + history
-        const batch = db.batch();
-        const newMemberRef = db.collection('structure_members').doc(`${structureId}_${uid}`);
-        batch.set(newMemberRef, {
-          structureId,
-          userId: uid,
-          game: joinGame,
-          role: joinRole,
-          joinedAt: FieldValue.serverTimestamp(),
-        });
-        batch.update(ref, {
-          status: 'accepted',
-          acceptedAt: FieldValue.serverTimestamp(),
-        });
-        if (userSnap.exists) {
-          batch.update(userRef, { structurePerGame: spg });
-        }
-        addJoinHistory(db, batch, {
-          structureId,
-          userId: uid,
-          game: joinGame,
-          role: joinRole,
-          reason: 'direct_invite',
-        });
-        await batch.commit();
-
-        // Notifier le fondateur qui a envoyé l'invite
+        // Notifier le fondateur qui a envoyé l'invite (hors tx, best-effort)
         if (data.createdBy) {
           await createNotification(db, {
             userId: data.createdBy,
             type: 'direct_invite_accepted',
             title: 'Invitation acceptée',
-            message: `Un joueur a rejoint ${structData.name} via ton invitation`,
+            message: `Un joueur a rejoint ${structureName} via ton invitation`,
             link: '/community/my-structure',
             metadata: { structureId, playerId: uid },
           });
         }
 
-        return NextResponse.json({ success: true, structureId, structureName: structData.name });
+        return NextResponse.json({ success: true, structureId, structureName });
       }
 
       // ── Refuser une invitation directe reçue ──

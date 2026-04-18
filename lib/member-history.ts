@@ -19,13 +19,19 @@ export type MemberLeftReason =
   | 'other';
 
 type Db = FirebaseFirestore.Firestore;
-type Batch = FirebaseFirestore.WriteBatch;
+type BatchOrTx = FirebaseFirestore.WriteBatch | FirebaseFirestore.Transaction;
+// Interface structurelle minimale : WriteBatch + Transaction ont des overloads .set()/.update()
+// incompatibles côté typings, mais une structure identique à l'exécution — on cast à l'entrée.
+interface Writer {
+  set(ref: FirebaseFirestore.DocumentReference, data: unknown): unknown;
+  update(ref: FirebaseFirestore.DocumentReference, data: Record<string, unknown>): unknown;
+}
 
-// Ajoute une entrée ouverte dans l'historique via un batch existant.
-// À appeler en même temps que batch.set sur structure_members.
+// Ajoute une entrée ouverte dans l'historique via un batch OU une transaction.
+// À appeler en même temps que set sur structure_members.
 export function addJoinHistory(
   db: Db,
-  batch: Batch,
+  writer: BatchOrTx,
   params: {
     structureId: string;
     userId: string;
@@ -35,7 +41,7 @@ export function addJoinHistory(
   },
 ) {
   const ref = db.collection('structure_member_history').doc();
-  batch.set(ref, {
+  (writer as Writer).set(ref, {
     structureId: params.structureId,
     userId: params.userId,
     game: params.game,
@@ -54,7 +60,7 @@ export function addJoinHistory(
 // enregistre une entrée "retrofit" déjà close pour garder une trace.
 export async function closeOpenHistory(
   db: Db,
-  batch: Batch,
+  writer: BatchOrTx,
   params: {
     structureId: string;
     userId: string;
@@ -71,7 +77,7 @@ export async function closeOpenHistory(
     .get();
 
   if (!snap.empty) {
-    batch.update(snap.docs[0].ref, {
+    (writer as Writer).update(snap.docs[0].ref, {
       leftAt: FieldValue.serverTimestamp(),
       leftReason: params.reason,
     });
@@ -81,7 +87,7 @@ export async function closeOpenHistory(
   // Retrofit : on n'a pas de joinedAt réel, on met serverTimestamp pour les deux
   // (≈ mieux que rien pour afficher "est parti aujourd'hui").
   const ref = db.collection('structure_member_history').doc();
-  batch.set(ref, {
+  (writer as Writer).set(ref, {
     structureId: params.structureId,
     userId: params.userId,
     game: params.game,

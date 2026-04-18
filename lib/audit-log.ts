@@ -7,8 +7,17 @@
 // Lecture    : dirigeants + admins Springs (voir firestore.rules)
 // Écriture   : API serveur uniquement (Admin SDK)
 
-import type { Firestore, WriteBatch } from 'firebase-admin/firestore';
+import type { Firestore, WriteBatch, Transaction, DocumentReference } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
+
+// Accepte WriteBatch ou Transaction. TS ne peut pas inférer d'intersection valide entre
+// leurs .set()/.update() (overloads incompatibles), donc on définit une interface structurelle
+// minimale qu'on utilise en interne ; on cast à l'entrée des helpers.
+interface Writer {
+  set(ref: DocumentReference, data: unknown): unknown;
+  update(ref: DocumentReference, data: Record<string, unknown>): unknown;
+}
+export type BatchOrTx = WriteBatch | Transaction;
 
 export type AuditAction =
   // Propriété
@@ -59,10 +68,10 @@ export interface AuditLogEntry {
   metadata?: Record<string, unknown>;
 }
 
-// Ajoute une entrée d'audit au batch. L'appelant est responsable du commit.
-// On préfère cette forme pour garantir l'atomicité avec l'action elle-même
-// (si l'action échoue, l'audit n'est pas écrit).
-export function addAuditLog(db: Firestore, batch: WriteBatch, entry: AuditLogEntry): void {
+// Ajoute une entrée d'audit au batch OU à la transaction. L'appelant est
+// responsable du commit. On préfère cette forme pour garantir l'atomicité avec
+// l'action elle-même (si l'action échoue, l'audit n'est pas écrit).
+export function addAuditLog(db: Firestore, writer: BatchOrTx, entry: AuditLogEntry): void {
   const ref = db.collection('structure_audit_logs').doc();
   const payload: Record<string, unknown> = {
     structureId: entry.structureId,
@@ -73,7 +82,7 @@ export function addAuditLog(db: Firestore, batch: WriteBatch, entry: AuditLogEnt
     metadata: entry.metadata ?? {},
     createdAt: FieldValue.serverTimestamp(),
   };
-  batch.set(ref, payload);
+  (writer as Writer).set(ref, payload);
 }
 
 // Écrit une entrée d'audit en standalone (pas de batch). Utile quand l'action
