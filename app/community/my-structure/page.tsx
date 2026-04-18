@@ -1909,6 +1909,24 @@ export default function MyStructurePage() {
                     </button>
                   </div>
                 )}
+
+                {/* Save bar — vit avec le formulaire qu'elle sauvegarde,
+                    bien plus intuitif que le bouton global tout en bas de la page. */}
+                <div className="flex items-center gap-3 pt-4" style={{ borderTop: '1px solid var(--s-border)' }}>
+                  <button onClick={handleSave} disabled={saving}
+                    className="btn-springs btn-primary bevel-sm flex items-center gap-2 px-5 py-2.5">
+                    {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <CheckCircle size={14} /> : <Save size={14} />}
+                    <span className="font-display text-xs tracking-wider">
+                      {saving ? 'SAUVEGARDE...' : saved ? 'SAUVEGARDÉ !' : 'SAUVEGARDER'}
+                    </span>
+                  </button>
+                  {error && (
+                    <div className="flex items-center gap-2 text-xs" style={{ color: '#ff5555' }}>
+                      <AlertCircle size={12} />
+                      <span>{error}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </SectionPanel>
             )}
@@ -2835,8 +2853,8 @@ export default function MyStructurePage() {
               );
             })()}
 
-            {/* ═══ Save button — visible pour les onglets éditables (dirigeant only) ═══ */}
-            {(tab === 'general' || tab === 'recruitment') && isDirigeantOfActive && (<>
+            {/* ═══ Save button — onglet général uniquement (recrutement a son propre save in-panel) ═══ */}
+            {tab === 'general' && isDirigeantOfActive && (<>
             {error && (
               <div className="flex items-center gap-2 px-4 py-3 bevel-sm" style={{ background: 'rgba(255,50,50,0.08)', border: '1px solid rgba(255,50,50,0.25)' }}>
                 <AlertCircle size={14} style={{ color: '#ff5555' }} />
