@@ -213,10 +213,30 @@ export async function GET(req: NextRequest) {
         coFounderDepartures[k] = t?.toDate?.()?.toISOString?.() ?? null;
       }
 
+      // Sérialiser le transfert en cours pour le client (Timestamp → ISO)
+      let transferPending: {
+        toUid: string;
+        keepAsCoFounder: boolean;
+        initiatedBy: string;
+        initiatedAt: string | null;
+        scheduledAtMs: number | null;
+      } | null = null;
+      if (data.transferPending) {
+        const tp = data.transferPending as Record<string, unknown>;
+        transferPending = {
+          toUid: String(tp.toUid ?? ''),
+          keepAsCoFounder: !!tp.keepAsCoFounder,
+          initiatedBy: String(tp.initiatedBy ?? ''),
+          initiatedAt: (tp.initiatedAt as { toDate?: () => Date } | null)?.toDate?.()?.toISOString?.() ?? null,
+          scheduledAtMs: typeof tp.scheduledAtMs === 'number' ? tp.scheduledAtMs : null,
+        };
+      }
+
       return {
         id,
         ...data,
         coFounderDepartures,
+        transferPending,
         members,
         accessLevel: dirigeantIds.has(id) ? 'dirigeant' : 'staff',
         requestedAt: data.requestedAt?.toDate?.()?.toISOString() ?? null,

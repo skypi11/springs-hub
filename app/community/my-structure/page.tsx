@@ -99,6 +99,13 @@ type MyStructure = {
   founderId: string;
   coFounderIds?: string[];
   coFounderDepartures?: Record<string, string | null>;
+  transferPending?: {
+    toUid: string;
+    keepAsCoFounder: boolean;
+    initiatedBy: string;
+    initiatedAt: string | null;
+    scheduledAtMs: number | null;
+  } | null;
   managerIds?: string[];
   coachIds?: string[];
   members: Member[];
@@ -895,6 +902,18 @@ export default function MyStructurePage() {
   const myDepartureIso = firebaseUser ? s.coFounderDepartures?.[firebaseUser.uid] : null;
   const myDepartureRemainingMs = myDepartureIso ? Math.max(0, new Date(myDepartureIso).getTime() + DEPARTURE_NOTICE_MS - now) : null;
 
+  // Transfert de propriété en cours (fenêtre 24h pour annuler)
+  const transferPending = s.transferPending ?? null;
+  const transferRemainingMs = transferPending?.scheduledAtMs
+    ? Math.max(0, transferPending.scheduledAtMs - now)
+    : null;
+  const transferReady = transferPending?.scheduledAtMs != null && now >= transferPending.scheduledAtMs;
+  const transferTargetMember = transferPending
+    ? s.members.find(m => m.userId === transferPending.toUid)
+    : null;
+  const transferTargetName = transferTargetMember?.displayName || transferTargetMember?.discordUsername || 'le nouveau fondateur';
+  const isTransferTarget = !!firebaseUser && transferPending?.toUid === firebaseUser.uid;
+
   // Contexte user pour le calendrier (derivé des données déjà chargées).
   const myMemberRole = firebaseUser ? s.members.find(m => m.userId === firebaseUser.uid)?.role : undefined;
   const staffedTeamIds = firebaseUser
@@ -1192,10 +1211,10 @@ export default function MyStructurePage() {
       cancelLabel: 'Non, simple joueur',
     });
     const confirmTransfer = await confirm({
-      title: 'Confirmer le transfert',
-      message: `Tu vas transférer la propriété de ${activeStructure.name} à ${memberName}. Cette action est réversible seulement si le nouveau fondateur accepte de te retransférer la structure. Confirmer ?`,
+      title: 'Lancer le transfert',
+      message: `Tu vas programmer le transfert de ${activeStructure.name} à ${memberName}. Une fenêtre de 24h s'ouvrira pour te laisser annuler si besoin. Au-delà, le transfert pourra être finalisé. Lancer ?`,
       variant: 'danger',
-      confirmLabel: 'Transférer',
+      confirmLabel: 'Lancer le transfert',
     });
     if (!confirmTransfer) return;
     setInvActionLoading(userId);
@@ -1204,12 +1223,71 @@ export default function MyStructurePage() {
       const res = await fetch('/api/structures/transfer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ structureId: activeStructure.id, newFounderId: userId, keepAsCoFounder }),
+        body: JSON.stringify({ action: 'initiate', structureId: activeStructure.id, newFounderId: userId, keepAsCoFounder }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         await loadStructures();
-        toast.success(`Propriété transférée à ${memberName}`);
+        toast.success(`Transfert lancé. Tu as ${24}h pour annuler.`);
+      } else {
+        toast.error(data.error || 'Erreur');
+      }
+    } catch {
+      toast.error('Erreur réseau');
+    }
+    setInvActionLoading(null);
+  }
+
+  async function handleCancelTransfer() {
+    if (!activeStructure || !firebaseUser) return;
+    const ok = await confirm({
+      title: 'Annuler le transfert',
+      message: 'Tu vas annuler le transfert de propriété en cours. Tu resteras fondateur.',
+      confirmLabel: 'Annuler le transfert',
+    });
+    if (!ok) return;
+    setInvActionLoading('transfer-cancel');
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/structures/transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ action: 'cancel', structureId: activeStructure.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        await loadStructures();
+        toast.success('Transfert annulé');
+      } else {
+        toast.error(data.error || 'Erreur');
+      }
+    } catch {
+      toast.error('Erreur réseau');
+    }
+    setInvActionLoading(null);
+  }
+
+  async function handleConfirmTransfer() {
+    if (!activeStructure || !firebaseUser) return;
+    const ok = await confirm({
+      title: 'Finaliser le transfert',
+      message: 'La fenêtre de 24h est écoulée. Le changement de fondateur sera appliqué immédiatement.',
+      variant: 'danger',
+      confirmLabel: 'Finaliser',
+    });
+    if (!ok) return;
+    setInvActionLoading('transfer-confirm');
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/structures/transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ action: 'confirm', structureId: activeStructure.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        await loadStructures();
+        toast.success('Transfert finalisé');
       } else {
         toast.error(data.error || 'Erreur');
       }
@@ -1449,6 +1527,62 @@ export default function MyStructurePage() {
             </div>
           </div>
         </header>
+
+        {/* ═══ Bandeau transfert de propriété en cours ═══ */}
+        {transferPending && (
+          <div className="bevel relative"
+            style={{
+              background: 'rgba(255,184,0,0.06)',
+              border: '1px solid rgba(255,184,0,0.35)',
+            }}>
+            <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.4) 60%, transparent)' }} />
+            <div className="p-4 flex items-start justify-between gap-4 flex-wrap">
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center"
+                  style={{ background: 'rgba(255,184,0,0.1)', border: '1px solid rgba(255,184,0,0.3)' }}>
+                  <AlertCircle size={14} style={{ color: 'var(--s-gold)' }} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-display text-sm tracking-wider mb-0.5" style={{ color: 'var(--s-gold)' }}>
+                    Transfert de propriété en cours
+                  </div>
+                  <div className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                    {isTransferTarget
+                      ? <>Le fondateur t&apos;a désigné comme nouveau propriétaire de <strong style={{ color: 'var(--s-text)' }}>{s.name}</strong>.</>
+                      : <>Tu as programmé le transfert à <strong style={{ color: 'var(--s-text)' }}>{transferTargetName}</strong>.</>}
+                    {' '}
+                    {transferReady
+                      ? 'La fenêtre de 24h est écoulée — le transfert peut être finalisé.'
+                      : transferRemainingMs != null
+                      ? <>Il reste <strong style={{ color: 'var(--s-text)' }}>
+                          {Math.max(1, Math.ceil(transferRemainingMs / (60 * 60 * 1000)))}h
+                        </strong> avant de pouvoir le finaliser.</>
+                      : null}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {isFounderOfActive && (
+                  <button type="button" onClick={handleCancelTransfer}
+                    disabled={invActionLoading === 'transfer-cancel'}
+                    className="btn-springs btn-secondary bevel-sm-border text-xs"
+                    style={{ color: 'var(--s-text)' }}>
+                    {invActionLoading === 'transfer-cancel' ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
+                    <span>Annuler le transfert</span>
+                  </button>
+                )}
+                {(isFounderOfActive || isTransferTarget) && transferReady && (
+                  <button type="button" onClick={handleConfirmTransfer}
+                    disabled={invActionLoading === 'transfer-confirm'}
+                    className="btn-springs btn-primary bevel-sm">
+                    {invActionLoading === 'transfer-confirm' ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                    <span>Finaliser maintenant</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ═══ Aperçu public (onglet général uniquement) ═══ */}
         {tab === 'general' && s.status === 'active' && (

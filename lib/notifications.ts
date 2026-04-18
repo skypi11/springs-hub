@@ -14,6 +14,9 @@ export type NotificationType =
   | 'new_competition'
   | 'team_captain_assigned'
   | 'team_archived'
+  | 'transfer_pending'
+  | 'transfer_cancelled'
+  | 'transfer_confirmed'
   | 'generic';
 
 export type NotificationPayload = {
