@@ -55,7 +55,10 @@ export type AuditAction =
   | 'structure_updated'
   | 'structure_suspended'
   | 'structure_deletion_scheduled'
-  | 'structure_deletion_cancelled';
+  | 'structure_deletion_cancelled'
+  // Intégration Discord
+  | 'discord_connected'
+  | 'discord_disconnected';
 
 export interface AuditLogEntry {
   structureId: string;

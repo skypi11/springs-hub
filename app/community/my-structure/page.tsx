@@ -135,6 +135,12 @@ type MyStructure = {
   } | null;
   managerIds?: string[];
   coachIds?: string[];
+  discordIntegration?: {
+    guildId: string;
+    guildName: string;
+    guildIconHash?: string | null;
+    installedBy: string;
+  } | null;
   members: Member[];
   requestedAt?: string;
   validatedAt?: string;
@@ -442,6 +448,7 @@ export default function MyStructurePage() {
   const [teamLogoEdit, setTeamLogoEdit] = useState<{ teamId: string; value: string } | null>(null);
   const [showNewTeam, setShowNewTeam] = useState(false);
   const [teamActionLoading, setTeamActionLoading] = useState<string | null>(null);
+  const [discordLoading, setDiscordLoading] = useState(false);
   const [teamSearch, setTeamSearch] = useState('');
   const [showArchived, setShowArchived] = useState(false);
   // Groupes d'équipes "dépliés" (au-delà du cap par groupe). Key = label du groupe.
@@ -847,6 +854,85 @@ export default function MyStructurePage() {
     }
     if (firebaseUser) loadStructures();
   }, [authLoading, firebaseUser]);
+
+  // Retour du flow Discord install : on lit ?discord=... dans l'URL, on affiche
+  // un toast, puis on nettoie la query string pour ne pas re-déclencher au refresh.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const discord = params.get('discord');
+    if (!discord) return;
+    if (discord === 'connected') {
+      toast.success('Bot Discord connecté à ton serveur.');
+    } else if (discord === 'cancelled') {
+      toast.info('Connexion Discord annulée.');
+    } else if (discord === 'error') {
+      toast.error('Impossible de connecter Discord. Réessaie.');
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.delete('discord');
+    url.searchParams.delete('reason');
+    url.searchParams.delete('structureId');
+    window.history.replaceState({}, '', url.toString());
+  }, [toast]);
+
+  async function handleConnectDiscord() {
+    if (!activeStructure || !firebaseUser || discordLoading) return;
+    setDiscordLoading(true);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/discord/install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ structureId: activeStructure.id }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        toast.error(data.error || 'Impossible de démarrer la connexion.');
+        setDiscordLoading(false);
+        return;
+      }
+      // Navigation vers Discord — le retour se fait sur /api/discord/install/callback
+      // qui redirige vers /community/my-structure?discord=connected.
+      window.location.href = data.url;
+    } catch (err) {
+      console.error('[MyStructure] discord connect error:', err);
+      toast.error('Erreur réseau');
+      setDiscordLoading(false);
+    }
+  }
+
+  async function handleDisconnectDiscord() {
+    if (!activeStructure || !firebaseUser || discordLoading) return;
+    const integration = activeStructure.discordIntegration;
+    const ok = await confirm({
+      title: 'Déconnecter Discord',
+      message: `Déconnecter le bot de "${integration?.guildName ?? 'ce serveur'}" ? Les notifications s'arrêteront. Tu devras retirer le bot manuellement côté Discord si tu veux aussi le faire sortir du serveur.`,
+      variant: 'danger',
+      confirmLabel: 'Déconnecter',
+    });
+    if (!ok) return;
+    setDiscordLoading(true);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch(`/api/discord/install?structureId=${encodeURIComponent(activeStructure.id)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${idToken}` },
+      });
+      if (res.ok) {
+        setActiveStructure({ ...activeStructure, discordIntegration: null });
+        await loadStructures();
+        toast.success('Discord déconnecté.');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Erreur');
+      }
+    } catch (err) {
+      console.error('[MyStructure] discord disconnect error:', err);
+      toast.error('Erreur réseau');
+    }
+    setDiscordLoading(false);
+  }
 
   async function handleSave() {
     if (!activeStructure || !firebaseUser) return;
@@ -1850,6 +1936,55 @@ export default function MyStructurePage() {
                   </div>
                 </div>
               </div>
+            </SectionPanel>
+
+            {/* Bot Discord — pour les notifs automatiques dans les salons d'équipe */}
+            <SectionPanel accent="#5865F2" icon={MessageSquare} title="BOT DISCORD"
+              collapsed={collapsed.discordBot} onToggle={() => toggle('discordBot')}>
+              {activeStructure?.discordIntegration ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 p-3 bevel-sm"
+                    style={{ background: 'rgba(88,101,242,0.08)', border: '1px solid rgba(88,101,242,0.25)' }}>
+                    <div className="flex items-center justify-center w-10 h-10 bevel-sm"
+                      style={{ background: 'rgba(88,101,242,0.2)', border: '1px solid rgba(88,101,242,0.4)' }}>
+                      <Check size={18} style={{ color: '#5865F2' }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="t-sub truncate">Connecté à {activeStructure.discordIntegration.guildName}</div>
+                      <div className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                        Le bot peut poster les notifs d&apos;événements dans les salons d&apos;équipe.
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                      La sélection des salons par équipe arrive prochainement.
+                    </p>
+                    <button type="button"
+                      className="btn-springs btn-secondary bevel-sm flex items-center gap-2"
+                      disabled={discordLoading}
+                      onClick={handleDisconnectDiscord}>
+                      {discordLoading ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
+                      Déconnecter
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                    Connecte le bot Springs Hub à ton serveur Discord pour recevoir
+                    automatiquement les notifications d&apos;événements dans le salon
+                    de chaque équipe. Tu pourras choisir le salon par équipe après la connexion.
+                  </p>
+                  <button type="button"
+                    className="btn-springs btn-primary bevel-sm flex items-center gap-2"
+                    disabled={discordLoading}
+                    onClick={handleConnectDiscord}>
+                    {discordLoading ? <Loader2 size={14} className="animate-spin" /> : <MessageSquare size={14} />}
+                    Connecter Discord
+                  </button>
+                </div>
+              )}
             </SectionPanel>
 
             {/* Réseaux sociaux */}
