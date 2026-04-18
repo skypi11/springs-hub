@@ -1521,6 +1521,7 @@ export default function MyStructurePage() {
     playerIds: t.players.map(p => p.uid),
     subIds: t.subs.map(p => p.uid),
     staffIds: t.staff.map(p => p.uid),
+    staffRoles: t.staffRoles ?? {},
   }));
 
   const toggle = (key: string) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }));
