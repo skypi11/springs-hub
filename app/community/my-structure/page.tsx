@@ -21,6 +21,7 @@ import MemberActionsMenu from '@/components/structure/MemberActionsMenu';
 import { CalendarClock, ClipboardList } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import PublicPreviewFrame from '@/components/ui/PublicPreviewFrame';
+import Portal from '@/components/ui/Portal';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import type { UserContext } from '@/lib/event-permissions';
 import PlayerStructureView, { type PlayerStructure } from '@/components/structure/PlayerStructureView';
@@ -462,6 +463,9 @@ export default function MyStructurePage() {
   const [expandedTeamGroups, setExpandedTeamGroups] = useState<Set<string>>(new Set());
   const [healthOpen, setHealthOpen] = useState<boolean | null>(null);
   const [teamMenuOpen, setTeamMenuOpen] = useState<string | null>(null);
+  // Coordonnées fixes du bouton kebab quand le menu est ouvert — permet au menu
+  // d'être rendu via Portal hors du clip-path "bevel" de la SectionPanel parent.
+  const [teamMenuRect, setTeamMenuRect] = useState<{ top: number; right: number } | null>(null);
   const [captainPickerOpen, setCaptainPickerOpen] = useState<string | null>(null);
   // Drawer détail équipe (Dispos + Devoirs) — ouvert via chips des cards équipe
   const [drawerState, setDrawerState] = useState<{ team: DrawerTeam; tab: DrawerTab; canEditConfig: boolean } | null>(null);
@@ -912,6 +916,20 @@ export default function MyStructurePage() {
   // Charge (ou recharge) la liste des salons Discord postables. Appelé la première
   // fois que le fondateur ouvre un picker dans une card d'équipe. On cache dans
   // discordChannels pour ne pas re-solliciter l'API à chaque ouverture.
+  // Ferme le menu kebab des équipes quand on scroll ou qu'on redimensionne :
+  // le menu est rendu via Portal en position fixe, ses coordonnées calculées à
+  // l'ouverture deviennent obsolètes au moindre scroll.
+  useEffect(() => {
+    if (!teamMenuOpen) return;
+    const close = () => { setTeamMenuOpen(null); setTeamMenuRect(null); };
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [teamMenuOpen]);
+
   // Invalide le cache des salons quand la structure active change ou que le bot
   // est (dé)connecté — évite d'afficher les salons d'un autre serveur.
   useEffect(() => {
@@ -2680,7 +2698,7 @@ export default function MyStructurePage() {
                 const menuOpen = teamMenuOpen === team.id;
 
                 return (
-                  <div key={team.id} id={`team-${team.id}`} className="relative overflow-hidden"
+                  <div key={team.id} id={`team-${team.id}`} className="relative"
                     style={{
                       background: 'var(--s-elevated)',
                       border: '1px solid var(--s-border)',
@@ -2702,6 +2720,22 @@ export default function MyStructurePage() {
                           <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>{team.name}</span>
                           {isArchived && (
                             <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '2px 7px' }}>ARCHIVÉE</span>
+                          )}
+                          {team.discordChannelId && team.discordChannelName && !isArchived && (
+                            <span
+                              className="inline-flex items-center gap-1 tag bevel-sm cursor-pointer"
+                              style={{
+                                fontSize: '10px',
+                                padding: '2px 7px',
+                                background: 'rgba(88,101,242,0.12)',
+                                border: '1px solid rgba(88,101,242,0.35)',
+                                color: '#a5b0ff',
+                              }}
+                              title={`Salon Discord : #${team.discordChannelName}`}
+                              onClick={canManageTeam ? () => { setTeamDiscordEdit(team.id); loadDiscordChannels(); } : undefined}>
+                              <MessageSquare size={9} />
+                              <span className="normal-case" style={{ letterSpacing: 0 }}>#{team.discordChannelName}</span>
+                            </span>
                           )}
                           {(() => {
                             const cap = captainId ? team.players.find(p => p.uid === captainId) : null;
@@ -2775,17 +2809,33 @@ export default function MyStructurePage() {
                         {canManageTeam && (
                           <div className="relative">
                             <button type="button"
-                              onClick={() => setTeamMenuOpen(menuOpen ? null : team.id)}
+                              onClick={(e) => {
+                                if (menuOpen) {
+                                  setTeamMenuOpen(null);
+                                  setTeamMenuRect(null);
+                                } else {
+                                  const r = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                                  // Ancre le menu juste sous le bouton, aligné sur son bord droit.
+                                  setTeamMenuRect({ top: r.bottom + 4, right: window.innerWidth - r.right });
+                                  setTeamMenuOpen(team.id);
+                                }
+                              }}
                               className="p-1.5 transition-opacity duration-150"
                               style={{ color: 'var(--s-text-dim)', opacity: 0.7 }}
                               aria-label="Menu de l'équipe">
                               <MoreVertical size={14} />
                             </button>
-                            {menuOpen && (
-                              <>
-                                <div className="fixed inset-0 z-10" onClick={() => setTeamMenuOpen(null)} />
-                                <div className="absolute right-0 top-full mt-1 z-20 min-w-[200px] py-1 bevel-sm"
-                                  style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                            {menuOpen && teamMenuRect && (
+                              <Portal>
+                                <div className="fixed inset-0 z-[60]" onClick={() => { setTeamMenuOpen(null); setTeamMenuRect(null); }} />
+                                <div className="fixed z-[61] min-w-[220px] py-1 bevel-sm animate-fade-in"
+                                  style={{
+                                    top: teamMenuRect.top,
+                                    right: teamMenuRect.right,
+                                    background: 'var(--s-surface)',
+                                    border: '1px solid var(--s-border)',
+                                    boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
+                                  }}>
                                   {!isArchived && (
                                     <button type="button"
                                       onClick={() => { setTeamMenuOpen(null); setTeamLogoEdit({ teamId: team.id, value: team.logoUrl ?? '' }); }}
@@ -2829,7 +2879,7 @@ export default function MyStructurePage() {
                                   )}
                                   {canDeleteTeam && (
                                     <button type="button"
-                                      onClick={() => { setTeamMenuOpen(null); handleDeleteTeam(team.id, team.name); }}
+                                      onClick={() => { setTeamMenuOpen(null); setTeamMenuRect(null); handleDeleteTeam(team.id, team.name); }}
                                       disabled={teamActionLoading === team.id}
                                       className="w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-[var(--s-hover)] text-left border-t"
                                       style={{ color: '#ff5555', borderColor: 'var(--s-border)' }}>
@@ -2838,7 +2888,7 @@ export default function MyStructurePage() {
                                     </button>
                                   )}
                                 </div>
-                              </>
+                              </Portal>
                             )}
                           </div>
                         )}
