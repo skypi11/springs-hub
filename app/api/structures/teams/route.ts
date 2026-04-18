@@ -76,6 +76,7 @@ export async function GET(req: NextRequest) {
         groupOrder: typeof data.groupOrder === 'number' ? data.groupOrder : 0,
         status: (data.status as 'active' | 'archived') ?? 'active',
         archivedAt: data.archivedAt?.toDate?.()?.toISOString() ?? null,
+        logoUrl: typeof data.logoUrl === 'string' ? data.logoUrl : '',
         minPlayersForMatch: typeof data.minPlayersForMatch === 'number' ? data.minPlayersForMatch : null,
         minMatchDurationMinutes: typeof data.minMatchDurationMinutes === 'number' ? data.minMatchDurationMinutes : null,
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
@@ -100,7 +101,24 @@ export async function POST(req: NextRequest) {
     if (blocked) return blocked;
 
     const body = await req.json();
-    const { action, structureId, teamId, name, game, playerIds, subIds, staffIds, staffRoles, captainId, label, order, groupOrder } = body;
+    const { action, structureId, teamId, name, game, playerIds, subIds, staffIds, staffRoles, captainId, label, order, groupOrder, logoUrl } = body;
+
+    // Valide une URL de logo d'équipe : http(s) uniquement, 500 chars max. Chaîne vide = retrait.
+    const sanitizeLogoUrl = (raw: unknown): { ok: true; value: string } | { ok: false; error: string } => {
+      if (typeof raw !== 'string') return { ok: false, error: "logoUrl doit être une chaîne." };
+      const trimmed = raw.trim();
+      if (trimmed === '') return { ok: true, value: '' };
+      if (trimmed.length > 500) return { ok: false, error: 'URL trop longue (max 500 caractères).' };
+      try {
+        const u = new URL(trimmed);
+        if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+          return { ok: false, error: 'URL invalide (http ou https uniquement).' };
+        }
+      } catch {
+        return { ok: false, error: 'URL invalide.' };
+      }
+      return { ok: true, value: trimmed };
+    };
 
     if (!structureId || !action) {
       return NextResponse.json({ error: 'structureId et action requis' }, { status: 400 });
@@ -237,6 +255,13 @@ export async function POST(req: NextRequest) {
         const finalStaffIds: string[] = staffIds || [];
         const finalStaffRoles = sanitizeStaffRoles(staffRoles, finalStaffIds);
 
+        let createLogoUrl = '';
+        if (logoUrl !== undefined) {
+          const res = sanitizeLogoUrl(logoUrl);
+          if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
+          createLogoUrl = res.value;
+        }
+
         const docRef = await db.collection('sub_teams').add({
           structureId,
           game,
@@ -250,6 +275,7 @@ export async function POST(req: NextRequest) {
           staffIds: finalStaffIds,
           staffRoles: finalStaffRoles,
           captainId: captainToStore,
+          logoUrl: createLogoUrl,
           createdAt: FieldValue.serverTimestamp(),
         });
 
@@ -302,6 +328,11 @@ export async function POST(req: NextRequest) {
 
         const updates: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
         if (name !== undefined) updates.name = name.trim();
+        if (logoUrl !== undefined) {
+          const res = sanitizeLogoUrl(logoUrl);
+          if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
+          updates.logoUrl = res.value;
+        }
         // game : changement de jeu = décision structurelle, admin structure uniquement
         if (game !== undefined) {
           if (!isAdminOfStructure) {

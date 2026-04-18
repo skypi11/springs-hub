@@ -12,7 +12,7 @@ import {
   User, Save, Plus, Trash2, Eye, Clock, Ban, CheckCircle,
   Search, ChevronUp, ChevronDown, Link2, MessageSquare, Settings, LucideIcon,
   Copy, Check, UserPlus, UserMinus, Mail, Bookmark, X,
-  Crown, Archive, ArchiveRestore, MoreVertical, Tag,
+  Crown, Archive, ArchiveRestore, MoreVertical, Tag, Image as ImageIcon,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import CalendarSection from '@/components/calendar/CalendarSection';
@@ -431,12 +431,15 @@ export default function MyStructurePage() {
     order?: number;
     groupOrder?: number;
     status?: 'active' | 'archived';
+    logoUrl?: string;
   };
   const [teams, setTeams] = useState<TeamData[]>([]);
   const [teamsLoading, setTeamsLoading] = useState(false);
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamGame, setNewTeamGame] = useState('');
   const [newTeamLabel, setNewTeamLabel] = useState('');
+  const [newTeamLogoUrl, setNewTeamLogoUrl] = useState('');
+  const [teamLogoEdit, setTeamLogoEdit] = useState<{ teamId: string; value: string } | null>(null);
   const [showNewTeam, setShowNewTeam] = useState(false);
   const [teamActionLoading, setTeamActionLoading] = useState<string | null>(null);
   const [teamSearch, setTeamSearch] = useState('');
@@ -635,6 +638,7 @@ export default function MyStructurePage() {
           name: newTeamName,
           game: newTeamGame,
           label: newTeamLabel.trim(),
+          logoUrl: newTeamLogoUrl.trim(),
           playerIds: [],
           subIds: [],
           staffIds: [],
@@ -643,6 +647,7 @@ export default function MyStructurePage() {
       if (res.ok) {
         setNewTeamName('');
         setNewTeamLabel('');
+        setNewTeamLogoUrl('');
         setShowNewTeam(false);
         await loadTeams(activeStructure.id);
         toast.success('Équipe créée');
@@ -710,6 +715,36 @@ export default function MyStructurePage() {
       }
     } catch (err) {
       console.error('[MyStructure] set captain error:', err);
+      toast.error('Erreur réseau');
+    }
+    setTeamActionLoading(null);
+  }
+
+  async function handleUpdateTeamLogo(teamId: string, rawLogoUrl: string) {
+    if (!activeStructure || !firebaseUser) return;
+    setTeamActionLoading(`${teamId}_logo`);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/structures/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({
+          action: 'update',
+          structureId: activeStructure.id,
+          teamId,
+          logoUrl: rawLogoUrl.trim(),
+        }),
+      });
+      if (res.ok) {
+        await loadTeams(activeStructure.id);
+        toast.success(rawLogoUrl.trim() ? 'Logo mis à jour' : 'Logo retiré');
+        setTeamLogoEdit(null);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Erreur');
+      }
+    } catch (err) {
+      console.error('[MyStructure] update team logo error:', err);
       toast.error('Erreur réseau');
     }
     setTeamActionLoading(null);
@@ -2449,6 +2484,12 @@ export default function MyStructurePage() {
                           <span className={`tag ${team.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '9px', padding: '2px 7px' }}>
                             {team.game === 'rocket_league' ? 'RL' : 'TM'}
                           </span>
+                          {team.logoUrl ? (
+                            <span className="relative w-6 h-6 flex-shrink-0 bevel-sm overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={team.logoUrl} alt="" className="w-full h-full object-contain" />
+                            </span>
+                          ) : null}
                           <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>{team.name}</span>
                           {isArchived && (
                             <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '2px 7px' }}>ARCHIVÉE</span>
@@ -2536,6 +2577,15 @@ export default function MyStructurePage() {
                                 <div className="fixed inset-0 z-10" onClick={() => setTeamMenuOpen(null)} />
                                 <div className="absolute right-0 top-full mt-1 z-20 min-w-[200px] py-1 bevel-sm"
                                   style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                                  {!isArchived && (
+                                    <button type="button"
+                                      onClick={() => { setTeamMenuOpen(null); setTeamLogoEdit({ teamId: team.id, value: team.logoUrl ?? '' }); }}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-[var(--s-hover)] text-left"
+                                      style={{ color: 'var(--s-text)' }}>
+                                      <ImageIcon size={12} />
+                                      <span>{team.logoUrl ? 'Modifier le logo' : 'Ajouter un logo'}</span>
+                                    </button>
+                                  )}
                                   {!isArchived ? (
                                     <button type="button"
                                       onClick={() => handleArchiveTeam(team.id, true)}
@@ -2571,6 +2621,40 @@ export default function MyStructurePage() {
                           </div>
                         )}
                       </div>
+
+                      {teamLogoEdit?.teamId === team.id && (
+                        <div className="p-3 bevel-sm space-y-2" style={{ background: 'var(--s-surface)', border: '1px solid rgba(0,129,255,0.25)' }}>
+                          <label className="t-label block">Logo de l&apos;équipe (URL)</label>
+                          <div className="flex items-center gap-2">
+                            {teamLogoEdit.value.trim() ? (
+                              <span className="relative w-10 h-10 flex-shrink-0 bevel-sm overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={teamLogoEdit.value} alt="" className="w-full h-full object-contain" />
+                              </span>
+                            ) : null}
+                            <input type="url" className="settings-input flex-1 text-sm" placeholder="https://..."
+                              value={teamLogoEdit.value}
+                              onChange={e => setTeamLogoEdit({ teamId: team.id, value: e.target.value })} />
+                          </div>
+                          <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                            Lien direct vers une image (PNG/JPG). Laisser vide pour retirer le logo.
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <button type="button"
+                              onClick={() => handleUpdateTeamLogo(team.id, teamLogoEdit.value)}
+                              disabled={teamActionLoading === `${team.id}_logo`}
+                              className="btn-springs btn-primary bevel-sm flex items-center gap-1.5 text-xs">
+                              {teamActionLoading === `${team.id}_logo` ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                              <span>Enregistrer</span>
+                            </button>
+                            <button type="button"
+                              onClick={() => setTeamLogoEdit(null)}
+                              className="btn-springs btn-ghost bevel-sm text-xs">
+                              Annuler
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="grid grid-cols-3 gap-3">
                         <RosterSlot
@@ -2749,6 +2833,14 @@ export default function MyStructurePage() {
                         {s.games?.includes('trackmania') && <option value="trackmania">Trackmania</option>}
                       </select>
                     </div>
+                  </div>
+                  <div>
+                    <label className="t-label block mb-1.5">Logo de l&apos;équipe (URL, optionnel)</label>
+                    <input type="url" className="settings-input w-full text-sm" placeholder="https://..."
+                      value={newTeamLogoUrl} onChange={e => setNewTeamLogoUrl(e.target.value)} />
+                    <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
+                      Lien direct vers une image (PNG/JPG). Si vide, une icône générique est utilisée.
+                    </p>
                   </div>
                   <button type="button" onClick={handleCreateTeam}
                     disabled={!newTeamName.trim() || !newTeamLabel.trim() || !newTeamGame || teamActionLoading === 'create'}

@@ -46,6 +46,7 @@ type Team = {
   order?: number;
   groupOrder?: number;
   status?: 'active' | 'archived';
+  logoUrl?: string;
 };
 
 type StructureData = {
@@ -157,9 +158,14 @@ function TeamCardCompact({ team, onOpen }: { team: Team; onOpen: () => void }) {
       <div className="relative z-[1] p-4 space-y-3">
         {/* Header : nom + jeu */}
         <div className="flex items-start gap-2.5">
-          <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center"
+          <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center overflow-hidden"
             style={{ background: `rgba(${gcRaw},0.1)`, border: `1px solid rgba(${gcRaw},0.25)` }}>
-            <Gamepad2 size={14} style={{ color: gcVar }} />
+            {team.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={team.logoUrl} alt="" className="w-full h-full object-contain" />
+            ) : (
+              <Gamepad2 size={14} style={{ color: gcVar }} />
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="font-display tracking-wider truncate" style={{ color: 'var(--s-text)', fontSize: '18px', lineHeight: 1.1 }}>
@@ -291,9 +297,14 @@ function TeamDetailPanel({ team, onClose }: { team: Team; onClose: () => void })
 
         {/* Header sticky */}
         <div className="flex-shrink-0 px-5 py-4 flex items-start gap-3" style={{ background: 'var(--s-surface)', borderBottom: '1px solid var(--s-border)' }}>
-          <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center"
+          <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center overflow-hidden"
             style={{ background: `rgba(${gcRaw},0.1)`, border: `1px solid rgba(${gcRaw},0.25)` }}>
-            <Gamepad2 size={16} style={{ color: gcVar }} />
+            {team.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={team.logoUrl} alt="" className="w-full h-full object-contain" />
+            ) : (
+              <Gamepad2 size={16} style={{ color: gcVar }} />
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="font-display tracking-wider" style={{ color: 'var(--s-text)', fontSize: '22px', lineHeight: 1.1 }}>{team.name}</h2>
