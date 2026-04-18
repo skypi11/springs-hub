@@ -67,12 +67,19 @@ function initials(name: string): string {
   return name.trim().slice(0, 3).toUpperCase() || '?';
 }
 
+// IMPORTANT : le runtime Vercel tourne en UTC. Sans timeZone explicite, une
+// heure stockée en UTC s'affiche décalée de -2h (Paris en été) ou -1h (hiver).
+// On force Europe/Paris pour que la bannière matche l'heure affichée sur le site.
 function formatMatchDate(ms: number): string {
   const d = new Date(ms);
   const day = d.toLocaleDateString('fr-FR', {
     weekday: 'short', day: '2-digit', month: 'short',
+    timeZone: 'Europe/Paris',
   }).toUpperCase().replace(/\./g, '');
-  const time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const time = d.toLocaleTimeString('fr-FR', {
+    hour: '2-digit', minute: '2-digit',
+    timeZone: 'Europe/Paris',
+  });
   return `${day} · ${time}`;
 }
 

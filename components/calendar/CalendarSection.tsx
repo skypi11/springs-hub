@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import {
   Calendar as CalendarIcon,
@@ -182,6 +182,23 @@ export default function CalendarSection({
   useEffect(() => {
     loadEvents();
   }, [loadEvents]);
+
+  // Deep-link depuis Discord / lien embed : ?event=ID ouvre directement la
+  // modale de détail de l'événement. On le fait une seule fois après chargement,
+  // et on retire le param de l'URL pour ne pas le ré-ouvrir à chaque re-render.
+  const deepLinkHandled = useRef(false);
+  useEffect(() => {
+    if (deepLinkHandled.current || events.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const eventParam = params.get('event');
+    if (eventParam && events.some(e => e.id === eventParam)) {
+      setOpenEventId(eventParam);
+      deepLinkHandled.current = true;
+      const url = new URL(window.location.href);
+      url.searchParams.delete('event');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [events]);
 
   const filteredEvents = useMemo(() => {
     return events.filter(e => {
