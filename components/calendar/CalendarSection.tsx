@@ -21,6 +21,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import Portal from '@/components/ui/Portal';
+import DateTimePicker from '@/components/ui/DateTimePicker';
 import type {
   UserContext,
   EventType,
@@ -792,11 +793,23 @@ function EventFormModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="t-label block mb-1.5">Début *</label>
-              <input type="datetime-local" className="settings-input w-full" value={startsAt} onChange={e => setStartsAt(e.target.value)} />
+              <DateTimePicker
+                value={startsAt}
+                onChange={setStartsAt}
+                placeholder="Choisir début..."
+                presetMode="start"
+              />
             </div>
             <div>
               <label className="t-label block mb-1.5">Fin *</label>
-              <input type="datetime-local" className="settings-input w-full" value={endsAt} onChange={e => setEndsAt(e.target.value)} />
+              <DateTimePicker
+                value={endsAt}
+                onChange={setEndsAt}
+                placeholder="Choisir fin..."
+                presetMode="end"
+                anchorIso={startsAt}
+                min={startsAt}
+              />
             </div>
           </div>
 

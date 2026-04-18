@@ -158,17 +158,22 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
     ...userPings.map(id => `<@${id}>`),
   ].filter(Boolean).join(' ');
 
-  // Auteur de l'embed : nom d'équipe si présent, sinon nom de structure.
-  const authorName = input.teamName ?? input.structureName ?? 'Springs Hub';
+  // Auteur de l'embed (petit, au-dessus du titre) : type · structure · équipe.
+  // Le titre de l'event reste dominant visuellement ; ce champ apporte le contexte.
+  const authorParts = [typeLabel];
+  if (input.structureName) authorParts.push(input.structureName);
+  if (input.teamName && input.teamName !== input.structureName) authorParts.push(input.teamName);
+  const authorName = authorParts.join(' · ').slice(0, 256);
 
-  // Titre : [Type] Nom · vs Adversaire (si match/scrim)
+  // Titre dominant : juste le titre de l'event, sans préfixe de type.
   const adversaireSuffix = input.adversaire ? ` · vs ${input.adversaire}` : '';
-  const titleWithType = `[${typeLabel}] ${input.title}${adversaireSuffix}`.slice(0, 256);
+  const titleWithType = `${input.title}${adversaireSuffix}`.slice(0, 256);
 
-  // Fields inline pour un layout compact.
+  // Fields inline : date et heure séparées pour plus de lisibilité.
+  // <t:SEC:D> = "24 avril 2026", <t:SEC:R> = "dans 2h", <t:SEC:t> = "20:00"
   const fields: Array<{ name: string; value: string; inline?: boolean }> = [
-    { name: '🗓️ Début', value: `<t:${startSec}:F>\n<t:${startSec}:R>`, inline: true },
-    { name: '⏱️ Fin', value: `<t:${endSec}:t>`, inline: true },
+    { name: '🗓️ Date', value: `<t:${startSec}:D>\n<t:${startSec}:R>`, inline: true },
+    { name: '⏱️ Heure', value: `<t:${startSec}:t> → <t:${endSec}:t>`, inline: true },
   ];
   if (input.location) {
     fields.push({ name: '📍 Lieu', value: input.location.slice(0, 256), inline: true });
