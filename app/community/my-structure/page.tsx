@@ -2068,6 +2068,19 @@ export default function MyStructurePage() {
                     automatiquement les notifications d&apos;événements dans le salon
                     de chaque équipe. Tu pourras choisir le salon par équipe après la connexion.
                   </p>
+                  <div className="p-3 bevel-sm text-xs space-y-1"
+                    style={{ background: 'rgba(255,184,0,0.05)', border: '1px solid rgba(255,184,0,0.2)', color: 'var(--s-text-dim)' }}>
+                    <div className="flex items-center gap-2 font-medium" style={{ color: 'var(--s-gold)' }}>
+                      <AlertCircle size={12} />
+                      Le bot demande la permission Administrator
+                    </div>
+                    <p>
+                      C&apos;est nécessaire pour poster dans les salons privés des équipes
+                      sans que tu doives ajouter le bot manuellement sur chaque salon. Le bot
+                      ne fait rien d&apos;autre que poster des embeds d&apos;événements —
+                      tu peux révoquer son accès à tout moment en le retirant du serveur.
+                    </p>
+                  </div>
                   <button type="button"
                     className="btn-springs btn-primary bevel-sm flex items-center gap-2"
                     disabled={discordLoading}

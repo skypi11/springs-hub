@@ -28,10 +28,14 @@ export interface DiscordGuildInfo {
   iconHash: string | null;
 }
 
-// Permissions minimales demandées au moment de l'invite : View Channels (1024)
-// + Send Messages (2048) + Embed Links (16384) = 19456. Aligné avec ce qui
-// est affiché dans Discord Developer Portal → Bot → Permissions.
-export const BOT_INVITE_PERMISSIONS = '19456';
+// Permission demandée : Administrator (8). Justification : les salons privés
+// réservés aux équipes ont presque toujours des permission overrides qui
+// bloquent @everyone (et donc le rôle du bot). Sans Administrator, le fondateur
+// devrait ajouter le bot manuellement comme override sur CHAQUE salon d'équipe
+// — c'est le cauchemar des bots de gestion esport. Administrator bypass tous
+// les overrides et permet de poster partout sans config manuelle, ce qui est
+// le standard pour les bots de ce type (MEE6, Carl-bot, Dyno…).
+export const BOT_INVITE_PERMISSIONS = '8';
 
 // Construit l'URL vers laquelle on redirige le fondateur pour qu'il invite le bot
 // dans un de ses serveurs. `state` est un nonce CSRF, stocké en cookie côté Next.
