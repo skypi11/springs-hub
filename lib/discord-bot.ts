@@ -220,12 +220,6 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
     });
   }
 
-  // Pour un match officiel avec logo adversaire, la thumbnail montre
-  // l'adversaire (plus parlant que le logo équipe, qui est déjà dans author.icon).
-  const thumbnailFinal = isOfficialMatch && input.adversaryLogoUrl
-    ? input.adversaryLogoUrl
-    : input.thumbnailUrl;
-
   const authorObj: Record<string, unknown> = { name: authorName };
   if (input.authorIconUrl && /^https:\/\//.test(input.authorIconUrl)) {
     authorObj.icon_url = input.authorIconUrl;
@@ -245,8 +239,29 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
     timestamp: new Date().toISOString(),
   };
   if (input.siteEventUrl) embed.url = input.siteEventUrl;
-  if (thumbnailFinal && /^https:\/\//.test(thumbnailFinal)) {
-    embed.thumbnail = { url: thumbnailFinal };
+
+  // Thumbnail :
+  //   - Match officiel AVEC logo adversaire : on ne met PAS de thumbnail sur
+  //     l'embed principal — les deux logos sont affichés en grand via le
+  //     "gallery trick" Discord (embeds additionnels avec la même URL).
+  //   - Sinon : thumbnail classique (logo équipe ou structure).
+  const hasMatchGallery = isOfficialMatch
+    && !!input.adversaryLogoUrl && /^https:\/\//.test(input.adversaryLogoUrl)
+    && !!input.authorIconUrl && /^https:\/\//.test(input.authorIconUrl)
+    && !!input.siteEventUrl;
+  if (!hasMatchGallery && input.thumbnailUrl && /^https:\/\//.test(input.thumbnailUrl)) {
+    embed.thumbnail = { url: input.thumbnailUrl };
+  }
+
+  // Gallery trick : Discord fusionne automatiquement les embeds ayant la même
+  // URL en une grille d'images. Pour un match avec les deux logos disponibles,
+  // on envoie 2 embeds additionnels vides sauf pour `image` — Discord les
+  // affiche côte à côte sous l'embed principal, en TRÈS GRAND (~300×300 chacun)
+  // au lieu des 80×80 de la thumbnail. Vraie présence visuelle "match officiel".
+  const galleryEmbeds: Array<Record<string, unknown>> = [];
+  if (hasMatchGallery) {
+    galleryEmbeds.push({ url: input.siteEventUrl, image: { url: input.authorIconUrl } });
+    galleryEmbeds.push({ url: input.siteEventUrl, image: { url: input.adversaryLogoUrl } });
   }
 
   // allowed_mentions : liste EXPLICITE des user/role IDs autorisés. Discord ne
@@ -268,7 +283,7 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
     },
     body: JSON.stringify({
       ...(content ? { content } : {}),
-      embeds: [embed],
+      embeds: [embed, ...galleryEmbeds],
       allowed_mentions: allowedMentions,
     }),
   });

@@ -569,24 +569,42 @@ function EventCard({
               : null;
             const teamLogo = firstTeam?.logoUrl;
             const teamLabel = firstTeam?.name || 'Équipe';
+            const teamInitials = teamLabel.slice(0, 3).toUpperCase();
+            const advInitials = event.adversaire.slice(0, 3).toUpperCase();
             return (
-              <div className="mt-2 flex items-center gap-2 px-2 py-1.5"
+              <div className="mt-2 inline-flex items-center gap-3 px-3 py-2 max-w-full"
                 style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.3)' }}>
-                {teamLogo ? (
-                  <Image src={teamLogo} alt={teamLabel} width={16} height={16} unoptimized />
-                ) : (
-                  <div className="w-4 h-4" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }} />
-                )}
-                <span className="font-display tracking-wider truncate" style={{ fontSize: '11px', color: 'var(--s-text)' }}>
-                  {teamLabel.toUpperCase()}
-                </span>
-                <span className="font-display" style={{ fontSize: '10px', color: 'var(--s-gold)' }}>VS</span>
-                <span className="font-display tracking-wider truncate flex-1" style={{ fontSize: '11px', color: 'var(--s-text)' }}>
-                  {event.adversaire.toUpperCase()}
-                </span>
-                {event.adversaireLogoUrl && (
-                  <Image src={event.adversaireLogoUrl} alt={event.adversaire} width={16} height={16} unoptimized />
-                )}
+                <div className="flex items-center gap-2 min-w-0">
+                  {teamLogo ? (
+                    <div className="flex-shrink-0" style={{ width: '28px', height: '28px', position: 'relative' }}>
+                      <Image src={teamLogo} alt={teamLabel} fill className="object-contain" unoptimized />
+                    </div>
+                  ) : (
+                    <div className="flex-shrink-0 flex items-center justify-center font-display"
+                      style={{ width: '28px', height: '28px', background: 'var(--s-elevated)', border: '1px solid var(--s-border)', fontSize: '10px', color: 'var(--s-text-dim)' }}>
+                      {teamInitials}
+                    </div>
+                  )}
+                  <span className="font-display tracking-wider truncate" style={{ fontSize: '13px', color: 'var(--s-text)' }}>
+                    {teamLabel.toUpperCase()}
+                  </span>
+                </div>
+                <span className="font-display flex-shrink-0" style={{ fontSize: '12px', color: 'var(--s-gold)', letterSpacing: '0.1em' }}>VS</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-display tracking-wider truncate" style={{ fontSize: '13px', color: 'var(--s-text)' }}>
+                    {event.adversaire.toUpperCase()}
+                  </span>
+                  {event.adversaireLogoUrl ? (
+                    <div className="flex-shrink-0" style={{ width: '28px', height: '28px', position: 'relative' }}>
+                      <Image src={event.adversaireLogoUrl} alt={event.adversaire} fill className="object-contain" unoptimized />
+                    </div>
+                  ) : (
+                    <div className="flex-shrink-0 flex items-center justify-center font-display"
+                      style={{ width: '28px', height: '28px', background: 'var(--s-elevated)', border: '1px solid var(--s-border)', fontSize: '10px', color: 'var(--s-text-dim)' }}>
+                      {advInitials}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })()}
@@ -1210,6 +1228,8 @@ function EventDetailModal({
                 : null;
               const teamLogo = firstTeam?.logoUrl;
               const teamLabel = firstTeam?.name || 'Équipe';
+              const teamInitials = teamLabel.slice(0, 3).toUpperCase();
+              const advInitials = event.adversaire.slice(0, 3).toUpperCase();
               return (
                 <div className="mb-3 p-4 bevel-sm flex items-center justify-center gap-4"
                   style={{ background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.35)' }}>
@@ -1218,17 +1238,27 @@ function EventDetailModal({
                       {teamLabel.toUpperCase()}
                     </span>
                     {teamLogo ? (
-                      <Image src={teamLogo} alt={teamLabel} width={40} height={40} unoptimized />
+                      <div className="flex-shrink-0" style={{ width: '40px', height: '40px', position: 'relative' }}>
+                        <Image src={teamLogo} alt={teamLabel} fill className="object-contain" unoptimized />
+                      </div>
                     ) : (
-                      <div className="w-10 h-10" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }} />
+                      <div className="flex-shrink-0 flex items-center justify-center font-display"
+                        style={{ width: '40px', height: '40px', background: 'var(--s-elevated)', border: '1px solid var(--s-border)', fontSize: '12px', color: 'var(--s-text-dim)' }}>
+                        {teamInitials}
+                      </div>
                     )}
                   </div>
                   <span className="font-display text-2xl flex-shrink-0" style={{ color: 'var(--s-gold)' }}>VS</span>
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     {event.adversaireLogoUrl ? (
-                      <Image src={event.adversaireLogoUrl} alt={event.adversaire} width={40} height={40} unoptimized />
+                      <div className="flex-shrink-0" style={{ width: '40px', height: '40px', position: 'relative' }}>
+                        <Image src={event.adversaireLogoUrl} alt={event.adversaire} fill className="object-contain" unoptimized />
+                      </div>
                     ) : (
-                      <div className="w-10 h-10" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }} />
+                      <div className="flex-shrink-0 flex items-center justify-center font-display"
+                        style={{ width: '40px', height: '40px', background: 'var(--s-elevated)', border: '1px solid var(--s-border)', fontSize: '12px', color: 'var(--s-text-dim)' }}>
+                        {advInitials}
+                      </div>
                     )}
                     <span className="font-display text-xl tracking-wider truncate" style={{ color: 'var(--s-text)' }}>
                       {event.adversaire.toUpperCase()}
