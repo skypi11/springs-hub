@@ -1513,7 +1513,14 @@ export default function MyStructurePage() {
     staffedTeamIds,
     captainOfTeamIds,
   };
-  const calendarTeams = teams.map(t => ({ id: t.id, name: t.name, game: t.game }));
+  const calendarTeams = teams.map(t => ({
+    id: t.id,
+    name: t.name,
+    game: t.game,
+    playerIds: t.players.map(p => p.uid),
+    subIds: t.subs.map(p => p.uid),
+    staffIds: t.staff.map(p => p.uid),
+  }));
 
   const toggle = (key: string) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }));
 

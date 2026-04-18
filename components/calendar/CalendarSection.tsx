@@ -694,7 +694,7 @@ function EventFormModal({
     // on envoie userIds avec la sous-sélection. Si tout est coché, on omet le
     // champ pour garder le comportement par défaut côté back.
     let userIdsOverride: string[] | undefined = undefined;
-    if (scope === 'teams' && singleTeamRoster) {
+    if (scope === 'teams' && singleTeamRoster && singleTeamRoster.entries.length > 0) {
       const keep = singleTeamRoster.entries
         .map(e => e.uid)
         .filter(uid => playerSelection[uid]);
