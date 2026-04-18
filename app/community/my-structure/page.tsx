@@ -4168,6 +4168,7 @@ export default function MyStructurePage() {
           <CalendarSection
             structureId={s.id}
             structureGames={s.games ?? []}
+            structureLogoUrl={s.logoUrl}
             members={s.members}
             teams={calendarTeams}
             userContext={userContext}

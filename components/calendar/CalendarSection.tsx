@@ -94,6 +94,7 @@ type Team = {
 type Props = {
   structureId: string;
   structureGames: string[];
+  structureLogoUrl?: string;
   members: Member[];
   teams: Team[];
   userContext: UserContext;
@@ -136,6 +137,7 @@ function fmtTime(iso: string | null): string {
 export default function CalendarSection({
   structureId,
   structureGames,
+  structureLogoUrl,
   members,
   teams,
   userContext,
@@ -338,6 +340,7 @@ export default function CalendarSection({
                 event={ev}
                 currentUid={firebaseUser?.uid ?? ''}
                 teams={teams}
+                structureLogoUrl={structureLogoUrl}
                 onClick={() => setOpenEventId(ev.id)}
                 onRespond={handleRespond}
               />
@@ -368,6 +371,7 @@ export default function CalendarSection({
           userContext={userContext}
           structureId={structureId}
           teams={teams}
+          structureLogoUrl={structureLogoUrl}
           membersById={membersById}
           onClose={() => setOpenEventId(null)}
           onRespond={handleRespond}
@@ -484,12 +488,14 @@ function EventCard({
   event,
   currentUid,
   teams,
+  structureLogoUrl,
   onClick,
   onRespond,
 }: {
   event: CalendarEvent;
   currentUid: string;
   teams: Team[];
+  structureLogoUrl?: string;
   onClick: () => void;
   onRespond: (eventId: string, status: PresenceStatus) => void;
 }) {
@@ -567,7 +573,7 @@ function EventCard({
             const firstTeam = event.target.scope === 'teams'
               ? teams.find(t => (event.target.teamIds ?? []).includes(t.id))
               : null;
-            const teamLogo = firstTeam?.logoUrl;
+            const teamLogo = firstTeam?.logoUrl || structureLogoUrl;
             const teamLabel = firstTeam?.name || 'Équipe';
             const teamInitials = teamLabel.slice(0, 3).toUpperCase();
             const advInitials = event.adversaire.slice(0, 3).toUpperCase();
@@ -1108,6 +1114,7 @@ function EventDetailModal({
   userContext,
   structureId,
   teams,
+  structureLogoUrl,
   membersById,
   onClose,
   onRespond,
@@ -1120,6 +1127,7 @@ function EventDetailModal({
   userContext: UserContext;
   structureId: string;
   teams: Team[];
+  structureLogoUrl?: string;
   membersById: Map<string, Member>;
   onClose: () => void;
   onRespond: (eventId: string, status: PresenceStatus) => void;
@@ -1226,7 +1234,7 @@ function EventDetailModal({
               const firstTeam = event.target.scope === 'teams'
                 ? teams.find(t => (event.target.teamIds ?? []).includes(t.id))
                 : null;
-              const teamLogo = firstTeam?.logoUrl;
+              const teamLogo = firstTeam?.logoUrl || structureLogoUrl;
               const teamLabel = firstTeam?.name || 'Équipe';
               const teamInitials = teamLabel.slice(0, 3).toUpperCase();
               const advInitials = event.adversaire.slice(0, 3).toUpperCase();
