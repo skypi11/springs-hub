@@ -48,7 +48,7 @@ type MyStructure = {
 };
 
 const TYPE_COLOR: Record<string, string> = {
-  training: 'var(--s-violet-light)',
+  training: 'var(--s-text-dim)',
   scrim: 'var(--s-blue)',
   match: 'var(--s-gold)',
   springs: 'var(--s-violet)',

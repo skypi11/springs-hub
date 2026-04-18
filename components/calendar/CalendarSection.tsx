@@ -112,7 +112,7 @@ type Props = {
 };
 
 const TYPE_INFO: Record<EventType, { label: string; color: string }> = {
-  training: { label: 'Entraînement', color: 'var(--s-violet-light)' },
+  training: { label: 'Entraînement', color: 'var(--s-text-dim)' },
   scrim: { label: 'Scrim', color: 'var(--s-blue)' },
   match: { label: 'Match', color: 'var(--s-gold)' },
   springs: { label: 'Springs', color: 'var(--s-violet)' },
