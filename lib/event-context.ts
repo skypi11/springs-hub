@@ -3,13 +3,14 @@
 // de lib/event-permissions.ts.
 
 import { Firestore, DocumentData } from 'firebase-admin/firestore';
-import type { UserContext } from './event-permissions';
+import type { UserContext, StaffAudience } from './event-permissions';
 
 export interface ResolvedContext {
   structure: DocumentData;
   context: UserContext;
   membership: DocumentData | null;
   teams: (DocumentData & { id: string })[];
+  staffAudience: StaffAudience;
 }
 
 // Charge la structure, les sub_teams et le structure_members du user,
@@ -81,5 +82,41 @@ export async function resolveUserContext(
     captainOfTeamIds,
   };
 
-  return { structure, context, membership, teams };
+  // Audience staff = pool autorisé pour scope='staff'. On fusionne les rôles
+  // structure avec les staff d'équipe (sub_teams.staffRoles) pour que les
+  // managers/coachs d'équipe soient invitables aux réunions staff.
+  const dirigeantSet = new Set<string>();
+  if (typeof structure.founderId === 'string' && structure.founderId) dirigeantSet.add(structure.founderId);
+  if (Array.isArray(structure.coFounderIds)) {
+    for (const id of structure.coFounderIds) if (typeof id === 'string' && id) dirigeantSet.add(id);
+  }
+
+  const managerSet = new Set<string>();
+  if (Array.isArray(structure.managerIds)) {
+    for (const id of structure.managerIds) if (typeof id === 'string' && id) managerSet.add(id);
+  }
+  const coachSet = new Set<string>();
+  if (Array.isArray(structure.coachIds)) {
+    for (const id of structure.coachIds) if (typeof id === 'string' && id) coachSet.add(id);
+  }
+
+  for (const t of teams) {
+    const staffIds = Array.isArray(t.staffIds) ? (t.staffIds as string[]) : [];
+    const staffRoles = (t.staffRoles ?? {}) as Record<string, 'coach' | 'manager'>;
+    for (const uid of staffIds) {
+      if (!uid) continue;
+      // Fallback 'coach' si rôle non renseigné (équipes créées avant l'ajout du sous-rôle).
+      const role = staffRoles[uid] ?? 'coach';
+      if (role === 'manager') managerSet.add(uid);
+      else coachSet.add(uid);
+    }
+  }
+
+  const staffAudience: StaffAudience = {
+    dirigeantIds: Array.from(dirigeantSet),
+    managerIds: Array.from(managerSet),
+    coachIds: Array.from(coachSet),
+  };
+
+  return { structure, context, membership, teams, staffAudience };
 }

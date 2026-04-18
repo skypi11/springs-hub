@@ -7,7 +7,7 @@
 // - "staff d'une équipe" = dirigeant OU membre du staff rattaché à cette équipe (sub_teams.staffIds)
 
 export type EventType = 'training' | 'scrim' | 'match' | 'springs' | 'autre';
-export type EventScope = 'structure' | 'teams' | 'game';
+export type EventScope = 'structure' | 'teams' | 'game' | 'staff';
 export type EventStatus = 'scheduled' | 'done' | 'cancelled';
 export type PresenceStatus = 'present' | 'absent' | 'maybe' | 'pending';
 
@@ -17,10 +17,10 @@ export interface EventTarget {
   scope: EventScope;
   teamIds?: string[];
   game?: string;
-  // Sous-sélection de joueurs dans le scope (feuille de match).
-  // Si présent et non vide, seuls ces uid sont invités (intersection avec le
-  // set auto-calculé pour empêcher d'inviter des users hors scope).
-  // Uniquement utilisé quand scope='teams' avec une seule équipe.
+  // Sous-sélection de joueurs.
+  // - scope='teams' avec UNE équipe : feuille de match (filtre le roster).
+  // - scope='staff' : liste explicite des membres du staff invités (obligatoire,
+  //   sélection par user dans le formulaire, groupée par rôle côté UI).
   userIds?: string[];
 }
 
@@ -120,12 +120,15 @@ export function canAccessCalendar(ctx: UserContext): boolean {
 
 // - structure : dirigeants only
 // - game      : dirigeants only (affecte toute la structure)
+// - staff     : dirigeants + managers (les coachs sont prestataires,
+//              ils n'organisent pas de réunions de direction)
 // - teams     : dirigeants OU staff/capitaine de TOUTES les équipes ciblées
 //              OU coach structure (uniquement pour training/scrim sur n'importe
 //              quelle équipe — coach mobile rémunéré par la structure)
 export function canCreateEvent(ctx: UserContext, target: EventTarget, type?: EventType): boolean {
   if (target.scope === 'structure') return isDirigeant(ctx);
   if (target.scope === 'game') return isDirigeant(ctx);
+  if (target.scope === 'staff') return isDirigeant(ctx) || ctx.isManager;
   if (target.scope === 'teams') {
     const teamIds = target.teamIds ?? [];
     if (teamIds.length === 0) return false;
@@ -148,7 +151,8 @@ export function canCreateEvent(ctx: UserContext, target: EventTarget, type?: Eve
 // ---------- Édition / cycle de vie ----------
 
 // Éditer un événement (titre, dates, description, compte rendu, à travailler, adversaire, résultat).
-// Autorisé pour : créateur, dirigeants, staff ou capitaine d'au moins une équipe ciblée (si scope=teams).
+// Autorisé pour : créateur, dirigeants, staff ou capitaine d'au moins une équipe ciblée (si scope=teams),
+// ou manager (si scope=staff — mêmes droits que la création).
 export function canEditEvent(ctx: UserContext, event: EventRef): boolean {
   if (!ctx.uid) return false;
   if (event.createdBy === ctx.uid) return true;
@@ -158,6 +162,7 @@ export function canEditEvent(ctx: UserContext, event: EventRef): boolean {
     if (isStaffOfAnyTeam(ctx, teamIds)) return true;
     if (isCaptainOfAnyTeam(ctx, teamIds)) return true;
   }
+  if (event.target.scope === 'staff' && ctx.isManager) return true;
   return false;
 }
 
@@ -195,9 +200,11 @@ export function canRespondToPresence(
 // Modifier la présence de quelqu'un d'autre : le staff peut corriger pour ses joueurs.
 // - dirigeants : oui sur tous les événements
 // - manager/coach/capitaine : oui si event.scope=teams ET rattaché (staff ou capitaine) à une équipe ciblée
+// - scope=staff : dirigeants + managers (gestion interne staff)
 // - scope=structure ou scope=game : dirigeants uniquement
 export function canModifyOthersPresence(ctx: UserContext, event: EventRef): boolean {
   if (isDirigeant(ctx)) return true;
+  if (event.target.scope === 'staff') return ctx.isManager;
   if (event.target.scope !== 'teams') return false;
   const teamIds = event.target.teamIds ?? [];
   if (isStaffOfAnyTeam(ctx, teamIds)) return true;
@@ -207,14 +214,37 @@ export function canModifyOthersPresence(ctx: UserContext, event: EventRef): bool
 
 // ---------- Liste des invités ----------
 
+// "Audience staff" = pool autorisé pour les événements scope='staff', groupé par
+// rôle pour le picker UI. Inclut à la fois les rôles structure et les rôles
+// d'équipe (sub_teams.staffRoles). Un user peut apparaître dans plusieurs groupes
+// si ses rôles se chevauchent (ex : co-fondateur + manager d'équipe) ; le picker
+// UI peut alors le dédupliquer ou l'afficher dans son rôle le plus haut.
+export interface StaffAudience {
+  dirigeantIds: string[];   // founderId + coFounderIds
+  managerIds: string[];     // structure.managerIds ∪ team staff role='manager'
+  coachIds: string[];       // structure.coachIds ∪ team staff role='coach'
+}
+
+// Union déduplicée de tous les uid présents dans l'audience staff.
+export function getAllStaffAudienceIds(audience: StaffAudience): string[] {
+  const set = new Set<string>();
+  for (const id of audience.dirigeantIds) if (id) set.add(id);
+  for (const id of audience.managerIds) if (id) set.add(id);
+  for (const id of audience.coachIds) if (id) set.add(id);
+  return Array.from(set);
+}
+
 // Calcule la liste des uid invités à un événement selon sa cible.
 // - structure : tous les membres de la structure (déduplique les users multi-jeux)
 // - game      : membres dont le game correspond
 // - teams     : players + subs + staff de chaque équipe ciblée
+// - staff     : UNIQUEMENT les uid listés dans target.userIds, filtrés pour ne
+//              garder que ceux qui ont effectivement un rôle staff structure.
 export function getInvitedUserIds(
   target: EventTarget,
   allMembers: MemberRef[],
-  allTeams: TeamRef[]
+  allTeams: TeamRef[],
+  staffAudience?: StaffAudience
 ): string[] {
   const set = new Set<string>();
 
@@ -235,6 +265,16 @@ export function getInvitedUserIds(
       for (const id of t.subIds ?? []) if (id) set.add(id);
       for (const id of t.staffIds ?? []) if (id) set.add(id);
     }
+  } else if (target.scope === 'staff') {
+    // Pool autorisé = audience staff complète (dirigeants + managers + coachs,
+    // structure & équipe). userIds obligatoire pour scope=staff.
+    if (!staffAudience) return [];
+    const allStaff = new Set(getAllStaffAudienceIds(staffAudience));
+    const picked = Array.isArray(target.userIds) ? target.userIds : [];
+    for (const uid of picked) {
+      if (uid && allStaff.has(uid)) set.add(uid);
+    }
+    return Array.from(set);
   }
 
   // Filtre "feuille de match" : si target.userIds est fourni, on restreint la
@@ -271,6 +311,15 @@ export function validateEventTarget(target: EventTarget): { ok: true } | { ok: f
       if (target.userIds.length > 0 && ids.length !== 1) {
         return { ok: false, error: 'La sélection de joueurs n\u2019est possible que sur une seule équipe.' };
       }
+    }
+    return { ok: true };
+  }
+  if (target.scope === 'staff') {
+    if (!Array.isArray(target.userIds) || target.userIds.length === 0) {
+      return { ok: false, error: 'Au moins un membre du staff doit être invité.' };
+    }
+    if (target.userIds.some(id => typeof id !== 'string' || !id)) {
+      return { ok: false, error: 'userIds invalide.' };
     }
     return { ok: true };
   }

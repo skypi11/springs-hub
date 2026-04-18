@@ -4172,6 +4172,12 @@ export default function MyStructurePage() {
             members={s.members}
             teams={calendarTeams}
             userContext={userContext}
+            structureRoles={{
+              founderId: s.founderId,
+              coFounderIds: s.coFounderIds,
+              managerIds: s.managerIds,
+              coachIds: s.coachIds,
+            }}
           />
         </div>
         )}

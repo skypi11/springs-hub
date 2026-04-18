@@ -58,7 +58,23 @@ export async function GET(
       .limit(200)
       .get();
 
-    const eventIds = snap.docs.map(d => d.id);
+    // Les events scope='staff' ne sont visibles que par les membres du staff
+    // (dirigeants + managers + coachs — structure ou équipe). Pour un capitaine
+    // qui accède via canAccessCalendar mais n'est pas staff, on les filtre.
+    const isStaffViewer = isStaff(resolved.context);
+    const staffAudienceSet = new Set(
+      [...resolved.staffAudience.dirigeantIds, ...resolved.staffAudience.managerIds, ...resolved.staffAudience.coachIds],
+    );
+    const visibleDocs = snap.docs.filter(doc => {
+      const t = doc.data().target as { scope?: string } | undefined;
+      if (t?.scope !== 'staff') return true;
+      if (isStaffViewer) return true;
+      // Fallback : un user listé dans l'audience staff voit aussi (team-level staff
+      // qui n'a pas isStaff=true au niveau structure mais a été invité).
+      return staffAudienceSet.has(uid);
+    });
+
+    const eventIds = visibleDocs.map(d => d.id);
 
     // Présences — chunks de 30 pour 'in'
     const presencesByEvent = new Map<string, Array<Record<string, unknown>>>();
@@ -83,7 +99,7 @@ export async function GET(
       }
     }
 
-    const events = snap.docs.map(doc => {
+    const events = visibleDocs.map(doc => {
       const d = doc.data();
       return {
         id: doc.id,
@@ -224,23 +240,31 @@ export async function POST(
       game: d.data().game as string | undefined,
     }));
 
-    // Si feuille de match (target.userIds fournie), vérifier que chaque uid
-    // sélectionné appartient bien au roster de l'équipe ciblée. Sinon 400 :
-    // on refuse d'inviter quelqu'un qui n'est pas dans l'équipe.
+    // Si feuille de match / sélection staff (target.userIds fournie), vérifier
+    // que chaque uid sélectionné appartient bien au pool autorisé (roster équipe
+    // ou audience staff). Sinon 400 : on refuse d'inviter quelqu'un hors pool.
     if (Array.isArray(target.userIds) && target.userIds.length > 0) {
-      const rosterSet = new Set(
-        getInvitedUserIds({ ...target, userIds: undefined }, allMembers, resolved.teams)
-      );
-      const unknown = target.userIds.filter(id => !rosterSet.has(id));
+      const poolSet = target.scope === 'staff'
+        ? new Set([
+            ...resolved.staffAudience.dirigeantIds,
+            ...resolved.staffAudience.managerIds,
+            ...resolved.staffAudience.coachIds,
+          ])
+        : new Set(
+            getInvitedUserIds({ ...target, userIds: undefined }, allMembers, resolved.teams),
+          );
+      const unknown = target.userIds.filter(id => !poolSet.has(id));
       if (unknown.length > 0) {
         return NextResponse.json(
-          { error: 'Certains joueurs sélectionnés ne font pas partie de l\u2019équipe ciblée.' },
+          { error: target.scope === 'staff'
+            ? 'Certains invités ne font pas partie du staff.'
+            : 'Certains joueurs sélectionnés ne font pas partie de l\u2019équipe ciblée.' },
           { status: 400 },
         );
       }
     }
 
-    const invitedUserIds = getInvitedUserIds(target, allMembers, resolved.teams);
+    const invitedUserIds = getInvitedUserIds(target, allMembers, resolved.teams, resolved.staffAudience);
     if (invitedUserIds.length === 0) {
       return NextResponse.json({ error: 'Aucun membre correspondant à la cible.' }, { status: 400 });
     }
@@ -454,6 +478,36 @@ export async function POST(
             await recordPost(integration.structureChannelId, messageId, { scope: 'structure' });
           } catch (e) {
             captureApiError('Discord post event failed (scope=structure)', e);
+          }
+          return;
+        }
+
+        // scope=staff → salon staff + rôle staff (config Discord dédiée).
+        // Pas de bannière match ici (les matchs officiels sont scope=teams).
+        if (target.scope === 'staff' && integration?.staffChannelId) {
+          try {
+            const messageId = await postEventEmbed(integration.staffChannelId, {
+              title: title.trim(),
+              type,
+              description: description?.trim() ?? '',
+              location: location?.trim() ?? '',
+              startsAtMs: startMs,
+              endsAtMs: endMs,
+              teamName: null,
+              structureName,
+              createdByName,
+              adversaire: null,
+              resultat: null,
+              siteEventUrl,
+              thumbnailUrl: structureLogoUrl,
+              adversaryLogoUrl: null,
+              authorIconUrl: structureLogoUrl,
+              matchBannerUrl: null,
+              pingRoleId: integration.staffRoleId ?? null,
+            });
+            await recordPost(integration.staffChannelId, messageId, { scope: 'staff' });
+          } catch (e) {
+            captureApiError('Discord post event failed (scope=staff)', e);
           }
           return;
         }

@@ -89,6 +89,16 @@ type Team = {
   playerIds?: string[];
   subIds?: string[];
   staffIds?: string[];
+  staffRoles?: Record<string, 'coach' | 'manager'>;
+};
+
+// Rôles structure — utilisés pour dériver l'audience staff côté client
+// (scope='staff' dans le formulaire). Source : structure doc.
+type StructureRoles = {
+  founderId: string;
+  coFounderIds?: string[];
+  managerIds?: string[];
+  coachIds?: string[];
 };
 
 type Props = {
@@ -98,6 +108,7 @@ type Props = {
   members: Member[];
   teams: Team[];
   userContext: UserContext;
+  structureRoles: StructureRoles;
 };
 
 const TYPE_INFO: Record<EventType, { label: string; color: string }> = {
@@ -141,6 +152,7 @@ export default function CalendarSection({
   members,
   teams,
   userContext,
+  structureRoles,
 }: Props) {
   const { firebaseUser } = useAuth();
   const toast = useToast();
@@ -373,6 +385,7 @@ export default function CalendarSection({
           teams={teams}
           members={members}
           userContext={userContext}
+          structureRoles={structureRoles}
           onClose={() => setShowForm(false)}
           onCreated={() => {
             setShowForm(false);
@@ -529,6 +542,7 @@ function EventCard({
   const targetLabel = (() => {
     if (event.target.scope === 'structure') return 'Toute la structure';
     if (event.target.scope === 'game') return event.target.game === 'rocket_league' ? 'Rocket League' : event.target.game === 'trackmania' ? 'Trackmania' : 'Jeu';
+    if (event.target.scope === 'staff') return 'Staff';
     const names = (event.target.teamIds ?? [])
       .map(id => teams.find(t => t.id === id)?.name)
       .filter(Boolean);
@@ -681,6 +695,7 @@ function EventFormModal({
   teams,
   members,
   userContext,
+  structureRoles,
   onClose,
   onCreated,
 }: {
@@ -689,6 +704,7 @@ function EventFormModal({
   teams: Team[];
   members: Member[];
   userContext: UserContext;
+  structureRoles: StructureRoles;
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -714,6 +730,55 @@ function EventFormModal({
   // Sélection fine des joueurs ("feuille de match") — seulement quand UNE équipe
   // est ciblée. Clé = uid ; true = invité + pingé, false = exclu.
   const [playerSelection, setPlayerSelection] = useState<Record<string, boolean>>({});
+
+  // Sélection fine du staff (scope='staff'). Clé = uid ; obligatoire au moins un coché.
+  const [staffSelection, setStaffSelection] = useState<Record<string, boolean>>({});
+
+  // Qui peut créer un événement scope='staff' : dirigeants + managers (pas les coachs).
+  const canCreateStaffEvent = isDirigeant(userContext) || userContext.isManager;
+
+  // Audience staff dérivée côté client : 3 groupes (dirigeants/managers/coachs).
+  // Fusion rôles structure + staff d'équipe via sub_teams.staffRoles.
+  const staffAudienceGroups = useMemo(() => {
+    const dir = new Set<string>();
+    if (structureRoles.founderId) dir.add(structureRoles.founderId);
+    for (const id of structureRoles.coFounderIds ?? []) if (id) dir.add(id);
+
+    const mgr = new Set<string>();
+    for (const id of structureRoles.managerIds ?? []) if (id) mgr.add(id);
+    const coach = new Set<string>();
+    for (const id of structureRoles.coachIds ?? []) if (id) coach.add(id);
+
+    for (const t of teams) {
+      const staffIds = t.staffIds ?? [];
+      const staffRoles = t.staffRoles ?? {};
+      for (const uid of staffIds) {
+        if (!uid) continue;
+        const r = staffRoles[uid] ?? 'coach';
+        if (r === 'manager') mgr.add(uid);
+        else coach.add(uid);
+      }
+    }
+
+    // Dédupe inter-groupes : on privilégie le rôle le plus haut.
+    for (const id of dir) { mgr.delete(id); coach.delete(id); }
+    for (const id of mgr) coach.delete(id);
+
+    return {
+      dirigeants: Array.from(dir),
+      managers: Array.from(mgr),
+      coaches: Array.from(coach),
+    };
+  }, [structureRoles, teams]);
+
+  // Helper : résout un uid → {displayName, avatarUrl} via la liste members.
+  function memberInfo(uid: string): { displayName: string; avatarUrl: string } {
+    const m = members.find(m => m.userId === uid);
+    return {
+      displayName: m?.displayName || uid.replace(/^discord_/, ''),
+      avatarUrl: m?.avatarUrl || m?.discordAvatar || '',
+    };
+  }
 
   // Roster de l'équipe unique sélectionnée (si applicable) — titulaires + remplaçants + staff
   const singleTeamRoster = useMemo(() => {
@@ -742,6 +807,19 @@ function EventFormModal({
     for (const e of singleTeamRoster.entries) next[e.uid] = true;
     setPlayerSelection(next);
   }, [singleTeamRoster]);
+
+  // Quand on passe en scope='staff', pré-cocher tout le monde par défaut.
+  useEffect(() => {
+    if (scope !== 'staff') {
+      setStaffSelection({});
+      return;
+    }
+    const next: Record<string, boolean> = {};
+    for (const uid of staffAudienceGroups.dirigeants) next[uid] = true;
+    for (const uid of staffAudienceGroups.managers) next[uid] = true;
+    for (const uid of staffAudienceGroups.coaches) next[uid] = true;
+    setStaffSelection(next);
+  }, [scope, staffAudienceGroups]);
 
   // Les équipes dispos au ciblage :
   //   - dirigeant → toutes
@@ -778,11 +856,27 @@ function EventFormModal({
       }
     }
 
+    // scope='staff' : sélection user-par-user obligatoire, au moins un coché.
+    let staffUserIds: string[] = [];
+    if (scope === 'staff') {
+      const pool = [
+        ...staffAudienceGroups.dirigeants,
+        ...staffAudienceGroups.managers,
+        ...staffAudienceGroups.coaches,
+      ];
+      staffUserIds = pool.filter(uid => staffSelection[uid]);
+      if (staffUserIds.length === 0) {
+        return toast.error('Coche au moins un membre du staff.');
+      }
+    }
+
     const target: EventTarget = scope === 'structure'
       ? { scope: 'structure' }
       : scope === 'game'
         ? { scope: 'game', game }
-        : { scope: 'teams', teamIds: selectedTeamIds, ...(userIdsOverride ? { userIds: userIdsOverride } : {}) };
+        : scope === 'staff'
+          ? { scope: 'staff', userIds: staffUserIds }
+          : { scope: 'teams', teamIds: selectedTeamIds, ...(userIdsOverride ? { userIds: userIdsOverride } : {}) };
 
     if (scope === 'teams' && selectedTeamIds.length === 0) {
       return toast.error('Choisis au moins une équipe');
@@ -921,6 +1015,18 @@ function EventFormModal({
                   Un jeu
                 </button>
               )}
+              {canCreateStaffEvent && (
+                <button type="button" onClick={() => setScope('staff')}
+                  className="tag transition-all duration-150"
+                  style={{
+                    background: scope === 'staff' ? 'rgba(255,184,0,0.15)' : 'transparent',
+                    color: scope === 'staff' ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                    borderColor: scope === 'staff' ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
+                    cursor: 'pointer', padding: '6px 12px', fontSize: '10px',
+                  }}>
+                  Staff
+                </button>
+              )}
             </div>
 
             {scope === 'teams' && (
@@ -1041,6 +1147,126 @@ function EventFormModal({
                 )}
               </div>
             )}
+
+            {scope === 'staff' && (() => {
+              const groups: Array<{
+                key: 'dirigeants' | 'managers' | 'coaches';
+                label: string;
+                color: string;
+                uids: string[];
+              }> = [
+                { key: 'dirigeants', label: 'Dirigeants', color: 'var(--s-gold)', uids: staffAudienceGroups.dirigeants },
+                { key: 'managers', label: 'Managers', color: 'var(--s-violet-light)', uids: staffAudienceGroups.managers },
+                { key: 'coaches', label: 'Coachs', color: 'var(--s-blue)', uids: staffAudienceGroups.coaches },
+              ];
+              const total =
+                staffAudienceGroups.dirigeants.length +
+                staffAudienceGroups.managers.length +
+                staffAudienceGroups.coaches.length;
+              const checkedCount =
+                [...staffAudienceGroups.dirigeants, ...staffAudienceGroups.managers, ...staffAudienceGroups.coaches]
+                  .filter(uid => staffSelection[uid]).length;
+              return (
+                <div className="mt-0 p-3 bevel-sm space-y-3"
+                  style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Users size={12} style={{ color: 'var(--s-text-dim)' }} />
+                      <span className="t-label">Invités staff</span>
+                      <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                        {checkedCount}/{total}
+                      </span>
+                    </div>
+                    {total > 0 && (
+                      <div className="flex gap-1">
+                        <button type="button"
+                          className="tag tag-neutral"
+                          style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '9px' }}
+                          onClick={() => {
+                            const next: Record<string, boolean> = {};
+                            for (const g of groups) for (const uid of g.uids) next[uid] = true;
+                            setStaffSelection(next);
+                          }}>
+                          Tout
+                        </button>
+                        <button type="button"
+                          className="tag tag-neutral"
+                          style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '9px' }}
+                          onClick={() => setStaffSelection({})}>
+                          Aucun
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {total === 0 ? (
+                    <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                      Aucun membre staff (dirigeants/managers/coachs) dans cette structure.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {groups.map(g => {
+                        if (g.uids.length === 0) return null;
+                        const groupChecked = g.uids.filter(uid => staffSelection[uid]).length;
+                        const allChecked = groupChecked === g.uids.length;
+                        return (
+                          <div key={g.key} className="space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="t-label" style={{ color: g.color, fontSize: '10px' }}>
+                                  {g.label}
+                                </span>
+                                <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                                  {groupChecked}/{g.uids.length}
+                                </span>
+                              </div>
+                              <button type="button"
+                                className="tag tag-neutral"
+                                style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '9px' }}
+                                onClick={() => {
+                                  setStaffSelection(prev => {
+                                    const next = { ...prev };
+                                    if (allChecked) for (const uid of g.uids) next[uid] = false;
+                                    else for (const uid of g.uids) next[uid] = true;
+                                    return next;
+                                  });
+                                }}>
+                                {allChecked ? 'Décocher' : 'Tout cocher'}
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                              {g.uids.map(uid => {
+                                const checked = !!staffSelection[uid];
+                                const info = memberInfo(uid);
+                                return (
+                                  <label key={uid}
+                                    className="flex items-center gap-2 p-2 cursor-pointer transition-colors duration-150"
+                                    style={{
+                                      background: checked ? 'rgba(255,184,0,0.08)' : 'transparent',
+                                      border: `1px solid ${checked ? 'rgba(255,184,0,0.3)' : 'var(--s-border)'}`,
+                                    }}>
+                                    <input type="checkbox" checked={checked}
+                                      onChange={e => setStaffSelection(prev => ({ ...prev, [uid]: e.target.checked }))} />
+                                    <span className="text-xs flex-1 truncate"
+                                      style={{ color: checked ? 'var(--s-text)' : 'var(--s-text-dim)' }}>
+                                      {info.displayName}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                    Événement privé — seuls les invités cochés le voient et sont notifiés. Invisible pour les joueurs.
+                  </p>
+                </div>
+              );
+            })()}
           </div>
 
           <div>
@@ -1206,6 +1432,7 @@ function EventDetailModal({
   const targetLabel = (() => {
     if (event.target.scope === 'structure') return 'Toute la structure';
     if (event.target.scope === 'game') return event.target.game === 'rocket_league' ? 'Rocket League' : 'Trackmania';
+    if (event.target.scope === 'staff') return 'Staff';
     const names = (event.target.teamIds ?? [])
       .map(id => teams.find(t => t.id === id)?.name)
       .filter(Boolean);

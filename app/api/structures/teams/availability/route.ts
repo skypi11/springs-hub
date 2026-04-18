@@ -186,7 +186,7 @@ export async function GET(req: NextRequest) {
       if (endMs <= windowStartMs) continue;
       if (startMs >= windowEndMs) continue;
 
-      const invited = getInvitedUserIds(target, allMembers, teamsAsRefs);
+      const invited = getInvitedUserIds(target, allMembers, teamsAsRefs, resolved.staffAudience);
       const relevant = invited.filter(mid => memberSet.has(mid));
       if (relevant.length === 0) continue;
 
