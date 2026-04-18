@@ -348,6 +348,7 @@ export default function CalendarSection({
           structureId={structureId}
           structureGames={structureGames}
           teams={teams}
+          members={members}
           userContext={userContext}
           onClose={() => setShowForm(false)}
           onCreated={() => {
@@ -607,6 +608,7 @@ function EventFormModal({
   structureId,
   structureGames,
   teams,
+  members,
   userContext,
   onClose,
   onCreated,
@@ -614,6 +616,7 @@ function EventFormModal({
   structureId: string;
   structureGames: string[];
   teams: Team[];
+  members: Member[];
   userContext: UserContext;
   onClose: () => void;
   onCreated: () => void;
@@ -636,6 +639,38 @@ function EventFormModal({
   const [markDone, setMarkDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Sélection fine des joueurs ("feuille de match") — seulement quand UNE équipe
+  // est ciblée. Clé = uid ; true = invité + pingé, false = exclu.
+  const [playerSelection, setPlayerSelection] = useState<Record<string, boolean>>({});
+
+  // Roster de l'équipe unique sélectionnée (si applicable) — titulaires + remplaçants + staff
+  const singleTeamRoster = useMemo(() => {
+    if (scope !== 'teams' || selectedTeamIds.length !== 1) return null;
+    const team = teams.find(t => t.id === selectedTeamIds[0]);
+    if (!team) return null;
+    const titulaires = team.playerIds ?? [];
+    const remplacants = team.subIds ?? [];
+    const staff = team.staffIds ?? [];
+    // Dédupe en préservant l'ordre (un staff qui est aussi joueur apparaît en joueur)
+    const seen = new Set<string>();
+    const order: Array<{ uid: string; role: 'titulaire' | 'remplacant' | 'staff' }> = [];
+    for (const uid of titulaires) if (uid && !seen.has(uid)) { seen.add(uid); order.push({ uid, role: 'titulaire' }); }
+    for (const uid of remplacants) if (uid && !seen.has(uid)) { seen.add(uid); order.push({ uid, role: 'remplacant' }); }
+    for (const uid of staff) if (uid && !seen.has(uid)) { seen.add(uid); order.push({ uid, role: 'staff' }); }
+    return { team, entries: order };
+  }, [scope, selectedTeamIds, teams]);
+
+  // Quand le roster change, tout pré-cocher par défaut.
+  useEffect(() => {
+    if (!singleTeamRoster) {
+      setPlayerSelection({});
+      return;
+    }
+    const next: Record<string, boolean> = {};
+    for (const e of singleTeamRoster.entries) next[e.uid] = true;
+    setPlayerSelection(next);
+  }, [singleTeamRoster]);
+
   // Les équipes dispos au ciblage :
   //   - dirigeant → toutes
   //   - sinon → uniquement celles dont l'user est staff
@@ -655,11 +690,27 @@ function EventFormModal({
     if (!title.trim()) return toast.error('Titre obligatoire');
     if (!startsAt || !endsAt) return toast.error('Dates obligatoires');
 
+    // Si feuille de match active (1 équipe) : si certains joueurs sont décochés,
+    // on envoie userIds avec la sous-sélection. Si tout est coché, on omet le
+    // champ pour garder le comportement par défaut côté back.
+    let userIdsOverride: string[] | undefined = undefined;
+    if (scope === 'teams' && singleTeamRoster) {
+      const keep = singleTeamRoster.entries
+        .map(e => e.uid)
+        .filter(uid => playerSelection[uid]);
+      if (keep.length === 0) {
+        return toast.error('Coche au moins un joueur.');
+      }
+      if (keep.length < singleTeamRoster.entries.length) {
+        userIdsOverride = keep;
+      }
+    }
+
     const target: EventTarget = scope === 'structure'
       ? { scope: 'structure' }
       : scope === 'game'
         ? { scope: 'game', game }
-        : { scope: 'teams', teamIds: selectedTeamIds };
+        : { scope: 'teams', teamIds: selectedTeamIds, ...(userIdsOverride ? { userIds: userIdsOverride } : {}) };
 
     if (scope === 'teams' && selectedTeamIds.length === 0) {
       return toast.error('Choisis au moins une équipe');
@@ -805,6 +856,87 @@ function EventFormModal({
                     {t.name} · {t.game === 'rocket_league' ? 'RL' : 'TM'}
                   </button>
                 ))}
+              </div>
+            )}
+
+            {/* Feuille de match : sous-sélection de joueurs quand UNE seule équipe ciblée */}
+            {scope === 'teams' && singleTeamRoster && singleTeamRoster.entries.length > 0 && (
+              <div className="mt-3 p-3 bevel-sm space-y-3"
+                style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Users size={12} style={{ color: 'var(--s-text-dim)' }} />
+                    <span className="t-label">Feuille de match</span>
+                    <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                      {singleTeamRoster.entries.filter(e => playerSelection[e.uid]).length}/{singleTeamRoster.entries.length}
+                    </span>
+                  </div>
+                  <div className="flex gap-1">
+                    <button type="button"
+                      className="tag tag-neutral"
+                      style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '9px' }}
+                      onClick={() => {
+                        const next: Record<string, boolean> = {};
+                        for (const e of singleTeamRoster.entries) next[e.uid] = true;
+                        setPlayerSelection(next);
+                      }}>
+                      Tous
+                    </button>
+                    <button type="button"
+                      className="tag tag-neutral"
+                      style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '9px' }}
+                      onClick={() => {
+                        const next: Record<string, boolean> = {};
+                        for (const e of singleTeamRoster.entries) next[e.uid] = e.role === 'titulaire';
+                        setPlayerSelection(next);
+                      }}>
+                      Titulaires
+                    </button>
+                    <button type="button"
+                      className="tag tag-neutral"
+                      style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '9px' }}
+                      onClick={() => {
+                        const next: Record<string, boolean> = {};
+                        for (const e of singleTeamRoster.entries) next[e.uid] = false;
+                        setPlayerSelection(next);
+                      }}>
+                      Aucun
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {singleTeamRoster.entries.map(entry => {
+                    const m = members.find(x => x.userId === entry.uid);
+                    const name = m?.displayName || entry.uid;
+                    const checked = !!playerSelection[entry.uid];
+                    const roleLabel = entry.role === 'titulaire' ? 'TIT' : entry.role === 'remplacant' ? 'SUB' : 'STAFF';
+                    const roleColor = entry.role === 'titulaire'
+                      ? 'var(--s-gold)'
+                      : entry.role === 'remplacant'
+                        ? 'var(--s-text-dim)'
+                        : 'var(--s-violet-light)';
+                    return (
+                      <label key={entry.uid}
+                        className="flex items-center gap-2 p-2 cursor-pointer transition-colors duration-150"
+                        style={{
+                          background: checked ? 'rgba(255,184,0,0.08)' : 'transparent',
+                          border: `1px solid ${checked ? 'rgba(255,184,0,0.3)' : 'var(--s-border)'}`,
+                        }}>
+                        <input type="checkbox" checked={checked}
+                          onChange={e => setPlayerSelection(prev => ({ ...prev, [entry.uid]: e.target.checked }))} />
+                        <span className="text-xs flex-1 truncate" style={{ color: checked ? 'var(--s-text)' : 'var(--s-text-dim)' }}>
+                          {name}
+                        </span>
+                        <span className="t-label" style={{ color: roleColor, fontSize: '9px' }}>
+                          {roleLabel}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                  Seuls les joueurs cochés seront invités et pingés dans Discord.
+                </p>
               </div>
             )}
 

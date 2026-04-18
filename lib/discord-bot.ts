@@ -125,9 +125,18 @@ export interface EventEmbedInput {
   startsAtMs: number;
   endsAtMs: number;
   teamName?: string | null;
+  structureName?: string | null;
   createdByName?: string | null;
   adversaire?: string | null;
+  resultat?: string | null;
   siteEventUrl?: string | null;
+  // Thumbnail : priorité logo équipe, fallback logo structure. URL absolue HTTPS.
+  thumbnailUrl?: string | null;
+  // Pings : liste d'IDs Discord à mentionner en tête de message (et dans
+  // allowed_mentions pour que la notif push parte).
+  pingUserIds?: string[];
+  pingRoleId?: string | null;
+  pingEveryone?: boolean;
 }
 
 // Poste un message + embed dans un salon Discord via le bot. Retourne l'id du
@@ -137,22 +146,52 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
   const typeLabel = EVENT_LABELS[input.type] ?? input.type;
   const color = EVENT_COLORS[input.type] ?? 0x7a7a95;
 
-  // Timestamps Discord : format :F = date complète, :R = relative ("dans 2h").
+  // Timestamps Discord : :F = date complète, :R = relative ("dans 2h"), :t = heure courte.
   const startSec = Math.floor(input.startsAtMs / 1000);
+  const endSec = Math.floor(input.endsAtMs / 1000);
 
-  const header = input.teamName ? `**${input.teamName}** · ${typeLabel}` : typeLabel;
-  const adversaire = input.adversaire ? ` vs ${input.adversaire}` : '';
+  // Mentions en tête de message (content). On cappe à 40 users pour éviter
+  // de dépasser la limite Discord (2000 chars content).
+  const userPings = (input.pingUserIds ?? []).slice(0, 40);
+  const mentionsLine = [
+    input.pingRoleId ? `<@&${input.pingRoleId}>` : '',
+    ...userPings.map(id => `<@${id}>`),
+  ].filter(Boolean).join(' ');
 
+  // Auteur de l'embed : nom d'équipe si présent, sinon nom de structure.
+  const authorName = input.teamName ?? input.structureName ?? 'Springs Hub';
+
+  // Titre : [Type] Nom · vs Adversaire (si match/scrim)
+  const adversaireSuffix = input.adversaire ? ` · vs ${input.adversaire}` : '';
+  const titleWithType = `[${typeLabel}] ${input.title}${adversaireSuffix}`.slice(0, 256);
+
+  // Fields inline pour un layout compact.
   const fields: Array<{ name: string; value: string; inline?: boolean }> = [
-    { name: 'Début', value: `<t:${startSec}:F> (<t:${startSec}:R>)`, inline: false },
+    { name: '🗓️ Début', value: `<t:${startSec}:F>\n<t:${startSec}:R>`, inline: true },
+    { name: '⏱️ Fin', value: `<t:${endSec}:t>`, inline: true },
   ];
   if (input.location) {
-    fields.push({ name: 'Lieu', value: input.location.slice(0, 1024), inline: false });
+    fields.push({ name: '📍 Lieu', value: input.location.slice(0, 256), inline: true });
+  }
+  if (input.resultat) {
+    fields.push({ name: '🏆 Résultat', value: input.resultat.slice(0, 64), inline: true });
+  }
+  // Liste des participants comme field Discord (en plus du content qui les ping).
+  // Le field donne une vision "feuille de match" pérenne dans le message, même
+  // quand les notifs push sont passées.
+  if (userPings.length > 0) {
+    const participantsValue = userPings.map(id => `<@${id}>`).join(' ');
+    fields.push({
+      name: `👥 Participants (${userPings.length})`,
+      value: participantsValue.slice(0, 1024),
+      inline: false,
+    });
   }
 
   const embed: Record<string, unknown> = {
     color,
-    title: `${input.title}${adversaire}`.slice(0, 256),
+    author: { name: authorName },
+    title: titleWithType,
     description: (input.description ?? '').slice(0, 2000) || undefined,
     fields,
     footer: {
@@ -163,6 +202,20 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
     timestamp: new Date().toISOString(),
   };
   if (input.siteEventUrl) embed.url = input.siteEventUrl;
+  if (input.thumbnailUrl && /^https:\/\//.test(input.thumbnailUrl)) {
+    embed.thumbnail = { url: input.thumbnailUrl };
+  }
+
+  // allowed_mentions : liste EXPLICITE des user/role IDs autorisés. Discord ne
+  // pingera que ces IDs, même si le content contient d'autres mentions ou
+  // @everyone. Sécurité par construction : on ne peut pas accidentellement
+  // pinger quelqu'un hors liste.
+  const allowedMentions: Record<string, unknown> = { parse: [] };
+  if (userPings.length > 0) allowedMentions.users = userPings;
+  if (input.pingRoleId) allowedMentions.roles = [input.pingRoleId];
+  if (input.pingEveryone) (allowedMentions.parse as string[]).push('everyone');
+
+  const content = mentionsLine || undefined;
 
   const res = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
     method: 'POST',
@@ -171,11 +224,9 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
       Authorization: `Bot ${botToken()}`,
     },
     body: JSON.stringify({
-      content: header,
+      ...(content ? { content } : {}),
       embeds: [embed],
-      // allowed_mentions vide = le content n'invoque pas de mentions, même si on
-      // écrivait @everyone dedans un jour par erreur.
-      allowed_mentions: { parse: [] },
+      allowed_mentions: allowedMentions,
     }),
   });
   if (!res.ok) {

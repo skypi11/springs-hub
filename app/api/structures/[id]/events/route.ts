@@ -221,6 +221,22 @@ export async function POST(
       game: d.data().game as string | undefined,
     }));
 
+    // Si feuille de match (target.userIds fournie), vérifier que chaque uid
+    // sélectionné appartient bien au roster de l'équipe ciblée. Sinon 400 :
+    // on refuse d'inviter quelqu'un qui n'est pas dans l'équipe.
+    if (Array.isArray(target.userIds) && target.userIds.length > 0) {
+      const rosterSet = new Set(
+        getInvitedUserIds({ ...target, userIds: undefined }, allMembers, resolved.teams)
+      );
+      const unknown = target.userIds.filter(id => !rosterSet.has(id));
+      if (unknown.length > 0) {
+        return NextResponse.json(
+          { error: 'Certains joueurs sélectionnés ne font pas partie de l\u2019équipe ciblée.' },
+          { status: 400 },
+        );
+      }
+    }
+
     const invitedUserIds = getInvitedUserIds(target, allMembers, resolved.teams);
     if (invitedUserIds.length === 0) {
       return NextResponse.json({ error: 'Aucun membre correspondant à la cible.' }, { status: 400 });
@@ -279,7 +295,8 @@ export async function POST(
 
     // Notif Discord (best-effort) — ne bloque jamais la création d'event.
     // On poste uniquement pour les events ciblés sur des équipes précises, vers
-    // les salons configurés via Phase 2. Pas de post structure-wide ni par jeu.
+    // les salons configurés sur chaque équipe. Pas de post structure-wide ni
+    // par jeu (Livraison B).
     // Les erreurs sont capturées pour Sentry mais n'affectent pas la réponse.
     if (target.scope === 'teams' && Array.isArray(target.teamIds) && target.teamIds.length > 0) {
       (async () => {
@@ -298,11 +315,42 @@ export async function POST(
           } catch { /* best-effort */ }
 
           const siteEventUrl = `${req.nextUrl.origin}/community/my-structure?event=${encodeURIComponent(eventRef.id)}`;
+          const structureName = (resolved.structure as { name?: string }).name ?? null;
+          const structureLogoUrl = (resolved.structure as { logoUrl?: string }).logoUrl ?? null;
+          const invitedSet = new Set(invitedUserIds);
+
+          // Extrait le snowflake Discord depuis un uid Springs (format `discord_ID`).
+          const toDiscordId = (u: string): string | null => {
+            if (!u.startsWith('discord_')) return null;
+            const id = u.slice('discord_'.length);
+            return /^\d{5,32}$/.test(id) ? id : null;
+          };
 
           await Promise.all(teamsToPost.map(async team => {
             const channelId = (team as { discordChannelId?: string }).discordChannelId;
             if (!channelId) return;
             try {
+              // Ping uniquement les uids invités ET membres de cette équipe
+              // (titulaires + remplaçants + staff), pour que chaque salon d'équipe
+              // ne ping que ses propres joueurs.
+              const teamRoster = [
+                ...((team as { playerIds?: string[] }).playerIds ?? []),
+                ...((team as { subIds?: string[] }).subIds ?? []),
+                ...((team as { staffIds?: string[] }).staffIds ?? []),
+              ];
+              const seen = new Set<string>();
+              const pingUserIds: string[] = [];
+              for (const u of teamRoster) {
+                if (!u || seen.has(u)) continue;
+                seen.add(u);
+                if (!invitedSet.has(u)) continue;
+                const did = toDiscordId(u);
+                if (did) pingUserIds.push(did);
+              }
+
+              const teamLogoUrl = (team as { logoUrl?: string }).logoUrl || null;
+              const thumbnailUrl = teamLogoUrl || structureLogoUrl;
+
               const messageId = await postEventEmbed(channelId, {
                 title: title.trim(),
                 type,
@@ -311,9 +359,13 @@ export async function POST(
                 startsAtMs: startMs,
                 endsAtMs: endMs,
                 teamName: (team as { name?: string }).name ?? null,
+                structureName,
                 createdByName,
                 adversaire: isMatch ? (adversaire?.trim() ?? null) : null,
+                resultat: isMatch && markDoneImmediately ? (resultat?.trim() ?? null) : null,
                 siteEventUrl,
+                thumbnailUrl,
+                pingUserIds,
               });
               // Trace le message posté pour pouvoir le retrouver si besoin
               // (edit/delete dans un futur Phase 4).

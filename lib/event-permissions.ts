@@ -17,6 +17,11 @@ export interface EventTarget {
   scope: EventScope;
   teamIds?: string[];
   game?: string;
+  // Sous-sélection de joueurs dans le scope (feuille de match).
+  // Si présent et non vide, seuls ces uid sont invités (intersection avec le
+  // set auto-calculé pour empêcher d'inviter des users hors scope).
+  // Uniquement utilisé quand scope='teams' avec une seule équipe.
+  userIds?: string[];
 }
 
 export interface EventRef {
@@ -232,6 +237,14 @@ export function getInvitedUserIds(
     }
   }
 
+  // Filtre "feuille de match" : si target.userIds est fourni, on restreint la
+  // liste aux uid qui sont ET dans le scope ET dans la sous-sélection. Empêche
+  // d'inviter un joueur qui n'est pas dans l'équipe ciblée.
+  if (Array.isArray(target.userIds) && target.userIds.length > 0) {
+    const keep = new Set(target.userIds);
+    return Array.from(set).filter(uid => keep.has(uid));
+  }
+
   return Array.from(set);
 }
 
@@ -249,6 +262,16 @@ export function validateEventTarget(target: EventTarget): { ok: true } | { ok: f
   if (target.scope === 'teams') {
     const ids = target.teamIds ?? [];
     if (ids.length === 0) return { ok: false, error: 'Au moins une équipe doit être ciblée.' };
+    if (target.userIds !== undefined) {
+      if (!Array.isArray(target.userIds)) return { ok: false, error: 'userIds invalide.' };
+      if (target.userIds.some(id => typeof id !== 'string' || !id)) {
+        return { ok: false, error: 'userIds invalide.' };
+      }
+      // La sous-sélection par joueur n'a de sens que sur UNE équipe (feuille de match).
+      if (target.userIds.length > 0 && ids.length !== 1) {
+        return { ok: false, error: 'La sélection de joueurs n\u2019est possible que sur une seule équipe.' };
+      }
+    }
     return { ok: true };
   }
   return { ok: false, error: 'Scope invalide.' };
