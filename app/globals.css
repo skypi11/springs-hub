@@ -58,3 +58,15 @@ html, body {
 .animate-fade-in-d1    { animation: fade-in 0.4s ease 0.1s both; }
 .animate-fade-in-d2    { animation: fade-in 0.4s ease 0.2s both; }
 .animate-fade-in-d3    { animation: fade-in 0.4s ease 0.3s both; }
+
+@keyframes slide-in-right {
+  from { transform: translateX(100%); opacity: 0.6; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+.animate-slide-in-right { animation: slide-in-right 0.25s ease-out forwards; }
+
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-overlay-in { animation: overlay-in 0.2s ease-out forwards; }

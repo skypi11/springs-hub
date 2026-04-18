@@ -8,7 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import {
   Shield, Users, Gamepad2, ExternalLink, Trophy, Loader2, AlertCircle,
   User, Globe, Search, MessageSquare, UserPlus, CheckCircle, Calendar,
-  Crown, Archive, ChevronDown, ChevronUp, Tag,
+  Crown, X,
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
@@ -99,27 +99,6 @@ const PRIMARY_ROLE_COLORS: Record<PrimaryRole, string> = {
   membre: 'var(--s-text-dim)',
 };
 
-function ArchivedTeamsSection({ teams, renderCard }: { teams: Team[]; renderCard: (team: Team, isArchived: boolean) => React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="space-y-3">
-      <button type="button" onClick={() => setOpen(o => !o)}
-        className="section-label flex items-center gap-2 w-full transition-colors"
-        style={{ color: 'var(--s-text-dim)' }}>
-        <Archive size={11} />
-        <span className="t-label">Équipes archivées</span>
-        <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '2px 7px' }}>{teams.length}</span>
-        {open ? <ChevronUp size={11} className="ml-auto" /> : <ChevronDown size={11} className="ml-auto" />}
-      </button>
-      {open && (
-        <div className={`grid ${teams.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-5`}>
-          {teams.map(team => renderCard(team, true))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function PlayerRow({ player, color, isCaptain }: { player: TeamPlayer; color: string; isCaptain?: boolean }) {
   const av = player.avatarUrl || player.discordAvatar;
   return (
@@ -143,6 +122,245 @@ function PlayerRow({ player, color, isCaptain }: { player: TeamPlayer; color: st
   );
 }
 
+// Card compacte d'équipe — pensée pour scale jusqu'à 20+ équipes sans scroll infini.
+// Taille ~220px, affiche l'essentiel (nom, capitaine, cluster avatars, compteur) — le détail
+// complet (rosters, staff) est dans le TeamDetailPanel qui slide depuis la droite.
+function TeamCardCompact({ team, onOpen }: { team: Team; onOpen: () => void }) {
+  const gcRaw = team.game === 'rocket_league' ? '0,129,255' : '0,217,54';
+  const gcVar = team.game === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)';
+  const gameLabel = team.game === 'rocket_league' ? 'RL' : 'TM';
+  const isArchived = team.status === 'archived';
+
+  const captain = team.captainId
+    ? [...team.players, ...team.subs].find(p => p.uid === team.captainId)
+    : null;
+
+  const allRoster = [...team.players, ...team.subs];
+  const visibleAvatars = allRoster.slice(0, 5);
+  const overflow = Math.max(0, allRoster.length - 5);
+
+  const tCount = team.players.length;
+  const sCount = team.subs.length;
+  const stCount = team.staff.length;
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="pillar-card panel relative overflow-hidden text-left w-full transition-all duration-200 group"
+      style={{ opacity: isArchived ? 0.75 : 1 }}
+    >
+      <div className="h-[3px]" style={{ background: `linear-gradient(90deg, rgba(${gcRaw},1), rgba(${gcRaw},0.3), transparent 70%)` }} />
+      <div className="absolute top-0 right-0 w-[160px] h-[160px] pointer-events-none opacity-[0.06] group-hover:opacity-[0.12] transition-opacity"
+        style={{ background: `radial-gradient(circle at top right, rgba(${gcRaw},1), transparent 70%)` }} />
+
+      <div className="relative z-[1] p-4 space-y-3">
+        {/* Header : nom + jeu */}
+        <div className="flex items-start gap-2.5">
+          <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center"
+            style={{ background: `rgba(${gcRaw},0.1)`, border: `1px solid rgba(${gcRaw},0.25)` }}>
+            <Gamepad2 size={14} style={{ color: gcVar }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-display tracking-wider truncate" style={{ color: 'var(--s-text)', fontSize: '18px', lineHeight: 1.1 }}>
+              {team.name}
+            </h3>
+            {team.label && (
+              <p className="t-label mt-0.5 truncate" style={{ color: 'var(--s-text-muted)' }}>{team.label}</p>
+            )}
+          </div>
+          <div className="flex flex-col items-end gap-1 flex-shrink-0">
+            <span className={`tag ${team.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '9px' }}>{gameLabel}</span>
+            {isArchived && <span className="tag tag-neutral" style={{ fontSize: '8px', padding: '1px 5px' }}>ARCHIVÉE</span>}
+          </div>
+        </div>
+
+        {/* Capitaine */}
+        <div className="flex items-center gap-2 px-2.5 py-1.5" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+          {captain ? (
+            <>
+              {(captain.avatarUrl || captain.discordAvatar) ? (
+                <div className="w-5 h-5 relative flex-shrink-0 overflow-hidden" style={{ border: '1px solid rgba(255,184,0,0.3)' }}>
+                  <Image src={captain.avatarUrl || captain.discordAvatar} alt={captain.displayName} fill className="object-cover" unoptimized />
+                </div>
+              ) : (
+                <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                  <User size={9} style={{ color: 'var(--s-text-muted)' }} />
+                </div>
+              )}
+              <Crown size={10} style={{ color: 'var(--s-gold)' }} />
+              <span className="text-xs font-semibold truncate" style={{ color: 'var(--s-text)' }}>{captain.displayName}</span>
+            </>
+          ) : (
+            <>
+              <Crown size={10} style={{ color: 'var(--s-text-muted)' }} />
+              <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Sans capitaine</span>
+            </>
+          )}
+        </div>
+
+        {/* Cluster d'avatars + compteur */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center">
+            {visibleAvatars.length > 0 ? (
+              <>
+                {visibleAvatars.map((p, i) => {
+                  const av = p.avatarUrl || p.discordAvatar;
+                  return (
+                    <div key={p.uid} className="w-7 h-7 relative flex-shrink-0 overflow-hidden"
+                      style={{ marginLeft: i === 0 ? 0 : -8, background: 'var(--s-elevated)', border: '2px solid var(--s-surface)', zIndex: visibleAvatars.length - i }}
+                      title={p.displayName}>
+                      {av ? (
+                        <Image src={av} alt={p.displayName} fill className="object-cover" unoptimized />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <User size={11} style={{ color: 'var(--s-text-muted)' }} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {overflow > 0 && (
+                  <div className="w-7 h-7 flex-shrink-0 flex items-center justify-center text-[10px] font-bold"
+                    style={{ marginLeft: -8, background: 'var(--s-elevated)', border: '2px solid var(--s-surface)', color: 'var(--s-text-dim)' }}>
+                    +{overflow}
+                  </div>
+                )}
+              </>
+            ) : (
+              <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Roster vide</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1 t-mono text-[10px]" style={{ color: 'var(--s-text-dim)' }}>
+            <span title="Titulaires">{tCount}T</span>
+            <span style={{ color: 'var(--s-text-muted)' }}>·</span>
+            <span title="Remplaçants">{sCount}R</span>
+            {stCount > 0 && (
+              <>
+                <span style={{ color: 'var(--s-text-muted)' }}>·</span>
+                <span title="Staff">{stCount}S</span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// Panneau latéral slide-in à droite — DA Springs (biseau, hex, bordure neutre).
+// Ferme à l'ESC ou via le bouton X ou clic sur l'overlay.
+function TeamDetailPanel({ team, onClose }: { team: Team; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handler);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  const gcRaw = team.game === 'rocket_league' ? '0,129,255' : '0,217,54';
+  const gcVar = team.game === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)';
+  const gameLabel = team.game === 'rocket_league' ? 'Rocket League' : 'Trackmania';
+  const isArchived = team.status === 'archived';
+
+  return (
+    <>
+      <div
+        className="animate-overlay-in"
+        style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,0.65)' }}
+        onClick={onClose}
+      />
+      <aside
+        className="h-screen w-full sm:w-[480px] animate-slide-in-right flex flex-col"
+        style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          zIndex: 50,
+          background: 'var(--s-surface)',
+          borderLeft: '1px solid var(--s-border)',
+        }}
+        role="dialog"
+        aria-label={`Détails équipe ${team.name}`}
+      >
+        <div className="h-[3px] flex-shrink-0" style={{ background: `linear-gradient(90deg, rgba(${gcRaw},1), rgba(${gcRaw},0.3), transparent 70%)` }} />
+
+        {/* Header sticky */}
+        <div className="flex-shrink-0 px-5 py-4 flex items-start gap-3" style={{ background: 'var(--s-surface)', borderBottom: '1px solid var(--s-border)' }}>
+          <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center"
+            style={{ background: `rgba(${gcRaw},0.1)`, border: `1px solid rgba(${gcRaw},0.25)` }}>
+            <Gamepad2 size={16} style={{ color: gcVar }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="font-display tracking-wider" style={{ color: 'var(--s-text)', fontSize: '22px', lineHeight: 1.1 }}>{team.name}</h2>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <span className={`tag ${team.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}>{gameLabel}</span>
+              {team.label && <span className="tag tag-neutral">{team.label}</span>}
+              {isArchived && <span className="tag tag-neutral">ARCHIVÉE</span>}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 flex-shrink-0 flex items-center justify-center transition-colors duration-150 hover:bg-[var(--s-hover)]"
+            style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}
+            aria-label="Fermer"
+          >
+            <X size={14} style={{ color: 'var(--s-text-dim)' }} />
+          </button>
+        </div>
+
+        {/* Body scrollable */}
+        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+          {team.players.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="t-label">TITULAIRES</span>
+                <span className="t-mono text-[10px]" style={{ color: 'var(--s-text-muted)' }}>{team.players.length}</span>
+              </div>
+              <div className="space-y-1.5">
+                {team.players.map(p => <PlayerRow key={p.uid} player={p} color="var(--s-text)" isCaptain={team.captainId === p.uid} />)}
+              </div>
+            </div>
+          )}
+          {team.subs.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="t-label">REMPLAÇANTS</span>
+                <span className="t-mono text-[10px]" style={{ color: 'var(--s-text-muted)' }}>{team.subs.length}</span>
+              </div>
+              <div className="space-y-1.5">
+                {team.subs.map(p => <PlayerRow key={p.uid} player={p} color="var(--s-text-dim)" isCaptain={team.captainId === p.uid} />)}
+              </div>
+            </div>
+          )}
+          {team.staff.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="t-label">STAFF</span>
+                <span className="t-mono text-[10px]" style={{ color: 'var(--s-text-muted)' }}>{team.staff.length}</span>
+              </div>
+              <div className="space-y-1.5">
+                {team.staff.map(p => <PlayerRow key={p.uid} player={p} color="var(--s-violet-light)" />)}
+              </div>
+            </div>
+          )}
+          {team.players.length === 0 && team.subs.length === 0 && team.staff.length === 0 && (
+            <div className="text-center py-10">
+              <Users size={24} className="mx-auto mb-2" style={{ color: 'var(--s-text-muted)' }} />
+              <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucun membre dans cette équipe.</p>
+            </div>
+          )}
+        </div>
+      </aside>
+    </>
+  );
+}
+
 export default function StructurePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { firebaseUser, loading: authLoading } = useAuth();
@@ -159,6 +377,8 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
   const [joinError, setJoinError] = useState('');
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [activeTab, setActiveTab] = useState<'rocket_league' | 'trackmania' | 'archived'>('rocket_league');
+  const [panelTeamId, setPanelTeamId] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -284,7 +504,10 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
     setJoinLoading(false);
   }
 
+  const panelTeam = panelTeamId ? teams.find(t => t.id === panelTeamId) ?? null : null;
+
   return (
+    <>
     <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
       <CompactStickyHeader
         icon={Shield}
@@ -559,144 +782,102 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
               </div>
             )}
 
-            {/* 2. ÉQUIPES — groupées par label, actives en tête, archivées pliées */}
+            {/* 2. ÉQUIPES — onglets par jeu + grille de cards compactes (scale 20+ équipes).
+                Le roster complet est dans un panneau latéral (TeamDetailPanel). */}
             {teams.length > 0 && (() => {
+              const rlAll = teams.filter(t => t.game === 'rocket_league' && (t.status ?? 'active') === 'active');
+              const tmAll = teams.filter(t => t.game === 'trackmania' && (t.status ?? 'active') === 'active');
+              const archAll = teams.filter(t => t.status === 'archived');
+
+              const tabs: { key: 'rocket_league' | 'trackmania' | 'archived'; label: string; count: number; color: string }[] = [];
+              if (rlAll.length > 0) tabs.push({ key: 'rocket_league', label: 'Rocket League', count: rlAll.length, color: 'var(--s-blue)' });
+              if (tmAll.length > 0) tabs.push({ key: 'trackmania', label: 'Trackmania', count: tmAll.length, color: 'var(--s-green)' });
+              if (archAll.length > 0) tabs.push({ key: 'archived', label: 'Archivées', count: archAll.length, color: 'var(--s-text-dim)' });
+
+              if (tabs.length === 0) return null;
+              const effectiveTab = tabs.find(t => t.key === activeTab) ? activeTab : tabs[0].key;
+
+              const pool = effectiveTab === 'rocket_league' ? rlAll : effectiveTab === 'trackmania' ? tmAll : archAll;
+
               const q = teamSearch.trim().toLowerCase();
-              const matchTeam = (t: Team) => {
-                if (!q) return true;
+              const filtered = !q ? pool : pool.filter(t => {
                 if (t.name?.toLowerCase().includes(q)) return true;
                 if ((t.label ?? '').toLowerCase().includes(q)) return true;
                 const allMembers = [...t.players, ...t.subs, ...t.staff];
                 return allMembers.some(m => (m.displayName ?? '').toLowerCase().includes(q));
-              };
-              const activeList = teams.filter(t => (t.status ?? 'active') === 'active' && matchTeam(t));
-              const archivedList = teams.filter(t => t.status === 'archived' && matchTeam(t));
-              const showSearch = teams.length > 4;
-              const noMatch = q && activeList.length === 0 && archivedList.length === 0;
+              });
 
-              // Groupes par label pour les actives (tri groupOrder puis alpha label,
-              // puis tri order puis nom à l'intérieur du groupe — mêmes règles que le dashboard)
-              type Group = { label: string; displayLabel: string; groupOrder: number; teams: Team[] };
-              const groupsMap = new Map<string, Group>();
-              for (const t of activeList) {
-                const label = (t.label ?? '').trim();
-                const key = label || '__nolabel__';
-                if (!groupsMap.has(key)) {
-                  groupsMap.set(key, {
-                    label,
-                    displayLabel: label || 'Équipes',
-                    groupOrder: typeof t.groupOrder === 'number' ? t.groupOrder : 0,
-                    teams: [],
-                  });
-                } else {
-                  const g = groupsMap.get(key)!;
-                  if (typeof t.groupOrder === 'number' && t.groupOrder < g.groupOrder) g.groupOrder = t.groupOrder;
-                }
-                groupsMap.get(key)!.teams.push(t);
-              }
-              const groups = Array.from(groupsMap.values())
-                .sort((a, b) => a.groupOrder - b.groupOrder || a.displayLabel.localeCompare(b.displayLabel));
-              for (const g of groups) {
-                g.teams.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name));
-              }
+              // Tri : groupOrder puis label, puis order puis nom — cohérent avec le dashboard.
+              const sorted = [...filtered].sort((a, b) => {
+                const ga = a.groupOrder ?? 0;
+                const gb = b.groupOrder ?? 0;
+                if (ga !== gb) return ga - gb;
+                const la = (a.label ?? '').localeCompare(b.label ?? '');
+                if (la !== 0) return la;
+                const oa = a.order ?? 0;
+                const ob = b.order ?? 0;
+                if (oa !== ob) return oa - ob;
+                return a.name.localeCompare(b.name);
+              });
 
-              const renderTeamCard = (team: Team, isArchived: boolean) => {
-                const gc = team.game === 'rocket_league' ? '0,129,255' : '0,217,54';
-                const gcVar = team.game === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)';
-                const gameLabel = team.game === 'rocket_league' ? 'RL' : 'TM';
-                return (
-                  <div key={team.id} className="pillar-card panel relative overflow-hidden group transition-all duration-200"
-                    style={{ opacity: isArchived ? 0.75 : 1 }}>
-                    <div className="h-[3px]" style={{ background: `linear-gradient(90deg, rgba(${gc},1), rgba(${gc},0.3), transparent 70%)` }} />
-                    <div className="absolute top-0 right-0 w-[180px] h-[180px] pointer-events-none opacity-[0.06]"
-                      style={{ background: `radial-gradient(circle at top right, rgba(${gc},1), transparent 70%)` }} />
-
-                    <div className="relative z-[1]">
-                      <div className="panel-header">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Gamepad2 size={13} style={{ color: gcVar }} />
-                          <span className="t-label" style={{ color: 'var(--s-text)' }}>{team.name}</span>
-                          {isArchived && (
-                            <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '2px 7px' }}>ARCHIVÉE</span>
-                          )}
-                        </div>
-                        <span className={`tag ${team.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}>{gameLabel}</span>
-                      </div>
-
-                      <div className="p-5 space-y-3">
-                        {team.players.length > 0 && (
-                          <div>
-                            <span className="t-label block mb-2">TITULAIRES</span>
-                            <div className="space-y-1.5">
-                              {team.players.map(p => <PlayerRow key={p.uid} player={p} color="var(--s-text)" isCaptain={team.captainId === p.uid} />)}
-                            </div>
-                          </div>
-                        )}
-                        {team.subs.length > 0 && (
-                          <div>
-                            <span className="t-label block mb-2">REMPLAÇANTS</span>
-                            <div className="space-y-1.5">
-                              {team.subs.map(p => <PlayerRow key={p.uid} player={p} color="var(--s-text-dim)" />)}
-                            </div>
-                          </div>
-                        )}
-                        {team.staff.length > 0 && (
-                          <div>
-                            <span className="t-label block mb-2">STAFF</span>
-                            <div className="space-y-1.5">
-                              {team.staff.map(p => <PlayerRow key={p.uid} player={p} color="var(--s-violet-light)" />)}
-                            </div>
-                          </div>
-                        )}
-                        {team.players.length === 0 && team.subs.length === 0 && team.staff.length === 0 && (
-                          <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucun membre dans cette équipe.</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              };
+              const showSearch = pool.length > 4;
+              const totalAll = rlAll.length + tmAll.length + archAll.length;
 
               return (
-                <div className="space-y-6">
-                  {/* Barre de recherche — affichée à partir de 5 équipes */}
+                <div className="space-y-5">
+                  {/* En-tête section + total */}
+                  <div className="flex items-center justify-between">
+                    <span className="section-label t-label">ÉQUIPES</span>
+                    <span className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>{totalAll}</span>
+                  </div>
+
+                  {/* Onglets par jeu */}
+                  <div className="flex items-center gap-1 flex-wrap" style={{ borderBottom: '1px solid var(--s-border)' }}>
+                    {tabs.map(t => {
+                      const isActive = t.key === effectiveTab;
+                      return (
+                        <button
+                          key={t.key}
+                          type="button"
+                          onClick={() => { setActiveTab(t.key); setTeamSearch(''); }}
+                          className="flex items-center gap-2 px-4 py-2.5 transition-colors duration-150 hover:bg-[var(--s-hover)]"
+                          style={{
+                            background: isActive ? 'var(--s-elevated)' : 'transparent',
+                            borderBottom: `2px solid ${isActive ? t.color : 'transparent'}`,
+                            marginBottom: '-1px',
+                          }}
+                        >
+                          <span className="t-label" style={{ color: isActive ? t.color : 'var(--s-text-dim)' }}>{t.label}</span>
+                          <span className="t-mono text-[10px]" style={{ color: isActive ? t.color : 'var(--s-text-muted)' }}>{t.count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Recherche — uniquement si l'onglet actif a plus de 4 équipes */}
                   {showSearch && (
                     <div className="relative">
                       <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--s-text-muted)' }} />
                       <input type="text" value={teamSearch} onChange={e => setTeamSearch(e.target.value)}
-                        placeholder={`Rechercher parmi ${teams.length} équipes (nom, label, joueur)...`}
+                        placeholder={`Rechercher parmi ${pool.length} équipe${pool.length > 1 ? 's' : ''} (nom, label, joueur)...`}
                         className="settings-input w-full pl-7 text-sm" />
                     </div>
                   )}
 
-                  {noMatch && (
-                    <div className="text-center py-6">
+                  {/* Grille */}
+                  {sorted.length === 0 ? (
+                    <div className="text-center py-8">
                       <Search size={20} className="mx-auto mb-2" style={{ color: 'var(--s-text-muted)' }} />
-                      <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucun résultat pour « {teamSearch} ».</p>
+                      <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                        {q ? `Aucun résultat pour « ${teamSearch} ».` : 'Aucune équipe dans cette catégorie.'}
+                      </p>
                     </div>
-                  )}
-
-                  {/* Groupes actifs */}
-                  {groups.map(g => (
-                    <div key={g.label || '__nolabel__'} className="space-y-4">
-                      <div className="section-label flex items-center gap-2">
-                        <span className="t-label">{g.displayLabel}</span>
-                        {g.label && (
-                          <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '2px 7px' }}>
-                            <Tag size={9} className="inline mr-1" />
-                            {g.teams.length} équipe{g.teams.length > 1 ? 's' : ''}
-                          </span>
-                        )}
-                      </div>
-                      <div className={`grid ${g.teams.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-5`}>
-                        {g.teams.map(team => renderTeamCard(team, false))}
-                      </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {sorted.map(team => (
+                        <TeamCardCompact key={team.id} team={team} onOpen={() => setPanelTeamId(team.id)} />
+                      ))}
                     </div>
-                  ))}
-
-                  {/* Section archivées — repliée par défaut */}
-                  {archivedList.length > 0 && (
-                    <ArchivedTeamsSection teams={archivedList} renderCard={renderTeamCard} />
                   )}
                 </div>
               );
@@ -962,6 +1143,8 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
 
       </div>
     </div>
+    {panelTeam && <TeamDetailPanel team={panelTeam} onClose={() => setPanelTeamId(null)} />}
+    </>
   );
 }
 
