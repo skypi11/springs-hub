@@ -11,20 +11,36 @@ export const runtime = 'nodejs';
 const WIDTH = 1200;
 const HEIGHT = 630;
 
-// Bebas Neue en TTF depuis jsDelivr (CDN fiable, caché). On charge la font
-// une seule fois par cold-start (fetch est caché par Next) pour que Satori
-// puisse rendre le "VS" en Bebas Neue (display font Springs).
-const BEBAS_URL =
-  'https://cdn.jsdelivr.net/npm/@fontsource/bebas-neue/files/bebas-neue-latin-400-normal.ttf';
+// Bebas Neue depuis Google Fonts. Satori ne supporte pas woff2 (format par défaut
+// pour les UA modernes), donc on fake un UA Chrome ancien : Google Fonts sert
+// alors un TTF classique que Satori peut rendre. Astuce officielle Vercel OG.
+const LEGACY_UA =
+  'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.118 Safari/537.36';
 
 async function loadBebas(): Promise<ArrayBuffer | null> {
   try {
-    const res = await fetch(BEBAS_URL, { cache: 'force-cache' });
-    if (!res.ok) return null;
-    return await res.arrayBuffer();
+    const cssRes = await fetch(
+      'https://fonts.googleapis.com/css2?family=Bebas+Neue',
+      { headers: { 'User-Agent': LEGACY_UA }, cache: 'force-cache' },
+    );
+    if (!cssRes.ok) return null;
+    const css = await cssRes.text();
+    const m = css.match(/src:\s*url\((https:\/\/[^)]+\.ttf)\)/);
+    if (!m) return null;
+    const fontRes = await fetch(m[1], { cache: 'force-cache' });
+    if (!fontRes.ok) return null;
+    return await fontRes.arrayBuffer();
   } catch {
     return null;
   }
+}
+
+// Échelle adaptative pour que les noms longs ne cassent pas le layout.
+function nameFontSize(maxLen: number): number {
+  if (maxLen <= 9) return 64;
+  if (maxLen <= 13) return 52;
+  if (maxLen <= 18) return 40;
+  return 32;
 }
 
 function initials(name: string): string {
@@ -108,6 +124,7 @@ export async function GET(
 
     const teamLabel = teamName.toUpperCase().slice(0, 22);
     const advLabel = adversaire.toUpperCase().slice(0, 22);
+    const namesSize = nameFontSize(Math.max(teamLabel.length, advLabel.length));
 
     const bebas = await loadBebas();
 
@@ -200,10 +217,11 @@ export async function GET(
                 width: 340,
                 display: 'flex',
                 justifyContent: 'center',
-                fontSize: 56,
+                fontSize: namesSize,
                 color: '#eaeaf0',
                 letterSpacing: '4px',
                 fontFamily: bebas ? 'Bebas Neue' : 'sans-serif',
+                whiteSpace: 'nowrap',
               }}
             >
               {teamLabel}
@@ -214,10 +232,11 @@ export async function GET(
                 width: 340,
                 display: 'flex',
                 justifyContent: 'center',
-                fontSize: 56,
+                fontSize: namesSize,
                 color: '#eaeaf0',
                 letterSpacing: '4px',
                 fontFamily: bebas ? 'Bebas Neue' : 'sans-serif',
+                whiteSpace: 'nowrap',
               }}
             >
               {advLabel}
