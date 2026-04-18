@@ -334,7 +334,7 @@ export default function DateTimePicker({
                 value={hour}
                 onChange={e => setHour(Number(e.target.value))}
                 className="settings-input"
-                style={{ padding: '4px 6px', fontSize: '11px', flex: 'none' }}
+                style={{ padding: '4px 6px', fontSize: '11px', width: '58px', flex: 'none' }}
               >
                 {Array.from({ length: 24 }, (_, i) => (
                   <option key={i} value={i}>{pad(i)}</option>
@@ -345,7 +345,7 @@ export default function DateTimePicker({
                 value={minute}
                 onChange={e => setMinute(Number(e.target.value))}
                 className="settings-input"
-                style={{ padding: '4px 6px', fontSize: '11px', flex: 'none' }}
+                style={{ padding: '4px 6px', fontSize: '11px', width: '58px', flex: 'none' }}
               >
                 {[0, 15, 30, 45].map(m => (
                   <option key={m} value={m}>{pad(m)}</option>
