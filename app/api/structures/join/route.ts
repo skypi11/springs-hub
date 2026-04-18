@@ -154,6 +154,12 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'Structure inactive.' }, { status: 400 });
         }
 
+        // Recrutement fermé = pas de demande spontanée (les invites directes restent OK,
+        // elles passent par 'accept_direct_invite' / 'accept_invite_link').
+        if (structSnap.data()!.recruiting?.active !== true) {
+          return NextResponse.json({ error: 'Cette structure ne recrute pas actuellement.' }, { status: 403 });
+        }
+
         // Vérifier pas déjà membre
         const existingSnap = await db.collection('structure_members')
           .where('structureId', '==', structureId)

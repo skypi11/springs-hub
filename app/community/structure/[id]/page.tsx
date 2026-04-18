@@ -587,12 +587,16 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                   <Link href="/community/my-structure" className="btn-springs btn-secondary bevel-sm flex items-center gap-2">
                     <Shield size={14} /> Gérer
                   </Link>
-                ) : firebaseUser && !isMember && !joinSent ? (
+                ) : firebaseUser && !isMember && !joinSent && structure.recruiting?.active ? (
                   <button onClick={() => setShowJoinForm(!showJoinForm)}
                     className="btn-springs btn-primary bevel-sm flex items-center gap-2"
                     style={{ padding: '10px 20px', fontSize: '13px' }}>
                     <UserPlus size={15} /> Postuler
                   </button>
+                ) : firebaseUser && !isMember && !joinSent && !structure.recruiting?.active ? (
+                  <span className="t-label" style={{ color: 'var(--s-text-muted)', padding: '6px 0' }}>
+                    Ne recrute pas
+                  </span>
                 ) : joinSent ? (
                   <span className="flex items-center gap-2 text-sm font-bold" style={{ color: '#33ff66' }}>
                     <CheckCircle size={15} /> Demande envoyée
