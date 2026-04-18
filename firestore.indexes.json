@@ -106,6 +106,14 @@
       ]
     },
     {
+      "collectionGroup": "structure_member_history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "structureId", "order": "ASCENDING" },
+        { "fieldPath": "joinedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "notifications",
       "queryScope": "COLLECTION",
       "fields": [

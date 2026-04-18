@@ -1,8 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
-import type { Timestamp } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
+
+// Coerce un champ Firestore qui devrait être un Timestamp mais peut être un
+// number (ms), un Date, ou un plain object legacy {_seconds, _nanoseconds}.
+function coerceToMillis(v: unknown): number | null {
+  if (v == null) return null;
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === 'object') {
+    const o = v as { toMillis?: () => number; _seconds?: number; _nanoseconds?: number; seconds?: number; nanoseconds?: number };
+    if (typeof o.toMillis === 'function') return o.toMillis();
+    if (typeof o._seconds === 'number') return o._seconds * 1000 + Math.floor((o._nanoseconds ?? 0) / 1e6);
+    if (typeof o.seconds === 'number') return o.seconds * 1000 + Math.floor((o.nanoseconds ?? 0) / 1e6);
+  }
+  if (typeof v === 'string') {
+    const t = Date.parse(v);
+    return Number.isFinite(t) ? t : null;
+  }
+  return null;
+}
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import {
@@ -159,9 +177,12 @@ export async function GET(req: NextRequest) {
       const target = ev.target as EventTarget | undefined;
       if (!target) continue;
 
-      // Filtrer en mémoire sur la fenêtre (semaine courante + suivante, avec buffer)
-      const startMs = (ev.startsAt as Timestamp).toMillis();
-      const endMs = (ev.endsAt as Timestamp).toMillis();
+      // Filtrer en mémoire sur la fenêtre (semaine courante + suivante, avec buffer).
+      // Defensive : quelques events legacy ont startsAt/endsAt en number ou string au lieu
+      // de Timestamp — on skip silencieusement les entrées illisibles.
+      const startMs = coerceToMillis(ev.startsAt);
+      const endMs = coerceToMillis(ev.endsAt);
+      if (startMs == null || endMs == null) continue;
       if (endMs <= windowStartMs) continue;
       if (startMs >= windowEndMs) continue;
 
@@ -169,8 +190,8 @@ export async function GET(req: NextRequest) {
       const relevant = invited.filter(mid => memberSet.has(mid));
       if (relevant.length === 0) continue;
 
-      const startDate = (ev.startsAt as Timestamp).toDate();
-      const endDate = (ev.endsAt as Timestamp).toDate();
+      const startDate = new Date(startMs);
+      const endDate = new Date(endMs);
       const startParis = parisIsoMinute(startDate);
       const endParis = parisIsoMinute(endDate);
 

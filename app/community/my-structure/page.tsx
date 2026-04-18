@@ -28,6 +28,33 @@ import MarkdownEditor from '@/components/ui/MarkdownEditor';
 import { LIMITS } from '@/lib/validation';
 import { computeMemberRole, groupAffiliations, PRIMARY_ROLE_LABELS, type MemberRoleTeam, type PrimaryRole } from '@/lib/member-role';
 
+// navigator.clipboard.writeText échoue avec NotAllowedError si le document n'a pas
+// le focus (onglet inactif, prompt ouvert…). Fallback sur un textarea éphémère.
+async function safeCopy(text: string): Promise<boolean> {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // fallthrough to legacy path
+  }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 type DashboardTab = 'general' | 'teams' | 'recruitment' | 'members' | 'calendar';
 
 const TAB_DEFS: { key: DashboardTab; label: string; color: string }[] = [
@@ -1054,9 +1081,13 @@ export default function MyStructurePage() {
       if (res.ok) {
         const data = await res.json();
         const link = `${window.location.origin}/community/join/${data.token}`;
-        await navigator.clipboard.writeText(link);
-        setCopiedLink(data.token);
-        setTimeout(() => setCopiedLink(''), 3000);
+        const copied = await safeCopy(link);
+        if (copied) {
+          setCopiedLink(data.token);
+          setTimeout(() => setCopiedLink(''), 3000);
+        } else {
+          toast.error('Lien créé — impossible de le copier, il est visible dans la liste.');
+        }
         await loadInvitations(activeStructure.id);
       }
     } catch (err) {
@@ -1916,10 +1947,14 @@ export default function MyStructurePage() {
                             </span>
                           )}
                         </div>
-                        <button type="button" onClick={() => {
-                          navigator.clipboard.writeText(`${window.location.origin}/community/join/${link.token}`);
-                          setCopiedLink(link.token);
-                          setTimeout(() => setCopiedLink(''), 2000);
+                        <button type="button" onClick={async () => {
+                          const ok = await safeCopy(`${window.location.origin}/community/join/${link.token}`);
+                          if (ok) {
+                            setCopiedLink(link.token);
+                            setTimeout(() => setCopiedLink(''), 2000);
+                          } else {
+                            toast.error('Copie impossible — sélectionne le lien manuellement.');
+                          }
                         }}
                           className="p-1" style={{ color: copiedLink === link.token ? '#33ff66' : 'var(--s-text-dim)' }}>
                           {copiedLink === link.token ? <Check size={12} /> : <Copy size={12} />}

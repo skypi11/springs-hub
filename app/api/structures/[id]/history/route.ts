@@ -41,10 +41,12 @@ export async function GET(
     if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
 
     // Hard cap côté collection pour éviter de lire des volumes énormes sur de vieilles
-    // structures. Pas d'orderBy Firestore (éviterait un index composite) — on trie
-    // en mémoire côté serveur après enrichissement.
+    // structures. orderBy joinedAt desc pour ramener les 200 entrées les plus récentes
+    // (sinon on tombait sur les 200 plus anciennes et on tronquait l'historique utile).
+    // Index composite déclaré dans firestore.indexes.json.
     const snap = await db.collection('structure_member_history')
       .where('structureId', '==', structureId)
+      .orderBy('joinedAt', 'desc')
       .limit(MAX_ENTRIES)
       .get();
 
@@ -59,14 +61,7 @@ export async function GET(
       if (d.exists) usersById.set(d.id, d.data() || {});
     }
 
-    const history = snap.docs
-      .slice()
-      .sort((a, b) => {
-        const am = a.data().joinedAt?.toMillis?.() ?? 0;
-        const bm = b.data().joinedAt?.toMillis?.() ?? 0;
-        return bm - am;
-      })
-      .map(d => {
+    const history = snap.docs.map(d => {
       const data = d.data();
       const u = usersById.get(data.userId) || {};
       const joinedAt: number | null = data.joinedAt?.toMillis?.() ?? null;
