@@ -95,6 +95,93 @@ export async function getGuildInfo(guildId: string): Promise<DiscordGuildInfo> {
   };
 }
 
+// Couleurs (decimal) utilisées dans les embeds selon le type d'event Springs —
+// alignées sur la DA du calendrier côté site.
+const EVENT_COLORS: Record<string, number> = {
+  training: 0x4da6ff, // bleu clair
+  scrim: 0xa364d9,    // violet Springs
+  match: 0xffb800,    // or Springs
+  springs: 0x5865f2,  // blurple Discord
+  autre: 0x7a7a95,    // gris
+};
+
+const EVENT_LABELS: Record<string, string> = {
+  training: 'Entraînement',
+  scrim: 'Scrim',
+  match: 'Match',
+  springs: 'Évènement Springs',
+  autre: 'Autre',
+};
+
+export interface EventEmbedInput {
+  title: string;
+  type: string;
+  description?: string | null;
+  location?: string | null;
+  startsAtMs: number;
+  endsAtMs: number;
+  teamName?: string | null;
+  createdByName?: string | null;
+  adversaire?: string | null;
+  siteEventUrl?: string | null;
+}
+
+// Poste un message + embed dans un salon Discord via le bot. Retourne l'id du
+// message pour permettre un futur edit/delete. Throw en cas d'échec (l'appelant
+// doit catch et rester silencieux côté UI si c'est un effet secondaire non-bloquant).
+export async function postEventEmbed(channelId: string, input: EventEmbedInput): Promise<string> {
+  const typeLabel = EVENT_LABELS[input.type] ?? input.type;
+  const color = EVENT_COLORS[input.type] ?? 0x7a7a95;
+
+  // Timestamps Discord : format :F = date complète, :R = relative ("dans 2h").
+  const startSec = Math.floor(input.startsAtMs / 1000);
+
+  const header = input.teamName ? `**${input.teamName}** · ${typeLabel}` : typeLabel;
+  const adversaire = input.adversaire ? ` vs ${input.adversaire}` : '';
+
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = [
+    { name: 'Début', value: `<t:${startSec}:F> (<t:${startSec}:R>)`, inline: false },
+  ];
+  if (input.location) {
+    fields.push({ name: 'Lieu', value: input.location.slice(0, 1024), inline: false });
+  }
+
+  const embed: Record<string, unknown> = {
+    color,
+    title: `${input.title}${adversaire}`.slice(0, 256),
+    description: (input.description ?? '').slice(0, 2000) || undefined,
+    fields,
+    footer: {
+      text: input.createdByName
+        ? `Créé par ${input.createdByName} · Springs Hub`
+        : 'Springs Hub',
+    },
+    timestamp: new Date().toISOString(),
+  };
+  if (input.siteEventUrl) embed.url = input.siteEventUrl;
+
+  const res = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bot ${botToken()}`,
+    },
+    body: JSON.stringify({
+      content: header,
+      embeds: [embed],
+      // allowed_mentions vide = le content n'invoque pas de mentions, même si on
+      // écrivait @everyone dedans un jour par erreur.
+      allowed_mentions: { parse: [] },
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Discord post message failed: ${res.status} ${body.slice(0, 300)}`);
+  }
+  const data = await res.json();
+  return data.id as string;
+}
+
 // URL CDN de l'icône d'un serveur (ou null si pas d'icône custom).
 export function guildIconUrl(guildId: string, iconHash: string | null, size = 128): string | null {
   if (!iconHash) return null;

@@ -4,6 +4,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
+import { postEventEmbed } from '@/lib/discord-bot';
 import {
   canAccessCalendar,
   canCreateEvent,
@@ -275,6 +276,62 @@ export async function POST(
     }
 
     await batch.commit();
+
+    // Notif Discord (best-effort) — ne bloque jamais la création d'event.
+    // On poste uniquement pour les events ciblés sur des équipes précises, vers
+    // les salons configurés via Phase 2. Pas de post structure-wide ni par jeu.
+    // Les erreurs sont capturées pour Sentry mais n'affectent pas la réponse.
+    if (target.scope === 'teams' && Array.isArray(target.teamIds) && target.teamIds.length > 0) {
+      (async () => {
+        try {
+          const teamsToPost = resolved.teams.filter(
+            t => target.teamIds!.includes(t.id) && typeof (t as { discordChannelId?: unknown }).discordChannelId === 'string',
+          );
+          if (teamsToPost.length === 0) return;
+
+          // Récupérer le displayName du créateur pour le footer de l'embed.
+          let createdByName: string | null = null;
+          try {
+            const uSnap = await db.collection('users').doc(uid).get();
+            const u = uSnap.data();
+            createdByName = (u?.displayName as string | undefined) || (u?.discordUsername as string | undefined) || null;
+          } catch { /* best-effort */ }
+
+          const siteEventUrl = `${req.nextUrl.origin}/community/my-structure?event=${encodeURIComponent(eventRef.id)}`;
+
+          await Promise.all(teamsToPost.map(async team => {
+            const channelId = (team as { discordChannelId?: string }).discordChannelId;
+            if (!channelId) return;
+            try {
+              const messageId = await postEventEmbed(channelId, {
+                title: title.trim(),
+                type,
+                description: description?.trim() ?? '',
+                location: location?.trim() ?? '',
+                startsAtMs: startMs,
+                endsAtMs: endMs,
+                teamName: (team as { name?: string }).name ?? null,
+                createdByName,
+                adversaire: isMatch ? (adversaire?.trim() ?? null) : null,
+                siteEventUrl,
+              });
+              // Trace le message posté pour pouvoir le retrouver si besoin
+              // (edit/delete dans un futur Phase 4).
+              await eventRef.collection('discord_posts').add({
+                teamId: team.id,
+                channelId,
+                messageId,
+                postedAt: FieldValue.serverTimestamp(),
+              });
+            } catch (e) {
+              captureApiError(`Discord post event failed (team=${team.id})`, e);
+            }
+          }));
+        } catch (e) {
+          captureApiError('Discord fan-out failed', e);
+        }
+      })();
+    }
 
     return NextResponse.json({ success: true, id: eventRef.id });
   } catch (err) {
