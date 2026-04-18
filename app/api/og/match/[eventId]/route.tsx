@@ -12,9 +12,9 @@ export const runtime = 'nodejs';
 const WIDTH = 1200;
 const HEIGHT = 630;
 
-// Rajdhani 700 : police esport/gaming angulaire qui rime avec les biseaux/clip-path
-// de la DA Springs. TTF bundlée dans /public/fonts pour éviter les dépendances
-// réseau fragiles au cold-start (Google Fonts + UA trick marchait pas toujours).
+// Rajdhani 700 : police esport/gaming angulaire qui rime avec les biseaux de la
+// DA Springs. TTF bundlée dans /public/fonts (fetch Google Fonts au runtime était
+// fragile). Lue une seule fois puis cachée module-level.
 let RAJDHANI_CACHE: Buffer | null = null;
 function loadRajdhani(): Buffer | null {
   if (RAJDHANI_CACHE) return RAJDHANI_CACHE;
@@ -27,7 +27,35 @@ function loadRajdhani(): Buffer | null {
   }
 }
 
-// Échelle adaptative pour que les noms longs ne cassent pas le layout.
+// Couleurs par jeu (alignées sur la DA Springs : bleu RL, vert TM).
+const GAME_META: Record<string, { label: string; color: string }> = {
+  rocket_league: { label: 'ROCKET LEAGUE', color: '#0081FF' },
+  trackmania: { label: 'TRACKMANIA', color: '#00D936' },
+};
+
+// Génère une trame hexagonale (honeycomb) en SVG, taille exacte de la bannière.
+// Rendue en absolute <img> par-dessus le fond — signature DA Springs.
+function hexTextureDataUri(width: number, height: number): string {
+  const r = 38; // rayon hexagone
+  const stepX = r * Math.sqrt(3);
+  const stepY = r * 1.5;
+  const paths: string[] = [];
+  for (let row = -1; row * stepY < height + r; row++) {
+    const offsetX = row % 2 === 0 ? 0 : stepX / 2;
+    for (let col = -1; col * stepX < width + stepX; col++) {
+      const cx = col * stepX + offsetX;
+      const cy = row * stepY;
+      const w2 = stepX / 2;
+      const r2 = r / 2;
+      paths.push(
+        `M${cx},${cy - r} L${cx + w2},${cy - r2} L${cx + w2},${cy + r2} L${cx},${cy + r} L${cx - w2},${cy + r2} L${cx - w2},${cy - r2}Z`,
+      );
+    }
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><g fill="none" stroke="rgba(255,255,255,0.055)" stroke-width="1">${paths.map(p => `<path d="${p}"/>`).join('')}</g></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 function nameFontSize(maxLen: number): number {
   if (maxLen <= 9) return 64;
   if (maxLen <= 13) return 52;
@@ -39,15 +67,26 @@ function initials(name: string): string {
   return name.trim().slice(0, 3).toUpperCase() || '?';
 }
 
+function formatMatchDate(ms: number): string {
+  const d = new Date(ms);
+  const day = d.toLocaleDateString('fr-FR', {
+    weekday: 'short', day: '2-digit', month: 'short',
+  }).toUpperCase().replace(/\./g, '');
+  const time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return `${day} · ${time}`;
+}
+
 function LogoBox({
   url,
   fallback,
   tint,
+  glowColor,
   rajdhani,
 }: {
   url: string | null;
   fallback: string;
   tint: string;
+  glowColor: string;
   rajdhani: boolean;
 }) {
   return (
@@ -58,7 +97,9 @@ function LogoBox({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'rgba(255,255,255,0.03)',
+        // Gradient radial interne : donne du poids aux logos fins comme MZC,
+        // sans toucher à l'aspect ratio.
+        background: `radial-gradient(ellipse at center, ${glowColor} 0%, rgba(255,255,255,0.02) 50%, transparent 100%)`,
         border: `2px solid ${tint}`,
         clipPath:
           'polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px)',
@@ -103,6 +144,7 @@ export async function GET(
 
     let teamName = structureName;
     let teamLogoUrl = structureLogoUrl;
+    let game: string | null = (ev.target?.game as string | undefined) ?? null;
     const teamIds = (ev.target?.teamIds as string[] | undefined) ?? [];
     if (ev.target?.scope === 'teams' && teamIds.length > 0) {
       const teamSnap = await db.collection('sub_teams').doc(teamIds[0]).get();
@@ -110,6 +152,7 @@ export async function GET(
       if (team) {
         teamName = (team.name as string | undefined) || structureName;
         teamLogoUrl = (team.logoUrl as string | undefined) || structureLogoUrl;
+        game = game || ((team.game as string | undefined) ?? null);
       }
     }
 
@@ -120,9 +163,18 @@ export async function GET(
     const advLabel = adversaire.toUpperCase().slice(0, 22);
     const namesSize = nameFontSize(Math.max(teamLabel.length, advLabel.length));
 
+    const gameMeta = game && GAME_META[game] ? GAME_META[game] : null;
+
+    const startMs = typeof ev.startsAt?.toMillis === 'function'
+      ? ev.startsAt.toMillis()
+      : (typeof ev.startsAt === 'number' ? ev.startsAt : 0);
+    const dateStr = startMs > 0 ? formatMatchDate(startMs) : '';
+
     const font = loadRajdhani();
     const hasFont = !!font;
     const ff = hasFont ? 'Rajdhani' : 'sans-serif';
+
+    const hexUri = hexTextureDataUri(WIDTH, HEIGHT);
 
     return new ImageResponse(
       (
@@ -139,6 +191,32 @@ export async function GET(
             position: 'relative',
           }}
         >
+          {/* Texture hexagonale — signature DA Springs */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={hexUri}
+            width={WIDTH}
+            height={HEIGHT}
+            alt=""
+            style={{ position: 'absolute', top: 0, left: 0 }}
+          />
+
+          {/* Glow or derrière VS — profondeur visuelle */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              width: 400,
+              height: 400,
+              transform: 'translate(-50%, -50%)',
+              background:
+                'radial-gradient(circle, rgba(255,184,0,0.18) 0%, rgba(255,184,0,0.05) 40%, transparent 70%)',
+              display: 'flex',
+            }}
+          />
+
+          {/* Accent bar top */}
           <div
             style={{
               position: 'absolute',
@@ -151,9 +229,11 @@ export async function GET(
               display: 'flex',
             }}
           />
+
+          {/* Label MATCH OFFICIEL */}
           <div
             style={{
-              marginBottom: 32,
+              marginBottom: 12,
               padding: '8px 24px',
               fontSize: 22,
               letterSpacing: '8px',
@@ -167,8 +247,57 @@ export async function GET(
             MATCH OFFICIEL
           </div>
 
-          {/* Rangée : colonne (logo + nom) — VS — colonne (logo + nom).
-              Chaque nom est naturellement centré sous son logo grâce au column+alignItems:center. */}
+          {/* Ligne meta : tag jeu + date */}
+          {(gameMeta || dateStr) && (
+            <div
+              style={{
+                marginBottom: 28,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 16,
+              }}
+            >
+              {gameMeta && (
+                <div
+                  style={{
+                    fontSize: 20,
+                    color: gameMeta.color,
+                    letterSpacing: '4px',
+                    fontFamily: ff,
+                    display: 'flex',
+                  }}
+                >
+                  {gameMeta.label}
+                </div>
+              )}
+              {gameMeta && dateStr && (
+                <div
+                  style={{
+                    fontSize: 20,
+                    color: 'rgba(255,255,255,0.35)',
+                    display: 'flex',
+                  }}
+                >
+                  ·
+                </div>
+              )}
+              {dateStr && (
+                <div
+                  style={{
+                    fontSize: 20,
+                    color: 'rgba(255,255,255,0.7)',
+                    letterSpacing: '3px',
+                    fontFamily: ff,
+                    display: 'flex',
+                  }}
+                >
+                  {dateStr}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Rangée : colonne (logo + nom) — VS — colonne (logo + nom). */}
           <div
             style={{
               display: 'flex',
@@ -188,6 +317,7 @@ export async function GET(
                 url={teamLogoUrl}
                 fallback={initials(teamName)}
                 tint="rgba(255,255,255,0.25)"
+                glowColor="rgba(255,255,255,0.06)"
                 rajdhani={hasFont}
               />
               <div
@@ -215,6 +345,9 @@ export async function GET(
                 display: 'flex',
                 fontFamily: ff,
                 lineHeight: 1,
+                // Glow or : double layer pour profondeur (proche + large halo)
+                textShadow:
+                  '0 0 30px rgba(255,184,0,0.7), 0 0 70px rgba(255,184,0,0.4)',
               }}
             >
               VS
@@ -232,6 +365,7 @@ export async function GET(
                 url={adversaryLogoUrl}
                 fallback={initials(adversaire)}
                 tint="rgba(255,184,0,0.45)"
+                glowColor="rgba(255,184,0,0.08)"
                 rajdhani={hasFont}
               />
               <div
@@ -250,6 +384,7 @@ export async function GET(
             </div>
           </div>
 
+          {/* Footer */}
           <div
             style={{
               position: 'absolute',
