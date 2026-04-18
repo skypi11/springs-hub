@@ -43,8 +43,11 @@ service cloud.firestore {
 
     // ── Springs Hub — Membres de structure ────────────────────────────────────
     // Toute la logique d'invitation/join passe par les API routes — pas d'écriture client.
+    // Lecture : admin OU le user lit sa propre ligne. Les pages publiques qui affichent
+    // la liste des membres passent par des API routes (Admin SDK), pas de read client.
     match /structure_members/{id} {
-      allow read: if request.auth != null;
+      allow read: if isAdmin() ||
+        (request.auth != null && resource.data.userId == request.auth.uid);
       allow write: if false;
     }
 
@@ -296,6 +299,15 @@ service cloud.firestore {
     match /rl_lan/{id} {
       allow read: if request.auth != null;
       allow write: if isAdmin();
+    }
+
+    // ── Springs Hub — Journal d'audit des actions structure ────────────────────
+    // Écriture : API serveur uniquement (Admin SDK) — voir lib/audit-log.ts.
+    // Lecture : admin Springs uniquement. Les dirigeants voient via une API
+    // dédiée qui filtre par structureId (pas de read client direct).
+    match /structure_audit_logs/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     // ── Journal des actions admin ───────────────────────────────────────────────
