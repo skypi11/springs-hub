@@ -99,7 +99,10 @@ function LogoBox({
         justifyContent: 'center',
         // Gradient radial interne : donne du poids aux logos fins comme MZC,
         // sans toucher à l'aspect ratio.
-        background: `radial-gradient(ellipse at center, ${glowColor} 0%, rgba(255,255,255,0.02) 50%, transparent 100%)`,
+        // Fond solide pour bloquer la trame hex derrière le logo + léger glow
+        // interne tinté (blanc ou or) pour garder de la présence.
+        backgroundColor: '#0c0c18',
+        backgroundImage: `radial-gradient(ellipse at center, ${glowColor} 0%, transparent 70%)`,
         border: `2px solid ${tint}`,
         clipPath:
           'polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px)',
@@ -201,17 +204,18 @@ export async function GET(
             style={{ position: 'absolute', top: 0, left: 0 }}
           />
 
-          {/* Glow or derrière VS — profondeur visuelle */}
+          {/* Glow or derrière VS — profondeur visuelle. Resserré pour rester
+              concentré sur le VS sans déborder sur les logos. */}
           <div
             style={{
               position: 'absolute',
               top: '50%',
               left: '50%',
-              width: 400,
-              height: 400,
+              width: 320,
+              height: 320,
               transform: 'translate(-50%, -50%)',
               background:
-                'radial-gradient(circle, rgba(255,184,0,0.18) 0%, rgba(255,184,0,0.05) 40%, transparent 70%)',
+                'radial-gradient(circle, rgba(255,184,0,0.12) 0%, rgba(255,184,0,0.03) 40%, transparent 65%)',
               display: 'flex',
             }}
           />
@@ -229,6 +233,12 @@ export async function GET(
               display: 'flex',
             }}
           />
+
+          {/* Corner brackets façon HUD esport — coins or 40x40, trait 2px */}
+          <div style={{ position: 'absolute', top: 24, left: 24, width: 40, height: 40, borderTop: '2px solid rgba(255,184,0,0.65)', borderLeft: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
+          <div style={{ position: 'absolute', top: 24, right: 24, width: 40, height: 40, borderTop: '2px solid rgba(255,184,0,0.65)', borderRight: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
+          <div style={{ position: 'absolute', bottom: 24, left: 24, width: 40, height: 40, borderBottom: '2px solid rgba(255,184,0,0.65)', borderLeft: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
+          <div style={{ position: 'absolute', bottom: 24, right: 24, width: 40, height: 40, borderBottom: '2px solid rgba(255,184,0,0.65)', borderRight: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
 
           {/* Label MATCH OFFICIEL */}
           <div
