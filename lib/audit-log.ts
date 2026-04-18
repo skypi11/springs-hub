@@ -58,7 +58,8 @@ export type AuditAction =
   | 'structure_deletion_cancelled'
   // Intégration Discord
   | 'discord_connected'
-  | 'discord_disconnected';
+  | 'discord_disconnected'
+  | 'discord_config_updated';
 
 export interface AuditLogEntry {
   structureId: string;

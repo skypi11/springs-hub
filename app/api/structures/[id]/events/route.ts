@@ -294,29 +294,59 @@ export async function POST(
     await batch.commit();
 
     // Notif Discord (best-effort) — ne bloque jamais la création d'event.
-    // On poste uniquement pour les events ciblés sur des équipes précises, vers
-    // les salons configurés sur chaque équipe. Pas de post structure-wide ni
-    // par jeu (Livraison B).
     // Les erreurs sont capturées pour Sentry mais n'affectent pas la réponse.
-    if (target.scope === 'teams' && Array.isArray(target.teamIds) && target.teamIds.length > 0) {
-      (async () => {
+    // Fan-out :
+    //   - scope=teams  → post dans chaque salon d'équipe configuré (Livraison A)
+    //   - scope=structure → post dans le salon structure + ping rôle (Livraison B)
+    //   - scope=game   → post dans le salon du jeu + ping rôle (Livraison B)
+    (async () => {
+      try {
+        // Récupérer le displayName du créateur pour le footer de l'embed.
+        let createdByName: string | null = null;
         try {
+          const uSnap = await db.collection('users').doc(uid).get();
+          const u = uSnap.data();
+          createdByName = (u?.displayName as string | undefined) || (u?.discordUsername as string | undefined) || null;
+        } catch { /* best-effort */ }
+
+        const siteEventUrl = `${req.nextUrl.origin}/community/my-structure?event=${encodeURIComponent(eventRef.id)}`;
+        const structureName = (resolved.structure as { name?: string }).name ?? null;
+        const structureLogoUrl = (resolved.structure as { logoUrl?: string }).logoUrl ?? null;
+        const integration = (resolved.structure as { discordIntegration?: {
+          structureChannelId?: string | null;
+          structureRoleId?: string | null;
+          structureRoleName?: string | null;
+          gameChannels?: Record<string, {
+            channelId?: string | null;
+            roleId?: string | null;
+            roleName?: string | null;
+          }>;
+          staffChannelId?: string | null;
+          staffRoleId?: string | null;
+        } }).discordIntegration;
+
+        // Helper pour persister un post Discord (pour edit/delete futurs).
+        const recordPost = async (
+          channelId: string,
+          messageId: string,
+          meta: { teamId?: string; scope: string; game?: string },
+        ) => {
+          await eventRef.collection('discord_posts').add({
+            ...(meta.teamId ? { teamId: meta.teamId } : {}),
+            scope: meta.scope,
+            ...(meta.game ? { game: meta.game } : {}),
+            channelId,
+            messageId,
+            postedAt: FieldValue.serverTimestamp(),
+          });
+        };
+
+        if (target.scope === 'teams' && Array.isArray(target.teamIds) && target.teamIds.length > 0) {
           const teamsToPost = resolved.teams.filter(
             t => target.teamIds!.includes(t.id) && typeof (t as { discordChannelId?: unknown }).discordChannelId === 'string',
           );
           if (teamsToPost.length === 0) return;
 
-          // Récupérer le displayName du créateur pour le footer de l'embed.
-          let createdByName: string | null = null;
-          try {
-            const uSnap = await db.collection('users').doc(uid).get();
-            const u = uSnap.data();
-            createdByName = (u?.displayName as string | undefined) || (u?.discordUsername as string | undefined) || null;
-          } catch { /* best-effort */ }
-
-          const siteEventUrl = `${req.nextUrl.origin}/community/my-structure?event=${encodeURIComponent(eventRef.id)}`;
-          const structureName = (resolved.structure as { name?: string }).name ?? null;
-          const structureLogoUrl = (resolved.structure as { logoUrl?: string }).logoUrl ?? null;
           const invitedSet = new Set(invitedUserIds);
 
           // Extrait le snowflake Discord depuis un uid Springs (format `discord_ID`).
@@ -367,23 +397,72 @@ export async function POST(
                 thumbnailUrl,
                 pingUserIds,
               });
-              // Trace le message posté pour pouvoir le retrouver si besoin
-              // (edit/delete dans un futur Phase 4).
-              await eventRef.collection('discord_posts').add({
-                teamId: team.id,
-                channelId,
-                messageId,
-                postedAt: FieldValue.serverTimestamp(),
-              });
+              await recordPost(channelId, messageId, { teamId: team.id, scope: 'teams' });
             } catch (e) {
               captureApiError(`Discord post event failed (team=${team.id})`, e);
             }
           }));
-        } catch (e) {
-          captureApiError('Discord fan-out failed', e);
+          return;
         }
-      })();
-    }
+
+        // scope=structure → salon structure + rôle structure
+        if (target.scope === 'structure' && integration?.structureChannelId) {
+          try {
+            const messageId = await postEventEmbed(integration.structureChannelId, {
+              title: title.trim(),
+              type,
+              description: description?.trim() ?? '',
+              location: location?.trim() ?? '',
+              startsAtMs: startMs,
+              endsAtMs: endMs,
+              teamName: null,
+              structureName,
+              createdByName,
+              adversaire: isMatch ? (adversaire?.trim() ?? null) : null,
+              resultat: isMatch && markDoneImmediately ? (resultat?.trim() ?? null) : null,
+              siteEventUrl,
+              thumbnailUrl: structureLogoUrl,
+              pingRoleId: integration.structureRoleId ?? null,
+            });
+            await recordPost(integration.structureChannelId, messageId, { scope: 'structure' });
+          } catch (e) {
+            captureApiError('Discord post event failed (scope=structure)', e);
+          }
+          return;
+        }
+
+        // scope=game → salon du jeu + rôle du jeu
+        if (target.scope === 'game' && target.game) {
+          const cfg = integration?.gameChannels?.[target.game];
+          if (cfg?.channelId) {
+            try {
+              const messageId = await postEventEmbed(cfg.channelId, {
+                title: title.trim(),
+                type,
+                description: description?.trim() ?? '',
+                location: location?.trim() ?? '',
+                startsAtMs: startMs,
+                endsAtMs: endMs,
+                teamName: null,
+                structureName,
+                createdByName,
+                adversaire: isMatch ? (adversaire?.trim() ?? null) : null,
+                resultat: isMatch && markDoneImmediately ? (resultat?.trim() ?? null) : null,
+                siteEventUrl,
+                thumbnailUrl: structureLogoUrl,
+                pingRoleId: cfg.roleId ?? null,
+              });
+              await recordPost(cfg.channelId, messageId, { scope: 'game', game: target.game });
+            } catch (e) {
+              captureApiError(`Discord post event failed (scope=game, game=${target.game})`, e);
+            }
+          }
+          return;
+        }
+      } catch (e) {
+        captureApiError('Discord fan-out failed', e);
+      }
+    })();
 
     return NextResponse.json({ success: true, id: eventRef.id });
   } catch (err) {

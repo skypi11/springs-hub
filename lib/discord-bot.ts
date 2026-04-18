@@ -260,6 +260,50 @@ export interface DiscordChannel {
   position: number;
 }
 
+export interface DiscordRole {
+  id: string;
+  name: string;
+  color: number;       // decimal RGB (0 = pas de couleur)
+  position: number;
+  mentionable: boolean;
+}
+
+// Récupère la liste des rôles d'un serveur pour le picker de rôle à ping.
+// Exclut :
+//   - @everyone (id === guildId)
+//   - rôles "managed" = rôles système auto-créés pour les bots/intégrations
+//     (on ne ping pas un rôle bot, et l'utilisateur ne peut pas le gérer)
+// Tri par position descendante (le rôle "le plus haut" en premier, correspond
+// à l'ordre dans les paramètres Discord).
+export async function getGuildRoles(guildId: string): Promise<DiscordRole[]> {
+  const res = await fetch(`${DISCORD_API}/guilds/${guildId}/roles`, {
+    headers: { Authorization: `Bot ${botToken()}` },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Discord roles fetch failed: ${res.status} ${body.slice(0, 200)}`);
+  }
+  const raw = (await res.json()) as Array<{
+    id: string;
+    name: string;
+    color: number;
+    position: number;
+    mentionable: boolean;
+    managed: boolean;
+  }>;
+
+  return raw
+    .filter(r => r.id !== guildId && !r.managed)
+    .map(r => ({
+      id: r.id,
+      name: r.name,
+      color: r.color,
+      position: r.position,
+      mentionable: r.mentionable,
+    }))
+    .sort((a, b) => b.position - a.position);
+}
+
 // Récupère la liste des salons d'un serveur filtrés aux types "postables".
 // Inclut le nom de la catégorie parente si elle existe (pour regrouper côté UI).
 // Nécessite que le bot soit dans le serveur + scope View Channels.

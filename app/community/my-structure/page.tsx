@@ -13,6 +13,7 @@ import {
   Search, ChevronUp, ChevronDown, Link2, MessageSquare, Settings, LucideIcon,
   Copy, Check, UserPlus, UserMinus, Mail, Bookmark, X,
   Crown, Archive, ArchiveRestore, MoreVertical, Tag, Image as ImageIcon,
+  Hash, AtSign,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import CalendarSection from '@/components/calendar/CalendarSection';
@@ -141,6 +142,21 @@ type MyStructure = {
     guildName: string;
     guildIconHash?: string | null;
     installedBy: string;
+    // Config étendue (Livraison B) — pings sur events scope=structure / game / staff
+    structureChannelId?: string | null;
+    structureChannelName?: string | null;
+    structureRoleId?: string | null;
+    structureRoleName?: string | null;
+    gameChannels?: Record<string, {
+      channelId?: string | null;
+      channelName?: string | null;
+      roleId?: string | null;
+      roleName?: string | null;
+    }>;
+    staffChannelId?: string | null;
+    staffChannelName?: string | null;
+    staffRoleId?: string | null;
+    staffRoleName?: string | null;
   } | null;
   members: Member[];
   requestedAt?: string;
@@ -406,6 +422,183 @@ function TeamActionChip({ icon, label, onClick }: { icon: React.ReactNode; label
   );
 }
 
+// Presentational : affiche un bloc "salon + rôle à ping" pour un scope donné.
+// Mode replié = résumé. Mode déplié = pickers + Save/Cancel. Le state draft
+// (channel/role en cours d'édition) vit dans ce composant pour que chaque bloc
+// ait ses propres brouillons indépendants.
+function DiscordConfigBlockRenderer(props: {
+  opts: {
+    label: string;
+    accentColor: string;
+    currentChannelId: string | null;
+    currentChannelName: string | null;
+    currentRoleId: string | null;
+    currentRoleName: string | null;
+  };
+  expanded: boolean;
+  saving: boolean;
+  openPicker: () => void;
+  closePicker: () => void;
+  channels: Array<{ id: string; name: string; parentName: string | null }> | null;
+  channelsLoading: boolean;
+  channelsError: string | null;
+  roles: Array<{ id: string; name: string; color: number; mentionable: boolean }> | null;
+  rolesLoading: boolean;
+  rolesError: string | null;
+  onSave: (channelId: string | null, roleId: string | null) => void;
+  onReloadChannels: () => void;
+  onReloadRoles: () => void;
+}) {
+  const { opts, expanded, saving, openPicker, closePicker } = props;
+  const [draftChannelId, setDraftChannelId] = useState<string>(opts.currentChannelId ?? '');
+  const [draftRoleId, setDraftRoleId] = useState<string>(opts.currentRoleId ?? '');
+
+  // Reset des drafts à l'ouverture (utile si l'user ferme sans save puis rouvre).
+  useEffect(() => {
+    if (expanded) {
+      setDraftChannelId(opts.currentChannelId ?? '');
+      setDraftRoleId(opts.currentRoleId ?? '');
+    }
+  }, [expanded, opts.currentChannelId, opts.currentRoleId]);
+
+  // Groupement des salons par catégorie pour l'optgroup.
+  const channelsByCategory = new Map<string, typeof props.channels>();
+  for (const c of props.channels ?? []) {
+    const cat = c.parentName ?? 'Sans catégorie';
+    if (!channelsByCategory.has(cat)) channelsByCategory.set(cat, []);
+    channelsByCategory.get(cat)!.push(c);
+  }
+
+  return (
+    <div className="bevel-sm"
+      style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+      {/* Ligne de résumé cliquable */}
+      <div className="flex items-center gap-3 p-3">
+        <div className="w-1.5 h-6 flex-shrink-0" style={{ background: opts.accentColor }} />
+        <div className="flex-1 min-w-0">
+          <div className="t-sub">{opts.label}</div>
+          <div className="text-xs flex items-center gap-3 mt-0.5" style={{ color: 'var(--s-text-muted)' }}>
+            <span className="flex items-center gap-1 truncate">
+              <Hash size={10} />
+              {opts.currentChannelName ? <span style={{ color: 'var(--s-text-dim)' }}>{opts.currentChannelName}</span> : <span>aucun salon</span>}
+            </span>
+            <span className="flex items-center gap-1 truncate">
+              <AtSign size={10} />
+              {opts.currentRoleName ? <span style={{ color: 'var(--s-text-dim)' }}>@{opts.currentRoleName}</span> : <span>aucun ping</span>}
+            </span>
+          </div>
+        </div>
+        {!expanded ? (
+          <button type="button"
+            className="btn-springs btn-secondary bevel-sm text-xs"
+            style={{ padding: '4px 10px' }}
+            onClick={openPicker}>
+            Modifier
+          </button>
+        ) : (
+          <button type="button"
+            className="btn-springs btn-ghost bevel-sm text-xs"
+            style={{ padding: '4px 10px' }}
+            onClick={closePicker}>
+            Fermer
+          </button>
+        )}
+      </div>
+
+      {/* Pickers (mode déplié) */}
+      {expanded && (
+        <div className="p-3 space-y-3 border-t" style={{ borderColor: 'var(--s-border)' }}>
+          {/* Channel picker */}
+          <div>
+            <label className="t-label block mb-1.5">Salon Discord</label>
+            {props.channelsLoading ? (
+              <div className="text-xs flex items-center gap-2" style={{ color: 'var(--s-text-muted)' }}>
+                <Loader2 size={12} className="animate-spin" />
+                Chargement…
+              </div>
+            ) : props.channelsError ? (
+              <div className="flex items-center gap-2">
+                <p className="text-xs flex-1" style={{ color: '#ff5555' }}>{props.channelsError}</p>
+                <button type="button" className="text-xs underline" style={{ color: 'var(--s-text-dim)' }}
+                  onClick={props.onReloadChannels}>Réessayer</button>
+              </div>
+            ) : (
+              <select className="settings-input w-full text-sm"
+                value={draftChannelId}
+                onChange={e => setDraftChannelId(e.target.value)}>
+                <option value="">— Aucun salon (pas de post) —</option>
+                {Array.from(channelsByCategory.entries()).map(([cat, chans]) => (
+                  <optgroup key={cat} label={cat}>
+                    {chans!.map(c => (
+                      <option key={c.id} value={c.id}># {c.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            )}
+          </div>
+          {/* Role picker */}
+          <div>
+            <label className="t-label block mb-1.5">Rôle à ping (optionnel)</label>
+            {props.rolesLoading ? (
+              <div className="text-xs flex items-center gap-2" style={{ color: 'var(--s-text-muted)' }}>
+                <Loader2 size={12} className="animate-spin" />
+                Chargement…
+              </div>
+            ) : props.rolesError ? (
+              <div className="flex items-center gap-2">
+                <p className="text-xs flex-1" style={{ color: '#ff5555' }}>{props.rolesError}</p>
+                <button type="button" className="text-xs underline" style={{ color: 'var(--s-text-dim)' }}
+                  onClick={props.onReloadRoles}>Réessayer</button>
+              </div>
+            ) : (
+              <>
+                <select className="settings-input w-full text-sm"
+                  value={draftRoleId}
+                  onChange={e => setDraftRoleId(e.target.value)}
+                  disabled={!draftChannelId}>
+                  <option value="">— Pas de ping —</option>
+                  {(props.roles ?? []).map(r => (
+                    <option key={r.id} value={r.id} disabled={!r.mentionable && r.id !== opts.currentRoleId}>
+                      @{r.name}{!r.mentionable ? ' (non-mentionnable)' : ''}
+                    </option>
+                  ))}
+                </select>
+                {!draftChannelId && (
+                  <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
+                    Choisis d&apos;abord un salon pour activer le ping.
+                  </p>
+                )}
+                {draftRoleId && (props.roles ?? []).find(r => r.id === draftRoleId && !r.mentionable) && (
+                  <p className="text-xs mt-1" style={{ color: 'var(--s-gold)' }}>
+                    Ce rôle n&apos;est pas mentionnable côté Discord — le ping ne partira pas tant
+                    que tu n&apos;actives pas &quot;Autoriser tout le monde à @mentionner ce rôle&quot;
+                    dans les paramètres du rôle.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" onClick={closePicker}
+              className="btn-springs btn-ghost bevel-sm text-xs"
+              style={{ padding: '6px 12px' }}>
+              Annuler
+            </button>
+            <button type="button" disabled={saving}
+              onClick={() => props.onSave(draftChannelId || null, draftRoleId || null)}
+              className="btn-springs btn-primary bevel-sm text-xs flex items-center gap-1"
+              style={{ padding: '6px 12px' }}>
+              {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+              Enregistrer
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MyStructurePage() {
   const { firebaseUser, loading: authLoading } = useAuth();
   const toast = useToast();
@@ -454,6 +647,13 @@ export default function MyStructurePage() {
   const [discordChannels, setDiscordChannels] = useState<DiscordChannel[] | null>(null);
   const [discordChannelsLoading, setDiscordChannelsLoading] = useState(false);
   const [discordChannelsError, setDiscordChannelsError] = useState<string | null>(null);
+  type DiscordRole = { id: string; name: string; color: number; position: number; mentionable: boolean };
+  const [discordRoles, setDiscordRoles] = useState<DiscordRole[] | null>(null);
+  const [discordRolesLoading, setDiscordRolesLoading] = useState(false);
+  const [discordRolesError, setDiscordRolesError] = useState<string | null>(null);
+  const [discordConfigSaving, setDiscordConfigSaving] = useState<string | null>(null); // clé = scope (structure|game:rocket_league|staff)
+  type DiscordConfigScope = { scope: 'structure' | 'staff' } | { scope: 'game'; game: string };
+  const [discordConfigExpanded, setDiscordConfigExpanded] = useState<Record<string, boolean>>({});
   const [showNewTeam, setShowNewTeam] = useState(false);
   const [teamActionLoading, setTeamActionLoading] = useState<string | null>(null);
   const [discordLoading, setDiscordLoading] = useState(false);
@@ -935,7 +1135,10 @@ export default function MyStructurePage() {
   useEffect(() => {
     setDiscordChannels(null);
     setDiscordChannelsError(null);
+    setDiscordRoles(null);
+    setDiscordRolesError(null);
     setTeamDiscordEdit(null);
+    setDiscordConfigExpanded({});
   }, [activeStructure?.id, activeStructure?.discordIntegration?.guildId]);
 
   async function loadDiscordChannels(force = false) {
@@ -961,6 +1164,93 @@ export default function MyStructurePage() {
       setDiscordChannels([]);
     }
     setDiscordChannelsLoading(false);
+  }
+
+  async function loadDiscordRoles(force = false) {
+    if (!activeStructure || !firebaseUser) return;
+    if (!force && discordRoles !== null) return;
+    setDiscordRolesLoading(true);
+    setDiscordRolesError(null);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch(`/api/discord/roles?structureId=${encodeURIComponent(activeStructure.id)}`, {
+        headers: { 'Authorization': `Bearer ${idToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDiscordRolesError(data.error || 'Impossible de charger les rôles.');
+        setDiscordRoles([]);
+      } else {
+        setDiscordRoles(Array.isArray(data.roles) ? data.roles : []);
+      }
+    } catch (err) {
+      console.error('[MyStructure] load discord roles error:', err);
+      setDiscordRolesError('Erreur réseau');
+      setDiscordRoles([]);
+    }
+    setDiscordRolesLoading(false);
+  }
+
+  async function handleSaveDiscordConfig(
+    scope: DiscordConfigScope,
+    channelId: string | null,
+    roleId: string | null,
+  ) {
+    if (!activeStructure || !firebaseUser) return;
+    const key = scope.scope === 'game' ? `game:${scope.game}` : scope.scope;
+    setDiscordConfigSaving(key);
+    try {
+      const channel = channelId ? (discordChannels ?? []).find(c => c.id === channelId) : null;
+      const role = roleId ? (discordRoles ?? []).find(r => r.id === roleId) : null;
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/discord/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({
+          structureId: activeStructure.id,
+          scope: scope.scope,
+          ...(scope.scope === 'game' ? { game: scope.game } : {}),
+          channelId: channelId ?? null,
+          channelName: channel?.name ?? null,
+          roleId: roleId ?? null,
+          roleName: role?.name ?? null,
+        }),
+      });
+      if (res.ok) {
+        // Patch optimiste local : on met à jour activeStructure.discordIntegration
+        // sans re-fetch complet pour garder une UI fluide.
+        const next = { ...(activeStructure.discordIntegration ?? {}) } as NonNullable<MyStructure['discordIntegration']>;
+        if (scope.scope === 'structure') {
+          next.structureChannelId = channelId;
+          next.structureChannelName = channel?.name ?? null;
+          next.structureRoleId = roleId;
+          next.structureRoleName = role?.name ?? null;
+        } else if (scope.scope === 'game') {
+          next.gameChannels = { ...(next.gameChannels ?? {}) };
+          next.gameChannels[scope.game] = {
+            channelId,
+            channelName: channel?.name ?? null,
+            roleId,
+            roleName: role?.name ?? null,
+          };
+        } else {
+          next.staffChannelId = channelId;
+          next.staffChannelName = channel?.name ?? null;
+          next.staffRoleId = roleId;
+          next.staffRoleName = role?.name ?? null;
+        }
+        setActiveStructure({ ...activeStructure, discordIntegration: next });
+        setDiscordConfigExpanded(prev => ({ ...prev, [key]: false }));
+        toast.success('Config Discord enregistrée.');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Erreur');
+      }
+    } catch (err) {
+      console.error('[MyStructure] save discord config error:', err);
+      toast.error('Erreur réseau');
+    }
+    setDiscordConfigSaving(null);
   }
 
   async function handleUpdateTeamDiscordChannel(teamId: string, channelId: string | null, channelName: string | null) {
@@ -992,6 +1282,49 @@ export default function MyStructurePage() {
       toast.error('Erreur réseau');
     }
     setTeamActionLoading(null);
+  }
+
+  // Helper JSX : un bloc de config Discord (un par scope structure/jeu/staff).
+  // État "replié" = résumé + bouton "Modifier". État "déplié" = 2 selects + Save.
+  function renderDiscordConfigBlock(opts: {
+    key: string;
+    scope: DiscordConfigScope;
+    label: string;
+    accentColor: string;
+    currentChannelId: string | null;
+    currentChannelName: string | null;
+    currentRoleId: string | null;
+    currentRoleName: string | null;
+  }) {
+    const expanded = !!discordConfigExpanded[opts.key];
+    const saving = discordConfigSaving === opts.key;
+    const openPicker = () => {
+      setDiscordConfigExpanded(prev => ({ ...prev, [opts.key]: true }));
+      loadDiscordChannels();
+      loadDiscordRoles();
+    };
+    const closePicker = () => {
+      setDiscordConfigExpanded(prev => ({ ...prev, [opts.key]: false }));
+    };
+    return (
+      <DiscordConfigBlockRenderer
+        key={opts.key}
+        opts={opts}
+        expanded={expanded}
+        saving={saving}
+        openPicker={openPicker}
+        closePicker={closePicker}
+        channels={discordChannels}
+        channelsLoading={discordChannelsLoading}
+        channelsError={discordChannelsError}
+        roles={discordRoles}
+        rolesLoading={discordRolesLoading}
+        rolesError={discordRolesError}
+        onSave={(channelId, roleId) => handleSaveDiscordConfig(opts.scope, channelId, roleId)}
+        onReloadChannels={() => loadDiscordChannels(true)}
+        onReloadRoles={() => loadDiscordRoles(true)}
+      />
+    );
   }
 
   async function handleDisconnectDiscord() {
@@ -2048,10 +2381,62 @@ export default function MyStructurePage() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                      La sélection des salons par équipe arrive prochainement.
+                  {/* Config Discord par scope (structure, par jeu, staff).
+                      Les salons par équipe sont configurés depuis la card
+                      de l'équipe (menu kebab → "Configurer le salon Discord"). */}
+                  <div className="space-y-2">
+                    <div className="t-label flex items-center gap-2" style={{ color: 'var(--s-text-dim)' }}>
+                      <Settings size={12} />
+                      Salons & rôles par scope
+                    </div>
+                    <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                      Pour les events qui ciblent toute la structure, un jeu entier,
+                      ou le staff : choisis le salon où poster et le rôle à ping.
+                      Les salons par équipe se configurent directement sur la card
+                      de chaque équipe.
                     </p>
+                    {renderDiscordConfigBlock({
+                      key: 'structure',
+                      scope: { scope: 'structure' },
+                      label: 'Toute la structure',
+                      accentColor: '#FFB800',
+                      currentChannelId: activeStructure.discordIntegration.structureChannelId ?? null,
+                      currentChannelName: activeStructure.discordIntegration.structureChannelName ?? null,
+                      currentRoleId: activeStructure.discordIntegration.structureRoleId ?? null,
+                      currentRoleName: activeStructure.discordIntegration.structureRoleName ?? null,
+                    })}
+                    {activeStructure.games.includes('rocket_league') && renderDiscordConfigBlock({
+                      key: 'game:rocket_league',
+                      scope: { scope: 'game', game: 'rocket_league' },
+                      label: 'Rocket League',
+                      accentColor: '#0081FF',
+                      currentChannelId: activeStructure.discordIntegration.gameChannels?.rocket_league?.channelId ?? null,
+                      currentChannelName: activeStructure.discordIntegration.gameChannels?.rocket_league?.channelName ?? null,
+                      currentRoleId: activeStructure.discordIntegration.gameChannels?.rocket_league?.roleId ?? null,
+                      currentRoleName: activeStructure.discordIntegration.gameChannels?.rocket_league?.roleName ?? null,
+                    })}
+                    {activeStructure.games.includes('trackmania') && renderDiscordConfigBlock({
+                      key: 'game:trackmania',
+                      scope: { scope: 'game', game: 'trackmania' },
+                      label: 'Trackmania',
+                      accentColor: '#00D936',
+                      currentChannelId: activeStructure.discordIntegration.gameChannels?.trackmania?.channelId ?? null,
+                      currentChannelName: activeStructure.discordIntegration.gameChannels?.trackmania?.channelName ?? null,
+                      currentRoleId: activeStructure.discordIntegration.gameChannels?.trackmania?.roleId ?? null,
+                      currentRoleName: activeStructure.discordIntegration.gameChannels?.trackmania?.roleName ?? null,
+                    })}
+                    {renderDiscordConfigBlock({
+                      key: 'staff',
+                      scope: { scope: 'staff' },
+                      label: 'Staff',
+                      accentColor: 'var(--s-violet-light)',
+                      currentChannelId: activeStructure.discordIntegration.staffChannelId ?? null,
+                      currentChannelName: activeStructure.discordIntegration.staffChannelName ?? null,
+                      currentRoleId: activeStructure.discordIntegration.staffRoleId ?? null,
+                      currentRoleName: activeStructure.discordIntegration.staffRoleName ?? null,
+                    })}
+                  </div>
+                  <div className="flex justify-end pt-2 border-t" style={{ borderColor: 'var(--s-border)' }}>
                     <button type="button"
                       className="btn-springs btn-secondary bevel-sm flex items-center gap-2"
                       disabled={discordLoading}
