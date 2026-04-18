@@ -414,6 +414,8 @@ export default function MyStructurePage() {
   const [teamActionLoading, setTeamActionLoading] = useState<string | null>(null);
   const [teamSearch, setTeamSearch] = useState('');
   const [showArchived, setShowArchived] = useState(false);
+  // Groupes d'équipes "dépliés" (au-delà du cap par groupe). Key = label du groupe.
+  const [expandedTeamGroups, setExpandedTeamGroups] = useState<Set<string>>(new Set());
   const [healthOpen, setHealthOpen] = useState<boolean | null>(null);
   const [teamMenuOpen, setTeamMenuOpen] = useState<string | null>(null);
   const [captainPickerOpen, setCaptainPickerOpen] = useState<string | null>(null);
@@ -1352,11 +1354,38 @@ export default function MyStructurePage() {
 
   async function handleRemoveMember(memberId: string, memberName: string) {
     if (!activeStructure || !firebaseUser) return;
+
+    // Contextualiser le confirm : équipes impactées + rôles tenus (manager, coach,
+    // capitaine…) pour éviter les retraits accidentels d'un membre clé.
+    const member = activeStructure.members.find(m => m.id === memberId);
+    const memberUid = member?.userId;
+    const teamsImpacted = memberUid
+      ? teams.filter(t =>
+          t.players.some(p => p.uid === memberUid) ||
+          t.subs.some(p => p.uid === memberUid) ||
+          t.staff.some(p => p.uid === memberUid),
+        )
+      : [];
+    const specialRoles: string[] = [];
+    if (memberUid && (activeStructure.managerIds ?? []).includes(memberUid)) specialRoles.push('manager de structure');
+    if (memberUid && (activeStructure.coachIds ?? []).includes(memberUid)) specialRoles.push('coach de structure');
+    const captainOf = memberUid ? teams.filter(t => t.captainId === memberUid).map(t => t.name) : [];
+    if (captainOf.length > 0) specialRoles.push(`capitaine de ${captainOf.join(', ')}`);
+
+    let msg = `Retirer ${memberName} de la structure ?`;
+    if (teamsImpacted.length > 0) {
+      msg += `\n\nIl sera aussi retiré de ${teamsImpacted.length} équipe${teamsImpacted.length > 1 ? 's' : ''} : ${teamsImpacted.map(t => t.name).slice(0, 5).join(', ')}${teamsImpacted.length > 5 ? '…' : ''}.`;
+    }
+    if (specialRoles.length > 0) {
+      msg += `\n\n⚠ Attention — ${memberName} est actuellement : ${specialRoles.join(' · ')}. Ce rôle sera perdu.`;
+    }
+    msg += '\n\nCette action est irréversible : si tu veux le réintégrer, il devra refaire une demande.';
+
     const ok = await confirm({
-      title: 'Retirer le membre',
-      message: `Retirer ${memberName} de la structure ? Il sera aussi retiré de ses équipes.`,
+      title: `Retirer ${memberName}`,
+      message: msg,
       variant: 'danger',
-      confirmLabel: 'Retirer',
+      confirmLabel: 'Retirer définitivement',
     });
     if (!ok) return;
     setInvActionLoading(memberId);
@@ -2694,24 +2723,57 @@ export default function MyStructurePage() {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {/* Groupes actifs par label */}
-                  {groups.map(g => (
-                    <div key={g.label || '__nolabel__'} className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <Tag size={12} style={{ color: 'var(--s-gold)' }} />
-                        <h3 className="t-label" style={{ color: 'var(--s-gold)' }}>
-                          {g.displayLabel}
-                        </h3>
-                        <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                          {g.teams.length} équipe{g.teams.length > 1 ? 's' : ''}
-                        </span>
-                        <div className="flex-1 h-px" style={{ background: 'var(--s-border)' }} />
+                  {/* Groupes actifs par label — pagination douce : au-delà de 12 équipes
+                      le groupe est tronqué et un bouton "Afficher tout" le déplie. */}
+                  {groups.map(g => {
+                    const groupKey = g.label || '__nolabel__';
+                    const TEAM_GROUP_CAP = 12;
+                    const expanded = expandedTeamGroups.has(groupKey);
+                    const needsPagination = g.teams.length > TEAM_GROUP_CAP;
+                    const shownTeams = needsPagination && !expanded ? g.teams.slice(0, TEAM_GROUP_CAP) : g.teams;
+                    const hiddenCount = g.teams.length - shownTeams.length;
+                    return (
+                      <div key={groupKey} className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Tag size={12} style={{ color: 'var(--s-gold)' }} />
+                          <h3 className="t-label" style={{ color: 'var(--s-gold)' }}>
+                            {g.displayLabel}
+                          </h3>
+                          <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                            {g.teams.length} équipe{g.teams.length > 1 ? 's' : ''}
+                          </span>
+                          <div className="flex-1 h-px" style={{ background: 'var(--s-border)' }} />
+                        </div>
+                        <div className="space-y-3">
+                          {shownTeams.map(t => renderTeamCard(t, false))}
+                        </div>
+                        {needsPagination && (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedTeamGroups(prev => {
+                              const next = new Set(prev);
+                              if (next.has(groupKey)) next.delete(groupKey); else next.add(groupKey);
+                              return next;
+                            })}
+                            className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide transition-colors"
+                            style={{ color: 'var(--s-text-dim)' }}
+                          >
+                            {expanded ? (
+                              <>
+                                <ChevronUp size={11} />
+                                <span>Réduire</span>
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown size={11} />
+                                <span>Afficher les {hiddenCount} équipe{hiddenCount > 1 ? 's' : ''} suivante{hiddenCount > 1 ? 's' : ''}</span>
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
-                      <div className="space-y-3">
-                        {g.teams.map(t => renderTeamCard(t, false))}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
 
                   {/* Section archivées (collapse) */}
                   {archivedCount > 0 && (
