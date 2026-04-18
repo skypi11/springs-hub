@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminDb, getAdminAuth } from '@/lib/firebase-admin';
+import { DEV_UIDS, DEV_STRUCTURE_ID } from '@/lib/dev-seed-constants';
 
 // POST /api/dev/cleanup — supprime toutes les données de seed dev.
 // Filtre tout ce qui a le flag `isDev: true` dans les collections concernées,
@@ -37,7 +38,7 @@ export async function POST() {
   // Nettoyer les structure_members orphelins rattachés à la structure dev —
   // les accept/auto-join créent ces docs sans hériter du flag isDev du seed.
   const orphanMembersSnap = await db.collection('structure_members')
-    .where('structureId', '==', 'dev_test_structure')
+    .where('structureId', '==', DEV_STRUCTURE_ID)
     .get();
   if (orphanMembersSnap.size > 0) {
     const batch = db.batch();
@@ -49,7 +50,7 @@ export async function POST() {
   // Même raison : les invitations créées en runtime (join_request, direct_invite,
   // invite_link, auto-join) ne portent pas isDev et trainent après un reset.
   const orphanInvSnap = await db.collection('structure_invitations')
-    .where('structureId', '==', 'dev_test_structure')
+    .where('structureId', '==', DEV_STRUCTURE_ID)
     .get();
   if (orphanInvSnap.size > 0) {
     const batch = db.batch();
@@ -60,7 +61,7 @@ export async function POST() {
 
   // Historique : les accept/leave en runtime n'héritent pas du flag isDev, on cible par structureId
   const orphanHistorySnap = await db.collection('structure_member_history')
-    .where('structureId', '==', 'dev_test_structure')
+    .where('structureId', '==', DEV_STRUCTURE_ID)
     .get();
   if (orphanHistorySnap.size > 0) {
     const batch = db.batch();
@@ -69,20 +70,17 @@ export async function POST() {
   }
   report.orphanHistory = orphanHistorySnap.size;
 
-  // Supprimer les comptes Firebase Auth dev
+  // Supprimer les comptes Firebase Auth dev — source de vérité : DEV_UIDS du seed.
+  // + anciens UIDs des seeds précédents (au cas où il traine des comptes Auth en local).
   const devUids = [
-    'discord_dev_founder',
-    'discord_dev_cofounder',
+    ...Object.values(DEV_UIDS),
+    // Legacy seeds — supprimés si encore présents dans Auth
     'discord_dev_manager',
     'discord_dev_coach',
     'discord_dev_player1',
     'discord_dev_player2',
     'discord_dev_player3',
     'discord_dev_player4',
-    'discord_dev_admin',
-    'discord_dev_recruit1',
-    'discord_dev_recruit2',
-    'discord_dev_recruit3',
   ];
   let authDeleted = 0;
   for (const uid of devUids) {
