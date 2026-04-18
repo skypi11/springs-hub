@@ -325,6 +325,12 @@ export async function POST(
         } catch { /* best-effort */ }
 
         const siteEventUrl = `${req.nextUrl.origin}/community/my-structure?event=${encodeURIComponent(eventRef.id)}`;
+        // Bannière composite pour les matchs officiels (générée par /api/og/match).
+        // Seulement si on a un adversaire — sinon pas de sens.
+        const isOfficialMatch = type === 'match' && !!(adversaire?.trim());
+        const matchBannerUrl = isOfficialMatch
+          ? `${req.nextUrl.origin}/api/og/match/${encodeURIComponent(eventRef.id)}`
+          : null;
         const structureName = (resolved.structure as { name?: string }).name ?? null;
         const structureLogoUrl = (resolved.structure as { logoUrl?: string }).logoUrl ?? null;
         const integration = (resolved.structure as { discordIntegration?: {
@@ -412,6 +418,7 @@ export async function POST(
                 thumbnailUrl,
                 adversaryLogoUrl: adversaireLogoUrlValid,
                 authorIconUrl: teamLogoUrl || structureLogoUrl,
+                matchBannerUrl,
                 pingUserIds,
               });
               await recordPost(channelId, messageId, { teamId: team.id, scope: 'teams' });
@@ -441,6 +448,7 @@ export async function POST(
               thumbnailUrl: structureLogoUrl,
               adversaryLogoUrl: adversaireLogoUrlValid,
               authorIconUrl: structureLogoUrl,
+              matchBannerUrl,
               pingRoleId: integration.structureRoleId ?? null,
             });
             await recordPost(integration.structureChannelId, messageId, { scope: 'structure' });
@@ -471,6 +479,7 @@ export async function POST(
                 thumbnailUrl: structureLogoUrl,
                 adversaryLogoUrl: adversaireLogoUrlValid,
                 authorIconUrl: structureLogoUrl,
+                matchBannerUrl,
                 pingRoleId: cfg.roleId ?? null,
               });
               await recordPost(cfg.channelId, messageId, { scope: 'game', game: target.game });

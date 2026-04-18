@@ -138,6 +138,11 @@ export interface EventEmbedInput {
   // Icône de l'author line (petit, à gauche du nom d'author). On y met le logo
   // équipe pour qu'il reste visible même quand la thumbnail montre l'adversaire.
   authorIconUrl?: string | null;
+  // Bannière composite "TEAM VS ADVERSAIRE" générée côté serveur (route OG).
+  // Si fournie pour un match officiel, elle devient l'`image` principale de
+  // l'embed (pleine largeur, ~500px de haut) — remplace le "gallery trick" qui
+  // collait les logos sans gutter ni centrage.
+  matchBannerUrl?: string | null;
   // Pings : liste d'IDs Discord à mentionner en tête de message (et dans
   // allowed_mentions pour que la notif push parte).
   pingUserIds?: string[];
@@ -224,28 +229,19 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
   };
   if (input.siteEventUrl) embed.url = input.siteEventUrl;
 
-  // Thumbnail :
-  //   - Match officiel AVEC logo adversaire : on ne met PAS de thumbnail sur
-  //     l'embed principal — les deux logos sont affichés en grand via le
-  //     "gallery trick" Discord (embeds additionnels avec la même URL).
-  //   - Sinon : thumbnail classique (logo équipe ou structure).
-  const hasMatchGallery = isOfficialMatch
-    && !!input.adversaryLogoUrl && /^https:\/\//.test(input.adversaryLogoUrl)
-    && !!input.authorIconUrl && /^https:\/\//.test(input.authorIconUrl)
-    && !!input.siteEventUrl;
-  if (!hasMatchGallery && input.thumbnailUrl && /^https:\/\//.test(input.thumbnailUrl)) {
+  // Image principale :
+  //   - Match officiel avec bannière composite : on utilise l'`image` de l'embed
+  //     (pleine largeur, centrée) pour afficher une bannière "TEAM VS ADVERSAIRE"
+  //     générée côté serveur. Propre, centré, avec vrai padding — contrairement
+  //     au "gallery trick" qui collait les logos.
+  //   - Sinon : thumbnail classique en haut-droit (logo équipe ou structure).
+  const useMatchBanner = isOfficialMatch
+    && !!input.matchBannerUrl
+    && /^https:\/\//.test(input.matchBannerUrl);
+  if (useMatchBanner && input.matchBannerUrl) {
+    embed.image = { url: input.matchBannerUrl };
+  } else if (input.thumbnailUrl && /^https:\/\//.test(input.thumbnailUrl)) {
     embed.thumbnail = { url: input.thumbnailUrl };
-  }
-
-  // Gallery trick : Discord fusionne automatiquement les embeds ayant la même
-  // URL en une grille d'images. Pour un match avec les deux logos disponibles,
-  // on envoie 2 embeds additionnels vides sauf pour `image` — Discord les
-  // affiche côte à côte sous l'embed principal, en TRÈS GRAND (~300×300 chacun)
-  // au lieu des 80×80 de la thumbnail. Vraie présence visuelle "match officiel".
-  const galleryEmbeds: Array<Record<string, unknown>> = [];
-  if (hasMatchGallery) {
-    galleryEmbeds.push({ url: input.siteEventUrl, image: { url: input.authorIconUrl } });
-    galleryEmbeds.push({ url: input.siteEventUrl, image: { url: input.adversaryLogoUrl } });
   }
 
   // allowed_mentions : liste EXPLICITE des user/role IDs autorisés. Discord ne
@@ -267,7 +263,7 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
     },
     body: JSON.stringify({
       ...(content ? { content } : {}),
-      embeds: [embed, ...galleryEmbeds],
+      embeds: [embed],
       allowed_mentions: allowedMentions,
     }),
   });
