@@ -42,6 +42,18 @@ export async function POST(req: NextRequest) {
         const linkData = linkDoc.data();
         const sid = linkData.structureId;
 
+        // Expiration (30j). Si `expiresAt` manque (liens legacy), on dérive depuis
+        // `createdAt` pour borner rétroactivement les anciens tokens.
+        const INVITE_LINK_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+        const expiresMs = linkData.expiresAt?.toDate?.()?.getTime?.()
+          ?? (linkData.createdAt?.toDate?.()?.getTime?.() != null
+                ? linkData.createdAt.toDate().getTime() + INVITE_LINK_TTL_MS
+                : null);
+        if (typeof expiresMs === 'number' && expiresMs < Date.now()) {
+          await linkDoc.ref.update({ status: 'expired' }).catch(() => {});
+          return NextResponse.json({ error: 'Ce lien d\'invitation a expiré.' }, { status: 400 });
+        }
+
         // Lien ciblé : seul le joueur visé peut l'utiliser
         if (linkData.targetUserId && linkData.targetUserId !== uid) {
           return NextResponse.json({ error: 'Ce lien d\'invitation n\'est pas pour toi.' }, { status: 403 });

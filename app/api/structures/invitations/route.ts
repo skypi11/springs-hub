@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { createNotification } from '@/lib/notifications';
 import { addJoinHistory, closeOpenHistory } from '@/lib/member-history';
+
+// Durée de validité d'un lien d'invitation. Au-delà, le lien est inactivable
+// automatiquement à la consommation, pour éviter qu'un token leaké il y a 6 mois
+// reste exploitable.
+const INVITE_LINK_TTL_DAYS = 30;
+const INVITE_LINK_TTL_MS = INVITE_LINK_TTL_DAYS * 24 * 60 * 60 * 1000;
 
 // Vérifier fondateur/co-fondateur/manager
 async function checkManageAccess(uid: string, structureId: string) {
@@ -53,15 +59,32 @@ export async function GET(req: NextRequest) {
         .where('type', '==', 'direct_invite').get(),
     ]);
 
+    const nowMs = Date.now();
     const links = linksSnap.docs
-      .filter(d => d.data().status === 'active')
+      .filter(d => {
+        const data = d.data();
+        if (data.status !== 'active') return false;
+        // Masquer les liens qui ont dépassé leur TTL (fallback createdAt+TTL
+        // pour les anciens liens créés avant l'introduction du champ expiresAt).
+        const effectiveExpiresMs = data.expiresAt?.toDate?.()?.getTime?.()
+          ?? (data.createdAt?.toDate?.()?.getTime?.() != null
+                ? data.createdAt.toDate().getTime() + INVITE_LINK_TTL_MS
+                : null);
+        if (typeof effectiveExpiresMs === 'number' && effectiveExpiresMs < nowMs) return false;
+        return true;
+      })
       .map(d => {
         const data = d.data();
+        const effectiveExpiresMs = data.expiresAt?.toDate?.()?.getTime?.()
+          ?? (data.createdAt?.toDate?.()?.getTime?.() != null
+                ? data.createdAt.toDate().getTime() + INVITE_LINK_TTL_MS
+                : null);
         return {
           id: d.id,
           token: data.token,
           game: data.game || null,
           createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
+          expiresAt: effectiveExpiresMs != null ? new Date(effectiveExpiresMs).toISOString() : null,
         };
       });
 
@@ -196,6 +219,7 @@ export async function POST(req: NextRequest) {
         }
 
         const token = randomUUID();
+        const expiresAt = Timestamp.fromMillis(Date.now() + INVITE_LINK_TTL_MS);
         await db.collection('structure_invitations').add({
           type: 'invite_link',
           structureId,
@@ -205,8 +229,14 @@ export async function POST(req: NextRequest) {
           targetUserId: targetedUserId,
           status: 'active',
           createdAt: FieldValue.serverTimestamp(),
+          expiresAt,
         });
-        return NextResponse.json({ success: true, token, targeted: !!targetedUserId });
+        return NextResponse.json({
+          success: true,
+          token,
+          targeted: !!targetedUserId,
+          expiresAt: expiresAt.toDate().toISOString(),
+        });
       }
 
       // ── Révoquer un lien d'invitation ──
