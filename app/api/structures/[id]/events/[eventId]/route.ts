@@ -114,6 +114,17 @@ export async function PATCH(
         updates.resultat = String(body.resultat).trim() || null;
       }
     }
+    // Logo adversaire : match uniquement, HTTPS, ≤500 chars. Vide → null.
+    if (event.type === 'match' && body.adversaireLogoUrl !== undefined) {
+      const raw = String(body.adversaireLogoUrl).trim();
+      if (raw.length === 0) {
+        updates.adversaireLogoUrl = null;
+      } else if (raw.length > 500 || !/^https:\/\//.test(raw)) {
+        return NextResponse.json({ error: 'Logo adversaire : URL HTTPS requise (≤500 chars).' }, { status: 400 });
+      } else {
+        updates.adversaireLogoUrl = raw;
+      }
+    }
 
     await eventRef.update(updates);
     return NextResponse.json({ success: true });

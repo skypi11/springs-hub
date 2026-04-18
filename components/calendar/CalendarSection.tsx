@@ -67,6 +67,7 @@ type CalendarEvent = {
   compteRendu: string;
   aTravailler: string;
   adversaire: string | null;
+  adversaireLogoUrl: string | null;
   resultat: string | null;
   presences: Presence[];
 };
@@ -84,6 +85,7 @@ type Team = {
   id: string;
   game: string;
   name: string;
+  logoUrl?: string;
   playerIds?: string[];
   subIds?: string[];
   staffIds?: string[];
@@ -555,12 +557,39 @@ function EventCard({
                 <MapPin size={9} /> {event.location}
               </span>
             )}
-            {(event.type === 'match' || event.type === 'scrim') && event.adversaire && (
+            {event.type === 'scrim' && event.adversaire && (
               <span className="t-mono" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>
                 vs {event.adversaire}
               </span>
             )}
           </div>
+          {event.type === 'match' && event.adversaire && (() => {
+            const firstTeam = event.target.scope === 'teams'
+              ? teams.find(t => (event.target.teamIds ?? []).includes(t.id))
+              : null;
+            const teamLogo = firstTeam?.logoUrl;
+            const teamLabel = firstTeam?.name || 'Équipe';
+            return (
+              <div className="mt-2 flex items-center gap-2 px-2 py-1.5"
+                style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.3)' }}>
+                {teamLogo ? (
+                  <Image src={teamLogo} alt={teamLabel} width={16} height={16} unoptimized />
+                ) : (
+                  <div className="w-4 h-4" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }} />
+                )}
+                <span className="font-display tracking-wider truncate" style={{ fontSize: '11px', color: 'var(--s-text)' }}>
+                  {teamLabel.toUpperCase()}
+                </span>
+                <span className="font-display" style={{ fontSize: '10px', color: 'var(--s-gold)' }}>VS</span>
+                <span className="font-display tracking-wider truncate flex-1" style={{ fontSize: '11px', color: 'var(--s-text)' }}>
+                  {event.adversaire.toUpperCase()}
+                </span>
+                {event.adversaireLogoUrl && (
+                  <Image src={event.adversaireLogoUrl} alt={event.adversaire} width={16} height={16} unoptimized />
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Presence counts + my response */}
@@ -636,6 +665,7 @@ function EventFormModal({
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [game, setGame] = useState<string>('');
   const [adversaire, setAdversaire] = useState('');
+  const [adversaireLogoUrl, setAdversaireLogoUrl] = useState('');
   const [resultat, setResultat] = useState('');
   const [markDone, setMarkDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -738,6 +768,7 @@ function EventFormModal({
           endsAt: endIso,
           target,
           adversaire: adversaire || undefined,
+          adversaireLogoUrl: type === 'match' && adversaireLogoUrl ? adversaireLogoUrl : undefined,
           resultat: resultat || undefined,
           markDoneImmediately: markDone,
         }),
@@ -754,8 +785,6 @@ function EventFormModal({
     }
     setSubmitting(false);
   }
-
-  const isMatchOrScrim = type === 'match' || type === 'scrim';
 
   return (
     <Portal>
@@ -978,15 +1007,53 @@ function EventFormModal({
             <textarea className="settings-input w-full" rows={3} value={description} onChange={e => setDescription(e.target.value)} maxLength={2000} />
           </div>
 
-          {isMatchOrScrim && (
+          {type === 'match' && (
+            <div className="bevel-sm p-3 space-y-3"
+              style={{ background: 'rgba(255,184,0,0.05)', border: '1px solid rgba(255,184,0,0.3)' }}>
+              <div className="flex items-center gap-2">
+                <span className="tag"
+                  style={{ background: 'rgba(255,184,0,0.15)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.4)', fontSize: '9px', padding: '2px 8px' }}>
+                  ⚔ MATCH OFFICIEL
+                </span>
+                <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                  Affiché avec mise en avant côté site et Discord.
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="t-label block mb-1.5">Adversaire</label>
+                  <input type="text" className="settings-input w-full" value={adversaire}
+                    onChange={e => setAdversaire(e.target.value)} placeholder="Nom de l'équipe adverse" />
+                </div>
+                <div>
+                  <label className="t-label block mb-1.5">Résultat (optionnel)</label>
+                  <input type="text" className="settings-input w-full" value={resultat}
+                    onChange={e => setResultat(e.target.value)} placeholder="3-2, WIN..." />
+                </div>
+              </div>
+              <div>
+                <label className="t-label block mb-1.5">Logo adversaire (URL HTTPS, optionnel)</label>
+                <input type="url" className="settings-input w-full" value={adversaireLogoUrl}
+                  onChange={e => setAdversaireLogoUrl(e.target.value)}
+                  placeholder="https://..." maxLength={500} />
+                <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
+                  Affiché dans la card et dans l&apos;embed Discord. HTTPS uniquement.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {type === 'scrim' && (
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="t-label block mb-1.5">Adversaire (optionnel)</label>
-                <input type="text" className="settings-input w-full" value={adversaire} onChange={e => setAdversaire(e.target.value)} />
+                <input type="text" className="settings-input w-full" value={adversaire}
+                  onChange={e => setAdversaire(e.target.value)} />
               </div>
               <div>
                 <label className="t-label block mb-1.5">Résultat (optionnel)</label>
-                <input type="text" className="settings-input w-full" value={resultat} onChange={e => setResultat(e.target.value)} placeholder="3-2, WIN..." />
+                <input type="text" className="settings-input w-full" value={resultat}
+                  onChange={e => setResultat(e.target.value)} placeholder="3-2, WIN..." />
               </div>
             </div>
           )}
@@ -1060,6 +1127,7 @@ function EventDetailModal({
   const [compteRendu, setCompteRendu] = useState(event.compteRendu);
   const [aTravailler, setATravailler] = useState(event.aTravailler);
   const [adversaire, setAdversaire] = useState(event.adversaire ?? '');
+  const [adversaireLogoUrl, setAdversaireLogoUrl] = useState(event.adversaireLogoUrl ?? '');
   const [resultat, setResultat] = useState(event.resultat ?? '');
   const [saving, setSaving] = useState(false);
 
@@ -1071,7 +1139,13 @@ function EventDetailModal({
       const res = await fetch(`/api/structures/${structureId}/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ compteRendu, aTravailler, adversaire, resultat }),
+        body: JSON.stringify({
+          compteRendu,
+          aTravailler,
+          adversaire,
+          resultat,
+          ...(event.type === 'match' ? { adversaireLogoUrl } : {}),
+        }),
       });
       if (res.ok) {
         toast.success('Enregistré');
@@ -1115,6 +1189,12 @@ function EventDetailModal({
           {/* Header */}
           <div>
             <div className="flex items-center gap-2 mb-2">
+              {event.type === 'match' && event.adversaire && (
+                <span className="tag"
+                  style={{ background: 'rgba(255,184,0,0.18)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.5)', fontSize: '9px', padding: '2px 8px' }}>
+                  ⚔ MATCH OFFICIEL
+                </span>
+              )}
               <span className="tag" style={{ background: `${typeInfo.color}15`, color: typeInfo.color, borderColor: `${typeInfo.color}35`, fontSize: '9px', padding: '2px 8px' }}>
                 {typeInfo.label}
               </span>
@@ -1122,6 +1202,42 @@ function EventDetailModal({
                 {statusInfo.label}
               </span>
             </div>
+
+            {/* Bannière VS pour les matchs officiels — logos + noms en grand */}
+            {event.type === 'match' && event.adversaire && (() => {
+              const firstTeam = event.target.scope === 'teams'
+                ? teams.find(t => (event.target.teamIds ?? []).includes(t.id))
+                : null;
+              const teamLogo = firstTeam?.logoUrl;
+              const teamLabel = firstTeam?.name || 'Équipe';
+              return (
+                <div className="mb-3 p-4 bevel-sm flex items-center justify-center gap-4"
+                  style={{ background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.35)' }}>
+                  <div className="flex items-center gap-2 flex-1 justify-end min-w-0">
+                    <span className="font-display text-xl tracking-wider truncate" style={{ color: 'var(--s-text)' }}>
+                      {teamLabel.toUpperCase()}
+                    </span>
+                    {teamLogo ? (
+                      <Image src={teamLogo} alt={teamLabel} width={40} height={40} unoptimized />
+                    ) : (
+                      <div className="w-10 h-10" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }} />
+                    )}
+                  </div>
+                  <span className="font-display text-2xl flex-shrink-0" style={{ color: 'var(--s-gold)' }}>VS</span>
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {event.adversaireLogoUrl ? (
+                      <Image src={event.adversaireLogoUrl} alt={event.adversaire} width={40} height={40} unoptimized />
+                    ) : (
+                      <div className="w-10 h-10" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }} />
+                    )}
+                    <span className="font-display text-xl tracking-wider truncate" style={{ color: 'var(--s-text)' }}>
+                      {event.adversaire.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
             <h2 className="font-display text-3xl mb-2">{event.title}</h2>
             <div className="flex flex-wrap items-center gap-3">
               <span className="t-mono text-xs flex items-center gap-1" style={{ color: 'var(--s-text-dim)' }}>
@@ -1202,17 +1318,28 @@ function EventDetailModal({
             </div>
           </div>
 
-          {/* Match/scrim : adversaire + résultat */}
+          {/* Match/scrim : adversaire + résultat (+ logo adversaire pour match) */}
           {(event.type === 'match' || event.type === 'scrim') && canEdit && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="t-label block mb-1.5">Adversaire</label>
-                <input type="text" className="settings-input w-full" value={adversaire} onChange={e => setAdversaire(e.target.value)} />
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="t-label block mb-1.5">Adversaire</label>
+                  <input type="text" className="settings-input w-full" value={adversaire} onChange={e => setAdversaire(e.target.value)} />
+                </div>
+                <div>
+                  <label className="t-label block mb-1.5">Résultat</label>
+                  <input type="text" className="settings-input w-full" value={resultat} onChange={e => setResultat(e.target.value)} />
+                </div>
               </div>
-              <div>
-                <label className="t-label block mb-1.5">Résultat</label>
-                <input type="text" className="settings-input w-full" value={resultat} onChange={e => setResultat(e.target.value)} />
-              </div>
+              {event.type === 'match' && (
+                <div>
+                  <label className="t-label block mb-1.5">Logo adversaire (URL HTTPS, optionnel)</label>
+                  <input type="url" className="settings-input w-full"
+                    value={adversaireLogoUrl}
+                    onChange={e => setAdversaireLogoUrl(e.target.value)}
+                    placeholder="https://..." maxLength={500} />
+                </div>
+              )}
             </div>
           )}
 

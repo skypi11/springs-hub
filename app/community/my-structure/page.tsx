@@ -1517,6 +1517,7 @@ export default function MyStructurePage() {
     id: t.id,
     name: t.name,
     game: t.game,
+    logoUrl: t.logoUrl,
     playerIds: t.players.map(p => p.uid),
     subIds: t.subs.map(p => p.uid),
     staffIds: t.staff.map(p => p.uid),

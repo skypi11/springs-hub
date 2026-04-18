@@ -107,6 +107,7 @@ export async function GET(
         compteRendu: d.compteRendu ?? '',
         aTravailler: d.aTravailler ?? '',
         adversaire: d.adversaire ?? null,
+        adversaireLogoUrl: d.adversaireLogoUrl ?? null,
         resultat: d.resultat ?? null,
         presences: presencesByEvent.get(doc.id) ?? [],
       };
@@ -154,6 +155,7 @@ export async function POST(
       endsAt,
       target,
       adversaire,
+      adversaireLogoUrl,
       resultat,
       markDoneImmediately,
     } = body as {
@@ -165,6 +167,7 @@ export async function POST(
       endsAt?: string;
       target?: EventTarget;
       adversaire?: string;
+      adversaireLogoUrl?: string;
       resultat?: string;
       markDoneImmediately?: boolean;
     };
@@ -253,6 +256,17 @@ export async function POST(
     const isMatch = type === 'match' || type === 'scrim';
     const status = markDoneImmediately ? 'done' : 'scheduled';
 
+    // Logo adversaire : spécifique au type match. HTTPS uniquement (Discord
+    // n'embed que des URLs HTTPS ; une URL http:// casserait l'embed). On
+    // tolère une valeur vide ou non-match → null.
+    const adversaireLogoUrlTrimmed = (adversaireLogoUrl ?? '').trim();
+    const adversaireLogoUrlValid = type === 'match'
+      && adversaireLogoUrlTrimmed.length > 0
+      && adversaireLogoUrlTrimmed.length <= 500
+      && /^https:\/\//.test(adversaireLogoUrlTrimmed)
+      ? adversaireLogoUrlTrimmed
+      : null;
+
     batch.set(eventRef, {
       structureId,
       createdBy: uid,
@@ -274,6 +288,7 @@ export async function POST(
       compteRendu: '',
       aTravailler: '',
       adversaire: isMatch ? (adversaire?.trim() ?? null) : null,
+      adversaireLogoUrl: adversaireLogoUrlValid,
       resultat: isMatch ? (resultat?.trim() ?? null) : null,
     });
 
@@ -395,6 +410,8 @@ export async function POST(
                 resultat: isMatch && markDoneImmediately ? (resultat?.trim() ?? null) : null,
                 siteEventUrl,
                 thumbnailUrl,
+                adversaryLogoUrl: adversaireLogoUrlValid,
+                authorIconUrl: teamLogoUrl || structureLogoUrl,
                 pingUserIds,
               });
               await recordPost(channelId, messageId, { teamId: team.id, scope: 'teams' });
@@ -422,6 +439,8 @@ export async function POST(
               resultat: isMatch && markDoneImmediately ? (resultat?.trim() ?? null) : null,
               siteEventUrl,
               thumbnailUrl: structureLogoUrl,
+              adversaryLogoUrl: adversaireLogoUrlValid,
+              authorIconUrl: structureLogoUrl,
               pingRoleId: integration.structureRoleId ?? null,
             });
             await recordPost(integration.structureChannelId, messageId, { scope: 'structure' });
@@ -450,6 +469,8 @@ export async function POST(
                 resultat: isMatch && markDoneImmediately ? (resultat?.trim() ?? null) : null,
                 siteEventUrl,
                 thumbnailUrl: structureLogoUrl,
+                adversaryLogoUrl: adversaireLogoUrlValid,
+                authorIconUrl: structureLogoUrl,
                 pingRoleId: cfg.roleId ?? null,
               });
               await recordPost(cfg.channelId, messageId, { scope: 'game', game: target.game });

@@ -130,8 +130,14 @@ export interface EventEmbedInput {
   adversaire?: string | null;
   resultat?: string | null;
   siteEventUrl?: string | null;
-  // Thumbnail : priorité logo équipe, fallback logo structure. URL absolue HTTPS.
+  // Thumbnail (coin supérieur droit). Pour un match : logo adversaire si fourni,
+  // sinon logo équipe. Pour les autres types : logo équipe.
   thumbnailUrl?: string | null;
+  // Logo adversaire pour un match (si fourni, remplace la thumbnail par défaut).
+  adversaryLogoUrl?: string | null;
+  // Icône de l'author line (petit, à gauche du nom d'author). On y met le logo
+  // équipe pour qu'il reste visible même quand la thumbnail montre l'adversaire.
+  authorIconUrl?: string | null;
   // Pings : liste d'IDs Discord à mentionner en tête de message (et dans
   // allowed_mentions pour que la notif push parte).
   pingUserIds?: string[];
@@ -158,16 +164,27 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
     ...userPings.map(id => `<@${id}>`),
   ].filter(Boolean).join(' ');
 
-  // Auteur de l'embed (petit, au-dessus du titre) : type · structure · équipe.
-  // Le titre de l'event reste dominant visuellement ; ce champ apporte le contexte.
-  const authorParts = [typeLabel];
+  // Layout spécial pour les matchs officiels : le titre dominant devient
+  // "ÉQUIPE vs ADVERSAIRE", l'author line annonce "MATCH OFFICIEL", et la
+  // thumbnail bascule sur le logo adversaire (si fourni). Le logo de l'équipe
+  // reste visible via author.icon_url.
+  const isOfficialMatch = input.type === 'match' && !!input.adversaire;
+
+  const authorParts = [isOfficialMatch ? '⚔ MATCH OFFICIEL' : typeLabel];
   if (input.structureName) authorParts.push(input.structureName);
   if (input.teamName && input.teamName !== input.structureName) authorParts.push(input.teamName);
   const authorName = authorParts.join(' · ').slice(0, 256);
 
-  // Titre dominant : juste le titre de l'event, sans préfixe de type.
-  const adversaireSuffix = input.adversaire ? ` · vs ${input.adversaire}` : '';
-  const titleWithType = `${input.title}${adversaireSuffix}`.slice(0, 256);
+  // Titre : pour un match, "ÉQUIPE VS ADVERSAIRE" (en majuscules pour le punch).
+  // Pour le reste, le titre de l'event + suffixe vs X si scrim avec adversaire.
+  let titleWithType: string;
+  if (isOfficialMatch && input.adversaire) {
+    const teamLabel = (input.teamName || input.structureName || 'Équipe').toUpperCase();
+    titleWithType = `${teamLabel} VS ${input.adversaire.toUpperCase()}`.slice(0, 256);
+  } else {
+    const adversaireSuffix = input.adversaire ? ` · vs ${input.adversaire}` : '';
+    titleWithType = `${input.title}${adversaireSuffix}`.slice(0, 256);
+  }
 
   // Fields inline : date et heure séparées pour plus de lisibilité.
   // <t:SEC:D> = "24 avril 2026", <t:SEC:R> = "dans 2h", <t:SEC:t> = "20:00"
@@ -175,6 +192,16 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
     { name: '🗓️ Date', value: `<t:${startSec}:D>\n<t:${startSec}:R>`, inline: true },
     { name: '⏱️ Heure', value: `<t:${startSec}:t> → <t:${endSec}:t>`, inline: true },
   ];
+  // Pour un match, field Adversaire visible même si le logo est fourni (pour
+  // les clients qui ne chargent pas les images).
+  if (isOfficialMatch && input.adversaire) {
+    fields.push({ name: '⚔ Adversaire', value: input.adversaire.slice(0, 256), inline: true });
+  }
+  // Titre de l'event affiché en clair pour un match (puisqu'il a été remplacé
+  // par "TEAM VS ADV" dans le title). Ça préserve l'info "encore un test" par ex.
+  if (isOfficialMatch && input.title) {
+    fields.push({ name: '📋 Événement', value: input.title.slice(0, 256), inline: true });
+  }
   if (input.location) {
     fields.push({ name: '📍 Lieu', value: input.location.slice(0, 256), inline: true });
   }
@@ -193,9 +220,20 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
     });
   }
 
+  // Pour un match officiel avec logo adversaire, la thumbnail montre
+  // l'adversaire (plus parlant que le logo équipe, qui est déjà dans author.icon).
+  const thumbnailFinal = isOfficialMatch && input.adversaryLogoUrl
+    ? input.adversaryLogoUrl
+    : input.thumbnailUrl;
+
+  const authorObj: Record<string, unknown> = { name: authorName };
+  if (input.authorIconUrl && /^https:\/\//.test(input.authorIconUrl)) {
+    authorObj.icon_url = input.authorIconUrl;
+  }
+
   const embed: Record<string, unknown> = {
     color,
-    author: { name: authorName },
+    author: authorObj,
     title: titleWithType,
     description: (input.description ?? '').slice(0, 2000) || undefined,
     fields,
@@ -207,8 +245,8 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
     timestamp: new Date().toISOString(),
   };
   if (input.siteEventUrl) embed.url = input.siteEventUrl;
-  if (input.thumbnailUrl && /^https:\/\//.test(input.thumbnailUrl)) {
-    embed.thumbnail = { url: input.thumbnailUrl };
+  if (thumbnailFinal && /^https:\/\//.test(thumbnailFinal)) {
+    embed.thumbnail = { url: thumbnailFinal };
   }
 
   // allowed_mentions : liste EXPLICITE des user/role IDs autorisés. Discord ne
