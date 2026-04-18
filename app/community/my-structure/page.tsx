@@ -438,6 +438,8 @@ export default function MyStructurePage() {
     groupOrder?: number;
     status?: 'active' | 'archived';
     logoUrl?: string;
+    discordChannelId?: string | null;
+    discordChannelName?: string | null;
   };
   const [teams, setTeams] = useState<TeamData[]>([]);
   const [teamsLoading, setTeamsLoading] = useState(false);
@@ -446,6 +448,11 @@ export default function MyStructurePage() {
   const [newTeamLabel, setNewTeamLabel] = useState('');
   const [newTeamLogoUrl, setNewTeamLogoUrl] = useState('');
   const [teamLogoEdit, setTeamLogoEdit] = useState<{ teamId: string; value: string } | null>(null);
+  const [teamDiscordEdit, setTeamDiscordEdit] = useState<string | null>(null); // teamId en cours d'édition
+  type DiscordChannel = { id: string; name: string; parentId: string | null; parentName: string | null; position: number };
+  const [discordChannels, setDiscordChannels] = useState<DiscordChannel[] | null>(null);
+  const [discordChannelsLoading, setDiscordChannelsLoading] = useState(false);
+  const [discordChannelsError, setDiscordChannelsError] = useState<string | null>(null);
   const [showNewTeam, setShowNewTeam] = useState(false);
   const [teamActionLoading, setTeamActionLoading] = useState<string | null>(null);
   const [discordLoading, setDiscordLoading] = useState(false);
@@ -900,6 +907,73 @@ export default function MyStructurePage() {
       toast.error('Erreur réseau');
       setDiscordLoading(false);
     }
+  }
+
+  // Charge (ou recharge) la liste des salons Discord postables. Appelé la première
+  // fois que le fondateur ouvre un picker dans une card d'équipe. On cache dans
+  // discordChannels pour ne pas re-solliciter l'API à chaque ouverture.
+  // Invalide le cache des salons quand la structure active change ou que le bot
+  // est (dé)connecté — évite d'afficher les salons d'un autre serveur.
+  useEffect(() => {
+    setDiscordChannels(null);
+    setDiscordChannelsError(null);
+    setTeamDiscordEdit(null);
+  }, [activeStructure?.id, activeStructure?.discordIntegration?.guildId]);
+
+  async function loadDiscordChannels(force = false) {
+    if (!activeStructure || !firebaseUser) return;
+    if (!force && discordChannels !== null) return;
+    setDiscordChannelsLoading(true);
+    setDiscordChannelsError(null);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch(`/api/discord/channels?structureId=${encodeURIComponent(activeStructure.id)}`, {
+        headers: { 'Authorization': `Bearer ${idToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDiscordChannelsError(data.error || 'Impossible de charger les salons.');
+        setDiscordChannels([]);
+      } else {
+        setDiscordChannels(Array.isArray(data.channels) ? data.channels : []);
+      }
+    } catch (err) {
+      console.error('[MyStructure] load discord channels error:', err);
+      setDiscordChannelsError('Erreur réseau');
+      setDiscordChannels([]);
+    }
+    setDiscordChannelsLoading(false);
+  }
+
+  async function handleUpdateTeamDiscordChannel(teamId: string, channelId: string | null, channelName: string | null) {
+    if (!activeStructure || !firebaseUser) return;
+    setTeamActionLoading(`${teamId}_discord`);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/structures/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({
+          action: 'update',
+          structureId: activeStructure.id,
+          teamId,
+          discordChannelId: channelId,
+          discordChannelName: channelName,
+        }),
+      });
+      if (res.ok) {
+        await loadTeams(activeStructure.id);
+        setTeamDiscordEdit(null);
+        toast.success(channelId ? 'Salon Discord lié à l\u0027équipe.' : 'Salon Discord retiré.');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Erreur');
+      }
+    } catch (err) {
+      console.error('[MyStructure] update team discord channel error:', err);
+      toast.error('Erreur réseau');
+    }
+    setTeamActionLoading(null);
   }
 
   async function handleDisconnectDiscord() {
@@ -2721,6 +2795,19 @@ export default function MyStructurePage() {
                                       <span>{team.logoUrl ? 'Modifier le logo' : 'Ajouter un logo'}</span>
                                     </button>
                                   )}
+                                  {!isArchived && (
+                                    <button type="button"
+                                      onClick={() => {
+                                        setTeamMenuOpen(null);
+                                        setTeamDiscordEdit(team.id);
+                                        loadDiscordChannels();
+                                      }}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-[var(--s-hover)] text-left"
+                                      style={{ color: 'var(--s-text)' }}>
+                                      <MessageSquare size={12} />
+                                      <span>{team.discordChannelId ? 'Modifier le salon Discord' : 'Configurer le salon Discord'}</span>
+                                    </button>
+                                  )}
                                   {!isArchived ? (
                                     <button type="button"
                                       onClick={() => handleArchiveTeam(team.id, true)}
@@ -2756,6 +2843,85 @@ export default function MyStructurePage() {
                           </div>
                         )}
                       </div>
+
+                      {teamDiscordEdit === team.id && (
+                        <div className="p-3 bevel-sm space-y-2" style={{ background: 'var(--s-surface)', border: '1px solid rgba(88,101,242,0.25)' }}>
+                          <div className="flex items-center gap-2">
+                            <MessageSquare size={14} style={{ color: '#5865F2' }} />
+                            <span className="t-label">Salon Discord de l&apos;équipe</span>
+                          </div>
+                          {!activeStructure?.discordIntegration ? (
+                            <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                              Connecte d&apos;abord le bot Discord depuis l&apos;onglet <strong>Général → Bot Discord</strong>.
+                            </p>
+                          ) : discordChannelsLoading ? (
+                            <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                              <Loader2 size={12} className="animate-spin" />
+                              <span>Chargement des salons…</span>
+                            </div>
+                          ) : discordChannelsError ? (
+                            <div className="space-y-2">
+                              <p className="text-xs" style={{ color: '#ff5555' }}>{discordChannelsError}</p>
+                              <button type="button"
+                                onClick={() => loadDiscordChannels(true)}
+                                className="btn-springs btn-ghost bevel-sm text-xs">
+                                Réessayer
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <select
+                                className="settings-input w-full text-sm"
+                                value={team.discordChannelId ?? ''}
+                                disabled={teamActionLoading === `${team.id}_discord`}
+                                onChange={e => {
+                                  const id = e.target.value || null;
+                                  if (!id) {
+                                    handleUpdateTeamDiscordChannel(team.id, null, null);
+                                  } else {
+                                    const ch = (discordChannels ?? []).find(c => c.id === id);
+                                    handleUpdateTeamDiscordChannel(team.id, id, ch?.name ?? null);
+                                  }
+                                }}>
+                                <option value="">— Aucun salon —</option>
+                                {(() => {
+                                  const groups = new Map<string, DiscordChannel[]>();
+                                  for (const c of (discordChannels ?? [])) {
+                                    const key = c.parentName ?? '';
+                                    if (!groups.has(key)) groups.set(key, []);
+                                    groups.get(key)!.push(c);
+                                  }
+                                  const nodes: React.ReactNode[] = [];
+                                  for (const [groupName, list] of groups) {
+                                    if (groupName) {
+                                      nodes.push(
+                                        <optgroup key={`g_${groupName}`} label={groupName.toUpperCase()}>
+                                          {list.map(c => <option key={c.id} value={c.id}>#{c.name}</option>)}
+                                        </optgroup>
+                                      );
+                                    } else {
+                                      for (const c of list) {
+                                        nodes.push(<option key={c.id} value={c.id}>#{c.name}</option>);
+                                      }
+                                    }
+                                  }
+                                  return nodes;
+                                })()}
+                              </select>
+                              <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                                Le bot doit avoir accès à ce salon. Les événements de cette équipe y seront postés automatiquement.
+                              </p>
+                            </>
+                          )}
+                          <div className="flex items-center justify-end">
+                            <button type="button"
+                              onClick={() => setTeamDiscordEdit(null)}
+                              className="btn-springs btn-ghost bevel-sm text-xs">
+                              Fermer
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       {teamLogoEdit?.teamId === team.id && (
                         <div className="p-3 bevel-sm space-y-2" style={{ background: 'var(--s-surface)', border: '1px solid rgba(0,129,255,0.25)' }}>

@@ -77,6 +77,8 @@ export async function GET(req: NextRequest) {
         status: (data.status as 'active' | 'archived') ?? 'active',
         archivedAt: data.archivedAt?.toDate?.()?.toISOString() ?? null,
         logoUrl: typeof data.logoUrl === 'string' ? data.logoUrl : '',
+        discordChannelId: typeof data.discordChannelId === 'string' ? data.discordChannelId : null,
+        discordChannelName: typeof data.discordChannelName === 'string' ? data.discordChannelName : null,
         minPlayersForMatch: typeof data.minPlayersForMatch === 'number' ? data.minPlayersForMatch : null,
         minMatchDurationMinutes: typeof data.minMatchDurationMinutes === 'number' ? data.minMatchDurationMinutes : null,
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
@@ -101,7 +103,7 @@ export async function POST(req: NextRequest) {
     if (blocked) return blocked;
 
     const body = await req.json();
-    const { action, structureId, teamId, name, game, playerIds, subIds, staffIds, staffRoles, captainId, label, order, groupOrder, logoUrl } = body;
+    const { action, structureId, teamId, name, game, playerIds, subIds, staffIds, staffRoles, captainId, label, order, groupOrder, logoUrl, discordChannelId, discordChannelName } = body;
 
     // Valide une URL de logo d'équipe : http(s) uniquement, 500 chars max. Chaîne vide = retrait.
     const sanitizeLogoUrl = (raw: unknown): { ok: true; value: string } | { ok: false; error: string } => {
@@ -382,6 +384,24 @@ export async function POST(req: NextRequest) {
           // Si on retire le capitaine actuel des titulaires, on nettoie captainId
           if (!playerIds.includes(teamData.captainId)) {
             updates.captainId = null;
+          }
+        }
+
+        // Salon Discord de l'équipe (Phase 2 du bot). Même autorisation que le
+        // reste du case update : admin structure OU manager-d'équipe de cette équipe.
+        // On accepte null / "" pour retirer le mapping.
+        if (discordChannelId !== undefined) {
+          if (discordChannelId === null || discordChannelId === '') {
+            updates.discordChannelId = null;
+            updates.discordChannelName = null;
+          } else {
+            if (typeof discordChannelId !== 'string' || !/^\d{1,32}$/.test(discordChannelId)) {
+              return NextResponse.json({ error: 'discordChannelId invalide (snowflake attendu).' }, { status: 400 });
+            }
+            updates.discordChannelId = discordChannelId;
+            updates.discordChannelName = typeof discordChannelName === 'string'
+              ? discordChannelName.slice(0, 100)
+              : null;
           }
         }
 

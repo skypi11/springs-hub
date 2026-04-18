@@ -101,3 +101,62 @@ export function guildIconUrl(guildId: string, iconHash: string | null, size = 12
   const ext = iconHash.startsWith('a_') ? 'gif' : 'png';
   return `https://cdn.discordapp.com/icons/${guildId}/${iconHash}.${ext}?size=${size}`;
 }
+
+// Types Discord channel pertinents pour poster des notifs :
+//   0  = GUILD_TEXT
+//   5  = GUILD_ANNOUNCEMENT (salon d'annonce "classique")
+//   15 = GUILD_FORUM (on exclut : poster y est un post, pas un message)
+// On ignore aussi les voice/stage/threads/categories.
+const POSTABLE_CHANNEL_TYPES = new Set([0, 5]);
+const CATEGORY_CHANNEL_TYPE = 4;
+
+export interface DiscordChannel {
+  id: string;
+  name: string;
+  parentId: string | null;
+  parentName: string | null;
+  position: number;
+}
+
+// Récupère la liste des salons d'un serveur filtrés aux types "postables".
+// Inclut le nom de la catégorie parente si elle existe (pour regrouper côté UI).
+// Nécessite que le bot soit dans le serveur + scope View Channels.
+export async function getGuildChannels(guildId: string): Promise<DiscordChannel[]> {
+  const res = await fetch(`${DISCORD_API}/guilds/${guildId}/channels`, {
+    headers: { Authorization: `Bot ${botToken()}` },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Discord channels fetch failed: ${res.status} ${body.slice(0, 200)}`);
+  }
+  const raw = (await res.json()) as Array<{
+    id: string;
+    name: string;
+    type: number;
+    parent_id: string | null;
+    position: number;
+  }>;
+
+  const categories = new Map<string, string>();
+  for (const c of raw) {
+    if (c.type === CATEGORY_CHANNEL_TYPE) categories.set(c.id, c.name);
+  }
+
+  return raw
+    .filter(c => POSTABLE_CHANNEL_TYPES.has(c.type))
+    .map(c => ({
+      id: c.id,
+      name: c.name,
+      parentId: c.parent_id ?? null,
+      parentName: c.parent_id ? (categories.get(c.parent_id) ?? null) : null,
+      position: c.position ?? 0,
+    }))
+    .sort((a, b) => {
+      // Tri : catégorie (nom) puis position dans la catégorie. Les salons sans
+      // catégorie passent en premier.
+      const pa = a.parentName ?? '';
+      const pb = b.parentName ?? '';
+      if (pa !== pb) return pa.localeCompare(pb);
+      return a.position - b.position;
+    });
+}
