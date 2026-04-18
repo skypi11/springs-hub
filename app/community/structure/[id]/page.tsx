@@ -456,10 +456,20 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
     roleByUser.set(userId, r);
     return r;
   };
-  const leaders = structure.members.filter(m => {
-    const p = roleFor(m.userId).primary;
-    return p === 'fondateur' || p === 'co_fondateur';
-  });
+  // Dedupe par userId (un dirigeant RL + TM apparaît 2× dans structure_members)
+  // et tri fondateur puis co-fondateur via PRIMARY_ROLE_ORDER.
+  const leadersSeen = new Set<string>();
+  const leaders = structure.members
+    .filter(m => {
+      const p = roleFor(m.userId).primary;
+      if (p !== 'fondateur' && p !== 'co_fondateur') return false;
+      if (leadersSeen.has(m.userId)) return false;
+      leadersSeen.add(m.userId);
+      return true;
+    })
+    .sort((a, b) =>
+      PRIMARY_ROLE_ORDER.indexOf(roleFor(a.userId).primary) - PRIMARY_ROLE_ORDER.indexOf(roleFor(b.userId).primary),
+    );
   const sortedMembers = [...structure.members].sort((a, b) =>
     PRIMARY_ROLE_ORDER.indexOf(roleFor(a.userId).primary) - PRIMARY_ROLE_ORDER.indexOf(roleFor(b.userId).primary),
   );
