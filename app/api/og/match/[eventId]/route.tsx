@@ -1,36 +1,27 @@
 import { ImageResponse } from 'next/og';
 import { NextRequest } from 'next/server';
+import fs from 'node:fs';
+import path from 'node:path';
 import { getAdminDb } from '@/lib/firebase-admin';
 
 // Route publique : l'URL est intégrée dans les messages Discord, donc accessible
 // par Discord pour générer sa preview. Pas d'info sensible, juste nom équipe/
-// adversaire + logos (déjà publics). Cache long pour limiter les appels Firestore —
-// une édition d'event régénère l'URL côté appelant via ?v=updatedAt si besoin.
+// adversaire + logos (déjà publics). Cache long pour limiter les appels Firestore.
 export const runtime = 'nodejs';
 
 const WIDTH = 1200;
 const HEIGHT = 630;
 
-// Rajdhani 700 depuis Google Fonts. Police esport/gaming angulaire qui rime avec
-// les biseaux/clip-path de la DA Springs. Satori ne supporte pas woff2 (format
-// par défaut pour les UA modernes), donc on fake un UA Chrome ancien : Google
-// Fonts sert alors un TTF classique. Astuce officielle Vercel OG.
-const LEGACY_UA =
-  'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.118 Safari/537.36';
-
-async function loadRajdhani(): Promise<ArrayBuffer | null> {
+// Rajdhani 700 : police esport/gaming angulaire qui rime avec les biseaux/clip-path
+// de la DA Springs. TTF bundlée dans /public/fonts pour éviter les dépendances
+// réseau fragiles au cold-start (Google Fonts + UA trick marchait pas toujours).
+let RAJDHANI_CACHE: Buffer | null = null;
+function loadRajdhani(): Buffer | null {
+  if (RAJDHANI_CACHE) return RAJDHANI_CACHE;
   try {
-    const cssRes = await fetch(
-      'https://fonts.googleapis.com/css2?family=Rajdhani:wght@700',
-      { headers: { 'User-Agent': LEGACY_UA }, cache: 'force-cache' },
-    );
-    if (!cssRes.ok) return null;
-    const css = await cssRes.text();
-    const m = css.match(/src:\s*url\((https:\/\/[^)]+\.ttf)\)/);
-    if (!m) return null;
-    const fontRes = await fetch(m[1], { cache: 'force-cache' });
-    if (!fontRes.ok) return null;
-    return await fontRes.arrayBuffer();
+    const p = path.join(process.cwd(), 'public', 'fonts', 'Rajdhani-Bold.ttf');
+    RAJDHANI_CACHE = fs.readFileSync(p);
+    return RAJDHANI_CACHE;
   } catch {
     return null;
   }
@@ -52,10 +43,12 @@ function LogoBox({
   url,
   fallback,
   tint,
+  rajdhani,
 }: {
   url: string | null;
   fallback: string;
   tint: string;
+  rajdhani: boolean;
 }) {
   return (
     <div
@@ -77,11 +70,11 @@ function LogoBox({
       ) : (
         <div
           style={{
-            fontSize: 90,
-            fontWeight: 800,
+            fontSize: 110,
             color: 'rgba(255,255,255,0.85)',
             letterSpacing: '4px',
             display: 'flex',
+            fontFamily: rajdhani ? 'Rajdhani' : 'sans-serif',
           }}
         >
           {fallback}
@@ -127,7 +120,9 @@ export async function GET(
     const advLabel = adversaire.toUpperCase().slice(0, 22);
     const namesSize = nameFontSize(Math.max(teamLabel.length, advLabel.length));
 
-    const rajdhani = await loadRajdhani();
+    const font = loadRajdhani();
+    const hasFont = !!font;
+    const ff = hasFont ? 'Rajdhani' : 'sans-serif';
 
     return new ImageResponse(
       (
@@ -161,17 +156,19 @@ export async function GET(
               marginBottom: 32,
               padding: '8px 24px',
               fontSize: 22,
-              fontWeight: 700,
               letterSpacing: '8px',
               color: '#FFB800',
               background: 'rgba(255,184,0,0.08)',
               border: '1px solid rgba(255,184,0,0.35)',
               display: 'flex',
-              fontFamily: rajdhani ? 'Rajdhani' : 'sans-serif',
+              fontFamily: ff,
             }}
           >
             MATCH OFFICIEL
           </div>
+
+          {/* Rangée : colonne (logo + nom) — VS — colonne (logo + nom).
+              Chaque nom est naturellement centré sous son logo grâce au column+alignItems:center. */}
           <div
             style={{
               display: 'flex',
@@ -179,70 +176,80 @@ export async function GET(
               justifyContent: 'center',
             }}
           >
-            <LogoBox
-              url={teamLogoUrl}
-              fallback={initials(teamName)}
-              tint="rgba(255,255,255,0.25)"
-            />
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                width: 340,
+              }}
+            >
+              <LogoBox
+                url={teamLogoUrl}
+                fallback={initials(teamName)}
+                tint="rgba(255,255,255,0.25)"
+                rajdhani={hasFont}
+              />
+              <div
+                style={{
+                  marginTop: 24,
+                  fontSize: namesSize,
+                  color: '#eaeaf0',
+                  letterSpacing: '3px',
+                  fontFamily: ff,
+                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                }}
+              >
+                {teamLabel}
+              </div>
+            </div>
+
             <div
               style={{
                 fontSize: 180,
                 color: '#FFB800',
-                letterSpacing: '8px',
-                padding: '0 60px',
+                letterSpacing: '6px',
+                padding: '0 40px',
+                marginBottom: 60,
                 display: 'flex',
-                fontFamily: rajdhani ? 'Rajdhani' : 'sans-serif',
+                fontFamily: ff,
                 lineHeight: 1,
               }}
             >
               VS
             </div>
-            <LogoBox
-              url={adversaryLogoUrl}
-              fallback={initials(adversaire)}
-              tint="rgba(255,184,0,0.45)"
-            />
-          </div>
-          <div
-            style={{
-              marginTop: 36,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '100%',
-              padding: '0 80px',
-            }}
-          >
+
             <div
               style={{
-                width: 340,
                 display: 'flex',
-                justifyContent: 'center',
-                fontSize: namesSize,
-                color: '#eaeaf0',
-                letterSpacing: '4px',
-                fontFamily: rajdhani ? 'Rajdhani' : 'sans-serif',
-                whiteSpace: 'nowrap',
+                flexDirection: 'column',
+                alignItems: 'center',
+                width: 340,
               }}
             >
-              {teamLabel}
-            </div>
-            <div style={{ width: 260, display: 'flex' }} />
-            <div
-              style={{
-                width: 340,
-                display: 'flex',
-                justifyContent: 'center',
-                fontSize: namesSize,
-                color: '#eaeaf0',
-                letterSpacing: '4px',
-                fontFamily: rajdhani ? 'Rajdhani' : 'sans-serif',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {advLabel}
+              <LogoBox
+                url={adversaryLogoUrl}
+                fallback={initials(adversaire)}
+                tint="rgba(255,184,0,0.45)"
+                rajdhani={hasFont}
+              />
+              <div
+                style={{
+                  marginTop: 24,
+                  fontSize: namesSize,
+                  color: '#eaeaf0',
+                  letterSpacing: '3px',
+                  fontFamily: ff,
+                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                }}
+              >
+                {advLabel}
+              </div>
             </div>
           </div>
+
           <div
             style={{
               position: 'absolute',
@@ -251,6 +258,7 @@ export async function GET(
               color: 'rgba(255,255,255,0.4)',
               letterSpacing: '4px',
               display: 'flex',
+              fontFamily: ff,
             }}
           >
             SPRINGS HUB
@@ -260,8 +268,8 @@ export async function GET(
       {
         width: WIDTH,
         height: HEIGHT,
-        fonts: rajdhani
-          ? [{ name: 'Rajdhani', data: rajdhani, style: 'normal', weight: 700 }]
+        fonts: font
+          ? [{ name: 'Rajdhani', data: font, style: 'normal', weight: 700 }]
           : undefined,
         headers: {
           'Cache-Control': 'public, max-age=3600, s-maxage=86400, immutable',
