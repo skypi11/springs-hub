@@ -192,11 +192,6 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
     { name: '🗓️ Date', value: `<t:${startSec}:D>\n<t:${startSec}:R>`, inline: true },
     { name: '⏱️ Heure', value: `<t:${startSec}:t> → <t:${endSec}:t>`, inline: true },
   ];
-  // Pour un match, field Adversaire visible même si le logo est fourni (pour
-  // les clients qui ne chargent pas les images).
-  if (isOfficialMatch && input.adversaire) {
-    fields.push({ name: '⚔ Adversaire', value: input.adversaire.slice(0, 256), inline: true });
-  }
   // Titre de l'event affiché en clair pour un match (puisqu'il a été remplacé
   // par "TEAM VS ADV" dans le title). Ça préserve l'info "encore un test" par ex.
   if (isOfficialMatch && input.title) {
@@ -207,17 +202,6 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
   }
   if (input.resultat) {
     fields.push({ name: '🏆 Résultat', value: input.resultat.slice(0, 64), inline: true });
-  }
-  // Liste des participants comme field Discord (en plus du content qui les ping).
-  // Le field donne une vision "feuille de match" pérenne dans le message, même
-  // quand les notifs push sont passées.
-  if (userPings.length > 0) {
-    const participantsValue = userPings.map(id => `<@${id}>`).join(' ');
-    fields.push({
-      name: `👥 Participants (${userPings.length})`,
-      value: participantsValue.slice(0, 1024),
-      inline: false,
-    });
   }
 
   const authorObj: Record<string, unknown> = { name: authorName };
