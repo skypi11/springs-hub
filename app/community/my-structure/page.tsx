@@ -3997,6 +3997,12 @@ export default function MyStructurePage() {
                               <p className="text-xs font-semibold truncate" style={{ color: 'var(--s-text)' }}>{m.displayName}</p>
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <p className="t-mono" style={{ fontSize: '10px', color: structuralColor }}>{primaryLabel}</p>
+                                {(m.game === 'rocket_league' || m.game === 'trackmania') && (
+                                  <span className={`tag ${m.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
+                                    style={{ fontSize: '8px', padding: '1px 6px' }}>
+                                    {m.game === 'rocket_league' ? 'RL' : 'TM'}
+                                  </span>
+                                )}
                                 {affiliationBadges.map(b => {
                                   const c = badgeColors[b.key] ?? badgeColors.joueur;
                                   const names = b.teamNames.join(', ');
@@ -4010,6 +4016,12 @@ export default function MyStructurePage() {
                                     </span>
                                   );
                                 })}
+                                {derived.primary === 'membre' && derived.affiliations.length === 0 && (
+                                  <span className="tag"
+                                    style={{ fontSize: '8px', padding: '1px 6px', background: 'rgba(255,255,255,0.04)', color: 'var(--s-text-muted)', borderColor: 'var(--s-border)' }}>
+                                    Sans équipe
+                                  </span>
+                                )}
                                 {isCoFounderRow && daysLeft != null && (
                                   <span className="tag" style={{ fontSize: '8px', padding: '1px 6px', background: 'rgba(255,85,85,0.1)', color: '#ff8888', borderColor: 'rgba(255,85,85,0.3)' }}>
                                     Préavis : {daysLeft}j
