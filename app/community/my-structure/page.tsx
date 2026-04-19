@@ -19,7 +19,7 @@ import ReactMarkdown from 'react-markdown';
 import CalendarSection from '@/components/calendar/CalendarSection';
 import TeamDetailDrawer, { type DrawerTab, type DrawerTeam } from '@/components/calendar/TeamDetailDrawer';
 import MemberActionsMenu from '@/components/structure/MemberActionsMenu';
-import { CalendarClock, ClipboardList } from 'lucide-react';
+import { CalendarClock, ClipboardList, Film } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import PublicPreviewFrame from '@/components/ui/PublicPreviewFrame';
 import Portal from '@/components/ui/Portal';
@@ -4150,8 +4150,8 @@ export default function MyStructurePage() {
                     <CalendarClock size={13} style={{ color: 'var(--s-violet-light)' }} />
                   </div>
                   <div className="flex-1">
-                    <h2 className="font-display text-sm tracking-wider">DISPOS &amp; DEVOIRS PAR ÉQUIPE</h2>
-                    <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>Ouvre une équipe pour voir le matching des dispos et les devoirs en cours.</p>
+                    <h2 className="font-display text-sm tracking-wider">DISPOS, DEVOIRS &amp; REPLAYS PAR ÉQUIPE</h2>
+                    <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>Ouvre une équipe pour voir les dispos, les devoirs en cours et la bibliothèque de replays.</p>
                   </div>
                 </div>
                 <div className="relative z-[1] p-5 grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
@@ -4182,6 +4182,11 @@ export default function MyStructurePage() {
                             icon={<ClipboardList size={12} />}
                             label="Devoirs"
                             onClick={() => setDrawerState({ team: drawerTeam, tab: 'todos', canEditConfig: isDirigeant })}
+                          />
+                          <TeamActionChip
+                            icon={<Film size={12} />}
+                            label="Replays"
+                            onClick={() => setDrawerState({ team: drawerTeam, tab: 'replays', canEditConfig: isDirigeant })}
                           />
                         </div>
                       </div>
