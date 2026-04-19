@@ -27,6 +27,8 @@ import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import type { UserContext } from '@/lib/event-permissions';
 import PlayerStructureView, { type PlayerStructure } from '@/components/structure/PlayerStructureView';
 import MarkdownEditor from '@/components/ui/MarkdownEditor';
+import ImageUploader from '@/components/ui/ImageUploader';
+import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import { LIMITS } from '@/lib/validation';
 import { computeMemberRole, groupAffiliations, PRIMARY_ROLE_LABELS, type MemberRoleTeam, type PrimaryRole } from '@/lib/member-role';
 
@@ -117,6 +119,7 @@ type MyStructure = {
   name: string;
   tag: string;
   logoUrl: string;
+  coverUrl?: string;
   description: string;
   games: string[];
   discordUrl: string;
@@ -2353,15 +2356,23 @@ export default function MyStructurePage() {
             {/* Configuration */}
             <SectionPanel accent="var(--s-gold)" icon={Settings} title="CONFIGURATION"
               collapsed={collapsed.config} onToggle={() => toggle('config')}>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="t-label block mb-2">Logo URL</label>
-                    <input type="url" className="settings-input w-full"
-                      value={editLogoUrl} onChange={e => setEditLogoUrl(e.target.value)}
-                      placeholder="https://exemple.com/logo.png" />
-                    <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>Carré, fond transparent</p>
-                  </div>
+              <div className="space-y-5">
+                <div className="grid grid-cols-2 gap-5">
+                  <ImageUploader
+                    label="Logo de la structure"
+                    hint="Carré — idéalement fond transparent. Max 2 MB."
+                    aspect="square"
+                    maxBytes={UPLOAD_LIMITS.STRUCTURE_LOGO_BYTES}
+                    currentUrl={activeStructure?.logoUrl || editLogoUrl || null}
+                    endpoint="/api/upload/structure-image"
+                    extraFields={{ structureId: activeStructure?.id || '', type: 'logo' }}
+                    disabled={!activeStructure}
+                    onUploaded={(url) => {
+                      setEditLogoUrl(url);
+                      if (activeStructure) setActiveStructure({ ...activeStructure, logoUrl: url });
+                      void loadStructures();
+                    }}
+                  />
                   <div>
                     <label className="t-label block mb-2">Serveur Discord</label>
                     <input type="url" className="settings-input w-full"
@@ -2369,6 +2380,20 @@ export default function MyStructurePage() {
                       placeholder="https://discord.gg/..." />
                   </div>
                 </div>
+                <ImageUploader
+                  label="Bannière de la page publique"
+                  hint="Ratio 4:1 recommandé (1920×480). Max 5 MB."
+                  aspect="banner"
+                  maxBytes={UPLOAD_LIMITS.STRUCTURE_BANNER_BYTES}
+                  currentUrl={activeStructure?.coverUrl || null}
+                  endpoint="/api/upload/structure-image"
+                  extraFields={{ structureId: activeStructure?.id || '', type: 'banner' }}
+                  disabled={!activeStructure}
+                  onUploaded={(url) => {
+                    if (activeStructure) setActiveStructure({ ...activeStructure, coverUrl: url });
+                    void loadStructures();
+                  }}
+                />
               </div>
             </SectionPanel>
 

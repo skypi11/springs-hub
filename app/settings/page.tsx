@@ -13,6 +13,8 @@ import {
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import PublicPreviewFrame from '@/components/ui/PublicPreviewFrame';
 import MarkdownEditor from '@/components/ui/MarkdownEditor';
+import ImageUploader from '@/components/ui/ImageUploader';
+import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 
 const RECRUIT_ROLE_LABEL: Record<string, string> = {
   joueur: 'Joueur',
@@ -375,13 +377,15 @@ export default function SettingsPage() {
                           onChange={e => updateForm({ displayName: e.target.value })}
                           className="settings-input w-full" placeholder="Ton pseudo Springs" maxLength={32} />
                       </div>
-                      <div>
-                        <label className="t-label block mb-2">Avatar (URL image)</label>
-                        <input type="url" value={form.avatarUrl}
-                          onChange={e => updateForm({ avatarUrl: e.target.value })}
-                          className="settings-input w-full" placeholder="https://..." />
-                        <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>Vide = photo Discord</p>
-                      </div>
+                      <ImageUploader
+                        label="Avatar"
+                        hint="Carré — max 2 MB. Vide = photo Discord."
+                        aspect="square"
+                        maxBytes={UPLOAD_LIMITS.USER_AVATAR_BYTES}
+                        currentUrl={form.avatarUrl || null}
+                        endpoint="/api/upload/user-avatar"
+                        onUploaded={(url) => updateForm({ avatarUrl: url })}
+                      />
                     </div>
 
                     <div className="grid grid-cols-2 gap-5">

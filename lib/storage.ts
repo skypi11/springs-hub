@@ -7,6 +7,7 @@ import {
   ListObjectsV2Command,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { UPLOAD_LIMITS } from './upload-limits';
 
 // Configuration Cloudflare R2 (API compatible S3)
 // Variables d'env requises :
@@ -168,10 +169,16 @@ export async function getTotalSize(prefix: string): Promise<number> {
 // Helpers de construction de clés (centralisés pour cohérence)
 // ============================================================
 
+// Les clés d'assets versionnables utilisent un paramètre `version` (timestamp ms)
+// pour contourner le cache CDN : chaque nouvel upload change la clé/URL, l'ancienne
+// est supprimée explicitement.
 export const StorageKeys = {
-  structureLogo: (structureId: string) => `structures/${structureId}/logo.webp`,
-  structureBanner: (structureId: string) => `structures/${structureId}/banner.webp`,
-  userAvatar: (uid: string) => `users/${uid}/avatar.webp`,
+  structureLogo: (structureId: string, version: number) =>
+    `structures/${structureId}/logo-${version}.webp`,
+  structureBanner: (structureId: string, version: number) =>
+    `structures/${structureId}/banner-${version}.webp`,
+  userAvatar: (uid: string, version: number) =>
+    `users/${uid}/avatar-${version}.webp`,
   eventReplay: (structureId: string, eventId: string, replayId: string) =>
     `structures/${structureId}/replays/${eventId}/${replayId}.replay`,
   structureDocument: (structureId: string, documentId: string, filename: string) =>
@@ -179,7 +186,19 @@ export const StorageKeys = {
   // Préfixes pour calculs de quota
   structurePrefix: (structureId: string) => `structures/${structureId}/`,
   structureDocumentsPrefix: (structureId: string) => `structures/${structureId}/documents/`,
+  userPrefix: (uid: string) => `users/${uid}/`,
 } as const;
+
+// Extrait la clé R2 d'une URL publique (null si l'URL n'est pas sur notre bucket)
+// Utile pour supprimer l'ancien asset quand on en upload un nouveau.
+export function extractR2Key(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const base = process.env.R2_PUBLIC_URL;
+  if (!base) return null;
+  const prefix = base.replace(/\/$/, '') + '/';
+  if (!url.startsWith(prefix)) return null;
+  return url.slice(prefix.length);
+}
 
 // Nettoie un nom de fichier pour éviter les caractères problématiques dans la clé S3
 export function sanitizeFilename(name: string): string {
@@ -195,14 +214,8 @@ export function sanitizeFilename(name: string): string {
 // Limites par type (sources de vérité — à utiliser partout)
 // ============================================================
 
-export const UploadLimits = {
-  STRUCTURE_LOGO_BYTES: 2 * 1024 * 1024,       // 2 MB
-  STRUCTURE_BANNER_BYTES: 5 * 1024 * 1024,     // 5 MB
-  USER_AVATAR_BYTES: 2 * 1024 * 1024,          // 2 MB
-  REPLAY_BYTES: 10 * 1024 * 1024,              // 10 MB
-  STAFF_DOCUMENT_BYTES: 20 * 1024 * 1024,      // 20 MB
-  STRUCTURE_DOCS_QUOTA_BYTES: 500 * 1024 * 1024, // 500 MB / structure
-} as const;
+// Re-export pour compat — la vraie source est lib/upload-limits.ts (safe côté client)
+export const UploadLimits = UPLOAD_LIMITS;
 
 export const AllowedMimeTypes = {
   IMAGES: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],

@@ -1,21 +1,25 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
   StorageKeys,
   UploadLimits,
   AllowedMimeTypes,
   isAllowedMime,
   sanitizeFilename,
+  extractR2Key,
 } from './storage';
 
 describe('StorageKeys', () => {
-  it('construit la clé logo structure', () => {
-    expect(StorageKeys.structureLogo('abc123')).toBe('structures/abc123/logo.webp');
+  it('construit la clé logo structure (versionnée)', () => {
+    expect(StorageKeys.structureLogo('abc123', 1700000000000))
+      .toBe('structures/abc123/logo-1700000000000.webp');
   });
-  it('construit la clé bannière structure', () => {
-    expect(StorageKeys.structureBanner('abc123')).toBe('structures/abc123/banner.webp');
+  it('construit la clé bannière structure (versionnée)', () => {
+    expect(StorageKeys.structureBanner('abc123', 1700000000000))
+      .toBe('structures/abc123/banner-1700000000000.webp');
   });
-  it('construit la clé avatar user', () => {
-    expect(StorageKeys.userAvatar('discord_42')).toBe('users/discord_42/avatar.webp');
+  it('construit la clé avatar user (versionnée)', () => {
+    expect(StorageKeys.userAvatar('discord_42', 1700000000000))
+      .toBe('users/discord_42/avatar-1700000000000.webp');
   });
   it('construit la clé replay (imbriqué par event)', () => {
     expect(
@@ -30,6 +34,37 @@ describe('StorageKeys', () => {
   it('construit les préfixes pour quotas', () => {
     expect(StorageKeys.structurePrefix('s1')).toBe('structures/s1/');
     expect(StorageKeys.structureDocumentsPrefix('s1')).toBe('structures/s1/documents/');
+    expect(StorageKeys.userPrefix('discord_42')).toBe('users/discord_42/');
+  });
+});
+
+describe('extractR2Key', () => {
+  const ORIGINAL = process.env.R2_PUBLIC_URL;
+  beforeAll(() => {
+    process.env.R2_PUBLIC_URL = 'https://pub-xxx.r2.dev';
+  });
+  afterAll(() => {
+    process.env.R2_PUBLIC_URL = ORIGINAL;
+  });
+
+  it('extrait la clé d\'une URL R2 publique', () => {
+    expect(extractR2Key('https://pub-xxx.r2.dev/structures/s1/logo-123.webp'))
+      .toBe('structures/s1/logo-123.webp');
+  });
+  it('gère un trailing slash sur R2_PUBLIC_URL', () => {
+    process.env.R2_PUBLIC_URL = 'https://pub-xxx.r2.dev/';
+    expect(extractR2Key('https://pub-xxx.r2.dev/users/u1/avatar-1.webp'))
+      .toBe('users/u1/avatar-1.webp');
+    process.env.R2_PUBLIC_URL = 'https://pub-xxx.r2.dev';
+  });
+  it('renvoie null pour une URL externe', () => {
+    expect(extractR2Key('https://cdn.discordapp.com/attachments/xyz/file.png'))
+      .toBeNull();
+  });
+  it('renvoie null pour null/undefined/empty', () => {
+    expect(extractR2Key(null)).toBeNull();
+    expect(extractR2Key(undefined)).toBeNull();
+    expect(extractR2Key('')).toBeNull();
   });
 });
 
