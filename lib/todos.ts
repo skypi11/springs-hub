@@ -55,9 +55,14 @@ export interface TrainingPackConfig {
 }
 export const TRAINING_PACKS_MAX = 10;
 
-// Deadline relative à un event : offset en jours après l'event (0 = le jour même, 7 = une semaine après).
+// Deadline relative à un event : offset en jours autour de l'event.
+//  - négatif : N jours AVANT (ex: -1 = la veille, pour un training pack / check-in à faire avant un match)
+//  - 0 : le jour même
+//  - positif : N jours APRÈS (ex: +1 = le lendemain, pour une analyse post-match)
+// Bornes symétriques : ±30 jours.
 export const DEADLINE_OFFSET_DAYS_MAX = 30;
-export const DEADLINE_OFFSET_PRESETS: readonly number[] = [0, 1, 2, 7];
+export const DEADLINE_OFFSET_DAYS_MIN = -30;
+export const DEADLINE_OFFSET_PRESETS: readonly number[] = [-2, -1, 0, 1, 2, 7];
 export type DeadlineMode = 'absolute' | 'relative';
 export interface VodReviewConfig {
   url: string;               // lien YouTube / Twitch
@@ -425,8 +430,8 @@ export function validateCreateTodo(
     if (!Number.isFinite(off) || !Number.isInteger(off)) {
       return { ok: false, error: 'Offset de deadline invalide (entier requis).' };
     }
-    if (off < 0 || off > DEADLINE_OFFSET_DAYS_MAX) {
-      return { ok: false, error: `Offset de deadline hors limites (0 à ${DEADLINE_OFFSET_DAYS_MAX} jours).` };
+    if (off < DEADLINE_OFFSET_DAYS_MIN || off > DEADLINE_OFFSET_DAYS_MAX) {
+      return { ok: false, error: `Offset de deadline hors limites (${DEADLINE_OFFSET_DAYS_MIN} à ${DEADLINE_OFFSET_DAYS_MAX} jours).` };
     }
     deadlineMode = 'relative';
     deadlineOffsetDays = off;

@@ -222,7 +222,7 @@ describe('validateCreateTodo', () => {
     expect(r.ok).toBe(false);
   });
 
-  it('deadline relative offset négatif → rejetée', () => {
+  it('deadline relative offset négatif valide (J-1 = la veille)', () => {
     const r = validateCreateTodo({
       subTeamId: 'team1',
       assigneeIds: ['u1'],
@@ -230,6 +230,19 @@ describe('validateCreateTodo', () => {
       eventId: 'evt1',
       deadlineMode: 'relative',
       deadlineOffsetDays: -1,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.deadlineOffsetDays).toBe(-1);
+  });
+
+  it('deadline relative offset trop négatif (< -30) → rejetée', () => {
+    const r = validateCreateTodo({
+      subTeamId: 'team1',
+      assigneeIds: ['u1'],
+      title: 'x',
+      eventId: 'evt1',
+      deadlineMode: 'relative',
+      deadlineOffsetDays: -31,
     });
     expect(r.ok).toBe(false);
   });
@@ -567,6 +580,14 @@ describe('computeRelativeDeadline', () => {
 
   it('offset=7 → une semaine après', () => {
     expect(computeRelativeDeadline(evtMs, 7)).toBe('2026-05-08');
+  });
+
+  it('offset=-1 → la veille (pour check-in avant match)', () => {
+    expect(computeRelativeDeadline(evtMs, -1)).toBe('2026-04-30');
+  });
+
+  it('offset=-2 → 2 jours avant', () => {
+    expect(computeRelativeDeadline(evtMs, -2)).toBe('2026-04-29');
   });
 
   it('franchit le mois', () => {

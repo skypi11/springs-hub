@@ -16,6 +16,7 @@ import {
   TODO_TYPE_META,
   DEFAULT_MENTAL_PROMPTS,
   DEADLINE_OFFSET_DAYS_MAX,
+  DEADLINE_OFFSET_DAYS_MIN,
   DEADLINE_OFFSET_PRESETS,
   normalizeTrainingPacks,
   type TodoRef,
@@ -852,7 +853,7 @@ function NewTodoForm({
             <div className="flex flex-wrap gap-1.5">
               {DEADLINE_OFFSET_PRESETS.map(n => {
                 const active = deadlineOffsetDays === n;
-                const label = n === 0 ? 'Le jour même' : n === 1 ? 'J+1' : `J+${n}`;
+                const label = n === 0 ? 'Le jour J' : n > 0 ? `J+${n}` : `J${n}`;
                 return (
                   <button key={n} type="button"
                     onClick={() => setDeadlineOffsetDays(n)}
@@ -868,24 +869,29 @@ function NewTodoForm({
                 );
               })}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>ou custom :</span>
-              <input type="number" min={0} max={DEADLINE_OFFSET_DAYS_MAX}
+              <input type="number" min={DEADLINE_OFFSET_DAYS_MIN} max={DEADLINE_OFFSET_DAYS_MAX}
                 className="settings-input text-sm"
                 style={{ width: '80px' }}
                 value={deadlineOffsetDays}
                 onChange={e => {
                   const n = Number(e.target.value);
                   if (Number.isFinite(n)) {
-                    setDeadlineOffsetDays(Math.max(0, Math.min(DEADLINE_OFFSET_DAYS_MAX, Math.round(n))));
+                    setDeadlineOffsetDays(Math.max(DEADLINE_OFFSET_DAYS_MIN, Math.min(DEADLINE_OFFSET_DAYS_MAX, Math.round(n))));
                   }
                 }} />
               <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                jour{deadlineOffsetDays > 1 ? 's' : ''} après l&apos;event ({DEADLINE_OFFSET_DAYS_MAX} max)
+                {deadlineOffsetDays === 0
+                  ? 'le jour de l\u2019event'
+                  : deadlineOffsetDays > 0
+                    ? `jour${deadlineOffsetDays > 1 ? 's' : ''} APR\u00c8S l\u2019event`
+                    : `jour${deadlineOffsetDays < -1 ? 's' : ''} AVANT l\u2019event`}
+                {' '}(n\u00e9gatif = avant, positif = apr\u00e8s, max \u00b1{DEADLINE_OFFSET_DAYS_MAX})
               </span>
             </div>
             <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-              Si l&apos;event est déplacé, la deadline suit automatiquement.
+              Ex : J-1 = check-in / training pack \u00e0 faire la veille du match. Si l\u2019event est d\u00e9plac\u00e9, la deadline suit automatiquement.
             </p>
           </div>
         ) : (
