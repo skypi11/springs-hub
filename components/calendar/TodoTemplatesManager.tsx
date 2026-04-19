@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { Loader2, X, Share2, Trash2, Edit2, Check, Users, User as UserIcon } from 'lucide-react';
+import { Loader2, X, Share2, Trash2, Edit2, Check, Users, User as UserIcon, Plus } from 'lucide-react';
 import Portal from '@/components/ui/Portal';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
@@ -9,6 +9,7 @@ import { useConfirm } from '@/components/ui/ConfirmModal';
 import {
   TODO_TITLE_MAX,
   TODO_DESCRIPTION_MAX,
+  TODO_TYPES,
   TODO_TYPE_META,
   type TodoType,
 } from '@/lib/todos';
@@ -45,6 +46,7 @@ export default function TodoTemplatesManager({
   const personal = templates.filter(t => t.scope === 'personal');
   const structure = templates.filter(t => t.scope === 'structure');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
   return (
     <Portal>
@@ -65,20 +67,37 @@ export default function TodoTemplatesManager({
                 ({templates.length})
               </span>
             </div>
-            <button type="button" onClick={onClose}
-              className="p-1 transition-colors"
-              style={{ color: 'var(--s-text-dim)', cursor: 'pointer' }}
-              aria-label="Fermer">
-              <X size={16} />
-            </button>
+            <div className="flex items-center gap-2">
+              {!creating && (
+                <button type="button" onClick={() => setCreating(true)}
+                  className="btn-springs btn-primary bevel-sm flex items-center gap-1.5 text-xs">
+                  <Plus size={12} />
+                  <span>Nouveau template</span>
+                </button>
+              )}
+              <button type="button" onClick={onClose}
+                className="p-1 transition-colors"
+                style={{ color: 'var(--s-text-dim)', cursor: 'pointer' }}
+                aria-label="Fermer">
+                <X size={16} />
+              </button>
+            </div>
           </div>
 
           <div className="panel-body space-y-5">
+            {creating && (
+              <TemplateCreateForm
+                structureId={structureId}
+                onCancel={() => setCreating(false)}
+                onSaved={() => { setCreating(false); onChanged(); }}
+              />
+            )}
+
             {/* Mes templates perso */}
             <TemplateGroup
               label="MES TEMPLATES (perso)"
               icon={<UserIcon size={12} style={{ color: 'var(--s-violet-light)' }} />}
-              empty="Aucun template personnel. Enregistre un devoir existant comme template pour le réutiliser."
+              empty="Aucun template personnel. Clique « Nouveau template » en haut à droite, ou enregistre un devoir existant comme template."
               templates={personal}
               structureId={structureId}
               currentUid={currentUid}
@@ -91,7 +110,7 @@ export default function TodoTemplatesManager({
             <TemplateGroup
               label="PARTAGÉS DE LA STRUCTURE"
               icon={<Users size={12} style={{ color: 'var(--s-gold)' }} />}
-              empty="Aucun template partagé. Partage tes recettes avec toute la structure pour que le staff en bénéficie."
+              empty="Aucun template partagé. Crée-en un et coche « partager avec la structure » pour que le staff en bénéficie."
               templates={structure}
               structureId={structureId}
               currentUid={currentUid}
@@ -103,6 +122,132 @@ export default function TodoTemplatesManager({
         </div>
       </div>
     </Portal>
+  );
+}
+
+function TemplateCreateForm({
+  structureId,
+  onCancel,
+  onSaved,
+}: {
+  structureId: string;
+  onCancel: () => void;
+  onSaved: () => void;
+}) {
+  const { firebaseUser } = useAuth();
+  const toast = useToast();
+  const [type, setType] = useState<TodoType>('free');
+  const [scope, setScope] = useState<'personal' | 'structure'>('personal');
+  const [name, setName] = useState('');
+  const [titleTemplate, setTitleTemplate] = useState('');
+  const [descriptionTemplate, setDescriptionTemplate] = useState('');
+  const [config, setConfig] = useState<Record<string, unknown>>({});
+  const [saving, setSaving] = useState(false);
+
+  const updateConfig = useCallback((patch: Record<string, unknown>) => {
+    setConfig(prev => ({ ...prev, ...patch }));
+  }, []);
+
+  // Reset config quand le type change — les clés diffèrent d'un type à l'autre.
+  useEffect(() => { setConfig({}); }, [type]);
+
+  async function save() {
+    if (!firebaseUser || saving) return;
+    if (!name.trim()) { toast.error('Nom requis'); return; }
+    setSaving(true);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch(`/api/structures/${structureId}/todo-templates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({
+          scope,
+          name: name.trim(),
+          type,
+          titleTemplate,
+          descriptionTemplate,
+          config,
+        }),
+      });
+      if (res.ok) {
+        toast.success(scope === 'structure' ? 'Template partagé créé' : 'Template personnel créé');
+        onSaved();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.error || 'Erreur');
+      }
+    } catch {
+      toast.error('Erreur réseau');
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div className="p-3 space-y-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-gold)' }}>
+      <div className="flex items-center gap-2">
+        <span className="t-label" style={{ fontSize: '11px', color: 'var(--s-gold)' }}>
+          NOUVEAU TEMPLATE
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Type *</label>
+          <select className="settings-input w-full text-sm"
+            value={type} onChange={e => setType(e.target.value as TodoType)}>
+            {TODO_TYPES.map(t => (
+              <option key={t} value={t}>{TODO_TYPE_META[t].label}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Visibilité</label>
+          <select className="settings-input w-full text-sm"
+            value={scope} onChange={e => setScope(e.target.value as 'personal' | 'structure')}>
+            <option value="personal">Perso (toi seul)</option>
+            <option value="structure">Partagé avec la structure</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Nom du template *</label>
+        <input type="text" className="settings-input w-full text-sm"
+          placeholder="Scouting 3v3 — BO5"
+          maxLength={TEMPLATE_NAME_MAX}
+          value={name} onChange={e => setName(e.target.value)} autoFocus />
+      </div>
+
+      <div>
+        <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Titre pré-rempli</label>
+        <input type="text" className="settings-input w-full text-sm"
+          placeholder="Laissé vide ? Tu le saisiras à chaque utilisation."
+          maxLength={TODO_TITLE_MAX}
+          value={titleTemplate} onChange={e => setTitleTemplate(e.target.value)} />
+      </div>
+
+      <div>
+        <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Description pré-remplie</label>
+        <textarea rows={2} className="settings-input w-full text-sm"
+          maxLength={TODO_DESCRIPTION_MAX}
+          value={descriptionTemplate} onChange={e => setDescriptionTemplate(e.target.value)} />
+      </div>
+
+      <TodoConfigFields type={type} config={config} onChange={updateConfig} />
+
+      <div className="flex items-center gap-2 pt-1">
+        <button type="button" onClick={save} disabled={saving || !name.trim()}
+          className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-xs"
+          style={{ opacity: !name.trim() ? 0.5 : 1 }}>
+          {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+          <span>Créer le template</span>
+        </button>
+        <button type="button" onClick={onCancel}
+          className="text-xs" style={{ color: 'var(--s-text-dim)', cursor: 'pointer' }}>
+          Annuler
+        </button>
+      </div>
+    </div>
   );
 }
 
