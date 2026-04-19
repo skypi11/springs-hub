@@ -348,7 +348,7 @@ export async function POST(
           createdByName = (u?.displayName as string | undefined) || (u?.discordUsername as string | undefined) || null;
         } catch { /* best-effort */ }
 
-        const siteEventUrl = `${req.nextUrl.origin}/community/my-structure?event=${encodeURIComponent(eventRef.id)}`;
+        const siteEventUrl = `${req.nextUrl.origin}/community/my-structure?tab=calendar&event=${encodeURIComponent(eventRef.id)}`;
         // Bannière composite pour les matchs officiels (générée par /api/og/match).
         // Seulement si on a un adversaire — sinon pas de sens.
         const isOfficialMatch = type === 'match' && !!(adversaire?.trim());

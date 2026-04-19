@@ -93,6 +93,8 @@ export async function GET(
         type: (typeof d.type === 'string' && d.type) ? d.type : 'free',
         title: (d.title as string | undefined) ?? '',
         description: (d.description as string | undefined) ?? '',
+        config: (d.config && typeof d.config === 'object') ? d.config as Record<string, unknown> : {},
+        response: (d.response && typeof d.response === 'object') ? d.response as Record<string, unknown> : null,
         eventId: (d.eventId as string | null) ?? null,
         deadline,
         deadlineAt,

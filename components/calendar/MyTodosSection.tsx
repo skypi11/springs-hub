@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Loader2, Check, Calendar as CalIcon, ChevronDown, ChevronRight, ClipboardList, Shield, X } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
@@ -82,6 +82,21 @@ export default function MyTodosSection() {
   }, [firebaseUser]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Deep-link : `?todo=ID` depuis l'embed Discord / notif ouvre directement le drawer
+  // quand les devoirs sont chargés. Consommé une seule fois, puis nettoie l'URL.
+  const deepLinkConsumed = useRef(false);
+  useEffect(() => {
+    if (deepLinkConsumed.current || todos.length === 0 || typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const todoParam = params.get('todo');
+    if (!todoParam) return;
+    if (todos.some(t => t.id === todoParam)) setOpenTodoId(todoParam);
+    deepLinkConsumed.current = true;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('todo');
+    window.history.replaceState({}, '', url.toString());
+  }, [todos]);
 
   const { pending, done } = useMemo(() => {
     const p: MyTodo[] = [];

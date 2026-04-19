@@ -228,8 +228,13 @@ export async function POST(
         }
 
         // 2) DM à chaque assigné (best-effort — 403 est normal si DMs désactivés).
-        await Promise.all(pingUserIds.map(async did => {
-          const res = await sendTodoDM(did, embedInput);
+        // URL deep-link personnalisée par assignee → ouvre son devoir directement dans /calendar.
+        await Promise.all(assigneeIds.map(async (assigneeId, i) => {
+          const did = toDiscordId(assigneeId);
+          if (!did) return;
+          const todoId = createdIds[i];
+          const personalUrl = `${req.nextUrl.origin}/calendar?todo=${encodeURIComponent(todoId)}`;
+          const res = await sendTodoDM(did, { ...embedInput, siteTodoUrl: personalUrl });
           if (!res.ok) {
             // Pas un vrai "error" — on ne spam pas Sentry pour des 403 attendus.
             // On pourrait tracker par user en metadata pour faire un rapport "X ne reçoit pas les DMs".

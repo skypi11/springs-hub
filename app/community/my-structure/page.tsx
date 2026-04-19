@@ -736,6 +736,23 @@ export default function MyStructurePage() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [showEmojis, setShowEmojis] = useState(false);
   const [tab, setTab] = useState<DashboardTab>('general');
+  // Deep-link pending consommé par CrossTeamTodosPanel pour ouvrir son drawer détail.
+  const [pendingTodoId, setPendingTodoId] = useState<string | null>(null);
+  // Deep-link non consommé : on lit `?tab=...&team=...&todo=...` au mount et on applique
+  // tab/drawer/todo une seule fois quand les données sont là, puis on nettoie l'URL.
+  const deepLinkRef = useRef<{ tab: string | null; teamId: string | null; todoId: string | null; consumed: boolean }>({
+    tab: null, teamId: null, todoId: null, consumed: false,
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    deepLinkRef.current = {
+      tab: params.get('tab'),
+      teamId: params.get('team'),
+      todoId: params.get('todo'),
+      consumed: false,
+    };
+  }, []);
   const descRef = useRef<HTMLTextAreaElement>(null);
   // `now` est utilisé pour calculer le temps restant sur les préavis de départ.
   // Lazy-init : appelé une seule fois au montage, puis refresh toutes les 60s.
@@ -764,6 +781,47 @@ export default function MyStructurePage() {
     if (!visible.includes(tab)) setTab(visible[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeStructure?.id, firebaseUser?.uid]);
+
+  // Consommation du deep-link : applique tab / team / todo une fois les données prêtes,
+  // puis nettoie l'URL pour éviter de réouvrir au prochain changement de state.
+  useEffect(() => {
+    if (deepLinkRef.current.consumed) return;
+    if (!activeStructure || !firebaseUser) return;
+    const { tab: tabParam, teamId, todoId } = deepLinkRef.current;
+    if (!tabParam && !teamId && !todoId) return;
+
+    const validTabs: DashboardTab[] = ['general', 'teams', 'recruitment', 'members', 'calendar', 'todos', 'documents'];
+    if (tabParam && (validTabs as string[]).includes(tabParam)) {
+      setTab(tabParam as DashboardTab);
+    }
+
+    if (teamId) {
+      // Attendre que les équipes soient chargées pour ouvrir le drawer.
+      if (teams.length === 0) return;
+      const t = teams.find(x => x.id === teamId);
+      if (t) {
+        const isFounder = activeStructure.founderId === firebaseUser.uid;
+        const isCoFounder = (activeStructure.coFounderIds ?? []).includes(firebaseUser.uid);
+        const drawerTeam: DrawerTeam = {
+          id: t.id, name: t.name, game: t.game,
+          players: t.players, subs: t.subs, staff: t.staff,
+        };
+        setDrawerState({ team: drawerTeam, tab: 'todos', canEditConfig: isFounder || isCoFounder });
+      }
+    }
+
+    if (todoId) setPendingTodoId(todoId);
+
+    deepLinkRef.current.consumed = true;
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('tab');
+      url.searchParams.delete('team');
+      url.searchParams.delete('todo');
+      window.history.replaceState({}, '', url.toString());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeStructure?.id, firebaseUser?.uid, teams.length]);
 
   async function loadStructures() {
     if (!firebaseUser) return;
@@ -4324,7 +4382,20 @@ export default function MyStructurePage() {
         {/* ═══ DEVOIRS (cross-teams) ═══ */}
         {tab === 'todos' && (
           <div className="animate-fade-in-d3">
-            <CrossTeamTodosPanel structureId={s.id} />
+            <CrossTeamTodosPanel
+              structureId={s.id}
+              initialTodoId={pendingTodoId}
+              onConsumedTodo={() => setPendingTodoId(null)}
+              onOpenTeam={(teamId) => {
+                const t = teams.find(x => x.id === teamId);
+                if (!t) return;
+                const drawerTeam: DrawerTeam = {
+                  id: t.id, name: t.name, game: t.game,
+                  players: t.players, subs: t.subs, staff: t.staff,
+                };
+                setDrawerState({ team: drawerTeam, tab: 'todos', canEditConfig: isDirigeantOfActive });
+              }}
+            />
           </div>
         )}
 

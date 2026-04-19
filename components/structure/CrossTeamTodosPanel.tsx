@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import Image from 'next/image';
 import {
   AlertTriangle, Clock, CheckCircle2, Calendar, Filter, Loader2, ListChecks, Users,
   Activity, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { auth } from '@/lib/firebase';
-import { TODO_TYPE_META, type TodoType } from '@/lib/todos';
+import { TODO_TYPE_META, type TodoRef, type TodoType } from '@/lib/todos';
+import TodoDetailDrawer, { type DrawerTodo } from '@/components/calendar/TodoDetailDrawer';
 
 type OverviewTeam = { id: string; name: string; label: string | null; game: string; logoUrl: string | null };
 type OverviewUser = { uid: string; displayName: string; avatarUrl: string };
@@ -20,9 +20,13 @@ type OverviewTodo = {
   type: TodoType;
   title: string;
   description: string;
+  config: Record<string, unknown>;
+  response: Record<string, unknown> | null;
   eventId: string | null;
   deadline: string | null;
   deadlineAt: number | null;
+  deadlineMode: 'absolute' | 'relative' | null;
+  deadlineOffsetDays: number | null;
   done: boolean;
   doneAt: number | null;
   doneBy: string | null;
@@ -87,7 +91,17 @@ function parisDayLabel(ms: number): string {
 const DAY_MS = 86_400_000;
 const HEATMAP_MAX_PLAYERS = 15;
 
-export default function CrossTeamTodosPanel({ structureId }: { structureId: string }) {
+export default function CrossTeamTodosPanel({
+  structureId,
+  initialTodoId,
+  onConsumedTodo,
+  onOpenTeam,
+}: {
+  structureId: string;
+  initialTodoId?: string | null;
+  onConsumedTodo?: () => void;
+  onOpenTeam?: (teamId: string) => void;
+}) {
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +110,7 @@ export default function CrossTeamTodosPanel({ structureId }: { structureId: stri
   const [stateFilter, setStateFilter] = useState<StateFilter>('overdue');
   const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
   const [heatmapOpen, setHeatmapOpen] = useState(true);
+  const [openTodoId, setOpenTodoId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,6 +141,16 @@ export default function CrossTeamTodosPanel({ structureId }: { structureId: stri
     load();
     return () => { cancelled = true; };
   }, [structureId]);
+
+  // Deep-link : si initialTodoId pointe vers un devoir qu'on a chargé, ouvrir le drawer une fois.
+  useEffect(() => {
+    if (!initialTodoId || !data) return;
+    if (data.todos.some(t => t.id === initialTodoId)) {
+      setOpenTodoId(initialTodoId);
+    }
+    onConsumedTodo?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTodoId, data]);
 
   const teamMap = useMemo(() => {
     const m = new Map<string, OverviewTeam>();
@@ -410,10 +435,31 @@ export default function CrossTeamTodosPanel({ structureId }: { structureId: stri
               todo={t}
               team={teamMap.get(t.subTeamId)}
               assignee={userMap.get(t.assigneeId)}
+              onOpen={() => setOpenTodoId(t.id)}
+              onOpenTeam={onOpenTeam ? () => onOpenTeam(t.subTeamId) : undefined}
             />
           ))}
         </ul>
       )}
+
+      {/* Drawer détail — read-only côté overview staff (pas de toggle, pas de response form) */}
+      {(() => {
+        if (!openTodoId || !data) return null;
+        const ot = data.todos.find(t => t.id === openTodoId);
+        if (!ot) return null;
+        const team = teamMap.get(ot.subTeamId);
+        const drawerTodo: DrawerTodo = {
+          ...(ot as OverviewTodo as unknown as TodoRef),
+          teamName: team ? (team.label ? `${team.name} — ${team.label}` : team.name) : undefined,
+        };
+        return (
+          <TodoDetailDrawer
+            open
+            onClose={() => setOpenTodoId(null)}
+            todo={drawerTodo}
+          />
+        );
+      })()}
     </div>
   );
 }
@@ -524,11 +570,13 @@ function LegendDot({ color, border, label }: { color: string; border: string; la
 }
 
 function TodoRow({
-  todo, team, assignee,
+  todo, team, assignee, onOpen, onOpenTeam,
 }: {
   todo: OverviewTodo;
   team: OverviewTeam | undefined;
   assignee: OverviewUser | undefined;
+  onOpen: () => void;
+  onOpenTeam?: () => void;
 }) {
   const meta = TODO_TYPE_META[todo.type];
   const deadline = formatDeadline(todo.deadlineAt, todo.done);
@@ -536,8 +584,9 @@ function TodoRow({
   const gameShort = team ? (GAME_SHORT[team.game] ?? team.game.toUpperCase()) : '';
 
   return (
-    <li className="bevel-sm transition-colors"
-      style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+    <li className="bevel-sm transition-colors cursor-pointer hover:brightness-110"
+      style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
+      onClick={onOpen}>
       <div className="p-3 flex items-center gap-3">
         {/* Assignee avatar */}
         <div className="w-8 h-8 flex-shrink-0 bevel-sm overflow-hidden relative"
@@ -587,12 +636,15 @@ function TodoRow({
             style={{ background: deadline.bg, color: deadline.color, border: '1px solid var(--s-border)' }}>
             {deadline.text}
           </div>
-          {team && (
+          {team && onOpenTeam && (
             <div className="mt-1">
-              <Link href={`/community/structure/${todo.structureId}`} className="text-[10px] uppercase tracking-wider"
-                style={{ color: 'var(--s-text-muted)' }}>
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); onOpenTeam(); }}
+                className="text-[10px] uppercase tracking-wider cursor-pointer hover:text-white transition-colors"
+                style={{ color: 'var(--s-text-muted)', background: 'transparent', border: 'none', padding: 0 }}>
                 Voir équipe →
-              </Link>
+              </button>
             </div>
           )}
         </div>
