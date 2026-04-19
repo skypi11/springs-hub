@@ -171,6 +171,15 @@
         { "fieldPath": "structureId", "order": "ASCENDING" },
         { "fieldPath": "scope", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "structure_todos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "eventId", "order": "ASCENDING" },
+        { "fieldPath": "deadlineMode", "order": "ASCENDING" },
+        { "fieldPath": "done", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

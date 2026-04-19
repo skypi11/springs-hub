@@ -9,6 +9,8 @@ import {
   canDeleteEvent,
   type EventRef,
 } from '@/lib/event-permissions';
+import { computeRelativeDeadline } from '@/lib/todos';
+import { createNotifications, type NotificationPayload } from '@/lib/notifications';
 
 const MAX_TITLE = 120;
 const MAX_DESC = 2000;
@@ -59,6 +61,8 @@ export async function PATCH(
     const updates: Record<string, unknown> = {
       updatedAt: FieldValue.serverTimestamp(),
     };
+    // Capturé ici pour recalculer les deadlines relatives des devoirs liés après l'update.
+    let newStartsAtMs: number | null = null;
 
     // Champs éditables tant que l'événement est scheduled
     if (event.status === 'scheduled') {
@@ -90,7 +94,10 @@ export async function PATCH(
         if (endMs - startMs > MAX_EVENT_DURATION_MS) {
           return NextResponse.json({ error: 'Durée max 7 jours.' }, { status: 400 });
         }
-        if (body.startsAt) updates.startsAt = Timestamp.fromMillis(startMs);
+        if (body.startsAt) {
+          updates.startsAt = Timestamp.fromMillis(startMs);
+          newStartsAtMs = startMs;
+        }
         if (body.endsAt) updates.endsAt = Timestamp.fromMillis(endMs);
       }
     }
@@ -127,7 +134,53 @@ export async function PATCH(
     }
 
     await eventRef.update(updates);
-    return NextResponse.json({ success: true });
+
+    // Recalc des devoirs à deadline relative si la date de l'event a bougé.
+    // Choix produit B+C : on ne touche qu'aux !done et on ne notifie que si la YYYY-MM-DD change
+    // (changer l'heure sans changer le jour ne doit pas spammer les joueurs).
+    let recalcedCount = 0;
+    if (newStartsAtMs !== null) {
+      try {
+        const todosSnap = await db.collection('structure_todos')
+          .where('eventId', '==', eventId)
+          .where('deadlineMode', '==', 'relative')
+          .where('done', '==', false)
+          .get();
+
+        const batch = db.batch();
+        const notifs: NotificationPayload[] = [];
+        for (const doc of todosSnap.docs) {
+          const data = doc.data();
+          const offset = typeof data.deadlineOffsetDays === 'number' ? data.deadlineOffsetDays : null;
+          if (offset === null) continue;
+          const oldDeadline = (data.deadline as string | null) ?? null;
+          const newDeadline = computeRelativeDeadline(newStartsAtMs, offset);
+          if (oldDeadline === newDeadline) continue;
+          batch.update(doc.ref, { deadline: newDeadline, updatedAt: FieldValue.serverTimestamp() });
+          recalcedCount++;
+          const assigneeId = data.assigneeId as string | undefined;
+          if (assigneeId) {
+            notifs.push({
+              userId: assigneeId,
+              type: 'todo_deadline_changed',
+              title: 'Deadline de devoir mise à jour',
+              message: `« ${String(data.title || 'Devoir')} » : nouvelle deadline ${newDeadline} (l'event a été déplacé).`,
+              link: '/calendar',
+              metadata: { todoId: doc.id, eventId, oldDeadline, newDeadline },
+            });
+          }
+        }
+        if (recalcedCount > 0) {
+          await batch.commit();
+          await createNotifications(db, notifs);
+        }
+      } catch (recalcErr) {
+        // On ne bloque pas le PATCH event si la recalc échoue — log seulement.
+        captureApiError('API Structures/events PATCH recalc todos error', recalcErr);
+      }
+    }
+
+    return NextResponse.json({ success: true, todosRecalced: recalcedCount });
   } catch (err) {
     captureApiError('API Structures/events PATCH error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });

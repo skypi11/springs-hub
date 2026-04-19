@@ -54,6 +54,11 @@ export interface TrainingPackConfig {
   packs: TrainingPackItem[]; // au moins 1 pack à la création, max TRAINING_PACKS_MAX
 }
 export const TRAINING_PACKS_MAX = 10;
+
+// Deadline relative à un event : offset en jours après l'event (0 = le jour même, 7 = une semaine après).
+export const DEADLINE_OFFSET_DAYS_MAX = 30;
+export const DEADLINE_OFFSET_PRESETS: readonly number[] = [0, 1, 2, 7];
+export type DeadlineMode = 'absolute' | 'relative';
 export interface VodReviewConfig {
   url: string;               // lien YouTube / Twitch
   focus: string;             // ce sur quoi le joueur doit se concentrer
@@ -110,7 +115,9 @@ export interface TodoRef {
   config: Record<string, unknown>; // sérialisé tel quel depuis Firestore
   response: Record<string, unknown> | null;
   eventId: string | null;
-  deadline: string | null;  // "YYYY-MM-DD" ou null
+  deadline: string | null;  // "YYYY-MM-DD" ou null — valeur concrète (calculée si relative)
+  deadlineMode: DeadlineMode | null;  // null = pas de deadline ; 'absolute' = fixée ; 'relative' = calculée depuis l'event
+  deadlineOffsetDays: number | null;  // uniquement si mode='relative' — offset en jours après event.startsAt
   done: boolean;
   doneAt: number | null;    // ms epoch
   doneBy: string | null;
@@ -127,6 +134,8 @@ export interface CreateTodoInput {
   config?: unknown;
   eventId?: unknown;
   deadline?: unknown;
+  deadlineMode?: unknown;
+  deadlineOffsetDays?: unknown;
 }
 
 export interface ValidatedTodoInput {
@@ -137,7 +146,9 @@ export interface ValidatedTodoInput {
   description: string;
   config: Record<string, unknown>;
   eventId: string | null;
-  deadline: string | null;
+  deadline: string | null;  // si mode='relative' → null ici (API calcule depuis event.startsAt)
+  deadlineMode: DeadlineMode | null;
+  deadlineOffsetDays: number | null;
 }
 
 // ---------- Helpers internes ----------
@@ -186,6 +197,21 @@ export function normalizeTrainingPacks(config: Record<string, unknown> | null | 
   }
   if (out.length === 0) out.push({ code: '', objective: '' });
   return out;
+}
+
+// Calcule une deadline YYYY-MM-DD à partir d'un event (startsAt en ms epoch) et d'un offset en jours.
+// Fuseau Europe/Paris : le "jour" de l'event est celui affiché au staff, l'offset s'applique dessus.
+// offsetDays = 0 → même jour que l'event ; 1 → lendemain ; etc.
+export function computeRelativeDeadline(eventStartsAtMs: number, offsetDays: number): string {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  const baseYmd = fmt.format(new Date(eventStartsAtMs)); // "YYYY-MM-DD" dans Paris
+  // On repart d'un UTC midi pour additionner les jours sans souci de DST.
+  const base = new Date(baseYmd + 'T12:00:00Z');
+  base.setUTCDate(base.getUTCDate() + offsetDays);
+  return base.toISOString().slice(0, 10);
 }
 
 // ---------- Validation config par type ----------
@@ -381,17 +407,45 @@ export function validateCreateTodo(
     eventId = input.eventId.trim();
   }
 
+  // Deadline : deux modes.
+  //  - 'absolute' : YYYY-MM-DD fournie directement dans input.deadline.
+  //  - 'relative' : offset en jours appliqué à event.startsAt → nécessite eventId, et la deadline
+  //    concrète est calculée côté API (accès DB pour lire startsAt), pas ici.
+  let deadlineMode: DeadlineMode | null = null;
+  let deadlineOffsetDays: number | null = null;
   let deadline: string | null = null;
-  if (input.deadline !== undefined && input.deadline !== null && input.deadline !== '') {
+
+  if (input.deadlineMode === 'relative') {
+    if (!eventId) {
+      return { ok: false, error: 'Deadline relative : un event doit être lié.' };
+    }
+    const off = typeof input.deadlineOffsetDays === 'number'
+      ? input.deadlineOffsetDays
+      : Number(input.deadlineOffsetDays);
+    if (!Number.isFinite(off) || !Number.isInteger(off)) {
+      return { ok: false, error: 'Offset de deadline invalide (entier requis).' };
+    }
+    if (off < 0 || off > DEADLINE_OFFSET_DAYS_MAX) {
+      return { ok: false, error: `Offset de deadline hors limites (0 à ${DEADLINE_OFFSET_DAYS_MAX} jours).` };
+    }
+    deadlineMode = 'relative';
+    deadlineOffsetDays = off;
+    // deadline reste null ici — l'API la calculera via computeRelativeDeadline().
+  } else if (input.deadline !== undefined && input.deadline !== null && input.deadline !== '') {
     if (!isValidYmd(input.deadline)) {
       return { ok: false, error: 'Deadline invalide (format attendu YYYY-MM-DD).' };
     }
     deadline = input.deadline as string;
+    deadlineMode = 'absolute';
   }
 
   return {
     ok: true,
-    value: { subTeamId, assigneeIds, type, title, description, config: configResult.value, eventId, deadline },
+    value: {
+      subTeamId, assigneeIds, type, title, description,
+      config: configResult.value,
+      eventId, deadline, deadlineMode, deadlineOffsetDays,
+    },
   };
 }
 

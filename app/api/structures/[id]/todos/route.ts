@@ -5,7 +5,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { isStaffOfTeam, isDirigeant } from '@/lib/event-permissions';
-import { validateCreateTodo } from '@/lib/todos';
+import { validateCreateTodo, computeRelativeDeadline } from '@/lib/todos';
 
 // Sérialise un timestamp Firestore en ms epoch (plus simple à manipuler côté client pour trier).
 function tsMs(v: unknown): number | null {
@@ -43,7 +43,10 @@ export async function POST(
     if (!validation.ok) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
-    const { subTeamId, assigneeIds, type, title, description, config, eventId, deadline } = validation.value;
+    const {
+      subTeamId, assigneeIds, type, title, description, config,
+      eventId, deadline: absoluteDeadline, deadlineMode, deadlineOffsetDays,
+    } = validation.value;
 
     // Équipe existe et appartient à la structure
     const team = resolved.teams.find(t => t.id === subTeamId);
@@ -67,12 +70,30 @@ export async function POST(
       return NextResponse.json({ error: 'Un ou plusieurs joueurs ne font pas partie de cette équipe.' }, { status: 400 });
     }
 
-    // Event lié (optionnel) — doit appartenir à la structure
+    // Event lié (optionnel) — doit appartenir à la structure.
+    // Si deadlineMode='relative' on a aussi besoin de event.startsAt pour calculer la deadline concrète.
+    let eventStartsAtMs: number | null = null;
     if (eventId) {
       const evSnap = await db.collection('structure_events').doc(eventId).get();
-      if (!evSnap.exists || evSnap.data()?.structureId !== structureId) {
+      const evData = evSnap.data();
+      if (!evSnap.exists || evData?.structureId !== structureId) {
         return NextResponse.json({ error: 'Événement lié introuvable.' }, { status: 400 });
       }
+      eventStartsAtMs = tsMs(evData?.startsAt);
+    }
+
+    // Résolution finale de la deadline.
+    //  - absolute → utilise directement la valeur validée.
+    //  - relative → calcule à partir de event.startsAt (déjà requis par le validateur si mode=relative).
+    let deadline: string | null = absoluteDeadline;
+    if (deadlineMode === 'relative') {
+      if (typeof deadlineOffsetDays !== 'number') {
+        return NextResponse.json({ error: 'Offset de deadline manquant.' }, { status: 400 });
+      }
+      if (eventStartsAtMs === null) {
+        return NextResponse.json({ error: 'Event sans date de début : deadline relative impossible.' }, { status: 400 });
+      }
+      deadline = computeRelativeDeadline(eventStartsAtMs, deadlineOffsetDays);
     }
 
     // Création atomique : 1 doc par assignee
@@ -91,7 +112,9 @@ export async function POST(
         config,      // objet validé selon type — voir validateTodoConfig
         response: null,
         eventId,
-        deadline,  // "YYYY-MM-DD" ou null
+        deadline,                                    // "YYYY-MM-DD" ou null (calculée si relative)
+        deadlineMode: deadlineMode ?? null,          // 'absolute' | 'relative' | null
+        deadlineOffsetDays: deadlineOffsetDays ?? null,  // uniquement si mode='relative'
         done: false,
         doneAt: null,
         doneBy: null,
@@ -170,6 +193,10 @@ export async function GET(
         response: (d.response && typeof d.response === 'object') ? d.response : null,
         eventId: d.eventId ?? null,
         deadline: d.deadline ?? null,
+        deadlineMode: (d.deadlineMode === 'relative' || d.deadlineMode === 'absolute')
+          ? d.deadlineMode
+          : (d.deadline ? 'absolute' : null),
+        deadlineOffsetDays: typeof d.deadlineOffsetDays === 'number' ? d.deadlineOffsetDays : null,
         done: !!d.done,
         doneAt: tsMs(d.doneAt),
         doneBy: d.doneBy ?? null,

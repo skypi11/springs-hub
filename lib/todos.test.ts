@@ -6,9 +6,11 @@ import {
   compareTodosPending,
   compareTodosDone,
   isOverdue,
+  computeRelativeDeadline,
   TODO_TITLE_MAX,
   TODO_DESCRIPTION_MAX,
   TODO_MAX_ASSIGNEES,
+  DEADLINE_OFFSET_DAYS_MAX,
   type TodoRef,
 } from './todos';
 
@@ -26,6 +28,8 @@ const todo = (partial: Partial<TodoRef> = {}): TodoRef => ({
   response: null,
   eventId: null,
   deadline: null,
+  deadlineMode: null,
+  deadlineOffsetDays: null,
   done: false,
   doneAt: null,
   doneBy: null,
@@ -165,7 +169,106 @@ describe('validateCreateTodo', () => {
       deadline: '',
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.value.deadline).toBeNull();
+    if (r.ok) {
+      expect(r.value.deadline).toBeNull();
+      expect(r.value.deadlineMode).toBeNull();
+      expect(r.value.deadlineOffsetDays).toBeNull();
+    }
+  });
+
+  // ---------- Deadline relative (liée à un event) ----------
+
+  it('deadline absolue → mode="absolute"', () => {
+    const r = validateCreateTodo({
+      subTeamId: 'team1',
+      assigneeIds: ['u1'],
+      title: 'x',
+      deadline: '2026-05-01',
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.deadline).toBe('2026-05-01');
+      expect(r.value.deadlineMode).toBe('absolute');
+      expect(r.value.deadlineOffsetDays).toBeNull();
+    }
+  });
+
+  it('deadline relative valide (J+2)', () => {
+    const r = validateCreateTodo({
+      subTeamId: 'team1',
+      assigneeIds: ['u1'],
+      title: 'x',
+      eventId: 'evt1',
+      deadlineMode: 'relative',
+      deadlineOffsetDays: 2,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.deadlineMode).toBe('relative');
+      expect(r.value.deadlineOffsetDays).toBe(2);
+      expect(r.value.deadline).toBeNull(); // API calcule depuis event.startsAt
+      expect(r.value.eventId).toBe('evt1');
+    }
+  });
+
+  it('deadline relative sans event → rejetée', () => {
+    const r = validateCreateTodo({
+      subTeamId: 'team1',
+      assigneeIds: ['u1'],
+      title: 'x',
+      deadlineMode: 'relative',
+      deadlineOffsetDays: 1,
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it('deadline relative offset négatif → rejetée', () => {
+    const r = validateCreateTodo({
+      subTeamId: 'team1',
+      assigneeIds: ['u1'],
+      title: 'x',
+      eventId: 'evt1',
+      deadlineMode: 'relative',
+      deadlineOffsetDays: -1,
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it('deadline relative offset > DEADLINE_OFFSET_DAYS_MAX → rejetée', () => {
+    const r = validateCreateTodo({
+      subTeamId: 'team1',
+      assigneeIds: ['u1'],
+      title: 'x',
+      eventId: 'evt1',
+      deadlineMode: 'relative',
+      deadlineOffsetDays: DEADLINE_OFFSET_DAYS_MAX + 1,
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it('deadline relative offset non entier → rejetée', () => {
+    const r = validateCreateTodo({
+      subTeamId: 'team1',
+      assigneeIds: ['u1'],
+      title: 'x',
+      eventId: 'evt1',
+      deadlineMode: 'relative',
+      deadlineOffsetDays: 1.5,
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it('deadline relative offset=0 (même jour) accepté', () => {
+    const r = validateCreateTodo({
+      subTeamId: 'team1',
+      assigneeIds: ['u1'],
+      title: 'x',
+      eventId: 'evt1',
+      deadlineMode: 'relative',
+      deadlineOffsetDays: 0,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.deadlineOffsetDays).toBe(0);
   });
 
   // ---------- Types structurés ----------
@@ -445,5 +548,44 @@ describe('isOverdue', () => {
   it('deadline passée = en retard', () => {
     const t = todo({ deadline: '2026-04-10' });
     expect(isOverdue(t, '2026-04-15')).toBe(true);
+  });
+});
+
+// ---------- computeRelativeDeadline ----------
+
+describe('computeRelativeDeadline', () => {
+  // 1er mai 2026, 20h00 Paris = 2026-05-01T18:00:00Z (CEST, UTC+2).
+  const evtMs = Date.UTC(2026, 4, 1, 18, 0, 0);
+
+  it('offset=0 → même jour que l\'event (Paris)', () => {
+    expect(computeRelativeDeadline(evtMs, 0)).toBe('2026-05-01');
+  });
+
+  it('offset=1 → lendemain', () => {
+    expect(computeRelativeDeadline(evtMs, 1)).toBe('2026-05-02');
+  });
+
+  it('offset=7 → une semaine après', () => {
+    expect(computeRelativeDeadline(evtMs, 7)).toBe('2026-05-08');
+  });
+
+  it('franchit le mois', () => {
+    // 30 avril 2026 Paris + 3 jours → 3 mai 2026.
+    const apr30 = Date.UTC(2026, 3, 30, 10, 0, 0);
+    expect(computeRelativeDeadline(apr30, 3)).toBe('2026-05-03');
+  });
+
+  it('event tard le soir en heure Paris → jour Paris pas UTC', () => {
+    // 1er mai 2026 23h30 Paris = 2026-05-01T21:30:00Z. Le jour en UTC est encore le 1er ici,
+    // mais on vérifie surtout que le calcul part bien du jour Paris.
+    const ms = Date.UTC(2026, 4, 1, 21, 30, 0);
+    expect(computeRelativeDeadline(ms, 0)).toBe('2026-05-01');
+    expect(computeRelativeDeadline(ms, 1)).toBe('2026-05-02');
+  });
+
+  it('event tôt le matin UTC après minuit Paris', () => {
+    // 2026-05-02T00:30:00Z = 2026-05-02 02h30 à Paris (CEST). Jour Paris = 2 mai.
+    const ms = Date.UTC(2026, 4, 2, 0, 30, 0);
+    expect(computeRelativeDeadline(ms, 0)).toBe('2026-05-02');
   });
 });

@@ -15,9 +15,12 @@ import {
   TODO_TYPES,
   TODO_TYPE_META,
   DEFAULT_MENTAL_PROMPTS,
+  DEADLINE_OFFSET_DAYS_MAX,
+  DEADLINE_OFFSET_PRESETS,
   normalizeTrainingPacks,
   type TodoRef,
   type TodoType,
+  type DeadlineMode,
 } from '@/lib/todos';
 import { TEMPLATE_NAME_MAX } from '@/lib/todo-templates';
 import { TodoConfigFields } from '@/components/calendar/TodoConfigFields';
@@ -457,6 +460,9 @@ function NewTodoForm({
   const [description, setDescription] = useState('');
   const [deadline, setDeadline] = useState('');
   const [eventId, setEventId] = useState('');
+  // Deadline relative à l'event : uniquement actif si un event est sélectionné.
+  const [deadlineMode, setDeadlineMode] = useState<DeadlineMode>('absolute');
+  const [deadlineOffsetDays, setDeadlineOffsetDays] = useState<number>(1); // par défaut J+1 après l'event
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [showAll, setShowAll] = useState(false);
@@ -465,6 +471,9 @@ function NewTodoForm({
   const [saveAsName, setSaveAsName] = useState('');
   const [saveAsShared, setSaveAsShared] = useState(false);
   const [savingTemplate, setSavingTemplate] = useState(false);
+  // Feuille de match auto (présences confirmées de l'event lié ∩ roster). Null = pas fetché.
+  const [lineup, setLineup] = useState<{ confirmed: string[]; rosterFallback: string[] } | null>(null);
+  const [lineupLoading, setLineupLoading] = useState(false);
 
   // Config spécifique au type — un seul objet, les clés non-pertinentes sont ignorées à la soumission
   const [config, setConfig] = useState<Record<string, unknown>>({});
@@ -547,6 +556,40 @@ function NewTodoForm({
     setAssigneeIds(everyone.map(m => m.uid));
   }
 
+  // Fetch la feuille de match (présences confirmées + fallback roster) quand un event est lié.
+  // Reset si eventId ou team change, puis re-fetch. Le staff clique ensuite sur "Prefill" pour appliquer.
+  useEffect(() => {
+    if (!eventId || !firebaseUser) {
+      setLineup(null);
+      return;
+    }
+    let cancelled = false;
+    setLineupLoading(true);
+    firebaseUser.getIdToken().then(idToken =>
+      fetch(`/api/structures/${structureId}/events/${eventId}/lineup?subTeamId=${encodeURIComponent(team.id)}`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      })
+    ).then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (cancelled) return;
+        if (data && Array.isArray(data.confirmed) && Array.isArray(data.rosterFallback)) {
+          setLineup({ confirmed: data.confirmed, rosterFallback: data.rosterFallback });
+        } else {
+          setLineup(null);
+        }
+      })
+      .catch(() => { if (!cancelled) setLineup(null); })
+      .finally(() => { if (!cancelled) setLineupLoading(false); });
+    return () => { cancelled = true; };
+  }, [eventId, team.id, structureId, firebaseUser]);
+
+  // Applique la feuille de match : confirmés si présents, sinon roster complet.
+  function prefillFromLineup() {
+    if (!lineup) return;
+    const next = lineup.confirmed.length > 0 ? lineup.confirmed : lineup.rosterFallback;
+    setAssigneeIds(next);
+  }
+
   async function submit() {
     if (!firebaseUser || creating) return;
     if (!title.trim()) { toast.error('Titre requis'); return; }
@@ -564,8 +607,11 @@ function NewTodoForm({
           title: title.trim(),
           description: description.trim() || undefined,
           config,
-          deadline: deadline || undefined,
           eventId: eventId || undefined,
+          // Deadline : relative si event + mode=relative, sinon absolue (YYYY-MM-DD) ou rien.
+          ...(eventId && deadlineMode === 'relative'
+            ? { deadlineMode: 'relative', deadlineOffsetDays }
+            : { deadline: deadline || undefined }),
         }),
       });
       if (res.ok) {
@@ -684,12 +730,32 @@ function NewTodoForm({
       <TodoConfigFields type={type} config={config} onChange={updateConfig} />
 
       <div>
-        <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center justify-between mb-1.5 gap-2 flex-wrap">
           <label className="t-label" style={{ fontSize: '12px' }}>Assigner à * ({assigneeIds.length})</label>
-          <button type="button" onClick={selectAll}
-            className="text-xs transition-colors" style={{ color: 'var(--s-violet-light)', cursor: 'pointer' }}>
-            Tout sélectionner
-          </button>
+          <div className="flex items-center gap-3">
+            {eventId && lineup && (
+              <button type="button" onClick={prefillFromLineup}
+                className="text-xs font-bold transition-colors flex items-center gap-1"
+                style={{ color: 'var(--s-gold)', cursor: 'pointer' }}
+                title={lineup.confirmed.length > 0
+                  ? `${lineup.confirmed.length} joueur${lineup.confirmed.length > 1 ? 's' : ''} confirmé${lineup.confirmed.length > 1 ? 's' : ''} pour l'event`
+                  : 'Aucun présent confirmé — prefill depuis le roster complet'}>
+                <ClipboardList size={11} />
+                {lineup.confirmed.length > 0
+                  ? `Feuille de match (${lineup.confirmed.length})`
+                  : `Roster complet (${lineup.rosterFallback.length})`}
+              </button>
+            )}
+            {eventId && lineupLoading && (
+              <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                <Loader2 size={11} className="inline animate-spin" /> Feuille de match…
+              </span>
+            )}
+            <button type="button" onClick={selectAll}
+              className="text-xs transition-colors" style={{ color: 'var(--s-violet-light)', cursor: 'pointer' }}>
+              Tout sélectionner
+            </button>
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-1.5">
           {visibleMembers.map(m => {
@@ -735,25 +801,97 @@ function NewTodoForm({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Deadline (optionnelle)</label>
+      <div>
+        <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Event lié (optionnel)</label>
+        <select className="settings-input w-full text-sm"
+          value={eventId}
+          onChange={e => {
+            const v = e.target.value;
+            setEventId(v);
+            // Si on retire l'event : repasse forcément en deadline absolue (sinon valeur orpheline).
+            if (!v) setDeadlineMode('absolute');
+          }}>
+          <option value="">— Aucun —</option>
+          {events.map(ev => (
+            <option key={ev.id} value={ev.id}>
+              {ev.title}
+              {ev.startsAt ? ` (${new Date(ev.startsAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })})` : ''}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="t-label" style={{ fontSize: '12px' }}>Deadline (optionnelle)</label>
+          {eventId && (
+            <div className="flex items-center gap-1">
+              {(['absolute', 'relative'] as const).map(mode => {
+                const active = deadlineMode === mode;
+                return (
+                  <button key={mode} type="button"
+                    onClick={() => setDeadlineMode(mode)}
+                    className="px-2 py-0.5 text-xs font-bold transition-all duration-150"
+                    style={{
+                      background: active ? 'var(--s-elevated)' : 'transparent',
+                      border: `1px solid ${active ? 'var(--s-gold)' : 'var(--s-border)'}`,
+                      color: active ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                    }}>
+                    {mode === 'absolute' ? 'DATE PRÉCISE' : 'APRÈS L\'EVENT'}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {eventId && deadlineMode === 'relative' ? (
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap gap-1.5">
+              {DEADLINE_OFFSET_PRESETS.map(n => {
+                const active = deadlineOffsetDays === n;
+                const label = n === 0 ? 'Le jour même' : n === 1 ? 'J+1' : `J+${n}`;
+                return (
+                  <button key={n} type="button"
+                    onClick={() => setDeadlineOffsetDays(n)}
+                    className="px-2.5 py-1 text-xs font-bold transition-all duration-150"
+                    style={{
+                      background: active ? 'var(--s-elevated)' : 'var(--s-surface)',
+                      border: `1px solid ${active ? 'var(--s-gold)' : 'var(--s-border)'}`,
+                      color: active ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                      cursor: 'pointer',
+                    }}>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>ou custom :</span>
+              <input type="number" min={0} max={DEADLINE_OFFSET_DAYS_MAX}
+                className="settings-input text-sm"
+                style={{ width: '80px' }}
+                value={deadlineOffsetDays}
+                onChange={e => {
+                  const n = Number(e.target.value);
+                  if (Number.isFinite(n)) {
+                    setDeadlineOffsetDays(Math.max(0, Math.min(DEADLINE_OFFSET_DAYS_MAX, Math.round(n))));
+                  }
+                }} />
+              <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                jour{deadlineOffsetDays > 1 ? 's' : ''} après l&apos;event ({DEADLINE_OFFSET_DAYS_MAX} max)
+              </span>
+            </div>
+            <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+              Si l&apos;event est déplacé, la deadline suit automatiquement.
+            </p>
+          </div>
+        ) : (
           <input type="date" className="settings-input w-full text-sm"
             value={deadline} onChange={e => setDeadline(e.target.value)} />
-        </div>
-        <div>
-          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Event lié (optionnel)</label>
-          <select className="settings-input w-full text-sm"
-            value={eventId} onChange={e => setEventId(e.target.value)}>
-            <option value="">— Aucun —</option>
-            {events.map(ev => (
-              <option key={ev.id} value={ev.id}>
-                {ev.title}
-                {ev.startsAt ? ` (${new Date(ev.startsAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })})` : ''}
-              </option>
-            ))}
-          </select>
-        </div>
+        )}
       </div>
 
       {/* Save-as-template : zone inline qui se déplie */}

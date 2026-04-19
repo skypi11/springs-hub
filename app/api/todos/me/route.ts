@@ -48,6 +48,10 @@ export async function GET(req: NextRequest) {
         response: (d.response && typeof d.response === 'object') ? d.response : null,
         eventId: (d.eventId as string | null) ?? null,
         deadline: (d.deadline as string | null) ?? null,
+        deadlineMode: (d.deadlineMode === 'relative' || d.deadlineMode === 'absolute')
+          ? d.deadlineMode
+          : (d.deadline ? 'absolute' : null),
+        deadlineOffsetDays: typeof d.deadlineOffsetDays === 'number' ? d.deadlineOffsetDays : null,
         done: !!d.done,
         doneAt: tsMs(d.doneAt),
         doneBy: (d.doneBy as string | null) ?? null,

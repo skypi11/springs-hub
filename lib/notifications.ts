@@ -17,6 +17,7 @@ export type NotificationType =
   | 'transfer_pending'
   | 'transfer_cancelled'
   | 'transfer_confirmed'
+  | 'todo_deadline_changed'
   | 'generic';
 
 export type NotificationPayload = {
