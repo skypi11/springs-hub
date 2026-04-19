@@ -493,7 +493,7 @@ export default function SettingsPage() {
                               className="settings-input w-full" placeholder="Ton pseudo Epic Games" />
                           </div>
                           <div>
-                            <label className="t-label block mb-2">RL Tracker URL (optionnel)</label>
+                            <label className="t-label block mb-2">RL Tracker URL *</label>
                             <input type="url" value={form.rlTrackerUrl}
                               onChange={e => updateForm({ rlTrackerUrl: e.target.value })}
                               className="settings-input w-full" placeholder="https://rocketleague.tracker.network/..." />
@@ -524,7 +524,7 @@ export default function SettingsPage() {
                           </div>
                         </div>
                         <div>
-                          <label className="t-label block mb-2">URL Trackmania.io (optionnel)</label>
+                          <label className="t-label block mb-2">URL Trackmania.io *</label>
                           <input type="url" value={form.tmIoUrl}
                             onChange={e => updateForm({ tmIoUrl: e.target.value })}
                             className="settings-input w-full" placeholder="https://trackmania.io/#/player/..." />

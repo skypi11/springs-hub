@@ -579,11 +579,60 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
               <div className="panel-header">
                 <div className="flex items-center gap-2">
                   <Shield size={13} style={{ color: 'var(--s-text-dim)' }} />
-                  <span className="t-label" style={{ color: 'var(--s-text)' }}>STRUCTURE</span>
+                  <span className="t-label" style={{ color: 'var(--s-text)' }}>STRUCTURE{(profile.structures?.length ?? 0) > 1 ? 'S' : ''}</span>
                 </div>
               </div>
-              <div className="p-5">
-                <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucune structure pour le moment.</p>
+              <div className="p-5 space-y-3">
+                {(!profile.structures || profile.structures.length === 0) ? (
+                  <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucune structure pour le moment.</p>
+                ) : profile.structures.map(ps => {
+                  const roleLabels: Record<string, string> = {
+                    fondateur: 'Fondateur', co_fondateur: 'Co-fondateur',
+                    responsable: 'Responsable', coach_structure: 'Coach structure',
+                    manager_equipe: "Manager d'équipe", coach_equipe: 'Coach',
+                    capitaine: 'Capitaine', joueur: 'Joueur', remplacant: 'Remplaçant', membre: 'Membre',
+                  };
+                  const teamRoleLabels: Record<string, string> = {
+                    joueur: 'Joueur', remplacant: 'Remplaçant', coach: 'Coach', manager: 'Manager', capitaine: 'Capitaine',
+                  };
+                  return (
+                    <Link key={ps.id} href={`/community/structure/${ps.id}`}
+                      className="block p-3 bevel-sm transition-colors duration-150"
+                      style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                      <div className="flex items-center gap-3">
+                        {ps.logoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={ps.logoUrl} alt={ps.name} className="w-8 h-8 object-contain bevel-sm flex-shrink-0"
+                            style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }} />
+                        ) : (
+                          <div className="w-8 h-8 flex items-center justify-center bevel-sm flex-shrink-0"
+                            style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                            <Shield size={13} style={{ color: 'var(--s-text-muted)' }} />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>
+                            {ps.name}
+                            {ps.tag && <span className="ml-1.5 t-mono" style={{ color: 'var(--s-text-muted)', fontSize: '10px' }}>[{ps.tag}]</span>}
+                          </p>
+                          <p className="t-mono" style={{ fontSize: '10px', color: 'var(--s-gold)' }}>{roleLabels[ps.role] ?? 'Membre'}</p>
+                        </div>
+                      </div>
+                      {ps.teams.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {ps.teams.map(t => {
+                            const gameClass = t.game === 'rocket_league' ? 'tag-blue' : t.game === 'trackmania' ? 'tag-green' : 'tag-neutral';
+                            return (
+                              <span key={t.id} className={`tag ${gameClass}`} style={{ fontSize: '9px', padding: '2px 7px' }}>
+                                {teamRoleLabels[t.role]} · {t.name}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </Link>
+                  );
+                })}
               </div>
             </div>
           </div>

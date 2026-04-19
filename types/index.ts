@@ -30,6 +30,17 @@ export interface SpringsUser {
   tmIoUrl?: string;            // URL trackmania.io du joueur
   tmStats?: TMStats;           // stats auto via API
   createdAt?: Date;
+  // Enrichissement renvoyé par GET /api/profile — structures où le joueur est impliqué
+  structures?: ProfileStructure[];
+}
+
+export interface ProfileStructure {
+  id: string;
+  name: string;
+  tag: string;
+  logoUrl: string;
+  role: 'fondateur' | 'co_fondateur' | 'responsable' | 'coach_structure' | 'manager_equipe' | 'coach_equipe' | 'capitaine' | 'joueur' | 'remplacant' | 'membre';
+  teams: { id: string; name: string; game: string; role: 'joueur' | 'remplacant' | 'coach' | 'manager' | 'capitaine' }[];
 }
 
 export interface RLStats {

@@ -6,6 +6,92 @@ import { safeUrl, clampString, LIMITS } from '@/lib/validation';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { computeAge } from '@/lib/age';
+import { fetchDocsByIds } from '@/lib/firestore-helpers';
+
+type ProfileStructure = {
+  id: string;
+  name: string;
+  tag: string;
+  logoUrl: string;
+  role: 'fondateur' | 'co_fondateur' | 'responsable' | 'coach_structure' | 'manager_equipe' | 'coach_equipe' | 'capitaine' | 'joueur' | 'remplacant' | 'membre';
+  teams: { id: string; name: string; game: string; role: 'joueur' | 'remplacant' | 'coach' | 'manager' | 'capitaine' }[];
+};
+
+async function fetchUserStructures(uid: string): Promise<ProfileStructure[]> {
+  const db = getAdminDb();
+  const memberSnap = await db.collection('structure_members').where('userId', '==', uid).get();
+  if (memberSnap.empty) return [];
+
+  const structureIds = Array.from(new Set(
+    memberSnap.docs.map(d => d.data().structureId as string).filter(Boolean)
+  ));
+  if (structureIds.length === 0) return [];
+
+  const structuresById = await fetchDocsByIds(db, 'structures', structureIds);
+  const activeIds = structureIds.filter(sid => structuresById.get(sid)?.status === 'active');
+  if (activeIds.length === 0) return [];
+
+  const teamsByStructure = new Map<string, FirebaseFirestore.QueryDocumentSnapshot[]>();
+  for (let i = 0; i < activeIds.length; i += 30) {
+    const chunk = activeIds.slice(i, i + 30);
+    const snap = await db.collection('sub_teams').where('structureId', 'in', chunk).get();
+    for (const t of snap.docs) {
+      const sid = t.data().structureId as string;
+      if (!teamsByStructure.has(sid)) teamsByStructure.set(sid, []);
+      teamsByStructure.get(sid)!.push(t);
+    }
+  }
+
+  return activeIds.map(sid => {
+    const s = structuresById.get(sid)!;
+    const founderId = s.founderId as string;
+    const coFounderIds = (s.coFounderIds ?? []) as string[];
+    const managerIds = (s.managerIds ?? []) as string[];
+    const coachIds = (s.coachIds ?? []) as string[];
+
+    const teams: ProfileStructure['teams'] = [];
+    for (const t of teamsByStructure.get(sid) ?? []) {
+      const d = t.data();
+      if ((d.status ?? 'active') === 'archived') continue;
+      const playerIds = (d.playerIds ?? []) as string[];
+      const subIds = (d.subIds ?? []) as string[];
+      const staffIds = (d.staffIds ?? []) as string[];
+      const staffRoles = (d.staffRoles ?? {}) as Record<string, 'coach' | 'manager'>;
+      const captainId = (d.captainId ?? null) as string | null;
+
+      if (staffIds.includes(uid)) {
+        teams.push({ id: t.id, name: d.name as string, game: d.game as string, role: staffRoles[uid] ?? 'coach' });
+      }
+      if (captainId === uid) {
+        teams.push({ id: t.id, name: d.name as string, game: d.game as string, role: 'capitaine' });
+      } else if (playerIds.includes(uid)) {
+        teams.push({ id: t.id, name: d.name as string, game: d.game as string, role: 'joueur' });
+      } else if (subIds.includes(uid)) {
+        teams.push({ id: t.id, name: d.name as string, game: d.game as string, role: 'remplacant' });
+      }
+    }
+
+    let role: ProfileStructure['role'];
+    if (founderId === uid) role = 'fondateur';
+    else if (coFounderIds.includes(uid)) role = 'co_fondateur';
+    else if (managerIds.includes(uid)) role = 'responsable';
+    else if (coachIds.includes(uid)) role = 'coach_structure';
+    else if (teams.some(t => t.role === 'manager')) role = 'manager_equipe';
+    else if (teams.some(t => t.role === 'coach')) role = 'coach_equipe';
+    else if (teams.some(t => t.role === 'capitaine')) role = 'capitaine';
+    else if (teams.some(t => t.role === 'joueur' || t.role === 'remplacant')) role = 'joueur';
+    else role = 'membre';
+
+    return {
+      id: sid,
+      name: (s.name as string) || '',
+      tag: (s.tag as string) || '',
+      logoUrl: (s.logoUrl as string) || '',
+      role,
+      teams,
+    };
+  });
+}
 
 // Champs privés — jamais renvoyés aux autres utilisateurs.
 // `dateOfBirth` sert uniquement à calculer l'âge côté serveur.
@@ -31,13 +117,14 @@ export async function GET(req: NextRequest) {
     const data = snap.data() ?? {};
     const requesterUid = await verifyAuth(req);
     const isOwner = requesterUid === uid;
+    const structures = await fetchUserStructures(uid);
 
     if (isOwner) {
-      return NextResponse.json(data);
+      return NextResponse.json({ ...data, structures });
     }
 
     // Vue publique : on calcule l'âge et on retire les champs privés
-    const publicData: Record<string, unknown> = { ...data, age: computeAge(data.dateOfBirth) };
+    const publicData: Record<string, unknown> = { ...data, age: computeAge(data.dateOfBirth), structures };
     for (const field of PRIVATE_FIELDS) delete publicData[field];
     return NextResponse.json(publicData);
   } catch (err) {
@@ -81,8 +168,14 @@ export async function POST(req: NextRequest) {
     if (body.games.includes('rocket_league') && !body.epicAccountId?.trim()) {
       return NextResponse.json({ error: 'Le pseudo Epic Games est obligatoire pour RL.' }, { status: 400 });
     }
+    if (body.games.includes('rocket_league') && !body.rlTrackerUrl?.trim()) {
+      return NextResponse.json({ error: "L'URL RL Tracker est obligatoire pour RL." }, { status: 400 });
+    }
     if (body.games.includes('trackmania') && !body.pseudoTM?.trim()) {
       return NextResponse.json({ error: 'Le pseudo Ubisoft est obligatoire pour TM.' }, { status: 400 });
+    }
+    if (body.games.includes('trackmania') && !body.tmIoUrl?.trim()) {
+      return NextResponse.json({ error: "L'URL Trackmania.io est obligatoire pour TM." }, { status: 400 });
     }
 
     // Vérifier âge minimum (calcul précis : on compare année/mois/jour)
