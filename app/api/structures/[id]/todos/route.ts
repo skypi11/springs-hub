@@ -57,6 +57,7 @@ export async function POST(
       deadline: absoluteDeadline,
       deadlineAt: absoluteDeadlineAt,
       deadlineMode, deadlineOffsetDays,
+      postToChannel,
     } = validation.value;
 
     // Équipe existe et appartient à la structure
@@ -130,6 +131,7 @@ export async function POST(
         deadlineAt,                                  // ms epoch ou null — source de vérité pour isOverdue/tri
         deadlineMode: deadlineMode ?? null,          // 'absolute' | 'relative' | null
         deadlineOffsetDays: deadlineOffsetDays ?? null,  // uniquement si mode='relative'
+        postToChannel,                               // false = DM privé uniquement ; true = aussi embed dans le channel team
         done: false,
         doneAt: null,
         doneBy: null,
@@ -208,8 +210,9 @@ export async function POST(
           pingUserIds,
         };
 
-        // 1) Embed dans le channel de l'équipe si configuré.
-        if (channelId) {
+        // 1) Embed dans le channel de l'équipe si configuré ET si le créateur a coché "aussi publier dans channel".
+        // Par défaut on reste en DM privé uniquement — un devoir est du feedback perso, pas un post public.
+        if (channelId && postToChannel) {
           try {
             const messageId = await postTodoEmbed(channelId, embedInput);
             // On log le post pour permettre un edit/delete futur (même pattern que events).

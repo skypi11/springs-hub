@@ -142,6 +142,7 @@ export interface CreateTodoInput {
   deadline?: unknown;
   deadlineMode?: unknown;
   deadlineOffsetDays?: unknown;
+  postToChannel?: unknown;
 }
 
 export interface ValidatedTodoInput {
@@ -156,6 +157,8 @@ export interface ValidatedTodoInput {
   deadlineAt: number | null; // ms epoch — idem : null pour relative (API calcule depuis event.startsAt)
   deadlineMode: DeadlineMode | null;
   deadlineOffsetDays: number | null;
+  postToChannel: boolean;    // true = publier aussi dans le channel Discord de l'équipe (visible par tous).
+                              // DM à l'assigné est envoyé dans tous les cas. Par défaut false : privé.
 }
 
 // ---------- Helpers internes ----------
@@ -479,12 +482,15 @@ export function validateCreateTodo(
     deadlineMode = 'absolute';
   }
 
+  const postToChannel = input.postToChannel === true;
+
   return {
     ok: true,
     value: {
       subTeamId, assigneeIds, type, title, description,
       config: configResult.value,
       eventId, deadline, deadlineAt, deadlineMode, deadlineOffsetDays,
+      postToChannel,
     },
   };
 }

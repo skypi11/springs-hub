@@ -17,6 +17,7 @@ import {
   type TodoType,
 } from '@/lib/todos';
 import { TodoConfigSummary, TodoResponseSummary } from './TeamTodosPanel';
+import TodoDetailDrawer from './TodoDetailDrawer';
 
 type MyTodo = TodoRef & {
   structureName: string;
@@ -58,8 +59,8 @@ export default function MyTodosSection() {
   const [todos, setTodos] = useState<MyTodo[]>([]);
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
-  const [respondingId, setRespondingId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [openTodoId, setOpenTodoId] = useState<string | null>(null);
   const today = useMemo(() => todayYmd(), []);
 
   const load = useCallback(async () => {
@@ -115,7 +116,7 @@ export default function MyTodosSection() {
             response: willBeDone ? (response ?? null) : null,
           };
         }));
-        setRespondingId(null);
+        setOpenTodoId(null); // ferme le drawer après action
         toast.success(todo.done ? 'Devoir rouvert' : 'Devoir terminé');
       } else {
         const d = await res.json().catch(() => ({}));
@@ -127,15 +128,10 @@ export default function MyTodosSection() {
     setTogglingId(null);
   }
 
-  function handleValidate(todo: MyTodo) {
-    const meta = TODO_TYPE_META[todo.type];
-    if (!meta.needsResponse) {
-      // Pas de réponse requise → toggle direct
-      toggle(todo);
-    } else {
-      // Réponse requise → ouvre le formulaire inline
-      setRespondingId(todo.id);
-    }
+  // Action depuis la ligne : toujours ouvrir le drawer (détail complet + action ciblée).
+  // Le drawer décide ensuite quoi afficher selon le type (form de réponse ou bouton "terminer").
+  function handleOpen(todo: MyTodo) {
+    setOpenTodoId(todo.id);
   }
 
   if (loading) {
@@ -180,11 +176,16 @@ export default function MyTodosSection() {
                 todo={t}
                 today={today}
                 toggling={togglingId === t.id}
-                responding={respondingId === t.id}
-                onValidate={() => handleValidate(t)}
-                onCancelResponse={() => setRespondingId(null)}
-                onSubmitResponse={(resp) => toggle(t, resp)}
-                onReopen={() => toggle(t)}
+                onOpen={() => handleOpen(t)}
+                onToggleCheckbox={() => {
+                  // Checkbox : si besoin de réponse, ouvrir le drawer pour que l'utilisateur remplisse ;
+                  // sinon toggle direct.
+                  if (!t.done && TODO_TYPE_META[t.type].needsResponse) {
+                    handleOpen(t);
+                  } else {
+                    toggle(t);
+                  }
+                }}
               />
             ))}
           </div>
@@ -207,11 +208,8 @@ export default function MyTodosSection() {
                     todo={t}
                     today={today}
                     toggling={togglingId === t.id}
-                    responding={false}
-                    onValidate={() => handleValidate(t)}
-                    onCancelResponse={() => setRespondingId(null)}
-                    onSubmitResponse={(resp) => toggle(t, resp)}
-                    onReopen={() => toggle(t)}
+                    onOpen={() => handleOpen(t)}
+                    onToggleCheckbox={() => toggle(t)}
                   />
                 ))}
               </div>
@@ -219,6 +217,42 @@ export default function MyTodosSection() {
           </div>
         )}
       </div>
+
+      {/* Drawer de détail — ouvert au clic sur une ligne. Affiche le form de réponse si le type le demande. */}
+      {(() => {
+        const openTodo = openTodoId ? todos.find(t => t.id === openTodoId) ?? null : null;
+        if (!openTodo) {
+          return (
+            <TodoDetailDrawer
+              open={false}
+              onClose={() => setOpenTodoId(null)}
+              todo={null}
+            />
+          );
+        }
+        const needsResp = TODO_TYPE_META[openTodo.type].needsResponse;
+        // Form de réponse : uniquement si type le demande ET pas encore done.
+        // Sinon, bouton primaire "Marquer terminé" (ou "Rouvrir" si done).
+        const showResponseForm = needsResp && !openTodo.done;
+        return (
+          <TodoDetailDrawer
+            open={true}
+            onClose={() => setOpenTodoId(null)}
+            todo={openTodo}
+            toggling={togglingId === openTodo.id}
+            onPrimaryAction={showResponseForm ? undefined : () => toggle(openTodo)}
+            primaryActionLabel={openTodo.done ? 'Rouvrir le devoir' : 'Marquer comme terminé'}
+            responseForm={showResponseForm ? (
+              <ResponseForm
+                type={openTodo.type}
+                config={openTodo.config as Record<string, unknown>}
+                onCancel={() => setOpenTodoId(null)}
+                onSubmit={(resp) => toggle(openTodo, resp)}
+              />
+            ) : null}
+          />
+        );
+      })()}
     </section>
   );
 }
@@ -227,35 +261,34 @@ function TodoRow({
   todo,
   today,
   toggling,
-  responding,
-  onValidate,
-  onCancelResponse,
-  onSubmitResponse,
-  onReopen,
+  onOpen,
+  onToggleCheckbox,
 }: {
   todo: MyTodo;
   today: string;
   toggling: boolean;
-  responding: boolean;
-  onValidate: () => void;
-  onCancelResponse: () => void;
-  onSubmitResponse: (response: Record<string, unknown>) => void;
-  onReopen: () => void;
+  onOpen: () => void;
+  onToggleCheckbox: () => void;
 }) {
   const overdue = isOverdue(todo, Date.now());
   const deadlineInfo = todo.deadline ? formatDeadline(todo.deadline, today) : null;
   const meta = TODO_TYPE_META[todo.type];
 
   return (
-    <div className="bevel-sm flex items-start gap-3 p-3 transition-all duration-150"
+    <div className="bevel-sm flex items-start gap-3 p-3 transition-all duration-150 hover:brightness-110"
+      onClick={onOpen}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
       style={{
         background: todo.done ? 'transparent' : 'var(--s-elevated)',
         border: `1px solid ${overdue ? 'rgba(255,85,85,0.35)' : 'var(--s-border)'}`,
         opacity: todo.done ? 0.6 : 1,
+        cursor: 'pointer',
       }}>
-      {/* Checkbox — click ouvre le form de réponse si type le demande, sinon toggle direct */}
+      {/* Checkbox : stopPropagation pour ne pas aussi ouvrir le drawer ; toggle direct sinon. */}
       <button type="button"
-        onClick={todo.done ? onReopen : onValidate}
+        onClick={(e) => { e.stopPropagation(); onToggleCheckbox(); }}
         disabled={toggling}
         className="flex-shrink-0 flex items-center justify-center transition-all duration-150"
         style={{
@@ -303,7 +336,9 @@ function TodoRow({
         {todo.done && todo.response && <TodoResponseSummary todo={todo} />}
 
         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+          {/* Le lien structure navigue directement — stopPropagation empêche aussi d'ouvrir le drawer. */}
           <Link href={`/community/structure/${todo.structureId}`}
+            onClick={(e) => e.stopPropagation()}
             className="flex items-center gap-1.5 group transition-colors"
             style={{ color: 'var(--s-text-muted)' }}>
             <Shield size={12} />
@@ -324,16 +359,6 @@ function TodoRow({
             </span>
           )}
         </div>
-
-        {/* Formulaire de réponse inline pour les types qui en demandent une */}
-        {responding && !todo.done && meta.needsResponse && (
-          <ResponseForm
-            type={todo.type}
-            config={todo.config as Record<string, unknown>}
-            onCancel={onCancelResponse}
-            onSubmit={onSubmitResponse}
-          />
-        )}
       </div>
     </div>
   );

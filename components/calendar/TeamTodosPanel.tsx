@@ -465,6 +465,7 @@ function NewTodoForm({
   const [deadlineMode, setDeadlineMode] = useState<DeadlineMode>('absolute');
   const [deadlineOffsetDays, setDeadlineOffsetDays] = useState<number>(1); // par défaut J+1 après l'event
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [postToChannel, setPostToChannel] = useState(false); // false = DM privé uniquement (par défaut)
   const [creating, setCreating] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
@@ -613,6 +614,7 @@ function NewTodoForm({
           ...(eventId && deadlineMode === 'relative'
             ? { deadlineMode: 'relative', deadlineOffsetDays }
             : { deadline: deadline || undefined }),
+          postToChannel,
         }),
       });
       if (res.ok) {
@@ -935,6 +937,22 @@ function NewTodoForm({
           </div>
         </div>
       ) : null}
+
+      {/* Case Discord : par défaut DM privé uniquement. Cocher = aussi poster dans le channel de l'équipe. */}
+      <label className="flex items-start gap-2 cursor-pointer select-none p-2"
+        style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+        <input type="checkbox" checked={postToChannel}
+          onChange={e => setPostToChannel(e.target.checked)}
+          className="mt-0.5" />
+        <span className="flex-1">
+          <span className="block text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
+            Aussi publier dans le channel Discord de l&apos;équipe
+          </span>
+          <span className="block text-xs mt-0.5" style={{ color: 'var(--s-text-dim)' }}>
+            Par défaut, seul un DM privé est envoyé à l&apos;assigné. Coche cette case pour que tous les membres de l&apos;équipe voient le devoir (ex : entraînement collectif).
+          </span>
+        </span>
+      </label>
 
       <div className="flex items-center gap-2 flex-wrap">
         <button type="button" onClick={submit}
