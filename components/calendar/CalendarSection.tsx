@@ -537,8 +537,8 @@ function EventCard({
   onClick: () => void;
   onRespond: (eventId: string, status: PresenceStatus) => void;
 }) {
-  const typeInfo = TYPE_INFO[event.type];
-  const statusInfo = STATUS_INFO[event.status];
+  const typeInfo = TYPE_INFO[event.type] ?? TYPE_INFO.autre;
+  const statusInfo = STATUS_INFO[event.status] ?? STATUS_INFO.scheduled;
   const myPresence = event.presences.find(p => p.userId === currentUid);
   const counts = {
     present: event.presences.filter(p => p.status === 'present').length,
@@ -1388,8 +1388,8 @@ function EventDetailModal({
 }) {
   const { firebaseUser } = useAuth();
   const toast = useToast();
-  const typeInfo = TYPE_INFO[event.type];
-  const statusInfo = STATUS_INFO[event.status];
+  const typeInfo = TYPE_INFO[event.type] ?? TYPE_INFO.autre;
+  const statusInfo = STATUS_INFO[event.status] ?? STATUS_INFO.scheduled;
   const myPresence = event.presences.find(p => p.userId === currentUid);
 
   const permEvent = {

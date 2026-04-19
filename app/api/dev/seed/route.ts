@@ -535,13 +535,13 @@ export async function POST() {
   type EventSeed = {
     id: string;
     title: string;
-    type: 'training' | 'scrim' | 'match' | 'other';
+    type: 'training' | 'scrim' | 'match' | 'autre';
     teamId: string;
     createdBy: string;
     startsAt: Timestamp;
     endsAt: Timestamp;
     adversaire?: string | null;
-    status: 'scheduled' | 'completed' | 'cancelled';
+    status: 'scheduled' | 'done' | 'cancelled';
     compteRendu?: string;
     aTravailler?: string;
   };
@@ -557,7 +557,7 @@ export async function POST() {
       startsAt: ts(-2 * 24 * H),
       endsAt: ts(-2 * 24 * H + 2 * H),
       adversaire: 'Ombre Nine',
-      status: 'completed',
+      status: 'done',
       compteRendu: '8W / 4L sur 12 maps. Bonne session, rotations propres en 2e mi-temps. MVP : Zephyr.',
       aTravailler: 'Reset 3e homme sur dégagements offensifs, communication d\'engagement.',
     },
@@ -570,7 +570,7 @@ export async function POST() {
       createdBy: DEV_UIDS.teamCoach,
       startsAt: ts(-3 * 24 * H),
       endsAt: ts(-3 * 24 * H + 90 * 60 * 1000),
-      status: 'completed',
+      status: 'done',
       compteRendu: 'Focus sur les rotations défensives 2e homme. Echo a bien progressé, Drift encore en retard sur les timings.',
       aTravailler: 'Timings de rotation post-kickoff.',
     },
@@ -584,7 +584,7 @@ export async function POST() {
       startsAt: ts(-5 * 24 * H),
       endsAt: ts(-5 * 24 * H + 2 * H),
       adversaire: 'Nyx Féminine',
-      status: 'completed',
+      status: 'done',
       compteRendu: 'Victoire 4-2. Aria énorme en défense. Le résultat nous qualifie pour les playoffs.',
       aTravailler: 'Préparation playoffs : BO7 à anticiper.',
     },
@@ -743,7 +743,7 @@ export async function POST() {
     {
       id: 'dev_ev_content_session',
       title: 'Session content — Freestyle stream',
-      type: 'other',
+      type: 'autre',
       teamId: TEAM_CONTENT,
       createdBy: DEV_UIDS.rlContentCaptain,
       startsAt: ts(24 * H + 7 * H),
@@ -754,7 +754,7 @@ export async function POST() {
     {
       id: 'dev_ev_scouting_watch',
       title: 'Watch party — RLCS EU finale',
-      type: 'other',
+      type: 'autre',
       teamId: TEAM_SCOUTING,
       createdBy: DEV_UIDS.coachStructure,
       startsAt: ts(2 * 24 * H + 8 * H),
@@ -778,8 +778,8 @@ export async function POST() {
       endsAt: ev.endsAt,
       target: { scope: 'teams', teamIds: [ev.teamId] },
       status: ev.status,
-      completedAt: ev.status === 'completed' ? ev.endsAt : null,
-      completedBy: ev.status === 'completed' ? ev.createdBy : null,
+      completedAt: ev.status === 'done' ? ev.endsAt : null,
+      completedBy: ev.status === 'done' ? ev.createdBy : null,
       cancelledAt: null,
       cancelledBy: null,
       cancelReason: null,
@@ -792,12 +792,12 @@ export async function POST() {
     });
     for (const userId of invited) {
       // Pour un event passé terminé, on simule que tout le monde a répondu "yes".
-      const isPast = ev.status === 'completed';
+      const isPast = ev.status === 'done';
       await write(batchRef, db, db.collection('event_presences').doc(`${ev.id}_${userId}`), {
         eventId: ev.id,
         structureId: DEV_STRUCTURE_ID,
         userId,
-        status: isPast ? 'yes' : 'pending',
+        status: isPast ? 'present' : 'pending',
         wasStructureMember: true,
         respondedAt: isPast ? ev.startsAt : null,
         updatedBy: null,
