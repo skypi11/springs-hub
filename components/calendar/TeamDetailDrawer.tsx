@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { X, CalendarClock, ClipboardList } from 'lucide-react';
+import { X, CalendarClock, ClipboardList, Film } from 'lucide-react';
 import Portal from '@/components/ui/Portal';
+import type { UserContext } from '@/lib/event-permissions';
 import TeamAvailabilityView from './TeamAvailabilityView';
 import TeamTodosPanel from './TeamTodosPanel';
+import ReplaysPanel from '@/components/replays/ReplaysPanel';
 
-export type DrawerTab = 'availability' | 'todos';
+export type DrawerTab = 'availability' | 'todos' | 'replays';
 
 type TeamMember = {
   uid: string;
@@ -31,6 +33,7 @@ export default function TeamDetailDrawer({
   team,
   initialTab,
   canEditConfig,
+  userContext,
 }: {
   open: boolean;
   onClose: () => void;
@@ -38,6 +41,7 @@ export default function TeamDetailDrawer({
   team: DrawerTeam | null;
   initialTab: DrawerTab;
   canEditConfig: boolean;
+  userContext: UserContext;
 }) {
   const [visible, setVisible] = useState(false);
   const [tab, setTab] = useState<DrawerTab>(initialTab);
@@ -153,6 +157,12 @@ export default function TeamDetailDrawer({
               active={tab === 'todos'}
               onClick={() => setTab('todos')}
             />
+            <TabButton
+              label="REPLAYS"
+              icon={<Film size={14} />}
+              active={tab === 'replays'}
+              onClick={() => setTab('replays')}
+            />
           </div>
 
           {/* Content */}
@@ -176,6 +186,15 @@ export default function TeamDetailDrawer({
                     staff: team.staff,
                   }}
                   embedded
+                />
+              )}
+              {tab === 'replays' && (
+                <ReplaysPanel
+                  structureId={structureId}
+                  teamId={team.id}
+                  eventId={null}
+                  mode="library"
+                  userContext={userContext}
                 />
               )}
             </div>

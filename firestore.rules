@@ -77,6 +77,16 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── Springs Hub — Replays (Rocket League) ───────────────────────────────
+    // Fichier physique stocké sur R2 (privé). Ici on ne stocke que les métadonnées.
+    // Toute la logique d'accès (upload + download signés, delete) passe par les API
+    // routes qui vérifient le UserContext. Lecture client désactivée — les listes
+    // sont servies par /api/structures/[id]/replays (filtrage par équipe/event).
+    match /replays/{id} {
+      allow read: if false;
+      allow write: if false;
+    }
+
     // ── Springs Hub — Présences aux événements ──────────────────────────────
     // Une ligne par couple (eventId, userId). Écritures via API routes.
     match /event_presences/{id} {

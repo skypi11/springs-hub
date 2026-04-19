@@ -36,6 +36,7 @@ import {
   canMarkTerminated,
   isDirigeant,
 } from '@/lib/event-permissions';
+import ReplaysPanel from '@/components/replays/ReplaysPanel';
 
 type Presence = {
   id: string;
@@ -1647,6 +1648,21 @@ function EventDetailModal({
               </p>
             )}
           </div>
+
+          {/* Replays — uniquement pour scrim/match ciblant une seule équipe */}
+          {(event.type === 'scrim' || event.type === 'match') && event.target.scope === 'teams' && (event.target.teamIds ?? []).length === 1 && (
+            <div className="pt-2" style={{ borderTop: '1px solid var(--s-border)' }}>
+              <div className="pt-3">
+                <ReplaysPanel
+                  structureId={structureId}
+                  teamId={(event.target.teamIds ?? [])[0]}
+                  eventId={event.id}
+                  mode="event"
+                  userContext={userContext}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex flex-wrap justify-between gap-2 pt-2" style={{ borderTop: '1px solid var(--s-border)' }}>

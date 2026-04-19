@@ -190,6 +190,32 @@ export interface StructureEvent {
   resultat?: string | null;
 }
 
+// ── Replays ──────────────────────────────────────────────────────────────
+// Rocket League uniquement pour l'instant. Stockés sur R2 (clé dans r2Key),
+// accédés via URL signée (60s) car privés au staff de la structure.
+export type ReplayStatus = 'pending' | 'ready';
+export type ReplayResult = 'win' | 'loss' | 'draw';
+
+export interface Replay {
+  id: string;
+  structureId: string;
+  teamId: string;              // sub_team — obligatoire pour organiser la bibliothèque
+  eventId?: string | null;     // si rattaché à un scrim/match
+  uploadedBy: string;
+  // Fichier
+  filename: string;            // original, sanitizé
+  sizeBytes: number;
+  r2Key: string;
+  status: ReplayStatus;        // pending → le fichier n'a pas encore été PUT sur R2
+  // Métadonnées éditables
+  title: string;
+  result?: ReplayResult | null;
+  score?: string | null;       // "3-2"
+  map?: string | null;
+  notes?: string | null;
+  createdAt?: string;
+}
+
 export interface EventPresence {
   id: string;
   eventId: string;

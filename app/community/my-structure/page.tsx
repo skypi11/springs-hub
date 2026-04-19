@@ -4216,6 +4216,7 @@ export default function MyStructurePage() {
         team={drawerState?.team ?? null}
         initialTab={drawerState?.tab ?? 'availability'}
         canEditConfig={drawerState?.canEditConfig ?? false}
+        userContext={userContext}
       />
     </div>
   );
