@@ -883,15 +883,15 @@ function NewTodoForm({
                 }} />
               <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
                 {deadlineOffsetDays === 0
-                  ? 'le jour de l\u2019event'
+                  ? 'le jour de l’event'
                   : deadlineOffsetDays > 0
-                    ? `jour${deadlineOffsetDays > 1 ? 's' : ''} APR\u00c8S l\u2019event`
-                    : `jour${deadlineOffsetDays < -1 ? 's' : ''} AVANT l\u2019event`}
-                {' '}(n\u00e9gatif = avant, positif = apr\u00e8s, max \u00b1{DEADLINE_OFFSET_DAYS_MAX})
+                    ? `jour${deadlineOffsetDays > 1 ? 's' : ''} APRÈS l’event`
+                    : `jour${deadlineOffsetDays < -1 ? 's' : ''} AVANT l’event`}
+                {' '}(négatif = avant, positif = après, max ±{DEADLINE_OFFSET_DAYS_MAX})
               </span>
             </div>
             <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-              Ex : J-1 = check-in / training pack \u00e0 faire la veille du match. Si l\u2019event est d\u00e9plac\u00e9, la deadline suit automatiquement.
+              Ex : J-1 = check-in / training pack à faire la veille du match. Si l’event est déplacé, la deadline suit automatiquement.
             </p>
           </div>
         ) : (
