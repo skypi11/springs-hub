@@ -18,6 +18,9 @@ export type NotificationType =
   | 'transfer_cancelled'
   | 'transfer_confirmed'
   | 'todo_deadline_changed'
+  | 'todo_assigned'
+  | 'todo_reminder'
+  | 'todo_overdue'
   | 'generic';
 
 export type NotificationPayload = {

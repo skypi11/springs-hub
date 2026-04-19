@@ -274,6 +274,158 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
   return data.id as string;
 }
 
+// ---------- Todos (devoirs) ----------
+
+// Couleurs par type de devoir — DA Springs (dégradés utilisés par le panel TeamTodosPanel).
+const TODO_COLORS: Record<string, number> = {
+  free:           0x7a7a95, // gris (tâche libre)
+  replay_review:  0x4da6ff, // bleu (replay)
+  training_pack:  0xa364d9, // violet Springs (entraînement)
+  vod_review:     0xff6bb5, // rose (vidéo)
+  scouting:       0xff9f43, // orange (analyse adversaire)
+  watch_party:    0x5865f2, // blurple (watch)
+  mental_checkin: 0x00d936, // vert (mental/fitness)
+};
+
+const TODO_LABELS: Record<string, string> = {
+  free:           'Tâche libre',
+  replay_review:  'Visionnage replay',
+  training_pack:  'Training pack',
+  vod_review:     'VOD review',
+  scouting:       'Analyse adversaire',
+  watch_party:    'Watch party',
+  mental_checkin: 'Check-in mental',
+};
+
+export interface TodoEmbedInput {
+  title: string;
+  type: string;
+  description?: string | null;
+  deadlineAtMs?: number | null;       // ms epoch — si fourni, on utilise Discord timestamps pour localiser
+  deadlineYmd?: string | null;        // fallback texte "YYYY-MM-DD" si pas de deadlineAtMs
+  teamName?: string | null;
+  structureName?: string | null;
+  createdByName?: string | null;
+  siteTodoUrl?: string | null;        // lien vers /calendar (ou page dédiée)
+  thumbnailUrl?: string | null;       // logo équipe ou structure
+  authorIconUrl?: string | null;
+  pingUserIds?: string[];             // snowflakes à ping — assignés
+  // Résumé de config par type (ex: nombre de packs, URL VOD courte…). Si null, pas de field extra.
+  configSummary?: string | null;
+}
+
+// Poste un embed "nouveau devoir" dans un channel Discord. Même forme que postEventEmbed :
+// appelé en fire-and-forget côté route, throw si échec pour log Sentry.
+export async function postTodoEmbed(channelId: string, input: TodoEmbedInput): Promise<string> {
+  const typeLabel = TODO_LABELS[input.type] ?? input.type;
+  const color = TODO_COLORS[input.type] ?? 0x7a7a95;
+
+  const userPings = (input.pingUserIds ?? []).slice(0, 40);
+  const mentionsLine = userPings.map(id => `<@${id}>`).join(' ');
+
+  const authorParts = [`📝 DEVOIR · ${typeLabel}`];
+  if (input.structureName) authorParts.push(input.structureName);
+  const authorName = authorParts.join(' · ').slice(0, 256);
+
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
+  // Deadline : Discord timestamps (<t:SEC:F> = date+heure, <t:SEC:R> = relatif "dans 2h").
+  // Avec l'option A, deadlineAtMs porte l'heure exacte (kick-off pour un devoir relatif offset=0).
+  if (typeof input.deadlineAtMs === 'number') {
+    const sec = Math.floor(input.deadlineAtMs / 1000);
+    fields.push({ name: '⏰ Deadline', value: `<t:${sec}:F>\n<t:${sec}:R>`, inline: true });
+  } else if (input.deadlineYmd) {
+    fields.push({ name: '⏰ Deadline', value: input.deadlineYmd, inline: true });
+  }
+  if (input.teamName) {
+    fields.push({ name: '👥 Équipe', value: input.teamName.slice(0, 256), inline: true });
+  }
+  if (input.configSummary) {
+    fields.push({ name: '🎯 Détail', value: input.configSummary.slice(0, 1024), inline: false });
+  }
+
+  const authorObj: Record<string, unknown> = { name: authorName };
+  if (input.authorIconUrl && /^https:\/\//.test(input.authorIconUrl)) {
+    authorObj.icon_url = input.authorIconUrl;
+  }
+
+  const embed: Record<string, unknown> = {
+    color,
+    author: authorObj,
+    title: input.title.slice(0, 256),
+    description: (input.description ?? '').slice(0, 2000) || undefined,
+    fields,
+    footer: {
+      text: input.createdByName
+        ? `Assigné par ${input.createdByName} · Springs Hub`
+        : 'Springs Hub',
+    },
+    timestamp: new Date().toISOString(),
+  };
+  if (input.siteTodoUrl) embed.url = input.siteTodoUrl;
+  if (input.thumbnailUrl && /^https:\/\//.test(input.thumbnailUrl)) {
+    embed.thumbnail = { url: input.thumbnailUrl };
+  }
+
+  const allowedMentions: Record<string, unknown> = { parse: [] };
+  if (userPings.length > 0) allowedMentions.users = userPings;
+
+  const content = mentionsLine || undefined;
+
+  const res = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bot ${botToken()}`,
+    },
+    body: JSON.stringify({
+      ...(content ? { content } : {}),
+      embeds: [embed],
+      allowed_mentions: allowedMentions,
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Discord post todo failed: ${res.status} ${body.slice(0, 300)}`);
+  }
+  const data = await res.json();
+  return data.id as string;
+}
+
+// Ouvre (ou récupère) un DM channel avec un user et y poste un embed todo.
+// Retourne { ok: true, messageId } ou { ok: false, reason } — 403 = le user a bloqué
+// les DMs du bot ou n'a aucun serveur mutual. On ne throw PAS car c'est un cas normal.
+export async function sendTodoDM(
+  discordUserId: string,
+  input: TodoEmbedInput,
+): Promise<{ ok: true; messageId: string } | { ok: false; reason: string }> {
+  // Étape 1 : créer ou récupérer le DM channel.
+  const dmRes = await fetch(`${DISCORD_API}/users/@me/channels`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bot ${botToken()}`,
+    },
+    body: JSON.stringify({ recipient_id: discordUserId }),
+  });
+  if (!dmRes.ok) {
+    const body = await dmRes.text().catch(() => '');
+    return { ok: false, reason: `dm_open_${dmRes.status}: ${body.slice(0, 150)}` };
+  }
+  const dm = await dmRes.json();
+  const channelId = dm.id as string;
+
+  // Étape 2 : poster le même embed que celui du channel, mais sans ping (inutile en DM).
+  const postInput: TodoEmbedInput = { ...input, pingUserIds: [] };
+  try {
+    const messageId = await postTodoEmbed(channelId, postInput);
+    return { ok: true, messageId };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // 403 attendu quand le user a désactivé les DMs du serveur où le bot est.
+    return { ok: false, reason: msg.slice(0, 200) };
+  }
+}
+
 // URL CDN de l'icône d'un serveur (ou null si pas d'icône custom).
 export function guildIconUrl(guildId: string, iconHash: string | null, size = 128): string | null {
   if (!iconHash) return null;

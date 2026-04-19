@@ -5,7 +5,15 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { isStaffOfTeam, isDirigeant } from '@/lib/event-permissions';
-import { validateCreateTodo, computeRelativeDeadlineAt, parisYmd, endOfDayParisMs } from '@/lib/todos';
+import {
+  validateCreateTodo,
+  computeRelativeDeadlineAt,
+  parisYmd,
+  endOfDayParisMs,
+  TODO_TYPE_META,
+} from '@/lib/todos';
+import { createNotifications, type NotificationPayload } from '@/lib/notifications';
+import { postTodoEmbed, sendTodoDM } from '@/lib/discord-bot';
 
 // Sérialise un timestamp Firestore en ms epoch (plus simple à manipuler côté client pour trier).
 function tsMs(v: unknown): number | null {
@@ -132,6 +140,102 @@ export async function POST(
       createdIds.push(ref.id);
     }
     await batch.commit();
+
+    // Notif in-app aux assignés (best-effort — on ne bloque pas la création si ça échoue).
+    try {
+      const typeLabel = TODO_TYPE_META[type]?.short ?? 'Devoir';
+      const teamLabel = (team.name as string | undefined) ?? 'ton équipe';
+      const deadlineHint = deadline ? ` (pour le ${deadline})` : '';
+      const notifs: NotificationPayload[] = assigneeIds.map(uidAssignee => ({
+        userId: uidAssignee,
+        type: 'todo_assigned',
+        title: `Nouveau devoir : ${typeLabel}`,
+        message: `« ${title} » — ${teamLabel}${deadlineHint}`,
+        link: '/calendar',
+        metadata: { structureId, subTeamId, type, eventId, deadline },
+      }));
+      await createNotifications(db, notifs);
+    } catch (notifErr) {
+      captureApiError('API Structures/todos POST notif error', notifErr);
+    }
+
+    // Fan-out Discord (fire-and-forget) : embed dans le channel de l'équipe + DM aux assignés.
+    // On ne await pas pour ne pas ralentir la réponse UI — l'UI doit pouvoir fermer le form
+    // immédiatement après que le devoir soit créé en base.
+    ;(async () => {
+      try {
+        const structureName = (resolved.structure as { name?: string }).name ?? null;
+        const structureLogoUrl = (resolved.structure as { logoUrl?: string }).logoUrl ?? null;
+        const teamName = (team as { name?: string }).name ?? null;
+        const teamLogoUrl = (team as { logoUrl?: string }).logoUrl ?? null;
+        const channelId = (team as { discordChannelId?: string }).discordChannelId;
+        const siteTodoUrl = `${req.nextUrl.origin}/calendar`;
+
+        // displayName du créateur pour le footer (best-effort — fallback silencieux).
+        let createdByName: string | null = null;
+        try {
+          const userSnap = await db.collection('users').doc(uid).get();
+          const u = userSnap.data();
+          if (u) {
+            createdByName = (u.displayName as string | undefined)
+              ?? (u.discordUsername as string | undefined)
+              ?? null;
+          }
+        } catch { /* ignore */ }
+
+        // uid Springs (format `discord_SNOWFLAKE`) → snowflake Discord pour ping / DM.
+        const toDiscordId = (u: string): string | null => {
+          if (!u.startsWith('discord_')) return null;
+          const id = u.slice('discord_'.length);
+          return /^\d{5,32}$/.test(id) ? id : null;
+        };
+        const pingUserIds = assigneeIds
+          .map(toDiscordId)
+          .filter((v): v is string => !!v);
+
+        const embedInput = {
+          title,
+          type,
+          description: description || null,
+          deadlineAtMs: deadlineAt,
+          deadlineYmd: deadline,
+          teamName,
+          structureName,
+          createdByName,
+          siteTodoUrl,
+          thumbnailUrl: teamLogoUrl || structureLogoUrl,
+          authorIconUrl: teamLogoUrl || structureLogoUrl,
+          pingUserIds,
+        };
+
+        // 1) Embed dans le channel de l'équipe si configuré.
+        if (channelId) {
+          try {
+            const messageId = await postTodoEmbed(channelId, embedInput);
+            // On log le post pour permettre un edit/delete futur (même pattern que events).
+            await db.collection('structure_todos').doc(createdIds[0]).collection('discord_posts').add({
+              scope: 'team_channel',
+              channelId,
+              messageId,
+              postedAt: FieldValue.serverTimestamp(),
+            });
+          } catch (e) {
+            captureApiError('Discord post todo failed (team channel)', e);
+          }
+        }
+
+        // 2) DM à chaque assigné (best-effort — 403 est normal si DMs désactivés).
+        await Promise.all(pingUserIds.map(async did => {
+          const res = await sendTodoDM(did, embedInput);
+          if (!res.ok) {
+            // Pas un vrai "error" — on ne spam pas Sentry pour des 403 attendus.
+            // On pourrait tracker par user en metadata pour faire un rapport "X ne reçoit pas les DMs".
+          }
+        }));
+      } catch (e) {
+        captureApiError('Discord fan-out todo failed', e);
+      }
+    })();
 
     return NextResponse.json({ success: true, ids: createdIds, count: createdIds.length });
   } catch (err) {

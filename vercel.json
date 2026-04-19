@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/expire-invitations",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/todos-reminders",
+      "schedule": "0 * * * *"
     }
   ]
 }
