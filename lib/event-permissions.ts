@@ -67,6 +67,14 @@ export function isStaff(ctx: UserContext): boolean {
   return isDirigeant(ctx) || ctx.isManager || ctx.isCoach;
 }
 
+// Vrai si l'utilisateur a un rôle staff structure OU s'il est staff d'au moins
+// une équipe (coach d'équipe enregistré dans sub_teams.staffIds).
+// À utiliser pour l'accès aux features transverses (templates de devoirs, etc.)
+// qu'un coach d'équipe doit pouvoir exploiter sans être coach au niveau structure.
+export function hasAnyStaffAccess(ctx: UserContext): boolean {
+  return isStaff(ctx) || ctx.staffedTeamIds.length > 0;
+}
+
 export function isStaffOfTeam(ctx: UserContext, teamId: string): boolean {
   if (isDirigeant(ctx)) return true;
   return !!teamId && ctx.staffedTeamIds.includes(teamId);

@@ -4,7 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
-import { isStaff } from '@/lib/event-permissions';
+import { hasAnyStaffAccess } from '@/lib/event-permissions';
 import { validateCreateTemplate, TEMPLATE_MAX_PER_SCOPE } from '@/lib/todo-templates';
 
 function tsMs(v: unknown): number | null {
@@ -39,7 +39,7 @@ export async function GET(
     if (!resolved) {
       return NextResponse.json({ error: 'Structure introuvable ou inaccessible' }, { status: 404 });
     }
-    if (!isStaff(resolved.context)) {
+    if (!hasAnyStaffAccess(resolved.context)) {
       return NextResponse.json({ error: 'Accès réservé au staff.' }, { status: 403 });
     }
 
@@ -109,7 +109,7 @@ export async function POST(
     if (!resolved) {
       return NextResponse.json({ error: 'Structure introuvable ou inaccessible' }, { status: 404 });
     }
-    if (!isStaff(resolved.context)) {
+    if (!hasAnyStaffAccess(resolved.context)) {
       return NextResponse.json({ error: 'Accès réservé au staff.' }, { status: 403 });
     }
 
