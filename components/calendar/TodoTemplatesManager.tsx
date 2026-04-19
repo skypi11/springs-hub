@@ -49,8 +49,8 @@ export default function TodoTemplatesManager({
   return (
     <Portal>
       <div
-        className="fixed inset-0 z-[100] flex items-center justify-center p-4"
-        style={{ background: 'rgba(0,0,0,0.72)' }}
+        className="fixed inset-0 flex items-center justify-center p-4"
+        style={{ background: 'rgba(0,0,0,0.72)', zIndex: 9700 }}
         onClick={onClose}
       >
         <div
