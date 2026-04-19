@@ -15,6 +15,26 @@ export async function GET(req: NextRequest) {
   }
 
   if (!TRN_API_KEY) {
+    // En dev on renvoie un mock réaliste pour débloquer le travail local sans clé Tracker.gg.
+    // On varie légèrement selon l'epicId pour que deux joueurs n'aient pas exactement le même rang.
+    if (process.env.NODE_ENV === 'development') {
+      const seed = Array.from(epicId).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+      const ranks = ['Diamant III', 'Champion I', 'Champion II', 'Champion III', 'Grand Champion I', 'Grand Champion II'];
+      const rank = ranks[seed % ranks.length];
+      const mmr = 1000 + (seed % 600);
+      return NextResponse.json({
+        rank: { rank, division: 'Division II', mmr, playlist: 'Ranked Doubles 2v2', iconUrl: '' },
+        overview: {
+          wins: 200 + (seed % 400),
+          goals: 1200 + (seed % 800),
+          assists: 600 + (seed % 400),
+          mvps: 150 + (seed % 200),
+          saves: 800 + (seed % 500),
+        },
+        trackerUrl: `https://rocketleague.tracker.gg/rocket-league/profile/epic/${encodeURIComponent(epicId)}/overview`,
+        _mock: true,
+      });
+    }
     return NextResponse.json({ error: 'TRN API key non configurée' }, { status: 500 });
   }
 

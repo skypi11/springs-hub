@@ -16,6 +16,7 @@ import PublicPreviewFrame from '@/components/ui/PublicPreviewFrame';
 import MarkdownEditor from '@/components/ui/MarkdownEditor';
 import ImageUploader from '@/components/ui/ImageUploader';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
+import { RL_RANKS } from '@/lib/rl-ranks';
 
 const RECRUIT_ROLE_LABEL: Record<string, string> = {
   joueur: 'Joueur',
@@ -41,6 +42,7 @@ type FormData = {
   games: string[];
   epicAccountId: string;
   rlTrackerUrl: string;
+  rlRank: string;
   pseudoTM: string;
   loginTM: string;
   tmIoUrl: string;
@@ -58,6 +60,7 @@ const defaultForm: FormData = {
   games: [],
   epicAccountId: '',
   rlTrackerUrl: '',
+  rlRank: '',
   pseudoTM: '',
   loginTM: '',
   tmIoUrl: '',
@@ -111,6 +114,7 @@ export default function SettingsPage() {
             games: data.games ?? [],
             epicAccountId: data.epicDisplayName ?? data.epicAccountId ?? '',
             rlTrackerUrl: data.rlTrackerUrl ?? '',
+            rlRank: data.rlRank ?? '',
             pseudoTM: data.pseudoTM ?? '',
             loginTM: data.loginTM ?? '',
             tmIoUrl: data.tmIoUrl ?? '',
@@ -528,6 +532,20 @@ export default function SettingsPage() {
                               onChange={e => updateForm({ rlTrackerUrl: e.target.value })}
                               className="settings-input w-full" placeholder="https://rocketleague.tracker.network/..." />
                           </div>
+                        </div>
+                        <div>
+                          <label className="t-label block mb-2">Rang RL (auto-déclaré)</label>
+                          <select value={form.rlRank}
+                            onChange={e => updateForm({ rlRank: e.target.value })}
+                            className="settings-input w-full">
+                            <option value="">— Non renseigné —</option>
+                            {RL_RANKS.map(r => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </select>
+                          <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
+                            Utilisé quand les stats auto ne sont pas disponibles. Les stats Tracker.gg priment si elles remontent.
+                          </p>
                         </div>
                       </div>
                     )}

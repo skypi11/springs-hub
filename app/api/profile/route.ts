@@ -7,6 +7,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { computeAge } from '@/lib/age';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
+import { isValidRLRank } from '@/lib/rl-ranks';
 
 type ProfileStructure = {
   id: string;
@@ -225,6 +226,7 @@ export async function POST(req: NextRequest) {
       epicAccountId,
       epicDisplayName,
       rlTrackerUrl: body.games.includes('rocket_league') ? safeUrl(body.rlTrackerUrl) : '',
+      rlRank: body.games.includes('rocket_league') && isValidRLRank(body.rlRank) ? body.rlRank : '',
       pseudoTM: body.games.includes('trackmania') ? body.pseudoTM?.trim() || '' : '',
       loginTM: body.games.includes('trackmania') ? body.loginTM?.trim() || '' : '',
       tmIoUrl: body.games.includes('trackmania') ? safeUrl(body.tmIoUrl) : '',
