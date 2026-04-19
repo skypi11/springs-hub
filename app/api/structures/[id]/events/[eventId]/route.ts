@@ -9,7 +9,7 @@ import {
   canDeleteEvent,
   type EventRef,
 } from '@/lib/event-permissions';
-import { computeRelativeDeadline } from '@/lib/todos';
+import { computeRelativeDeadlineAt, parisYmd } from '@/lib/todos';
 import { createNotifications, type NotificationPayload } from '@/lib/notifications';
 
 const MAX_TITLE = 120;
@@ -154,12 +154,21 @@ export async function PATCH(
           const offset = typeof data.deadlineOffsetDays === 'number' ? data.deadlineOffsetDays : null;
           if (offset === null) continue;
           const oldDeadline = (data.deadline as string | null) ?? null;
-          const newDeadline = computeRelativeDeadline(newStartsAtMs, offset);
-          if (oldDeadline === newDeadline) continue;
-          batch.update(doc.ref, { deadline: newDeadline, updatedAt: FieldValue.serverTimestamp() });
+          const oldDeadlineAt = typeof data.deadlineAt === 'number' ? data.deadlineAt : null;
+          const newDeadlineAt = computeRelativeDeadlineAt(newStartsAtMs, offset);
+          const newDeadline = parisYmd(newDeadlineAt);
+          // On update dès que l'instant change (ms), même si le jour YMD reste le même :
+          // l'heure précise compte désormais pour isOverdue (option A).
+          if (oldDeadlineAt === newDeadlineAt && oldDeadline === newDeadline) continue;
+          batch.update(doc.ref, {
+            deadline: newDeadline,
+            deadlineAt: newDeadlineAt,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
           recalcedCount++;
+          // Notif seulement si le jour YMD change — évite de spammer pour un simple décalage d'heures.
           const assigneeId = data.assigneeId as string | undefined;
-          if (assigneeId) {
+          if (assigneeId && oldDeadline !== newDeadline) {
             notifs.push({
               userId: assigneeId,
               type: 'todo_deadline_changed',

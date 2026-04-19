@@ -120,9 +120,10 @@ export interface TodoRef {
   config: Record<string, unknown>; // sérialisé tel quel depuis Firestore
   response: Record<string, unknown> | null;
   eventId: string | null;
-  deadline: string | null;  // "YYYY-MM-DD" ou null — valeur concrète (calculée si relative)
-  deadlineMode: DeadlineMode | null;  // null = pas de deadline ; 'absolute' = fixée ; 'relative' = calculée depuis l'event
-  deadlineOffsetDays: number | null;  // uniquement si mode='relative' — offset en jours après event.startsAt
+  deadline: string | null;  // "YYYY-MM-DD" ou null — jour de la deadline en heure Paris (pour affichage + tri secondaire)
+  deadlineAt: number | null; // ms epoch — moment exact où la deadline tombe (source de vérité pour isOverdue/tri)
+  deadlineMode: DeadlineMode | null;  // null = pas de deadline ; 'absolute' = fixée ; 'relative' = calée sur event.startsAt
+  deadlineOffsetDays: number | null;  // uniquement si mode='relative' — N jours autour de event.startsAt (0 = au début de l'event)
   done: boolean;
   doneAt: number | null;    // ms epoch
   doneBy: string | null;
@@ -151,7 +152,8 @@ export interface ValidatedTodoInput {
   description: string;
   config: Record<string, unknown>;
   eventId: string | null;
-  deadline: string | null;  // si mode='relative' → null ici (API calcule depuis event.startsAt)
+  deadline: string | null;   // YMD Paris — pour absolute, calculé côté API pour relative
+  deadlineAt: number | null; // ms epoch — idem : null pour relative (API calcule depuis event.startsAt)
   deadlineMode: DeadlineMode | null;
   deadlineOffsetDays: number | null;
 }
@@ -204,19 +206,50 @@ export function normalizeTrainingPacks(config: Record<string, unknown> | null | 
   return out;
 }
 
-// Calcule une deadline YYYY-MM-DD à partir d'un event (startsAt en ms epoch) et d'un offset en jours.
-// Fuseau Europe/Paris : le "jour" de l'event est celui affiché au staff, l'offset s'applique dessus.
-// offsetDays = 0 → même jour que l'event ; 1 → lendemain ; etc.
-export function computeRelativeDeadline(eventStartsAtMs: number, offsetDays: number): string {
-  const fmt = new Intl.DateTimeFormat('en-CA', {
+// Formate un ms epoch en YYYY-MM-DD dans le fuseau Europe/Paris.
+export function parisYmd(ms: number): string {
+  return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Paris',
     year: 'numeric', month: '2-digit', day: '2-digit',
-  });
-  const baseYmd = fmt.format(new Date(eventStartsAtMs)); // "YYYY-MM-DD" dans Paris
-  // On repart d'un UTC midi pour additionner les jours sans souci de DST.
-  const base = new Date(baseYmd + 'T12:00:00Z');
-  base.setUTCDate(base.getUTCDate() + offsetDays);
-  return base.toISOString().slice(0, 10);
+  }).format(new Date(ms));
+}
+
+// Fin de journée Paris (23:59:59.999) pour un YMD donné, renvoyée en ms epoch.
+// Gère CET (+1, hiver) et CEST (+2, été) en testant l'heure Paris effective de chaque candidat :
+// on retient celui dont l'heure locale Paris est bien 23:59.
+// Le simple round-trip via parisYmd ne suffit pas (les deux candidats tombent sur le même YMD).
+const parisHourFmt = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/Paris',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
+export function endOfDayParisMs(ymd: string): number {
+  const parts = ymd.split('-');
+  const y = Number(parts[0]);
+  const m = Number(parts[1]);
+  const d = Number(parts[2]);
+  for (const utcHour of [21, 22]) {
+    const ms = Date.UTC(y, m - 1, d, utcHour, 59, 59, 999);
+    if (parisHourFmt.format(new Date(ms)) === '23:59') return ms;
+  }
+  // Ne devrait pas arriver sauf bug env : fallback CET.
+  return Date.UTC(y, m - 1, d, 22, 59, 59, 999);
+}
+
+// Calcule une deadline précise (ms epoch) à partir d'un event et d'un offset en jours.
+// Sémantique option A : offsetDays=0 → deadline = event.startsAt (au début de l'event).
+//  -1 → 24h avant event.startsAt
+//  +1 → 24h après event.startsAt
+// Usage : check-in mental / training pack avec offset 0 = à rendre avant le kick-off du match.
+export function computeRelativeDeadlineAt(eventStartsAtMs: number, offsetDays: number): number {
+  return eventStartsAtMs + offsetDays * 86400000;
+}
+
+// Legacy/compat : renvoie uniquement le jour Paris de la deadline relative.
+// Conservé pour éviter de casser les imports existants mais préfère computeRelativeDeadlineAt.
+export function computeRelativeDeadline(eventStartsAtMs: number, offsetDays: number): string {
+  return parisYmd(computeRelativeDeadlineAt(eventStartsAtMs, offsetDays));
 }
 
 // ---------- Validation config par type ----------
@@ -413,12 +446,13 @@ export function validateCreateTodo(
   }
 
   // Deadline : deux modes.
-  //  - 'absolute' : YYYY-MM-DD fournie directement dans input.deadline.
-  //  - 'relative' : offset en jours appliqué à event.startsAt → nécessite eventId, et la deadline
-  //    concrète est calculée côté API (accès DB pour lire startsAt), pas ici.
+  //  - 'absolute' : YYYY-MM-DD fournie directement → deadlineAt = fin de journée Paris de cette date.
+  //  - 'relative' : offset en jours appliqué à event.startsAt → nécessite eventId. La valeur concrète
+  //    est calculée côté API (accès DB pour lire startsAt), pas ici — donc deadline/deadlineAt null.
   let deadlineMode: DeadlineMode | null = null;
   let deadlineOffsetDays: number | null = null;
   let deadline: string | null = null;
+  let deadlineAt: number | null = null;
 
   if (input.deadlineMode === 'relative') {
     if (!eventId) {
@@ -435,12 +469,13 @@ export function validateCreateTodo(
     }
     deadlineMode = 'relative';
     deadlineOffsetDays = off;
-    // deadline reste null ici — l'API la calculera via computeRelativeDeadline().
+    // deadline / deadlineAt restent null ici — l'API les calcule via computeRelativeDeadlineAt().
   } else if (input.deadline !== undefined && input.deadline !== null && input.deadline !== '') {
     if (!isValidYmd(input.deadline)) {
       return { ok: false, error: 'Deadline invalide (format attendu YYYY-MM-DD).' };
     }
     deadline = input.deadline as string;
+    deadlineAt = endOfDayParisMs(deadline);
     deadlineMode = 'absolute';
   }
 
@@ -449,23 +484,29 @@ export function validateCreateTodo(
     value: {
       subTeamId, assigneeIds, type, title, description,
       config: configResult.value,
-      eventId, deadline, deadlineMode, deadlineOffsetDays,
+      eventId, deadline, deadlineAt, deadlineMode, deadlineOffsetDays,
     },
   };
 }
 
 // ---------- Tri & retard (inchangés depuis v1) ----------
 
+// Source de vérité = deadlineAt (ms). Si absent (ancien doc), fallback via fin de journée Paris du YMD.
+function effectiveDeadlineMs(todo: TodoRef): number | null {
+  if (typeof todo.deadlineAt === 'number') return todo.deadlineAt;
+  if (todo.deadline) return endOfDayParisMs(todo.deadline);
+  return null;
+}
+
 export function compareTodosPending(a: TodoRef, b: TodoRef): number {
-  const aHasDeadline = a.deadline !== null;
-  const bHasDeadline = b.deadline !== null;
-  if (aHasDeadline && bHasDeadline) {
-    if (a.deadline! < b.deadline!) return -1;
-    if (a.deadline! > b.deadline!) return 1;
+  const aMs = effectiveDeadlineMs(a);
+  const bMs = effectiveDeadlineMs(b);
+  if (aMs !== null && bMs !== null) {
+    if (aMs !== bMs) return aMs - bMs;
     return b.createdAt - a.createdAt;
   }
-  if (aHasDeadline) return -1;
-  if (bHasDeadline) return 1;
+  if (aMs !== null) return -1;
+  if (bMs !== null) return 1;
   return b.createdAt - a.createdAt;
 }
 
@@ -475,8 +516,11 @@ export function compareTodosDone(a: TodoRef, b: TodoRef): number {
   return bDone - aDone;
 }
 
-export function isOverdue(todo: TodoRef, todayYmd: string): boolean {
+// Un devoir est en retard si on a dépassé l'instant précis de sa deadline.
+// Avec l'option A, un devoir avec offset=0 et match à 18:00 est overdue à 18:01, pas le lendemain.
+export function isOverdue(todo: TodoRef, nowMs: number): boolean {
   if (todo.done) return false;
-  if (!todo.deadline) return false;
-  return todo.deadline < todayYmd;
+  const ms = effectiveDeadlineMs(todo);
+  if (ms === null) return false;
+  return nowMs > ms;
 }

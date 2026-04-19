@@ -363,7 +363,7 @@ function TodoStaffRow({
   onToggle: () => void;
   onDelete: () => void;
 }) {
-  const overdue = isOverdue(todo, today);
+  const overdue = isOverdue(todo, Date.now());
   const deadlineInfo = todo.deadline ? formatDeadlineShort(todo.deadline, today) : null;
   return (
     <div className="flex items-start gap-2.5 p-2.5 transition-all duration-150"

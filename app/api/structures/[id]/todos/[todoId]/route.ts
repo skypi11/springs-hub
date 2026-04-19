@@ -12,6 +12,7 @@ import {
   validateTodoConfig,
   validateTodoResponse,
   TODO_TYPE_META,
+  endOfDayParisMs,
   type TodoType,
 } from '@/lib/todos';
 
@@ -133,8 +134,13 @@ export async function PATCH(
         if (newType !== undefined) patch.type = newType;
       }
 
+      // Édition manuelle = toujours mode absolute. On clear les champs relative pour éviter
+      // un ré-écrasement par le recalc event PATCH.
       if (body.deadline === null || body.deadline === '') {
         patch.deadline = null;
+        patch.deadlineAt = null;
+        patch.deadlineMode = null;
+        patch.deadlineOffsetDays = null;
       } else if (typeof body.deadline === 'string') {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(body.deadline)) {
           return NextResponse.json({ error: 'Deadline invalide.' }, { status: 400 });
@@ -144,6 +150,9 @@ export async function PATCH(
           return NextResponse.json({ error: 'Deadline invalide.' }, { status: 400 });
         }
         patch.deadline = body.deadline;
+        patch.deadlineAt = endOfDayParisMs(body.deadline);
+        patch.deadlineMode = 'absolute';
+        patch.deadlineOffsetDays = null;
       }
 
       await ref.update(patch);

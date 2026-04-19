@@ -3,6 +3,7 @@ import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { endOfDayParisMs } from '@/lib/todos';
 
 function tsMs(v: unknown): number | null {
   if (!v) return null;
@@ -48,6 +49,9 @@ export async function GET(req: NextRequest) {
         response: (d.response && typeof d.response === 'object') ? d.response : null,
         eventId: (d.eventId as string | null) ?? null,
         deadline: (d.deadline as string | null) ?? null,
+        deadlineAt: typeof d.deadlineAt === 'number'
+          ? d.deadlineAt
+          : (d.deadline ? endOfDayParisMs(d.deadline as string) : null),
         deadlineMode: (d.deadlineMode === 'relative' || d.deadlineMode === 'absolute')
           ? d.deadlineMode
           : (d.deadline ? 'absolute' : null),

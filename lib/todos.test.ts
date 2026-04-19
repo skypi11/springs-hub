@@ -7,6 +7,9 @@ import {
   compareTodosDone,
   isOverdue,
   computeRelativeDeadline,
+  computeRelativeDeadlineAt,
+  parisYmd,
+  endOfDayParisMs,
   TODO_TITLE_MAX,
   TODO_DESCRIPTION_MAX,
   TODO_MAX_ASSIGNEES,
@@ -28,6 +31,7 @@ const todo = (partial: Partial<TodoRef> = {}): TodoRef => ({
   response: null,
   eventId: null,
   deadline: null,
+  deadlineAt: null,
   deadlineMode: null,
   deadlineOffsetDays: null,
   done: false,
@@ -538,29 +542,47 @@ describe('compareTodosDone', () => {
 // ---------- isOverdue ----------
 
 describe('isOverdue', () => {
+  const noonApr15 = Date.UTC(2026, 3, 15, 10, 0, 0); // 12h Paris le 15 avril 2026 (CEST)
+
   it('done = jamais en retard', () => {
-    const t = todo({ done: true, deadline: '2020-01-01' });
-    expect(isOverdue(t, '2026-04-15')).toBe(false);
+    const t = todo({ done: true, deadline: '2020-01-01', deadlineAt: endOfDayParisMs('2020-01-01') });
+    expect(isOverdue(t, noonApr15)).toBe(false);
   });
 
   it('sans deadline = jamais en retard', () => {
-    const t = todo({ deadline: null });
-    expect(isOverdue(t, '2026-04-15')).toBe(false);
+    const t = todo({ deadline: null, deadlineAt: null });
+    expect(isOverdue(t, noonApr15)).toBe(false);
   });
 
   it('deadline dans le futur = pas en retard', () => {
-    const t = todo({ deadline: '2026-05-01' });
-    expect(isOverdue(t, '2026-04-15')).toBe(false);
+    const t = todo({ deadline: '2026-05-01', deadlineAt: endOfDayParisMs('2026-05-01') });
+    expect(isOverdue(t, noonApr15)).toBe(false);
   });
 
-  it('deadline aujourd\'hui = pas en retard', () => {
-    const t = todo({ deadline: '2026-04-15' });
-    expect(isOverdue(t, '2026-04-15')).toBe(false);
+  it('deadline absolute aujourd\'hui = pas en retard à midi (fin de journée pas atteinte)', () => {
+    const t = todo({ deadline: '2026-04-15', deadlineAt: endOfDayParisMs('2026-04-15') });
+    expect(isOverdue(t, noonApr15)).toBe(false);
   });
 
   it('deadline passée = en retard', () => {
-    const t = todo({ deadline: '2026-04-10' });
-    expect(isOverdue(t, '2026-04-15')).toBe(true);
+    const t = todo({ deadline: '2026-04-10', deadlineAt: endOfDayParisMs('2026-04-10') });
+    expect(isOverdue(t, noonApr15)).toBe(true);
+  });
+
+  it('deadline relative option A : overdue dès la minute qui suit event.startsAt (offset=0)', () => {
+    // match à 18h Paris le 15 avril → deadlineAt = kick-off. À 18h01 = overdue.
+    const kickoff = Date.UTC(2026, 3, 15, 16, 0, 0); // 18h Paris (CEST)
+    const t = todo({ deadline: '2026-04-15', deadlineAt: kickoff });
+    expect(isOverdue(t, kickoff - 60_000)).toBe(false);
+    expect(isOverdue(t, kickoff + 60_000)).toBe(true);
+  });
+
+  it('legacy doc sans deadlineAt : fallback sur fin de journée Paris', () => {
+    // Ancien doc n'a pas de deadlineAt. On compare à la fin de journée Paris du YMD.
+    const t = todo({ deadline: '2026-04-15', deadlineAt: null });
+    const eod = endOfDayParisMs('2026-04-15');
+    expect(isOverdue(t, eod - 60_000)).toBe(false);
+    expect(isOverdue(t, eod + 60_000)).toBe(true);
   });
 });
 
@@ -608,5 +630,90 @@ describe('computeRelativeDeadline', () => {
     // 2026-05-02T00:30:00Z = 2026-05-02 02h30 à Paris (CEST). Jour Paris = 2 mai.
     const ms = Date.UTC(2026, 4, 2, 0, 30, 0);
     expect(computeRelativeDeadline(ms, 0)).toBe('2026-05-02');
+  });
+});
+
+// ---------- computeRelativeDeadlineAt (option A) ----------
+
+describe('computeRelativeDeadlineAt', () => {
+  const kickoff = Date.UTC(2026, 4, 1, 18, 0, 0); // 20h Paris le 1er mai 2026 (CEST)
+
+  it('offset=0 → kick-off exact (pas fin de journée)', () => {
+    expect(computeRelativeDeadlineAt(kickoff, 0)).toBe(kickoff);
+  });
+
+  it('offset=-1 → 24h avant kick-off', () => {
+    expect(computeRelativeDeadlineAt(kickoff, -1)).toBe(kickoff - 86_400_000);
+  });
+
+  it('offset=+2 → 48h après kick-off', () => {
+    expect(computeRelativeDeadlineAt(kickoff, 2)).toBe(kickoff + 2 * 86_400_000);
+  });
+
+  it('parisYmd(computeRelativeDeadlineAt) = computeRelativeDeadline (legacy wrapper cohérent)', () => {
+    for (const off of [-2, -1, 0, 1, 7]) {
+      expect(parisYmd(computeRelativeDeadlineAt(kickoff, off))).toBe(computeRelativeDeadline(kickoff, off));
+    }
+  });
+});
+
+// ---------- endOfDayParisMs ----------
+
+describe('endOfDayParisMs', () => {
+  it('CEST (été) : 23:59:59.999 Paris = 21:59:59.999 UTC', () => {
+    expect(endOfDayParisMs('2026-07-15')).toBe(Date.UTC(2026, 6, 15, 21, 59, 59, 999));
+  });
+
+  it('CET (hiver) : 23:59:59.999 Paris = 22:59:59.999 UTC', () => {
+    expect(endOfDayParisMs('2026-01-15')).toBe(Date.UTC(2026, 0, 15, 22, 59, 59, 999));
+  });
+
+  it('round-trip : parisYmd(endOfDayParisMs(ymd)) === ymd', () => {
+    for (const ymd of ['2026-01-15', '2026-03-29', '2026-07-15', '2026-10-25', '2026-12-31']) {
+      expect(parisYmd(endOfDayParisMs(ymd))).toBe(ymd);
+    }
+  });
+});
+
+// ---------- validateCreateTodo : deadlineAt pour mode absolute ----------
+
+describe('validateCreateTodo — deadlineAt', () => {
+  it('mode absolute : deadlineAt = fin de journée Paris du YMD', () => {
+    const r = validateCreateTodo({
+      subTeamId: 'team1', assigneeIds: ['u1'], title: 'x',
+      deadline: '2026-07-15',
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.deadline).toBe('2026-07-15');
+      expect(r.value.deadlineAt).toBe(endOfDayParisMs('2026-07-15'));
+      expect(r.value.deadlineMode).toBe('absolute');
+    }
+  });
+
+  it('mode relative : deadline/deadlineAt null (API les calcule depuis event.startsAt)', () => {
+    const r = validateCreateTodo({
+      subTeamId: 'team1', assigneeIds: ['u1'], title: 'x',
+      eventId: 'ev1', deadlineMode: 'relative', deadlineOffsetDays: -1,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.deadline).toBeNull();
+      expect(r.value.deadlineAt).toBeNull();
+      expect(r.value.deadlineMode).toBe('relative');
+      expect(r.value.deadlineOffsetDays).toBe(-1);
+    }
+  });
+
+  it('pas de deadline : tous les champs null', () => {
+    const r = validateCreateTodo({
+      subTeamId: 'team1', assigneeIds: ['u1'], title: 'x',
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.deadline).toBeNull();
+      expect(r.value.deadlineAt).toBeNull();
+      expect(r.value.deadlineMode).toBeNull();
+    }
   });
 });

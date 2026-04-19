@@ -5,7 +5,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { isStaffOfTeam, isDirigeant } from '@/lib/event-permissions';
-import { validateCreateTodo, computeRelativeDeadline } from '@/lib/todos';
+import { validateCreateTodo, computeRelativeDeadlineAt, parisYmd, endOfDayParisMs } from '@/lib/todos';
 
 // Sérialise un timestamp Firestore en ms epoch (plus simple à manipuler côté client pour trier).
 function tsMs(v: unknown): number | null {
@@ -45,7 +45,10 @@ export async function POST(
     }
     const {
       subTeamId, assigneeIds, type, title, description, config,
-      eventId, deadline: absoluteDeadline, deadlineMode, deadlineOffsetDays,
+      eventId,
+      deadline: absoluteDeadline,
+      deadlineAt: absoluteDeadlineAt,
+      deadlineMode, deadlineOffsetDays,
     } = validation.value;
 
     // Équipe existe et appartient à la structure
@@ -82,10 +85,12 @@ export async function POST(
       eventStartsAtMs = tsMs(evData?.startsAt);
     }
 
-    // Résolution finale de la deadline.
-    //  - absolute → utilise directement la valeur validée.
-    //  - relative → calcule à partir de event.startsAt (déjà requis par le validateur si mode=relative).
+    // Résolution finale de la deadline (YMD Paris + ms epoch).
+    //  - absolute → YMD fourni ; deadlineAt = fin de journée Paris de ce YMD.
+    //  - relative → deadlineAt = event.startsAt + offset*24h (option A : offset=0 ⇒ au kick-off) ;
+    //    deadline YMD déduit via parisYmd.
     let deadline: string | null = absoluteDeadline;
+    let deadlineAt: number | null = absoluteDeadlineAt;
     if (deadlineMode === 'relative') {
       if (typeof deadlineOffsetDays !== 'number') {
         return NextResponse.json({ error: 'Offset de deadline manquant.' }, { status: 400 });
@@ -93,7 +98,8 @@ export async function POST(
       if (eventStartsAtMs === null) {
         return NextResponse.json({ error: 'Event sans date de début : deadline relative impossible.' }, { status: 400 });
       }
-      deadline = computeRelativeDeadline(eventStartsAtMs, deadlineOffsetDays);
+      deadlineAt = computeRelativeDeadlineAt(eventStartsAtMs, deadlineOffsetDays);
+      deadline = parisYmd(deadlineAt);
     }
 
     // Création atomique : 1 doc par assignee
@@ -113,6 +119,7 @@ export async function POST(
         response: null,
         eventId,
         deadline,                                    // "YYYY-MM-DD" ou null (calculée si relative)
+        deadlineAt,                                  // ms epoch ou null — source de vérité pour isOverdue/tri
         deadlineMode: deadlineMode ?? null,          // 'absolute' | 'relative' | null
         deadlineOffsetDays: deadlineOffsetDays ?? null,  // uniquement si mode='relative'
         done: false,
@@ -193,6 +200,10 @@ export async function GET(
         response: (d.response && typeof d.response === 'object') ? d.response : null,
         eventId: d.eventId ?? null,
         deadline: d.deadline ?? null,
+        // Legacy fallback : si doc ancien sans deadlineAt, dérive depuis YMD (fin de journée Paris).
+        deadlineAt: typeof d.deadlineAt === 'number'
+          ? d.deadlineAt
+          : (d.deadline ? endOfDayParisMs(d.deadline) : null),
         deadlineMode: (d.deadlineMode === 'relative' || d.deadlineMode === 'absolute')
           ? d.deadlineMode
           : (d.deadline ? 'absolute' : null),

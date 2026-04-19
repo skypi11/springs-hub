@@ -242,7 +242,7 @@ function TodoRow({
   onSubmitResponse: (response: Record<string, unknown>) => void;
   onReopen: () => void;
 }) {
-  const overdue = isOverdue(todo, today);
+  const overdue = isOverdue(todo, Date.now());
   const deadlineInfo = todo.deadline ? formatDeadline(todo.deadline, today) : null;
   const meta = TODO_TYPE_META[todo.type];
 
