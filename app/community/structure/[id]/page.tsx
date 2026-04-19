@@ -452,6 +452,18 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
   const mainColorRaw = structure.games?.includes('rocket_league') ? '0,129,255' : structure.games?.includes('trackmania') ? '0,217,54' : '255,184,0';
   // Calcul du rôle dérivé pour chaque membre — vérité d'affichage unique,
   // même source que le dashboard privé. On cache le résultat par userId pour ne pas recalculer.
+  // L'API renvoie `players/subs/staff` enrichis ; computeMemberRole attend
+  // playerIds/subIds/staffIds (strings). On reconstruit les IDs ici.
+  const roleTeams: MemberRoleTeam[] = teams.map(t => ({
+    id: t.id,
+    name: t.name,
+    playerIds: t.players.map(p => p.uid),
+    subIds: t.subs.map(p => p.uid),
+    staffIds: t.staff.map(p => p.uid),
+    staffRoles: t.staffRoles,
+    captainId: t.captainId ?? null,
+    status: t.status,
+  }));
   const roleByUser = new Map<string, ReturnType<typeof computeMemberRole>>();
   const roleFor = (userId: string) => {
     const hit = roleByUser.get(userId);
@@ -462,7 +474,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
       coFounderIds: structure.coFounderIds ?? [],
       managerIds: structure.managerIds ?? [],
       coachIds: structure.coachIds ?? [],
-      teams: teams as unknown as MemberRoleTeam[],
+      teams: roleTeams,
     });
     roleByUser.set(userId, r);
     return r;
