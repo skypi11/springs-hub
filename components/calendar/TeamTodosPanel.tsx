@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Image from 'next/image';
-import { Loader2, Plus, Trash2, Check, Calendar as CalIcon, X, ClipboardList, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, Plus, Trash2, Check, Calendar as CalIcon, X, ClipboardList, ChevronDown, ChevronUp, Library, Save } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
@@ -18,6 +18,9 @@ import {
   type TodoRef,
   type TodoType,
 } from '@/lib/todos';
+import { TEMPLATE_NAME_MAX } from '@/lib/todo-templates';
+import { TodoConfigFields } from '@/components/calendar/TodoConfigFields';
+import TodoTemplatesManager, { useTodoTemplates, type TodoTemplateUi } from '@/components/calendar/TodoTemplatesManager';
 
 type Member = {
   uid: string;
@@ -79,7 +82,10 @@ export default function TeamTodosPanel({
   const [showForm, setShowForm] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [events, setEvents] = useState<EventOpt[]>([]);
+  const [showTemplatesManager, setShowTemplatesManager] = useState(false);
   const today = useMemo(() => todayYmd(), []);
+
+  const { templates, reload: reloadTemplates } = useTodoTemplates(structureId);
 
   const allMembers = useMemo(() => {
     const map = new Map<string, Member>();
@@ -239,22 +245,34 @@ export default function TeamTodosPanel({
             ({counts.pending} à faire · {counts.done} fait{counts.done > 1 ? 's' : ''})
           </span>
         </div>
-        {embedded ? (
+        <div className="flex items-center gap-2 flex-wrap">
           <button type="button"
-            onClick={() => setShowForm(v => !v)}
-            className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-xs">
-            {showForm ? <X size={12} /> : <Plus size={12} />}
-            {showForm ? 'Annuler' : 'Nouveau devoir'}
-          </button>
-        ) : (
-          <button type="button"
-            onClick={() => setShowForm(v => !v)}
+            onClick={() => setShowTemplatesManager(true)}
             className="flex items-center gap-1.5 text-xs font-bold transition-colors duration-150"
-            style={{ color: 'var(--s-violet-light)' }}>
-            {showForm ? <X size={11} /> : <Plus size={11} />}
-            {showForm ? 'Annuler' : 'Nouveau devoir'}
+            style={{ color: 'var(--s-text-dim)' }}
+            title="Gérer les templates">
+            <Library size={11} /> Templates
+            {templates.length > 0 && (
+              <span style={{ color: 'var(--s-text-muted)' }}>({templates.length})</span>
+            )}
           </button>
-        )}
+          {embedded ? (
+            <button type="button"
+              onClick={() => setShowForm(v => !v)}
+              className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-xs">
+              {showForm ? <X size={12} /> : <Plus size={12} />}
+              {showForm ? 'Annuler' : 'Nouveau devoir'}
+            </button>
+          ) : (
+            <button type="button"
+              onClick={() => setShowForm(v => !v)}
+              className="flex items-center gap-1.5 text-xs font-bold transition-colors duration-150"
+              style={{ color: 'var(--s-violet-light)' }}>
+              {showForm ? <X size={11} /> : <Plus size={11} />}
+              {showForm ? 'Annuler' : 'Nouveau devoir'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Formulaire */}
@@ -263,8 +281,21 @@ export default function TeamTodosPanel({
           structureId={structureId}
           team={team}
           events={events}
+          templates={templates}
           onCancel={() => setShowForm(false)}
           onCreated={() => { setShowForm(false); load(); }}
+          onTemplateSaved={reloadTemplates}
+        />
+      )}
+
+      {/* Modal gestion templates */}
+      {showTemplatesManager && firebaseUser && (
+        <TodoTemplatesManager
+          structureId={structureId}
+          currentUid={firebaseUser.uid}
+          templates={templates}
+          onClose={() => setShowTemplatesManager(false)}
+          onChanged={reloadTemplates}
         />
       )}
 
@@ -405,14 +436,18 @@ function NewTodoForm({
   structureId,
   team,
   events,
+  templates,
   onCancel,
   onCreated,
+  onTemplateSaved,
 }: {
   structureId: string;
   team: TeamRef;
   events: EventOpt[];
+  templates: TodoTemplateUi[];
   onCancel: () => void;
   onCreated: () => void;
+  onTemplateSaved: () => void;
 }) {
   const { firebaseUser } = useAuth();
   const toast = useToast();
@@ -424,6 +459,11 @@ function NewTodoForm({
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [showSaveAs, setShowSaveAs] = useState(false);
+  const [saveAsName, setSaveAsName] = useState('');
+  const [saveAsShared, setSaveAsShared] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
 
   // Config spécifique au type — un seul objet, les clés non-pertinentes sont ignorées à la soumission
   const [config, setConfig] = useState<Record<string, unknown>>({});
@@ -435,6 +475,59 @@ function NewTodoForm({
     setType(t);
     if (t === 'mental_checkin') setConfig({ prompts: [...DEFAULT_MENTAL_PROMPTS] });
     else setConfig({});
+  }
+
+  // Applique un template : pré-remplit type + title + description + config.
+  // Ne touche pas aux assignees/deadline/eventId — ceux-ci sont contextuels à chaque devoir.
+  function applyTemplate(tpl: TodoTemplateUi) {
+    setType(tpl.type);
+    setTitle(tpl.titleTemplate);
+    setDescription(tpl.descriptionTemplate);
+    // Pour mental_checkin sans prompts dans le template, on repose sur les defaults.
+    if (tpl.type === 'mental_checkin') {
+      const prompts = Array.isArray((tpl.config as { prompts?: unknown }).prompts)
+        ? ((tpl.config as { prompts: unknown[] }).prompts).filter(p => typeof p === 'string') as string[]
+        : [];
+      setConfig({ prompts: prompts.length > 0 ? prompts : [...DEFAULT_MENTAL_PROMPTS] });
+    } else {
+      setConfig({ ...tpl.config });
+    }
+    setShowTemplatePicker(false);
+    toast.success(`Template « ${tpl.name} » appliqué`);
+  }
+
+  async function saveAsTemplate() {
+    if (!firebaseUser || savingTemplate) return;
+    if (!saveAsName.trim()) { toast.error('Donne un nom au template'); return; }
+    setSavingTemplate(true);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch(`/api/structures/${structureId}/todo-templates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({
+          scope: saveAsShared ? 'structure' : 'personal',
+          name: saveAsName.trim(),
+          type,
+          titleTemplate: title.trim(),
+          descriptionTemplate: description.trim(),
+          config,
+        }),
+      });
+      if (res.ok) {
+        toast.success(saveAsShared ? 'Template partagé enregistré' : 'Template personnel enregistré');
+        setShowSaveAs(false);
+        setSaveAsName('');
+        setSaveAsShared(false);
+        onTemplateSaved();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.error || 'Erreur création template');
+      }
+    } catch {
+      toast.error('Erreur réseau');
+    }
+    setSavingTemplate(false);
   }
 
   const everyone = useMemo(() => {
@@ -492,6 +585,61 @@ function NewTodoForm({
 
   return (
     <div className="p-3 space-y-3" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+      {/* Picker template — visible uniquement s'il y en a au moins un */}
+      {templates.length > 0 && (
+        <div>
+          <button type="button"
+            onClick={() => setShowTemplatePicker(v => !v)}
+            className="flex items-center gap-1.5 text-xs font-bold transition-colors"
+            style={{ color: 'var(--s-gold)', cursor: 'pointer' }}>
+            {showTemplatePicker ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+            Partir d&apos;un template ({templates.length})
+          </button>
+          {showTemplatePicker && (
+            <div className="mt-2 grid gap-1.5 grid-cols-1 sm:grid-cols-2">
+              {templates.map(tpl => (
+                <button key={tpl.id} type="button" onClick={() => applyTemplate(tpl)}
+                  className="text-left p-2 transition-all duration-150"
+                  style={{
+                    background: 'var(--s-elevated)',
+                    border: '1px solid var(--s-border)',
+                    cursor: 'pointer',
+                  }}>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-sm font-bold truncate" style={{ color: 'var(--s-text)' }}>
+                      {tpl.name}
+                    </span>
+                    <span className="px-1 py-0.5" style={{
+                      fontSize: '9px',
+                      background: 'var(--s-surface)',
+                      border: '1px solid var(--s-border)',
+                      color: 'var(--s-text-dim)',
+                    }}>
+                      {TODO_TYPE_META[tpl.type].short.toUpperCase()}
+                    </span>
+                    {tpl.scope === 'structure' && (
+                      <span className="px-1 py-0.5" style={{
+                        fontSize: '9px',
+                        background: 'rgba(255,184,0,0.12)',
+                        border: '1px solid rgba(255,184,0,0.3)',
+                        color: 'var(--s-gold)',
+                      }}>
+                        PARTAGÉ
+                      </span>
+                    )}
+                  </div>
+                  {tpl.titleTemplate && (
+                    <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--s-text-dim)' }}>
+                      {tpl.titleTemplate}
+                    </p>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Type picker — chips horizontales, le choix du type change les champs affichés */}
       <div>
         <label className="t-label block mb-1.5" style={{ fontSize: '12px' }}>Type de devoir</label>
@@ -607,7 +755,43 @@ function NewTodoForm({
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      {/* Save-as-template : zone inline qui se déplie */}
+      {showSaveAs ? (
+        <div className="p-2.5 space-y-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-gold)' }}>
+          <div className="flex items-center justify-between">
+            <span className="t-label" style={{ fontSize: '11px', color: 'var(--s-gold)' }}>
+              ENREGISTRER CE DEVOIR COMME TEMPLATE
+            </span>
+            <button type="button" onClick={() => setShowSaveAs(false)}
+              className="p-1" style={{ color: 'var(--s-text-dim)', cursor: 'pointer' }}>
+              <X size={11} />
+            </button>
+          </div>
+          <input type="text" className="settings-input w-full text-sm"
+            placeholder="Nom du template (ex: Scouting 3v3 BO5)"
+            maxLength={TEMPLATE_NAME_MAX}
+            value={saveAsName}
+            onChange={e => setSaveAsName(e.target.value)} />
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={saveAsShared}
+              onChange={e => setSaveAsShared(e.target.checked)} />
+            <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+              Partager avec toute la structure (sinon : perso, visible par moi uniquement)
+            </span>
+          </label>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={saveAsTemplate}
+              disabled={savingTemplate || !saveAsName.trim()}
+              className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-xs"
+              style={{ opacity: !saveAsName.trim() ? 0.5 : 1 }}>
+              {savingTemplate ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+              <span>Enregistrer</span>
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="flex items-center gap-2 flex-wrap">
         <button type="button" onClick={submit}
           disabled={creating || !title.trim() || assigneeIds.length === 0}
           className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-xs"
@@ -619,6 +803,14 @@ function NewTodoForm({
           className="text-xs" style={{ color: 'var(--s-text-dim)', cursor: 'pointer' }}>
           Annuler
         </button>
+        {!showSaveAs && title.trim() && (
+          <button type="button" onClick={() => { setShowSaveAs(true); setSaveAsName(title.trim().slice(0, TEMPLATE_NAME_MAX)); }}
+            className="ml-auto flex items-center gap-1.5 text-xs transition-colors"
+            style={{ color: 'var(--s-text-dim)', cursor: 'pointer' }}
+            title="Enregistrer ce devoir comme template réutilisable">
+            <Save size={11} /> Enregistrer comme template
+          </button>
+        )}
       </div>
     </div>
   );
@@ -635,159 +827,6 @@ function titlePlaceholderFor(type: TodoType): string {
     case 'free':           return 'Tâche à accomplir';
     default:               return 'Tâche à accomplir';
   }
-}
-
-function TodoConfigFields({
-  type,
-  config,
-  onChange,
-}: {
-  type: TodoType;
-  config: Record<string, unknown>;
-  onChange: (patch: Record<string, unknown>) => void;
-}) {
-  if (type === 'free') return null;
-
-  if (type === 'replay_review') {
-    return (
-      <div>
-        <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Points à regarder</label>
-        <textarea rows={2} className="settings-input w-full text-sm"
-          placeholder="Ex: les 2 minutes après 3-1, notre rotation défensive"
-          maxLength={500}
-          value={String(config.replayNote ?? '')}
-          onChange={e => onChange({ replayNote: e.target.value })} />
-        <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
-          Le picker replay (bibliothèque équipe) arrive dans la prochaine étape.
-        </p>
-      </div>
-    );
-  }
-
-  if (type === 'training_pack') {
-    return (
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Code du pack *</label>
-          <input type="text" className="settings-input w-full text-sm"
-            placeholder="A503-264B-9D4C-E4F7"
-            maxLength={50}
-            value={String(config.packCode ?? '')}
-            onChange={e => onChange({ packCode: e.target.value })} />
-        </div>
-        <div>
-          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Objectif</label>
-          <input type="text" className="settings-input w-full text-sm"
-            placeholder="80% sans rater de reset"
-            maxLength={500}
-            value={String(config.objective ?? '')}
-            onChange={e => onChange({ objective: e.target.value })} />
-        </div>
-      </div>
-    );
-  }
-
-  if (type === 'vod_review') {
-    return (
-      <div className="space-y-2">
-        <div>
-          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Lien VOD *</label>
-          <input type="url" className="settings-input w-full text-sm"
-            placeholder="https://www.youtube.com/watch?v=..."
-            maxLength={500}
-            value={String(config.url ?? '')}
-            onChange={e => onChange({ url: e.target.value })} />
-        </div>
-        <div>
-          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Focus</label>
-          <input type="text" className="settings-input w-full text-sm"
-            placeholder="Rotations, positionnement sur corner..."
-            maxLength={500}
-            value={String(config.focus ?? '')}
-            onChange={e => onChange({ focus: e.target.value })} />
-        </div>
-      </div>
-    );
-  }
-
-  if (type === 'scouting') {
-    return (
-      <div>
-        <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Adversaire *</label>
-        <input type="text" className="settings-input w-full text-sm"
-          placeholder="Team Nova"
-          maxLength={120}
-          value={String(config.opponent ?? '')}
-          onChange={e => onChange({ opponent: e.target.value })} />
-      </div>
-    );
-  }
-
-  if (type === 'watch_party') {
-    return (
-      <div>
-        <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Lieu / salle</label>
-        <input type="text" className="settings-input w-full text-sm"
-          placeholder="Discord #watch-room"
-          maxLength={200}
-          value={String(config.location ?? '')}
-          onChange={e => onChange({ location: e.target.value })} />
-        <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
-          La liaison event calendrier arrive dans la prochaine étape.
-        </p>
-      </div>
-    );
-  }
-
-  if (type === 'mental_checkin') {
-    const prompts = Array.isArray(config.prompts)
-      ? (config.prompts as unknown[]).map(p => (typeof p === 'string' ? p : ''))
-      : DEFAULT_MENTAL_PROMPTS;
-    function setPrompt(i: number, v: string) {
-      const next = [...prompts];
-      next[i] = v;
-      onChange({ prompts: next });
-    }
-    function removePrompt(i: number) {
-      onChange({ prompts: prompts.filter((_, idx) => idx !== i) });
-    }
-    function addPrompt() {
-      if (prompts.length >= 6) return;
-      onChange({ prompts: [...prompts, ''] });
-    }
-    return (
-      <div>
-        <label className="t-label block mb-1.5" style={{ fontSize: '12px' }}>
-          Items à auto-évaluer (/5 chacun, max 6)
-        </label>
-        <div className="space-y-1.5">
-          {prompts.map((p, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <input type="text" className="settings-input flex-1 text-sm"
-                placeholder={DEFAULT_MENTAL_PROMPTS[i] ?? 'Item à évaluer'}
-                maxLength={60}
-                value={p}
-                onChange={e => setPrompt(i, e.target.value)} />
-              <button type="button" onClick={() => removePrompt(i)}
-                className="p-1 transition-opacity"
-                style={{ color: '#ff5555', opacity: 0.5, cursor: 'pointer' }}
-                aria-label="Retirer">
-                <X size={12} />
-              </button>
-            </div>
-          ))}
-          {prompts.length < 6 && (
-            <button type="button" onClick={addPrompt}
-              className="text-xs" style={{ color: 'var(--s-violet-light)', cursor: 'pointer' }}>
-              + Ajouter un item
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  return null;
 }
 
 // Résumé compact de la config d'un devoir pending (visible côté staff ET joueur).

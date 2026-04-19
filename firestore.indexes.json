@@ -154,6 +154,23 @@
         { "fieldPath": "structureId", "order": "ASCENDING" },
         { "fieldPath": "folderId", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "structure_todo_templates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "structureId", "order": "ASCENDING" },
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "scope", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "structure_todo_templates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "structureId", "order": "ASCENDING" },
+        { "fieldPath": "scope", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

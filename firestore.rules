@@ -120,6 +120,16 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── Springs Hub — Templates de devoirs (v2 étape 2) ─────────────────────
+    // Recettes pré-remplies pour créer des devoirs rapidement. scope=personal
+    // (perso du coach) ou scope=structure (partagé avec tout le staff).
+    // Toutes les listes/écritures passent par les API routes (Admin SDK) qui
+    // vérifient le UserContext + l'ownership.
+    match /structure_todo_templates/{id} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
     // ── Springs Hub — Compétitions ────────────────────────────────────────────
     match /competitions/{id} {
       allow read: if true;
