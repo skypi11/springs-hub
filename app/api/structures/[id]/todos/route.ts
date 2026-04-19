@@ -43,7 +43,7 @@ export async function POST(
     if (!validation.ok) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
-    const { subTeamId, assigneeIds, title, description, eventId, deadline } = validation.value;
+    const { subTeamId, assigneeIds, type, title, description, config, eventId, deadline } = validation.value;
 
     // Équipe existe et appartient à la structure
     const team = resolved.teams.find(t => t.id === subTeamId);
@@ -85,8 +85,11 @@ export async function POST(
         structureId,
         subTeamId,
         assigneeId,
+        type,
         title,
         description,
+        config,      // objet validé selon type — voir validateTodoConfig
+        response: null,
         eventId,
         deadline,  // "YYYY-MM-DD" ou null
         done: false,
@@ -160,8 +163,11 @@ export async function GET(
         structureId: d.structureId,
         subTeamId: d.subTeamId,
         assigneeId: d.assigneeId,
+        type: (typeof d.type === 'string' && d.type) ? d.type : 'free',
         title: d.title ?? '',
         description: d.description ?? '',
+        config: (d.config && typeof d.config === 'object') ? d.config : {},
+        response: (d.response && typeof d.response === 'object') ? d.response : null,
         eventId: d.eventId ?? null,
         deadline: d.deadline ?? null,
         done: !!d.done,

@@ -5,7 +5,15 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { isStaffOfTeam } from '@/lib/event-permissions';
-import { TODO_TITLE_MAX, TODO_DESCRIPTION_MAX } from '@/lib/todos';
+import {
+  TODO_TITLE_MAX,
+  TODO_DESCRIPTION_MAX,
+  TODO_TYPES,
+  validateTodoConfig,
+  validateTodoResponse,
+  TODO_TYPE_META,
+  type TodoType,
+} from '@/lib/todos';
 
 // PATCH /api/structures/[id]/todos/[todoId]
 // Actions :
@@ -52,12 +60,41 @@ export async function PATCH(
         return NextResponse.json({ error: 'Permissions insuffisantes.' }, { status: 403 });
       }
       const willBeDone = !data.done;
-      await ref.update({
+      const type: TodoType = (typeof data.type === 'string' && (TODO_TYPES as readonly string[]).includes(data.type))
+        ? (data.type as TodoType)
+        : 'free';
+      const needsResponse = TODO_TYPE_META[type].needsResponse;
+
+      const updates: Record<string, unknown> = {
         done: willBeDone,
         doneAt: willBeDone ? FieldValue.serverTimestamp() : null,
         doneBy: willBeDone ? uid : null,
         updatedAt: FieldValue.serverTimestamp(),
-      });
+      };
+
+      if (willBeDone && needsResponse) {
+        // Type avec réponse : l'assignee doit fournir une réponse valide
+        // (le staff peut forcer la clôture sans réponse — utile pour annuler un devoir abandonné)
+        if (isAssignee && !isStaff) {
+          const resp = validateTodoResponse(type, body.response);
+          if (!resp.ok) {
+            return NextResponse.json({ error: resp.error }, { status: 400 });
+          }
+          updates.response = resp.value;
+        } else if (body.response !== undefined) {
+          // Staff qui fournit quand même une réponse (ex: forcer clôture avec note)
+          const resp = validateTodoResponse(type, body.response);
+          if (!resp.ok) {
+            return NextResponse.json({ error: resp.error }, { status: 400 });
+          }
+          updates.response = resp.value;
+        }
+      } else if (!willBeDone) {
+        // On repasse à pending → on remet la réponse à null
+        updates.response = null;
+      }
+
+      await ref.update(updates);
       return NextResponse.json({ success: true, done: willBeDone });
     }
 
@@ -77,6 +114,25 @@ export async function PATCH(
       if (typeof body.description === 'string') {
         patch.description = body.description.trim().slice(0, TODO_DESCRIPTION_MAX);
       }
+
+      // Changement de type + config ensemble : si type fourni, config doit être revalidée
+      // (les clés d'un type ne correspondent pas à un autre type)
+      const newType: TodoType | undefined = (typeof body.type === 'string' && (TODO_TYPES as readonly string[]).includes(body.type))
+        ? (body.type as TodoType)
+        : undefined;
+      const currentType: TodoType = (typeof data.type === 'string' && (TODO_TYPES as readonly string[]).includes(data.type))
+        ? (data.type as TodoType)
+        : 'free';
+      const effectiveType = newType ?? currentType;
+
+      if (newType !== undefined || body.config !== undefined) {
+        const rawConfig = body.config !== undefined ? body.config : (newType ? {} : data.config);
+        const cfg = validateTodoConfig(effectiveType, rawConfig);
+        if (!cfg.ok) return NextResponse.json({ error: cfg.error }, { status: 400 });
+        patch.config = cfg.value;
+        if (newType !== undefined) patch.type = newType;
+      }
+
       if (body.deadline === null || body.deadline === '') {
         patch.deadline = null;
       } else if (typeof body.deadline === 'string') {

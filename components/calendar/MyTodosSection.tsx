@@ -1,11 +1,21 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Loader2, Check, Calendar as CalIcon, ChevronDown, ChevronRight, ClipboardList, Shield } from 'lucide-react';
+import { Loader2, Check, Calendar as CalIcon, ChevronDown, ChevronRight, ClipboardList, Shield, X } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
-import { compareTodosPending, compareTodosDone, isOverdue, type TodoRef } from '@/lib/todos';
+import {
+  compareTodosPending,
+  compareTodosDone,
+  isOverdue,
+  validateTodoResponse,
+  TODO_TYPE_META,
+  TODO_RESPONSE_MAX,
+  type TodoRef,
+  type TodoType,
+} from '@/lib/todos';
+import { TodoConfigSummary, TodoResponseSummary } from './TeamTodosPanel';
 
 type MyTodo = TodoRef & {
   structureName: string;
@@ -47,6 +57,7 @@ export default function MyTodosSection() {
   const [todos, setTodos] = useState<MyTodo[]>([]);
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [respondingId, setRespondingId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const today = useMemo(() => todayYmd(), []);
 
@@ -81,7 +92,8 @@ export default function MyTodosSection() {
     return { pending: p, done: d };
   }, [todos]);
 
-  async function toggle(todo: MyTodo) {
+  // Toggle générique — utilisé pour rouvrir un devoir done, OU pour valider un devoir free/watch_party
+  async function toggle(todo: MyTodo, response?: Record<string, unknown>) {
     if (!firebaseUser || togglingId) return;
     setTogglingId(todo.id);
     try {
@@ -89,10 +101,20 @@ export default function MyTodosSection() {
       const res = await fetch(`/api/structures/${todo.structureId}/todos/${todo.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ action: 'toggle' }),
+        body: JSON.stringify({ action: 'toggle', ...(response ? { response } : {}) }),
       });
       if (res.ok) {
-        setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, done: !t.done, doneAt: !t.done ? Date.now() : null } : t));
+        setTodos(prev => prev.map(t => {
+          if (t.id !== todo.id) return t;
+          const willBeDone = !t.done;
+          return {
+            ...t,
+            done: willBeDone,
+            doneAt: willBeDone ? Date.now() : null,
+            response: willBeDone ? (response ?? null) : null,
+          };
+        }));
+        setRespondingId(null);
         toast.success(todo.done ? 'Devoir rouvert' : 'Devoir terminé');
       } else {
         const d = await res.json().catch(() => ({}));
@@ -102,6 +124,17 @@ export default function MyTodosSection() {
       toast.error('Erreur réseau');
     }
     setTogglingId(null);
+  }
+
+  function handleValidate(todo: MyTodo) {
+    const meta = TODO_TYPE_META[todo.type];
+    if (!meta.needsResponse) {
+      // Pas de réponse requise → toggle direct
+      toggle(todo);
+    } else {
+      // Réponse requise → ouvre le formulaire inline
+      setRespondingId(todo.id);
+    }
   }
 
   if (loading) {
@@ -138,16 +171,24 @@ export default function MyTodosSection() {
           </div>
         </header>
 
-        {/* À faire */}
         {pending.length > 0 && (
           <div className="space-y-2">
             {pending.map(t => (
-              <TodoRow key={t.id} todo={t} today={today} onToggle={toggle} toggling={togglingId === t.id} />
+              <TodoRow
+                key={t.id}
+                todo={t}
+                today={today}
+                toggling={togglingId === t.id}
+                responding={respondingId === t.id}
+                onValidate={() => handleValidate(t)}
+                onCancelResponse={() => setRespondingId(null)}
+                onSubmitResponse={(resp) => toggle(t, resp)}
+                onReopen={() => toggle(t)}
+              />
             ))}
           </div>
         )}
 
-        {/* Historique pliable */}
         {done.length > 0 && (
           <div>
             <button type="button"
@@ -160,7 +201,17 @@ export default function MyTodosSection() {
             {showHistory && (
               <div className="space-y-2 mt-2">
                 {done.map(t => (
-                  <TodoRow key={t.id} todo={t} today={today} onToggle={toggle} toggling={togglingId === t.id} />
+                  <TodoRow
+                    key={t.id}
+                    todo={t}
+                    today={today}
+                    toggling={togglingId === t.id}
+                    responding={false}
+                    onValidate={() => handleValidate(t)}
+                    onCancelResponse={() => setRespondingId(null)}
+                    onSubmitResponse={(resp) => toggle(t, resp)}
+                    onReopen={() => toggle(t)}
+                  />
                 ))}
               </div>
             )}
@@ -174,16 +225,25 @@ export default function MyTodosSection() {
 function TodoRow({
   todo,
   today,
-  onToggle,
   toggling,
+  responding,
+  onValidate,
+  onCancelResponse,
+  onSubmitResponse,
+  onReopen,
 }: {
   todo: MyTodo;
   today: string;
-  onToggle: (t: MyTodo) => void;
   toggling: boolean;
+  responding: boolean;
+  onValidate: () => void;
+  onCancelResponse: () => void;
+  onSubmitResponse: (response: Record<string, unknown>) => void;
+  onReopen: () => void;
 }) {
   const overdue = isOverdue(todo, today);
   const deadlineInfo = todo.deadline ? formatDeadline(todo.deadline, today) : null;
+  const meta = TODO_TYPE_META[todo.type];
 
   return (
     <div className="bevel-sm flex items-start gap-3 p-3 transition-all duration-150"
@@ -192,9 +252,9 @@ function TodoRow({
         border: `1px solid ${overdue ? 'rgba(255,85,85,0.35)' : 'var(--s-border)'}`,
         opacity: todo.done ? 0.6 : 1,
       }}>
-      {/* Checkbox */}
+      {/* Checkbox — click ouvre le form de réponse si type le demande, sinon toggle direct */}
       <button type="button"
-        onClick={() => onToggle(todo)}
+        onClick={todo.done ? onReopen : onValidate}
         disabled={toggling}
         className="flex-shrink-0 flex items-center justify-center transition-all duration-150"
         style={{
@@ -213,19 +273,34 @@ function TodoRow({
         ) : null}
       </button>
 
-      {/* Content */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold" style={{
-          color: 'var(--s-text)',
-          textDecoration: todo.done ? 'line-through' : 'none',
-        }}>
-          {todo.title}
-        </p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-sm font-semibold" style={{
+            color: 'var(--s-text)',
+            textDecoration: todo.done ? 'line-through' : 'none',
+          }}>
+            {todo.title}
+          </p>
+          {todo.type !== 'free' && (
+            <span className="px-1.5 py-0.5 text-xs font-bold tracking-wider"
+              style={{
+                fontSize: '10px',
+                background: 'var(--s-surface)',
+                border: '1px solid var(--s-border)',
+                color: 'var(--s-text-dim)',
+              }}>
+              {meta.short.toUpperCase()}
+            </span>
+          )}
+        </div>
         {todo.description && !todo.done && (
           <p className="text-sm mt-1 whitespace-pre-wrap" style={{ color: 'var(--s-text-dim)' }}>
             {todo.description}
           </p>
         )}
+        {!todo.done && <TodoConfigSummary todo={todo} />}
+        {todo.done && todo.response && <TodoResponseSummary todo={todo} />}
+
         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
           <Link href={`/community/structure/${todo.structureId}`}
             className="flex items-center gap-1.5 group transition-colors"
@@ -248,6 +323,160 @@ function TodoRow({
             </span>
           )}
         </div>
+
+        {/* Formulaire de réponse inline pour les types qui en demandent une */}
+        {responding && !todo.done && meta.needsResponse && (
+          <ResponseForm
+            type={todo.type}
+            config={todo.config as Record<string, unknown>}
+            onCancel={onCancelResponse}
+            onSubmit={onSubmitResponse}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ResponseForm({
+  type,
+  config,
+  onCancel,
+  onSubmit,
+}: {
+  type: TodoType;
+  config: Record<string, unknown>;
+  onCancel: () => void;
+  onSubmit: (response: Record<string, unknown>) => void;
+}) {
+  const toast = useToast();
+  const [analysis, setAnalysis] = useState('');
+  const [result, setResult] = useState('');
+  const [notes, setNotes] = useState('');
+  const promptsRaw = Array.isArray(config.prompts) ? config.prompts as unknown[] : [];
+  const prompts: string[] = promptsRaw
+    .map(p => typeof p === 'string' ? p : '')
+    .filter(p => p.length > 0);
+  const [ratings, setRatings] = useState<number[]>(prompts.map(() => 3));
+
+  function build(): Record<string, unknown> | null {
+    switch (type) {
+      case 'replay_review':
+      case 'vod_review':
+        return { analysis };
+      case 'training_pack':
+        return { result };
+      case 'scouting':
+        return { notes };
+      case 'mental_checkin':
+        return { ratings };
+      default:
+        return null;
+    }
+  }
+
+  function submit() {
+    const payload = build();
+    if (!payload) return;
+    const check = validateTodoResponse(type, payload);
+    if (!check.ok) {
+      toast.error(check.error);
+      return;
+    }
+    onSubmit(check.value);
+  }
+
+  const label: Record<TodoType, string> = {
+    free: '',
+    watch_party: '',
+    replay_review: 'Ton analyse *',
+    vod_review: 'Ton analyse *',
+    training_pack: 'Ton résultat *',
+    scouting: 'Tes notes *',
+    mental_checkin: '',
+  };
+
+  return (
+    <div className="mt-3 p-3 space-y-3" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+      <div className="flex items-center justify-between">
+        <span className="t-label" style={{ fontSize: '11px', color: 'var(--s-text-dim)' }}>
+          VALIDER LE DEVOIR
+        </span>
+        <button type="button" onClick={onCancel}
+          className="p-0.5" style={{ color: 'var(--s-text-muted)', cursor: 'pointer' }}
+          aria-label="Annuler">
+          <X size={12} />
+        </button>
+      </div>
+
+      {(type === 'replay_review' || type === 'vod_review') && (
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>{label[type]}</label>
+          <textarea rows={4} className="settings-input w-full text-sm"
+            placeholder="Ce que tu as identifié, ce que tu vas retravailler..."
+            maxLength={TODO_RESPONSE_MAX}
+            value={analysis} onChange={e => setAnalysis(e.target.value)} />
+        </div>
+      )}
+
+      {type === 'training_pack' && (
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>{label[type]}</label>
+          <textarea rows={3} className="settings-input w-full text-sm"
+            placeholder="Ex: 12/20 la 1ère tentative, 17/20 après 30 min"
+            maxLength={TODO_RESPONSE_MAX}
+            value={result} onChange={e => setResult(e.target.value)} />
+        </div>
+      )}
+
+      {type === 'scouting' && (
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>{label[type]}</label>
+          <textarea rows={5} className="settings-input w-full text-sm"
+            placeholder="Style de jeu, forces/faiblesses, joueur clé, hypothèses de compo"
+            maxLength={TODO_RESPONSE_MAX}
+            value={notes} onChange={e => setNotes(e.target.value)} />
+        </div>
+      )}
+
+      {type === 'mental_checkin' && (
+        <div className="space-y-2">
+          {prompts.map((p, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <span className="text-sm flex-1" style={{ color: 'var(--s-text)' }}>{p}</span>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map(n => {
+                  const active = ratings[i] === n;
+                  return (
+                    <button key={n} type="button"
+                      onClick={() => setRatings(prev => prev.map((r, idx) => idx === i ? n : r))}
+                      className="w-7 h-7 flex items-center justify-center text-xs font-bold transition-all"
+                      style={{
+                        background: active ? 'var(--s-gold)' : 'var(--s-elevated)',
+                        border: `1px solid ${active ? 'var(--s-gold)' : 'var(--s-border)'}`,
+                        color: active ? '#000' : 'var(--s-text-dim)',
+                        cursor: 'pointer',
+                      }}>
+                      {n}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={submit}
+          className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-xs">
+          <Check size={12} />
+          <span>Valider & terminer</span>
+        </button>
+        <button type="button" onClick={onCancel}
+          className="text-xs" style={{ color: 'var(--s-text-dim)', cursor: 'pointer' }}>
+          Annuler
+        </button>
       </div>
     </div>
   );

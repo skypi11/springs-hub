@@ -6,7 +6,18 @@ import { Loader2, Plus, Trash2, Check, Calendar as CalIcon, X, ClipboardList, Ch
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
-import { compareTodosPending, compareTodosDone, isOverdue, TODO_TITLE_MAX, TODO_DESCRIPTION_MAX, type TodoRef } from '@/lib/todos';
+import {
+  compareTodosPending,
+  compareTodosDone,
+  isOverdue,
+  TODO_TITLE_MAX,
+  TODO_DESCRIPTION_MAX,
+  TODO_TYPES,
+  TODO_TYPE_META,
+  DEFAULT_MENTAL_PROMPTS,
+  type TodoRef,
+  type TodoType,
+} from '@/lib/todos';
 
 type Member = {
   uid: string;
@@ -348,6 +359,17 @@ function TodoStaffRow({
           <span className="text-xs font-semibold" style={{ color: 'var(--s-text-dim)' }}>
             {todo.assigneeName}
           </span>
+          {todo.type !== 'free' && (
+            <span className="px-1.5 py-0.5 text-xs font-bold tracking-wider"
+              style={{
+                fontSize: '10px',
+                background: 'var(--s-elevated)',
+                border: '1px solid var(--s-border)',
+                color: 'var(--s-text-dim)',
+              }}>
+              {TODO_TYPE_META[todo.type].short.toUpperCase()}
+            </span>
+          )}
           {deadlineInfo && (
             <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: deadlineInfo.color }}>
               <CalIcon size={11} /> {deadlineInfo.label}
@@ -365,6 +387,8 @@ function TodoStaffRow({
             {todo.description}
           </p>
         )}
+        {!todo.done && <TodoConfigSummary todo={todo} />}
+        {todo.done && todo.response && <TodoResponseSummary todo={todo} />}
       </div>
 
       <button type="button" onClick={onDelete} disabled={busy}
@@ -392,6 +416,7 @@ function NewTodoForm({
 }) {
   const { firebaseUser } = useAuth();
   const toast = useToast();
+  const [type, setType] = useState<TodoType>('free');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [deadline, setDeadline] = useState('');
@@ -399,6 +424,18 @@ function NewTodoForm({
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [showAll, setShowAll] = useState(false);
+
+  // Config spécifique au type — un seul objet, les clés non-pertinentes sont ignorées à la soumission
+  const [config, setConfig] = useState<Record<string, unknown>>({});
+  function updateConfig(patch: Record<string, unknown>) {
+    setConfig(prev => ({ ...prev, ...patch }));
+  }
+  // Changer de type réinitialise la config (les champs d'un type ne correspondent pas à un autre)
+  function changeType(t: TodoType) {
+    setType(t);
+    if (t === 'mental_checkin') setConfig({ prompts: [...DEFAULT_MENTAL_PROMPTS] });
+    else setConfig({});
+  }
 
   const everyone = useMemo(() => {
     const map = new Map<string, Member & { group: string }>();
@@ -429,8 +466,10 @@ function NewTodoForm({
         body: JSON.stringify({
           subTeamId: team.id,
           assigneeIds,
+          type,
           title: title.trim(),
           description: description.trim() || undefined,
+          config,
           deadline: deadline || undefined,
           eventId: eventId || undefined,
         }),
@@ -452,11 +491,34 @@ function NewTodoForm({
   const visibleMembers = showAll ? everyone : everyone.slice(0, 8);
 
   return (
-    <div className="p-3 space-y-3" style={{ background: 'var(--s-surface)', border: '1px solid rgba(123,47,190,0.25)' }}>
+    <div className="p-3 space-y-3" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+      {/* Type picker — chips horizontales, le choix du type change les champs affichés */}
+      <div>
+        <label className="t-label block mb-1.5" style={{ fontSize: '12px' }}>Type de devoir</label>
+        <div className="flex flex-wrap gap-1.5">
+          {TODO_TYPES.map(t => {
+            const active = type === t;
+            return (
+              <button key={t} type="button"
+                onClick={() => changeType(t)}
+                className="px-2.5 py-1 text-xs font-bold transition-all duration-150"
+                style={{
+                  background: active ? 'var(--s-elevated)' : 'var(--s-surface)',
+                  border: `1px solid ${active ? 'var(--s-gold)' : 'var(--s-border)'}`,
+                  color: active ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                  cursor: 'pointer',
+                }}>
+                {TODO_TYPE_META[t].short.toUpperCase()}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div>
         <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Titre *</label>
         <input type="text" className="settings-input w-full text-sm"
-          placeholder="Regarder la VOD du match de samedi"
+          placeholder={titlePlaceholderFor(type)}
           maxLength={TODO_TITLE_MAX}
           value={title} onChange={e => setTitle(e.target.value)} />
       </div>
@@ -464,10 +526,13 @@ function NewTodoForm({
       <div>
         <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Description (optionnelle)</label>
         <textarea rows={2} className="settings-input w-full text-sm"
-          placeholder="Noter 2 situations à retravailler avant mardi"
+          placeholder="Contexte, consignes, points d'attention"
           maxLength={TODO_DESCRIPTION_MAX}
           value={description} onChange={e => setDescription(e.target.value)} />
       </div>
+
+      {/* Champs spécifiques au type sélectionné */}
+      <TodoConfigFields type={type} config={config} onChange={updateConfig} />
 
       <div>
         <div className="flex items-center justify-between mb-1.5">
@@ -555,6 +620,275 @@ function NewTodoForm({
           Annuler
         </button>
       </div>
+    </div>
+  );
+}
+
+function titlePlaceholderFor(type: TodoType): string {
+  switch (type) {
+    case 'replay_review':  return 'Visionnage replay vs Alpha — samedi';
+    case 'training_pack':  return 'Training pack défensif — 30 min';
+    case 'vod_review':     return 'VOD G2 vs Karmine — rotations';
+    case 'scouting':       return 'Scouting Team Nova — BO5 de dimanche';
+    case 'watch_party':    return 'Watch party finale RLCS — 21h';
+    case 'mental_checkin': return "Check-in d'avant match";
+    case 'free':           return 'Tâche à accomplir';
+    default:               return 'Tâche à accomplir';
+  }
+}
+
+function TodoConfigFields({
+  type,
+  config,
+  onChange,
+}: {
+  type: TodoType;
+  config: Record<string, unknown>;
+  onChange: (patch: Record<string, unknown>) => void;
+}) {
+  if (type === 'free') return null;
+
+  if (type === 'replay_review') {
+    return (
+      <div>
+        <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Points à regarder</label>
+        <textarea rows={2} className="settings-input w-full text-sm"
+          placeholder="Ex: les 2 minutes après 3-1, notre rotation défensive"
+          maxLength={500}
+          value={String(config.replayNote ?? '')}
+          onChange={e => onChange({ replayNote: e.target.value })} />
+        <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
+          Le picker replay (bibliothèque équipe) arrive dans la prochaine étape.
+        </p>
+      </div>
+    );
+  }
+
+  if (type === 'training_pack') {
+    return (
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Code du pack *</label>
+          <input type="text" className="settings-input w-full text-sm"
+            placeholder="A503-264B-9D4C-E4F7"
+            maxLength={50}
+            value={String(config.packCode ?? '')}
+            onChange={e => onChange({ packCode: e.target.value })} />
+        </div>
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Objectif</label>
+          <input type="text" className="settings-input w-full text-sm"
+            placeholder="80% sans rater de reset"
+            maxLength={500}
+            value={String(config.objective ?? '')}
+            onChange={e => onChange({ objective: e.target.value })} />
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'vod_review') {
+    return (
+      <div className="space-y-2">
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Lien VOD *</label>
+          <input type="url" className="settings-input w-full text-sm"
+            placeholder="https://www.youtube.com/watch?v=..."
+            maxLength={500}
+            value={String(config.url ?? '')}
+            onChange={e => onChange({ url: e.target.value })} />
+        </div>
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Focus</label>
+          <input type="text" className="settings-input w-full text-sm"
+            placeholder="Rotations, positionnement sur corner..."
+            maxLength={500}
+            value={String(config.focus ?? '')}
+            onChange={e => onChange({ focus: e.target.value })} />
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'scouting') {
+    return (
+      <div>
+        <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Adversaire *</label>
+        <input type="text" className="settings-input w-full text-sm"
+          placeholder="Team Nova"
+          maxLength={120}
+          value={String(config.opponent ?? '')}
+          onChange={e => onChange({ opponent: e.target.value })} />
+      </div>
+    );
+  }
+
+  if (type === 'watch_party') {
+    return (
+      <div>
+        <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Lieu / salle</label>
+        <input type="text" className="settings-input w-full text-sm"
+          placeholder="Discord #watch-room"
+          maxLength={200}
+          value={String(config.location ?? '')}
+          onChange={e => onChange({ location: e.target.value })} />
+        <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
+          La liaison event calendrier arrive dans la prochaine étape.
+        </p>
+      </div>
+    );
+  }
+
+  if (type === 'mental_checkin') {
+    const prompts = Array.isArray(config.prompts)
+      ? (config.prompts as unknown[]).map(p => (typeof p === 'string' ? p : ''))
+      : DEFAULT_MENTAL_PROMPTS;
+    function setPrompt(i: number, v: string) {
+      const next = [...prompts];
+      next[i] = v;
+      onChange({ prompts: next });
+    }
+    function removePrompt(i: number) {
+      onChange({ prompts: prompts.filter((_, idx) => idx !== i) });
+    }
+    function addPrompt() {
+      if (prompts.length >= 6) return;
+      onChange({ prompts: [...prompts, ''] });
+    }
+    return (
+      <div>
+        <label className="t-label block mb-1.5" style={{ fontSize: '12px' }}>
+          Items à auto-évaluer (/5 chacun, max 6)
+        </label>
+        <div className="space-y-1.5">
+          {prompts.map((p, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input type="text" className="settings-input flex-1 text-sm"
+                placeholder={DEFAULT_MENTAL_PROMPTS[i] ?? 'Item à évaluer'}
+                maxLength={60}
+                value={p}
+                onChange={e => setPrompt(i, e.target.value)} />
+              <button type="button" onClick={() => removePrompt(i)}
+                className="p-1 transition-opacity"
+                style={{ color: '#ff5555', opacity: 0.5, cursor: 'pointer' }}
+                aria-label="Retirer">
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+          {prompts.length < 6 && (
+            <button type="button" onClick={addPrompt}
+              className="text-xs" style={{ color: 'var(--s-violet-light)', cursor: 'pointer' }}>
+              + Ajouter un item
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+// Résumé compact de la config d'un devoir pending (visible côté staff ET joueur).
+// Les valeurs vides sont ignorées — affiche uniquement ce qui apporte de l'info.
+export function TodoConfigSummary({ todo }: { todo: TodoRef }) {
+  const c = todo.config as Record<string, unknown>;
+  const rows: { label: string; value: string; mono?: boolean }[] = [];
+  switch (todo.type) {
+    case 'replay_review':
+      if (typeof c.replayNote === 'string' && c.replayNote) rows.push({ label: 'À regarder', value: c.replayNote });
+      break;
+    case 'training_pack':
+      if (typeof c.packCode === 'string' && c.packCode) rows.push({ label: 'Code', value: c.packCode, mono: true });
+      if (typeof c.objective === 'string' && c.objective) rows.push({ label: 'Objectif', value: c.objective });
+      break;
+    case 'vod_review':
+      if (typeof c.url === 'string' && c.url) rows.push({ label: 'VOD', value: c.url });
+      if (typeof c.focus === 'string' && c.focus) rows.push({ label: 'Focus', value: c.focus });
+      break;
+    case 'scouting':
+      if (typeof c.opponent === 'string' && c.opponent) rows.push({ label: 'Adversaire', value: c.opponent });
+      break;
+    case 'watch_party':
+      if (typeof c.location === 'string' && c.location) rows.push({ label: 'Lieu', value: c.location });
+      break;
+    case 'mental_checkin': {
+      const prompts = Array.isArray(c.prompts) ? c.prompts.filter(p => typeof p === 'string') as string[] : [];
+      if (prompts.length > 0) rows.push({ label: 'Items', value: prompts.join(' · ') });
+      break;
+    }
+    default:
+      break;
+  }
+  if (rows.length === 0) return null;
+  return (
+    <div className="mt-1.5 space-y-0.5">
+      {rows.map((r, i) => (
+        <div key={i} className="text-xs flex gap-1.5" style={{ color: 'var(--s-text-dim)' }}>
+          <span className="flex-shrink-0 font-bold" style={{ color: 'var(--s-text-muted)' }}>{r.label} :</span>
+          {r.label === 'VOD' ? (
+            <a href={r.value} target="_blank" rel="noopener noreferrer"
+              className="truncate underline hover:no-underline" style={{ color: 'var(--s-blue)' }}>
+              {r.value}
+            </a>
+          ) : (
+            <span className={`${r.mono ? 'font-mono' : ''} truncate`}>{r.value}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Résumé de la réponse d'un devoir done (visible côté staff pour relire ce que le joueur a rendu).
+export function TodoResponseSummary({ todo }: { todo: TodoRef }) {
+  if (!todo.response) return null;
+  const r = todo.response as Record<string, unknown>;
+  let body: React.ReactNode = null;
+  switch (todo.type) {
+    case 'replay_review':
+    case 'vod_review':
+      if (typeof r.analysis === 'string' && r.analysis) body = r.analysis;
+      break;
+    case 'training_pack':
+      if (typeof r.result === 'string' && r.result) body = r.result;
+      break;
+    case 'scouting':
+      if (typeof r.notes === 'string' && r.notes) body = r.notes;
+      break;
+    case 'mental_checkin': {
+      const ratings = Array.isArray(r.ratings) ? r.ratings : [];
+      const prompts = Array.isArray((todo.config as { prompts?: unknown }).prompts)
+        ? ((todo.config as { prompts: unknown[] }).prompts).filter(p => typeof p === 'string') as string[]
+        : [];
+      body = (
+        <div className="flex flex-wrap gap-1.5">
+          {ratings.map((n, i) => (
+            <span key={i} className="px-1.5 py-0.5 text-xs"
+              style={{
+                background: 'var(--s-elevated)',
+                border: '1px solid var(--s-border)',
+                color: 'var(--s-text-dim)',
+                fontSize: '10px',
+              }}>
+              {(prompts[i] ?? `Item ${i + 1}`)} : <strong style={{ color: 'var(--s-gold)' }}>{String(n)}/5</strong>
+            </span>
+          ))}
+        </div>
+      );
+      break;
+    }
+    default:
+      break;
+  }
+  if (!body) return null;
+  return (
+    <div className="mt-1.5 p-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+      <div className="t-label mb-1" style={{ fontSize: '10px', color: 'var(--s-text-muted)' }}>RÉPONSE</div>
+      {typeof body === 'string' ? (
+        <p className="text-xs whitespace-pre-wrap" style={{ color: 'var(--s-text)' }}>{body}</p>
+      ) : body}
     </div>
   );
 }

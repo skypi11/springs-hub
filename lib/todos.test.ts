@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   validateCreateTodo,
+  validateTodoConfig,
+  validateTodoResponse,
   compareTodosPending,
   compareTodosDone,
   isOverdue,
@@ -17,8 +19,11 @@ const todo = (partial: Partial<TodoRef> = {}): TodoRef => ({
   structureId: 's1',
   subTeamId: 'team1',
   assigneeId: 'u1',
+  type: 'free',
   title: 'Regarder VOD',
   description: '',
+  config: {},
+  response: null,
   eventId: null,
   deadline: null,
   done: false,
@@ -161,6 +166,151 @@ describe('validateCreateTodo', () => {
     });
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.value.deadline).toBeNull();
+  });
+
+  // ---------- Types structurés ----------
+
+  it('type absent → fallback free (rétrocompat)', () => {
+    const r = validateCreateTodo({ subTeamId: 'team1', assigneeIds: ['u1'], title: 'x' });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.type).toBe('free');
+      expect(r.value.config).toEqual({});
+    }
+  });
+
+  it('type inconnu → fallback free', () => {
+    const r = validateCreateTodo({ subTeamId: 'team1', assigneeIds: ['u1'], title: 'x', type: 'bogus' });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.type).toBe('free');
+  });
+
+  it('training_pack sans packCode rejeté', () => {
+    const r = validateCreateTodo({
+      subTeamId: 'team1', assigneeIds: ['u1'], title: 'x', type: 'training_pack', config: {},
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it('training_pack avec packCode accepté', () => {
+    const r = validateCreateTodo({
+      subTeamId: 'team1', assigneeIds: ['u1'], title: 'x', type: 'training_pack',
+      config: { packCode: 'A503-264B-9D4C-E4F7', objective: '80%' },
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.config).toEqual({ packCode: 'A503-264B-9D4C-E4F7', objective: '80%' });
+    }
+  });
+
+  it('vod_review avec URL invalide rejeté', () => {
+    const r = validateCreateTodo({
+      subTeamId: 'team1', assigneeIds: ['u1'], title: 'x', type: 'vod_review',
+      config: { url: 'pas-une-url' },
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it('vod_review avec URL https acceptée', () => {
+    const r = validateCreateTodo({
+      subTeamId: 'team1', assigneeIds: ['u1'], title: 'x', type: 'vod_review',
+      config: { url: 'https://youtube.com/watch?v=abc', focus: 'rotations' },
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it('scouting sans opponent rejeté', () => {
+    const r = validateCreateTodo({
+      subTeamId: 'team1', assigneeIds: ['u1'], title: 'x', type: 'scouting', config: {},
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it('mental_checkin sans prompts → defaults', () => {
+    const r = validateCreateTodo({
+      subTeamId: 'team1', assigneeIds: ['u1'], title: 'x', type: 'mental_checkin',
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const prompts = (r.value.config as { prompts: string[] }).prompts;
+      expect(prompts.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('replay_review accepte sans replayId (note seule)', () => {
+    const r = validateCreateTodo({
+      subTeamId: 'team1', assigneeIds: ['u1'], title: 'x', type: 'replay_review',
+      config: { replayNote: 'Regarde la 2e mi-temps' },
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.config.replayId).toBeNull();
+  });
+});
+
+// ---------- validateTodoResponse ----------
+
+describe('validateTodoResponse', () => {
+  it('free sans réponse OK', () => {
+    const r = validateTodoResponse('free', undefined);
+    expect(r.ok).toBe(true);
+  });
+
+  it('watch_party sans réponse OK', () => {
+    const r = validateTodoResponse('watch_party', undefined);
+    expect(r.ok).toBe(true);
+  });
+
+  it('replay_review sans analyse rejeté', () => {
+    const r = validateTodoResponse('replay_review', {});
+    expect(r.ok).toBe(false);
+  });
+
+  it('replay_review avec analyse OK', () => {
+    const r = validateTodoResponse('replay_review', { analysis: 'Mon équipe trop bas' });
+    expect(r.ok).toBe(true);
+  });
+
+  it('training_pack sans result rejeté', () => {
+    const r = validateTodoResponse('training_pack', {});
+    expect(r.ok).toBe(false);
+  });
+
+  it('mental_checkin note hors range rejetée', () => {
+    const r = validateTodoResponse('mental_checkin', { ratings: [3, 8, 2] });
+    expect(r.ok).toBe(false);
+  });
+
+  it('mental_checkin notes valides OK', () => {
+    const r = validateTodoResponse('mental_checkin', { ratings: [3, 4, 5] });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect((r.value as { ratings: number[] }).ratings).toEqual([3, 4, 5]);
+  });
+
+  it('mental_checkin notes vides rejetées', () => {
+    const r = validateTodoResponse('mental_checkin', { ratings: [] });
+    expect(r.ok).toBe(false);
+  });
+});
+
+// ---------- validateTodoConfig (edge cases) ----------
+
+describe('validateTodoConfig', () => {
+  it('vod_review URL http OK (pas que https)', () => {
+    const r = validateTodoConfig('vod_review', { url: 'http://example.com' });
+    expect(r.ok).toBe(true);
+  });
+
+  it('vod_review URL ftp rejetée', () => {
+    const r = validateTodoConfig('vod_review', { url: 'ftp://example.com' });
+    expect(r.ok).toBe(false);
+  });
+
+  it('mental_checkin plafonne les prompts à 6', () => {
+    const r = validateTodoConfig('mental_checkin', {
+      prompts: Array.from({ length: 20 }, (_, i) => `p${i}`),
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect((r.value as { prompts: string[] }).prompts.length).toBe(6);
   });
 });
 
