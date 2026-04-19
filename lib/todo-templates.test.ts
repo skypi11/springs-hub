@@ -86,15 +86,45 @@ describe('validateCreateTemplate', () => {
     if (r.ok) expect(r.value.config).toEqual({ opponent: '' });
   });
 
-  it('accepte config training_pack SANS packCode (mode template)', () => {
+  it('accepte config training_pack SANS code (mode template, objective seul)', () => {
     const r = validateCreateTemplate({
       ...base,
       type: 'training_pack',
-      config: { objective: 'Maîtriser les resets' },
+      config: { packs: [{ code: '', objective: 'Maîtriser les resets' }] },
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.value.config).toEqual({ packCode: '', objective: 'Maîtriser les resets' });
+      expect(r.value.config).toEqual({ packs: [{ code: '', objective: 'Maîtriser les resets' }] });
+    }
+  });
+
+  it('accepte config training_pack multi-packs (template)', () => {
+    const r = validateCreateTemplate({
+      ...base,
+      type: 'training_pack',
+      config: { packs: [
+        { code: 'AAAA-BBBB-CCCC-DDDD', objective: 'warmup' },
+        { code: 'EEEE-FFFF-1111-2222', objective: 'aerials' },
+      ] },
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.config).toEqual({ packs: [
+        { code: 'AAAA-BBBB-CCCC-DDDD', objective: 'warmup' },
+        { code: 'EEEE-FFFF-1111-2222', objective: 'aerials' },
+      ] });
+    }
+  });
+
+  it('convertit ancienne forme template { packCode, objective } en packs[]', () => {
+    const r = validateCreateTemplate({
+      ...base,
+      type: 'training_pack',
+      config: { packCode: 'AAAA-BBBB-CCCC-DDDD', objective: 'warmup' },
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.config).toEqual({ packs: [{ code: 'AAAA-BBBB-CCCC-DDDD', objective: 'warmup' }] });
     }
   });
 

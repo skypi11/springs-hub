@@ -192,15 +192,40 @@ describe('validateCreateTodo', () => {
     expect(r.ok).toBe(false);
   });
 
-  it('training_pack avec packCode accepté', () => {
+  it('training_pack avec packs[] accepté', () => {
+    const r = validateCreateTodo({
+      subTeamId: 'team1', assigneeIds: ['u1'], title: 'x', type: 'training_pack',
+      config: { packs: [
+        { code: 'A503-264B-9D4C-E4F7', objective: '80%' },
+        { code: 'B111-2222-3333-4444', objective: 'maîtrise aerials' },
+      ] },
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.config).toEqual({ packs: [
+        { code: 'A503-264B-9D4C-E4F7', objective: '80%' },
+        { code: 'B111-2222-3333-4444', objective: 'maîtrise aerials' },
+      ] });
+    }
+  });
+
+  it('training_pack ancienne forme { packCode, objective } convertie en packs[]', () => {
     const r = validateCreateTodo({
       subTeamId: 'team1', assigneeIds: ['u1'], title: 'x', type: 'training_pack',
       config: { packCode: 'A503-264B-9D4C-E4F7', objective: '80%' },
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.value.config).toEqual({ packCode: 'A503-264B-9D4C-E4F7', objective: '80%' });
+      expect(r.value.config).toEqual({ packs: [{ code: 'A503-264B-9D4C-E4F7', objective: '80%' }] });
     }
+  });
+
+  it('training_pack vide (pack sans code) rejeté', () => {
+    const r = validateCreateTodo({
+      subTeamId: 'team1', assigneeIds: ['u1'], title: 'x', type: 'training_pack',
+      config: { packs: [{ code: '', objective: 'x' }] },
+    });
+    expect(r.ok).toBe(false);
   });
 
   it('vod_review avec URL invalide rejeté', () => {
@@ -270,9 +295,31 @@ describe('validateTodoResponse', () => {
     expect(r.ok).toBe(true);
   });
 
-  it('training_pack sans result rejeté', () => {
+  it('training_pack sans case cochée ni commentaire rejeté', () => {
     const r = validateTodoResponse('training_pack', {});
     expect(r.ok).toBe(false);
+  });
+
+  it('training_pack avec au moins 1 pack coché accepté', () => {
+    const r = validateTodoResponse('training_pack', {
+      results: [{ done: true, note: '' }, { done: false, note: 'abandonné' }],
+      comment: '',
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value).toEqual({
+        results: [{ done: true, note: '' }, { done: false, note: 'abandonné' }],
+        comment: '',
+      });
+    }
+  });
+
+  it('training_pack aucun pack coché mais commentaire accepté', () => {
+    const r = validateTodoResponse('training_pack', {
+      results: [{ done: false, note: '' }],
+      comment: 'trop difficile, je reporte',
+    });
+    expect(r.ok).toBe(true);
   });
 
   it('mental_checkin note hors range rejetée', () => {

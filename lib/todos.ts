@@ -46,10 +46,14 @@ export interface ReplayReviewConfig {
   replayId: string | null;   // ref vers structure_replays (picker étape 3)
   replayNote: string;        // "Regarde à 2:15, notre rotation défensive"
 }
-export interface TrainingPackConfig {
-  packCode: string;          // ex "A503-264B-9D4C-E4F7"
-  objective: string;         // "Passer 80% du pack sans rater de reset"
+export interface TrainingPackItem {
+  code: string;              // ex "A503-264B-9D4C-E4F7"
+  objective: string;         // "80% sans rater de reset" — optionnel, spécifique à ce pack
 }
+export interface TrainingPackConfig {
+  packs: TrainingPackItem[]; // au moins 1 pack à la création, max TRAINING_PACKS_MAX
+}
+export const TRAINING_PACKS_MAX = 10;
 export interface VodReviewConfig {
   url: string;               // lien YouTube / Twitch
   focus: string;             // ce sur quoi le joueur doit se concentrer
@@ -78,7 +82,8 @@ export const DEFAULT_MENTAL_PROMPTS = ['Humeur', 'Énergie', 'Motivation'];
 // ---------- Réponse par type (remplie par le joueur à la validation) ----------
 
 export interface ReplayReviewResponse { analysis: string }
-export interface TrainingPackResponse { result: string }
+export interface TrainingPackResult { done: boolean; note: string }
+export interface TrainingPackResponse { results: TrainingPackResult[]; comment: string }
 export interface VodReviewResponse { analysis: string }
 export interface ScoutingResponse { notes: string }
 export interface MentalCheckinResponse { ratings: number[] } // 1-5, longueur = prompts
@@ -159,6 +164,30 @@ function isHttpUrl(v: string): boolean {
   }
 }
 
+// Normalise un config training_pack en `TrainingPackItem[]` pour l'UI.
+// Accepte forme canonique { packs: [...] } ou ancienne { packCode, objective }.
+// Retourne toujours au moins 1 ligne (ajoute une ligne vide si config absent).
+export function normalizeTrainingPacks(config: Record<string, unknown> | null | undefined): TrainingPackItem[] {
+  const c = (config && typeof config === 'object' ? config : {}) as Record<string, unknown>;
+  const out: TrainingPackItem[] = [];
+  if (Array.isArray(c.packs)) {
+    for (const p of c.packs) {
+      if (!p || typeof p !== 'object') continue;
+      const pr = p as Record<string, unknown>;
+      const code = typeof pr.code === 'string' ? pr.code : (typeof pr.packCode === 'string' ? pr.packCode : '');
+      const objective = typeof pr.objective === 'string' ? pr.objective : '';
+      out.push({ code, objective });
+    }
+  } else if (typeof c.packCode === 'string' || typeof c.objective === 'string') {
+    out.push({
+      code: typeof c.packCode === 'string' ? c.packCode : '',
+      objective: typeof c.objective === 'string' ? c.objective : '',
+    });
+  }
+  if (out.length === 0) out.push({ code: '', objective: '' });
+  return out;
+}
+
 // ---------- Validation config par type ----------
 
 // Valide + normalise la config selon le type. Retourne un objet prêt à stocker en Firestore.
@@ -184,9 +213,24 @@ export function validateTodoConfig(
       };
     }
     case 'training_pack': {
-      const code = s(r.packCode, 50);
-      if (!code) return { ok: false, error: 'Code du training pack requis.' };
-      return { ok: true, value: { packCode: code, objective: s(r.objective) } };
+      // Forme canonique : { packs: [{ code, objective }] }.
+      // Compat ascendante : si `packs` absent mais ancien `packCode` présent, on convertit.
+      const rawPacks: unknown[] = Array.isArray(r.packs)
+        ? (r.packs as unknown[])
+        : (typeof r.packCode === 'string' ? [{ code: r.packCode, objective: r.objective }] : []);
+      const packs: TrainingPackItem[] = [];
+      for (const p of rawPacks) {
+        if (!p || typeof p !== 'object') continue;
+        const pr = p as Record<string, unknown>;
+        const code = s(pr.code ?? pr.packCode, 50);
+        if (!code) continue;
+        packs.push({ code, objective: s(pr.objective, 500) });
+      }
+      if (packs.length === 0) return { ok: false, error: 'Au moins un training pack (avec code) est requis.' };
+      if (packs.length > TRAINING_PACKS_MAX) {
+        return { ok: false, error: `Trop de packs (max ${TRAINING_PACKS_MAX}).` };
+      }
+      return { ok: true, value: { packs } };
     }
     case 'vod_review': {
       const url = s(r.url, 500);
@@ -236,9 +280,27 @@ export function validateTodoResponse(
       return { ok: true, value: { analysis } };
     }
     case 'training_pack': {
-      const result = s(r.result, TODO_RESPONSE_MAX);
-      if (!result) return { ok: false, error: 'Ton résultat est requis pour valider.' };
-      return { ok: true, value: { result } };
+      // results[i] = { done, note } aligné avec config.packs[i] (longueur identique côté joueur).
+      // Au moins une case cochée OU un commentaire non vide.
+      const rawResults = Array.isArray(r.results) ? r.results : [];
+      const results: TrainingPackResult[] = [];
+      for (const x of rawResults) {
+        if (!x || typeof x !== 'object') {
+          results.push({ done: false, note: '' });
+          continue;
+        }
+        const xr = x as Record<string, unknown>;
+        results.push({
+          done: xr.done === true,
+          note: s(xr.note, 500),
+        });
+      }
+      const comment = s(r.comment, TODO_RESPONSE_MAX);
+      const anyDone = results.some(x => x.done);
+      if (!anyDone && !comment) {
+        return { ok: false, error: 'Coche au moins un pack réussi ou laisse un commentaire pour valider.' };
+      }
+      return { ok: true, value: { results, comment } };
     }
     case 'scouting': {
       const notes = s(r.notes, TODO_RESPONSE_MAX);

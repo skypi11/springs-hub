@@ -10,6 +10,7 @@ import {
   compareTodosDone,
   isOverdue,
   validateTodoResponse,
+  normalizeTrainingPacks,
   TODO_TYPE_META,
   TODO_RESPONSE_MAX,
   type TodoRef,
@@ -351,7 +352,6 @@ function ResponseForm({
 }) {
   const toast = useToast();
   const [analysis, setAnalysis] = useState('');
-  const [result, setResult] = useState('');
   const [notes, setNotes] = useState('');
   const promptsRaw = Array.isArray(config.prompts) ? config.prompts as unknown[] : [];
   const prompts: string[] = promptsRaw
@@ -359,13 +359,21 @@ function ResponseForm({
     .filter(p => p.length > 0);
   const [ratings, setRatings] = useState<number[]>(prompts.map(() => 3));
 
+  // Training pack : 1 case à cocher par pack + commentaire global.
+  const packs = normalizeTrainingPacks(config).filter(p => p.code);
+  const [packResults, setPackResults] = useState<boolean[]>(() => packs.map(() => false));
+  const [packComment, setPackComment] = useState('');
+
   function build(): Record<string, unknown> | null {
     switch (type) {
       case 'replay_review':
       case 'vod_review':
         return { analysis };
       case 'training_pack':
-        return { result };
+        return {
+          results: packResults.map(done => ({ done, note: '' })),
+          comment: packComment,
+        };
       case 'scouting':
         return { notes };
       case 'mental_checkin':
@@ -420,12 +428,51 @@ function ResponseForm({
       )}
 
       {type === 'training_pack' && (
-        <div>
-          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>{label[type]}</label>
-          <textarea rows={3} className="settings-input w-full text-sm"
-            placeholder="Ex: 12/20 la 1ère tentative, 17/20 après 30 min"
-            maxLength={TODO_RESPONSE_MAX}
-            value={result} onChange={e => setResult(e.target.value)} />
+        <div className="space-y-2">
+          <label className="t-label block" style={{ fontSize: '12px' }}>
+            Coche les packs réussis
+          </label>
+          <div className="space-y-1.5">
+            {packs.map((p, i) => {
+              const done = packResults[i] ?? false;
+              return (
+                <button key={i} type="button"
+                  onClick={() => setPackResults(prev => prev.map((v, idx) => idx === i ? !v : v))}
+                  className="w-full flex items-center gap-2.5 p-2 text-left transition-colors"
+                  style={{
+                    background: done ? 'rgba(255,184,0,0.08)' : 'var(--s-elevated)',
+                    border: `1px solid ${done ? 'var(--s-gold)' : 'var(--s-border)'}`,
+                    cursor: 'pointer',
+                  }}>
+                  <span className="flex items-center justify-center flex-shrink-0"
+                    style={{
+                      width: '16px', height: '16px',
+                      background: done ? 'var(--s-gold)' : 'transparent',
+                      border: `1px solid ${done ? 'var(--s-gold)' : 'var(--s-border)'}`,
+                    }}>
+                    {done && <Check size={11} style={{ color: '#000' }} strokeWidth={3} />}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-mono" style={{ color: 'var(--s-text)' }}>{p.code}</div>
+                    {p.objective && (
+                      <div className="text-xs truncate" style={{ color: 'var(--s-text-muted)', fontSize: '11px' }}>
+                        {p.objective}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <div>
+            <label className="t-label block mb-1" style={{ fontSize: '12px' }}>
+              Commentaire (optionnel)
+            </label>
+            <textarea rows={2} className="settings-input w-full text-sm"
+              placeholder="Ex : le 3e pack j'ai eu du mal sur les resets après save"
+              maxLength={TODO_RESPONSE_MAX}
+              value={packComment} onChange={e => setPackComment(e.target.value)} />
+          </div>
         </div>
       )}
 

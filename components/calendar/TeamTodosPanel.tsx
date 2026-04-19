@@ -15,6 +15,7 @@ import {
   TODO_TYPES,
   TODO_TYPE_META,
   DEFAULT_MENTAL_PROMPTS,
+  normalizeTrainingPacks,
   type TodoRef,
   type TodoType,
 } from '@/lib/todos';
@@ -838,10 +839,20 @@ export function TodoConfigSummary({ todo }: { todo: TodoRef }) {
     case 'replay_review':
       if (typeof c.replayNote === 'string' && c.replayNote) rows.push({ label: 'À regarder', value: c.replayNote });
       break;
-    case 'training_pack':
-      if (typeof c.packCode === 'string' && c.packCode) rows.push({ label: 'Code', value: c.packCode, mono: true });
-      if (typeof c.objective === 'string' && c.objective) rows.push({ label: 'Objectif', value: c.objective });
+    case 'training_pack': {
+      const packs = normalizeTrainingPacks(c).filter(p => p.code);
+      if (packs.length === 1) {
+        rows.push({ label: 'Code', value: packs[0].code, mono: true });
+        if (packs[0].objective) rows.push({ label: 'Objectif', value: packs[0].objective });
+      } else if (packs.length > 1) {
+        rows.push({
+          label: `Packs (${packs.length})`,
+          value: packs.map(p => p.code).join(' · '),
+          mono: true,
+        });
+      }
       break;
+    }
     case 'vod_review':
       if (typeof c.url === 'string' && c.url) rows.push({ label: 'VOD', value: c.url });
       if (typeof c.focus === 'string' && c.focus) rows.push({ label: 'Focus', value: c.focus });
@@ -890,9 +901,47 @@ export function TodoResponseSummary({ todo }: { todo: TodoRef }) {
     case 'vod_review':
       if (typeof r.analysis === 'string' && r.analysis) body = r.analysis;
       break;
-    case 'training_pack':
-      if (typeof r.result === 'string' && r.result) body = r.result;
+    case 'training_pack': {
+      // Nouvelle forme : { results: [{done, note}], comment }.
+      // Ancienne forme (compat) : { result: string }.
+      if (Array.isArray(r.results)) {
+        const packs = normalizeTrainingPacks(todo.config as Record<string, unknown>).filter(p => p.code);
+        const results = r.results as Array<{ done?: unknown; note?: unknown }>;
+        const doneCount = results.filter(x => x?.done === true).length;
+        const comment = typeof r.comment === 'string' ? r.comment : '';
+        body = (
+          <div className="space-y-1.5">
+            <div className="text-xs font-bold" style={{ color: 'var(--s-gold)' }}>
+              {doneCount}/{packs.length || results.length} pack{(packs.length || results.length) > 1 ? 's' : ''} réussi{doneCount > 1 ? 's' : ''}
+            </div>
+            <div className="space-y-0.5">
+              {packs.map((p, i) => {
+                const done = results[i]?.done === true;
+                return (
+                  <div key={i} className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                    <span style={{ color: done ? 'var(--s-gold)' : 'var(--s-text-muted)' }}>
+                      {done ? '✓' : '·'}
+                    </span>
+                    <span className="font-mono truncate">{p.code}</span>
+                    {p.objective && (
+                      <span className="truncate" style={{ color: 'var(--s-text-muted)' }}>— {p.objective}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {comment && (
+              <div className="text-xs whitespace-pre-wrap mt-1" style={{ color: 'var(--s-text-dim)' }}>
+                {comment}
+              </div>
+            )}
+          </div>
+        );
+      } else if (typeof r.result === 'string' && r.result) {
+        body = r.result;
+      }
       break;
+    }
     case 'scouting':
       if (typeof r.notes === 'string' && r.notes) body = r.notes;
       break;

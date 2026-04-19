@@ -6,7 +6,9 @@ import {
   TODO_TITLE_MAX,
   TODO_DESCRIPTION_MAX,
   TODO_TYPES,
+  TRAINING_PACKS_MAX,
   type TodoType,
+  type TrainingPackItem,
 } from '@/lib/todos';
 
 export const TEMPLATE_NAME_MAX = 60;
@@ -67,8 +69,24 @@ export function cleanTemplateConfig(type: TodoType, raw: unknown): Record<string
         replayId: typeof r.replayId === 'string' && r.replayId.trim() ? r.replayId.trim() : null,
         replayNote: s(r.replayNote, 500),
       };
-    case 'training_pack':
-      return { packCode: s(r.packCode, 50), objective: s(r.objective, 500) };
+    case 'training_pack': {
+      // Accepte forme canonique { packs: [{code, objective}] } + compat { packCode, objective }.
+      // Pas d'exigence de code non vide (template = recette ; code rempli à l'instanciation).
+      const rawPacks: unknown[] = Array.isArray(r.packs)
+        ? (r.packs as unknown[])
+        : (r.packCode !== undefined || r.objective !== undefined ? [{ code: r.packCode, objective: r.objective }] : []);
+      const packs: TrainingPackItem[] = [];
+      for (const p of rawPacks) {
+        if (!p || typeof p !== 'object') continue;
+        const pr = p as Record<string, unknown>;
+        packs.push({
+          code: s(pr.code ?? pr.packCode, 50),
+          objective: s(pr.objective, 500),
+        });
+        if (packs.length >= TRAINING_PACKS_MAX) break;
+      }
+      return { packs };
+    }
     case 'vod_review':
       return { url: s(r.url, 500), focus: s(r.focus, 500) };
     case 'scouting':

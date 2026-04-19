@@ -1,9 +1,12 @@
 'use client';
 
-import { X } from 'lucide-react';
+import { X, Plus } from 'lucide-react';
 import {
   DEFAULT_MENTAL_PROMPTS,
+  TRAINING_PACKS_MAX,
+  normalizeTrainingPacks,
   type TodoType,
+  type TrainingPackItem,
 } from '@/lib/todos';
 
 // Rend les champs de config spécifiques à un type de devoir dans un formulaire.
@@ -36,23 +39,60 @@ export function TodoConfigFields({
   }
 
   if (type === 'training_pack') {
+    const packs = normalizeTrainingPacks(config);
+    function setPacks(next: TrainingPackItem[]) {
+      onChange({ packs: next });
+    }
+    function updatePack(i: number, patch: Partial<TrainingPackItem>) {
+      setPacks(packs.map((p, idx) => idx === i ? { ...p, ...patch } : p));
+    }
+    function addPack() {
+      if (packs.length >= TRAINING_PACKS_MAX) return;
+      setPacks([...packs, { code: '', objective: '' }]);
+    }
+    function removePack(i: number) {
+      if (packs.length <= 1) return; // toujours au moins 1 ligne affichée
+      setPacks(packs.filter((_, idx) => idx !== i));
+    }
     return (
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Code du pack *</label>
-          <input type="text" className="settings-input w-full text-sm"
-            placeholder="A503-264B-9D4C-E4F7"
-            maxLength={50}
-            value={String(config.packCode ?? '')}
-            onChange={e => onChange({ packCode: e.target.value })} />
-        </div>
-        <div>
-          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Objectif</label>
-          <input type="text" className="settings-input w-full text-sm"
-            placeholder="80% sans rater de reset"
-            maxLength={500}
-            value={String(config.objective ?? '')}
-            onChange={e => onChange({ objective: e.target.value })} />
+      <div>
+        <label className="t-label block mb-1.5" style={{ fontSize: '12px' }}>
+          Training packs (1 code requis, {TRAINING_PACKS_MAX} max)
+        </label>
+        <div className="space-y-1.5">
+          {packs.map((p, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input type="text" className="settings-input text-sm"
+                style={{ width: '200px', fontFamily: 'var(--s-font-mono, monospace)' }}
+                placeholder="A503-264B-9D4C-E4F7"
+                maxLength={50}
+                value={p.code}
+                onChange={e => updatePack(i, { code: e.target.value })} />
+              <input type="text" className="settings-input flex-1 text-sm"
+                placeholder="Objectif (ex: 80% sans rater un reset)"
+                maxLength={500}
+                value={p.objective}
+                onChange={e => updatePack(i, { objective: e.target.value })} />
+              <button type="button" onClick={() => removePack(i)}
+                disabled={packs.length <= 1}
+                className="p-1 transition-opacity"
+                style={{
+                  color: '#ff5555',
+                  opacity: packs.length <= 1 ? 0.2 : 0.5,
+                  cursor: packs.length <= 1 ? 'not-allowed' : 'pointer',
+                }}
+                aria-label="Retirer ce pack">
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+          {packs.length < TRAINING_PACKS_MAX && (
+            <button type="button" onClick={addPack}
+              className="text-xs flex items-center gap-1"
+              style={{ color: 'var(--s-violet-light)', cursor: 'pointer' }}>
+              <Plus size={11} /> Ajouter un pack
+            </button>
+          )}
         </div>
       </div>
     );
