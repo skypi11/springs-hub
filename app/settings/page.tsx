@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { auth } from '@/lib/firebase';
@@ -11,6 +11,7 @@ import {
   AlertCircle, CheckCircle, Loader2, UserCircle, LogOut, Star,
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
+import { checkProfileCompletion } from '@/lib/profile-completion';
 import PublicPreviewFrame from '@/components/ui/PublicPreviewFrame';
 import MarkdownEditor from '@/components/ui/MarkdownEditor';
 import ImageUploader from '@/components/ui/ImageUploader';
@@ -68,6 +69,9 @@ const defaultForm: FormData = {
 export default function SettingsPage() {
   const { user, firebaseUser, isAdmin, loading: authLoading, signOut } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const mustComplete = searchParams?.get('complete') === '1';
+  const completion = checkProfileCompletion(user);
   const [form, setForm] = useState<FormData>(defaultForm);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -227,6 +231,29 @@ export default function SettingsPage() {
       <div className="relative z-[1] space-y-6">
 
         <Breadcrumbs items={[{ label: 'Mon profil' }]} />
+
+        {mustComplete && !completion.complete && (
+          <div
+            className="bevel-sm animate-fade-in"
+            style={{
+              background: 'linear-gradient(135deg, rgba(255,184,0,0.12), rgba(255,184,0,0.04))',
+              border: '1px solid rgba(255,184,0,0.35)',
+              padding: '14px 18px',
+            }}
+          >
+            <div className="flex items-start gap-3">
+              <AlertCircle size={18} style={{ color: 'var(--s-gold)', flexShrink: 0, marginTop: 2 }} />
+              <div className="text-sm" style={{ color: 'var(--s-text)' }}>
+                <div className="font-semibold mb-1" style={{ color: 'var(--s-gold)' }}>
+                  Complète ton profil pour accéder au Hub
+                </div>
+                <div style={{ color: 'var(--s-text-dim)' }}>
+                  Champs manquants : {completion.missing.join(', ')}.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Sticky top bar */}
         <div

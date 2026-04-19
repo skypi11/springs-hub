@@ -9,24 +9,29 @@ interface AuthContextType {
   user: SpringsUser | null;
   firebaseUser: User | null;
   loading: boolean;
+  profileEnriched: boolean;
   isAdmin: boolean;
   signInWithDiscord: () => void;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   firebaseUser: null,
   loading: true,
+  profileEnriched: false,
   isAdmin: false,
   signInWithDiscord: () => {},
   signOut: async () => {},
+  refreshProfile: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [user, setUser] = useState<SpringsUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileEnriched, setProfileEnriched] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
   // Handle Discord OAuth callback — signInWithCustomToken déclenche onAuthStateChanged
@@ -59,6 +64,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .catch(err => console.error('[Auth] signInWithCustomToken FAILED:', err.code, err.message));
   }, []);
 
+  async function enrichFromApi(fbUser: User) {
+    try {
+      const idToken = await fbUser.getIdToken();
+      const res = await fetch('/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${idToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          setUser({ uid: fbUser.uid, ...data.user } as SpringsUser);
+        }
+        setIsAdmin(data.isAdmin ?? false);
+      }
+    } catch (err) {
+      console.error('[Auth] API /auth/me error:', err);
+    } finally {
+      setProfileEnriched(true);
+    }
+  }
+
+  async function refreshProfile() {
+    if (!firebaseUser) return;
+    await enrichFromApi(firebaseUser);
+  }
+
   useEffect(() => {
     return onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
@@ -66,6 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!fbUser) {
         setUser(null);
         setIsAdmin(false);
+        setProfileEnriched(false);
         setLoading(false);
         return;
       }
@@ -78,26 +109,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         discordAvatar: fbUser.photoURL ?? '',
         displayName: fbUser.displayName ?? '',
       });
+      setProfileEnriched(false);
       setLoading(false);
 
-      // Enrichissement via API serveur (pas Firestore client — évite les erreurs de permissions)
-      try {
-        const idToken = await fbUser.getIdToken();
-        const res = await fetch('/api/auth/me', {
-          headers: { 'Authorization': `Bearer ${idToken}` },
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data.user) {
-            setUser({ uid: fbUser.uid, ...data.user } as SpringsUser);
-          }
-          setIsAdmin(data.isAdmin ?? false);
-        }
-      } catch (err) {
-        console.error('[Auth] API /auth/me error:', err);
-        // L'utilisateur reste connecté grâce aux données Firebase Auth ci-dessus
-      }
+      await enrichFromApi(fbUser);
     });
   }, []);
 
@@ -113,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, firebaseUser, loading, isAdmin, signInWithDiscord, signOut }}>
+    <AuthContext.Provider value={{ user, firebaseUser, loading, profileEnriched, isAdmin, signInWithDiscord, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

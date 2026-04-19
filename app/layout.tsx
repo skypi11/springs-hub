@@ -6,6 +6,7 @@ import { AuthProvider } from '@/context/AuthContext';
 import { ToastProvider } from '@/components/ui/Toast';
 import { ConfirmProvider } from '@/components/ui/ConfirmModal';
 import CommandPalette from '@/components/ui/CommandPalette';
+import ProfileCompletionGate from '@/components/auth/ProfileCompletionGate';
 
 const outfit = Outfit({
   variable: '--font-outfit',
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
           <ToastProvider>
             <ConfirmProvider>
+              <ProfileCompletionGate />
               <Sidebar />
               <div className="flex-1 lg:ml-[260px] min-h-screen overflow-x-hidden hex-bg pt-14 lg:pt-0">
                 {children}
