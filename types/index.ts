@@ -216,6 +216,38 @@ export interface Replay {
   createdAt?: string;
 }
 
+// ── Documents staff ───────────────────────────────────────────────────────────
+// Arborescence libre de dossiers + fichiers stockés sur R2 (privés, signed URLs).
+// Accès strict : fondateur + cofondateurs (voir lib/document-permissions.ts).
+
+export type DocumentStatus = 'pending' | 'ready';
+
+export interface StructureFolder {
+  id: string;
+  structureId: string;
+  parentId: string | null;     // null = racine
+  name: string;
+  createdBy: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface StructureDocument {
+  id: string;
+  structureId: string;
+  folderId: string | null;     // null = racine
+  uploadedBy: string;
+  filename: string;            // nom d'origine sanitizé (pour download)
+  mime: string;                // MIME d'origine (images stockées en webp)
+  sizeBytes: number;
+  r2Key: string;
+  status: DocumentStatus;
+  title: string;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface EventPresence {
   id: string;
   eventId: string;

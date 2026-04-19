@@ -59,7 +59,15 @@ export type AuditAction =
   // Intégration Discord
   | 'discord_connected'
   | 'discord_disconnected'
-  | 'discord_config_updated';
+  | 'discord_config_updated'
+  // Documents staff
+  | 'document_uploaded'
+  | 'document_updated'
+  | 'document_deleted'
+  | 'document_downloaded'
+  | 'folder_created'
+  | 'folder_updated'
+  | 'folder_deleted';
 
 export interface AuditLogEntry {
   structureId: string;

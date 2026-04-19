@@ -220,15 +220,54 @@ export const UploadLimits = UPLOAD_LIMITS;
 export const AllowedMimeTypes = {
   IMAGES: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
   DOCUMENTS: [
+    // PDF
     'application/pdf',
+    // Microsoft Office
     'application/msword',
+    'application/vnd.ms-excel',
+    'application/vnd.ms-powerpoint',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    // OpenDocument (LibreOffice, Google Suite exports)
+    'application/vnd.oasis.opendocument.text',
+    'application/vnd.oasis.opendocument.spreadsheet',
+    'application/vnd.oasis.opendocument.presentation',
+    // Texte
+    'text/plain',
+    'text/csv',
+    'text/markdown',
+    // Archives
+    'application/zip',
+    'application/x-zip-compressed',
+    'application/x-rar-compressed',
+    'application/x-7z-compressed',
+    // Images (converties en webp à l'upload)
     'image/jpeg',
     'image/png',
     'image/webp',
+    'image/gif',
+    'image/heic',
+    'image/heif',
+    // Fallback : octet-stream (certains navigateurs ne détectent pas le MIME)
+    'application/octet-stream',
   ],
   REPLAYS: ['application/octet-stream', ''],  // .replay n'a pas de MIME standard
 } as const;
+
+// Détecte si un MIME correspond à une image (pour conversion webp à l'upload)
+export function isImageMime(mime: string): boolean {
+  return mime.startsWith('image/');
+}
+
+// Détermine l'extension pour le stockage R2 — garde l'extension d'origine sauf
+// pour les images qui sont systématiquement converties en webp.
+export function extensionForStorage(filename: string, mime: string): string {
+  if (isImageMime(mime)) return 'webp';
+  const dot = filename.lastIndexOf('.');
+  if (dot < 0) return 'bin';
+  return filename.slice(dot + 1).toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
+}
 
 export function isAllowedMime(mime: string, category: keyof typeof AllowedMimeTypes): boolean {
   const list = AllowedMimeTypes[category] as readonly string[];

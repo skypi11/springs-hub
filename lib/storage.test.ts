@@ -130,8 +130,10 @@ describe('isAllowedMime', () => {
       )
     ).toBe(true);
   });
-  it('refuse image/gif pour DOCUMENTS', () => {
-    expect(isAllowedMime('image/gif', 'DOCUMENTS')).toBe(false);
+  it('accepte les images pour DOCUMENTS (converties en webp côté client)', () => {
+    expect(isAllowedMime('image/jpeg', 'DOCUMENTS')).toBe(true);
+    expect(isAllowedMime('image/png', 'DOCUMENTS')).toBe(true);
+    expect(isAllowedMime('image/webp', 'DOCUMENTS')).toBe(true);
   });
   it('accepte application/octet-stream pour REPLAYS', () => {
     expect(isAllowedMime('application/octet-stream', 'REPLAYS')).toBe(true);

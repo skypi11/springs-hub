@@ -28,6 +28,7 @@ import type { UserContext } from '@/lib/event-permissions';
 import PlayerStructureView, { type PlayerStructure } from '@/components/structure/PlayerStructureView';
 import MarkdownEditor from '@/components/ui/MarkdownEditor';
 import ImageUploader from '@/components/ui/ImageUploader';
+import DocumentsExplorer from '@/components/documents/DocumentsExplorer';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import { LIMITS } from '@/lib/validation';
 import { computeMemberRole, groupAffiliations, PRIMARY_ROLE_LABELS, type MemberRoleTeam, type PrimaryRole } from '@/lib/member-role';
@@ -59,7 +60,7 @@ async function safeCopy(text: string): Promise<boolean> {
   }
 }
 
-type DashboardTab = 'general' | 'teams' | 'recruitment' | 'members' | 'calendar';
+type DashboardTab = 'general' | 'teams' | 'recruitment' | 'members' | 'calendar' | 'documents';
 
 const TAB_DEFS: { key: DashboardTab; label: string; color: string }[] = [
   { key: 'general', label: 'Général', color: 'var(--s-violet-light)' },
@@ -67,6 +68,7 @@ const TAB_DEFS: { key: DashboardTab; label: string; color: string }[] = [
   { key: 'recruitment', label: 'Recrutement', color: '#33ff66' },
   { key: 'members', label: 'Membres', color: 'var(--s-gold)' },
   { key: 'calendar', label: 'Calendrier', color: 'var(--s-gold)' },
+  { key: 'documents', label: 'Documents', color: 'var(--s-violet-light)' },
 ];
 
 function TabBar({ active, onChange, visible }: { active: DashboardTab; onChange: (t: DashboardTab) => void; visible: DashboardTab[] }) {
@@ -750,7 +752,7 @@ export default function MyStructurePage() {
     const isManager = !isDirigeant && (activeStructure.managerIds ?? []).includes(firebaseUser.uid);
     const isCoach = !isDirigeant && !isManager && (activeStructure.coachIds ?? []).includes(firebaseUser.uid);
     const visible: DashboardTab[] = isDirigeant
-      ? ['general', 'teams', 'recruitment', 'members', 'calendar']
+      ? ['general', 'teams', 'recruitment', 'members', 'calendar', 'documents']
       : isManager
       ? ['teams', 'members', 'calendar']
       : isCoach
@@ -1469,7 +1471,7 @@ export default function MyStructurePage() {
     ? teams.some(t => t.captainId === firebaseUser.uid)
     : false;
   const visibleTabs: DashboardTab[] = isDirigeantOfActive
-    ? ['general', 'teams', 'recruitment', 'members', 'calendar']
+    ? ['general', 'teams', 'recruitment', 'members', 'calendar', 'documents']
     : isManagerOfActive
     ? ['teams', 'recruitment', 'members', 'calendar']
     : isCoachOfActive
@@ -4211,6 +4213,13 @@ export default function MyStructurePage() {
             }}
           />
         </div>
+        )}
+
+        {/* ═══ DOCUMENTS ═══ */}
+        {tab === 'documents' && isDirigeantOfActive && (
+          <div className="animate-fade-in-d3">
+            <DocumentsExplorer structureId={s.id} />
+          </div>
         )}
       </div>
       {/* Drawer détail équipe (Dispos + Devoirs) */}

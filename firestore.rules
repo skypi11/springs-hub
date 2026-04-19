@@ -87,6 +87,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── Springs Hub — Documents staff (contrats, règlements, etc.) ──────────
+    // Stockage hiérarchique en dossiers. Accès strict fondateur + cofondateurs.
+    // Fichiers sur R2 (privés, signed URLs). Écritures via API routes uniquement.
+    match /structure_folders/{id} {
+      allow read: if false;
+      allow write: if false;
+    }
+    match /structure_documents/{id} {
+      allow read: if false;
+      allow write: if false;
+    }
+
     // ── Springs Hub — Présences aux événements ──────────────────────────────
     // Une ligne par couple (eventId, userId). Écritures via API routes.
     match /event_presences/{id} {
