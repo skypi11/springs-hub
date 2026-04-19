@@ -7,19 +7,21 @@ import { TODO_TYPE_META, type TodoType } from '@/lib/todos';
 import { captureApiError } from '@/lib/sentry';
 
 // GET /api/cron/todos-reminders
-// Vercel Cron toutes les heures. Pour chaque devoir !done :
-//   - ~24h avant deadlineAt : envoie un rappel J-1 (notif in-app + DM Discord best-effort)
+// Vercel Cron 1x/jour (Hobby plan impose 1 run/jour max). Pour chaque devoir !done :
+//   - entre ~12h et ~36h avant deadlineAt : envoie un rappel J-1 (notif in-app + DM Discord best-effort)
 //     idempotent via reminder24hSentAt sur le doc.
 //   - deadlineAt dépassé : envoie une alerte "retard" une seule fois (overdueAlertSentAt).
+//
+// Fenêtre 12-36h plutôt que 23-25h : comme on ne tourne qu'une fois par jour, il faut couvrir
+// l'intervalle complet entre deux runs consécutifs, sinon on louperait les devoirs dont la deadline
+// tombe en dehors d'une fenêtre étroite.
 //
 // Sécu : header `Authorization: Bearer $CRON_SECRET` attendu en prod ;
 // en dev on laisse passer pour tester à la main.
 
 const MS_HOUR = 60 * 60 * 1000;
-// Fenêtre de rappel J-1 : entre 23h et 25h avant la deadline. ±1h de marge autour de l'exécution
-// horaire du cron, pour couvrir les petites dérives d'horaire et les cas où un job rate.
-const REMINDER_WINDOW_MIN_MS = 23 * MS_HOUR;
-const REMINDER_WINDOW_MAX_MS = 25 * MS_HOUR;
+const REMINDER_WINDOW_MIN_MS = 12 * MS_HOUR;
+const REMINDER_WINDOW_MAX_MS = 36 * MS_HOUR;
 // On ignore les devoirs dont la deadline est > 90 jours dans le futur ou > 90 jours dans le passé
 // (évite de charger des docs "zombies" non nettoyés).
 const SCAN_FUTURE_LIMIT_MS = 90 * 24 * MS_HOUR;
