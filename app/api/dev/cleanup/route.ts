@@ -15,6 +15,7 @@ const COLLECTIONS_WITH_ISDEV = [
   'event_presences',
   'structure_invitations',
   'structure_member_history',
+  'structure_todos',
   'admins',
 ];
 
@@ -91,6 +92,17 @@ export async function POST() {
     await batch.commit();
   }
   report.orphanEvents = orphanEventsSnap.size;
+
+  // Devoirs créés via l'UI en runtime — pas de flag isDev
+  const orphanTodosSnap = await db.collection('structure_todos')
+    .where('structureId', '==', DEV_STRUCTURE_ID)
+    .get();
+  if (orphanTodosSnap.size > 0) {
+    const batch = db.batch();
+    for (const doc of orphanTodosSnap.docs) batch.delete(doc.ref);
+    await batch.commit();
+  }
+  report.orphanTodos = orphanTodosSnap.size;
 
   // Supprimer les comptes Firebase Auth dev — source de vérité : DEV_UIDS du seed.
   // + anciens UIDs des seeds précédents (au cas où il traine des comptes Auth en local).
