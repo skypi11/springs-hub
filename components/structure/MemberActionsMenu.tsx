@@ -5,6 +5,7 @@ import {
   MoreVertical, Shield, ChevronUp, ChevronDown, UserMinus,
   Loader2, UserCog, Briefcase,
 } from 'lucide-react';
+import Portal from '@/components/ui/Portal';
 
 export interface MemberActionsMenuProps {
   canManageStaffRoles: boolean;
@@ -35,22 +36,22 @@ export default function MemberActionsMenu(props: MemberActionsMenuProps) {
   } = props;
 
   const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
+  const [rect, setRect] = useState<{ top: number; right: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
-    function onDocClick(e: MouseEvent) {
-      if (!wrapRef.current) return;
-      if (!wrapRef.current.contains(e.target as Node)) setOpen(false);
-    }
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape') { setOpen(false); setRect(null); }
     }
-    document.addEventListener('mousedown', onDocClick);
+    function onScroll() { setOpen(false); setRect(null); }
     document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onScroll);
     return () => {
-      document.removeEventListener('mousedown', onDocClick);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onScroll);
     };
   }, [open]);
 
@@ -129,11 +130,25 @@ export default function MemberActionsMenu(props: MemberActionsMenuProps) {
     });
   }
 
+  function handleToggle(e: React.MouseEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (open) {
+      setOpen(false);
+      setRect(null);
+      return;
+    }
+    const r = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+    setRect({ top: r.bottom + 4, right: window.innerWidth - r.right });
+    setOpen(true);
+  }
+
   return (
-    <div ref={wrapRef} className="relative">
+    <>
       <button
+        ref={btnRef}
         type="button"
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(o => !o); }}
+        onClick={handleToggle}
         disabled={anyBusy}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -150,48 +165,56 @@ export default function MemberActionsMenu(props: MemberActionsMenuProps) {
           : <MoreVertical size={14} />}
       </button>
 
-      {open && (
-        <div
-          role="menu"
-          className="absolute right-0 mt-1 z-20 py-1 min-w-[220px] animate-fade-in"
-          style={{
-            background: 'var(--s-elevated)',
-            border: '1px solid var(--s-border)',
-            boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
-          }}
-        >
-          {items.map((it, idx) => {
-            const needsDivider = (
-              (it.key === 'promote' || it.key === 'transfer') && idx > 0
-            ) || it.key === 'remove';
-            return (
-              <div key={it.key}>
-                {needsDivider && (
-                  <div className="my-1" style={{ height: 1, background: 'var(--s-border)' }} />
-                )}
-                <button
-                  type="button"
-                  role="menuitem"
-                  disabled={!!it.busy}
-                  onClick={() => { it.onClick(); setOpen(false); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition-colors duration-150 disabled:opacity-50"
-                  style={{
-                    color: it.danger ? '#ff8888' : it.accent ? 'var(--s-gold)' : 'var(--s-text)',
-                    background: 'transparent',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--s-hover)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                >
-                  <span className="w-4 h-4 flex items-center justify-center flex-shrink-0">
-                    {it.busy ? <Loader2 size={12} className="animate-spin" /> : it.icon}
-                  </span>
-                  <span className="flex-1">{it.label}</span>
-                </button>
-              </div>
-            );
-          })}
-        </div>
+      {open && rect && (
+        <Portal>
+          <div
+            className="fixed inset-0 z-[60]"
+            onClick={() => { setOpen(false); setRect(null); }}
+          />
+          <div
+            role="menu"
+            className="fixed z-[61] py-1 min-w-[220px] animate-fade-in"
+            style={{
+              top: rect.top,
+              right: rect.right,
+              background: 'var(--s-elevated)',
+              border: '1px solid var(--s-border)',
+              boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
+            }}
+          >
+            {items.map((it, idx) => {
+              const needsDivider = (
+                (it.key === 'promote' || it.key === 'transfer') && idx > 0
+              ) || it.key === 'remove';
+              return (
+                <div key={it.key}>
+                  {needsDivider && (
+                    <div className="my-1" style={{ height: 1, background: 'var(--s-border)' }} />
+                  )}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={!!it.busy}
+                    onClick={() => { it.onClick(); setOpen(false); setRect(null); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition-colors duration-150 disabled:opacity-50"
+                    style={{
+                      color: it.danger ? '#ff8888' : it.accent ? 'var(--s-gold)' : 'var(--s-text)',
+                      background: 'transparent',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--s-hover)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <span className="w-4 h-4 flex items-center justify-center flex-shrink-0">
+                      {it.busy ? <Loader2 size={12} className="animate-spin" /> : it.icon}
+                    </span>
+                    <span className="flex-1">{it.label}</span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </Portal>
       )}
-    </div>
+    </>
   );
 }

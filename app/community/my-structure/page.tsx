@@ -647,6 +647,7 @@ export default function MyStructurePage() {
   const [newTeamLabel, setNewTeamLabel] = useState('');
   const [newTeamLogoUrl, setNewTeamLogoUrl] = useState('');
   const [teamLogoEdit, setTeamLogoEdit] = useState<{ teamId: string; value: string } | null>(null);
+  const [teamLabelEdit, setTeamLabelEdit] = useState<{ teamId: string; value: string } | null>(null);
   const [teamDiscordEdit, setTeamDiscordEdit] = useState<string | null>(null); // teamId en cours d'édition
   type DiscordChannel = { id: string; name: string; parentId: string | null; parentName: string | null; position: number };
   const [discordChannels, setDiscordChannels] = useState<DiscordChannel[] | null>(null);
@@ -968,6 +969,41 @@ export default function MyStructurePage() {
       }
     } catch (err) {
       console.error('[MyStructure] update team logo error:', err);
+      toast.error('Erreur réseau');
+    }
+    setTeamActionLoading(null);
+  }
+
+  async function handleUpdateTeamLabel(teamId: string, rawLabel: string) {
+    if (!activeStructure || !firebaseUser) return;
+    const label = rawLabel.trim();
+    if (!label) {
+      toast.error('Le label ne peut pas être vide');
+      return;
+    }
+    setTeamActionLoading(`${teamId}_label`);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/structures/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({
+          action: 'update',
+          structureId: activeStructure.id,
+          teamId,
+          label,
+        }),
+      });
+      if (res.ok) {
+        await loadTeams(activeStructure.id);
+        toast.success('Label mis à jour');
+        setTeamLabelEdit(null);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Erreur');
+      }
+    } catch (err) {
+      console.error('[MyStructure] update team label error:', err);
       toast.error('Erreur réseau');
     }
     setTeamActionLoading(null);
@@ -3272,11 +3308,20 @@ export default function MyStructurePage() {
                                   }}>
                                   {!isArchived && (
                                     <button type="button"
-                                      onClick={() => { setTeamMenuOpen(null); setTeamLogoEdit({ teamId: team.id, value: team.logoUrl ?? '' }); }}
+                                      onClick={() => { setTeamMenuOpen(null); setTeamMenuRect(null); setTeamLogoEdit({ teamId: team.id, value: team.logoUrl ?? '' }); }}
                                       className="w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-[var(--s-hover)] text-left"
                                       style={{ color: 'var(--s-text)' }}>
                                       <ImageIcon size={12} />
                                       <span>{team.logoUrl ? 'Modifier le logo' : 'Ajouter un logo'}</span>
+                                    </button>
+                                  )}
+                                  {!isArchived && (
+                                    <button type="button"
+                                      onClick={() => { setTeamMenuOpen(null); setTeamMenuRect(null); setTeamLabelEdit({ teamId: team.id, value: team.label ?? '' }); }}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-[var(--s-hover)] text-left"
+                                      style={{ color: 'var(--s-text)' }}>
+                                      <Tag size={12} />
+                                      <span>Modifier le label</span>
                                     </button>
                                   )}
                                   {!isArchived && (
@@ -3402,6 +3447,39 @@ export default function MyStructurePage() {
                               onClick={() => setTeamDiscordEdit(null)}
                               className="btn-springs btn-ghost bevel-sm text-xs">
                               Fermer
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {teamLabelEdit?.teamId === team.id && (
+                        <div className="p-3 bevel-sm space-y-2" style={{ background: 'var(--s-surface)', border: '1px solid rgba(255,184,0,0.25)' }}>
+                          <div className="flex items-center gap-2">
+                            <Tag size={13} style={{ color: 'var(--s-gold)' }} />
+                            <span className="t-label">Label de l&apos;équipe (groupe)</span>
+                          </div>
+                          <input type="text" className="settings-input w-full text-sm" placeholder="Ex: Équipes principales"
+                            value={teamLabelEdit.value}
+                            onChange={e => setTeamLabelEdit({ teamId: team.id, value: e.target.value })}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') { e.preventDefault(); handleUpdateTeamLabel(team.id, teamLabelEdit.value); }
+                              if (e.key === 'Escape') { e.preventDefault(); setTeamLabelEdit(null); }
+                            }} />
+                          <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                            Regroupe plusieurs équipes sous un même titre dans l&apos;onglet Équipes.
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <button type="button"
+                              onClick={() => handleUpdateTeamLabel(team.id, teamLabelEdit.value)}
+                              disabled={teamActionLoading === `${team.id}_label` || !teamLabelEdit.value.trim() || teamLabelEdit.value.trim() === (team.label ?? '').trim()}
+                              className="btn-springs btn-primary bevel-sm flex items-center gap-1.5 text-xs">
+                              {teamActionLoading === `${team.id}_label` ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                              <span>Enregistrer</span>
+                            </button>
+                            <button type="button"
+                              onClick={() => setTeamLabelEdit(null)}
+                              className="btn-springs btn-ghost bevel-sm text-xs">
+                              Annuler
                             </button>
                           </div>
                         </div>
