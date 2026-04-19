@@ -3,25 +3,20 @@
 
 export const DEV_STRUCTURE_ID = 'dev_test_structure';
 
-// --- Staff (structure + équipe) ---
-// On conserve volontairement les UIDs historiques (founder/cofounder/…) pour ne pas
-// casser les impersonates déjà utilisés en test.
+// Seuls rôles reconnus par le site : fondateur, co-fondateur, responsable (managerIds),
+// coach structure (coachIds), manager d'équipe + coach d'équipe (staffIds + staffRoles),
+// capitaine, joueur, remplaçant, membre. Aucun autre rôle stocké — cf. lib/member-role.ts.
 export const DEV_UIDS = {
   // Rôles structure
   founder: 'discord_dev_founder',
   cofounder: 'discord_dev_cofounder',
   responsable: 'discord_dev_responsable',
-  coachStructure: 'discord_dev_coach_structure', // Head coach
-  analyst: 'discord_dev_analyst',                // Analyste data / scouting
-  // Rôles équipe (staff)
-  teamManager: 'discord_dev_team_manager',       // Manager Main
-  teamCoach: 'discord_dev_team_coach',           // Coach Main/Academy
-  managerFem: 'discord_dev_manager_fem',         // Manager Féminine
-  coachFem: 'discord_dev_coach_fem',             // Coach Féminine
-  managerJunior: 'discord_dev_manager_junior',   // Manager Jeunes
-  coachJunior: 'discord_dev_coach_junior',       // Coach Jeunes
+  coachStructure: 'discord_dev_coach_structure',
+  // Staff d'équipe (affectés via staffIds + staffRoles sur les sub_teams)
+  teamManager: 'discord_dev_team_manager',
+  teamCoach: 'discord_dev_team_coach',
 
-  // Main (senior compétitif) — ex "Elite"
+  // Main (senior compétitif)
   rlEliteCaptain: 'discord_dev_rl_elite_captain',
   rlEliteP1: 'discord_dev_rl_elite_p1',
   rlEliteP2: 'discord_dev_rl_elite_p2',
@@ -87,12 +82,12 @@ export const DEV_UIDS = {
   rlScoutingP1: 'discord_dev_rl_scouting_p1',
   rlScoutingP2: 'discord_dev_rl_scouting_p2',
 
-  // Archivés — Saison 2023 (ancien roster principal)
+  // Archivés — Saison 2023
   rlArchS23P1: 'discord_dev_rl_arch_s23_p1',
   rlArchS23P2: 'discord_dev_rl_arch_s23_p2',
   rlArchS23P3: 'discord_dev_rl_arch_s23_p3',
   rlArchS23Sub1: 'discord_dev_rl_arch_s23_sub1',
-  // Archivés — Founders squad (premier roster)
+  // Archivés — Founders squad
   rlArchFoundP1: 'discord_dev_rl_arch_found_p1',
   rlArchFoundP2: 'discord_dev_rl_arch_found_p2',
   rlArchFoundP3: 'discord_dev_rl_arch_found_p3',
@@ -107,11 +102,4 @@ export const DEV_UIDS = {
   recruit3: 'discord_dev_recruit3',
   recruit4: 'discord_dev_recruit4',
   recruit5: 'discord_dev_recruit5',
-} as const;
-
-// UIDs legacy TM — structure n'a plus de team TM, mais on garde ces UIDs définis
-// pour compatibilité avec d'éventuels docs historiques traînants en local.
-export const DEV_UIDS_LEGACY_TM = {
-  tmCaptain: 'discord_dev_tm_captain',
-  tmPlayer: 'discord_dev_tm_player',
 } as const;

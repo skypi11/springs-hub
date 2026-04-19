@@ -20,19 +20,14 @@ const DEV_GROUPS: { title: string; accounts: DevAccount[] }[] = [
       { uid: 'discord_dev_founder',         label: 'Matt (Fondateur)',       color: 'var(--s-gold)' },
       { uid: 'discord_dev_cofounder',       label: 'Luca (Co-fondateur)',    color: 'var(--s-gold)' },
       { uid: 'discord_dev_responsable',     label: 'Sofia (Responsable)',    color: 'var(--s-violet-light)' },
-      { uid: 'discord_dev_coach_structure', label: 'Elena (Head coach)',     color: '#FFB800' },
-      { uid: 'discord_dev_analyst',         label: 'Marc (Analyste)',        color: '#FFB800' },
+      { uid: 'discord_dev_coach_structure', label: 'Elena (Coach structure)', color: '#FFB800' },
     ],
   },
   {
-    title: 'Phoenix · Staff équipes',
+    title: 'Phoenix · Staff équipe',
     accounts: [
-      { uid: 'discord_dev_team_manager',    label: 'Louis (Manager Main)',   color: 'var(--s-violet-light)' },
-      { uid: 'discord_dev_team_coach',      label: 'Thomas (Coach Main/Aca)', color: '#4da6ff' },
-      { uid: 'discord_dev_manager_fem',     label: 'Maxime (Manager Fém.)',  color: 'var(--s-violet-light)' },
-      { uid: 'discord_dev_coach_fem',       label: 'Paul (Coach Féminine)',  color: '#4da6ff' },
-      { uid: 'discord_dev_manager_junior',  label: 'Léa (Manager Jeunes)',   color: 'var(--s-violet-light)' },
-      { uid: 'discord_dev_coach_junior',    label: 'Antoine (Coach Jeunes)', color: '#4da6ff' },
+      { uid: 'discord_dev_team_manager',    label: "Louis (Manager d'équipe)", color: 'var(--s-violet-light)' },
+      { uid: 'discord_dev_team_coach',      label: "Thomas (Coach d'équipe)",  color: '#4da6ff' },
     ],
   },
   {

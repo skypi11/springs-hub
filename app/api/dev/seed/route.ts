@@ -38,19 +38,15 @@ type UserSeed = {
   rlMmr?: number;
 };
 
-// Staff — noms réalistes FR.
+// Staff — strictement les 6 rôles reconnus par le site.
+// Pas de "analyste", "head coach", "manager Féminine" etc. — ces titres n'existent pas.
 const STAFF: UserSeed[] = [
-  { uid: DEV_UIDS.founder,         displayName: 'Matt Phoenix',       username: 'matt_phx' },
-  { uid: DEV_UIDS.cofounder,       displayName: 'Luca Bernard',       username: 'luca_phx' },
-  { uid: DEV_UIDS.responsable,     displayName: 'Sofia Lambert',       username: 'sofia_phx' },
-  { uid: DEV_UIDS.coachStructure,  displayName: 'Elena Rivière',       username: 'elena_phx' },
-  { uid: DEV_UIDS.analyst,         displayName: 'Marc Dubois',         username: 'marc_phx' },
-  { uid: DEV_UIDS.teamManager,     displayName: 'Louis Chevalier',     username: 'louis_phx' },
-  { uid: DEV_UIDS.teamCoach,       displayName: 'Thomas Leclerc',      username: 'thomas_phx' },
-  { uid: DEV_UIDS.managerFem,      displayName: 'Maxime Girard',       username: 'maxime_phx' },
-  { uid: DEV_UIDS.coachFem,        displayName: 'Paul Simon',          username: 'paul_phx' },
-  { uid: DEV_UIDS.managerJunior,   displayName: 'Léa Moreau',          username: 'lea_phx' },
-  { uid: DEV_UIDS.coachJunior,     displayName: 'Antoine Rousseau',    username: 'antoine_phx' },
+  { uid: DEV_UIDS.founder,         displayName: 'Matt Phoenix',   username: 'matt_phx' },
+  { uid: DEV_UIDS.cofounder,       displayName: 'Luca Bernard',   username: 'luca_phx' },
+  { uid: DEV_UIDS.responsable,     displayName: 'Sofia Lambert',  username: 'sofia_phx' },
+  { uid: DEV_UIDS.coachStructure,  displayName: 'Elena Rivière',  username: 'elena_phx' },
+  { uid: DEV_UIDS.teamManager,     displayName: 'Louis Chevalier',username: 'louis_phx' },
+  { uid: DEV_UIDS.teamCoach,       displayName: 'Thomas Leclerc', username: 'thomas_phx' },
 ];
 
 // Joueurs — alias gamer crédibles. rlRank varie par tier d'équipe.
@@ -167,11 +163,11 @@ const TEAMS: TeamSeed[] = [
     playerIds: [DEV_UIDS.rlEliteCaptain, DEV_UIDS.rlEliteP1, DEV_UIDS.rlEliteP2],
     subIds: [DEV_UIDS.rlEliteSub1, DEV_UIDS.rlEliteSub2],
     captainId: DEV_UIDS.rlEliteCaptain,
-    staffIds: [DEV_UIDS.teamManager, DEV_UIDS.teamCoach, DEV_UIDS.analyst],
+    staffIds: [DEV_UIDS.teamManager, DEV_UIDS.teamCoach, DEV_UIDS.coachStructure],
     staffRoles: {
       [DEV_UIDS.teamManager]: 'manager',
       [DEV_UIDS.teamCoach]: 'coach',
-      [DEV_UIDS.analyst]: 'coach',
+      [DEV_UIDS.coachStructure]: 'coach',
     },
   },
   {
@@ -196,10 +192,10 @@ const TEAMS: TeamSeed[] = [
     playerIds: [DEV_UIDS.rlFemMainCaptain, DEV_UIDS.rlFemMainP1, DEV_UIDS.rlFemMainP2],
     subIds: [DEV_UIDS.rlFemMainSub],
     captainId: DEV_UIDS.rlFemMainCaptain,
-    staffIds: [DEV_UIDS.managerFem, DEV_UIDS.coachFem],
+    staffIds: [DEV_UIDS.teamManager, DEV_UIDS.coachStructure],
     staffRoles: {
-      [DEV_UIDS.managerFem]: 'manager',
-      [DEV_UIDS.coachFem]: 'coach',
+      [DEV_UIDS.teamManager]: 'manager',
+      [DEV_UIDS.coachStructure]: 'coach',
     },
   },
   {
@@ -207,8 +203,8 @@ const TEAMS: TeamSeed[] = [
     playerIds: [DEV_UIDS.rlFemAcadCaptain, DEV_UIDS.rlFemAcadP1, DEV_UIDS.rlFemAcadP2],
     subIds: [],
     captainId: DEV_UIDS.rlFemAcadCaptain,
-    staffIds: [DEV_UIDS.coachFem],
-    staffRoles: { [DEV_UIDS.coachFem]: 'coach' },
+    staffIds: [DEV_UIDS.coachStructure],
+    staffRoles: { [DEV_UIDS.coachStructure]: 'coach' },
   },
   // Groupe 2 — Relève jeunes
   {
@@ -216,10 +212,10 @@ const TEAMS: TeamSeed[] = [
     playerIds: [DEV_UIDS.rlJuniorCaptain, DEV_UIDS.rlJuniorP1, DEV_UIDS.rlJuniorP2],
     subIds: [DEV_UIDS.rlJuniorSub],
     captainId: DEV_UIDS.rlJuniorCaptain,
-    staffIds: [DEV_UIDS.managerJunior, DEV_UIDS.coachJunior],
+    staffIds: [DEV_UIDS.teamManager, DEV_UIDS.coachStructure],
     staffRoles: {
-      [DEV_UIDS.managerJunior]: 'manager',
-      [DEV_UIDS.coachJunior]: 'coach',
+      [DEV_UIDS.teamManager]: 'manager',
+      [DEV_UIDS.coachStructure]: 'coach',
     },
   },
   {
@@ -227,16 +223,16 @@ const TEAMS: TeamSeed[] = [
     playerIds: [DEV_UIDS.rlU18Captain, DEV_UIDS.rlU18P1, DEV_UIDS.rlU18P2],
     subIds: [],
     captainId: DEV_UIDS.rlU18Captain,
-    staffIds: [DEV_UIDS.coachJunior],
-    staffRoles: { [DEV_UIDS.coachJunior]: 'coach' },
+    staffIds: [DEV_UIDS.coachStructure],
+    staffRoles: { [DEV_UIDS.coachStructure]: 'coach' },
   },
   {
     id: TEAM_U16, name: 'U16', label: 'Relève jeunes', order: 2, groupOrder: 2, status: 'active',
     playerIds: [DEV_UIDS.rlU16Captain, DEV_UIDS.rlU16P1, DEV_UIDS.rlU16P2],
     subIds: [],
     captainId: DEV_UIDS.rlU16Captain,
-    staffIds: [DEV_UIDS.coachJunior],
-    staffRoles: { [DEV_UIDS.coachJunior]: 'coach' },
+    staffIds: [DEV_UIDS.coachStructure],
+    staffRoles: { [DEV_UIDS.coachStructure]: 'coach' },
   },
   // Groupe 3 — Divisions régionales
   {
@@ -293,8 +289,8 @@ const TEAMS: TeamSeed[] = [
     playerIds: [DEV_UIDS.rlScoutingCaptain, DEV_UIDS.rlScoutingP1, DEV_UIDS.rlScoutingP2],
     subIds: [],
     captainId: DEV_UIDS.rlScoutingCaptain,
-    staffIds: [DEV_UIDS.analyst],
-    staffRoles: { [DEV_UIDS.analyst]: 'coach' },
+    staffIds: [DEV_UIDS.coachStructure],
+    staffRoles: { [DEV_UIDS.coachStructure]: 'coach' },
   },
   // Archivées
   {
@@ -442,7 +438,7 @@ export async function POST() {
     founderId: DEV_UIDS.founder,
     coFounderIds: [DEV_UIDS.cofounder],
     managerIds: [DEV_UIDS.responsable],
-    coachIds: [DEV_UIDS.coachStructure, DEV_UIDS.analyst],
+    coachIds: [DEV_UIDS.coachStructure],
     status: 'active',
     recruiting: {
       active: true,
@@ -584,7 +580,7 @@ export async function POST() {
       title: 'Match Ligue Féminine J4',
       type: 'match',
       teamId: TEAM_FEM_MAIN,
-      createdBy: DEV_UIDS.managerFem,
+      createdBy: DEV_UIDS.teamManager,
       startsAt: ts(-5 * 24 * H),
       endsAt: ts(-5 * 24 * H + 2 * H),
       adversaire: 'Nyx Féminine',
@@ -664,7 +660,7 @@ export async function POST() {
       title: 'Training pré-playoffs',
       type: 'training',
       teamId: TEAM_FEM_MAIN,
-      createdBy: DEV_UIDS.coachFem,
+      createdBy: DEV_UIDS.coachStructure,
       startsAt: ts(2 * 24 * H + 3 * H),
       endsAt: ts(2 * 24 * H + 5 * H),
       status: 'scheduled',
@@ -674,7 +670,7 @@ export async function POST() {
       title: 'Match Ligue Féminine — Playoffs',
       type: 'match',
       teamId: TEAM_FEM_MAIN,
-      createdBy: DEV_UIDS.managerFem,
+      createdBy: DEV_UIDS.teamManager,
       startsAt: ts(7 * 24 * H),
       endsAt: ts(7 * 24 * H + 2 * H),
       adversaire: 'À déterminer',
@@ -685,7 +681,7 @@ export async function POST() {
       title: 'Training tactique',
       type: 'training',
       teamId: TEAM_FEM_ACAD,
-      createdBy: DEV_UIDS.coachFem,
+      createdBy: DEV_UIDS.coachStructure,
       startsAt: ts(24 * H + 6 * H),
       endsAt: ts(24 * H + 8 * H),
       status: 'scheduled',
@@ -696,7 +692,7 @@ export async function POST() {
       title: 'Training Junior — rotations',
       type: 'training',
       teamId: TEAM_JUNIOR,
-      createdBy: DEV_UIDS.coachJunior,
+      createdBy: DEV_UIDS.coachStructure,
       startsAt: ts(24 * H + 2 * H),
       endsAt: ts(24 * H + 3 * H + 30 * 60 * 1000),
       status: 'scheduled',
@@ -706,7 +702,7 @@ export async function POST() {
       title: 'Training U18',
       type: 'training',
       teamId: TEAM_U18,
-      createdBy: DEV_UIDS.coachJunior,
+      createdBy: DEV_UIDS.coachStructure,
       startsAt: ts(3 * 24 * H + 2 * H),
       endsAt: ts(3 * 24 * H + 4 * H),
       status: 'scheduled',
@@ -716,7 +712,7 @@ export async function POST() {
       title: 'Training U16 fondamentaux',
       type: 'training',
       teamId: TEAM_U16,
-      createdBy: DEV_UIDS.coachJunior,
+      createdBy: DEV_UIDS.coachStructure,
       startsAt: ts(4 * 24 * H + 2 * H),
       endsAt: ts(4 * 24 * H + 3 * H + 30 * 60 * 1000),
       status: 'scheduled',
@@ -760,7 +756,7 @@ export async function POST() {
       title: 'Watch party — RLCS EU finale',
       type: 'other',
       teamId: TEAM_SCOUTING,
-      createdBy: DEV_UIDS.analyst,
+      createdBy: DEV_UIDS.coachStructure,
       startsAt: ts(2 * 24 * H + 8 * H),
       endsAt: ts(2 * 24 * H + 11 * H),
       status: 'scheduled',
@@ -862,7 +858,7 @@ export async function POST() {
       deadlineOffsetDays: -1,
       done: true,
       response: { type: 'vod_review', analysis: '1) Challenge 50/50 prop à 2:15 bien géré. 2) Rotation backpost trop lente à 5:40. 3) Aerial défensif excellent à 8:12.' },
-      createdBy: DEV_UIDS.analyst,
+      createdBy: DEV_UIDS.coachStructure,
     },
     {
       id: 'dev_todo_acad_mental_done', teamId: TEAM_ACADEMY,
@@ -894,7 +890,7 @@ export async function POST() {
       description: 'Regarder leurs 3 derniers matchs. Identifier faiblesses en défense et leur kickoff préféré.',
       config: { opponent: 'Nyx Féminine' },
       deadlineOffsetDays: 3,
-      createdBy: DEV_UIDS.managerFem,
+      createdBy: DEV_UIDS.teamManager,
     },
     {
       id: 'dev_todo_bteam_free', teamId: TEAM_BTEAM,
@@ -916,7 +912,7 @@ export async function POST() {
         packs: [{ code: 'C782-1234-5678-ABCD', objective: 'Rotations fluides sans temps mort' }],
       },
       deadlineOffsetDays: 3,
-      createdBy: DEV_UIDS.coachJunior,
+      createdBy: DEV_UIDS.coachStructure,
     },
     {
       id: 'dev_todo_u16_mental', teamId: TEAM_U16,
@@ -926,7 +922,7 @@ export async function POST() {
       description: 'On fait le point sur les dernières sessions. Prends le temps de répondre honnêtement.',
       config: { prompts: ['Humeur', 'Confiance', 'Envie de jouer'] },
       deadlineOffsetDays: 1,
-      createdBy: DEV_UIDS.coachJunior,
+      createdBy: DEV_UIDS.coachStructure,
     },
     {
       id: 'dev_todo_fem_acad_replay_done', teamId: TEAM_FEM_ACAD,
@@ -938,7 +934,7 @@ export async function POST() {
       deadlineOffsetDays: -2,
       done: true,
       response: { type: 'replay_review', analysis: 'J\'ai identifié que je pars trop tôt sur 3 des 5 kickoffs. À corriger en challenge fake.' },
-      createdBy: DEV_UIDS.coachFem,
+      createdBy: DEV_UIDS.coachStructure,
     },
     {
       id: 'dev_todo_south_free', teamId: TEAM_SOUTH,
