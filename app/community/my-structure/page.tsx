@@ -3942,7 +3942,20 @@ export default function MyStructurePage() {
                   </div>
                 ) : (
                   <div className="divide-y" style={{ borderColor: 'var(--s-border)' }}>
-                    {[...s.members]
+                    {(() => {
+                      // L'API renvoie `players/subs/staff` déjà enrichis ; computeMemberRole
+                      // attend `playerIds/subIds/staffIds` (strings). On reconstruit les IDs ici.
+                      const roleTeams: MemberRoleTeam[] = teams.map(t => ({
+                        id: t.id,
+                        name: t.name,
+                        playerIds: t.players.map(p => p.uid),
+                        subIds: t.subs.map(p => p.uid),
+                        staffIds: t.staff.map(p => p.uid),
+                        staffRoles: t.staffRoles,
+                        captainId: t.captainId ?? null,
+                        status: t.status,
+                      }));
+                      return [...s.members]
                       .map(m => ({
                         m,
                         derived: computeMemberRole({
@@ -3951,7 +3964,7 @@ export default function MyStructurePage() {
                           coFounderIds: s.coFounderIds ?? [],
                           managerIds: s.managerIds ?? [],
                           coachIds: s.coachIds ?? [],
-                          teams: teams as unknown as MemberRoleTeam[],
+                          teams: roleTeams,
                         }),
                       }))
                       .sort((a, b) =>
@@ -4049,7 +4062,8 @@ export default function MyStructurePage() {
                           />
                         </div>
                       );
-                    })}
+                    });
+                    })()}
                   </div>
                 )}
               </div>
