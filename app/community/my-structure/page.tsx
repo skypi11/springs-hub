@@ -29,6 +29,7 @@ import PlayerStructureView, { type PlayerStructure } from '@/components/structur
 import MarkdownEditor from '@/components/ui/MarkdownEditor';
 import ImageUploader from '@/components/ui/ImageUploader';
 import DocumentsExplorer from '@/components/documents/DocumentsExplorer';
+import CrossTeamTodosPanel from '@/components/structure/CrossTeamTodosPanel';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import { LIMITS } from '@/lib/validation';
 import { computeMemberRole, groupAffiliations, PRIMARY_ROLE_LABELS, type MemberRoleTeam, type PrimaryRole } from '@/lib/member-role';
@@ -60,7 +61,7 @@ async function safeCopy(text: string): Promise<boolean> {
   }
 }
 
-type DashboardTab = 'general' | 'teams' | 'recruitment' | 'members' | 'calendar' | 'documents';
+type DashboardTab = 'general' | 'teams' | 'recruitment' | 'members' | 'calendar' | 'todos' | 'documents';
 
 const TAB_DEFS: { key: DashboardTab; label: string; color: string }[] = [
   { key: 'general', label: 'Général', color: 'var(--s-violet-light)' },
@@ -68,6 +69,7 @@ const TAB_DEFS: { key: DashboardTab; label: string; color: string }[] = [
   { key: 'recruitment', label: 'Recrutement', color: '#33ff66' },
   { key: 'members', label: 'Membres', color: 'var(--s-gold)' },
   { key: 'calendar', label: 'Calendrier', color: 'var(--s-gold)' },
+  { key: 'todos', label: 'Devoirs', color: '#4da6ff' },
   { key: 'documents', label: 'Documents', color: 'var(--s-violet-light)' },
 ];
 
@@ -753,11 +755,11 @@ export default function MyStructurePage() {
     const isManager = !isDirigeant && (activeStructure.managerIds ?? []).includes(firebaseUser.uid);
     const isCoach = !isDirigeant && !isManager && (activeStructure.coachIds ?? []).includes(firebaseUser.uid);
     const visible: DashboardTab[] = isDirigeant
-      ? ['general', 'teams', 'recruitment', 'members', 'calendar', 'documents']
+      ? ['general', 'teams', 'recruitment', 'members', 'calendar', 'todos', 'documents']
       : isManager
-      ? ['teams', 'members', 'calendar']
+      ? ['teams', 'members', 'calendar', 'todos']
       : isCoach
-      ? ['members', 'calendar']
+      ? ['members', 'calendar', 'todos']
       : ['calendar'];
     if (!visible.includes(tab)) setTab(visible[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1507,11 +1509,11 @@ export default function MyStructurePage() {
     ? teams.some(t => t.captainId === firebaseUser.uid)
     : false;
   const visibleTabs: DashboardTab[] = isDirigeantOfActive
-    ? ['general', 'teams', 'recruitment', 'members', 'calendar', 'documents']
+    ? ['general', 'teams', 'recruitment', 'members', 'calendar', 'todos', 'documents']
     : isManagerOfActive
-    ? ['teams', 'recruitment', 'members', 'calendar']
+    ? ['teams', 'recruitment', 'members', 'calendar', 'todos']
     : isCoachOfActive
-    ? ['members', 'calendar']
+    ? ['members', 'calendar', 'todos']
     : captainOnlyAccess
     ? ['teams', 'calendar']
     : ['calendar'];
@@ -4317,6 +4319,13 @@ export default function MyStructurePage() {
             }}
           />
         </div>
+        )}
+
+        {/* ═══ DEVOIRS (cross-teams) ═══ */}
+        {tab === 'todos' && (
+          <div className="animate-fade-in-d3">
+            <CrossTeamTodosPanel structureId={s.id} />
+          </div>
         )}
 
         {/* ═══ DOCUMENTS ═══ */}
