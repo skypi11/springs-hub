@@ -204,11 +204,12 @@ export default function TeamAvailabilityView({
   }
 
   // Grille unifiée pour la semaine courante affichée
-  const { rows, slotCountsByIso } = useMemo(() => {
-    if (!data) return { rows: [], slotCountsByIso: {} };
+  const { rows, slotCountsByIso, eventSlotsByIso } = useMemo(() => {
+    if (!data) return { rows: [], slotCountsByIso: {}, eventSlotsByIso: new Set<string>() };
     const week = data.weeks[weekIdx];
-    if (!week) return { rows: [], slotCountsByIso: {} };
+    if (!week) return { rows: [], slotCountsByIso: {}, eventSlotsByIso: new Set<string>() };
     const grid = generateWeekGrid(week.mondayYmd, data.today);
+    const weekDaySet = new Set(grid.days.map(d => d.gridYmd));
 
     const counts: Record<string, number> = {};
     for (const m of data.members) {
@@ -216,11 +217,28 @@ export default function TeamAvailabilityView({
       for (const s of slots) counts[s] = (counts[s] ?? 0) + 1;
     }
 
+    // Agrégation des slots déjà pris par un event (tous membres confondus — si au moins
+    // un joueur a un conflit ici, il y a un event en cours → on affiche un hachuré).
+    // On ne garde que les slots qui tombent dans les jours visibles de la semaine.
+    const eventSet = new Set<string>();
+    for (const m of data.members) {
+      for (const s of m.conflictSlots) {
+        if (weekDaySet.has(s.slice(0, 10))) eventSet.add(s);
+        else {
+          // Slots de nuit (00:00-01:30) rattachés au jour précédent dans la grille.
+          const prev = new Date(s.slice(0, 10));
+          prev.setDate(prev.getDate() - 1);
+          const prevYmd = prev.toISOString().slice(0, 10);
+          if (weekDaySet.has(prevYmd)) eventSet.add(s);
+        }
+      }
+    }
+
     const rows = grid.days.map(day => ({
       day,
       cells: buildUnifiedRow(day),
     }));
-    return { rows, slotCountsByIso: counts };
+    return { rows, slotCountsByIso: counts, eventSlotsByIso: eventSet };
   }, [data, weekIdx]);
 
   if (loading) {
@@ -385,6 +403,7 @@ export default function TeamAvailabilityView({
             <ConsensusHeatmap
               rows={rows}
               slotCountsByIso={slotCountsByIso}
+              eventSlotsByIso={eventSlotsByIso}
               totalMembers={totalMembers}
               minPlayers={data.team.minPlayersForMatch}
               selectedSlot={selectedSlot}
@@ -450,6 +469,7 @@ function SegButton({
 function ConsensusHeatmap({
   rows,
   slotCountsByIso,
+  eventSlotsByIso,
   totalMembers,
   minPlayers,
   selectedSlot,
@@ -457,6 +477,7 @@ function ConsensusHeatmap({
 }: {
   rows: { day: DayGrid; cells: UnifiedCell[] }[];
   slotCountsByIso: Record<string, number>;
+  eventSlotsByIso: Set<string>;
   totalMembers: number;
   minPlayers: number;
   selectedSlot: string | null;
@@ -514,6 +535,7 @@ function ConsensusHeatmap({
               day={row.day}
               cells={row.cells}
               slotCountsByIso={slotCountsByIso}
+              eventSlotsByIso={eventSlotsByIso}
               totalMembers={totalMembers}
               minPlayers={minPlayers}
               selectedSlot={selectedSlot}
@@ -537,6 +559,10 @@ function ConsensusHeatmap({
             <LegendSwatch color="rgba(255,184,0,0.8)" border="var(--s-gold)" />
             <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>seuil match ({minPlayers}+)</span>
           </div>
+          <div className="flex items-center gap-1.5">
+            <LegendSwatch color="repeating-linear-gradient(135deg, rgba(0,0,0,0.35) 0, rgba(0,0,0,0.35) 2px, transparent 2px, transparent 5px), rgba(123,47,190,0.4)" />
+            <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>event planifié</span>
+          </div>
         </div>
       </div>
     </section>
@@ -559,6 +585,7 @@ function DayHeatmapRow({
   day,
   cells,
   slotCountsByIso,
+  eventSlotsByIso,
   totalMembers,
   minPlayers,
   selectedSlot,
@@ -567,6 +594,7 @@ function DayHeatmapRow({
   day: DayGrid;
   cells: UnifiedCell[];
   slotCountsByIso: Record<string, number>;
+  eventSlotsByIso: Set<string>;
   totalMembers: number;
   minPlayers: number;
   selectedSlot: string | null;
@@ -597,6 +625,7 @@ function DayHeatmapRow({
         {cells.map(cell => {
           const count = slotCountsByIso[cell.iso] ?? 0;
           const isSelected = selectedSlot === cell.iso;
+          const hasEvent = eventSlotsByIso.has(cell.iso);
           return (
             <HeatmapCell
               key={cell.iso}
@@ -606,6 +635,7 @@ function DayHeatmapRow({
               minPlayers={minPlayers}
               isPastDay={day.isPast}
               isSelected={isSelected}
+              hasEvent={hasEvent}
               onClick={() => {
                 if (!cell.inSchedule || day.isPast) return;
                 onSelectSlot(isSelected ? null : cell.iso);
@@ -625,6 +655,7 @@ function HeatmapCell({
   minPlayers,
   isPastDay,
   isSelected,
+  hasEvent,
   onClick,
 }: {
   cell: UnifiedCell;
@@ -633,6 +664,7 @@ function HeatmapCell({
   minPlayers: number;
   isPastDay: boolean;
   isSelected: boolean;
+  hasEvent: boolean;
   onClick: () => void;
 }) {
   if (!cell.inSchedule) {
@@ -667,8 +699,16 @@ function HeatmapCell({
     border = 'rgba(163,100,217,0.55)';
   }
 
+  // Si un event est déjà planifié sur ce créneau, on superpose un hachuré fin pour
+  // montrer que le créneau est occupé même si des joueurs restent "dispo" au sens des prefs.
+  if (hasEvent) {
+    const stripes = 'repeating-linear-gradient(135deg, rgba(0,0,0,0.35) 0, rgba(0,0,0,0.35) 2px, transparent 2px, transparent 5px)';
+    bg = `${stripes}, ${bg}`;
+  }
+
   const hhmm = `${pad2(cell.hour)}:${pad2(cell.minute)}`;
-  const title = `${hhmm} — ${count}/${totalMembers} joueur${count > 1 ? 's' : ''} dispo${count > 1 ? 's' : ''}`;
+  const eventSuffix = hasEvent ? ' · event planifié' : '';
+  const title = `${hhmm} — ${count}/${totalMembers} joueur${count > 1 ? 's' : ''} dispo${count > 1 ? 's' : ''}${eventSuffix}`;
 
   return (
     <button

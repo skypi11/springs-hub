@@ -214,7 +214,7 @@ export default function CalendarSection({
   }, [events]);
 
   const filteredEvents = useMemo(() => {
-    return events.filter(e => {
+    const filtered = events.filter(e => {
       if (filter !== 'all') {
         const end = e.endsAt ? new Date(e.endsAt).getTime() : 0;
         if (filter === 'upcoming' && !(end >= now && e.status !== 'cancelled')) return false;
@@ -226,6 +226,13 @@ export default function CalendarSection({
         if (!ids.some(id => teamFilter.includes(id))) return false;
       }
       return true;
+    });
+    // "À venir" → ordre ascendant (le plus proche en haut). "Passés"/"Tous" → descendant (plus récent en haut).
+    const asc = filter === 'upcoming';
+    return filtered.sort((a, b) => {
+      const aMs = a.startsAt ? new Date(a.startsAt).getTime() : 0;
+      const bMs = b.startsAt ? new Date(b.startsAt).getTime() : 0;
+      return asc ? aMs - bMs : bMs - aMs;
     });
   }, [events, filter, now, teamFilter]);
 
