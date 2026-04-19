@@ -1,9 +1,7 @@
 'use client';
 
-export const dynamic = 'force-dynamic';
-
 import { useState, useEffect, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { auth } from '@/lib/firebase';
@@ -71,8 +69,11 @@ const defaultForm: FormData = {
 export default function SettingsPage() {
   const { user, firebaseUser, isAdmin, loading: authLoading, signOut } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const mustComplete = searchParams?.get('complete') === '1';
+  const [mustComplete, setMustComplete] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setMustComplete(new URLSearchParams(window.location.search).get('complete') === '1');
+  }, []);
   const completion = checkProfileCompletion(user);
   const [form, setForm] = useState<FormData>(defaultForm);
   const [saving, setSaving] = useState(false);
