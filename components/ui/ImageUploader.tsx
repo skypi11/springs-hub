@@ -125,8 +125,9 @@ export default function ImageUploader({
     }
   };
 
+  const outerClass = aspect === 'square' ? 'w-[160px]' : 'w-full';
   const aspectClass = aspect === 'square'
-    ? 'aspect-square max-w-[160px]'
+    ? 'aspect-square'
     : 'aspect-[4/1] w-full';
 
   return (
@@ -134,7 +135,7 @@ export default function ImageUploader({
       <label className="t-label block">{label}</label>
 
       <div
-        className="bevel-sm relative overflow-hidden cursor-pointer transition-all"
+        className={`bevel-sm relative overflow-hidden cursor-pointer transition-all ${outerClass}`}
         style={{
           background: 'var(--s-elevated)',
           border: `1px dashed ${dragOver ? 'var(--s-gold)' : 'var(--s-border)'}`,
