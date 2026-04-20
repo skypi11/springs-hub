@@ -1,11 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Film } from 'lucide-react';
-import { auth } from '@/lib/firebase';
 import type { UserContext } from '@/lib/event-permissions';
 import { isDirigeant } from '@/lib/event-permissions';
 import { canUploadReplay } from '@/lib/replay-permissions';
+import { api } from '@/lib/api-client';
 import ReplayUploader from './ReplayUploader';
 import ReplayList, { type ReplayListItem } from './ReplayList';
 
@@ -30,34 +30,23 @@ export default function ReplaysPanel({
   userContext: UserContext;
   eventTitlesById?: Record<string, string>;
 }) {
-  const [items, setItems] = useState<ReplayListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-
+  const qc = useQueryClient();
   const currentUid = userContext.uid ?? '';
   const canUpload = canUploadReplay(userContext, teamId);
   const canDeleteAny = isDirigeant(userContext);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) { setLoading(false); return; }
+  const queryKey = ['replays', structureId, teamId, mode, eventId ?? null] as const;
+  const { data, isPending: loading } = useQuery({
+    queryKey,
+    queryFn: () => {
       const params = new URLSearchParams();
       params.set('teamId', teamId);
       if (mode === 'event' && eventId) params.set('eventId', eventId);
-      const res = await fetch(`/api/structures/${structureId}/replays?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) setItems((data.replays ?? []) as ReplayListItem[]);
-    } catch {
-      // silent — toast sera déclenché sur les actions explicites
-    } finally {
-      setLoading(false);
-    }
-  }, [structureId, teamId, eventId, mode]);
-
-  useEffect(() => { void load(); }, [load]);
+      return api<{ replays: ReplayListItem[] }>(`/api/structures/${structureId}/replays?${params.toString()}`);
+    },
+  });
+  const items = data?.replays ?? [];
+  const load = () => qc.invalidateQueries({ queryKey });
 
   return (
     <div className="space-y-3">

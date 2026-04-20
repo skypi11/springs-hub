@@ -2,9 +2,9 @@
 
 import { useCallback, useState } from 'react';
 import { Download, Trash2, Edit2, Check, X, Loader2, Film } from 'lucide-react';
-import { auth } from '@/lib/firebase';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
+import { api } from '@/lib/api-client';
 
 export type ReplayListItem = {
   id: string;
@@ -67,21 +67,15 @@ export default function ReplayList({
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const download = useCallback(async (id: string) => {
-    const token = await auth.currentUser?.getIdToken();
-    if (!token) return;
     try {
-      const res = await fetch(`/api/structures/${structureId}/replays/${id}/download`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.url) {
-        toast.error(data?.error || 'Échec du lien de téléchargement');
+      const data = await api<{ url?: string }>(`/api/structures/${structureId}/replays/${id}/download`);
+      if (!data.url) {
+        toast.error('Échec du lien de téléchargement');
         return;
       }
-      // Ouvre l'URL signée — R2 force l'attachment via ResponseContentDisposition
-      window.location.href = data.url as string;
-    } catch {
-      toast.error('Erreur réseau');
+      window.location.href = data.url;
+    } catch (err) {
+      toast.error((err as Error).message || 'Erreur réseau');
     }
   }, [structureId, toast]);
 
@@ -93,22 +87,12 @@ export default function ReplayList({
       variant: 'danger',
     });
     if (!ok) return;
-    const token = await auth.currentUser?.getIdToken();
-    if (!token) return;
     try {
-      const res = await fetch(`/api/structures/${structureId}/replays/${item.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d?.error || 'Échec suppression');
-        return;
-      }
+      await api(`/api/structures/${structureId}/replays/${item.id}`, { method: 'DELETE' });
       toast.success('Replay supprimé');
       onChanged();
-    } catch {
-      toast.error('Erreur réseau');
+    } catch (err) {
+      toast.error((err as Error).message || 'Échec suppression');
     }
   }, [structureId, confirm, toast, onChanged]);
 
@@ -251,28 +235,20 @@ function ReplayEditForm({
   const save = async () => {
     setSaving(true);
     try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) return;
-      const res = await fetch(`/api/structures/${structureId}/replays/${item.id}`, {
+      await api(`/api/structures/${structureId}/replays/${item.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
+        body: {
           title,
           result: result || null,
           score: score || null,
           map: map || null,
           notes: notes || null,
-        }),
+        },
       });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d?.error || 'Erreur');
-        return;
-      }
       toast.success('Replay mis à jour');
       onSaved();
-    } catch {
-      toast.error('Erreur réseau');
+    } catch (err) {
+      toast.error((err as Error).message || 'Erreur');
     } finally {
       setSaving(false);
     }

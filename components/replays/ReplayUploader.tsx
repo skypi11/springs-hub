@@ -2,9 +2,9 @@
 
 import { useCallback, useRef, useState } from 'react';
 import { Upload, Loader2 } from 'lucide-react';
-import { auth } from '@/lib/firebase';
 import { useToast } from '@/components/ui/Toast';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
+import { api } from '@/lib/api-client';
 
 interface Props {
   structureId: string;
@@ -41,26 +41,22 @@ export default function ReplayUploader({ structureId, teamId, eventId, onUploade
     setUploading(true);
     setProgress(0);
     try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) { toast.error('Session expirée'); return; }
-
       // 1. Prépare (signed URL + doc pending)
-      const prep = await fetch(`/api/structures/${structureId}/replays`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          teamId,
-          eventId: eventId ?? null,
-          filename: file.name,
-          sizeBytes: file.size,
-          contentType: file.type || 'application/octet-stream',
-        }),
-      });
-      const prepData = await prep.json().catch(() => ({}));
-      if (!prep.ok) { toast.error(prepData?.error || 'Échec de la préparation'); return; }
-      const { replayId, uploadUrl } = prepData as { replayId: string; uploadUrl: string };
+      const { replayId, uploadUrl } = await api<{ replayId: string; uploadUrl: string }>(
+        `/api/structures/${structureId}/replays`,
+        {
+          method: 'POST',
+          body: {
+            teamId,
+            eventId: eventId ?? null,
+            filename: file.name,
+            sizeBytes: file.size,
+            contentType: file.type || 'application/octet-stream',
+          },
+        }
+      );
 
-      // 2. PUT R2 (XHR pour avoir la progression)
+      // 2. PUT R2 (XHR pour avoir la progression — pas passé par api-client car URL externe signée)
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('PUT', uploadUrl);
@@ -77,18 +73,15 @@ export default function ReplayUploader({ structureId, teamId, eventId, onUploade
       });
 
       // 3. Finalize
-      const fin = await fetch(`/api/structures/${structureId}/replays/${replayId}`, {
+      await api(`/api/structures/${structureId}/replays/${replayId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ finalize: true }),
+        body: { finalize: true },
       });
-      const finData = await fin.json().catch(() => ({}));
-      if (!fin.ok) { toast.error(finData?.error || 'Échec de la finalisation'); return; }
 
       toast.success('Replay ajouté');
       onUploaded();
-    } catch {
-      toast.error('Erreur pendant l\'upload');
+    } catch (err) {
+      toast.error((err as Error).message || "Erreur pendant l'upload");
     } finally {
       setUploading(false);
       setProgress(0);

@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
+import { useQuery } from '@tanstack/react-query';
 import {
   AlertTriangle, Clock, CheckCircle2, Calendar, Filter, Loader2, ListChecks, Users,
   Activity, ChevronDown, ChevronUp,
 } from 'lucide-react';
-import { auth } from '@/lib/firebase';
+import { api, ApiError } from '@/lib/api-client';
 import { TODO_TYPE_META, type TodoRef, type TodoType } from '@/lib/todos';
 import TodoDetailDrawer, { type DrawerTodo } from '@/components/calendar/TodoDetailDrawer';
 
@@ -102,45 +103,17 @@ export default function CrossTeamTodosPanel({
   onConsumedTodo?: () => void;
   onOpenTeam?: (teamId: string) => void;
 }) {
-  const [data, setData] = useState<OverviewData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   const [teamFilter, setTeamFilter] = useState<string>('all');
   const [stateFilter, setStateFilter] = useState<StateFilter>('overdue');
   const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
   const [heatmapOpen, setHeatmapOpen] = useState(true);
   const [openTodoId, setOpenTodoId] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        setLoading(true);
-        setError(null);
-        const token = await auth.currentUser?.getIdToken();
-        if (!token) {
-          setError('Connexion requise');
-          return;
-        }
-        const res = await fetch(`/api/structures/${structureId}/todos/overview`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const body = await res.json();
-        if (!res.ok) {
-          setError(body?.error ?? 'Erreur de chargement');
-          return;
-        }
-        if (!cancelled) setData(body as OverviewData);
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Erreur de chargement');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    return () => { cancelled = true; };
-  }, [structureId]);
+  const { data, isPending: loading, error: queryError } = useQuery({
+    queryKey: ['structure', structureId, 'todos-overview'] as const,
+    queryFn: () => api<OverviewData>(`/api/structures/${structureId}/todos/overview`),
+  });
+  const error = queryError ? (queryError instanceof ApiError ? queryError.message : queryError.message || 'Erreur de chargement') : null;
 
   // Deep-link : si initialTodoId pointe vers un devoir qu'on a chargé, ouvrir le drawer une fois.
   useEffect(() => {

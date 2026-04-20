@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Shield, Users, ExternalLink, MessageSquare, Loader2, CheckCircle,
   Clock, MapPin, Target, Star, UserCheck, UserX, HelpCircle, Crown,
@@ -10,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
+import { api } from '@/lib/api-client';
 import AvailabilityCollapsible from '@/components/calendar/AvailabilityCollapsible';
 import type { EventType, EventStatus, PresenceStatus } from '@/lib/event-permissions';
 
@@ -137,54 +139,35 @@ function Avatar({ user, size = 44 }: { user: PublicUser; size?: number }) {
 export default function PlayerStructureView({ structure }: { structure: PlayerStructure }) {
   const { firebaseUser } = useAuth();
   const toast = useToast();
-  const [events, setEvents] = useState<MyEvent[]>([]);
-  const [eventsLoading, setEventsLoading] = useState(true);
-  const [presenceBusy, setPresenceBusy] = useState<string | null>(null);
+  const qc = useQueryClient();
 
-  const loadEvents = useCallback(async () => {
-    if (!firebaseUser) return;
-    setEventsLoading(true);
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/calendar/me', {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const filtered = (data.events as MyEvent[]).filter(e => e.structureId === structure.id);
-        setEvents(filtered);
-      }
-    } catch {
-      // silent
-    } finally {
-      setEventsLoading(false);
-    }
-  }, [firebaseUser, structure.id]);
+  const calendarQueryKey = ['calendar', 'me'] as const;
+  const { data: eventsData, isPending: eventsLoading } = useQuery({
+    queryKey: calendarQueryKey,
+    queryFn: () => api<{ events: MyEvent[] }>('/api/calendar/me'),
+    enabled: !!firebaseUser,
+  });
+  const events = useMemo(
+    () => (eventsData?.events ?? []).filter(e => e.structureId === structure.id),
+    [eventsData, structure.id]
+  );
 
-  useEffect(() => { loadEvents(); }, [loadEvents]);
-
-  async function respondPresence(event: MyEvent, status: PresenceStatus) {
-    if (!firebaseUser) return;
-    setPresenceBusy(event.id);
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structure.id}/events/${event.id}/presence`, {
+  const presenceMutation = useMutation({
+    mutationFn: ({ event, status }: { event: MyEvent; status: PresenceStatus }) =>
+      api(`/api/structures/${structure.id}/events/${event.id}/presence`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ status }),
-      });
-      if (res.ok) {
-        await loadEvents();
-        toast.success('Réponse enregistrée');
-      } else {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
-    }
-    setPresenceBusy(null);
-  }
+        body: { status },
+      }).then(() => ({ event, status })),
+    onSuccess: () => {
+      toast.success('Réponse enregistrée');
+      qc.invalidateQueries({ queryKey: calendarQueryKey });
+    },
+    onError: (err: Error) => toast.error(err.message || 'Erreur'),
+  });
+  const presenceBusy = presenceMutation.isPending ? presenceMutation.variables?.event.id ?? null : null;
+  const respondPresence = (event: MyEvent, status: PresenceStatus) => {
+    presenceMutation.mutate({ event, status });
+  };
 
   const upcomingEvents = useMemo(() => {
     const now = Date.now();
