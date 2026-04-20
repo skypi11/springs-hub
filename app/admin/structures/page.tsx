@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
+import AdminUserRef from '@/components/admin/AdminUserRef';
 import {
   Building2, CheckCircle, XCircle, Trash2, Loader2, ChevronDown, ChevronUp,
   ExternalLink, Ban, RotateCcw,
@@ -27,6 +28,11 @@ type StructureRequest = {
   status: string;
   reviewComment?: string;
   reviewedBy?: string;
+  reviewedByName?: string;
+  suspendedBy?: string;
+  suspendedByName?: string;
+  deletionRequestedBy?: string;
+  deletionRequestedByName?: string;
   requestedAt?: string;
   validatedAt?: string;
   createdAt?: string;
@@ -256,9 +262,21 @@ export default function AdminStructuresPage() {
                         </div>
                       )}
                       {s.reviewedBy && (
-                        <div className="flex justify-between">
+                        <div className="flex justify-between items-start gap-4">
                           <span className="t-label">Traité par</span>
-                          <span className="t-mono text-xs" style={{ wordBreak: 'break-all' }}>{s.reviewedBy}</span>
+                          <AdminUserRef uid={s.reviewedBy} name={s.reviewedByName} />
+                        </div>
+                      )}
+                      {s.suspendedBy && (
+                        <div className="flex justify-between items-start gap-4">
+                          <span className="t-label">Suspendue par</span>
+                          <AdminUserRef uid={s.suspendedBy} name={s.suspendedByName} />
+                        </div>
+                      )}
+                      {s.deletionRequestedBy && (
+                        <div className="flex justify-between items-start gap-4">
+                          <span className="t-label">Suppression demandée par</span>
+                          <AdminUserRef uid={s.deletionRequestedBy} name={s.deletionRequestedByName} />
                         </div>
                       )}
                     </div>

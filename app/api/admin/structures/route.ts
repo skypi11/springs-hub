@@ -24,17 +24,32 @@ export async function GET(req: NextRequest) {
     if (statusFilter) query = query.where('status', '==', statusFilter);
     const snap = await query.limit(MAX_STRUCTURES).get();
 
-    // Charger tous les fondateurs en un seul batch
-    const founderIds = snap.docs.map(d => d.data().founderId).filter(Boolean);
-    const foundersById = await fetchDocsByIds(db, 'users', founderIds);
+    // Charger fondateurs + admins référencés (reviewedBy, suspendedBy, deletionRequestedBy)
+    // en un seul batch pour éviter N lectures par structure.
+    const userIds = new Set<string>();
+    for (const d of snap.docs) {
+      const data = d.data();
+      if (data.founderId) userIds.add(data.founderId);
+      if (data.reviewedBy) userIds.add(data.reviewedBy);
+      if (data.suspendedBy) userIds.add(data.suspendedBy);
+      if (data.deletionRequestedBy) userIds.add(data.deletionRequestedBy);
+    }
+    const usersById = await fetchDocsByIds(db, 'users', Array.from(userIds));
+    const nameOf = (uid?: string | null) => {
+      if (!uid) return '';
+      const u = usersById.get(uid);
+      return u?.displayName || u?.discordUsername || '';
+    };
 
     const structures = snap.docs.map(doc => {
       const data = doc.data();
-      const founder = foundersById.get(data.founderId);
       return {
         id: doc.id,
         ...data,
-        founderName: founder?.displayName || founder?.discordUsername || '',
+        founderName: nameOf(data.founderId),
+        reviewedByName: nameOf(data.reviewedBy),
+        suspendedByName: nameOf(data.suspendedBy),
+        deletionRequestedByName: nameOf(data.deletionRequestedBy),
         requestedAt: data.requestedAt?.toDate?.()?.toISOString() ?? null,
         validatedAt: data.validatedAt?.toDate?.()?.toISOString() ?? null,
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,

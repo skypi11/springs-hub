@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import Link from 'next/link';
 import {
   History, Loader2, ChevronDown, ChevronUp, Search, RefreshCw,
   CheckCircle, XCircle, Ban, Shield, Trash2, Pencil, UserMinus, LogOut,
-  Building2, User as UserIcon, Calendar, ExternalLink,
+  Building2, User as UserIcon, Calendar,
 } from 'lucide-react';
+import AdminUserRef from '@/components/admin/AdminUserRef';
 
 type AuditLog = {
   id: string;
@@ -85,57 +85,6 @@ function formatDate(iso: string | null): string {
   } catch {
     return iso;
   }
-}
-
-// Ligne "Acteur / Cible / Structure" dans le détail d'un log : affiche le NOM
-// lisible + un lien vers le profil/structure + un bouton pour copier l'UID brut.
-function EntityRow({
-  label, name, id, href, icon: Icon,
-}: {
-  label: string;
-  name: string;
-  id: string;
-  href: string;
-  icon: typeof UserIcon;
-}) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <div className="flex justify-between items-start gap-4">
-      <span className="t-label flex-shrink-0 mt-0.5">{label}</span>
-      <div className="flex flex-col items-end gap-1 min-w-0">
-        <Link
-          href={href}
-          className="flex items-center gap-1.5 text-sm hover:underline"
-          style={{ color: 'var(--s-violet-light)' }}
-        >
-          <Icon size={12} />
-          <span className="truncate">{name}</span>
-          <ExternalLink size={10} style={{ opacity: 0.6 }} />
-        </Link>
-        <button
-          type="button"
-          onClick={async () => {
-            try {
-              await navigator.clipboard.writeText(id);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1500);
-            } catch { /* ignore */ }
-          }}
-          className="t-mono text-xs hover:opacity-100 transition-opacity"
-          style={{
-            color: 'var(--s-text-muted)',
-            opacity: 0.7,
-            wordBreak: 'break-all',
-            textAlign: 'right',
-            cursor: 'pointer',
-          }}
-          title="Cliquer pour copier l'UID"
-        >
-          {copied ? '✓ copié' : id}
-        </button>
-      </div>
-    </div>
-  );
 }
 
 export default function AdminAuditPage() {
@@ -373,34 +322,25 @@ export default function AdminAuditPage() {
               {/* Détails */}
               {isExpanded && (
                 <div className="panel-body space-y-2 text-xs" style={{ borderTop: '1px solid var(--s-border)' }}>
-                  <EntityRow
-                    label="Acteur"
-                    name={log.actorLabel || log.actorUid}
-                    id={log.actorUid}
-                    href={`/profile/${log.actorUid}`}
-                    icon={UserIcon}
-                  />
+                  <div className="flex justify-between items-start gap-4">
+                    <span className="t-label flex-shrink-0 mt-0.5">Acteur</span>
+                    <AdminUserRef uid={log.actorUid} name={log.actorLabel} kind="user" />
+                  </div>
                   {log.targetId && (
-                    <EntityRow
-                      label="Cible"
-                      name={log.targetLabel || log.targetId}
-                      id={log.targetId}
-                      href={
-                        log.targetType === 'structure'
-                          ? `/community/structure/${log.targetId}`
-                          : `/profile/${log.targetId}`
-                      }
-                      icon={log.targetType === 'structure' ? Building2 : UserIcon}
-                    />
+                    <div className="flex justify-between items-start gap-4">
+                      <span className="t-label flex-shrink-0 mt-0.5">Cible</span>
+                      <AdminUserRef
+                        uid={log.targetId}
+                        name={log.targetLabel}
+                        kind={log.targetType === 'structure' ? 'structure' : 'user'}
+                      />
+                    </div>
                   )}
                   {log.structureId && log.source === 'structure' && (
-                    <EntityRow
-                      label="Structure"
-                      name={log.structureLabel || log.structureId}
-                      id={log.structureId}
-                      href={`/community/structure/${log.structureId}`}
-                      icon={Building2}
-                    />
+                    <div className="flex justify-between items-start gap-4">
+                      <span className="t-label flex-shrink-0 mt-0.5">Structure</span>
+                      <AdminUserRef uid={log.structureId} name={log.structureLabel} kind="structure" />
+                    </div>
                   )}
                   <div className="flex justify-between gap-4" style={{ color: 'var(--s-text-muted)' }}>
                     <span className="t-label">Action</span>
