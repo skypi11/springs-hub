@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { api, ApiError } from '@/lib/api-client';
 import { countries } from '@/lib/countries';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
@@ -65,14 +66,8 @@ export default function AdminUsersPage() {
     if (!firebaseUser) return;
     setUsersLoading(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/admin/users', {
-        headers: { 'Authorization': `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUsers(data.users ?? []);
-      }
+      const data = await api<{ users?: UserEntry[] }>('/api/admin/users');
+      setUsers(data.users ?? []);
     } catch (err) {
       console.error('[Admin/Users] load error:', err);
     }
@@ -87,26 +82,16 @@ export default function AdminUsersPage() {
   async function handleUserAction(userId: string, action: string, extra?: Record<string, unknown>) {
     setUserActionLoading(`${userId}_${action}`);
     try {
-      const idToken = await firebaseUser!.getIdToken();
-      const res = await fetch('/api/admin/users', {
+      const data = await api<{ message?: string }>('/api/admin/users', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({ userId, action, ...extra }),
+        body: { userId, action, ...extra },
       });
-      const data = await res.json();
-      if (res.ok) {
-        await loadUsers();
-        setConfirmAction(null);
-        setEditingUser(null);
-        toast.success(data.message || 'Action effectuée');
-      } else {
-        toast.error(data.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
+      await loadUsers();
+      setConfirmAction(null);
+      setEditingUser(null);
+      toast.success(data.message || 'Action effectuée');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setUserActionLoading(null);
   }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { api, ApiError } from '@/lib/api-client';
 import AdminUserRef from '@/components/admin/AdminUserRef';
 import {
   Bell, Loader2, Send, CheckCircle2, AlertCircle, History,
@@ -57,11 +58,7 @@ export default function AdminNotificationsPage() {
     if (!firebaseUser) return;
     setLoading(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/admin/notifications', {
-        headers: { 'Authorization': `Bearer ${idToken}` },
-      });
-      if (res.ok) setData(await res.json());
+      setData(await api<NotifData>('/api/admin/notifications'));
     } catch (err) {
       console.error('[Admin/Notifications] load error:', err);
     }
@@ -79,30 +76,19 @@ export default function AdminNotificationsPage() {
     setSending(true);
     setResult(null);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/admin/notifications', {
+      const json = await api<{ sent: number }>('/api/admin/notifications', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+        body: {
           title, message, link,
           audience,
           targetId: audience === 'all' ? '' : targetId,
-        }),
+        },
       });
-      const json = await res.json();
-      if (res.ok) {
-        setResult({ ok: true, text: `${json.sent} notif(s) envoyée(s)` });
-        setTitle(''); setMessage(''); setLink('');
-        load();
-      } else {
-        setResult({ ok: false, text: json.error ?? 'Erreur' });
-      }
+      setResult({ ok: true, text: `${json.sent} notif(s) envoyée(s)` });
+      setTitle(''); setMessage(''); setLink('');
+      load();
     } catch (err) {
-      console.error('[Admin/Notifications] send error:', err);
-      setResult({ ok: false, text: 'Erreur réseau' });
+      setResult({ ok: false, text: err instanceof ApiError ? err.message : 'Erreur réseau' });
     }
     setSending(false);
   }

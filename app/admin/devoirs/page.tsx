@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api-client';
 import {
   ClipboardList, Loader2, AlertTriangle, Clock, CheckCircle2,
   CalendarDays, ExternalLink, Building2,
@@ -54,11 +55,7 @@ export default function AdminDevoirsPage() {
     if (!firebaseUser) return;
     setLoading(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/admin/devoirs', {
-        headers: { 'Authorization': `Bearer ${idToken}` },
-      });
-      if (res.ok) setData(await res.json());
+      setData(await api<DevoirsData>('/api/admin/devoirs'));
     } catch (err) {
       console.error('[Admin/Devoirs] load error:', err);
     }

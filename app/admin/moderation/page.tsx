@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api-client';
 import AdminUserRef from '@/components/admin/AdminUserRef';
 import {
   ShieldAlert, Loader2, Ban, Building2, ExternalLink, History, UserX, AlertTriangle,
@@ -99,11 +100,7 @@ export default function AdminModerationPage() {
     if (!firebaseUser) return;
     setLoading(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/admin/moderation', {
-        headers: { 'Authorization': `Bearer ${idToken}` },
-      });
-      if (res.ok) setData(await res.json());
+      setData(await api<ModerationData>('/api/admin/moderation'));
     } catch (err) {
       console.error('[Admin/Moderation] load error:', err);
     }

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api-client';
 import AdminUserRef from '@/components/admin/AdminUserRef';
 import {
   CalendarDays, Loader2, MapPin, Clock, Search, ExternalLink,
@@ -71,19 +72,13 @@ export default function AdminCalendarPage() {
     if (!firebaseUser) return;
     setLoading(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
       const params = new URLSearchParams();
       params.set('when', when);
       if (typeFilter) params.set('type', typeFilter);
       if (statusFilter) params.set('status', statusFilter);
-      const res = await fetch(`/api/admin/calendar?${params.toString()}`, {
-        headers: { 'Authorization': `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setEvents(data.events ?? []);
-        setTruncated(!!data.truncated);
-      }
+      const data = await api<{ events?: AdminEvent[]; truncated?: boolean }>(`/api/admin/calendar?${params.toString()}`);
+      setEvents(data.events ?? []);
+      setTruncated(!!data.truncated);
     } catch (err) {
       console.error('[Admin/Calendar] load error:', err);
     }

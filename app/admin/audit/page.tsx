@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api-client';
 import {
   History, Loader2, ChevronDown, ChevronUp, Search, RefreshCw,
   CheckCircle, XCircle, Ban, Shield, Trash2, Pencil, UserMinus, LogOut,
@@ -100,18 +101,12 @@ export default function AdminAuditPage() {
     if (!firebaseUser) return;
     setLoading(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
       const params = new URLSearchParams();
       params.set('limit', '200');
       if (sourceFilter !== 'all') params.set('source', sourceFilter);
       if (actionFilter) params.set('action', actionFilter);
-      const res = await fetch(`/api/admin/audit?${params.toString()}`, {
-        headers: { 'Authorization': `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setLogs(data.logs ?? []);
-      }
+      const data = await api<{ logs?: AuditLog[] }>(`/api/admin/audit?${params.toString()}`);
+      setLogs(data.logs ?? []);
     } catch (err) {
       console.error('[Admin/Audit] load error:', err);
     }

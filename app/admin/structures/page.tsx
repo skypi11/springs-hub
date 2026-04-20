@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
+import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import AdminUserRef from '@/components/admin/AdminUserRef';
@@ -73,17 +74,11 @@ export default function AdminStructuresPage() {
   async function loadStructures() {
     if (!firebaseUser) return;
     try {
-      const idToken = await firebaseUser.getIdToken();
       const url = filter
         ? `/api/admin/structures?status=${filter}`
         : '/api/admin/structures';
-      const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setStructures(data.structures ?? []);
-      }
+      const data = await api<{ structures?: StructureRequest[] }>(url);
+      setStructures(data.structures ?? []);
     } catch (err) {
       console.error('[Admin/Structures] load error:', err);
     }
@@ -106,21 +101,13 @@ export default function AdminStructuresPage() {
     if (!ok) return;
     setBackfilling(true);
     try {
-      const idToken = await firebaseUser!.getIdToken();
-      const res = await fetch('/api/admin/backfill-counters', {
+      const data = await api<{ structuresUpdated: number; totalTeams: number; totalMembers: number }>('/api/admin/backfill-counters', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${idToken}` },
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        toast.success(`${data.structuresUpdated} structures recalculées (${data.totalTeams} équipes, ${data.totalMembers} membres)`);
-        await loadStructures();
-      } else {
-        toast.error(data.error || 'Erreur');
-      }
+      toast.success(`${data.structuresUpdated} structures recalculées (${data.totalTeams} équipes, ${data.totalMembers} membres)`);
+      await loadStructures();
     } catch (err) {
-      console.error('[Admin/Structures] backfill error:', err);
-      toast.error('Erreur réseau');
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setBackfilling(false);
   }
@@ -128,30 +115,19 @@ export default function AdminStructuresPage() {
   async function handleAction(structureId: string, action: string) {
     setActionLoading(`${structureId}_${action}`);
     try {
-      const idToken = await firebaseUser!.getIdToken();
-      const res = await fetch('/api/admin/structures', {
+      await api('/api/admin/structures', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
+        body: {
           structureId,
           action,
           comment: commentMap[structureId] || '',
-        }),
+        },
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        await loadStructures();
-        setExpandedId(null);
-        toast.success('Action effectuée');
-      } else {
-        toast.error(data.error || 'Erreur');
-      }
+      await loadStructures();
+      setExpandedId(null);
+      toast.success('Action effectuée');
     } catch (err) {
-      console.error('[Admin/Structures] action error:', err);
-      toast.error('Erreur réseau');
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setActionLoading(null);
   }

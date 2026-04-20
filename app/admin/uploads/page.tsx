@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api-client';
 import {
   UploadCloud, Loader2, FileText, Film, Building2, ExternalLink, Database,
 } from 'lucide-react';
@@ -56,11 +57,7 @@ export default function AdminUploadsPage() {
     if (!firebaseUser) return;
     setLoading(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/admin/uploads', {
-        headers: { 'Authorization': `Bearer ${idToken}` },
-      });
-      if (res.ok) setData(await res.json());
+      setData(await api<UploadsData>('/api/admin/uploads'));
     } catch (err) {
       console.error('[Admin/Uploads] load error:', err);
     }

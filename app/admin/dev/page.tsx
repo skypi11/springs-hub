@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api-client';
 import {
   Wrench, Loader2, Database, KeyRound, Clock, ExternalLink,
   CheckCircle2, XCircle, Server, AlertCircle,
@@ -38,11 +39,7 @@ export default function AdminDevPage() {
     if (!firebaseUser) return;
     setLoading(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/admin/dev', {
-        headers: { 'Authorization': `Bearer ${idToken}` },
-      });
-      if (res.ok) setData(await res.json());
+      setData(await api<DevData>('/api/admin/dev'));
     } catch (err) {
       console.error('[Admin/Dev] load error:', err);
     }

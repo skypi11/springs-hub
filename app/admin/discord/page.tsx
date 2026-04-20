@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { api, ApiError } from '@/lib/api-client';
 import {
   MessagesSquare, Loader2, Users, Image as ImageIcon, MapPin,
   CheckCircle2, AlertCircle, Send, Gamepad2,
@@ -42,11 +43,7 @@ export default function AdminDiscordPage() {
     if (!firebaseUser) return;
     setLoading(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/admin/discord', {
-        headers: { 'Authorization': `Bearer ${idToken}` },
-      });
-      if (res.ok) setData(await res.json());
+      setData(await api<DiscordData>('/api/admin/discord'));
     } catch (err) {
       console.error('[Admin/Discord] load error:', err);
     }
@@ -64,24 +61,13 @@ export default function AdminDiscordPage() {
     setSending(true);
     setResult(null);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/admin/discord', {
+      await api('/api/admin/discord', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ webhookUrl, message }),
+        body: { webhookUrl, message },
       });
-      const json = await res.json();
-      if (res.ok) {
-        setResult({ ok: true, text: 'Webhook envoyé avec succès' });
-      } else {
-        setResult({ ok: false, text: json.error ?? 'Erreur' });
-      }
+      setResult({ ok: true, text: 'Webhook envoyé avec succès' });
     } catch (err) {
-      console.error('[Admin/Discord] test error:', err);
-      setResult({ ok: false, text: 'Erreur réseau' });
+      setResult({ ok: false, text: err instanceof ApiError ? err.message : 'Erreur réseau' });
     }
     setSending(false);
   }

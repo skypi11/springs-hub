@@ -7,6 +7,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api-client';
 
 type Stats = {
   totalStructures: number;
@@ -73,22 +74,19 @@ export default function AdminDashboardPage() {
     async function load() {
       if (!firebaseUser || !isAdmin) return;
       try {
-        const idToken = await firebaseUser.getIdToken();
-        const [sRes, uRes] = await Promise.all([
-          fetch('/api/admin/structures', { headers: { Authorization: `Bearer ${idToken}` } }),
-          fetch('/api/admin/users', { headers: { Authorization: `Bearer ${idToken}` } }),
+        const [sData, uData] = await Promise.all([
+          api<{ structures?: { status: string }[] }>('/api/admin/structures').catch(() => ({ structures: [] })),
+          api<{ users?: { isBanned: boolean; isAdmin: boolean }[] }>('/api/admin/users').catch(() => ({ users: [] })),
         ]);
-        const sData = sRes.ok ? await sRes.json() : { structures: [] };
-        const uData = uRes.ok ? await uRes.json() : { users: [] };
         const structures = sData.structures ?? [];
         const users = uData.users ?? [];
         setStats({
           totalStructures: structures.length,
-          pendingStructures: structures.filter((s: { status: string }) => s.status === 'pending_validation').length,
-          activeStructures: structures.filter((s: { status: string }) => s.status === 'active').length,
+          pendingStructures: structures.filter(s => s.status === 'pending_validation').length,
+          activeStructures: structures.filter(s => s.status === 'active').length,
           totalUsers: users.length,
-          bannedUsers: users.filter((u: { isBanned: boolean }) => u.isBanned).length,
-          adminCount: users.filter((u: { isAdmin: boolean }) => u.isAdmin).length,
+          bannedUsers: users.filter(u => u.isBanned).length,
+          adminCount: users.filter(u => u.isAdmin).length,
         });
       } catch (err) {
         console.error('[Admin/Dashboard] load error:', err);

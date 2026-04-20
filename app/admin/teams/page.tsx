@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api-client';
 import AdminUserRef from '@/components/admin/AdminUserRef';
 import {
   Users2, Archive, Loader2, ExternalLink, Search, AlertTriangle,
@@ -48,19 +49,13 @@ export default function AdminTeamsPage() {
     if (!firebaseUser) return;
     setLoading(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
       const params = new URLSearchParams();
       if (gameFilter) params.set('game', gameFilter);
       if (statusFilter) params.set('status', statusFilter);
       const url = `/api/admin/teams${params.toString() ? '?' + params.toString() : ''}`;
-      const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setTeams(data.teams ?? []);
-        setTruncated(!!data.truncated);
-      }
+      const data = await api<{ teams?: AdminTeam[]; truncated?: boolean }>(url);
+      setTeams(data.teams ?? []);
+      setTruncated(!!data.truncated);
     } catch (err) {
       console.error('[Admin/Teams] load error:', err);
     }
