@@ -4,7 +4,9 @@ import { useState, useEffect, use } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
+import { api, ApiError } from '@/lib/api-client';
 import {
   Shield, Users, Gamepad2, ExternalLink, Trophy, Loader2, AlertCircle,
   User, Globe, Search, MessageSquare, UserPlus, CheckCircle, Calendar,
@@ -375,9 +377,6 @@ function TeamDetailPanel({ team, onClose }: { team: Team; onClose: () => void })
 export default function StructurePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { firebaseUser, loading: authLoading } = useAuth();
-  const [structure, setStructure] = useState<StructureData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
   const [joinGame, setJoinGame] = useState('');
   const [joinRole, setJoinRole] = useState('joueur');
   const [joinPositionIdx, setJoinPositionIdx] = useState<number | null>(null);
@@ -387,32 +386,27 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
   const [teamSearch, setTeamSearch] = useState('');
   const [joinError, setJoinError] = useState('');
   const [showJoinForm, setShowJoinForm] = useState(false);
-  const [teams, setTeams] = useState<Team[]>([]);
   const [activeTab, setActiveTab] = useState<'rocket_league' | 'trackmania' | 'archived'>('rocket_league');
   const [panelTeamId, setPanelTeamId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (authLoading) return;
-    async function load() {
-      try {
-        const res = await fetch(`/api/structures/${id}`);
-        if (!res.ok) { setNotFound(true); setLoading(false); return; }
-        const data = await res.json();
-        setStructure(data);
-        try {
-          const teamsRes = await fetch(`/api/structures/teams?structureId=${id}`);
-          if (teamsRes.ok) {
-            const teamsData = await teamsRes.json();
-            setTeams(teamsData.teams ?? []);
-          }
-        } catch { /* ignore */ }
-      } catch {
-        setNotFound(true);
-      }
-      setLoading(false);
-    }
-    load();
-  }, [id, authLoading]);
+  const structureQ = useQuery({
+    queryKey: ['structure', id] as const,
+    queryFn: () => api<StructureData>(`/api/structures/${id}`),
+    enabled: !authLoading,
+    retry: (failureCount, err) => {
+      if (err instanceof ApiError && err.status === 404) return false;
+      return failureCount < 2;
+    },
+  });
+  const teamsQ = useQuery({
+    queryKey: ['structure', id, 'teams'] as const,
+    queryFn: () => api<{ teams: Team[] }>(`/api/structures/teams?structureId=${id}`),
+    enabled: !authLoading && !!structureQ.data,
+  });
+  const structure = structureQ.data ?? null;
+  const teams = teamsQ.data?.teams ?? [];
+  const loading = structureQ.isPending;
+  const notFound = structureQ.isError && structureQ.error instanceof ApiError && structureQ.error.status === 404;
 
   if (loading || authLoading) {
     return (
@@ -516,23 +510,20 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
     setJoinLoading(true);
     setJoinError('');
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/join', {
+      await api('/api/structures/join', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({
+        body: {
           action: 'request_join',
           structureId: structure.id,
           game: joinGame,
           role: joinRole,
           message: joinMessage,
-        }),
+        },
       });
-      const data = await res.json();
-      if (res.ok) { setJoinSent(true); setShowJoinForm(false); }
-      else { setJoinError(data.error || 'Erreur'); }
-    } catch {
-      setJoinError('Erreur réseau');
+      setJoinSent(true);
+      setShowJoinForm(false);
+    } catch (err) {
+      setJoinError(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setJoinLoading(false);
   }

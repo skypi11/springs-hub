@@ -4,6 +4,7 @@ import { useState, useEffect, use, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Shield, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { api, ApiError } from '@/lib/api-client';
 
 type LinkInfo = {
   structureId: string;
@@ -27,22 +28,14 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
     if (!firebaseUser) return;
     setStatus('joining');
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/join', {
+      const data = await api<{ structureId: string; structureName: string }>('/api/structures/join', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ action: 'join_via_link', token, game: joinGame }),
+        body: { action: 'join_via_link', token, game: joinGame },
       });
-      const data = await res.json();
-      if (res.ok) {
-        setResult(data);
-        setStatus('success');
-      } else {
-        setError(data.error || 'Erreur inconnue');
-        setStatus('error');
-      }
-    } catch {
-      setError('Erreur réseau');
+      setResult(data);
+      setStatus('success');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Erreur réseau');
       setStatus('error');
     }
   }, [firebaseUser, token]);
@@ -58,16 +51,7 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
     }
     (async () => {
       try {
-        const idToken = await firebaseUser.getIdToken();
-        const res = await fetch(`/api/structures/invitations/link-info?token=${encodeURIComponent(token)}`, {
-          headers: { 'Authorization': `Bearer ${idToken}` },
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          setError(data.error || 'Lien invalide');
-          setStatus('error');
-          return;
-        }
+        const data = await api<LinkInfo>(`/api/structures/invitations/link-info?token=${encodeURIComponent(token)}`);
         setLinkInfo(data);
         // Jeu pré-rempli → join direct, pas de picker
         if (data.presetGame) {
@@ -78,8 +62,8 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
         } else {
           setStatus('choosing');
         }
-      } catch {
-        setError('Erreur réseau');
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'Erreur réseau');
         setStatus('error');
       }
     })();
