@@ -318,8 +318,10 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
 
       toast.success(sensitive ? 'Document chiffré et ajouté' : 'Document ajouté');
       void loadAll();
-    } catch {
-      toast.error('Erreur upload');
+    } catch (err) {
+      console.error('[documents] upload error', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Erreur upload : ${msg.slice(0, 100)}`);
     } finally {
       setUploading(false);
       setProgress(0);
@@ -479,6 +481,7 @@ function SensitiveChoiceModal({ file, onCancel, onChoose }: {
   onCancel: () => void;
   onChoose: (sensitive: boolean) => void;
 }) {
+  const [hover, setHover] = useState<'sensitive' | 'standard' | null>(null);
   return (
     <Portal>
       <div className="fixed inset-0 z-[9600] flex items-center justify-center p-4"
@@ -509,8 +512,16 @@ function SensitiveChoiceModal({ file, onCancel, onChoose }: {
             <div className="grid gap-2 md:grid-cols-2">
               <button type="button"
                 onClick={() => onChoose(true)}
-                className="bevel-sm p-4 text-left transition-all"
-                style={{ background: 'var(--s-elevated)', border: '1px solid rgba(123,47,190,0.35)' }}>
+                onMouseEnter={() => setHover('sensitive')}
+                onMouseLeave={() => setHover(null)}
+                className="bevel-sm p-4 text-left transition-all cursor-pointer"
+                style={{
+                  background: hover === 'sensitive' ? 'rgba(123,47,190,0.15)' : 'var(--s-elevated)',
+                  border: hover === 'sensitive'
+                    ? '1px solid rgba(123,47,190,0.75)'
+                    : '1px solid rgba(123,47,190,0.35)',
+                  transform: hover === 'sensitive' ? 'translateY(-1px)' : 'none',
+                }}>
                 <div className="flex items-center gap-2 mb-2">
                   <Lock size={14} style={{ color: 'var(--s-violet-light)' }} />
                   <span className="font-display text-xs tracking-wider" style={{ color: 'var(--s-violet-light)' }}>OUI — SENSIBLE</span>
@@ -522,8 +533,16 @@ function SensitiveChoiceModal({ file, onCancel, onChoose }: {
 
               <button type="button"
                 onClick={() => onChoose(false)}
-                className="bevel-sm p-4 text-left transition-all"
-                style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                onMouseEnter={() => setHover('standard')}
+                onMouseLeave={() => setHover(null)}
+                className="bevel-sm p-4 text-left transition-all cursor-pointer"
+                style={{
+                  background: hover === 'standard' ? 'var(--s-hover)' : 'var(--s-elevated)',
+                  border: hover === 'standard'
+                    ? '1px solid rgba(255,255,255,0.22)'
+                    : '1px solid var(--s-border)',
+                  transform: hover === 'standard' ? 'translateY(-1px)' : 'none',
+                }}>
                 <div className="flex items-center gap-2 mb-2">
                   <ShieldCheck size={14} style={{ color: 'var(--s-text-dim)' }} />
                   <span className="font-display text-xs tracking-wider" style={{ color: 'var(--s-text)' }}>NON — STANDARD</span>
