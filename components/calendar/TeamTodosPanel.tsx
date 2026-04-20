@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Plus, Trash2, Check, Calendar as CalIcon, X, ClipboardList, ChevronDown, ChevronUp, Library, Save } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
+import { api } from '@/lib/api-client';
 import {
   compareTodosPending,
   compareTodosDone,
@@ -81,12 +83,9 @@ export default function TeamTodosPanel({
   const { firebaseUser } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
-  const [todos, setTodos] = useState<TodoWithMeta[]>([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
   const [filter, setFilter] = useState<StatusFilter>('pending');
   const [showForm, setShowForm] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [events, setEvents] = useState<EventOpt[]>([]);
   const [showTemplatesManager, setShowTemplatesManager] = useState(false);
   const today = useMemo(() => todayYmd(), []);
 
@@ -106,7 +105,17 @@ export default function TeamTodosPanel({
     return m;
   }, [allMembers]);
 
-  const enrichTodos = useCallback((raw: TodoRef[]): TodoWithMeta[] => {
+  const todosQueryKey = ['structure', structureId, 'team', team.id, 'todos'] as const;
+  const eventsQueryKey = ['structure', structureId, 'events'] as const;
+
+  const { data: todosData, isPending: loading } = useQuery({
+    queryKey: todosQueryKey,
+    queryFn: () => api<{ todos: TodoRef[] }>(`/api/structures/${structureId}/todos?subTeamId=${team.id}&status=all`),
+    enabled: !!firebaseUser,
+  });
+
+  const todos: TodoWithMeta[] = useMemo(() => {
+    const raw = todosData?.todos ?? [];
     return raw.map(t => {
       const m = memberById.get(t.assigneeId);
       return {
@@ -115,54 +124,27 @@ export default function TeamTodosPanel({
         assigneeAvatar: m?.avatarUrl || m?.discordAvatar || '',
       };
     });
-  }, [memberById]);
+  }, [todosData, memberById]);
 
-  const load = useCallback(async () => {
-    if (!firebaseUser) return;
-    setLoading(true);
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structureId}/todos?subTeamId=${team.id}&status=all`, {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setTodos(enrichTodos(data.todos ?? []));
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || 'Erreur chargement devoirs');
-      }
-    } catch {
-      toast.error('Erreur réseau');
-    }
-    setLoading(false);
-  }, [firebaseUser, structureId, team.id, enrichTodos, toast]);
+  type EventApi = { id: string; title: string; startsAt: string | null; target?: { scope?: string; teamIds?: string[] } };
+  const { data: eventsData } = useQuery({
+    queryKey: eventsQueryKey,
+    queryFn: () => api<{ events: EventApi[] }>(`/api/structures/${structureId}/events`),
+    enabled: !!firebaseUser,
+  });
 
-  const loadEvents = useCallback(async () => {
-    if (!firebaseUser) return;
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structureId}/events`, {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        type EventApi = { id: string; title: string; startsAt: string | null; target?: { scope?: string; teamIds?: string[] } };
-        const list: EventOpt[] = ((data.events ?? []) as EventApi[])
-          .filter(e => {
-            const scope = e.target?.scope;
-            const teamIds = e.target?.teamIds ?? [];
-            return scope === 'all' || teamIds.includes(team.id);
-          })
-          .map(e => ({ id: e.id, title: e.title, startsAt: e.startsAt }));
-        setEvents(list);
-      }
-    } catch {
-      // Events dropdown est optionnel — silencieux
-    }
-  }, [firebaseUser, structureId, team.id]);
+  const events: EventOpt[] = useMemo(() => {
+    const list = eventsData?.events ?? [];
+    return list
+      .filter(e => {
+        const scope = e.target?.scope;
+        const teamIds = e.target?.teamIds ?? [];
+        return scope === 'all' || teamIds.includes(team.id);
+      })
+      .map(e => ({ id: e.id, title: e.title, startsAt: e.startsAt }));
+  }, [eventsData, team.id]);
 
-  useEffect(() => { load(); loadEvents(); }, [load, loadEvents]);
+  const invalidateTodos = () => qc.invalidateQueries({ queryKey: todosQueryKey });
 
   const filtered = useMemo(() => {
     const list = todos.filter(t => {
@@ -183,30 +165,34 @@ export default function TeamTodosPanel({
     all: todos.length,
   }), [todos]);
 
-  async function toggleTodo(todo: TodoWithMeta) {
-    if (!firebaseUser || busyId) return;
-    setBusyId(todo.id);
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structureId}/todos/${todo.id}`, {
+  const toggleMutation = useMutation({
+    mutationFn: (todo: TodoWithMeta) =>
+      api(`/api/structures/${structureId}/todos/${todo.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ action: 'toggle' }),
-      });
-      if (res.ok) {
-        setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, done: !t.done, doneAt: !t.done ? Date.now() : null } : t));
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
-    }
-    setBusyId(null);
+        body: { action: 'toggle' },
+      }).then(() => todo),
+    onSuccess: () => invalidateTodos(),
+    onError: (err: Error) => toast.error(err.message || 'Erreur'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (todo: TodoWithMeta) =>
+      api(`/api/structures/${structureId}/todos/${todo.id}`, { method: 'DELETE' }).then(() => todo),
+    onSuccess: () => { toast.success('Devoir supprimé'); invalidateTodos(); },
+    onError: (err: Error) => toast.error(err.message || 'Erreur'),
+  });
+
+  const busyId = toggleMutation.isPending ? toggleMutation.variables?.id ?? null
+    : deleteMutation.isPending ? deleteMutation.variables?.id ?? null
+    : null;
+
+  function toggleTodo(todo: TodoWithMeta) {
+    if (busyId) return;
+    toggleMutation.mutate(todo);
   }
 
   async function deleteTodo(todo: TodoWithMeta) {
-    if (!firebaseUser || busyId) return;
+    if (busyId) return;
     const ok = await confirm({
       title: 'Supprimer ce devoir ?',
       message: `« ${todo.title} » — assigné à ${todo.assigneeName}. Cette action est irréversible.`,
@@ -214,24 +200,7 @@ export default function TeamTodosPanel({
       variant: 'danger',
     });
     if (!ok) return;
-    setBusyId(todo.id);
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structureId}/todos/${todo.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        setTodos(prev => prev.filter(t => t.id !== todo.id));
-        toast.success('Devoir supprimé');
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
-    }
-    setBusyId(null);
+    deleteMutation.mutate(todo);
   }
 
   return (
@@ -288,7 +257,7 @@ export default function TeamTodosPanel({
           events={events}
           templates={templates}
           onCancel={() => setShowForm(false)}
-          onCreated={() => { setShowForm(false); load(); }}
+          onCreated={() => { setShowForm(false); invalidateTodos(); }}
           onTemplateSaved={reloadTemplates}
         />
       )}
@@ -513,31 +482,24 @@ function NewTodoForm({
     if (!saveAsName.trim()) { toast.error('Donne un nom au template'); return; }
     setSavingTemplate(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structureId}/todo-templates`, {
+      await api(`/api/structures/${structureId}/todo-templates`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({
+        body: {
           scope: saveAsShared ? 'structure' : 'personal',
           name: saveAsName.trim(),
           type,
           titleTemplate: title.trim(),
           descriptionTemplate: description.trim(),
           config,
-        }),
+        },
       });
-      if (res.ok) {
-        toast.success(saveAsShared ? 'Template partagé enregistré' : 'Template personnel enregistré');
-        setShowSaveAs(false);
-        setSaveAsName('');
-        setSaveAsShared(false);
-        onTemplateSaved();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || 'Erreur création template');
-      }
-    } catch {
-      toast.error('Erreur réseau');
+      toast.success(saveAsShared ? 'Template partagé enregistré' : 'Template personnel enregistré');
+      setShowSaveAs(false);
+      setSaveAsName('');
+      setSaveAsShared(false);
+      onTemplateSaved();
+    } catch (err) {
+      toast.error((err as Error).message || 'Erreur création template');
     }
     setSavingTemplate(false);
   }
@@ -567,11 +529,7 @@ function NewTodoForm({
     }
     let cancelled = false;
     setLineupLoading(true);
-    firebaseUser.getIdToken().then(idToken =>
-      fetch(`/api/structures/${structureId}/events/${eventId}/lineup?subTeamId=${encodeURIComponent(team.id)}`, {
-        headers: { Authorization: `Bearer ${idToken}` },
-      })
-    ).then(res => res.ok ? res.json() : null)
+    api<{ confirmed: string[]; rosterFallback: string[] }>(`/api/structures/${structureId}/events/${eventId}/lineup?subTeamId=${encodeURIComponent(team.id)}`)
       .then(data => {
         if (cancelled) return;
         if (data && Array.isArray(data.confirmed) && Array.isArray(data.rosterFallback)) {
@@ -598,11 +556,9 @@ function NewTodoForm({
     if (assigneeIds.length === 0) { toast.error('Sélectionne au moins un joueur'); return; }
     setCreating(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structureId}/todos`, {
+      const data = await api<{ count: number }>(`/api/structures/${structureId}/todos`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({
+        body: {
           subTeamId: team.id,
           assigneeIds,
           type,
@@ -610,23 +566,16 @@ function NewTodoForm({
           description: description.trim() || undefined,
           config,
           eventId: eventId || undefined,
-          // Deadline : relative si event + mode=relative, sinon absolue (YYYY-MM-DD) ou rien.
           ...(eventId && deadlineMode === 'relative'
             ? { deadlineMode: 'relative', deadlineOffsetDays }
             : { deadline: deadline || undefined }),
           postToChannel,
-        }),
+        },
       });
-      if (res.ok) {
-        const data = await res.json();
-        toast.success(`${data.count} devoir${data.count > 1 ? 's' : ''} créé${data.count > 1 ? 's' : ''}`);
-        onCreated();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || 'Erreur création');
-      }
-    } catch {
-      toast.error('Erreur réseau');
+      toast.success(`${data.count} devoir${data.count > 1 ? 's' : ''} créé${data.count > 1 ? 's' : ''}`);
+      onCreated();
+    } catch (err) {
+      toast.error((err as Error).message || 'Erreur création');
     }
     setCreating(false);
   }

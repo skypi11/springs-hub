@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2,
   Zap,
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
+import { api } from '@/lib/api-client';
 import {
   formatSlotTime,
   addMinutesToIso,
@@ -136,10 +138,8 @@ export default function TeamAvailabilityView({
 }) {
   const { firebaseUser } = useAuth();
   const toast = useToast();
+  const qc = useQueryClient();
 
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<ApiResponse | null>(null);
-  const [savingConfig, setSavingConfig] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const [mode, setMode] = useState<'consensus' | 'per-player'>('consensus');
   const [weekIdx, setWeekIdx] = useState<0 | 1>(0);
@@ -147,61 +147,43 @@ export default function TeamAvailabilityView({
 
   const [minPlayers, setMinPlayers] = useState(2);
   const [minDurationHours, setMinDurationHours] = useState(1);
+  const [configDirty, setConfigDirty] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!firebaseUser) return;
-    setLoading(true);
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(
-        `/api/structures/teams/availability?structureId=${encodeURIComponent(structureId)}&teamId=${encodeURIComponent(teamId)}`,
-        { headers: { Authorization: `Bearer ${idToken}` } }
-      );
-      if (res.ok) {
-        const d = (await res.json()) as ApiResponse;
-        setData(d);
-        setMinPlayers(d.team.minPlayersForMatch);
-        setMinDurationHours(d.team.minMatchDurationMinutes / 60);
-      } else {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error || 'Erreur de chargement');
-      }
-    } catch {
-      toast.error('Erreur réseau');
+  const queryKey = ['team-availability', structureId, teamId] as const;
+  const { data, isPending: loading } = useQuery({
+    queryKey,
+    queryFn: () => api<ApiResponse>(`/api/structures/teams/availability?structureId=${encodeURIComponent(structureId)}&teamId=${encodeURIComponent(teamId)}`),
+    enabled: !!firebaseUser,
+  });
+
+  // Sync config form depuis les données serveur tant que l'utilisateur n'a pas édité
+  useEffect(() => {
+    if (data && !configDirty) {
+      setMinPlayers(data.team.minPlayersForMatch);
+      setMinDurationHours(data.team.minMatchDurationMinutes / 60);
     }
-    setLoading(false);
-  }, [firebaseUser, structureId, teamId, toast]);
+  }, [data, configDirty]);
 
-  useEffect(() => { load(); }, [load]);
-
-  async function saveConfig() {
-    if (!firebaseUser) return;
-    setSavingConfig(true);
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/teams', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({
-          action: 'updateMatchConfig',
-          structureId,
-          teamId,
-          minPlayersForMatch: minPlayers,
-          minMatchDurationMinutes: Math.round(minDurationHours * 60),
-        }),
-      });
-      if (res.ok) {
-        toast.success('Configuration enregistrée');
-        await load();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
-    }
-    setSavingConfig(false);
-  }
+  const saveConfigMutation = useMutation({
+    mutationFn: () => api('/api/structures/teams', {
+      method: 'POST',
+      body: {
+        action: 'updateMatchConfig',
+        structureId,
+        teamId,
+        minPlayersForMatch: minPlayers,
+        minMatchDurationMinutes: Math.round(minDurationHours * 60),
+      },
+    }),
+    onSuccess: () => {
+      toast.success('Configuration enregistrée');
+      setConfigDirty(false);
+      qc.invalidateQueries({ queryKey });
+    },
+    onError: (err: Error) => toast.error(err.message || 'Erreur'),
+  });
+  const savingConfig = saveConfigMutation.isPending;
+  const saveConfig = () => saveConfigMutation.mutate();
 
   // Grille unifiée pour la semaine courante affichée
   const { rows, slotCountsByIso, eventSlotsByIso } = useMemo(() => {
@@ -288,7 +270,7 @@ export default function TeamAvailabilityView({
                   </label>
                   <input type="number" min={1} max={10}
                     value={minPlayers}
-                    onChange={e => setMinPlayers(Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 1)))}
+                    onChange={e => { setMinPlayers(Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 1))); setConfigDirty(true); }}
                     className="settings-input w-full text-sm" />
                 </div>
                 <div>
@@ -297,7 +279,7 @@ export default function TeamAvailabilityView({
                   </label>
                   <select className="settings-input w-full text-sm"
                     value={minDurationHours}
-                    onChange={e => setMinDurationHours(parseFloat(e.target.value))}>
+                    onChange={e => { setMinDurationHours(parseFloat(e.target.value)); setConfigDirty(true); }}>
                     {[0.5, 1, 1.5, 2, 2.5, 3, 4].map(h => (
                       <option key={h} value={h}>{h}h</option>
                     ))}

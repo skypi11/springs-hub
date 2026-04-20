@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Check, Calendar as CalIcon, ChevronDown, ChevronRight, ClipboardList, Shield, X } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
+import { api } from '@/lib/api-client';
 import {
   compareTodosPending,
   compareTodosDone,
@@ -56,32 +58,17 @@ function formatDeadline(ymd: string, today: string): { label: string; color: str
 export default function MyTodosSection() {
   const { firebaseUser } = useAuth();
   const toast = useToast();
-  const [todos, setTodos] = useState<MyTodo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const qc = useQueryClient();
   const [showHistory, setShowHistory] = useState(false);
   const [openTodoId, setOpenTodoId] = useState<string | null>(null);
   const today = useMemo(() => todayYmd(), []);
 
-  const load = useCallback(async () => {
-    if (!firebaseUser) return;
-    setLoading(true);
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/todos/me', {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setTodos(data.todos ?? []);
-      }
-    } catch (err) {
-      console.error('[MyTodos] load error:', err);
-    }
-    setLoading(false);
-  }, [firebaseUser]);
-
-  useEffect(() => { load(); }, [load]);
+  const { data, isPending: loading } = useQuery({
+    queryKey: ['todos', 'me'] as const,
+    queryFn: () => api<{ todos: MyTodo[] }>('/api/todos/me'),
+    enabled: !!firebaseUser,
+  });
+  const todos = data?.todos ?? [];
 
   // Deep-link : `?todo=ID` depuis l'embed Discord / notif ouvre directement le drawer
   // quand les devoirs sont chargés. Consommé une seule fois, puis nettoie l'URL.
@@ -110,37 +97,38 @@ export default function MyTodosSection() {
   }, [todos]);
 
   // Toggle générique — utilisé pour rouvrir un devoir done, OU pour valider un devoir free/watch_party
-  async function toggle(todo: MyTodo, response?: Record<string, unknown>) {
-    if (!firebaseUser || togglingId) return;
-    setTogglingId(todo.id);
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${todo.structureId}/todos/${todo.id}`, {
+  const toggleMutation = useMutation({
+    mutationFn: ({ todo, response }: { todo: MyTodo; response?: Record<string, unknown> }) =>
+      api(`/api/structures/${todo.structureId}/todos/${todo.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ action: 'toggle', ...(response ? { response } : {}) }),
+        body: { action: 'toggle', ...(response ? { response } : {}) },
+      }).then(() => ({ todo, response })),
+    onSuccess: ({ todo, response }) => {
+      // Optimistic-ish : on met à jour le cache directement sans refetch
+      qc.setQueryData<{ todos: MyTodo[] }>(['todos', 'me'], (prev) => {
+        if (!prev) return prev;
+        return {
+          todos: prev.todos.map((t) => {
+            if (t.id !== todo.id) return t;
+            const willBeDone = !t.done;
+            return {
+              ...t,
+              done: willBeDone,
+              doneAt: willBeDone ? Date.now() : null,
+              response: willBeDone ? (response ?? null) : null,
+            };
+          }),
+        };
       });
-      if (res.ok) {
-        setTodos(prev => prev.map(t => {
-          if (t.id !== todo.id) return t;
-          const willBeDone = !t.done;
-          return {
-            ...t,
-            done: willBeDone,
-            doneAt: willBeDone ? Date.now() : null,
-            response: willBeDone ? (response ?? null) : null,
-          };
-        }));
-        setOpenTodoId(null); // ferme le drawer après action
-        toast.success(todo.done ? 'Devoir rouvert' : 'Devoir terminé');
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
-    }
-    setTogglingId(null);
+      setOpenTodoId(null);
+      toast.success(todo.done ? 'Devoir rouvert' : 'Devoir terminé');
+    },
+    onError: (err: Error) => toast.error(err.message || 'Erreur'),
+  });
+  const togglingId = toggleMutation.isPending ? toggleMutation.variables?.todo.id ?? null : null;
+  function toggle(todo: MyTodo, response?: Record<string, unknown>) {
+    if (togglingId) return;
+    toggleMutation.mutate({ todo, response });
   }
 
   // Action depuis la ligne : toujours ouvrir le drawer (détail complet + action ciblée).

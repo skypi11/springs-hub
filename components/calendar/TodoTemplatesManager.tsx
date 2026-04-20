@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, X, Share2, Trash2, Edit2, Check, Users, User as UserIcon, Plus } from 'lucide-react';
 import Portal from '@/components/ui/Portal';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
+import { api } from '@/lib/api-client';
 import {
   TODO_TITLE_MAX,
   TODO_DESCRIPTION_MAX,
@@ -156,28 +158,14 @@ function TemplateCreateForm({
     if (!name.trim()) { toast.error('Nom requis'); return; }
     setSaving(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structureId}/todo-templates`, {
+      await api(`/api/structures/${structureId}/todo-templates`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({
-          scope,
-          name: name.trim(),
-          type,
-          titleTemplate,
-          descriptionTemplate,
-          config,
-        }),
+        body: { scope, name: name.trim(), type, titleTemplate, descriptionTemplate, config },
       });
-      if (res.ok) {
-        toast.success(scope === 'structure' ? 'Template partagé créé' : 'Template personnel créé');
-        onSaved();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
+      toast.success(scope === 'structure' ? 'Template partagé créé' : 'Template personnel créé');
+      onSaved();
+    } catch (err) {
+      toast.error((err as Error).message || 'Erreur');
     }
     setSaving(false);
   }
@@ -341,21 +329,14 @@ function TemplateRow({
 
     setBusy('share');
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structureId}/todo-templates/${template.id}`, {
+      await api(`/api/structures/${structureId}/todo-templates/${template.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ action: 'share', scope: newScope }),
+        body: { action: 'share', scope: newScope },
       });
-      if (res.ok) {
-        toast.success(newScope === 'structure' ? 'Template partagé' : 'Partage retiré');
-        onChanged();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
+      toast.success(newScope === 'structure' ? 'Template partagé' : 'Partage retiré');
+      onChanged();
+    } catch (err) {
+      toast.error((err as Error).message || 'Erreur');
     }
     setBusy(null);
   }
@@ -372,20 +353,11 @@ function TemplateRow({
 
     setBusy('delete');
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structureId}/todo-templates/${template.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        toast.success('Template supprimé');
-        onChanged();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
+      await api(`/api/structures/${structureId}/todo-templates/${template.id}`, { method: 'DELETE' });
+      toast.success('Template supprimé');
+      onChanged();
+    } catch (err) {
+      toast.error((err as Error).message || 'Erreur');
     }
     setBusy(null);
   }
@@ -496,26 +468,14 @@ function TemplateEditForm({
     if (!name.trim()) { toast.error('Nom requis'); return; }
     setSaving(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structureId}/todo-templates/${template.id}`, {
+      await api(`/api/structures/${structureId}/todo-templates/${template.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({
-          name: name.trim(),
-          titleTemplate,
-          descriptionTemplate,
-          config,
-        }),
+        body: { name: name.trim(), titleTemplate, descriptionTemplate, config },
       });
-      if (res.ok) {
-        toast.success('Template mis à jour');
-        onSaved();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
+      toast.success('Template mis à jour');
+      onSaved();
+    } catch (err) {
+      toast.error((err as Error).message || 'Erreur');
     }
     setSaving(false);
   }
@@ -573,30 +533,19 @@ function TemplateEditForm({
 // Exposé ici pour être réutilisé par TeamTodosPanel et d'autres UI éventuelles.
 export function useTodoTemplates(structureId: string) {
   const { firebaseUser } = useAuth();
-  const [templates, setTemplates] = useState<TodoTemplateUi[]>([]);
-  const [loading, setLoading] = useState(false);
+  const qc = useQueryClient();
+  const queryKey = ['structure', structureId, 'todo-templates'] as const;
 
-  const reload = useCallback(async () => {
-    if (!firebaseUser) return;
-    setLoading(true);
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structureId}/todo-templates`, {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const list = (data.templates ?? []) as TodoTemplateUi[];
-        list.sort((a, b) => b.updatedAt - a.updatedAt);
-        setTemplates(list);
-      }
-    } catch {
-      // Silencieux — l'UI reste fonctionnelle sans templates.
-    }
-    setLoading(false);
-  }, [firebaseUser, structureId]);
+  const { data, isPending } = useQuery({
+    queryKey,
+    queryFn: () => api<{ templates: TodoTemplateUi[] }>(`/api/structures/${structureId}/todo-templates`),
+    enabled: !!firebaseUser,
+  });
 
-  useEffect(() => { reload(); }, [reload]);
+  const templates = (data?.templates ?? []).slice().sort((a, b) => b.updatedAt - a.updatedAt);
+  const reload = useCallback(() => {
+    qc.invalidateQueries({ queryKey: ['structure', structureId, 'todo-templates'] });
+  }, [qc, structureId]);
 
-  return { templates, loading, reload };
+  return { templates, loading: isPending, reload };
 }

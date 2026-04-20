@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
+import { api } from '@/lib/api-client';
 import {
   Calendar as CalendarIcon,
   Plus,
@@ -159,8 +161,16 @@ export default function CalendarSection({
   const toast = useToast();
   const confirm = useConfirm();
 
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
+  const eventsQueryKey = ['structure', structureId, 'events'] as const;
+  const { data: eventsData, isPending: loading } = useQuery({
+    queryKey: eventsQueryKey,
+    queryFn: () => api<{ events: CalendarEvent[] }>(`/api/structures/${structureId}/events`),
+    enabled: !!firebaseUser,
+  });
+  const events = eventsData?.events ?? [];
+  const invalidateEvents = () => qc.invalidateQueries({ queryKey: eventsQueryKey });
+
   const [filter, setFilter] = useState<'upcoming' | 'past' | 'all'>('upcoming');
   // Filtre équipe : si vide → toutes ; sinon → seulement les events avec au moins
   // une équipe ciblée dans la sélection. Les events scope=structure/game sont
@@ -174,27 +184,7 @@ export default function CalendarSection({
     return () => clearInterval(t);
   }, []);
 
-  const loadEvents = useCallback(async () => {
-    if (!firebaseUser) return;
-    setLoading(true);
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structureId}/events`, {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setEvents(data.events ?? []);
-      }
-    } catch (err) {
-      console.error('[CalendarSection] load error:', err);
-    }
-    setLoading(false);
-  }, [firebaseUser, structureId]);
-
-  useEffect(() => {
-    loadEvents();
-  }, [loadEvents]);
+  const loadEvents = invalidateEvents;
 
   // Deep-link depuis Discord / lien embed : ?event=ID ouvre directement la
   // modale de détail de l'événement. On le fait une seule fois après chargement,
@@ -236,48 +226,34 @@ export default function CalendarSection({
     });
   }, [events, filter, now, teamFilter]);
 
-  async function handleRespond(eventId: string, status: PresenceStatus) {
-    if (!firebaseUser) return;
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structureId}/events/${eventId}/presence`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ status }),
-      });
-      if (res.ok) {
-        toast.success('Réponse enregistrée');
-        loadEvents();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
-    }
-  }
+  const respondMutation = useMutation({
+    mutationFn: ({ eventId, status }: { eventId: string; status: PresenceStatus }) =>
+      api(`/api/structures/${structureId}/events/${eventId}/presence`, {
+        method: 'POST', body: { status },
+      }),
+    onSuccess: () => { toast.success('Réponse enregistrée'); invalidateEvents(); },
+    onError: (err: Error) => toast.error(err.message || 'Erreur'),
+  });
+  const handleRespond = (eventId: string, status: PresenceStatus) =>
+    respondMutation.mutate({ eventId, status });
 
-  async function handleStatusAction(eventId: string, action: 'terminate' | 'reopen' | 'cancel') {
-    if (!firebaseUser) return;
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structureId}/events/${eventId}/status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ action }),
-      });
-      if (res.ok) {
-        toast.success('OK');
-        loadEvents();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
-    }
-  }
+  const statusMutation = useMutation({
+    mutationFn: ({ eventId, action }: { eventId: string; action: 'terminate' | 'reopen' | 'cancel' }) =>
+      api(`/api/structures/${structureId}/events/${eventId}/status`, {
+        method: 'POST', body: { action },
+      }),
+    onSuccess: () => { toast.success('OK'); invalidateEvents(); },
+    onError: (err: Error) => toast.error(err.message || 'Erreur'),
+  });
+  const handleStatusAction = (eventId: string, action: 'terminate' | 'reopen' | 'cancel') =>
+    statusMutation.mutate({ eventId, action });
 
+  const deleteMutation = useMutation({
+    mutationFn: (eventId: string) =>
+      api(`/api/structures/${structureId}/events/${eventId}`, { method: 'DELETE' }),
+    onSuccess: () => { toast.success('Événement supprimé'); setOpenEventId(null); invalidateEvents(); },
+    onError: (err: Error) => toast.error(err.message || 'Erreur'),
+  });
   async function handleDelete(eventId: string, title: string) {
     const ok = await confirm({
       title: 'Supprimer cet événement ?',
@@ -285,24 +261,8 @@ export default function CalendarSection({
       confirmLabel: 'Supprimer',
       variant: 'danger',
     });
-    if (!ok || !firebaseUser) return;
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structureId}/events/${eventId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        toast.success('Événement supprimé');
-        setOpenEventId(null);
-        loadEvents();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
-    }
+    if (!ok) return;
+    deleteMutation.mutate(eventId);
   }
 
   const canCreateAnything = isDirigeant(userContext)
@@ -716,7 +676,6 @@ function EventFormModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const { firebaseUser } = useAuth();
   const toast = useToast();
   const [title, setTitle] = useState('');
   const [type, setType] = useState<EventType>('training');
@@ -844,7 +803,6 @@ function EventFormModal({
   }
 
   async function handleSubmit() {
-    if (!firebaseUser) return;
     if (!title.trim()) return toast.error('Titre obligatoire');
     if (!startsAt || !endsAt) return toast.error('Dates obligatoires');
 
@@ -898,11 +856,9 @@ function EventFormModal({
 
     setSubmitting(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structureId}/events`, {
+      await api(`/api/structures/${structureId}/events`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({
+        body: {
           title: title.trim(),
           type,
           description,
@@ -914,17 +870,12 @@ function EventFormModal({
           adversaireLogoUrl: type === 'match' && adversaireLogoUrl ? adversaireLogoUrl : undefined,
           resultat: resultat || undefined,
           markDoneImmediately: markDone,
-        }),
+        },
       });
-      if (res.ok) {
-        toast.success('Événement créé');
-        onCreated();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
+      toast.success('Événement créé');
+      onCreated();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur réseau');
     }
     setSubmitting(false);
   }
@@ -1386,7 +1337,6 @@ function EventDetailModal({
   onDelete: (eventId: string, title: string) => void;
   onReload: () => void;
 }) {
-  const { firebaseUser } = useAuth();
   const toast = useToast();
   const typeInfo = TYPE_INFO[event.type] ?? TYPE_INFO.autre;
   const statusInfo = STATUS_INFO[event.status] ?? STATUS_INFO.scheduled;
@@ -1409,30 +1359,22 @@ function EventDetailModal({
   const [saving, setSaving] = useState(false);
 
   async function saveNotes() {
-    if (!firebaseUser) return;
     setSaving(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structureId}/events/${event.id}`, {
+      await api(`/api/structures/${structureId}/events/${event.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({
+        body: {
           compteRendu,
           aTravailler,
           adversaire,
           resultat,
           ...(event.type === 'match' ? { adversaireLogoUrl } : {}),
-        }),
+        },
       });
-      if (res.ok) {
-        toast.success('Enregistré');
-        onReload();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
+      toast.success('Enregistré');
+      onReload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur réseau');
     }
     setSaving(false);
   }
