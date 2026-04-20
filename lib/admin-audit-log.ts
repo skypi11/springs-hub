@@ -26,7 +26,9 @@ export type AdminAuditAction =
   | 'user_admin_revoked'
   | 'user_edited'
   | 'user_removed_from_structure'
-  | 'user_deleted';
+  | 'user_deleted'
+  // Broadcasts / notifs
+  | 'notification_broadcast';
 
 export type AdminAuditTargetType = 'structure' | 'user';
 
