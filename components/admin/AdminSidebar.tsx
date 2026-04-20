@@ -30,7 +30,7 @@ export default function AdminSidebar({ pendingCount = 0, bannedCount = 0 }: Prop
     { href: '/admin/structures', icon: Building2, label: 'Structures', description: 'Validations et gestion', badge: pendingCount },
     { href: '/admin/users', icon: Users, label: 'Utilisateurs', description: 'Profils, bans, admins', badge: bannedCount },
     { href: '/admin/teams', icon: Users2, label: 'Équipes', description: 'Vue cross-structures' },
-    { href: '/admin/calendar', icon: CalendarDays, label: 'Calendrier', description: 'Événements globaux', soon: true },
+    { href: '/admin/calendar', icon: CalendarDays, label: 'Calendrier', description: 'Événements globaux' },
     { href: '/admin/devoirs', icon: ClipboardList, label: 'Devoirs', description: 'Stats + templates', soon: true },
     { href: '/admin/moderation', icon: ShieldAlert, label: 'Modération', description: 'Signalements, sanctions', soon: true },
     { href: '/admin/notifications', icon: Bell, label: 'Notifications', description: 'Envoyer, historique', soon: true },
