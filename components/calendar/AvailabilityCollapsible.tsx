@@ -1,47 +1,31 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, Clock, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import AvailabilityGrid from './AvailabilityGrid';
-
-type SummaryData = {
-  today: string;
-  currentCount: number;
-  nextCount: number;
-};
+import { api } from '@/lib/api-client';
+import AvailabilityGrid, { AVAILABILITY_QUERY_KEY, type ApiResponse } from './AvailabilityGrid';
 
 export default function AvailabilityCollapsible() {
   const { firebaseUser } = useAuth();
   const [expanded, setExpanded] = useState(false);
-  const [summary, setSummary] = useState<SummaryData | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    if (!firebaseUser) return;
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/availability/me', {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        const d = await res.json();
-        setSummary({
-          today: d.today,
-          currentCount: (d.current?.slots ?? []).length,
-          nextCount: (d.next?.slots ?? []).length,
-        });
+  // Query partagée avec AvailabilityGrid (même queryKey) — 1 seul fetch réseau
+  // même si les 2 composants sont montés.
+  const { data, isPending: loading } = useQuery({
+    queryKey: AVAILABILITY_QUERY_KEY,
+    queryFn: () => api<ApiResponse>('/api/availability/me'),
+    enabled: !!firebaseUser,
+  });
+
+  const summary = data
+    ? {
+        today: data.today,
+        currentCount: data.current.slots.length,
+        nextCount: data.next.slots.length,
       }
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  }, [firebaseUser]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+    : null;
 
   const currentLabel = summary
     ? summary.currentCount === 0

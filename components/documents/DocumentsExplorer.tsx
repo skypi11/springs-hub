@@ -1,14 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Folder as FolderIcon, FolderPlus, Upload, File as FileIcon, FileText, Image as ImageIcon,
   Pencil, Trash2, Download, ChevronRight, Home, Loader2, FolderInput, X, Lock, ShieldCheck, Eye,
 } from 'lucide-react';
-import { auth } from '@/lib/firebase';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
+import { api, apiForm, apiDownload } from '@/lib/api-client';
 import Portal from '@/components/ui/Portal';
 
 type Folder = {
@@ -34,17 +35,20 @@ type Doc = {
   createdAt?: string | null;
 };
 
+type FoldersResponse = { folders: Folder[] };
+type DocumentsResponse = {
+  documents: Doc[];
+  usageBytes?: number;
+  quotaBytes?: number;
+};
+
 export default function DocumentsExplorer({ structureId }: { structureId: string }) {
   const toast = useToast();
   const confirm = useConfirm();
+  const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [folders, setFolders] = useState<Folder[]>([]);
-  const [documents, setDocuments] = useState<Doc[]>([]);
-  const [usage, setUsage] = useState<{ used: number; quota: number }>({ used: 0, quota: UPLOAD_LIMITS.STRUCTURE_DOCS_QUOTA_BYTES });
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -54,30 +58,34 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [previewDoc, setPreviewDoc] = useState<Doc | null>(null);
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) { setLoading(false); return; }
-      const [fRes, dRes] = await Promise.all([
-        fetch(`/api/structures/${structureId}/folders`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`/api/structures/${structureId}/documents?folderId=${currentFolderId ?? ''}`, { headers: { Authorization: `Bearer ${token}` } }),
-      ]);
-      const fData = await fRes.json().catch(() => ({}));
-      const dData = await dRes.json().catch(() => ({}));
-      if (fRes.ok) setFolders(fData.folders ?? []);
-      if (dRes.ok) {
-        setDocuments(dData.documents ?? []);
-        setUsage({ used: dData.usageBytes ?? 0, quota: dData.quotaBytes ?? UPLOAD_LIMITS.STRUCTURE_DOCS_QUOTA_BYTES });
-      }
-    } catch {
-      toast.error('Erreur de chargement');
-    } finally {
-      setLoading(false);
-    }
-  }, [structureId, currentFolderId, toast]);
+  // Queries — les données sont mises en cache par clé. Pendant un refetch après
+  // mutation, React Query garde l'ancienne data visible (pas de "flash vide").
+  const foldersQuery = useQuery({
+    queryKey: ['documents', structureId, 'folders'],
+    queryFn: () => api<FoldersResponse>(`/api/structures/${structureId}/folders`),
+  });
 
-  useEffect(() => { void loadAll(); }, [loadAll]);
+  const documentsQuery = useQuery({
+    queryKey: ['documents', structureId, 'docs', currentFolderId],
+    queryFn: () =>
+      api<DocumentsResponse>(
+        `/api/structures/${structureId}/documents?folderId=${currentFolderId ?? ''}`
+      ),
+    placeholderData: (prev) => prev, // garde l'ancienne page visible pendant le changement de dossier
+  });
+
+  const folders = foldersQuery.data?.folders ?? [];
+  const documents = documentsQuery.data?.documents ?? [];
+  const usage = {
+    used: documentsQuery.data?.usageBytes ?? 0,
+    quota: documentsQuery.data?.quotaBytes ?? UPLOAD_LIMITS.STRUCTURE_DOCS_QUOTA_BYTES,
+  };
+  const loading = foldersQuery.isPending || documentsQuery.isPending;
+
+  // Invalide les 2 queries (dossiers + docs du dossier courant) après mutation
+  const invalidateAll = () => {
+    qc.invalidateQueries({ queryKey: ['documents', structureId] });
+  };
 
   const subFolders = useMemo(
     () => folders.filter(f => f.parentId === currentFolderId)
@@ -100,85 +108,108 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
     return chain;
   }, [folders, currentFolderId]);
 
-  // ── Actions ────────────────────────────────────────────────────────────────
+  // ── Mutations ──────────────────────────────────────────────────────────────
 
-  const createFolder = useCallback(async () => {
+  const createFolderMutation = useMutation({
+    mutationFn: (name: string) =>
+      api(`/api/structures/${structureId}/folders`, {
+        method: 'POST',
+        body: { parentId: currentFolderId, name },
+      }),
+    onSuccess: () => {
+      toast.success('Dossier créé');
+      setCreatingFolder(false);
+      setNewFolderName('');
+      invalidateAll();
+    },
+    onError: (err: Error) => toast.error(err.message || 'Erreur création dossier'),
+  });
+
+  const renameMutation = useMutation({
+    mutationFn: ({ type, id, name }: { type: 'folder' | 'doc'; id: string; name: string }) => {
+      const url = type === 'folder'
+        ? `/api/structures/${structureId}/folders/${id}`
+        : `/api/structures/${structureId}/documents/${id}`;
+      const body = type === 'folder' ? { name } : { title: name };
+      return api(url, { method: 'PATCH', body });
+    },
+    onSuccess: () => {
+      toast.success('Renommé');
+      setRenamingId(null);
+      invalidateAll();
+    },
+    onError: (err: Error) => toast.error(err.message || 'Erreur'),
+  });
+
+  const deleteFolderMutation = useMutation({
+    mutationFn: (id: string) =>
+      api(`/api/structures/${structureId}/folders/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      toast.success('Dossier supprimé');
+      invalidateAll();
+    },
+    onError: (err: Error) => toast.error(err.message || 'Erreur suppression'),
+  });
+
+  const deleteDocMutation = useMutation({
+    mutationFn: (id: string) =>
+      api(`/api/structures/${structureId}/documents/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      toast.success('Document supprimé');
+      invalidateAll();
+    },
+    onError: (err: Error) => toast.error(err.message || 'Erreur suppression'),
+  });
+
+  const moveMutation = useMutation({
+    mutationFn: ({ type, id, targetParentId }: { type: 'folder' | 'doc'; id: string; targetParentId: string | null }) => {
+      const url = type === 'folder'
+        ? `/api/structures/${structureId}/folders/${id}`
+        : `/api/structures/${structureId}/documents/${id}`;
+      const body = type === 'folder' ? { parentId: targetParentId } : { folderId: targetParentId };
+      return api(url, { method: 'PATCH', body });
+    },
+    onSuccess: () => {
+      toast.success('Déplacé');
+      setMovingDoc(null);
+      invalidateAll();
+    },
+    onError: (err: Error) => toast.error(err.message || 'Erreur déplacement'),
+  });
+
+  // ── Actions wrappers (encapsulent le flow UI autour des mutations) ────────
+
+  const submitCreateFolder = () => {
     const name = newFolderName.trim();
     if (!name) { setCreatingFolder(false); setNewFolderName(''); return; }
-    const token = await auth.currentUser?.getIdToken();
-    if (!token) return;
-    const res = await fetch(`/api/structures/${structureId}/folders`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ parentId: currentFolderId, name }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      toast.error(data?.error || 'Erreur création dossier');
-      return;
-    }
-    toast.success('Dossier créé');
-    setCreatingFolder(false);
-    setNewFolderName('');
-    void loadAll();
-  }, [newFolderName, structureId, currentFolderId, toast, loadAll]);
+    createFolderMutation.mutate(name);
+  };
 
-  const renameItem = useCallback(async (type: 'folder' | 'doc', id: string) => {
+  const submitRename = (type: 'folder' | 'doc', id: string) => {
     const name = renameValue.trim();
     if (!name) { setRenamingId(null); return; }
-    const token = await auth.currentUser?.getIdToken();
-    if (!token) return;
-    const url = type === 'folder'
-      ? `/api/structures/${structureId}/folders/${id}`
-      : `/api/structures/${structureId}/documents/${id}`;
-    const body = type === 'folder' ? { name } : { title: name };
-    const res = await fetch(url, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) { toast.error(data?.error || 'Erreur'); return; }
-    toast.success('Renommé');
-    setRenamingId(null);
-    void loadAll();
-  }, [renameValue, structureId, toast, loadAll]);
+    renameMutation.mutate({ type, id, name });
+  };
 
-  const deleteFolder = useCallback(async (f: Folder) => {
+  const askDeleteFolder = async (f: Folder) => {
     const ok = await confirm({
       title: 'Supprimer ce dossier ?',
       message: `Le dossier "${f.name}" sera supprimé. Il doit être vide.`,
       confirmLabel: 'Supprimer', variant: 'danger',
     });
     if (!ok) return;
-    const token = await auth.currentUser?.getIdToken();
-    if (!token) return;
-    const res = await fetch(`/api/structures/${structureId}/folders/${f.id}`, {
-      method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) { toast.error(data?.error || 'Erreur suppression'); return; }
-    toast.success('Dossier supprimé');
-    void loadAll();
-  }, [structureId, confirm, toast, loadAll]);
+    deleteFolderMutation.mutate(f.id);
+  };
 
-  const deleteDoc = useCallback(async (d: Doc) => {
+  const askDeleteDoc = async (d: Doc) => {
     const ok = await confirm({
       title: 'Supprimer ce document ?',
       message: `"${d.title}" sera définitivement effacé.`,
       confirmLabel: 'Supprimer', variant: 'danger',
     });
     if (!ok) return;
-    const token = await auth.currentUser?.getIdToken();
-    if (!token) return;
-    const res = await fetch(`/api/structures/${structureId}/documents/${d.id}`, {
-      method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) { toast.error(data?.error || 'Erreur suppression'); return; }
-    toast.success('Document supprimé');
-    void loadAll();
-  }, [structureId, confirm, toast, loadAll]);
+    deleteDocMutation.mutate(d.id);
+  };
 
   // Détermine si un fichier peut être prévisualisé en ligne (iframe/img)
   const isPreviewable = (mime: string): boolean => {
@@ -188,104 +219,48 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
     return false;
   };
 
-  const openPreview = useCallback((d: Doc) => {
+  const downloadDoc = async (d: Doc) => {
+    try {
+      const res = await apiDownload(`/api/structures/${structureId}/documents/${d.id}/download`);
+      if (res.kind === 'json') {
+        const data = res.data as { url?: string };
+        if (!data.url) { toast.error('Erreur téléchargement'); return; }
+        window.location.href = data.url;
+        return;
+      }
+      // Doc chiffré : binaire déchiffré → download manuel
+      const url = URL.createObjectURL(res.blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = res.filename || d.filename || 'document';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erreur téléchargement';
+      toast.error(msg);
+    }
+  };
+
+  const openPreview = (d: Doc) => {
     if (!isPreviewable(d.mime)) {
       toast.info('Aperçu non supporté — téléchargement à la place');
-      // Fallback : on lance le download standard
-      void (async () => {
-        const token = await auth.currentUser?.getIdToken();
-        if (!token) return;
-        const res = await fetch(`/api/structures/${structureId}/documents/${d.id}/download`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) { toast.error('Erreur téléchargement'); return; }
-        const ct = res.headers.get('content-type') || '';
-        if (ct.includes('application/json')) {
-          const data = await res.json();
-          if (data.url) window.location.href = data.url;
-        } else {
-          const blob = await res.blob();
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url; a.download = d.filename; document.body.appendChild(a); a.click(); a.remove();
-          URL.revokeObjectURL(url);
-        }
-      })();
+      void downloadDoc(d);
       return;
     }
     setPreviewDoc(d);
-  }, [structureId, toast]);
-
-  const downloadDoc = useCallback(async (d: Doc) => {
-    const token = await auth.currentUser?.getIdToken();
-    if (!token) return;
-    const res = await fetch(`/api/structures/${structureId}/documents/${d.id}/download`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      toast.error(data?.error || 'Erreur téléchargement');
-      return;
-    }
-    const ct = res.headers.get('content-type') || '';
-    if (ct.includes('application/json')) {
-      // Doc non chiffré : URL signée 60s
-      const data = await res.json();
-      if (!data.url) { toast.error('Erreur téléchargement'); return; }
-      window.location.href = data.url as string;
-      return;
-    }
-    // Doc chiffré : binaire déchiffré côté serveur, on déclenche un download manuel
-    const blob = await res.blob();
-    const disp = res.headers.get('content-disposition') || '';
-    const m = disp.match(/filename="?([^";]+)"?/);
-    const filename = m?.[1] || d.filename || 'document';
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }, [structureId, toast]);
-
-  const moveItem = useCallback(async (targetParentId: string | null) => {
-    if (!movingDoc) return;
-    const token = await auth.currentUser?.getIdToken();
-    if (!token) return;
-    const url = movingDoc.type === 'folder'
-      ? `/api/structures/${structureId}/folders/${movingDoc.id}`
-      : `/api/structures/${structureId}/documents/${movingDoc.id}`;
-    const body = movingDoc.type === 'folder'
-      ? { parentId: targetParentId }
-      : { folderId: targetParentId };
-    const res = await fetch(url, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) { toast.error(data?.error || 'Erreur déplacement'); return; }
-    toast.success('Déplacé');
-    setMovingDoc(null);
-    void loadAll();
-  }, [movingDoc, structureId, toast, loadAll]);
+  };
 
   // ── Upload ────────────────────────────────────────────────────────────────
 
-  const uploadFile = useCallback(async (file: File, sensitive: boolean) => {
-    if (uploading) return;
-    if (file.size > UPLOAD_LIMITS.STAFF_DOCUMENT_BYTES) {
-      const mb = Math.round(UPLOAD_LIMITS.STAFF_DOCUMENT_BYTES / (1024 * 1024));
-      toast.error(`Fichier trop lourd — max ${mb} MB`);
-      return;
-    }
-    setUploading(true);
-    setProgress(0);
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) { toast.error('Session expirée'); return; }
+  const uploadMutation = useMutation({
+    mutationFn: async ({ file, sensitive }: { file: File; sensitive: boolean }) => {
+      if (file.size > UPLOAD_LIMITS.STAFF_DOCUMENT_BYTES) {
+        const mb = Math.round(UPLOAD_LIMITS.STAFF_DOCUMENT_BYTES / (1024 * 1024));
+        throw new Error(`Fichier trop lourd — max ${mb} MB`);
+      }
+      setProgress(0);
 
       // Sensible : upload direct au serveur (multipart/form-data) qui chiffre
       // puis pousse vers R2. Évite le passage en clair sur R2 ET les soucis CORS.
@@ -294,33 +269,10 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
         form.append('file', file);
         form.append('folderId', currentFolderId ?? '');
         form.append('title', file.name.replace(/\.[^.]+$/, ''));
-
-        await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open('POST', `/api/structures/${structureId}/documents/upload-sensitive`);
-          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-          xhr.upload.onprogress = ev => {
-            if (ev.lengthComputable) setProgress(Math.round((ev.loaded / ev.total) * 100));
-          };
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              resolve();
-            } else {
-              let msg = `HTTP ${xhr.status}`;
-              try {
-                const j = JSON.parse(xhr.responseText);
-                if (j?.error) msg = j.error;
-              } catch { /* ignore */ }
-              reject(new Error(msg));
-            }
-          };
-          xhr.onerror = () => reject(new Error('network'));
-          xhr.send(form);
+        await apiForm(`/api/structures/${structureId}/documents/upload-sensitive`, form, {
+          onProgress: (pct) => setProgress(pct),
         });
-
-        toast.success('Document chiffré et ajouté');
-        void loadAll();
-        return;
+        return { sensitive: true };
       }
 
       // Non-sensible : flow standard (presigned URL → PUT direct vers R2)
@@ -349,25 +301,24 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
         }
       }
 
-      const prep = await fetch(`/api/structures/${structureId}/documents`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          folderId: currentFolderId,
-          filename: file.name,
-          mime,
-          sizeBytes: payload.size,
-          title: file.name.replace(/\.[^.]+$/, ''),
-          sensitive: false,
-        }),
-      });
-      const prepData = await prep.json().catch(() => ({}));
-      if (!prep.ok) { toast.error(prepData?.error || 'Échec préparation'); return; }
-      const { documentId, uploadUrl } = prepData as { documentId: string; uploadUrl: string };
+      const prep = await api<{ documentId: string; uploadUrl: string }>(
+        `/api/structures/${structureId}/documents`,
+        {
+          method: 'POST',
+          body: {
+            folderId: currentFolderId,
+            filename: file.name,
+            mime,
+            sizeBytes: payload.size,
+            title: file.name.replace(/\.[^.]+$/, ''),
+            sensitive: false,
+          },
+        }
+      );
 
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('PUT', uploadUrl);
+        xhr.open('PUT', prep.uploadUrl);
         xhr.setRequestHeader('Content-Type', mime);
         xhr.upload.onprogress = ev => {
           if (ev.lengthComputable) setProgress(Math.round((ev.loaded / ev.total) * 100));
@@ -380,25 +331,25 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
         xhr.send(payload);
       });
 
-      const fin = await fetch(`/api/structures/${structureId}/documents/${documentId}`, {
+      await api(`/api/structures/${structureId}/documents/${prep.documentId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ finalize: true }),
+        body: { finalize: true },
       });
-      const finData = await fin.json().catch(() => ({}));
-      if (!fin.ok) { toast.error(finData?.error || 'Échec finalisation'); return; }
 
-      toast.success('Document ajouté');
-      void loadAll();
-    } catch (err) {
+      return { sensitive: false };
+    },
+    onSuccess: (r) => {
+      toast.success(r.sensitive ? 'Document chiffré et ajouté' : 'Document ajouté');
+      invalidateAll();
+    },
+    onError: (err: Error) => {
       console.error('[documents] upload error', err);
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error(`Erreur upload : ${msg.slice(0, 100)}`);
-    } finally {
-      setUploading(false);
-      setProgress(0);
-    }
-  }, [uploading, structureId, currentFolderId, toast, loadAll]);
+      toast.error(`Erreur upload : ${(err.message || 'inconnu').slice(0, 100)}`);
+    },
+    onSettled: () => setProgress(0),
+  });
+
+  const uploading = uploadMutation.isPending;
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -469,13 +420,13 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
             value={newFolderName}
             onChange={e => setNewFolderName(e.target.value)}
             onKeyDown={e => {
-              if (e.key === 'Enter') void createFolder();
+              if (e.key === 'Enter') submitCreateFolder();
               if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName(''); }
             }}
             placeholder="Nom du dossier"
             className="settings-input flex-1 text-sm"
             maxLength={80} />
-          <button type="button" onClick={() => void createFolder()} className="btn-springs btn-primary bevel-sm text-xs">Créer</button>
+          <button type="button" onClick={submitCreateFolder} className="btn-springs btn-primary bevel-sm text-xs">Créer</button>
           <button type="button" onClick={() => { setCreatingFolder(false); setNewFolderName(''); }} className="btn-springs btn-secondary bevel-sm text-xs">Annuler</button>
         </div>
       )}
@@ -498,10 +449,10 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
               onOpen={() => setCurrentFolderId(f.id)}
               onStartRename={() => { setRenamingId(`folder:${f.id}`); setRenameValue(f.name); }}
               onRenameChange={setRenameValue}
-              onRenameSubmit={() => void renameItem('folder', f.id)}
+              onRenameSubmit={() => submitRename('folder', f.id)}
               onRenameCancel={() => setRenamingId(null)}
               onMove={() => setMovingDoc({ type: 'folder', id: f.id, currentParent: f.parentId })}
-              onDelete={() => void deleteFolder(f)}
+              onDelete={() => void askDeleteFolder(f)}
             />
           ))}
           {documents.map(d => (
@@ -514,10 +465,10 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
               onDownload={() => void downloadDoc(d)}
               onStartRename={() => { setRenamingId(`doc:${d.id}`); setRenameValue(d.title); }}
               onRenameChange={setRenameValue}
-              onRenameSubmit={() => void renameItem('doc', d.id)}
+              onRenameSubmit={() => submitRename('doc', d.id)}
               onRenameCancel={() => setRenamingId(null)}
               onMove={() => setMovingDoc({ type: 'doc', id: d.id, currentParent: d.folderId })}
-              onDelete={() => void deleteDoc(d)}
+              onDelete={() => void askDeleteDoc(d)}
             />
           ))}
         </div>
@@ -530,7 +481,7 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
           excludeFolderId={movingDoc.type === 'folder' ? movingDoc.id : null}
           currentParent={movingDoc.currentParent}
           onClose={() => setMovingDoc(null)}
-          onSelect={id => void moveItem(id)}
+          onSelect={targetParentId => movingDoc && moveMutation.mutate({ type: movingDoc.type, id: movingDoc.id, targetParentId })}
         />
       )}
 
@@ -552,7 +503,7 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
           onChoose={sensitive => {
             const f = pendingFile;
             setPendingFile(null);
-            void uploadFile(f, sensitive);
+            uploadMutation.mutate({ file: f, sensitive });
           }}
         />
       )}
@@ -876,37 +827,29 @@ function PreviewModal({ doc, structureId, onClose, onDownload }: {
 
     (async () => {
       try {
-        const token = await auth.currentUser?.getIdToken();
-        if (!token) { setError('Session expirée'); return; }
-        const res = await fetch(
-          `/api/structures/${structureId}/documents/${doc.id}/download?preview=1`,
-          { headers: { Authorization: `Bearer ${token}` } }
+        const res = await apiDownload(
+          `/api/structures/${structureId}/documents/${doc.id}/download?preview=1`
         );
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          setError(data?.error || 'Erreur chargement aperçu');
-          return;
-        }
-        const ct = res.headers.get('content-type') || '';
-        if (ct.includes('application/json')) {
-          // Doc non chiffré : on récupère une URL signée inline
-          const data = await res.json();
-          if (cancelled) return;
+        if (cancelled) return;
+        if (res.kind === 'json') {
+          // Doc non chiffré : URL signée inline
+          const data = res.data as { url?: string };
           setSrc(data.url || null);
         } else {
           // Doc chiffré : binaire déchiffré → blob URL
-          const blob = await res.blob();
-          if (cancelled) return;
           if (doc.mime === 'text/plain' || doc.mime === 'text/markdown') {
-            const txt = await blob.text();
+            const txt = await res.blob.text();
             if (!cancelled) setTextContent(txt);
           } else {
-            blobUrl = URL.createObjectURL(blob);
+            blobUrl = URL.createObjectURL(res.blob);
             setSrc(blobUrl);
           }
         }
-      } catch {
-        if (!cancelled) setError('Erreur réseau');
+      } catch (err) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : 'Erreur réseau';
+          setError(msg);
+        }
       }
     })();
 

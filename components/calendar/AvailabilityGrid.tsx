@@ -1,15 +1,19 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Save, Copy, Check } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
+import { api } from '@/lib/api-client';
 import {
   addDays,
   generateWeekGrid,
   type DayGrid,
   type WeekGrid,
 } from '@/lib/availability';
+
+export const AVAILABILITY_QUERY_KEY = ['availability', 'me'] as const;
 
 // Jours affichés en colonnes
 const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
@@ -67,7 +71,7 @@ type WeekData = {
   slots: string[];
 };
 
-type ApiResponse = {
+export type ApiResponse = {
   today: string;
   previous: WeekData;
   current: WeekData;
@@ -77,10 +81,14 @@ type ApiResponse = {
 export default function AvailabilityGrid() {
   const { firebaseUser } = useAuth();
   const toast = useToast();
+  const qc = useQueryClient();
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<'current' | 'next' | null>(null);
-  const [data, setData] = useState<ApiResponse | null>(null);
+  // Query partagée avec AvailabilityCollapsible
+  const { data, isPending: loading } = useQuery({
+    queryKey: AVAILABILITY_QUERY_KEY,
+    queryFn: () => api<ApiResponse>('/api/availability/me'),
+    enabled: !!firebaseUser,
+  });
 
   // État local des slots (Set de strings) par semaine — permet l'édition sans rerequests
   const [currentSet, setCurrentSet] = useState<Set<string>>(new Set());
@@ -88,64 +96,48 @@ export default function AvailabilityGrid() {
   const [currentDirty, setCurrentDirty] = useState(false);
   const [nextDirty, setNextDirty] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!firebaseUser) return;
-    setLoading(true);
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/availability/me', {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        const d = (await res.json()) as ApiResponse;
-        setData(d);
-        setCurrentSet(new Set(d.current.slots));
-        setNextSet(new Set(d.next.slots));
-        setCurrentDirty(false);
-        setNextDirty(false);
-      } else {
-        toast.error('Erreur de chargement');
-      }
-    } catch {
-      toast.error('Erreur réseau');
-    }
-    setLoading(false);
-  }, [firebaseUser, toast]);
-
+  // Sync du state local d'édition avec les données serveur (initial + refetch)
   useEffect(() => {
-    load();
-  }, [load]);
+    if (!data) return;
+    setCurrentSet(new Set(data.current.slots));
+    setNextSet(new Set(data.next.slots));
+    setCurrentDirty(false);
+    setNextDirty(false);
+  }, [data]);
 
-  async function save(which: 'current' | 'next') {
-    if (!firebaseUser || !data) return;
+  const saveMutation = useMutation({
+    mutationFn: ({ which, mondayYmd, slots }: { which: 'current' | 'next'; mondayYmd: string; slots: string[] }) =>
+      api<{ slots: string[] }>('/api/availability/me', {
+        method: 'PUT',
+        body: { mondayYmd, slots },
+      }).then((d) => ({ which, slots: d.slots ?? [] })),
+    onSuccess: ({ which, slots }) => {
+      if (which === 'current') {
+        setCurrentSet(new Set(slots));
+        setCurrentDirty(false);
+      } else {
+        setNextSet(new Set(slots));
+        setNextDirty(false);
+      }
+      // Synchronise le cache (pour le résumé du collapsible) sans refetch
+      qc.setQueryData<ApiResponse>(AVAILABILITY_QUERY_KEY, (prev) => {
+        if (!prev) return prev;
+        const week = which === 'current' ? { ...prev.current, slots } : prev.current;
+        const nextW = which === 'next' ? { ...prev.next, slots } : prev.next;
+        return { ...prev, current: week, next: nextW };
+      });
+      toast.success('Dispos enregistrées');
+    },
+    onError: (err: Error) => toast.error(err.message || 'Erreur'),
+  });
+
+  const saving = saveMutation.isPending ? saveMutation.variables?.which ?? null : null;
+
+  function save(which: 'current' | 'next') {
+    if (!data) return;
     const week = which === 'current' ? data.current : data.next;
     const set = which === 'current' ? currentSet : nextSet;
-    setSaving(which);
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/availability/me', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ mondayYmd: week.mondayYmd, slots: Array.from(set) }),
-      });
-      if (res.ok) {
-        const d = await res.json();
-        if (which === 'current') {
-          setCurrentSet(new Set(d.slots ?? []));
-          setCurrentDirty(false);
-        } else {
-          setNextSet(new Set(d.slots ?? []));
-          setNextDirty(false);
-        }
-        toast.success('Dispos enregistrées');
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
-    }
-    setSaving(null);
+    saveMutation.mutate({ which, mondayYmd: week.mondayYmd, slots: Array.from(set) });
   }
 
   function copyFromPrevious() {

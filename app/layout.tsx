@@ -6,6 +6,7 @@ import LegalFooter from '@/components/layout/LegalFooter';
 import { AuthProvider } from '@/context/AuthContext';
 import { ToastProvider } from '@/components/ui/Toast';
 import { ConfirmProvider } from '@/components/ui/ConfirmModal';
+import QueryProvider from '@/components/providers/QueryProvider';
 import CommandPalette from '@/components/ui/CommandPalette';
 import ProfileCompletionGate from '@/components/auth/ProfileCompletionGate';
 
@@ -31,19 +32,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className={`${outfit.variable} ${bebasNeue.variable} h-full`}>
       <body className="h-full flex" style={{ background: '#07070f', color: '#f0f0f8' }}>
-        <AuthProvider>
-          <ToastProvider>
-            <ConfirmProvider>
-              <ProfileCompletionGate />
-              <Sidebar />
-              <div className="flex-1 lg:ml-[260px] min-h-screen overflow-x-hidden hex-bg pt-14 lg:pt-0 flex flex-col">
-                <div className="flex-1">{children}</div>
-                <LegalFooter />
-              </div>
-              <CommandPalette />
-            </ConfirmProvider>
-          </ToastProvider>
-        </AuthProvider>
+        <QueryProvider>
+          <AuthProvider>
+            <ToastProvider>
+              <ConfirmProvider>
+                <ProfileCompletionGate />
+                <Sidebar />
+                <div className="flex-1 lg:ml-[260px] min-h-screen overflow-x-hidden hex-bg pt-14 lg:pt-0 flex flex-col">
+                  <div className="flex-1">{children}</div>
+                  <LegalFooter />
+                </div>
+                <CommandPalette />
+              </ConfirmProvider>
+            </ToastProvider>
+          </AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   );
