@@ -350,5 +350,13 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ── Springs Hub — Journal d'audit des actions admin (structures + users) ──
+    // Écriture : API serveur uniquement (Admin SDK) — voir lib/admin-audit-log.ts.
+    // Lecture : admin Springs uniquement.
+    match /admin_audit_logs/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
   }
 }

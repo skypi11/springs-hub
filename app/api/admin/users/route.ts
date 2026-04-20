@@ -5,6 +5,7 @@ import { resolveEpicAccount } from '@/lib/tracker-gg';
 import { safeUrl, clampString, LIMITS } from '@/lib/validation';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 
 // Quand un fondateur est banni/supprimé, on essaie de promouvoir son premier co-fondateur
 // pour ne pas laisser une structure sans tête. Si pas de co-fondateur, on passe la
@@ -196,6 +197,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Utilisateur introuvable' }, { status: 404 });
     }
 
+    // Snapshot du label cible avant toute mutation — utile surtout pour delete où
+    // le doc disparaît avant l'audit log.
+    const userData = userSnap.data() ?? {};
+    const userLabel: string = userData.displayName || userData.discordUsername || userId;
+
     switch (action) {
       // ─── Bannir ─────────────────────────────────────────────────────────
       case 'ban': {
@@ -212,6 +218,14 @@ export async function POST(req: NextRequest) {
         const parts = [`Utilisateur banni`];
         if (promoted.length) parts.push(`${promoted.length} structure(s) transférée(s) au premier co-fondateur`);
         if (orphaned.length) parts.push(`${orphaned.length} structure(s) orpheline(s)`);
+        await writeAdminAuditLog(db, {
+          action: 'user_banned',
+          adminUid,
+          targetType: 'user',
+          targetId: userId,
+          targetLabel: userLabel,
+          metadata: { reason: reason || null, promotedStructures: promoted, orphanedStructures: orphaned },
+        });
         return NextResponse.json({ ok: true, message: parts.join(' — ') });
       }
 
@@ -223,6 +237,13 @@ export async function POST(req: NextRequest) {
           bannedAt: null,
           bannedBy: null,
         });
+        await writeAdminAuditLog(db, {
+          action: 'user_unbanned',
+          adminUid,
+          targetType: 'user',
+          targetId: userId,
+          targetLabel: userLabel,
+        });
         return NextResponse.json({ ok: true, message: 'Utilisateur débanni' });
       }
 
@@ -233,6 +254,13 @@ export async function POST(req: NextRequest) {
         } catch {
           return NextResponse.json({ error: 'Impossible de révoquer les tokens' }, { status: 500 });
         }
+        await writeAdminAuditLog(db, {
+          action: 'user_force_disconnected',
+          adminUid,
+          targetType: 'user',
+          targetId: userId,
+          targetLabel: userLabel,
+        });
         return NextResponse.json({ ok: true, message: 'Tokens révoqués — déconnexion forcée' });
       }
 
@@ -245,6 +273,13 @@ export async function POST(req: NextRequest) {
           addedBy: adminUid,
           addedAt: FieldValue.serverTimestamp(),
         });
+        await writeAdminAuditLog(db, {
+          action: 'user_admin_granted',
+          adminUid,
+          targetType: 'user',
+          targetId: userId,
+          targetLabel: userLabel,
+        });
         return NextResponse.json({ ok: true, message: 'Droits admin ajoutés' });
       }
 
@@ -254,6 +289,13 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'Tu ne peux pas te retirer tes propres droits admin' }, { status: 400 });
         }
         await db.collection('admins').doc(userId).delete();
+        await writeAdminAuditLog(db, {
+          action: 'user_admin_revoked',
+          adminUid,
+          targetType: 'user',
+          targetId: userId,
+          targetLabel: userLabel,
+        });
         return NextResponse.json({ ok: true, message: 'Droits admin retirés' });
       }
 
@@ -303,6 +345,14 @@ export async function POST(req: NextRequest) {
         }
 
         await userRef.update(updates);
+        await writeAdminAuditLog(db, {
+          action: 'user_edited',
+          adminUid,
+          targetType: 'user',
+          targetId: userId,
+          targetLabel: userLabel,
+          metadata: { fields: Object.keys(updates) },
+        });
         return NextResponse.json({ ok: true, message: 'Profil mis à jour' });
       }
 
@@ -327,6 +377,17 @@ export async function POST(req: NextRequest) {
         const batch = db.batch();
         memberSnap.docs.forEach(doc => batch.delete(doc.ref));
         await batch.commit();
+        await writeAdminAuditLog(db, {
+          action: 'user_removed_from_structure',
+          adminUid,
+          targetType: 'user',
+          targetId: userId,
+          targetLabel: userLabel,
+          metadata: {
+            structureId: membershipStructureId,
+            structureName: structureSnap.data()?.name ?? null,
+          },
+        });
         return NextResponse.json({ ok: true, message: 'Retiré de la structure' });
       }
 
@@ -374,6 +435,18 @@ export async function POST(req: NextRequest) {
         const parts = ['Compte supprimé définitivement'];
         if (promoted.length) parts.push(`${promoted.length} structure(s) transférée(s) au 1er co-fondateur`);
         if (orphaned.length) parts.push(`${orphaned.length} structure(s) orpheline(s)`);
+        await writeAdminAuditLog(db, {
+          action: 'user_deleted',
+          adminUid,
+          targetType: 'user',
+          targetId: userId,
+          targetLabel: userLabel,
+          metadata: {
+            discordUsername: userData.discordUsername ?? null,
+            promotedStructures: promoted,
+            orphanedStructures: orphaned,
+          },
+        });
         return NextResponse.json({ ok: true, message: parts.join(' — ') });
       }
 

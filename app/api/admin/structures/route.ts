@@ -5,6 +5,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { addJoinHistory } from '@/lib/member-history';
+import { writeAdminAuditLog, type AdminAuditAction } from '@/lib/admin-audit-log';
 
 const MAX_STRUCTURES = 500;
 
@@ -174,6 +175,33 @@ export async function POST(req: NextRequest) {
 
       default:
         return NextResponse.json({ error: 'Action invalide' }, { status: 400 });
+    }
+
+    // Audit log — après succès de l'action, avant retour. Mapping action → AdminAuditAction.
+    const auditActionByAction: Record<string, AdminAuditAction | undefined> = {
+      approve: 'structure_approved',
+      reject: 'structure_rejected',
+      suspend: 'structure_suspended',
+      unsuspend: 'structure_unsuspended',
+      schedule_deletion: 'structure_deletion_scheduled',
+      cancel_deletion: 'structure_deletion_cancelled',
+      delete: 'structure_deleted',
+    };
+    const auditAction = auditActionByAction[action];
+    if (auditAction) {
+      await writeAdminAuditLog(db, {
+        action: auditAction,
+        adminUid: uid,
+        targetType: 'structure',
+        targetId: structureId,
+        targetLabel: data.name ?? null,
+        metadata: {
+          comment: comment || null,
+          founderId: data.founderId ?? null,
+          games: data.games ?? [],
+          previousStatus: data.status ?? null,
+        },
+      });
     }
 
     return NextResponse.json({ success: true });
