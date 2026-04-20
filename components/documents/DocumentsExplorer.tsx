@@ -247,19 +247,49 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
     setUploading(true);
     setProgress(0);
     try {
-      // Les fichiers sensibles restent tels quels (pas de conversion webp)
-      // pour préserver l'original avant chiffrement.
-      const isImage = !sensitive && file.type.startsWith('image/');
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) { toast.error('Session expirée'); return; }
+
+      // Sensible : upload direct au serveur (multipart/form-data) qui chiffre
+      // puis pousse vers R2. Évite le passage en clair sur R2 ET les soucis CORS.
+      if (sensitive) {
+        const form = new FormData();
+        form.append('file', file);
+        form.append('folderId', currentFolderId ?? '');
+        form.append('title', file.name.replace(/\.[^.]+$/, ''));
+
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', `/api/structures/${structureId}/documents/upload-sensitive`);
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+          xhr.upload.onprogress = ev => {
+            if (ev.lengthComputable) setProgress(Math.round((ev.loaded / ev.total) * 100));
+          };
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve();
+            } else {
+              let msg = `HTTP ${xhr.status}`;
+              try {
+                const j = JSON.parse(xhr.responseText);
+                if (j?.error) msg = j.error;
+              } catch { /* ignore */ }
+              reject(new Error(msg));
+            }
+          };
+          xhr.onerror = () => reject(new Error('network'));
+          xhr.send(form);
+        });
+
+        toast.success('Document chiffré et ajouté');
+        void loadAll();
+        return;
+      }
+
+      // Non-sensible : flow standard (presigned URL → PUT direct vers R2)
+      const isImage = file.type.startsWith('image/');
       let payload: Blob = file;
       let mime = file.type || 'application/octet-stream';
-      const originalMime = file.type || 'application/octet-stream';
-
-      // Sensibles : on envoie en octet-stream vers R2 (évite des variations CORS
-      // selon le Content-Type). Le vrai mime est stocké en Firestore pour que
-      // le download serve le bon type au client après déchiffrement.
-      if (sensitive) {
-        mime = 'application/octet-stream';
-      }
 
       if (isImage) {
         // Conversion webp côté client pour économiser le stockage
@@ -282,9 +312,6 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
         }
       }
 
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) { toast.error('Session expirée'); return; }
-
       const prep = await fetch(`/api/structures/${structureId}/documents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -292,10 +319,9 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
           folderId: currentFolderId,
           filename: file.name,
           mime,
-          originalMime: sensitive ? originalMime : undefined,
           sizeBytes: payload.size,
           title: file.name.replace(/\.[^.]+$/, ''),
-          sensitive,
+          sensitive: false,
         }),
       });
       const prepData = await prep.json().catch(() => ({}));
@@ -325,7 +351,7 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
       const finData = await fin.json().catch(() => ({}));
       if (!fin.ok) { toast.error(finData?.error || 'Échec finalisation'); return; }
 
-      toast.success(sensitive ? 'Document chiffré et ajouté' : 'Document ajouté');
+      toast.success('Document ajouté');
       void loadAll();
     } catch (err) {
       console.error('[documents] upload error', err);
