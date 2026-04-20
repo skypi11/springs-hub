@@ -8,7 +8,7 @@ import { useConfirm } from '@/components/ui/ConfirmModal';
 import AdminUserRef from '@/components/admin/AdminUserRef';
 import {
   Building2, CheckCircle, XCircle, Trash2, Loader2, ChevronDown, ChevronUp,
-  ExternalLink, Ban, RotateCcw,
+  ExternalLink, Ban, RotateCcw, RefreshCw,
 } from 'lucide-react';
 
 type StructureRequest = {
@@ -68,6 +68,7 @@ export default function AdminStructuresPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [commentMap, setCommentMap] = useState<Record<string, string>>({});
+  const [backfilling, setBackfilling] = useState(false);
 
   async function loadStructures() {
     if (!firebaseUser) return;
@@ -95,6 +96,34 @@ export default function AdminStructuresPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firebaseUser, isAdmin, filter]);
+
+  async function handleBackfill() {
+    const ok = await confirm({
+      title: 'Recalculer les compteurs',
+      message: 'Recalcule counters.teams / counters.members pour toutes les structures en lisant l\'état réel. Idempotent — à lancer une fois après déploiement, puis à la demande si un écart est suspect.',
+      confirmLabel: 'Lancer',
+    });
+    if (!ok) return;
+    setBackfilling(true);
+    try {
+      const idToken = await firebaseUser!.getIdToken();
+      const res = await fetch('/api/admin/backfill-counters', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${idToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        toast.success(`${data.structuresUpdated} structures recalculées (${data.totalTeams} équipes, ${data.totalMembers} membres)`);
+        await loadStructures();
+      } else {
+        toast.error(data.error || 'Erreur');
+      }
+    } catch (err) {
+      console.error('[Admin/Structures] backfill error:', err);
+      toast.error('Erreur réseau');
+    }
+    setBackfilling(false);
+  }
 
   async function handleAction(structureId: string, action: string) {
     setActionLoading(`${structureId}_${action}`);
@@ -145,6 +174,13 @@ export default function AdminStructuresPage() {
           STRUCTURES ({structures.length})
         </h2>
         {pendingCount > 0 && <span className="tag tag-gold">{pendingCount} en attente</span>}
+        <button onClick={handleBackfill} disabled={backfilling}
+          className="btn-springs bevel-sm flex items-center gap-2 ml-auto"
+          style={{ fontSize: '11px', padding: '6px 12px', background: 'transparent', borderColor: 'var(--s-border)', color: 'var(--s-text-dim)' }}
+          title="Recalculer counters.teams / counters.members depuis l'état réel (idempotent)">
+          {backfilling ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+          <span>Recalculer compteurs</span>
+        </button>
       </div>
 
       {/* Filtres */}
