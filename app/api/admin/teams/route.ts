@@ -23,8 +23,10 @@ export async function GET(req: NextRequest) {
 
     let query: FirebaseFirestore.Query = db.collection('sub_teams');
     if (gameFilter) query = query.where('game', '==', gameFilter);
-    if (statusFilter) query = query.where('status', '==', statusFilter);
     if (structureIdFilter) query = query.where('structureId', '==', structureIdFilter);
+    // On ne filtre PAS status côté serveur : les équipes créées avant Lot 1 n'ont
+    // pas de champ `status` et seraient exclues par un `where('status','==','active')`.
+    // Filtre appliqué en mémoire plus bas, avec fallback 'active' si le champ manque.
     const snap = await query.limit(MAX_TEAMS).get();
 
     // Charger toutes les structures référencées en un seul batch pour enrichir.
@@ -39,12 +41,15 @@ export async function GET(req: NextRequest) {
       const players = (data.playerIds ?? []) as string[];
       const subs = (data.subIds ?? []) as string[];
       const staff = (data.staffIds ?? []) as string[];
+      // Fallback : les équipes créées avant le Lot 1 (17/04/2026) n'ont pas de
+      // champ `status` — on les considère `active` par défaut.
+      const status: 'active' | 'archived' = data.status === 'archived' ? 'archived' : 'active';
       return {
         id: doc.id,
         name: data.name ?? '',
         label: data.label ?? '',
         game: data.game ?? '',
-        status: (data.status as 'active' | 'archived') ?? 'active',
+        status,
         structureId: data.structureId ?? '',
         structureName: structure?.name ?? '',
         structureTag: structure?.tag ?? '',
@@ -60,14 +65,20 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    // Filtre status en mémoire (voir commentaire plus haut sur les docs legacy
+    // sans champ `status`).
+    const filtered = statusFilter
+      ? teams.filter(t => t.status === statusFilter)
+      : teams;
+
     // Tri : structures actives d'abord, puis par structure+name
-    teams.sort((a, b) => {
+    filtered.sort((a, b) => {
       if (a.structureName !== b.structureName) return a.structureName.localeCompare(b.structureName);
       return a.name.localeCompare(b.name);
     });
 
     return NextResponse.json({
-      teams,
+      teams: filtered,
       truncated: snap.size >= MAX_TEAMS,
       max: MAX_TEAMS,
     });
