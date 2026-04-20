@@ -34,7 +34,7 @@ export default function AdminSidebar({ pendingCount = 0, bannedCount = 0 }: Prop
     { href: '/admin/devoirs', icon: ClipboardList, label: 'Devoirs', description: 'Stats cross-structures' },
     { href: '/admin/moderation', icon: ShieldAlert, label: 'Modération', description: 'Bans, structures critiques' },
     { href: '/admin/notifications', icon: Bell, label: 'Notifications', description: 'Envoyer, historique' },
-    { href: '/admin/discord', icon: MessagesSquare, label: 'Discord', description: 'Webhooks, tests', soon: true },
+    { href: '/admin/discord', icon: MessagesSquare, label: 'Discord', description: 'Stats OAuth, tests' },
     { href: '/admin/uploads', icon: UploadCloud, label: 'Uploads', description: 'Stockage R2' },
     { href: '/admin/audit', icon: History, label: 'Audit log', description: 'Actions admin' },
     { href: '/admin/dev', icon: Wrench, label: 'Outils dev', description: 'Debug, seed, raw', soon: true },
