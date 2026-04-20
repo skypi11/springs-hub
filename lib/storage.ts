@@ -33,6 +33,11 @@ export function getR2Client(): S3Client {
     region: 'auto',
     endpoint,
     credentials: { accessKeyId, secretAccessKey },
+    // Désactive le checksum CRC32 par défaut du SDK v3 récent : il ajoute un
+    // paramètre `x-amz-sdk-checksum-algorithm=CRC32` dans l'URL présignée que
+    // R2 ne gère pas, ce qui casse le CORS preflight des PUT client→R2.
+    requestChecksumCalculation: 'WHEN_REQUIRED',
+    responseChecksumValidation: 'WHEN_REQUIRED',
   });
   return _client;
 }
