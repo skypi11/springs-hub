@@ -184,6 +184,7 @@ export default function ConfidentialitePage() {
             <li>Authentification déléguée à Discord — aucun mot de passe stocké côté Springs Hub.</li>
             <li>Règles d&apos;accès Firestore strictes : un utilisateur ne peut accéder qu&apos;aux données qui le concernent ou qui sont explicitement publiques.</li>
             <li>Documents privés stockés en bucket Cloudflare R2 privé, téléchargés via URL signée éphémère (60 secondes).</li>
+            <li><strong style={{ color: 'var(--s-text)' }}>Documents marqués sensibles</strong> (pièces d&apos;identité, justificatifs, contrats, statuts…) : chiffrés avec l&apos;algorithme <strong style={{ color: 'var(--s-text)' }}>AES-256-GCM</strong> avant stockage. La clé de déchiffrement est conservée hors du stockage R2 — un accès non autorisé au bucket ne permet pas de lire ces fichiers.</li>
             <li>Rate limiting applicatif sur les routes sensibles, audit logs et monitoring Sentry.</li>
           </ul>
         </Section>

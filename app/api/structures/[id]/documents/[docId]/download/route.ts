@@ -5,10 +5,13 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { canAccessDocuments } from '@/lib/document-permissions';
 import { writeAuditLog } from '@/lib/audit-log';
-import { generateDownloadUrl } from '@/lib/storage';
+import { generateDownloadUrl, downloadBuffer } from '@/lib/storage';
+import { decryptBuffer } from '@/lib/document-crypto';
 
 // GET /api/structures/[id]/documents/[docId]/download
-// Retourne une URL signée 60s pour télécharger le fichier avec son nom d'origine.
+// - Doc non chiffré : retourne { url } signée 60s, client redirige dessus.
+// - Doc chiffré     : retourne le binaire déchiffré directement (stream),
+//                     pas d'URL signée (le blob sur R2 est inutilisable sans clé).
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; docId: string }> }
@@ -39,22 +42,35 @@ export async function GET(
       return NextResponse.json({ error: 'Document non finalisé' }, { status: 409 });
     }
 
-    const url = await generateDownloadUrl(
-      data.r2Key as string,
-      60,
-      (data.filename as string) || `${docId}.bin`
-    );
+    const isEncrypted = data.encrypted === true;
+    const filename = (data.filename as string) || `${docId}.bin`;
 
-    // Audit — permet de voir qui a téléchargé quoi (utile sur litige RGPD)
     await writeAuditLog(db, {
       structureId,
       action: 'document_downloaded',
       actorUid: uid,
       targetId: docId,
-      metadata: { title: data.title, filename: data.filename },
+      metadata: { title: data.title, filename, encrypted: isEncrypted },
     });
 
-    return NextResponse.json({ url });
+    if (!isEncrypted) {
+      const url = await generateDownloadUrl(data.r2Key as string, 60, filename);
+      return NextResponse.json({ url });
+    }
+
+    // Doc chiffré : déchiffrement côté serveur puis stream binaire
+    const blob = await downloadBuffer(data.r2Key as string);
+    const plain = decryptBuffer(blob);
+    const safeFilename = filename.replace(/"/g, '');
+    return new NextResponse(new Uint8Array(plain), {
+      status: 200,
+      headers: {
+        'Content-Type': (data.mime as string) || 'application/octet-stream',
+        'Content-Disposition': `attachment; filename="${safeFilename}"`,
+        'Content-Length': String(plain.length),
+        'Cache-Control': 'private, no-store',
+      },
+    });
   } catch (err) {
     captureApiError('API document download', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });

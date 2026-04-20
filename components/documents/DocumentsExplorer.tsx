@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Folder as FolderIcon, FolderPlus, Upload, File as FileIcon, FileText, Image as ImageIcon,
-  Pencil, Trash2, Download, ChevronRight, Home, Loader2, FolderInput, X,
+  Pencil, Trash2, Download, ChevronRight, Home, Loader2, FolderInput, X, Lock, ShieldCheck,
 } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { useToast } from '@/components/ui/Toast';
@@ -29,6 +29,8 @@ type Doc = {
   title: string;
   notes?: string | null;
   uploadedBy: string;
+  sensitive?: boolean;
+  encrypted?: boolean;
   createdAt?: string | null;
 };
 
@@ -49,6 +51,7 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [movingDoc, setMovingDoc] = useState<{ type: 'doc' | 'folder'; id: string; currentParent: string | null } | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -182,9 +185,32 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
     const res = await fetch(`/api/structures/${structureId}/documents/${d.id}/download`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.url) { toast.error(data?.error || 'Erreur téléchargement'); return; }
-    window.location.href = data.url as string;
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      toast.error(data?.error || 'Erreur téléchargement');
+      return;
+    }
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('application/json')) {
+      // Doc non chiffré : URL signée 60s
+      const data = await res.json();
+      if (!data.url) { toast.error('Erreur téléchargement'); return; }
+      window.location.href = data.url as string;
+      return;
+    }
+    // Doc chiffré : binaire déchiffré côté serveur, on déclenche un download manuel
+    const blob = await res.blob();
+    const disp = res.headers.get('content-disposition') || '';
+    const m = disp.match(/filename="?([^";]+)"?/);
+    const filename = m?.[1] || d.filename || 'document';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }, [structureId, toast]);
 
   const moveItem = useCallback(async (targetParentId: string | null) => {
@@ -211,7 +237,7 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
 
   // ── Upload ────────────────────────────────────────────────────────────────
 
-  const uploadFile = useCallback(async (file: File) => {
+  const uploadFile = useCallback(async (file: File, sensitive: boolean) => {
     if (uploading) return;
     if (file.size > UPLOAD_LIMITS.STAFF_DOCUMENT_BYTES) {
       const mb = Math.round(UPLOAD_LIMITS.STAFF_DOCUMENT_BYTES / (1024 * 1024));
@@ -221,7 +247,9 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
     setUploading(true);
     setProgress(0);
     try {
-      const isImage = file.type.startsWith('image/');
+      // Les fichiers sensibles restent tels quels (pas de conversion webp)
+      // pour préserver l'original avant chiffrement.
+      const isImage = !sensitive && file.type.startsWith('image/');
       let payload: Blob = file;
       let mime = file.type || 'application/octet-stream';
 
@@ -258,6 +286,7 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
           mime,
           sizeBytes: payload.size,
           title: file.name.replace(/\.[^.]+$/, ''),
+          sensitive,
         }),
       });
       const prepData = await prep.json().catch(() => ({}));
@@ -287,7 +316,7 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
       const finData = await fin.json().catch(() => ({}));
       if (!fin.ok) { toast.error(finData?.error || 'Échec finalisation'); return; }
 
-      toast.success('Document ajouté');
+      toast.success(sensitive ? 'Document chiffré et ajouté' : 'Document ajouté');
       void loadAll();
     } catch {
       toast.error('Erreur upload');
@@ -299,7 +328,7 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f) void uploadFile(f);
+    if (f) setPendingFile(f);
     e.target.value = '';
   };
 
@@ -428,7 +457,90 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
           onSelect={id => void moveItem(id)}
         />
       )}
+
+      {/* Modal choix "sensible ou non" après pick du fichier */}
+      {pendingFile && (
+        <SensitiveChoiceModal
+          file={pendingFile}
+          onCancel={() => setPendingFile(null)}
+          onChoose={sensitive => {
+            const f = pendingFile;
+            setPendingFile(null);
+            void uploadFile(f, sensitive);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function SensitiveChoiceModal({ file, onCancel, onChoose }: {
+  file: File;
+  onCancel: () => void;
+  onChoose: (sensitive: boolean) => void;
+}) {
+  return (
+    <Portal>
+      <div className="fixed inset-0 z-[9600] flex items-center justify-center p-4"
+        style={{ background: 'rgba(0,0,0,0.75)' }} onClick={onCancel}>
+        <div className="bevel w-full max-w-lg overflow-hidden flex flex-col"
+          style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
+          onClick={e => e.stopPropagation()}>
+          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), transparent 70%)' }} />
+          <header className="flex items-center justify-between gap-3 px-4 py-3" style={{ borderBottom: '1px solid var(--s-border)' }}>
+            <h3 className="font-display text-sm tracking-wider">TYPE DE FICHIER</h3>
+            <button type="button" onClick={onCancel} className="flex items-center justify-center"
+              style={{ width: 28, height: 28, background: 'var(--s-elevated)', border: '1px solid var(--s-border)', color: 'var(--s-text-dim)' }}>
+              <X size={14} />
+            </button>
+          </header>
+          <div className="p-5 space-y-4">
+            <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--s-text-dim)' }}>
+              <FileIcon size={13} />
+              <span className="truncate">{file.name}</span>
+              <span style={{ color: 'var(--s-text-muted)' }}>·</span>
+              <span style={{ color: 'var(--s-text-muted)' }}>{formatSize(file.size)}</span>
+            </div>
+            <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+              Ce fichier contient-il des <strong style={{ color: 'var(--s-text)' }}>informations personnelles ou confidentielles</strong> ?
+              (pièce d&apos;identité, justificatif de domicile, RIB, contrat, statuts de l&apos;asso, document médical…)
+            </p>
+
+            <div className="grid gap-2 md:grid-cols-2">
+              <button type="button"
+                onClick={() => onChoose(true)}
+                className="bevel-sm p-4 text-left transition-all"
+                style={{ background: 'var(--s-elevated)', border: '1px solid rgba(123,47,190,0.35)' }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Lock size={14} style={{ color: 'var(--s-violet-light)' }} />
+                  <span className="font-display text-xs tracking-wider" style={{ color: 'var(--s-violet-light)' }}>OUI — SENSIBLE</span>
+                </div>
+                <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                  Chiffré <strong>AES-256-GCM</strong> avant stockage. Lisible uniquement via le site après authentification.
+                </p>
+              </button>
+
+              <button type="button"
+                onClick={() => onChoose(false)}
+                className="bevel-sm p-4 text-left transition-all"
+                style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <ShieldCheck size={14} style={{ color: 'var(--s-text-dim)' }} />
+                  <span className="font-display text-xs tracking-wider" style={{ color: 'var(--s-text)' }}>NON — STANDARD</span>
+                </div>
+                <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                  Logo, visuel, document interne non sensible. Stockage normal, accès restreint au staff.
+                </p>
+              </button>
+            </div>
+
+            <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+              En cas de doute, choisis <strong>Sensible</strong> — le chiffrement est transparent à l&apos;usage.
+            </p>
+          </div>
+        </div>
+      </div>
+    </Portal>
   );
 }
 
@@ -502,7 +614,14 @@ function DocCard({ doc, isRenaming, renameValue, onDownload, onStartRename, onRe
             maxLength={120} />
         ) : (
           <>
-            <div className="text-sm font-medium truncate" style={{ color: 'var(--s-text)' }}>{doc.title}</div>
+            <div className="flex items-center gap-1.5">
+              <div className="text-sm font-medium truncate" style={{ color: 'var(--s-text)' }}>{doc.title}</div>
+              {doc.encrypted && (
+                <span title="Chiffré AES-256-GCM" style={{ flexShrink: 0, lineHeight: 0 }}>
+                  <Lock size={11} style={{ color: 'var(--s-violet-light)' }} />
+                </span>
+              )}
+            </div>
             <div className="text-xs truncate" style={{ color: 'var(--s-text-muted)' }}>
               {formatSize(doc.sizeBytes)} · {doc.filename}
             </div>

@@ -55,6 +55,20 @@ export function getPublicUrl(key: string): string {
   return `${publicUrl.replace(/\/$/, '')}/${key}`;
 }
 
+// Télécharge un fichier depuis R2 dans un Buffer (utilisé pour
+// (re)chiffrer un document sensible après son upload initial en clair).
+export async function downloadBuffer(key: string): Promise<Buffer> {
+  const res = await getR2Client().send(
+    new GetObjectCommand({ Bucket: getBucketName(), Key: key })
+  );
+  if (!res.Body) throw new Error(`R2 objet vide : ${key}`);
+  const chunks: Buffer[] = [];
+  for await (const chunk of res.Body as AsyncIterable<Uint8Array>) {
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
 // Upload direct d'un buffer depuis le serveur (ex: après compression sharp)
 export async function uploadBuffer(
   key: string,

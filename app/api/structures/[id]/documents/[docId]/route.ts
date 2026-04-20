@@ -6,7 +6,8 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { canAccessDocuments } from '@/lib/document-permissions';
 import { writeAuditLog } from '@/lib/audit-log';
-import { deleteFileSilent, fileExists } from '@/lib/storage';
+import { deleteFileSilent, fileExists, downloadBuffer, uploadBuffer } from '@/lib/storage';
+import { encryptBuffer, ENCRYPTION_ALGO_LABEL, isEncryptionAvailable } from '@/lib/document-crypto';
 
 // PATCH /api/structures/[id]/documents/[docId]
 // Corps possibles :
@@ -50,10 +51,40 @@ export async function PATCH(
       if (!exists) {
         return NextResponse.json({ error: 'Fichier absent sur R2' }, { status: 409 });
       }
-      await ref.update({
+
+      // Si le doc est marqué sensible : on (re)chiffre le blob en place sur R2
+      // avant de le passer en ready. L'original en clair n'existe plus après overwrite.
+      let encryptedNow = false;
+      let ciphertextSize: number | null = null;
+      if (current.sensitive === true && current.encrypted !== true) {
+        if (!isEncryptionAvailable()) {
+          return NextResponse.json(
+            { error: 'Chiffrement non configuré — contacter un admin' },
+            { status: 500 }
+          );
+        }
+        const plain = await downloadBuffer(current.r2Key as string);
+        const blob = encryptBuffer(plain);
+        await uploadBuffer(
+          current.r2Key as string,
+          blob,
+          'application/octet-stream',
+          'private, no-store'
+        );
+        encryptedNow = true;
+        ciphertextSize = blob.length;
+      }
+
+      const update: Record<string, unknown> = {
         status: 'ready',
         updatedAt: FieldValue.serverTimestamp(),
-      });
+      };
+      if (encryptedNow) {
+        update.encrypted = true;
+        update.encryptionAlgo = ENCRYPTION_ALGO_LABEL;
+        if (ciphertextSize !== null) update.ciphertextBytes = ciphertextSize;
+      }
+      await ref.update(update);
       await writeAuditLog(db, {
         structureId,
         action: 'document_uploaded',
@@ -64,6 +95,8 @@ export async function PATCH(
           folderId: current.folderId,
           sizeBytes: current.sizeBytes,
           filename: current.filename,
+          sensitive: current.sensitive === true,
+          encrypted: encryptedNow,
         },
       });
       return NextResponse.json({ ok: true });

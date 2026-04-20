@@ -108,6 +108,7 @@ export async function POST(
     const mime = typeof body.mime === 'string' ? body.mime : 'application/octet-stream';
     const sizeBytes = typeof body.sizeBytes === 'number' ? body.sizeBytes : 0;
     const titleRaw = typeof body.title === 'string' ? body.title : '';
+    const sensitive = body.sensitive === true;
 
     if (!filename) return NextResponse.json({ error: 'filename requis' }, { status: 400 });
     if (sizeBytes <= 0 || sizeBytes > UPLOAD_LIMITS.STAFF_DOCUMENT_BYTES) {
@@ -160,6 +161,8 @@ export async function POST(
       status: 'pending',
       title,
       notes: null,
+      sensitive,
+      encrypted: false,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
