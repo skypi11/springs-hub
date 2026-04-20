@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
-import { auth } from '@/lib/firebase';
+import { api, apiDownload, ApiError } from '@/lib/api-client';
 import { countries } from '@/lib/countries';
 import {
   Save, User, Gamepad2, Search, ExternalLink,
@@ -101,12 +102,10 @@ export default function SettingsPage() {
     if (!firebaseUser) return;
     setExporting(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/account/export', {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      if (!res.ok) throw new Error('export failed');
-      const blob = await res.blob();
+      const result = await apiDownload('/api/account/export');
+      const blob = result.kind === 'blob'
+        ? result.blob
+        : new Blob([JSON.stringify(result.data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -128,24 +127,21 @@ export default function SettingsPage() {
     setDeleteError('');
     setDeleteBlockingStructures([]);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/account/delete', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        await signOut();
-        router.push('/?deleted=1');
-        return;
-      }
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 409 && Array.isArray(data.structures)) {
-        setDeleteBlockingStructures(data.structures);
-      }
-      setDeleteError(data.error || 'Suppression impossible.');
+      await api('/api/account/delete', { method: 'POST' });
+      await signOut();
+      router.push('/?deleted=1');
+      return;
     } catch (err) {
-      console.error('[Settings] delete error:', err);
-      setDeleteError('Erreur réseau. Réessaie.');
+      if (err instanceof ApiError) {
+        const payload = err.payload as { structures?: string[] } | null;
+        if (err.status === 409 && Array.isArray(payload?.structures)) {
+          setDeleteBlockingStructures(payload.structures);
+        }
+        setDeleteError(err.message || 'Suppression impossible.');
+      } else {
+        console.error('[Settings] delete error:', err);
+        setDeleteError('Erreur réseau. Réessaie.');
+      }
     }
     setDeleting(false);
   }
@@ -156,48 +152,35 @@ export default function SettingsPage() {
     if (saved) setSaved(false);
   }
 
+  const profileQ = useQuery({
+    queryKey: ['profile', firebaseUser?.uid ?? null] as const,
+    queryFn: () => api<Record<string, unknown>>(`/api/profile?uid=${encodeURIComponent(firebaseUser!.uid)}`),
+    enabled: !!firebaseUser && !authLoading,
+  });
+
   useEffect(() => {
-    if (authLoading || !firebaseUser) return;
-
-    async function loadProfile() {
-      try {
-        const idToken = await firebaseUser!.getIdToken();
-        const res = await fetch(`/api/profile?uid=${encodeURIComponent(firebaseUser!.uid)}`, {
-          headers: { Authorization: `Bearer ${idToken}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setForm({
-            displayName: data.displayName ?? firebaseUser!.displayName ?? '',
-            avatarUrl: data.avatarUrl ?? '',
-            bio: data.bio ?? '',
-            country: data.country ?? '',
-            dateOfBirth: data.dateOfBirth ?? '',
-            games: data.games ?? [],
-            epicAccountId: data.epicDisplayName ?? data.epicAccountId ?? '',
-            rlTrackerUrl: data.rlTrackerUrl ?? '',
-            rlRank: data.rlRank ?? '',
-            pseudoTM: data.pseudoTM ?? '',
-            loginTM: data.loginTM ?? '',
-            tmIoUrl: data.tmIoUrl ?? '',
-            isAvailableForRecruitment: data.isAvailableForRecruitment ?? false,
-            recruitmentRole: data.recruitmentRole ?? '',
-            recruitmentMessage: data.recruitmentMessage ?? '',
-          });
-        } else {
-          setForm(prev => ({
-            ...prev,
-            displayName: firebaseUser!.displayName ?? '',
-          }));
-        }
-      } catch (err) {
-        console.error('[Settings] load error:', err);
-      }
-      setLoaded(true);
-    }
-
-    loadProfile();
-  }, [authLoading, firebaseUser]);
+    if (loaded || !firebaseUser) return;
+    if (profileQ.isPending) return;
+    const data = (profileQ.data ?? {}) as Record<string, string | string[] | boolean | undefined>;
+    setForm({
+      displayName: (data.displayName as string) ?? firebaseUser.displayName ?? '',
+      avatarUrl: (data.avatarUrl as string) ?? '',
+      bio: (data.bio as string) ?? '',
+      country: (data.country as string) ?? '',
+      dateOfBirth: (data.dateOfBirth as string) ?? '',
+      games: (data.games as string[]) ?? [],
+      epicAccountId: (data.epicDisplayName as string) ?? (data.epicAccountId as string) ?? '',
+      rlTrackerUrl: (data.rlTrackerUrl as string) ?? '',
+      rlRank: (data.rlRank as string) ?? '',
+      pseudoTM: (data.pseudoTM as string) ?? '',
+      loginTM: (data.loginTM as string) ?? '',
+      tmIoUrl: (data.tmIoUrl as string) ?? '',
+      isAvailableForRecruitment: (data.isAvailableForRecruitment as boolean) ?? false,
+      recruitmentRole: (data.recruitmentRole as string) ?? '',
+      recruitmentMessage: (data.recruitmentMessage as string) ?? '',
+    });
+    setLoaded(true);
+  }, [profileQ.isPending, profileQ.data, firebaseUser, loaded]);
 
   if (!authLoading && !firebaseUser) {
     return (
@@ -261,36 +244,20 @@ export default function SettingsPage() {
     setSaved(false);
 
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) {
-        setError('Session expirée. Reconnecte-toi.');
-        setSaving(false);
-        return;
-      }
-
-      const res = await fetch('/api/profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`,
-        },
-        body: JSON.stringify(form),
-      });
-
-      if (res.ok) {
-        setSaved(true);
-        setDirty(false);
-        // Rafraîchir le state global AuthContext pour que ProfileCompletionGate
-        // voie le profil complété et n'essaie plus de rediriger vers /settings.
-        await refreshProfile();
-        setTimeout(() => setSaved(false), 3000);
-      } else {
-        const data = await res.json();
-        setError(data.error || 'Erreur lors de la sauvegarde.');
-      }
+      await api('/api/profile', { method: 'POST', body: form });
+      setSaved(true);
+      setDirty(false);
+      // Rafraîchir le state global AuthContext pour que ProfileCompletionGate
+      // voie le profil complété et n'essaie plus de rediriger vers /settings.
+      await refreshProfile();
+      setTimeout(() => setSaved(false), 3000);
     } catch (err) {
-      console.error('[Settings] save error:', err);
-      setError('Erreur réseau. Réessaie.');
+      if (err instanceof ApiError) {
+        setError(err.message || 'Erreur lors de la sauvegarde.');
+      } else {
+        console.error('[Settings] save error:', err);
+        setError('Erreur réseau. Réessaie.');
+      }
     }
 
     setSaving(false);
