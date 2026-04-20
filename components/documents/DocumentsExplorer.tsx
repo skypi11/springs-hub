@@ -252,6 +252,14 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
       const isImage = !sensitive && file.type.startsWith('image/');
       let payload: Blob = file;
       let mime = file.type || 'application/octet-stream';
+      const originalMime = file.type || 'application/octet-stream';
+
+      // Sensibles : on envoie en octet-stream vers R2 (évite des variations CORS
+      // selon le Content-Type). Le vrai mime est stocké en Firestore pour que
+      // le download serve le bon type au client après déchiffrement.
+      if (sensitive) {
+        mime = 'application/octet-stream';
+      }
 
       if (isImage) {
         // Conversion webp côté client pour économiser le stockage
@@ -284,6 +292,7 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
           folderId: currentFolderId,
           filename: file.name,
           mime,
+          originalMime: sensitive ? originalMime : undefined,
           sizeBytes: payload.size,
           title: file.name.replace(/\.[^.]+$/, ''),
           sensitive,

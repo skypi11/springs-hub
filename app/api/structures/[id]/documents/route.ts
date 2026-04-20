@@ -109,13 +109,22 @@ export async function POST(
     const sizeBytes = typeof body.sizeBytes === 'number' ? body.sizeBytes : 0;
     const titleRaw = typeof body.title === 'string' ? body.title : '';
     const sensitive = body.sensitive === true;
+    // Pour les sensibles, le client envoie `mime='application/octet-stream'` vers R2
+    // (robuste CORS), mais on préserve le vrai mime (originalMime) pour le download
+    // et les icônes dans l'explorateur.
+    const originalMime = typeof body.originalMime === 'string' && body.originalMime
+      ? body.originalMime
+      : mime;
 
     if (!filename) return NextResponse.json({ error: 'filename requis' }, { status: 400 });
     if (sizeBytes <= 0 || sizeBytes > UPLOAD_LIMITS.STAFF_DOCUMENT_BYTES) {
       const mb = Math.round(UPLOAD_LIMITS.STAFF_DOCUMENT_BYTES / (1024 * 1024));
       return NextResponse.json({ error: `Taille invalide — max ${mb} MB par fichier` }, { status: 413 });
     }
-    if (!isAllowedMime(mime, 'DOCUMENTS')) {
+    // On valide le VRAI mime (originalMime) pour les sensibles, car le `mime` envoyé
+    // est 'application/octet-stream' pour contourner CORS sur l'étape PUT vers R2.
+    const mimeForValidation = sensitive ? originalMime : mime;
+    if (!isAllowedMime(mimeForValidation, 'DOCUMENTS')) {
       return NextResponse.json({ error: 'Type de fichier non supporté' }, { status: 415 });
     }
 
@@ -146,7 +155,9 @@ export async function POST(
 
     const ref = db.collection('structure_documents').doc();
     const docId = ref.id;
-    const ext = extensionForStorage(safeName, mime);
+    // Pour nommer la clé R2, on part du vrai mime (originalMime) — évite qu'un
+    // fichier sensible soit stocké avec une extension .bin systématique.
+    const ext = extensionForStorage(safeName, mimeForValidation);
     // Clé R2 : structures/{sid}/documents/{docId}.{ext} — simple, unique, prévisible
     const r2Key = `structures/${structureId}/documents/${docId}.${ext}`;
 
@@ -155,7 +166,8 @@ export async function POST(
       folderId,
       uploadedBy: uid,
       filename: safeName,
-      mime,
+      // On stocke le vrai mime (pour les icônes et le Content-Type du download déchiffré).
+      mime: mimeForValidation,
       sizeBytes,
       r2Key,
       status: 'pending',
