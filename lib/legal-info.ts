@@ -14,7 +14,7 @@ export const LEGAL_INFO = {
   associationAddress: '6 lotissement Le Champ de la Vigne, 58310 Saint-Amand-en-Puisaye',
 
   // Représentant légal
-  representativeName: 'À COMPLÉTER — Prénom NOM du président',
+  representativeName: 'Kevin MARGERY',
   representativeRole: 'Président',
 
   // Contact
