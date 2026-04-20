@@ -1,0 +1,163 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getAdminDb, verifyAuth, isAdmin } from '@/lib/firebase-admin';
+import { fetchDocsByIds } from '@/lib/firestore-helpers';
+import { endOfDayParisMs, parisYmd, TODO_TYPE_META, type TodoType } from '@/lib/todos';
+import { captureApiError } from '@/lib/sentry';
+
+const MAX_TODOS = 5000;
+
+function tsMs(v: unknown): number | null {
+  if (!v) return null;
+  if (typeof v === 'object' && v !== null && 'toMillis' in v && typeof (v as { toMillis: unknown }).toMillis === 'function') {
+    return (v as { toMillis: () => number }).toMillis();
+  }
+  if (v instanceof Date) return v.getTime();
+  return null;
+}
+
+type StructureStats = {
+  structureId: string;
+  structureName: string;
+  structureTag: string;
+  structureLogoUrl: string;
+  total: number;
+  pending: number;
+  done: number;
+  overdue: number;
+  dueToday: number;
+  dueThisWeek: number;
+  doneLast7d: number;
+  completionRate: number;
+  byType: Record<string, number>;
+};
+
+// GET /api/admin/devoirs — vue cross-structures de tous les devoirs.
+// Agrège structure_todos par structure + stats globales. Pas de détail par devoir
+// (c'est le rôle du panel structure) — ici on donne un bilan d'ensemble pour
+// identifier les structures en retard / sans activité.
+export async function GET(req: NextRequest) {
+  try {
+    const uid = await verifyAuth(req);
+    if (!uid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    if (!(await isAdmin(uid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+
+    const db = getAdminDb();
+
+    const snap = await db.collection('structure_todos').limit(MAX_TODOS).get();
+
+    const nowMs = Date.now();
+    const todayYmd = parisYmd(nowMs);
+    const endOfTodayMs = endOfDayParisMs(todayYmd);
+    const endOfWeekMs = endOfTodayMs + 6 * 86400000;
+    const sevenDaysAgoMs = nowMs - 7 * 86400000;
+
+    const byStructure = new Map<string, StructureStats>();
+    const structureIds = new Set<string>();
+
+    let gTotal = 0, gPending = 0, gDone = 0, gOverdue = 0, gDueToday = 0, gDueThisWeek = 0, gDoneLast7d = 0;
+    const gByType: Record<string, number> = {};
+
+    for (const doc of snap.docs) {
+      const d = doc.data();
+      const structureId = d.structureId as string | undefined;
+      if (!structureId) continue;
+      structureIds.add(structureId);
+
+      let s = byStructure.get(structureId);
+      if (!s) {
+        s = {
+          structureId,
+          structureName: '',
+          structureTag: '',
+          structureLogoUrl: '',
+          total: 0, pending: 0, done: 0,
+          overdue: 0, dueToday: 0, dueThisWeek: 0, doneLast7d: 0,
+          completionRate: 0,
+          byType: {},
+        };
+        byStructure.set(structureId, s);
+      }
+
+      const type = (typeof d.type === 'string' && d.type) ? d.type : 'free';
+      s.byType[type] = (s.byType[type] ?? 0) + 1;
+      gByType[type] = (gByType[type] ?? 0) + 1;
+
+      s.total++;
+      gTotal++;
+
+      const isDone = !!d.done;
+      if (isDone) {
+        s.done++;
+        gDone++;
+        const doneAt = tsMs(d.doneAt);
+        if (doneAt !== null && doneAt >= sevenDaysAgoMs) {
+          s.doneLast7d++;
+          gDoneLast7d++;
+        }
+        continue;
+      }
+
+      s.pending++;
+      gPending++;
+
+      const deadline = (d.deadline as string | null) ?? null;
+      const deadlineAt = typeof d.deadlineAt === 'number'
+        ? d.deadlineAt
+        : (deadline ? endOfDayParisMs(deadline) : null);
+      if (deadlineAt === null) continue;
+      if (deadlineAt < nowMs) {
+        s.overdue++;
+        gOverdue++;
+      } else if (deadlineAt <= endOfTodayMs) {
+        s.dueToday++;
+        gDueToday++;
+      } else if (deadlineAt <= endOfWeekMs) {
+        s.dueThisWeek++;
+        gDueThisWeek++;
+      }
+    }
+
+    const structuresById = await fetchDocsByIds(db, 'structures', Array.from(structureIds));
+    for (const s of byStructure.values()) {
+      const struct = structuresById.get(s.structureId);
+      s.structureName = (struct?.name as string | undefined) ?? '';
+      s.structureTag = (struct?.tag as string | undefined) ?? '';
+      s.structureLogoUrl = (struct?.logoUrl as string | undefined) ?? '';
+      s.completionRate = s.total > 0 ? Math.round((s.done / s.total) * 100) : 0;
+    }
+
+    const structures = Array.from(byStructure.values()).sort((a, b) => {
+      if (b.overdue !== a.overdue) return b.overdue - a.overdue;
+      if (b.pending !== a.pending) return b.pending - a.pending;
+      return a.structureName.localeCompare(b.structureName);
+    });
+
+    const typeBreakdown = Object.entries(gByType)
+      .map(([type, count]) => ({
+        type,
+        count,
+        label: TODO_TYPE_META[type as TodoType]?.label ?? type,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    return NextResponse.json({
+      global: {
+        total: gTotal,
+        pending: gPending,
+        done: gDone,
+        overdue: gOverdue,
+        dueToday: gDueToday,
+        dueThisWeek: gDueThisWeek,
+        doneLast7d: gDoneLast7d,
+        completionRate: gTotal > 0 ? Math.round((gDone / gTotal) * 100) : 0,
+      },
+      typeBreakdown,
+      structures,
+      truncated: snap.size >= MAX_TODOS,
+      max: MAX_TODOS,
+    });
+  } catch (err) {
+    captureApiError('API Admin/Devoirs GET error', err);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+  }
+}
