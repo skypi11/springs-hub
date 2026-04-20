@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Send, Loader2, X, Shield } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import Portal from '@/components/ui/Portal';
 
@@ -46,8 +48,6 @@ export default function InviteToStructureButton({
 }: Props) {
   const { firebaseUser } = useAuth();
   const toast = useToast();
-  const [eligible, setEligible] = useState<EligibleStructure[] | null>(null);
-  const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [visible, setVisible] = useState(false);
   const [selectedStructureId, setSelectedStructureId] = useState('');
@@ -58,41 +58,25 @@ export default function InviteToStructureButton({
 
   // Charge les structures où l'user est dirigeant dès qu'il est connecté — permet de cacher
   // le bouton s'il n'a pas d'accès
-  useEffect(() => {
-    if (!firebaseUser) {
-      setEligible([]);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const idToken = await firebaseUser.getIdToken();
-        const res = await fetch('/api/structures/my', {
-          headers: { 'Authorization': `Bearer ${idToken}` },
-        });
-        if (!res.ok) {
-          if (!cancelled) setEligible([]);
-          return;
-        }
-        const data = await res.json();
-        const structures: EligibleStructure[] = (data.structures || [])
-          .filter((s: { accessLevel?: string; status?: string }) =>
-            s.accessLevel === 'dirigeant' && s.status === 'active'
-          )
-          .map((s: EligibleStructure) => ({
-            id: s.id,
-            name: s.name,
-            tag: s.tag,
-            games: s.games || [],
-            recruiting: s.recruiting || { active: false, positions: [] },
-          }));
-        if (!cancelled) setEligible(structures);
-      } catch {
-        if (!cancelled) setEligible([]);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [firebaseUser]);
+  const { data: structuresData, isPending } = useQuery({
+    queryKey: ['structures', 'my'] as const,
+    queryFn: () => api<{ structures: (EligibleStructure & { accessLevel?: string; status?: string })[] }>('/api/structures/my'),
+    enabled: !!firebaseUser,
+  });
+  const eligible: EligibleStructure[] | null = useMemo(() => {
+    if (!firebaseUser) return [];
+    if (isPending) return null;
+    const list = structuresData?.structures ?? [];
+    return list
+      .filter(s => s.accessLevel === 'dirigeant' && s.status === 'active')
+      .map(s => ({
+        id: s.id,
+        name: s.name,
+        tag: s.tag,
+        games: s.games || [],
+        recruiting: s.recruiting || { active: false, positions: [] },
+      }));
+  }, [firebaseUser, isPending, structuresData]);
 
   const openModal = useCallback(() => {
     if (!eligible || eligible.length === 0) return;
@@ -125,28 +109,21 @@ export default function InviteToStructureButton({
     if (!firebaseUser || !selectedStructureId || !game) return;
     setSubmitting(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/invitations', {
+      await api('/api/structures/invitations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({
+        body: {
           action: 'direct_invite',
           structureId: selectedStructureId,
           targetUserId,
           game,
           role,
           message,
-        }),
+        },
       });
-      const data = await res.json();
-      if (res.ok) {
-        toast.success(`Invitation envoyée à ${targetDisplayName}`);
-        closeModal();
-      } else {
-        toast.error(data.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
+      toast.success(`Invitation envoyée à ${targetDisplayName}`);
+      closeModal();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setSubmitting(false);
   }
@@ -174,7 +151,7 @@ export default function InviteToStructureButton({
     <>
       <button
         onClick={openModal}
-        disabled={loading}
+        disabled={isPending}
         className={`btn-springs btn-primary bevel-sm flex items-center gap-2 ${compact ? 'text-xs' : ''} ${className}`}
       >
         <Send size={compact ? 11 : 13} /> Inviter

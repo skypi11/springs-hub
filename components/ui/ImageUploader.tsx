@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Upload, Loader2, X } from 'lucide-react';
-import { auth } from '@/lib/firebase';
+import { apiForm, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 
 interface ImageUploaderProps {
@@ -63,35 +63,19 @@ export default function ImageUploader({
 
     setUploading(true);
     try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) {
-        toast.error('Session expirée, reconnecte-toi');
-        return;
-      }
-
       const form = new FormData();
       form.append('file', file);
       for (const [k, v] of Object.entries(extraFields ?? {})) {
         form.append(k, v);
       }
 
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
-      });
-
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(json?.error || 'Échec de l\'upload');
-        return;
-      }
+      const json = await apiForm<{ url?: string }>(endpoint, form);
       if (typeof json?.url === 'string') {
         onUploaded(json.url);
         toast.success('Image mise à jour');
       }
-    } catch {
-      toast.error('Erreur réseau pendant l\'upload');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau pendant l\'upload');
     } finally {
       setUploading(false);
     }

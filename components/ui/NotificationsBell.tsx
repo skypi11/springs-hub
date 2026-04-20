@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Bell, Check, UserPlus, CheckCircle2, XCircle, Calendar, Trophy, Inbox, Clock,
 } from 'lucide-react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api-client';
 import Portal from './Portal';
 
 type Notification = {
@@ -51,54 +53,33 @@ function iconFor(type: string) {
 export default function NotificationsBell() {
   const router = useRouter();
   const { user } = useAuth();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unread, setUnread] = useState(0);
+  const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Chargement initial via API (getDocs équivalent)
-  const reload = useCallback(async () => {
-    if (!user) return;
-    try {
-      const { auth } = await import('@/lib/firebase');
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) return;
-      setLoading(true);
-      const res = await fetch('/api/notifications', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      setNotifications(data.notifications || []);
-      setUnread(data.unread || 0);
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+  const queryKey = ['notifications', user?.uid ?? null] as const;
+  const { data, isPending: loading } = useQuery({
+    queryKey,
+    queryFn: () => api<{ notifications: Notification[]; unread: number }>('/api/notifications'),
+    enabled: !!user,
+  });
+  const notifications = data?.notifications ?? [];
+  const unread = data?.unread ?? 0;
 
   useEffect(() => {
-    if (!user) {
-      setNotifications([]);
-      setUnread(0);
-      return;
-    }
-    reload();
-
-    // Live updates: skip le premier fire (déjà couvert par reload())
+    if (!user) return;
+    // Live updates: skip le premier fire (déjà couvert par useQuery initial)
     let first = true;
     const q = query(collection(db, 'notifications'), where('userId', '==', user.uid));
     const unsub = onSnapshot(q, () => {
       if (first) { first = false; return; }
-      reload();
+      qc.invalidateQueries({ queryKey });
     }, () => {
       // silent on error
     });
     return () => unsub();
-  }, [user, reload]);
+  }, [user, qc, queryKey]);
 
   useEffect(() => {
     if (!open) return;
@@ -120,13 +101,10 @@ export default function NotificationsBell() {
 
   async function handleClick(n: Notification) {
     try {
-      const { auth } = await import('@/lib/firebase');
-      const token = await auth.currentUser?.getIdToken();
-      if (token && !n.read) {
-        await fetch('/api/notifications', {
+      if (!n.read) {
+        await api('/api/notifications', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ action: 'mark_read', notificationId: n.id }),
+          body: { action: 'mark_read', notificationId: n.id },
         });
       }
     } catch {
@@ -139,15 +117,11 @@ export default function NotificationsBell() {
 
   async function markAllRead() {
     try {
-      const { auth } = await import('@/lib/firebase');
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) return;
-      await fetch('/api/notifications', {
+      await api('/api/notifications', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ action: 'mark_all_read' }),
+        body: { action: 'mark_all_read' },
       });
-      reload();
+      qc.invalidateQueries({ queryKey });
     } catch {
       // ignore
     }

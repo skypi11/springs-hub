@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useQuery } from '@tanstack/react-query';
 import {
   Calendar,
   ClipboardList,
@@ -13,6 +14,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api-client';
 import type { SpringsUser } from '@/types';
 
 type MyEvent = {
@@ -86,63 +88,52 @@ function formatDateTime(iso: string | null): string {
 
 export default function ConnectedDashboard({ user }: { user: SpringsUser }) {
   const { firebaseUser } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [nextEvent, setNextEvent] = useState<MyEvent | null>(null);
-  const [nextEventStructure, setNextEventStructure] = useState<StructureInfo | null>(null);
-  const [pendingTodos, setPendingTodos] = useState<MyTodo[]>([]);
-  const [structures, setStructures] = useState<MyStructure[]>([]);
+  const enabled = !!firebaseUser;
 
-  const loadAll = useCallback(async () => {
-    if (!firebaseUser) return;
-    setLoading(true);
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const headers = { Authorization: `Bearer ${idToken}` };
+  const calendarQ = useQuery({
+    queryKey: ['calendar', 'me'] as const,
+    queryFn: () => api<{ events: MyEvent[]; structures: Record<string, StructureInfo> }>('/api/calendar/me'),
+    enabled,
+  });
+  const todosQ = useQuery({
+    queryKey: ['todos', 'me'] as const,
+    queryFn: () => api<{ todos: MyTodo[] }>('/api/todos/me'),
+    enabled,
+  });
+  const structuresQ = useQuery({
+    queryKey: ['structures', 'my'] as const,
+    queryFn: () => api<{ structures: MyStructure[] }>('/api/structures/my'),
+    enabled,
+  });
 
-      const [calRes, todoRes, structRes] = await Promise.all([
-        fetch('/api/calendar/me', { headers }),
-        fetch('/api/todos/me', { headers }),
-        fetch('/api/structures/my', { headers }),
-      ]);
+  const loading = calendarQ.isPending || todosQ.isPending || structuresQ.isPending;
 
-      if (calRes.ok) {
-        const data = await calRes.json();
-        const events: MyEvent[] = data.events ?? [];
-        const structs: Record<string, StructureInfo> = data.structures ?? {};
-        const now = Date.now();
-        const future = events.find(e => {
-          if (!e.startsAt) return false;
-          if (e.status === 'cancelled') return false;
-          return new Date(e.startsAt).getTime() >= now;
-        });
-        setNextEvent(future ?? null);
-        setNextEventStructure(future ? structs[future.structureId] ?? null : null);
-      }
+  const { nextEvent, nextEventStructure } = useMemo(() => {
+    const events = calendarQ.data?.events ?? [];
+    const structs = calendarQ.data?.structures ?? {};
+    const now = Date.now();
+    const future = events.find(e => {
+      if (!e.startsAt) return false;
+      if (e.status === 'cancelled') return false;
+      return new Date(e.startsAt).getTime() >= now;
+    });
+    return {
+      nextEvent: future ?? null,
+      nextEventStructure: future ? structs[future.structureId] ?? null : null,
+    };
+  }, [calendarQ.data]);
 
-      if (todoRes.ok) {
-        const data = await todoRes.json();
-        const todos: MyTodo[] = (data.todos ?? []).filter((t: MyTodo) => !t.done);
-        todos.sort((a, b) => {
-          const ad = a.deadline ? new Date(a.deadline).getTime() : Infinity;
-          const bd = b.deadline ? new Date(b.deadline).getTime() : Infinity;
-          return ad - bd;
-        });
-        setPendingTodos(todos);
-      }
+  const pendingTodos = useMemo(() => {
+    const todos = (todosQ.data?.todos ?? []).filter(t => !t.done);
+    todos.sort((a, b) => {
+      const ad = a.deadline ? new Date(a.deadline).getTime() : Infinity;
+      const bd = b.deadline ? new Date(b.deadline).getTime() : Infinity;
+      return ad - bd;
+    });
+    return todos;
+  }, [todosQ.data]);
 
-      if (structRes.ok) {
-        const data = await structRes.json();
-        setStructures(data.structures ?? []);
-      }
-    } catch (err) {
-      console.error('[ConnectedDashboard] load error:', err);
-    }
-    setLoading(false);
-  }, [firebaseUser]);
-
-  useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+  const structures = structuresQ.data?.structures ?? [];
 
   const firstName = (user.displayName || user.discordUsername || 'joueur').trim();
   const avatar = user.avatarUrl || user.discordAvatar || '';
