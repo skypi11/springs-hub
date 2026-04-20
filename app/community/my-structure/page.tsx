@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import {
@@ -826,22 +827,15 @@ export default function MyStructurePage() {
   async function loadStructures() {
     if (!firebaseUser) return;
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const [staffRes, playerRes] = await Promise.all([
-        fetch('/api/structures/my', { headers: { 'Authorization': `Bearer ${idToken}` } }),
-        fetch('/api/structures/my-player', { headers: { 'Authorization': `Bearer ${idToken}` } }),
+      const [staffData, playerData] = await Promise.all([
+        api<{ structures: MyStructure[] }>('/api/structures/my').catch(() => ({ structures: [] as MyStructure[] })),
+        api<{ structures: PlayerStructure[] }>('/api/structures/my-player').catch(() => ({ structures: [] as PlayerStructure[] })),
       ]);
-      if (staffRes.ok) {
-        const data = await staffRes.json();
-        setStructures(data.structures ?? []);
-        if (data.structures?.length > 0 && !activeStructure) {
-          selectStructure(data.structures[0]);
-        }
+      setStructures(staffData.structures ?? []);
+      if (staffData.structures?.length > 0 && !activeStructure) {
+        selectStructure(staffData.structures[0]);
       }
-      if (playerRes.ok) {
-        const data = await playerRes.json();
-        setPlayerStructures(data.structures ?? []);
-      }
+      setPlayerStructures(playerData.structures ?? []);
     } catch (err) {
       console.error('[MyStructure] load error:', err);
     }
@@ -851,11 +845,8 @@ export default function MyStructurePage() {
   async function loadTeams(structureId: string) {
     setTeamsLoading(true);
     try {
-      const res = await fetch(`/api/structures/teams?structureId=${structureId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setTeams(data.teams ?? []);
-      }
+      const data = await api<{ teams: TeamData[] }>(`/api/structures/teams?structureId=${structureId}`);
+      setTeams(data.teams ?? []);
     } catch (err) {
       console.error('[MyStructure] load teams error:', err);
     }
@@ -912,11 +903,9 @@ export default function MyStructurePage() {
     if (!activeStructure || !firebaseUser || !newTeamName.trim() || !newTeamGame || !newTeamLabel.trim()) return;
     setTeamActionLoading('create');
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/teams', {
+      await api('/api/structures/teams', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({
+        body: {
           action: 'create',
           structureId: activeStructure.id,
           name: newTeamName,
@@ -926,22 +915,16 @@ export default function MyStructurePage() {
           playerIds: [],
           subIds: [],
           staffIds: [],
-        }),
+        },
       });
-      if (res.ok) {
-        setNewTeamName('');
-        setNewTeamLabel('');
-        setNewTeamLogoUrl('');
-        setShowNewTeam(false);
-        await loadTeams(activeStructure.id);
-        toast.success('Équipe créée');
-      } else {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error || 'Erreur');
-      }
+      setNewTeamName('');
+      setNewTeamLabel('');
+      setNewTeamLogoUrl('');
+      setShowNewTeam(false);
+      await loadTeams(activeStructure.id);
+      toast.success('Équipe créée');
     } catch (err) {
-      console.error('[MyStructure] create team error:', err);
-      toast.error('Erreur réseau');
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setTeamActionLoading(null);
   }
@@ -950,26 +933,14 @@ export default function MyStructurePage() {
     if (!activeStructure || !firebaseUser) return;
     setTeamActionLoading(teamId);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/teams', {
+      await api('/api/structures/teams', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({
-          action: archive ? 'archive' : 'unarchive',
-          structureId: activeStructure.id,
-          teamId,
-        }),
+        body: { action: archive ? 'archive' : 'unarchive', structureId: activeStructure.id, teamId },
       });
-      if (res.ok) {
-        await loadTeams(activeStructure.id);
-        toast.success(archive ? 'Équipe archivée' : 'Équipe désarchivée');
-      } else {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error || 'Erreur');
-      }
+      await loadTeams(activeStructure.id);
+      toast.success(archive ? 'Équipe archivée' : 'Équipe désarchivée');
     } catch (err) {
-      console.error('[MyStructure] archive team error:', err);
-      toast.error('Erreur réseau');
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setTeamActionLoading(null);
     setTeamMenuOpen(null);
@@ -979,27 +950,14 @@ export default function MyStructurePage() {
     if (!activeStructure || !firebaseUser) return;
     setTeamActionLoading(`${teamId}_captain`);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/teams', {
+      await api('/api/structures/teams', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({
-          action: 'update',
-          structureId: activeStructure.id,
-          teamId,
-          captainId,
-        }),
+        body: { action: 'update', structureId: activeStructure.id, teamId, captainId },
       });
-      if (res.ok) {
-        await loadTeams(activeStructure.id);
-        toast.success(captainId ? 'Capitaine désigné' : 'Capitaine retiré');
-      } else {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error || 'Erreur');
-      }
+      await loadTeams(activeStructure.id);
+      toast.success(captainId ? 'Capitaine désigné' : 'Capitaine retiré');
     } catch (err) {
-      console.error('[MyStructure] set captain error:', err);
-      toast.error('Erreur réseau');
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setTeamActionLoading(null);
   }
@@ -1008,28 +966,15 @@ export default function MyStructurePage() {
     if (!activeStructure || !firebaseUser) return;
     setTeamActionLoading(`${teamId}_logo`);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/teams', {
+      await api('/api/structures/teams', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({
-          action: 'update',
-          structureId: activeStructure.id,
-          teamId,
-          logoUrl: rawLogoUrl.trim(),
-        }),
+        body: { action: 'update', structureId: activeStructure.id, teamId, logoUrl: rawLogoUrl.trim() },
       });
-      if (res.ok) {
-        await loadTeams(activeStructure.id);
-        toast.success(rawLogoUrl.trim() ? 'Logo mis à jour' : 'Logo retiré');
-        setTeamLogoEdit(null);
-      } else {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error || 'Erreur');
-      }
+      await loadTeams(activeStructure.id);
+      toast.success(rawLogoUrl.trim() ? 'Logo mis à jour' : 'Logo retiré');
+      setTeamLogoEdit(null);
     } catch (err) {
-      console.error('[MyStructure] update team logo error:', err);
-      toast.error('Erreur réseau');
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setTeamActionLoading(null);
   }
@@ -1043,28 +988,15 @@ export default function MyStructurePage() {
     }
     setTeamActionLoading(`${teamId}_label`);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/teams', {
+      await api('/api/structures/teams', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({
-          action: 'update',
-          structureId: activeStructure.id,
-          teamId,
-          label,
-        }),
+        body: { action: 'update', structureId: activeStructure.id, teamId, label },
       });
-      if (res.ok) {
-        await loadTeams(activeStructure.id);
-        toast.success('Label mis à jour');
-        setTeamLabelEdit(null);
-      } else {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error || 'Erreur');
-      }
+      await loadTeams(activeStructure.id);
+      toast.success('Label mis à jour');
+      setTeamLabelEdit(null);
     } catch (err) {
-      console.error('[MyStructure] update team label error:', err);
-      toast.error('Erreur réseau');
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setTeamActionLoading(null);
   }
@@ -1073,26 +1005,13 @@ export default function MyStructurePage() {
     if (!activeStructure || !firebaseUser) return;
     setTeamActionLoading(`${teamId}_${field}`);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/teams', {
+      await api('/api/structures/teams', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({
-          action: 'update',
-          structureId: activeStructure.id,
-          teamId,
-          [field]: ids,
-        }),
+        body: { action: 'update', structureId: activeStructure.id, teamId, [field]: ids },
       });
-      if (res.ok) {
-        await loadTeams(activeStructure.id);
-      } else {
-        const data = await res.json();
-        toast.error(data.error || 'Erreur');
-      }
+      await loadTeams(activeStructure.id);
     } catch (err) {
-      console.error('[MyStructure] update team roster error:', err);
-      toast.error('Erreur réseau');
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setTeamActionLoading(null);
   }
@@ -1103,27 +1022,13 @@ export default function MyStructurePage() {
     if (!activeStructure || !firebaseUser) return;
     setTeamActionLoading(`${teamId}_staffIds`);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/teams', {
+      await api('/api/structures/teams', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({
-          action: 'update',
-          structureId: activeStructure.id,
-          teamId,
-          staffIds,
-          staffRoles,
-        }),
+        body: { action: 'update', structureId: activeStructure.id, teamId, staffIds, staffRoles },
       });
-      if (res.ok) {
-        await loadTeams(activeStructure.id);
-      } else {
-        const data = await res.json();
-        toast.error(data.error || 'Erreur');
-      }
+      await loadTeams(activeStructure.id);
     } catch (err) {
-      console.error('[MyStructure] update team staff error:', err);
-      toast.error('Erreur réseau');
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setTeamActionLoading(null);
   }
@@ -1139,22 +1044,14 @@ export default function MyStructurePage() {
     if (!ok) return;
     setTeamActionLoading(teamId);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/teams', {
+      await api('/api/structures/teams', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ action: 'delete', structureId: activeStructure.id, teamId }),
+        body: { action: 'delete', structureId: activeStructure.id, teamId },
       });
-      if (res.ok) {
-        await loadTeams(activeStructure.id);
-        toast.success('Équipe supprimée');
-      } else {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error || 'Erreur');
-      }
+      await loadTeams(activeStructure.id);
+      toast.success('Équipe supprimée');
     } catch (err) {
-      console.error('[MyStructure] delete team error:', err);
-      toast.error('Erreur réseau');
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setTeamActionLoading(null);
   }
@@ -1192,15 +1089,12 @@ export default function MyStructurePage() {
     if (!activeStructure || !firebaseUser || discordLoading) return;
     setDiscordLoading(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/discord/install', {
+      const data = await api<{ url?: string }>('/api/discord/install', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ structureId: activeStructure.id }),
+        body: { structureId: activeStructure.id },
       });
-      const data = await res.json();
-      if (!res.ok || !data.url) {
-        toast.error(data.error || 'Impossible de démarrer la connexion.');
+      if (!data.url) {
+        toast.error('Impossible de démarrer la connexion.');
         setDiscordLoading(false);
         return;
       }
@@ -1208,8 +1102,7 @@ export default function MyStructurePage() {
       // qui redirige vers /community/my-structure?discord=connected.
       window.location.href = data.url;
     } catch (err) {
-      console.error('[MyStructure] discord connect error:', err);
-      toast.error('Erreur réseau');
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
       setDiscordLoading(false);
     }
   }
@@ -1248,20 +1141,10 @@ export default function MyStructurePage() {
     setDiscordChannelsLoading(true);
     setDiscordChannelsError(null);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/discord/channels?structureId=${encodeURIComponent(activeStructure.id)}`, {
-        headers: { 'Authorization': `Bearer ${idToken}` },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setDiscordChannelsError(data.error || 'Impossible de charger les salons.');
-        setDiscordChannels([]);
-      } else {
-        setDiscordChannels(Array.isArray(data.channels) ? data.channels : []);
-      }
+      const data = await api<{ channels?: unknown }>(`/api/discord/channels?structureId=${encodeURIComponent(activeStructure.id)}`);
+      setDiscordChannels(Array.isArray(data.channels) ? (data.channels as DiscordChannel[]) : []);
     } catch (err) {
-      console.error('[MyStructure] load discord channels error:', err);
-      setDiscordChannelsError('Erreur réseau');
+      setDiscordChannelsError(err instanceof ApiError ? err.message : 'Erreur réseau');
       setDiscordChannels([]);
     }
     setDiscordChannelsLoading(false);
@@ -1273,20 +1156,10 @@ export default function MyStructurePage() {
     setDiscordRolesLoading(true);
     setDiscordRolesError(null);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/discord/roles?structureId=${encodeURIComponent(activeStructure.id)}`, {
-        headers: { 'Authorization': `Bearer ${idToken}` },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setDiscordRolesError(data.error || 'Impossible de charger les rôles.');
-        setDiscordRoles([]);
-      } else {
-        setDiscordRoles(Array.isArray(data.roles) ? data.roles : []);
-      }
+      const data = await api<{ roles?: unknown }>(`/api/discord/roles?structureId=${encodeURIComponent(activeStructure.id)}`);
+      setDiscordRoles(Array.isArray(data.roles) ? (data.roles as DiscordRole[]) : []);
     } catch (err) {
-      console.error('[MyStructure] load discord roles error:', err);
-      setDiscordRolesError('Erreur réseau');
+      setDiscordRolesError(err instanceof ApiError ? err.message : 'Erreur réseau');
       setDiscordRoles([]);
     }
     setDiscordRolesLoading(false);
@@ -1303,11 +1176,9 @@ export default function MyStructurePage() {
     try {
       const channel = channelId ? (discordChannels ?? []).find(c => c.id === channelId) : null;
       const role = roleId ? (discordRoles ?? []).find(r => r.id === roleId) : null;
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/discord/config', {
+      await api('/api/discord/config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({
+        body: {
           structureId: activeStructure.id,
           scope: scope.scope,
           ...(scope.scope === 'game' ? { game: scope.game } : {}),
@@ -1315,41 +1186,35 @@ export default function MyStructurePage() {
           channelName: channel?.name ?? null,
           roleId: roleId ?? null,
           roleName: role?.name ?? null,
-        }),
+        },
       });
-      if (res.ok) {
-        // Patch optimiste local : on met à jour activeStructure.discordIntegration
-        // sans re-fetch complet pour garder une UI fluide.
-        const next = { ...(activeStructure.discordIntegration ?? {}) } as NonNullable<MyStructure['discordIntegration']>;
-        if (scope.scope === 'structure') {
-          next.structureChannelId = channelId;
-          next.structureChannelName = channel?.name ?? null;
-          next.structureRoleId = roleId;
-          next.structureRoleName = role?.name ?? null;
-        } else if (scope.scope === 'game') {
-          next.gameChannels = { ...(next.gameChannels ?? {}) };
-          next.gameChannels[scope.game] = {
-            channelId,
-            channelName: channel?.name ?? null,
-            roleId,
-            roleName: role?.name ?? null,
-          };
-        } else {
-          next.staffChannelId = channelId;
-          next.staffChannelName = channel?.name ?? null;
-          next.staffRoleId = roleId;
-          next.staffRoleName = role?.name ?? null;
-        }
-        setActiveStructure({ ...activeStructure, discordIntegration: next });
-        setDiscordConfigExpanded(prev => ({ ...prev, [key]: false }));
-        toast.success('Config Discord enregistrée.');
+      // Patch optimiste local : on met à jour activeStructure.discordIntegration
+      // sans re-fetch complet pour garder une UI fluide.
+      const next = { ...(activeStructure.discordIntegration ?? {}) } as NonNullable<MyStructure['discordIntegration']>;
+      if (scope.scope === 'structure') {
+        next.structureChannelId = channelId;
+        next.structureChannelName = channel?.name ?? null;
+        next.structureRoleId = roleId;
+        next.structureRoleName = role?.name ?? null;
+      } else if (scope.scope === 'game') {
+        next.gameChannels = { ...(next.gameChannels ?? {}) };
+        next.gameChannels[scope.game] = {
+          channelId,
+          channelName: channel?.name ?? null,
+          roleId,
+          roleName: role?.name ?? null,
+        };
       } else {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error || 'Erreur');
+        next.staffChannelId = channelId;
+        next.staffChannelName = channel?.name ?? null;
+        next.staffRoleId = roleId;
+        next.staffRoleName = role?.name ?? null;
       }
+      setActiveStructure({ ...activeStructure, discordIntegration: next });
+      setDiscordConfigExpanded(prev => ({ ...prev, [key]: false }));
+      toast.success('Config Discord enregistrée.');
     } catch (err) {
-      console.error('[MyStructure] save discord config error:', err);
-      toast.error('Erreur réseau');
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setDiscordConfigSaving(null);
   }
@@ -1358,29 +1223,21 @@ export default function MyStructurePage() {
     if (!activeStructure || !firebaseUser) return;
     setTeamActionLoading(`${teamId}_discord`);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/teams', {
+      await api('/api/structures/teams', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({
+        body: {
           action: 'update',
           structureId: activeStructure.id,
           teamId,
           discordChannelId: channelId,
           discordChannelName: channelName,
-        }),
+        },
       });
-      if (res.ok) {
-        await loadTeams(activeStructure.id);
-        setTeamDiscordEdit(null);
-        toast.success(channelId ? 'Salon Discord lié à l\u0027équipe.' : 'Salon Discord retiré.');
-      } else {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error || 'Erreur');
-      }
+      await loadTeams(activeStructure.id);
+      setTeamDiscordEdit(null);
+      toast.success(channelId ? 'Salon Discord lié à l\u0027équipe.' : 'Salon Discord retiré.');
     } catch (err) {
-      console.error('[MyStructure] update team discord channel error:', err);
-      toast.error('Erreur réseau');
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setTeamActionLoading(null);
   }
@@ -1440,22 +1297,14 @@ export default function MyStructurePage() {
     if (!ok) return;
     setDiscordLoading(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/discord/install?structureId=${encodeURIComponent(activeStructure.id)}`, {
+      await api(`/api/discord/install?structureId=${encodeURIComponent(activeStructure.id)}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${idToken}` },
       });
-      if (res.ok) {
-        setActiveStructure({ ...activeStructure, discordIntegration: null });
-        await loadStructures();
-        toast.success('Discord déconnecté.');
-      } else {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error || 'Erreur');
-      }
+      setActiveStructure({ ...activeStructure, discordIntegration: null });
+      await loadStructures();
+      toast.success('Discord déconnecté.');
     } catch (err) {
-      console.error('[MyStructure] discord disconnect error:', err);
-      toast.error('Erreur réseau');
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setDiscordLoading(false);
   }
@@ -1467,14 +1316,9 @@ export default function MyStructurePage() {
     setSaved(false);
 
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/my', {
+      await api('/api/structures/my', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
+        body: {
           structureId: activeStructure.id,
           description: editDesc,
           logoUrl: editLogoUrl,
@@ -1482,19 +1326,12 @@ export default function MyStructurePage() {
           socials: editSocials,
           recruiting: editRecruiting,
           achievements: editAchievements.filter(a => a.placement.trim() && a.competition.trim()),
-        }),
+        },
       });
-
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || 'Erreur lors de la sauvegarde.');
-      } else {
-        setSaved(true);
-        await loadStructures();
-      }
+      setSaved(true);
+      await loadStructures();
     } catch (err) {
-      console.error('[MyStructure] save error:', err);
-      setError('Erreur réseau.');
+      setError(err instanceof ApiError ? err.message : 'Erreur réseau.');
     }
     setSaving(false);
   }
@@ -1631,16 +1468,12 @@ export default function MyStructurePage() {
     if (!firebaseUser) return;
     setInvLoading(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/invitations?structureId=${structureId}`, {
-        headers: { 'Authorization': `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setInviteLinks(data.links ?? []);
-        setJoinRequests(data.requests ?? []);
-        setDirectInvites(data.directInvites ?? []);
-      }
+      const data = await api<{ links?: InviteLink[]; requests?: JoinRequest[]; directInvites?: DirectInvite[] }>(
+        `/api/structures/invitations?structureId=${structureId}`,
+      );
+      setInviteLinks(data.links ?? []);
+      setJoinRequests(data.requests ?? []);
+      setDirectInvites(data.directInvites ?? []);
     } catch (err) {
       console.error('[MyStructure] load invitations error:', err);
     }
@@ -1651,14 +1484,8 @@ export default function MyStructurePage() {
     if (!firebaseUser) return;
     setSuggestionsLoading(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structureId}/recruitment-suggestions`, {
-        headers: { 'Authorization': `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSuggestions(data.suggestions ?? []);
-      }
+      const data = await api<{ suggestions?: Suggestion[] }>(`/api/structures/${structureId}/recruitment-suggestions`);
+      setSuggestions(data.suggestions ?? []);
     } catch (err) {
       console.error('[MyStructure] load suggestions error:', err);
     }
@@ -1669,14 +1496,8 @@ export default function MyStructurePage() {
     if (!firebaseUser) return;
     setShortlistLoading(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structureId}/shortlist`, {
-        headers: { 'Authorization': `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setShortlist(data.shortlist ?? []);
-      }
+      const data = await api<{ shortlist?: ShortlistItem[] }>(`/api/structures/${structureId}/shortlist`);
+      setShortlist(data.shortlist ?? []);
     } catch (err) {
       console.error('[MyStructure] load shortlist error:', err);
     }
@@ -1687,14 +1508,8 @@ export default function MyStructurePage() {
     if (!firebaseUser) return;
     setHistoryLoading(true);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(`/api/structures/${structureId}/history`, {
-        headers: { 'Authorization': `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setHistory(data.history ?? []);
-      }
+      const data = await api<{ history?: HistoryItem[] }>(`/api/structures/${structureId}/history`);
+      setHistory(data.history ?? []);
     } catch (err) {
       console.error('[MyStructure] load history error:', err);
     }
@@ -1706,16 +1521,12 @@ export default function MyStructurePage() {
     // Optimistic update
     setShortlist(prev => prev.filter(s => s.uid !== targetUserId));
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch(
+      await api(
         `/api/structures/${activeStructure.id}/shortlist?userId=${encodeURIComponent(targetUserId)}`,
-        { method: 'DELETE', headers: { 'Authorization': `Bearer ${idToken}` } },
+        { method: 'DELETE' },
       );
-      if (!res.ok) {
-        // Rollback
-        await loadShortlist(activeStructure.id);
-      }
     } catch {
+      // Rollback
       await loadShortlist(activeStructure.id);
     }
   }
@@ -1724,28 +1535,23 @@ export default function MyStructurePage() {
     if (!activeStructure || !firebaseUser) return;
     setInvActionLoading('create_link');
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/invitations', {
+      const data = await api<{ token: string }>('/api/structures/invitations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({
+        body: {
           action: 'create_link',
           structureId: activeStructure.id,
           game: newLinkGame || null,
-        }),
+        },
       });
-      if (res.ok) {
-        const data = await res.json();
-        const link = `${window.location.origin}/community/join/${data.token}`;
-        const copied = await safeCopy(link);
-        if (copied) {
-          setCopiedLink(data.token);
-          setTimeout(() => setCopiedLink(''), 3000);
-        } else {
-          toast.error('Lien créé — impossible de le copier, il est visible dans la liste.');
-        }
-        await loadInvitations(activeStructure.id);
+      const link = `${window.location.origin}/community/join/${data.token}`;
+      const copied = await safeCopy(link);
+      if (copied) {
+        setCopiedLink(data.token);
+        setTimeout(() => setCopiedLink(''), 3000);
+      } else {
+        toast.error('Lien créé — impossible de le copier, il est visible dans la liste.');
       }
+      await loadInvitations(activeStructure.id);
     } catch (err) {
       console.error('[MyStructure] create link error:', err);
     }
@@ -1756,11 +1562,9 @@ export default function MyStructurePage() {
     if (!activeStructure || !firebaseUser) return;
     setInvActionLoading(invitationId);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      await fetch('/api/structures/invitations', {
+      await api('/api/structures/invitations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ action: 'revoke_link', structureId: activeStructure.id, invitationId }),
+        body: { action: 'revoke_link', structureId: activeStructure.id, invitationId },
       });
       await loadInvitations(activeStructure.id);
     } catch (err) {
@@ -1773,11 +1577,9 @@ export default function MyStructurePage() {
     if (!activeStructure || !firebaseUser) return;
     setInvActionLoading(invitationId);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      await fetch('/api/structures/invitations', {
+      await api('/api/structures/invitations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ action: 'cancel_direct_invite', structureId: activeStructure.id, invitationId }),
+        body: { action: 'cancel_direct_invite', structureId: activeStructure.id, invitationId },
       });
       await loadInvitations(activeStructure.id);
     } catch (err) {
@@ -1790,15 +1592,13 @@ export default function MyStructurePage() {
     if (!activeStructure || !firebaseUser) return;
     setInvActionLoading(invitationId);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      await fetch('/api/structures/invitations', {
+      await api('/api/structures/invitations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({
+        body: {
           action: accept ? 'accept_request' : 'decline_request',
           structureId: activeStructure.id,
           invitationId,
-        }),
+        },
       });
       await loadInvitations(activeStructure.id);
       if (accept) await loadStructures();
@@ -1818,21 +1618,14 @@ export default function MyStructurePage() {
     if (!ok) return;
     setInvActionLoading(userId);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/co-founders', {
+      await api('/api/structures/co-founders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ structureId: activeStructure.id, targetUserId: userId }),
+        body: { structureId: activeStructure.id, targetUserId: userId },
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        await loadStructures();
-        toast.success(`${memberName} promu co-fondateur`);
-      } else {
-        toast.error(data.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
+      await loadStructures();
+      toast.success(`${memberName} promu co-fondateur`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setInvActionLoading(null);
   }
@@ -1848,21 +1641,14 @@ export default function MyStructurePage() {
     if (!ok) return;
     setInvActionLoading(userId);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/co-founders', {
+      await api('/api/structures/co-founders', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ structureId: activeStructure.id, targetUserId: userId }),
+        body: { structureId: activeStructure.id, targetUserId: userId },
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        await loadStructures();
-        toast.success(`${memberName} rétrogradé`);
-      } else {
-        toast.error(data.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
+      await loadStructures();
+      toast.success(`${memberName} rétrogradé`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setInvActionLoading(null);
   }
@@ -1871,22 +1657,15 @@ export default function MyStructurePage() {
     if (!activeStructure || !firebaseUser) return;
     setInvActionLoading(`${userId}:${role}`);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/staff-role', {
+      await api('/api/structures/staff-role', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ structureId: activeStructure.id, targetUserId: userId, role, enabled }),
+        body: { structureId: activeStructure.id, targetUserId: userId, role, enabled },
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        await loadStructures();
-        const label = role === 'manager' ? 'Manager' : 'Coach';
-        toast.success(enabled ? `${memberName} est maintenant ${label}` : `${memberName} n'est plus ${label}`);
-      } else {
-        toast.error(data.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
+      await loadStructures();
+      const label = role === 'manager' ? 'Manager' : 'Coach';
+      toast.success(enabled ? `${memberName} est maintenant ${label}` : `${memberName} n'est plus ${label}`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setInvActionLoading(null);
   }
@@ -1908,21 +1687,14 @@ export default function MyStructurePage() {
     if (!confirmTransfer) return;
     setInvActionLoading(userId);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/transfer', {
+      await api('/api/structures/transfer', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ action: 'initiate', structureId: activeStructure.id, newFounderId: userId, keepAsCoFounder }),
+        body: { action: 'initiate', structureId: activeStructure.id, newFounderId: userId, keepAsCoFounder },
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        await loadStructures();
-        toast.success(`Transfert lancé. Tu as ${24}h pour annuler.`);
-      } else {
-        toast.error(data.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
+      await loadStructures();
+      toast.success(`Transfert lancé. Tu as ${24}h pour annuler.`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setInvActionLoading(null);
   }
@@ -1937,21 +1709,14 @@ export default function MyStructurePage() {
     if (!ok) return;
     setInvActionLoading('transfer-cancel');
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/transfer', {
+      await api('/api/structures/transfer', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ action: 'cancel', structureId: activeStructure.id }),
+        body: { action: 'cancel', structureId: activeStructure.id },
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        await loadStructures();
-        toast.success('Transfert annulé');
-      } else {
-        toast.error(data.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
+      await loadStructures();
+      toast.success('Transfert annulé');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setInvActionLoading(null);
   }
@@ -1967,21 +1732,14 @@ export default function MyStructurePage() {
     if (!ok) return;
     setInvActionLoading('transfer-confirm');
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/transfer', {
+      await api('/api/structures/transfer', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ action: 'confirm', structureId: activeStructure.id }),
+        body: { action: 'confirm', structureId: activeStructure.id },
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        await loadStructures();
-        toast.success('Transfert finalisé');
-      } else {
-        toast.error(data.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
+      await loadStructures();
+      toast.success('Transfert finalisé');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setInvActionLoading(null);
   }
@@ -1997,21 +1755,14 @@ export default function MyStructurePage() {
     if (!ok) return;
     setInvActionLoading('leave');
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/co-founders/leave', {
+      await api('/api/structures/co-founders/leave', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ structureId: activeStructure.id }),
+        body: { structureId: activeStructure.id },
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        await loadStructures();
-        toast.success('Préavis déposé');
-      } else {
-        toast.error(data.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
+      await loadStructures();
+      toast.success('Préavis déposé');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setInvActionLoading(null);
   }
@@ -2020,21 +1771,14 @@ export default function MyStructurePage() {
     if (!activeStructure || !firebaseUser) return;
     setInvActionLoading('leave');
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/co-founders/leave', {
+      await api('/api/structures/co-founders/leave', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ structureId: activeStructure.id }),
+        body: { structureId: activeStructure.id },
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        await loadStructures();
-        toast.success('Préavis annulé');
-      } else {
-        toast.error(data.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
+      await loadStructures();
+      toast.success('Préavis annulé');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setInvActionLoading(null);
   }
@@ -2077,22 +1821,14 @@ export default function MyStructurePage() {
     if (!ok) return;
     setInvActionLoading(memberId);
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/invitations', {
+      await api('/api/structures/invitations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ action: 'remove_member', structureId: activeStructure.id, memberId }),
+        body: { action: 'remove_member', structureId: activeStructure.id, memberId },
       });
-      if (res.ok) {
-        await loadStructures();
-        toast.success(`${memberName} retiré de la structure`);
-      } else {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error || 'Erreur');
-      }
+      await loadStructures();
+      toast.success(`${memberName} retiré de la structure`);
     } catch (err) {
-      console.error('[MyStructure] remove member error:', err);
-      toast.error('Erreur réseau');
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setInvActionLoading(null);
   }
