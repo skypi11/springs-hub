@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Folder as FolderIcon, FolderPlus, Upload, File as FileIcon, FileText, Image as ImageIcon,
-  Pencil, Trash2, Download, ChevronRight, Home, Loader2, FolderInput, X, Lock, ShieldCheck,
+  Pencil, Trash2, Download, ChevronRight, Home, Loader2, FolderInput, X, Lock, ShieldCheck, Eye,
 } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { useToast } from '@/components/ui/Toast';
@@ -52,6 +52,7 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
   const [renameValue, setRenameValue] = useState('');
   const [movingDoc, setMovingDoc] = useState<{ type: 'doc' | 'folder'; id: string; currentParent: string | null } | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<Doc | null>(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -178,6 +179,42 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
     toast.success('Document supprimé');
     void loadAll();
   }, [structureId, confirm, toast, loadAll]);
+
+  // Détermine si un fichier peut être prévisualisé en ligne (iframe/img)
+  const isPreviewable = (mime: string): boolean => {
+    if (mime.startsWith('image/')) return true;
+    if (mime === 'application/pdf') return true;
+    if (mime === 'text/plain' || mime === 'text/markdown') return true;
+    return false;
+  };
+
+  const openPreview = useCallback((d: Doc) => {
+    if (!isPreviewable(d.mime)) {
+      toast.info('Aperçu non supporté — téléchargement à la place');
+      // Fallback : on lance le download standard
+      void (async () => {
+        const token = await auth.currentUser?.getIdToken();
+        if (!token) return;
+        const res = await fetch(`/api/structures/${structureId}/documents/${d.id}/download`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) { toast.error('Erreur téléchargement'); return; }
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const data = await res.json();
+          if (data.url) window.location.href = data.url;
+        } else {
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = d.filename; document.body.appendChild(a); a.click(); a.remove();
+          URL.revokeObjectURL(url);
+        }
+      })();
+      return;
+    }
+    setPreviewDoc(d);
+  }, [structureId, toast]);
 
   const downloadDoc = useCallback(async (d: Doc) => {
     const token = await auth.currentUser?.getIdToken();
@@ -472,6 +509,8 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
               doc={d}
               isRenaming={renamingId === `doc:${d.id}`}
               renameValue={renameValue}
+              canPreview={isPreviewable(d.mime)}
+              onPreview={() => openPreview(d)}
               onDownload={() => void downloadDoc(d)}
               onStartRename={() => { setRenamingId(`doc:${d.id}`); setRenameValue(d.title); }}
               onRenameChange={setRenameValue}
@@ -492,6 +531,16 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
           currentParent={movingDoc.currentParent}
           onClose={() => setMovingDoc(null)}
           onSelect={id => void moveItem(id)}
+        />
+      )}
+
+      {/* Modal preview document */}
+      {previewDoc && (
+        <PreviewModal
+          doc={previewDoc}
+          structureId={structureId}
+          onClose={() => setPreviewDoc(null)}
+          onDownload={() => { const d = previewDoc; setPreviewDoc(null); void downloadDoc(d); }}
         />
       )}
 
@@ -641,8 +690,10 @@ function FolderCard({ folder, isRenaming, renameValue, onOpen, onStartRename, on
   );
 }
 
-function DocCard({ doc, isRenaming, renameValue, onDownload, onStartRename, onRenameChange, onRenameSubmit, onRenameCancel, onMove, onDelete }: {
+function DocCard({ doc, isRenaming, renameValue, canPreview, onPreview, onDownload, onStartRename, onRenameChange, onRenameSubmit, onRenameCancel, onMove, onDelete }: {
   doc: Doc; isRenaming: boolean; renameValue: string;
+  canPreview: boolean;
+  onPreview: () => void;
   onDownload: () => void; onStartRename: () => void;
   onRenameChange: (v: string) => void; onRenameSubmit: () => void; onRenameCancel: () => void;
   onMove: () => void; onDelete: () => void;
@@ -683,6 +734,7 @@ function DocCard({ doc, isRenaming, renameValue, onDownload, onStartRename, onRe
         )}
       </div>
       <div className="flex items-center gap-1 flex-shrink-0">
+        {canPreview && <IconBtn title="Aperçu" onClick={onPreview}><Eye size={12} /></IconBtn>}
         <IconBtn title="Télécharger" onClick={onDownload}><Download size={12} /></IconBtn>
         <IconBtn title="Renommer" onClick={onStartRename}><Pencil size={12} /></IconBtn>
         <IconBtn title="Déplacer" onClick={onMove}><FolderInput size={12} /></IconBtn>
@@ -800,6 +852,145 @@ function MoveModal({ folders, excludeFolderId, currentParent, onClose, onSelect 
               {currentParent === null && <span className="text-xs ml-auto" style={{ color: 'var(--s-text-muted)' }}>(ici)</span>}
             </button>
             {renderNode(null, 0)}
+          </div>
+        </div>
+      </div>
+    </Portal>
+  );
+}
+
+function PreviewModal({ doc, structureId, onClose, onDownload }: {
+  doc: Doc;
+  structureId: string;
+  onClose: () => void;
+  onDownload: () => void;
+}) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [textContent, setTextContent] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
+
+  useEffect(() => {
+    let cancelled = false;
+    let blobUrl: string | null = null;
+
+    (async () => {
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        if (!token) { setError('Session expirée'); return; }
+        const res = await fetch(
+          `/api/structures/${structureId}/documents/${doc.id}/download?preview=1`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setError(data?.error || 'Erreur chargement aperçu');
+          return;
+        }
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          // Doc non chiffré : on récupère une URL signée inline
+          const data = await res.json();
+          if (cancelled) return;
+          setSrc(data.url || null);
+        } else {
+          // Doc chiffré : binaire déchiffré → blob URL
+          const blob = await res.blob();
+          if (cancelled) return;
+          if (doc.mime === 'text/plain' || doc.mime === 'text/markdown') {
+            const txt = await blob.text();
+            if (!cancelled) setTextContent(txt);
+          } else {
+            blobUrl = URL.createObjectURL(blob);
+            setSrc(blobUrl);
+          }
+        }
+      } catch {
+        if (!cancelled) setError('Erreur réseau');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [doc.id, doc.mime, structureId]);
+
+  // Pour les docs texte non chiffrés (URL signée), on doit fetcher le contenu séparément
+  useEffect(() => {
+    if (!src) return;
+    if (doc.mime !== 'text/plain' && doc.mime !== 'text/markdown') return;
+    if (textContent !== null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(src);
+        const t = await r.text();
+        if (!cancelled) setTextContent(t);
+      } catch {
+        if (!cancelled) toast.error('Erreur chargement texte');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [src, doc.mime, textContent, toast]);
+
+  const isImage = doc.mime.startsWith('image/');
+  const isPdf = doc.mime === 'application/pdf';
+  const isText = doc.mime === 'text/plain' || doc.mime === 'text/markdown';
+
+  return (
+    <Portal>
+      <div className="fixed inset-0 z-[9600] flex items-center justify-center p-4"
+        style={{ background: 'rgba(0,0,0,0.85)' }} onClick={onClose}>
+        <div className="bevel w-full max-w-5xl flex flex-col overflow-hidden"
+          style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', height: '90vh' }}
+          onClick={e => e.stopPropagation()}>
+          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), transparent 70%)' }} />
+          <header className="flex items-center justify-between gap-3 px-4 py-3 flex-shrink-0"
+            style={{ borderBottom: '1px solid var(--s-border)' }}>
+            <div className="flex items-center gap-2 min-w-0">
+              <Eye size={14} style={{ color: 'var(--s-violet-light)', flexShrink: 0 }} />
+              <h3 className="font-display text-sm tracking-wider truncate">{doc.title}</h3>
+              {doc.encrypted && (
+                <span title="Chiffré AES-256-GCM" style={{ lineHeight: 0, flexShrink: 0 }}>
+                  <Lock size={11} style={{ color: 'var(--s-violet-light)' }} />
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button type="button" onClick={onDownload}
+                className="btn-springs btn-secondary bevel-sm text-xs flex items-center gap-1.5">
+                <Download size={12} /> Télécharger
+              </button>
+              <button type="button" onClick={onClose} className="flex items-center justify-center"
+                style={{ width: 28, height: 28, background: 'var(--s-elevated)', border: '1px solid var(--s-border)', color: 'var(--s-text-dim)' }}>
+                <X size={14} />
+              </button>
+            </div>
+          </header>
+
+          <div className="flex-1 overflow-hidden flex items-center justify-center"
+            style={{ background: 'var(--s-bg)' }}>
+            {error ? (
+              <p className="text-sm" style={{ color: '#ef4444' }}>{error}</p>
+            ) : !src && !textContent ? (
+              <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                <Loader2 size={14} className="animate-spin" /> Chargement…
+              </div>
+            ) : isImage && src ? (
+              <img src={src} alt={doc.title}
+                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+            ) : isPdf && src ? (
+              <iframe src={src} title={doc.title}
+                style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }} />
+            ) : isText && textContent !== null ? (
+              <pre className="w-full h-full overflow-auto p-4 text-xs"
+                style={{ color: 'var(--s-text)', background: 'var(--s-surface)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'ui-monospace, monospace' }}>
+                {textContent}
+              </pre>
+            ) : (
+              <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>Aperçu non disponible</p>
+            )}
           </div>
         </div>
       </div>

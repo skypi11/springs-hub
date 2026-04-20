@@ -108,17 +108,18 @@ export async function generateUploadUrl(
 }
 
 // URL signée pour DOWNLOAD privé (documents staff — jamais publique)
+// disposition = 'attachment' (force download) ou 'inline' (preview dans l'iframe/img)
 export async function generateDownloadUrl(
   key: string,
   expiresSeconds = 60,
-  downloadFilename?: string
+  downloadFilename?: string,
+  disposition: 'attachment' | 'inline' = 'attachment'
 ): Promise<string> {
   const cmd = new GetObjectCommand({
     Bucket: getBucketName(),
     Key: key,
-    // Force le navigateur à télécharger avec ce nom plutôt qu'afficher inline
     ResponseContentDisposition: downloadFilename
-      ? `attachment; filename="${downloadFilename.replace(/"/g, '')}"`
+      ? `${disposition}; filename="${downloadFilename.replace(/"/g, '')}"`
       : undefined,
   });
   return await getSignedUrl(getR2Client(), cmd, { expiresIn: expiresSeconds });

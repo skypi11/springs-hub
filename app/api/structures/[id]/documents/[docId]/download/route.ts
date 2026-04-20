@@ -8,10 +8,12 @@ import { writeAuditLog } from '@/lib/audit-log';
 import { generateDownloadUrl, downloadBuffer } from '@/lib/storage';
 import { decryptBuffer } from '@/lib/document-crypto';
 
-// GET /api/structures/[id]/documents/[docId]/download
+// GET /api/structures/[id]/documents/[docId]/download[?preview=1]
 // - Doc non chiffré : retourne { url } signée 60s, client redirige dessus.
 // - Doc chiffré     : retourne le binaire déchiffré directement (stream),
 //                     pas d'URL signée (le blob sur R2 est inutilisable sans clé).
+// - ?preview=1      : Content-Disposition: inline (ouvrable dans un iframe/img)
+//                     au lieu d'attachment (qui force le download).
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; docId: string }> }
@@ -44,17 +46,19 @@ export async function GET(
 
     const isEncrypted = data.encrypted === true;
     const filename = (data.filename as string) || `${docId}.bin`;
+    const preview = new URL(req.url).searchParams.get('preview') === '1';
+    const disposition = preview ? 'inline' : 'attachment';
 
     await writeAuditLog(db, {
       structureId,
       action: 'document_downloaded',
       actorUid: uid,
       targetId: docId,
-      metadata: { title: data.title, filename, encrypted: isEncrypted },
+      metadata: { title: data.title, filename, encrypted: isEncrypted, preview },
     });
 
     if (!isEncrypted) {
-      const url = await generateDownloadUrl(data.r2Key as string, 60, filename);
+      const url = await generateDownloadUrl(data.r2Key as string, 60, filename, disposition);
       return NextResponse.json({ url });
     }
 
@@ -66,7 +70,7 @@ export async function GET(
       status: 200,
       headers: {
         'Content-Type': (data.mime as string) || 'application/octet-stream',
-        'Content-Disposition': `attachment; filename="${safeFilename}"`,
+        'Content-Disposition': `${disposition}; filename="${safeFilename}"`,
         'Content-Length': String(plain.length),
         'Cache-Control': 'private, no-store',
       },
