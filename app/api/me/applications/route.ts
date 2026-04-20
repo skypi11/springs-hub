@@ -7,6 +7,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { createNotification } from '@/lib/notifications';
 import { addJoinHistory } from '@/lib/member-history';
 import { addAuditLog } from '@/lib/audit-log';
+import { bumpStructureCounter } from '@/lib/structure-counters';
 
 // GET /api/me/applications
 // Retourne les demandes envoyées (join_request pending) + invitations reçues (direct_invite pending)
@@ -191,6 +192,7 @@ export async function POST(req: NextRequest) {
               targetId: invitationId,
               metadata: { game: joinGame, role: joinRole, via: 'direct_invite' },
             });
+            bumpStructureCounter(db, tx, structureId, 'members', +1);
           });
         } catch (err) {
           const code = (err as Error).message;

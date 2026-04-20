@@ -8,6 +8,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { createNotification } from '@/lib/notifications';
 import { addJoinHistory, closeOpenHistory } from '@/lib/member-history';
 import { addAuditLog, writeAuditLog } from '@/lib/audit-log';
+import { bumpStructureCounter } from '@/lib/structure-counters';
 
 // Durée de validité d'un lien d'invitation. Au-delà, le lien est inactivable
 // automatiquement à la consommation, pour éviter qu'un token leaké il y a 6 mois
@@ -331,6 +332,7 @@ export async function POST(req: NextRequest) {
               targetId: invitationId,
               metadata: { game: joinGame, role: joinRole },
             });
+            bumpStructureCounter(db, tx, structureId, 'members', +1);
           });
         } catch (err) {
           const code = (err as Error).message;
@@ -459,6 +461,7 @@ export async function POST(req: NextRequest) {
           targetUid: memberData.userId,
           metadata: { game: memberData.game, previousRole: memberData.role ?? null },
         });
+        bumpStructureCounter(db, batch, structureId, 'members', -1);
 
         await batch.commit();
         return NextResponse.json({ success: true });

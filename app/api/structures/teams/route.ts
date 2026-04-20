@@ -5,6 +5,7 @@ import { FieldValue, DocumentData } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { createNotification, createNotifications, type NotificationPayload } from '@/lib/notifications';
+import { bumpStructureCounterStandalone } from '@/lib/structure-counters';
 
 // Vérifier que l'utilisateur a les droits sur la structure (fondateur ou co-fondateur)
 async function checkStructureAccess(uid: string, structureId: string) {
@@ -280,6 +281,7 @@ export async function POST(req: NextRequest) {
           logoUrl: createLogoUrl,
           createdAt: FieldValue.serverTimestamp(),
         });
+        await bumpStructureCounterStandalone(db, structureId, 'teams', +1);
 
         return NextResponse.json({ success: true, id: docRef.id });
       }
@@ -487,6 +489,10 @@ export async function POST(req: NextRequest) {
             archivedBy: uid,
             updatedAt: FieldValue.serverTimestamp(),
           });
+          // Compteur : active → archived = -1 (seulement si on archive une équipe qui l'était bien)
+          if (teamDataArch.status === 'active') {
+            await bumpStructureCounterStandalone(db, structureId, 'teams', -1);
+          }
 
           // Notifier tous les membres de l'équipe (titulaires + remplaçants + staff + capitaine)
           try {
@@ -515,6 +521,10 @@ export async function POST(req: NextRequest) {
             archivedBy: FieldValue.delete(),
             updatedAt: FieldValue.serverTimestamp(),
           });
+          // Compteur : archived → active = +1 (seulement si on désarchive une équipe qui l'était)
+          if (teamDataArch.status === 'archived') {
+            await bumpStructureCounterStandalone(db, structureId, 'teams', +1);
+          }
         }
         return NextResponse.json({ success: true });
       }
@@ -572,11 +582,16 @@ export async function POST(req: NextRequest) {
         if (!teamSnap.exists) {
           return NextResponse.json({ error: 'Équipe introuvable' }, { status: 404 });
         }
-        if (teamSnap.data()!.structureId !== structureId) {
+        const teamDataDel = teamSnap.data()!;
+        if (teamDataDel.structureId !== structureId) {
           return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
         }
 
         await ref.delete();
+        // Compteur : seulement si l'équipe supprimée était active (les archivées ne comptent pas)
+        if (teamDataDel.status === 'active') {
+          await bumpStructureCounterStandalone(db, structureId, 'teams', -1);
+        }
         return NextResponse.json({ success: true });
       }
 

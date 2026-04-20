@@ -6,6 +6,7 @@ import { safeUrl, clampString, LIMITS } from '@/lib/validation';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
+import { bumpStructureCounter } from '@/lib/structure-counters';
 
 // Quand un fondateur est banni/supprimé, on essaie de promouvoir son premier co-fondateur
 // pour ne pas laisser une structure sans tête. Si pas de co-fondateur, on passe la
@@ -50,6 +51,9 @@ async function reassignOrOrphanFoundedStructures(
         .where('userId', '==', founderUid)
         .get();
       for (const m of oldFounderMember.docs) batch.delete(m.ref);
+      if (oldFounderMember.size > 0) {
+        bumpStructureCounter(db, batch, doc.id, 'members', -oldFounderMember.size);
+      }
       await batch.commit();
       promoted.push(doc.id);
     } else {
@@ -64,6 +68,9 @@ async function reassignOrOrphanFoundedStructures(
         .where('userId', '==', founderUid)
         .get();
       for (const m of oldFounderMember.docs) batch.delete(m.ref);
+      if (oldFounderMember.size > 0) {
+        bumpStructureCounter(db, batch, doc.id, 'members', -oldFounderMember.size);
+      }
       await batch.commit();
       orphaned.push(doc.id);
     }
@@ -376,6 +383,7 @@ export async function POST(req: NextRequest) {
         }
         const batch = db.batch();
         memberSnap.docs.forEach(doc => batch.delete(doc.ref));
+        bumpStructureCounter(db, batch, membershipStructureId, 'members', -memberSnap.size);
         await batch.commit();
         await writeAdminAuditLog(db, {
           action: 'user_removed_from_structure',
@@ -427,7 +435,16 @@ export async function POST(req: NextRequest) {
         // 4. Atomique : memberships restants + admin doc + profil Firestore
         const allMembers = await db.collection('structure_members').where('userId', '==', userId).get();
         const batch = db.batch();
-        allMembers.docs.forEach(doc => batch.delete(doc.ref));
+        // Agréger les -1 par structureId (un user peut avoir plusieurs memberships/jeux)
+        const decrementByStructure = new Map<string, number>();
+        allMembers.docs.forEach(doc => {
+          batch.delete(doc.ref);
+          const sid = doc.data().structureId as string | undefined;
+          if (sid) decrementByStructure.set(sid, (decrementByStructure.get(sid) ?? 0) + 1);
+        });
+        for (const [sid, n] of decrementByStructure.entries()) {
+          bumpStructureCounter(db, batch, sid, 'members', -n);
+        }
         batch.delete(db.collection('admins').doc(userId));
         batch.delete(userRef);
         await batch.commit();

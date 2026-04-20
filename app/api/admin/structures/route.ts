@@ -6,6 +6,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { addJoinHistory } from '@/lib/member-history';
 import { writeAdminAuditLog, type AdminAuditAction } from '@/lib/admin-audit-log';
+import { computeStaffSize } from '@/lib/structure-counters';
 
 const MAX_STRUCTURES = 500;
 
@@ -50,6 +51,11 @@ export async function GET(req: NextRequest) {
         reviewedByName: nameOf(data.reviewedBy),
         suspendedByName: nameOf(data.suspendedBy),
         deletionRequestedByName: nameOf(data.deletionRequestedBy),
+        // Valeurs "annoncées" au formulaire de demande : data.teamCount / data.staffCount
+        // Valeurs réelles : counters (teams, members) + staff dérivé des champs founder/co/manager/coach
+        actualTeamCount: data.counters?.teams ?? 0,
+        actualMemberCount: data.counters?.members ?? 0,
+        actualStaffCount: computeStaffSize(data),
         requestedAt: data.requestedAt?.toDate?.()?.toISOString() ?? null,
         validatedAt: data.validatedAt?.toDate?.()?.toISOString() ?? null,
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
@@ -106,6 +112,8 @@ export async function POST(req: NextRequest) {
           reviewComment: comment || '',
           reviewedBy: uid,
           validatedAt: FieldValue.serverTimestamp(),
+          // Init compteurs dénormalisés : fondateur = 1 membre, 0 équipe
+          counters: { teams: 0, members: 1 },
         });
         batch.update(userRef, { isFounderApproved: true });
         batch.set(memberRef, {

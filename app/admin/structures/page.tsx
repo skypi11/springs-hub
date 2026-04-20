@@ -21,6 +21,9 @@ type StructureRequest = {
   legalStatus?: string;
   teamCount?: number;
   staffCount?: number;
+  actualTeamCount?: number;
+  actualMemberCount?: number;
+  actualStaffCount?: number;
   discordUrl?: string;
   message?: string;
   founderId: string;
@@ -238,14 +241,50 @@ export default function AdminStructuresPage() {
                         <span className="t-label">Forme juridique</span>
                         <span className="t-mono text-xs">{LEGAL_LABELS[s.legalStatus ?? 'none'] ?? s.legalStatus}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="t-label">Équipes</span>
-                        <span className="t-mono text-xs">{s.teamCount ?? 0}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="t-label">Staff</span>
-                        <span className="t-mono text-xs">{s.staffCount ?? 0}</span>
-                      </div>
+                      {(() => {
+                        // "Annoncé" = déclaré au formulaire de création
+                        // "Réel" = counters dénormalisés (teams, members) + staff dérivé (founder + co + managers + coaches)
+                        const announcedTeams = s.teamCount ?? 0;
+                        const announcedStaff = s.staffCount ?? 0;
+                        const realTeams = s.actualTeamCount ?? 0;
+                        const realMembers = s.actualMemberCount ?? 0;
+                        const realStaff = s.actualStaffCount ?? 0;
+                        // Alerte si écart significatif : réel < moitié de l'annoncé (structure fantôme ?)
+                        const teamsGapAlert = announcedTeams >= 2 && realTeams < announcedTeams / 2;
+                        const staffGapAlert = announcedStaff >= 2 && realStaff < announcedStaff / 2;
+
+                        const renderRow = (label: string, announced: number, real: number, alert: boolean) => (
+                          <div className="flex justify-between items-center">
+                            <span className="t-label">{label}</span>
+                            <span className="t-mono text-xs flex items-center gap-2">
+                              <span style={{ color: 'var(--s-text-muted)' }}>Annoncé {announced}</span>
+                              <span style={{ color: 'var(--s-text-muted)' }}>→</span>
+                              <span style={{
+                                color: alert ? '#FFB800' : 'var(--s-text)',
+                                fontWeight: alert ? 600 : 400,
+                              }}>
+                                Réel {real}
+                              </span>
+                              {alert && (
+                                <span className="tag tag-gold" style={{ fontSize: '9px', padding: '1px 5px' }}>
+                                  écart
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        );
+
+                        return (
+                          <>
+                            {renderRow('Équipes', announcedTeams, realTeams, teamsGapAlert)}
+                            {renderRow('Staff', announcedStaff, realStaff, staffGapAlert)}
+                            <div className="flex justify-between">
+                              <span className="t-label">Membres</span>
+                              <span className="t-mono text-xs">{realMembers}</span>
+                            </div>
+                          </>
+                        );
+                      })()}
                       {s.discordUrl && (
                         <div className="flex justify-between">
                           <span className="t-label">Discord</span>
