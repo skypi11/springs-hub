@@ -9,6 +9,7 @@ import { countries } from '@/lib/countries';
 import {
   Save, User, Gamepad2, Search, ExternalLink,
   AlertCircle, CheckCircle, Loader2, UserCircle, LogOut, Star,
+  Download, Trash2,
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import { checkProfileCompletion } from '@/lib/profile-completion';
@@ -87,6 +88,67 @@ export default function SettingsPage() {
   const [dirty, setDirty] = useState(false);
   const bioRef = useRef<HTMLTextAreaElement | null>(null);
   const recruitRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Actions RGPD (export / suppression)
+  const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [deleteBlockingStructures, setDeleteBlockingStructures] = useState<string[]>([]);
+
+  async function handleExport() {
+    if (!firebaseUser) return;
+    setExporting(true);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/account/export', {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (!res.ok) throw new Error('export failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `springs-hub-export-${firebaseUser.uid}-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('[Settings] export error:', err);
+      setError('Export impossible, réessaie dans un instant.');
+    }
+    setExporting(false);
+  }
+
+  async function handleDelete() {
+    if (!firebaseUser) return;
+    setDeleting(true);
+    setDeleteError('');
+    setDeleteBlockingStructures([]);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/account/delete', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (res.ok) {
+        await signOut();
+        router.push('/?deleted=1');
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409 && Array.isArray(data.structures)) {
+        setDeleteBlockingStructures(data.structures);
+      }
+      setDeleteError(data.error || 'Suppression impossible.');
+    } catch (err) {
+      console.error('[Settings] delete error:', err);
+      setDeleteError('Erreur réseau. Réessaie.');
+    }
+    setDeleting(false);
+  }
 
   function updateForm(next: Partial<FormData>) {
     setForm(prev => ({ ...prev, ...next }));
@@ -847,23 +909,164 @@ export default function SettingsPage() {
                     <div className="divider" />
 
                     <div>
-                      <label className="t-label block mb-2" style={{ color: '#ef4444' }}>Zone dangereuse</label>
+                      <label className="t-label block mb-2">Mes données (RGPD)</label>
+                      <p className="text-xs mb-3" style={{ color: 'var(--s-text-muted)' }}>
+                        Télécharge une copie complète de tes données personnelles au format JSON (profil, appartenances, notifications, équipes, etc.).
+                      </p>
                       <button
-                        onClick={signOut}
+                        onClick={handleExport}
+                        disabled={exporting}
                         className="flex items-center gap-2 px-3 py-2 text-sm transition-colors duration-150"
                         style={{
-                          background: 'rgba(239,68,68,0.08)',
-                          border: '1px solid rgba(239,68,68,0.25)',
-                          color: '#ef4444',
-                          cursor: 'pointer',
+                          background: 'var(--s-elevated)',
+                          border: '1px solid var(--s-border)',
+                          color: 'var(--s-text)',
+                          cursor: exporting ? 'wait' : 'pointer',
+                          opacity: exporting ? 0.6 : 1,
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; }}
+                        onMouseEnter={(e) => { if (!exporting) e.currentTarget.style.background = 'var(--s-hover)'; }}
+                        onMouseLeave={(e) => { if (!exporting) e.currentTarget.style.background = 'var(--s-elevated)'; }}
                       >
-                        <LogOut size={13} />
-                        Me déconnecter
+                        {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                        {exporting ? 'Préparation…' : 'Télécharger mes données'}
                       </button>
                     </div>
+
+                    <div className="divider" />
+
+                    <div>
+                      <label className="t-label block mb-2" style={{ color: '#ef4444' }}>Zone dangereuse</label>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={signOut}
+                          className="flex items-center gap-2 px-3 py-2 text-sm transition-colors duration-150"
+                          style={{
+                            background: 'rgba(239,68,68,0.08)',
+                            border: '1px solid rgba(239,68,68,0.25)',
+                            color: '#ef4444',
+                            cursor: 'pointer',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; }}
+                        >
+                          <LogOut size={13} />
+                          Me déconnecter
+                        </button>
+                        <button
+                          onClick={() => { setDeleteConfirm(true); setDeleteError(''); setDeleteConfirmText(''); setDeleteBlockingStructures([]); }}
+                          className="flex items-center gap-2 px-3 py-2 text-sm transition-colors duration-150"
+                          style={{
+                            background: 'rgba(239,68,68,0.08)',
+                            border: '1px solid rgba(239,68,68,0.4)',
+                            color: '#ef4444',
+                            cursor: 'pointer',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; }}
+                        >
+                          <Trash2 size={13} />
+                          Supprimer mon compte
+                        </button>
+                      </div>
+                      <p className="text-xs mt-3" style={{ color: 'var(--s-text-muted)' }}>
+                        La suppression est définitive. Si tu es fondateur(rice) d&apos;une structure, tu dois d&apos;abord en transférer la propriété.
+                      </p>
+                    </div>
+
+                    {deleteConfirm && (
+                      <div
+                        className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+                        style={{ background: 'rgba(0,0,0,0.7)' }}
+                        onClick={() => { if (!deleting) setDeleteConfirm(false); }}
+                      >
+                        <div
+                          className="bevel-sm max-w-md w-full"
+                          style={{ background: 'var(--s-surface)', border: '1px solid rgba(239,68,68,0.4)' }}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, #ef4444, rgba(239,68,68,0.3), transparent 70%)' }} />
+                          <div className="p-5 space-y-4">
+                            <div className="flex items-center gap-2">
+                              <Trash2 size={16} style={{ color: '#ef4444' }} />
+                              <span className="font-display text-lg" style={{ color: '#ef4444', letterSpacing: '0.04em' }}>
+                                SUPPRIMER MON COMPTE
+                              </span>
+                            </div>
+                            <p className="text-sm" style={{ color: 'var(--s-text)' }}>
+                              Cette action est <strong>définitive</strong>. Seront supprimés :
+                            </p>
+                            <ul className="text-xs space-y-1 pl-4" style={{ color: 'var(--s-text-dim)', listStyle: 'disc' }}>
+                              <li>Ton profil (pseudo, bio, pays, pseudos RL/TM)</li>
+                              <li>Tes appartenances de structures</li>
+                              <li>Ton inscription dans les rosters d&apos;équipes</li>
+                              <li>Tes notifications et invitations en cours</li>
+                              <li>Ton compte Discord lié (au niveau Springs Hub uniquement)</li>
+                            </ul>
+                            <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                              Les journaux d&apos;audit mentionnant ton UID sont conservés 3 ans pour des raisons d&apos;intégrité légale (politique de confidentialité).
+                            </p>
+
+                            {deleteBlockingStructures.length > 0 && (
+                              <div className="p-3" style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.3)' }}>
+                                <p className="text-xs font-semibold mb-1" style={{ color: 'var(--s-gold)' }}>
+                                  Structures à transférer d&apos;abord :
+                                </p>
+                                <ul className="text-xs pl-4" style={{ color: 'var(--s-gold)', listStyle: 'disc' }}>
+                                  {deleteBlockingStructures.map(s => <li key={s}>{s}</li>)}
+                                </ul>
+                              </div>
+                            )}
+
+                            {deleteError && deleteBlockingStructures.length === 0 && (
+                              <div className="p-2 text-xs" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444' }}>
+                                {deleteError}
+                              </div>
+                            )}
+
+                            <div>
+                              <label className="t-label block mb-2">
+                                Tape <span style={{ color: '#ef4444' }}>SUPPRIMER</span> pour confirmer
+                              </label>
+                              <input
+                                type="text"
+                                value={deleteConfirmText}
+                                onChange={e => setDeleteConfirmText(e.target.value)}
+                                className="settings-input w-full"
+                                placeholder="SUPPRIMER"
+                                disabled={deleting}
+                              />
+                            </div>
+
+                            <div className="flex gap-2 justify-end">
+                              <button
+                                onClick={() => setDeleteConfirm(false)}
+                                disabled={deleting}
+                                className="btn-springs btn-secondary bevel-sm"
+                                style={{ padding: '8px 14px', fontSize: '12px' }}
+                              >
+                                Annuler
+                              </button>
+                              <button
+                                onClick={handleDelete}
+                                disabled={deleting || deleteConfirmText !== 'SUPPRIMER'}
+                                className="flex items-center gap-2 px-4 py-2 text-sm bevel-sm transition-colors duration-150"
+                                style={{
+                                  background: deleteConfirmText === 'SUPPRIMER' ? '#ef4444' : 'rgba(239,68,68,0.2)',
+                                  color: deleteConfirmText === 'SUPPRIMER' ? '#000' : '#ef4444',
+                                  border: '1px solid #ef4444',
+                                  cursor: deleting || deleteConfirmText !== 'SUPPRIMER' ? 'not-allowed' : 'pointer',
+                                  opacity: deleting || deleteConfirmText !== 'SUPPRIMER' ? 0.6 : 1,
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                                {deleting ? 'Suppression…' : 'Supprimer définitivement'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

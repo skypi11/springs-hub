@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Outfit, Bebas_Neue } from 'next/font/google';
 import './globals.css';
 import Sidebar from '@/components/layout/Sidebar';
+import LegalFooter from '@/components/layout/LegalFooter';
 import { AuthProvider } from '@/context/AuthContext';
 import { ToastProvider } from '@/components/ui/Toast';
 import { ConfirmProvider } from '@/components/ui/ConfirmModal';
@@ -35,8 +36,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <ConfirmProvider>
               <ProfileCompletionGate />
               <Sidebar />
-              <div className="flex-1 lg:ml-[260px] min-h-screen overflow-x-hidden hex-bg pt-14 lg:pt-0">
-                {children}
+              <div className="flex-1 lg:ml-[260px] min-h-screen overflow-x-hidden hex-bg pt-14 lg:pt-0 flex flex-col">
+                <div className="flex-1">{children}</div>
+                <LegalFooter />
               </div>
               <CommandPalette />
             </ConfirmProvider>
