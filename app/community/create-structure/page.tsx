@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
-import { auth } from '@/lib/firebase';
+import { api, ApiError } from '@/lib/api-client';
 import {
   Save, Shield, Gamepad2, Users, MessageSquare, Image as ImageIcon,
   AlertCircle, CheckCircle, Loader2, ExternalLink, Hash, Building2,
@@ -61,16 +61,10 @@ export default function CreateStructurePage() {
     if (!firebaseUser) return;
     async function checkExisting() {
       try {
-        const idToken = await firebaseUser!.getIdToken();
-        const res = await fetch('/api/structures/request', {
-          headers: { 'Authorization': `Bearer ${idToken}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setExistingCount(data.structures?.filter((s: { status: string }) =>
-            s.status === 'pending_validation' || s.status === 'active'
-          ).length ?? 0);
-        }
+        const data = await api<{ structures?: { status: string }[] }>('/api/structures/request');
+        setExistingCount(data.structures?.filter(s =>
+          s.status === 'pending_validation' || s.status === 'active'
+        ).length ?? 0);
       } catch (err) {
         console.error('[CreateStructure] check existing error:', err);
       }
@@ -108,28 +102,14 @@ export default function CreateStructurePage() {
 
     setSaving(true);
     try {
-      const idToken = await firebaseUser!.getIdToken();
-      const res = await fetch('/api/structures/request', {
+      await api('/api/structures/request', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`,
-        },
-        body: JSON.stringify(form),
+        body: form,
       });
-
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'Erreur lors de la soumission.');
-        setSaving(false);
-        return;
-      }
-
-      // Rediriger vers la page communauté avec un message de succès
       router.push('/community?structure_requested=1');
     } catch (err) {
       console.error('[CreateStructure] submit error:', err);
-      setError('Erreur réseau.');
+      setError(err instanceof ApiError ? err.message : 'Erreur réseau.');
       setSaving(false);
     }
   }
