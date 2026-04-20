@@ -70,7 +70,7 @@ const defaultForm: FormData = {
 };
 
 export default function SettingsPage() {
-  const { user, firebaseUser, isAdmin, loading: authLoading, signOut } = useAuth();
+  const { user, firebaseUser, isAdmin, loading: authLoading, signOut, refreshProfile } = useAuth();
   const router = useRouter();
   const [mustComplete, setMustComplete] = useState(false);
   useEffect(() => {
@@ -218,6 +218,9 @@ export default function SettingsPage() {
       if (res.ok) {
         setSaved(true);
         setDirty(false);
+        // Rafraîchir le state global AuthContext pour que ProfileCompletionGate
+        // voie le profil complété et n'essaie plus de rediriger vers /settings.
+        await refreshProfile();
         setTimeout(() => setSaved(false), 3000);
       } else {
         const data = await res.json();
