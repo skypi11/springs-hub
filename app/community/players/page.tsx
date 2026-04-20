@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import { User, Search, Gamepad2, ArrowUpDown, Sparkles, Star, Target, SlidersHorizontal, X, Bookmark, BookmarkCheck, Link2, Check } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
 import InviteToStructureButton from '@/components/community/InviteToStructureButton';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api-client';
 
 type PlayerCard = {
   uid: string;
@@ -68,13 +70,10 @@ function matchPositions(
 
 export default function PlayersPage() {
   const { firebaseUser } = useAuth();
-  const [players, setPlayers] = useState<PlayerCard[]>([]);
-  const [loading, setLoading] = useState(true);
   const [gameFilter, setGameFilter] = useState('');
   const [recruitingFilter, setRecruitingFilter] = useState(false);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('default');
-  // Filtres avancés (expanded panel)
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [roleFilter, setRoleFilter] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
@@ -83,137 +82,90 @@ export default function PlayersPage() {
   const [echelonMin, setEchelonMin] = useState('');
   const [echelonMax, setEchelonMax] = useState('');
   const [noStructureFilter, setNoStructureFilter] = useState(false);
-  // Positions ouvertes agrégées sur toutes les structures où le viewer est dirigeant.
-  // Sert à afficher un badge « Match » sur les cards de joueurs qui correspondent.
-  const [viewerOpenPositions, setViewerOpenPositions] = useState<OpenPosition[]>([]);
-  // Structure active où le viewer est dirigeant (première trouvée).
-  // Si défini → on active le bouton shortlist + le chargement de la liste.
-  const [viewerStructureId, setViewerStructureId] = useState<string | null>(null);
-  const [shortlistIds, setShortlistIds] = useState<Set<string>>(new Set());
+  const [localShortlist, setLocalShortlist] = useState<Set<string>>(new Set());
+  const [copiedLinkFor, setCopiedLinkFor] = useState<string | null>(null);
 
-  const loadPlayers = useCallback(async () => {
-    setLoading(true);
-    try {
+  const playersQ = useQuery({
+    queryKey: ['players', { game: gameFilter, recruiting: recruitingFilter }] as const,
+    queryFn: () => {
       const params = new URLSearchParams();
       if (gameFilter) params.set('game', gameFilter);
       if (recruitingFilter) params.set('recruiting', 'true');
-      const res = await fetch(`/api/players?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        setPlayers(data.players ?? []);
-      }
-    } catch (err) {
-      console.error('[Players] load error:', err);
+      return api<{ players: PlayerCard[] }>(`/api/players?${params.toString()}`);
+    },
+  });
+  const players = playersQ.data?.players ?? [];
+  const loading = playersQ.isPending;
+
+  type StructureMy = {
+    id: string;
+    status: string;
+    accessLevel?: string;
+    managerIds?: string[];
+    recruiting?: { active?: boolean; positions?: { game?: string; role?: string }[] };
+  };
+  const myStructuresQ = useQuery({
+    queryKey: ['structures', 'my'] as const,
+    queryFn: () => api<{ structures: StructureMy[] }>('/api/structures/my'),
+    enabled: !!firebaseUser,
+  });
+
+  const { viewerOpenPositions, viewerStructureId } = useMemo(() => {
+    if (!firebaseUser || !myStructuresQ.data) {
+      return { viewerOpenPositions: [] as OpenPosition[], viewerStructureId: null as string | null };
     }
-    setLoading(false);
-  }, [gameFilter, recruitingFilter]);
-
-  useEffect(() => {
-    loadPlayers();
-  }, [loadPlayers]);
-
-  // Charge les positions ouvertes + l'ID de la structure dirigeant du viewer.
-  // Déconnecté ou non-dirigeant → tout vide → pas de badges Match ni de shortlist.
-  useEffect(() => {
-    if (!firebaseUser) {
-      setViewerOpenPositions([]);
-      setViewerStructureId(null);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const idToken = await firebaseUser.getIdToken();
-        const res = await fetch('/api/structures/my', {
-          headers: { 'Authorization': `Bearer ${idToken}` },
-        });
-        if (!res.ok) {
-          if (!cancelled) { setViewerOpenPositions([]); setViewerStructureId(null); }
-          return;
-        }
-        const data = await res.json();
-        const positions: OpenPosition[] = [];
-        let firstRecruiterActive: string | null = null;
-        const uid = firebaseUser.uid;
-        for (const s of data.structures || []) {
-          if (s.status !== 'active') continue;
-          const isDirigeant = s.accessLevel === 'dirigeant';
-          const isManager = (s.managerIds ?? []).includes(uid);
-          if (!isDirigeant && !isManager) continue;
-          if (!firstRecruiterActive) firstRecruiterActive = s.id;
-          if (!s.recruiting?.active) continue;
-          for (const p of s.recruiting.positions || []) {
-            if (p?.game && p?.role) positions.push({ game: p.game, role: p.role });
-          }
-        }
-        if (!cancelled) {
-          setViewerOpenPositions(positions);
-          setViewerStructureId(firstRecruiterActive);
-        }
-      } catch {
-        if (!cancelled) { setViewerOpenPositions([]); setViewerStructureId(null); }
+    const positions: OpenPosition[] = [];
+    let firstRecruiterActive: string | null = null;
+    const uid = firebaseUser.uid;
+    for (const s of myStructuresQ.data.structures || []) {
+      if (s.status !== 'active') continue;
+      const isDirigeant = s.accessLevel === 'dirigeant';
+      const isManager = (s.managerIds ?? []).includes(uid);
+      if (!isDirigeant && !isManager) continue;
+      if (!firstRecruiterActive) firstRecruiterActive = s.id;
+      if (!s.recruiting?.active) continue;
+      for (const p of s.recruiting.positions || []) {
+        if (p?.game && p?.role) positions.push({ game: p.game, role: p.role });
       }
-    })();
-    return () => { cancelled = true; };
-  }, [firebaseUser]);
-
-  // Charge la shortlist de la structure active — uniquement si viewer est dirigeant.
-  useEffect(() => {
-    if (!firebaseUser || !viewerStructureId) {
-      setShortlistIds(new Set());
-      return;
     }
-    let cancelled = false;
-    (async () => {
-      try {
-        const idToken = await firebaseUser.getIdToken();
-        const res = await fetch(`/api/structures/${viewerStructureId}/shortlist`, {
-          headers: { 'Authorization': `Bearer ${idToken}` },
-        });
-        if (!res.ok) { if (!cancelled) setShortlistIds(new Set()); return; }
-        const data = await res.json();
-        if (!cancelled) {
-          const ids = new Set<string>((data.shortlist || []).map((s: { uid: string }) => s.uid));
-          setShortlistIds(ids);
-        }
-      } catch {
-        if (!cancelled) setShortlistIds(new Set());
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [firebaseUser, viewerStructureId]);
+    return { viewerOpenPositions: positions, viewerStructureId: firstRecruiterActive };
+  }, [firebaseUser, myStructuresQ.data]);
 
-  // État du bouton "Lien perso" : uid du joueur → timestamp (pour afficher "Copié !")
-  const [copiedLinkFor, setCopiedLinkFor] = useState<string | null>(null);
+  const shortlistQ = useQuery({
+    queryKey: ['structures', viewerStructureId, 'shortlist'] as const,
+    queryFn: () => api<{ shortlist: { uid: string }[] }>(`/api/structures/${viewerStructureId}/shortlist`),
+    enabled: !!firebaseUser && !!viewerStructureId,
+  });
+  const serverShortlistIds = useMemo(() => {
+    return new Set<string>((shortlistQ.data?.shortlist ?? []).map(s => s.uid));
+  }, [shortlistQ.data]);
+  const shortlistIds = useMemo(() => {
+    if (localShortlist.size === 0) return serverShortlistIds;
+    const merged = new Set(serverShortlistIds);
+    for (const id of localShortlist) merged.has(id) ? merged.delete(id) : merged.add(id);
+    return merged;
+  }, [serverShortlistIds, localShortlist]);
 
-  // Génère un lien d'invitation ciblé (single-use) pour un joueur et le copie dans le presse-papier.
   const generateTargetedLink = useCallback(async (targetUid: string, targetGame: string) => {
     if (!firebaseUser || !viewerStructureId) return;
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/structures/invitations', {
+      const data = await api<{ token?: string }>('/api/structures/invitations', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+        body: {
           action: 'create_link',
           structureId: viewerStructureId,
           targetUserId: targetUid,
           game: targetGame,
-        }),
+        },
       });
-      const data = await res.json();
-      if (!res.ok || !data.token) {
-        alert(data.error || 'Impossible de générer le lien');
+      if (!data.token) {
+        alert('Impossible de générer le lien');
         return;
       }
       const url = `${window.location.origin}/community/join/${data.token}`;
       try {
         await navigator.clipboard.writeText(url);
       } catch {
-        // Fallback : afficher le lien dans un prompt
         window.prompt('Lien copié impossible — copie manuellement :', url);
       }
       setCopiedLinkFor(targetUid);
@@ -223,39 +175,24 @@ export default function PlayersPage() {
     }
   }, [firebaseUser, viewerStructureId]);
 
-  // Toggle shortlist : ajoute ou retire le joueur de la shortlist de la structure active.
   const toggleShortlist = useCallback(async (targetUid: string) => {
     if (!firebaseUser || !viewerStructureId) return;
     const alreadyIn = shortlistIds.has(targetUid);
-    // Optimistic update
-    setShortlistIds(prev => {
+    setLocalShortlist(prev => {
       const next = new Set(prev);
-      if (alreadyIn) next.delete(targetUid); else next.add(targetUid);
+      next.has(targetUid) ? next.delete(targetUid) : next.add(targetUid);
       return next;
     });
     try {
-      const idToken = await firebaseUser.getIdToken();
       const url = `/api/structures/${viewerStructureId}/shortlist${alreadyIn ? `?userId=${encodeURIComponent(targetUid)}` : ''}`;
-      const res = await fetch(url, {
+      await api(url, {
         method: alreadyIn ? 'DELETE' : 'POST',
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: alreadyIn ? undefined : JSON.stringify({ userId: targetUid }),
+        body: alreadyIn ? null : { userId: targetUid },
       });
-      if (!res.ok) {
-        // Rollback
-        setShortlistIds(prev => {
-          const next = new Set(prev);
-          if (alreadyIn) next.add(targetUid); else next.delete(targetUid);
-          return next;
-        });
-      }
     } catch {
-      setShortlistIds(prev => {
+      setLocalShortlist(prev => {
         const next = new Set(prev);
-        if (alreadyIn) next.add(targetUid); else next.delete(targetUid);
+        next.has(targetUid) ? next.delete(targetUid) : next.add(targetUid);
         return next;
       });
     }

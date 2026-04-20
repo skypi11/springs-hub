@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Send, Inbox, Shield, CheckCircle, XCircle, Trash2, AlertCircle, MessageSquare } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
@@ -59,60 +60,33 @@ function formatDate(iso: string | null): string {
 export default function MyApplicationsPage() {
   const { firebaseUser, loading: authLoading } = useAuth();
   const toast = useToast();
-  const [sentRequests, setSentRequests] = useState<SentRequest[]>([]);
-  const [receivedInvites, setReceivedInvites] = useState<ReceivedInvite[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [actionId, setActionId] = useState<string | null>(null);
+  const qc = useQueryClient();
 
-  const loadData = useCallback(async () => {
-    if (!firebaseUser) return;
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/me/applications', {
-        headers: { 'Authorization': `Bearer ${idToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSentRequests(data.sentRequests || []);
-        setReceivedInvites(data.receivedInvites || []);
-      }
-    } catch {
-      toast.error('Erreur de chargement');
-    }
-    setLoading(false);
-  }, [firebaseUser, toast]);
+  const queryKey = ['me', 'applications'] as const;
+  const { data, isPending } = useQuery({
+    queryKey,
+    queryFn: () => api<{ sentRequests: SentRequest[]; receivedInvites: ReceivedInvite[] }>('/api/me/applications'),
+    enabled: !!firebaseUser && !authLoading,
+  });
+  const sentRequests = data?.sentRequests ?? [];
+  const receivedInvites = data?.receivedInvites ?? [];
+  const loading = isPending && !!firebaseUser;
 
-  useEffect(() => {
-    if (authLoading) return;
-    if (!firebaseUser) {
-      setLoading(false);
-      return;
-    }
-    loadData();
-  }, [authLoading, firebaseUser, loadData]);
-
-  async function doAction(action: string, invitationId: string, successMsg: string) {
-    if (!firebaseUser) return;
-    setActionId(invitationId);
-    try {
-      const idToken = await firebaseUser.getIdToken();
-      const res = await fetch('/api/me/applications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ action, invitationId }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        toast.success(successMsg);
-        await loadData();
-      } else {
-        toast.error(data.error || 'Erreur');
-      }
-    } catch {
-      toast.error('Erreur réseau');
-    }
-    setActionId(null);
-  }
+  const actionMutation = useMutation({
+    mutationFn: ({ action, invitationId }: { action: string; invitationId: string; successMsg: string }) =>
+      api('/api/me/applications', { method: 'POST', body: { action, invitationId } }),
+    onSuccess: (_data, vars) => {
+      toast.success(vars.successMsg);
+      qc.invalidateQueries({ queryKey });
+    },
+    onError: (err) => {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
+    },
+  });
+  const actionId = actionMutation.isPending ? actionMutation.variables?.invitationId ?? null : null;
+  const doAction = (action: string, invitationId: string, successMsg: string) => {
+    actionMutation.mutate({ action, invitationId, successMsg });
+  };
 
   if (authLoading || loading) {
     return (
