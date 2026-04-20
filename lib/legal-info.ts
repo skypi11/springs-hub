@@ -4,13 +4,14 @@
 
 export const LEGAL_INFO = {
   // Association
-  associationName: 'Springs E-Sport',
+  associationName: 'SPRINGS E-SPORT',
   associationType: 'Association loi 1901',
-  associationRNA: 'À COMPLÉTER — numéro RNA (format W + 9 chiffres)',
-  associationSiret: null as string | null, // ex: '123 456 789 00012' — null si pas de SIRET
-  associationDeclarationDate: 'À COMPLÉTER — date de déclaration en préfecture',
-  associationDeclarationPrefecture: 'À COMPLÉTER — préfecture de déclaration',
-  associationAddress: 'À COMPLÉTER — adresse complète du siège',
+  associationRNA: 'W584004542',
+  associationSiret: '924 645 377 00012' as string | null,
+  associationSiren: '924 645 377',
+  associationDeclarationDate: '17/12/2023',
+  associationDeclarationPrefecture: 'Préfecture de la Nièvre (Nevers)',
+  associationAddress: '6 lotissement Le Champ de la Vigne, 58310 Saint-Amand-en-Puisaye',
 
   // Représentant légal
   representativeName: 'À COMPLÉTER — Prénom NOM du président',

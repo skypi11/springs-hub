@@ -35,6 +35,7 @@ export default function MentionsLegalesPage() {
             <LegalLine label="Dénomination" value={i.associationName} />
             <LegalLine label="Statut juridique" value={i.associationType} />
             <LegalLine label="Numéro RNA" value={i.associationRNA} />
+            {i.associationSiren && <LegalLine label="SIREN" value={i.associationSiren} />}
             {i.associationSiret && <LegalLine label="SIRET" value={i.associationSiret} />}
             <LegalLine label="Déclarée le" value={`${i.associationDeclarationDate} — ${i.associationDeclarationPrefecture}`} />
             <LegalLine label="Siège social" value={i.associationAddress} />
