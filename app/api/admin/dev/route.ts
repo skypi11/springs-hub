@@ -22,11 +22,12 @@ const COUNT_COLLECTIONS = [
 // Variables d'env sensibles à vérifier (on ne renvoie jamais les valeurs — juste
 // la présence, pour diagnostiquer les "ça marche pas en prod" d'un coup d'œil).
 const ENV_KEYS = [
-  'FIREBASE_PROJECT_ID',
-  'FIREBASE_CLIENT_EMAIL',
-  'FIREBASE_PRIVATE_KEY',
+  'FIREBASE_SERVICE_ACCOUNT',
   'DISCORD_CLIENT_ID',
   'DISCORD_CLIENT_SECRET',
+  'DISCORD_BOT_TOKEN',
+  'DISCORD_BOT_CLIENT_ID',
+  'DISCORD_BOT_CLIENT_SECRET',
   'R2_ENDPOINT',
   'R2_ACCESS_KEY_ID',
   'R2_SECRET_ACCESS_KEY',
@@ -34,7 +35,6 @@ const ENV_KEYS = [
   'R2_PUBLIC_URL',
   'UPSTASH_REDIS_REST_URL',
   'UPSTASH_REDIS_REST_TOKEN',
-  'SENTRY_DSN',
   'NEXT_PUBLIC_SENTRY_DSN',
   'TRN_API_KEY',
 ];
