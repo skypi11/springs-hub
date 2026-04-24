@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
 import {
-  History, Loader2, ChevronDown, ChevronUp, Search, RefreshCw,
+  History, Loader2, ChevronDown, ChevronUp, Search, RefreshCw, Download,
   CheckCircle, XCircle, Ban, Shield, Trash2, Pencil, UserMinus, LogOut,
   Building2, User as UserIcon, Calendar,
 } from 'lucide-react';
@@ -138,6 +138,40 @@ export default function AdminAuditPage() {
     return Array.from(set).sort();
   }, [logs]);
 
+  function exportCsv() {
+    // Export du résultat filtré courant (pas toute la base) — l'admin voit ce qu'il
+    // télécharge. Métadata stringifié en JSON compact pour rester lisible dans Excel.
+    const headers = ['createdAt', 'source', 'action', 'actorUid', 'actorLabel',
+      'targetType', 'targetId', 'targetLabel', 'structureId', 'structureLabel', 'metadata'];
+    const escape = (v: unknown) => {
+      const s = v === null || v === undefined ? '' : String(v);
+      return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const rows = filtered.map(l => [
+      l.createdAt ?? '',
+      l.source,
+      l.action,
+      l.actorUid,
+      l.actorLabel ?? '',
+      l.targetType ?? '',
+      l.targetId ?? '',
+      l.targetLabel ?? '',
+      l.structureId ?? '',
+      l.structureLabel ?? '',
+      Object.keys(l.metadata ?? {}).length > 0 ? JSON.stringify(l.metadata) : '',
+    ].map(escape).join(','));
+    const csv = '\ufeff' + [headers.join(','), ...rows].join('\n'); // BOM pour Excel
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `springs-audit-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   if (loading && logs.length === 0) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -163,6 +197,24 @@ export default function AdminAuditPage() {
         >
           <RefreshCw size={12} />
           Rafraîchir
+        </button>
+        <button
+          onClick={exportCsv}
+          disabled={filtered.length === 0}
+          className="tag"
+          style={{
+            cursor: filtered.length === 0 ? 'not-allowed' : 'pointer',
+            opacity: filtered.length === 0 ? 0.5 : 1,
+            padding: '6px 12px', fontSize: '11px',
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            background: 'rgba(123,47,190,0.1)',
+            color: 'var(--s-violet-light)',
+            borderColor: 'rgba(123,47,190,0.3)',
+          }}
+          title={`Exporter ${filtered.length} ligne(s) affichée(s)`}
+        >
+          <Download size={12} />
+          Export CSV
         </button>
       </div>
 
