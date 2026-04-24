@@ -42,6 +42,17 @@ export async function GET(req: NextRequest) {
     ));
     const foundersById = await fetchDocsByIds(db, 'users', founderIds);
 
+    // Rassembler tous les UIDs roster pour un seul batch users (limite le coût
+    // si 50+ équipes avec 5 membres chacune → 250 lookups → 5 batches de 50).
+    const allMemberIds = new Set<string>();
+    for (const doc of snap.docs) {
+      const d = doc.data();
+      for (const arr of [d.playerIds, d.subIds, d.staffIds]) {
+        if (Array.isArray(arr)) for (const uid of arr) if (typeof uid === 'string') allMemberIds.add(uid);
+      }
+    }
+    const membersById = await fetchDocsByIds(db, 'users', Array.from(allMemberIds));
+
     const teams = snap.docs.map(doc => {
       const data = doc.data();
       const structure = structuresById.get(data.structureId);
@@ -56,6 +67,18 @@ export async function GET(req: NextRequest) {
       // Fallback : les équipes créées avant le Lot 1 (17/04/2026) n'ont pas de
       // champ `status` — on les considère `active` par défaut.
       const status: 'active' | 'archived' = data.status === 'archived' ? 'archived' : 'active';
+      const toRef = (uid: string) => {
+        const u = membersById.get(uid);
+        return {
+          uid,
+          name: (u?.displayName as string | undefined)
+            || (u?.discordUsername as string | undefined)
+            || uid,
+          avatar: (u?.avatarUrl as string | undefined)
+            || (u?.discordAvatar as string | undefined)
+            || '',
+        };
+      };
       return {
         id: doc.id,
         name: data.name ?? '',
@@ -69,6 +92,9 @@ export async function GET(req: NextRequest) {
         structureStatus: structure?.status ?? null,
         founderId,
         founderName,
+        players: players.map(toRef),
+        subs: subs.map(toRef),
+        staff: staff.map(toRef),
         playerCount: players.length,
         subCount: subs.length,
         staffCount: staff.length,

@@ -11,6 +11,7 @@ import AdminUserRef from '@/components/admin/AdminUserRef';
 import {
   CalendarDays, Loader2, MapPin, Clock, Search, ExternalLink,
   CheckCircle2, XCircle, Calendar as CalendarIcon, Ban, RotateCcw, Trash2,
+  ChevronDown, ChevronUp, Users, HelpCircle, Minus,
 } from 'lucide-react';
 
 type AdminEvent = {
@@ -32,6 +33,24 @@ type AdminEvent = {
   createdAt: string | null;
   completedAt: string | null;
   cancelledAt: string | null;
+};
+
+type PresenceStatus = 'present' | 'absent' | 'maybe' | 'pending';
+
+type PresenceRef = {
+  id: string;
+  userId: string;
+  name: string;
+  avatar: string;
+  status: PresenceStatus;
+  respondedAt: string | null;
+};
+
+type EventDetail = {
+  eventId: string;
+  presences: PresenceRef[];
+  counts: { present: number; absent: number; maybe: number; pending: number; total: number };
+  truncated: boolean;
 };
 
 const TYPE_META: Record<string, { label: string; color: string }> = {
@@ -72,6 +91,27 @@ export default function AdminCalendarPage() {
   const [typeFilter, setTypeFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [search, setSearch] = useState('');
+
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
+  const [detailById, setDetailById] = useState<Record<string, EventDetail>>({});
+  const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
+
+  async function toggleDetail(eventId: string) {
+    if (expandedEventId === eventId) {
+      setExpandedEventId(null);
+      return;
+    }
+    setExpandedEventId(eventId);
+    if (detailById[eventId]) return;
+    setDetailLoadingId(eventId);
+    try {
+      const detail = await api<EventDetail>(`/api/admin/calendar?eventId=${encodeURIComponent(eventId)}`);
+      setDetailById(prev => ({ ...prev, [eventId]: detail }));
+    } catch (err) {
+      console.error('[Admin/Calendar] detail error:', err);
+    }
+    setDetailLoadingId(null);
+  }
 
   async function load() {
     if (!firebaseUser) return;
@@ -259,6 +299,8 @@ export default function AdminCalendarPage() {
               ? XCircle
               : CalendarIcon;
 
+          const isOpen = expandedEventId === event.id;
+          const detail = detailById[event.id];
           return (
             <div key={event.id} className="panel p-3">
               <div className="flex items-start gap-3">
@@ -336,6 +378,19 @@ export default function AdminCalendarPage() {
                   )}
 
                   <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                    <button
+                      onClick={() => toggleDetail(event.id)}
+                      className="btn-springs bevel-sm flex items-center gap-1.5"
+                      style={{
+                        fontSize: '11px', padding: '5px 10px',
+                        background: isOpen ? 'rgba(123,47,190,0.15)' : 'transparent',
+                        color: isOpen ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
+                        borderColor: isOpen ? 'rgba(123,47,190,0.4)' : 'var(--s-border)',
+                      }}>
+                      <Users size={11} />
+                      <span>Présences</span>
+                      {isOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                    </button>
                     {event.status === 'scheduled' && (
                       <>
                         <button
@@ -397,10 +452,100 @@ export default function AdminCalendarPage() {
                   </div>
                 </div>
               </div>
+
+              {isOpen && (
+                <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--s-border)' }}>
+                  {detailLoadingId === event.id && !detail ? (
+                    <div className="flex items-center justify-center py-3">
+                      <Loader2 size={14} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
+                    </div>
+                  ) : detail ? (
+                    <PresencePanel detail={detail} />
+                  ) : null}
+                </div>
+              )}
             </div>
           );
         })}
       </div>
     </>
+  );
+}
+
+const PRESENCE_META: Record<PresenceStatus, { label: string; color: string; icon: typeof CheckCircle2 }> = {
+  present: { label: 'Présent',  color: '#33ff66',           icon: CheckCircle2 },
+  maybe:   { label: 'Peut-être', color: '#FFB800',          icon: HelpCircle },
+  pending: { label: 'Pas de réponse', color: 'var(--s-text-dim)', icon: Minus },
+  absent:  { label: 'Absent',   color: '#ff5555',           icon: XCircle },
+};
+
+function PresencePanel({ detail }: { detail: EventDetail }) {
+  if (detail.counts.total === 0) {
+    return (
+      <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+        Aucune présence pour cet événement.
+      </p>
+    );
+  }
+
+  const groups: PresenceStatus[] = ['present', 'maybe', 'pending', 'absent'];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3 flex-wrap text-xs">
+        {groups.map(g => {
+          const meta = PRESENCE_META[g];
+          const Icon = meta.icon;
+          return (
+            <span key={g} className="flex items-center gap-1" style={{ color: meta.color }}>
+              <Icon size={11} />
+              <span className="font-semibold">{detail.counts[g]}</span>
+              <span style={{ color: 'var(--s-text-muted)' }}>{meta.label.toLowerCase()}</span>
+            </span>
+          );
+        })}
+        <span style={{ color: 'var(--s-text-muted)' }}>/ {detail.counts.total} invités</span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+        {detail.presences.map(p => {
+          const meta = PRESENCE_META[p.status];
+          const Icon = meta.icon;
+          return (
+            <Link
+              key={p.id}
+              href={`/profile/${p.userId}`}
+              className="flex items-center gap-2 px-2 py-1.5 transition-all duration-150 hover:underline"
+              style={{
+                background: 'var(--s-elevated)',
+                borderLeft: `2px solid ${meta.color}`,
+              }}
+            >
+              {p.avatar ? (
+                <div className="w-5 h-5 relative flex-shrink-0 overflow-hidden rounded-full">
+                  <Image src={p.avatar} alt={p.name} fill className="object-cover" unoptimized />
+                </div>
+              ) : (
+                <div className="w-5 h-5 flex-shrink-0 rounded-full flex items-center justify-center" style={{ background: 'var(--s-hover)' }}>
+                  <Users size={10} style={{ color: 'var(--s-text-muted)' }} />
+                </div>
+              )}
+              <span className="text-xs flex-1 min-w-0 truncate" style={{ color: 'var(--s-text)' }}>
+                {p.name}
+              </span>
+              <span className="flex items-center gap-1 text-xs" style={{ color: meta.color }}>
+                <Icon size={10} />
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+
+      {detail.truncated && (
+        <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+          Limité à 200 présences.
+        </p>
+      )}
+    </div>
   );
 }

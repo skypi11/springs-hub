@@ -9,7 +9,10 @@ import AdminUserRef from '@/components/admin/AdminUserRef';
 import ImpersonateButton from '@/components/admin/ImpersonateButton';
 import {
   Users2, Archive, Loader2, ExternalLink, Search, AlertTriangle,
+  ChevronDown, ChevronUp, User as UserIcon,
 } from 'lucide-react';
+
+type MemberRef = { uid: string; name: string; avatar: string };
 
 type AdminTeam = {
   id: string;
@@ -24,6 +27,9 @@ type AdminTeam = {
   structureStatus: string | null;
   founderId: string;
   founderName: string;
+  players: MemberRef[];
+  subs: MemberRef[];
+  staff: MemberRef[];
   playerCount: number;
   subCount: number;
   staffCount: number;
@@ -47,6 +53,7 @@ export default function AdminTeamsPage() {
   const [gameFilter, setGameFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('active');
   const [search, setSearch] = useState('');
+  const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
 
   async function load() {
     if (!firebaseUser) return;
@@ -265,71 +272,97 @@ export default function AdminTeamsPage() {
                 {structTeams.map(team => {
                   const gameMeta = GAME_META[team.game];
                   const isEmpty = team.totalRoster === 0;
+                  const isOpen = expandedTeamId === team.id;
                   return (
                     <div key={team.id}
-                      className="flex items-center gap-3 px-3 py-2"
                       style={{
                         background: 'var(--s-elevated)',
                         border: '1px solid var(--s-border)',
                       }}>
-                      {/* Logo équipe */}
-                      {team.logoUrl ? (
-                        <div className="w-7 h-7 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-bg)' }}>
-                          <Image src={team.logoUrl} alt={team.name} fill className="object-contain" unoptimized />
+                      <button
+                        type="button"
+                        onClick={() => setExpandedTeamId(isOpen ? null : team.id)}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-left"
+                        style={{ cursor: team.totalRoster > 0 ? 'pointer' : 'default' }}
+                        disabled={team.totalRoster === 0}
+                      >
+                        {/* Logo équipe */}
+                        {team.logoUrl ? (
+                          <div className="w-7 h-7 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-bg)' }}>
+                            <Image src={team.logoUrl} alt={team.name} fill className="object-contain" unoptimized />
+                          </div>
+                        ) : (
+                          <div className="w-7 h-7 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-bg)' }}>
+                            <Users2 size={12} style={{ color: 'var(--s-text-muted)' }} />
+                          </div>
+                        )}
+                        {/* Nom + label */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-semibold truncate">{team.name}</span>
+                            {gameMeta && (
+                              <span className={`tag ${gameMeta.tagClass}`} style={{ fontSize: '9px', padding: '1px 5px' }}>
+                                {gameMeta.label}
+                              </span>
+                            )}
+                            {team.status === 'archived' && (
+                              <span className="tag tag-neutral flex items-center gap-1" style={{ fontSize: '9px', padding: '1px 5px' }}>
+                                <Archive size={8} />
+                                archivée
+                              </span>
+                            )}
+                            {team.label && (
+                              <span className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                                [{team.label}]
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      ) : (
-                        <div className="w-7 h-7 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-bg)' }}>
-                          <Users2 size={12} style={{ color: 'var(--s-text-muted)' }} />
+                        {/* Compteurs roster */}
+                        <div className="flex items-center gap-4 text-xs">
+                          <span title="Titulaires" style={{ color: 'var(--s-text)' }}>
+                            {team.playerCount} <span style={{ color: 'var(--s-text-muted)' }}>tit.</span>
+                          </span>
+                          <span title="Remplaçants" style={{ color: 'var(--s-text-dim)' }}>
+                            {team.subCount} <span style={{ color: 'var(--s-text-muted)' }}>rem.</span>
+                          </span>
+                          <span title="Staff" style={{ color: 'var(--s-text-dim)' }}>
+                            {team.staffCount} <span style={{ color: 'var(--s-text-muted)' }}>staff</span>
+                          </span>
+                          {isEmpty && (
+                            <span className="tag tag-gold flex items-center gap-1" style={{ fontSize: '9px', padding: '1px 5px' }}>
+                              <AlertTriangle size={8} />
+                              vide
+                            </span>
+                          )}
+                        </div>
+                        {/* Lien vers la structure pour voir le détail */}
+                        <Link
+                          href={`/community/structure/${team.structureId}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center gap-1 text-xs hover:underline"
+                          style={{ color: 'var(--s-violet-light)' }}
+                          title="Voir la structure">
+                          <ExternalLink size={11} />
+                        </Link>
+                        {team.totalRoster > 0 && (
+                          isOpen ? <ChevronUp size={13} style={{ color: 'var(--s-text-dim)' }} /> : <ChevronDown size={13} style={{ color: 'var(--s-text-dim)' }} />
+                        )}
+                      </button>
+
+                      {isOpen && team.totalRoster > 0 && (
+                        <div className="px-3 pb-3 pt-1 space-y-3" style={{ borderTop: '1px solid var(--s-border)' }}>
+                          {team.players.length > 0 && (
+                            <RosterGroup title="Titulaires" members={team.players} color="var(--s-text)" />
+                          )}
+                          {team.subs.length > 0 && (
+                            <RosterGroup title="Remplaçants" members={team.subs} color="var(--s-text-dim)" />
+                          )}
+                          {team.staff.length > 0 && (
+                            <RosterGroup title="Staff" members={team.staff} color="var(--s-text-dim)" />
+                          )}
                         </div>
                       )}
-                      {/* Nom + label */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-semibold truncate">{team.name}</span>
-                          {gameMeta && (
-                            <span className={`tag ${gameMeta.tagClass}`} style={{ fontSize: '9px', padding: '1px 5px' }}>
-                              {gameMeta.label}
-                            </span>
-                          )}
-                          {team.status === 'archived' && (
-                            <span className="tag tag-neutral flex items-center gap-1" style={{ fontSize: '9px', padding: '1px 5px' }}>
-                              <Archive size={8} />
-                              archivée
-                            </span>
-                          )}
-                          {team.label && (
-                            <span className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                              [{team.label}]
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {/* Compteurs roster */}
-                      <div className="flex items-center gap-4 text-xs">
-                        <span title="Titulaires" style={{ color: 'var(--s-text)' }}>
-                          {team.playerCount} <span style={{ color: 'var(--s-text-muted)' }}>tit.</span>
-                        </span>
-                        <span title="Remplaçants" style={{ color: 'var(--s-text-dim)' }}>
-                          {team.subCount} <span style={{ color: 'var(--s-text-muted)' }}>rem.</span>
-                        </span>
-                        <span title="Staff" style={{ color: 'var(--s-text-dim)' }}>
-                          {team.staffCount} <span style={{ color: 'var(--s-text-muted)' }}>staff</span>
-                        </span>
-                        {isEmpty && (
-                          <span className="tag tag-gold flex items-center gap-1" style={{ fontSize: '9px', padding: '1px 5px' }}>
-                            <AlertTriangle size={8} />
-                            vide
-                          </span>
-                        )}
-                      </div>
-                      {/* Lien vers la structure pour voir le détail */}
-                      <Link
-                        href={`/community/structure/${team.structureId}`}
-                        className="flex items-center gap-1 text-xs hover:underline"
-                        style={{ color: 'var(--s-violet-light)' }}
-                        title="Voir la structure">
-                        <ExternalLink size={11} />
-                      </Link>
                     </div>
                   );
                 })}
@@ -339,5 +372,36 @@ export default function AdminTeamsPage() {
         ))}
       </div>
     </>
+  );
+}
+
+function RosterGroup({ title, members, color }: { title: string; members: MemberRef[]; color: string }) {
+  return (
+    <div>
+      <p className="t-label mb-1.5" style={{ color }}>{title} ({members.length})</p>
+      <div className="flex flex-wrap gap-1.5">
+        {members.map(m => (
+          <Link
+            key={m.uid}
+            href={`/profile/${m.uid}`}
+            className="flex items-center gap-1.5 px-2 py-1 transition-colors"
+            style={{
+              background: 'var(--s-bg)',
+              border: '1px solid var(--s-border)',
+              fontSize: '11px',
+              color: 'var(--s-text)',
+            }}
+            title={m.uid}
+          >
+            {m.avatar ? (
+              <Image src={m.avatar} alt="" width={16} height={16} className="flex-shrink-0" unoptimized />
+            ) : (
+              <UserIcon size={11} style={{ color: 'var(--s-text-muted)' }} />
+            )}
+            <span className="truncate max-w-[160px]">{m.name}</span>
+          </Link>
+        ))}
+      </div>
+    </div>
   );
 }

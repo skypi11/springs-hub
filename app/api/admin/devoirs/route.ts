@@ -37,6 +37,9 @@ type StructureStats = {
 // Agrège structure_todos par structure + stats globales. Pas de détail par devoir
 // (c'est le rôle du panel structure) — ici on donne un bilan d'ensemble pour
 // identifier les structures en retard / sans activité.
+//
+// Avec ?structureId=X : retourne la liste détaillée des devoirs de cette structure
+// (utilisé pour le déroulement inline dans le panel admin).
 export async function GET(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -44,6 +47,11 @@ export async function GET(req: NextRequest) {
     if (!(await isAdmin(uid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
 
     const db = getAdminDb();
+
+    const structureIdParam = req.nextUrl.searchParams.get('structureId');
+    if (structureIdParam) {
+      return await getStructureDetail(db, structureIdParam);
+    }
 
     const snap = await db.collection('structure_todos').limit(MAX_TODOS).get();
 
@@ -176,4 +184,83 @@ export async function GET(req: NextRequest) {
     captureApiError('API Admin/Devoirs GET error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
+}
+
+// Détail des devoirs d'une structure : liste triée (pending d'abord par deadline
+// croissante, puis done par doneAt décroissant). Cap 500 pour éviter un payload
+// monstrueux sur une structure qui en accumulerait.
+const STRUCTURE_DETAIL_CAP = 500;
+
+async function getStructureDetail(db: FirebaseFirestore.Firestore, structureId: string) {
+  const snap = await db.collection('structure_todos')
+    .where('structureId', '==', structureId)
+    .limit(STRUCTURE_DETAIL_CAP)
+    .get();
+
+  const assigneeIds = new Set<string>();
+  const nowMs = Date.now();
+  const todayYmd = parisYmd(nowMs);
+  const endOfTodayMs = endOfDayParisMs(todayYmd);
+
+  const todos = snap.docs.map(doc => {
+    const d = doc.data();
+    const deadline = (d.deadline as string | null) ?? null;
+    const deadlineAt = typeof d.deadlineAt === 'number'
+      ? d.deadlineAt
+      : (deadline ? endOfDayParisMs(deadline) : null);
+    const assigneeId = typeof d.assigneeId === 'string' ? d.assigneeId : '';
+    if (assigneeId) assigneeIds.add(assigneeId);
+    const done = !!d.done;
+    let urgency: 'overdue' | 'today' | 'future' | 'none' = 'none';
+    if (!done && deadlineAt !== null) {
+      if (deadlineAt < nowMs) urgency = 'overdue';
+      else if (deadlineAt <= endOfTodayMs) urgency = 'today';
+      else urgency = 'future';
+    }
+    return {
+      id: doc.id,
+      type: (typeof d.type === 'string' && d.type) ? d.type : 'free',
+      title: (d.title as string | undefined) ?? '',
+      done,
+      doneAt: tsMs(d.doneAt),
+      deadline,
+      deadlineAt,
+      urgency,
+      assigneeId,
+      assigneeName: '',
+      createdBy: (d.createdBy as string | undefined) ?? '',
+      createdAt: tsMs(d.createdAt),
+      hasResponse: !!d.response,
+    };
+  });
+
+  const usersById = await fetchDocsByIds(db, 'users', Array.from(assigneeIds));
+  for (const t of todos) {
+    if (!t.assigneeId) continue;
+    const u = usersById.get(t.assigneeId);
+    t.assigneeName = (u?.displayName as string | undefined)
+      || (u?.discordUsername as string | undefined)
+      || t.assigneeId;
+  }
+
+  // Tri : pending d'abord (overdue en tête, puis today, puis par deadline croissante),
+  // puis done (les plus récents d'abord).
+  todos.sort((a, b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    if (!a.done) {
+      const rank = (u: string) => u === 'overdue' ? 0 : u === 'today' ? 1 : u === 'future' ? 2 : 3;
+      const ra = rank(a.urgency), rb = rank(b.urgency);
+      if (ra !== rb) return ra - rb;
+      const da = a.deadlineAt ?? Number.POSITIVE_INFINITY;
+      const db2 = b.deadlineAt ?? Number.POSITIVE_INFINITY;
+      return da - db2;
+    }
+    return (b.doneAt ?? 0) - (a.doneAt ?? 0);
+  });
+
+  return NextResponse.json({
+    structureId,
+    todos,
+    truncated: snap.size >= STRUCTURE_DETAIL_CAP,
+  });
 }

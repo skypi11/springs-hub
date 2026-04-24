@@ -6,9 +6,10 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
 import ImpersonateButton from '@/components/admin/ImpersonateButton';
+import AdminUserRef from '@/components/admin/AdminUserRef';
 import {
   ClipboardList, Loader2, AlertTriangle, Clock, CheckCircle2,
-  CalendarDays, ExternalLink, Building2,
+  CalendarDays, ExternalLink, Building2, ChevronDown, ChevronUp,
 } from 'lucide-react';
 
 type StructureStats = {
@@ -47,12 +48,54 @@ type DevoirsData = {
   truncated: boolean;
 };
 
+type TodoDetail = {
+  id: string;
+  type: string;
+  title: string;
+  done: boolean;
+  doneAt: number | null;
+  deadline: string | null;
+  deadlineAt: number | null;
+  urgency: 'overdue' | 'today' | 'future' | 'none';
+  assigneeId: string;
+  assigneeName: string;
+  createdBy: string;
+  createdAt: number | null;
+  hasResponse: boolean;
+};
+
+type StructureDetail = {
+  structureId: string;
+  todos: TodoDetail[];
+  truncated: boolean;
+};
+
 export default function AdminDevoirsPage() {
   const { firebaseUser, isAdmin } = useAuth();
   const [data, setData] = useState<DevoirsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'overdue' | 'pending' | 'done' | 'rate'>('overdue');
   const [hideEmpty, setHideEmpty] = useState(true);
+  const [expandedStructureId, setExpandedStructureId] = useState<string | null>(null);
+  const [detailById, setDetailById] = useState<Record<string, StructureDetail>>({});
+  const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
+
+  async function toggleDetail(structureId: string) {
+    if (expandedStructureId === structureId) {
+      setExpandedStructureId(null);
+      return;
+    }
+    setExpandedStructureId(structureId);
+    if (detailById[structureId]) return; // déjà chargé
+    setDetailLoadingId(structureId);
+    try {
+      const detail = await api<StructureDetail>(`/api/admin/devoirs?structureId=${encodeURIComponent(structureId)}`);
+      setDetailById(prev => ({ ...prev, [structureId]: detail }));
+    } catch (err) {
+      console.error('[Admin/Devoirs] detail error:', err);
+    }
+    setDetailLoadingId(null);
+  }
 
   async function load() {
     if (!firebaseUser) return;
@@ -210,9 +253,26 @@ export default function AdminDevoirsPage() {
           </div>
         )}
 
-        {structures.map(s => (
-          <div key={s.structureId} className="panel p-3">
-            <div className="flex items-start gap-3">
+        {structures.map(s => {
+          const isOpen = expandedStructureId === s.structureId;
+          const detail = detailById[s.structureId];
+          const canExpand = s.total > 0;
+          return (
+          <div key={s.structureId} className="panel">
+            <div
+              onClick={() => canExpand && toggleDetail(s.structureId)}
+              role={canExpand ? 'button' : undefined}
+              tabIndex={canExpand ? 0 : undefined}
+              onKeyDown={e => {
+                if (!canExpand) return;
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  toggleDetail(s.structureId);
+                }
+              }}
+              className="p-3 flex items-start gap-3"
+              style={{ cursor: canExpand ? 'pointer' : 'default' }}
+            >
               {s.structureLogoUrl ? (
                 <div className="w-10 h-10 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-elevated)' }}>
                   <Image src={s.structureLogoUrl} alt={s.structureName} fill className="object-contain" unoptimized />
@@ -227,6 +287,7 @@ export default function AdminDevoirsPage() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <Link
                     href={`/community/structure/${s.structureId}`}
+                    onClick={e => e.stopPropagation()}
                     className="flex items-center gap-1 text-sm font-semibold hover:underline"
                     style={{ color: 'var(--s-text)' }}
                   >
@@ -279,7 +340,7 @@ export default function AdminDevoirsPage() {
               </div>
 
               {s.founderId && s.pending > 0 && (
-                <div className="flex-shrink-0">
+                <div className="flex-shrink-0" onClick={e => e.stopPropagation()}>
                   <ImpersonateButton
                     targetUid={s.founderId}
                     targetName={s.founderName}
@@ -288,9 +349,39 @@ export default function AdminDevoirsPage() {
                   />
                 </div>
               )}
+
+              {canExpand && (
+                <div className="flex-shrink-0 flex items-center" style={{ color: 'var(--s-text-dim)' }}>
+                  {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </div>
+              )}
             </div>
+
+            {isOpen && (
+              <div style={{ borderTop: '1px solid var(--s-border)' }}>
+                {detailLoadingId === s.structureId && !detail ? (
+                  <div className="p-4 flex items-center justify-center">
+                    <Loader2 size={14} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
+                  </div>
+                ) : detail ? (
+                  <div className="p-3 space-y-1.5">
+                    {detail.todos.length === 0 ? (
+                      <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucun devoir.</p>
+                    ) : detail.todos.map(t => (
+                      <TodoRow key={t.id} todo={t} />
+                    ))}
+                    {detail.truncated && (
+                      <p className="text-xs pt-1" style={{ color: 'var(--s-text-muted)' }}>
+                        Limité à 500 devoirs.
+                      </p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            )}
           </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );
@@ -316,5 +407,74 @@ function MiniStat({ label, value, color }: { label: string; value: number | stri
       <span style={{ color: 'var(--s-text-muted)' }}>{label}:</span>
       <span className="font-semibold" style={{ color: color ?? 'var(--s-text)' }}>{value}</span>
     </span>
+  );
+}
+
+function TodoRow({ todo }: { todo: TodoDetail }) {
+  const urgencyColor =
+    todo.urgency === 'overdue' ? '#ff5555' :
+    todo.urgency === 'today'   ? '#FFB800' :
+    todo.urgency === 'future'  ? 'var(--s-text-dim)' :
+                                 'var(--s-text-muted)';
+  const urgencyLabel =
+    todo.urgency === 'overdue' ? 'retard' :
+    todo.urgency === 'today'   ? "aujourd'hui" :
+    todo.urgency === 'future'  ? 'à venir' :
+                                 null;
+  return (
+    <div
+      className="flex items-start gap-2 px-2 py-1.5"
+      style={{
+        background: 'var(--s-elevated)',
+        borderLeft: `2px solid ${todo.done ? '#33ff66' : urgencyColor}`,
+      }}
+    >
+      <div className="flex-shrink-0 mt-0.5">
+        {todo.done ? (
+          <CheckCircle2 size={12} style={{ color: '#33ff66' }} />
+        ) : (
+          <ClipboardList size={12} style={{ color: urgencyColor }} />
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-semibold" style={{
+            color: todo.done ? 'var(--s-text-dim)' : 'var(--s-text)',
+            textDecoration: todo.done ? 'line-through' : 'none',
+          }}>
+            {todo.title || '(sans titre)'}
+          </span>
+          {!todo.done && urgencyLabel && (
+            <span className="tag" style={{
+              background: `${urgencyColor}18`,
+              color: urgencyColor,
+              borderColor: `${urgencyColor}40`,
+              fontSize: '9px',
+              padding: '1px 5px',
+            }}>
+              {urgencyLabel}
+            </span>
+          )}
+          {todo.hasResponse && (
+            <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '1px 5px' }}>
+              réponse
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3 mt-0.5 text-xs flex-wrap" style={{ color: 'var(--s-text-muted)' }}>
+          {todo.assigneeId ? (
+            <AdminUserRef uid={todo.assigneeId} name={todo.assigneeName} />
+          ) : (
+            <span>non assigné</span>
+          )}
+          {todo.deadline && (
+            <span>échéance: {todo.deadline}</span>
+          )}
+          {todo.done && todo.doneAt && (
+            <span style={{ color: '#33ff66' }}>terminé</span>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

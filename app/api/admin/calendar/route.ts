@@ -28,6 +28,11 @@ export async function GET(req: NextRequest) {
 
     const db = getAdminDb();
 
+    const eventIdParam = req.nextUrl.searchParams.get('eventId');
+    if (eventIdParam) {
+      return await getEventDetail(db, eventIdParam);
+    }
+
     const when = req.nextUrl.searchParams.get('when') ?? 'upcoming';
     const typeFilter = req.nextUrl.searchParams.get('type');
     const statusFilter = req.nextUrl.searchParams.get('status');
@@ -111,6 +116,71 @@ export async function GET(req: NextRequest) {
     captureApiError('API Admin/Calendar GET error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
+}
+
+// Détail présences d'un événement (pour le déroulement inline admin).
+// Renvoie les présences avec l'identité utilisateur enrichie.
+const EVENT_PRESENCE_CAP = 200;
+
+async function getEventDetail(db: FirebaseFirestore.Firestore, eventId: string) {
+  const eventRef = db.collection('structure_events').doc(eventId);
+  const eventSnap = await eventRef.get();
+  if (!eventSnap.exists) {
+    return NextResponse.json({ error: 'Événement introuvable' }, { status: 404 });
+  }
+
+  const pSnap = await db.collection('event_presences')
+    .where('eventId', '==', eventId)
+    .limit(EVENT_PRESENCE_CAP)
+    .get();
+
+  const userIds = new Set<string>();
+  for (const p of pSnap.docs) {
+    const uid = p.data().userId;
+    if (typeof uid === 'string' && uid) userIds.add(uid);
+  }
+  const usersById = await fetchDocsByIds(db, 'users', Array.from(userIds));
+
+  const presences = pSnap.docs.map(p => {
+    const d = p.data();
+    const uid = typeof d.userId === 'string' ? d.userId : '';
+    const u = uid ? usersById.get(uid) : null;
+    return {
+      id: p.id,
+      userId: uid,
+      name: (u?.displayName as string | undefined)
+        || (u?.discordUsername as string | undefined)
+        || uid,
+      avatar: (u?.avatarUrl as string | undefined)
+        || (u?.discordAvatar as string | undefined)
+        || '',
+      status: (typeof d.status === 'string' ? d.status : 'pending') as 'present' | 'absent' | 'maybe' | 'pending',
+      respondedAt: ts(d.respondedAt),
+    };
+  });
+
+  const rank: Record<string, number> = { present: 0, maybe: 1, pending: 2, absent: 3 };
+  presences.sort((a, b) => {
+    const ra = rank[a.status] ?? 9;
+    const rb = rank[b.status] ?? 9;
+    if (ra !== rb) return ra - rb;
+    return a.name.localeCompare(b.name);
+  });
+
+  const counts = {
+    present: presences.filter(p => p.status === 'present').length,
+    absent: presences.filter(p => p.status === 'absent').length,
+    maybe: presences.filter(p => p.status === 'maybe').length,
+    pending: presences.filter(p => p.status === 'pending').length,
+    total: presences.length,
+  };
+
+  return NextResponse.json({
+    eventId,
+    presences,
+    counts,
+    truncated: pSnap.size >= EVENT_PRESENCE_CAP,
+  });
 }
 
 // POST /api/admin/calendar — actions admin sur un événement :
