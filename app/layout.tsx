@@ -9,6 +9,7 @@ import { ConfirmProvider } from '@/components/ui/ConfirmModal';
 import QueryProvider from '@/components/providers/QueryProvider';
 import CommandPalette from '@/components/ui/CommandPalette';
 import ProfileCompletionGate from '@/components/auth/ProfileCompletionGate';
+import ImpersonationBanner from '@/components/admin/ImpersonationBanner';
 
 const outfit = Outfit({
   variable: '--font-outfit',
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <ProfileCompletionGate />
                 <Sidebar />
                 <div className="flex-1 lg:ml-[260px] min-h-screen overflow-x-hidden hex-bg pt-14 lg:pt-0 flex flex-col">
+                  <ImpersonationBanner />
                   <div className="flex-1">{children}</div>
                   <LegalFooter />
                 </div>

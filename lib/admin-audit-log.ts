@@ -27,6 +27,8 @@ export type AdminAuditAction =
   | 'user_edited'
   | 'user_removed_from_structure'
   | 'user_deleted'
+  | 'user_impersonation_started'
+  | 'user_impersonation_stopped'
   // RGPD — actions initiées par l'utilisateur lui-même
   | 'self_delete_account'
   // Broadcasts / notifs

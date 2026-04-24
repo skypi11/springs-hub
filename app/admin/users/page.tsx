@@ -8,9 +8,11 @@ import { api, ApiError } from '@/lib/api-client';
 import { countries } from '@/lib/countries';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
+import { signInWithCustomToken } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 import {
   Loader2, ChevronDown, ChevronUp, User, Search, Edit3, LogOut, Crown,
-  Ban, RotateCcw, UserMinus, AlertTriangle, X, Save, Trash2, CheckCircle,
+  Ban, RotateCcw, UserMinus, AlertTriangle, X, Save, Trash2, CheckCircle, Shield,
 } from 'lucide-react';
 
 type UserMembership = {
@@ -94,6 +96,27 @@ export default function AdminUsersPage() {
       toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
     setUserActionLoading(null);
+  }
+
+  async function handleImpersonate(u: UserEntry) {
+    const ok = await confirm({
+      title: `Se connecter en tant que ${u.displayName} ?`,
+      message: 'Tu verras le site exactement comme cet utilisateur. Toutes les actions seront tracées avec ton identité admin. Tu pourras revenir à tout moment via la bannière en haut.',
+      confirmLabel: 'Se connecter',
+    });
+    if (!ok) return;
+    setUserActionLoading(`${u.uid}_impersonate`);
+    try {
+      const data = await api<{ token: string }>('/api/admin/impersonate/start', {
+        method: 'POST',
+        body: { targetUid: u.uid },
+      });
+      await signInWithCustomToken(auth, data.token);
+      window.location.href = '/';
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
+      setUserActionLoading(null);
+    }
   }
 
   if (usersLoading) {
@@ -558,6 +581,16 @@ export default function AdminUsersPage() {
                         style={{ background: 'rgba(255,184,0,0.05)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.15)', fontSize: '12px', padding: '8px 16px' }}>
                         <Crown size={12} />
                         <span>Promouvoir admin</span>
+                      </button>
+                    )}
+
+                    {!u.isBanned && u.uid !== firebaseUser?.uid && (
+                      <button onClick={() => handleImpersonate(u)}
+                        disabled={!!userActionLoading}
+                        className="btn-springs bevel-sm flex items-center gap-2"
+                        style={{ background: 'rgba(123,47,190,0.08)', color: 'var(--s-violet-light)', borderColor: 'rgba(123,47,190,0.3)', fontSize: '12px', padding: '8px 16px' }}>
+                        {userActionLoading === `${u.uid}_impersonate` ? <Loader2 size={12} className="animate-spin" /> : <Shield size={12} />}
+                        <span>Se connecter en tant que</span>
                       </button>
                     )}
 
