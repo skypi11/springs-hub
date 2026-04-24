@@ -34,45 +34,12 @@ import CrossTeamTodosPanel from '@/components/structure/CrossTeamTodosPanel';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import { LIMITS } from '@/lib/validation';
 import { computeMemberRole, groupAffiliations, PRIMARY_ROLE_LABELS, type MemberRoleTeam, type PrimaryRole } from '@/lib/member-role';
-
-// navigator.clipboard.writeText échoue avec NotAllowedError si le document n'a pas
-// le focus (onglet inactif, prompt ouvert…). Fallback sur un textarea éphémère.
-async function safeCopy(text: string): Promise<boolean> {
-  try {
-    if (typeof navigator !== 'undefined' && navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // fallthrough to legacy path
-  }
-  try {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.setAttribute('readonly', '');
-    ta.style.position = 'fixed';
-    ta.style.top = '-9999px';
-    document.body.appendChild(ta);
-    ta.select();
-    const ok = document.execCommand('copy');
-    document.body.removeChild(ta);
-    return ok;
-  } catch {
-    return false;
-  }
-}
-
-type DashboardTab = 'general' | 'teams' | 'recruitment' | 'members' | 'calendar' | 'todos' | 'documents';
-
-const TAB_DEFS: { key: DashboardTab; label: string; color: string }[] = [
-  { key: 'general', label: 'Général', color: 'var(--s-violet-light)' },
-  { key: 'teams', label: 'Équipes', color: 'var(--s-blue)' },
-  { key: 'recruitment', label: 'Recrutement', color: '#33ff66' },
-  { key: 'members', label: 'Membres', color: 'var(--s-gold)' },
-  { key: 'calendar', label: 'Calendrier', color: 'var(--s-gold)' },
-  { key: 'todos', label: 'Devoirs', color: '#4da6ff' },
-  { key: 'documents', label: 'Documents', color: 'var(--s-violet-light)' },
-];
+import { safeCopy } from '@/lib/clipboard';
+import type { DashboardTab, Member, MyStructure } from './types';
+import {
+  TAB_DEFS, DEPARTURE_NOTICE_DAYS, DEPARTURE_NOTICE_MS,
+  PRIMARY_ROLE_ORDER, PRIMARY_ROLE_COLORS, STATUS_INFO, SOCIAL_LABELS,
+} from './constants';
 
 function TabBar({ active, onChange, visible }: { active: DashboardTab; onChange: (t: DashboardTab) => void; visible: DashboardTab[] }) {
   const tabsToShow = TAB_DEFS.filter(t => visible.includes(t.key));
@@ -104,109 +71,6 @@ function TabBar({ active, onChange, visible }: { active: DashboardTab; onChange:
     </div>
   );
 }
-
-type Member = {
-  id: string;
-  userId: string;
-  game: string;
-  role: string;
-  displayName: string;
-  discordUsername: string;
-  discordAvatar: string;
-  avatarUrl: string;
-  country: string;
-  joinedAt?: number | null;
-};
-
-type MyStructure = {
-  id: string;
-  name: string;
-  tag: string;
-  logoUrl: string;
-  coverUrl?: string;
-  description: string;
-  games: string[];
-  discordUrl: string;
-  socials: Record<string, string>;
-  recruiting: { active: boolean; positions: { game: string; role: string }[]; message?: string };
-  achievements: { placement?: string; title?: string; competition?: string; game?: string; date?: string }[];
-  status: string;
-  reviewComment?: string;
-  founderId: string;
-  coFounderIds?: string[];
-  coFounderDepartures?: Record<string, string | null>;
-  transferPending?: {
-    toUid: string;
-    keepAsCoFounder: boolean;
-    initiatedBy: string;
-    initiatedAt: string | null;
-    scheduledAtMs: number | null;
-  } | null;
-  managerIds?: string[];
-  coachIds?: string[];
-  discordIntegration?: {
-    guildId: string;
-    guildName: string;
-    guildIconHash?: string | null;
-    installedBy: string;
-    // Config étendue (Livraison B) — pings sur events scope=structure / game / staff
-    structureChannelId?: string | null;
-    structureChannelName?: string | null;
-    structureRoleId?: string | null;
-    structureRoleName?: string | null;
-    gameChannels?: Record<string, {
-      channelId?: string | null;
-      channelName?: string | null;
-      roleId?: string | null;
-      roleName?: string | null;
-    }>;
-    staffChannelId?: string | null;
-    staffChannelName?: string | null;
-    staffRoleId?: string | null;
-    staffRoleName?: string | null;
-  } | null;
-  members: Member[];
-  requestedAt?: string;
-  validatedAt?: string;
-  accessLevel?: 'dirigeant' | 'staff';
-};
-
-const DEPARTURE_NOTICE_DAYS = 7;
-const DEPARTURE_NOTICE_MS = DEPARTURE_NOTICE_DAYS * 24 * 60 * 60 * 1000;
-
-// Ordre d'affichage des membres — basé sur le rôle dérivé (cf. lib/member-role).
-const PRIMARY_ROLE_ORDER: PrimaryRole[] = [
-  'fondateur', 'co_fondateur', 'responsable', 'coach_structure',
-  'manager_equipe', 'coach_equipe', 'capitaine', 'joueur', 'membre',
-];
-// Couleur du label principal selon le rôle dérivé.
-const PRIMARY_ROLE_COLORS: Record<PrimaryRole, string> = {
-  fondateur: 'var(--s-gold)',
-  co_fondateur: 'var(--s-gold)',
-  responsable: 'var(--s-violet-light)',
-  coach_structure: '#FFB800',
-  manager_equipe: 'var(--s-violet-light)',
-  coach_equipe: '#4da6ff',
-  capitaine: 'var(--s-gold)',
-  joueur: 'var(--s-text-dim)',
-  membre: 'var(--s-text-muted)',
-};
-
-const STATUS_INFO: Record<string, { label: string; color: string; icon: typeof CheckCircle; desc: string }> = {
-  pending_validation: { label: 'En attente de validation', color: '#FFB800', icon: Clock, desc: 'Ta demande est en cours de traitement. Un entretien vocal sera organisé.' },
-  active: { label: 'Active', color: '#33ff66', icon: CheckCircle, desc: 'Ta structure est active et visible publiquement.' },
-  suspended: { label: 'Suspendue', color: '#ff5555', icon: Ban, desc: 'Ta structure est suspendue. Contacte un admin Springs.' },
-  rejected: { label: 'Refusée', color: '#ff5555', icon: AlertCircle, desc: 'Ta demande a été refusée.' },
-};
-
-const SOCIAL_LABELS: Record<string, string> = {
-  twitter: 'Twitter / X',
-  youtube: 'YouTube',
-  twitch: 'Twitch',
-  instagram: 'Instagram',
-  tiktok: 'TikTok',
-  website: 'Site web',
-};
 
 // ─── Collapsible section panel — OUTSIDE the component to avoid remount ─
 function SectionPanel({ accent, icon: Icon, title, action, children, collapsed, onToggle }: {
