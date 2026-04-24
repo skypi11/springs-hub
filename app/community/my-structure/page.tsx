@@ -34,13 +34,19 @@ import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import { LIMITS } from '@/lib/validation';
 import { computeMemberRole, groupAffiliations, PRIMARY_ROLE_LABELS, type MemberRoleTeam } from '@/lib/member-role';
 import { safeCopy } from '@/lib/clipboard';
-import type { DashboardTab, MyStructure } from './types';
+import type { DashboardTab, MyStructure, TeamData } from './types';
 import {
   DEPARTURE_NOTICE_DAYS, DEPARTURE_NOTICE_MS,
   PRIMARY_ROLE_ORDER, PRIMARY_ROLE_COLORS, STATUS_INFO, SOCIAL_LABELS,
 } from './constants';
 import { TabBar, SectionPanel, RosterSlot, StaffRosterSlot, TeamActionChip } from './components';
 import { DiscordConfigBlockRenderer } from './discord-config-block';
+import { SortableTeam } from './teams-dnd';
+import {
+  DndContext, PointerSensor, useSensor, useSensors, closestCenter,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
 
 export default function MyStructurePage() {
@@ -62,23 +68,6 @@ export default function MyStructurePage() {
   const recruitMessageRef = useRef<HTMLTextAreaElement>(null);
   const [editAchievements, setEditAchievements] = useState<{ placement: string; competition: string; game: string; date: string }[]>([]);
   // Teams state
-  type TeamData = {
-    id: string;
-    name: string;
-    game: string;
-    players: { uid: string; displayName: string; avatarUrl: string; discordAvatar: string }[];
-    subs: { uid: string; displayName: string; avatarUrl: string; discordAvatar: string }[];
-    staff: { uid: string; displayName: string; avatarUrl: string; discordAvatar: string }[];
-    staffRoles?: Record<string, 'coach' | 'manager'>;
-    captainId?: string | null;
-    label?: string;
-    order?: number;
-    groupOrder?: number;
-    status?: 'active' | 'archived';
-    logoUrl?: string;
-    discordChannelId?: string | null;
-    discordChannelName?: string | null;
-  };
   const [teams, setTeams] = useState<TeamData[]>([]);
   const [teamsLoading, setTeamsLoading] = useState(false);
   const [newTeamName, setNewTeamName] = useState('');
@@ -310,6 +299,40 @@ export default function MyStructurePage() {
       console.error('[MyStructure] load teams error:', err);
     }
     setTeamsLoading(false);
+  }
+
+  // D&D — Sensors avec activation distance pour ne pas déclencher un drag
+  // au moindre clic dans une carte (qui contient kebab, chips, picker capitaine…).
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  );
+
+  // Réorganisation intra-groupe d'équipes : renumérote les `order` du groupe
+  // affecté (0..n-1) puis push un batch reorder à l'API. Optimistic — rollback
+  // via reload en cas d'erreur.
+  function reorderTeamsInGroup(groupKey: string, fromTeamId: string, toTeamId: string) {
+    if (!activeStructure?.id) return;
+    const groupTeams = teams
+      .filter(t => (t.label || '__nolabel__') === groupKey && (t.status ?? 'active') === 'active')
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const oldIdx = groupTeams.findIndex(t => t.id === fromTeamId);
+    const newIdx = groupTeams.findIndex(t => t.id === toTeamId);
+    if (oldIdx < 0 || newIdx < 0 || oldIdx === newIdx) return;
+    const reordered = arrayMove(groupTeams, oldIdx, newIdx);
+    const updates = reordered.map((t, i) => ({ teamId: t.id, order: i }));
+    const updatesById = new Map(updates.map(u => [u.teamId, u.order]));
+    setTeams(prev => prev.map(t => {
+      const o = updatesById.get(t.id);
+      return o !== undefined ? { ...t, order: o } : t;
+    }));
+    const structureId = activeStructure.id;
+    api('/api/structures/teams', {
+      method: 'POST',
+      body: { action: 'reorder', structureId, items: updates },
+    }).catch((err: unknown) => {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur lors de la réorganisation.');
+      loadTeams(structureId);
+    });
   }
 
   function selectStructure(s: MyStructure) {
@@ -847,6 +870,8 @@ export default function MyStructurePage() {
   const isDirigeantOfActive = isFounderOfActive || isCoFounderOfActive;
   const isManagerOfActive = !!firebaseUser && !isDirigeantOfActive && (s.managerIds ?? []).includes(firebaseUser.uid);
   const isCoachOfActive = !!firebaseUser && !isDirigeantOfActive && !isManagerOfActive && (s.coachIds ?? []).includes(firebaseUser.uid);
+  // D&D équipes : aligne sur le gate de l'API (`isAdminOfStructure` côté serveur).
+  const canReorderTeams = isDirigeantOfActive || isManagerOfActive;
   // Matrice de capacités par rôle — cf. visibleTabs ci-dessous pour la vue d'ensemble.
   // Les tabs filtrent déjà 95% des boutons write ; les quelques actions exposées sur des tabs
   // partagés (Membres = dirigeant+manager+coach) sont gatées à la volée via isDirigeantOfActive.
@@ -3034,9 +3059,33 @@ export default function MyStructurePage() {
                         </button>
                         {!collapsed && (
                           <>
-                            <div className="space-y-3">
-                              {shownTeams.map(t => renderTeamCard(t, false))}
-                            </div>
+                            {(() => {
+                              const dndEnabled = canReorderTeams && (!needsPagination || expanded);
+                              const sortableIds = shownTeams.map(t => `team:${t.id}`);
+                              return (
+                                <DndContext
+                                  sensors={dndSensors}
+                                  collisionDetection={closestCenter}
+                                  onDragEnd={(event: DragEndEvent) => {
+                                    const { active, over } = event;
+                                    if (!over || active.id === over.id) return;
+                                    const fromId = String(active.id).replace(/^team:/, '');
+                                    const toId = String(over.id).replace(/^team:/, '');
+                                    reorderTeamsInGroup(groupKey, fromId, toId);
+                                  }}
+                                >
+                                  <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+                                    <div className="space-y-3">
+                                      {shownTeams.map(t => (
+                                        <SortableTeam key={t.id} id={`team:${t.id}`} draggable={dndEnabled}>
+                                          {renderTeamCard(t, false)}
+                                        </SortableTeam>
+                                      ))}
+                                    </div>
+                                  </SortableContext>
+                                </DndContext>
+                              );
+                            })()}
                             {needsPagination && (
                               <button
                                 type="button"

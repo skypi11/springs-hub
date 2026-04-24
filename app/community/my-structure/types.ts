@@ -1,5 +1,25 @@
 export type DashboardTab = 'general' | 'teams' | 'recruitment' | 'members' | 'calendar' | 'todos' | 'documents';
 
+export type TeamRosterMember = { uid: string; displayName: string; avatarUrl: string; discordAvatar: string };
+
+export type TeamData = {
+  id: string;
+  name: string;
+  game: string;
+  players: TeamRosterMember[];
+  subs: TeamRosterMember[];
+  staff: TeamRosterMember[];
+  staffRoles?: Record<string, 'coach' | 'manager'>;
+  captainId?: string | null;
+  label?: string;
+  order?: number;
+  groupOrder?: number;
+  status?: 'active' | 'archived';
+  logoUrl?: string;
+  discordChannelId?: string | null;
+  discordChannelName?: string | null;
+};
+
 export type Member = {
   id: string;
   userId: string;
