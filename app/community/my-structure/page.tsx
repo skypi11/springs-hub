@@ -82,9 +82,8 @@ function TabBar({ active, onChange, visible }: { active: DashboardTab; onChange:
         const isActive = active === t.key;
         return (
           <button key={t.key} type="button" onClick={() => onChange(t.key)}
-            className="relative font-display text-sm tracking-wider transition-all duration-150 cursor-pointer"
+            className="relative font-display text-sm tracking-wider transition-all duration-150 cursor-pointer px-3 py-2 sm:px-5 sm:py-2.5"
             style={{
-              padding: '10px 20px',
               color: isActive ? t.color : 'var(--s-text-dim)',
               background: isActive ? 'rgba(255,255,255,0.03)' : 'transparent',
               borderLeft: '1px solid var(--s-border)',
@@ -354,7 +353,7 @@ function StaffRosterSlot({ label, labelColor, members, staffRoles, available, ca
                 title={isManager ? 'Passer en Coach' : 'Passer en Manager'}
                 className="flex-shrink-0"
                 style={{
-                  fontSize: '8px', padding: '1px 5px', letterSpacing: '0.06em', textTransform: 'uppercase',
+                  fontSize: '10px', padding: '2px 7px', letterSpacing: '0.06em', textTransform: 'uppercase',
                   background: pillBg, color: pillFg, border: `1px solid ${pillBorder}`, cursor: 'pointer',
                 }}>
                 {isManager ? 'Mgr' : 'Coach'}
@@ -3808,7 +3807,7 @@ export default function MyStructurePage() {
                                 <p className="t-mono" style={{ fontSize: '10px', color: structuralColor }}>{primaryLabel}</p>
                                 {(m.game === 'rocket_league' || m.game === 'trackmania') && (
                                   <span className={`tag ${m.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                                    style={{ fontSize: '8px', padding: '1px 6px' }}>
+                                    style={{ fontSize: '10px', padding: '2px 7px' }}>
                                     {m.game === 'rocket_league' ? 'RL' : 'TM'}
                                   </span>
                                 )}
@@ -3817,7 +3816,7 @@ export default function MyStructurePage() {
                                   const names = b.teamNames.join(', ');
                                   return (
                                     <span key={b.key} className="tag" title={names}
-                                      style={{ fontSize: '8px', padding: '1px 6px', background: c.bg, color: c.fg, borderColor: c.border }}>
+                                      style={{ fontSize: '10px', padding: '2px 7px', background: c.bg, color: c.fg, borderColor: c.border }}>
                                       {b.label}
                                       {b.teamNames.length > 0 && (
                                         <span style={{ opacity: 0.75, marginLeft: 4 }}>· {names}</span>
@@ -3827,12 +3826,12 @@ export default function MyStructurePage() {
                                 })}
                                 {derived.primary === 'membre' && derived.affiliations.length === 0 && (
                                   <span className="tag"
-                                    style={{ fontSize: '8px', padding: '1px 6px', background: 'rgba(255,255,255,0.04)', color: 'var(--s-text-muted)', borderColor: 'var(--s-border)' }}>
+                                    style={{ fontSize: '10px', padding: '2px 7px', background: 'rgba(255,255,255,0.04)', color: 'var(--s-text-muted)', borderColor: 'var(--s-border)' }}>
                                     Sans équipe
                                   </span>
                                 )}
                                 {isCoFounderRow && daysLeft != null && (
-                                  <span className="tag" style={{ fontSize: '8px', padding: '1px 6px', background: 'rgba(255,85,85,0.1)', color: '#ff8888', borderColor: 'rgba(255,85,85,0.3)' }}>
+                                  <span className="tag" style={{ fontSize: '10px', padding: '2px 7px', background: 'rgba(255,85,85,0.1)', color: '#ff8888', borderColor: 'rgba(255,85,85,0.3)' }}>
                                     Préavis : {daysLeft}j
                                   </span>
                                 )}
