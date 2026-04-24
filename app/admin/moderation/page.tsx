@@ -4,10 +4,13 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { api } from '@/lib/api-client';
+import { api, ApiError } from '@/lib/api-client';
+import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/ui/ConfirmModal';
 import AdminUserRef from '@/components/admin/AdminUserRef';
 import {
   ShieldAlert, Loader2, Ban, Building2, ExternalLink, History, UserX, AlertTriangle,
+  RotateCcw, CheckCircle, Edit3,
 } from 'lucide-react';
 
 type BannedUser = {
@@ -92,9 +95,12 @@ function formatDate(iso: string | null): string {
 
 export default function AdminModerationPage() {
   const { firebaseUser, isAdmin } = useAuth();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [data, setData] = useState<ModerationData | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'banned' | 'structures' | 'logs'>('banned');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   async function load() {
     if (!firebaseUser) return;
@@ -111,6 +117,48 @@ export default function AdminModerationPage() {
     if (firebaseUser && isAdmin) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firebaseUser, isAdmin]);
+
+  async function handleUnban(uid: string, name: string) {
+    const ok = await confirm({
+      title: 'Débannir cet utilisateur ?',
+      message: `${name} retrouvera l'accès complet au site.`,
+      confirmLabel: 'Débannir',
+    });
+    if (!ok) return;
+    setActionLoading(`unban_${uid}`);
+    try {
+      await api('/api/admin/users', { method: 'POST', body: { action: 'unban', uid } });
+      toast.success('Utilisateur débanni');
+      await load();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
+    }
+    setActionLoading(null);
+  }
+
+  async function handleStructureAction(
+    id: string,
+    action: 'approve' | 'unsuspend' | 'cancel_deletion',
+    name: string,
+  ) {
+    const LABELS: Record<string, { title: string; message: string; confirmLabel: string; success: string }> = {
+      approve:          { title: 'Valider la structure ?',       message: `"${name}" passera en statut active et deviendra visible publiquement.`, confirmLabel: 'Valider',           success: 'Structure validée' },
+      unsuspend:        { title: 'Réactiver la structure ?',     message: `"${name}" retrouvera son état actif.`,                                  confirmLabel: 'Réactiver',         success: 'Structure réactivée' },
+      cancel_deletion:  { title: 'Annuler la suppression ?',     message: `La demande de suppression de "${name}" sera annulée.`,                  confirmLabel: 'Annuler la suppression', success: 'Suppression annulée' },
+    };
+    const conf = LABELS[action];
+    const ok = await confirm({ ...conf });
+    if (!ok) return;
+    setActionLoading(`${action}_${id}`);
+    try {
+      await api('/api/admin/structures', { method: 'POST', body: { structureId: id, action } });
+      toast.success(conf.success);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
+    }
+    setActionLoading(null);
+  }
 
   if (loading || !data) {
     return (
@@ -232,6 +280,21 @@ export default function AdminModerationPage() {
                     )}
                   </div>
                 </div>
+
+                <button
+                  onClick={() => handleUnban(u.uid, u.displayName)}
+                  disabled={actionLoading === `unban_${u.uid}`}
+                  className="btn-springs bevel-sm flex items-center gap-1.5 flex-shrink-0"
+                  style={{
+                    fontSize: '11px', padding: '6px 12px',
+                    background: 'rgba(51,255,102,0.1)',
+                    color: '#33ff66',
+                    borderColor: 'rgba(51,255,102,0.4)',
+                    opacity: actionLoading === `unban_${u.uid}` ? 0.5 : 1,
+                  }}>
+                  {actionLoading === `unban_${u.uid}` ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
+                  <span>Débannir</span>
+                </button>
               </div>
             </div>
           ))}
@@ -282,6 +345,61 @@ export default function AdminModerationPage() {
                           <AdminUserRef uid={s.founderId} name={s.founderName} layout="inline" />
                         </span>
                       )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                      {s.status === 'pending_validation' && (
+                        <button
+                          onClick={() => handleStructureAction(s.id, 'approve', s.name)}
+                          disabled={actionLoading === `approve_${s.id}`}
+                          className="btn-springs bevel-sm flex items-center gap-1.5"
+                          style={{
+                            fontSize: '11px', padding: '5px 10px',
+                            background: 'rgba(51,255,102,0.1)', color: '#33ff66',
+                            borderColor: 'rgba(51,255,102,0.4)',
+                            opacity: actionLoading === `approve_${s.id}` ? 0.5 : 1,
+                          }}>
+                          {actionLoading === `approve_${s.id}` ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle size={11} />}
+                          <span>Valider</span>
+                        </button>
+                      )}
+                      {s.status === 'suspended' && (
+                        <button
+                          onClick={() => handleStructureAction(s.id, 'unsuspend', s.name)}
+                          disabled={actionLoading === `unsuspend_${s.id}`}
+                          className="btn-springs bevel-sm flex items-center gap-1.5"
+                          style={{
+                            fontSize: '11px', padding: '5px 10px',
+                            background: 'rgba(51,255,102,0.1)', color: '#33ff66',
+                            borderColor: 'rgba(51,255,102,0.4)',
+                            opacity: actionLoading === `unsuspend_${s.id}` ? 0.5 : 1,
+                          }}>
+                          {actionLoading === `unsuspend_${s.id}` ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
+                          <span>Réactiver</span>
+                        </button>
+                      )}
+                      {s.status === 'deletion_scheduled' && (
+                        <button
+                          onClick={() => handleStructureAction(s.id, 'cancel_deletion', s.name)}
+                          disabled={actionLoading === `cancel_deletion_${s.id}`}
+                          className="btn-springs bevel-sm flex items-center gap-1.5"
+                          style={{
+                            fontSize: '11px', padding: '5px 10px',
+                            background: 'rgba(51,255,102,0.1)', color: '#33ff66',
+                            borderColor: 'rgba(51,255,102,0.4)',
+                            opacity: actionLoading === `cancel_deletion_${s.id}` ? 0.5 : 1,
+                          }}>
+                          {actionLoading === `cancel_deletion_${s.id}` ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
+                          <span>Annuler suppression</span>
+                        </button>
+                      )}
+                      <Link
+                        href={`/admin/structures?focus=${s.id}`}
+                        className="btn-springs btn-secondary bevel-sm flex items-center gap-1.5"
+                        style={{ fontSize: '11px', padding: '5px 10px' }}>
+                        <Edit3 size={11} />
+                        <span>Gérer</span>
+                      </Link>
                     </div>
                   </div>
                 </div>

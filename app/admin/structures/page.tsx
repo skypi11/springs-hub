@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
@@ -62,10 +63,14 @@ export default function AdminStructuresPage() {
   const { firebaseUser, isAdmin } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
+  const searchParams = useSearchParams();
+  const focusId = searchParams.get('focus');
 
   const [structures, setStructures] = useState<StructureRequest[]>([]);
   const [structuresLoading, setStructuresLoading] = useState(true);
+  // Si on arrive via ?focus=, on force le filtre "Toutes" pour que la ligne soit visible.
   const [filter, setFilter] = useState<string>('');
+  useEffect(() => { if (focusId) setFilter(''); }, [focusId]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [commentMap, setCommentMap] = useState<Record<string, string>>({});
@@ -91,6 +96,19 @@ export default function AdminStructuresPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firebaseUser, isAdmin, filter]);
+
+  // Auto-expand + scroll vers la structure ciblée via ?focus=
+  useEffect(() => {
+    if (!focusId || structures.length === 0) return;
+    const exists = structures.some(s => s.id === focusId);
+    if (!exists) return;
+    setExpandedId(focusId);
+    const t = setTimeout(() => {
+      const el = document.getElementById(`structure-row-${focusId}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 150);
+    return () => clearTimeout(t);
+  }, [focusId, structures]);
 
   async function handleBackfill() {
     const ok = await confirm({
@@ -196,7 +214,7 @@ export default function AdminStructuresPage() {
           const statusConf = STATUS_CONFIG[s.status] ?? STATUS_CONFIG.pending_validation;
 
           return (
-            <div key={s.id} className="panel">
+            <div key={s.id} id={`structure-row-${s.id}`} className="panel">
               <button
                 onClick={() => setExpandedId(isExpanded ? null : s.id)}
                 className="w-full panel-header"
