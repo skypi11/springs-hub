@@ -455,7 +455,11 @@ export async function POST(req: NextRequest) {
           const upd: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
           if (typeof item.order === 'number') upd.order = item.order;
           if (typeof item.groupOrder === 'number') upd.groupOrder = item.groupOrder;
-          if (typeof item.label === 'string' && item.label.trim()) upd.label = item.label.trim();
+          if (typeof item.label === 'string') {
+            const trimmedLabel = item.label.trim();
+            // Vide explicitement -> remet l'équipe dans le groupe "Sans label" (label supprimé du doc).
+            upd.label = trimmedLabel ? trimmedLabel : FieldValue.delete();
+          }
           if (Object.keys(upd).length > 1) {
             batch.update(db.collection('sub_teams').doc(item.teamId), upd);
           }

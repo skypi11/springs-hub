@@ -14,6 +14,7 @@ import {
   Search, ChevronUp, ChevronDown, Link2, MessageSquare, Settings,
   Copy, Check, UserPlus, UserMinus, Bookmark, X,
   Crown, Archive, ArchiveRestore, MoreVertical, Tag, Image as ImageIcon,
+  GripVertical,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import CalendarSection from '@/components/calendar/CalendarSection';
@@ -41,7 +42,7 @@ import {
 } from './constants';
 import { TabBar, SectionPanel, RosterSlot, StaffRosterSlot, TeamActionChip } from './components';
 import { DiscordConfigBlockRenderer } from './discord-config-block';
-import { SortableTeam } from './teams-dnd';
+import { SortableTeam, SortableGroup } from './teams-dnd';
 import {
   DndContext, PointerSensor, useSensor, useSensors, closestCenter,
   type DragEndEvent,
@@ -331,6 +332,142 @@ export default function MyStructurePage() {
       body: { action: 'reorder', structureId, items: updates },
     }).catch((err: unknown) => {
       toast.error(err instanceof ApiError ? err.message : 'Erreur lors de la réorganisation.');
+      loadTeams(structureId);
+    });
+  }
+
+  // Réorganisation des groupes (labels) entre eux : arrayMove la liste des groupes
+  // par leur clé courante, puis push un `groupOrder` cohérent sur toutes les équipes
+  // de chaque groupe. Optimistic — rollback via reload en cas d'erreur API.
+  function reorderGroups(fromGroupKey: string, toGroupKey: string) {
+    if (!activeStructure?.id) return;
+    if (fromGroupKey === toGroupKey) return;
+    // Reconstruire la liste ordonnée des groupes courante (par groupOrder asc).
+    const groupKeyToOrder = new Map<string, number>();
+    for (const t of teams) {
+      if ((t.status ?? 'active') !== 'active') continue;
+      const k = (t.label || '').trim() || '__nolabel__';
+      const cur = groupKeyToOrder.get(k);
+      const o = typeof t.groupOrder === 'number' ? t.groupOrder : 0;
+      if (cur === undefined || o < cur) groupKeyToOrder.set(k, o);
+    }
+    const orderedKeys = Array.from(groupKeyToOrder.entries())
+      .sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))
+      .map(e => e[0]);
+    const oldIdx = orderedKeys.indexOf(fromGroupKey);
+    const newIdx = orderedKeys.indexOf(toGroupKey);
+    if (oldIdx < 0 || newIdx < 0 || oldIdx === newIdx) return;
+    const next = arrayMove(orderedKeys, oldIdx, newIdx);
+    const newGroupOrderByKey = new Map(next.map((k, i) => [k, i]));
+
+    // Construire updates pour TOUTES les équipes actives (groupOrder mis à jour selon leur groupe).
+    const updates: { teamId: string; groupOrder: number }[] = [];
+    for (const t of teams) {
+      if ((t.status ?? 'active') !== 'active') continue;
+      const k = (t.label || '').trim() || '__nolabel__';
+      const go = newGroupOrderByKey.get(k);
+      if (go === undefined) continue;
+      if ((t.groupOrder ?? 0) === go) continue;
+      updates.push({ teamId: t.id, groupOrder: go });
+    }
+    if (updates.length === 0) return;
+    const updatesById = new Map(updates.map(u => [u.teamId, u.groupOrder]));
+    setTeams(prev => prev.map(t => {
+      const go = updatesById.get(t.id);
+      return go !== undefined ? { ...t, groupOrder: go } : t;
+    }));
+    const structureId = activeStructure.id;
+    api('/api/structures/teams', {
+      method: 'POST',
+      body: { action: 'reorder', structureId, items: updates },
+    }).catch((err: unknown) => {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur lors de la réorganisation des groupes.');
+      loadTeams(structureId);
+    });
+  }
+
+  // Déplace une équipe vers un autre groupe (label). Si beforeTeamId est fourni,
+  // l'équipe est insérée juste avant ; sinon elle est ajoutée à la fin du groupe cible.
+  // Renumérote source ET cible (order 0..n-1) et change le label de l'équipe déplacée.
+  // targetGroupKey === '__nolabel__' -> label vidé (FieldValue.delete côté API).
+  function moveTeamToGroup(teamId: string, targetGroupKey: string, beforeTeamId: string | null) {
+    if (!activeStructure?.id) return;
+    const moving = teams.find(t => t.id === teamId);
+    if (!moving) return;
+    const sourceKey = (moving.label || '').trim() || '__nolabel__';
+    if (sourceKey === targetGroupKey) return;
+
+    const sourceTeams = teams
+      .filter(t => t.id !== teamId
+        && ((t.label || '').trim() || '__nolabel__') === sourceKey
+        && (t.status ?? 'active') === 'active')
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+    const targetTeams = teams
+      .filter(t => ((t.label || '').trim() || '__nolabel__') === targetGroupKey
+        && (t.status ?? 'active') === 'active')
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+    let insertAt = targetTeams.length;
+    if (beforeTeamId) {
+      const idx = targetTeams.findIndex(t => t.id === beforeTeamId);
+      if (idx >= 0) insertAt = idx;
+    }
+    const newTargetTeams = [
+      ...targetTeams.slice(0, insertAt),
+      moving,
+      ...targetTeams.slice(insertAt),
+    ];
+
+    // Reprendre le groupOrder du groupe cible (le plus petit groupOrder y existant)
+    // pour que l'équipe déplacée tombe dans la bonne position de tri groupe.
+    const targetGroupOrder = targetTeams.length > 0
+      ? Math.min(...targetTeams.map(t => typeof t.groupOrder === 'number' ? t.groupOrder : 0))
+      : (typeof moving.groupOrder === 'number' ? moving.groupOrder : 0);
+
+    const updates: {
+      teamId: string;
+      order?: number;
+      label?: string;
+      groupOrder?: number;
+    }[] = [];
+
+    sourceTeams.forEach((t, i) => {
+      if ((t.order ?? 0) !== i) updates.push({ teamId: t.id, order: i });
+    });
+    newTargetTeams.forEach((t, i) => {
+      if (t.id === teamId) {
+        updates.push({
+          teamId: t.id,
+          order: i,
+          label: targetGroupKey === '__nolabel__' ? '' : targetGroupKey,
+          groupOrder: targetGroupOrder,
+        });
+      } else if ((t.order ?? 0) !== i) {
+        updates.push({ teamId: t.id, order: i });
+      }
+    });
+
+    if (updates.length === 0) return;
+
+    // Optimistic local update
+    const updMap = new Map(updates.map(u => [u.teamId, u]));
+    setTeams(prev => prev.map(t => {
+      const u = updMap.get(t.id);
+      if (!u) return t;
+      const next: TeamData = { ...t };
+      if (typeof u.order === 'number') next.order = u.order;
+      if (typeof u.groupOrder === 'number') next.groupOrder = u.groupOrder;
+      if (typeof u.label === 'string') next.label = u.label;
+      return next;
+    }));
+
+    const structureId = activeStructure.id;
+    api('/api/structures/teams', {
+      method: 'POST',
+      body: { action: 'reorder', structureId, items: updates },
+    }).catch((err: unknown) => {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur lors du déplacement.');
       loadTeams(structureId);
     });
   }
@@ -3009,18 +3146,67 @@ export default function MyStructurePage() {
                   <Search size={20} className="mx-auto mb-2" style={{ color: 'var(--s-text-muted)' }} />
                   <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucun résultat pour « {teamSearch} ».</p>
                 </div>
-              ) : (
+              ) : (() => {
+                // Lot 2b D&D : un SEUL DndContext top-level pour gérer 3 cas via onDragEnd :
+                //  - group <-> group     => reorderGroups (réorganiser les labels entre eux)
+                //  - team  <-> team      => même groupe : reorderTeamsInGroup ; cross-groupe : moveTeamToGroup
+                //  - team  ->  group hdr => moveTeamToGroup (drop en fin de groupe cible)
+                // Les IDs sont préfixés `group:` / `team:` pour disambiguer dans handleDragEnd.
+                const TEAM_GROUP_CAP = 12;
+                const sortableIds: string[] = [];
+                for (const g of groups) {
+                  const gKey = g.label || '__nolabel__';
+                  sortableIds.push(`group:${gKey}`);
+                  if (collapsedTeamGroups.has(gKey)) continue;
+                  const isExp = expandedTeamGroups.has(gKey);
+                  const needsPag = g.teams.length > TEAM_GROUP_CAP;
+                  const shown = needsPag && !isExp ? g.teams.slice(0, TEAM_GROUP_CAP) : g.teams;
+                  for (const t of shown) sortableIds.push(`team:${t.id}`);
+                }
+                const groupsDraggable = canReorderTeams && groups.length > 1;
+                const handleDragEnd = (event: DragEndEvent) => {
+                  const { active, over } = event;
+                  if (!over || active.id === over.id) return;
+                  const a = String(active.id);
+                  const o = String(over.id);
+                  if (a.startsWith('group:') && o.startsWith('group:')) {
+                    reorderGroups(a.slice(6), o.slice(6));
+                    return;
+                  }
+                  if (a.startsWith('team:') && o.startsWith('team:')) {
+                    const fromTeamId = a.slice(5);
+                    const toTeamId = o.slice(5);
+                    const fromTeam = teams.find(t => t.id === fromTeamId);
+                    const toTeam = teams.find(t => t.id === toTeamId);
+                    if (!fromTeam || !toTeam) return;
+                    const fromGroup = (fromTeam.label || '').trim() || '__nolabel__';
+                    const toGroup = (toTeam.label || '').trim() || '__nolabel__';
+                    if (fromGroup === toGroup) {
+                      reorderTeamsInGroup(fromGroup, fromTeamId, toTeamId);
+                    } else {
+                      moveTeamToGroup(fromTeamId, toGroup, toTeamId);
+                    }
+                    return;
+                  }
+                  if (a.startsWith('team:') && o.startsWith('group:')) {
+                    moveTeamToGroup(a.slice(5), o.slice(6), null);
+                    return;
+                  }
+                };
+                return (
+                <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
                 <div className="space-y-8">
                   {/* Groupes actifs par label — header cliquable pour collapse global,
                       pagination douce au-delà de 12 équipes via "Afficher tout". */}
                   {groups.map(g => {
                     const groupKey = g.label || '__nolabel__';
-                    const TEAM_GROUP_CAP = 12;
                     const expanded = expandedTeamGroups.has(groupKey);
                     const collapsed = collapsedTeamGroups.has(groupKey);
                     const needsPagination = g.teams.length > TEAM_GROUP_CAP;
                     const shownTeams = needsPagination && !expanded ? g.teams.slice(0, TEAM_GROUP_CAP) : g.teams;
                     const hiddenCount = g.teams.length - shownTeams.length;
+                    const teamsDndEnabled = canReorderTeams && (!needsPagination || expanded);
                     const toggleCollapsed = () => {
                       setCollapsedTeamGroups(prev => {
                         const next = new Set(prev);
@@ -3037,55 +3223,52 @@ export default function MyStructurePage() {
                       });
                     };
                     return (
-                      <div key={groupKey} className="space-y-3">
-                        <button
-                          type="button"
-                          onClick={toggleCollapsed}
-                          className="w-full flex items-center gap-3 text-left group/grouphdr"
-                          style={{ paddingTop: 4, paddingBottom: 6 }}
-                        >
-                          <div className="w-1 self-stretch flex-shrink-0" style={{ background: 'var(--s-gold)', minHeight: 24 }} />
-                          <Tag size={14} style={{ color: 'var(--s-gold)' }} className="flex-shrink-0" />
-                          <h3 className="font-display tracking-wider flex-shrink-0" style={{ color: 'var(--s-gold)', fontSize: 19, lineHeight: 1.1 }}>
-                            {g.displayLabel.toUpperCase()}
-                          </h3>
-                          <span className="text-xs flex-shrink-0" style={{ color: 'var(--s-text-muted)' }}>
-                            · {g.teams.length} équipe{g.teams.length > 1 ? 's' : ''}
-                          </span>
-                          <div className="flex-1 h-px" style={{ background: 'var(--s-border)' }} />
-                          <div className="flex-shrink-0 transition-transform duration-150" style={{ color: 'var(--s-text-dim)' }}>
-                            {collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-                          </div>
-                        </button>
+                      <SortableGroup key={groupKey} id={`group:${groupKey}`} draggable={groupsDraggable}>
+                        {({ attributes, listeners, setActivatorNodeRef }) => (
+                      <div className="space-y-3">
+                        <div className="w-full flex items-center gap-2" style={{ paddingTop: 4, paddingBottom: 6 }}>
+                          {groupsDraggable && (
+                            <button
+                              type="button"
+                              ref={setActivatorNodeRef}
+                              {...attributes}
+                              {...listeners}
+                              aria-label="Réorganiser le groupe"
+                              className="flex-shrink-0 p-1 cursor-grab active:cursor-grabbing transition-opacity duration-150 hover:opacity-100"
+                              style={{ color: 'var(--s-text-muted)', opacity: 0.45 }}
+                              onClick={e => e.stopPropagation()}
+                            >
+                              <GripVertical size={14} />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={toggleCollapsed}
+                            className="flex-1 flex items-center gap-3 text-left group/grouphdr"
+                          >
+                            <div className="w-1 self-stretch flex-shrink-0" style={{ background: 'var(--s-gold)', minHeight: 24 }} />
+                            <Tag size={14} style={{ color: 'var(--s-gold)' }} className="flex-shrink-0" />
+                            <h3 className="font-display tracking-wider flex-shrink-0" style={{ color: 'var(--s-gold)', fontSize: 19, lineHeight: 1.1 }}>
+                              {g.displayLabel.toUpperCase()}
+                            </h3>
+                            <span className="text-xs flex-shrink-0" style={{ color: 'var(--s-text-muted)' }}>
+                              · {g.teams.length} équipe{g.teams.length > 1 ? 's' : ''}
+                            </span>
+                            <div className="flex-1 h-px" style={{ background: 'var(--s-border)' }} />
+                            <div className="flex-shrink-0 transition-transform duration-150" style={{ color: 'var(--s-text-dim)' }}>
+                              {collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                            </div>
+                          </button>
+                        </div>
                         {!collapsed && (
                           <>
-                            {(() => {
-                              const dndEnabled = canReorderTeams && (!needsPagination || expanded);
-                              const sortableIds = shownTeams.map(t => `team:${t.id}`);
-                              return (
-                                <DndContext
-                                  sensors={dndSensors}
-                                  collisionDetection={closestCenter}
-                                  onDragEnd={(event: DragEndEvent) => {
-                                    const { active, over } = event;
-                                    if (!over || active.id === over.id) return;
-                                    const fromId = String(active.id).replace(/^team:/, '');
-                                    const toId = String(over.id).replace(/^team:/, '');
-                                    reorderTeamsInGroup(groupKey, fromId, toId);
-                                  }}
-                                >
-                                  <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-                                    <div className="space-y-3">
-                                      {shownTeams.map(t => (
-                                        <SortableTeam key={t.id} id={`team:${t.id}`} draggable={dndEnabled}>
-                                          {renderTeamCard(t, false)}
-                                        </SortableTeam>
-                                      ))}
-                                    </div>
-                                  </SortableContext>
-                                </DndContext>
-                              );
-                            })()}
+                            <div className="space-y-3">
+                              {shownTeams.map(t => (
+                                <SortableTeam key={t.id} id={`team:${t.id}`} draggable={teamsDndEnabled}>
+                                  {renderTeamCard(t, false)}
+                                </SortableTeam>
+                              ))}
+                            </div>
                             {needsPagination && (
                               <button
                                 type="button"
@@ -3113,6 +3296,8 @@ export default function MyStructurePage() {
                           </>
                         )}
                       </div>
+                        )}
+                      </SortableGroup>
                     );
                   })}
 
@@ -3136,7 +3321,10 @@ export default function MyStructurePage() {
                     </div>
                   )}
                 </div>
-              )}
+                  </SortableContext>
+                </DndContext>
+                );
+              })()}
             </SectionPanel>
               );
             })()}

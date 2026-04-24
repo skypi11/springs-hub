@@ -48,3 +48,38 @@ export function SortableTeam({
     </div>
   );
 }
+
+// Wrapper sortable autour d'un groupe (header + liste équipes) : utilise un render prop
+// qui expose attributes/listeners/setActivatorNodeRef pour que le consumer place la
+// poignée drag exactement où il veut dans son header (au début de la barre titre).
+// Le wrapper enveloppe TOUT le bloc groupe : quand on drag, le header ET les équipes
+// du groupe se déplacent visuellement ensemble.
+export function SortableGroup({
+  id, draggable, children,
+}: {
+  id: string;
+  draggable: boolean;
+  children: (handleProps: {
+    attributes: ReturnType<typeof useSortable>['attributes'];
+    listeners: ReturnType<typeof useSortable>['listeners'];
+    setActivatorNodeRef: ReturnType<typeof useSortable>['setActivatorNodeRef'];
+    isDragging: boolean;
+  }) => React.ReactNode;
+}) {
+  const {
+    attributes, listeners, setNodeRef, setActivatorNodeRef,
+    transform, transition, isDragging,
+  } = useSortable({ id, disabled: !draggable });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    position: 'relative',
+    zIndex: isDragging ? 20 : 'auto',
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children({ attributes, listeners, setActivatorNodeRef, isDragging })}
+    </div>
+  );
+}
