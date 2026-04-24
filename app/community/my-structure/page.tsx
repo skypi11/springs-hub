@@ -106,6 +106,10 @@ export default function MyStructurePage() {
   const [showArchived, setShowArchived] = useState(false);
   // Groupes d'équipes "dépliés" (au-delà du cap par groupe). Key = label du groupe.
   const [expandedTeamGroups, setExpandedTeamGroups] = useState<Set<string>>(new Set());
+  // Groupes d'équipes "repliés entièrement" — séparé du state ci-dessus pour
+  // ne pas mélanger pagination (>12 équipes) et collapse manuel global.
+  // Persisté en localStorage par structureId pour rester en place entre sessions.
+  const [collapsedTeamGroups, setCollapsedTeamGroups] = useState<Set<string>>(new Set());
   const [healthOpen, setHealthOpen] = useState<boolean | null>(null);
   const [teamMenuOpen, setTeamMenuOpen] = useState<string | null>(null);
   // Coordonnées fixes du bouton kebab quand le menu est ouvert — permet au menu
@@ -218,6 +222,25 @@ export default function MyStructurePage() {
     if (!visible.includes(tab)) setTab(visible[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeStructure?.id, firebaseUser?.uid]);
+
+  // Hydrate la liste des groupes repliés depuis localStorage à chaque changement
+  // de structure active. Clé scopée par structureId pour que deux structures
+  // gardent des préférences indépendantes.
+  useEffect(() => {
+    if (!activeStructure?.id) { setCollapsedTeamGroups(new Set()); return; }
+    try {
+      const raw = localStorage.getItem(`my-structure:teamGroupsCollapsed:${activeStructure.id}`);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) setCollapsedTeamGroups(new Set(arr.filter(x => typeof x === 'string')));
+        else setCollapsedTeamGroups(new Set());
+      } else {
+        setCollapsedTeamGroups(new Set());
+      }
+    } catch {
+      setCollapsedTeamGroups(new Set());
+    }
+  }, [activeStructure?.id]);
 
   // Consommation du deep-link : applique tab / team / todo une fois les données prêtes,
   // puis nettoie l'URL pour éviter de réouvrir au prochain changement de state.
@@ -2962,54 +2985,83 @@ export default function MyStructurePage() {
                   <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucun résultat pour « {teamSearch} ».</p>
                 </div>
               ) : (
-                <div className="space-y-6">
-                  {/* Groupes actifs par label — pagination douce : au-delà de 12 équipes
-                      le groupe est tronqué et un bouton "Afficher tout" le déplie. */}
+                <div className="space-y-8">
+                  {/* Groupes actifs par label — header cliquable pour collapse global,
+                      pagination douce au-delà de 12 équipes via "Afficher tout". */}
                   {groups.map(g => {
                     const groupKey = g.label || '__nolabel__';
                     const TEAM_GROUP_CAP = 12;
                     const expanded = expandedTeamGroups.has(groupKey);
+                    const collapsed = collapsedTeamGroups.has(groupKey);
                     const needsPagination = g.teams.length > TEAM_GROUP_CAP;
                     const shownTeams = needsPagination && !expanded ? g.teams.slice(0, TEAM_GROUP_CAP) : g.teams;
                     const hiddenCount = g.teams.length - shownTeams.length;
+                    const toggleCollapsed = () => {
+                      setCollapsedTeamGroups(prev => {
+                        const next = new Set(prev);
+                        if (next.has(groupKey)) next.delete(groupKey); else next.add(groupKey);
+                        if (activeStructure?.id) {
+                          try {
+                            localStorage.setItem(
+                              `my-structure:teamGroupsCollapsed:${activeStructure.id}`,
+                              JSON.stringify(Array.from(next)),
+                            );
+                          } catch { /* localStorage indispo (Safari privé), tant pis */ }
+                        }
+                        return next;
+                      });
+                    };
                     return (
                       <div key={groupKey} className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <Tag size={12} style={{ color: 'var(--s-gold)' }} />
-                          <h3 className="t-label" style={{ color: 'var(--s-gold)' }}>
-                            {g.displayLabel}
+                        <button
+                          type="button"
+                          onClick={toggleCollapsed}
+                          className="w-full flex items-center gap-3 text-left group/grouphdr"
+                          style={{ paddingTop: 4, paddingBottom: 6 }}
+                        >
+                          <div className="w-1 self-stretch flex-shrink-0" style={{ background: 'var(--s-gold)', minHeight: 24 }} />
+                          <Tag size={14} style={{ color: 'var(--s-gold)' }} className="flex-shrink-0" />
+                          <h3 className="font-display tracking-wider flex-shrink-0" style={{ color: 'var(--s-gold)', fontSize: 19, lineHeight: 1.1 }}>
+                            {g.displayLabel.toUpperCase()}
                           </h3>
-                          <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                            {g.teams.length} équipe{g.teams.length > 1 ? 's' : ''}
+                          <span className="text-xs flex-shrink-0" style={{ color: 'var(--s-text-muted)' }}>
+                            · {g.teams.length} équipe{g.teams.length > 1 ? 's' : ''}
                           </span>
                           <div className="flex-1 h-px" style={{ background: 'var(--s-border)' }} />
-                        </div>
-                        <div className="space-y-3">
-                          {shownTeams.map(t => renderTeamCard(t, false))}
-                        </div>
-                        {needsPagination && (
-                          <button
-                            type="button"
-                            onClick={() => setExpandedTeamGroups(prev => {
-                              const next = new Set(prev);
-                              if (next.has(groupKey)) next.delete(groupKey); else next.add(groupKey);
-                              return next;
-                            })}
-                            className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide transition-colors"
-                            style={{ color: 'var(--s-text-dim)' }}
-                          >
-                            {expanded ? (
-                              <>
-                                <ChevronUp size={11} />
-                                <span>Réduire</span>
-                              </>
-                            ) : (
-                              <>
-                                <ChevronDown size={11} />
-                                <span>Afficher les {hiddenCount} équipe{hiddenCount > 1 ? 's' : ''} suivante{hiddenCount > 1 ? 's' : ''}</span>
-                              </>
+                          <div className="flex-shrink-0 transition-transform duration-150" style={{ color: 'var(--s-text-dim)' }}>
+                            {collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                          </div>
+                        </button>
+                        {!collapsed && (
+                          <>
+                            <div className="space-y-3">
+                              {shownTeams.map(t => renderTeamCard(t, false))}
+                            </div>
+                            {needsPagination && (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedTeamGroups(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(groupKey)) next.delete(groupKey); else next.add(groupKey);
+                                  return next;
+                                })}
+                                className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide transition-colors"
+                                style={{ color: 'var(--s-text-dim)' }}
+                              >
+                                {expanded ? (
+                                  <>
+                                    <ChevronUp size={11} />
+                                    <span>Réduire</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <ChevronDown size={11} />
+                                    <span>Afficher les {hiddenCount} équipe{hiddenCount > 1 ? 's' : ''} suivante{hiddenCount > 1 ? 's' : ''}</span>
+                                  </>
+                                )}
+                              </button>
                             )}
-                          </button>
+                          </>
                         )}
                       </div>
                     );
