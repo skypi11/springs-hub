@@ -4,11 +4,13 @@ import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { api } from '@/lib/api-client';
+import { api, ApiError } from '@/lib/api-client';
+import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/ui/ConfirmModal';
 import AdminUserRef from '@/components/admin/AdminUserRef';
 import {
   CalendarDays, Loader2, MapPin, Clock, Search, ExternalLink,
-  CheckCircle2, XCircle, Calendar as CalendarIcon,
+  CheckCircle2, XCircle, Calendar as CalendarIcon, Ban, RotateCcw, Trash2,
 } from 'lucide-react';
 
 type AdminEvent = {
@@ -59,9 +61,12 @@ function formatTime(iso: string | null): string {
 
 export default function AdminCalendarPage() {
   const { firebaseUser, isAdmin } = useAuth();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [events, setEvents] = useState<AdminEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [truncated, setTruncated] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const [when, setWhen] = useState<'upcoming' | 'past' | 'all'>('upcoming');
   const [typeFilter, setTypeFilter] = useState<string>('');
@@ -89,6 +94,45 @@ export default function AdminCalendarPage() {
     if (firebaseUser && isAdmin) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firebaseUser, isAdmin, when, typeFilter, statusFilter]);
+
+  async function handleStatusAction(eventId: string, action: 'cancel' | 'terminate' | 'reopen', title: string) {
+    const LABELS: Record<string, { title: string; message: string; confirmLabel: string; success: string; variant?: 'danger' }> = {
+      cancel:    { title: 'Annuler cet événement ?',   message: `"${title}" passera en statut annulé.`,                     confirmLabel: 'Annuler l\'événement', success: 'Événement annulé',  variant: 'danger' },
+      terminate: { title: 'Marquer comme terminé ?',   message: `"${title}" passera en statut terminé.`,                    confirmLabel: 'Terminer',             success: 'Événement terminé' },
+      reopen:    { title: 'Rouvrir cet événement ?',   message: `"${title}" repassera en statut programmé.`,                confirmLabel: 'Rouvrir',              success: 'Événement rouvert' },
+    };
+    const conf = LABELS[action];
+    const ok = await confirm({ ...conf });
+    if (!ok) return;
+    setActionLoading(`${action}_${eventId}`);
+    try {
+      await api('/api/admin/calendar', { method: 'POST', body: { eventId, action } });
+      toast.success(conf.success);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
+    }
+    setActionLoading(null);
+  }
+
+  async function handleDelete(eventId: string, title: string) {
+    const ok = await confirm({
+      title: 'Supprimer définitivement ?',
+      message: `"${title}" et toutes ses présences (réponses des joueurs) seront supprimés définitivement. Action irréversible.`,
+      confirmLabel: 'Supprimer',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    setActionLoading(`delete_${eventId}`);
+    try {
+      await api(`/api/admin/calendar?eventId=${encodeURIComponent(eventId)}`, { method: 'DELETE' });
+      toast.success('Événement supprimé');
+      await load();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
+    }
+    setActionLoading(null);
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -290,6 +334,67 @@ export default function AdminCalendarPage() {
                       {event.description}
                     </p>
                   )}
+
+                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                    {event.status === 'scheduled' && (
+                      <>
+                        <button
+                          onClick={() => handleStatusAction(event.id, 'terminate', event.title)}
+                          disabled={actionLoading === `terminate_${event.id}`}
+                          className="btn-springs bevel-sm flex items-center gap-1.5"
+                          style={{
+                            fontSize: '11px', padding: '5px 10px',
+                            background: 'rgba(51,255,102,0.1)', color: '#33ff66',
+                            borderColor: 'rgba(51,255,102,0.4)',
+                            opacity: actionLoading === `terminate_${event.id}` ? 0.5 : 1,
+                          }}>
+                          {actionLoading === `terminate_${event.id}` ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />}
+                          <span>Terminer</span>
+                        </button>
+                        <button
+                          onClick={() => handleStatusAction(event.id, 'cancel', event.title)}
+                          disabled={actionLoading === `cancel_${event.id}`}
+                          className="btn-springs bevel-sm flex items-center gap-1.5"
+                          style={{
+                            fontSize: '11px', padding: '5px 10px',
+                            background: 'rgba(255,136,0,0.1)', color: '#ff8800',
+                            borderColor: 'rgba(255,136,0,0.4)',
+                            opacity: actionLoading === `cancel_${event.id}` ? 0.5 : 1,
+                          }}>
+                          {actionLoading === `cancel_${event.id}` ? <Loader2 size={11} className="animate-spin" /> : <Ban size={11} />}
+                          <span>Annuler</span>
+                        </button>
+                      </>
+                    )}
+                    {(event.status === 'cancelled' || event.status === 'done' || event.status === 'completed') && (
+                      <button
+                        onClick={() => handleStatusAction(event.id, 'reopen', event.title)}
+                        disabled={actionLoading === `reopen_${event.id}`}
+                        className="btn-springs bevel-sm flex items-center gap-1.5"
+                        style={{
+                          fontSize: '11px', padding: '5px 10px',
+                          background: 'rgba(123,47,190,0.1)', color: 'var(--s-violet-light)',
+                          borderColor: 'rgba(123,47,190,0.4)',
+                          opacity: actionLoading === `reopen_${event.id}` ? 0.5 : 1,
+                        }}>
+                        {actionLoading === `reopen_${event.id}` ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
+                        <span>Rouvrir</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDelete(event.id, event.title)}
+                      disabled={actionLoading === `delete_${event.id}`}
+                      className="btn-springs bevel-sm flex items-center gap-1.5"
+                      style={{
+                        fontSize: '11px', padding: '5px 10px',
+                        background: 'rgba(239,68,68,0.1)', color: '#ef4444',
+                        borderColor: 'rgba(239,68,68,0.4)',
+                        opacity: actionLoading === `delete_${event.id}` ? 0.5 : 1,
+                      }}>
+                      {actionLoading === `delete_${event.id}` ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                      <span>Supprimer</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

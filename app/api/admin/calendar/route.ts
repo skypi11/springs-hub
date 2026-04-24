@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth, isAdmin } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
+import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
+import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 const MAX_EVENTS = 500;
 
@@ -107,6 +109,116 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     captureApiError('API Admin/Calendar GET error', err);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+  }
+}
+
+// POST /api/admin/calendar — actions admin sur un événement :
+// Body { eventId, action: 'cancel' | 'terminate' | 'reopen', reason? }
+// L'admin bypass les permissions de structure (canCancelEvent, etc.).
+export async function POST(req: NextRequest) {
+  try {
+    const uid = await verifyAuth(req);
+    if (!uid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    if (!(await isAdmin(uid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+
+    const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
+    if (blocked) return blocked;
+
+    const body = await req.json();
+    const eventId = String(body.eventId ?? '').trim();
+    const action = body.action as 'cancel' | 'terminate' | 'reopen';
+    if (!eventId) return NextResponse.json({ error: 'eventId manquant' }, { status: 400 });
+    if (!['cancel', 'terminate', 'reopen'].includes(action)) {
+      return NextResponse.json({ error: 'Action invalide' }, { status: 400 });
+    }
+
+    const db = getAdminDb();
+    const eventRef = db.collection('structure_events').doc(eventId);
+    const eventSnap = await eventRef.get();
+    if (!eventSnap.exists) {
+      return NextResponse.json({ error: 'Événement introuvable' }, { status: 404 });
+    }
+    const event = eventSnap.data()!;
+
+    if (action === 'cancel') {
+      if (event.status === 'cancelled') {
+        return NextResponse.json({ error: 'Déjà annulé' }, { status: 400 });
+      }
+      const reason = body.reason ? String(body.reason).trim().slice(0, 500) : null;
+      await eventRef.update({
+        status: 'cancelled',
+        cancelledAt: FieldValue.serverTimestamp(),
+        cancelledBy: uid,
+        cancelReason: reason,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'terminate') {
+      if (event.status === 'done') {
+        return NextResponse.json({ error: 'Déjà terminé' }, { status: 400 });
+      }
+      await eventRef.update({
+        status: 'done',
+        completedAt: FieldValue.serverTimestamp(),
+        completedBy: uid,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return NextResponse.json({ success: true });
+    }
+
+    // reopen
+    if (event.status === 'scheduled') {
+      return NextResponse.json({ error: 'Déjà programmé' }, { status: 400 });
+    }
+    await eventRef.update({
+      status: 'scheduled',
+      completedAt: null,
+      completedBy: null,
+      cancelledAt: null,
+      cancelledBy: null,
+      cancelReason: null,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    captureApiError('API Admin/Calendar POST error', err);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+  }
+}
+
+// DELETE /api/admin/calendar?eventId=xxx — suppression dure d'un événement + ses présences.
+export async function DELETE(req: NextRequest) {
+  try {
+    const uid = await verifyAuth(req);
+    if (!uid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    if (!(await isAdmin(uid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+
+    const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
+    if (blocked) return blocked;
+
+    const eventId = req.nextUrl.searchParams.get('eventId');
+    if (!eventId) return NextResponse.json({ error: 'eventId manquant' }, { status: 400 });
+
+    const db = getAdminDb();
+    const eventRef = db.collection('structure_events').doc(eventId);
+    const eventSnap = await eventRef.get();
+    if (!eventSnap.exists) {
+      return NextResponse.json({ error: 'Événement introuvable' }, { status: 404 });
+    }
+
+    // Purge event + présences associées en batch
+    const batch = db.batch();
+    batch.delete(eventRef);
+    const pSnap = await db.collection('event_presences').where('eventId', '==', eventId).get();
+    for (const p of pSnap.docs) batch.delete(p.ref);
+    await batch.commit();
+
+    return NextResponse.json({ success: true, presencesDeleted: pSnap.size });
+  } catch (err) {
+    captureApiError('API Admin/Calendar DELETE error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
