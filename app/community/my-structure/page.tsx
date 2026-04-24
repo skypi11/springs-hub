@@ -10,9 +10,9 @@ import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import {
   Shield, Users, Gamepad2, Trophy, Loader2, AlertCircle,
-  User, Save, Plus, Trash2, Eye, Clock, Ban, CheckCircle,
+  User, Save, Plus, Trash2, Eye, Clock, CheckCircle,
   Search, ChevronUp, ChevronDown, Link2, MessageSquare, Settings,
-  Copy, Check, UserPlus, UserMinus, Mail, Bookmark, X,
+  Copy, Check, UserPlus, UserMinus, Bookmark, X,
   Crown, Archive, ArchiveRestore, MoreVertical, Tag, Image as ImageIcon,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -32,11 +32,11 @@ import DocumentsExplorer from '@/components/documents/DocumentsExplorer';
 import CrossTeamTodosPanel from '@/components/structure/CrossTeamTodosPanel';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import { LIMITS } from '@/lib/validation';
-import { computeMemberRole, groupAffiliations, PRIMARY_ROLE_LABELS, type MemberRoleTeam, type PrimaryRole } from '@/lib/member-role';
+import { computeMemberRole, groupAffiliations, PRIMARY_ROLE_LABELS, type MemberRoleTeam } from '@/lib/member-role';
 import { safeCopy } from '@/lib/clipboard';
-import type { DashboardTab, Member, MyStructure } from './types';
+import type { DashboardTab, MyStructure } from './types';
 import {
-  TAB_DEFS, DEPARTURE_NOTICE_DAYS, DEPARTURE_NOTICE_MS,
+  DEPARTURE_NOTICE_DAYS, DEPARTURE_NOTICE_MS,
   PRIMARY_ROLE_ORDER, PRIMARY_ROLE_COLORS, STATUS_INFO, SOCIAL_LABELS,
 } from './constants';
 import { TabBar, SectionPanel, RosterSlot, StaffRosterSlot, TeamActionChip } from './components';
