@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
 import AdminUserRef from '@/components/admin/AdminUserRef';
+import ImpersonateButton from '@/components/admin/ImpersonateButton';
 import {
   Users2, Archive, Loader2, ExternalLink, Search, AlertTriangle,
 } from 'lucide-react';
@@ -21,6 +22,8 @@ type AdminTeam = {
   structureTag: string;
   structureLogoUrl: string;
   structureStatus: string | null;
+  founderId: string;
+  founderName: string;
   playerCount: number;
   subCount: number;
   staffCount: number;
@@ -81,7 +84,7 @@ export default function AdminTeamsPage() {
 
   // Groupe par structure pour un rendu plus lisible quand il y en a beaucoup
   const groupedByStructure = useMemo(() => {
-    const map = new Map<string, { structure: { id: string; name: string; tag: string; logoUrl: string; status: string | null }; teams: AdminTeam[] }>();
+    const map = new Map<string, { structure: { id: string; name: string; tag: string; logoUrl: string; status: string | null; founderId: string; founderName: string }; teams: AdminTeam[] }>();
     for (const t of filtered) {
       const existing = map.get(t.structureId);
       if (existing) {
@@ -94,6 +97,8 @@ export default function AdminTeamsPage() {
             tag: t.structureTag,
             logoUrl: t.structureLogoUrl,
             status: t.structureStatus,
+            founderId: t.founderId,
+            founderName: t.founderName,
           },
           teams: [t],
         });
@@ -239,9 +244,19 @@ export default function AdminTeamsPage() {
                   <AdminUserRef uid={structure.id} kind="structure" layout="inline" />
                 </div>
               </div>
-              <span className="tag tag-neutral" style={{ fontSize: '10px' }}>
-                {structTeams.length} équipe{structTeams.length > 1 ? 's' : ''}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="tag tag-neutral" style={{ fontSize: '10px' }}>
+                  {structTeams.length} équipe{structTeams.length > 1 ? 's' : ''}
+                </span>
+                {structure.founderId && (
+                  <ImpersonateButton
+                    targetUid={structure.founderId}
+                    targetName={structure.founderName}
+                    size="icon"
+                    redirectTo="/community/my-structure"
+                  />
+                )}
+              </div>
             </div>
 
             <div className="panel-body">

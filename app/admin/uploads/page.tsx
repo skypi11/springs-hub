@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
+import ImpersonateButton from '@/components/admin/ImpersonateButton';
 import {
   UploadCloud, Loader2, FileText, Film, Building2, ExternalLink, Database,
 } from 'lucide-react';
@@ -14,6 +15,8 @@ type StructureUsage = {
   structureName: string;
   structureTag: string;
   structureLogoUrl: string;
+  founderId: string;
+  founderName: string;
   docsBytes: number;
   docsCount: number;
   replaysBytes: number;
@@ -239,6 +242,17 @@ export default function AdminUploadsPage() {
                     />
                   </div>
                 </div>
+
+                {s.founderId && (
+                  <div className="flex-shrink-0">
+                    <ImpersonateButton
+                      targetUid={s.founderId}
+                      targetName={s.founderName}
+                      size="icon"
+                      redirectTo="/community/my-structure"
+                    />
+                  </div>
+                )}
               </div>
             </div>
           );

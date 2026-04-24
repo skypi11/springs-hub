@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
+import ImpersonateButton from '@/components/admin/ImpersonateButton';
 import {
   ClipboardList, Loader2, AlertTriangle, Clock, CheckCircle2,
   CalendarDays, ExternalLink, Building2,
@@ -15,6 +16,8 @@ type StructureStats = {
   structureName: string;
   structureTag: string;
   structureLogoUrl: string;
+  founderId: string;
+  founderName: string;
   total: number;
   pending: number;
   done: number;
@@ -274,6 +277,17 @@ export default function AdminDevoirsPage() {
                   </div>
                 )}
               </div>
+
+              {s.founderId && s.pending > 0 && (
+                <div className="flex-shrink-0">
+                  <ImpersonateButton
+                    targetUid={s.founderId}
+                    targetName={s.founderName}
+                    size="icon"
+                    redirectTo="/community/my-structure"
+                  />
+                </div>
+              )}
             </div>
           </div>
         ))}

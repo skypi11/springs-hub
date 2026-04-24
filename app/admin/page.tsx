@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  Building2, Users, AlertCircle, ArrowRight, Loader2, Hammer,
+  Building2, Users, AlertCircle, ArrowRight, Loader2,
+  ShieldAlert, ClipboardList, UploadCloud, CalendarDays, FileText,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -188,28 +189,38 @@ export default function AdminDashboardPage() {
         />
       </div>
 
-      {/* Note refonte en cours */}
-      <div
-        className="bevel-sm relative overflow-hidden"
-        style={{
-          background: 'var(--s-surface)',
-          border: '1px solid var(--s-border)',
-        }}
-      >
-        <div
-          className="h-[3px]"
-          style={{ background: 'linear-gradient(90deg, var(--s-violet), rgba(163,100,217,0.3), transparent 70%)' }}
-        />
-        <div className="p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <Hammer size={13} style={{ color: 'var(--s-violet-light)' }} />
-            <span className="t-label">Refonte en cours</span>
-          </div>
-          <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            Les sections marquées <span className="tag tag-neutral" style={{ fontSize: '8px', padding: '0px 5px' }}>BIENTÔT</span> dans la nav ne sont pas encore branchées. Priorité sur <strong style={{ color: 'var(--s-text)' }}>Audit log</strong> et <strong style={{ color: 'var(--s-text)' }}>Modération</strong>.
-          </p>
+      {/* Accès rapides */}
+      <div>
+        <div className="section-label mb-4">
+          <span>Accès rapides</span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <QuickLink href="/admin/moderation" icon={ShieldAlert} label="Modération" accent="#ff5555" />
+          <QuickLink href="/admin/devoirs" icon={ClipboardList} label="Devoirs" accent="#FFB800" />
+          <QuickLink href="/admin/calendar" icon={CalendarDays} label="Calendrier" accent="#a364d9" />
+          <QuickLink href="/admin/teams" icon={Users} label="Équipes" accent="#0081FF" />
+          <QuickLink href="/admin/uploads" icon={UploadCloud} label="Uploads" accent="#33ff66" />
+          <QuickLink href="/admin/audit" icon={FileText} label="Audit log" accent="var(--s-violet-light)" />
         </div>
       </div>
     </>
+  );
+}
+
+function QuickLink({ href, icon: Icon, label, accent }: { href: string; icon: LucideIcon; label: string; accent: string }) {
+  return (
+    <Link
+      href={href}
+      className="pillar-card panel relative overflow-hidden transition-all duration-150 block"
+    >
+      <div className="h-[2px]" style={{ background: `linear-gradient(90deg, ${accent}, transparent 80%)` }} />
+      <div className="p-3 flex items-center gap-3">
+        <div className="p-1.5" style={{ background: `${accent}15`, border: `1px solid ${accent}35` }}>
+          <Icon size={13} style={{ color: accent }} />
+        </div>
+        <span className="font-display text-sm tracking-wider" style={{ color: 'var(--s-text)' }}>{label}</span>
+        <ArrowRight size={12} className="ml-auto" style={{ color: 'var(--s-text-muted)' }} />
+      </div>
+    </Link>
   );
 }

@@ -35,9 +35,21 @@ export async function GET(req: NextRequest) {
     ));
     const structuresById = await fetchDocsByIds(db, 'structures', structureIds);
 
+    const founderIds = Array.from(new Set(
+      Array.from(structuresById.values())
+        .map(s => s?.founderId as string | undefined)
+        .filter((x): x is string => !!x)
+    ));
+    const foundersById = await fetchDocsByIds(db, 'users', founderIds);
+
     const teams = snap.docs.map(doc => {
       const data = doc.data();
       const structure = structuresById.get(data.structureId);
+      const founderId = (structure?.founderId as string | undefined) ?? '';
+      const founder = founderId ? foundersById.get(founderId) : null;
+      const founderName = (founder?.displayName as string | undefined)
+        || (founder?.discordUsername as string | undefined)
+        || founderId;
       const players = (data.playerIds ?? []) as string[];
       const subs = (data.subIds ?? []) as string[];
       const staff = (data.staffIds ?? []) as string[];
@@ -55,6 +67,8 @@ export async function GET(req: NextRequest) {
         structureTag: structure?.tag ?? '',
         structureLogoUrl: structure?.logoUrl ?? '',
         structureStatus: structure?.status ?? null,
+        founderId,
+        founderName,
         playerCount: players.length,
         subCount: subs.length,
         staffCount: staff.length,

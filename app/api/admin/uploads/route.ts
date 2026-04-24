@@ -12,6 +12,8 @@ type StructureUsage = {
   structureName: string;
   structureTag: string;
   structureLogoUrl: string;
+  founderId: string;
+  founderName: string;
   docsBytes: number;
   docsCount: number;
   replaysBytes: number;
@@ -52,6 +54,8 @@ export async function GET(req: NextRequest) {
           structureName: '',
           structureTag: '',
           structureLogoUrl: '',
+          founderId: '',
+          founderName: '',
           docsBytes: 0,
           docsCount: 0,
           replaysBytes: 0,
@@ -102,13 +106,25 @@ export async function GET(req: NextRequest) {
     }
 
     const structuresById = await fetchDocsByIds(db, 'structures', Array.from(structureIds));
+    const founderIds = new Set<string>();
     for (const s of byStructure.values()) {
       const struct = structuresById.get(s.structureId);
       s.structureName = (struct?.name as string | undefined) ?? '';
       s.structureTag = (struct?.tag as string | undefined) ?? '';
       s.structureLogoUrl = (struct?.logoUrl as string | undefined) ?? '';
+      s.founderId = (struct?.founderId as string | undefined) ?? '';
+      if (s.founderId) founderIds.add(s.founderId);
       s.totalBytes = s.docsBytes + s.replaysBytes;
       s.quotaPct = s.quotaBytes > 0 ? Math.round((s.docsBytes / s.quotaBytes) * 100) : 0;
+    }
+
+    const foundersById = await fetchDocsByIds(db, 'users', Array.from(founderIds));
+    for (const s of byStructure.values()) {
+      if (!s.founderId) continue;
+      const u = foundersById.get(s.founderId);
+      s.founderName = (u?.displayName as string | undefined)
+        || (u?.discordUsername as string | undefined)
+        || s.founderId;
     }
 
     const structures = Array.from(byStructure.values())

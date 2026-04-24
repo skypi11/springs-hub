@@ -43,6 +43,10 @@ const ACTION_META: Record<string, { label: string; color: string }> = {
   user_edited: { label: 'Profil modifié', color: '#0081FF' },
   user_removed_from_structure: { label: 'Retiré d\'une structure', color: '#FFB800' },
   user_deleted: { label: 'Compte supprimé', color: '#ff5555' },
+  user_impersonation_started: { label: 'Impersonation démarrée', color: '#a364d9' },
+  user_impersonation_stopped: { label: 'Impersonation arrêtée', color: '#7a7a95' },
+  self_delete_account: { label: 'Auto-suppression (RGPD)', color: '#ff5555' },
+  notification_broadcast: { label: 'Notification broadcast', color: '#0081FF' },
   // Structure-internal (sample des plus visibles — la valeur fallback gère le reste)
   transfer_initiated: { label: 'Transfert initié', color: '#FFB800' },
   transfer_confirmed: { label: 'Transfert confirmé', color: '#33ff66' },
