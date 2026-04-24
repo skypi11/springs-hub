@@ -5,6 +5,7 @@ import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { clampString } from '@/lib/validation';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { captureApiError } from '@/lib/sentry';
+import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 const MAX_RECENT = 200;
 const BROADCAST_CAP = 2000;         // hard cap sur les destinataires par envoi
@@ -96,6 +97,9 @@ export async function POST(req: NextRequest) {
     const adminUid = await verifyAuth(req);
     if (!adminUid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     if (!(await isAdmin(adminUid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+
+    const blocked = await checkRateLimit(limiters.admin, rateLimitKey(req, adminUid));
+    if (blocked) return blocked;
 
     const body = await req.json();
     const title = clampString(typeof body.title === 'string' ? body.title : '', TITLE_MAX);

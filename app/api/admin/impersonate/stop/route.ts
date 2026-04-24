@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb, isAdmin } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
+import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 // POST /api/admin/impersonate/stop — l'admin reprend son identité d'origine.
 //
@@ -26,6 +27,9 @@ export async function POST(req: NextRequest) {
       res.cookies.delete(COOKIE_NAME);
       return res;
     }
+
+    const blocked = await checkRateLimit(limiters.admin, rateLimitKey(req, adminUid));
+    if (blocked) return blocked;
 
     const token = await getAdminAuth().createCustomToken(adminUid);
 

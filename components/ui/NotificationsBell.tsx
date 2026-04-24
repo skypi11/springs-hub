@@ -9,7 +9,8 @@ import {
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
-import { api } from '@/lib/api-client';
+import { api, ApiError } from '@/lib/api-client';
+import { useToast } from './Toast';
 import Portal from './Portal';
 
 type Notification = {
@@ -54,11 +55,13 @@ export default function NotificationsBell() {
   const router = useRouter();
   const { user } = useAuth();
   const qc = useQueryClient();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const queryKey = ['notifications', user?.uid ?? null] as const;
+  const uid = user?.uid ?? null;
+  const queryKey = ['notifications', uid] as const;
   const { data, isPending: loading } = useQuery({
     queryKey,
     queryFn: () => api<{ notifications: Notification[]; unread: number }>('/api/notifications'),
@@ -68,18 +71,18 @@ export default function NotificationsBell() {
   const unread = data?.unread ?? 0;
 
   useEffect(() => {
-    if (!user) return;
+    if (!uid) return;
     // Live updates: skip le premier fire (déjà couvert par useQuery initial)
     let first = true;
-    const q = query(collection(db, 'notifications'), where('userId', '==', user.uid));
+    const q = query(collection(db, 'notifications'), where('userId', '==', uid));
     const unsub = onSnapshot(q, () => {
       if (first) { first = false; return; }
-      qc.invalidateQueries({ queryKey });
+      qc.invalidateQueries({ queryKey: ['notifications', uid] });
     }, () => {
       // silent on error
     });
     return () => unsub();
-  }, [user, qc, queryKey]);
+  }, [uid, qc]);
 
   useEffect(() => {
     if (!open) return;
@@ -107,8 +110,8 @@ export default function NotificationsBell() {
           body: { action: 'mark_read', notificationId: n.id },
         });
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Impossible de marquer comme lue');
     }
     setOpen(false);
     if (n.link) router.push(n.link);
@@ -122,8 +125,8 @@ export default function NotificationsBell() {
         body: { action: 'mark_all_read' },
       });
       qc.invalidateQueries({ queryKey });
-    } catch {
-      // ignore
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Impossible de tout marquer comme lu');
     }
   }
 

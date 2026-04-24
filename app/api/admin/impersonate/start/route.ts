@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb, verifyAuth, isAdmin } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
+import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 // POST /api/admin/impersonate/start — admin se connecte "en tant que" un autre utilisateur.
 //
@@ -20,6 +21,9 @@ export async function POST(req: NextRequest) {
     const adminUid = await verifyAuth(req);
     if (!adminUid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     if (!(await isAdmin(adminUid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+
+    const blocked = await checkRateLimit(limiters.admin, rateLimitKey(req, adminUid));
+    if (blocked) return blocked;
 
     const body = await req.json();
     const targetUid = String(body.targetUid ?? '').trim();
