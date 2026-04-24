@@ -8,6 +8,7 @@ import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import AdminUserRef from '@/components/admin/AdminUserRef';
+import ImpersonateButton from '@/components/admin/ImpersonateButton';
 import {
   Building2, CheckCircle, XCircle, Trash2, Loader2, ChevronDown, ChevronUp,
   ExternalLink, Ban, RotateCcw, RefreshCw,
@@ -260,6 +261,18 @@ export default function AdminStructuresPage() {
 
               {isExpanded && (
                 <div className="panel-body space-y-4">
+                  <div className="divider" />
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="t-label">Fondateur</span>
+                      <AdminUserRef uid={s.founderId} name={s.founderName} layout="inline" />
+                    </div>
+                    <ImpersonateButton
+                      targetUid={s.founderId}
+                      targetName={s.founderName}
+                      redirectTo="/community/my-structure"
+                    />
+                  </div>
                   <div className="divider" />
                   <div className="grid grid-cols-2 gap-4">
                     <div>
