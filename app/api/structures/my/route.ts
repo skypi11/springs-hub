@@ -52,6 +52,9 @@ async function processExpiredDepartures(
 // - dirigeant : fondateur ou co-fondateur → accessLevel: 'dirigeant' (tout le dashboard)
 // - staff     : manager ou coach (via structure_members.role OU sub_teams.staffIds)
 //               → accessLevel: 'staff' (header + liste membres read-only + calendrier)
+// - capitaine : capitaine d'au moins une sub_team (champ sub_teams.captainId)
+//               → accessLevel: 'staff' (l'UI dérive captainOnlyAccess depuis teams/captainId
+//               et restreint aux onglets Équipes + Calendrier)
 export async function GET(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -59,20 +62,22 @@ export async function GET(req: NextRequest) {
 
     const db = getAdminDb();
 
-    // 6 requêtes parallèles :
+    // 7 requêtes parallèles :
     //   - fondateur
     //   - co-fondateur
     //   - manager au niveau structure (structures.managerIds)
     //   - coach au niveau structure (structures.coachIds)
     //   - membre staff via structure_members.role (legacy, gardé pour compat)
     //   - staff d'une équipe (sub_teams.staffIds array-contains)
-    const [founderSnap, coFounderSnap, managerSnap, coachSnap, memberSnap, teamStaffSnap] = await Promise.all([
+    //   - capitaine d'une équipe (sub_teams.captainId)
+    const [founderSnap, coFounderSnap, managerSnap, coachSnap, memberSnap, teamStaffSnap, teamCaptainSnap] = await Promise.all([
       db.collection('structures').where('founderId', '==', uid).get(),
       db.collection('structures').where('coFounderIds', 'array-contains', uid).get(),
       db.collection('structures').where('managerIds', 'array-contains', uid).get(),
       db.collection('structures').where('coachIds', 'array-contains', uid).get(),
       db.collection('structure_members').where('userId', '==', uid).get(),
       db.collection('sub_teams').where('staffIds', 'array-contains', uid).get(),
+      db.collection('sub_teams').where('captainId', '==', uid).get(),
     ]);
 
     // Structures où l'user est dirigeant (accessLevel = 'dirigeant')
@@ -108,6 +113,12 @@ export async function GET(req: NextRequest) {
     }
     // 3. Via sub_teams.staffIds (rattaché à une équipe uniquement)
     for (const t of teamStaffSnap.docs) {
+      const structureId = t.data().structureId as string | undefined;
+      if (structureId) staffStructureIds.add(structureId);
+    }
+    // 4. Via sub_teams.captainId (capitaine d'équipe — accès limité aux onglets
+    //    Équipes + Calendrier, dérivé côté UI via captainOnlyAccess).
+    for (const t of teamCaptainSnap.docs) {
       const structureId = t.data().structureId as string | undefined;
       if (structureId) staffStructureIds.add(structureId);
     }
