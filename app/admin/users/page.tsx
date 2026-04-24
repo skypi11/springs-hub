@@ -202,6 +202,7 @@ export default function AdminUsersPage() {
               borderColor: u.isBanned ? 'rgba(255,50,50,0.25)' : u.isAdmin ? 'rgba(123,47,190,0.25)' : undefined,
             }}>
               <button
+                type="button"
                 onClick={() => {
                   setExpandedUser(isExpanded ? null : u.uid);
                   setEditingUser(null);
@@ -337,6 +338,7 @@ export default function AdminUsersPage() {
                                 </div>
                               </div>
                               <button
+                                type="button"
                                 onClick={async () => {
                                   const ok = await confirm({
                                     title: 'Retirer de la structure',
@@ -478,6 +480,7 @@ export default function AdminUsersPage() {
                         )}
 
                         <button
+                          type="button"
                           onClick={() => handleUserAction(u.uid, 'edit', { editData: editForm })}
                           disabled={!!userActionLoading}
                           className="btn-springs bevel-sm flex items-center gap-2"
@@ -602,11 +605,12 @@ export default function AdminUsersPage() {
             <p className="text-sm" style={{ color: 'var(--s-text)' }}>{confirmAction.label}</p>
 
             <div className="flex gap-3 justify-end">
-              <button onClick={() => setConfirmAction(null)}
+              <button type="button" onClick={() => setConfirmAction(null)}
                 className="btn-springs btn-ghost text-xs">
                 Annuler
               </button>
               <button
+                type="button"
                 onClick={() => {
                   const extra: Record<string, unknown> = {};
                   if (confirmAction.action === 'ban') {

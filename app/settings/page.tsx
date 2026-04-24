@@ -330,6 +330,7 @@ export default function SettingsPage() {
               </p>
             </div>
             <button
+              type="button"
               onClick={() => router.push(`/profile/${firebaseUser?.uid}`)}
               className="btn-springs btn-secondary bevel-sm hidden md:inline-flex"
               style={{ padding: '8px 14px', fontSize: '12px' }}
@@ -337,6 +338,7 @@ export default function SettingsPage() {
               Voir mon profil <ExternalLink size={12} />
             </button>
             <button
+              type="button"
               onClick={handleSave}
               disabled={saving || !dirty}
               className="btn-springs btn-primary bevel-sm"
@@ -881,6 +883,7 @@ export default function SettingsPage() {
                         Télécharge une copie complète de tes données personnelles au format JSON (profil, appartenances, notifications, équipes, etc.).
                       </p>
                       <button
+                        type="button"
                         onClick={handleExport}
                         disabled={exporting}
                         className="flex items-center gap-2 px-3 py-2 text-sm transition-colors duration-150"
@@ -905,6 +908,7 @@ export default function SettingsPage() {
                       <label className="t-label block mb-2" style={{ color: '#ef4444' }}>Zone dangereuse</label>
                       <div className="flex flex-wrap gap-2">
                         <button
+                          type="button"
                           onClick={signOut}
                           className="flex items-center gap-2 px-3 py-2 text-sm transition-colors duration-150"
                           style={{
@@ -920,6 +924,7 @@ export default function SettingsPage() {
                           Me déconnecter
                         </button>
                         <button
+                          type="button"
                           onClick={() => { setDeleteConfirm(true); setDeleteError(''); setDeleteConfirmText(''); setDeleteBlockingStructures([]); }}
                           className="flex items-center gap-2 px-3 py-2 text-sm transition-colors duration-150"
                           style={{
@@ -1006,6 +1011,7 @@ export default function SettingsPage() {
 
                             <div className="flex gap-2 justify-end">
                               <button
+                                type="button"
                                 onClick={() => setDeleteConfirm(false)}
                                 disabled={deleting}
                                 className="btn-springs btn-secondary bevel-sm"
@@ -1014,6 +1020,7 @@ export default function SettingsPage() {
                                 Annuler
                               </button>
                               <button
+                                type="button"
                                 onClick={handleDelete}
                                 disabled={deleting || deleteConfirmText !== 'SUPPRIMER'}
                                 className="flex items-center gap-2 px-4 py-2 text-sm bevel-sm transition-colors duration-150"

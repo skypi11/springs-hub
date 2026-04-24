@@ -217,6 +217,7 @@ export default function AdminStructuresPage() {
           return (
             <div key={s.id} id={`structure-row-${s.id}`} className="panel">
               <button
+                type="button"
                 onClick={() => setExpandedId(isExpanded ? null : s.id)}
                 className="w-full panel-header"
                 style={{ cursor: 'pointer' }}>

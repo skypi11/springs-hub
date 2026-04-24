@@ -191,6 +191,7 @@ export default function AdminAuditPage() {
           </h2>
         </div>
         <button
+          type="button"
           onClick={loadLogs}
           className="tag tag-neutral"
           style={{ cursor: 'pointer', padding: '6px 12px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
@@ -199,6 +200,7 @@ export default function AdminAuditPage() {
           Rafraîchir
         </button>
         <button
+          type="button"
           onClick={exportCsv}
           disabled={filtered.length === 0}
           className="tag"

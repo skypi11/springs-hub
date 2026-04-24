@@ -379,6 +379,7 @@ export default function AdminCalendarPage() {
 
                   <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                     <button
+                      type="button"
                       onClick={() => toggleDetail(event.id)}
                       className="btn-springs bevel-sm flex items-center gap-1.5"
                       style={{
@@ -394,6 +395,7 @@ export default function AdminCalendarPage() {
                     {event.status === 'scheduled' && (
                       <>
                         <button
+                          type="button"
                           onClick={() => handleStatusAction(event.id, 'terminate', event.title)}
                           disabled={actionLoading === `terminate_${event.id}`}
                           className="btn-springs bevel-sm flex items-center gap-1.5"
@@ -407,6 +409,7 @@ export default function AdminCalendarPage() {
                           <span>Terminer</span>
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleStatusAction(event.id, 'cancel', event.title)}
                           disabled={actionLoading === `cancel_${event.id}`}
                           className="btn-springs bevel-sm flex items-center gap-1.5"
@@ -423,6 +426,7 @@ export default function AdminCalendarPage() {
                     )}
                     {(event.status === 'cancelled' || event.status === 'done' || event.status === 'completed') && (
                       <button
+                        type="button"
                         onClick={() => handleStatusAction(event.id, 'reopen', event.title)}
                         disabled={actionLoading === `reopen_${event.id}`}
                         className="btn-springs bevel-sm flex items-center gap-1.5"
@@ -437,6 +441,7 @@ export default function AdminCalendarPage() {
                       </button>
                     )}
                     <button
+                      type="button"
                       onClick={() => handleDelete(event.id, event.title)}
                       disabled={actionLoading === `delete_${event.id}`}
                       className="btn-springs bevel-sm flex items-center gap-1.5"
