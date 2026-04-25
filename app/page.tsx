@@ -81,9 +81,9 @@ const pillars: Pillar[] = [
     icon: UserPlus,
     title: 'VIVIER JOUEURS',
     tag: 'Recrutement',
-    tagClass: 'tag-violet',
-    accent: '#7B2FBE',
-    iconColor: 'var(--s-violet-light)',
+    tagClass: 'tag-neutral',
+    accent: '#EAEAF0',
+    iconColor: 'var(--s-text)',
     desc: 'Annuaire des joueurs de l\'écosystème. Profils, rangs, disponibilité pour le recrutement.',
     features: ['Profils', 'Rangs', 'Recrutement', 'Disponibilité'],
     href: '/community/players',
@@ -106,7 +106,7 @@ const pillars: Pillar[] = [
 
 const quickLinks = [
   { label: 'Créer une structure', desc: 'Demande de création → validation par Springs', href: '/community/create-structure', icon: Shield, accent: '#FFB800' },
-  { label: 'Mon profil', desc: 'Jeux pratiqués, rang, disponibilité recrutement', href: '/settings', icon: Users, accent: '#7B2FBE' },
+  { label: 'Mon profil', desc: 'Jeux pratiqués, rang, disponibilité recrutement', href: '/settings', icon: Users, accent: '#FFB800' },
   { label: 'Annuaire structures', desc: 'Toutes les structures actives de l\'écosystème', href: '/community/structures', icon: UserPlus, accent: '#0081FF' },
   { label: 'Classements', desc: 'Scores, résultats et statistiques des compétitions', href: '/competitions', icon: Trophy, accent: '#00D936' },
 ];
@@ -296,9 +296,9 @@ export default function HomePage() {
 function VisitorHero({ stats }: { stats: PublicStats | null }) {
   return (
     <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), var(--s-violet-light), transparent 80%)' }} />
+      <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), var(--s-gold), transparent 80%)' }} />
       <div className="absolute top-0 left-0 w-[500px] h-[400px] pointer-events-none opacity-[0.06]"
-        style={{ background: 'radial-gradient(ellipse at top left, var(--s-violet), transparent 70%)' }} />
+        style={{ background: 'radial-gradient(ellipse at top left, var(--s-gold), transparent 70%)' }} />
       <div className="absolute bottom-0 right-[300px] w-[400px] h-[300px] pointer-events-none opacity-[0.04]"
         style={{ background: 'radial-gradient(ellipse at bottom, var(--s-gold), transparent 70%)' }} />
       <div className="relative z-[1] p-10 flex items-start justify-between gap-10 flex-wrap">
@@ -326,7 +326,7 @@ function VisitorHero({ stats }: { stats: PublicStats | null }) {
           </div>
         </div>
         <div className="flex-shrink-0 w-[280px] hidden lg:block">
-          <div className="panel accent-top-violet">
+          <div className="panel accent-top-gold">
             <div className="panel-header">
               <span className="t-label">Activité Springs</span>
               <span className="status status-live">Live</span>
@@ -350,7 +350,7 @@ function VisitorHero({ stats }: { stats: PublicStats | null }) {
                 {stats === null ? (
                   <SkeletonText width={32} height={20} />
                 ) : (
-                  <span className="font-display text-2xl" style={{ color: 'var(--s-violet-light)', letterSpacing: '0.02em' }}>{stats.structures}</span>
+                  <span className="font-display text-2xl" style={{ color: 'var(--s-gold)', letterSpacing: '0.02em' }}>{stats.structures}</span>
                 )}
               </div>
               <div className="divider" />
@@ -359,7 +359,7 @@ function VisitorHero({ stats }: { stats: PublicStats | null }) {
                 {stats === null ? (
                   <SkeletonText width={32} height={20} />
                 ) : (
-                  <span className="font-display text-2xl" style={{ color: 'var(--s-violet-light)', letterSpacing: '0.02em' }}>{stats.players}</span>
+                  <span className="font-display text-2xl" style={{ color: 'var(--s-gold)', letterSpacing: '0.02em' }}>{stats.players}</span>
                 )}
               </div>
             </div>

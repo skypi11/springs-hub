@@ -376,7 +376,7 @@ export default function SettingsPage() {
               className="bevel-sm sticky top-[120px]"
               style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
             >
-              <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), rgba(163,100,217,0.3), transparent 70%)' }} />
+              <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
               <div className="p-2">
                 <div className="px-3 py-2">
                   <span className="t-label">Sections</span>
@@ -390,9 +390,9 @@ export default function SettingsPage() {
                       onClick={() => setSection(key)}
                       className="w-full flex items-start gap-2.5 px-3 py-2.5 text-left transition-all duration-150 relative"
                       style={{
-                        background: active ? 'rgba(123,47,190,0.12)' : 'transparent',
+                        background: active ? 'rgba(255,184,0,0.12)' : 'transparent',
                         color: active ? 'var(--s-text)' : 'var(--s-text-dim)',
-                        borderLeft: active ? '3px solid var(--s-violet)' : '3px solid transparent',
+                        borderLeft: active ? '3px solid var(--s-gold)' : '3px solid transparent',
                         cursor: 'pointer',
                       }}
                       onMouseEnter={(e) => {
@@ -405,7 +405,7 @@ export default function SettingsPage() {
                       <Icon
                         size={15}
                         className="flex-shrink-0 mt-0.5"
-                        style={{ color: active ? 'var(--s-violet-light)' : 'var(--s-text-muted)' }}
+                        style={{ color: active ? 'var(--s-gold)' : 'var(--s-text-muted)' }}
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold">{label}</p>
@@ -702,13 +702,13 @@ export default function SettingsPage() {
             {/* COMPTE */}
             {section === 'account' && (
               <div className="pillar-card panel relative group transition-all duration-200 animate-fade-in">
-                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), rgba(163,100,217,0.3), transparent 70%)' }} />
+                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
                 <div className="absolute top-0 right-0 w-[180px] h-[180px] pointer-events-none opacity-[0.05]"
-                  style={{ background: 'radial-gradient(circle at top right, var(--s-violet), transparent 70%)' }} />
+                  style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
                 <div className="relative z-[1]">
                   <div className="panel-header">
                     <div className="flex items-center gap-2">
-                      <UserCircle size={13} style={{ color: 'var(--s-violet-light)' }} />
+                      <UserCircle size={13} style={{ color: 'var(--s-gold)' }} />
                       <span className="t-label" style={{ color: 'var(--s-text)' }}>COMPTE SPRINGS</span>
                     </div>
                     {isAdmin && <span className="tag tag-gold" style={{ fontSize: '8px' }}>ADMIN</span>}
@@ -727,7 +727,7 @@ export default function SettingsPage() {
                             width={40}
                             height={40}
                             className="flex-shrink-0"
-                            style={{ border: '1px solid rgba(123,47,190,0.4)' }}
+                            style={{ border: '1px solid rgba(255,184,0,0.4)' }}
                           />
                         )}
                         <div className="flex-1 min-w-0">

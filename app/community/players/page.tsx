@@ -279,7 +279,7 @@ export default function PlayersPage() {
       <CompactStickyHeader
         icon={User}
         title="Joueurs"
-        accent="var(--s-violet-light)"
+        accent="var(--s-gold)"
       />
       <div className="relative z-[1] space-y-6">
         <Breadcrumbs items={[
@@ -356,16 +356,16 @@ export default function PlayersPage() {
               onClick={() => setShowAdvanced(v => !v)}
               className="tag transition-all duration-150 inline-flex items-center gap-1.5"
               style={{
-                background: showAdvanced || hasAdvancedFilters ? 'rgba(123,47,190,0.12)' : 'transparent',
-                color: showAdvanced || hasAdvancedFilters ? 'var(--s-violet-light)' : 'var(--s-text-muted)',
-                borderColor: showAdvanced || hasAdvancedFilters ? 'rgba(123,47,190,0.35)' : 'var(--s-border)',
+                background: showAdvanced || hasAdvancedFilters ? 'rgba(255,184,0,0.12)' : 'transparent',
+                color: showAdvanced || hasAdvancedFilters ? 'var(--s-gold)' : 'var(--s-text-muted)',
+                borderColor: showAdvanced || hasAdvancedFilters ? 'rgba(255,184,0,0.35)' : 'var(--s-border)',
                 cursor: 'pointer',
               }}
             >
               <SlidersHorizontal size={12} />
               Filtres avancés
               {hasAdvancedFilters && (
-                <span className="tag" style={{ fontSize: '12px', padding: '0 5px', background: 'rgba(123,47,190,0.25)', color: 'var(--s-violet-light)', borderColor: 'transparent' }}>
+                <span className="tag" style={{ fontSize: '12px', padding: '0 5px', background: 'rgba(255,184,0,0.25)', color: 'var(--s-gold)', borderColor: 'transparent' }}>
                   {[roleFilter, countryFilter, mmrMin, mmrMax, echelonMin, echelonMax, noStructureFilter ? '1' : ''].filter(Boolean).length}
                 </span>
               )}
@@ -374,7 +374,7 @@ export default function PlayersPage() {
 
           {/* Panel filtres avancés (expand) */}
           {showAdvanced && (
-            <div className="relative z-[1] px-6 py-4 border-t animate-fade-in-d1" style={{ borderColor: 'var(--s-border)', background: 'rgba(123,47,190,0.03)' }}>
+            <div className="relative z-[1] px-6 py-4 border-t animate-fade-in-d1" style={{ borderColor: 'var(--s-border)', background: 'rgba(255,184,0,0.03)' }}>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* Rôle recherché */}
                 <div className="space-y-1.5">
@@ -518,7 +518,7 @@ export default function PlayersPage() {
 
         {/* Liste */}
         {loading ? (
-          <SkeletonGrid count={8} cols="grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" cardHeight={220} accent="var(--s-violet)" />
+          <SkeletonGrid count={8} cols="grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" cardHeight={220} accent="var(--s-gold)" />
         ) : filtered.length === 0 ? (
           <EmptyState
             hasFilters={hasFilters}

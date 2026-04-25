@@ -135,7 +135,7 @@ export default function CommunityPage() {
         {loading ? (
           <div className="space-y-6">
             <SkeletonGrid count={3} cols="grid-cols-1 md:grid-cols-2 lg:grid-cols-3" cardHeight={150} accent="var(--s-gold)" />
-            <SkeletonGrid count={4} cols="grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" cardHeight={170} accent="var(--s-violet)" />
+            <SkeletonGrid count={4} cols="grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" cardHeight={170} accent="var(--s-gold)" />
           </div>
         ) : (
           <>
