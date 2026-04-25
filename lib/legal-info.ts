@@ -28,8 +28,7 @@ export const LEGAL_INFO = {
   contactPhone: null as string | null,
 
   // ── Site ─────────────────────────────────────────────────────────
-  // À mettre à jour vers https://aedral.com quand le domaine sera connecté à Vercel.
-  siteUrl: 'https://springs-hub.vercel.app',
+  siteUrl: 'https://aedral.com',
   siteName: 'Aedral',
 
   // ── Hébergeur ────────────────────────────────────────────────────

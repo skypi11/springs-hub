@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
       signupsByMonth,
       truncated: snap.size >= MAX_USERS_SCAN,
       env: {
-        redirectUri: 'https://springs-hub.vercel.app/api/auth/discord/callback',
+        redirectUri: `${req.nextUrl.origin}/api/auth/discord/callback`,
       },
     });
   } catch (err) {

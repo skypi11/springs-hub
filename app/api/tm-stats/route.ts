@@ -3,7 +3,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 // Trackmania.io API — nécessite un User-Agent custom
 const TM_IO_API = 'https://trackmania.io/api';
-const USER_AGENT = 'springs-hub/1.0 (https://springs-hub.vercel.app)';
+const USER_AGENT = 'aedral/1.0 (https://aedral.com)';
 
 // Extraire l'account ID depuis une URL trackmania.io
 // Formats supportés :
