@@ -41,15 +41,15 @@ export default function CompetitionsPage() {
 
       {/* ─── HEADER ───────────────────────────────────────────────────────── */}
       <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-        <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), var(--s-violet-light), transparent 80%)' }} />
+        <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), var(--s-gold), transparent 80%)' }} />
 
         <div className="absolute top-0 right-0 w-[400px] h-[300px] pointer-events-none opacity-[0.05]"
-          style={{ background: 'radial-gradient(ellipse at top right, var(--s-violet), transparent 70%)' }} />
+          style={{ background: 'radial-gradient(ellipse at top right, var(--s-gold), transparent 70%)' }} />
 
         <div className="relative z-[1] p-10">
           <div className="flex items-center gap-3 mb-5">
-            <span className="tag tag-violet">Compétitions</span>
-            <span className="tag tag-neutral">Springs E-Sport</span>
+            <span className="tag tag-gold">Compétitions</span>
+            <span className="tag tag-violet">Springs E-Sport</span>
           </div>
 
           <h1 className="t-display mb-4">

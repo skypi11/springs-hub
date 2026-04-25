@@ -184,7 +184,7 @@ export default function AvailabilityGrid() {
         </p>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 text-sm" style={{ color: 'var(--s-text-muted)' }}>
           <span className="flex items-center gap-2">
-            <span className="inline-block" style={{ width: '16px', height: '14px', background: 'var(--s-violet)', border: '1px solid rgba(163,100,217,0.5)' }} />
+            <span className="inline-block" style={{ width: '16px', height: '14px', background: 'var(--s-gold)', border: '1px solid rgba(255,184,0,0.5)' }} />
             Dispo
           </span>
           <span className="flex items-center gap-2">
@@ -306,7 +306,7 @@ function WeekPanel({
       <div className="h-[3px]" style={{
         background: dirty
           ? 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.4), transparent 70%)'
-          : 'linear-gradient(90deg, var(--s-violet), rgba(123,47,190,0.4), transparent 70%)',
+          : 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.4), transparent 70%)',
         transition: 'background 200ms',
       }} />
       <div className="p-5">
@@ -336,9 +336,9 @@ function WeekPanel({
                 className="btn-springs bevel-sm flex items-center gap-2 px-4 py-2"
                 style={{
                   fontSize: '13px',
-                  background: isEmpty ? 'rgba(123,47,190,0.12)' : 'transparent',
-                  border: isEmpty ? '1px solid rgba(163,100,217,0.4)' : '1px solid var(--s-border)',
-                  color: isEmpty ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
+                  background: isEmpty ? 'rgba(255,184,0,0.12)' : 'transparent',
+                  border: isEmpty ? '1px solid rgba(255,184,0,0.4)' : '1px solid var(--s-border)',
+                  color: isEmpty ? 'var(--s-gold)' : 'var(--s-text-dim)',
                   cursor: 'pointer',
                   fontWeight: isEmpty ? 600 : 400,
                 }}>
@@ -451,9 +451,9 @@ function WeekPanel({
                           width: '76px',
                           height: `${ROW_HEIGHT}px`,
                           background: isPast
-                            ? (isSelected ? 'rgba(123,47,190,0.15)' : 'rgba(255,255,255,0.02)')
+                            ? (isSelected ? 'rgba(255,184,0,0.15)' : 'rgba(255,255,255,0.02)')
                             : isSelected
-                              ? 'var(--s-violet)'
+                              ? 'var(--s-gold)'
                               : 'var(--s-elevated)',
                           borderLeft: '1px solid var(--s-bg)',
                           borderRight: '1px solid var(--s-bg)',

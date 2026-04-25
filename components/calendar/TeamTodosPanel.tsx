@@ -211,7 +211,7 @@ export default function TeamTodosPanel({
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <ClipboardList size={embedded ? 16 : 14} style={{ color: 'var(--s-violet-light)' }} />
+          <ClipboardList size={embedded ? 16 : 14} style={{ color: 'var(--s-gold)' }} />
           <span className="t-label" style={{ fontSize: embedded ? '13px' : '12px', color: 'var(--s-text-dim)', letterSpacing: '0.05em' }}>
             {embedded ? 'DEVOIRS' : "DEVOIRS DE L'ÉQUIPE"}
           </span>
@@ -241,7 +241,7 @@ export default function TeamTodosPanel({
             <button type="button"
               onClick={() => setShowForm(v => !v)}
               className="flex items-center gap-1.5 text-xs font-bold transition-colors duration-150"
-              style={{ color: 'var(--s-violet-light)' }}>
+              style={{ color: 'var(--s-gold)' }}>
               {showForm ? <X size={11} /> : <Plus size={11} />}
               {showForm ? 'Annuler' : 'Nouveau devoir'}
             </button>
@@ -281,8 +281,8 @@ export default function TeamTodosPanel({
               onClick={() => setFilter(f)}
               className="px-2.5 py-1 text-xs font-bold transition-all duration-150"
               style={{
-                background: filter === f ? 'var(--s-violet)' : 'var(--s-surface)',
-                border: `1px solid ${filter === f ? 'var(--s-violet)' : 'var(--s-border)'}`,
+                background: filter === f ? 'var(--s-gold)' : 'var(--s-surface)',
+                border: `1px solid ${filter === f ? 'var(--s-gold)' : 'var(--s-border)'}`,
                 color: filter === f ? '#fff' : 'var(--s-text-dim)',
                 cursor: 'pointer',
               }}>
@@ -345,8 +345,8 @@ function TodoStaffRow({
         className="flex-shrink-0 flex items-center justify-center transition-all duration-150"
         style={{
           width: '20px', height: '20px', marginTop: '1px',
-          background: todo.done ? 'var(--s-violet)' : 'transparent',
-          border: `1px solid ${todo.done ? 'var(--s-violet)' : 'var(--s-text-muted)'}`,
+          background: todo.done ? 'var(--s-gold)' : 'transparent',
+          border: `1px solid ${todo.done ? 'var(--s-gold)' : 'var(--s-text-muted)'}`,
           cursor: busy ? 'wait' : 'pointer',
         }}
         aria-label={todo.done ? 'Rouvrir' : 'Marquer terminé'}>
@@ -704,7 +704,7 @@ function NewTodoForm({
               </span>
             )}
             <button type="button" onClick={selectAll}
-              className="text-xs transition-colors" style={{ color: 'var(--s-violet-light)', cursor: 'pointer' }}>
+              className="text-xs transition-colors" style={{ color: 'var(--s-gold)', cursor: 'pointer' }}>
               Tout sélectionner
             </button>
           </div>
@@ -717,15 +717,15 @@ function NewTodoForm({
                 onClick={() => toggleAssignee(m.uid)}
                 className="flex items-center gap-2 px-2 py-1.5 transition-all duration-150"
                 style={{
-                  background: selected ? 'rgba(123,47,190,0.18)' : 'var(--s-elevated)',
-                  border: `1px solid ${selected ? 'var(--s-violet-light)' : 'var(--s-border)'}`,
+                  background: selected ? 'rgba(255,184,0,0.18)' : 'var(--s-elevated)',
+                  border: `1px solid ${selected ? 'var(--s-gold)' : 'var(--s-border)'}`,
                   cursor: 'pointer',
                 }}>
                 <div className="flex-shrink-0 flex items-center justify-center"
                   style={{
                     width: '16px', height: '16px',
-                    background: selected ? 'var(--s-violet)' : 'transparent',
-                    border: `1px solid ${selected ? 'var(--s-violet)' : 'var(--s-text-muted)'}`,
+                    background: selected ? 'var(--s-gold)' : 'transparent',
+                    border: `1px solid ${selected ? 'var(--s-gold)' : 'var(--s-text-muted)'}`,
                   }}>
                   {selected && <Check size={10} style={{ color: '#fff' }} strokeWidth={3} />}
                 </div>

@@ -3,13 +3,13 @@ import type { PrimaryRole } from '@/lib/member-role';
 import type { DashboardTab } from './types';
 
 export const TAB_DEFS: { key: DashboardTab; label: string; color: string }[] = [
-  { key: 'general', label: 'Général', color: 'var(--s-violet-light)' },
+  { key: 'general', label: 'Général', color: 'var(--s-gold)' },
   { key: 'teams', label: 'Équipes', color: 'var(--s-blue)' },
   { key: 'recruitment', label: 'Recrutement', color: '#33ff66' },
   { key: 'members', label: 'Membres', color: 'var(--s-gold)' },
   { key: 'calendar', label: 'Calendrier', color: 'var(--s-gold)' },
   { key: 'todos', label: 'Devoirs', color: '#4da6ff' },
-  { key: 'documents', label: 'Documents', color: 'var(--s-violet-light)' },
+  { key: 'documents', label: 'Documents', color: 'var(--s-gold)' },
 ];
 
 export const DEPARTURE_NOTICE_DAYS = 7;
@@ -25,9 +25,9 @@ export const PRIMARY_ROLE_ORDER: PrimaryRole[] = [
 export const PRIMARY_ROLE_COLORS: Record<PrimaryRole, string> = {
   fondateur: 'var(--s-gold)',
   co_fondateur: 'var(--s-gold)',
-  responsable: 'var(--s-violet-light)',
+  responsable: 'var(--s-gold)',
   coach_structure: '#FFB800',
-  manager_equipe: 'var(--s-violet-light)',
+  manager_equipe: 'var(--s-gold)',
   coach_equipe: '#4da6ff',
   capitaine: 'var(--s-gold)',
   joueur: 'var(--s-text-dim)',

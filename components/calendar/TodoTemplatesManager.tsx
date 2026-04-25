@@ -98,7 +98,7 @@ export default function TodoTemplatesManager({
             {/* Mes templates perso */}
             <TemplateGroup
               label="MES TEMPLATES (perso)"
-              icon={<UserIcon size={12} style={{ color: 'var(--s-violet-light)' }} />}
+              icon={<UserIcon size={12} style={{ color: 'var(--s-gold)' }} />}
               empty="Aucun template personnel. Clique « Nouveau template » en haut à droite, ou enregistre un devoir existant comme template."
               templates={personal}
               structureId={structureId}

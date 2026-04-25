@@ -15,7 +15,7 @@ export default function MentionsLegalesPage() {
       <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
 
         <div className="flex items-center gap-3">
-          <Scale size={20} style={{ color: 'var(--s-violet-light)' }} />
+          <Scale size={20} style={{ color: 'var(--s-gold)' }} />
           <h1 className="font-display text-2xl" style={{ letterSpacing: '0.04em' }}>
             MENTIONS LÉGALES
           </h1>
@@ -47,7 +47,7 @@ export default function MentionsLegalesPage() {
             <span className="t-label">Contact</span>
           </div>
           <dl className="text-sm space-y-1.5" style={{ color: 'var(--s-text)' }}>
-            <LegalLine label="Email" value={<a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-violet-light)' }}>{i.contactEmail}</a>} />
+            <LegalLine label="Email" value={<a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-gold)' }}>{i.contactEmail}</a>} />
             {i.contactPhone && <LegalLine label="Téléphone" value={i.contactPhone} />}
           </dl>
           <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
@@ -77,7 +77,7 @@ export default function MentionsLegalesPage() {
           <dl className="text-sm space-y-1.5" style={{ color: 'var(--s-text)' }}>
             <LegalLine label="Hébergeur" value={i.hosterName} />
             <LegalLine label="Adresse" value={i.hosterAddress} />
-            <LegalLine label="Site" value={<a href={i.hosterUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--s-violet-light)' }}>{i.hosterUrl}</a>} />
+            <LegalLine label="Site" value={<a href={i.hosterUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--s-gold)' }}>{i.hosterUrl}</a>} />
           </dl>
 
           <div className="divider" />
@@ -112,7 +112,7 @@ export default function MentionsLegalesPage() {
         <section className="panel p-5 space-y-3">
           <span className="t-label">Signalement de contenu</span>
           <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            Conformément à la loi pour la confiance dans l&apos;économie numérique (LCEN), tout contenu manifestement illicite peut être signalé à l&apos;adresse <a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-violet-light)' }}>{i.contactEmail}</a>. Les signalements sont traités dans les meilleurs délais et les contenus illicites retirés sans préavis.
+            Conformément à la loi pour la confiance dans l&apos;économie numérique (LCEN), tout contenu manifestement illicite peut être signalé à l&apos;adresse <a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-gold)' }}>{i.contactEmail}</a>. Les signalements sont traités dans les meilleurs délais et les contenus illicites retirés sans préavis.
           </p>
         </section>
 
@@ -120,7 +120,7 @@ export default function MentionsLegalesPage() {
           <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
             Voir aussi notre politique de confidentialité.
           </span>
-          <Link href="/legal/confidentialite" className="text-xs" style={{ color: 'var(--s-violet-light)' }}>
+          <Link href="/legal/confidentialite" className="text-xs" style={{ color: 'var(--s-gold)' }}>
             Politique de confidentialité →
           </Link>
         </div>

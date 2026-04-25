@@ -134,7 +134,7 @@ export default function TodoDetailDrawer({
           }}
         >
           {/* Accent bar violet (système/navigation) */}
-          <div className="h-[3px] flex-shrink-0" style={{ background: 'linear-gradient(90deg, var(--s-violet), var(--s-violet-light) 50%, transparent 70%)' }} />
+          <div className="h-[3px] flex-shrink-0" style={{ background: 'linear-gradient(90deg, var(--s-gold), var(--s-gold) 50%, transparent 70%)' }} />
 
           {/* Header : statut + titre + close */}
           <header className="flex items-start justify-between gap-4 px-6 pt-5 pb-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--s-border)' }}>
@@ -145,8 +145,8 @@ export default function TodoDetailDrawer({
                   width: 36,
                   height: 36,
                   marginTop: 2,
-                  background: todo.done ? 'var(--s-violet)' : overdue ? 'rgba(255,85,85,0.12)' : 'var(--s-elevated)',
-                  border: `1px solid ${todo.done ? 'var(--s-violet)' : overdue ? 'rgba(255,85,85,0.35)' : 'var(--s-border)'}`,
+                  background: todo.done ? 'var(--s-gold)' : overdue ? 'rgba(255,85,85,0.12)' : 'var(--s-elevated)',
+                  border: `1px solid ${todo.done ? 'var(--s-gold)' : overdue ? 'rgba(255,85,85,0.35)' : 'var(--s-border)'}`,
                 }}>
                 {todo.done
                   ? <Check size={18} style={{ color: '#fff' }} strokeWidth={3} />
@@ -171,7 +171,7 @@ export default function TodoDetailDrawer({
                 <h2 className="font-display text-2xl" style={{ letterSpacing: '0.03em', color: 'var(--s-text)', lineHeight: 1.15 }}>
                   {todo.title}
                 </h2>
-                <p className="text-xs mt-1.5" style={{ color: todo.done ? 'var(--s-violet-light)' : overdue ? '#ff9999' : 'var(--s-text-dim)' }}>
+                <p className="text-xs mt-1.5" style={{ color: todo.done ? 'var(--s-gold)' : overdue ? '#ff9999' : 'var(--s-text-dim)' }}>
                   {todo.done
                     ? (doneFull ? `Terminé le ${doneFull}` : 'Terminé')
                     : overdue
@@ -287,7 +287,7 @@ export default function TodoDetailDrawer({
                         <div className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
                           Deadline
                           {todo.deadlineMode === 'relative' && (
-                            <span className="ml-1.5" style={{ color: 'var(--s-violet-light)' }}>
+                            <span className="ml-1.5" style={{ color: 'var(--s-gold)' }}>
                               (relative à l&apos;event)
                             </span>
                           )}

@@ -15,7 +15,7 @@ export default function ConfidentialitePage() {
       <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
 
         <div className="flex items-center gap-3">
-          <Shield size={20} style={{ color: 'var(--s-violet-light)' }} />
+          <Shield size={20} style={{ color: 'var(--s-gold)' }} />
           <h1 className="font-display text-2xl" style={{ letterSpacing: '0.04em' }}>
             POLITIQUE DE CONFIDENTIALITÉ
           </h1>
@@ -37,7 +37,7 @@ export default function ConfidentialitePage() {
             Le responsable de traitement des données collectées est <strong style={{ color: 'var(--s-text)' }}>{i.editorName}</strong> ({i.editorStatus}), éditeur du site Aedral.
           </p>
           <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            Pour toute demande liée à vos données personnelles, contactez : <a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-violet-light)' }}>{i.contactEmail}</a>.
+            Pour toute demande liée à vos données personnelles, contactez : <a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-gold)' }}>{i.contactEmail}</a>.
           </p>
         </Section>
 
@@ -156,7 +156,7 @@ export default function ConfidentialitePage() {
               className="flex items-center gap-2 p-3 text-sm bevel-sm transition-colors duration-150"
               style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', color: 'var(--s-text)' }}
             >
-              <Download size={14} style={{ color: 'var(--s-violet-light)' }} />
+              <Download size={14} style={{ color: 'var(--s-gold)' }} />
               Exporter mes données (paramètres)
             </Link>
             <Link
@@ -170,10 +170,10 @@ export default function ConfidentialitePage() {
           </div>
 
           <p className="text-sm mt-2" style={{ color: 'var(--s-text-dim)' }}>
-            Pour toute autre demande, contactez <a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-violet-light)' }}>{i.contactEmail}</a>. Nous répondons sous 30 jours.
+            Pour toute autre demande, contactez <a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-gold)' }}>{i.contactEmail}</a>. Nous répondons sous 30 jours.
           </p>
           <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-            En cas de désaccord persistant, vous pouvez déposer une réclamation auprès de la <a href="https://www.cnil.fr" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--s-violet-light)' }}>CNIL</a>.
+            En cas de désaccord persistant, vous pouvez déposer une réclamation auprès de la <a href="https://www.cnil.fr" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--s-gold)' }}>CNIL</a>.
           </p>
         </Section>
 
@@ -205,11 +205,11 @@ export default function ConfidentialitePage() {
 
         {/* Contact final */}
         <section className="panel p-5 flex items-center gap-3 flex-wrap">
-          <Mail size={16} style={{ color: 'var(--s-violet-light)' }} />
+          <Mail size={16} style={{ color: 'var(--s-gold)' }} />
           <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
             Une question sur vos données ?
           </span>
-          <a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-violet-light)' }} className="text-sm">
+          <a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-gold)' }} className="text-sm">
             {i.contactEmail}
           </a>
         </section>
@@ -218,7 +218,7 @@ export default function ConfidentialitePage() {
           <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
             Voir aussi nos mentions légales.
           </span>
-          <Link href="/legal/mentions" className="text-xs" style={{ color: 'var(--s-violet-light)' }}>
+          <Link href="/legal/mentions" className="text-xs" style={{ color: 'var(--s-gold)' }}>
             Mentions légales →
           </Link>
         </div>

@@ -19,14 +19,14 @@ const DEV_GROUPS: { title: string; accounts: DevAccount[] }[] = [
     accounts: [
       { uid: 'discord_dev_founder',         label: 'Matt (Fondateur)',       color: 'var(--s-gold)' },
       { uid: 'discord_dev_cofounder',       label: 'Luca (Co-fondateur)',    color: 'var(--s-gold)' },
-      { uid: 'discord_dev_responsable',     label: 'Sofia (Responsable)',    color: 'var(--s-violet-light)' },
+      { uid: 'discord_dev_responsable',     label: 'Sofia (Responsable)',    color: 'var(--s-gold)' },
       { uid: 'discord_dev_coach_structure', label: 'Elena (Coach structure)', color: '#FFB800' },
     ],
   },
   {
     title: 'Phoenix · Staff équipe',
     accounts: [
-      { uid: 'discord_dev_team_manager',    label: "Louis (Manager d'équipe)", color: 'var(--s-violet-light)' },
+      { uid: 'discord_dev_team_manager',    label: "Louis (Manager d'équipe)", color: 'var(--s-gold)' },
       { uid: 'discord_dev_team_coach',      label: "Thomas (Coach d'équipe)",  color: '#4da6ff' },
     ],
   },

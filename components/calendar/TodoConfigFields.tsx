@@ -89,7 +89,7 @@ export function TodoConfigFields({
           {packs.length < TRAINING_PACKS_MAX && (
             <button type="button" onClick={addPack}
               className="text-xs flex items-center gap-1"
-              style={{ color: 'var(--s-violet-light)', cursor: 'pointer' }}>
+              style={{ color: 'var(--s-gold)', cursor: 'pointer' }}>
               <Plus size={11} /> Ajouter un pack
             </button>
           )}
@@ -189,7 +189,7 @@ export function TodoConfigFields({
           ))}
           {prompts.length < 6 && (
             <button type="button" onClick={addPrompt}
-              className="text-xs" style={{ color: 'var(--s-violet-light)', cursor: 'pointer' }}>
+              className="text-xs" style={{ color: 'var(--s-gold)', cursor: 'pointer' }}>
               + Ajouter un item
             </button>
           )}

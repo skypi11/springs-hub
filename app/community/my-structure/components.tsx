@@ -175,9 +175,9 @@ export function StaffRosterSlot({
         {members.map(p => {
           const role = staffRoles[p.uid] ?? 'coach';
           const isManager = role === 'manager';
-          const pillBg = isManager ? 'rgba(123,47,190,0.15)' : 'rgba(0,129,255,0.12)';
-          const pillFg = isManager ? 'var(--s-violet-light)' : '#4db1ff';
-          const pillBorder = isManager ? 'rgba(123,47,190,0.35)' : 'rgba(0,129,255,0.3)';
+          const pillBg = isManager ? 'rgba(255,184,0,0.15)' : 'rgba(0,129,255,0.12)';
+          const pillFg = isManager ? 'var(--s-gold)' : '#4db1ff';
+          const pillBorder = isManager ? 'rgba(255,184,0,0.35)' : 'rgba(0,129,255,0.3)';
           return (
             <div key={p.uid} className="flex items-center gap-1.5 group/slot">
               {(p.avatarUrl || p.discordAvatar) ? (
