@@ -3,8 +3,8 @@ import { Scale, Mail, Globe, Server } from 'lucide-react';
 import { LEGAL_INFO } from '@/lib/legal-info';
 
 export const metadata = {
-  title: 'Mentions légales — Springs Hub',
-  description: 'Mentions légales et informations sur l\'éditeur du site Springs Hub.',
+  title: 'Mentions légales — Aedral',
+  description: 'Mentions légales et informations sur l\'éditeur du site Aedral.',
 };
 
 export default function MentionsLegalesPage() {
@@ -32,14 +32,11 @@ export default function MentionsLegalesPage() {
             <span className="t-label">Éditeur du site</span>
           </div>
           <dl className="text-sm space-y-1.5" style={{ color: 'var(--s-text)' }}>
-            <LegalLine label="Dénomination" value={i.associationName} />
-            <LegalLine label="Statut juridique" value={i.associationType} />
-            <LegalLine label="Numéro RNA" value={i.associationRNA} />
-            {i.associationSiren && <LegalLine label="SIREN" value={i.associationSiren} />}
-            {i.associationSiret && <LegalLine label="SIRET" value={i.associationSiret} />}
-            <LegalLine label="Déclarée le" value={`${i.associationDeclarationDate} — ${i.associationDeclarationPrefecture}`} />
-            <LegalLine label="Siège social" value={i.associationAddress} />
-            <LegalLine label="Représentant légal" value={`${i.representativeName} (${i.representativeRole})`} />
+            <LegalLine label="Éditeur" value={i.editorName} />
+            <LegalLine label="Statut juridique" value={i.editorStatus} />
+            <LegalLine label="Adresse" value={i.editorAddress} />
+            {i.editorSiren && <LegalLine label="SIREN" value={i.editorSiren} />}
+            {i.editorSiret && <LegalLine label="SIRET" value={i.editorSiret} />}
           </dl>
         </section>
 
@@ -54,7 +51,7 @@ export default function MentionsLegalesPage() {
             {i.contactPhone && <LegalLine label="Téléphone" value={i.contactPhone} />}
           </dl>
           <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-            Pour toute demande RGPD (accès, rectification, suppression), contactez-nous à cette adresse — réponse sous 30 jours maximum.
+            Pour toute demande RGPD (accès, rectification, suppression), contactez l&apos;éditeur à cette adresse — réponse sous 30 jours maximum.
           </p>
         </section>
 
@@ -65,8 +62,9 @@ export default function MentionsLegalesPage() {
             <span className="t-label">Site internet</span>
           </div>
           <dl className="text-sm space-y-1.5" style={{ color: 'var(--s-text)' }}>
+            <LegalLine label="Nom du site" value={i.siteName} />
             <LegalLine label="URL" value={i.siteUrl} />
-            <LegalLine label="Directeur de publication" value={i.representativeName} />
+            <LegalLine label="Directeur de publication" value={i.editorName} />
           </dl>
         </section>
 
@@ -100,13 +98,13 @@ export default function MentionsLegalesPage() {
         <section className="panel p-5 space-y-3">
           <span className="t-label">Propriété intellectuelle</span>
           <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            Le site, sa charte graphique, son code source et l&apos;ensemble de ses éléments distinctifs (logos, identités visuelles Springs E-Sport) sont la propriété de l&apos;association {i.associationName}.
+            Le site Aedral, sa charte graphique, son code source et l&apos;ensemble de ses éléments distinctifs (logo, identité visuelle) sont la propriété exclusive de {i.editorName}.
           </p>
           <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            Les logos, marques et identités visuelles de Rocket League (Psyonix), Trackmania (Ubisoft/Nadeo), Discord, Epic Games et autres marques citées restent la propriété exclusive de leurs détenteurs respectifs. Leur usage sur le site relève du droit de citation et n&apos;implique aucun partenariat officiel.
+            Les logos, marques et identités visuelles de Springs E-Sport (partenaire), Rocket League (Psyonix), Trackmania (Ubisoft/Nadeo), Discord, Epic Games et autres marques citées restent la propriété exclusive de leurs détenteurs respectifs. Leur usage sur le site relève du droit de citation et n&apos;implique aucun partenariat officiel hors mention explicite.
           </p>
           <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            Les contenus postés par les utilisateurs (bios, descriptions de structures, documents) demeurent la propriété de leurs auteurs, qui concèdent à Springs E-Sport une licence non exclusive d&apos;affichage sur le site, strictement nécessaire au fonctionnement de la plateforme.
+            Les contenus postés par les utilisateurs (bios, descriptions de structures, documents) demeurent la propriété de leurs auteurs, qui concèdent à l&apos;éditeur une licence non exclusive d&apos;affichage sur le site, strictement nécessaire au fonctionnement de la plateforme.
           </p>
         </section>
 

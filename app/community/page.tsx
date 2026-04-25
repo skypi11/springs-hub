@@ -151,7 +151,7 @@ export default function CommunityPage() {
                 <CommunityEmpty
                   icon={<Shield size={28} style={{ color: 'var(--s-gold)' }} />}
                   title="Aucune structure validée"
-                  desc="Sois le premier à créer une structure sur Springs Hub."
+                  desc="Sois le premier à créer une structure sur Aedral."
                   ctaHref="/community/create-structure"
                   ctaLabel="Créer ma structure"
                   ctaIcon={<Plus size={14} />}

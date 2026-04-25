@@ -35,7 +35,7 @@ export default function AdminDiscordPage() {
   const [loading, setLoading] = useState(true);
 
   const [webhookUrl, setWebhookUrl] = useState('');
-  const [message, setMessage] = useState('Test depuis Springs Hub — si tu vois ce message, le webhook marche.');
+  const [message, setMessage] = useState('Test depuis Aedral — si tu vois ce message, le webhook marche.');
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
 

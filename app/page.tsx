@@ -243,7 +243,7 @@ export default function HomePage() {
                     </div>
                     <div className="divider mb-3" />
                     <div className="flex items-center justify-between">
-                      <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Springs Hub</span>
+                      <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Aedral</span>
                       <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors group-hover:text-white"
                         style={{ color: iconColor }}>
                         Explorer <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
@@ -304,8 +304,7 @@ function VisitorHero({ stats }: { stats: PublicStats | null }) {
       <div className="relative z-[1] p-10 flex items-start justify-between gap-10 flex-wrap">
         <div className="flex-1 min-w-[300px]">
           <div className="flex items-center gap-3 mb-5 flex-wrap">
-            <span className="tag tag-violet">Springs E-Sport</span>
-            <span className="tag tag-gold">Plateforme Officielle</span>
+            <span className="tag tag-gold">Plateforme communautaire esport</span>
             <span className="status status-live ml-2">En ligne</span>
           </div>
           <h1 className="t-display mb-4">
@@ -313,8 +312,9 @@ function VisitorHero({ stats }: { stats: PublicStats | null }) {
             <span style={{ color: 'var(--s-gold)' }}>COMPÉTITIONS</span>
           </h1>
           <p className="t-body max-w-xl mb-6" style={{ fontSize: '15px' }}>
-            Tout l&apos;écosystème Springs E-Sport réuni sur une plateforme.
-            Gère ta structure, recrute des joueurs, participe aux compétitions.
+            La plateforme communautaire pour les structures et joueurs de l&apos;écosystème
+            esport amateur. Gère ta structure, recrute des joueurs, participe aux compétitions.
+            En partenariat avec Springs E-Sport.
           </p>
           <div className="flex items-center gap-3 flex-wrap">
             <Link href="/community" className="btn-springs btn-primary bevel-sm">

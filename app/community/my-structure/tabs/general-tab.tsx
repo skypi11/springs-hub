@@ -269,7 +269,7 @@ export function GeneralTab(props: GeneralTabProps) {
           ) : (
             <div className="space-y-4">
               <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-                Connecte le bot Springs Hub à ton serveur Discord pour recevoir
+                Connecte le bot Aedral à ton serveur Discord pour recevoir
                 automatiquement les notifications d&apos;événements dans le salon
                 de chaque équipe. Tu pourras choisir le salon par équipe après la connexion.
               </p>

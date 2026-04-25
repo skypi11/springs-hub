@@ -221,8 +221,8 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
     fields,
     footer: {
       text: input.createdByName
-        ? `Créé par ${input.createdByName} · Springs Hub`
-        : 'Springs Hub',
+        ? `Créé par ${input.createdByName} · Aedral`
+        : 'Aedral',
     },
     timestamp: new Date().toISOString(),
   };
@@ -356,8 +356,8 @@ export async function postTodoEmbed(channelId: string, input: TodoEmbedInput): P
     fields,
     footer: {
       text: input.createdByName
-        ? `Assigné par ${input.createdByName} · Springs Hub`
-        : 'Springs Hub',
+        ? `Assigné par ${input.createdByName} · Aedral`
+        : 'Aedral',
     },
     timestamp: new Date().toISOString(),
   };
@@ -526,8 +526,8 @@ export async function postRecruitmentEmbed(channelId: string, input: Recruitment
     fields,
     footer: {
       text: isJoin
-        ? 'Springs Hub · À traiter dans l\'onglet Recrutement'
-        : 'Springs Hub · Suivi dans l\'onglet Recrutement',
+        ? 'Aedral · À traiter dans l\'onglet Recrutement'
+        : 'Aedral · Suivi dans l\'onglet Recrutement',
     },
     timestamp: new Date().toISOString(),
   };

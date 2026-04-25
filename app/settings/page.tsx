@@ -972,7 +972,7 @@ export default function SettingsPage() {
                               <li>Tes appartenances de structures</li>
                               <li>Ton inscription dans les rosters d&apos;équipes</li>
                               <li>Tes notifications et invitations en cours</li>
-                              <li>Ton compte Discord lié (au niveau Springs Hub uniquement)</li>
+                              <li>Ton compte Discord lié (au niveau Aedral uniquement)</li>
                             </ul>
                             <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
                               Les journaux d&apos;audit mentionnant ton UID sont conservés 3 ans pour des raisons d&apos;intégrité légale (politique de confidentialité).

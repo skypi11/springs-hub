@@ -12,7 +12,7 @@ export default function LegalFooter() {
     >
       <div className="px-8 py-5 flex items-center justify-between flex-wrap gap-3 text-xs">
         <span style={{ color: 'var(--s-text-muted)' }}>
-          © {new Date().getFullYear()} Springs E-Sport
+          © {new Date().getFullYear()} Aedral · Matthieu MOLINES
         </span>
         <div className="flex gap-4">
           <Link

@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         content: message,
-        username: 'Springs Hub (test admin)',
+        username: 'Aedral (test admin)',
       }),
     });
 

@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
 }
 
 // DELETE /api/discord/install?structureId=...
-// Déconnecte le bot côté Springs Hub (on retire discordIntegration de la structure).
+// Déconnecte le bot côté Aedral (on retire discordIntegration de la structure).
 // NB : le bot reste techniquement dans le serveur Discord — le fondateur doit le
 // retirer manuellement côté Discord s'il le souhaite. On ne peut pas le kicker
 // via l'API sans token serveur avec MANAGE_GUILD côté bot.

@@ -456,7 +456,7 @@ export default function CommandPalette() {
                 ouvrir
               </span>
             </div>
-            <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Springs Hub</span>
+            <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Aedral</span>
           </div>
         </div>
       </div>

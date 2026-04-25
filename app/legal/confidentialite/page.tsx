@@ -3,8 +3,8 @@ import { Shield, Database, Clock, UserCheck, Download, Trash2, Mail, Globe } fro
 import { LEGAL_INFO } from '@/lib/legal-info';
 
 export const metadata = {
-  title: 'Politique de confidentialité — Springs Hub',
-  description: 'Politique de confidentialité de Springs Hub : données collectées, durées de conservation, droits RGPD.',
+  title: 'Politique de confidentialité — Aedral',
+  description: 'Politique de confidentialité d\'Aedral : données collectées, durées de conservation, droits RGPD.',
 };
 
 export default function ConfidentialitePage() {
@@ -27,14 +27,14 @@ export default function ConfidentialitePage() {
 
         <div className="panel p-5">
           <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            Springs Hub est un espace communautaire pour les joueurs et structures de l&apos;association {i.associationName}. Cette page décrit <strong style={{ color: 'var(--s-text)' }}>quelles données nous collectons, pourquoi, combien de temps nous les gardons</strong>, et les droits dont vous disposez en tant qu&apos;utilisateur conformément au RGPD (Règlement européen 2016/679).
+            Aedral est une plateforme communautaire esport éditée par <strong style={{ color: 'var(--s-text)' }}>{i.editorName}</strong> en nom propre. Cette page décrit <strong style={{ color: 'var(--s-text)' }}>quelles données nous collectons, pourquoi, combien de temps nous les gardons</strong>, et les droits dont vous disposez en tant qu&apos;utilisateur conformément au RGPD (Règlement européen 2016/679).
           </p>
         </div>
 
         {/* Responsable */}
         <Section icon={<UserCheck size={14} />} title="Responsable de traitement">
           <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            Le responsable de traitement des données collectées est l&apos;association <strong style={{ color: 'var(--s-text)' }}>{i.associationName}</strong>, représentée par {i.representativeName} ({i.representativeRole}).
+            Le responsable de traitement des données collectées est <strong style={{ color: 'var(--s-text)' }}>{i.editorName}</strong> ({i.editorStatus}), éditeur du site Aedral.
           </p>
           <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
             Pour toute demande liée à vos données personnelles, contactez : <a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-violet-light)' }}>{i.contactEmail}</a>.
@@ -53,7 +53,7 @@ export default function ConfidentialitePage() {
               <li>Scope demandé : <code className="t-mono" style={{ color: 'var(--s-text)' }}>identify</code> uniquement (aucun accès aux serveurs, messages privés ou email Discord)</li>
             </ul>
             <p className="text-xs mt-2" style={{ color: 'var(--s-text-muted)' }}>
-              Votre mot de passe Discord et votre 2FA ne sont jamais vus par Springs Hub : la validation se fait sur <code className="t-mono">discord.com</code>.
+              Votre mot de passe Discord et votre 2FA ne sont jamais vus par Aedral : la validation se fait sur <code className="t-mono">discord.com</code>.
             </p>
           </SubBlock>
 
@@ -181,7 +181,7 @@ export default function ConfidentialitePage() {
         <Section icon={<Shield size={14} />} title="Sécurité">
           <ul className="text-sm space-y-2 pl-4" style={{ color: 'var(--s-text-dim)', listStyle: 'disc' }}>
             <li>Communications chiffrées en HTTPS (certificats automatiques).</li>
-            <li>Authentification déléguée à Discord — aucun mot de passe stocké côté Springs Hub.</li>
+            <li>Authentification déléguée à Discord — aucun mot de passe stocké côté Aedral.</li>
             <li>Règles d&apos;accès Firestore strictes : un utilisateur ne peut accéder qu&apos;aux données qui le concernent ou qui sont explicitement publiques.</li>
             <li>Documents privés stockés en bucket Cloudflare R2 privé, téléchargés via URL signée éphémère (60 secondes).</li>
             <li><strong style={{ color: 'var(--s-text)' }}>Documents marqués sensibles</strong> (pièces d&apos;identité, justificatifs, contrats, statuts…) : chiffrés avec l&apos;algorithme <strong style={{ color: 'var(--s-text)' }}>AES-256-GCM</strong> avant stockage. La clé de déchiffrement est conservée hors du stockage R2 — un accès non autorisé au bucket ne permet pas de lire ces fichiers.</li>

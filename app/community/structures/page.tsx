@@ -336,7 +336,7 @@ function EmptyState({
         </h3>
         <p className="t-body mb-6 max-w-md mx-auto" style={{ color: 'var(--s-text-dim)' }}>
           {totalCount === 0
-            ? 'Sois le premier à créer une structure sur Springs Hub et donne vie à la scène !'
+            ? 'Sois le premier à créer une structure sur Aedral et donne vie à la scène !'
             : 'Aucune structure ne correspond au filtre actuel.'}
         </p>
         <Link href="/community/create-structure" className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2">
