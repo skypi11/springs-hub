@@ -162,9 +162,9 @@ export default function Sidebar() {
               style={{
                 background: active ? 'rgba(123,47,190,0.12)' : 'transparent',
                 color: active ? '#eaeaf0' : 'var(--s-text-dim)',
-                borderLeft: active ? '3px solid var(--s-violet)' : '3px solid transparent',
+                borderLeft: active ? '3px solid var(--s-gold)' : '3px solid transparent',
               }}>
-              <Icon size={17} style={{ color: active ? 'var(--s-violet-light)' : 'var(--s-text-muted)', flexShrink: 0 }} />
+              <Icon size={17} style={{ color: active ? 'var(--s-gold)' : 'var(--s-text-muted)', flexShrink: 0 }} />
               <span className="font-medium text-sm">{label}</span>
             </Link>
           );
@@ -250,10 +250,10 @@ export default function Sidebar() {
               style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
               {user.discordAvatar ? (
                 <Image src={user.discordAvatar} alt={user.displayName} width={34} height={34}
-                  className="flex-shrink-0" style={{ border: '2px solid rgba(123,47,190,0.4)' }} />
+                  className="flex-shrink-0" style={{ border: '2px solid rgba(255,184,0,0.4)' }} />
               ) : (
                 <div className="w-9 h-9 flex items-center justify-center flex-shrink-0 text-sm font-bold"
-                  style={{ background: 'var(--s-violet)', color: '#fff' }}>
+                  style={{ background: 'var(--s-gold)', color: 'var(--s-bg)' }}>
                   {user.displayName?.[0]?.toUpperCase() ?? '?'}
                 </div>
               )}

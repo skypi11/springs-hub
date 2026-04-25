@@ -1,6 +1,12 @@
 /* ══════════════════════════════════════════════════════════════════════
-   SPRINGS E-SPORT — DESIGN SYSTEM
-   Identité visuelle Springs · Hexagonal · Biseaux · Pro-grade
+   AEDRAL — DESIGN SYSTEM
+   Palette mono premium (noir + blanc + or) · Biseaux · Hexagonal background
+   ══════════════════════════════════════════════════════════════════════
+   Note sur le violet : la couleur violet (--s-violet, --s-violet-light,
+   classes .tag-violet, .accent-*-violet) est désormais réservée aux
+   contextes Springs E-Sport (partenaire). Tous les accents système
+   d'Aedral utilisent la palette mono : or pour les CTA/états actifs,
+   intensités de blanc/gris pour les bordures et textes.
    ══════════════════════════════════════════════════════════════════════ */
 
 /* ── TOKENS ──────────────────────────────────────────────────────────── */
@@ -11,14 +17,17 @@
   --s-elevated:   #151525;
   --s-hover:      #1c1c30;
 
-  /* Brand */
+  /* Brand Aedral — palette mono */
+  --s-gold:       #FFB800;
+  --s-gold-dim:   #b88200;
+  --s-blue:       #0081FF;   /* Rocket League */
+  --s-green:      #00D936;   /* Trackmania */
+
+  /* Couleur partenaire Springs E-Sport — utilisée uniquement pour
+     identifier les contextes Springs (tags, compétitions Springs) */
   --s-violet:     #7B2FBE;
   --s-violet-light: #a364d9;
   --s-violet-glow: rgba(123,47,190,0.15);
-  --s-gold:       #FFB800;
-  --s-gold-dim:   #b88200;
-  --s-blue:       #0081FF;
-  --s-green:      #00D936;
 
   /* Text */
   --s-text:       #eaeaf0;
@@ -27,7 +36,7 @@
 
   /* Borders */
   --s-border:     rgba(255,255,255,0.08);
-  --s-border-accent: rgba(123,47,190,0.25);
+  --s-border-accent: rgba(255,184,0,0.25);   /* or pour accents système */
 
   /* Radius — biseaux */
   --s-radius:     4px;
@@ -400,7 +409,7 @@
   content: '';
   width: 3px;
   height: 14px;
-  background: var(--s-violet);
+  background: var(--s-gold);
   flex-shrink: 0;
 }
 .section-label::after {
@@ -429,10 +438,10 @@
 .prose-springs a { color: var(--s-blue); text-decoration: underline; }
 .prose-springs code {
   background: var(--s-elevated); padding: 0.15em 0.4em;
-  font-size: 0.85em; color: var(--s-violet-light);
+  font-size: 0.85em; color: var(--s-gold);
 }
 .prose-springs blockquote {
-  border-left: 3px solid var(--s-violet);
+  border-left: 3px solid var(--s-gold);
   padding-left: 0.8em; margin: 0.5em 0;
   color: var(--s-text-dim); font-style: italic;
 }
