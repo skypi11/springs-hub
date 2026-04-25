@@ -190,9 +190,9 @@ export default function AdminStructuresPage() {
           <button key={f.value} onClick={() => setFilter(f.value)}
             className="tag transition-all duration-150"
             style={{
-              background: filter === f.value ? 'rgba(123,47,190,0.15)' : 'transparent',
-              color: filter === f.value ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
-              borderColor: filter === f.value ? 'rgba(123,47,190,0.4)' : 'var(--s-border)',
+              background: filter === f.value ? 'rgba(255,184,0,0.15)' : 'transparent',
+              color: filter === f.value ? 'var(--s-gold)' : 'var(--s-text-dim)',
+              borderColor: filter === f.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
               cursor: 'pointer',
               padding: '6px 14px',
               fontSize: '11px',
@@ -389,7 +389,7 @@ export default function AdminStructuresPage() {
                   {s.reviewComment && (
                     <div>
                       <p className="t-label mb-1">Commentaire admin précédent</p>
-                      <div className="px-3 py-2" style={{ background: 'rgba(123,47,190,0.05)', border: '1px solid rgba(123,47,190,0.2)' }}>
+                      <div className="px-3 py-2" style={{ background: 'rgba(255,184,0,0.05)', border: '1px solid rgba(255,184,0,0.2)' }}>
                         <p className="t-body">{s.reviewComment}</p>
                       </div>
                     </div>

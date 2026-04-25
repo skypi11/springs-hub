@@ -24,9 +24,9 @@ const bebasNeue = Bebas_Neue({
 });
 
 export const metadata: Metadata = {
-  title: 'Springs E-Sport — Hub Communautaire',
-  description: 'La plateforme officielle de Springs E-Sport. Gère ta structure, suis les compétitions, rejoins la communauté.',
-  icons: { icon: '/springs-logo.png' },
+  title: 'Aedral — Plateforme Communautaire Esport',
+  description: 'La plateforme communautaire esport pour structures et joueurs. Gère ta structure, suis les compétitions, rejoins la communauté. Springs E-Sport est partenaire privilégié.',
+  // Le favicon est auto-géré par Next.js via app/icon.svg
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

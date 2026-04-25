@@ -112,7 +112,7 @@ export default function AdminUploadsPage() {
           icon={<Database size={14} />}
           label="Total stocké"
           value={formatBytes(data.global.totalBytes)}
-          color="var(--s-violet-light)"
+          color="var(--s-gold)"
         />
         <StatCard
           icon={<FileText size={14} />}
@@ -163,9 +163,9 @@ export default function AdminUploadsPage() {
             <button key={f.value} onClick={() => setSortBy(f.value)}
               className="tag transition-all duration-150"
               style={{
-                background: sortBy === f.value ? 'rgba(123,47,190,0.15)' : 'transparent',
-                color: sortBy === f.value ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
-                borderColor: sortBy === f.value ? 'rgba(123,47,190,0.4)' : 'var(--s-border)',
+                background: sortBy === f.value ? 'rgba(255,184,0,0.15)' : 'transparent',
+                color: sortBy === f.value ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                borderColor: sortBy === f.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
                 cursor: 'pointer', padding: '6px 14px', fontSize: '11px',
               }}>
               {f.label}
@@ -189,7 +189,7 @@ export default function AdminUploadsPage() {
             ? '#ff5555'
             : s.quotaPct >= 70
               ? '#FFB800'
-              : 'var(--s-violet-light)';
+              : 'var(--s-gold)';
           return (
             <div key={s.structureId} className="panel p-3">
               <div className="flex items-start gap-3">

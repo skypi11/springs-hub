@@ -128,7 +128,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
               <SkeletonCard height={200} accent="var(--s-green)" />
             </div>
             <div className="space-y-5">
-              <SkeletonCard height={180} accent="var(--s-violet)" />
+              <SkeletonCard height={180} accent="var(--s-gold)" />
               <SkeletonCard height={140} accent="var(--s-gold)" />
             </div>
           </div>
@@ -738,13 +738,13 @@ function SpringsHistoryPanel({
   return (
     <div className="pillar-card panel bevel-sm relative overflow-hidden animate-fade-in-d2"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), var(--s-violet-light), transparent 80%)' }} />
+      <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), var(--s-gold), transparent 80%)' }} />
       <div className="absolute top-0 right-0 w-[200px] h-[200px] pointer-events-none opacity-[0.05]"
-        style={{ background: 'radial-gradient(circle at top right, var(--s-violet), transparent 70%)' }} />
+        style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
       <div className="relative z-[1]">
         <div className="panel-header">
           <div className="flex items-center gap-2">
-            <History size={13} style={{ color: 'var(--s-violet-light)' }} />
+            <History size={13} style={{ color: 'var(--s-gold)' }} />
             <span className="t-label" style={{ color: 'var(--s-text)' }}>HISTORIQUE SPRINGS</span>
           </div>
           <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Compétitions officielles</span>
@@ -752,7 +752,7 @@ function SpringsHistoryPanel({
         <div className="p-5">
           {loading ? (
             <div className="flex items-center gap-3">
-              <Loader2 size={14} className="animate-spin" style={{ color: 'var(--s-violet-light)' }} />
+              <Loader2 size={14} className="animate-spin" style={{ color: 'var(--s-gold)' }} />
               <span className="text-sm" style={{ color: 'var(--s-text-muted)' }}>Chargement de l&apos;historique...</span>
             </div>
           ) : tmCount === 0 && rlCount === 0 ? (

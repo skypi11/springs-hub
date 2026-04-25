@@ -321,7 +321,7 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
 
       {/* ═══ Invitations envoyées ═══ */}
       {canManage && (
-        <SectionPanel accent="var(--s-violet)" icon={UserPlus} title={`INVITATIONS ENVOYÉES${directInvites.length > 0 ? ` (${directInvites.length})` : ''}`}
+        <SectionPanel accent="var(--s-gold)" icon={UserPlus} title={`INVITATIONS ENVOYÉES${directInvites.length > 0 ? ` (${directInvites.length})` : ''}`}
           collapsed={collapsed.sentInvites} onToggle={() => toggle('sentInvites')}>
           {directInvites.length === 0 ? (
             <p className="text-xs text-center py-3" style={{ color: 'var(--s-text-muted)' }}>
@@ -332,7 +332,7 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
               {directInvites.map(di => {
                 const diAvatar = di.avatarUrl || di.discordAvatar;
                 return (
-                  <div key={di.id} className="p-3" style={{ background: 'var(--s-elevated)', border: '1px solid rgba(123,47,190,0.2)' }}>
+                  <div key={di.id} className="p-3" style={{ background: 'var(--s-elevated)', border: '1px solid rgba(255,184,0,0.2)' }}>
                     <div className="flex items-start gap-3 mb-2">
                       {diAvatar ? (
                         <div className="w-12 h-12 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>

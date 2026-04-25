@@ -85,7 +85,7 @@ export function GeneralTab(props: GeneralTabProps) {
       {/* ─── Colonne gauche ──────── */}
       <div className="col-span-2 space-y-6">
         {/* DESCRIPTION */}
-        <SectionPanel accent="var(--s-violet)" icon={MessageSquare} title="DESCRIPTION"
+        <SectionPanel accent="var(--s-gold)" icon={MessageSquare} title="DESCRIPTION"
           collapsed={collapsed.desc} onToggle={() => toggle('desc')}>
           <div className="space-y-3">
             <div className="relative">
@@ -249,7 +249,7 @@ export function GeneralTab(props: GeneralTabProps) {
                   key: 'staff',
                   scope: { scope: 'staff' },
                   label: 'Staff',
-                  accentColor: 'var(--s-violet-light)',
+                  accentColor: 'var(--s-gold)',
                   currentChannelId: activeStructure.discordIntegration.staffChannelId ?? null,
                   currentChannelName: activeStructure.discordIntegration.staffChannelName ?? null,
                   currentRoleId: activeStructure.discordIntegration.staffRoleId ?? null,
@@ -269,7 +269,7 @@ export function GeneralTab(props: GeneralTabProps) {
           ) : (
             <div className="space-y-4">
               <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-                Connecte le bot Springs Hub à ton serveur Discord pour recevoir
+                Connecte le bot Aedral à ton serveur Discord pour recevoir
                 automatiquement les notifications d&apos;événements dans le salon
                 de chaque équipe. Tu pourras choisir le salon par équipe après la connexion.
               </p>
@@ -418,11 +418,11 @@ export function GeneralTab(props: GeneralTabProps) {
       <div className="space-y-6 animate-fade-in-d2">
         {/* INFORMATIONS */}
         <div className="bevel relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), rgba(123,47,190,0.3), transparent 70%)' }} />
+          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
           <div className="relative z-[1] px-5 py-3.5" style={{ borderBottom: '1px solid var(--s-border)' }}>
             <div className="flex items-center gap-3">
-              <div className="w-7 h-7 flex items-center justify-center" style={{ background: 'rgba(123,47,190,0.08)', border: '1px solid rgba(123,47,190,0.2)' }}>
-                <Shield size={13} style={{ color: 'var(--s-violet-light)' }} />
+              <div className="w-7 h-7 flex items-center justify-center" style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.2)' }}>
+                <Shield size={13} style={{ color: 'var(--s-gold)' }} />
               </div>
               <span className="font-display text-sm tracking-wider">INFORMATIONS</span>
             </div>

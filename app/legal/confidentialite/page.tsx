@@ -3,8 +3,8 @@ import { Shield, Database, Clock, UserCheck, Download, Trash2, Mail, Globe } fro
 import { LEGAL_INFO } from '@/lib/legal-info';
 
 export const metadata = {
-  title: 'Politique de confidentialité — Springs Hub',
-  description: 'Politique de confidentialité de Springs Hub : données collectées, durées de conservation, droits RGPD.',
+  title: 'Politique de confidentialité — Aedral',
+  description: 'Politique de confidentialité d\'Aedral : données collectées, durées de conservation, droits RGPD.',
 };
 
 export default function ConfidentialitePage() {
@@ -15,7 +15,7 @@ export default function ConfidentialitePage() {
       <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
 
         <div className="flex items-center gap-3">
-          <Shield size={20} style={{ color: 'var(--s-violet-light)' }} />
+          <Shield size={20} style={{ color: 'var(--s-gold)' }} />
           <h1 className="font-display text-2xl" style={{ letterSpacing: '0.04em' }}>
             POLITIQUE DE CONFIDENTIALITÉ
           </h1>
@@ -27,17 +27,17 @@ export default function ConfidentialitePage() {
 
         <div className="panel p-5">
           <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            Springs Hub est un espace communautaire pour les joueurs et structures de l&apos;association {i.associationName}. Cette page décrit <strong style={{ color: 'var(--s-text)' }}>quelles données nous collectons, pourquoi, combien de temps nous les gardons</strong>, et les droits dont vous disposez en tant qu&apos;utilisateur conformément au RGPD (Règlement européen 2016/679).
+            Aedral est une plateforme communautaire esport éditée par <strong style={{ color: 'var(--s-text)' }}>{i.editorName}</strong> en nom propre. Cette page décrit <strong style={{ color: 'var(--s-text)' }}>quelles données nous collectons, pourquoi, combien de temps nous les gardons</strong>, et les droits dont vous disposez en tant qu&apos;utilisateur conformément au RGPD (Règlement européen 2016/679).
           </p>
         </div>
 
         {/* Responsable */}
         <Section icon={<UserCheck size={14} />} title="Responsable de traitement">
           <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            Le responsable de traitement des données collectées est l&apos;association <strong style={{ color: 'var(--s-text)' }}>{i.associationName}</strong>, représentée par {i.representativeName} ({i.representativeRole}).
+            Le responsable de traitement des données collectées est <strong style={{ color: 'var(--s-text)' }}>{i.editorName}</strong> ({i.editorStatus}), éditeur du site Aedral.
           </p>
           <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            Pour toute demande liée à vos données personnelles, contactez : <a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-violet-light)' }}>{i.contactEmail}</a>.
+            Pour toute demande liée à vos données personnelles, contactez : <a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-gold)' }}>{i.contactEmail}</a>.
           </p>
         </Section>
 
@@ -53,7 +53,7 @@ export default function ConfidentialitePage() {
               <li>Scope demandé : <code className="t-mono" style={{ color: 'var(--s-text)' }}>identify</code> uniquement (aucun accès aux serveurs, messages privés ou email Discord)</li>
             </ul>
             <p className="text-xs mt-2" style={{ color: 'var(--s-text-muted)' }}>
-              Votre mot de passe Discord et votre 2FA ne sont jamais vus par Springs Hub : la validation se fait sur <code className="t-mono">discord.com</code>.
+              Votre mot de passe Discord et votre 2FA ne sont jamais vus par Aedral : la validation se fait sur <code className="t-mono">discord.com</code>.
             </p>
           </SubBlock>
 
@@ -156,7 +156,7 @@ export default function ConfidentialitePage() {
               className="flex items-center gap-2 p-3 text-sm bevel-sm transition-colors duration-150"
               style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', color: 'var(--s-text)' }}
             >
-              <Download size={14} style={{ color: 'var(--s-violet-light)' }} />
+              <Download size={14} style={{ color: 'var(--s-gold)' }} />
               Exporter mes données (paramètres)
             </Link>
             <Link
@@ -170,10 +170,10 @@ export default function ConfidentialitePage() {
           </div>
 
           <p className="text-sm mt-2" style={{ color: 'var(--s-text-dim)' }}>
-            Pour toute autre demande, contactez <a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-violet-light)' }}>{i.contactEmail}</a>. Nous répondons sous 30 jours.
+            Pour toute autre demande, contactez <a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-gold)' }}>{i.contactEmail}</a>. Nous répondons sous 30 jours.
           </p>
           <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-            En cas de désaccord persistant, vous pouvez déposer une réclamation auprès de la <a href="https://www.cnil.fr" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--s-violet-light)' }}>CNIL</a>.
+            En cas de désaccord persistant, vous pouvez déposer une réclamation auprès de la <a href="https://www.cnil.fr" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--s-gold)' }}>CNIL</a>.
           </p>
         </Section>
 
@@ -181,7 +181,7 @@ export default function ConfidentialitePage() {
         <Section icon={<Shield size={14} />} title="Sécurité">
           <ul className="text-sm space-y-2 pl-4" style={{ color: 'var(--s-text-dim)', listStyle: 'disc' }}>
             <li>Communications chiffrées en HTTPS (certificats automatiques).</li>
-            <li>Authentification déléguée à Discord — aucun mot de passe stocké côté Springs Hub.</li>
+            <li>Authentification déléguée à Discord — aucun mot de passe stocké côté Aedral.</li>
             <li>Règles d&apos;accès Firestore strictes : un utilisateur ne peut accéder qu&apos;aux données qui le concernent ou qui sont explicitement publiques.</li>
             <li>Documents privés stockés en bucket Cloudflare R2 privé, téléchargés via URL signée éphémère (60 secondes).</li>
             <li><strong style={{ color: 'var(--s-text)' }}>Documents marqués sensibles</strong> (pièces d&apos;identité, justificatifs, contrats, statuts…) : chiffrés avec l&apos;algorithme <strong style={{ color: 'var(--s-text)' }}>AES-256-GCM</strong> avant stockage. La clé de déchiffrement est conservée hors du stockage R2 — un accès non autorisé au bucket ne permet pas de lire ces fichiers.</li>
@@ -205,11 +205,11 @@ export default function ConfidentialitePage() {
 
         {/* Contact final */}
         <section className="panel p-5 flex items-center gap-3 flex-wrap">
-          <Mail size={16} style={{ color: 'var(--s-violet-light)' }} />
+          <Mail size={16} style={{ color: 'var(--s-gold)' }} />
           <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
             Une question sur vos données ?
           </span>
-          <a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-violet-light)' }} className="text-sm">
+          <a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-gold)' }} className="text-sm">
             {i.contactEmail}
           </a>
         </section>
@@ -218,7 +218,7 @@ export default function ConfidentialitePage() {
           <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
             Voir aussi nos mentions légales.
           </span>
-          <Link href="/legal/mentions" className="text-xs" style={{ color: 'var(--s-violet-light)' }}>
+          <Link href="/legal/mentions" className="text-xs" style={{ color: 'var(--s-gold)' }}>
             Mentions légales →
           </Link>
         </div>

@@ -1876,12 +1876,12 @@ export default function MyStructurePage() {
             if (visibleTeams.length === 0) return null;
             return (
               <div className="bevel relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), rgba(123,47,190,0.3), transparent 70%)' }} />
+                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
                 <div className="absolute top-0 right-0 w-40 h-40 pointer-events-none"
-                  style={{ background: 'radial-gradient(circle at 100% 0%, rgba(123,47,190,0.06), transparent 70%)' }} />
+                  style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,184,0,0.06), transparent 70%)' }} />
                 <div className="relative z-[1] px-5 py-3.5 flex items-center gap-3" style={{ borderBottom: '1px solid var(--s-border)' }}>
-                  <div className="w-7 h-7 flex items-center justify-center" style={{ background: 'rgba(123,47,190,0.1)', border: '1px solid rgba(123,47,190,0.25)' }}>
-                    <CalendarClock size={13} style={{ color: 'var(--s-violet-light)' }} />
+                  <div className="w-7 h-7 flex items-center justify-center" style={{ background: 'rgba(255,184,0,0.1)', border: '1px solid rgba(255,184,0,0.25)' }}>
+                    <CalendarClock size={13} style={{ color: 'var(--s-gold)' }} />
                   </div>
                   <div className="flex-1">
                     <h2 className="font-display text-sm tracking-wider">DISPOS, DEVOIRS &amp; REPLAYS PAR ÉQUIPE</h2>

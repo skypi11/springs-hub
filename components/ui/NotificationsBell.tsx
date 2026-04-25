@@ -40,11 +40,11 @@ function formatAgo(ms: number | null): string {
 
 function iconFor(type: string) {
   switch (type) {
-    case 'join_request_received': return { Icon: UserPlus, color: 'var(--s-violet-light)' };
+    case 'join_request_received': return { Icon: UserPlus, color: 'var(--s-gold)' };
     case 'join_request_accepted': return { Icon: CheckCircle2, color: 'var(--s-gold)' };
     case 'join_request_declined': return { Icon: XCircle, color: '#ef4444' };
     case 'invitation_expired': return { Icon: Clock, color: 'var(--s-text-muted)' };
-    case 'invitation': return { Icon: UserPlus, color: 'var(--s-violet-light)' };
+    case 'invitation': return { Icon: UserPlus, color: 'var(--s-gold)' };
     case 'new_event': return { Icon: Calendar, color: 'var(--s-blue)' };
     case 'new_competition': return { Icon: Trophy, color: 'var(--s-gold)' };
     default: return { Icon: Bell, color: 'var(--s-text-dim)' };
@@ -175,7 +175,7 @@ export default function NotificationsBell() {
               maxHeight: '70vh',
               background: 'var(--s-surface)',
               border: '1px solid var(--s-border)',
-              boxShadow: '0 24px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(123,47,190,0.1)',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,184,0,0.1)',
             }}
           >
             {/* Header */}
@@ -184,7 +184,7 @@ export default function NotificationsBell() {
               style={{ borderBottom: '1px solid var(--s-border)' }}
             >
               <div className="flex items-center gap-2">
-                <Bell size={14} style={{ color: 'var(--s-violet-light)' }} />
+                <Bell size={14} style={{ color: 'var(--s-gold)' }} />
                 <span className="t-sub" style={{ color: 'var(--s-text)' }}>Notifications</span>
                 {unread > 0 && (
                   <span
@@ -242,12 +242,12 @@ export default function NotificationsBell() {
                       onClick={() => handleClick(n)}
                       className="w-full flex items-start gap-3 px-4 py-3 text-left transition-colors duration-150"
                       style={{
-                        background: n.read ? 'transparent' : 'rgba(123,47,190,0.06)',
+                        background: n.read ? 'transparent' : 'rgba(255,184,0,0.06)',
                         borderBottom: '1px solid var(--s-border)',
                       }}
                       onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--s-elevated)'; }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.background = n.read ? 'transparent' : 'rgba(123,47,190,0.06)';
+                        e.currentTarget.style.background = n.read ? 'transparent' : 'rgba(255,184,0,0.06)';
                       }}
                     >
                       <div

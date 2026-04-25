@@ -35,7 +35,7 @@ export default function AdminDiscordPage() {
   const [loading, setLoading] = useState(true);
 
   const [webhookUrl, setWebhookUrl] = useState('');
-  const [message, setMessage] = useState('Test depuis Springs Hub — si tu vois ce message, le webhook marche.');
+  const [message, setMessage] = useState('Test depuis Aedral — si tu vois ce message, le webhook marche.');
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -105,7 +105,7 @@ export default function AdminDiscordPage() {
           icon={<Users size={14} />}
           label="Users Discord"
           value={stats.totalDiscord}
-          color="var(--s-violet-light)"
+          color="var(--s-gold)"
         />
         <StatCard
           icon={<Users size={14} />}
@@ -165,7 +165,7 @@ export default function AdminDiscordPage() {
                   className="w-full transition-all"
                   style={{
                     height: `${(m.count / maxSignups) * 70}px`,
-                    background: 'linear-gradient(to top, var(--s-violet), var(--s-violet-light))',
+                    background: 'linear-gradient(to top, var(--s-gold), var(--s-gold))',
                     minHeight: '2px',
                   }}
                 />
@@ -181,7 +181,7 @@ export default function AdminDiscordPage() {
       {/* Webhook tester */}
       <div className="panel p-4 space-y-3">
         <div className="flex items-center gap-2">
-          <Send size={14} style={{ color: 'var(--s-violet-light)' }} />
+          <Send size={14} style={{ color: 'var(--s-gold)' }} />
           <span className="t-label">Tester un webhook Discord</span>
         </div>
 

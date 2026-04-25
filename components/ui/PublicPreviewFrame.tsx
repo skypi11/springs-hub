@@ -5,7 +5,7 @@ import { Eye, ExternalLink } from 'lucide-react';
 
 export default function PublicPreviewFrame({
   label = 'APERÇU PUBLIC',
-  helper = 'Ce que voient les visiteurs de Springs Hub.',
+  helper = 'Ce que voient les visiteurs d\'Aedral.',
   href,
   ctaLabel = 'Ouvrir la page complète',
   children,

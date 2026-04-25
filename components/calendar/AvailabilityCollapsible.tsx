@@ -46,11 +46,11 @@ export default function AvailabilityCollapsible() {
     >
       <div
         className="h-[3px]"
-        style={{ background: 'linear-gradient(90deg, var(--s-violet), rgba(163,100,217,0.35), transparent 70%)' }}
+        style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.35), transparent 70%)' }}
       />
       <div
         className="absolute top-0 right-0 w-64 h-64 pointer-events-none"
-        style={{ background: 'radial-gradient(circle at 100% 0%, rgba(123,47,190,0.06), transparent 60%)' }}
+        style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,184,0,0.06), transparent 60%)' }}
       />
       <div className="relative z-[1]">
         <button
@@ -58,17 +58,17 @@ export default function AvailabilityCollapsible() {
           onClick={() => setExpanded((v) => !v)}
           className="w-full flex items-center gap-4 p-5 text-left transition-colors duration-150"
           style={{ cursor: 'pointer' }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(123,47,190,0.05)'; }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,184,0,0.05)'; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
         >
           <div
             className="w-10 h-10 flex items-center justify-center bevel-sm flex-shrink-0"
-            style={{ background: 'rgba(123,47,190,0.10)', border: '1px solid rgba(123,47,190,0.30)' }}
+            style={{ background: 'rgba(255,184,0,0.10)', border: '1px solid rgba(255,184,0,0.30)' }}
           >
             {loading ? (
-              <Loader2 size={16} className="animate-spin" style={{ color: 'var(--s-violet-light)' }} />
+              <Loader2 size={16} className="animate-spin" style={{ color: 'var(--s-gold)' }} />
             ) : (
-              <Clock size={16} style={{ color: 'var(--s-violet-light)' }} />
+              <Clock size={16} style={{ color: 'var(--s-gold)' }} />
             )}
           </div>
           <div className="flex-1 min-w-0">

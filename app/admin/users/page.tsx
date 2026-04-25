@@ -165,9 +165,9 @@ export default function AdminUsersPage() {
             <button key={f.value} onClick={() => setUserFilter(f.value)}
               className="tag transition-all duration-150"
               style={{
-                background: userFilter === f.value ? 'rgba(123,47,190,0.15)' : 'transparent',
-                color: userFilter === f.value ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
-                borderColor: userFilter === f.value ? 'rgba(123,47,190,0.4)' : 'var(--s-border)',
+                background: userFilter === f.value ? 'rgba(255,184,0,0.15)' : 'transparent',
+                color: userFilter === f.value ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                borderColor: userFilter === f.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
                 cursor: 'pointer',
                 padding: '6px 14px',
                 fontSize: '11px',
@@ -199,7 +199,7 @@ export default function AdminUsersPage() {
 
           return (
             <div key={u.uid} className="panel" style={{
-              borderColor: u.isBanned ? 'rgba(255,50,50,0.25)' : u.isAdmin ? 'rgba(123,47,190,0.25)' : undefined,
+              borderColor: u.isBanned ? 'rgba(255,50,50,0.25)' : u.isAdmin ? 'rgba(255,184,0,0.25)' : undefined,
             }}>
               <button
                 type="button"
@@ -225,7 +225,7 @@ export default function AdminUsersPage() {
                       {u.displayName}
                     </span>
                     {u.isAdmin && (
-                      <span className="tag tag-violet" style={{ fontSize: '8px', padding: '0px 5px' }}>ADMIN</span>
+                      <span className="tag tag-gold" style={{ fontSize: '8px', padding: '0px 5px' }}>ADMIN</span>
                     )}
                     {u.isBanned && (
                       <span className="tag" style={{ background: 'rgba(255,50,50,0.1)', color: '#ff5555', borderColor: 'rgba(255,50,50,0.3)', fontSize: '8px', padding: '0px 5px' }}>BANNI</span>
@@ -371,9 +371,9 @@ export default function AdminUsersPage() {
                   {isEditing && (
                     <>
                       <div className="divider" />
-                      <div className="p-4 space-y-4" style={{ background: 'rgba(123,47,190,0.03)', border: '1px solid rgba(123,47,190,0.15)' }}>
+                      <div className="p-4 space-y-4" style={{ background: 'rgba(255,184,0,0.03)', border: '1px solid rgba(255,184,0,0.15)' }}>
                         <div className="flex items-center justify-between mb-1">
-                          <span className="t-label" style={{ color: 'var(--s-violet-light)' }}>MODIFIER LE PROFIL</span>
+                          <span className="t-label" style={{ color: 'var(--s-gold)' }}>MODIFIER LE PROFIL</span>
                           <button onClick={() => setEditingUser(null)} style={{ color: 'var(--s-text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}>
                             <X size={14} />
                           </button>
@@ -506,7 +506,7 @@ export default function AdminUsersPage() {
                   <div className="flex gap-2 flex-wrap">
                     <Link href={`/profile/${u.uid}`}
                       className="btn-springs bevel-sm flex items-center gap-2"
-                      style={{ background: 'rgba(123,47,190,0.08)', color: 'var(--s-violet-light)', borderColor: 'rgba(123,47,190,0.25)', fontSize: '12px', padding: '8px 16px' }}>
+                      style={{ background: 'rgba(255,184,0,0.08)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.25)', fontSize: '12px', padding: '8px 16px' }}>
                       <User size={12} />
                       <span>Voir profil</span>
                     </Link>

@@ -17,7 +17,7 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 const VARIANT_STYLES: Record<ToastVariant, { accent: string; bg: string; icon: string }> = {
   success: { accent: 'var(--s-gold)', bg: 'rgba(255,184,0,0.08)', icon: '✓' },
   error: { accent: '#ef4444', bg: 'rgba(239,68,68,0.1)', icon: '!' },
-  info: { accent: 'var(--s-violet-light)', bg: 'rgba(123,47,190,0.1)', icon: 'i' },
+  info: { accent: 'var(--s-gold)', bg: 'rgba(255,184,0,0.1)', icon: 'i' },
 };
 
 const TOAST_DURATION = 4500;

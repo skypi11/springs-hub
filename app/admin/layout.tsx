@@ -40,14 +40,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         >
           <div
             className="h-[3px]"
-            style={{ background: 'linear-gradient(90deg, var(--s-violet), var(--s-violet-light), transparent 80%)' }}
+            style={{ background: 'linear-gradient(90deg, var(--s-gold), var(--s-gold), transparent 80%)' }}
           />
           <div className="relative z-[1] p-6 flex items-center gap-3">
             <div
               className="p-2"
-              style={{ background: 'rgba(123,47,190,0.1)', border: '1px solid rgba(123,47,190,0.25)' }}
+              style={{ background: 'rgba(255,184,0,0.1)', border: '1px solid rgba(255,184,0,0.25)' }}
             >
-              <Shield size={18} style={{ color: 'var(--s-violet)' }} />
+              <Shield size={18} style={{ color: 'var(--s-gold)' }} />
             </div>
             <div>
               <h1 className="font-display text-2xl" style={{ letterSpacing: '0.03em' }}>

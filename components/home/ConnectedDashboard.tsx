@@ -159,7 +159,7 @@ export default function ConnectedDashboard({ user }: { user: SpringsUser }) {
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <p className="t-label mb-1" style={{ color: 'var(--s-text-muted)' }}>SPRINGS HUB</p>
+            <p className="t-label mb-1" style={{ color: 'var(--s-text-muted)' }}>AEDRAL</p>
             <h1 className="font-display text-3xl tracking-wider leading-none">
               SALUT <span style={{ color: 'var(--s-gold)' }}>{firstName.toUpperCase()}</span>
             </h1>
@@ -186,8 +186,8 @@ export default function ConnectedDashboard({ user }: { user: SpringsUser }) {
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 animate-fade-in-d1">
         {/* Widget prochain event */}
         <WidgetCard
-          accent="var(--s-violet-light)"
-          icon={<Calendar size={16} style={{ color: 'var(--s-violet-light)' }} />}
+          accent="var(--s-gold)"
+          icon={<Calendar size={16} style={{ color: 'var(--s-gold)' }} />}
           title="PROCHAIN EVENT"
           href="/calendar"
           loading={loading}

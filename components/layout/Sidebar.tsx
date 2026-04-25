@@ -8,6 +8,7 @@ import { Home, Users, Trophy, LogOut, Swords, Settings, Building2, Calendar, Sea
 import { useAuth } from '@/context/AuthContext';
 import NotificationsBell from '@/components/ui/NotificationsBell';
 import DevSwitcher from '@/components/dev/DevSwitcher';
+import AedralLogo from '@/components/brand/AedralLogo';
 
 const navItems = [
   { href: '/', icon: Home, label: 'Accueil' },
@@ -85,8 +86,14 @@ export default function Sidebar() {
       >
 
       {/* Logo + close button (mobile only) */}
-      <div className="px-6 py-5 flex items-center justify-between">
-        <Image src="/springs-logo.png" alt="Springs E-Sport" width={120} height={36} className="object-contain" priority />
+      <div className="px-5 py-5 flex items-center justify-between">
+        <Link
+          href="/"
+          aria-label="Aedral — accueil"
+          className="flex-1 min-w-0 flex items-center justify-center lg:justify-center"
+        >
+          <AedralLogo variant="horizontal" theme="dark" height={48} />
+        </Link>
         <button
           type="button"
           onClick={() => setMobileOpen(false)}
@@ -112,7 +119,7 @@ export default function Sidebar() {
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = 'var(--s-hover)';
-            e.currentTarget.style.borderColor = 'rgba(123,47,190,0.35)';
+            e.currentTarget.style.borderColor = 'rgba(255,184,0,0.35)';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = 'var(--s-elevated)';
@@ -153,11 +160,11 @@ export default function Sidebar() {
             <Link key={href} href={href}
               className="flex items-center gap-3 px-3 py-2.5 relative transition-all duration-150"
               style={{
-                background: active ? 'rgba(123,47,190,0.12)' : 'transparent',
+                background: active ? 'rgba(255,184,0,0.12)' : 'transparent',
                 color: active ? '#eaeaf0' : 'var(--s-text-dim)',
-                borderLeft: active ? '3px solid var(--s-violet)' : '3px solid transparent',
+                borderLeft: active ? '3px solid var(--s-gold)' : '3px solid transparent',
               }}>
-              <Icon size={17} style={{ color: active ? 'var(--s-violet-light)' : 'var(--s-text-muted)', flexShrink: 0 }} />
+              <Icon size={17} style={{ color: active ? 'var(--s-gold)' : 'var(--s-text-muted)', flexShrink: 0 }} />
               <span className="font-medium text-sm">{label}</span>
             </Link>
           );
@@ -243,10 +250,10 @@ export default function Sidebar() {
               style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
               {user.discordAvatar ? (
                 <Image src={user.discordAvatar} alt={user.displayName} width={34} height={34}
-                  className="flex-shrink-0" style={{ border: '2px solid rgba(123,47,190,0.4)' }} />
+                  className="flex-shrink-0" style={{ border: '2px solid rgba(255,184,0,0.4)' }} />
               ) : (
                 <div className="w-9 h-9 flex items-center justify-center flex-shrink-0 text-sm font-bold"
-                  style={{ background: 'var(--s-violet)', color: '#fff' }}>
+                  style={{ background: 'var(--s-gold)', color: 'var(--s-bg)' }}>
                   {user.displayName?.[0]?.toUpperCase() ?? '?'}
                 </div>
               )}

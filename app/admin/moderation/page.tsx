@@ -223,9 +223,9 @@ export default function AdminModerationPage() {
           <button key={t.value} onClick={() => setTab(t.value)}
             className="tag transition-all duration-150"
             style={{
-              background: tab === t.value ? 'rgba(123,47,190,0.15)' : 'transparent',
-              color: tab === t.value ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
-              borderColor: tab === t.value ? 'rgba(123,47,190,0.4)' : 'var(--s-border)',
+              background: tab === t.value ? 'rgba(255,184,0,0.15)' : 'transparent',
+              color: tab === t.value ? 'var(--s-gold)' : 'var(--s-text-dim)',
+              borderColor: tab === t.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
               cursor: 'pointer', padding: '6px 14px', fontSize: '11px',
             }}>
             {t.label}

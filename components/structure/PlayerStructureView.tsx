@@ -86,7 +86,7 @@ const TYPE_INFO: Record<EventType, { label: string; color: string }> = {
   training: { label: 'Entraînement', color: 'var(--s-text-dim)' },
   scrim: { label: 'Scrim', color: 'var(--s-blue)' },
   match: { label: 'Match', color: 'var(--s-gold)' },
-  springs: { label: 'Springs', color: 'var(--s-violet)' },
+  springs: { label: 'Springs', color: 'var(--s-gold)' },
   autre: { label: 'Autre', color: 'var(--s-text-dim)' },
 };
 
@@ -247,9 +247,9 @@ export default function PlayerStructureView({ structure }: { structure: PlayerSt
                           key={g}
                           className="font-display text-xs px-1.5 py-0.5"
                           style={{
-                            background: `${info?.color ?? 'var(--s-violet)'}15`,
-                            border: `1px solid ${info?.color ?? 'var(--s-violet)'}40`,
-                            color: info?.color ?? 'var(--s-violet-light)',
+                            background: `${info?.color ?? 'var(--s-gold)'}15`,
+                            border: `1px solid ${info?.color ?? 'var(--s-gold)'}40`,
+                            color: info?.color ?? 'var(--s-gold)',
                             letterSpacing: '0.06em',
                           }}
                         >
@@ -297,7 +297,7 @@ export default function PlayerStructureView({ structure }: { structure: PlayerSt
         >
           <div
             className="h-[3px]"
-            style={{ background: 'linear-gradient(90deg, var(--s-violet-light), rgba(163,100,217,0.35), transparent 70%)' }}
+            style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.35), transparent 70%)' }}
           />
           <div className="p-8 text-center">
             <Users size={32} className="mx-auto mb-3" style={{ color: 'var(--s-text-muted)' }} />
@@ -387,7 +387,7 @@ export default function PlayerStructureView({ structure }: { structure: PlayerSt
 // ─── Sous-composants ───
 
 function TeamCard({ team, currentUid }: { team: MyTeam; currentUid: string | undefined }) {
-  const gameInfo = GAME_INFO[team.game] ?? { label: team.game, color: 'var(--s-violet)', short: team.game.toUpperCase() };
+  const gameInfo = GAME_INFO[team.game] ?? { label: team.game, color: 'var(--s-gold)', short: team.game.toUpperCase() };
   const myBadge = team.isTitulaire ? 'TITULAIRE' : team.isSub ? 'REMPLAÇANT' : null;
 
   return (
@@ -420,9 +420,9 @@ function TeamCard({ team, currentUid }: { team: MyTeam; currentUid: string | und
           <span
             className="font-display text-xs px-2 py-1"
             style={{
-              background: team.isTitulaire ? 'rgba(255,184,0,0.12)' : 'rgba(163,100,217,0.12)',
-              border: `1px solid ${team.isTitulaire ? 'rgba(255,184,0,0.35)' : 'rgba(163,100,217,0.35)'}`,
-              color: team.isTitulaire ? 'var(--s-gold)' : 'var(--s-violet-light)',
+              background: team.isTitulaire ? 'rgba(255,184,0,0.12)' : 'rgba(255,184,0,0.12)',
+              border: `1px solid ${team.isTitulaire ? 'rgba(255,184,0,0.35)' : 'rgba(255,184,0,0.35)'}`,
+              color: team.isTitulaire ? 'var(--s-gold)' : 'var(--s-gold)',
               letterSpacing: '0.08em',
             }}
           >
@@ -449,7 +449,7 @@ function TeamCard({ team, currentUid }: { team: MyTeam; currentUid: string | und
             <p className="t-label mb-3" style={{ color: 'var(--s-text-muted)' }}>Remplaçants</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {team.subs.map(u => (
-                <TeammateCard key={u.uid} user={u} isMe={u.uid === currentUid} badgeColor="var(--s-violet-light)" badgeLabel="Remplaçant" />
+                <TeammateCard key={u.uid} user={u} isMe={u.uid === currentUid} badgeColor="var(--s-gold)" badgeLabel="Remplaçant" />
               ))}
             </div>
           </div>
@@ -592,7 +592,7 @@ function StaffContactsSection({ structure }: { structure: PlayerStructure }) {
     groups.push({ label: 'Co-fondateur', icon: Crown, color: 'var(--s-gold)', users: structure.coFounders });
   }
   if (structure.managers.length > 0) {
-    groups.push({ label: 'Manager', icon: BookOpen, color: 'var(--s-violet-light)', users: structure.managers });
+    groups.push({ label: 'Manager', icon: BookOpen, color: 'var(--s-gold)', users: structure.managers });
   }
   if (structure.coaches.length > 0) {
     groups.push({ label: 'Coach', icon: Headphones, color: '#4da6ff', users: structure.coaches });
@@ -605,19 +605,19 @@ function StaffContactsSection({ structure }: { structure: PlayerStructure }) {
     >
       <div
         className="h-[3px]"
-        style={{ background: 'linear-gradient(90deg, var(--s-violet-light), rgba(163,100,217,0.35), transparent 70%)' }}
+        style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.35), transparent 70%)' }}
       />
       <div
         className="absolute top-0 right-0 w-64 h-64 pointer-events-none"
-        style={{ background: 'radial-gradient(circle at 100% 0%, rgba(163,100,217,0.06), transparent 60%)' }}
+        style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,184,0,0.06), transparent 60%)' }}
       />
       <div className="relative z-[1] p-5" style={{ borderBottom: '1px solid var(--s-border)' }}>
         <div className="flex items-center gap-3">
           <div
             className="w-10 h-10 flex items-center justify-center bevel-sm"
-            style={{ background: 'rgba(163,100,217,0.10)', border: '1px solid rgba(163,100,217,0.30)' }}
+            style={{ background: 'rgba(255,184,0,0.10)', border: '1px solid rgba(255,184,0,0.30)' }}
           >
-            <Shield size={16} style={{ color: 'var(--s-violet-light)' }} />
+            <Shield size={16} style={{ color: 'var(--s-gold)' }} />
           </div>
           <div>
             <h2 className="font-display text-xl" style={{ letterSpacing: '0.04em' }}>ENCADREMENT</h2>

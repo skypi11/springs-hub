@@ -48,7 +48,7 @@ export default function AdminSidebar({ pendingCount = 0, bannedCount = 0 }: Prop
       >
         <div
           className="h-[3px]"
-          style={{ background: 'linear-gradient(90deg, var(--s-violet), rgba(163,100,217,0.3), transparent 70%)' }}
+          style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }}
         />
         <div className="p-2">
           <div className="px-3 py-2">
@@ -66,9 +66,9 @@ export default function AdminSidebar({ pendingCount = 0, bannedCount = 0 }: Prop
                 onClick={(e) => { if (item.soon) e.preventDefault(); }}
                 className="w-full flex items-start gap-2.5 px-3 py-2.5 text-left transition-all duration-150 relative"
                 style={{
-                  background: active ? 'rgba(123,47,190,0.12)' : 'transparent',
+                  background: active ? 'rgba(255,184,0,0.12)' : 'transparent',
                   color: active ? 'var(--s-text)' : 'var(--s-text-dim)',
-                  borderLeft: active ? '3px solid var(--s-violet)' : '3px solid transparent',
+                  borderLeft: active ? '3px solid var(--s-gold)' : '3px solid transparent',
                   cursor: item.soon ? 'not-allowed' : 'pointer',
                   opacity: item.soon ? 0.55 : 1,
                 }}
@@ -82,7 +82,7 @@ export default function AdminSidebar({ pendingCount = 0, bannedCount = 0 }: Prop
                 <Icon
                   size={15}
                   className="flex-shrink-0 mt-0.5"
-                  style={{ color: active ? 'var(--s-violet-light)' : 'var(--s-text-muted)' }}
+                  style={{ color: active ? 'var(--s-gold)' : 'var(--s-text-muted)' }}
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">

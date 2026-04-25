@@ -1,5 +1,6 @@
 'use client';
 
+import { Fragment } from 'react';
 import Link from 'next/link';
 import { Trophy, Users, ArrowRight, ExternalLink, Calendar, Gamepad2, UserPlus, Shield, ChevronRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -60,6 +61,8 @@ type Pillar = {
   features: string[];
   href: string;
   statLabel: string;
+  /** Optional partner attribution displayed at bottom-left of the card. Defaults to "Aedral". */
+  partnerLabel?: string;
 };
 
 const pillars: Pillar[] = [
@@ -81,9 +84,9 @@ const pillars: Pillar[] = [
     icon: UserPlus,
     title: 'VIVIER JOUEURS',
     tag: 'Recrutement',
-    tagClass: 'tag-violet',
-    accent: '#7B2FBE',
-    iconColor: 'var(--s-violet-light)',
+    tagClass: 'tag-neutral',
+    accent: '#EAEAF0',
+    iconColor: 'var(--s-text)',
     desc: 'Annuaire des joueurs de l\'écosystème. Profils, rangs, disponibilité pour le recrutement.',
     features: ['Profils', 'Rangs', 'Recrutement', 'Disponibilité'],
     href: '/community/players',
@@ -94,19 +97,20 @@ const pillars: Pillar[] = [
     icon: Trophy,
     title: 'COMPÉTITIONS',
     tag: 'Événements',
-    tagClass: 'tag-blue',
-    accent: '#0081FF',
-    iconColor: '#4da6ff',
-    desc: 'Saisons, cups, tournois Springs. Classements, résultats, inscriptions connectées aux structures.',
+    tagClass: 'tag-violet',
+    accent: '#7B2FBE',
+    iconColor: 'var(--s-violet-light)',
+    desc: 'Saisons, cups, tournois Springs E-Sport. Classements, résultats, inscriptions connectées aux structures.',
     features: ['Rocket League', 'Trackmania'],
     href: '/competitions',
     statLabel: 'Actives',
+    partnerLabel: 'Springs E-Sport',
   },
 ];
 
 const quickLinks = [
   { label: 'Créer une structure', desc: 'Demande de création → validation par Springs', href: '/community/create-structure', icon: Shield, accent: '#FFB800' },
-  { label: 'Mon profil', desc: 'Jeux pratiqués, rang, disponibilité recrutement', href: '/settings', icon: Users, accent: '#7B2FBE' },
+  { label: 'Mon profil', desc: 'Jeux pratiqués, rang, disponibilité recrutement', href: '/settings', icon: Users, accent: '#FFB800' },
   { label: 'Annuaire structures', desc: 'Toutes les structures actives de l\'écosystème', href: '/community/structures', icon: UserPlus, accent: '#0081FF' },
   { label: 'Classements', desc: 'Scores, résultats et statistiques des compétitions', href: '/competitions', icon: Trophy, accent: '#00D936' },
 ];
@@ -200,7 +204,7 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {pillars.map(({ id, icon: Icon, title, tag, tagClass, accent, iconColor, desc, features, href, statLabel }) => {
+            {pillars.map(({ id, icon: Icon, title, tag, tagClass, accent, iconColor, desc, features, href, statLabel, partnerLabel }) => {
               const stat = statsByPillar[id];
               return (
               <Link key={title} href={href}
@@ -216,7 +220,10 @@ export default function HomePage() {
                       <Icon size={13} style={{ color: iconColor }} />
                       <span className="t-label" style={{ color: 'var(--s-text)' }}>{title}</span>
                     </div>
-                    <span className={`tag ${tagClass}`}>{tag}</span>
+                    <div className="flex items-center gap-2">
+                      {partnerLabel && <span className="tag tag-violet">{partnerLabel}</span>}
+                      <span className={`tag ${tagClass}`}>{tag}</span>
+                    </div>
                   </div>
                   <div className="p-5">
                     <div className="flex items-start justify-between mb-4">
@@ -243,7 +250,7 @@ export default function HomePage() {
                     </div>
                     <div className="divider mb-3" />
                     <div className="flex items-center justify-between">
-                      <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Springs Hub</span>
+                      <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>{partnerLabel ?? 'Aedral'}</span>
                       <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors group-hover:text-white"
                         style={{ color: iconColor }}>
                         Explorer <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
@@ -296,16 +303,15 @@ export default function HomePage() {
 function VisitorHero({ stats }: { stats: PublicStats | null }) {
   return (
     <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), var(--s-violet-light), transparent 80%)' }} />
+      <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), var(--s-gold), transparent 80%)' }} />
       <div className="absolute top-0 left-0 w-[500px] h-[400px] pointer-events-none opacity-[0.06]"
-        style={{ background: 'radial-gradient(ellipse at top left, var(--s-violet), transparent 70%)' }} />
+        style={{ background: 'radial-gradient(ellipse at top left, var(--s-gold), transparent 70%)' }} />
       <div className="absolute bottom-0 right-[300px] w-[400px] h-[300px] pointer-events-none opacity-[0.04]"
         style={{ background: 'radial-gradient(ellipse at bottom, var(--s-gold), transparent 70%)' }} />
       <div className="relative z-[1] p-10 flex items-start justify-between gap-10 flex-wrap">
         <div className="flex-1 min-w-[300px]">
           <div className="flex items-center gap-3 mb-5 flex-wrap">
-            <span className="tag tag-violet">Springs E-Sport</span>
-            <span className="tag tag-gold">Plateforme Officielle</span>
+            <span className="tag tag-gold">Plateforme communautaire esport</span>
             <span className="status status-live ml-2">En ligne</span>
           </div>
           <h1 className="t-display mb-4">
@@ -313,8 +319,9 @@ function VisitorHero({ stats }: { stats: PublicStats | null }) {
             <span style={{ color: 'var(--s-gold)' }}>COMPÉTITIONS</span>
           </h1>
           <p className="t-body max-w-xl mb-6" style={{ fontSize: '15px' }}>
-            Tout l&apos;écosystème Springs E-Sport réuni sur une plateforme.
-            Gère ta structure, recrute des joueurs, participe aux compétitions.
+            La plateforme communautaire pour les structures et joueurs de l&apos;écosystème
+            esport amateur. Gère ta structure, recrute des joueurs, participe aux compétitions.
+            En partenariat avec Springs E-Sport.
           </p>
           <div className="flex items-center gap-3 flex-wrap">
             <Link href="/community" className="btn-springs btn-primary bevel-sm">
@@ -334,7 +341,7 @@ function VisitorHero({ stats }: { stats: PublicStats | null }) {
             <div className="panel-body space-y-4">
               <div className="flex items-center justify-between">
                 <span className="t-body">Compétitions actives</span>
-                <span className="font-display text-3xl" style={{ color: 'var(--s-gold)', letterSpacing: '0.02em' }}>2</span>
+                <span className="font-display text-3xl" style={{ color: 'var(--s-violet-light)', letterSpacing: '0.02em' }}>{competitions.length}</span>
               </div>
               <div className="divider" />
               <div className="flex items-center justify-between">
@@ -344,24 +351,15 @@ function VisitorHero({ stats }: { stats: PublicStats | null }) {
                   <span className="tag tag-green" style={{ fontSize: '9px', padding: '2px 6px' }}>TM</span>
                 </div>
               </div>
-              <div className="divider" />
-              <div className="flex items-center justify-between">
-                <span className="t-body">Structures</span>
-                {stats === null ? (
-                  <SkeletonText width={32} height={20} />
-                ) : (
-                  <span className="font-display text-2xl" style={{ color: 'var(--s-violet-light)', letterSpacing: '0.02em' }}>{stats.structures}</span>
-                )}
-              </div>
-              <div className="divider" />
-              <div className="flex items-center justify-between">
-                <span className="t-body">Joueurs inscrits</span>
-                {stats === null ? (
-                  <SkeletonText width={32} height={20} />
-                ) : (
-                  <span className="font-display text-2xl" style={{ color: 'var(--s-violet-light)', letterSpacing: '0.02em' }}>{stats.players}</span>
-                )}
-              </div>
+              {competitions.map(c => (
+                <Fragment key={c.id}>
+                  <div className="divider" />
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="t-body truncate" title={c.name} style={{ fontSize: '13px', lineHeight: 1.3 }}>{c.name}</span>
+                    <span className={`tag ${c.tagClass}`} style={{ fontSize: '9px', padding: '2px 6px', flexShrink: 0 }}>{c.tag}</span>
+                  </div>
+                </Fragment>
+              ))}
             </div>
           </div>
         </div>

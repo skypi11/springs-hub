@@ -57,9 +57,9 @@ export default function ImpersonateButton({ targetUid, targetName, size = 'sm', 
         className="inline-flex items-center justify-center transition-colors"
         style={{
           width: 24, height: 24,
-          background: 'rgba(123,47,190,0.08)',
-          color: 'var(--s-violet-light)',
-          border: '1px solid rgba(123,47,190,0.3)',
+          background: 'rgba(255,184,0,0.08)',
+          color: 'var(--s-gold)',
+          border: '1px solid rgba(255,184,0,0.3)',
           cursor: loading ? 'wait' : 'pointer',
         }}
       >
@@ -75,9 +75,9 @@ export default function ImpersonateButton({ targetUid, targetName, size = 'sm', 
       disabled={loading}
       className="btn-springs bevel-sm inline-flex items-center gap-2"
       style={{
-        background: 'rgba(123,47,190,0.08)',
-        color: 'var(--s-violet-light)',
-        borderColor: 'rgba(123,47,190,0.3)',
+        background: 'rgba(255,184,0,0.08)',
+        color: 'var(--s-gold)',
+        borderColor: 'rgba(255,184,0,0.3)',
         fontSize: '12px',
         padding: '6px 12px',
       }}

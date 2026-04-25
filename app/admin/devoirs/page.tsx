@@ -164,7 +164,7 @@ export default function AdminDevoirsPage() {
           icon={<CalendarDays size={14} />}
           label="Cette semaine"
           value={data.global.dueThisWeek}
-          color="#a364d9"
+          color="#FFB800"
         />
         <StatCard
           icon={<CheckCircle2 size={14} />}
@@ -176,7 +176,7 @@ export default function AdminDevoirsPage() {
           icon={<CheckCircle2 size={14} />}
           label="Taux complétion"
           value={`${data.global.completionRate}%`}
-          color="var(--s-violet-light)"
+          color="var(--s-gold)"
         />
         <StatCard
           icon={<ClipboardList size={14} />}
@@ -221,9 +221,9 @@ export default function AdminDevoirsPage() {
             <button key={f.value} onClick={() => setSortBy(f.value)}
               className="tag transition-all duration-150"
               style={{
-                background: sortBy === f.value ? 'rgba(123,47,190,0.15)' : 'transparent',
-                color: sortBy === f.value ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
-                borderColor: sortBy === f.value ? 'rgba(123,47,190,0.4)' : 'var(--s-border)',
+                background: sortBy === f.value ? 'rgba(255,184,0,0.15)' : 'transparent',
+                color: sortBy === f.value ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                borderColor: sortBy === f.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
                 cursor: 'pointer', padding: '6px 14px', fontSize: '11px',
               }}>
               {f.label}
@@ -234,9 +234,9 @@ export default function AdminDevoirsPage() {
         <button onClick={() => setHideEmpty(v => !v)}
           className="tag transition-all duration-150"
           style={{
-            background: !hideEmpty ? 'rgba(123,47,190,0.15)' : 'transparent',
-            color: !hideEmpty ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
-            borderColor: !hideEmpty ? 'rgba(123,47,190,0.4)' : 'var(--s-border)',
+            background: !hideEmpty ? 'rgba(255,184,0,0.15)' : 'transparent',
+            color: !hideEmpty ? 'var(--s-gold)' : 'var(--s-text-dim)',
+            borderColor: !hideEmpty ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
             cursor: 'pointer', padding: '6px 14px', fontSize: '11px',
           }}>
           {hideEmpty ? 'Inclure structures vides' : 'Masquer structures vides'}
@@ -331,7 +331,7 @@ export default function AdminDevoirsPage() {
                         background: s.completionRate >= 70
                           ? 'linear-gradient(90deg, #33ff66, #00D936)'
                           : s.completionRate >= 40
-                            ? 'linear-gradient(90deg, #FFB800, #a364d9)'
+                            ? 'linear-gradient(90deg, #FFB800, #FFB800)'
                             : 'linear-gradient(90deg, #ff5555, #FFB800)',
                       }}
                     />

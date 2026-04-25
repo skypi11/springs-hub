@@ -524,7 +524,7 @@ function SensitiveChoiceModal({ file, onCancel, onChoose }: {
         <div className="bevel w-full max-w-lg overflow-hidden flex flex-col"
           style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
           onClick={e => e.stopPropagation()}>
-          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), transparent 70%)' }} />
+          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), transparent 70%)' }} />
           <header className="flex items-center justify-between gap-3 px-4 py-3" style={{ borderBottom: '1px solid var(--s-border)' }}>
             <h3 className="font-display text-sm tracking-wider">TYPE DE FICHIER</h3>
             <button type="button" onClick={onCancel} className="flex items-center justify-center"
@@ -551,15 +551,15 @@ function SensitiveChoiceModal({ file, onCancel, onChoose }: {
                 onMouseLeave={() => setHover(null)}
                 className="bevel-sm p-4 text-left transition-all cursor-pointer"
                 style={{
-                  background: hover === 'sensitive' ? 'rgba(123,47,190,0.15)' : 'var(--s-elevated)',
+                  background: hover === 'sensitive' ? 'rgba(255,184,0,0.15)' : 'var(--s-elevated)',
                   border: hover === 'sensitive'
-                    ? '1px solid rgba(123,47,190,0.75)'
-                    : '1px solid rgba(123,47,190,0.35)',
+                    ? '1px solid rgba(255,184,0,0.75)'
+                    : '1px solid rgba(255,184,0,0.35)',
                   transform: hover === 'sensitive' ? 'translateY(-1px)' : 'none',
                 }}>
                 <div className="flex items-center gap-2 mb-2">
-                  <Lock size={14} style={{ color: 'var(--s-violet-light)' }} />
-                  <span className="font-display text-xs tracking-wider" style={{ color: 'var(--s-violet-light)' }}>OUI — SENSIBLE</span>
+                  <Lock size={14} style={{ color: 'var(--s-gold)' }} />
+                  <span className="font-display text-xs tracking-wider" style={{ color: 'var(--s-gold)' }}>OUI — SENSIBLE</span>
                 </div>
                 <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
                   Chiffré <strong>AES-256-GCM</strong> avant stockage. Lisible uniquement via le site après authentification.
@@ -674,7 +674,7 @@ function DocCard({ doc, isRenaming, renameValue, canPreview, onPreview, onDownlo
               <div className="text-sm font-medium truncate" style={{ color: 'var(--s-text)' }}>{doc.title}</div>
               {doc.encrypted && (
                 <span title="Chiffré AES-256-GCM" style={{ flexShrink: 0, lineHeight: 0 }}>
-                  <Lock size={11} style={{ color: 'var(--s-violet-light)' }} />
+                  <Lock size={11} style={{ color: 'var(--s-gold)' }} />
                 </span>
               )}
             </div>
@@ -888,15 +888,15 @@ function PreviewModal({ doc, structureId, onClose, onDownload }: {
         <div className="bevel w-full max-w-5xl flex flex-col overflow-hidden"
           style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', height: '90vh' }}
           onClick={e => e.stopPropagation()}>
-          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), transparent 70%)' }} />
+          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), transparent 70%)' }} />
           <header className="flex items-center justify-between gap-3 px-4 py-3 flex-shrink-0"
             style={{ borderBottom: '1px solid var(--s-border)' }}>
             <div className="flex items-center gap-2 min-w-0">
-              <Eye size={14} style={{ color: 'var(--s-violet-light)', flexShrink: 0 }} />
+              <Eye size={14} style={{ color: 'var(--s-gold)', flexShrink: 0 }} />
               <h3 className="font-display text-sm tracking-wider truncate">{doc.title}</h3>
               {doc.encrypted && (
                 <span title="Chiffré AES-256-GCM" style={{ lineHeight: 0, flexShrink: 0 }}>
-                  <Lock size={11} style={{ color: 'var(--s-violet-light)' }} />
+                  <Lock size={11} style={{ color: 'var(--s-gold)' }} />
                 </span>
               )}
             </div>
@@ -951,7 +951,7 @@ function formatSize(bytes: number): string {
 }
 
 function iconForMime(mime: string): { Icon: typeof FileIcon; color: string } {
-  if (mime.startsWith('image/')) return { Icon: ImageIcon, color: '#a364d9' };
+  if (mime.startsWith('image/')) return { Icon: ImageIcon, color: '#FFB800' };
   if (mime === 'application/pdf') return { Icon: FileText, color: '#ef4444' };
   if (mime.includes('word') || mime.includes('document')) return { Icon: FileText, color: '#2b7fff' };
   if (mime.includes('sheet') || mime.includes('excel') || mime === 'text/csv') return { Icon: FileText, color: '#00D936' };

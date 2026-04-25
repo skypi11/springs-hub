@@ -151,13 +151,13 @@ export default function MyTodosSection() {
 
   return (
     <section className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), var(--s-violet-light)50, transparent 70%)' }} />
+      <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), var(--s-gold)50, transparent 70%)' }} />
       <div className="absolute top-0 right-0 w-64 h-64 pointer-events-none"
-        style={{ background: 'radial-gradient(circle at 100% 0%, rgba(123,47,190,0.07), transparent 60%)' }} />
+        style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,184,0,0.07), transparent 60%)' }} />
       <div className="relative z-[1] p-6 space-y-4">
         <header className="flex items-center gap-3">
-          <div className="w-10 h-10 flex items-center justify-center bevel-sm" style={{ background: 'rgba(123,47,190,0.10)', border: '1px solid rgba(123,47,190,0.30)' }}>
-            <ClipboardList size={18} style={{ color: 'var(--s-violet-light)' }} />
+          <div className="w-10 h-10 flex items-center justify-center bevel-sm" style={{ background: 'rgba(255,184,0,0.10)', border: '1px solid rgba(255,184,0,0.30)' }}>
+            <ClipboardList size={18} style={{ color: 'var(--s-gold)' }} />
           </div>
           <div>
             <h2 className="font-display text-2xl" style={{ letterSpacing: '0.04em' }}>MES DEVOIRS</h2>
@@ -298,8 +298,8 @@ function TodoRow({
           width: '22px',
           height: '22px',
           marginTop: '2px',
-          background: todo.done ? 'var(--s-violet)' : 'transparent',
-          border: `1px solid ${todo.done ? 'var(--s-violet)' : 'var(--s-text-muted)'}`,
+          background: todo.done ? 'var(--s-gold)' : 'transparent',
+          border: `1px solid ${todo.done ? 'var(--s-gold)' : 'var(--s-text-muted)'}`,
           cursor: toggling ? 'wait' : 'pointer',
         }}
         aria-label={todo.done ? 'Rouvrir' : 'Marquer terminé'}>

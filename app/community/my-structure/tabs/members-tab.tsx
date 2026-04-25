@@ -200,7 +200,7 @@ export function MembersTab(props: MembersTabProps) {
                   const memberRemainingMs = memberDepartureIso ? Math.max(0, new Date(memberDepartureIso).getTime() + DEPARTURE_NOTICE_MS - now) : null;
                   const daysLeft = memberRemainingMs != null ? Math.ceil(memberRemainingMs / (24 * 60 * 60 * 1000)) : null;
                   const badgeColors: Record<string, { bg: string; fg: string; border: string }> = {
-                    manager: { bg: 'rgba(123,47,190,0.1)', fg: 'var(--s-violet-light)', border: 'rgba(123,47,190,0.3)' },
+                    manager: { bg: 'rgba(255,184,0,0.1)', fg: 'var(--s-gold)', border: 'rgba(255,184,0,0.3)' },
                     coach: { bg: 'rgba(0,129,255,0.1)', fg: '#4db1ff', border: 'rgba(0,129,255,0.3)' },
                     capitaine: { bg: 'rgba(255,184,0,0.1)', fg: 'var(--s-gold)', border: 'rgba(255,184,0,0.3)' },
                     joueur: { bg: 'rgba(255,255,255,0.05)', fg: 'var(--s-text-dim)', border: 'var(--s-border)' },

@@ -55,9 +55,9 @@ type EventDetail = {
 
 const TYPE_META: Record<string, { label: string; color: string }> = {
   training:  { label: 'Entraînement', color: '#0081FF' },
-  scrim:     { label: 'Scrim',        color: '#a364d9' },
+  scrim:     { label: 'Scrim',        color: '#FFB800' },
   match:     { label: 'Match',        color: '#FFB800' },
-  springs:   { label: 'Springs',      color: '#7B2FBE' },
+  springs:   { label: 'Springs',      color: '#FFB800' },
   autre:     { label: 'Autre',        color: '#7a7a95' },
 };
 
@@ -213,9 +213,9 @@ export default function AdminCalendarPage() {
             <button key={f.value} onClick={() => setWhen(f.value)}
               className="tag transition-all duration-150"
               style={{
-                background: when === f.value ? 'rgba(123,47,190,0.15)' : 'transparent',
-                color: when === f.value ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
-                borderColor: when === f.value ? 'rgba(123,47,190,0.4)' : 'var(--s-border)',
+                background: when === f.value ? 'rgba(255,184,0,0.15)' : 'transparent',
+                color: when === f.value ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                borderColor: when === f.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
                 cursor: 'pointer', padding: '6px 14px', fontSize: '11px',
               }}>
               {f.label}
@@ -227,9 +227,9 @@ export default function AdminCalendarPage() {
           <button onClick={() => setTypeFilter('')}
             className="tag transition-all duration-150"
             style={{
-              background: !typeFilter ? 'rgba(123,47,190,0.15)' : 'transparent',
-              color: !typeFilter ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
-              borderColor: !typeFilter ? 'rgba(123,47,190,0.4)' : 'var(--s-border)',
+              background: !typeFilter ? 'rgba(255,184,0,0.15)' : 'transparent',
+              color: !typeFilter ? 'var(--s-gold)' : 'var(--s-text-dim)',
+              borderColor: !typeFilter ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
               cursor: 'pointer', padding: '6px 14px', fontSize: '11px',
             }}>
             Tous types
@@ -258,9 +258,9 @@ export default function AdminCalendarPage() {
             <button key={f.value} onClick={() => setStatusFilter(f.value)}
               className="tag transition-all duration-150"
               style={{
-                background: statusFilter === f.value ? 'rgba(123,47,190,0.15)' : 'transparent',
-                color: statusFilter === f.value ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
-                borderColor: statusFilter === f.value ? 'rgba(123,47,190,0.4)' : 'var(--s-border)',
+                background: statusFilter === f.value ? 'rgba(255,184,0,0.15)' : 'transparent',
+                color: statusFilter === f.value ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                borderColor: statusFilter === f.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
                 cursor: 'pointer', padding: '6px 14px', fontSize: '11px',
               }}>
               {f.label}
@@ -356,7 +356,7 @@ export default function AdminCalendarPage() {
                   <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                     <Link href={`/community/structure/${event.structureId}`}
                       className="flex items-center gap-1 text-xs hover:underline"
-                      style={{ color: 'var(--s-violet-light)' }}>
+                      style={{ color: 'var(--s-gold)' }}>
                       <span>{event.structureName}</span>
                       {event.structureTag && (
                         <span style={{ color: 'var(--s-text-muted)' }}>[{event.structureTag}]</span>
@@ -384,9 +384,9 @@ export default function AdminCalendarPage() {
                       className="btn-springs bevel-sm flex items-center gap-1.5"
                       style={{
                         fontSize: '11px', padding: '5px 10px',
-                        background: isOpen ? 'rgba(123,47,190,0.15)' : 'transparent',
-                        color: isOpen ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
-                        borderColor: isOpen ? 'rgba(123,47,190,0.4)' : 'var(--s-border)',
+                        background: isOpen ? 'rgba(255,184,0,0.15)' : 'transparent',
+                        color: isOpen ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                        borderColor: isOpen ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
                       }}>
                       <Users size={11} />
                       <span>Présences</span>
@@ -432,8 +432,8 @@ export default function AdminCalendarPage() {
                         className="btn-springs bevel-sm flex items-center gap-1.5"
                         style={{
                           fontSize: '11px', padding: '5px 10px',
-                          background: 'rgba(123,47,190,0.1)', color: 'var(--s-violet-light)',
-                          borderColor: 'rgba(123,47,190,0.4)',
+                          background: 'rgba(255,184,0,0.1)', color: 'var(--s-gold)',
+                          borderColor: 'rgba(255,184,0,0.4)',
                           opacity: actionLoading === `reopen_${event.id}` ? 0.5 : 1,
                         }}>
                         {actionLoading === `reopen_${event.id}` ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}

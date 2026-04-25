@@ -534,7 +534,7 @@ function ConsensusHeatmap({
             <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>0 joueur</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <LegendSwatch color="rgba(123,47,190,0.45)" />
+            <LegendSwatch color="rgba(255,184,0,0.45)" />
             <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>quelques joueurs</span>
           </div>
           <div className="flex items-center gap-1.5">
@@ -542,7 +542,7 @@ function ConsensusHeatmap({
             <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>seuil match ({minPlayers}+)</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <LegendSwatch color="repeating-linear-gradient(135deg, rgba(0,0,0,0.35) 0, rgba(0,0,0,0.35) 2px, transparent 2px, transparent 5px), rgba(123,47,190,0.4)" />
+            <LegendSwatch color="repeating-linear-gradient(135deg, rgba(0,0,0,0.35) 0, rgba(0,0,0,0.35) 2px, transparent 2px, transparent 5px), rgba(255,184,0,0.4)" />
             <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>event planifié</span>
           </div>
         </div>
@@ -675,10 +675,10 @@ function HeatmapCell({
     bg = `rgba(255,184,0,${op})`;
     border = 'rgba(255,184,0,0.85)';
   } else {
-    // Sous le seuil → violet progressif
+    // Sous le seuil → or atténué progressif
     const op = 0.25 + ratio * 0.5;
-    bg = `rgba(123,47,190,${op})`;
-    border = 'rgba(163,100,217,0.55)';
+    bg = `rgba(255,184,0,${op})`;
+    border = 'rgba(255,184,0,0.55)';
   }
 
   // Si un event est déjà planifié sur ce créneau, on superpose un hachuré fin pour
@@ -926,11 +926,11 @@ function PlayerHeatmapCard({
                 let bg: string;
                 let border: string;
                 if (avail && conflict) {
-                  bg = 'repeating-linear-gradient(135deg, rgba(255,153,85,0.6) 0px, rgba(255,153,85,0.6) 3px, rgba(123,47,190,0.4) 3px, rgba(123,47,190,0.4) 6px)';
+                  bg = 'repeating-linear-gradient(135deg, rgba(255,153,85,0.6) 0px, rgba(255,153,85,0.6) 3px, rgba(255,184,0,0.4) 3px, rgba(255,184,0,0.4) 6px)';
                   border = 'rgba(255,153,85,0.7)';
                 } else if (avail) {
-                  bg = 'rgba(123,47,190,0.55)';
-                  border = 'rgba(163,100,217,0.7)';
+                  bg = 'rgba(255,184,0,0.55)';
+                  border = 'rgba(255,184,0,0.7)';
                 } else if (conflict) {
                   bg = 'repeating-linear-gradient(135deg, rgba(255,153,85,0.22) 0px, rgba(255,153,85,0.22) 3px, transparent 3px, transparent 6px)';
                   border = 'rgba(255,153,85,0.35)';

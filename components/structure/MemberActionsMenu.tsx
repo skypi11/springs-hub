@@ -84,7 +84,7 @@ export default function MemberActionsMenu(props: MemberActionsMenuProps) {
     items.push({
       key: 'toggle-manager',
       label: isManager ? 'Retirer Manager' : 'Promouvoir Manager',
-      icon: <Briefcase size={13} style={{ color: isManager ? '#ff8888' : 'var(--s-violet-light)' }} />,
+      icon: <Briefcase size={13} style={{ color: isManager ? '#ff8888' : 'var(--s-gold)' }} />,
       onClick: onToggleManager,
       busy: busyKey === `${userId}:manager`,
     });

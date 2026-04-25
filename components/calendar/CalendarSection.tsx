@@ -118,7 +118,7 @@ const TYPE_INFO: Record<EventType, { label: string; color: string }> = {
   training: { label: 'Entraînement', color: 'var(--s-text-dim)' },
   scrim: { label: 'Scrim', color: 'var(--s-blue)' },
   match: { label: 'Match', color: 'var(--s-gold)' },
-  springs: { label: 'Springs', color: 'var(--s-violet)' },
+  springs: { label: 'Springs', color: 'var(--s-gold)' },
   autre: { label: 'Autre', color: 'var(--s-text-dim)' },
 };
 
@@ -1062,7 +1062,7 @@ function EventFormModal({
                       ? 'var(--s-gold)'
                       : entry.role === 'remplacant'
                         ? 'var(--s-text-dim)'
-                        : 'var(--s-violet-light)';
+                        : 'var(--s-gold)';
                     return (
                       <label key={entry.uid}
                         className="flex items-center gap-2 p-2 cursor-pointer transition-colors duration-150"
@@ -1115,7 +1115,7 @@ function EventFormModal({
                 uids: string[];
               }> = [
                 { key: 'dirigeants', label: 'Dirigeants', color: 'var(--s-gold)', uids: staffAudienceGroups.dirigeants },
-                { key: 'managers', label: 'Managers', color: 'var(--s-violet-light)', uids: staffAudienceGroups.managers },
+                { key: 'managers', label: 'Managers', color: 'var(--s-gold)', uids: staffAudienceGroups.managers },
                 { key: 'coaches', label: 'Coachs', color: 'var(--s-blue)', uids: staffAudienceGroups.coaches },
               ];
               const total =

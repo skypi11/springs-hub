@@ -105,7 +105,7 @@ export default function CommunityPage() {
                 <Users size={22} style={{ color: 'var(--s-gold)' }} />
               </div>
               <div>
-                <p className="t-label mb-1" style={{ color: 'var(--s-text-muted)' }}>SPRINGS HUB</p>
+                <p className="t-label mb-1" style={{ color: 'var(--s-text-muted)' }}>AEDRAL</p>
                 <h1 className="font-display text-2xl tracking-wider leading-none">COMMUNAUTÉ</h1>
                 <p className="t-mono text-xs mt-1.5" style={{ color: 'var(--s-text-dim)' }}>
                   {loading
@@ -135,7 +135,7 @@ export default function CommunityPage() {
         {loading ? (
           <div className="space-y-6">
             <SkeletonGrid count={3} cols="grid-cols-1 md:grid-cols-2 lg:grid-cols-3" cardHeight={150} accent="var(--s-gold)" />
-            <SkeletonGrid count={4} cols="grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" cardHeight={170} accent="var(--s-violet)" />
+            <SkeletonGrid count={4} cols="grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" cardHeight={170} accent="var(--s-gold)" />
           </div>
         ) : (
           <>
@@ -151,7 +151,7 @@ export default function CommunityPage() {
                 <CommunityEmpty
                   icon={<Shield size={28} style={{ color: 'var(--s-gold)' }} />}
                   title="Aucune structure validée"
-                  desc="Sois le premier à créer une structure sur Springs Hub."
+                  desc="Sois le premier à créer une structure sur Aedral."
                   ctaHref="/community/create-structure"
                   ctaLabel="Créer ma structure"
                   ctaIcon={<Plus size={14} />}

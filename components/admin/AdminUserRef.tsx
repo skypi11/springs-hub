@@ -47,7 +47,7 @@ export default function AdminUserRef({
           <Link
             href={href}
             className="inline-flex items-center gap-1 hover:underline"
-            style={{ color: 'var(--s-violet-light)' }}
+            style={{ color: 'var(--s-gold)' }}
           >
             <Icon size={12} />
             <span>{displayName}</span>
@@ -75,7 +75,7 @@ export default function AdminUserRef({
         <Link
           href={href}
           className="flex items-center gap-1.5 text-sm hover:underline"
-          style={{ color: 'var(--s-violet-light)' }}
+          style={{ color: 'var(--s-gold)' }}
         >
           <Icon size={12} />
           <span className="truncate">{displayName}</span>

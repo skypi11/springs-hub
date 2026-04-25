@@ -599,10 +599,10 @@ export function TeamsTab(props: TeamsTabProps) {
       ) : null}>
 
       {teamScopeActive && (
-        <div className="flex items-center gap-2 mb-3 px-3 py-2 bevel-sm" style={{ background: 'rgba(123,47,190,0.08)', border: '1px solid rgba(123,47,190,0.25)' }}>
-          <Eye size={12} style={{ color: 'var(--s-violet-light)', flexShrink: 0 }} />
+        <div className="flex items-center gap-2 mb-3 px-3 py-2 bevel-sm" style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.25)' }}>
+          <Eye size={12} style={{ color: 'var(--s-gold)', flexShrink: 0 }} />
           <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-            Vue limitée aux équipes où tu es <span style={{ color: 'var(--s-violet-light)' }}>staff</span> ou <span style={{ color: 'var(--s-gold)' }}>capitaine</span>.
+            Vue limitée aux équipes où tu es <span style={{ color: 'var(--s-gold)' }}>staff</span> ou <span style={{ color: 'var(--s-gold)' }}>capitaine</span>.
           </span>
         </div>
       )}

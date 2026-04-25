@@ -57,7 +57,7 @@ const GAME_SHORT: Record<string, string> = {
 };
 
 function formatDeadline(ms: number | null, done: boolean): { text: string; color: string; bg: string } {
-  if (done) return { text: 'Terminé', color: 'var(--s-violet-light)', bg: 'rgba(123,47,190,0.10)' };
+  if (done) return { text: 'Terminé', color: 'var(--s-gold)', bg: 'rgba(255,184,0,0.10)' };
   if (ms === null) return { text: 'Sans deadline', color: 'var(--s-text-muted)', bg: 'transparent' };
   const now = Date.now();
   const delta = ms - now;

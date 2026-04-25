@@ -172,7 +172,7 @@ export default function AdminDashboardPage() {
           icon={Building2}
           label="Total structures"
           value={s.totalStructures}
-          accent="#7B2FBE"
+          accent="#FFB800"
         />
         <StatCard
           icon={Users}
@@ -185,7 +185,7 @@ export default function AdminDashboardPage() {
           icon={Users}
           label="Admins"
           value={s.adminCount}
-          accent="#a364d9"
+          accent="#FFB800"
         />
       </div>
 
@@ -197,10 +197,10 @@ export default function AdminDashboardPage() {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <QuickLink href="/admin/moderation" icon={ShieldAlert} label="Modération" accent="#ff5555" />
           <QuickLink href="/admin/devoirs" icon={ClipboardList} label="Devoirs" accent="#FFB800" />
-          <QuickLink href="/admin/calendar" icon={CalendarDays} label="Calendrier" accent="#a364d9" />
+          <QuickLink href="/admin/calendar" icon={CalendarDays} label="Calendrier" accent="#FFB800" />
           <QuickLink href="/admin/teams" icon={Users} label="Équipes" accent="#0081FF" />
           <QuickLink href="/admin/uploads" icon={UploadCloud} label="Uploads" accent="#33ff66" />
-          <QuickLink href="/admin/audit" icon={FileText} label="Audit log" accent="var(--s-violet-light)" />
+          <QuickLink href="/admin/audit" icon={FileText} label="Audit log" accent="var(--s-gold)" />
         </div>
       </div>
     </>

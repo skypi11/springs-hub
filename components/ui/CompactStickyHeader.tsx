@@ -6,7 +6,7 @@ import type { LucideIcon } from 'lucide-react';
 export default function CompactStickyHeader({
   icon: Icon,
   title,
-  accent = 'var(--s-violet-light)',
+  accent = 'var(--s-gold)',
   threshold = 180,
   children,
 }: {

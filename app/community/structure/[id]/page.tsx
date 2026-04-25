@@ -93,9 +93,9 @@ const PRIMARY_ROLE_ORDER: PrimaryRole[] = [
 const PRIMARY_ROLE_COLORS: Record<PrimaryRole, string> = {
   fondateur: 'var(--s-gold)',
   co_fondateur: 'var(--s-gold)',
-  responsable: 'var(--s-violet-light)',
+  responsable: 'var(--s-gold)',
   coach_structure: '#FFB800',
-  manager_equipe: 'var(--s-violet-light)',
+  manager_equipe: 'var(--s-gold)',
   coach_equipe: '#4da6ff',
   capitaine: 'var(--s-gold)',
   joueur: 'var(--s-text)',
@@ -358,7 +358,7 @@ function TeamDetailPanel({ team, onClose }: { team: Team; onClose: () => void })
                 <span className="t-mono text-[10px]" style={{ color: 'var(--s-text-muted)' }}>{team.staff.length}</span>
               </div>
               <div className="space-y-1.5">
-                {team.staff.map(p => <PlayerRow key={p.uid} player={p} color="var(--s-violet-light)" />)}
+                {team.staff.map(p => <PlayerRow key={p.uid} player={p} color="var(--s-gold)" />)}
               </div>
             </div>
           )}
@@ -419,7 +419,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
               <SkeletonCard height={220} accent="var(--s-gold)" />
             </div>
             <div className="space-y-5">
-              <SkeletonCard height={180} accent="var(--s-violet)" />
+              <SkeletonCard height={180} accent="var(--s-gold)" />
             </div>
           </div>
         </div>
@@ -966,7 +966,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                                 <div className="flex items-center justify-center gap-1 mt-1.5 flex-wrap">
                                   {affiliations.map(b => {
                                     const colors: Record<string, { bg: string; fg: string; border: string }> = {
-                                      manager: { bg: 'rgba(123,47,190,0.15)', fg: 'var(--s-violet-light)', border: 'rgba(123,47,190,0.35)' },
+                                      manager: { bg: 'rgba(255,184,0,0.15)', fg: 'var(--s-gold)', border: 'rgba(255,184,0,0.35)' },
                                       coach: { bg: 'rgba(0,129,255,0.15)', fg: '#4da6ff', border: 'rgba(0,129,255,0.35)' },
                                       capitaine: { bg: 'rgba(255,184,0,0.15)', fg: 'var(--s-gold)', border: 'rgba(255,184,0,0.35)' },
                                       joueur: { bg: 'rgba(255,255,255,0.04)', fg: 'var(--s-text-dim)', border: 'var(--s-border)' },

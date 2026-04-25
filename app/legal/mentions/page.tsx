@@ -3,8 +3,8 @@ import { Scale, Mail, Globe, Server } from 'lucide-react';
 import { LEGAL_INFO } from '@/lib/legal-info';
 
 export const metadata = {
-  title: 'Mentions légales — Springs Hub',
-  description: 'Mentions légales et informations sur l\'éditeur du site Springs Hub.',
+  title: 'Mentions légales — Aedral',
+  description: 'Mentions légales et informations sur l\'éditeur du site Aedral.',
 };
 
 export default function MentionsLegalesPage() {
@@ -15,7 +15,7 @@ export default function MentionsLegalesPage() {
       <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
 
         <div className="flex items-center gap-3">
-          <Scale size={20} style={{ color: 'var(--s-violet-light)' }} />
+          <Scale size={20} style={{ color: 'var(--s-gold)' }} />
           <h1 className="font-display text-2xl" style={{ letterSpacing: '0.04em' }}>
             MENTIONS LÉGALES
           </h1>
@@ -32,14 +32,11 @@ export default function MentionsLegalesPage() {
             <span className="t-label">Éditeur du site</span>
           </div>
           <dl className="text-sm space-y-1.5" style={{ color: 'var(--s-text)' }}>
-            <LegalLine label="Dénomination" value={i.associationName} />
-            <LegalLine label="Statut juridique" value={i.associationType} />
-            <LegalLine label="Numéro RNA" value={i.associationRNA} />
-            {i.associationSiren && <LegalLine label="SIREN" value={i.associationSiren} />}
-            {i.associationSiret && <LegalLine label="SIRET" value={i.associationSiret} />}
-            <LegalLine label="Déclarée le" value={`${i.associationDeclarationDate} — ${i.associationDeclarationPrefecture}`} />
-            <LegalLine label="Siège social" value={i.associationAddress} />
-            <LegalLine label="Représentant légal" value={`${i.representativeName} (${i.representativeRole})`} />
+            <LegalLine label="Éditeur" value={i.editorName} />
+            <LegalLine label="Statut juridique" value={i.editorStatus} />
+            <LegalLine label="Adresse" value={i.editorAddress} />
+            {i.editorSiren && <LegalLine label="SIREN" value={i.editorSiren} />}
+            {i.editorSiret && <LegalLine label="SIRET" value={i.editorSiret} />}
           </dl>
         </section>
 
@@ -50,11 +47,11 @@ export default function MentionsLegalesPage() {
             <span className="t-label">Contact</span>
           </div>
           <dl className="text-sm space-y-1.5" style={{ color: 'var(--s-text)' }}>
-            <LegalLine label="Email" value={<a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-violet-light)' }}>{i.contactEmail}</a>} />
+            <LegalLine label="Email" value={<a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-gold)' }}>{i.contactEmail}</a>} />
             {i.contactPhone && <LegalLine label="Téléphone" value={i.contactPhone} />}
           </dl>
           <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-            Pour toute demande RGPD (accès, rectification, suppression), contactez-nous à cette adresse — réponse sous 30 jours maximum.
+            Pour toute demande RGPD (accès, rectification, suppression), contactez l&apos;éditeur à cette adresse — réponse sous 30 jours maximum.
           </p>
         </section>
 
@@ -65,8 +62,9 @@ export default function MentionsLegalesPage() {
             <span className="t-label">Site internet</span>
           </div>
           <dl className="text-sm space-y-1.5" style={{ color: 'var(--s-text)' }}>
+            <LegalLine label="Nom du site" value={i.siteName} />
             <LegalLine label="URL" value={i.siteUrl} />
-            <LegalLine label="Directeur de publication" value={i.representativeName} />
+            <LegalLine label="Directeur de publication" value={i.editorName} />
           </dl>
         </section>
 
@@ -79,7 +77,7 @@ export default function MentionsLegalesPage() {
           <dl className="text-sm space-y-1.5" style={{ color: 'var(--s-text)' }}>
             <LegalLine label="Hébergeur" value={i.hosterName} />
             <LegalLine label="Adresse" value={i.hosterAddress} />
-            <LegalLine label="Site" value={<a href={i.hosterUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--s-violet-light)' }}>{i.hosterUrl}</a>} />
+            <LegalLine label="Site" value={<a href={i.hosterUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--s-gold)' }}>{i.hosterUrl}</a>} />
           </dl>
 
           <div className="divider" />
@@ -100,13 +98,13 @@ export default function MentionsLegalesPage() {
         <section className="panel p-5 space-y-3">
           <span className="t-label">Propriété intellectuelle</span>
           <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            Le site, sa charte graphique, son code source et l&apos;ensemble de ses éléments distinctifs (logos, identités visuelles Springs E-Sport) sont la propriété de l&apos;association {i.associationName}.
+            Le site Aedral, sa charte graphique, son code source et l&apos;ensemble de ses éléments distinctifs (logo, identité visuelle) sont la propriété exclusive de {i.editorName}.
           </p>
           <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            Les logos, marques et identités visuelles de Rocket League (Psyonix), Trackmania (Ubisoft/Nadeo), Discord, Epic Games et autres marques citées restent la propriété exclusive de leurs détenteurs respectifs. Leur usage sur le site relève du droit de citation et n&apos;implique aucun partenariat officiel.
+            Les logos, marques et identités visuelles de Springs E-Sport (partenaire), Rocket League (Psyonix), Trackmania (Ubisoft/Nadeo), Discord, Epic Games et autres marques citées restent la propriété exclusive de leurs détenteurs respectifs. Leur usage sur le site relève du droit de citation et n&apos;implique aucun partenariat officiel hors mention explicite.
           </p>
           <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            Les contenus postés par les utilisateurs (bios, descriptions de structures, documents) demeurent la propriété de leurs auteurs, qui concèdent à Springs E-Sport une licence non exclusive d&apos;affichage sur le site, strictement nécessaire au fonctionnement de la plateforme.
+            Les contenus postés par les utilisateurs (bios, descriptions de structures, documents) demeurent la propriété de leurs auteurs, qui concèdent à l&apos;éditeur une licence non exclusive d&apos;affichage sur le site, strictement nécessaire au fonctionnement de la plateforme.
           </p>
         </section>
 
@@ -114,7 +112,7 @@ export default function MentionsLegalesPage() {
         <section className="panel p-5 space-y-3">
           <span className="t-label">Signalement de contenu</span>
           <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            Conformément à la loi pour la confiance dans l&apos;économie numérique (LCEN), tout contenu manifestement illicite peut être signalé à l&apos;adresse <a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-violet-light)' }}>{i.contactEmail}</a>. Les signalements sont traités dans les meilleurs délais et les contenus illicites retirés sans préavis.
+            Conformément à la loi pour la confiance dans l&apos;économie numérique (LCEN), tout contenu manifestement illicite peut être signalé à l&apos;adresse <a href={`mailto:${i.contactEmail}`} style={{ color: 'var(--s-gold)' }}>{i.contactEmail}</a>. Les signalements sont traités dans les meilleurs délais et les contenus illicites retirés sans préavis.
           </p>
         </section>
 
@@ -122,7 +120,7 @@ export default function MentionsLegalesPage() {
           <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
             Voir aussi notre politique de confidentialité.
           </span>
-          <Link href="/legal/confidentialite" className="text-xs" style={{ color: 'var(--s-violet-light)' }}>
+          <Link href="/legal/confidentialite" className="text-xs" style={{ color: 'var(--s-gold)' }}>
             Politique de confidentialité →
           </Link>
         </div>
