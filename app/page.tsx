@@ -2,8 +2,17 @@
 
 import Link from 'next/link';
 import { Trophy, Users, ArrowRight, ExternalLink, Calendar, Gamepad2, UserPlus, Shield, ChevronRight } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api-client';
+import { SkeletonText } from '@/components/ui/Skeleton';
 import ConnectedDashboard from '@/components/home/ConnectedDashboard';
+
+type PublicStats = {
+  structures: number;
+  players: number;
+  recruitingPlayers: number;
+};
 
 const competitions = [
   {
@@ -38,8 +47,24 @@ const competitions = [
   },
 ];
 
-const pillars = [
+type PillarId = 'structures' | 'players' | 'competitions';
+type Pillar = {
+  id: PillarId;
+  icon: typeof Shield;
+  title: string;
+  tag: string;
+  tagClass: string;
+  accent: string;
+  iconColor: string;
+  desc: string;
+  features: string[];
+  href: string;
+  statLabel: string;
+};
+
+const pillars: Pillar[] = [
   {
+    id: 'structures',
     icon: Shield,
     title: 'STRUCTURES',
     tag: 'Gestion',
@@ -49,10 +74,10 @@ const pillars = [
     desc: 'Crée ta structure, gère ton roster et tes sous-équipes. Inscris-toi aux compétitions Springs.',
     features: ['Roster', 'Sous-équipes', 'Planning', 'Inscriptions'],
     href: '/community/structures',
-    stat: '0',
     statLabel: 'Structures',
   },
   {
+    id: 'players',
     icon: UserPlus,
     title: 'VIVIER JOUEURS',
     tag: 'Recrutement',
@@ -62,10 +87,10 @@ const pillars = [
     desc: 'Annuaire des joueurs de l\'écosystème. Profils, rangs, disponibilité pour le recrutement.',
     features: ['Profils', 'Rangs', 'Recrutement', 'Disponibilité'],
     href: '/community/players',
-    stat: '—',
     statLabel: 'Joueurs',
   },
   {
+    id: 'competitions',
     icon: Trophy,
     title: 'COMPÉTITIONS',
     tag: 'Événements',
@@ -75,7 +100,6 @@ const pillars = [
     desc: 'Saisons, cups, tournois Springs. Classements, résultats, inscriptions connectées aux structures.',
     features: ['Rocket League', 'Trackmania'],
     href: '/competitions',
-    stat: '2',
     statLabel: 'Actives',
   },
 ];
@@ -91,6 +115,19 @@ export default function HomePage() {
   const { user, loading } = useAuth();
   const isConnected = !loading && !!user;
 
+  // Stats publiques pour les piliers + visitor hero. Endpoint cache CDN 5 min,
+  // donc lecture quasi-gratuite à l'échelle du site.
+  const statsQuery = useQuery({
+    queryKey: ['public-stats'] as const,
+    queryFn: () => api<PublicStats>('/api/public/stats'),
+  });
+  const stats = statsQuery.data;
+  const statsByPillar: Record<PillarId, number | null> = {
+    structures: stats?.structures ?? null,
+    players: stats?.players ?? null,
+    competitions: competitions.length,
+  };
+
   return (
     <div className="min-h-screen hex-bg px-8 py-8 space-y-10">
       <div className="relative z-[1] space-y-10">
@@ -99,7 +136,7 @@ export default function HomePage() {
         {isConnected && user && <ConnectedDashboard user={user} />}
 
         {/* Mode visiteur : hero marketing */}
-        {!isConnected && <VisitorHero />}
+        {!isConnected && <VisitorHero stats={stats ?? null} />}
 
         {/* Compétitions — visible pour tous */}
         <section className="animate-fade-in-d2">
@@ -163,7 +200,9 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {pillars.map(({ icon: Icon, title, tag, tagClass, accent, iconColor, desc, features, href, stat, statLabel }) => (
+            {pillars.map(({ id, icon: Icon, title, tag, tagClass, accent, iconColor, desc, features, href, statLabel }) => {
+              const stat = statsByPillar[id];
+              return (
               <Link key={title} href={href}
                 className="pillar-card panel group block relative overflow-hidden transition-all duration-200"
                 style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
@@ -185,7 +224,13 @@ export default function HomePage() {
                         <Icon size={22} style={{ color: iconColor }} />
                       </div>
                       <div className="text-right">
-                        <span className="font-display text-3xl block" style={{ color: accent, letterSpacing: '0.02em', lineHeight: 1 }}>{stat}</span>
+                        {stat === null ? (
+                          <div className="ml-auto" style={{ width: 48, height: 30 }}>
+                            <SkeletonText width={48} height={30} />
+                          </div>
+                        ) : (
+                          <span className="font-display text-3xl block" style={{ color: accent, letterSpacing: '0.02em', lineHeight: 1 }}>{stat}</span>
+                        )}
                         <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>{statLabel}</span>
                       </div>
                     </div>
@@ -207,7 +252,8 @@ export default function HomePage() {
                   </div>
                 </div>
               </Link>
-            ))}
+              );
+            })}
           </div>
         </section>
 
@@ -247,7 +293,7 @@ export default function HomePage() {
   );
 }
 
-function VisitorHero() {
+function VisitorHero({ stats }: { stats: PublicStats | null }) {
   return (
     <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
       <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), var(--s-violet-light), transparent 80%)' }} />
@@ -301,12 +347,20 @@ function VisitorHero() {
               <div className="divider" />
               <div className="flex items-center justify-between">
                 <span className="t-body">Structures</span>
-                <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Bientôt</span>
+                {stats === null ? (
+                  <SkeletonText width={32} height={20} />
+                ) : (
+                  <span className="font-display text-2xl" style={{ color: 'var(--s-violet-light)', letterSpacing: '0.02em' }}>{stats.structures}</span>
+                )}
               </div>
               <div className="divider" />
               <div className="flex items-center justify-between">
                 <span className="t-body">Joueurs inscrits</span>
-                <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Bientôt</span>
+                {stats === null ? (
+                  <SkeletonText width={32} height={20} />
+                ) : (
+                  <span className="font-display text-2xl" style={{ color: 'var(--s-violet-light)', letterSpacing: '0.02em' }}>{stats.players}</span>
+                )}
               </div>
             </div>
           </div>
