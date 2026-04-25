@@ -9,6 +9,7 @@ import { createNotification } from '@/lib/notifications';
 import { addJoinHistory, closeOpenHistory } from '@/lib/member-history';
 import { addAuditLog, writeAuditLog } from '@/lib/audit-log';
 import { bumpStructureCounter } from '@/lib/structure-counters';
+import { postRecruitmentEmbed } from '@/lib/discord-bot';
 
 // Durée de validité d'un lien d'invitation. Au-delà, le lien est inactivable
 // automatiquement à la consommation, pour éviter qu'un token leaké il y a 6 mois
@@ -552,6 +553,32 @@ export async function POST(req: NextRequest) {
           targetId: inviteRef.id,
           metadata: { game, role: role || 'joueur' },
         });
+
+        // Notif Discord dans le canal staff (si bot installé + scope staff configuré).
+        // Fire-and-forget : Sentry log si Discord down, mais l'invitation reste valide.
+        const staffChannelId = structureData.discordIntegration?.staffChannelId;
+        if (staffChannelId) {
+          try {
+            const targetName = targetData.displayName || targetData.discordUsername || 'Un joueur';
+            await postRecruitmentEmbed(staffChannelId, {
+              kind: 'direct_invite',
+              personName: targetName,
+              personAvatarUrl: targetData.avatarUrl || targetData.discordAvatar || null,
+              structureName: structureData.name,
+              structureLogoUrl: structureData.logoUrl || null,
+              game,
+              role: role || 'joueur',
+              country: targetData.country || null,
+              message: typeof message === 'string' ? message.trim() || null : null,
+              rlRank: targetData.rlStats?.rank || targetData.rlRank || null,
+              pseudoTM: targetData.pseudoTM || null,
+              siteUrl: `${req.nextUrl.origin}/community/my-structure?tab=recruitment`,
+              pingRoleId: structureData.discordIntegration?.staffRoleId || null,
+            });
+          } catch (e) {
+            captureApiError('Discord post recruitment failed (direct_invite)', e);
+          }
+        }
 
         return NextResponse.json({ success: true, invitationId: inviteRef.id });
       }

@@ -7,6 +7,7 @@ import { createNotifications } from '@/lib/notifications';
 import { addJoinHistory, closeOpenHistory } from '@/lib/member-history';
 import { addAuditLog } from '@/lib/audit-log';
 import { bumpStructureCounter } from '@/lib/structure-counters';
+import { postRecruitmentEmbed } from '@/lib/discord-bot';
 
 // POST /api/structures/join — rejoindre une structure (via lien ou demande)
 export async function POST(req: NextRequest) {
@@ -225,6 +226,32 @@ export async function POST(req: NextRequest) {
           link: '/community/my-structure',
           metadata: { structureId, applicantId: uid },
         })));
+
+        // Notif Discord dans le canal staff (si bot installé + scope staff configuré).
+        // Fire-and-forget : Sentry log si Discord down, mais la candidature reste valide.
+        const staffChannelId = structData.discordIntegration?.staffChannelId;
+        if (staffChannelId) {
+          try {
+            const applicantData = applicantSnap.exists ? applicantSnap.data()! : null;
+            await postRecruitmentEmbed(staffChannelId, {
+              kind: 'join_request',
+              personName: applicantName,
+              personAvatarUrl: applicantData?.avatarUrl || applicantData?.discordAvatar || null,
+              structureName: structData.name,
+              structureLogoUrl: structData.logoUrl || null,
+              game: game || 'rocket_league',
+              role: role || 'joueur',
+              country: applicantData?.country || null,
+              message: message?.trim() || null,
+              rlRank: applicantData?.rlStats?.rank || applicantData?.rlRank || null,
+              pseudoTM: applicantData?.pseudoTM || null,
+              siteUrl: `${req.nextUrl.origin}/community/my-structure?tab=recruitment`,
+              pingRoleId: structData.discordIntegration?.staffRoleId || null,
+            });
+          } catch (e) {
+            captureApiError('Discord post recruitment failed (join_request)', e);
+          }
+        }
 
         return NextResponse.json({ success: true });
       }

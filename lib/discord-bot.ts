@@ -426,6 +426,143 @@ export async function sendTodoDM(
   }
 }
 
+// ---------- Recrutement ----------
+
+// Couleurs alignées sur la DA Springs :
+//   - join_request : teal/cyan (candidature reçue, action requise des dirigeants)
+//   - direct_invite : violet Springs (action sortante de la structure)
+const RECRUITMENT_COLORS = {
+  join_request: 0x00d9b5,   // teal — incoming
+  direct_invite: 0xa364d9,  // violet Springs — outgoing
+} as const;
+
+const GAME_LABELS: Record<string, string> = {
+  rocket_league: 'Rocket League',
+  trackmania: 'Trackmania',
+};
+
+const RECRUITMENT_ROLE_LABELS: Record<string, string> = {
+  joueur: 'Joueur',
+  coach: 'Coach',
+  manager: 'Manager',
+};
+
+export interface RecruitmentEmbedInput {
+  // Type de notification — détermine les couleurs, le titre et le verbe utilisés.
+  kind: 'join_request' | 'direct_invite';
+  // Personne au cœur de la notification (candidat pour join_request, cible pour direct_invite).
+  personName: string;
+  personAvatarUrl?: string | null;
+  // Contexte structure (affiché dans l'author line + footer).
+  structureName: string;
+  structureLogoUrl?: string | null;
+  // Détail de la candidature/invitation.
+  game: string;            // 'rocket_league' | 'trackmania' | autre
+  role?: string | null;    // 'joueur' | 'coach' | 'manager'
+  country?: string | null;
+  message?: string | null; // motivation candidat / message d'invitation
+  // Niveau jeu (rendu uniquement si pertinent pour le jeu visé).
+  rlRank?: string | null;
+  pseudoTM?: string | null;
+  // Lien vers le Hub (rend le titre cliquable). Mène typiquement vers
+  // /community/my-structure?tab=recruitment.
+  siteUrl?: string | null;
+  // Ping rôle staff (allowed_mentions ne pingera QUE ce rôle, jamais @everyone).
+  pingRoleId?: string | null;
+}
+
+// Poste un embed "candidature reçue" ou "invitation envoyée" dans un salon
+// Discord. Même contrat que postEventEmbed/postTodoEmbed : appelé en
+// fire-and-forget côté route, throw si échec pour log Sentry — la candidature
+// elle-même ne doit JAMAIS échouer si Discord est down.
+export async function postRecruitmentEmbed(channelId: string, input: RecruitmentEmbedInput): Promise<string> {
+  const isJoin = input.kind === 'join_request';
+  const color = RECRUITMENT_COLORS[input.kind];
+  const gameLabel = GAME_LABELS[input.game] ?? input.game;
+  const roleLabel = input.role ? (RECRUITMENT_ROLE_LABELS[input.role] ?? input.role) : null;
+
+  // Mention en tête de message — staff role uniquement (allowed_mentions filtre).
+  const mentionsLine = input.pingRoleId ? `<@&${input.pingRoleId}>` : '';
+
+  const authorParts = [isJoin ? '📩 RECRUTEMENT · Candidature' : '📨 RECRUTEMENT · Invitation'];
+  if (input.structureName) authorParts.push(input.structureName);
+  const authorName = authorParts.join(' · ').slice(0, 256);
+
+  const titleVerb = isJoin
+    ? `Nouvelle candidature de ${input.personName}`
+    : `Invitation envoyée à ${input.personName}`;
+  const title = titleVerb.slice(0, 256);
+
+  // Champs meta inline — toujours présents pour donner le contexte rapide.
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = [
+    { name: '🎮 Jeu', value: gameLabel.slice(0, 256), inline: true },
+  ];
+  if (roleLabel) {
+    fields.push({ name: '👤 Rôle', value: roleLabel.slice(0, 256), inline: true });
+  }
+  if (input.country) {
+    fields.push({ name: '🌍 Pays', value: input.country.slice(0, 64), inline: true });
+  }
+
+  // Niveau jeu — uniquement si pertinent pour le jeu visé. Mettre des champs
+  // vides pour des jeux non concernés rendrait l'embed bruyant.
+  if (input.game === 'rocket_league' && input.rlRank) {
+    fields.push({ name: '🏆 Rang RL', value: input.rlRank.slice(0, 64), inline: true });
+  }
+  if (input.game === 'trackmania' && input.pseudoTM) {
+    fields.push({ name: '🎯 Pseudo TM', value: input.pseudoTM.slice(0, 64), inline: true });
+  }
+
+  const authorObj: Record<string, unknown> = { name: authorName };
+  if (input.structureLogoUrl && /^https:\/\//.test(input.structureLogoUrl)) {
+    authorObj.icon_url = input.structureLogoUrl;
+  }
+
+  const embed: Record<string, unknown> = {
+    color,
+    author: authorObj,
+    title,
+    description: (input.message ?? '').slice(0, 2000) || undefined,
+    fields,
+    footer: {
+      text: isJoin
+        ? 'Springs Hub · À traiter dans l\'onglet Recrutement'
+        : 'Springs Hub · Suivi dans l\'onglet Recrutement',
+    },
+    timestamp: new Date().toISOString(),
+  };
+  if (input.siteUrl) embed.url = input.siteUrl;
+  // Thumbnail = avatar de la personne (candidat ou cible) — visage humain
+  // immédiatement reconnaissable par les dirigeants qui scannent leur Discord.
+  if (input.personAvatarUrl && /^https:\/\//.test(input.personAvatarUrl)) {
+    embed.thumbnail = { url: input.personAvatarUrl };
+  }
+
+  const allowedMentions: Record<string, unknown> = { parse: [] };
+  if (input.pingRoleId) allowedMentions.roles = [input.pingRoleId];
+
+  const content = mentionsLine || undefined;
+
+  const res = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bot ${botToken()}`,
+    },
+    body: JSON.stringify({
+      ...(content ? { content } : {}),
+      embeds: [embed],
+      allowed_mentions: allowedMentions,
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Discord post recruitment failed: ${res.status} ${body.slice(0, 300)}`);
+  }
+  const data = await res.json();
+  return data.id as string;
+}
+
 // URL CDN de l'icône d'un serveur (ou null si pas d'icône custom).
 export function guildIconUrl(guildId: string, iconHash: string | null, size = 128): string | null {
   if (!iconHash) return null;
