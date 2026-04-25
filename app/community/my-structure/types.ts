@@ -5,6 +5,27 @@ export type DiscordRole = { id: string; name: string; color: number; position: n
 
 export type TeamRosterMember = { uid: string; displayName: string; avatarUrl: string; discordAvatar: string };
 
+export type InviteLink = { id: string; token: string; status: string; createdAt: string; game: string | null };
+export type JoinRequest = { id: string; applicantId: string; displayName: string; discordAvatar: string; avatarUrl: string; message: string; game: string; role: string; country: string; rlRank: string; rlMmr: number | null; pseudoTM: string; createdAt: string };
+export type DirectInvite = { id: string; targetUserId: string; displayName: string; discordAvatar: string; avatarUrl: string; message: string; game: string; role: string; country: string; rlRank: string; rlMmr: number | null; pseudoTM: string; createdAt: string };
+export type Suggestion = { uid: string; displayName: string; discordAvatar: string; avatarUrl: string; country: string; games: string[]; matchingGames: string[]; recruitmentRole: string; recruitmentMessage: string; rlRank: string; rlMmr: number | null; pseudoTM: string };
+export type ShortlistItem = {
+  uid: string;
+  displayName: string;
+  avatarUrl: string;
+  discordAvatar: string;
+  country: string;
+  games: string[];
+  recruitmentRole: string;
+  isAvailableForRecruitment: boolean;
+  rlRank: string;
+  rlMmr: number | null;
+  pseudoTM: string;
+  addedAt: number | null;
+  note: string;
+};
+export type EditRecruiting = { active: boolean; positions: { game: string; role: string }[]; message: string };
+
 export type TeamData = {
   id: string;
   name: string;
