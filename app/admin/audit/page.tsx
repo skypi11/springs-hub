@@ -38,12 +38,12 @@ const ACTION_META: Record<string, { label: string; color: string }> = {
   user_banned: { label: 'Utilisateur banni', color: '#ff5555' },
   user_unbanned: { label: 'Utilisateur débanni', color: '#33ff66' },
   user_force_disconnected: { label: 'Déconnexion forcée', color: '#FFB800' },
-  user_admin_granted: { label: 'Admin accordé', color: '#a364d9' },
-  user_admin_revoked: { label: 'Admin retiré', color: '#a364d9' },
+  user_admin_granted: { label: 'Admin accordé', color: '#FFB800' },
+  user_admin_revoked: { label: 'Admin retiré', color: '#FFB800' },
   user_edited: { label: 'Profil modifié', color: '#0081FF' },
   user_removed_from_structure: { label: 'Retiré d\'une structure', color: '#FFB800' },
   user_deleted: { label: 'Compte supprimé', color: '#ff5555' },
-  user_impersonation_started: { label: 'Impersonation démarrée', color: '#a364d9' },
+  user_impersonation_started: { label: 'Impersonation démarrée', color: '#FFB800' },
   user_impersonation_stopped: { label: 'Impersonation arrêtée', color: '#7a7a95' },
   self_delete_account: { label: 'Auto-suppression (RGPD)', color: '#ff5555' },
   notification_broadcast: { label: 'Notification broadcast', color: '#0081FF' },
@@ -51,8 +51,8 @@ const ACTION_META: Record<string, { label: string; color: string }> = {
   transfer_initiated: { label: 'Transfert initié', color: '#FFB800' },
   transfer_confirmed: { label: 'Transfert confirmé', color: '#33ff66' },
   transfer_cancelled: { label: 'Transfert annulé', color: '#ff5555' },
-  cofounder_promoted: { label: 'Co-fondateur promu', color: '#a364d9' },
-  cofounder_demoted: { label: 'Co-fondateur rétrogradé', color: '#a364d9' },
+  cofounder_promoted: { label: 'Co-fondateur promu', color: '#FFB800' },
+  cofounder_demoted: { label: 'Co-fondateur rétrogradé', color: '#FFB800' },
   manager_added: { label: 'Manager ajouté', color: '#0081FF' },
   manager_removed: { label: 'Manager retiré', color: '#0081FF' },
   coach_added: { label: 'Coach ajouté', color: '#0081FF' },
@@ -185,7 +185,7 @@ export default function AdminAuditPage() {
       {/* Header */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-2">
-          <History size={20} style={{ color: 'var(--s-violet-light)' }} />
+          <History size={20} style={{ color: 'var(--s-gold)' }} />
           <h2 className="font-display text-xl" style={{ letterSpacing: '0.04em' }}>
             AUDIT LOG ({filtered.length})
           </h2>
@@ -209,9 +209,9 @@ export default function AdminAuditPage() {
             opacity: filtered.length === 0 ? 0.5 : 1,
             padding: '6px 12px', fontSize: '11px',
             display: 'inline-flex', alignItems: 'center', gap: 6,
-            background: 'rgba(123,47,190,0.1)',
-            color: 'var(--s-violet-light)',
-            borderColor: 'rgba(123,47,190,0.3)',
+            background: 'rgba(255,184,0,0.1)',
+            color: 'var(--s-gold)',
+            borderColor: 'rgba(255,184,0,0.3)',
           }}
           title={`Exporter ${filtered.length} ligne(s) affichée(s)`}
         >
@@ -239,9 +239,9 @@ export default function AdminAuditPage() {
               onClick={() => setSourceFilter(f.value)}
               className="tag transition-all duration-150"
               style={{
-                background: sourceFilter === f.value ? 'rgba(123,47,190,0.15)' : 'transparent',
-                color: sourceFilter === f.value ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
-                borderColor: sourceFilter === f.value ? 'rgba(123,47,190,0.4)' : 'var(--s-border)',
+                background: sourceFilter === f.value ? 'rgba(255,184,0,0.15)' : 'transparent',
+                color: sourceFilter === f.value ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                borderColor: sourceFilter === f.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
                 cursor: 'pointer',
                 padding: '6px 14px',
                 fontSize: '11px',
@@ -330,9 +330,9 @@ export default function AdminAuditPage() {
                         style={{
                           fontSize: '9px',
                           padding: '1px 6px',
-                          background: log.source === 'admin' ? 'rgba(163,100,217,0.15)' : 'rgba(0,129,255,0.15)',
-                          color: log.source === 'admin' ? 'var(--s-violet-light)' : '#4da6ff',
-                          border: `1px solid ${log.source === 'admin' ? 'rgba(163,100,217,0.35)' : 'rgba(0,129,255,0.35)'}`,
+                          background: log.source === 'admin' ? 'rgba(255,184,0,0.15)' : 'rgba(0,129,255,0.15)',
+                          color: log.source === 'admin' ? 'var(--s-gold)' : '#4da6ff',
+                          border: `1px solid ${log.source === 'admin' ? 'rgba(255,184,0,0.35)' : 'rgba(0,129,255,0.35)'}`,
                         }}
                       >
                         {log.source === 'admin' ? 'ADMIN' : 'STRUCTURE'}

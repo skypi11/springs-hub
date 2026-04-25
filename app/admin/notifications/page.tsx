@@ -128,7 +128,7 @@ export default function AdminNotificationsPage() {
           icon={<History size={14} />}
           label="Envoyées 7j"
           value={data.stats.last7d}
-          color="var(--s-violet-light)"
+          color="var(--s-gold)"
         />
         <StatCard
           icon={<Bell size={14} />}
@@ -141,7 +141,7 @@ export default function AdminNotificationsPage() {
       {/* Formulaire d'envoi */}
       <div className="panel p-4 space-y-3">
         <div className="flex items-center gap-2">
-          <Send size={14} style={{ color: 'var(--s-violet-light)' }} />
+          <Send size={14} style={{ color: 'var(--s-gold)' }} />
           <span className="t-label">Envoyer une notification</span>
         </div>
 
@@ -155,9 +155,9 @@ export default function AdminNotificationsPage() {
               <button key={a.value} type="button" onClick={() => setAudience(a.value)}
                 className="tag transition-all duration-150"
                 style={{
-                  background: audience === a.value ? 'rgba(123,47,190,0.15)' : 'transparent',
-                  color: audience === a.value ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
-                  borderColor: audience === a.value ? 'rgba(123,47,190,0.4)' : 'var(--s-border)',
+                  background: audience === a.value ? 'rgba(255,184,0,0.15)' : 'transparent',
+                  color: audience === a.value ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                  borderColor: audience === a.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
                   cursor: 'pointer', padding: '6px 14px', fontSize: '11px',
                 }}>
                 {a.label}
@@ -256,9 +256,9 @@ export default function AdminNotificationsPage() {
           <div key={n.id} className="panel p-3">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center" style={{
-                background: n.read ? 'var(--s-elevated)' : 'rgba(123,47,190,0.15)',
+                background: n.read ? 'var(--s-elevated)' : 'rgba(255,184,0,0.15)',
               }}>
-                <Bell size={14} style={{ color: n.read ? 'var(--s-text-muted)' : 'var(--s-violet-light)' }} />
+                <Bell size={14} style={{ color: n.read ? 'var(--s-text-muted)' : 'var(--s-gold)' }} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -284,7 +284,7 @@ export default function AdminNotificationsPage() {
                     <AdminUserRef uid={n.userId} name={n.userName} layout="inline" />
                   </span>
                   {n.link && (
-                    <Link href={n.link} className="hover:underline" style={{ color: 'var(--s-violet-light)' }}>
+                    <Link href={n.link} className="hover:underline" style={{ color: 'var(--s-gold)' }}>
                       {n.link}
                     </Link>
                   )}

@@ -175,7 +175,7 @@ export default function NotificationsBell() {
               maxHeight: '70vh',
               background: 'var(--s-surface)',
               border: '1px solid var(--s-border)',
-              boxShadow: '0 24px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(123,47,190,0.1)',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,184,0,0.1)',
             }}
           >
             {/* Header */}
@@ -242,12 +242,12 @@ export default function NotificationsBell() {
                       onClick={() => handleClick(n)}
                       className="w-full flex items-start gap-3 px-4 py-3 text-left transition-colors duration-150"
                       style={{
-                        background: n.read ? 'transparent' : 'rgba(123,47,190,0.06)',
+                        background: n.read ? 'transparent' : 'rgba(255,184,0,0.06)',
                         borderBottom: '1px solid var(--s-border)',
                       }}
                       onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--s-elevated)'; }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.background = n.read ? 'transparent' : 'rgba(123,47,190,0.06)';
+                        e.currentTarget.style.background = n.read ? 'transparent' : 'rgba(255,184,0,0.06)';
                       }}
                     >
                       <div

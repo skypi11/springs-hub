@@ -69,9 +69,9 @@ export default function AdminDevPage() {
           OUTILS DEV
         </h2>
         <span className="tag" style={{
-          background: isDev ? 'rgba(255,184,0,0.12)' : 'rgba(123,47,190,0.12)',
-          color: isDev ? '#FFB800' : 'var(--s-violet-light)',
-          borderColor: isDev ? 'rgba(255,184,0,0.4)' : 'rgba(123,47,190,0.4)',
+          background: isDev ? 'rgba(255,184,0,0.12)' : 'rgba(255,184,0,0.12)',
+          color: isDev ? '#FFB800' : 'var(--s-gold)',
+          borderColor: isDev ? 'rgba(255,184,0,0.4)' : 'rgba(255,184,0,0.4)',
           fontSize: '10px', padding: '2px 8px',
         }}>
           {data.runtime.nodeEnv.toUpperCase()}
@@ -223,7 +223,7 @@ export default function AdminDevPage() {
               style={{
                 background: 'var(--s-elevated)',
                 borderRadius: '2px',
-                color: 'var(--s-violet-light)',
+                color: 'var(--s-gold)',
               }}>
               <span>{l.label}</span>
               <ExternalLink size={10} style={{ opacity: 0.6 }} />
@@ -257,7 +257,7 @@ function DevEndpoint({ method, path, description }: { method: string; path: stri
         {method}
       </span>
       <div className="flex-1 min-w-0">
-        <div className="t-mono text-xs" style={{ color: 'var(--s-violet-light)' }}>{path}</div>
+        <div className="t-mono text-xs" style={{ color: 'var(--s-gold)' }}>{path}</div>
         <p className="text-xs mt-0.5" style={{ color: 'var(--s-text-muted)' }}>{description}</p>
       </div>
     </div>

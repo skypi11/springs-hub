@@ -119,7 +119,7 @@ export default function Sidebar() {
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = 'var(--s-hover)';
-            e.currentTarget.style.borderColor = 'rgba(123,47,190,0.35)';
+            e.currentTarget.style.borderColor = 'rgba(255,184,0,0.35)';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = 'var(--s-elevated)';
@@ -160,7 +160,7 @@ export default function Sidebar() {
             <Link key={href} href={href}
               className="flex items-center gap-3 px-3 py-2.5 relative transition-all duration-150"
               style={{
-                background: active ? 'rgba(123,47,190,0.12)' : 'transparent',
+                background: active ? 'rgba(255,184,0,0.12)' : 'transparent',
                 color: active ? '#eaeaf0' : 'var(--s-text-dim)',
                 borderLeft: active ? '3px solid var(--s-gold)' : '3px solid transparent',
               }}>

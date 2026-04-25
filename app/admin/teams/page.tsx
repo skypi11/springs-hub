@@ -160,9 +160,9 @@ export default function AdminTeamsPage() {
             <button key={f.value} onClick={() => setStatusFilter(f.value)}
               className="tag transition-all duration-150"
               style={{
-                background: statusFilter === f.value ? 'rgba(123,47,190,0.15)' : 'transparent',
-                color: statusFilter === f.value ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
-                borderColor: statusFilter === f.value ? 'rgba(123,47,190,0.4)' : 'var(--s-border)',
+                background: statusFilter === f.value ? 'rgba(255,184,0,0.15)' : 'transparent',
+                color: statusFilter === f.value ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                borderColor: statusFilter === f.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
                 cursor: 'pointer',
                 padding: '6px 14px',
                 fontSize: '11px',
@@ -182,9 +182,9 @@ export default function AdminTeamsPage() {
             <button key={f.value} onClick={() => setGameFilter(f.value)}
               className="tag transition-all duration-150"
               style={{
-                background: gameFilter === f.value ? 'rgba(123,47,190,0.15)' : 'transparent',
-                color: gameFilter === f.value ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
-                borderColor: gameFilter === f.value ? 'rgba(123,47,190,0.4)' : 'var(--s-border)',
+                background: gameFilter === f.value ? 'rgba(255,184,0,0.15)' : 'transparent',
+                color: gameFilter === f.value ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                borderColor: gameFilter === f.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
                 cursor: 'pointer',
                 padding: '6px 14px',
                 fontSize: '11px',
@@ -234,7 +234,7 @@ export default function AdminTeamsPage() {
                   <div className="flex items-center gap-2">
                     <Link href={`/community/structure/${structure.id}`}
                       className="font-display text-base hover:underline"
-                      style={{ color: 'var(--s-violet-light)' }}>
+                      style={{ color: 'var(--s-gold)' }}>
                       {structure.name}
                     </Link>
                     {structure.tag && (
@@ -341,7 +341,7 @@ export default function AdminTeamsPage() {
                           href={`/community/structure/${team.structureId}`}
                           onClick={(e) => e.stopPropagation()}
                           className="flex items-center gap-1 text-xs hover:underline"
-                          style={{ color: 'var(--s-violet-light)' }}
+                          style={{ color: 'var(--s-gold)' }}
                           title="Voir la structure">
                           <ExternalLink size={11} />
                         </Link>

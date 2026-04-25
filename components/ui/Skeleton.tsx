@@ -88,7 +88,7 @@ export function SkeletonGrid({
   );
 }
 
-export function SkeletonPageHeader({ accent = 'var(--s-violet)' }: { accent?: string }) {
+export function SkeletonPageHeader({ accent = 'var(--s-gold)' }: { accent?: string }) {
   return (
     <div
       className="bevel relative overflow-hidden"

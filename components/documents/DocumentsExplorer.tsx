@@ -951,7 +951,7 @@ function formatSize(bytes: number): string {
 }
 
 function iconForMime(mime: string): { Icon: typeof FileIcon; color: string } {
-  if (mime.startsWith('image/')) return { Icon: ImageIcon, color: '#a364d9' };
+  if (mime.startsWith('image/')) return { Icon: ImageIcon, color: '#FFB800' };
   if (mime === 'application/pdf') return { Icon: FileText, color: '#ef4444' };
   if (mime.includes('word') || mime.includes('document')) return { Icon: FileText, color: '#2b7fff' };
   if (mime.includes('sheet') || mime.includes('excel') || mime === 'text/csv') return { Icon: FileText, color: '#00D936' };

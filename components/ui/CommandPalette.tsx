@@ -255,7 +255,7 @@ export default function CommandPalette() {
           style={{
             background: 'var(--s-surface)',
             border: '1px solid var(--s-border)',
-            boxShadow: '0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(123,47,190,0.12)',
+            boxShadow: '0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,184,0,0.12)',
             maxHeight: '70vh',
           }}
           onClick={(e) => e.stopPropagation()}
@@ -485,7 +485,7 @@ function ResultRow({
       onMouseEnter={onHover}
       className="w-full flex items-center gap-3 px-5 py-2.5 text-left transition-colors duration-100"
       style={{
-        background: selected ? 'rgba(123,47,190,0.14)' : 'transparent',
+        background: selected ? 'rgba(255,184,0,0.14)' : 'transparent',
         borderLeft: selected ? '2px solid var(--s-gold)' : '2px solid transparent',
       }}
     >

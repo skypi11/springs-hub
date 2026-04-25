@@ -99,13 +99,14 @@ export async function getGuildInfo(guildId: string): Promise<DiscordGuildInfo> {
   };
 }
 
-// Couleurs (decimal) utilisées dans les embeds selon le type d'event Springs —
-// alignées sur la DA du calendrier côté site.
+// Couleurs (decimal) utilisées dans les embeds selon le type d'event —
+// alignées sur la DA Aedral (palette mono noir + or, complétée par les
+// couleurs des jeux RL/TM et Discord pour les contextes spécifiques).
 const EVENT_COLORS: Record<string, number> = {
   training: 0x4da6ff, // bleu clair
-  scrim: 0xa364d9,    // violet Springs
-  match: 0xffb800,    // or Springs
-  springs: 0x5865f2,  // blurple Discord
+  scrim: 0x7a8a82,    // gris neutre
+  match: 0xffb800,    // or Aedral (rare/important)
+  springs: 0x7B2FBE,  // violet Springs (events organisés par Springs E-Sport)
   autre: 0x7a7a95,    // gris
 };
 
@@ -276,11 +277,12 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
 
 // ---------- Todos (devoirs) ----------
 
-// Couleurs par type de devoir — DA Springs (dégradés utilisés par le panel TeamTodosPanel).
+// Couleurs par type de devoir — DA Aedral (or, mono, complétée par les
+// couleurs spécifiques aux jeux RL/TM et la blurple Discord).
 const TODO_COLORS: Record<string, number> = {
   free:           0x7a7a95, // gris (tâche libre)
   replay_review:  0x4da6ff, // bleu (replay)
-  training_pack:  0xa364d9, // violet Springs (entraînement)
+  training_pack:  0xb88200, // or-dim (entraînement)
   vod_review:     0xff6bb5, // rose (vidéo)
   scouting:       0xff9f43, // orange (analyse adversaire)
   watch_party:    0x5865f2, // blurple (watch)
@@ -428,12 +430,12 @@ export async function sendTodoDM(
 
 // ---------- Recrutement ----------
 
-// Couleurs alignées sur la DA Springs :
+// Couleurs alignées sur la DA Aedral :
 //   - join_request : teal/cyan (candidature reçue, action requise des dirigeants)
-//   - direct_invite : violet Springs (action sortante de la structure)
+//   - direct_invite : or Aedral (action sortante de la structure)
 const RECRUITMENT_COLORS = {
   join_request: 0x00d9b5,   // teal — incoming
-  direct_invite: 0xa364d9,  // violet Springs — outgoing
+  direct_invite: 0xffb800,  // or Aedral — outgoing
 } as const;
 
 const GAME_LABELS: Record<string, string> = {
