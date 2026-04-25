@@ -8,6 +8,7 @@ import { Home, Users, Trophy, LogOut, Swords, Settings, Building2, Calendar, Sea
 import { useAuth } from '@/context/AuthContext';
 import NotificationsBell from '@/components/ui/NotificationsBell';
 import DevSwitcher from '@/components/dev/DevSwitcher';
+import AedralLogo from '@/components/brand/AedralLogo';
 
 const navItems = [
   { href: '/', icon: Home, label: 'Accueil' },
@@ -86,7 +87,9 @@ export default function Sidebar() {
 
       {/* Logo + close button (mobile only) */}
       <div className="px-6 py-5 flex items-center justify-between">
-        <Image src="/springs-logo.png" alt="Springs E-Sport" width={120} height={36} className="object-contain" priority />
+        <Link href="/" aria-label="Aedral — accueil">
+          <AedralLogo variant="horizontal" theme="dark" height={36} />
+        </Link>
         <button
           type="button"
           onClick={() => setMobileOpen(false)}

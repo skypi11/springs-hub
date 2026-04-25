@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- AEDRAL favicon — mark seul (auto-généré comme favicon par Next.js) -->
+  <rect width="200" height="200" fill="#08080F"/>
+  <path d="M 98 10 L 30 190 L 16 190 Z" fill="#EAEAF0"/>
+  <path d="M 102 10 L 184 190 L 170 190 Z" fill="#EAEAF0"/>
+  <rect x="76" y="120" width="10" height="60" fill="#FFB800"/>
+  <rect x="76" y="120" width="48" height="8" fill="#FFB800"/>
+  <rect x="86" y="147" width="36" height="6" fill="#FFB800"/>
+  <rect x="76" y="172" width="48" height="8" fill="#FFB800"/>
+</svg>

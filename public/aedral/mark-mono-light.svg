@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- AEDRAL mark — monochrome white (sur photos, vidéo, watermark) -->
+  <path d="M 98 10 L 30 190 L 16 190 Z" fill="#EAEAF0"/>
+  <path d="M 102 10 L 184 190 L 170 190 Z" fill="#EAEAF0"/>
+  <rect x="76" y="120" width="10" height="60" fill="#EAEAF0"/>
+  <rect x="76" y="120" width="48" height="8" fill="#EAEAF0"/>
+  <rect x="86" y="147" width="36" height="6" fill="#EAEAF0"/>
+  <rect x="76" y="172" width="48" height="8" fill="#EAEAF0"/>
+</svg>
