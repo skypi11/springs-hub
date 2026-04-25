@@ -25,6 +25,22 @@ export type ShortlistItem = {
   note: string;
 };
 export type EditRecruiting = { active: boolean; positions: { game: string; role: string }[]; message: string };
+export type HistoryItem = {
+  id: string;
+  userId: string;
+  displayName: string;
+  avatarUrl: string;
+  discordAvatar: string;
+  country: string;
+  game: string;
+  role: string;
+  joinReason: string;
+  leftReason: string | null;
+  joinedAt: number | null;
+  leftAt: number | null;
+  durationDays: number | null;
+  isOpen: boolean;
+};
 
 export type TeamData = {
   id: string;
