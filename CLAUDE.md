@@ -5,7 +5,7 @@ Plateforme communautaire esport **propriété personnelle de l'utilisateur** (Ma
 
 **Springs E-Sport = partenaire privilégié.** L'utilisateur est Directeur Général de Springs E-Sport (asso événementielle esport), et Springs reste le partenaire de référence du site (premier seed d'utilisateurs, événements officiels Springs hébergés sur la plateforme, branding partagé). Mais le site n'appartient pas à l'asso et sa roadmap est pilotée par l'utilisateur seul.
 
-Le nom actuel "Springs Hub" reflète l'origine historique du projet. **Le rebrand vers "AEDRAL" est acté** (acté 2026-04-25, domaine `aedral.com` acquis), **mais pas encore appliqué dans le code**. Tant que la DA refresh et le logo ne sont pas faits, "Springs Hub" reste le nom actif partout (repo, variables CSS, env vars, déploiement Vercel `springs-hub.vercel.app`). Ne pas anticiper la migration sans demande explicite. Voir mémoire `project_ownership_and_business_model.md` pour le plan complet.
+**Rebrand AEDRAL — appliqué côté user-facing (2026-04-25/26)** : domaine `aedral.com` live, logo Æ ligature, DA refresh (violet → or, violet réservé aux activités Springs E-Sport partenaires), migration textuelle Springs Hub → Aedral, mentions légales en nom propre Matt Molines, auth Discord/Firebase/Google Cloud configurée pour `aedral.com`. **Le nommage technique reste "springs-hub"** (repo GitHub, variables CSS `--s-*`, projet Vercel, env vars) — la migration technique est différée pour éviter le risque sans bénéfice utilisateur. Ne pas renommer le code sans demande explicite. Voir mémoire `project_ownership_and_business_model.md` pour le plan complet.
 
 ### Vision long terme — modèle économique
 À horizon 2-3 ans (an 1 = adoption gratuite, an 2+ = intro premium si traction), le site est destiné à devenir **freemium par abonnement** :
@@ -28,9 +28,9 @@ Le nom actuel "Springs Hub" reflète l'origine historique du projet. **Le rebran
 - **Styling** : Tailwind CSS
 - **Base de données** : Firebase Firestore (projet existant `monthly-cup`)
 - **Auth** : Firebase Auth — Discord OAuth (joueurs/fans) + Google OAuth (admins plateforme)
-- **Hébergement** : Vercel → `springs-hub.vercel.app` (URL dev)
-- **Repo GitHub** : `skypi11/springs-hub`
-- **Domaine final** : custom à venir (~10-15€/an sur Namecheap ou Porkbun)
+- **Hébergement** : Vercel — domaine prod `aedral.com`, fallback `springs-hub.vercel.app`
+- **Repo GitHub** : `skypi11/springs-hub` (nommage technique conservé malgré le rebrand)
+- **Domaine** : `aedral.com` (acquis via Vercel, $11/an, live depuis 2026-04-26)
 - **Polices** : Outfit (corps) + Bebas Neue (titres display, via `font-display` CSS)
 
 ### Firebase config (projet existant `monthly-cup`)
@@ -493,8 +493,9 @@ function scheduleReload() {
 ---
 
 ## URLs importantes
-- **Site dev** : `https://springs-hub.vercel.app`
-- **Site actuel (archive)** : `https://springs-esport.vercel.app`
+- **Site prod** : `https://aedral.com`
+- **Fallback Vercel** : `https://springs-hub.vercel.app`
+- **Site Springs E-Sport (archive)** : `https://springs-esport.vercel.app`
 - **GitHub** : `https://github.com/skypi11/springs-hub`
 - **Firebase console** : projet `monthly-cup`
-- Discord OAuth redirect à configurer : `https://springs-hub.vercel.app/api/auth/discord/callback`
+- Discord OAuth redirect configuré : `https://aedral.com/api/auth/discord/callback` (callback handler utilise `req.nextUrl.origin` dynamique, donc compatible multi-domaines)
