@@ -1,5 +1,6 @@
 'use client';
 
+import { Fragment } from 'react';
 import Link from 'next/link';
 import { Trophy, Users, ArrowRight, ExternalLink, Calendar, Gamepad2, UserPlus, Shield, ChevronRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -219,7 +220,10 @@ export default function HomePage() {
                       <Icon size={13} style={{ color: iconColor }} />
                       <span className="t-label" style={{ color: 'var(--s-text)' }}>{title}</span>
                     </div>
-                    <span className={`tag ${tagClass}`}>{tag}</span>
+                    <div className="flex items-center gap-2">
+                      {partnerLabel && <span className="tag tag-violet">{partnerLabel}</span>}
+                      <span className={`tag ${tagClass}`}>{tag}</span>
+                    </div>
                   </div>
                   <div className="p-5">
                     <div className="flex items-start justify-between mb-4">
@@ -348,13 +352,13 @@ function VisitorHero({ stats }: { stats: PublicStats | null }) {
                 </div>
               </div>
               {competitions.map(c => (
-                <div key={c.id}>
+                <Fragment key={c.id}>
                   <div className="divider" />
                   <div className="flex items-center justify-between gap-2">
-                    <span className="t-body truncate" title={c.name} style={{ fontSize: '13px' }}>{c.name}</span>
+                    <span className="t-body truncate" title={c.name} style={{ fontSize: '13px', lineHeight: 1.3 }}>{c.name}</span>
                     <span className={`tag ${c.tagClass}`} style={{ fontSize: '9px', padding: '2px 6px', flexShrink: 0 }}>{c.tag}</span>
                   </div>
-                </div>
+                </Fragment>
               ))}
             </div>
           </div>
