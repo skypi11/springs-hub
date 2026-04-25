@@ -1,15 +1,23 @@
-# Springs Hub — Plateforme principale Springs E-Sport
+# Springs Hub — Plateforme communautaire esport (projet personnel)
 
 ## Contexte général
-Site principal de Springs E-Sport, association événementielle esport (Directeur Général : utilisateur).
-Remplace progressivement le site actuel (`site cup monthly` / `springs-esport.vercel.app`).
+Plateforme communautaire esport **propriété personnelle de l'utilisateur** (Matt). Pas une émanation d'une asso. Le site est ouvert à toute structure / joueur de l'écosystème esport amateur, indépendamment de Springs E-Sport.
+
+**Springs E-Sport = partenaire privilégié.** L'utilisateur est Directeur Général de Springs E-Sport (asso événementielle esport), et Springs reste le partenaire de référence du site (premier seed d'utilisateurs, événements officiels Springs hébergés sur la plateforme, branding partagé). Mais le site n'appartient pas à l'asso et sa roadmap est pilotée par l'utilisateur seul.
+
+Le nom actuel "Springs Hub" reflète l'origine historique du projet — un rebrand en nom plus neutre est envisagé à terme (pas de nom retenu pour l'instant).
+
+### Vision long terme — modèle économique
+À horizon 2-3 ans (an 1 = adoption gratuite, an 2+ = intro premium si traction), le site est destiné à devenir **freemium par abonnement** :
+- **Couche gratuite préservée** : profil joueur, rejoindre une structure, calendrier basique, recrutement de base, annuaire public, dispos. Tout ce qui est nécessaire au network effect reste gratuit pour toujours.
+- **Couche premium par abonnement** : ciblera les structures (pas les joueurs individuels) — branding custom, boutons interactifs Discord, analytics avancées, automations, hosting tournois white-label, multi-admins granulaires, stockage R2 boosté.
+- **Pas de monétisation immédiate.** Toute proposition de paywall maintenant est prématurée et tue l'adoption. Ne shipper aucun mécanisme Stripe / paywall sans que l'utilisateur le demande explicitement et que la traction utilisateur le justifie.
 
 **L'utilisateur n'est pas développeur.** Claude fait tout le code et les pushs. Il vérifie uniquement sur Vercel.
 
-### Relation avec le site actuel
-- Le site actuel (`C:\Users\mattm\site cup monthly`) reste intact pendant tout le développement
-- Une fois Springs Hub prêt, il devient le point d'entrée principal
-- Les pages RL et TM actuelles deviennent des archives accessibles en lien
+### Relation avec le site actuel Springs E-Sport
+- Le site actuel (`C:\Users\mattm\site cup monthly` / `springs-esport.vercel.app`) reste intact, c'est l'ancien site de Springs E-Sport. Le Hub le remplace progressivement comme point d'entrée principal pour la communauté Springs.
+- Les pages RL et TM actuelles deviennent des archives accessibles en lien.
 - **Ne jamais modifier le repo `site cup monthly`** depuis ce projet — **seule exception automatique** : sync de `firestore.rules` (voir "Règles Firestore" plus bas), car le fichier est partagé avec le Hub sur le même projet Firebase. Toute autre modification du vieux site nécessite une autorisation explicite de l'utilisateur au cas par cas.
 
 ---
@@ -19,7 +27,7 @@ Remplace progressivement le site actuel (`site cup monthly` / `springs-esport.ve
 - **Framework** : Next.js (App Router)
 - **Styling** : Tailwind CSS
 - **Base de données** : Firebase Firestore (projet existant `monthly-cup`)
-- **Auth** : Firebase Auth — Discord OAuth (joueurs/fans) + Google OAuth (admins Springs)
+- **Auth** : Firebase Auth — Discord OAuth (joueurs/fans) + Google OAuth (admins plateforme)
 - **Hébergement** : Vercel → `springs-hub.vercel.app` (URL dev)
 - **Repo GitHub** : `skypi11/springs-hub`
 - **Domaine final** : custom à venir (~10-15€/an sur Namecheap ou Porkbun)
@@ -231,7 +239,7 @@ Fichier : `public/springs-logo.png`
 ## Collections Firestore
 
 ### Collections existantes (à réutiliser/étendre)
-- `admins` — `{uid: true}` admins Springs (Google UIDs)
+- `admins` — `{uid: true}` admins plateforme (Google UIDs) — anciennement nommé "admins Springs", la collection garde son nom legacy
 - `participants` — profils joueurs TM (ne pas modifier)
 - `editions` — éditions TM cup (ne pas modifier)
 - `results` — résultats TM (ne pas modifier)
