@@ -5,7 +5,7 @@ Plateforme communautaire esport **propriété personnelle de l'utilisateur** (Ma
 
 **Springs E-Sport = partenaire privilégié.** L'utilisateur est Directeur Général de Springs E-Sport (asso événementielle esport), et Springs reste le partenaire de référence du site (premier seed d'utilisateurs, événements officiels Springs hébergés sur la plateforme, branding partagé). Mais le site n'appartient pas à l'asso et sa roadmap est pilotée par l'utilisateur seul.
 
-Le nom actuel "Springs Hub" reflète l'origine historique du projet — un rebrand en nom plus neutre est envisagé à terme (pas de nom retenu pour l'instant).
+Le nom actuel "Springs Hub" reflète l'origine historique du projet. **Le rebrand vers "AEDRAL" est acté** (acté 2026-04-25, domaine `aedral.com` acquis), **mais pas encore appliqué dans le code**. Tant que la DA refresh et le logo ne sont pas faits, "Springs Hub" reste le nom actif partout (repo, variables CSS, env vars, déploiement Vercel `springs-hub.vercel.app`). Ne pas anticiper la migration sans demande explicite. Voir mémoire `project_ownership_and_business_model.md` pour le plan complet.
 
 ### Vision long terme — modèle économique
 À horizon 2-3 ans (an 1 = adoption gratuite, an 2+ = intro premium si traction), le site est destiné à devenir **freemium par abonnement** :
