@@ -1,11 +1,14 @@
 // Logo AEDRAL — composant React qui rend le mark + wordmark inline en SVG.
 //
 // Le mark est un Æ ligature custom (A en aplats de couleur + E intégré en or
-// avec barre top, middle, bottom et stem vertical). Wordmark en Bebas Neue
-// (police chargée via next/font dans app/layout.tsx, accessible via la classe
-// .font-display ou la variable --font-bebas).
+// avec barre top, middle, bottom et stem vertical). Wordmark en Bebas Neue.
 //
-// 4 thèmes pour couvrir tous les contextes d'usage :
+// Architecture : tout dans UN seul SVG (mark + divider + wordmark) pour un
+// alignement vertical mathématiquement parfait. Le wordmark utilise <text>
+// avec dominantBaseline="central" → centrage pixel-perfect, pas de
+// décalage typographique cap-height.
+//
+// 4 thèmes :
 //  - dark      : A blanc cassé, E or  (sur fond sombre, défaut site)
 //  - light     : A noir, E or-deep    (sur fond clair, documents print)
 //  - mono-dark : tout noir            (impression N&B, gravure)
@@ -19,24 +22,24 @@ interface AedralLogoProps {
 }
 
 const THEMES = {
-  dark:         { a: '#EAEAF0', e: '#FFB800', dral: '#EAEAF0', divider: 'rgba(234,234,240,0.18)' },
-  light:        { a: '#08080F', e: '#C8941D', dral: '#08080F', divider: 'rgba(8,8,15,0.18)' },
-  'mono-dark':  { a: '#08080F', e: '#08080F', dral: '#08080F', divider: 'rgba(8,8,15,0.4)' },
-  'mono-light': { a: '#EAEAF0', e: '#EAEAF0', dral: '#EAEAF0', divider: 'rgba(234,234,240,0.4)' },
+  dark:         { a: '#EAEAF0', e: '#FFB800', dral: '#EAEAF0', divider: '#EAEAF0', dividerOpacity: 0.18 },
+  light:        { a: '#08080F', e: '#C8941D', dral: '#08080F', divider: '#08080F', dividerOpacity: 0.18 },
+  'mono-dark':  { a: '#08080F', e: '#08080F', dral: '#08080F', divider: '#08080F', dividerOpacity: 0.4 },
+  'mono-light': { a: '#EAEAF0', e: '#EAEAF0', dral: '#EAEAF0', divider: '#EAEAF0', dividerOpacity: 0.4 },
 } as const;
 
 function MarkPaths({ aColor, eColor }: { aColor: string; eColor: string }) {
   return (
     <>
-      {/* A — jambe gauche (apex légèrement tronqué à 4px pour cohérence typographique) */}
+      {/* A — jambe gauche (apex tronqué 4px pour cohérence typographique) */}
       <path d="M 98 10 L 30 190 L 16 190 Z" fill={aColor} />
       {/* A — jambe droite */}
       <path d="M 102 10 L 184 190 L 170 190 Z" fill={aColor} />
-      {/* E — stem vertical (60px tall, démarre au top du E) */}
+      {/* E — stem vertical */}
       <rect x="76" y="120" width="10" height="60" fill={eColor} />
-      {/* E — top bar (48px, proportions classiques typographiques) */}
+      {/* E — top bar */}
       <rect x="76" y="120" width="48" height="8" fill={eColor} />
-      {/* E — middle bar (36px, ~75% du top/bottom comme un E classique) */}
+      {/* E — middle bar (~75% de top/bottom) */}
       <rect x="86" y="147" width="36" height="6" fill={eColor} />
       {/* E — bottom bar */}
       <rect x="76" y="172" width="48" height="8" fill={eColor} />
@@ -47,7 +50,7 @@ function MarkPaths({ aColor, eColor }: { aColor: string; eColor: string }) {
 export default function AedralLogo({
   variant = 'horizontal',
   theme = 'dark',
-  height = 36,
+  height = 44,
   className = '',
 }: AedralLogoProps) {
   const c = THEMES[theme];
@@ -68,42 +71,46 @@ export default function AedralLogo({
     );
   }
 
-  // Horizontal lockup : mark + divider + wordmark
-  const fontSize = Math.round(height * 0.7);
-  const dividerHeight = Math.round(height * 0.6);
-  const gap = Math.round(height * 0.35);
-
+  // Horizontal lockup — TOUT en un SVG pour alignement parfait
+  // ViewBox : 500w × 200h (ratio 2.5:1)
+  //  - Mark : 0..200 horizontal × 0..200 vertical (le mark original 200×200 inchangé)
+  //  - Divider : x=215, y=50..150 (60% de la hauteur, centré)
+  //  - Wordmark : x=235, y=100 (centré vertical via dominantBaseline)
   return (
-    <div
-      className={`inline-flex items-center ${className}`}
-      style={{ height, gap }}
+    <svg
+      viewBox="0 0 500 200"
+      height={height}
       role="img"
       aria-label="Aedral"
+      className={className}
+      style={{ display: 'block' }}
     >
-      <svg viewBox="0 0 200 200" height={height} width={height} aria-hidden="true">
-        <MarkPaths aColor={c.a} eColor={c.e} />
-      </svg>
-      <div
-        aria-hidden="true"
-        style={{
-          width: 1.5,
-          height: dividerHeight,
-          background: c.divider,
-          flexShrink: 0,
-        }}
+      <title>Aedral</title>
+      {/* Mark à gauche dans son viewBox 0..200 natif */}
+      <MarkPaths aColor={c.a} eColor={c.e} />
+      {/* Divider vertical centré, 60% de la hauteur */}
+      <line
+        x1="215"
+        y1="50"
+        x2="215"
+        y2="150"
+        stroke={c.divider}
+        strokeOpacity={c.dividerOpacity}
+        strokeWidth="3"
       />
-      <span
-        className="font-display"
-        style={{
-          fontSize,
-          letterSpacing: '0.18em',
-          lineHeight: 1,
-          whiteSpace: 'nowrap',
-        }}
+      {/* Wordmark en Bebas Neue, vertical centering pixel-perfect */}
+      <text
+        x="235"
+        y="100"
+        fontFamily='"Bebas Neue", sans-serif'
+        fontWeight="400"
+        fontSize="130"
+        letterSpacing="22"
+        dominantBaseline="central"
       >
-        <span style={{ color: c.e }}>AE</span>
-        <span style={{ color: c.dral }}>DRAL</span>
-      </span>
-    </div>
+        <tspan fill={c.e}>AE</tspan>
+        <tspan fill={c.dral}>DRAL</tspan>
+      </text>
+    </svg>
   );
 }

@@ -87,8 +87,12 @@ export default function Sidebar() {
 
       {/* Logo + close button (mobile only) */}
       <div className="px-5 py-5 flex items-center justify-between">
-        <Link href="/" aria-label="Aedral — accueil" className="flex-1 min-w-0">
-          <AedralLogo variant="horizontal" theme="dark" height={44} />
+        <Link
+          href="/"
+          aria-label="Aedral — accueil"
+          className="flex-1 min-w-0 flex items-center justify-center lg:justify-center"
+        >
+          <AedralLogo variant="horizontal" theme="dark" height={48} />
         </Link>
         <button
           type="button"
