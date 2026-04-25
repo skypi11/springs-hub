@@ -19,7 +19,7 @@ export default function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
         href="/"
         className="flex items-center gap-1.5 px-2 py-1 transition-colors duration-150"
         style={{ color: 'var(--s-text-dim)' }}
-        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--s-violet-light)'; }}
+        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--s-gold)'; }}
         onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--s-text-dim)'; }}
       >
         <Home size={13} />
@@ -36,7 +36,7 @@ export default function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
                 href={item.href}
                 className="px-2 py-1 transition-colors duration-150 text-xs font-medium truncate max-w-[180px]"
                 style={{ color: 'var(--s-text-dim)' }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--s-violet-light)'; }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--s-gold)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--s-text-dim)'; }}
                 title={item.label}
               >

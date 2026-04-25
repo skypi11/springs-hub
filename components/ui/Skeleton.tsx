@@ -33,7 +33,7 @@ export function SkeletonAvatar({ size = 40 }: { size?: number }) {
 
 export function SkeletonCard({
   height = 180,
-  accent = 'var(--s-violet)',
+  accent = 'var(--s-gold)',
 }: {
   height?: number;
   accent?: string;
@@ -72,7 +72,7 @@ export function SkeletonGrid({
   count = 6,
   cols = 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
   cardHeight = 180,
-  accent = 'var(--s-violet)',
+  accent = 'var(--s-gold)',
 }: {
   count?: number;
   cols?: string;

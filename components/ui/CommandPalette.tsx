@@ -46,14 +46,14 @@ type PlayerItem = {
 type Item = StaticItem | StructureItem | PlayerItem;
 
 const STATIC_ITEMS: StaticItem[] = [
-  { kind: 'page', id: 'home', title: 'Accueil', subtitle: 'Dashboard Springs', href: '/', icon: Home, tint: 'var(--s-violet)' },
-  { kind: 'page', id: 'community', title: 'Communauté', subtitle: 'Feed, structures, joueurs', href: '/community', icon: Users, tint: 'var(--s-violet)' },
+  { kind: 'page', id: 'home', title: 'Accueil', subtitle: 'Dashboard Springs', href: '/', icon: Home, tint: 'var(--s-gold)' },
+  { kind: 'page', id: 'community', title: 'Communauté', subtitle: 'Feed, structures, joueurs', href: '/community', icon: Users, tint: 'var(--s-gold)' },
   { kind: 'page', id: 'structures', title: 'Annuaire structures', subtitle: 'Toutes les structures', href: '/community/structures', icon: Building2, tint: 'var(--s-gold)' },
-  { kind: 'page', id: 'players', title: 'Annuaire joueurs', subtitle: 'Joueurs libres & recrutement', href: '/community/players', icon: UserIcon, tint: 'var(--s-violet)' },
+  { kind: 'page', id: 'players', title: 'Annuaire joueurs', subtitle: 'Joueurs libres & recrutement', href: '/community/players', icon: UserIcon, tint: 'var(--s-gold)' },
   { kind: 'page', id: 'competitions', title: 'Compétitions', subtitle: 'Rocket League & Trackmania', href: '/competitions', icon: Trophy, tint: 'var(--s-gold)' },
   { kind: 'page', id: 'calendar', title: 'Mon calendrier', subtitle: 'Dispos, events, devoirs', href: '/calendar', icon: Calendar, tint: 'var(--s-gold)', requiresAuth: true },
   { kind: 'page', id: 'my-structure', title: 'Ma structure', subtitle: 'Dashboard fondateur', href: '/community/my-structure', icon: Building2, tint: 'var(--s-gold)', requiresAuth: true },
-  { kind: 'page', id: 'settings', title: 'Mon profil', subtitle: 'Paramètres du compte', href: '/settings', icon: Settings, tint: 'var(--s-violet)', requiresAuth: true },
+  { kind: 'page', id: 'settings', title: 'Mon profil', subtitle: 'Paramètres du compte', href: '/settings', icon: Settings, tint: 'var(--s-gold)', requiresAuth: true },
   { kind: 'page', id: 'admin', title: 'Panel Admin', subtitle: 'Administration Springs', href: '/admin', icon: Swords, tint: 'var(--s-gold)', requiresAdmin: true },
 ];
 
@@ -486,7 +486,7 @@ function ResultRow({
       className="w-full flex items-center gap-3 px-5 py-2.5 text-left transition-colors duration-100"
       style={{
         background: selected ? 'rgba(123,47,190,0.14)' : 'transparent',
-        borderLeft: selected ? '2px solid var(--s-violet)' : '2px solid transparent',
+        borderLeft: selected ? '2px solid var(--s-gold)' : '2px solid transparent',
       }}
     >
       {children}
