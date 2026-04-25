@@ -72,13 +72,15 @@ export default function AedralLogo({
   }
 
   // Horizontal lockup — TOUT en un SVG pour alignement parfait
-  // ViewBox : 500w × 200h (ratio 2.5:1)
+  // ViewBox : 820w × 200h (ratio 4.1:1)
   //  - Mark : 0..200 horizontal × 0..200 vertical (le mark original 200×200 inchangé)
-  //  - Divider : x=215, y=50..150 (60% de la hauteur, centré)
-  //  - Wordmark : x=235, y=100 (centré vertical via dominantBaseline)
+  //  - Divider : x=235, y=50..150 (50% de la hauteur, centré)
+  //  - Wordmark : x=270, y=100 (centré vertical via dominantBaseline)
+  // Le wordmark "AEDRAL" en Bebas Neue à fontSize 110 + letter-spacing 18
+  // mesure ~490 viewBox units → fin à x≈760, marge droite ~60 unités
   return (
     <svg
-      viewBox="0 0 500 200"
+      viewBox="0 0 820 200"
       height={height}
       role="img"
       aria-label="Aedral"
@@ -88,24 +90,25 @@ export default function AedralLogo({
       <title>Aedral</title>
       {/* Mark à gauche dans son viewBox 0..200 natif */}
       <MarkPaths aColor={c.a} eColor={c.e} />
-      {/* Divider vertical centré, 60% de la hauteur */}
+      {/* Divider vertical centré, 50% de la hauteur */}
       <line
-        x1="215"
+        x1="235"
         y1="50"
-        x2="215"
+        x2="235"
         y2="150"
         stroke={c.divider}
         strokeOpacity={c.dividerOpacity}
         strokeWidth="3"
       />
-      {/* Wordmark en Bebas Neue, vertical centering pixel-perfect */}
+      {/* Wordmark en Bebas Neue, centrage vertical pixel-perfect via dominantBaseline */}
       <text
-        x="235"
+        x="270"
         y="100"
+        className="font-display"
         fontFamily='"Bebas Neue", sans-serif'
         fontWeight="400"
-        fontSize="130"
-        letterSpacing="22"
+        fontSize="110"
+        letterSpacing="18"
         dominantBaseline="central"
       >
         <tspan fill={c.e}>AE</tspan>

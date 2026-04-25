@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 200" fill="none">
+  <!-- AEDRAL — lockup horizontal complet (mark + divider + wordmark)
+       Bebas Neue chargé via Google Fonts pour les viewers qui ne l'ont pas localement -->
+  <defs>
+    <style type="text/css"><![CDATA[
+      @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
+      .aedral-wordmark { font-family: 'Bebas Neue', sans-serif; font-weight: 400; }
+    ]]></style>
+  </defs>
+
+  <!-- A jambe gauche -->
+  <path d="M 98 10 L 30 190 L 16 190 Z" fill="#EAEAF0"/>
+  <!-- A jambe droite -->
+  <path d="M 102 10 L 184 190 L 170 190 Z" fill="#EAEAF0"/>
+  <!-- E stem vertical -->
+  <rect x="76" y="120" width="10" height="60" fill="#FFB800"/>
+  <!-- E top bar -->
+  <rect x="76" y="120" width="48" height="8" fill="#FFB800"/>
+  <!-- E middle bar -->
+  <rect x="86" y="147" width="36" height="6" fill="#FFB800"/>
+  <!-- E bottom bar -->
+  <rect x="76" y="172" width="48" height="8" fill="#FFB800"/>
+
+  <!-- Divider vertical -->
+  <line x1="235" y1="50" x2="235" y2="150" stroke="#EAEAF0" stroke-opacity="0.18" stroke-width="3"/>
+
+  <!-- Wordmark AEDRAL -->
+  <text x="270" y="100" class="aedral-wordmark" font-size="110" letter-spacing="18" dominant-baseline="central">
+    <tspan fill="#FFB800">AE</tspan><tspan fill="#EAEAF0">DRAL</tspan>
+  </text>
+</svg>
