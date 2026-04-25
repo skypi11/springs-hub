@@ -1,5 +1,8 @@
 export type DashboardTab = 'general' | 'teams' | 'recruitment' | 'members' | 'calendar' | 'todos' | 'documents';
 
+export type DiscordChannel = { id: string; name: string; parentId: string | null; parentName: string | null; position: number };
+export type DiscordRole = { id: string; name: string; color: number; position: number; mentionable: boolean };
+
 export type TeamRosterMember = { uid: string; displayName: string; avatarUrl: string; discordAvatar: string };
 
 export type TeamData = {
