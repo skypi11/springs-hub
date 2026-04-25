@@ -60,6 +60,8 @@ type Pillar = {
   features: string[];
   href: string;
   statLabel: string;
+  /** Optional partner attribution displayed at bottom-left of the card. Defaults to "Aedral". */
+  partnerLabel?: string;
 };
 
 const pillars: Pillar[] = [
@@ -94,13 +96,14 @@ const pillars: Pillar[] = [
     icon: Trophy,
     title: 'COMPÉTITIONS',
     tag: 'Événements',
-    tagClass: 'tag-blue',
-    accent: '#0081FF',
-    iconColor: '#4da6ff',
-    desc: 'Saisons, cups, tournois Springs. Classements, résultats, inscriptions connectées aux structures.',
+    tagClass: 'tag-violet',
+    accent: '#7B2FBE',
+    iconColor: 'var(--s-violet-light)',
+    desc: 'Saisons, cups, tournois Springs E-Sport. Classements, résultats, inscriptions connectées aux structures.',
     features: ['Rocket League', 'Trackmania'],
     href: '/competitions',
     statLabel: 'Actives',
+    partnerLabel: 'Springs E-Sport',
   },
 ];
 
@@ -200,7 +203,7 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {pillars.map(({ id, icon: Icon, title, tag, tagClass, accent, iconColor, desc, features, href, statLabel }) => {
+            {pillars.map(({ id, icon: Icon, title, tag, tagClass, accent, iconColor, desc, features, href, statLabel, partnerLabel }) => {
               const stat = statsByPillar[id];
               return (
               <Link key={title} href={href}
@@ -243,7 +246,7 @@ export default function HomePage() {
                     </div>
                     <div className="divider mb-3" />
                     <div className="flex items-center justify-between">
-                      <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Aedral</span>
+                      <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>{partnerLabel ?? 'Aedral'}</span>
                       <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors group-hover:text-white"
                         style={{ color: iconColor }}>
                         Explorer <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
@@ -326,7 +329,7 @@ function VisitorHero({ stats }: { stats: PublicStats | null }) {
           </div>
         </div>
         <div className="flex-shrink-0 w-[280px] hidden lg:block">
-          <div className="panel accent-top-gold">
+          <div className="panel accent-top-violet">
             <div className="panel-header">
               <span className="t-label">Activité Springs</span>
               <span className="status status-live">Live</span>
@@ -334,7 +337,7 @@ function VisitorHero({ stats }: { stats: PublicStats | null }) {
             <div className="panel-body space-y-4">
               <div className="flex items-center justify-between">
                 <span className="t-body">Compétitions actives</span>
-                <span className="font-display text-3xl" style={{ color: 'var(--s-gold)', letterSpacing: '0.02em' }}>2</span>
+                <span className="font-display text-3xl" style={{ color: 'var(--s-violet-light)', letterSpacing: '0.02em' }}>{competitions.length}</span>
               </div>
               <div className="divider" />
               <div className="flex items-center justify-between">
@@ -344,24 +347,15 @@ function VisitorHero({ stats }: { stats: PublicStats | null }) {
                   <span className="tag tag-green" style={{ fontSize: '9px', padding: '2px 6px' }}>TM</span>
                 </div>
               </div>
-              <div className="divider" />
-              <div className="flex items-center justify-between">
-                <span className="t-body">Structures</span>
-                {stats === null ? (
-                  <SkeletonText width={32} height={20} />
-                ) : (
-                  <span className="font-display text-2xl" style={{ color: 'var(--s-gold)', letterSpacing: '0.02em' }}>{stats.structures}</span>
-                )}
-              </div>
-              <div className="divider" />
-              <div className="flex items-center justify-between">
-                <span className="t-body">Joueurs inscrits</span>
-                {stats === null ? (
-                  <SkeletonText width={32} height={20} />
-                ) : (
-                  <span className="font-display text-2xl" style={{ color: 'var(--s-gold)', letterSpacing: '0.02em' }}>{stats.players}</span>
-                )}
-              </div>
+              {competitions.map(c => (
+                <div key={c.id}>
+                  <div className="divider" />
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="t-body truncate" title={c.name} style={{ fontSize: '13px' }}>{c.name}</span>
+                    <span className={`tag ${c.tagClass}`} style={{ fontSize: '9px', padding: '2px 6px', flexShrink: 0 }}>{c.tag}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

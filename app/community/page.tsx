@@ -105,7 +105,7 @@ export default function CommunityPage() {
                 <Users size={22} style={{ color: 'var(--s-gold)' }} />
               </div>
               <div>
-                <p className="t-label mb-1" style={{ color: 'var(--s-text-muted)' }}>SPRINGS HUB</p>
+                <p className="t-label mb-1" style={{ color: 'var(--s-text-muted)' }}>AEDRAL</p>
                 <h1 className="font-display text-2xl tracking-wider leading-none">COMMUNAUTÉ</h1>
                 <p className="t-mono text-xs mt-1.5" style={{ color: 'var(--s-text-dim)' }}>
                   {loading

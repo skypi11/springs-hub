@@ -159,7 +159,7 @@ export default function ConnectedDashboard({ user }: { user: SpringsUser }) {
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <p className="t-label mb-1" style={{ color: 'var(--s-text-muted)' }}>SPRINGS HUB</p>
+            <p className="t-label mb-1" style={{ color: 'var(--s-text-muted)' }}>AEDRAL</p>
             <h1 className="font-display text-3xl tracking-wider leading-none">
               SALUT <span style={{ color: 'var(--s-gold)' }}>{firstName.toUpperCase()}</span>
             </h1>

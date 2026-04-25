@@ -413,7 +413,7 @@ export async function GET(
               fontFamily: ff,
             }}
           >
-            SPRINGS HUB
+            AEDRAL
           </div>
         </div>
       ),
