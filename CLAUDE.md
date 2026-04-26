@@ -68,30 +68,31 @@ Cette exception est la **seule** raison légitime de toucher au repo vieux site 
 
 ---
 
-## Design system — Direction artistique Springs
+## Design system — Direction artistique Aedral
 
 ### Identité visuelle — origine
-L'identité visuelle Springs vient des **overlays de stream** de l'association :
-- **Texture hexagonale** en fond (pas décorative, en TEXTURE subtile sur tout le contenu)
-- **Biseaux/coins coupés** (clip-path polygon) — signature Springs, pas de coins arrondis
-- Dark gaming premium, professionnel — "le soin du détail qui fait la différence entre un pro et un amateur"
+L'identité visuelle vient des **overlays de stream** Springs E-Sport (héritage historique) :
+- **Texture hexagonale** en fond (pas décorative, en TEXTURE subtile sur tout le contenu via `.hex-bg`)
+- **Biseaux/coins coupés** (clip-path polygon) — signature, pas de coins arrondis
+- Dark gaming premium mono noir+or — "le soin du détail qui fait la différence entre un pro et un amateur"
 
 ### Références visuelles
-Faceit, Battlefy, Elite Gamers Arena — mais avec l'identité propre Springs (hex + biseaux)
+Faceit, Battlefy, Linear, Vercel — dark premium avec hex + biseaux propre à Aedral.
 
 ### Fichier central : `app/design-system.css`
 Tout le système de design est centralisé ici. **Toujours utiliser les classes et tokens existants** avant de créer du CSS custom.
 
 ### Palette — tokens CSS (dans `:root`)
+**Refresh 2026-04-26 : palette neutre noir** (les anciennes valeurs avaient un cast bleu/violet sur certains écrans, déplacé vers du noir pur pour cohérence avec la marque mono).
 ```css
-/* Surfaces — du plus sombre au plus clair */
---s-bg:         #08080f     /* fond page */
---s-surface:    #0e0e1a     /* cards, panels, sidebar */
---s-elevated:   #151525     /* éléments surélevés, hover states */
---s-hover:      #1c1c30     /* hover intense */
+/* Surfaces — noir neutre (R=G=B, pas de cast) */
+--s-bg:         #0a0a0a     /* fond page */
+--s-surface:    #111111     /* cards, panels, sidebar */
+--s-elevated:   #1a1a1a     /* éléments surélevés, hover states */
+--s-hover:      #1f1f1f     /* hover intense */
 
 /* Brand — 4 couleurs */
---s-violet:       #7B2FBE   /* accent système/navigation UNIQUEMENT */
+--s-violet:       #7B2FBE   /* RÉSERVÉ aux contextes Springs E-Sport (partenaire) */
 --s-violet-light: #a364d9   /* variante claire */
 --s-gold:         #FFB800   /* rare et précieux — CTA principal, récompenses */
 --s-blue:         #0081FF   /* Rocket League */
@@ -196,7 +197,11 @@ Fichier : `public/springs-logo.png`
 
 ```
 / (Accueil)
-  → Hub Springs, prochains événements, stats globales, actualités
+  → Visiteur (non-connecté) : LANDING full-bleed sans sidebar
+    (composants/landing/VisitorLanding.tsx — Hero, sections Joueurs/Structures
+    avec mockups CSS, Showcase 6 screenshots tiltés 3D, How-it-works, FAQ, CTA)
+  → Connecté : Dashboard perso + compétitions + écosystème (sidebar standard)
+  → Toggle géré par components/layout/LayoutShell.tsx selon path + auth
 
 /community
   → /community/structures    Annuaire public des structures
