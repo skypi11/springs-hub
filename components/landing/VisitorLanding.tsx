@@ -60,6 +60,7 @@ export default function VisitorLanding({ stats }: { stats: PublicStats | null })
       <HeroSection stats={stats} />
       <PlayersSection />
       <StructuresSection />
+      <ShowcaseSection />
       <HowItWorksSection />
       <CompetitionsSection />
       <FaqCtaSection />
@@ -307,6 +308,116 @@ function StructuresSection() {
         </ScrollReveal>
       </div>
     </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// SHOWCASE — captures du vrai produit, en grand, alternées L/R
+// ─────────────────────────────────────────────────────────────────────────
+const showcaseShots = [
+  {
+    src: '/landing/structure-public.webp',
+    alt: 'Page publique d\'une structure sur Aedral',
+    tag: 'Structure publique',
+    title: 'La vitrine de chaque structure',
+    desc: 'Page publique complète : direction, équipes, palmarès, liens Discord. Ce que tout le monde voit avant de candidater.',
+  },
+  {
+    src: '/landing/joueurs.webp',
+    alt: 'Annuaire des joueurs',
+    tag: 'Vivier joueurs',
+    title: 'Tout le vivier en un coup d\'œil',
+    desc: 'Cards des joueurs avec rang, jeux, dispo recrutement. Filtres par jeu, par tag. Recrute sans avoir à passer 3h sur Discord.',
+  },
+  {
+    src: '/landing/dispos-matching.webp',
+    alt: 'Heatmap des disponibilités',
+    tag: 'Dispos & matching',
+    title: 'Heatmap des dispos : fini les Doodle',
+    desc: 'Chaque joueur déclare ses créneaux. La heatmap consensus te montre instantanément les fenêtres où ton équipe est dispo. Suggestions automatiques de slots ≥ 2 joueurs.',
+  },
+  {
+    src: '/landing/match.webp',
+    alt: 'Page d\'un match',
+    tag: 'Suivi des matchs',
+    title: 'Chaque match, son histoire',
+    desc: 'Présences (présent / peut-être / absent), score, compte rendu, points à travailler, replays attachés. Tout centralisé, plus rien ne se perd.',
+  },
+  {
+    src: '/landing/devoirs.webp',
+    alt: 'Modal création d\'un devoir',
+    tag: 'Devoirs & coaching',
+    title: 'Coach ta structure comme un pro',
+    desc: 'Templates check-in, training, VOD, scouting. Items à auto-évaluer sur 5, deadlines, rappels Discord automatiques. Le suivi qu\'utilisaient seulement les structures pros.',
+  },
+  {
+    src: '/landing/stockage.webp',
+    alt: 'Tab documents d\'une structure',
+    tag: 'Documents',
+    title: 'Stockage R2 par structure',
+    desc: 'Stratégies, replays, contrats, charte interne. Organisés en dossiers, accessibles à toute l\'équipe. Hosted sur Cloudflare R2, jamais perdu.',
+  },
+];
+
+function ShowcaseSection() {
+  return (
+    <section className="relative py-20 lg:py-32 px-6 lg:px-12 overflow-hidden">
+      <div className="max-w-[1200px] mx-auto">
+        <ScrollReveal>
+          <div className="text-center mb-20">
+            <span className="tag tag-gold mb-4 inline-block">Le produit en images</span>
+            <h2 className="t-display mb-4" style={{ fontSize: 'clamp(2rem, 4.5vw, 3rem)' }}>
+              VOILÀ À QUOI <span style={{ color: 'var(--s-gold)' }}>ÇA RESSEMBLE.</span>
+            </h2>
+            <p className="t-body max-w-2xl mx-auto" style={{ fontSize: '15px', color: 'var(--s-text-dim)' }}>
+              Pas de slides marketing. Des captures du vrai site, en production.
+            </p>
+          </div>
+        </ScrollReveal>
+
+        <div className="space-y-24 lg:space-y-32">
+          {showcaseShots.map((shot, i) => (
+            <ScrollReveal key={shot.src} delay={50}>
+              <div className={`flex flex-col gap-10 lg:gap-16 items-center ${i % 2 === 1 ? 'lg:flex-row-reverse' : 'lg:flex-row'}`}>
+                {/* Image — 60% */}
+                <div className="w-full lg:w-[58%] flex-shrink-0">
+                  <ShowcaseTilted src={shot.src} alt={shot.alt} flip={i % 2 === 1} />
+                </div>
+                {/* Texte — 40% */}
+                <div className="w-full lg:w-[42%]">
+                  <span className="tag tag-gold mb-4 inline-block" style={{ fontSize: 9 }}>{shot.tag}</span>
+                  <h3 className="font-display mb-4" style={{ fontSize: 'clamp(1.5rem, 2.8vw, 2.25rem)', letterSpacing: '0.02em', lineHeight: 1.1, color: 'var(--s-text)' }}>
+                    {shot.title}
+                  </h3>
+                  <p className="t-body" style={{ fontSize: '15px', color: 'var(--s-text-dim)', lineHeight: 1.65 }}>
+                    {shot.desc}
+                  </p>
+                </div>
+              </div>
+            </ScrollReveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ShowcaseTilted({ src, alt, flip }: { src: string; alt: string; flip: boolean }) {
+  return (
+    <div className="showcase-tilt-frame group">
+      <div className="showcase-tilt-stage" style={{
+        transform: flip
+          ? 'perspective(2400px) rotateY(14deg) rotateX(4deg) translateZ(0)'
+          : 'perspective(2400px) rotateY(-14deg) rotateX(4deg) translateZ(0)',
+      }}>
+        <div className="showcase-tilt-image-wrapper">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt={alt} className="showcase-tilt-image" />
+          {/* Reflection subtile en haut */}
+          <div className="showcase-tilt-highlight" />
+        </div>
+      </div>
+    </div>
   );
 }
 

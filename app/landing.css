@@ -74,6 +74,81 @@
   cursor: default;
 }
 
+/* ── SHOWCASE : screenshots en grand, tilt prononcé Linear-style ─────── */
+.showcase-tilt-frame {
+  position: relative;
+  width: 100%;
+  perspective: 2400px;
+}
+.showcase-tilt-stage {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.showcase-tilt-frame:hover .showcase-tilt-stage {
+  transform: perspective(2400px) rotateY(-6deg) rotateX(2deg) translateZ(0) !important;
+}
+.showcase-tilt-frame:nth-child(even):hover .showcase-tilt-stage {
+  transform: perspective(2400px) rotateY(6deg) rotateX(2deg) translateZ(0) !important;
+}
+
+.showcase-tilt-image-wrapper {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  /* Bordure or fine + ombre profonde pour donner du poids 3D */
+  border: 1px solid rgba(255, 184, 0, 0.18);
+  box-shadow:
+    /* Ombre principale au sol */
+    0 60px 120px -30px rgba(0, 0, 0, 0.85),
+    /* Ombre proche pour le contact */
+    0 30px 60px -20px rgba(0, 0, 0, 0.6),
+    /* Glow or subtil */
+    0 0 80px -10px rgba(255, 184, 0, 0.12),
+    /* Rim light intérieur */
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+  transition: box-shadow 0.5s ease, border-color 0.5s ease;
+}
+
+.showcase-tilt-frame:hover .showcase-tilt-image-wrapper {
+  border-color: rgba(255, 184, 0, 0.32);
+  box-shadow:
+    0 70px 140px -30px rgba(0, 0, 0, 0.9),
+    0 36px 72px -20px rgba(0, 0, 0, 0.7),
+    0 0 100px -10px rgba(255, 184, 0, 0.18),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+}
+
+.showcase-tilt-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Highlight subtle en haut (light coming from top) */
+.showcase-tilt-highlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    transparent 30%
+  );
+  border-radius: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .showcase-tilt-stage,
+  .showcase-tilt-frame:hover .showcase-tilt-stage,
+  .showcase-tilt-frame:nth-child(even):hover .showcase-tilt-stage {
+    transform: rotateY(-8deg) rotateX(2deg) !important;
+    transition: none;
+  }
+}
+
 /* ── STAGGER FADE-IN (rapide & fluide, pas de jank scroll) ───────────── */
 @keyframes landing-fade-in {
   from { opacity: 0; transform: translateY(12px); }
