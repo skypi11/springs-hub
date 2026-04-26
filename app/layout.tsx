@@ -1,15 +1,13 @@
 import type { Metadata } from 'next';
 import { Outfit, Bebas_Neue } from 'next/font/google';
 import './globals.css';
-import Sidebar from '@/components/layout/Sidebar';
-import LegalFooter from '@/components/layout/LegalFooter';
+import LayoutShell from '@/components/layout/LayoutShell';
 import { AuthProvider } from '@/context/AuthContext';
 import { ToastProvider } from '@/components/ui/Toast';
 import { ConfirmProvider } from '@/components/ui/ConfirmModal';
 import QueryProvider from '@/components/providers/QueryProvider';
 import CommandPalette from '@/components/ui/CommandPalette';
 import ProfileCompletionGate from '@/components/auth/ProfileCompletionGate';
-import ImpersonationBanner from '@/components/admin/ImpersonationBanner';
 
 const outfit = Outfit({
   variable: '--font-outfit',
@@ -32,18 +30,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr" className={`${outfit.variable} ${bebasNeue.variable} h-full`}>
-      <body className="h-full flex" style={{ background: '#07070f', color: '#f0f0f8' }}>
+      <body className="h-full flex" style={{ background: '#080808', color: '#f0f0f8' }}>
         <QueryProvider>
           <AuthProvider>
             <ToastProvider>
               <ConfirmProvider>
                 <ProfileCompletionGate />
-                <Sidebar />
-                <div className="flex-1 lg:ml-[260px] min-h-screen overflow-x-hidden hex-bg pt-14 lg:pt-0 flex flex-col">
-                  <ImpersonationBanner />
-                  <div className="flex-1">{children}</div>
-                  <LegalFooter />
-                </div>
+                <LayoutShell>{children}</LayoutShell>
                 <CommandPalette />
               </ConfirmProvider>
             </ToastProvider>

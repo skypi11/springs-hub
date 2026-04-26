@@ -11,11 +11,11 @@
 
 /* ── TOKENS ──────────────────────────────────────────────────────────── */
 :root {
-  /* Surfaces */
-  --s-bg:         #08080f;
-  --s-surface:    #0e0e1a;
-  --s-elevated:   #151525;
-  --s-hover:      #1c1c30;
+  /* Surfaces — palette mono noir neutre (pas de cast violet) */
+  --s-bg:         #0a0a0a;
+  --s-surface:    #111111;
+  --s-elevated:   #1a1a1a;
+  --s-hover:      #1f1f1f;
 
   /* Brand Aedral — palette mono */
   --s-gold:       #FFB800;
