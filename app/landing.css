@@ -1,0 +1,164 @@
+/* ══════════════════════════════════════════════════════════════════════
+   AEDRAL LANDING — animations & effets visuels
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── HERO LOGO PULSE ─────────────────────────────────────────────────── */
+@keyframes aedral-logo-pulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(255, 184, 0, 0));
+  }
+  50% {
+    transform: scale(1.04);
+    filter: drop-shadow(0 0 20px rgba(255, 184, 0, 0.4));
+  }
+}
+.aedral-logo-pulse {
+  animation: aedral-logo-pulse 4s ease-in-out infinite;
+}
+
+/* ── HERO ORBS (gradient mesh animé) ─────────────────────────────────── */
+@keyframes aedral-orb-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(60px, -40px) scale(1.1); }
+}
+@keyframes aedral-orb-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(-40px, 30px) scale(0.95); }
+}
+.aedral-orb-1 { animation: aedral-orb-1 18s ease-in-out infinite; }
+.aedral-orb-2 { animation: aedral-orb-2 22s ease-in-out infinite; }
+
+/* ── FEATURE CARD V2 : lift + glow + sweep au hover ──────────────────── */
+.feature-card-v2 {
+  position: relative;
+  transition:
+    transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 0.3s ease,
+    box-shadow 0.4s ease;
+  will-change: transform;
+}
+.feature-card-v2:hover {
+  transform: translateY(-6px);
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 18px 50px -14px rgba(0, 0, 0, 0.7),
+    0 6px 20px -8px rgba(255, 184, 0, 0.22);
+}
+
+/* Sweep light qui passe en diagonale au hover (effet "scan" subtil) */
+.feature-card-v2::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 184, 0, 0.06) 50%,
+    transparent 70%
+  );
+  background-size: 250% 100%;
+  background-position: 200% 0;
+  transition: background-position 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+  z-index: 1;
+}
+.feature-card-v2:hover::after {
+  background-position: -100% 0;
+}
+
+/* ── MOCKUP FRAME : bloquer la sélection texte + cursor par défaut ───── */
+.mockup-frame,
+.mockup-frame * {
+  user-select: none;
+  cursor: default;
+}
+
+/* ── STAGGER FADE-IN (rapide & fluide, pas de jank scroll) ───────────── */
+@keyframes landing-fade-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.landing-fade-in {
+  animation: landing-fade-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.landing-stagger-1 { animation: landing-fade-in 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/* Reveal au scroll : 250ms avec IntersectionObserver — court et fluide */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity 0.45s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.scroll-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── STATS COUNTER : zoom-in subtil sur les chiffres ─────────────────── */
+@keyframes stat-pop {
+  0%   { opacity: 0; transform: scale(0.85); }
+  60%  { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.stat-value {
+  animation: stat-pop 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* ── HEADER STICKY : background blur quand on scroll (déclenchée par JS) */
+.landing-header {
+  transition: background 0.3s ease, border-color 0.3s ease, backdrop-filter 0.3s ease;
+}
+.landing-header.is-scrolled {
+  background: rgba(8, 8, 15, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--s-border);
+}
+
+/* ── HOW IT WORKS : bordure or au hover ──────────────────────────────── */
+.step-icon {
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.step-icon:hover {
+  border-color: var(--s-gold) !important;
+  box-shadow: 0 0 24px -4px rgba(255, 184, 0, 0.25);
+}
+
+/* ── CTA FINAL : shimmer subtil ──────────────────────────────────────── */
+@keyframes aedral-cta-shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.cta-shimmer-bar {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 184, 0, 0.4) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: aedral-cta-shimmer 4s linear infinite;
+}
+
+/* ── REDUCED MOTION ──────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .aedral-logo-pulse,
+  .aedral-orb-1,
+  .aedral-orb-2,
+  .cta-shimmer-bar,
+  .landing-fade-in,
+  .landing-stagger-1,
+  .stat-value {
+    animation: none;
+  }
+  .feature-card-v2,
+  .feature-card-v2:hover,
+  .feature-card-v2::after,
+  .scroll-reveal {
+    transform: none;
+    transition: none;
+    opacity: 1;
+  }
+}

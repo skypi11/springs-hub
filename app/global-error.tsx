@@ -15,7 +15,7 @@ export default function GlobalError({
   return (
     <html>
       <body>
-        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#08080f', color: '#eaeaf0', fontFamily: 'system-ui, sans-serif', padding: '24px' }}>
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0a0a0a', color: '#eaeaf0', fontFamily: 'system-ui, sans-serif', padding: '24px' }}>
           <div style={{ maxWidth: 480, textAlign: 'center' }}>
             <h1 style={{ fontSize: '28px', marginBottom: '12px' }}>Une erreur est survenue</h1>
             <p style={{ color: '#7a7a95', marginBottom: '24px', fontSize: '14px' }}>

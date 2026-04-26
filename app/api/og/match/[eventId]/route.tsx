@@ -197,7 +197,7 @@ export async function GET(
             alignItems: 'center',
             justifyContent: 'center',
             background:
-              'linear-gradient(135deg, #08080f 0%, #151525 50%, #0e0e1a 100%)',
+              'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #111111 100%)',
             position: 'relative',
           }}
         >

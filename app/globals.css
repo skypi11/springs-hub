@@ -1,13 +1,14 @@
 @import "tailwindcss";
 @import "./design-system.css";
+@import "./landing.css";
 
 @theme {
   --color-springs-violet: #7B2FBE;
   --color-springs-gold: #FFB800;
 
-  --color-bg-base: #08080f;
-  --color-bg-surface: #0e0e1a;
-  --color-bg-elevated: #151525;
+  --color-bg-base: #0a0a0a;
+  --color-bg-surface: #111111;
+  --color-bg-elevated: #1a1a1a;
 
   --color-text-primary: #eaeaf0;
   --color-text-secondary: #7a7a95;
