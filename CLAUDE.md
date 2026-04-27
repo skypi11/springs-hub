@@ -503,4 +503,5 @@ function scheduleReload() {
 - **Site Springs E-Sport (archive)** : `https://springs-esport.vercel.app`
 - **GitHub** : `https://github.com/skypi11/springs-hub`
 - **Firebase console** : projet `monthly-cup`
+- **Discord communauté Aedral** : invite permanent dans `components/icons/DiscordIcon.tsx` (constante `AEDRAL_DISCORD_INVITE_URL`). Serveur officiel pour support/communauté, distinct des Discord des structures où le bot est installé pour les notifs events/todos/recrutement. Le bot Aedral y est aussi présent (perm Admin) mais pas d'automation tied à ce serveur pour l'instant.
 - Discord OAuth redirect configuré : `https://aedral.com/api/auth/discord/callback` (callback handler utilise `req.nextUrl.origin` dynamique, donc compatible multi-domaines)
