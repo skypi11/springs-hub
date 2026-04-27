@@ -335,6 +335,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ── RL — LAN matchs (Suisse + Bracket) ─────────────────────────────────────
+    // Lecture publique : page LAN, écrans géants, prédictions.
+    // Saisie scores et génération des rounds : admin uniquement.
+    match /rl_lan_matches/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // ── Springs Hub — Journal d'audit des actions structure ────────────────────
     // Écriture : API serveur uniquement (Admin SDK) — voir lib/audit-log.ts.
     // Lecture : admin Springs uniquement. Les dirigeants voient via une API
