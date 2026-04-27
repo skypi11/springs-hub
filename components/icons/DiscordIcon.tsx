@@ -20,4 +20,4 @@ export default function DiscordIcon({ size = 16, className }: Props) {
 
 // URL d'invitation permanente vers le serveur Discord communautaire Aedral.
 // Centralisée ici pour éviter les valeurs en dur dispersées dans le code.
-export const AEDRAL_DISCORD_INVITE_URL = 'https://discord.gg/AHU9QzSzc';
+export const AEDRAL_DISCORD_INVITE_URL = 'https://discord.gg/jHyVpmaSch';
