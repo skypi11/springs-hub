@@ -14,6 +14,7 @@ import {
   RecruitmentMockup, RosterMockup, PlanningMockup, DiscordMockup,
 } from './LandingMockups';
 import ScrollReveal from './ScrollReveal';
+import DiscordIcon, { AEDRAL_DISCORD_INVITE_URL } from '@/components/icons/DiscordIcon';
 
 type PublicStats = {
   structures: number;
@@ -83,11 +84,24 @@ function HeroSection({ stats }: { stats: PublicStats | null }) {
           <Image src="/aedral/mark.svg" alt="Aedral" width={36} height={36} priority />
           <span className="font-display text-2xl tracking-wider hidden sm:inline" style={{ color: 'var(--s-text)' }}>AEDRAL</span>
         </Link>
-        <button onClick={signInWithDiscord} type="button"
-          className="btn-springs btn-secondary bevel-sm flex items-center gap-2"
-          style={{ padding: '8px 16px', fontSize: '12px' }}>
-          <MessageSquare size={13} /> Se connecter avec Discord
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href={AEDRAL_DISCORD_INVITE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Rejoindre le Discord Aedral"
+            title="Rejoindre le Discord Aedral"
+            className="btn-springs btn-secondary bevel-sm flex items-center justify-center"
+            style={{ padding: '8px 12px', color: '#7983F5' }}
+          >
+            <DiscordIcon size={14} />
+          </a>
+          <button onClick={signInWithDiscord} type="button"
+            className="btn-springs btn-secondary bevel-sm flex items-center gap-2"
+            style={{ padding: '8px 16px', fontSize: '12px' }}>
+            <MessageSquare size={13} /> Se connecter avec Discord
+          </button>
+        </div>
       </header>
 
       {/* Contenu hero */}
@@ -646,6 +660,20 @@ function FaqCtaSection() {
                 <CheckCircle2 size={15} /> Voir les structures
               </Link>
             </div>
+            <p className="t-body mt-6" style={{ fontSize: '13px', color: 'var(--s-text-muted)' }}>
+              Pas encore prêt à t&apos;inscrire ?{' '}
+              <a
+                href={AEDRAL_DISCORD_INVITE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 font-semibold transition-colors"
+                style={{ color: '#7983F5' }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = '#a3aaf8'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = '#7983F5'; }}
+              >
+                <DiscordIcon size={13} /> Rejoins le Discord communauté
+              </a>
+            </p>
           </div>
         </div>
       </div>

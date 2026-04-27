@@ -53,3 +53,5 @@ next-env.d.ts
 # Claude Code local settings (personnelles par machine)
 .claude/
 .mcp.json
+
+.env*.local
