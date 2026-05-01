@@ -192,6 +192,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ── TM — Finale events (timeline round-by-round, auto-saisie ManiaScript) ──
+    // Lecture publique (timeline finale dans le détail édition).
+    // Écriture via Admin SDK uniquement (endpoint /api/cup-event, bypass règles).
+    match /finale_events/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // ── RL — Compétitions ──────────────────────────────────────────────────────
     match /rl_competitions/{id} {
       allow read: if request.auth != null;
