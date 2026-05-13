@@ -351,6 +351,16 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ── RL — LAN pronostics (1 doc par utilisateur Discord) ────────────────────
+    // Lecture publique : leaderboard public sur la page lan-predictions.html.
+    // Écriture : utilisateur connecté Discord, sur SON propre doc uniquement.
+    // Admin peut tout écrire (recalcul des scores, résolution des paris).
+    match /rl_lan_predictions/{uid} {
+      allow read: if true;
+      allow create, update: if isAdmin() || (request.auth != null && request.auth.uid == uid);
+      allow delete: if isAdmin();
+    }
+
     // ── Springs Hub — Journal d'audit des actions structure ────────────────────
     // Écriture : API serveur uniquement (Admin SDK) — voir lib/audit-log.ts.
     // Lecture : admin Springs uniquement. Les dirigeants voient via une API
