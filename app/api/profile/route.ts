@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import { resolveEpicAccount } from '@/lib/tracker-gg';
 import { safeUrl, clampString, LIMITS } from '@/lib/validation';
+import { isValidRLPlatform, buildTrackerGgUrl, type RLPlatform } from '@/lib/rl-platform';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { computeAge } from '@/lib/age';
@@ -166,11 +166,13 @@ export async function POST(req: NextRequest) {
     if (!body.games || body.games.length === 0) {
       return NextResponse.json({ error: 'Sélectionne au moins un jeu.' }, { status: 400 });
     }
-    if (body.games.includes('rocket_league') && !body.epicAccountId?.trim()) {
-      return NextResponse.json({ error: 'Le pseudo Epic Games est obligatoire pour RL.' }, { status: 400 });
-    }
-    if (body.games.includes('rocket_league') && !body.rlTrackerUrl?.trim()) {
-      return NextResponse.json({ error: "L'URL RL Tracker est obligatoire pour RL." }, { status: 400 });
+    if (body.games.includes('rocket_league')) {
+      if (!isValidRLPlatform(body.rlPlatform)) {
+        return NextResponse.json({ error: 'Sélectionne ta plateforme pour Rocket League.' }, { status: 400 });
+      }
+      if (!body.rlPlatformId?.trim()) {
+        return NextResponse.json({ error: 'Ton identifiant sur cette plateforme est obligatoire pour RL.' }, { status: 400 });
+      }
     }
     if (body.games.includes('trackmania') && !body.pseudoTM?.trim()) {
       return NextResponse.json({ error: 'Le pseudo Ubisoft est obligatoire pour TM.' }, { status: 400 });
@@ -194,24 +196,24 @@ export async function POST(req: NextRequest) {
     const existing = await userRef.get();
     const existingData = existing.data() ?? {};
 
-    // Résolution Epic — on stocke l'ID Epic permanent (et pas le pseudo qui peut changer)
-    let epicAccountId = '';
-    let epicDisplayName = '';
-    if (body.games.includes('rocket_league')) {
-      const typed = body.epicAccountId?.trim() || '';
-      epicDisplayName = typed;
-      // Si la saisie a changé, on retente la résolution. Sinon on garde l'ID stocké.
-      if (typed && typed !== existingData.epicDisplayName) {
-        const resolved = await resolveEpicAccount(typed);
-        if (resolved) {
-          epicAccountId = resolved.id;
-          epicDisplayName = resolved.displayName;
-        } else {
-          // Fallback : on garde la saisie comme identifiant de lookup
-          epicAccountId = typed;
-        }
-      } else {
-        epicAccountId = existingData.epicAccountId || typed;
+    // RL : on stocke (rlPlatform, rlPlatformId) — modèle cross-platform.
+    // On mirror dans les champs legacy (epicAccountId/epicDisplayName/rlTrackerUrl)
+    // pour que le code qui lit encore ces champs fonctionne — sera nettoyé plus tard.
+    let rlPlatform: RLPlatform | '' = '';
+    let rlPlatformId = '';
+    let legacyEpicAccountId = existingData.epicAccountId ?? '';
+    let legacyEpicDisplayName = existingData.epicDisplayName ?? '';
+    let legacyRlTrackerUrl = '';
+    if (body.games.includes('rocket_league') && isValidRLPlatform(body.rlPlatform)) {
+      const platform: RLPlatform = body.rlPlatform;
+      const platformId = clampString(body.rlPlatformId, 100).trim();
+      rlPlatform = platform;
+      rlPlatformId = platformId;
+      legacyRlTrackerUrl = buildTrackerGgUrl(platform, platformId);
+      // Si plateforme Epic, on synchronise les champs legacy pour rétrocompat
+      if (platform === 'epic') {
+        legacyEpicAccountId = platformId;
+        legacyEpicDisplayName = platformId;
       }
     }
 
@@ -223,9 +225,12 @@ export async function POST(req: NextRequest) {
       country: body.country,
       dateOfBirth: body.dateOfBirth,
       games: body.games,
-      epicAccountId,
-      epicDisplayName,
-      rlTrackerUrl: body.games.includes('rocket_league') ? safeUrl(body.rlTrackerUrl) : '',
+      rlPlatform,
+      rlPlatformId,
+      // Legacy fields (rétrocompat avec lecteurs existants)
+      epicAccountId: legacyEpicAccountId,
+      epicDisplayName: legacyEpicDisplayName,
+      rlTrackerUrl: legacyRlTrackerUrl,
       rlRank: body.games.includes('rocket_league') && isValidRLRank(body.rlRank) ? body.rlRank : '',
       pseudoTM: body.games.includes('trackmania') ? body.pseudoTM?.trim() || '' : '',
       loginTM: body.games.includes('trackmania') ? body.loginTM?.trim() || '' : '',

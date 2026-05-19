@@ -17,6 +17,7 @@ import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import { SkeletonPageHeader, SkeletonCard } from '@/components/ui/Skeleton';
 import InviteToStructureButton from '@/components/community/InviteToStructureButton';
 import DiscordIcon from '@/components/icons/DiscordIcon';
+import { getEffectiveRLPlatform, buildTrackerGgUrl, buildBallchasingUrl, getRLPlatformMeta } from '@/lib/rl-platform';
 
 function CountryFlag({ code, size = 16 }: { code: string; size?: number }) {
   if (!code || code === 'OTHER') return <span>🌍</span>;
@@ -37,7 +38,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const [profile, setProfile] = useState<(SpringsUser & { age?: number | null }) | null>(null);
   const [rlStats, setRlStats] = useState<RLStats | null>(null);
   const [rlStatsLoaded, setRlStatsLoaded] = useState(false);
-  const [rlTrackerUrl, setRlTrackerUrl] = useState('');
   const [tmStats, setTmStats] = useState<{
     displayName: string | null;
     trophies: number | null; echelon: number | null;
@@ -69,20 +69,21 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         const data = { uid: id, ...await res.json() } as SpringsUser & { age?: number | null };
         setProfile(data);
 
-        // Fetch RL stats si le joueur joue à RL
+        // Fetch RL stats si le joueur joue à RL.
+        // Tracker.gg API étant cassée en prod, ce fetch reste pour les seeds dev avec rangs hardcodés.
+        // L'UI fallback affiche le rang auto-déclaré + boutons tracker.gg/Ballchasing cliquables.
         if (data.games?.includes('rocket_league')) {
-          if (data.epicAccountId) {
+          const effective = getEffectiveRLPlatform(data);
+          if (effective && effective.platform === 'epic') {
             try {
-              const rlRes = await fetch(`/api/rl-stats?epicId=${encodeURIComponent(data.epicAccountId)}`);
+              const rlRes = await fetch(`/api/rl-stats?epicId=${encodeURIComponent(effective.id)}`);
               if (rlRes.ok) {
                 const stats = await rlRes.json();
                 if (stats.rank) setRlStats(stats.rank);
-                if (stats.trackerUrl) setRlTrackerUrl(stats.trackerUrl);
               }
             } catch (err) {
               console.error('[Profile] RL stats fetch error:', err);
             }
-            if (data.rlTrackerUrl) setRlTrackerUrl(prev => prev || data.rlTrackerUrl || '');
           }
           setRlStatsLoaded(true);
         }
@@ -266,88 +267,118 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         <div className="grid grid-cols-2 gap-6 animate-fade-in-d1">
 
           {/* Stats RL */}
-          {profile.games?.includes('rocket_league') && (
-            <div className="pillar-card panel relative overflow-hidden group transition-all duration-200 h-full flex flex-col">
-              <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-blue), rgba(0,129,255,0.3), transparent 70%)' }} />
-              <div className="absolute top-0 right-0 w-[200px] h-[200px] pointer-events-none opacity-[0.06]"
-                style={{ background: 'radial-gradient(circle at top right, var(--s-blue), transparent 70%)' }} />
-              <div className="relative z-[1] flex-1 flex flex-col">
-                <div className="panel-header">
-                  <div className="flex items-center gap-2">
-                    <Gamepad2 size={13} style={{ color: 'var(--s-blue)' }} />
-                    <span className="t-label" style={{ color: 'var(--s-text)' }}>ROCKET LEAGUE</span>
+          {profile.games?.includes('rocket_league') && (() => {
+            const effective = getEffectiveRLPlatform(profile);
+            const trackerHref = effective ? buildTrackerGgUrl(effective.platform, effective.id) : '';
+            const ballchasingHref = effective ? buildBallchasingUrl(effective.platform, effective.id) : '';
+            const platformMeta = effective ? getRLPlatformMeta(effective.platform) : null;
+            return (
+              <div className="pillar-card panel relative overflow-hidden group transition-all duration-200 h-full flex flex-col">
+                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-blue), rgba(0,129,255,0.3), transparent 70%)' }} />
+                <div className="absolute top-0 right-0 w-[200px] h-[200px] pointer-events-none opacity-[0.06]"
+                  style={{ background: 'radial-gradient(circle at top right, var(--s-blue), transparent 70%)' }} />
+                <div className="relative z-[1] flex-1 flex flex-col">
+                  <div className="panel-header">
+                    <div className="flex items-center gap-2">
+                      <Gamepad2 size={13} style={{ color: 'var(--s-blue)' }} />
+                      <span className="t-label" style={{ color: 'var(--s-text)' }}>ROCKET LEAGUE</span>
+                    </div>
+                    {effective && (
+                      <span className="tag tag-blue" style={{ fontSize: '8px' }}>
+                        {platformMeta?.label.replace(/ \(.+\)$/, '') ?? ''} · {effective.id}
+                      </span>
+                    )}
                   </div>
-                  {(profile.epicDisplayName || profile.epicAccountId) && (
-                    <span className="tag tag-blue" style={{ fontSize: '8px' }}>{profile.epicDisplayName || profile.epicAccountId}</span>
-                  )}
-                </div>
-                <div className="p-5 flex-1 flex flex-col">
-                  {rlStats ? (
-                    <div className="space-y-5">
-                      <div className="flex items-center gap-5">
-                        {rlStats.iconUrl && (
-                          <div className="w-16 h-16 flex-shrink-0 p-1" style={{ background: 'rgba(0,129,255,0.06)', border: '1px solid rgba(0,129,255,0.15)' }}>
-                            <Image src={rlStats.iconUrl} alt={rlStats.rank ?? ''} width={56} height={56} unoptimized />
+                  <div className="p-5 flex-1 flex flex-col">
+                    {rlStats ? (
+                      <div className="space-y-5">
+                        <div className="flex items-center gap-5">
+                          {rlStats.iconUrl && (
+                            <div className="w-16 h-16 flex-shrink-0 p-1" style={{ background: 'rgba(0,129,255,0.06)', border: '1px solid rgba(0,129,255,0.15)' }}>
+                              <Image src={rlStats.iconUrl} alt={rlStats.rank ?? ''} width={56} height={56} unoptimized />
+                            </div>
+                          )}
+                          <div className="flex-1">
+                            <p className="font-display text-2xl" style={{ color: 'var(--s-text)' }}>{rlStats.rank}</p>
+                            {rlStats.division && (
+                              <p className="t-mono text-xs" style={{ color: 'var(--s-text-dim)' }}>{rlStats.division}</p>
+                            )}
                           </div>
-                        )}
-                        <div className="flex-1">
-                          <p className="font-display text-2xl" style={{ color: 'var(--s-text)' }}>{rlStats.rank}</p>
-                          {rlStats.division && (
-                            <p className="t-mono text-xs" style={{ color: 'var(--s-text-dim)' }}>{rlStats.division}</p>
+                          {rlStats.mmr && (
+                            <div className="text-right">
+                              <p
+                                className="font-display text-3xl"
+                                style={{ color: 'var(--s-blue)', lineHeight: 1 }}
+                                title="Matchmaking Rating : score du classement compétitif"
+                              >
+                                {rlStats.mmr}
+                              </p>
+                              <p className="t-label">MMR</p>
+                            </div>
                           )}
                         </div>
-                        {rlStats.mmr && (
-                          <div className="text-right">
-                            <p
-                              className="font-display text-3xl"
-                              style={{ color: 'var(--s-blue)', lineHeight: 1 }}
-                              title="Matchmaking Rating : score du classement compétitif"
-                            >
-                              {rlStats.mmr}
-                            </p>
-                            <p className="t-label">MMR</p>
+
+                        {rlStats.playlist && (
+                          <div className="flex items-center gap-2 px-3 py-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                            <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>PLAYLIST</span>
+                            <span className="text-xs font-semibold ml-auto" style={{ color: 'var(--s-text)' }}>{rlStats.playlist}</span>
                           </div>
                         )}
                       </div>
+                    ) : rlStatsLoaded && !effective ? (
+                      <RLEmptyState isOwner={isOwner} />
+                    ) : rlStatsLoaded ? (
+                      /* Pas de stats auto mais on a une plateforme — rang déclaré + boutons cliquables */
+                      <div className="space-y-4">
+                        {profile.rlRank ? (
+                          <div className="flex items-center gap-4 p-4" style={{ background: 'rgba(0,129,255,0.05)', border: '1px solid rgba(0,129,255,0.15)' }}>
+                            <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center" style={{ background: 'rgba(0,129,255,0.08)', border: '1px solid rgba(0,129,255,0.2)' }}>
+                              <Trophy size={20} style={{ color: 'var(--s-blue)' }} />
+                            </div>
+                            <div className="flex-1">
+                              <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>Rang déclaré</p>
+                              <p className="font-display text-xl" style={{ color: 'var(--s-text)' }}>{profile.rlRank}</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-xs p-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', color: 'var(--s-text-muted)' }}>
+                            Aucun rang renseigné. Vérifie les stats via les liens ci-dessous.
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <Loader2 size={16} className="animate-spin" style={{ color: 'var(--s-blue)' }} />
+                        <span className="text-sm" style={{ color: 'var(--s-text-muted)' }}>Chargement des stats...</span>
+                      </div>
+                    )}
 
-                      {rlStats.playlist && (
-                        <div className="flex items-center gap-2 px-3 py-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                          <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>PLAYLIST</span>
-                          <span className="text-xs font-semibold ml-auto" style={{ color: 'var(--s-text)' }}>{rlStats.playlist}</span>
+                    {effective && (trackerHref || ballchasingHref) && (
+                      <div className="mt-auto pt-4">
+                        <div className="divider mb-4" />
+                        <div className="space-y-2">
+                          {trackerHref && (
+                            <a href={trackerHref} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider transition-colors hover:text-white"
+                              style={{ color: 'var(--s-blue)' }}>
+                              Voir sur tracker.gg <ExternalLink size={11} />
+                            </a>
+                          )}
+                          {ballchasingHref && (
+                            <a href={ballchasingHref} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider transition-colors hover:text-white"
+                              style={{ color: 'var(--s-blue)' }}>
+                              Voir replays Ballchasing <ExternalLink size={11} />
+                            </a>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  ) : rlStatsLoaded && !profile.epicAccountId ? (
-                    <RLEmptyState isOwner={isOwner} />
-                  ) : rlStatsLoaded ? (
-                    <div className="text-center py-4">
-                      <Gamepad2 size={24} className="mx-auto mb-2" style={{ color: 'var(--s-text-muted)' }} />
-                      <p className="text-sm" style={{ color: 'var(--s-text-muted)' }}>Stats indisponibles</p>
-                      <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
-                        L&apos;API Tracker.gg n&apos;a rien retourné pour ce compte.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <Loader2 size={16} className="animate-spin" style={{ color: 'var(--s-blue)' }} />
-                      <span className="text-sm" style={{ color: 'var(--s-text-muted)' }}>Chargement des stats...</span>
-                    </div>
-                  )}
-
-                  {(rlTrackerUrl || profile.rlTrackerUrl) && (
-                    <div className="mt-auto pt-4">
-                      <div className="divider mb-4" />
-                      <a href={rlTrackerUrl || profile.rlTrackerUrl} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider transition-colors hover:text-white"
-                        style={{ color: 'var(--s-blue)' }}>
-                        Voir sur RL Tracker <ExternalLink size={11} />
-                      </a>
-                    </div>
-                  )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Stats TM */}
           {profile.games?.includes('trackmania') && (

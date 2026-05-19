@@ -15,8 +15,12 @@ export function checkProfileCompletion(u: SpringsUser | null): ProfileCompletion
     missing.push('jeu pratiqué');
   } else {
     if (u.games.includes('rocket_league')) {
-      if (!u.epicAccountId?.trim() && !u.epicDisplayName?.trim()) missing.push('pseudo Epic Games');
-      if (!u.rlTrackerUrl?.trim()) missing.push('URL RL Tracker');
+      // Nouveau modèle (rlPlatform + rlPlatformId) avec fallback sur les champs legacy
+      const hasNewPlatform = !!u.rlPlatform && !!u.rlPlatformId?.trim();
+      const hasLegacyEpic = !!u.epicAccountId?.trim() || !!u.epicDisplayName?.trim();
+      if (!hasNewPlatform && !hasLegacyEpic) {
+        missing.push('plateforme RL + identifiant');
+      }
     }
     if (u.games.includes('trackmania')) {
       if (!u.pseudoTM?.trim()) missing.push('pseudo Ubisoft/Nadeo');

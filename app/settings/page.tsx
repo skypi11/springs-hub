@@ -19,6 +19,7 @@ import MarkdownEditor from '@/components/ui/MarkdownEditor';
 import ImageUploader from '@/components/ui/ImageUploader';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import { RL_RANKS } from '@/lib/rl-ranks';
+import { RL_PLATFORMS, getRLPlatformMeta, buildTrackerGgUrl, buildBallchasingUrl, isValidRLPlatform, type RLPlatform } from '@/lib/rl-platform';
 
 const RECRUIT_ROLE_LABEL: Record<string, string> = {
   joueur: 'Joueur',
@@ -42,8 +43,8 @@ type FormData = {
   country: string;
   dateOfBirth: string;
   games: string[];
-  epicAccountId: string;
-  rlTrackerUrl: string;
+  rlPlatform: RLPlatform | '';
+  rlPlatformId: string;
   rlRank: string;
   pseudoTM: string;
   loginTM: string;
@@ -60,8 +61,8 @@ const defaultForm: FormData = {
   country: '',
   dateOfBirth: '',
   games: [],
-  epicAccountId: '',
-  rlTrackerUrl: '',
+  rlPlatform: '',
+  rlPlatformId: '',
   rlRank: '',
   pseudoTM: '',
   loginTM: '',
@@ -162,6 +163,14 @@ export default function SettingsPage() {
     if (loaded || !firebaseUser) return;
     if (profileQ.isPending) return;
     const data = (profileQ.data ?? {}) as Record<string, string | string[] | boolean | undefined>;
+    // Migration douce : si rlPlatform pas encore set mais qu'on a un epicAccountId/Display legacy,
+    // pre-remplir avec epic + pseudo legacy pour que l'user n'ait pas à re-saisir.
+    const legacyEpicPseudo = (data.epicDisplayName as string) || (data.epicAccountId as string) || '';
+    const savedPlatform = (data.rlPlatform as string) || '';
+    const initialPlatform: RLPlatform | '' = isValidRLPlatform(savedPlatform)
+      ? savedPlatform
+      : (legacyEpicPseudo ? 'epic' : '');
+    const initialPlatformId = (data.rlPlatformId as string) || legacyEpicPseudo;
     setForm({
       displayName: (data.displayName as string) ?? firebaseUser.displayName ?? '',
       avatarUrl: (data.avatarUrl as string) ?? '',
@@ -169,8 +178,8 @@ export default function SettingsPage() {
       country: (data.country as string) ?? '',
       dateOfBirth: (data.dateOfBirth as string) ?? '',
       games: (data.games as string[]) ?? [],
-      epicAccountId: (data.epicDisplayName as string) ?? (data.epicAccountId as string) ?? '',
-      rlTrackerUrl: (data.rlTrackerUrl as string) ?? '',
+      rlPlatform: initialPlatform,
+      rlPlatformId: initialPlatformId,
       rlRank: (data.rlRank as string) ?? '',
       pseudoTM: (data.pseudoTM as string) ?? '',
       loginTM: (data.loginTM as string) ?? '',
@@ -218,8 +227,13 @@ export default function SettingsPage() {
     if (!form.country) return 'Le pays est obligatoire.';
     if (!form.dateOfBirth) return 'La date de naissance est obligatoire.';
     if (form.games.length === 0) return 'Sélectionne au moins un jeu.';
-    if (form.games.includes('rocket_league') && !form.epicAccountId.trim()) {
-      return 'Le pseudo Epic Games est obligatoire pour Rocket League.';
+    if (form.games.includes('rocket_league')) {
+      if (!form.rlPlatform) {
+        return 'Sélectionne ta plateforme principale pour Rocket League.';
+      }
+      if (!form.rlPlatformId.trim()) {
+        return `Ton ${getRLPlatformMeta(form.rlPlatform).idLabel} est obligatoire pour Rocket League.`;
+      }
     }
     if (form.games.includes('trackmania') && !form.pseudoTM.trim()) {
       return 'Le pseudo Ubisoft/Nadeo est obligatoire pour Trackmania.';
@@ -546,43 +560,102 @@ export default function SettingsPage() {
                       </button>
                     </div>
 
-                    {form.games.includes('rocket_league') && (
-                      <div className="p-4 space-y-4 relative overflow-hidden" style={{ background: 'rgba(0,129,255,0.04)', border: '1px solid rgba(0,129,255,0.15)' }}>
-                        <div className="h-[2px] -mt-4 -mx-4 mb-4" style={{ background: 'linear-gradient(90deg, var(--s-blue), transparent 60%)' }} />
-                        <div className="flex items-center gap-2">
-                          <span className="tag tag-blue" style={{ fontSize: '9px' }}>RL</span>
-                          <span className="t-label" style={{ color: 'var(--s-blue)' }}>Config Rocket League</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="t-label block mb-2">Pseudo Epic Games *</label>
-                            <input type="text" value={form.epicAccountId}
-                              onChange={e => updateForm({ epicAccountId: e.target.value })}
-                              className="settings-input w-full" placeholder="Ton pseudo Epic Games" />
+                    {form.games.includes('rocket_league') && (() => {
+                      const platformMeta = form.rlPlatform ? getRLPlatformMeta(form.rlPlatform) : null;
+                      const trackerPreview = form.rlPlatform && form.rlPlatformId.trim()
+                        ? buildTrackerGgUrl(form.rlPlatform, form.rlPlatformId)
+                        : '';
+                      const ballchasingPreview = form.rlPlatform && form.rlPlatformId.trim()
+                        ? buildBallchasingUrl(form.rlPlatform, form.rlPlatformId)
+                        : '';
+                      return (
+                        <div className="p-4 space-y-4 relative overflow-hidden" style={{ background: 'rgba(0,129,255,0.04)', border: '1px solid rgba(0,129,255,0.15)' }}>
+                          <div className="h-[2px] -mt-4 -mx-4 mb-4" style={{ background: 'linear-gradient(90deg, var(--s-blue), transparent 60%)' }} />
+                          <div className="flex items-center gap-2">
+                            <span className="tag tag-blue" style={{ fontSize: '9px' }}>RL</span>
+                            <span className="t-label" style={{ color: 'var(--s-blue)' }}>Config Rocket League</span>
                           </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="t-label block mb-2">Plateforme *</label>
+                              <select
+                                value={form.rlPlatform}
+                                onChange={e => updateForm({ rlPlatform: (e.target.value as RLPlatform | '') })}
+                                className="settings-input w-full"
+                              >
+                                <option value="">— Choisis ta plateforme —</option>
+                                {RL_PLATFORMS.map(p => (
+                                  <option key={p.value} value={p.value}>{p.label}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="t-label block mb-2">
+                                {platformMeta?.idLabel ?? 'ID sur la plateforme'} *
+                              </label>
+                              <input
+                                type="text"
+                                value={form.rlPlatformId}
+                                onChange={e => updateForm({ rlPlatformId: e.target.value })}
+                                className="settings-input w-full"
+                                placeholder={platformMeta?.idPlaceholder ?? 'Sélectionne une plateforme d\'abord'}
+                                disabled={!form.rlPlatform}
+                              />
+                            </div>
+                          </div>
+                          {platformMeta && (
+                            <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                              {platformMeta.idHelp}
+                            </p>
+                          )}
+                          {(trackerPreview || ballchasingPreview) && (
+                            <div
+                              className="p-3 space-y-2"
+                              style={{
+                                background: 'rgba(0,129,255,0.05)',
+                                border: '1px solid rgba(0,129,255,0.15)',
+                              }}
+                            >
+                              <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>
+                                Liens auto-générés sur ton profil public
+                              </p>
+                              {trackerPreview && (
+                                <div className="flex items-center gap-2 text-xs">
+                                  <span style={{ color: 'var(--s-text-dim)', minWidth: 90 }}>tracker.gg →</span>
+                                  <a href={trackerPreview} target="_blank" rel="noopener noreferrer"
+                                    className="truncate hover:underline" style={{ color: 'var(--s-blue)' }}>
+                                    {trackerPreview}
+                                  </a>
+                                </div>
+                              )}
+                              {ballchasingPreview && (
+                                <div className="flex items-center gap-2 text-xs">
+                                  <span style={{ color: 'var(--s-text-dim)', minWidth: 90 }}>Ballchasing →</span>
+                                  <a href={ballchasingPreview} target="_blank" rel="noopener noreferrer"
+                                    className="truncate hover:underline" style={{ color: 'var(--s-blue)' }}>
+                                    {ballchasingPreview}
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          )}
                           <div>
-                            <label className="t-label block mb-2">RL Tracker URL *</label>
-                            <input type="url" value={form.rlTrackerUrl}
-                              onChange={e => updateForm({ rlTrackerUrl: e.target.value })}
-                              className="settings-input w-full" placeholder="https://rocketleague.tracker.network/..." />
+                            <label className="t-label block mb-2">Rang RL (auto-déclaré)</label>
+                            <select value={form.rlRank}
+                              onChange={e => updateForm({ rlRank: e.target.value })}
+                              className="settings-input w-full">
+                              <option value="">— Non renseigné —</option>
+                              {RL_RANKS.map(r => (
+                                <option key={r} value={r}>{r}</option>
+                              ))}
+                            </select>
+                            <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
+                              Affiché sur ton profil. Les visiteurs peuvent cliquer sur les liens ci-dessus pour vérifier sur tracker.gg ou Ballchasing.
+                            </p>
                           </div>
                         </div>
-                        <div>
-                          <label className="t-label block mb-2">Rang RL (auto-déclaré)</label>
-                          <select value={form.rlRank}
-                            onChange={e => updateForm({ rlRank: e.target.value })}
-                            className="settings-input w-full">
-                            <option value="">— Non renseigné —</option>
-                            {RL_RANKS.map(r => (
-                              <option key={r} value={r}>{r}</option>
-                            ))}
-                          </select>
-                          <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
-                            Utilisé quand les stats auto ne sont pas disponibles. Les stats Tracker.gg priment si elles remontent.
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {form.games.includes('trackmania') && (
                       <div className="p-4 space-y-4 relative overflow-hidden" style={{ background: 'rgba(0,217,54,0.04)', border: '1px solid rgba(0,217,54,0.15)' }}>
@@ -817,19 +890,19 @@ export default function SettingsPage() {
                             </div>
                           </div>
 
-                          {(form.pseudoTM || form.rlTrackerUrl) && (
+                          {(form.pseudoTM || form.rlPlatformId) && (
                             <div
                               className="space-y-1.5 pt-3 mt-3"
                               style={{ borderTop: '1px dashed var(--s-border)' }}
                             >
-                              {form.rlTrackerUrl && (
+                              {form.rlPlatformId && (
                                 <div className="flex items-center gap-2">
                                   <Gamepad2 size={11} style={{ color: 'var(--s-blue)' }} />
                                   <span
                                     className="text-xs truncate"
                                     style={{ color: 'var(--s-text-dim)' }}
                                   >
-                                    Profil Rocket League
+                                    Profil RL ({form.rlPlatform ? getRLPlatformMeta(form.rlPlatform).label : '?'})
                                   </span>
                                 </div>
                               )}

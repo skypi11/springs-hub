@@ -18,12 +18,18 @@ export interface SpringsUser {
   recruitmentRole?: string;    // 'joueur' | 'coach' | 'manager'
   recruitmentMessage?: string; // message libre
   // Rocket League
+  // Nouveau modèle cross-platform (depuis 2026-05) : couple (rlPlatform, rlPlatformId)
+  // → on construit auto les URLs tracker.gg et Ballchasing via lib/rl-platform.ts
+  rlPlatform?: 'epic' | 'steam' | 'psn' | 'xbox' | 'switch';
+  rlPlatformId?: string;       // pseudo ou ID selon la plateforme
+  // Legacy (conservés pour rétrocompat avec données existantes) :
   epicAccountId?: string;      // ID Epic permanent (résolu via Tracker.gg) — sert aux lookups stats
   epicDisplayName?: string;    // pseudo Epic actuel — affiché dans l'UI, peut changer
-  rlTrackerUrl?: string;       // lien RL Tracker
+  rlTrackerUrl?: string;       // lien RL Tracker manuel — déprécié, auto-généré désormais
+  // Rang auto-déclaré + stats si dispos
   rlRank?: string;
   rlMmr?: number;
-  rlStats?: RLStats;           // stats auto via API TRN
+  rlStats?: RLStats;           // stats auto via API TRN (legacy, broken en prod)
   // Trackmania
   pseudoTM?: string;           // pseudo affiché en course
   loginTM?: string;            // identifiant Ubisoft/Nadeo
