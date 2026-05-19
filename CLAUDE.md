@@ -178,9 +178,26 @@ Quand une card n'a pas d'image de fond, elle doit quand même avoir de la prése
 - Transitions hover : `duration-150` à `duration-200`, jamais plus
 
 ### Logo
-Fichier : `public/springs-logo.png`
-- Blanc + or + violet sur fond noir
-- Affiché en haut de la sidebar (120×36px)
+**Composant React** : `components/brand/AedralLogo.tsx` — **source de vérité unique** pour le logo sur le site.
+- 2 variants : `horizontal` (mark + AEDRAL wordmark) | `mark` (symbole carré seul)
+- 4 thèmes : `dark` | `light` | `mono-dark` | `mono-light`
+- Usage : `<AedralLogo variant="horizontal" theme="dark" height={48} />`
+- Affiché dans la sidebar via `components/layout/Sidebar.tsx`
+
+**Fichiers SVG/WebP standalone** : `public/aedral/` — pour partages externes, Discord avatars, signatures email, presse.
+- 4 marks (`mark.svg`, `mark-light.svg`, `mark-mono-dark.svg`, `mark-mono-light.svg`)
+- 2 lockups horizontaux (`logo-horizontal.svg`, `logo-horizontal-light.svg`)
+- 2 wordmarks (`wordmark.svg`, `wordmark-light.svg`)
+- WebP générés automatiquement via `node scripts/svg-to-webp.mjs`
+- Le wordmark "AEDRAL" est en paths Bebas Neue embedded (aucune dépendance font) — généré via `node scripts/bebas-to-svg-paths.mjs`
+
+**Favicon + OG + Apple touch + PWA icons** :
+- `app/icon.svg` — favicon principal (mark sur fond noir avec coins arrondis)
+- `app/apple-icon.png` (180×180), `app/opengraph-image.png` (1200×630) — auto-routés par Next.js
+- `public/icon-192.png`, `public/icon-512.png` — PWA, référencés dans `app/manifest.ts`
+- Tous générés via `node scripts/generate-png-derivatives.mjs`
+
+**Palette** : A en `#EAEAF0` (clair) ou `#08080F` (ink), E en `#FFB800` (or chaud) ou `#C8941D` (or foncé). Voir `public/aedral/README.md` pour la doc complète + anti-patterns.
 
 ### Fichiers clés
 - `app/design-system.css` — **système de design complet** (tokens, composants, classes)
