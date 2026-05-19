@@ -20,6 +20,7 @@ import DiscordIcon from '@/components/icons/DiscordIcon';
 import { getEffectiveRLPlatform, buildTrackerGgUrl, buildBallchasingUrl, getRLPlatformMeta } from '@/lib/rl-platform';
 import { getConnectionMeta, buildConnectionUrl } from '@/lib/discord-connections';
 import { Link2 } from 'lucide-react';
+import RankBadge, { getRankTierConfig } from '@/components/rl/RankBadge';
 
 function CountryFlag({ code, size = 16 }: { code: string; size?: number }) {
   if (!code || code === 'OTHER') return <span>🌍</span>;
@@ -332,17 +333,25 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     ) : rlStatsLoaded ? (
                       /* Pas de stats auto mais on a une plateforme — rang déclaré + boutons cliquables */
                       <div className="space-y-4">
-                        {profile.rlRank ? (
-                          <div className="flex items-center gap-4 p-4" style={{ background: 'rgba(0,129,255,0.05)', border: '1px solid rgba(0,129,255,0.15)' }}>
-                            <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center" style={{ background: 'rgba(0,129,255,0.08)', border: '1px solid rgba(0,129,255,0.2)' }}>
-                              <Trophy size={20} style={{ color: 'var(--s-blue)' }} />
+                        {profile.rlRank ? (() => {
+                          const tierConfig = getRankTierConfig(profile.rlRank);
+                          const accent = tierConfig?.color ?? '#0081FF';
+                          return (
+                            <div
+                              className="flex items-center gap-4 p-4"
+                              style={{
+                                background: tierConfig?.bgColor ?? 'rgba(0,129,255,0.05)',
+                                border: `1px solid ${tierConfig?.borderColor ?? 'rgba(0,129,255,0.15)'}`,
+                              }}
+                            >
+                              <RankBadge rank={profile.rlRank} size={56} />
+                              <div className="flex-1">
+                                <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>Rang déclaré</p>
+                                <p className="font-display text-xl" style={{ color: accent }}>{profile.rlRank}</p>
+                              </div>
                             </div>
-                            <div className="flex-1">
-                              <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>Rang déclaré</p>
-                              <p className="font-display text-xl" style={{ color: 'var(--s-text)' }}>{profile.rlRank}</p>
-                            </div>
-                          </div>
-                        ) : (
+                          );
+                        })() : (
                           <div className="text-xs p-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', color: 'var(--s-text-muted)' }}>
                             Aucun rang renseigné. Vérifie les stats via les liens ci-dessous.
                           </div>
