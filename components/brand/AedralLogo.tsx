@@ -81,14 +81,15 @@ export default function AedralLogo({
     >
       <title>Aedral</title>
       <MarkPaths aColor={c.a} eColor={c.e} />
-      <line
-        x1="210"
-        y1="50"
-        x2="210"
-        y2="150"
-        stroke={c.divider}
-        strokeOpacity={c.dividerOpacity}
-        strokeWidth="3"
+      {/* Divider : rect rempli (pas <line>) pour éviter les artefacts
+          d'antialiasing de stroke à petite taille de rendu. */}
+      <rect
+        x="208.5"
+        y="50"
+        width="3"
+        height="100"
+        fill={c.divider}
+        fillOpacity={c.dividerOpacity}
       />
       {/* Wordmark "AE" — paths Bebas Neue */}
       <path

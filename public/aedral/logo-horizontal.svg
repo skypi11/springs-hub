@@ -9,8 +9,8 @@
   <path d="M 102 10 L 184 190 L 170 190 Z" fill="#EAEAF0"/>
   <path d="M80.5 89L119.5 89L119.5 102L94.8 102L94.8 126.05L114.43 126.05L114.43 139.05L94.8 139.05L94.8 167L119.5 167L119.5 180L80.5 180Z" fill="#FFB800"/>
 
-  <!-- Divider vertical -->
-  <line x1="210" y1="50" x2="210" y2="150" stroke="#EAEAF0" stroke-opacity="0.18" stroke-width="3"/>
+  <!-- Divider vertical (rect rempli, pas stroke, pour rendu rock-solid à toutes tailles) -->
+  <rect x="208.5" y="50" width="3" height="100" fill="#EAEAF0" fill-opacity="0.18"/>
 
   <!-- Wordmark "AE" (or) — paths Bebas Neue -->
   <path fill="#FFB800" d="M268.86 61L285.25 61L297.79 138L285.69 138L283.49 122.71L283.49 122.93L269.74 122.93L267.54 138L256.32 138ZM282.06 112.48L276.67 74.42L276.45 74.42L271.17 112.48Z M321.62 61L354.62 61L354.62 72L333.72 72L333.72 92.35L350.33 92.35L350.33 103.35L333.72 103.35L333.72 127L354.62 127L354.62 138L321.62 138Z"/>
