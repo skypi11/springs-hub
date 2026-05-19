@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Building2, Users, AlertCircle, ArrowRight, Loader2,
-  ShieldAlert, ClipboardList, UploadCloud, CalendarDays, FileText,
+  ShieldAlert, ClipboardList, UploadCloud, CalendarDays, FileText, Megaphone,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -201,6 +201,7 @@ export default function AdminDashboardPage() {
           <QuickLink href="/admin/teams" icon={Users} label="Équipes" accent="#0081FF" />
           <QuickLink href="/admin/uploads" icon={UploadCloud} label="Uploads" accent="#33ff66" />
           <QuickLink href="/admin/audit" icon={FileText} label="Audit log" accent="var(--s-gold)" />
+          <QuickLink href="/admin/announce" icon={Megaphone} label="Annonces Discord" accent="#7B2FBE" />
         </div>
       </div>
     </>
