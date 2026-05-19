@@ -32,10 +32,10 @@ function MarkPaths({ aColor, eColor }: { aColor: string; eColor: string }) {
     <>
       <path d="M 98 10 L 30 190 L 16 190 Z" fill={aColor} />
       <path d="M 102 10 L 184 190 L 170 190 Z" fill={aColor} />
-      <rect x="76" y="120" width="10" height="60" fill={eColor} />
-      <rect x="76" y="120" width="48" height="8" fill={eColor} />
-      <rect x="86" y="147" width="36" height="6" fill={eColor} />
-      <rect x="76" y="172" width="48" height="8" fill={eColor} />
+      <path
+        d="M 76 120 L 124 120 L 124 126 L 83 126 L 83 147 L 119 147 L 119 152 L 83 152 L 83 174 L 124 174 L 124 180 L 76 180 Z"
+        fill={eColor}
+      />
     </>
   );
 }

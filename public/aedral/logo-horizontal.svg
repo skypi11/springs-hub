@@ -8,18 +8,10 @@
     ]]></style>
   </defs>
 
-  <!-- A jambe gauche -->
+  <!-- Mark : A jambes + E ligature en path unifié -->
   <path d="M 98 10 L 30 190 L 16 190 Z" fill="#EAEAF0"/>
-  <!-- A jambe droite -->
   <path d="M 102 10 L 184 190 L 170 190 Z" fill="#EAEAF0"/>
-  <!-- E stem vertical -->
-  <rect x="76" y="120" width="10" height="60" fill="#FFB800"/>
-  <!-- E top bar -->
-  <rect x="76" y="120" width="48" height="8" fill="#FFB800"/>
-  <!-- E middle bar -->
-  <rect x="86" y="147" width="36" height="6" fill="#FFB800"/>
-  <!-- E bottom bar -->
-  <rect x="76" y="172" width="48" height="8" fill="#FFB800"/>
+  <path d="M 76 120 L 124 120 L 124 126 L 83 126 L 83 147 L 119 147 L 119 152 L 83 152 L 83 174 L 124 174 L 124 180 L 76 180 Z" fill="#FFB800"/>
 
   <!-- Divider vertical -->
   <line x1="235" y1="50" x2="235" y2="150" stroke="#EAEAF0" stroke-opacity="0.18" stroke-width="3"/>
