@@ -446,11 +446,23 @@ Quand une card n'a pas d'image de fond, elle doit quand même avoir de la prése
 
 - **Phase 1** — Fondations : ✅ terminée
 - **Phase 2** — Communauté (structures, roster, calendrier MVP1/MVP2a/MVP2b, co-fondateurs, drawer ÉQUIPES) : ✅ terminée
-- **Phase 2 bis** — Roadmap UX globale : en cours, voir mémoire [project_ux_roadmap.md](../.claude/projects/c--Users-mattm-springs-hub/memory/project_ux_roadmap.md) (14 items, cocher au fil de l'eau)
-- **Phase 3** — Compétitions : liste, pages individuelles, rebuild TM Monthly Cup, classements RL/TM, inscription équipe/solo, panel admin comps
+- **Phase 2 bis** — Polish UX continu : items shippés au fil de l'eau (rebrand Aedral, landing visiteur, profil RL cross-platform, Steam OpenID, Discord connections sync, /admin/announce dynamique, icônes officielles RL). À ce stade, plutôt traité comme un backlog continu que comme une "Phase" fermable.
+- **Phase 3** — Compétitions natives Aedral : liste, pages individuelles `/competitions/{rl,tm}/[id]`, rebuild TM Monthly Cup, classements RL/TM, inscription équipe/solo, panel admin comps. **Pas démarrée** — la page `/competitions` actuelle pointe sur le vieux site `springs-esport.vercel.app`.
 - **Phase 4** — Finitions : notifications in-app, Discord webhooks, fan zone, mobile, migration liens
 
-Durcissement déjà en place : Sentry, rate limiting Upstash, Toast/Modal DA Springs, suite Vitest, sécurité (CSRF OAuth, validation, rules, batch writes, hard caps).
+Durcissement déjà en place : Sentry, rate limiting Upstash, Toast/Modal DA Aedral, suite Vitest, sécurité (CSRF OAuth, validation, rules, batch writes, hard caps).
+
+### Reviews régulières
+- **Slash command `/review`** (défini dans `.claude/commands/review.md`) : lance 3 agents parallèles (sécu/code, UX/DA, features/roadmap) et sauvegarde le rapport dans `docs/audits/YYYY-MM-DD-review.md` pour comparaison historique.
+- **Dernière review** : 2026-05-19 — 3 critiques fixés (commit 562f584), ~14 importants restent (voir [docs/audits/2026-05-19-review.md](docs/audits/2026-05-19-review.md) et memory [project_audit_review_20260519](../.claude/projects/c--Users-mattm-springs-hub/memory/project_audit_review_20260519.md)).
+- Refaire `/review` ~ tous les 1-2 mois pour suivre la dette technique.
+
+### Annonces Discord (admin)
+- Page `/admin/announce` : éditeur d'annonces (titre + description markdown + couleur + preview live)
+- Templates stockées dans Firestore collection `announce_templates` (CRUD via `/api/admin/announce-templates`)
+- Diffusion via le bot Discord (channel auto-listé, sélectionné dans dropdown)
+- Script `scripts/add-announce-template.mjs` : insertion programmatique de templates (utilisé par Claude en fin de session pour préparer des patch notes — voir memory `feedback_auto_patch_notes_template`)
+- Pas besoin de redéploy pour ajouter/éditer/supprimer des templates
 
 **Audit sécurité structure/équipes/membres (clos 2026-04-18, Lots 9.1→9.7)** :
 - Invariant "1 structure par jeu" atomique via `db.runTransaction()` sur les 3 chemins d'acceptation (`users.structurePerGame` comme source de vérité)
