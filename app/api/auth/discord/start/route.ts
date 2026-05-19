@@ -17,7 +17,10 @@ export async function GET(req: NextRequest) {
   const state = randomBytes(32).toString('hex');
 
   const redirectUri = `${origin}/api/auth/discord/callback`;
-  const discordUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=identify&state=${state}`;
+  // Scope 'connections' = lit les comptes liés par l'user à son Discord
+  // (Epic, Steam, Twitch, YouTube, Spotify, etc.) → enrichit son profil Aedral.
+  const scope = encodeURIComponent('identify connections');
+  const discordUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&state=${state}`;
 
   const res = NextResponse.redirect(discordUrl);
   res.cookies.set('discord_oauth_state', state, {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { fetchDiscordConnections, mergeConnections, type DiscordConnection } from '@/lib/discord-connections';
 
 export async function GET(req: NextRequest) {
   // Rate limit OAuth par IP — protège contre le bruteforce de codes Discord
@@ -70,6 +71,21 @@ export async function GET(req: NextRequest) {
       return res;
     }
 
+    // Pull les connexions Discord de l'user (Epic, Steam, Twitch, YouTube, etc.)
+    // → enrichit le profil + auto-update du pseudo Epic à chaque login.
+    // Erreur silencieuse : si Discord refuse ce scope (révoqué, etc.), on continue
+    // l'auth normalement avec les connexions existantes.
+    let mergedConnections: DiscordConnection[] | null = null;
+    try {
+      const fresh = await fetchDiscordConnections(accessToken);
+      const existing = userSnap.exists
+        ? (userSnap.data()?.discordConnections as DiscordConnection[] | undefined)
+        : undefined;
+      mergedConnections = mergeConnections(fresh, existing);
+    } catch (err) {
+      console.error('[Discord callback] fetch connections failed (non-fatal):', err);
+    }
+
     // Create or update Firebase Auth user profile
     // Cela permet de récupérer displayName et photoURL directement depuis fbUser,
     // sans dépendre de Firestore au refresh
@@ -108,6 +124,7 @@ export async function GET(req: NextRequest) {
         games: [],
         isFan: false,
         isBanned: false,
+        ...(mergedConnections ? { discordConnections: mergedConnections } : {}),
         createdAt: FieldValue.serverTimestamp(),
       });
     } else {
@@ -115,6 +132,7 @@ export async function GET(req: NextRequest) {
         discordId: discordUser.id,
         discordUsername: discordUser.username,
         discordAvatar: avatarUrl,
+        ...(mergedConnections ? { discordConnections: mergedConnections } : {}),
       });
     }
 

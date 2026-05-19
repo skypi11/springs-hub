@@ -10,7 +10,7 @@ import { countries } from '@/lib/countries';
 import {
   Save, User, Gamepad2, Search, ExternalLink,
   AlertCircle, CheckCircle, Loader2, UserCircle, LogOut, Star,
-  Download, Trash2,
+  Download, Trash2, Link2, Eye, EyeOff, RefreshCw,
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import { checkProfileCompletion } from '@/lib/profile-completion';
@@ -20,6 +20,7 @@ import ImageUploader from '@/components/ui/ImageUploader';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import { RL_RANKS } from '@/lib/rl-ranks';
 import { RL_PLATFORMS, getRLPlatformMeta, buildTrackerGgUrl, buildBallchasingUrl, isValidRLPlatform, type RLPlatform } from '@/lib/rl-platform';
+import { getConnectionMeta, buildConnectionUrl, type DiscordConnection } from '@/lib/discord-connections';
 
 const RECRUIT_ROLE_LABEL: Record<string, string> = {
   joueur: 'Joueur',
@@ -27,11 +28,12 @@ const RECRUIT_ROLE_LABEL: Record<string, string> = {
   manager: 'Manager',
 };
 
-type Section = 'profile' | 'games' | 'recruitment' | 'account';
+type Section = 'profile' | 'games' | 'connections' | 'recruitment' | 'account';
 
 const SECTIONS: { key: Section; label: string; icon: typeof User; description: string }[] = [
   { key: 'profile', label: 'Profil', icon: User, description: 'Identité, pays, bio' },
   { key: 'games', label: 'Jeux', icon: Gamepad2, description: 'RL et Trackmania' },
+  { key: 'connections', label: 'Comptes liés', icon: Link2, description: 'Twitch, YouTube, Spotify, Epic…' },
   { key: 'recruitment', label: 'Recrutement', icon: Search, description: 'Dispo pour une équipe' },
   { key: 'account', label: 'Compte', icon: UserCircle, description: 'Discord et session' },
 ];
@@ -52,6 +54,8 @@ type FormData = {
   isAvailableForRecruitment: boolean;
   recruitmentRole: string;
   recruitmentMessage: string;
+  // Connexions Discord — affichage seul ici, mais la visibilité est éditable
+  connections: DiscordConnection[];
 };
 
 const defaultForm: FormData = {
@@ -70,10 +74,11 @@ const defaultForm: FormData = {
   isAvailableForRecruitment: false,
   recruitmentRole: '',
   recruitmentMessage: '',
+  connections: [],
 };
 
 export default function SettingsPage() {
-  const { user, firebaseUser, isAdmin, loading: authLoading, signOut, refreshProfile } = useAuth();
+  const { user, firebaseUser, isAdmin, loading: authLoading, signOut, signInWithDiscord, refreshProfile } = useAuth();
   const router = useRouter();
   const [mustComplete, setMustComplete] = useState(false);
   useEffect(() => {
@@ -187,6 +192,7 @@ export default function SettingsPage() {
       isAvailableForRecruitment: (data.isAvailableForRecruitment as boolean) ?? false,
       recruitmentRole: (data.recruitmentRole as string) ?? '',
       recruitmentMessage: (data.recruitmentMessage as string) ?? '',
+      connections: (data.discordConnections as DiscordConnection[] | undefined) ?? [],
     });
     setLoaded(true);
   }, [profileQ.isPending, profileQ.data, firebaseUser, loaded]);
@@ -258,7 +264,16 @@ export default function SettingsPage() {
     setSaved(false);
 
     try {
-      await api('/api/profile', { method: 'POST', body: form });
+      // On envoie tout le form + la map de visibilité des connexions Discord.
+      // Le serveur applique connectionVisibility sur les connexions stockées
+      // (sans permettre de modifier les autres champs des connexions).
+      const connectionVisibility = form.connections.map(c => ({
+        type: c.type,
+        visible: c.visibleOnProfile ?? false,
+      }));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { connections: _connections, ...rest } = form;
+      await api('/api/profile', { method: 'POST', body: { ...rest, connectionVisibility } });
       setSaved(true);
       setDirty(false);
       // Rafraîchir le state global AuthContext pour que ProfileCompletionGate
@@ -727,6 +742,142 @@ export default function SettingsPage() {
                             onChange={e => updateForm({ tmIoUrl: e.target.value })}
                             className="settings-input w-full" placeholder="https://trackmania.io/#/player/..." />
                         </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* COMPTES LIÉS — connexions Discord (Twitch, YouTube, Spotify, Epic, Steam, etc.) */}
+            {section === 'connections' && (
+              <div className="pillar-card panel relative group transition-all duration-200 animate-fade-in">
+                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), rgba(123,47,190,0.3), transparent 70%)' }} />
+                <div className="relative z-[1]">
+                  <div className="panel-header">
+                    <div className="flex items-center gap-2">
+                      <Link2 size={13} style={{ color: 'var(--s-violet)' }} />
+                      <span className="t-label" style={{ color: 'var(--s-text)' }}>COMPTES LIÉS VIA DISCORD</span>
+                    </div>
+                  </div>
+                  <div className="p-5 space-y-4">
+                    <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                      Synchronisés automatiquement depuis ton Discord à chaque connexion. Active la visibilité de ceux que tu veux afficher sur ton profil public Aedral.
+                    </p>
+
+                    {form.connections.length === 0 ? (
+                      <div
+                        className="p-5 text-center space-y-3"
+                        style={{
+                          background: 'var(--s-elevated)',
+                          border: '1px dashed var(--s-border)',
+                        }}
+                      >
+                        <Link2 size={28} className="mx-auto" style={{ color: 'var(--s-text-muted)' }} />
+                        <p className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
+                          Aucune connexion détectée
+                        </p>
+                        <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                          Lie tes comptes (Epic, Steam, Twitch, YouTube, Spotify…) dans <strong>Discord → Paramètres → Connexions</strong>, puis re-connecte-toi à Aedral pour les synchroniser.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await signOut();
+                            await signInWithDiscord();
+                          }}
+                          className="btn-springs btn-secondary bevel-sm inline-flex items-center gap-2 mx-auto"
+                        >
+                          <RefreshCw size={12} /> Re-connecter à Discord
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {form.connections.map(conn => {
+                          const meta = getConnectionMeta(conn.type);
+                          const url = buildConnectionUrl(conn);
+                          const isVisible = conn.visibleOnProfile ?? false;
+                          return (
+                            <div
+                              key={conn.type}
+                              className="flex items-center gap-3 p-3"
+                              style={{
+                                background: isVisible ? 'rgba(123,47,190,0.04)' : 'var(--s-elevated)',
+                                border: `1px solid ${isVisible ? 'rgba(123,47,190,0.2)' : 'var(--s-border)'}`,
+                              }}
+                            >
+                              <div
+                                className="w-9 h-9 flex-shrink-0 flex items-center justify-center font-display"
+                                style={{
+                                  background: isVisible ? 'rgba(123,47,190,0.1)' : 'rgba(255,255,255,0.04)',
+                                  border: `1px solid ${isVisible ? 'rgba(123,47,190,0.3)' : 'var(--s-border)'}`,
+                                  color: isVisible ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
+                                  fontSize: 14,
+                                }}
+                              >
+                                {(meta?.label ?? conn.type).charAt(0).toUpperCase()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
+                                    {meta?.label ?? conn.type}
+                                  </span>
+                                  {conn.verified && (
+                                    <CheckCircle size={11} style={{ color: 'var(--s-green)' }} />
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                                  <span className="truncate">{conn.name}</span>
+                                  {url && (
+                                    <a
+                                      href={url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{ color: 'var(--s-violet-light)' }}
+                                      className="hover:underline inline-flex items-center gap-1"
+                                    >
+                                      Voir <ExternalLink size={9} />
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  updateForm({
+                                    connections: form.connections.map(c =>
+                                      c.type === conn.type
+                                        ? { ...c, visibleOnProfile: !isVisible }
+                                        : c
+                                    ),
+                                  });
+                                }}
+                                className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1.5 transition-colors bevel-sm"
+                                style={{
+                                  background: isVisible ? 'rgba(123,47,190,0.15)' : 'transparent',
+                                  border: `1px solid ${isVisible ? 'rgba(123,47,190,0.4)' : 'var(--s-border)'}`,
+                                  color: isVisible ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
+                                }}
+                                aria-label={isVisible ? 'Masquer du profil' : 'Afficher sur le profil'}
+                              >
+                                {isVisible ? <Eye size={11} /> : <EyeOff size={11} />}
+                                {isVisible ? 'Visible' : 'Masqué'}
+                              </button>
+                            </div>
+                          );
+                        })}
+
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await signOut();
+                            await signInWithDiscord();
+                          }}
+                          className="mt-3 inline-flex items-center gap-2 text-xs"
+                          style={{ color: 'var(--s-text-muted)' }}
+                        >
+                          <RefreshCw size={11} /> Re-synchroniser depuis Discord
+                        </button>
                       </div>
                     )}
                   </div>

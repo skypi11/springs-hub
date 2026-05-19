@@ -3,6 +3,7 @@ import { getAdminAuth, getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { safeUrl, clampString, LIMITS } from '@/lib/validation';
 import { isValidRLPlatform, buildTrackerGgUrl, type RLPlatform } from '@/lib/rl-platform';
+import type { DiscordConnection } from '@/lib/discord-connections';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { computeAge } from '@/lib/age';
@@ -217,6 +218,28 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Connexions Discord — on n'accepte du client QUE les changements de
+    // visibleOnProfile. Les autres champs (type, id, name, verified) sont
+    // pilotés par le pull au login Discord et ne doivent pas être modifiables
+    // par l'user (sinon il pourrait spoofer "j'ai un compte Twitch vérifié").
+    let updatedConnections: DiscordConnection[] | undefined;
+    const existingConnections = (existingData.discordConnections ?? []) as DiscordConnection[];
+    if (Array.isArray(body.connectionVisibility)) {
+      const visMap = new Map<string, boolean>(
+        body.connectionVisibility
+          .filter((v: unknown): v is { type: string; visible: boolean } =>
+            typeof v === 'object' && v !== null &&
+            typeof (v as { type: unknown }).type === 'string' &&
+            typeof (v as { visible: unknown }).visible === 'boolean'
+          )
+          .map((v: { type: string; visible: boolean }) => [v.type, v.visible])
+      );
+      updatedConnections = existingConnections.map(c => ({
+        ...c,
+        visibleOnProfile: visMap.has(c.type) ? visMap.get(c.type)! : (c.visibleOnProfile ?? false),
+      }));
+    }
+
     const profileData: Record<string, unknown> = {
       uid,
       displayName: clampString(body.displayName, LIMITS.displayName),
@@ -238,6 +261,7 @@ export async function POST(req: NextRequest) {
       isAvailableForRecruitment: body.isAvailableForRecruitment || false,
       recruitmentRole: body.isAvailableForRecruitment ? body.recruitmentRole || '' : '',
       recruitmentMessage: body.isAvailableForRecruitment ? clampString(body.recruitmentMessage, LIMITS.recruitmentMessage) : '',
+      ...(updatedConnections ? { discordConnections: updatedConnections } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     };
 

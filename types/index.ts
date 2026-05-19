@@ -38,6 +38,9 @@ export interface SpringsUser {
   createdAt?: Date;
   // Enrichissement renvoyé par GET /api/profile — structures où le joueur est impliqué
   structures?: ProfileStructure[];
+  // Connexions tierces synchronisées depuis Discord (Epic, Steam, Twitch, YouTube, Spotify, etc.)
+  // → enrichissent le profil + auto-update du pseudo Epic via le pull au login
+  discordConnections?: import('@/lib/discord-connections').DiscordConnection[];
 }
 
 export interface ProfileStructure {

@@ -18,6 +18,8 @@ import { SkeletonPageHeader, SkeletonCard } from '@/components/ui/Skeleton';
 import InviteToStructureButton from '@/components/community/InviteToStructureButton';
 import DiscordIcon from '@/components/icons/DiscordIcon';
 import { getEffectiveRLPlatform, buildTrackerGgUrl, buildBallchasingUrl, getRLPlatformMeta } from '@/lib/rl-platform';
+import { getConnectionMeta, buildConnectionUrl } from '@/lib/discord-connections';
+import { Link2 } from 'lucide-react';
 
 function CountryFlag({ code, size = 16 }: { code: string; size?: number }) {
   if (!code || code === 'OTHER') return <span>🌍</span>;
@@ -242,6 +244,65 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
             )}
           </div>
         </header>
+
+        {/* ─── COMPTES LIÉS (visibles uniquement) ────────────────────────── */}
+        {(profile.discordConnections ?? []).some(c => c.visibleOnProfile) && (
+          <div className="pillar-card panel relative overflow-hidden animate-fade-in-d1">
+            <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), rgba(123,47,190,0.3), transparent 70%)' }} />
+            <div className="absolute top-0 right-0 w-[180px] h-[180px] pointer-events-none opacity-[0.06]"
+              style={{ background: 'radial-gradient(circle at top right, var(--s-violet), transparent 70%)' }} />
+            <div className="relative z-[1]">
+              <div className="panel-header">
+                <div className="flex items-center gap-2">
+                  <Link2 size={13} style={{ color: 'var(--s-violet)' }} />
+                  <span className="t-label" style={{ color: 'var(--s-text)' }}>COMPTES & LIENS</span>
+                </div>
+              </div>
+              <div className="p-5">
+                <div className="flex flex-wrap gap-2">
+                  {(profile.discordConnections ?? [])
+                    .filter(c => c.visibleOnProfile)
+                    .map(conn => {
+                      const meta = getConnectionMeta(conn.type);
+                      const url = buildConnectionUrl(conn);
+                      const label = meta?.label ?? conn.type;
+                      const inner = (
+                        <span
+                          className="inline-flex items-center gap-2 px-3 py-2 transition-colors bevel-sm"
+                          style={{
+                            background: 'rgba(123,47,190,0.06)',
+                            border: '1px solid rgba(123,47,190,0.2)',
+                            color: 'var(--s-text)',
+                          }}
+                        >
+                          <span
+                            className="w-6 h-6 flex items-center justify-center font-display text-xs"
+                            style={{
+                              background: 'rgba(123,47,190,0.15)',
+                              color: 'var(--s-violet-light)',
+                            }}
+                          >
+                            {label.charAt(0).toUpperCase()}
+                          </span>
+                          <span className="text-xs font-semibold">{label}</span>
+                          <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>·</span>
+                          <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{conn.name}</span>
+                          {url && <ExternalLink size={10} style={{ color: 'var(--s-text-muted)' }} />}
+                        </span>
+                      );
+                      return url ? (
+                        <a key={conn.type} href={url} target="_blank" rel="noopener noreferrer">
+                          {inner}
+                        </a>
+                      ) : (
+                        <span key={conn.type}>{inner}</span>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ─── BIO ───────────────────────────────────────────────────────── */}
         {profile.bio && (
