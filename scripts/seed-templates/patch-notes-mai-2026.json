@@ -1,0 +1,8 @@
+{
+  "key": "patch-notes-mai-2026",
+  "label": "Patch notes — Mai 2026",
+  "title": "📢 Nouveautés Aedral — Mai 2026",
+  "color": 16758784,
+  "defaultChannelHint": "annonces",
+  "description": "Récap des dernières mises à jour. Comme toujours, tout est gratuit.\n\n**🎮 Profil Rocket League amélioré**\nTon profil affiche maintenant les **vraies icônes de rang officielles** (Bronze → SSL). Choisis ta plateforme (Epic, Steam, PSN, Xbox, Switch) et les liens **tracker.gg + Ballchasing** sont générés automatiquement.\n\n**🔗 Lie tes comptes Twitch, YouTube, Spotify, Epic, Steam…**\nAedral récupère automatiquement tous les comptes que tu as liés à ton Discord. Va dans **Settings → Comptes liés** et toggle ceux que tu veux afficher sur ton profil public.\n\n**🟢 Liaison Steam directe (recommandée pour les joueurs Steam)**\nNouveau bouton **« Lier mon Steam »** dans Settings → Jeux. Ton identifiant Steam permanent est récupéré une bonne fois pour toutes — ton lien tracker.gg ne cassera jamais, même si tu changes ton pseudo Steam.\n\n**✨ Branding Aedral peaufiné**\nLe logo a été refait avec une vraie typographie cohérente, et l'aperçu quand tu partages [aedral.com](https://aedral.com) (Discord, Twitter…) est maintenant beaucoup plus propre.\n\n**📱 App icons mobile**\nTu peux ajouter **Aedral en raccourci** sur ton téléphone (iOS/Android) avec une vraie icône d'app."
+}

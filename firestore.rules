@@ -389,5 +389,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── Springs Hub — Templates d'annonces Discord ─────────────────────────────
+    // Gérées via /api/admin/announce-templates (CRUD). Admin SDK uniquement.
+    // Aucune raison pour un client d'y accéder en direct.
+    match /announce_templates/{id} {
+      allow read, write: if false;
+    }
+
   }
 }

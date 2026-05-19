@@ -219,6 +219,23 @@ export interface StructureEvent {
   resultat?: string | null;
 }
 
+// ── Annonces Discord — templates dynamiques (admin) ─────────────────────
+// Stockées dans Firestore `announce_templates`, gérées via /admin/announce.
+// Permet d'ajouter de nouvelles templates sans redéploy.
+export interface AnnounceTemplate {
+  id: string;                  // = doc id
+  key: string;                 // slug stable (ex: 'patch-notes-mai-2026')
+  label: string;               // affiché dans le dropdown
+  title: string;
+  description: string;         // markdown Discord supporté
+  color: number;               // hex int (ex: 0xFFB800)
+  defaultChannelHint?: string; // nom partiel du channel suggéré (ex: 'annonces')
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+  createdBy?: string;          // uid admin
+  lastUsedAt?: Date | string;  // pour tri "récemment utilisé"
+}
+
 // ── Replays ──────────────────────────────────────────────────────────────
 // Rocket League uniquement pour l'instant. Stockés sur R2 (clé dans r2Key),
 // accédés via URL signée (60s) car privés au staff de la structure.

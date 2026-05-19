@@ -3,23 +3,30 @@
 // Page admin : Annonces Discord
 //
 // Permet à un admin de :
-// 1. Choisir un channel texte du serveur Discord communautaire Aedral
-// 2. Pré-remplir avec une template (patch notes, événement, etc.)
+// 1. Charger une template existante (stockée en Firestore) OU partir de zéro
+// 2. Choisir un channel texte du serveur Discord communautaire Aedral
 // 3. Modifier le titre + description (markdown Discord supporté)
 // 4. Voir une preview live de l'embed
 // 5. Publier via le bot
+// 6. Sauvegarder le brouillon comme nouvelle template (ou mettre à jour
+//    l'existante, ou la supprimer) — sans deploy
 //
-// Backend : /api/admin/discord-broadcast (GET liste channels, POST envoie)
+// Backend :
+//   /api/admin/discord-broadcast        → liste channels (GET), publie (POST)
+//   /api/admin/announce-templates       → liste/crée templates (GET, POST)
+//   /api/admin/announce-templates/[id]  → édite/supprime (PATCH, DELETE)
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/ui/ConfirmModal';
 import {
   Megaphone, Loader2, Send, Eye, FileText, RefreshCw, AlertCircle,
-  CheckCircle2, ExternalLink, Palette,
+  CheckCircle2, ExternalLink, Palette, Save, Trash2, Plus,
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
+import type { AnnounceTemplate } from '@/types';
 
 interface BroadcastChannel {
   id: string;
@@ -34,69 +41,37 @@ interface SendResponse {
   channelName: string;
 }
 
-// ── Templates pré-définies ─────────────────────────────────────────────────
-// Ajoute ici les drafts pour faciliter les futures annonces. La sélection
-// de la template ne fait que pré-remplir le formulaire — l'admin peut tout
-// éditer avant de publier.
-interface Template {
-  key: string;
-  label: string;
-  title: string;
-  description: string;
-  color: number;
-  defaultChannelHint?: string; // nom du channel suggéré, pour orienter le dropdown
-}
+const AEDRAL_OR = 0xFFB800;
 
-const TEMPLATES: Template[] = [
-  {
-    key: 'patch-notes-mai-2026',
-    label: 'Patch notes — Mai 2026',
-    title: '📢 Nouveautés Aedral — Mai 2026',
-    color: 0xFFB800,
-    defaultChannelHint: 'annonces',
-    description: `Récap des dernières mises à jour. Comme toujours, tout est gratuit.
-
-**🎮 Profil Rocket League amélioré**
-Ton profil affiche maintenant les **vraies icônes de rang officielles** (Bronze → SSL). Choisis ta plateforme (Epic, Steam, PSN, Xbox, Switch) et les liens **tracker.gg + Ballchasing** sont générés automatiquement.
-
-**🔗 Lie tes comptes Twitch, YouTube, Spotify, Epic, Steam…**
-Aedral récupère automatiquement tous les comptes que tu as liés à ton Discord. Va dans **Settings → Comptes liés** et toggle ceux que tu veux afficher sur ton profil public.
-
-**🟢 Liaison Steam directe (recommandée pour les joueurs Steam)**
-Nouveau bouton **« Lier mon Steam »** dans Settings → Jeux. Ton identifiant Steam permanent est récupéré une bonne fois pour toutes — ton lien tracker.gg ne cassera jamais, même si tu changes ton pseudo Steam.
-
-**✨ Branding Aedral peaufiné**
-Le logo a été refait avec une vraie typographie cohérente, et l'aperçu quand tu partages [aedral.com](https://aedral.com) (Discord, Twitter…) est maintenant beaucoup plus propre.
-
-**📱 App icons mobile**
-Tu peux ajouter **Aedral en raccourci** sur ton téléphone (iOS/Android) avec une vraie icône d'app.`,
-  },
-  {
-    key: 'vide',
-    label: '— Vide (à rédiger from scratch) —',
-    title: '',
-    description: '',
-    color: 0xFFB800,
-  },
-];
-
-const DEFAULT_TEMPLATE = TEMPLATES[0];
+// Template locale "Vide" — pas stockée en Firestore, juste un reset rapide
+const BLANK_TEMPLATE: Pick<AnnounceTemplate, 'title' | 'description' | 'color' | 'defaultChannelHint'> = {
+  title: '',
+  description: '',
+  color: AEDRAL_OR,
+};
 
 export default function AdminAnnouncePage() {
   const { firebaseUser, isAdmin, loading: authLoading } = useAuth();
   const toast = useToast();
+  const confirm = useConfirm();
 
+  // ── Channels Discord ──────────────────────────────────────────────────
   const [channels, setChannels] = useState<BroadcastChannel[] | null>(null);
   const [channelsErr, setChannelsErr] = useState('');
   const [loadingChannels, setLoadingChannels] = useState(false);
-
   const [channelId, setChannelId] = useState('');
-  const [templateKey, setTemplateKey] = useState(DEFAULT_TEMPLATE.key);
-  const [title, setTitle] = useState(DEFAULT_TEMPLATE.title);
-  const [description, setDescription] = useState(DEFAULT_TEMPLATE.description);
-  const [color, setColor] = useState(DEFAULT_TEMPLATE.color);
 
+  // ── Templates Firestore ───────────────────────────────────────────────
+  const [templates, setTemplates] = useState<AnnounceTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(''); // '' = nouveau / vide
+
+  // ── Form ──────────────────────────────────────────────────────────────
+  const [title, setTitle] = useState(BLANK_TEMPLATE.title);
+  const [description, setDescription] = useState(BLANK_TEMPLATE.description);
+  const [color, setColor] = useState(BLANK_TEMPLATE.color);
   const [sending, setSending] = useState(false);
+  const [savingTpl, setSavingTpl] = useState(false);
   const [lastSent, setLastSent] = useState<SendResponse | null>(null);
 
   async function loadChannels() {
@@ -106,36 +81,133 @@ export default function AdminAnnouncePage() {
     try {
       const res = await api<{ channels: BroadcastChannel[] }>('/api/admin/discord-broadcast');
       setChannels(res.channels);
-      // Auto-select le channel #annonces si présent (ou celui suggéré par la template)
-      const hint = DEFAULT_TEMPLATE.defaultChannelHint?.toLowerCase();
-      const suggested = hint
-        ? res.channels.find(c => c.name.toLowerCase().includes(hint))
-        : null;
-      if (suggested) setChannelId(suggested.id);
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'Erreur lors du chargement des channels';
-      setChannelsErr(msg);
+      setChannelsErr(err instanceof ApiError ? err.message : 'Erreur réseau');
     } finally {
       setLoadingChannels(false);
     }
   }
 
+  async function loadTemplates() {
+    if (!firebaseUser) return;
+    setLoadingTemplates(true);
+    try {
+      const res = await api<{ templates: AnnounceTemplate[] }>('/api/admin/announce-templates');
+      setTemplates(res.templates);
+    } catch (err) {
+      console.error('[Announce] load templates error', err);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  }
+
   useEffect(() => {
-    if (firebaseUser && isAdmin) loadChannels();
+    if (firebaseUser && isAdmin) {
+      loadChannels();
+      loadTemplates();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firebaseUser, isAdmin]);
 
-  function applyTemplate(key: string) {
-    const tpl = TEMPLATES.find(t => t.key === key) ?? DEFAULT_TEMPLATE;
-    setTemplateKey(key);
+  // Auto-sélectionne #annonces une fois les channels chargés (si rien d'autre choisi)
+  useEffect(() => {
+    if (channels && !channelId) {
+      const annonces = channels.find(c => /annonce/i.test(c.name));
+      if (annonces) setChannelId(annonces.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channels]);
+
+  function applyTemplate(tplId: string) {
+    setSelectedTemplateId(tplId);
+    if (!tplId) {
+      setTitle(BLANK_TEMPLATE.title);
+      setDescription(BLANK_TEMPLATE.description);
+      setColor(BLANK_TEMPLATE.color);
+      return;
+    }
+    const tpl = templates.find(t => t.id === tplId);
+    if (!tpl) return;
     setTitle(tpl.title);
     setDescription(tpl.description);
     setColor(tpl.color);
-    // Si une suggestion de channel existe et qu'on a la liste, la pré-sélectionner
+    // Auto-sélectionne le channel suggéré si dispo
     if (tpl.defaultChannelHint && channels) {
       const hint = tpl.defaultChannelHint.toLowerCase();
       const match = channels.find(c => c.name.toLowerCase().includes(hint));
       if (match) setChannelId(match.id);
+    }
+  }
+
+  async function handleSaveNewTemplate() {
+    const label = window.prompt(
+      'Nom de la nouvelle template (ex: "Patch notes — Juin 2026")',
+      title.replace(/^📢\s*/, '').trim() || 'Sans titre',
+    );
+    if (!label?.trim()) return;
+
+    // Demander le channel hint (suggéré au chargement de la template plus tard)
+    const channelHint = window.prompt(
+      'Nom partiel du channel cible suggéré (ex: "annonces"). Laisse vide si pas de suggestion.',
+      'annonces',
+    );
+
+    setSavingTpl(true);
+    try {
+      const res = await api<{ ok: true; id: string }>('/api/admin/announce-templates', {
+        method: 'POST',
+        body: { label: label.trim(), title, description, color, defaultChannelHint: channelHint?.trim() ?? null },
+      });
+      toast.success(`Template "${label.trim()}" sauvegardée`);
+      setSelectedTemplateId(res.id);
+      await loadTemplates();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur de sauvegarde');
+    } finally {
+      setSavingTpl(false);
+    }
+  }
+
+  async function handleUpdateTemplate() {
+    if (!selectedTemplateId) return;
+    setSavingTpl(true);
+    try {
+      await api(`/api/admin/announce-templates/${selectedTemplateId}`, {
+        method: 'PATCH',
+        body: { title, description, color },
+      });
+      toast.success('Template mise à jour');
+      await loadTemplates();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur de mise à jour');
+    } finally {
+      setSavingTpl(false);
+    }
+  }
+
+  async function handleDeleteTemplate() {
+    if (!selectedTemplateId) return;
+    const tpl = templates.find(t => t.id === selectedTemplateId);
+    const ok = await confirm({
+      title: 'Supprimer cette template ?',
+      message: `"${tpl?.label ?? 'Sans nom'}" sera définitivement supprimée.`,
+      confirmLabel: 'Supprimer',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    setSavingTpl(true);
+    try {
+      await api(`/api/admin/announce-templates/${selectedTemplateId}`, { method: 'DELETE' });
+      toast.success('Template supprimée');
+      setSelectedTemplateId('');
+      setTitle(BLANK_TEMPLATE.title);
+      setDescription(BLANK_TEMPLATE.description);
+      setColor(BLANK_TEMPLATE.color);
+      await loadTemplates();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur de suppression');
+    } finally {
+      setSavingTpl(false);
     }
   }
 
@@ -156,15 +228,27 @@ export default function AdminAnnouncePage() {
       });
       setLastSent(res);
       toast.success(`Message envoyé sur #${res.channelName}`);
+      // Marque la template comme utilisée (pour future tri "récent")
+      if (selectedTemplateId) {
+        api(`/api/admin/announce-templates/${selectedTemplateId}`, {
+          method: 'PATCH',
+          body: { markUsed: true },
+        }).catch(() => {});
+      }
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'Erreur lors de l\'envoi';
-      toast.error(msg);
+      toast.error(err instanceof ApiError ? err.message : 'Erreur lors de l\'envoi');
     } finally {
       setSending(false);
     }
   }
 
-  // Grouper les channels par catégorie pour le dropdown
+  // Détecte si le contenu actuel diffère de la template sélectionnée
+  const selectedTpl = templates.find(t => t.id === selectedTemplateId);
+  const isDirty = selectedTpl
+    ? (selectedTpl.title !== title || selectedTpl.description !== description || selectedTpl.color !== color)
+    : (title !== BLANK_TEMPLATE.title || description !== BLANK_TEMPLATE.description || color !== BLANK_TEMPLATE.color);
+
+  // Grouper les channels par catégorie
   const channelsByCategory = (channels ?? []).reduce<Record<string, BroadcastChannel[]>>((acc, c) => {
     if (!acc[c.category]) acc[c.category] = [];
     acc[c.category].push(c);
@@ -197,13 +281,13 @@ export default function AdminAnnouncePage() {
         <div>
           <h1 className="font-display text-2xl tracking-wider">ANNONCES DISCORD</h1>
           <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            Publie une annonce sur le serveur Discord communautaire officiel Aedral via le bot.
+            Publie une annonce sur le serveur Discord communautaire officiel Aedral via le bot. Tes templates sont stockées en base — pas besoin de redéploy pour en ajouter.
           </p>
         </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* ── Formulaire ─────────────────────────────────────────────── */}
+        {/* ── Rédaction ────────────────────────────────────────────────── */}
         <div className="pillar-card panel relative overflow-hidden">
           <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), rgba(123,47,190,0.3), transparent 70%)' }} />
           <div className="panel-header">
@@ -215,19 +299,65 @@ export default function AdminAnnouncePage() {
           <div className="p-5 space-y-5">
             {/* Template */}
             <div>
-              <label className="t-label block mb-2">Charger une template</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="t-label">Template</label>
+                {loadingTemplates && <Loader2 size={11} className="animate-spin" style={{ color: 'var(--s-text-muted)' }} />}
+              </div>
               <select
-                value={templateKey}
+                value={selectedTemplateId}
                 onChange={e => applyTemplate(e.target.value)}
                 className="settings-input w-full"
               >
-                {TEMPLATES.map(t => (
-                  <option key={t.key} value={t.key}>{t.label}</option>
+                <option value="">— Vide (rédiger from scratch) —</option>
+                {templates.map(t => (
+                  <option key={t.id} value={t.id}>{t.label}</option>
                 ))}
               </select>
-              <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
-                La template pré-remplit titre + description + couleur. Tu peux tout éditer avant de publier.
-              </p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={handleSaveNewTemplate}
+                  disabled={savingTpl || !description.trim()}
+                  className="text-xs inline-flex items-center gap-1.5 px-3 py-1.5 bevel-sm disabled:opacity-50"
+                  style={{
+                    background: 'rgba(123,47,190,0.1)',
+                    border: '1px solid rgba(123,47,190,0.3)',
+                    color: 'var(--s-violet-light)',
+                  }}
+                >
+                  <Plus size={11} /> Sauvegarder comme nouvelle template
+                </button>
+                {selectedTemplateId && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleUpdateTemplate}
+                      disabled={savingTpl || !isDirty}
+                      className="text-xs inline-flex items-center gap-1.5 px-3 py-1.5 bevel-sm disabled:opacity-40"
+                      style={{
+                        background: isDirty ? 'rgba(255,184,0,0.1)' : 'transparent',
+                        border: `1px solid ${isDirty ? 'rgba(255,184,0,0.35)' : 'var(--s-border)'}`,
+                        color: isDirty ? 'var(--s-gold)' : 'var(--s-text-muted)',
+                      }}
+                    >
+                      <Save size={11} /> Mettre à jour cette template
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeleteTemplate}
+                      disabled={savingTpl}
+                      className="text-xs inline-flex items-center gap-1.5 px-3 py-1.5 bevel-sm disabled:opacity-50"
+                      style={{
+                        background: 'transparent',
+                        border: '1px solid rgba(255, 100, 100, 0.3)',
+                        color: '#ff7878',
+                      }}
+                    >
+                      <Trash2 size={11} /> Supprimer
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Channel */}
@@ -239,7 +369,7 @@ export default function AdminAnnouncePage() {
                 </div>
               ) : channelsErr ? (
                 <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--s-text-muted)' }}>
-                  <AlertCircle size={14} style={{ color: 'var(--s-text-muted)' }} />
+                  <AlertCircle size={14} />
                   {channelsErr}
                   <button onClick={loadChannels} className="text-xs underline">Retry</button>
                 </div>
@@ -264,7 +394,7 @@ export default function AdminAnnouncePage() {
                     className="text-xs mt-1.5 inline-flex items-center gap-1"
                     style={{ color: 'var(--s-text-muted)' }}
                   >
-                    <RefreshCw size={10} /> Recharger la liste
+                    <RefreshCw size={10} /> Recharger
                   </button>
                 </>
               )}
@@ -305,7 +435,7 @@ export default function AdminAnnouncePage() {
             {/* Couleur */}
             <div>
               <label className="t-label block mb-2 flex items-center gap-2">
-                <Palette size={11} /> Couleur de la barre latérale de l&apos;embed
+                <Palette size={11} /> Couleur de la barre latérale
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -329,7 +459,7 @@ export default function AdminAnnouncePage() {
                 />
                 <button
                   type="button"
-                  onClick={() => setColor(0xFFB800)}
+                  onClick={() => setColor(AEDRAL_OR)}
                   className="text-xs px-3 py-2 bevel-sm"
                   style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', color: 'var(--s-text-dim)' }}
                 >
@@ -392,7 +522,7 @@ export default function AdminAnnouncePage() {
           </div>
           <div className="p-5">
             <p className="text-xs mb-3" style={{ color: 'var(--s-text-muted)' }}>
-              Aperçu approximatif de l&apos;embed Discord. Le markdown sera rendu côté Discord.
+              Aperçu approximatif de l&apos;embed Discord. Le markdown sera rendu correctement côté Discord.
             </p>
             <div
               className="p-4 flex gap-3"
@@ -406,14 +536,14 @@ export default function AdminAnnouncePage() {
                 lineHeight: 1.45,
               }}
             >
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 {title && (
                   <div className="font-semibold mb-2" style={{ color: '#f2f3f5', fontSize: 16 }}>
                     {title}
                   </div>
                 )}
                 <pre
-                  className="whitespace-pre-wrap"
+                  className="whitespace-pre-wrap break-words"
                   style={{
                     fontFamily: 'inherit',
                     margin: 0,
