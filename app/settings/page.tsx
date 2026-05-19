@@ -20,7 +20,7 @@ import ImageUploader from '@/components/ui/ImageUploader';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import { RL_RANKS } from '@/lib/rl-ranks';
 import { RL_PLATFORMS, getRLPlatformMeta, buildTrackerGgUrl, buildBallchasingUrl, isValidRLPlatform, type RLPlatform } from '@/lib/rl-platform';
-import { getConnectionMeta, buildConnectionUrl, type DiscordConnection } from '@/lib/discord-connections';
+import { getConnectionMeta, buildConnectionUrl, pickBestRLConnection, type DiscordConnection } from '@/lib/discord-connections';
 
 const RECRUIT_ROLE_LABEL: Record<string, string> = {
   joueur: 'Joueur',
@@ -168,14 +168,21 @@ export default function SettingsPage() {
     if (loaded || !firebaseUser) return;
     if (profileQ.isPending) return;
     const data = (profileQ.data ?? {}) as Record<string, string | string[] | boolean | undefined>;
-    // Migration douce : si rlPlatform pas encore set mais qu'on a un epicAccountId/Display legacy,
-    // pre-remplir avec epic + pseudo legacy pour que l'user n'ait pas à re-saisir.
+    // Pré-remplissage RL en cascade :
+    //  1. Valeur déjà saisie par l'user (rlPlatform + rlPlatformId) — priorité absolue
+    //  2. Champs legacy (epicAccountId/epicDisplayName) — migration douce
+    //  3. Connexion Discord gaming (Steam > Epic > PSN > Xbox > Switch)
+    //     → permet à l'user de bénéficier du sync auto sans rien faire
     const legacyEpicPseudo = (data.epicDisplayName as string) || (data.epicAccountId as string) || '';
     const savedPlatform = (data.rlPlatform as string) || '';
+    const savedPlatformId = (data.rlPlatformId as string) || '';
+    const connections = (data.discordConnections as DiscordConnection[] | undefined) ?? [];
+    const fromDiscord = pickBestRLConnection(connections);
+
     const initialPlatform: RLPlatform | '' = isValidRLPlatform(savedPlatform)
       ? savedPlatform
-      : (legacyEpicPseudo ? 'epic' : '');
-    const initialPlatformId = (data.rlPlatformId as string) || legacyEpicPseudo;
+      : (legacyEpicPseudo ? 'epic' : (fromDiscord?.platform ?? ''));
+    const initialPlatformId = savedPlatformId || legacyEpicPseudo || fromDiscord?.id || '';
     setForm({
       displayName: (data.displayName as string) ?? firebaseUser.displayName ?? '',
       avatarUrl: (data.avatarUrl as string) ?? '',

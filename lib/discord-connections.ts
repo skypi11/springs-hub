@@ -145,6 +145,42 @@ export async function fetchDiscordConnections(accessToken: string): Promise<Disc
   }));
 }
 
+// Extrait l'identité Rocket League d'une connexion Discord si applicable.
+// - Steam : on utilise l'ID (SteamID64, immuable)
+// - Autres plateformes gaming : on utilise le pseudo (Discord garde à jour)
+export function getRLIdentityFromConnection(
+  conn: DiscordConnection
+): { platform: NonNullable<ConnectionMeta['rlPlatform']>; id: string } | null {
+  const meta = getConnectionMeta(conn.type);
+  if (!meta?.rlPlatform) return null;
+  const id = meta.rlPlatform === 'steam' ? conn.id : conn.name;
+  if (!id) return null;
+  return { platform: meta.rlPlatform, id };
+}
+
+// Priorité quand un user a plusieurs comptes gaming liés à Discord.
+// Steam d'abord car immuable (link tracker.gg ne casse jamais), puis Epic
+// (plus courant pour RL), puis consoles.
+const RL_PLATFORM_PRIORITY: Array<NonNullable<ConnectionMeta['rlPlatform']>> = [
+  'steam', 'epic', 'psn', 'xbox', 'switch',
+];
+
+export function pickBestRLConnection(
+  connections: DiscordConnection[],
+): { platform: NonNullable<ConnectionMeta['rlPlatform']>; id: string } | null {
+  for (const target of RL_PLATFORM_PRIORITY) {
+    const conn = connections.find(c => {
+      const meta = getConnectionMeta(c.type);
+      return meta?.rlPlatform === target;
+    });
+    if (conn) {
+      const identity = getRLIdentityFromConnection(conn);
+      if (identity) return identity;
+    }
+  }
+  return null;
+}
+
 // Merge les nouvelles connexions fetchées avec celles déjà en Firestore,
 // en préservant les toggles `visibleOnProfile` existants. Retire celles qui
 // ont disparu côté Discord (user les a déliées).
