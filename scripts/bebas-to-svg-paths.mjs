@@ -48,11 +48,12 @@ function layoutAedral(opts) {
 }
 
 // Compute paths for lockup (820x200 viewBox)
+// startX=255 (au lieu de 270) pour rapprocher AEDRAL du divider à x=210
 const lockup = layoutAedral({
   fontSize: 110,
   letterSpacing: 18,
   baselineY: 138, // y=100 + cap-height/2 roughly (Bebas Neue cap-height ~71% of fontSize = 78)
-  startX: 270,
+  startX: 255,
 });
 
 // Compute paths for wordmark standalone (480x120 viewBox)
@@ -94,6 +95,33 @@ const paths = {
     dral: wordmark.slice(2).map(g => g.pathData).join(' '),
   },
 };
+
+// Compute "E" path for the mark (centered at x=100, baseline y=180, font-size 130)
+// → utilise le VRAI caractère Bebas Neue, identique au E du wordmark
+function generateMarkE(fontSize, centerX, baselineY) {
+  const glyph = font.glyphForCodePoint('E'.charCodeAt(0));
+  const scale = fontSize / font.unitsPerEm;
+  // Build path at cursor x=0, baseline y=0 (Y-up dans la font, on flippe avec scale -)
+  const pathAt0 = glyph.path.scale(scale, -scale);
+  // Compute bbox to know where the visual extent is
+  const bbox = pathAt0.bbox;
+  // Translate horizontally so center of bbox is at centerX
+  // Then translate vertically so baseline (y=0) ends up at baselineY
+  const offsetX = centerX - (bbox.minX + bbox.maxX) / 2;
+  const final = pathAt0.translate(offsetX, baselineY);
+  return {
+    path: final.toSVG(),
+    width: bbox.maxX - bbox.minX,
+    height: bbox.maxY - bbox.minY,
+  };
+}
+
+const markE = generateMarkE(130, 100, 180);
+console.log('\n=== Mark E (font-size 130, centered x=100, baseline y=180) ===');
+console.log('Width:', markE.width.toFixed(2), '· Height:', markE.height.toFixed(2));
+console.log('Path:', markE.path);
+
+paths.markE = markE.path;
 
 writeFileSync('scripts/aedral-paths.json', JSON.stringify(paths, null, 2), 'utf8');
 console.log('\n→ scripts/aedral-paths.json écrit.');
