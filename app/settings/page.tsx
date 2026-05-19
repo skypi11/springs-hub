@@ -10,7 +10,7 @@ import { countries } from '@/lib/countries';
 import {
   Save, User, Gamepad2, Search, ExternalLink,
   AlertCircle, CheckCircle, Loader2, UserCircle, LogOut, Star,
-  Download, Trash2, Link2, Eye, EyeOff, RefreshCw,
+  Download, Trash2, Link2, RefreshCw,
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import { checkProfileCompletion } from '@/lib/profile-completion';
@@ -848,28 +848,49 @@ export default function SettingsPage() {
                                   )}
                                 </div>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  updateForm({
-                                    connections: form.connections.map(c =>
-                                      c.type === conn.type
-                                        ? { ...c, visibleOnProfile: !isVisible }
-                                        : c
-                                    ),
-                                  });
-                                }}
-                                className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1.5 transition-colors bevel-sm"
-                                style={{
-                                  background: isVisible ? 'rgba(123,47,190,0.15)' : 'transparent',
-                                  border: `1px solid ${isVisible ? 'rgba(123,47,190,0.4)' : 'var(--s-border)'}`,
-                                  color: isVisible ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
-                                }}
-                                aria-label={isVisible ? 'Masquer du profil' : 'Afficher sur le profil'}
-                              >
-                                {isVisible ? <Eye size={11} /> : <EyeOff size={11} />}
-                                {isVisible ? 'Visible' : 'Masqué'}
-                              </button>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <span
+                                  className="text-xs"
+                                  style={{
+                                    color: isVisible ? 'var(--s-text)' : 'var(--s-text-muted)',
+                                    minWidth: 90,
+                                    textAlign: 'right',
+                                  }}
+                                >
+                                  {isVisible ? 'Sur mon profil' : 'Masqué'}
+                                </span>
+                                <button
+                                  type="button"
+                                  role="switch"
+                                  aria-checked={isVisible}
+                                  aria-label={isVisible ? 'Masquer du profil' : 'Afficher sur le profil'}
+                                  onClick={() => {
+                                    updateForm({
+                                      connections: form.connections.map(c =>
+                                        c.type === conn.type
+                                          ? { ...c, visibleOnProfile: !isVisible }
+                                          : c
+                                      ),
+                                    });
+                                  }}
+                                  className="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer items-center transition-colors duration-150"
+                                  style={{
+                                    background: isVisible ? 'var(--s-violet)' : 'rgba(255,255,255,0.08)',
+                                    border: `1px solid ${isVisible ? 'var(--s-violet-light)' : 'var(--s-border)'}`,
+                                    borderRadius: 999,
+                                  }}
+                                >
+                                  <span
+                                    className="inline-block h-4 w-4 transform transition-transform duration-150"
+                                    style={{
+                                      background: '#fff',
+                                      borderRadius: '50%',
+                                      transform: isVisible ? 'translateX(22px)' : 'translateX(3px)',
+                                      boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                                    }}
+                                  />
+                                </button>
+                              </div>
                             </div>
                           );
                         })}
