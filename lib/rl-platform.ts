@@ -20,9 +20,9 @@ export const RL_PLATFORMS: RLPlatformMeta[] = [
   {
     value: 'epic',
     label: 'Epic Games (PC)',
-    idLabel: 'Pseudo Epic ou Epic Account ID',
+    idLabel: 'Pseudo Epic',
     idPlaceholder: 'TonPseudoEpic',
-    idHelp: 'Tu peux entrer ton pseudo Epic OU ton Epic Account ID (32 caractères hexadécimaux, permanent). L\'ID est plus stable mais nécessite quelques clics pour le trouver (voir le tuto ci-dessous).',
+    idHelp: '⚠️ Si tu changes ton pseudo Epic en jeu, pense à le mettre à jour ici (sinon le lien tracker.gg ne fonctionnera plus).',
   },
   {
     value: 'steam',
@@ -87,22 +87,16 @@ export function buildTrackerGgUrl(platform: RLPlatform, id: string): string {
   return `https://rocketleague.tracker.network/rocket-league/profile/${p}/${encodeURIComponent(id.trim())}/overview`;
 }
 
-// Détecte un Epic Account ID (32 caractères hexadécimaux sans dashes).
-// Si l'user nous file son pseudo, on tombe sur la search ; s'il file l'UUID
-// permanent, on construit le profil direct avec ses vraies stats.
-const EPIC_UUID_RE = /^[0-9a-f]{32}$/i;
-
 export function buildBallchasingUrl(platform: RLPlatform, id: string): string {
   const trimmedId = id.trim();
   if (platform === 'steam') {
-    // SteamID64 immutable + indexé chez Ballchasing → profil direct
+    // SteamID64 immutable + indexé chez Ballchasing → profil direct riche
     return `https://ballchasing.com/player/steam/${encodeURIComponent(trimmedId)}`;
   }
-  if (platform === 'epic' && EPIC_UUID_RE.test(trimmedId)) {
-    // Epic Account ID (UUID 32 hex) → profil direct riche
-    return `https://ballchasing.com/player/epic/${encodeURIComponent(trimmedId)}`;
-  }
-  // Pseudo (Epic / PSN / Xbox / Switch) → recherche par nom dans les replays
+  // Epic / PSN / Xbox / Switch : recherche par nom (le profil direct
+  // Ballchasing pour ces plateformes nécessite un identifiant interne UUID
+  // que la plupart des users ne connaissent pas — la search marche pour
+  // tout le monde et retourne tous les replays du joueur).
   return `https://ballchasing.com/?player-name=${encodeURIComponent(trimmedId)}`;
 }
 

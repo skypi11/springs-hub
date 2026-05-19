@@ -608,67 +608,6 @@ export default function SettingsPage() {
                               {platformMeta.idHelp}
                             </p>
                           )}
-                          {form.rlPlatform === 'epic' && (
-                            <details
-                              className="text-xs"
-                              style={{
-                                background: 'var(--s-elevated)',
-                                border: '1px solid var(--s-border)',
-                                padding: '10px 12px',
-                              }}
-                            >
-                              <summary
-                                className="cursor-pointer font-semibold"
-                                style={{ color: 'var(--s-text)' }}
-                              >
-                                Comment trouver mon Epic Account ID (optionnel mais recommandé) ?
-                              </summary>
-                              <p className="mt-3" style={{ color: 'var(--s-text-dim)', lineHeight: 1.6 }}>
-                                Ton pseudo Epic suffit pour faire fonctionner les liens. Mais si tu mets ton <strong>Epic Account ID</strong> (32 caractères, permanent), les liens ne casseront jamais — même si tu changes ton pseudo en jeu. Voici comment le récupérer :
-                              </p>
-                              <ol
-                                className="mt-3 space-y-2 list-decimal pl-5"
-                                style={{ color: 'var(--s-text-dim)', lineHeight: 1.6 }}
-                              >
-                                <li>
-                                  Va sur{' '}
-                                  <a
-                                    href="https://ballchasing.com"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{ color: 'var(--s-blue)' }}
-                                  >
-                                    ballchasing.com
-                                  </a>
-                                </li>
-                                <li>
-                                  Dans la barre de recherche en haut (champ &quot;Player name&quot;), tape ton pseudo Epic puis clique <em>Filter</em>.
-                                </li>
-                                <li>
-                                  Si tu as au moins un replay uploadé, clique sur l&apos;un des résultats — un replay où tu apparais.
-                                </li>
-                                <li>
-                                  Dans la page du replay, clique sur ton pseudo dans le scoreboard.
-                                </li>
-                                <li>
-                                  L&apos;URL de la page devient <code style={{ background: 'var(--s-bg)', padding: '1px 4px' }}>ballchasing.com/player/epic/<span style={{ color: 'var(--s-gold)' }}>ec1ab5d08131431794f74a98c891b86d</span></code>
-                                </li>
-                                <li>
-                                  Copie la longue chaîne marquée en or (32 caractères) et colle-la dans le champ ci-dessus à la place de ton pseudo.
-                                </li>
-                              </ol>
-                              <p
-                                className="mt-3 pt-2"
-                                style={{
-                                  color: 'var(--s-text-muted)',
-                                  borderTop: '1px dashed var(--s-border)',
-                                }}
-                              >
-                                ⚠️ Cette méthode fonctionne <strong>uniquement si tu as déjà au moins un replay uploadé sur Ballchasing</strong>. Si ce n&apos;est pas le cas, garde ton pseudo — c&apos;est très bien aussi. Tu pourras revenir mettre l&apos;ID plus tard quand tu auras des replays uploadés.
-                              </p>
-                            </details>
-                          )}
-
                           {/* Tip Ballchasing — comment apparaître dans leur base */}
                           <details
                             className="text-xs"
