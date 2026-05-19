@@ -367,8 +367,9 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                           {ballchasingHref && (
                             <a href={ballchasingHref} target="_blank" rel="noopener noreferrer"
                               className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider transition-colors hover:text-white"
-                              style={{ color: 'var(--s-blue)' }}>
-                              Voir replays Ballchasing <ExternalLink size={11} />
+                              style={{ color: 'var(--s-blue)' }}
+                              title="Ballchasing référence uniquement les replays uploadés (via BakkesMod ou upload manuel). Si vide, c'est que le joueur n'a pas encore eu de replay uploadé.">
+                              Replays Ballchasing <ExternalLink size={11} />
                             </a>
                           )}
                         </div>

@@ -22,35 +22,35 @@ export const RL_PLATFORMS: RLPlatformMeta[] = [
     label: 'Epic Games (PC)',
     idLabel: 'Pseudo Epic',
     idPlaceholder: 'TonPseudoEpic',
-    idHelp: 'Ton pseudo Epic Games tel qu\'affiché en jeu.',
+    idHelp: '⚠️ Si tu changes ton pseudo Epic en jeu, pense à le mettre à jour ici (sinon le lien tracker.gg ne fonctionnera plus).',
   },
   {
     value: 'steam',
     label: 'Steam (PC)',
     idLabel: 'SteamID64',
     idPlaceholder: '76561198XXXXXXXXX',
-    idHelp: 'Ton SteamID64 (17 chiffres). Trouve-le sur steamid.io en collant l\'URL de ton profil Steam.',
+    idHelp: '✓ Ton SteamID64 (17 chiffres) est permanent même si tu changes ton pseudo Steam. Trouve-le sur steamid.io en collant l\'URL de ton profil Steam.',
   },
   {
     value: 'psn',
     label: 'PlayStation',
     idLabel: 'PSN ID',
     idPlaceholder: 'TonPsnId',
-    idHelp: 'Ton identifiant PlayStation Network (online ID).',
+    idHelp: '⚠️ Si tu changes ton PSN ID, pense à le mettre à jour ici.',
   },
   {
     value: 'xbox',
     label: 'Xbox',
     idLabel: 'Gamertag',
     idPlaceholder: 'Ton Gamertag',
-    idHelp: 'Ton Gamertag Xbox Live tel qu\'affiché en jeu.',
+    idHelp: '⚠️ Si tu changes ton Gamertag Xbox, pense à le mettre à jour ici.',
   },
   {
     value: 'switch',
     label: 'Nintendo Switch',
     idLabel: 'Switch ID',
     idPlaceholder: 'Ton ID Switch',
-    idHelp: 'Ton identifiant Nintendo Switch (Friend Code ou nom de profil).',
+    idHelp: '⚠️ Note : la couverture Switch sur tracker.gg et Ballchasing est plus limitée que sur les autres plateformes.',
   },
 ];
 
@@ -75,11 +75,13 @@ const TRACKER_GG_PLATFORM_MAP: Record<RLPlatform, string> = {
   switch: 'switch',
 };
 
+// Vérifié manuellement le 2026-05-19 : Ballchasing utilise les mêmes identifiants
+// que tracker.gg dans ses URLs (psn et non ps4, xbl et non xbox).
 const BALLCHASING_PLATFORM_MAP: Record<RLPlatform, string> = {
   epic: 'epic',
   steam: 'steam',
-  psn: 'ps4',
-  xbox: 'xbox',
+  psn: 'psn',
+  xbox: 'xbl',
   switch: 'switch',
 };
 
