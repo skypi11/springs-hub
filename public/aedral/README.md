@@ -88,9 +88,20 @@ Ink (noir)       #08080F   A du mark + DRAL du wordmark (sur light)
 - **Letter-spacing** : 18 (≈0.18em à 100px)
 - **Cas** : UPPERCASE uniquement
 
-Les SVG lockup/wordmark embarquent un `@import url(...)` Google Fonts dans
-un `<style>` interne pour que Bebas Neue charge même en standalone. Pour
-print/Figma/Illustrator, ouvrir et convertir le texte en outlines.
+Les SVG `logo-horizontal*.svg` et `wordmark*.svg` ont le texte **converti
+en paths SVG** via `scripts/bebas-to-svg-paths.mjs` (Bebas Neue Regular,
+chargée depuis `@fontsource/bebas-neue`). Aucune dépendance font externe
+→ rendu identique partout (browser, Sharp WebP, Figma, Illustrator, etc.).
+
+Pour regénérer les paths après changement de proportions :
+```
+node scripts/bebas-to-svg-paths.mjs   # → scripts/aedral-paths.json
+node scripts/svg-to-webp.mjs          # → public/aedral/*.webp
+```
+
+Le composant React `<AedralLogo>` continue d'utiliser `<text>` avec la
+classe `font-display` car la font est déjà chargée sur le site via
+next/font/google dans `app/layout.tsx`.
 
 ## Anti-patterns à refuser
 

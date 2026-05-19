@@ -1,11 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 200" fill="none">
-  <!-- AEDRAL — lockup horizontal · variante fond clair (A noir, E or-deep) -->
-  <defs>
-    <style type="text/css"><![CDATA[
-      @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
-      .aedral-wordmark { font-family: 'Bebas Neue', sans-serif; font-weight: 400; }
-    ]]></style>
-  </defs>
+  <!-- AEDRAL — lockup horizontal · variante fond clair (A noir, E or-deep)
+       Wordmark en paths Bebas Neue embedded (aucune dépendance font) -->
 
   <path d="M 98 10 L 30 190 L 16 190 Z" fill="#08080F"/>
   <path d="M 102 10 L 184 190 L 170 190 Z" fill="#08080F"/>
@@ -13,7 +8,9 @@
 
   <line x1="210" y1="50" x2="210" y2="150" stroke="#08080F" stroke-opacity="0.18" stroke-width="3"/>
 
-  <text x="270" y="100" class="aedral-wordmark" font-size="110" letter-spacing="18" dominant-baseline="central">
-    <tspan fill="#C8941D">AE</tspan><tspan fill="#08080F">DRAL</tspan>
-  </text>
+  <!-- Wordmark "AE" (or foncé) -->
+  <path fill="#C8941D" d="M283.86 61L300.25 61L312.79 138L300.69 138L298.49 122.71L298.49 122.93L284.74 122.93L282.54 138L271.32 138ZM297.06 112.48L291.67 74.42L291.45 74.42L286.17 112.48Z M336.62 61L369.62 61L369.62 72L348.72 72L348.72 92.35L365.33 92.35L365.33 103.35L348.72 103.35L348.72 127L369.62 127L369.62 138L336.62 138Z"/>
+
+  <!-- Wordmark "DRAL" (ink) -->
+  <path fill="#08080F" d="M394.55 61L413.03 61Q422.05 61 426.56 65.84Q431.07 70.68 431.07 80.03L431.07 118.97Q431.07 128.32 426.56 133.16Q422.05 138 413.03 138L394.55 138ZM412.81 127Q415.78 127 417.38 125.24Q418.97 123.48 418.97 119.52L418.97 79.48Q418.97 75.52 417.38 73.76Q415.78 72 412.81 72L406.65 72L406.65 127Z M457.21 61L475.14 61Q484.49 61 488.78 65.35Q493.07 69.69 493.07 78.71L493.07 83.44Q493.07 95.43 485.15 98.62L485.15 98.84Q489.55 100.16 491.37 104.23Q493.18 108.3 493.18 115.12L493.18 128.65Q493.18 131.95 493.4 133.99Q493.62 136.02 494.5 138L482.18 138Q481.52 136.13 481.3 134.48Q481.08 132.83 481.08 128.54L481.08 114.46Q481.08 109.18 479.38 107.09Q477.67 105 473.49 105L469.31 105L469.31 138L457.21 138ZM473.71 94Q477.34 94 479.16 92.13Q480.97 90.26 480.97 85.86L480.97 79.92Q480.97 75.74 479.49 73.87Q478 72 474.81 72L469.31 72L469.31 94Z M528.89 61L545.28 61L557.82 138L545.72 138L543.52 122.71L543.52 122.93L529.77 122.93L527.57 138L516.35 138ZM542.09 112.48L536.7 74.42L536.48 74.42L531.2 112.48Z M581.65 61L593.75 61L593.75 127L613.66 127L613.66 138L581.65 138Z"/>
 </svg>
