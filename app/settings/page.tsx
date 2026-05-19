@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api, apiDownload, ApiError } from '@/lib/api-client';
+import { useToast } from '@/components/ui/Toast';
 import { countries } from '@/lib/countries';
 import {
   Save, User, Gamepad2, Search, ExternalLink,
@@ -77,13 +78,47 @@ const defaultForm: FormData = {
   connections: [],
 };
 
+type SteamLinked = NonNullable<NonNullable<ReturnType<typeof useAuth>['user']>['steamLinked']>;
+
 export default function SettingsPage() {
   const { user, firebaseUser, isAdmin, loading: authLoading, signOut, signInWithDiscord, refreshProfile } = useAuth();
   const router = useRouter();
+  const toast = useToast();
   const [mustComplete, setMustComplete] = useState(false);
+  const [steamLinked, setSteamLinked] = useState<SteamLinked | null>(null);
+  const [linkingSteam, setLinkingSteam] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    setMustComplete(new URLSearchParams(window.location.search).get('complete') === '1');
+    const params = new URLSearchParams(window.location.search);
+    setMustComplete(params.get('complete') === '1');
+    // Auto-switch sur la section demandée par la query string (utilisé par
+    // le callback Steam pour atterrir directement sur la config jeux)
+    const SECTION_KEYS: Section[] = ['profile', 'games', 'connections', 'recruitment', 'account'];
+    const sectionParam = params.get('section');
+    if (sectionParam && (SECTION_KEYS as string[]).includes(sectionParam)) {
+      setSection(sectionParam as Section);
+    }
+    // Toasts post-redirect Steam OpenID
+    if (params.get('steam_linked') === '1') {
+      toast.success('Compte Steam lié avec succès. Ton SteamID64 est maintenant utilisé pour tracker.gg.');
+      // Nettoie l'URL
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, '', cleanUrl);
+    }
+    const steamErr = params.get('steam_error');
+    if (steamErr) {
+      const errLabel: Record<string, string> = {
+        auth_required: 'Tu dois être connecté pour lier Steam.',
+        invalid_state: 'Session OAuth invalide ou expirée. Réessaie.',
+        verify_failed: 'Steam n\'a pas pu vérifier ton identité. Réessaie.',
+        already_linked: 'Ce compte Steam est déjà lié à un autre profil Aedral.',
+        server_error: 'Erreur serveur pendant la liaison Steam. Réessaie.',
+      };
+      toast.error(errLabel[steamErr] ?? `Erreur Steam : ${steamErr}`);
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, '', cleanUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const completion = checkProfileCompletion(user);
   const [form, setForm] = useState<FormData>(defaultForm);
@@ -103,6 +138,55 @@ export default function SettingsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [deleteBlockingStructures, setDeleteBlockingStructures] = useState<string[]>([]);
+
+  async function handleLinkSteam() {
+    if (!firebaseUser) return;
+    setLinkingSteam(true);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/auth/steam/start', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (!res.ok) {
+        toast.error('Impossible de lancer la liaison Steam. Réessaie.');
+        setLinkingSteam(false);
+        return;
+      }
+      const data = (await res.json()) as { redirectUrl?: string };
+      if (data.redirectUrl) {
+        window.location.href = data.redirectUrl;
+      } else {
+        toast.error('Réponse Steam invalide.');
+        setLinkingSteam(false);
+      }
+    } catch {
+      toast.error('Erreur réseau pendant la liaison Steam.');
+      setLinkingSteam(false);
+    }
+  }
+
+  async function handleUnlinkSteam() {
+    if (!firebaseUser) return;
+    setLinkingSteam(true);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const res = await fetch('/api/auth/steam/start', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (res.ok) {
+        setSteamLinked(null);
+        toast.success('Compte Steam délié.');
+      } else {
+        toast.error('Impossible de délier Steam.');
+      }
+    } catch {
+      toast.error('Erreur réseau.');
+    } finally {
+      setLinkingSteam(false);
+    }
+  }
 
   async function handleExport() {
     if (!firebaseUser) return;
@@ -178,6 +262,9 @@ export default function SettingsPage() {
     const savedPlatformId = (data.rlPlatformId as string) || '';
     const connections = (data.discordConnections as DiscordConnection[] | undefined) ?? [];
     const fromDiscord = pickBestRLConnection(connections);
+    // Steam OpenID linkage (priorité absolue pour RL si présent — SteamID64 immuable)
+    const steamLinkedData = (data.steamLinked as unknown as SteamLinked | undefined) ?? null;
+    setSteamLinked(steamLinkedData);
 
     const initialPlatform: RLPlatform | '' = isValidRLPlatform(savedPlatform)
       ? savedPlatform
@@ -597,6 +684,100 @@ export default function SettingsPage() {
                             <span className="tag tag-blue" style={{ fontSize: '9px' }}>RL</span>
                             <span className="t-label" style={{ color: 'var(--s-blue)' }}>Config Rocket League</span>
                           </div>
+
+                          {/* ── Liaison Steam (chemin recommandé pour les Steam users) ── */}
+                          {steamLinked ? (
+                            <div
+                              className="p-3 flex items-center gap-3"
+                              style={{
+                                background: 'rgba(34, 173, 67, 0.06)',
+                                border: '1px solid rgba(34, 173, 67, 0.25)',
+                              }}
+                            >
+                              {steamLinked.avatarUrl ? (
+                                <Image
+                                  src={steamLinked.avatarUrl}
+                                  alt="Avatar Steam"
+                                  width={40}
+                                  height={40}
+                                  className="flex-shrink-0"
+                                  unoptimized
+                                />
+                              ) : (
+                                <div
+                                  className="w-10 h-10 flex-shrink-0 flex items-center justify-center font-display"
+                                  style={{ background: 'rgba(34,173,67,0.15)', color: 'var(--s-green)', fontSize: 16 }}
+                                >
+                                  S
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <CheckCircle size={12} style={{ color: 'var(--s-green)' }} />
+                                  <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
+                                    Steam lié
+                                  </span>
+                                </div>
+                                <div className="text-xs truncate" style={{ color: 'var(--s-text-dim)' }}>
+                                  {steamLinked.personaName ? `${steamLinked.personaName} · ` : ''}
+                                  <span className="t-mono">{steamLinked.steamId64}</span>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={handleUnlinkSteam}
+                                disabled={linkingSteam}
+                                className="btn-springs btn-secondary bevel-sm text-xs disabled:opacity-50"
+                              >
+                                Délier
+                              </button>
+                            </div>
+                          ) : (
+                            <div
+                              className="p-4 space-y-2"
+                              style={{
+                                background: 'rgba(27, 40, 56, 0.4)',
+                                border: '1px solid rgba(102, 192, 244, 0.25)',
+                              }}
+                            >
+                              <div className="flex items-center justify-between gap-3 flex-wrap">
+                                <div className="flex-1 min-w-[200px]">
+                                  <p className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
+                                    Lier ton compte Steam (recommandé)
+                                  </p>
+                                  <p className="text-xs mt-1" style={{ color: 'var(--s-text-dim)' }}>
+                                    Récupère ton SteamID64 permanent → le lien tracker.gg ne casse JAMAIS, même si tu changes ton pseudo Steam. 2 clics, gratuit.
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={handleLinkSteam}
+                                  disabled={linkingSteam}
+                                  className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2 flex-shrink-0 disabled:opacity-50"
+                                >
+                                  {linkingSteam ? (
+                                    <>
+                                      <Loader2 size={12} className="animate-spin" /> En cours…
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ExternalLink size={12} /> Lier mon Steam
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Séparateur visuel — si Steam lié, le manuel sert juste à override */}
+                          <div className="flex items-center gap-3 my-2">
+                            <div className="flex-1 h-px" style={{ background: 'var(--s-border)' }} />
+                            <span className="t-label text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                              {steamLinked ? 'ou saisir une autre plateforme' : 'ou saisir manuellement'}
+                            </span>
+                            <div className="flex-1 h-px" style={{ background: 'var(--s-border)' }} />
+                          </div>
+
                           <div className="grid grid-cols-2 gap-4">
                             <div>
                               <label className="t-label block mb-2">Plateforme *</label>

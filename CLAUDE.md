@@ -27,7 +27,7 @@ Plateforme communautaire esport **propriété personnelle de l'utilisateur** (Ma
 - **Framework** : Next.js (App Router)
 - **Styling** : Tailwind CSS
 - **Base de données** : Firebase Firestore (projet existant `monthly-cup`)
-- **Auth** : Firebase Auth — Discord OAuth (joueurs/fans) + Google OAuth (admins plateforme)
+- **Auth** : Firebase Auth — Discord OAuth (joueurs/fans, scope `identify connections`) + Google OAuth (admins plateforme) + Steam OpenID (liaison RL optionnelle)
 - **Hébergement** : Vercel — domaine prod `aedral.com`, fallback `springs-hub.vercel.app`
 - **Repo GitHub** : `skypi11/springs-hub` (nommage technique conservé malgré le rebrand)
 - **Domaine** : `aedral.com` (acquis via Vercel, $11/an, live depuis 2026-04-26)
@@ -54,6 +54,16 @@ Les deux repos (`springs-hub` et `site cup monthly`) partagent **le même projet
 5. Confirmer à l'utilisateur que les règles sont live sur Firebase.
 
 Cette exception est la **seule** raison légitime de toucher au repo vieux site depuis ce projet.
+
+### Variables d'environnement OAuth/API
+- `DISCORD_CLIENT_ID` + `DISCORD_CLIENT_SECRET` : OAuth app Discord, scope `identify connections`
+- `STEAM_WEB_API_KEY` (optionnel) : enrichissement pseudo/avatar pour les users qui lient Steam via OpenID. Gratuit à demander sur `https://steamcommunity.com/dev/apikey` (1 min). Sans cette clé, le linkage Steam fonctionne quand même mais on stocke uniquement le SteamID64 (pas le pseudo ni l'avatar Steam).
+
+### Comptes liés (Discord connections + Steam OpenID)
+Voir [lib/discord-connections.ts](lib/discord-connections.ts) et [lib/steam-openid.ts](lib/steam-openid.ts).
+
+- **Discord connections** : récupéré au login via le scope `connections`. Pull 15+ types (Epic, Steam, PSN, Xbox, Nintendo, Twitch, YouTube, Spotify, X, TikTok, Instagram, GitHub, Reddit, Battle.net, Riot, etc.). Stocké dans `user.discordConnections[]` avec toggle `visibleOnProfile` par compte. Settings → Comptes liés.
+- **Steam OpenID** : flow direct (POST `/api/auth/steam/start` → redirect Steam → `/api/auth/steam/callback`). Récupère le SteamID64 immuable → blinde le lien tracker.gg contre les changements de pseudo. Stocké dans `user.steamLinked`. Bouton dans Settings → Jeux → Config Rocket League.
 
 ### Auth Discord — flow déployé et fonctionnel
 1. Client → `signInWithDiscord()` → redirect Discord OAuth

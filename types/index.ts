@@ -26,6 +26,15 @@ export interface SpringsUser {
   epicAccountId?: string;      // ID Epic permanent (résolu via Tracker.gg) — sert aux lookups stats
   epicDisplayName?: string;    // pseudo Epic actuel — affiché dans l'UI, peut changer
   rlTrackerUrl?: string;       // lien RL Tracker manuel — déprécié, auto-généré désormais
+  // Steam OpenID linkage — récupéré via /api/auth/steam/callback.
+  // SteamID64 est IMMUABLE → l'URL tracker.gg basée dessus ne casse jamais.
+  steamLinked?: {
+    steamId64: string;
+    personaName?: string | null;
+    avatarUrl?: string | null;
+    profileUrl?: string | null;
+    linkedAt?: Date | string;
+  };
   // Rang auto-déclaré + stats si dispos
   rlRank?: string;
   rlMmr?: number;
