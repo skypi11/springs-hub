@@ -159,7 +159,7 @@ export default function TodoDetailDrawer({
                   <div className="mb-1">
                     <span className="px-1.5 py-0.5 text-xs font-bold tracking-wider"
                       style={{
-                        fontSize: '10px',
+                        fontSize: '12px',
                         background: 'var(--s-surface)',
                         border: '1px solid var(--s-border)',
                         color: 'var(--s-text-dim)',

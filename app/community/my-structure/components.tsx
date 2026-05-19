@@ -137,7 +137,7 @@ export function RosterSlot({
       {canAdd && available.length > 0 && (
         <select
           className="settings-input w-full mt-2 text-xs"
-          style={{ padding: '3px 6px', fontSize: '10px' }}
+          style={{ padding: '3px 6px', fontSize: '12px' }}
           value=""
           disabled={loading}
           onChange={e => { if (e.target.value) onAdd(e.target.value); }}>
@@ -192,7 +192,7 @@ export function StaffRosterSlot({
                 title={isManager ? 'Passer en Coach' : 'Passer en Manager'}
                 className="flex-shrink-0"
                 style={{
-                  fontSize: '10px', padding: '2px 7px', letterSpacing: '0.06em', textTransform: 'uppercase',
+                  fontSize: '12px', padding: '2px 7px', letterSpacing: '0.06em', textTransform: 'uppercase',
                   background: pillBg, color: pillFg, border: `1px solid ${pillBorder}`, cursor: 'pointer',
                 }}>
                 {isManager ? 'Mgr' : 'Coach'}
@@ -210,7 +210,7 @@ export function StaffRosterSlot({
         <div className="mt-2 flex items-center gap-1.5">
           <select
             className="settings-input flex-1 text-xs"
-            style={{ padding: '3px 6px', fontSize: '10px' }}
+            style={{ padding: '3px 6px', fontSize: '12px' }}
             value={pendingUid}
             disabled={loading}
             onChange={e => setPendingUid(e.target.value)}>
@@ -221,7 +221,7 @@ export function StaffRosterSlot({
           </select>
           <select
             className="settings-input text-xs"
-            style={{ padding: '3px 6px', fontSize: '10px', width: 70 }}
+            style={{ padding: '3px 6px', fontSize: '12px', width: 70 }}
             value={pendingRole}
             disabled={loading || !pendingUid}
             onChange={e => setPendingRole(e.target.value as 'coach' | 'manager')}>
@@ -232,7 +232,7 @@ export function StaffRosterSlot({
             disabled={loading || !pendingUid}
             onClick={() => { if (pendingUid) { onAdd(pendingUid, pendingRole); setPendingUid(''); setPendingRole('coach'); } }}
             style={{
-              fontSize: '10px', padding: '3px 8px',
+              fontSize: '12px', padding: '3px 8px',
               background: pendingUid ? 'var(--s-gold)' : 'var(--s-elevated)',
               color: pendingUid ? '#0a0a13' : 'var(--s-text-muted)',
               border: '1px solid var(--s-border)',

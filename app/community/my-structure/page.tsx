@@ -1507,7 +1507,7 @@ export default function MyStructurePage() {
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-1.5">
                 <h1 className="font-display text-4xl" style={{ letterSpacing: '0.04em' }}>{s.name}</h1>
-                <span className="tag tag-gold" style={{ fontSize: '11px', padding: '3px 10px' }}>{s.tag}</span>
+                <span className="tag tag-gold" style={{ fontSize: '12px', padding: '3px 10px' }}>{s.tag}</span>
               </div>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1.5">
@@ -1518,7 +1518,7 @@ export default function MyStructurePage() {
                 <div className="flex gap-1.5">
                   {s.games?.map(g => (
                     <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                      style={{ fontSize: '9px', padding: '2px 6px' }}>
+                      style={{ fontSize: '12px', padding: '2px 6px' }}>
                       {g === 'rocket_league' ? 'RL' : 'TM'}
                     </span>
                   ))}
@@ -1646,7 +1646,7 @@ export default function MyStructurePage() {
                       <h3 className="font-display text-lg tracking-wider truncate">{s.name}</h3>
                       <span
                         className="tag tag-neutral"
-                        style={{ fontSize: '9px', padding: '1px 5px', flexShrink: 0 }}
+                        style={{ fontSize: '12px', padding: '1px 5px', flexShrink: 0 }}
                       >
                         {s.tag}
                       </span>
@@ -1656,7 +1656,7 @@ export default function MyStructurePage() {
                         <span
                           key={g}
                           className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                          style={{ fontSize: '9px', padding: '1px 6px' }}
+                          style={{ fontSize: '12px', padding: '1px 6px' }}
                         >
                           {g === 'rocket_league' ? 'RL' : 'TM'}
                         </span>
@@ -1675,7 +1675,7 @@ export default function MyStructurePage() {
                     </span>
                   </div>
                   {s.recruiting?.active && (
-                    <span className="tag tag-green" style={{ fontSize: '9px', padding: '2px 7px' }}>
+                    <span className="tag tag-green" style={{ fontSize: '12px', padding: '2px 7px' }}>
                       RECRUTE
                     </span>
                   )}
@@ -1903,7 +1903,7 @@ export default function MyStructurePage() {
                     return (
                       <div key={team.id} className="p-3 bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                         <div className="flex items-center gap-2 mb-3">
-                          <span className={`tag ${gameClass}`} style={{ fontSize: '9px', padding: '2px 6px' }}>{gameTag}</span>
+                          <span className={`tag ${gameClass}`} style={{ fontSize: '12px', padding: '2px 6px' }}>{gameTag}</span>
                           <span className="font-display text-sm tracking-wider flex-1 truncate">{team.name.toUpperCase()}</span>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">

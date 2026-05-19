@@ -686,7 +686,7 @@ function PlayerItem({
               <div className="flex gap-1">
                 {p.games.map(g => (
                   <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                    style={{ fontSize: '9px', padding: '1px 5px' }}>
+                    style={{ fontSize: '12px', padding: '1px 5px' }}>
                     {g === 'rocket_league' ? 'RL' : 'TM'}
                   </span>
                 ))}

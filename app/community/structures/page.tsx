@@ -261,12 +261,12 @@ function StructureItem({ s, match }: { s: StructureCard; match: boolean }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <h3 className="font-display text-lg tracking-wider truncate">{s.name}</h3>
-              <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '1px 5px', flexShrink: 0 }}>{s.tag}</span>
+              <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 5px', flexShrink: 0 }}>{s.tag}</span>
             </div>
             <div className="flex items-center gap-1.5">
               {s.games.map(g => (
                 <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                  style={{ fontSize: '9px', padding: '1px 6px' }}>
+                  style={{ fontSize: '12px', padding: '1px 6px' }}>
                   {g === 'rocket_league' ? 'RL' : 'TM'}
                 </span>
               ))}

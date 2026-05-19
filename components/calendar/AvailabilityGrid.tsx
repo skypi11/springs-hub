@@ -317,7 +317,7 @@ function WeekPanel({
               {title}
               {dirty && (
                 <span className="t-label px-2 py-0.5 bevel-sm animate-pulse" style={{
-                  fontSize: '10px',
+                  fontSize: '12px',
                   background: 'rgba(255,184,0,0.15)',
                   border: '1px solid rgba(255,184,0,0.4)',
                   color: 'var(--s-gold)',

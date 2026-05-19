@@ -226,7 +226,7 @@ export default function AdminModerationPage() {
               background: tab === t.value ? 'rgba(255,184,0,0.15)' : 'transparent',
               color: tab === t.value ? 'var(--s-gold)' : 'var(--s-text-dim)',
               borderColor: tab === t.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
-              cursor: 'pointer', padding: '6px 14px', fontSize: '11px',
+              cursor: 'pointer', padding: '6px 14px', fontSize: '12px',
             }}>
             {t.label}
           </button>
@@ -260,7 +260,7 @@ export default function AdminModerationPage() {
                     <span className="tag" style={{
                       background: 'rgba(255,85,85,0.12)', color: '#ff5555',
                       borderColor: 'rgba(255,85,85,0.4)',
-                      fontSize: '9px', padding: '1px 6px',
+                      fontSize: '12px', padding: '1px 6px',
                     }}>
                       BANNI
                     </span>
@@ -286,7 +286,7 @@ export default function AdminModerationPage() {
                   disabled={actionLoading === `unban_${u.uid}`}
                   className="btn-springs bevel-sm flex items-center gap-1.5 flex-shrink-0"
                   style={{
-                    fontSize: '11px', padding: '6px 12px',
+                    fontSize: '12px', padding: '6px 12px',
                     background: 'rgba(51,255,102,0.1)',
                     color: '#33ff66',
                     borderColor: 'rgba(51,255,102,0.4)',
@@ -332,7 +332,7 @@ export default function AdminModerationPage() {
                       <span className="tag" style={{
                         background: `${meta.color}15`, color: meta.color,
                         borderColor: `${meta.color}40`,
-                        fontSize: '9px', padding: '1px 6px',
+                        fontSize: '12px', padding: '1px 6px',
                       }}>
                         {meta.label}
                       </span>
@@ -354,7 +354,7 @@ export default function AdminModerationPage() {
                           disabled={actionLoading === `approve_${s.id}`}
                           className="btn-springs bevel-sm flex items-center gap-1.5"
                           style={{
-                            fontSize: '11px', padding: '5px 10px',
+                            fontSize: '12px', padding: '5px 10px',
                             background: 'rgba(51,255,102,0.1)', color: '#33ff66',
                             borderColor: 'rgba(51,255,102,0.4)',
                             opacity: actionLoading === `approve_${s.id}` ? 0.5 : 1,
@@ -369,7 +369,7 @@ export default function AdminModerationPage() {
                           disabled={actionLoading === `unsuspend_${s.id}`}
                           className="btn-springs bevel-sm flex items-center gap-1.5"
                           style={{
-                            fontSize: '11px', padding: '5px 10px',
+                            fontSize: '12px', padding: '5px 10px',
                             background: 'rgba(51,255,102,0.1)', color: '#33ff66',
                             borderColor: 'rgba(51,255,102,0.4)',
                             opacity: actionLoading === `unsuspend_${s.id}` ? 0.5 : 1,
@@ -384,7 +384,7 @@ export default function AdminModerationPage() {
                           disabled={actionLoading === `cancel_deletion_${s.id}`}
                           className="btn-springs bevel-sm flex items-center gap-1.5"
                           style={{
-                            fontSize: '11px', padding: '5px 10px',
+                            fontSize: '12px', padding: '5px 10px',
                             background: 'rgba(51,255,102,0.1)', color: '#33ff66',
                             borderColor: 'rgba(51,255,102,0.4)',
                             opacity: actionLoading === `cancel_deletion_${s.id}` ? 0.5 : 1,
@@ -396,7 +396,7 @@ export default function AdminModerationPage() {
                       <Link
                         href={`/admin/structures?focus=${s.id}`}
                         className="btn-springs btn-secondary bevel-sm flex items-center gap-1.5"
-                        style={{ fontSize: '11px', padding: '5px 10px' }}>
+                        style={{ fontSize: '12px', padding: '5px 10px' }}>
                         <Edit3 size={11} />
                         <span>Gérer</span>
                       </Link>
@@ -423,7 +423,7 @@ export default function AdminModerationPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-semibold">{ACTION_LABELS[l.action] ?? l.action}</span>
-                    <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '1px 6px' }}>
+                    <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 6px' }}>
                       {l.action}
                     </span>
                   </div>

@@ -143,8 +143,8 @@ export default function AdminTeamsPage() {
             {stats.empty} vide{stats.empty > 1 ? 's' : ''}
           </span>
         )}
-        <span className="tag tag-blue" style={{ fontSize: '10px' }}>{stats.rlCount} RL</span>
-        <span className="tag tag-green" style={{ fontSize: '10px' }}>{stats.tmCount} TM</span>
+        <span className="tag tag-blue" style={{ fontSize: '12px' }}>{stats.rlCount} RL</span>
+        <span className="tag tag-green" style={{ fontSize: '12px' }}>{stats.tmCount} TM</span>
         {truncated && <span className="tag tag-gold">Résultats tronqués (max 1000)</span>}
       </div>
 
@@ -165,7 +165,7 @@ export default function AdminTeamsPage() {
                 borderColor: statusFilter === f.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
                 cursor: 'pointer',
                 padding: '6px 14px',
-                fontSize: '11px',
+                fontSize: '12px',
               }}>
               {f.label}
             </button>
@@ -187,7 +187,7 @@ export default function AdminTeamsPage() {
                 borderColor: gameFilter === f.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
                 cursor: 'pointer',
                 padding: '6px 14px',
-                fontSize: '11px',
+                fontSize: '12px',
               }}>
               {f.label}
             </button>
@@ -238,12 +238,12 @@ export default function AdminTeamsPage() {
                       {structure.name}
                     </Link>
                     {structure.tag && (
-                      <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '1px 6px' }}>
+                      <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 6px' }}>
                         {structure.tag}
                       </span>
                     )}
                     {structure.status && structure.status !== 'active' && (
-                      <span className="tag" style={{ fontSize: '9px', padding: '1px 6px', background: 'rgba(255,136,0,0.1)', color: '#ff8800', borderColor: 'rgba(255,136,0,0.3)' }}>
+                      <span className="tag" style={{ fontSize: '12px', padding: '1px 6px', background: 'rgba(255,136,0,0.1)', color: '#ff8800', borderColor: 'rgba(255,136,0,0.3)' }}>
                         {structure.status}
                       </span>
                     )}
@@ -252,7 +252,7 @@ export default function AdminTeamsPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="tag tag-neutral" style={{ fontSize: '10px' }}>
+                <span className="tag tag-neutral" style={{ fontSize: '12px' }}>
                   {structTeams.length} équipe{structTeams.length > 1 ? 's' : ''}
                 </span>
                 {structure.founderId && (
@@ -301,12 +301,12 @@ export default function AdminTeamsPage() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-semibold truncate">{team.name}</span>
                             {gameMeta && (
-                              <span className={`tag ${gameMeta.tagClass}`} style={{ fontSize: '9px', padding: '1px 5px' }}>
+                              <span className={`tag ${gameMeta.tagClass}`} style={{ fontSize: '12px', padding: '1px 5px' }}>
                                 {gameMeta.label}
                               </span>
                             )}
                             {team.status === 'archived' && (
-                              <span className="tag tag-neutral flex items-center gap-1" style={{ fontSize: '9px', padding: '1px 5px' }}>
+                              <span className="tag tag-neutral flex items-center gap-1" style={{ fontSize: '12px', padding: '1px 5px' }}>
                                 <Archive size={8} />
                                 archivée
                               </span>
@@ -330,7 +330,7 @@ export default function AdminTeamsPage() {
                             {team.staffCount} <span style={{ color: 'var(--s-text-muted)' }}>staff</span>
                           </span>
                           {isEmpty && (
-                            <span className="tag tag-gold flex items-center gap-1" style={{ fontSize: '9px', padding: '1px 5px' }}>
+                            <span className="tag tag-gold flex items-center gap-1" style={{ fontSize: '12px', padding: '1px 5px' }}>
                               <AlertTriangle size={8} />
                               vide
                             </span>
@@ -388,7 +388,7 @@ function RosterGroup({ title, members, color }: { title: string; members: Member
             style={{
               background: 'var(--s-bg)',
               border: '1px solid var(--s-border)',
-              fontSize: '11px',
+              fontSize: '12px',
               color: 'var(--s-text)',
             }}
             title={m.uid}

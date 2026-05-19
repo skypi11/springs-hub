@@ -170,7 +170,7 @@ export default function AdminUsersPage() {
                 borderColor: userFilter === f.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
                 cursor: 'pointer',
                 padding: '6px 14px',
-                fontSize: '11px',
+                fontSize: '12px',
               }}>
               {f.label}
             </button>
@@ -245,7 +245,7 @@ export default function AdminUsersPage() {
                 <div className="flex gap-1">
                   {u.games?.map(g => (
                     <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                      style={{ fontSize: '9px', padding: '1px 6px' }}>
+                      style={{ fontSize: '12px', padding: '1px 6px' }}>
                       {g === 'rocket_league' ? 'RL' : 'TM'}
                     </span>
                   ))}
@@ -298,7 +298,7 @@ export default function AdminUsersPage() {
                         <div className="flex gap-1">
                           {u.games?.length > 0 ? u.games.map(g => (
                             <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                              style={{ fontSize: '9px', padding: '1px 6px' }}>
+                              style={{ fontSize: '12px', padding: '1px 6px' }}>
                               {g === 'rocket_league' ? 'Rocket League' : 'Trackmania'}
                             </span>
                           )) : <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>—</span>}
@@ -423,7 +423,7 @@ export default function AdminUsersPage() {
                                   }}
                                   className={`tag ${active ? g.tagClass : ''} transition-all duration-150`}
                                   style={{
-                                    padding: '5px 12px', fontSize: '11px', cursor: 'pointer',
+                                    padding: '5px 12px', fontSize: '12px', cursor: 'pointer',
                                     opacity: active ? 1 : 0.4,
                                   }}>
                                   {g.label}

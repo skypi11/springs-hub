@@ -106,11 +106,11 @@ export function MembersTab(props: MembersTabProps) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{m.displayName}</p>
-                      <span className={`tag ${m.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '9px', padding: '2px 6px' }}>
+                      <span className={`tag ${m.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px', padding: '2px 6px' }}>
                         {m.game === 'rocket_league' ? 'RL' : 'TM'}
                       </span>
                       {isRecentRecruit && (
-                        <span className="tag" style={{ fontSize: '9px', padding: '2px 6px', background: 'rgba(255,184,0,0.12)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.35)' }}>
+                        <span className="tag" style={{ fontSize: '12px', padding: '2px 6px', background: 'rgba(255,184,0,0.12)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.35)' }}>
                           NOUVELLE RECRUE
                         </span>
                       )}
@@ -224,10 +224,10 @@ export function MembersTab(props: MembersTabProps) {
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-semibold truncate" style={{ color: 'var(--s-text)' }}>{m.displayName}</p>
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <p className="t-mono" style={{ fontSize: '10px', color: structuralColor }}>{primaryLabel}</p>
+                            <p className="t-mono" style={{ fontSize: '12px', color: structuralColor }}>{primaryLabel}</p>
                             {(m.game === 'rocket_league' || m.game === 'trackmania') && (
                               <span className={`tag ${m.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                                style={{ fontSize: '10px', padding: '2px 7px' }}>
+                                style={{ fontSize: '12px', padding: '2px 7px' }}>
                                 {m.game === 'rocket_league' ? 'RL' : 'TM'}
                               </span>
                             )}
@@ -236,7 +236,7 @@ export function MembersTab(props: MembersTabProps) {
                               const names = b.teamNames.join(', ');
                               return (
                                 <span key={b.key} className="tag" title={names}
-                                  style={{ fontSize: '10px', padding: '2px 7px', background: c.bg, color: c.fg, borderColor: c.border }}>
+                                  style={{ fontSize: '12px', padding: '2px 7px', background: c.bg, color: c.fg, borderColor: c.border }}>
                                   {b.label}
                                   {b.teamNames.length > 0 && (
                                     <span style={{ opacity: 0.75, marginLeft: 4 }}>· {names}</span>
@@ -246,12 +246,12 @@ export function MembersTab(props: MembersTabProps) {
                             })}
                             {derived.primary === 'membre' && derived.affiliations.length === 0 && (
                               <span className="tag"
-                                style={{ fontSize: '10px', padding: '2px 7px', background: 'rgba(255,255,255,0.04)', color: 'var(--s-text-muted)', borderColor: 'var(--s-border)' }}>
+                                style={{ fontSize: '12px', padding: '2px 7px', background: 'rgba(255,255,255,0.04)', color: 'var(--s-text-muted)', borderColor: 'var(--s-border)' }}>
                                 Sans équipe
                               </span>
                             )}
                             {isCoFounderRow && daysLeft != null && (
-                              <span className="tag" style={{ fontSize: '10px', padding: '2px 7px', background: 'rgba(255,85,85,0.1)', color: '#ff8888', borderColor: 'rgba(255,85,85,0.3)' }}>
+                              <span className="tag" style={{ fontSize: '12px', padding: '2px 7px', background: 'rgba(255,85,85,0.1)', color: '#ff8888', borderColor: 'rgba(255,85,85,0.3)' }}>
                                 Préavis : {daysLeft}j
                               </span>
                             )}

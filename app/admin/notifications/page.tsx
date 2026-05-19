@@ -158,7 +158,7 @@ export default function AdminNotificationsPage() {
                   background: audience === a.value ? 'rgba(255,184,0,0.15)' : 'transparent',
                   color: audience === a.value ? 'var(--s-gold)' : 'var(--s-text-dim)',
                   borderColor: audience === a.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
-                  cursor: 'pointer', padding: '6px 14px', fontSize: '11px',
+                  cursor: 'pointer', padding: '6px 14px', fontSize: '12px',
                 }}>
                 {a.label}
               </button>
@@ -263,11 +263,11 @@ export default function AdminNotificationsPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-semibold">{n.title || '(sans titre)'}</span>
-                  <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '1px 6px' }}>
+                  <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 6px' }}>
                     {n.type}
                   </span>
                   {!n.read && (
-                    <span className="tag tag-gold" style={{ fontSize: '9px', padding: '1px 6px' }}>
+                    <span className="tag tag-gold" style={{ fontSize: '12px', padding: '1px 6px' }}>
                       NON LUE
                     </span>
                   )}

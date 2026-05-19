@@ -65,7 +65,7 @@ export default function PublicPreviewFrame({
         <Link
           href={href}
           className="btn-springs btn-secondary bevel-sm text-xs inline-flex items-center gap-1.5"
-          style={{ padding: '7px 12px', fontSize: '11px' }}
+          style={{ padding: '7px 12px', fontSize: '12px' }}
         >
           {ctaLabel}
           <ExternalLink size={11} />

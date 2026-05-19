@@ -247,7 +247,7 @@ export default function MyCalendarPage() {
                         />
                         <span
                           className="t-mono"
-                          style={{ fontSize: '10px', color: 'var(--s-text-muted)' }}
+                          style={{ fontSize: '12px', color: 'var(--s-text-muted)' }}
                         >
                           {g.events.length} event{g.events.length > 1 ? 's' : ''}
                         </span>
@@ -293,7 +293,7 @@ function NowMarker() {
       />
       <span
         className="font-display"
-        style={{ fontSize: '11px', letterSpacing: '0.1em', color: 'var(--s-gold)' }}
+        style={{ fontSize: '12px', letterSpacing: '0.1em', color: 'var(--s-gold)' }}
       >
         MAINTENANT · {timeLabel}
       </span>
@@ -345,11 +345,11 @@ function MyEventCard({
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="tag" style={{ background: `${typeInfo.color}15`, color: typeInfo.color, borderColor: `${typeInfo.color}35`, fontSize: '9px', padding: '2px 6px' }}>
+            <span className="tag" style={{ background: `${typeInfo.color}15`, color: typeInfo.color, borderColor: `${typeInfo.color}35`, fontSize: '12px', padding: '2px 6px' }}>
               {typeInfo.label}
             </span>
             {event.status !== 'scheduled' && (
-              <span className="tag" style={{ background: `${statusInfo.color}15`, color: statusInfo.color, borderColor: `${statusInfo.color}35`, fontSize: '9px', padding: '2px 6px' }}>
+              <span className="tag" style={{ background: `${statusInfo.color}15`, color: statusInfo.color, borderColor: `${statusInfo.color}35`, fontSize: '12px', padding: '2px 6px' }}>
                 {statusInfo.label}
               </span>
             )}
@@ -426,7 +426,7 @@ function MyEventCard({
               background: `${PRESENCE_INFO[my.status].color}15`,
               color: PRESENCE_INFO[my.status].color,
               borderColor: `${PRESENCE_INFO[my.status].color}35`,
-              fontSize: '9px', padding: '2px 8px',
+              fontSize: '12px', padding: '2px 8px',
             }}>
               {PRESENCE_INFO[my.status].label}
             </span>

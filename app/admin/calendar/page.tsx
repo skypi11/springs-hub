@@ -216,7 +216,7 @@ export default function AdminCalendarPage() {
                 background: when === f.value ? 'rgba(255,184,0,0.15)' : 'transparent',
                 color: when === f.value ? 'var(--s-gold)' : 'var(--s-text-dim)',
                 borderColor: when === f.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
-                cursor: 'pointer', padding: '6px 14px', fontSize: '11px',
+                cursor: 'pointer', padding: '6px 14px', fontSize: '12px',
               }}>
               {f.label}
             </button>
@@ -230,7 +230,7 @@ export default function AdminCalendarPage() {
               background: !typeFilter ? 'rgba(255,184,0,0.15)' : 'transparent',
               color: !typeFilter ? 'var(--s-gold)' : 'var(--s-text-dim)',
               borderColor: !typeFilter ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
-              cursor: 'pointer', padding: '6px 14px', fontSize: '11px',
+              cursor: 'pointer', padding: '6px 14px', fontSize: '12px',
             }}>
             Tous types
           </button>
@@ -241,7 +241,7 @@ export default function AdminCalendarPage() {
                 background: typeFilter === k ? `${meta.color}20` : 'transparent',
                 color: typeFilter === k ? meta.color : 'var(--s-text-dim)',
                 borderColor: typeFilter === k ? `${meta.color}60` : 'var(--s-border)',
-                cursor: 'pointer', padding: '6px 14px', fontSize: '11px',
+                cursor: 'pointer', padding: '6px 14px', fontSize: '12px',
               }}>
               {meta.label}
             </button>
@@ -261,7 +261,7 @@ export default function AdminCalendarPage() {
                 background: statusFilter === f.value ? 'rgba(255,184,0,0.15)' : 'transparent',
                 color: statusFilter === f.value ? 'var(--s-gold)' : 'var(--s-text-dim)',
                 borderColor: statusFilter === f.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
-                cursor: 'pointer', padding: '6px 14px', fontSize: '11px',
+                cursor: 'pointer', padding: '6px 14px', fontSize: '12px',
               }}>
               {f.label}
             </button>
@@ -320,20 +320,20 @@ export default function AdminCalendarPage() {
                     <span className="tag" style={{
                       background: `${typeMeta.color}15`, color: typeMeta.color,
                       borderColor: `${typeMeta.color}40`,
-                      fontSize: '9px', padding: '1px 6px',
+                      fontSize: '12px', padding: '1px 6px',
                     }}>
                       {typeMeta.label}
                     </span>
                     <span className="tag flex items-center gap-1" style={{
                       background: statusMeta.bg, color: statusMeta.color,
                       borderColor: statusMeta.color === 'var(--s-text-dim)' ? 'var(--s-border)' : `${statusMeta.color}40`,
-                      fontSize: '9px', padding: '1px 6px',
+                      fontSize: '12px', padding: '1px 6px',
                     }}>
                       <StatusIcon size={9} />
                       {statusMeta.label}
                     </span>
                     {event.target?.scope && event.target.scope !== 'all' && (
-                      <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '1px 6px' }}>
+                      <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 6px' }}>
                         {event.target.scope}
                       </span>
                     )}
@@ -383,7 +383,7 @@ export default function AdminCalendarPage() {
                       onClick={() => toggleDetail(event.id)}
                       className="btn-springs bevel-sm flex items-center gap-1.5"
                       style={{
-                        fontSize: '11px', padding: '5px 10px',
+                        fontSize: '12px', padding: '5px 10px',
                         background: isOpen ? 'rgba(255,184,0,0.15)' : 'transparent',
                         color: isOpen ? 'var(--s-gold)' : 'var(--s-text-dim)',
                         borderColor: isOpen ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
@@ -400,7 +400,7 @@ export default function AdminCalendarPage() {
                           disabled={actionLoading === `terminate_${event.id}`}
                           className="btn-springs bevel-sm flex items-center gap-1.5"
                           style={{
-                            fontSize: '11px', padding: '5px 10px',
+                            fontSize: '12px', padding: '5px 10px',
                             background: 'rgba(51,255,102,0.1)', color: '#33ff66',
                             borderColor: 'rgba(51,255,102,0.4)',
                             opacity: actionLoading === `terminate_${event.id}` ? 0.5 : 1,
@@ -414,7 +414,7 @@ export default function AdminCalendarPage() {
                           disabled={actionLoading === `cancel_${event.id}`}
                           className="btn-springs bevel-sm flex items-center gap-1.5"
                           style={{
-                            fontSize: '11px', padding: '5px 10px',
+                            fontSize: '12px', padding: '5px 10px',
                             background: 'rgba(255,136,0,0.1)', color: '#ff8800',
                             borderColor: 'rgba(255,136,0,0.4)',
                             opacity: actionLoading === `cancel_${event.id}` ? 0.5 : 1,
@@ -431,7 +431,7 @@ export default function AdminCalendarPage() {
                         disabled={actionLoading === `reopen_${event.id}`}
                         className="btn-springs bevel-sm flex items-center gap-1.5"
                         style={{
-                          fontSize: '11px', padding: '5px 10px',
+                          fontSize: '12px', padding: '5px 10px',
                           background: 'rgba(255,184,0,0.1)', color: 'var(--s-gold)',
                           borderColor: 'rgba(255,184,0,0.4)',
                           opacity: actionLoading === `reopen_${event.id}` ? 0.5 : 1,
@@ -446,7 +446,7 @@ export default function AdminCalendarPage() {
                       disabled={actionLoading === `delete_${event.id}`}
                       className="btn-springs bevel-sm flex items-center gap-1.5"
                       style={{
-                        fontSize: '11px', padding: '5px 10px',
+                        fontSize: '12px', padding: '5px 10px',
                         background: 'rgba(239,68,68,0.1)', color: '#ef4444',
                         borderColor: 'rgba(239,68,68,0.4)',
                         opacity: actionLoading === `delete_${event.id}` ? 0.5 : 1,

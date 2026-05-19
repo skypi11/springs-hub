@@ -190,7 +190,7 @@ export default function NotificationsBell() {
                   <span
                     className="font-display px-1.5"
                     style={{
-                      fontSize: '11px',
+                      fontSize: '12px',
                       color: 'var(--s-gold)',
                       background: 'rgba(255,184,0,0.1)',
                       border: '1px solid rgba(255,184,0,0.25)',

@@ -72,7 +72,7 @@ export default function AdminDevPage() {
           background: isDev ? 'rgba(255,184,0,0.12)' : 'rgba(255,184,0,0.12)',
           color: isDev ? '#FFB800' : 'var(--s-gold)',
           borderColor: isDev ? 'rgba(255,184,0,0.4)' : 'rgba(255,184,0,0.4)',
-          fontSize: '10px', padding: '2px 8px',
+          fontSize: '12px', padding: '2px 8px',
         }}>
           {data.runtime.nodeEnv.toUpperCase()}
         </span>
@@ -112,7 +112,7 @@ export default function AdminDevPage() {
                 <span className="tag" style={{
                   background: 'rgba(255,85,85,0.12)', color: '#ff5555',
                   borderColor: 'rgba(255,85,85,0.4)',
-                  fontSize: '9px', padding: '1px 6px',
+                  fontSize: '12px', padding: '1px 6px',
                 }}>err</span>
               ) : (
                 <span className="font-display text-sm" style={{ color: 'var(--s-text)' }}>{c.count}</span>
@@ -131,7 +131,7 @@ export default function AdminDevPage() {
             <span className="tag" style={{
               background: 'rgba(255,184,0,0.12)', color: '#FFB800',
               borderColor: 'rgba(255,184,0,0.4)',
-              fontSize: '9px', padding: '1px 6px',
+              fontSize: '12px', padding: '1px 6px',
             }}>
               {missingEnv.length} manquante(s)
             </span>
@@ -158,7 +158,7 @@ export default function AdminDevPage() {
         <div className="flex items-center gap-2 mb-3">
           <Clock size={14} style={{ color: 'var(--s-text-dim)' }} />
           <span className="t-label">Crons Vercel ({data.crons.length})</span>
-          <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '1px 6px' }}>
+          <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 6px' }}>
             Hobby: 1x/jour max
           </span>
         </div>
@@ -238,7 +238,7 @@ export default function AdminDevPage() {
 function RuntimeLine({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span style={{ color: 'var(--s-text-muted)', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+      <span style={{ color: 'var(--s-text-muted)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
         {label}
       </span>
       <span className={mono ? 't-mono' : ''} style={{ color: 'var(--s-text)' }}>
@@ -253,7 +253,7 @@ function DevEndpoint({ method, path, description }: { method: string; path: stri
     <div className="flex items-start gap-2 p-2" style={{
       background: 'var(--s-elevated)', borderRadius: '2px',
     }}>
-      <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '1px 6px', flexShrink: 0 }}>
+      <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 6px', flexShrink: 0 }}>
         {method}
       </span>
       <div className="flex-1 min-w-0">

@@ -240,7 +240,7 @@ export default function DateTimePicker({
                       type="button"
                       onClick={() => selectPreset(p.date)}
                       className="tag tag-neutral"
-                      style={{ cursor: 'pointer', padding: '4px 10px', fontSize: '10px' }}
+                      style={{ cursor: 'pointer', padding: '4px 10px', fontSize: '12px' }}
                     >
                       {p.label}
                     </button>
@@ -280,7 +280,7 @@ export default function DateTimePicker({
                 <div
                   key={i}
                   className="text-center t-label"
-                  style={{ color: 'var(--s-text-muted)', fontSize: '9px' }}
+                  style={{ color: 'var(--s-text-muted)', fontSize: '12px' }}
                 >
                   {dn}
                 </div>
@@ -303,7 +303,7 @@ export default function DateTimePicker({
                     className="text-center transition-colors duration-150"
                     style={{
                       padding: '6px 0',
-                      fontSize: '11px',
+                      fontSize: '12px',
                       cursor: dis ? 'not-allowed' : 'pointer',
                       background: isSelected ? 'rgba(255,184,0,0.2)' : 'transparent',
                       border: `1px solid ${
@@ -334,7 +334,7 @@ export default function DateTimePicker({
                 value={hour}
                 onChange={e => setHour(Number(e.target.value))}
                 className="settings-input"
-                style={{ padding: '4px 6px', fontSize: '11px', width: '58px', flex: 'none' }}
+                style={{ padding: '4px 6px', fontSize: '12px', width: '58px', flex: 'none' }}
               >
                 {Array.from({ length: 24 }, (_, i) => (
                   <option key={i} value={i}>{pad(i)}</option>
@@ -345,7 +345,7 @@ export default function DateTimePicker({
                 value={minute}
                 onChange={e => setMinute(Number(e.target.value))}
                 className="settings-input"
-                style={{ padding: '4px 6px', fontSize: '11px', width: '58px', flex: 'none' }}
+                style={{ padding: '4px 6px', fontSize: '12px', width: '58px', flex: 'none' }}
               >
                 {[0, 15, 30, 45].map(m => (
                   <option key={m} value={m}>{pad(m)}</option>
@@ -358,7 +358,7 @@ export default function DateTimePicker({
                 type="button"
                 onClick={() => setOpen(false)}
                 className="tag tag-neutral"
-                style={{ cursor: 'pointer', padding: '4px 12px', fontSize: '10px' }}
+                style={{ cursor: 'pointer', padding: '4px 12px', fontSize: '12px' }}
               >
                 Annuler
               </button>
@@ -369,7 +369,7 @@ export default function DateTimePicker({
                 style={{
                   cursor: 'pointer',
                   padding: '4px 12px',
-                  fontSize: '10px',
+                  fontSize: '12px',
                   background: 'rgba(255,184,0,0.2)',
                   color: 'var(--s-gold)',
                   borderColor: 'rgba(255,184,0,0.45)',

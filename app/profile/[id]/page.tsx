@@ -645,7 +645,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     <Search size={13} style={{ color: 'var(--s-gold)' }} />
                     <span className="t-label" style={{ color: 'var(--s-text)' }}>DISPONIBLE AU RECRUTEMENT</span>
                   </div>
-                  <span className="tag tag-gold" style={{ fontSize: '9px' }}>OUVERT</span>
+                  <span className="tag tag-gold" style={{ fontSize: '12px' }}>OUVERT</span>
                 </div>
                 <div className="p-5 space-y-3">
                   {profile.recruitmentRole && (
@@ -714,9 +714,9 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>
                             {ps.name}
-                            {ps.tag && <span className="ml-1.5 t-mono" style={{ color: 'var(--s-text-muted)', fontSize: '10px' }}>[{ps.tag}]</span>}
+                            {ps.tag && <span className="ml-1.5 t-mono" style={{ color: 'var(--s-text-muted)', fontSize: '12px' }}>[{ps.tag}]</span>}
                           </p>
-                          <p className="t-mono" style={{ fontSize: '10px', color: 'var(--s-gold)' }}>{roleLabels[ps.role] ?? 'Membre'}</p>
+                          <p className="t-mono" style={{ fontSize: '12px', color: 'var(--s-gold)' }}>{roleLabels[ps.role] ?? 'Membre'}</p>
                         </div>
                       </div>
                       {ps.teams.length > 0 && (
@@ -724,7 +724,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                           {ps.teams.map(t => {
                             const gameClass = t.game === 'rocket_league' ? 'tag-blue' : t.game === 'trackmania' ? 'tag-green' : 'tag-neutral';
                             return (
-                              <span key={t.id} className={`tag ${gameClass}`} style={{ fontSize: '9px', padding: '2px 7px' }}>
+                              <span key={t.id} className={`tag ${gameClass}`} style={{ fontSize: '12px', padding: '2px 7px' }}>
                                 {teamRoleLabels[t.role]} · {t.name}
                               </span>
                             );
@@ -754,7 +754,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                   <div className="flex gap-1.5">
                     {profile.games?.map(g => (
                       <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                        style={{ fontSize: '9px', padding: '2px 6px' }}>
+                        style={{ fontSize: '12px', padding: '2px 6px' }}>
                         {g === 'rocket_league' ? 'RL' : 'TM'}
                       </span>
                     ))}

@@ -200,7 +200,7 @@ export default function AdminDevoirsPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             {data.typeBreakdown.map(t => (
-              <span key={t.type} className="tag tag-neutral" style={{ fontSize: '11px', padding: '3px 8px' }}>
+              <span key={t.type} className="tag tag-neutral" style={{ fontSize: '12px', padding: '3px 8px' }}>
                 {t.label}
                 <span style={{ color: 'var(--s-text-muted)', marginLeft: '6px' }}>{t.count}</span>
               </span>
@@ -224,7 +224,7 @@ export default function AdminDevoirsPage() {
                 background: sortBy === f.value ? 'rgba(255,184,0,0.15)' : 'transparent',
                 color: sortBy === f.value ? 'var(--s-gold)' : 'var(--s-text-dim)',
                 borderColor: sortBy === f.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
-                cursor: 'pointer', padding: '6px 14px', fontSize: '11px',
+                cursor: 'pointer', padding: '6px 14px', fontSize: '12px',
               }}>
               {f.label}
             </button>
@@ -237,7 +237,7 @@ export default function AdminDevoirsPage() {
             background: !hideEmpty ? 'rgba(255,184,0,0.15)' : 'transparent',
             color: !hideEmpty ? 'var(--s-gold)' : 'var(--s-text-dim)',
             borderColor: !hideEmpty ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
-            cursor: 'pointer', padding: '6px 14px', fontSize: '11px',
+            cursor: 'pointer', padding: '6px 14px', fontSize: '12px',
           }}>
           {hideEmpty ? 'Inclure structures vides' : 'Masquer structures vides'}
         </button>
@@ -301,13 +301,13 @@ export default function AdminDevoirsPage() {
                     <span className="tag" style={{
                       background: 'rgba(255,85,85,0.12)', color: '#ff5555',
                       borderColor: 'rgba(255,85,85,0.4)',
-                      fontSize: '9px', padding: '1px 6px',
+                      fontSize: '12px', padding: '1px 6px',
                     }}>
                       {s.overdue} en retard
                     </span>
                   )}
                   {s.total === 0 && (
-                    <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '1px 6px' }}>
+                    <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 6px' }}>
                       aucun devoir
                     </span>
                   )}
@@ -449,14 +449,14 @@ function TodoRow({ todo }: { todo: TodoDetail }) {
               background: `${urgencyColor}18`,
               color: urgencyColor,
               borderColor: `${urgencyColor}40`,
-              fontSize: '9px',
+              fontSize: '12px',
               padding: '1px 5px',
             }}>
               {urgencyLabel}
             </span>
           )}
           {todo.hasResponse && (
-            <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '1px 5px' }}>
+            <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 5px' }}>
               réponse
             </span>
           )}

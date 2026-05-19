@@ -233,7 +233,7 @@ function Section({ icon, title, children }: { icon: React.ReactNode; title: stri
     <section className="panel p-5 space-y-3">
       <div className="flex items-center gap-2">
         <span style={{ color: 'var(--s-text-dim)' }}>{icon}</span>
-        <h2 className="t-label" style={{ color: 'var(--s-text)', fontSize: '11px' }}>{title}</h2>
+        <h2 className="t-label" style={{ color: 'var(--s-text)', fontSize: '12px' }}>{title}</h2>
       </div>
       <div className="space-y-3">{children}</div>
     </section>

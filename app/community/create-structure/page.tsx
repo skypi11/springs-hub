@@ -200,7 +200,7 @@ export default function CreateStructurePage() {
                   value={form.logoUrl} onChange={e => { setForm({ ...form, logoUrl: e.target.value }); setLogoPreview(false); }} />
                 {form.logoUrl && (
                   <button type="button" onClick={() => setLogoPreview(!logoPreview)}
-                    className="btn-springs btn-secondary" style={{ padding: '8px 12px', fontSize: '11px' }}>
+                    className="btn-springs btn-secondary" style={{ padding: '8px 12px', fontSize: '12px' }}>
                     <ImageIcon size={12} /> {logoPreview ? 'Masquer' : 'Aperçu'}
                   </button>
                 )}
@@ -296,7 +296,7 @@ export default function CreateStructurePage() {
                 <label className="t-label block mb-2">Nombre de staff</label>
                 <input type="number" min="0" className="settings-input w-full" placeholder="0"
                   value={form.staffCount} onChange={e => setForm({ ...form, staffCount: e.target.value })} />
-                <p className="t-mono mt-1" style={{ fontSize: '10px', color: 'var(--s-text-muted)' }}>
+                <p className="t-mono mt-1" style={{ fontSize: '12px', color: 'var(--s-text-muted)' }}>
                   Co-fondateurs, managers, coachs
                 </p>
               </div>

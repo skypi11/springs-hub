@@ -273,12 +273,12 @@ function StructureFeedCard({ s }: { s: StructureSummary }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <p className="font-display text-base tracking-wider truncate">{s.name}</p>
-              <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '1px 5px', flexShrink: 0 }}>{s.tag}</span>
+              <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 5px', flexShrink: 0 }}>{s.tag}</span>
             </div>
             <div className="flex items-center gap-1.5">
               {s.games.map(g => (
                 <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                  style={{ fontSize: '9px', padding: '1px 5px' }}>
+                  style={{ fontSize: '12px', padding: '1px 5px' }}>
                   {g === 'rocket_league' ? 'RL' : 'TM'}
                 </span>
               ))}
@@ -318,7 +318,7 @@ function PlayerFeedCard({ p }: { p: PlayerSummary }) {
             <div className="flex items-center gap-1 mt-1">
               {p.games.map(g => (
                 <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                  style={{ fontSize: '9px', padding: '1px 5px' }}>
+                  style={{ fontSize: '12px', padding: '1px 5px' }}>
                   {g === 'rocket_league' ? 'RL' : 'TM'}
                 </span>
               ))}
@@ -361,12 +361,12 @@ function RecruitingStructureCard({ s }: { s: StructureSummary }) {
               [{s.tag}] · {s.memberCount} membre{s.memberCount > 1 ? 's' : ''}
             </p>
           </div>
-          <span className="tag tag-green flex-shrink-0" style={{ fontSize: '9px', padding: '2px 6px' }}>RECRUTE</span>
+          <span className="tag tag-green flex-shrink-0" style={{ fontSize: '12px', padding: '2px 6px' }}>RECRUTE</span>
         </div>
         {positions.length > 0 ? (
           <div className="flex flex-wrap gap-1.5 pt-2" style={{ borderTop: '1px dashed var(--s-border)' }}>
             {positions.slice(0, 3).map((pos, i) => (
-              <span key={i} className="tag tag-neutral" style={{ fontSize: '9px', padding: '1px 6px' }}>
+              <span key={i} className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 6px' }}>
                 {pos.game === 'rocket_league' ? 'RL' : 'TM'} · {ROLE_LABELS[pos.role] || pos.role}
               </span>
             ))}

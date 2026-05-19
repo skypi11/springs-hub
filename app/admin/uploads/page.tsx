@@ -166,7 +166,7 @@ export default function AdminUploadsPage() {
                 background: sortBy === f.value ? 'rgba(255,184,0,0.15)' : 'transparent',
                 color: sortBy === f.value ? 'var(--s-gold)' : 'var(--s-text-dim)',
                 borderColor: sortBy === f.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
-                cursor: 'pointer', padding: '6px 14px', fontSize: '11px',
+                cursor: 'pointer', padding: '6px 14px', fontSize: '12px',
               }}>
               {f.label}
             </button>
@@ -219,7 +219,7 @@ export default function AdminUploadsPage() {
                     <span className="tag" style={{
                       background: `${quotaColor}15`, color: quotaColor,
                       borderColor: `${quotaColor}40`,
-                      fontSize: '9px', padding: '1px 6px',
+                      fontSize: '12px', padding: '1px 6px',
                     }}>
                       {s.quotaPct}% quota docs
                     </span>

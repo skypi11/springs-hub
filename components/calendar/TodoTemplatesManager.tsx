@@ -173,7 +173,7 @@ function TemplateCreateForm({
   return (
     <div className="p-3 space-y-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-gold)' }}>
       <div className="flex items-center gap-2">
-        <span className="t-label" style={{ fontSize: '11px', color: 'var(--s-gold)' }}>
+        <span className="t-label" style={{ fontSize: '12px', color: 'var(--s-gold)' }}>
           NOUVEAU TEMPLATE
         </span>
       </div>
@@ -383,7 +383,7 @@ function TemplateRow({
             </span>
             <span className="px-1.5 py-0.5 text-xs font-bold tracking-wider"
               style={{
-                fontSize: '10px',
+                fontSize: '12px',
                 background: 'var(--s-surface)',
                 border: '1px solid var(--s-border)',
                 color: 'var(--s-text-dim)',
@@ -483,7 +483,7 @@ function TemplateEditForm({
   return (
     <div className="p-3 space-y-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-gold)' }}>
       <div className="flex items-center gap-2">
-        <span className="t-label" style={{ fontSize: '11px', color: 'var(--s-gold)' }}>
+        <span className="t-label" style={{ fontSize: '12px', color: 'var(--s-gold)' }}>
           ÉDITION DU TEMPLATE — {TODO_TYPE_META[template.type].short.toUpperCase()}
         </span>
       </div>

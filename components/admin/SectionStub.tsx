@@ -17,7 +17,7 @@ export default function SectionStub({ title, icon: Icon, accent, description, pl
         <h2 className="font-display text-xl" style={{ letterSpacing: '0.04em' }}>
           {title.toUpperCase()}
         </h2>
-        <span className="tag tag-neutral" style={{ fontSize: '9px' }}>BIENTÔT</span>
+        <span className="tag tag-neutral" style={{ fontSize: '12px' }}>BIENTÔT</span>
       </div>
 
       <div

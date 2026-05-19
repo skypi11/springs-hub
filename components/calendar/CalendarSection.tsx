@@ -304,7 +304,7 @@ export default function CalendarSection({
               background: filter === f ? 'rgba(255,184,0,0.15)' : 'transparent',
               color: filter === f ? 'var(--s-gold)' : 'var(--s-text-dim)',
               borderColor: filter === f ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
-              cursor: 'pointer', padding: '4px 10px', fontSize: '10px',
+              cursor: 'pointer', padding: '4px 10px', fontSize: '12px',
             }}>
             {f === 'upcoming' ? 'À venir' : f === 'past' ? 'Passés' : 'Tous'}
           </button>
@@ -429,7 +429,7 @@ function TeamFilterDropdown({
           background: value.length > 0 ? 'rgba(255,184,0,0.12)' : 'transparent',
           color: value.length > 0 ? 'var(--s-gold)' : 'var(--s-text-dim)',
           border: `1px solid ${value.length > 0 ? 'rgba(255,184,0,0.35)' : 'var(--s-border)'}`,
-          cursor: 'pointer', padding: '4px 10px', fontSize: '11px',
+          cursor: 'pointer', padding: '4px 10px', fontSize: '12px',
           textTransform: 'uppercase', letterSpacing: '0.04em',
         }}>
         <Users size={11} />
@@ -543,27 +543,27 @@ function EventCard({
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="tag" style={{ background: `${typeInfo.color}15`, color: typeInfo.color, borderColor: `${typeInfo.color}35`, fontSize: '9px', padding: '1px 6px' }}>
+            <span className="tag" style={{ background: `${typeInfo.color}15`, color: typeInfo.color, borderColor: `${typeInfo.color}35`, fontSize: '12px', padding: '1px 6px' }}>
               {typeInfo.label}
             </span>
             {event.status !== 'scheduled' && (
-              <span className="tag" style={{ background: `${statusInfo.color}15`, color: statusInfo.color, borderColor: `${statusInfo.color}35`, fontSize: '9px', padding: '1px 6px' }}>
+              <span className="tag" style={{ background: `${statusInfo.color}15`, color: statusInfo.color, borderColor: `${statusInfo.color}35`, fontSize: '12px', padding: '1px 6px' }}>
                 {statusInfo.label}
               </span>
             )}
           </div>
           <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{event.title}</p>
           <div className="flex items-center gap-3 mt-1 flex-wrap">
-            <span className="t-mono flex items-center gap-1" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>
+            <span className="t-mono flex items-center gap-1" style={{ fontSize: '12px', color: 'var(--s-text-dim)' }}>
               <Target size={9} /> {targetLabel}
             </span>
             {event.location && (
-              <span className="t-mono flex items-center gap-1" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>
+              <span className="t-mono flex items-center gap-1" style={{ fontSize: '12px', color: 'var(--s-text-dim)' }}>
                 <MapPin size={9} /> {event.location}
               </span>
             )}
             {event.type === 'scrim' && event.adversaire && (
-              <span className="t-mono" style={{ fontSize: '10px', color: 'var(--s-text-dim)' }}>
+              <span className="t-mono" style={{ fontSize: '12px', color: 'var(--s-text-dim)' }}>
                 vs {event.adversaire}
               </span>
             )}
@@ -586,7 +586,7 @@ function EventCard({
                     </div>
                   ) : (
                     <div className="flex-shrink-0 flex items-center justify-center font-display"
-                      style={{ width: '28px', height: '28px', background: 'var(--s-elevated)', border: '1px solid var(--s-border)', fontSize: '10px', color: 'var(--s-text-dim)' }}>
+                      style={{ width: '28px', height: '28px', background: 'var(--s-elevated)', border: '1px solid var(--s-border)', fontSize: '12px', color: 'var(--s-text-dim)' }}>
                       {teamInitials}
                     </div>
                   )}
@@ -605,7 +605,7 @@ function EventCard({
                     </div>
                   ) : (
                     <div className="flex-shrink-0 flex items-center justify-center font-display"
-                      style={{ width: '28px', height: '28px', background: 'var(--s-elevated)', border: '1px solid var(--s-border)', fontSize: '10px', color: 'var(--s-text-dim)' }}>
+                      style={{ width: '28px', height: '28px', background: 'var(--s-elevated)', border: '1px solid var(--s-border)', fontSize: '12px', color: 'var(--s-text-dim)' }}>
                       {advInitials}
                     </div>
                   )}
@@ -618,13 +618,13 @@ function EventCard({
         {/* Presence counts + my response */}
         <div className="flex-shrink-0 flex flex-col items-end gap-2" onClick={e => e.stopPropagation()}>
           <div className="flex gap-1.5">
-            <span className="tag" style={{ background: 'rgba(51,255,102,0.1)', color: '#33ff66', borderColor: 'rgba(51,255,102,0.3)', fontSize: '9px', padding: '1px 5px' }}>
+            <span className="tag" style={{ background: 'rgba(51,255,102,0.1)', color: '#33ff66', borderColor: 'rgba(51,255,102,0.3)', fontSize: '12px', padding: '1px 5px' }}>
               {counts.present}
             </span>
-            <span className="tag" style={{ background: 'rgba(255,184,0,0.1)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.3)', fontSize: '9px', padding: '1px 5px' }}>
+            <span className="tag" style={{ background: 'rgba(255,184,0,0.1)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.3)', fontSize: '12px', padding: '1px 5px' }}>
               {counts.maybe}
             </span>
-            <span className="tag" style={{ background: 'rgba(255,85,85,0.1)', color: '#ff5555', borderColor: 'rgba(255,85,85,0.3)', fontSize: '9px', padding: '1px 5px' }}>
+            <span className="tag" style={{ background: 'rgba(255,85,85,0.1)', color: '#ff5555', borderColor: 'rgba(255,85,85,0.3)', fontSize: '12px', padding: '1px 5px' }}>
               {counts.absent}
             </span>
           </div>
@@ -640,7 +640,7 @@ function EventCard({
                     background: myPresence.status === s ? `${PRESENCE_INFO[s].color}20` : 'transparent',
                     border: `1px solid ${myPresence.status === s ? PRESENCE_INFO[s].color : 'var(--s-border)'}`,
                     color: myPresence.status === s ? PRESENCE_INFO[s].color : 'var(--s-text-muted)',
-                    fontSize: '9px',
+                    fontSize: '12px',
                     cursor: 'pointer',
                   }}>
                   {s === 'present' ? '✓' : s === 'maybe' ? '?' : '✗'}
@@ -947,7 +947,7 @@ function EventFormModal({
                     background: scope === 'structure' ? 'rgba(255,184,0,0.15)' : 'transparent',
                     color: scope === 'structure' ? 'var(--s-gold)' : 'var(--s-text-dim)',
                     borderColor: scope === 'structure' ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
-                    cursor: 'pointer', padding: '6px 12px', fontSize: '10px',
+                    cursor: 'pointer', padding: '6px 12px', fontSize: '12px',
                   }}>
                   Toute la structure
                 </button>
@@ -958,7 +958,7 @@ function EventFormModal({
                   background: scope === 'teams' ? 'rgba(255,184,0,0.15)' : 'transparent',
                   color: scope === 'teams' ? 'var(--s-gold)' : 'var(--s-text-dim)',
                   borderColor: scope === 'teams' ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
-                  cursor: 'pointer', padding: '6px 12px', fontSize: '10px',
+                  cursor: 'pointer', padding: '6px 12px', fontSize: '12px',
                 }}>
                 Équipes
               </button>
@@ -969,7 +969,7 @@ function EventFormModal({
                     background: scope === 'game' ? 'rgba(255,184,0,0.15)' : 'transparent',
                     color: scope === 'game' ? 'var(--s-gold)' : 'var(--s-text-dim)',
                     borderColor: scope === 'game' ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
-                    cursor: 'pointer', padding: '6px 12px', fontSize: '10px',
+                    cursor: 'pointer', padding: '6px 12px', fontSize: '12px',
                   }}>
                   Un jeu
                 </button>
@@ -981,7 +981,7 @@ function EventFormModal({
                     background: scope === 'staff' ? 'rgba(255,184,0,0.15)' : 'transparent',
                     color: scope === 'staff' ? 'var(--s-gold)' : 'var(--s-text-dim)',
                     borderColor: scope === 'staff' ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
-                    cursor: 'pointer', padding: '6px 12px', fontSize: '10px',
+                    cursor: 'pointer', padding: '6px 12px', fontSize: '12px',
                   }}>
                   Staff
                 </button>
@@ -999,7 +999,7 @@ function EventFormModal({
                       background: selectedTeamIds.includes(t.id) ? (t.game === 'rocket_league' ? 'rgba(0,129,255,0.15)' : 'rgba(0,217,54,0.15)') : 'transparent',
                       color: selectedTeamIds.includes(t.id) ? (t.game === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)') : 'var(--s-text-dim)',
                       borderColor: selectedTeamIds.includes(t.id) ? (t.game === 'rocket_league' ? 'rgba(0,129,255,0.4)' : 'rgba(0,217,54,0.4)') : 'var(--s-border)',
-                      cursor: 'pointer', padding: '4px 10px', fontSize: '10px',
+                      cursor: 'pointer', padding: '4px 10px', fontSize: '12px',
                     }}>
                     {t.name} · {t.game === 'rocket_league' ? 'RL' : 'TM'}
                   </button>
@@ -1022,7 +1022,7 @@ function EventFormModal({
                   <div className="flex gap-1">
                     <button type="button"
                       className="tag tag-neutral"
-                      style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '9px' }}
+                      style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '12px' }}
                       onClick={() => {
                         const next: Record<string, boolean> = {};
                         for (const e of singleTeamRoster.entries) next[e.uid] = true;
@@ -1032,7 +1032,7 @@ function EventFormModal({
                     </button>
                     <button type="button"
                       className="tag tag-neutral"
-                      style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '9px' }}
+                      style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '12px' }}
                       onClick={() => {
                         const next: Record<string, boolean> = {};
                         for (const e of singleTeamRoster.entries) next[e.uid] = e.role === 'titulaire';
@@ -1042,7 +1042,7 @@ function EventFormModal({
                     </button>
                     <button type="button"
                       className="tag tag-neutral"
-                      style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '9px' }}
+                      style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '12px' }}
                       onClick={() => {
                         const next: Record<string, boolean> = {};
                         for (const e of singleTeamRoster.entries) next[e.uid] = false;
@@ -1075,7 +1075,7 @@ function EventFormModal({
                         <span className="text-xs flex-1 truncate" style={{ color: checked ? 'var(--s-text)' : 'var(--s-text-dim)' }}>
                           {name}
                         </span>
-                        <span className="t-label" style={{ color: roleColor, fontSize: '9px' }}>
+                        <span className="t-label" style={{ color: roleColor, fontSize: '12px' }}>
                           {roleLabel}
                         </span>
                       </label>
@@ -1093,14 +1093,14 @@ function EventFormModal({
                 {structureGames.includes('rocket_league') && (
                   <button type="button" onClick={() => setGame('rocket_league')}
                     className={`tag ${game === 'rocket_league' ? 'tag-blue' : 'tag-neutral'}`}
-                    style={{ cursor: 'pointer', padding: '4px 10px', fontSize: '10px' }}>
+                    style={{ cursor: 'pointer', padding: '4px 10px', fontSize: '12px' }}>
                     Rocket League
                   </button>
                 )}
                 {structureGames.includes('trackmania') && (
                   <button type="button" onClick={() => setGame('trackmania')}
                     className={`tag ${game === 'trackmania' ? 'tag-green' : 'tag-neutral'}`}
-                    style={{ cursor: 'pointer', padding: '4px 10px', fontSize: '10px' }}>
+                    style={{ cursor: 'pointer', padding: '4px 10px', fontSize: '12px' }}>
                     Trackmania
                   </button>
                 )}
@@ -1140,7 +1140,7 @@ function EventFormModal({
                       <div className="flex gap-1">
                         <button type="button"
                           className="tag tag-neutral"
-                          style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '9px' }}
+                          style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '12px' }}
                           onClick={() => {
                             const next: Record<string, boolean> = {};
                             for (const g of groups) for (const uid of g.uids) next[uid] = true;
@@ -1150,7 +1150,7 @@ function EventFormModal({
                         </button>
                         <button type="button"
                           className="tag tag-neutral"
-                          style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '9px' }}
+                          style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '12px' }}
                           onClick={() => setStaffSelection({})}>
                           Aucun
                         </button>
@@ -1172,7 +1172,7 @@ function EventFormModal({
                           <div key={g.key} className="space-y-1.5">
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2">
-                                <span className="t-label" style={{ color: g.color, fontSize: '10px' }}>
+                                <span className="t-label" style={{ color: g.color, fontSize: '12px' }}>
                                   {g.label}
                                 </span>
                                 <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
@@ -1181,7 +1181,7 @@ function EventFormModal({
                               </div>
                               <button type="button"
                                 className="tag tag-neutral"
-                                style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '9px' }}
+                                style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '12px' }}
                                 onClick={() => {
                                   setStaffSelection(prev => {
                                     const next = { ...prev };
@@ -1238,7 +1238,7 @@ function EventFormModal({
               style={{ background: 'rgba(255,184,0,0.05)', border: '1px solid rgba(255,184,0,0.3)' }}>
               <div className="flex items-center gap-2">
                 <span className="tag"
-                  style={{ background: 'rgba(255,184,0,0.15)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.4)', fontSize: '9px', padding: '2px 8px' }}>
+                  style={{ background: 'rgba(255,184,0,0.15)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.4)', fontSize: '12px', padding: '2px 8px' }}>
                   ⚔ MATCH OFFICIEL
                 </span>
                 <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
@@ -1411,14 +1411,14 @@ function EventDetailModal({
             <div className="flex items-center gap-2 mb-2">
               {event.type === 'match' && event.adversaire && (
                 <span className="tag"
-                  style={{ background: 'rgba(255,184,0,0.18)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.5)', fontSize: '9px', padding: '2px 8px' }}>
+                  style={{ background: 'rgba(255,184,0,0.18)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.5)', fontSize: '12px', padding: '2px 8px' }}>
                   ⚔ MATCH OFFICIEL
                 </span>
               )}
-              <span className="tag" style={{ background: `${typeInfo.color}15`, color: typeInfo.color, borderColor: `${typeInfo.color}35`, fontSize: '9px', padding: '2px 8px' }}>
+              <span className="tag" style={{ background: `${typeInfo.color}15`, color: typeInfo.color, borderColor: `${typeInfo.color}35`, fontSize: '12px', padding: '2px 8px' }}>
                 {typeInfo.label}
               </span>
-              <span className="tag" style={{ background: `${statusInfo.color}15`, color: statusInfo.color, borderColor: `${statusInfo.color}35`, fontSize: '9px', padding: '2px 8px' }}>
+              <span className="tag" style={{ background: `${statusInfo.color}15`, color: statusInfo.color, borderColor: `${statusInfo.color}35`, fontSize: '12px', padding: '2px 8px' }}>
                 {statusInfo.label}
               </span>
             </div>
@@ -1505,7 +1505,7 @@ function EventDetailModal({
                       background: myPresence.status === s ? `${PRESENCE_INFO[s].color}20` : 'transparent',
                       color: myPresence.status === s ? PRESENCE_INFO[s].color : 'var(--s-text-dim)',
                       borderColor: myPresence.status === s ? PRESENCE_INFO[s].color : 'var(--s-border)',
-                      cursor: 'pointer', padding: '6px 14px', fontSize: '10px',
+                      cursor: 'pointer', padding: '6px 14px', fontSize: '12px',
                     }}>
                     {PRESENCE_INFO[s].label}
                   </button>

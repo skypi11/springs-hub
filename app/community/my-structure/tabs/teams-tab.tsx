@@ -192,7 +192,7 @@ export function TeamsTab(props: TeamsTabProps) {
         <div className="p-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <span className={`tag ${team.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '9px', padding: '2px 7px' }}>
+              <span className={`tag ${team.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px', padding: '2px 7px' }}>
                 {team.game === 'rocket_league' ? 'RL' : 'TM'}
               </span>
               {team.logoUrl ? (
@@ -203,13 +203,13 @@ export function TeamsTab(props: TeamsTabProps) {
               ) : null}
               <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>{team.name}</span>
               {isArchived && (
-                <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '2px 7px' }}>ARCHIVÉE</span>
+                <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '2px 7px' }}>ARCHIVÉE</span>
               )}
               {team.discordChannelId && team.discordChannelName && !isArchived && (
                 <span
                   className="inline-flex items-center gap-1 tag bevel-sm cursor-pointer"
                   style={{
-                    fontSize: '10px',
+                    fontSize: '12px',
                     padding: '2px 7px',
                     background: 'rgba(88,101,242,0.12)',
                     border: '1px solid rgba(88,101,242,0.35)',

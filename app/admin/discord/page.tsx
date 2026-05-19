@@ -169,7 +169,7 @@ export default function AdminDiscordPage() {
                     minHeight: '2px',
                   }}
                 />
-                <div className="text-xs" style={{ color: 'var(--s-text-muted)', fontSize: '9px' }}>
+                <div className="text-xs" style={{ color: 'var(--s-text-muted)', fontSize: '12px' }}>
                   {m.ym.slice(5)}/{m.ym.slice(2, 4)}
                 </div>
               </div>

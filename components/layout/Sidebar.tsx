@@ -263,7 +263,7 @@ export default function Sidebar() {
           <DiscordIcon size={16} className="flex-shrink-0 text-[#5865F2] group-hover:text-[#7983F5]" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium leading-tight">Discord communauté</p>
-            <p className="text-[11px] leading-tight" style={{ color: 'var(--s-text-muted)' }}>
+            <p className="text-[12px] leading-tight" style={{ color: 'var(--s-text-muted)' }}>
               Support · entraide · papote
             </p>
           </div>

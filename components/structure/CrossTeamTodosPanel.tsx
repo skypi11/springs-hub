@@ -283,7 +283,7 @@ export default function CrossTeamTodosPanel({
               <span className="font-display text-xs tracking-wider uppercase" style={{ letterSpacing: '0.08em' }}>
                 Activité 7 derniers jours
               </span>
-              <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--s-text-muted)' }}>
+              <span className="text-[12px] uppercase tracking-wider" style={{ color: 'var(--s-text-muted)' }}>
                 · top {heatmap.rows.length} joueur{heatmap.rows.length > 1 ? 's' : ''}
               </span>
             </div>
@@ -296,7 +296,7 @@ export default function CrossTeamTodosPanel({
                   <tr>
                     <th style={{ textAlign: 'left', minWidth: 140 }} />
                     {heatmap.days.map(d => (
-                      <th key={d.ymd} className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--s-text-muted)', letterSpacing: '0.08em' }}>
+                      <th key={d.ymd} className="text-[12px] uppercase tracking-wider font-semibold" style={{ color: 'var(--s-text-muted)', letterSpacing: '0.08em' }}>
                         {d.label}
                       </th>
                     ))}
@@ -327,7 +327,7 @@ export default function CrossTeamTodosPanel({
                             <td key={d.ymd} style={{ textAlign: 'center' }}>
                               <div
                                 title={`${user?.displayName ?? row.uid} — ${d.label} : ${title}`}
-                                className="w-7 h-7 flex items-center justify-center text-[10px] font-bold mx-auto"
+                                className="w-7 h-7 flex items-center justify-center text-[12px] font-bold mx-auto"
                                 style={{ background: bg, border, color: 'rgba(255,255,255,0.85)' }}
                               >
                                 {content}
@@ -340,7 +340,7 @@ export default function CrossTeamTodosPanel({
                   })}
                 </tbody>
               </table>
-              <div className="flex items-center gap-4 mt-3 text-[10px] uppercase tracking-wider" style={{ color: 'var(--s-text-muted)', letterSpacing: '0.08em' }}>
+              <div className="flex items-center gap-4 mt-3 text-[12px] uppercase tracking-wider" style={{ color: 'var(--s-text-muted)', letterSpacing: '0.08em' }}>
                 <LegendDot color="rgba(51,255,102,0.22)" border="rgba(51,255,102,0.45)" label="Tous faits" />
                 <LegendDot color="rgba(255,184,0,0.18)" border="rgba(255,184,0,0.45)" label="Partiel" />
                 <LegendDot color="rgba(255,85,85,0.22)" border="rgba(255,85,85,0.5)" label="Retard" />
@@ -460,7 +460,7 @@ function CountCard({
     >
       <div className="flex items-center gap-2 mb-1">
         <Icon size={13} style={{ color }} />
-        <span className="text-xs uppercase tracking-wider" style={{ color: 'var(--s-text-muted)', fontSize: '10px', letterSpacing: '0.1em' }}>
+        <span className="text-xs uppercase tracking-wider" style={{ color: 'var(--s-text-muted)', fontSize: '12px', letterSpacing: '0.1em' }}>
           {label}
         </span>
       </div>
@@ -567,7 +567,7 @@ function TodoRow({
           {assignee?.avatarUrl ? (
             <Image src={assignee.avatarUrl} alt={assignee.displayName} fill className="object-cover" unoptimized />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-[10px] font-bold" style={{ color: 'var(--s-text-muted)' }}>
+            <div className="w-full h-full flex items-center justify-center text-[12px] font-bold" style={{ color: 'var(--s-text-muted)' }}>
               {(assignee?.displayName ?? '?').slice(0, 2).toUpperCase()}
             </div>
           )}
@@ -577,7 +577,7 @@ function TodoRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5 flex-wrap">
             {todo.type !== 'free' && (
-              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5"
+              <span className="text-[12px] font-bold uppercase tracking-wider px-1.5 py-0.5"
                 style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', color: 'var(--s-text-dim)' }}>
                 {meta.short}
               </span>
@@ -596,7 +596,7 @@ function TodoRow({
                 <span className="inline-flex items-center gap-1">
                   <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: gameColor }} />
                   {team.name}{team.label ? ` — ${team.label}` : ''}
-                  {gameShort && <span className="ml-1 text-[10px] opacity-70">{gameShort}</span>}
+                  {gameShort && <span className="ml-1 text-[12px] opacity-70">{gameShort}</span>}
                 </span>
               </>
             )}
@@ -614,7 +614,7 @@ function TodoRow({
               <button
                 type="button"
                 onClick={e => { e.stopPropagation(); onOpenTeam(); }}
-                className="text-[10px] uppercase tracking-wider cursor-pointer hover:text-white transition-colors"
+                className="text-[12px] uppercase tracking-wider cursor-pointer hover:text-white transition-colors"
                 style={{ color: 'var(--s-text-muted)', background: 'transparent', border: 'none', padding: 0 }}>
                 Voir équipe →
               </button>

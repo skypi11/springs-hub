@@ -179,7 +179,7 @@ function TeamCardCompact({ team, onOpen }: { team: Team; onOpen: () => void }) {
             )}
           </div>
           <div className="flex flex-col items-end gap-1 flex-shrink-0">
-            <span className={`tag ${team.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '9px' }}>{gameLabel}</span>
+            <span className={`tag ${team.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px' }}>{gameLabel}</span>
             {isArchived && <span className="tag tag-neutral" style={{ fontSize: '8px', padding: '1px 5px' }}>ARCHIVÉE</span>}
           </div>
         </div>
@@ -230,7 +230,7 @@ function TeamCardCompact({ team, onOpen }: { team: Team; onOpen: () => void }) {
                   );
                 })}
                 {overflow > 0 && (
-                  <div className="w-7 h-7 flex-shrink-0 flex items-center justify-center text-[10px] font-bold"
+                  <div className="w-7 h-7 flex-shrink-0 flex items-center justify-center text-[12px] font-bold"
                     style={{ marginLeft: -8, background: 'var(--s-elevated)', border: '2px solid var(--s-surface)', color: 'var(--s-text-dim)' }}>
                     +{overflow}
                   </div>
@@ -240,7 +240,7 @@ function TeamCardCompact({ team, onOpen }: { team: Team; onOpen: () => void }) {
               <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Roster vide</span>
             )}
           </div>
-          <div className="flex items-center gap-1 t-mono text-[10px]" style={{ color: 'var(--s-text-dim)' }}>
+          <div className="flex items-center gap-1 t-mono text-[12px]" style={{ color: 'var(--s-text-dim)' }}>
             <span title="Titulaires">{tCount}T</span>
             <span style={{ color: 'var(--s-text-muted)' }}>·</span>
             <span title="Remplaçants">{sCount}R</span>
@@ -334,7 +334,7 @@ function TeamDetailPanel({ team, onClose }: { team: Team; onClose: () => void })
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="t-label">TITULAIRES</span>
-                <span className="t-mono text-[10px]" style={{ color: 'var(--s-text-muted)' }}>{team.players.length}</span>
+                <span className="t-mono text-[12px]" style={{ color: 'var(--s-text-muted)' }}>{team.players.length}</span>
               </div>
               <div className="space-y-1.5">
                 {team.players.map(p => <PlayerRow key={p.uid} player={p} color="var(--s-text)" isCaptain={team.captainId === p.uid} />)}
@@ -345,7 +345,7 @@ function TeamDetailPanel({ team, onClose }: { team: Team; onClose: () => void })
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="t-label">REMPLAÇANTS</span>
-                <span className="t-mono text-[10px]" style={{ color: 'var(--s-text-muted)' }}>{team.subs.length}</span>
+                <span className="t-mono text-[12px]" style={{ color: 'var(--s-text-muted)' }}>{team.subs.length}</span>
               </div>
               <div className="space-y-1.5">
                 {team.subs.map(p => <PlayerRow key={p.uid} player={p} color="var(--s-text-dim)" isCaptain={team.captainId === p.uid} />)}
@@ -356,7 +356,7 @@ function TeamDetailPanel({ team, onClose }: { team: Team; onClose: () => void })
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="t-label">STAFF</span>
-                <span className="t-mono text-[10px]" style={{ color: 'var(--s-text-muted)' }}>{team.staff.length}</span>
+                <span className="t-mono text-[12px]" style={{ color: 'var(--s-text-muted)' }}>{team.staff.length}</span>
               </div>
               <div className="space-y-1.5">
                 {team.staff.map(p => <PlayerRow key={p.uid} player={p} color="var(--s-gold)" />)}
@@ -627,7 +627,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                     <CheckCircle size={15} /> Demande envoyée
                   </span>
                 ) : isMember ? (
-                  <span className="tag tag-gold" style={{ fontSize: '11px', padding: '6px 14px' }}>Membre</span>
+                  <span className="tag tag-gold" style={{ fontSize: '12px', padding: '6px 14px' }}>Membre</span>
                 ) : null}
               </div>
             </div>
@@ -877,7 +877,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                           }}
                         >
                           <span className="t-label" style={{ color: isActive ? t.color : 'var(--s-text-dim)' }}>{t.label}</span>
-                          <span className="t-mono text-[10px]" style={{ color: isActive ? t.color : 'var(--s-text-muted)' }}>{t.count}</span>
+                          <span className="t-mono text-[12px]" style={{ color: isActive ? t.color : 'var(--s-text-muted)' }}>{t.count}</span>
                         </button>
                       );
                     })}
@@ -996,7 +996,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                               )}
                               {m.games.map(g => (
                                 <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                                  style={{ fontSize: '9px', padding: '1px 5px' }}>
+                                  style={{ fontSize: '12px', padding: '1px 5px' }}>
                                   {g === 'rocket_league' ? 'RL' : 'TM'}
                                 </span>
                               ))}
@@ -1154,7 +1154,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                                 {a.game === 'rocket_league' ? 'RL' : 'TM'}
                               </span>
                               {a.date && (
-                                <span className="t-mono" style={{ color: 'var(--s-text-muted)', fontSize: '9px' }}>
+                                <span className="t-mono" style={{ color: 'var(--s-text-muted)', fontSize: '12px' }}>
                                   {new Date(a.date + '-01').toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}
                                 </span>
                               )}

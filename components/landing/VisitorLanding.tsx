@@ -512,8 +512,8 @@ function CompetitionsSection() {
             COMPÉTITIONS <span style={{ color: 'var(--s-gold)' }}>EN DIRECT</span>
           </h2>
             <p className="t-body max-w-2xl mx-auto" style={{ fontSize: '15px', color: 'var(--s-text-dim)' }}>
-              Aedral héberge les compétitions Springs E-Sport — partenaire historique
-              de la plateforme. Saisons RL, Monthly Cup TM, et plus à venir.
+              Les compétitions Springs E-Sport (partenaire historique d&apos;Aedral) tournent
+              actuellement sur leur site dédié. La gestion native depuis Aedral arrive bientôt.
             </p>
           </div>
         </ScrollReveal>
@@ -556,9 +556,11 @@ function CompetitionsSection() {
                 </div>
                 <div className="divider mb-4 mt-6" style={{ background: 'rgba(255,255,255,0.1)' }} />
                 <div className="flex items-center justify-between">
-                  <span className="t-label" style={{ color: 'rgba(255,255,255,0.25)' }}>Springs E-Sport</span>
+                  <span className="t-label flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    <ExternalLink size={10} /> springs-esport.vercel.app
+                  </span>
                   <span className="btn-springs btn-secondary bevel-sm transition-all group-hover:border-[rgba(255,255,255,0.4)]"
-                    style={{ padding: '7px 16px', fontSize: '11px', borderColor: 'rgba(255,255,255,0.2)' }}>
+                    style={{ padding: '7px 16px', fontSize: '12px', borderColor: 'rgba(255,255,255,0.2)' }}>
                     Ouvrir <ExternalLink size={11} />
                   </span>
                 </div>

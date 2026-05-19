@@ -194,7 +194,7 @@ export default function AdminAuditPage() {
           type="button"
           onClick={loadLogs}
           className="tag tag-neutral"
-          style={{ cursor: 'pointer', padding: '6px 12px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          style={{ cursor: 'pointer', padding: '6px 12px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
         >
           <RefreshCw size={12} />
           Rafraîchir
@@ -207,7 +207,7 @@ export default function AdminAuditPage() {
           style={{
             cursor: filtered.length === 0 ? 'not-allowed' : 'pointer',
             opacity: filtered.length === 0 ? 0.5 : 1,
-            padding: '6px 12px', fontSize: '11px',
+            padding: '6px 12px', fontSize: '12px',
             display: 'inline-flex', alignItems: 'center', gap: 6,
             background: 'rgba(255,184,0,0.1)',
             color: 'var(--s-gold)',
@@ -244,7 +244,7 @@ export default function AdminAuditPage() {
                 borderColor: sourceFilter === f.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
                 cursor: 'pointer',
                 padding: '6px 14px',
-                fontSize: '11px',
+                fontSize: '12px',
               }}
             >
               {f.label}
@@ -328,7 +328,7 @@ export default function AdminAuditPage() {
                       <span
                         className="tag"
                         style={{
-                          fontSize: '9px',
+                          fontSize: '12px',
                           padding: '1px 6px',
                           background: log.source === 'admin' ? 'rgba(255,184,0,0.15)' : 'rgba(0,129,255,0.15)',
                           color: log.source === 'admin' ? 'var(--s-gold)' : '#4da6ff',

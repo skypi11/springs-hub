@@ -430,7 +430,7 @@ export function GeneralTab(props: GeneralTabProps) {
           <div className="relative z-[1] p-5 space-y-3.5">
             <div className="flex items-center justify-between">
               <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>Statut</span>
-              <span className="tag" style={{ background: `${statusInfo.color}12`, color: statusInfo.color, borderColor: `${statusInfo.color}35`, fontSize: '9px', padding: '2px 8px' }}>
+              <span className="tag" style={{ background: `${statusInfo.color}12`, color: statusInfo.color, borderColor: `${statusInfo.color}35`, fontSize: '12px', padding: '2px 8px' }}>
                 {statusInfo.label}
               </span>
             </div>
@@ -440,7 +440,7 @@ export function GeneralTab(props: GeneralTabProps) {
               <div className="flex gap-1.5">
                 {s.games?.map(g => (
                   <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                    style={{ fontSize: '9px', padding: '2px 6px' }}>
+                    style={{ fontSize: '12px', padding: '2px 6px' }}>
                     {g === 'rocket_league' ? 'RL' : 'TM'}
                   </span>
                 ))}

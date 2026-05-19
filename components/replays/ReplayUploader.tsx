@@ -151,7 +151,7 @@ export default function ReplayUploader({ structureId, teamId, eventId, onUploade
           <>
             <Upload size={22} />
             <span className="text-xs">Cliquer pour choisir un fichier .replay</span>
-            <span className="text-xs" style={{ fontSize: '10px' }}>Max 10 MB</span>
+            <span className="text-xs" style={{ fontSize: '12px' }}>Max 10 MB</span>
           </>
         )}
       </div>

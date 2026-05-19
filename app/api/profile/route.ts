@@ -128,6 +128,16 @@ export async function GET(req: NextRequest) {
     // Vue publique : on calcule l'âge et on retire les champs privés
     const publicData: Record<string, unknown> = { ...data, age: computeAge(data.dateOfBirth), structures };
     for (const field of PRIVATE_FIELDS) delete publicData[field];
+
+    // Discord connections : filtrer côté serveur sur visibleOnProfile.
+    // Sécu critique — sans ça, le toggle "Masqué" dans Settings ne protège rien,
+    // les connexions privées (Twitter/Spotify/Twitch/Epic IDs) seraient leakées
+    // à n'importe quel visiteur qui appelle GET /api/profile?uid=X.
+    if (Array.isArray(publicData.discordConnections)) {
+      publicData.discordConnections = (publicData.discordConnections as DiscordConnection[])
+        .filter(c => c.visibleOnProfile === true);
+    }
+
     return NextResponse.json(publicData);
   } catch (err) {
     captureApiError('API Profile GET error', err);

@@ -180,9 +180,11 @@ export default function HomePage() {
                   </div>
                   <div className="divider mb-4 mt-6" style={{ background: 'rgba(255,255,255,0.1)' }} />
                   <div className="flex items-center justify-between">
-                    <span className="t-label" style={{ color: 'rgba(255,255,255,0.25)' }}>Springs E-Sport</span>
+                    <span className="t-label flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                      <ExternalLink size={10} /> springs-esport.vercel.app
+                    </span>
                     <span className="btn-springs btn-secondary bevel-sm transition-all group-hover:border-[rgba(255,255,255,0.4)]"
-                      style={{ padding: '7px 16px', fontSize: '11px', borderColor: 'rgba(255,255,255,0.2)' }}>
+                      style={{ padding: '7px 16px', fontSize: '12px', borderColor: 'rgba(255,255,255,0.2)' }}>
                       Ouvrir <ExternalLink size={11} />
                     </span>
                   </div>

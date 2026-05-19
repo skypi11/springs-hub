@@ -321,7 +321,7 @@ function TodoRow({
           {todo.type !== 'free' && (
             <span className="px-1.5 py-0.5 text-xs font-bold tracking-wider"
               style={{
-                fontSize: '10px',
+                fontSize: '12px',
                 background: 'var(--s-surface)',
                 border: '1px solid var(--s-border)',
                 color: 'var(--s-text-dim)',
@@ -435,7 +435,7 @@ function ResponseForm({
   return (
     <div className="mt-3 p-3 space-y-3" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
       <div className="flex items-center justify-between">
-        <span className="t-label" style={{ fontSize: '11px', color: 'var(--s-text-dim)' }}>
+        <span className="t-label" style={{ fontSize: '12px', color: 'var(--s-text-dim)' }}>
           VALIDER LE DEVOIR
         </span>
         <button type="button" onClick={onCancel}
@@ -483,7 +483,7 @@ function ResponseForm({
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-mono" style={{ color: 'var(--s-text)' }}>{p.code}</div>
                     {p.objective && (
-                      <div className="text-xs truncate" style={{ color: 'var(--s-text-muted)', fontSize: '11px' }}>
+                      <div className="text-xs truncate" style={{ color: 'var(--s-text-muted)', fontSize: '12px' }}>
                         {p.objective}
                       </div>
                     )}

@@ -171,7 +171,7 @@ export default function AdminStructuresPage() {
         {pendingCount > 0 && <span className="tag tag-gold">{pendingCount} en attente</span>}
         <button onClick={handleBackfill} disabled={backfilling}
           className="btn-springs bevel-sm flex items-center gap-2 ml-auto"
-          style={{ fontSize: '11px', padding: '6px 12px', background: 'transparent', borderColor: 'var(--s-border)', color: 'var(--s-text-dim)' }}
+          style={{ fontSize: '12px', padding: '6px 12px', background: 'transparent', borderColor: 'var(--s-border)', color: 'var(--s-text-dim)' }}
           title="Recalculer counters.teams / counters.members depuis l'état réel (idempotent)">
           {backfilling ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
           <span>Recalculer compteurs</span>
@@ -195,7 +195,7 @@ export default function AdminStructuresPage() {
               borderColor: filter === f.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
               cursor: 'pointer',
               padding: '6px 14px',
-              fontSize: '11px',
+              fontSize: '12px',
             }}>
             {f.label}
           </button>
@@ -234,7 +234,7 @@ export default function AdminStructuresPage() {
                   <div className="text-left">
                     <div className="flex items-center gap-2">
                       <span className="font-display text-base">{s.name}</span>
-                      <span className="tag tag-neutral" style={{ fontSize: '9px', padding: '1px 6px' }}>{s.tag}</span>
+                      <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 6px' }}>{s.tag}</span>
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>par {s.founderName || s.founderId}</span>
@@ -252,7 +252,7 @@ export default function AdminStructuresPage() {
                   </span>
                   {s.games?.map(g => (
                     <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                      style={{ fontSize: '9px', padding: '1px 6px' }}>
+                      style={{ fontSize: '12px', padding: '1px 6px' }}>
                       {g === 'rocket_league' ? 'RL' : 'TM'}
                     </span>
                   ))}
@@ -310,7 +310,7 @@ export default function AdminStructuresPage() {
                                 Réel {real}
                               </span>
                               {alert && (
-                                <span className="tag tag-gold" style={{ fontSize: '9px', padding: '1px 5px' }}>
+                                <span className="tag tag-gold" style={{ fontSize: '12px', padding: '1px 5px' }}>
                                   écart
                                 </span>
                               )}

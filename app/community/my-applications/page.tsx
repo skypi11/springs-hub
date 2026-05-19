@@ -137,7 +137,7 @@ export default function MyApplicationsPage() {
           <div className="section-label">
             <span className="t-label">Invitations reçues</span>
             {receivedInvites.length > 0 && (
-              <span className="tag tag-gold" style={{ fontSize: '9px' }}>{receivedInvites.length}</span>
+              <span className="tag tag-gold" style={{ fontSize: '12px' }}>{receivedInvites.length}</span>
             )}
           </div>
 
@@ -177,11 +177,11 @@ export default function MyApplicationsPage() {
                             className="font-display text-xl tracking-wider hover:underline" style={{ color: 'var(--s-text)' }}>
                             {inv.structure.name}
                           </Link>
-                          {inv.structure.tag && <span className="tag tag-gold" style={{ fontSize: '9px' }}>{inv.structure.tag}</span>}
+                          {inv.structure.tag && <span className="tag tag-gold" style={{ fontSize: '12px' }}>{inv.structure.tag}</span>}
                         </div>
                         <div className="flex items-center gap-2 flex-wrap mb-2">
-                          <span className={`tag ${gameConf.cls}`} style={{ fontSize: '9px' }}>{gameConf.label}</span>
-                          <span className="tag tag-neutral" style={{ fontSize: '9px' }}>{roleLabel}</span>
+                          <span className={`tag ${gameConf.cls}`} style={{ fontSize: '12px' }}>{gameConf.label}</span>
+                          <span className="tag tag-neutral" style={{ fontSize: '12px' }}>{roleLabel}</span>
                           {inv.createdAt && (
                             <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>{formatDate(inv.createdAt)}</span>
                           )}
@@ -223,7 +223,7 @@ export default function MyApplicationsPage() {
           <div className="section-label">
             <span className="t-label">Mes demandes envoyées</span>
             {sentRequests.length > 0 && (
-              <span className="tag tag-neutral" style={{ fontSize: '9px' }}>{sentRequests.length}</span>
+              <span className="tag tag-neutral" style={{ fontSize: '12px' }}>{sentRequests.length}</span>
             )}
           </div>
 
@@ -263,14 +263,14 @@ export default function MyApplicationsPage() {
                             className="font-display text-xl tracking-wider hover:underline" style={{ color: 'var(--s-text)' }}>
                             {req.structure.name}
                           </Link>
-                          {req.structure.tag && <span className="tag tag-gold" style={{ fontSize: '9px' }}>{req.structure.tag}</span>}
-                          <span className="tag" style={{ fontSize: '9px', background: 'rgba(255,184,0,0.1)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.25)' }}>
+                          {req.structure.tag && <span className="tag tag-gold" style={{ fontSize: '12px' }}>{req.structure.tag}</span>}
+                          <span className="tag" style={{ fontSize: '12px', background: 'rgba(255,184,0,0.1)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.25)' }}>
                             En attente
                           </span>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap mb-2">
-                          <span className={`tag ${gameConf.cls}`} style={{ fontSize: '9px' }}>{gameConf.label}</span>
-                          <span className="tag tag-neutral" style={{ fontSize: '9px' }}>{roleLabel}</span>
+                          <span className={`tag ${gameConf.cls}`} style={{ fontSize: '12px' }}>{gameConf.label}</span>
+                          <span className="tag tag-neutral" style={{ fontSize: '12px' }}>{roleLabel}</span>
                           {req.createdAt && (
                             <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>{formatDate(req.createdAt)}</span>
                           )}

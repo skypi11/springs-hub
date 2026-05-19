@@ -233,7 +233,7 @@ export default function InviteToStructureButton({
                   <div className="flex items-center gap-2 p-3 bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                     <Shield size={14} style={{ color: 'var(--s-gold)' }} />
                     <span className="text-sm font-semibold">{selectedStructure.name}</span>
-                    {selectedStructure.tag && <span className="tag tag-gold" style={{ fontSize: '9px' }}>{selectedStructure.tag}</span>}
+                    {selectedStructure.tag && <span className="tag tag-gold" style={{ fontSize: '12px' }}>{selectedStructure.tag}</span>}
                   </div>
                 )}
 

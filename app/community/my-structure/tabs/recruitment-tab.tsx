@@ -206,7 +206,7 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
                         /join/{link.token.slice(0, 8)}...
                       </p>
                       {link.game && (
-                        <span className={`tag ${link.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '9px', padding: '1px 5px' }}>
+                        <span className={`tag ${link.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px', padding: '1px 5px' }}>
                           {link.game === 'rocket_league' ? 'RL' : 'TM'}
                         </span>
                       )}

@@ -367,7 +367,7 @@ function TodoStaffRow({
           {todo.type !== 'free' && (
             <span className="px-1.5 py-0.5 text-xs font-bold tracking-wider"
               style={{
-                fontSize: '10px',
+                fontSize: '12px',
                 background: 'var(--s-elevated)',
                 border: '1px solid var(--s-border)',
                 color: 'var(--s-text-dim)',
@@ -609,7 +609,7 @@ function NewTodoForm({
                       {tpl.name}
                     </span>
                     <span className="px-1 py-0.5" style={{
-                      fontSize: '9px',
+                      fontSize: '12px',
                       background: 'var(--s-surface)',
                       border: '1px solid var(--s-border)',
                       color: 'var(--s-text-dim)',
@@ -618,7 +618,7 @@ function NewTodoForm({
                     </span>
                     {tpl.scope === 'structure' && (
                       <span className="px-1 py-0.5" style={{
-                        fontSize: '9px',
+                        fontSize: '12px',
                         background: 'rgba(255,184,0,0.12)',
                         border: '1px solid rgba(255,184,0,0.3)',
                         color: 'var(--s-gold)',
@@ -737,7 +737,7 @@ function NewTodoForm({
                 <span className="text-xs truncate flex-1 text-left" style={{ color: 'var(--s-text)' }}>
                   {m.displayName}
                 </span>
-                <span className="text-xs flex-shrink-0" style={{ color: 'var(--s-text-muted)', fontSize: '10px' }}>
+                <span className="text-xs flex-shrink-0" style={{ color: 'var(--s-text-muted)', fontSize: '12px' }}>
                   {m.group.slice(0, 3)}
                 </span>
               </button>
@@ -788,7 +788,7 @@ function NewTodoForm({
                       background: active ? 'var(--s-elevated)' : 'transparent',
                       border: `1px solid ${active ? 'var(--s-gold)' : 'var(--s-border)'}`,
                       color: active ? 'var(--s-gold)' : 'var(--s-text-dim)',
-                      fontSize: '11px',
+                      fontSize: '12px',
                       cursor: 'pointer',
                     }}>
                     {mode === 'absolute' ? 'DATE PRÉCISE' : 'APRÈS L\'EVENT'}
@@ -855,7 +855,7 @@ function NewTodoForm({
       {showSaveAs ? (
         <div className="p-2.5 space-y-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-gold)' }}>
           <div className="flex items-center justify-between">
-            <span className="t-label" style={{ fontSize: '11px', color: 'var(--s-gold)' }}>
+            <span className="t-label" style={{ fontSize: '12px', color: 'var(--s-gold)' }}>
               ENREGISTRER CE DEVOIR COMME TEMPLATE
             </span>
             <button type="button" onClick={() => setShowSaveAs(false)}
@@ -1069,7 +1069,7 @@ export function TodoResponseSummary({ todo }: { todo: TodoRef }) {
                 background: 'var(--s-elevated)',
                 border: '1px solid var(--s-border)',
                 color: 'var(--s-text-dim)',
-                fontSize: '10px',
+                fontSize: '12px',
               }}>
               {(prompts[i] ?? `Item ${i + 1}`)} : <strong style={{ color: 'var(--s-gold)' }}>{String(n)}/5</strong>
             </span>
@@ -1084,7 +1084,7 @@ export function TodoResponseSummary({ todo }: { todo: TodoRef }) {
   if (!body) return null;
   return (
     <div className="mt-1.5 p-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-      <div className="t-label mb-1" style={{ fontSize: '10px', color: 'var(--s-text-muted)' }}>RÉPONSE</div>
+      <div className="t-label mb-1" style={{ fontSize: '12px', color: 'var(--s-text-muted)' }}>RÉPONSE</div>
       {typeof body === 'string' ? (
         <p className="text-xs whitespace-pre-wrap" style={{ color: 'var(--s-text)' }}>{body}</p>
       ) : body}

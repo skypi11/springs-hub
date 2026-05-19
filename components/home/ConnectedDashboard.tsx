@@ -202,7 +202,7 @@ export default function ConnectedDashboard({ user }: { user: SpringsUser }) {
                 <span
                   className="tag"
                   style={{
-                    fontSize: '9px',
+                    fontSize: '12px',
                     padding: '2px 6px',
                     color: TYPE_COLOR[nextEvent.type] ?? 'var(--s-text)',
                     border: `1px solid ${TYPE_COLOR[nextEvent.type] ?? 'var(--s-border)'}40`,
@@ -314,7 +314,7 @@ export default function ConnectedDashboard({ user }: { user: SpringsUser }) {
                   {primaryStructure.members?.length ?? 0} membre{(primaryStructure.members?.length ?? 0) > 1 ? 's' : ''}
                 </span>
                 {primaryStructure.status === 'pending_validation' && (
-                  <span className="tag tag-gold" style={{ fontSize: '9px', padding: '1px 5px' }}>EN ATTENTE</span>
+                  <span className="tag tag-gold" style={{ fontSize: '12px', padding: '1px 5px' }}>EN ATTENTE</span>
                 )}
               </div>
             </div>

@@ -328,7 +328,7 @@ export default function TeamAvailabilityView({
                 {data.weeks.map((week, wi) => (
                   week.blocks.length > 0 && (
                     <div key={week.weekId}>
-                      <p className="t-mono mb-1.5" style={{ fontSize: '11px', color: 'var(--s-text-muted)' }}>
+                      <p className="t-mono mb-1.5" style={{ fontSize: '12px', color: 'var(--s-text-muted)' }}>
                         {wi === 0 ? 'SEMAINE COURANTE' : 'SEMAINE SUIVANTE'}
                       </p>
                       <div className="space-y-1.5">
@@ -435,7 +435,7 @@ function SegButton({
       onClick={onClick}
       className="t-label transition-all duration-150"
       style={{
-        fontSize: '11px',
+        fontSize: '12px',
         padding: '7px 12px',
         background: active ? 'var(--s-gold)' : 'transparent',
         color: active ? '#0a0a0f' : 'var(--s-text-dim)',
@@ -498,7 +498,7 @@ function ConsensusHeatmap({
                 className="t-mono absolute"
                 style={{
                   left: `${(h.col / UNIFIED_SLOT_COUNT) * 100}%`,
-                  fontSize: '10px',
+                  fontSize: '12px',
                   color: 'var(--s-text-muted)',
                   transform: 'translateX(-50%)',
                 }}
@@ -589,7 +589,7 @@ function DayHeatmapRow({
         className="t-mono flex-shrink-0 text-right"
         style={{
           width: 44,
-          fontSize: '11px',
+          fontSize: '12px',
           color: day.isPast ? 'var(--s-text-muted)' : 'var(--s-text-dim)',
           opacity: day.isPast ? 0.6 : 1,
         }}
@@ -897,7 +897,7 @@ function PlayerHeatmapCard({
           <div key={row.day.gridYmd} className="flex items-center gap-1.5">
             <div
               className="t-mono flex-shrink-0 text-right"
-              style={{ width: 36, fontSize: '10px', color: 'var(--s-text-muted)', opacity: row.day.isPast ? 0.5 : 1 }}
+              style={{ width: 36, fontSize: '12px', color: 'var(--s-text-muted)', opacity: row.day.isPast ? 0.5 : 1 }}
             >
               {DAY_LABELS_SHORT[(row.day.dayOfWeek - 1) % 7].slice(0, 1)}
               <span style={{ marginLeft: 2 }}>{parseInt(row.day.gridYmd.slice(-2), 10)}</span>

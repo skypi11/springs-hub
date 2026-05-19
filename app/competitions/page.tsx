@@ -53,13 +53,13 @@ export default function CompetitionsPage() {
           </div>
 
           <h1 className="t-display mb-4">
-            TOUTES LES<br />
             <span style={{ color: 'var(--s-gold)' }}>COMPÉTITIONS</span>
           </h1>
 
           <p className="t-body max-w-xl" style={{ fontSize: '15px' }}>
-            Toutes les compétitions organisées par Springs E-Sport.
-            Rocket League, Trackmania, et plus à venir.
+            En attendant l&apos;hébergement natif des compétitions sur Aedral (en cours de construction),
+            les comps actives sont sur le site historique Springs E-Sport. Les liens ci-dessous
+            t&apos;y redirigent.
           </p>
         </div>
       </header>
@@ -79,7 +79,7 @@ export default function CompetitionsPage() {
                 color: active ? 'var(--s-text)' : 'var(--s-text-dim)',
                 borderColor: active ? 'rgba(255,255,255,0.15)' : 'var(--s-border)',
                 padding: '6px 14px',
-                fontSize: '11px',
+                fontSize: '12px',
                 cursor: 'pointer',
               }}>
               {label}
@@ -148,7 +148,9 @@ export default function CompetitionsPage() {
               {/* Separator + CTA */}
               <div className="divider mb-4 mt-6" style={{ background: 'rgba(255,255,255,0.1)' }} />
               <div className="flex items-center justify-between">
-                <span className="t-label" style={{ color: 'rgba(255,255,255,0.25)' }}>Springs E-Sport</span>
+                <span className="t-label flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  <ExternalLink size={10} /> Hébergée sur springs-esport.vercel.app
+                </span>
                 <span className="btn-springs btn-secondary bevel-sm transition-all group-hover:border-[rgba(255,255,255,0.4)]"
                   style={{ padding: '8px 20px', fontSize: '12px', borderColor: 'rgba(255,255,255,0.2)' }}>
                   Voir la compétition <ExternalLink size={12} />
@@ -158,16 +160,17 @@ export default function CompetitionsPage() {
           </a>
         ))}
 
-        {/* Coming soon */}
+        {/* Coming soon — Phase 3 native */}
         <div className="panel p-12 text-center">
           <div className="p-3 w-fit mx-auto mb-4" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-            <Trophy size={22} style={{ color: 'var(--s-text-muted)' }} />
+            <Trophy size={22} style={{ color: 'var(--s-gold)' }} />
           </div>
-          <p className="t-sub mb-1.5" style={{ color: 'var(--s-text-dim)' }}>
-            Nouvelles compétitions à venir
+          <p className="t-sub mb-1.5" style={{ color: 'var(--s-text)' }}>
+            Compétitions natives Aedral — bientôt
           </p>
-          <p className="t-body">
-            Restez connectés pour les prochains événements Springs.
+          <p className="t-body max-w-md mx-auto">
+            Inscription d&apos;équipe en 2 clics, classements live, brackets RL, calendrier intégré aux structures.
+            Migration des compétitions actuelles vers Aedral en cours.
           </p>
         </div>
       </section>

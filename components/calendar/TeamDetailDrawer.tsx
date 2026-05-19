@@ -114,7 +114,7 @@ export default function TeamDetailDrawer({
           {/* Header */}
           <header className="flex items-center justify-between gap-4 px-6 pt-5 pb-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--s-border)' }}>
             <div className="flex items-center gap-3 min-w-0">
-              <span className={`tag ${team.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '10px', padding: '3px 8px' }}>
+              <span className={`tag ${team.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px', padding: '3px 8px' }}>
                 {gameLabel}
               </span>
               <h2 className="font-display text-2xl truncate" style={{ letterSpacing: '0.04em', color: 'var(--s-text)' }}>

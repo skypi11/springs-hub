@@ -681,7 +681,7 @@ export default function SettingsPage() {
                         <div className="p-4 space-y-4 relative overflow-hidden" style={{ background: 'rgba(0,129,255,0.04)', border: '1px solid rgba(0,129,255,0.15)' }}>
                           <div className="h-[2px] -mt-4 -mx-4 mb-4" style={{ background: 'linear-gradient(90deg, var(--s-blue), transparent 60%)' }} />
                           <div className="flex items-center gap-2">
-                            <span className="tag tag-blue" style={{ fontSize: '9px' }}>RL</span>
+                            <span className="tag tag-blue" style={{ fontSize: '12px' }}>RL</span>
                             <span className="t-label" style={{ color: 'var(--s-blue)' }}>Config Rocket League</span>
                           </div>
 
@@ -907,7 +907,7 @@ export default function SettingsPage() {
                       <div className="p-4 space-y-4 relative overflow-hidden" style={{ background: 'rgba(0,217,54,0.04)', border: '1px solid rgba(0,217,54,0.15)' }}>
                         <div className="h-[2px] -mt-4 -mx-4 mb-4" style={{ background: 'linear-gradient(90deg, var(--s-green), transparent 60%)' }} />
                         <div className="flex items-center gap-2">
-                          <span className="tag tag-green" style={{ fontSize: '9px' }}>TM</span>
+                          <span className="tag tag-green" style={{ fontSize: '12px' }}>TM</span>
                           <span className="t-label" style={{ color: 'var(--s-green)' }}>Config Trackmania</span>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
@@ -1150,7 +1150,7 @@ export default function SettingsPage() {
                                   color: form.recruitmentRole === role ? 'var(--s-gold)' : 'var(--s-text-dim)',
                                   borderColor: form.recruitmentRole === role ? 'rgba(255,184,0,0.3)' : 'var(--s-border)',
                                   padding: '6px 14px',
-                                  fontSize: '11px',
+                                  fontSize: '12px',
                                   cursor: 'pointer',
                                 }}>
                                 {role.charAt(0).toUpperCase() + role.slice(1)}
@@ -1274,7 +1274,7 @@ export default function SettingsPage() {
                                       <span
                                         key={g}
                                         className="tag tag-neutral"
-                                        style={{ fontSize: '9px', padding: '1px 5px' }}
+                                        style={{ fontSize: '12px', padding: '1px 5px' }}
                                       >
                                         Aucun jeu
                                       </span>
@@ -1282,7 +1282,7 @@ export default function SettingsPage() {
                                       <span
                                         key={g}
                                         className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                                        style={{ fontSize: '9px', padding: '1px 5px' }}
+                                        style={{ fontSize: '12px', padding: '1px 5px' }}
                                       >
                                         {g === 'rocket_league' ? 'RL' : 'TM'}
                                       </span>

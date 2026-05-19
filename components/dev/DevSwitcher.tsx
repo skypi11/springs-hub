@@ -165,11 +165,11 @@ export default function DevSwitcher() {
         style={{ color: 'var(--s-gold)' }}
       >
         <FlaskConical size={13} />
-        <span className="t-label flex-1 text-left" style={{ fontSize: '11px' }}>DEV · VIEW AS</span>
+        <span className="t-label flex-1 text-left" style={{ fontSize: '12px' }}>DEV · VIEW AS</span>
         {currentDevUid && (
           <span
             className="t-label truncate max-w-[90px]"
-            style={{ fontSize: '9px', color: 'var(--s-gold)' }}
+            style={{ fontSize: '12px', color: 'var(--s-gold)' }}
             title={currentDevUid}
           >
             {ALL_DEV_ACCOUNTS.find(a => a.uid === currentDevUid)?.label ?? 'Dev'}
@@ -184,7 +184,7 @@ export default function DevSwitcher() {
             <div key={group.title} className="space-y-0.5">
               <div
                 className="t-label px-2 pt-1"
-                style={{ color: 'var(--s-text-muted)', fontSize: '9px', letterSpacing: '0.08em' }}
+                style={{ color: 'var(--s-text-muted)', fontSize: '12px', letterSpacing: '0.08em' }}
               >
                 {group.title}
               </div>
@@ -242,7 +242,7 @@ export default function DevSwitcher() {
                 background: 'var(--s-surface)',
                 border: '1px solid var(--s-border)',
                 color: 'var(--s-text-dim)',
-                fontSize: '11px',
+                fontSize: '12px',
               }}
             >
               {message}
