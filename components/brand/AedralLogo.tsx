@@ -33,7 +33,7 @@ function MarkPaths({ aColor, eColor }: { aColor: string; eColor: string }) {
       <path d="M 98 10 L 30 190 L 16 190 Z" fill={aColor} />
       <path d="M 102 10 L 184 190 L 170 190 Z" fill={aColor} />
       <path
-        d="M 76 120 L 124 120 L 124 126 L 83 126 L 83 147 L 119 147 L 119 152 L 83 152 L 83 174 L 124 174 L 124 180 L 76 180 Z"
+        d="M 80 90 L 120 90 L 120 98 L 87 98 L 87 131 L 117 131 L 117 138 L 87 138 L 87 172 L 120 172 L 120 180 L 80 180 Z"
         fill={eColor}
       />
     </>
@@ -78,9 +78,9 @@ export default function AedralLogo({
       <title>Aedral</title>
       <MarkPaths aColor={c.a} eColor={c.e} />
       <line
-        x1="235"
+        x1="210"
         y1="50"
-        x2="235"
+        x2="210"
         y2="150"
         stroke={c.divider}
         strokeOpacity={c.dividerOpacity}
