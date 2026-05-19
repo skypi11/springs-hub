@@ -252,8 +252,11 @@ service cloud.firestore {
     }
 
     // ── RL — Roster ────────────────────────────────────────────────────────────
+    // Lecture publique : la page LAN publique (lan.html) affiche la composition
+    // des équipes qualifiées (section "Merci aux équipes"). Aucune donnée
+    // sensible : pseudo joueur + rôle in-game uniquement.
     match /rl_roster/{id} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow create: if request.auth != null && (
         isAdmin() || isTeamManager(request.resource.data.teamId)
       );
