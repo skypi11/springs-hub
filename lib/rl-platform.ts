@@ -20,9 +20,9 @@ export const RL_PLATFORMS: RLPlatformMeta[] = [
   {
     value: 'epic',
     label: 'Epic Games (PC)',
-    idLabel: 'Pseudo Epic',
+    idLabel: 'Pseudo Epic ou Epic Account ID',
     idPlaceholder: 'TonPseudoEpic',
-    idHelp: '⚠️ Si tu changes ton pseudo Epic en jeu, pense à le mettre à jour ici (sinon le lien tracker.gg ne fonctionnera plus).',
+    idHelp: 'Tu peux entrer ton pseudo Epic OU ton Epic Account ID (32 caractères hexadécimaux, permanent). L\'ID est plus stable mais nécessite quelques clics pour le trouver (voir le tuto ci-dessous).',
   },
   {
     value: 'steam',
@@ -75,24 +75,35 @@ const TRACKER_GG_PLATFORM_MAP: Record<RLPlatform, string> = {
   switch: 'switch',
 };
 
-// Vérifié manuellement le 2026-05-19 : Ballchasing utilise les mêmes identifiants
-// que tracker.gg dans ses URLs (psn et non ps4, xbl et non xbox).
-const BALLCHASING_PLATFORM_MAP: Record<RLPlatform, string> = {
-  epic: 'epic',
-  steam: 'steam',
-  psn: 'psn',
-  xbox: 'xbl',
-  switch: 'switch',
-};
+// Ballchasing fonctionne en RECHERCHE par nom dans les replays, pas en
+// index par identifiant (sauf Steam où SteamID64 est immuable et indexé).
+// Vérifié 2026-05-19 :
+//   /player/epic/{pseudo} → "This player does not appear in any replay" (vide)
+//   /?player-name={pseudo} → 416 résultats pour le même joueur ✓
+// Donc on utilise la recherche par nom pour toutes les plateformes sauf Steam.
 
 export function buildTrackerGgUrl(platform: RLPlatform, id: string): string {
   const p = TRACKER_GG_PLATFORM_MAP[platform];
   return `https://rocketleague.tracker.network/rocket-league/profile/${p}/${encodeURIComponent(id.trim())}/overview`;
 }
 
+// Détecte un Epic Account ID (32 caractères hexadécimaux sans dashes).
+// Si l'user nous file son pseudo, on tombe sur la search ; s'il file l'UUID
+// permanent, on construit le profil direct avec ses vraies stats.
+const EPIC_UUID_RE = /^[0-9a-f]{32}$/i;
+
 export function buildBallchasingUrl(platform: RLPlatform, id: string): string {
-  const p = BALLCHASING_PLATFORM_MAP[platform];
-  return `https://ballchasing.com/player/${p}/${encodeURIComponent(id.trim())}`;
+  const trimmedId = id.trim();
+  if (platform === 'steam') {
+    // SteamID64 immutable + indexé chez Ballchasing → profil direct
+    return `https://ballchasing.com/player/steam/${encodeURIComponent(trimmedId)}`;
+  }
+  if (platform === 'epic' && EPIC_UUID_RE.test(trimmedId)) {
+    // Epic Account ID (UUID 32 hex) → profil direct riche
+    return `https://ballchasing.com/player/epic/${encodeURIComponent(trimmedId)}`;
+  }
+  // Pseudo (Epic / PSN / Xbox / Switch) → recherche par nom dans les replays
+  return `https://ballchasing.com/?player-name=${encodeURIComponent(trimmedId)}`;
 }
 
 // ── Helper de migration / lecture ─────────────────────────────────────────

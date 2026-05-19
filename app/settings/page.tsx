@@ -608,6 +608,100 @@ export default function SettingsPage() {
                               {platformMeta.idHelp}
                             </p>
                           )}
+                          {form.rlPlatform === 'epic' && (
+                            <details
+                              className="text-xs"
+                              style={{
+                                background: 'var(--s-elevated)',
+                                border: '1px solid var(--s-border)',
+                                padding: '10px 12px',
+                              }}
+                            >
+                              <summary
+                                className="cursor-pointer font-semibold"
+                                style={{ color: 'var(--s-text)' }}
+                              >
+                                Comment trouver mon Epic Account ID (recommandé) ?
+                              </summary>
+                              <ol
+                                className="mt-3 space-y-2 list-decimal pl-5"
+                                style={{ color: 'var(--s-text-dim)', lineHeight: 1.6 }}
+                              >
+                                <li>
+                                  Va sur{' '}
+                                  <a
+                                    href="https://rocketleague.tracker.network"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ color: 'var(--s-blue)' }}
+                                  >
+                                    rocketleague.tracker.network
+                                  </a>
+                                </li>
+                                <li>Recherche ton pseudo Epic dans la barre de recherche.</li>
+                                <li>Clique sur ton profil dans les résultats.</li>
+                                <li>
+                                  Regarde l&apos;URL : elle ressemble à <code style={{ background: 'var(--s-bg)', padding: '1px 4px' }}>...tracker.network/rocket-league/profile/epic/<span style={{ color: 'var(--s-gold)' }}>ec1ab5d08131431794f74a98c891b86d</span>/overview</code>
+                                </li>
+                                <li>
+                                  Copie la longue chaîne marquée en or (32 caractères hexadécimaux) et colle-la dans le champ ci-dessus à la place de ton pseudo.
+                                </li>
+                              </ol>
+                              <p
+                                className="mt-3 pt-2"
+                                style={{
+                                  color: 'var(--s-text-muted)',
+                                  borderTop: '1px dashed var(--s-border)',
+                                }}
+                              >
+                                ✓ Avec l&apos;Epic Account ID, ton lien tracker.gg ET ton lien Ballchasing pointeront vers ton profil avec toutes tes stats — et resteront valides même si tu changes ton pseudo en jeu.
+                              </p>
+                            </details>
+                          )}
+
+                          {/* Tip Ballchasing — comment apparaître dans leur base */}
+                          <details
+                            className="text-xs"
+                            style={{
+                              background: 'rgba(0,129,255,0.04)',
+                              border: '1px solid rgba(0,129,255,0.15)',
+                              padding: '10px 12px',
+                            }}
+                          >
+                            <summary
+                              className="cursor-pointer font-semibold"
+                              style={{ color: 'var(--s-blue)' }}
+                            >
+                              Comment faire apparaître mes stats sur Ballchasing ?
+                            </summary>
+                            <div className="mt-3 space-y-2" style={{ color: 'var(--s-text-dim)', lineHeight: 1.6 }}>
+                              <p>
+                                Rocket League sauvegarde <strong>automatiquement</strong> tes replays dans{' '}
+                                <code style={{ background: 'var(--s-bg)', padding: '1px 4px' }}>Documents\My Games\Rocket League\TAGame\Demos\</code>
+                                {' '}après chaque match.
+                              </p>
+                              <p>
+                                Par contre, l&apos;<strong>upload vers Ballchasing</strong> n&apos;est pas auto. Trois options pour les y envoyer :
+                              </p>
+                              <ul className="list-disc pl-5 space-y-1">
+                                <li>
+                                  <strong>Manuel</strong> : drag-and-drop tes fichiers <code style={{ background: 'var(--s-bg)', padding: '1px 4px' }}>.replay</code> sur{' '}
+                                  <a href="https://ballchasing.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--s-blue)' }}>ballchasing.com</a>
+                                </li>
+                                <li>
+                                  <strong>Auto (recommandé)</strong> : installe l&apos;{' '}
+                                  <a href="https://ballchasing.com/upload" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--s-blue)' }}>uploader desktop Ballchasing</a>
+                                  {' '}— il surveille ton dossier et upload tous tes prochains matchs automatiquement.
+                                </li>
+                                <li>
+                                  <strong>Via BakkesMod</strong> : si tu utilises BakkesMod en partie privée/training, le plugin BallchasingUploader fait pareil (mais bloqué en ranked à cause d&apos;EAC).
+                                </li>
+                              </ul>
+                              <p style={{ color: 'var(--s-text-muted)' }}>
+                                Sans upload, ton profil Ballchasing sera vide même si ton ID est correct.
+                              </p>
+                            </div>
+                          </details>
                           {(trackerPreview || ballchasingPreview) && (
                             <div
                               className="p-3 space-y-2"
