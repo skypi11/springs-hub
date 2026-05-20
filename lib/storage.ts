@@ -195,6 +195,8 @@ export async function getTotalSize(prefix: string): Promise<number> {
 export const StorageKeys = {
   structureLogo: (structureId: string, version: number) =>
     `structures/${structureId}/logo-${version}.webp`,
+  teamLogo: (structureId: string, teamId: string, version: number) =>
+    `structures/${structureId}/teams/${teamId}/logo-${version}.webp`,
   structureBanner: (structureId: string, version: number) =>
     `structures/${structureId}/banner-${version}.webp`,
   userAvatar: (uid: string, version: number) =>

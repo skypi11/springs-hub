@@ -6,6 +6,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { createNotification, createNotifications, type NotificationPayload } from '@/lib/notifications';
 import { bumpStructureCounterStandalone } from '@/lib/structure-counters';
+import { extractR2Key, deleteFileSilent } from '@/lib/storage';
 
 // Vérifier que l'utilisateur a les droits sur la structure (fondateur ou co-fondateur)
 async function checkStructureAccess(uid: string, structureId: string) {
@@ -408,6 +409,17 @@ export async function POST(req: NextRequest) {
         }
 
         await ref.update(updates);
+
+        // Nettoyage R2 : si le logo a changé et que l'ancien était un asset hébergé
+        // chez nous (clé R2 versionnée d'un upload direct), on supprime le fichier
+        // orphelin. Les logos par lien externe ne matchent pas extractR2Key → ignorés.
+        if (updates.logoUrl !== undefined) {
+          const oldLogoKey = extractR2Key(typeof teamData.logoUrl === 'string' ? teamData.logoUrl : '');
+          const newLogoKey = extractR2Key(updates.logoUrl as string);
+          if (oldLogoKey && oldLogoKey !== newLogoKey) {
+            await deleteFileSilent(oldLogoKey);
+          }
+        }
 
         // Notifier le nouveau capitaine si captainId a changé et n'est pas null
         const prevCaptainId = teamData.captainId ?? null;

@@ -2,9 +2,11 @@
 import React from 'react';
 import {
   AlertCircle, Archive, ArchiveRestore, ChevronDown, ChevronUp, Crown, Eye,
-  Gamepad2, GripVertical, ImageIcon, Loader2, MessageSquare, MoreVertical,
-  Plus, Save, Search, Tag, Trash2,
+  Gamepad2, GripVertical, ImageIcon, Loader2, MessageSquare, Settings,
+  Plus, Save, Search, Tag, Trash2, UploadCloud,
 } from 'lucide-react';
+import ImageUploader from '@/components/ui/ImageUploader';
+import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import {
   DndContext, closestCenter, useSensors, type DragEndEvent,
 } from '@dnd-kit/core';
@@ -156,7 +158,10 @@ export function TeamsTab(props: TeamsTabProps) {
     g.teams.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name));
   }
 
-  const renderTeamCard = (team: TeamData, isArchived: boolean) => {
+  // hasGrip : la carte est rendue dans un SortableTeam avec poignée drag visible
+  // (absolute top-2 left-2). On décale alors la ligne d'en-tête pour ne pas que
+  // le tag jeu (RL/TM) passe sous la poignée.
+  const renderTeamCard = (team: TeamData, isArchived: boolean, hasGrip = false) => {
     const gameColor = team.game === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)';
     const assignedIds = [...team.players.map(p => p.uid), ...team.subs.map(p => p.uid), ...team.staff.map(p => p.uid)];
     const rosterLockedIds = new Set<string>();
@@ -190,7 +195,7 @@ export function TeamsTab(props: TeamsTabProps) {
         }}>
         <div className="h-[2px]" style={{ background: `linear-gradient(90deg, ${gameColor}, transparent 60%)` }} />
         <div className="p-4 space-y-3">
-          <div className="flex items-center justify-between gap-2">
+          <div className={`flex items-center justify-between gap-2 ${hasGrip ? 'pl-6' : ''}`}>
             <div className="flex items-center gap-2.5 flex-wrap">
               <span className={`tag ${team.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px', padding: '2px 7px' }}>
                 {team.game === 'rocket_league' ? 'RL' : 'TM'}
@@ -311,10 +316,13 @@ export function TeamsTab(props: TeamsTabProps) {
                       setTeamMenuOpen(team.id);
                     }
                   }}
-                  className="p-1.5 transition-opacity duration-150"
-                  style={{ color: 'var(--s-text-dim)', opacity: 0.7 }}
-                  aria-label="Menu de l'équipe">
-                  <MoreVertical size={14} />
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 bevel-sm text-xs font-semibold flex-shrink-0 transition-colors duration-150 ${menuOpen ? 'bg-[var(--s-hover)]' : 'bg-[var(--s-elevated)] hover:bg-[var(--s-hover)]'}`}
+                  style={{ color: menuOpen ? 'var(--s-text)' : 'var(--s-text-dim)', border: '1px solid var(--s-border)' }}
+                  aria-label="Gérer l'équipe"
+                  aria-expanded={menuOpen}>
+                  <Settings size={13} />
+                  <span>Gérer</span>
+                  <ChevronDown size={12} style={{ opacity: 0.55 }} />
                 </button>
                 {menuOpen && teamMenuRect && (
                   <Portal>
@@ -506,39 +514,81 @@ export function TeamsTab(props: TeamsTabProps) {
             </div>
           )}
 
-          {teamLogoEdit?.teamId === team.id && (
-            <div className="p-3 bevel-sm space-y-2" style={{ background: 'var(--s-surface)', border: '1px solid rgba(0,129,255,0.25)' }}>
-              <label className="t-label block">Logo de l&apos;équipe (URL)</label>
-              <div className="flex items-center gap-2">
-                {teamLogoEdit.value.trim() ? (
-                  <span className="relative w-10 h-10 flex-shrink-0 bevel-sm overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={teamLogoEdit.value} alt="" className="w-full h-full object-contain" />
-                  </span>
-                ) : null}
-                <input type="url" className="settings-input flex-1 text-sm" placeholder="https://..."
-                  value={teamLogoEdit.value}
-                  onChange={e => setTeamLogoEdit({ teamId: team.id, value: e.target.value })} />
+          {teamLogoEdit?.teamId === team.id && (() => {
+            const logoBusy = teamActionLoading === `${team.id}_logo`;
+            return (
+              <div className="p-3 bevel-sm space-y-3" style={{ background: 'var(--s-surface)', border: '1px solid rgba(0,129,255,0.25)' }}>
+                <div className="flex items-center gap-2">
+                  <UploadCloud size={14} style={{ color: 'var(--s-blue)' }} />
+                  <span className="t-label">Logo de l&apos;équipe</span>
+                </div>
+
+                {/* Méthode 1 — import direct d'un fichier (uploadé sur R2, converti en webp) */}
+                <ImageUploader
+                  currentUrl={teamLogoEdit.value.trim() || team.logoUrl || null}
+                  endpoint="/api/upload/team-logo"
+                  extraFields={{ structureId: s.id, teamId: team.id }}
+                  aspect="square"
+                  maxBytes={UPLOAD_LIMITS.STRUCTURE_LOGO_BYTES}
+                  label="Importer une image"
+                  hint="JPEG, PNG, WebP, GIF — max 2 MB. Format carré recommandé."
+                  disabled={logoBusy}
+                  onUploaded={(url) => handleUpdateTeamLogo(team.id, url)}
+                />
+
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-px" style={{ background: 'var(--s-border)' }} />
+                  <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>ou via un lien</span>
+                  <div className="flex-1 h-px" style={{ background: 'var(--s-border)' }} />
+                </div>
+
+                {/* Méthode 2 — lien externe direct */}
+                <div className="flex items-center gap-2">
+                  {teamLogoEdit.value.trim() ? (
+                    <span className="relative w-10 h-10 flex-shrink-0 bevel-sm overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={teamLogoEdit.value} alt="" className="w-full h-full object-contain" />
+                    </span>
+                  ) : null}
+                  <input type="url" className="settings-input flex-1 text-sm" placeholder="https://..."
+                    value={teamLogoEdit.value}
+                    onChange={e => setTeamLogoEdit({ teamId: team.id, value: e.target.value })}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') { e.preventDefault(); handleUpdateTeamLogo(team.id, teamLogoEdit.value); }
+                      if (e.key === 'Escape') { e.preventDefault(); setTeamLogoEdit(null); }
+                    }} />
+                </div>
+                <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                  Lien direct vers une image hébergée ailleurs.
+                </p>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button type="button"
+                    onClick={() => handleUpdateTeamLogo(team.id, teamLogoEdit.value)}
+                    disabled={logoBusy}
+                    className="btn-springs btn-primary bevel-sm flex items-center gap-1.5 text-xs">
+                    {logoBusy ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                    <span>Enregistrer le lien</span>
+                  </button>
+                  {team.logoUrl ? (
+                    <button type="button"
+                      onClick={() => handleUpdateTeamLogo(team.id, '')}
+                      disabled={logoBusy}
+                      className="btn-springs btn-ghost bevel-sm flex items-center gap-1.5 text-xs"
+                      style={{ color: '#ff5555' }}>
+                      <Trash2 size={12} />
+                      <span>Retirer le logo</span>
+                    </button>
+                  ) : null}
+                  <button type="button"
+                    onClick={() => setTeamLogoEdit(null)}
+                    className="btn-springs btn-ghost bevel-sm text-xs">
+                    Fermer
+                  </button>
+                </div>
               </div>
-              <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                Lien direct vers une image (PNG/JPG). Laisser vide pour retirer le logo.
-              </p>
-              <div className="flex items-center gap-2">
-                <button type="button"
-                  onClick={() => handleUpdateTeamLogo(team.id, teamLogoEdit.value)}
-                  disabled={teamActionLoading === `${team.id}_logo`}
-                  className="btn-springs btn-primary bevel-sm flex items-center gap-1.5 text-xs">
-                  {teamActionLoading === `${team.id}_logo` ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                  <span>Enregistrer</span>
-                </button>
-                <button type="button"
-                  onClick={() => setTeamLogoEdit(null)}
-                  className="btn-springs btn-ghost bevel-sm text-xs">
-                  Annuler
-                </button>
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           <div className="grid grid-cols-3 gap-3">
             <RosterSlot
@@ -893,7 +943,7 @@ export function TeamsTab(props: TeamsTabProps) {
                               <div className="space-y-3">
                                 {shownTeams.map(t => (
                                   <SortableTeam key={t.id} id={`team:${t.id}`} draggable={teamsDndEnabled}>
-                                    {renderTeamCard(t, false)}
+                                    {renderTeamCard(t, false, teamsDndEnabled)}
                                   </SortableTeam>
                                 ))}
                               </div>
