@@ -20,6 +20,7 @@ import {
   Users,
   LayoutGrid,
   List,
+  CalendarRange,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
@@ -42,6 +43,7 @@ import {
 } from '@/lib/event-permissions';
 import ReplaysPanel from '@/components/replays/ReplaysPanel';
 import MonthView from './MonthView';
+import WeekView from './WeekView';
 
 type Presence = {
   id: string;
@@ -179,14 +181,14 @@ export default function CalendarSection({
   // une équipe ciblée dans la sélection. Les events scope=structure/game sont
   // exclus dès qu'un filtre équipe est actif, pour coller à l'intention utilisateur.
   const [teamFilter, setTeamFilter] = useState<string[]>([]);
-  // Mode d'affichage : grille mois (vision globale) ou liste chronologique.
-  // Persisté en localStorage pour retrouver son choix d'une session à l'autre.
-  const [viewMode, setViewMode] = useState<'month' | 'list'>('month');
+  // Mode d'affichage : grille mois (vision globale), semaine (créneaux + dispos)
+  // ou liste chronologique. Persisté en localStorage entre les sessions.
+  const [viewMode, setViewMode] = useState<'month' | 'week' | 'list'>('month');
   useEffect(() => {
     const saved = localStorage.getItem('aedral_calendar_view');
-    if (saved === 'month' || saved === 'list') setViewMode(saved);
+    if (saved === 'month' || saved === 'week' || saved === 'list') setViewMode(saved);
   }, []);
-  const changeView = (v: 'month' | 'list') => {
+  const changeView = (v: 'month' | 'week' | 'list') => {
     setViewMode(v);
     try { localStorage.setItem('aedral_calendar_view', v); } catch { /* quota / mode privé */ }
   };
@@ -326,6 +328,7 @@ export default function CalendarSection({
           <div className="flex bevel-sm overflow-hidden" style={{ border: '1px solid var(--s-border)' }}>
             {([
               { v: 'month' as const, label: 'Mois', icon: <LayoutGrid size={12} /> },
+              { v: 'week' as const, label: 'Semaine', icon: <CalendarRange size={12} /> },
               { v: 'list' as const, label: 'Liste', icon: <List size={12} /> },
             ]).map(opt => (
               <button key={opt.v} type="button" onClick={() => changeView(opt.v)}
@@ -411,6 +414,17 @@ export default function CalendarSection({
             canCreate={canCreateAnything}
             onEventClick={id => setOpenEventId(id)}
             onDayCreate={ymd => setFormPrefill({ startsAt: `${ymd}T20:00`, endsAt: `${ymd}T22:00` })}
+          />
+        ) : viewMode === 'week' ? (
+          <WeekView
+            structureId={structureId}
+            events={monthEvents}
+            teams={teams}
+            teamFilter={teamFilter}
+            now={now}
+            canCreate={canCreateAnything}
+            onEventClick={id => setOpenEventId(id)}
+            onSlotCreate={(startsAt, endsAt) => setFormPrefill({ startsAt, endsAt })}
           />
         ) : filteredEvents.length === 0 ? (
           <div className="text-center py-10">
