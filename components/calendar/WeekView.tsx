@@ -90,10 +90,12 @@ export default function WeekView({
 
   const grid = useMemo(() => generateWeekGrid(weekMonday, todayYmd), [weekMonday, todayYmd]);
 
-  // Couche dispos : une seule équipe ciblée. Si la structure n'a qu'une équipe,
-  // pas de filtre à régler — on la prend d'office.
-  const selectedTeamId = teamFilter.length === 1
-    ? teamFilter[0]
+  // Couche dispos : une seule équipe ciblée. Les jetons spéciaux du filtre
+  // (staff, structure — préfixés "__") ne sont pas des équipes et sont ignorés.
+  // Si la structure n'a qu'une équipe, pas de filtre à régler — on la prend d'office.
+  const realTeamSelection = teamFilter.filter(id => !id.startsWith('__'));
+  const selectedTeamId = realTeamSelection.length === 1
+    ? realTeamSelection[0]
     : (teamFilter.length === 0 && teams.length === 1 ? teams[0].id : null);
 
   const { data: avail, isLoading: availLoading } = useQuery({

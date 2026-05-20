@@ -19,7 +19,7 @@ const MONTHS = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
   'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
 ];
-const MAX_VISIBLE = 3;
+const MAX_VISIBLE = 2;
 
 function pad2(n: number): string { return n < 10 ? `0${n}` : `${n}`; }
 function ymdOf(d: Date): string { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
@@ -173,7 +173,8 @@ export default function MonthView({ events, teams, now, canCreate, onEventClick,
               }`}
               style={{
                 // Hauteur fixe → toutes les lignes de la grille sont identiques.
-                height: 156,
+                // Dimensionnée pour 2 puces (2 lignes) + en-tête + "+N" sans rognage.
+                height: 148,
                 border: `1px solid ${isToday ? 'rgba(255,184,0,0.4)' : 'var(--s-border)'}`,
                 opacity: cell.inMonth ? 1 : 0.45,
               }}>

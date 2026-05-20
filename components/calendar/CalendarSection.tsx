@@ -140,6 +140,21 @@ const PRESENCE_INFO: Record<PresenceStatus, { label: string; color: string }> = 
   pending: { label: 'En attente', color: 'var(--s-text-muted)' },
 };
 
+// Jetons spéciaux du filtre d'audience — distincts des IDs d'équipe (Firestore).
+// Permettent de filtrer aussi les événements staff et structure-wide.
+const FILTER_STAFF = '__staff__';
+const FILTER_STRUCTURE = '__structure__';
+
+// Un événement passe-t-il le filtre d'audience ? (filtre vide = tout passe)
+function eventMatchesAudienceFilter(e: CalendarEvent, filter: string[]): boolean {
+  if (filter.length === 0) return true;
+  const t = e.target;
+  if (t.scope === 'teams') return (t.teamIds ?? []).some(id => filter.includes(id));
+  if (t.scope === 'staff') return filter.includes(FILTER_STAFF);
+  if (t.scope === 'structure') return filter.includes(FILTER_STRUCTURE);
+  return false; // scope 'game' : pas de filtre dédié pour l'instant
+}
+
 function fmtDateTime(iso: string | null): string {
   if (!iso) return '';
   const d = new Date(iso);
@@ -228,11 +243,7 @@ export default function CalendarSection({
         if (filter === 'upcoming' && !(end >= now && e.status !== 'cancelled')) return false;
         if (filter === 'past' && !(end < now || e.status === 'cancelled' || e.status === 'done')) return false;
       }
-      if (teamFilter.length > 0) {
-        if (e.target.scope !== 'teams') return false;
-        const ids = e.target.teamIds ?? [];
-        if (!ids.some(id => teamFilter.includes(id))) return false;
-      }
+      if (!eventMatchesAudienceFilter(e, teamFilter)) return false;
       return true;
     });
     // "À venir" → ordre ascendant (le plus proche en haut). "Passés"/"Tous" → descendant (plus récent en haut).
@@ -248,11 +259,7 @@ export default function CalendarSection({
   // (la grille gère elle-même le périmètre temporel via la navigation des mois).
   const monthEvents = useMemo(() => {
     if (teamFilter.length === 0) return events;
-    return events.filter(e => {
-      if (e.target.scope !== 'teams') return false;
-      const ids = e.target.teamIds ?? [];
-      return ids.some(id => teamFilter.includes(id));
-    });
+    return events.filter(e => eventMatchesAudienceFilter(e, teamFilter));
   }, [events, teamFilter]);
 
   // Prochain événement (toutes équipes confondues) — sert au bandeau récap.
@@ -395,10 +402,8 @@ export default function CalendarSection({
         </div>
       )}
 
-      {/* Team filter — dropdown multi-select, scalable jusqu'à 20+ équipes */}
-      {teams.length > 1 && (
-        <TeamFilterDropdown teams={teams} value={teamFilter} onChange={setTeamFilter} />
-      )}
+      {/* Filtre d'audience — équipes + staff + structure, multi-select scalable */}
+      <TeamFilterDropdown teams={teams} value={teamFilter} onChange={setTeamFilter} />
 
       {/* Body */}
       <div className="relative z-[1] p-5">
@@ -517,18 +522,28 @@ function TeamFilterDropdown({
     ? teams.filter(t => t.name.toLowerCase().includes(query))
     : teams;
 
+  // Audiences spéciales — au-dessus de la liste des équipes.
+  const SPECIALS = [
+    { id: FILTER_STRUCTURE, label: 'Toute la structure' },
+    { id: FILTER_STAFF, label: 'Staff' },
+  ];
+  const nameOf = (id: string): string => {
+    const sp = SPECIALS.find(s => s.id === id);
+    if (sp) return sp.label;
+    return teams.find(t => t.id === id)?.name ?? '?';
+  };
   const label = value.length === 0
-    ? 'Toutes'
+    ? 'Tous'
     : value.length === 1
-      ? (teams.find(t => t.id === value[0])?.name ?? `${value.length}/${teams.length}`)
-      : `${value.length}/${teams.length}`;
+      ? nameOf(value[0])
+      : `${value.length} sélectionnés`;
 
   const toggle = (id: string) =>
     onChange(value.includes(id) ? value.filter(x => x !== id) : [...value, id]);
 
   return (
     <div className={`relative ${open ? 'z-40' : 'z-[1]'} px-5 pt-3 flex items-center gap-2`} data-team-filter-root>
-      <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Équipes :</span>
+      <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Afficher :</span>
       <button type="button" onClick={() => setOpen(o => !o)}
         className="flex items-center gap-1.5 transition-all duration-150"
         style={{
@@ -560,7 +575,25 @@ function TeamFilterDropdown({
             </div>
           )}
           <div className="overflow-y-auto flex-1">
-            {filtered.length === 0 ? (
+            {/* Audiences spéciales : staff, structure entière */}
+            <div style={{ borderBottom: '1px solid var(--s-border)' }}>
+              {SPECIALS.map(sp => {
+                const selected = value.includes(sp.id);
+                return (
+                  <button key={sp.id} type="button" onClick={() => toggle(sp.id)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors duration-150 hover:bg-[var(--s-hover)]">
+                    <span className="w-4 h-4 flex items-center justify-center flex-shrink-0"
+                      style={{ border: `1px solid ${selected ? 'var(--s-gold)' : 'var(--s-border)'}`, background: selected ? 'rgba(255,184,0,0.15)' : 'transparent' }}>
+                      {selected && <Check size={10} style={{ color: 'var(--s-gold)' }} />}
+                    </span>
+                    <span className="w-1.5 h-1.5 flex-shrink-0" style={{ background: 'var(--s-gold)' }} />
+                    <span className="text-xs flex-1 truncate" style={{ color: selected ? 'var(--s-text)' : 'var(--s-text-dim)' }}>{sp.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {/* Équipes */}
+            {teams.length === 0 ? null : filtered.length === 0 ? (
               <div className="px-3 py-4 text-center">
                 <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucune équipe.</span>
               </div>
