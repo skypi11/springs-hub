@@ -7,13 +7,13 @@ import { TODO_TYPE_META, type TodoType } from '@/lib/todos';
 import { captureApiError } from '@/lib/sentry';
 
 // GET /api/cron/todos-reminders
-// Vercel Cron 1x/jour (Hobby plan impose 1 run/jour max). Pour chaque devoir !done :
+// Vercel Cron 1x/jour (Hobby plan impose 1 run/jour max). Pour chaque exercice !done :
 //   - entre ~12h et ~36h avant deadlineAt : envoie un rappel J-1 (notif in-app + DM Discord best-effort)
 //     idempotent via reminder24hSentAt sur le doc.
 //   - deadlineAt dépassé : envoie une alerte "retard" une seule fois (overdueAlertSentAt).
 //
 // Fenêtre 12-36h plutôt que 23-25h : comme on ne tourne qu'une fois par jour, il faut couvrir
-// l'intervalle complet entre deux runs consécutifs, sinon on louperait les devoirs dont la deadline
+// l'intervalle complet entre deux runs consécutifs, sinon on louperait les exercices dont la deadline
 // tombe en dehors d'une fenêtre étroite.
 //
 // Sécu : header `Authorization: Bearer $CRON_SECRET` attendu en prod ;
@@ -22,7 +22,7 @@ import { captureApiError } from '@/lib/sentry';
 const MS_HOUR = 60 * 60 * 1000;
 const REMINDER_WINDOW_MIN_MS = 12 * MS_HOUR;
 const REMINDER_WINDOW_MAX_MS = 36 * MS_HOUR;
-// On ignore les devoirs dont la deadline est > 90 jours dans le futur ou > 90 jours dans le passé
+// On ignore les exercices dont la deadline est > 90 jours dans le futur ou > 90 jours dans le passé
 // (évite de charger des docs "zombies" non nettoyés).
 const SCAN_FUTURE_LIMIT_MS = 90 * 24 * MS_HOUR;
 const SCAN_PAST_LIMIT_MS = 90 * 24 * MS_HOUR;
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     const db = getAdminDb();
     const now = Date.now();
 
-    // On scanne tous les devoirs !done avec une deadlineAt dans la fenêtre d'intérêt.
+    // On scanne tous les exercices !done avec une deadlineAt dans la fenêtre d'intérêt.
     // Sans index composite dédié, on balaye par `done=false` et on filtre en mémoire sur deadlineAt
     // (une limite défensive à 1000 docs protège contre un runaway). Si le volume explose plus tard,
     // on ajoutera un index structure_todos(done,deadlineAt) pour trier par deadlineAt croissant.
@@ -92,15 +92,15 @@ export async function GET(req: NextRequest) {
       if (!assigneeId) continue;
 
       const type = (data.type as TodoType | undefined) ?? 'free';
-      const typeLabel = TODO_TYPE_META[type]?.short ?? 'Devoir';
-      const title = (data.title as string | undefined) ?? 'Devoir';
+      const typeLabel = TODO_TYPE_META[type]?.short ?? 'Exercice';
+      const title = (data.title as string | undefined) ?? 'Exercice';
       const deadline = (data.deadline as string | null) ?? null;
       const deadlineAtMs = (data.deadlineAt as number | undefined) ?? null;
 
       notifs.push({
         userId: assigneeId,
         type: 'todo_reminder',
-        title: `Rappel : devoir à rendre bientôt (${typeLabel})`,
+        title: `Rappel : exercice à rendre bientôt (${typeLabel})`,
         message: `« ${title} » — deadline dans environ 24h${deadline ? ` (${deadline})` : ''}.`,
         link: '/calendar',
         metadata: { todoId: docId, deadline },
@@ -136,15 +136,15 @@ export async function GET(req: NextRequest) {
       if (!assigneeId) continue;
 
       const type = (data.type as TodoType | undefined) ?? 'free';
-      const typeLabel = TODO_TYPE_META[type]?.short ?? 'Devoir';
-      const title = (data.title as string | undefined) ?? 'Devoir';
+      const typeLabel = TODO_TYPE_META[type]?.short ?? 'Exercice';
+      const title = (data.title as string | undefined) ?? 'Exercice';
       const deadline = (data.deadline as string | null) ?? null;
       const deadlineAtMs = (data.deadlineAt as number | undefined) ?? null;
 
       notifs.push({
         userId: assigneeId,
         type: 'todo_overdue',
-        title: `Devoir en retard (${typeLabel})`,
+        title: `Exercice en retard (${typeLabel})`,
         message: `« ${title} » a dépassé sa deadline${deadline ? ` du ${deadline}` : ''}.`,
         link: '/calendar',
         metadata: { todoId: docId, deadline },

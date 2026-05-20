@@ -33,12 +33,12 @@ type StructureStats = {
   byType: Record<string, number>;
 };
 
-// GET /api/admin/devoirs — vue cross-structures de tous les devoirs.
-// Agrège structure_todos par structure + stats globales. Pas de détail par devoir
+// GET /api/admin/exercices — vue cross-structures de tous les exercices.
+// Agrège structure_todos par structure + stats globales. Pas de détail par exercice
 // (c'est le rôle du panel structure) — ici on donne un bilan d'ensemble pour
 // identifier les structures en retard / sans activité.
 //
-// Avec ?structureId=X : retourne la liste détaillée des devoirs de cette structure
+// Avec ?structureId=X : retourne la liste détaillée des exercices de cette structure
 // (utilisé pour le déroulement inline dans le panel admin).
 export async function GET(req: NextRequest) {
   try {
@@ -181,12 +181,12 @@ export async function GET(req: NextRequest) {
       max: MAX_TODOS,
     });
   } catch (err) {
-    captureApiError('API Admin/Devoirs GET error', err);
+    captureApiError('API Admin/Exercices GET error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
 
-// Détail des devoirs d'une structure : liste triée (pending d'abord par deadline
+// Détail des exercices d'une structure : liste triée (pending d'abord par deadline
 // croissante, puis done par doneAt décroissant). Cap 500 pour éviter un payload
 // monstrueux sur une structure qui en accumulerait.
 const STRUCTURE_DETAIL_CAP = 500;

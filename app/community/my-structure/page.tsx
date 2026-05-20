@@ -96,7 +96,7 @@ export default function MyStructurePage() {
   // d'être rendu via Portal hors du clip-path "bevel" de la SectionPanel parent.
   const [teamMenuRect, setTeamMenuRect] = useState<{ top: number; right: number } | null>(null);
   const [captainPickerOpen, setCaptainPickerOpen] = useState<string | null>(null);
-  // Drawer détail équipe (Dispos + Devoirs) — ouvert via chips des cards équipe
+  // Drawer détail équipe (Dispos + Exercices) — ouvert via chips des cards équipe
   const [drawerState, setDrawerState] = useState<{ team: DrawerTeam; tab: DrawerTab; canEditConfig: boolean } | null>(null);
 
   const [inviteLinks, setInviteLinks] = useState<InviteLink[]>([]);
@@ -1884,8 +1884,8 @@ export default function MyStructurePage() {
                     <CalendarClock size={13} style={{ color: 'var(--s-gold)' }} />
                   </div>
                   <div className="flex-1">
-                    <h2 className="font-display text-sm tracking-wider">DISPOS, DEVOIRS &amp; REPLAYS PAR ÉQUIPE</h2>
-                    <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>Ouvre une équipe pour voir les dispos, les devoirs en cours et la bibliothèque de replays.</p>
+                    <h2 className="font-display text-sm tracking-wider">DISPOS, EXERCICES &amp; REPLAYS PAR ÉQUIPE</h2>
+                    <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>Ouvre une équipe pour voir les dispos, les exercices en cours et la bibliothèque de replays.</p>
                   </div>
                 </div>
                 <div className="relative z-[1] p-5 grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
@@ -1914,7 +1914,7 @@ export default function MyStructurePage() {
                           />
                           <TeamActionChip
                             icon={<ClipboardList size={12} />}
-                            label="Devoirs"
+                            label="Exercices"
                             onClick={() => setDrawerState({ team: drawerTeam, tab: 'todos', canEditConfig: isDirigeant })}
                           />
                           <TeamActionChip
@@ -1947,7 +1947,7 @@ export default function MyStructurePage() {
         </div>
         )}
 
-        {/* ═══ DEVOIRS (cross-teams) ═══ */}
+        {/* ═══ EXERCICES (cross-teams) ═══ */}
         {tab === 'todos' && (
           <div className="animate-fade-in-d3">
             <CrossTeamTodosPanel
@@ -1974,7 +1974,7 @@ export default function MyStructurePage() {
           </div>
         )}
       </div>
-      {/* Drawer détail équipe (Dispos + Devoirs) */}
+      {/* Drawer détail équipe (Dispos + Exercices) */}
       <TeamDetailDrawer
         open={drawerState !== null}
         onClose={() => setDrawerState(null)}

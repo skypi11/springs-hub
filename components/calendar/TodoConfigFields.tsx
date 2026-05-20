@@ -9,7 +9,7 @@ import {
   type TrainingPackItem,
 } from '@/lib/todos';
 
-// Rend les champs de config spécifiques à un type de devoir dans un formulaire.
+// Rend les champs de config spécifiques à un type de exercice dans un formulaire.
 // Utilisé par NewTodoForm (création) et TemplateEditForm (édition de template).
 export function TodoConfigFields({
   type,

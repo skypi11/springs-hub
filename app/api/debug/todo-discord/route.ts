@@ -9,10 +9,10 @@ import { isStaffOfTeam } from '@/lib/event-permissions';
 // que fait le fan-out Discord à la création, et renvoie un rapport détaillé —
 // SANS poster (on vérifie juste la joignabilité via des GET).
 //
-// Utile quand un devoir créé n'a déclenché ni embed channel ni DM : on sait
+// Utile quand un exercice créé n'a déclenché ni embed channel ni DM : on sait
 // précisément quelle étape a pété.
 //
-// Réservé au staff de l'équipe (même permission que voir le devoir).
+// Réservé au staff de l'équipe (même permission que voir le exercice).
 
 const DISCORD_API = 'https://discord.com/api/v10';
 
@@ -75,7 +75,7 @@ async function checkDmOpenable(token: string, discordId: string): Promise<DiagSt
     // L'endpoint renvoie un DM channel même si le user bloque les DMs —
     // le vrai blocage se produit au POST. On fait donc un 2e test : POST un message minimal… non,
     // ça enverrait réellement. On se contente du dm_open.
-    return { step: `dm_open_${discordId}`, ok: true, detail: 'DM channel ouvrable (POST réel à tester via création de devoir)' };
+    return { step: `dm_open_${discordId}`, ok: true, detail: 'DM channel ouvrable (POST réel à tester via création de exercice)' };
   } catch (e) {
     return { step: `dm_open_${discordId}`, ok: false, detail: e instanceof Error ? e.message : 'fetch failed' };
   }
@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
 
     const db = getAdminDb();
     const todoSnap = await db.collection('structure_todos').doc(todoId).get();
-    if (!todoSnap.exists) return NextResponse.json({ error: 'Devoir introuvable' }, { status: 404 });
+    if (!todoSnap.exists) return NextResponse.json({ error: 'Exercice introuvable' }, { status: 404 });
     const todo = todoSnap.data()!;
 
     const structureId = todo.structureId as string;

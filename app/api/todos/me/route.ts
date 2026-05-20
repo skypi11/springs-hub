@@ -14,7 +14,7 @@ function tsMs(v: unknown): number | null {
   return null;
 }
 
-// GET /api/todos/me — tous mes devoirs, à travers toutes les structures.
+// GET /api/todos/me — tous mes exercices, à travers toutes les structures.
 // Enrichi avec le nom de la structure + nom de l'équipe + titre de l'event lié (si présent).
 export async function GET(req: NextRequest) {
   try {

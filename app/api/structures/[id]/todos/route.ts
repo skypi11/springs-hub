@@ -25,7 +25,7 @@ function tsMs(v: unknown): number | null {
   return null;
 }
 
-// POST /api/structures/[id]/todos — créer un devoir (batch : 1 doc par assignee)
+// POST /api/structures/[id]/todos — créer un exercice (batch : 1 doc par assignee)
 // Accessible : staff d'équipe (fondateur/co-fondateur/manager/coach de la sous-équipe cible).
 export async function POST(
   req: NextRequest,
@@ -145,13 +145,13 @@ export async function POST(
 
     // Notif in-app aux assignés (best-effort — on ne bloque pas la création si ça échoue).
     try {
-      const typeLabel = TODO_TYPE_META[type]?.short ?? 'Devoir';
+      const typeLabel = TODO_TYPE_META[type]?.short ?? 'Exercice';
       const teamLabel = (team.name as string | undefined) ?? 'ton équipe';
       const deadlineHint = deadline ? ` (pour le ${deadline})` : '';
       const notifs: NotificationPayload[] = assigneeIds.map(uidAssignee => ({
         userId: uidAssignee,
         type: 'todo_assigned',
-        title: `Nouveau devoir : ${typeLabel}`,
+        title: `Nouveau exercice : ${typeLabel}`,
         message: `« ${title} » — ${teamLabel}${deadlineHint}`,
         link: '/calendar',
         metadata: { structureId, subTeamId, type, eventId, deadline },
@@ -163,7 +163,7 @@ export async function POST(
 
     // Fan-out Discord (fire-and-forget) : embed dans le channel de l'équipe + DM aux assignés.
     // On ne await pas pour ne pas ralentir la réponse UI — l'UI doit pouvoir fermer le form
-    // immédiatement après que le devoir soit créé en base.
+    // immédiatement après que le exercice soit créé en base.
     ;(async () => {
       try {
         const structureName = (resolved.structure as { name?: string }).name ?? null;
@@ -211,7 +211,7 @@ export async function POST(
         };
 
         // 1) Embed dans le channel de l'équipe si configuré ET si le créateur a coché "aussi publier dans channel".
-        // Par défaut on reste en DM privé uniquement — un devoir est du feedback perso, pas un post public.
+        // Par défaut on reste en DM privé uniquement — un exercice est du feedback perso, pas un post public.
         if (channelId && postToChannel) {
           try {
             const messageId = await postTodoEmbed(channelId, embedInput);
@@ -228,7 +228,7 @@ export async function POST(
         }
 
         // 2) DM à chaque assigné (best-effort — 403 est normal si DMs désactivés).
-        // URL deep-link personnalisée par assignee → ouvre son devoir directement dans /calendar.
+        // URL deep-link personnalisée par assignee → ouvre son exercice directement dans /calendar.
         await Promise.all(assigneeIds.map(async (assigneeId, i) => {
           const did = toDiscordId(assigneeId);
           if (!did) return;
@@ -253,7 +253,7 @@ export async function POST(
 }
 
 // GET /api/structures/[id]/todos?subTeamId=X&status=pending|done|all
-// Renvoie la liste des devoirs d'une sous-équipe (staff only).
+// Renvoie la liste des exercices d'une sous-équipe (staff only).
 // Dirigeants (fondateur/co-fondateur) voient toutes les équipes ;
 // staff/coach/manager voient uniquement les équipes dont ils sont staff.
 export async function GET(

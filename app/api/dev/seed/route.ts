@@ -5,7 +5,7 @@ import { DEV_UIDS, DEV_STRUCTURE_ID } from '@/lib/dev-seed-constants';
 
 // POST /api/dev/seed — peuple Firestore avec une structure de démo "Phoenix Esports"
 // (RL only, ~15 équipes actives + 2 archivées, staff complet, calendrier riche,
-// devoirs variés, join requests, historique membre). Pensé pour impressionner lors
+// exercices variés, join requests, historique membre). Pensé pour impressionner lors
 // d'une présentation sans avoir à naviguer une structure vide.
 // Dev-only : bloqué en production. Tous les documents créés portent `isDev: true`
 // pour permettre un cleanup en un appel via /api/dev/cleanup.
@@ -807,7 +807,7 @@ export async function POST() {
     }
   }
 
-  // 9) Devoirs — mix de types + statuts
+  // 9) Exercices — mix de types + statuts
   type TodoSeed = {
     id: string;
     teamId: string;

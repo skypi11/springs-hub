@@ -1,5 +1,5 @@
-// Helpers purs pour les templates de devoirs (v2 — étape 2).
-// Un template = recette pré-remplie pour créer un devoir rapidement.
+// Helpers purs pour les templates de exercices (v2 — étape 2).
+// Un template = recette pré-remplie pour créer un exercice rapidement.
 // Portée : personnelle (perso coach) OU structure (partagée avec tout le staff).
 
 import {

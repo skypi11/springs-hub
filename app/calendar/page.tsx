@@ -192,7 +192,7 @@ export default function MyCalendarPage() {
         {/* Dispos collapsible */}
         <AvailabilityCollapsible />
 
-        {/* Mes devoirs */}
+        {/* Mes exercices */}
         <MyTodosSection />
 
         {loading ? (

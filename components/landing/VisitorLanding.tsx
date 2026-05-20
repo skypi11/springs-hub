@@ -358,9 +358,9 @@ const showcaseShots = [
     desc: 'Présences (présent / peut-être / absent), score, compte rendu, points à travailler, replays attachés. Tout centralisé, plus rien ne se perd.',
   },
   {
-    src: '/landing/devoirs.webp',
-    alt: 'Modal création d\'un devoir',
-    tag: 'Devoirs & coaching',
+    src: '/landing/exercices.webp',
+    alt: 'Modal création d\'un exercice',
+    tag: 'Exercices & coaching',
     title: 'Coach ta structure comme un pro',
     desc: 'Templates check-in, training, VOD, scouting. Items à auto-évaluer sur 5, deadlines, rappels Discord automatiques. Le suivi qu\'utilisaient seulement les structures pros.',
   },

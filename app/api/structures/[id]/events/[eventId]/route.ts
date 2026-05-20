@@ -61,7 +61,7 @@ export async function PATCH(
     const updates: Record<string, unknown> = {
       updatedAt: FieldValue.serverTimestamp(),
     };
-    // Capturé ici pour recalculer les deadlines relatives des devoirs liés après l'update.
+    // Capturé ici pour recalculer les deadlines relatives des exercices liés après l'update.
     let newStartsAtMs: number | null = null;
 
     // Champs éditables tant que l'événement est scheduled
@@ -135,7 +135,7 @@ export async function PATCH(
 
     await eventRef.update(updates);
 
-    // Recalc des devoirs à deadline relative si la date de l'event a bougé.
+    // Recalc des exercices à deadline relative si la date de l'event a bougé.
     // Choix produit B+C : on ne touche qu'aux !done et on ne notifie que si la YYYY-MM-DD change
     // (changer l'heure sans changer le jour ne doit pas spammer les joueurs).
     let recalcedCount = 0;
@@ -172,8 +172,8 @@ export async function PATCH(
             notifs.push({
               userId: assigneeId,
               type: 'todo_deadline_changed',
-              title: 'Deadline de devoir mise à jour',
-              message: `« ${String(data.title || 'Devoir')} » : nouvelle deadline ${newDeadline} (l'event a été déplacé).`,
+              title: 'Deadline de exercice mise à jour',
+              message: `« ${String(data.title || 'Exercice')} » : nouvelle deadline ${newDeadline} (l'event a été déplacé).`,
               link: '/calendar',
               metadata: { todoId: doc.id, eventId, oldDeadline, newDeadline },
             });

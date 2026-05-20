@@ -115,7 +115,7 @@ export default function CrossTeamTodosPanel({
   });
   const error = queryError ? (queryError instanceof ApiError ? queryError.message : queryError.message || 'Erreur de chargement') : null;
 
-  // Deep-link : si initialTodoId pointe vers un devoir qu'on a chargé, ouvrir le drawer une fois.
+  // Deep-link : si initialTodoId pointe vers un exercice qu'on a chargé, ouvrir le drawer une fois.
   useEffect(() => {
     if (!initialTodoId || !data) return;
     if (data.todos.some(t => t.id === initialTodoId)) {
@@ -371,7 +371,7 @@ export default function CrossTeamTodosPanel({
           value={stateFilter}
           onChange={(v) => setStateFilter(v as StateFilter)}
           options={[
-            { value: 'all', label: 'Tous les devoirs' },
+            { value: 'all', label: 'Tous les exercices' },
             { value: 'overdue', label: `En retard (${counts.overdue})` },
             { value: 'today', label: `Aujourd'hui (${counts.dueToday})` },
             { value: 'week', label: `Cette semaine (${counts.dueThisWeek})` },
@@ -390,14 +390,14 @@ export default function CrossTeamTodosPanel({
         />
       </div>
 
-      {/* Liste des devoirs */}
+      {/* Liste des exercices */}
       {filteredTodos.length === 0 ? (
         <div className="p-10 text-center bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
           <div className="font-display text-sm tracking-wider mb-1" style={{ color: 'var(--s-text-dim)' }}>
             RIEN À AFFICHER
           </div>
           <p className="text-sm" style={{ color: 'var(--s-text-muted)' }}>
-            Aucun devoir ne correspond à ces filtres.
+            Aucun exercice ne correspond à ces filtres.
           </p>
         </div>
       ) : (

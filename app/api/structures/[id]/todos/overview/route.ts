@@ -17,10 +17,10 @@ function tsMs(v: unknown): number | null {
 }
 
 // GET /api/structures/[id]/todos/overview
-// Vue agrégée des devoirs cross-équipes pour le staff.
+// Vue agrégée des exercices cross-équipes pour le staff.
 // - Dirigeant (fondateur / co-fondateur) → toutes les équipes de la structure.
 // - Manager/coach d'équipe → uniquement les équipes où il est staffedTeamIds.
-// Renvoie la liste des devoirs enrichie (assignee + équipe), les équipes/users utiles
+// Renvoie la liste des exercices enrichie (assignee + équipe), les équipes/users utiles
 // pour l'UI, et des compteurs bornés Paris (overdue / dueToday / dueThisWeek / doneLast7d).
 export async function GET(
   req: NextRequest,

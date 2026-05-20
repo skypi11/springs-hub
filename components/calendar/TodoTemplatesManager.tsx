@@ -64,7 +64,7 @@ export default function TodoTemplatesManager({
         >
           <div className="panel-header flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="t-heading" style={{ fontSize: '18px' }}>Templates de devoirs</span>
+              <span className="t-heading" style={{ fontSize: '18px' }}>Templates de exercices</span>
               <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
                 ({templates.length})
               </span>
@@ -99,7 +99,7 @@ export default function TodoTemplatesManager({
             <TemplateGroup
               label="MES TEMPLATES (perso)"
               icon={<UserIcon size={12} style={{ color: 'var(--s-gold)' }} />}
-              empty="Aucun template personnel. Clique « Nouveau template » en haut à droite, ou enregistre un devoir existant comme template."
+              empty="Aucun template personnel. Clique « Nouveau template » en haut à droite, ou enregistre un exercice existant comme template."
               templates={personal}
               structureId={structureId}
               currentUid={currentUid}
@@ -345,7 +345,7 @@ function TemplateRow({
     if (!firebaseUser || busy) return;
     const ok = await confirm({
       title: 'Supprimer ce template ?',
-      message: `« ${template.name} » — cette action est irréversible. Les devoirs déjà créés à partir de ce template restent intacts.`,
+      message: `« ${template.name} » — cette action est irréversible. Les exercices déjà créés à partir de ce template restent intacts.`,
       confirmLabel: 'Supprimer',
       variant: 'danger',
     });

@@ -330,7 +330,7 @@ export default function TodoDetailDrawer({
                   : todo.done
                   ? <CheckCircle2 size={14} />
                   : <Check size={14} />}
-                <span>{primaryActionLabel || (todo.done ? 'Rouvrir le devoir' : 'Marquer comme terminé')}</span>
+                <span>{primaryActionLabel || (todo.done ? 'Rouvrir le exercice' : 'Marquer comme terminé')}</span>
               </button>
               <button type="button" onClick={onClose}
                 className="text-sm" style={{ color: 'var(--s-text-dim)', cursor: 'pointer' }}>

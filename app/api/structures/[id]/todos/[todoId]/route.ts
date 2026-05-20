@@ -42,11 +42,11 @@ export async function PATCH(
     const ref = db.collection('structure_todos').doc(todoId);
     const snap = await ref.get();
     if (!snap.exists) {
-      return NextResponse.json({ error: 'Devoir introuvable.' }, { status: 404 });
+      return NextResponse.json({ error: 'Exercice introuvable.' }, { status: 404 });
     }
     const data = snap.data()!;
     if (data.structureId !== structureId) {
-      return NextResponse.json({ error: 'Devoir hors de cette structure.' }, { status: 400 });
+      return NextResponse.json({ error: 'Exercice hors de cette structure.' }, { status: 400 });
     }
 
     const body = await req.json().catch(() => ({}));
@@ -75,7 +75,7 @@ export async function PATCH(
 
       if (willBeDone && needsResponse) {
         // Type avec réponse : l'assignee doit fournir une réponse valide
-        // (le staff peut forcer la clôture sans réponse — utile pour annuler un devoir abandonné)
+        // (le staff peut forcer la clôture sans réponse — utile pour annuler un exercice abandonné)
         if (isAssignee && !isStaff) {
           const resp = validateTodoResponse(type, body.response);
           if (!resp.ok) {
@@ -101,7 +101,7 @@ export async function PATCH(
 
     if (action === 'edit') {
       if (!isStaff) {
-        return NextResponse.json({ error: 'Seul le staff peut éditer ce devoir.' }, { status: 403 });
+        return NextResponse.json({ error: 'Seul le staff peut éditer ce exercice.' }, { status: 403 });
       }
       const patch: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
 
@@ -189,15 +189,15 @@ export async function DELETE(
     const ref = db.collection('structure_todos').doc(todoId);
     const snap = await ref.get();
     if (!snap.exists) {
-      return NextResponse.json({ error: 'Devoir introuvable.' }, { status: 404 });
+      return NextResponse.json({ error: 'Exercice introuvable.' }, { status: 404 });
     }
     const data = snap.data()!;
     if (data.structureId !== structureId) {
-      return NextResponse.json({ error: 'Devoir hors de cette structure.' }, { status: 400 });
+      return NextResponse.json({ error: 'Exercice hors de cette structure.' }, { status: 400 });
     }
 
     if (!isStaffOfTeam(resolved.context, data.subTeamId as string)) {
-      return NextResponse.json({ error: 'Seul le staff peut supprimer ce devoir.' }, { status: 403 });
+      return NextResponse.json({ error: 'Seul le staff peut supprimer ce exercice.' }, { status: 403 });
     }
 
     await ref.delete();

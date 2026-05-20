@@ -194,7 +194,7 @@ export default function AdminDevPage() {
             <DevEndpoint
               method="POST"
               path="/api/dev/seed"
-              description="Crée la structure Phoenix Esports (15 équipes, staff, calendrier, devoirs)"
+              description="Crée la structure Phoenix Esports (15 équipes, staff, calendrier, exercices)"
             />
             <DevEndpoint
               method="POST"

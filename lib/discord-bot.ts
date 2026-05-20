@@ -275,9 +275,9 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
   return data.id as string;
 }
 
-// ---------- Todos (devoirs) ----------
+// ---------- Todos (exercices) ----------
 
-// Couleurs par type de devoir — DA Aedral (or, mono, complétée par les
+// Couleurs par type de exercice — DA Aedral (or, mono, complétée par les
 // couleurs spécifiques aux jeux RL/TM et la blurple Discord).
 const TODO_COLORS: Record<string, number> = {
   free:           0x7a7a95, // gris (tâche libre)
@@ -316,7 +316,7 @@ export interface TodoEmbedInput {
   configSummary?: string | null;
 }
 
-// Poste un embed "nouveau devoir" dans un channel Discord. Même forme que postEventEmbed :
+// Poste un embed "nouveau exercice" dans un channel Discord. Même forme que postEventEmbed :
 // appelé en fire-and-forget côté route, throw si échec pour log Sentry.
 export async function postTodoEmbed(channelId: string, input: TodoEmbedInput): Promise<string> {
   const typeLabel = TODO_LABELS[input.type] ?? input.type;
@@ -325,13 +325,13 @@ export async function postTodoEmbed(channelId: string, input: TodoEmbedInput): P
   const userPings = (input.pingUserIds ?? []).slice(0, 40);
   const mentionsLine = userPings.map(id => `<@${id}>`).join(' ');
 
-  const authorParts = [`📝 DEVOIR · ${typeLabel}`];
+  const authorParts = [`📝 EXERCICE · ${typeLabel}`];
   if (input.structureName) authorParts.push(input.structureName);
   const authorName = authorParts.join(' · ').slice(0, 256);
 
   const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
   // Deadline : Discord timestamps (<t:SEC:F> = date+heure, <t:SEC:R> = relatif "dans 2h").
-  // Avec l'option A, deadlineAtMs porte l'heure exacte (kick-off pour un devoir relatif offset=0).
+  // Avec l'option A, deadlineAtMs porte l'heure exacte (kick-off pour un exercice relatif offset=0).
   if (typeof input.deadlineAtMs === 'number') {
     const sec = Math.floor(input.deadlineAtMs / 1000);
     fields.push({ name: '⏰ Deadline', value: `<t:${sec}:F>\n<t:${sec}:R>`, inline: true });

@@ -196,7 +196,7 @@ export default function AdminDashboardPage() {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <QuickLink href="/admin/moderation" icon={ShieldAlert} label="Modération" accent="#ff5555" />
-          <QuickLink href="/admin/devoirs" icon={ClipboardList} label="Devoirs" accent="#FFB800" />
+          <QuickLink href="/admin/exercices" icon={ClipboardList} label="Exercices" accent="#FFB800" />
           <QuickLink href="/admin/calendar" icon={CalendarDays} label="Calendrier" accent="#FFB800" />
           <QuickLink href="/admin/teams" icon={Users} label="Équipes" accent="#0081FF" />
           <QuickLink href="/admin/uploads" icon={UploadCloud} label="Uploads" accent="#33ff66" />

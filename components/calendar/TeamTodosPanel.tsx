@@ -178,7 +178,7 @@ export default function TeamTodosPanel({
   const deleteMutation = useMutation({
     mutationFn: (todo: TodoWithMeta) =>
       api(`/api/structures/${structureId}/todos/${todo.id}`, { method: 'DELETE' }).then(() => todo),
-    onSuccess: () => { toast.success('Devoir supprimé'); invalidateTodos(); },
+    onSuccess: () => { toast.success('Exercice supprimé'); invalidateTodos(); },
     onError: (err: Error) => toast.error(err.message || 'Erreur'),
   });
 
@@ -194,7 +194,7 @@ export default function TeamTodosPanel({
   async function deleteTodo(todo: TodoWithMeta) {
     if (busyId) return;
     const ok = await confirm({
-      title: 'Supprimer ce devoir ?',
+      title: 'Supprimer ce exercice ?',
       message: `« ${todo.title} » — assigné à ${todo.assigneeName}. Cette action est irréversible.`,
       confirmLabel: 'Supprimer',
       variant: 'danger',
@@ -213,7 +213,7 @@ export default function TeamTodosPanel({
         <div className="flex items-center gap-2">
           <ClipboardList size={embedded ? 16 : 14} style={{ color: 'var(--s-gold)' }} />
           <span className="t-label" style={{ fontSize: embedded ? '13px' : '12px', color: 'var(--s-text-dim)', letterSpacing: '0.05em' }}>
-            {embedded ? 'DEVOIRS' : "DEVOIRS DE L'ÉQUIPE"}
+            {embedded ? 'EXERCICES' : "EXERCICES DE L'ÉQUIPE"}
           </span>
           <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
             ({counts.pending} à faire · {counts.done} fait{counts.done > 1 ? 's' : ''})
@@ -235,7 +235,7 @@ export default function TeamTodosPanel({
               onClick={() => setShowForm(v => !v)}
               className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-xs">
               {showForm ? <X size={12} /> : <Plus size={12} />}
-              {showForm ? 'Annuler' : 'Nouveau devoir'}
+              {showForm ? 'Annuler' : 'Nouveau exercice'}
             </button>
           ) : (
             <button type="button"
@@ -243,7 +243,7 @@ export default function TeamTodosPanel({
               className="flex items-center gap-1.5 text-xs font-bold transition-colors duration-150"
               style={{ color: 'var(--s-gold)' }}>
               {showForm ? <X size={11} /> : <Plus size={11} />}
-              {showForm ? 'Annuler' : 'Nouveau devoir'}
+              {showForm ? 'Annuler' : 'Nouveau exercice'}
             </button>
           )}
         </div>
@@ -299,7 +299,7 @@ export default function TeamTodosPanel({
         </div>
       ) : filtered.length === 0 ? (
         <p className="text-xs text-center py-3" style={{ color: 'var(--s-text-muted)' }}>
-          {todos.length === 0 ? 'Aucun devoir pour cette équipe.' : 'Aucun devoir dans ce filtre.'}
+          {todos.length === 0 ? 'Aucun exercice pour cette équipe.' : 'Aucun exercice dans ce filtre.'}
         </p>
       ) : (
         <div className="space-y-2">
@@ -459,7 +459,7 @@ function NewTodoForm({
   }
 
   // Applique un template : pré-remplit type + title + description + config.
-  // Ne touche pas aux assignees/deadline/eventId — ceux-ci sont contextuels à chaque devoir.
+  // Ne touche pas aux assignees/deadline/eventId — ceux-ci sont contextuels à chaque exercice.
   function applyTemplate(tpl: TodoTemplateUi) {
     setType(tpl.type);
     setTitle(tpl.titleTemplate);
@@ -572,7 +572,7 @@ function NewTodoForm({
           postToChannel,
         },
       });
-      toast.success(`${data.count} devoir${data.count > 1 ? 's' : ''} créé${data.count > 1 ? 's' : ''}`);
+      toast.success(`${data.count} exercice${data.count > 1 ? 's' : ''} créé${data.count > 1 ? 's' : ''}`);
       onCreated();
     } catch (err) {
       toast.error((err as Error).message || 'Erreur création');
@@ -641,7 +641,7 @@ function NewTodoForm({
 
       {/* Type picker — chips horizontales, le choix du type change les champs affichés */}
       <div>
-        <label className="t-label block mb-1.5" style={{ fontSize: '12px' }}>Type de devoir</label>
+        <label className="t-label block mb-1.5" style={{ fontSize: '12px' }}>Type de exercice</label>
         <div className="flex flex-wrap gap-1.5">
           {TODO_TYPES.map(t => {
             const active = type === t;
@@ -856,7 +856,7 @@ function NewTodoForm({
         <div className="p-2.5 space-y-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-gold)' }}>
           <div className="flex items-center justify-between">
             <span className="t-label" style={{ fontSize: '12px', color: 'var(--s-gold)' }}>
-              ENREGISTRER CE DEVOIR COMME TEMPLATE
+              ENREGISTRER CE EXERCICE COMME TEMPLATE
             </span>
             <button type="button" onClick={() => setShowSaveAs(false)}
               className="p-1" style={{ color: 'var(--s-text-dim)', cursor: 'pointer' }}>
@@ -898,7 +898,7 @@ function NewTodoForm({
             Aussi publier dans le channel Discord de l&apos;équipe
           </span>
           <span className="block text-xs mt-0.5" style={{ color: 'var(--s-text-dim)' }}>
-            Par défaut, seul un DM privé est envoyé à l&apos;assigné. Coche cette case pour que tous les membres de l&apos;équipe voient le devoir (ex : entraînement collectif).
+            Par défaut, seul un DM privé est envoyé à l&apos;assigné. Coche cette case pour que tous les membres de l&apos;équipe voient le exercice (ex : entraînement collectif).
           </span>
         </span>
       </label>
@@ -919,7 +919,7 @@ function NewTodoForm({
           <button type="button" onClick={() => { setShowSaveAs(true); setSaveAsName(title.trim().slice(0, TEMPLATE_NAME_MAX)); }}
             className="ml-auto flex items-center gap-1.5 text-xs transition-colors"
             style={{ color: 'var(--s-text-dim)', cursor: 'pointer' }}
-            title="Enregistrer ce devoir comme template réutilisable">
+            title="Enregistrer ce exercice comme template réutilisable">
             <Save size={11} /> Enregistrer comme template
           </button>
         )}
@@ -941,7 +941,7 @@ function titlePlaceholderFor(type: TodoType): string {
   }
 }
 
-// Résumé compact de la config d'un devoir pending (visible côté staff ET joueur).
+// Résumé compact de la config d'un exercice pending (visible côté staff ET joueur).
 // Les valeurs vides sont ignorées — affiche uniquement ce qui apporte de l'info.
 export function TodoConfigSummary({ todo }: { todo: TodoRef }) {
   const c = todo.config as Record<string, unknown>;
@@ -1002,7 +1002,7 @@ export function TodoConfigSummary({ todo }: { todo: TodoRef }) {
   );
 }
 
-// Résumé de la réponse d'un devoir done (visible côté staff pour relire ce que le joueur a rendu).
+// Résumé de la réponse d'un exercice done (visible côté staff pour relire ce que le joueur a rendu).
 export function TodoResponseSummary({ todo }: { todo: TodoRef }) {
   if (!todo.response) return null;
   const r = todo.response as Record<string, unknown>;

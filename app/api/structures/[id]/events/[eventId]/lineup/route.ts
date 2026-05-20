@@ -6,7 +6,7 @@ import { resolveUserContext } from '@/lib/event-context';
 import { isStaffOfTeam } from '@/lib/event-permissions';
 
 // GET /api/structures/[id]/events/[eventId]/lineup?subTeamId=X
-// Renvoie deux listes pour le pré-remplissage d'un devoir lié à un event :
+// Renvoie deux listes pour le pré-remplissage d'un exercice lié à un event :
 //  - `confirmed` : les userIds avec event_presences.status='present', intersectés avec le roster de l'équipe
 //  - `rosterFallback` : tous les membres de l'équipe (players + subs), fallback si aucun 'present'
 // Accessible uniquement au staff de l'équipe cible (fondateur/co-fondateur/manager/coach d'équipe).
@@ -51,7 +51,7 @@ export async function GET(
     }
 
     // Roster de l'équipe : players (titulaires) + subs (remplaçants). Pas le staff : on assigne
-    // des devoirs aux joueurs, pas au coach (à moins que le staff les ajoute manuellement ensuite).
+    // des exercices aux joueurs, pas au coach (à moins que le staff les ajoute manuellement ensuite).
     const roster = new Set<string>([
       ...(((team as { playerIds?: string[] }).playerIds) ?? []),
       ...(((team as { subIds?: string[] }).subIds) ?? []),

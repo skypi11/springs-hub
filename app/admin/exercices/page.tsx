@@ -34,7 +34,7 @@ type StructureStats = {
 
 type TypeBreakdown = { type: string; count: number; label: string };
 
-type DevoirsData = {
+type ExercicesData = {
   global: {
     total: number;
     pending: number;
@@ -72,9 +72,9 @@ type StructureDetail = {
   truncated: boolean;
 };
 
-export default function AdminDevoirsPage() {
+export default function AdminExercicesPage() {
   const { firebaseUser, isAdmin } = useAuth();
-  const [data, setData] = useState<DevoirsData | null>(null);
+  const [data, setData] = useState<ExercicesData | null>(null);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'overdue' | 'pending' | 'done' | 'rate'>('overdue');
   const [hideEmpty, setHideEmpty] = useState(true);
@@ -91,10 +91,10 @@ export default function AdminDevoirsPage() {
     if (detailById[structureId]) return; // déjà chargé
     setDetailLoadingId(structureId);
     try {
-      const detail = await api<StructureDetail>(`/api/admin/devoirs?structureId=${encodeURIComponent(structureId)}`);
+      const detail = await api<StructureDetail>(`/api/admin/exercices?structureId=${encodeURIComponent(structureId)}`);
       setDetailById(prev => ({ ...prev, [structureId]: detail }));
     } catch (err) {
-      console.error('[Admin/Devoirs] detail error:', err);
+      console.error('[Admin/Exercices] detail error:', err);
     }
     setDetailLoadingId(null);
   }
@@ -103,9 +103,9 @@ export default function AdminDevoirsPage() {
     if (!firebaseUser) return;
     setLoading(true);
     try {
-      setData(await api<DevoirsData>('/api/admin/devoirs'));
+      setData(await api<ExercicesData>('/api/admin/exercices'));
     } catch (err) {
-      console.error('[Admin/Devoirs] load error:', err);
+      console.error('[Admin/Exercices] load error:', err);
     }
     setLoading(false);
   }
@@ -135,7 +135,7 @@ export default function AdminDevoirsPage() {
     <>
       <div className="flex items-center gap-3 flex-wrap">
         <h2 className="font-display text-xl" style={{ letterSpacing: '0.04em' }}>
-          DEVOIRS ({data.global.total})
+          EXERCICES ({data.global.total})
         </h2>
         {data.truncated && <span className="tag tag-gold">Résultats tronqués (max 5000)</span>}
       </div>
@@ -308,7 +308,7 @@ export default function AdminDevoirsPage() {
                   )}
                   {s.total === 0 && (
                     <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 6px' }}>
-                      aucun devoir
+                      aucun exercice
                     </span>
                   )}
                 </div>
@@ -366,13 +366,13 @@ export default function AdminDevoirsPage() {
                 ) : detail ? (
                   <div className="p-3 space-y-1.5">
                     {detail.todos.length === 0 ? (
-                      <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucun devoir.</p>
+                      <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucun exercice.</p>
                     ) : detail.todos.map(t => (
                       <TodoRow key={t.id} todo={t} />
                     ))}
                     {detail.truncated && (
                       <p className="text-xs pt-1" style={{ color: 'var(--s-text-muted)' }}>
-                        Limité à 500 devoirs.
+                        Limité à 500 exercices.
                       </p>
                     )}
                   </div>

@@ -93,7 +93,7 @@ export async function POST() {
   }
   report.orphanEvents = orphanEventsSnap.size;
 
-  // Devoirs créés via l'UI en runtime — pas de flag isDev
+  // Exercices créés via l'UI en runtime — pas de flag isDev
   const orphanTodosSnap = await db.collection('structure_todos')
     .where('structureId', '==', DEV_STRUCTURE_ID)
     .get();

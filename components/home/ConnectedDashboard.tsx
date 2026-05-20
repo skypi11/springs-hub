@@ -231,15 +231,15 @@ export default function ConnectedDashboard({ user }: { user: SpringsUser }) {
           )}
         </WidgetCard>
 
-        {/* Widget devoirs */}
+        {/* Widget exercices */}
         <WidgetCard
           accent="var(--s-blue)"
           icon={<ClipboardList size={16} style={{ color: 'var(--s-blue)' }} />}
-          title="MES DEVOIRS"
+          title="MES EXERCICES"
           href="/calendar"
           loading={loading}
           empty={todoCount === 0}
-          emptyLabel="Aucun devoir en cours"
+          emptyLabel="Aucun exercice en cours"
           emptyCTA={null}
           emptyHref={null}
         >
@@ -328,7 +328,7 @@ export default function ConnectedDashboard({ user }: { user: SpringsUser }) {
 function buildStatus(todoCount: number, nextEvent: MyEvent | null, structure: MyStructure | null): string {
   const parts: string[] = [];
   if (nextEvent?.startsAt) parts.push(`prochain event ${formatRelative(nextEvent.startsAt)}`);
-  if (todoCount > 0) parts.push(`${todoCount} devoir${todoCount > 1 ? 's' : ''} à faire`);
+  if (todoCount > 0) parts.push(`${todoCount} exercice${todoCount > 1 ? 's' : ''} à faire`);
   if (!structure) parts.push('aucune structure — crée la tienne');
   if (parts.length === 0) return 'Tout est calme pour le moment.';
   return parts.join(' · ');

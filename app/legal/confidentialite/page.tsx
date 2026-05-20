@@ -69,7 +69,7 @@ export default function ConfidentialitePage() {
           <SubBlock title="Activité sur le site">
             <ul className="text-sm space-y-1 pl-4" style={{ color: 'var(--s-text-dim)', listStyle: 'disc' }}>
               <li>Appartenance à une structure et à une équipe, rôles attribués</li>
-              <li>Événements créés (entraînements, scrims), devoirs, documents déposés</li>
+              <li>Événements créés (entraînements, scrims), exercices, documents déposés</li>
               <li>Notifications reçues, invitations envoyées ou reçues</li>
               <li>Actions critiques tracées dans un journal d&apos;audit (invitations, transferts, modérations)</li>
             </ul>

@@ -152,7 +152,7 @@ export default function TeamDetailDrawer({
               onClick={() => setTab('availability')}
             />
             <TabButton
-              label="DEVOIRS"
+              label="EXERCICES"
               icon={<ClipboardList size={14} />}
               active={tab === 'todos'}
               onClick={() => setTab('todos')}

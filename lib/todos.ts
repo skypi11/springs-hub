@@ -1,4 +1,4 @@
-// Helpers purs pour les devoirs (v2 — types structurés).
+// Helpers purs pour les exercices (v2 — types structurés).
 // Pas d'accès Firestore ici — toute la logique testable en isolation.
 
 export const TODO_TITLE_MAX = 120;
@@ -7,7 +7,7 @@ export const TODO_MAX_ASSIGNEES = 30;
 export const TODO_CONFIG_TEXT_MAX = 500;
 export const TODO_RESPONSE_MAX = 4000;
 
-// ---------- Types de devoirs ----------
+// ---------- Types de exercices ----------
 
 export type TodoType =
   | 'free'            // Tâche libre (fallback historique)
@@ -329,7 +329,7 @@ export function validateTodoConfig(
   }
 }
 
-// ---------- Validation réponse par type (joueur qui valide son devoir) ----------
+// ---------- Validation réponse par type (joueur qui valide son exercice) ----------
 
 export function validateTodoResponse(
   type: TodoType,
@@ -522,8 +522,8 @@ export function compareTodosDone(a: TodoRef, b: TodoRef): number {
   return bDone - aDone;
 }
 
-// Un devoir est en retard si on a dépassé l'instant précis de sa deadline.
-// Avec l'option A, un devoir avec offset=0 et match à 18:00 est overdue à 18:01, pas le lendemain.
+// Un exercice est en retard si on a dépassé l'instant précis de sa deadline.
+// Avec l'option A, un exercice avec offset=0 et match à 18:00 est overdue à 18:01, pas le lendemain.
 export function isOverdue(todo: TodoRef, nowMs: number): boolean {
   if (todo.done) return false;
   const ms = effectiveDeadlineMs(todo);

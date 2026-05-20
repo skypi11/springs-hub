@@ -71,7 +71,7 @@ export default function MyTodosSection() {
   const todos = data?.todos ?? [];
 
   // Deep-link : `?todo=ID` depuis l'embed Discord / notif ouvre directement le drawer
-  // quand les devoirs sont chargés. Consommé une seule fois, puis nettoie l'URL.
+  // quand les exercices sont chargés. Consommé une seule fois, puis nettoie l'URL.
   const deepLinkConsumed = useRef(false);
   useEffect(() => {
     if (deepLinkConsumed.current || todos.length === 0 || typeof window === 'undefined') return;
@@ -96,7 +96,7 @@ export default function MyTodosSection() {
     return { pending: p, done: d };
   }, [todos]);
 
-  // Toggle générique — utilisé pour rouvrir un devoir done, OU pour valider un devoir free/watch_party
+  // Toggle générique — utilisé pour rouvrir un exercice done, OU pour valider un exercice free/watch_party
   const toggleMutation = useMutation({
     mutationFn: ({ todo, response }: { todo: MyTodo; response?: Record<string, unknown> }) =>
       api(`/api/structures/${todo.structureId}/todos/${todo.id}`, {
@@ -121,7 +121,7 @@ export default function MyTodosSection() {
         };
       });
       setOpenTodoId(null);
-      toast.success(todo.done ? 'Devoir rouvert' : 'Devoir terminé');
+      toast.success(todo.done ? 'Exercice rouvert' : 'Exercice terminé');
     },
     onError: (err: Error) => toast.error(err.message || 'Erreur'),
   });
@@ -160,13 +160,13 @@ export default function MyTodosSection() {
             <ClipboardList size={18} style={{ color: 'var(--s-gold)' }} />
           </div>
           <div>
-            <h2 className="font-display text-2xl" style={{ letterSpacing: '0.04em' }}>MES DEVOIRS</h2>
+            <h2 className="font-display text-2xl" style={{ letterSpacing: '0.04em' }}>MES EXERCICES</h2>
             <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
               {pending.length > 0
                 ? `${pending.length} à faire${done.length > 0 ? ` — ${done.length} terminé${done.length > 1 ? 's' : ''}` : ''}`
                 : done.length > 0
-                ? `Tout est fait ! ${done.length} devoir${done.length > 1 ? 's' : ''} terminé${done.length > 1 ? 's' : ''}.`
-                : 'Aucun devoir.'}
+                ? `Tout est fait ! ${done.length} exercice${done.length > 1 ? 's' : ''} terminé${done.length > 1 ? 's' : ''}.`
+                : 'Aucun exercice.'}
             </p>
           </div>
         </header>
@@ -244,7 +244,7 @@ export default function MyTodosSection() {
             todo={openTodo}
             toggling={togglingId === openTodo.id}
             onPrimaryAction={showResponseForm ? undefined : () => toggle(openTodo)}
-            primaryActionLabel={openTodo.done ? 'Rouvrir le devoir' : 'Marquer comme terminé'}
+            primaryActionLabel={openTodo.done ? 'Rouvrir le exercice' : 'Marquer comme terminé'}
             responseForm={showResponseForm ? (
               <ResponseForm
                 type={openTodo.type}
@@ -436,7 +436,7 @@ function ResponseForm({
     <div className="mt-3 p-3 space-y-3" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
       <div className="flex items-center justify-between">
         <span className="t-label" style={{ fontSize: '12px', color: 'var(--s-text-dim)' }}>
-          VALIDER LE DEVOIR
+          VALIDER LE EXERCICE
         </span>
         <button type="button" onClick={onCancel}
           className="p-0.5" style={{ color: 'var(--s-text-muted)', cursor: 'pointer' }}
