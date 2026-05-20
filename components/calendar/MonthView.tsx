@@ -9,7 +9,7 @@
 // - Clic sur une puce → modale détail ; clic sur une case → création pré-remplie
 
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
 import Portal from '@/components/ui/Portal';
 import type { CalendarEvent, Team } from './CalendarSection';
 import { TYPE_INFO } from './CalendarSection';
@@ -155,7 +155,7 @@ export default function MonthView({ events, teams, now, canCreate, onEventClick,
         ))}
       </div>
 
-      {/* Grille des jours */}
+      {/* Grille des jours — un clic sur une case ouvre le panneau du jour */}
       <div className="grid grid-cols-7 gap-1">
         {cells.map(cell => {
           const dayEvents = eventsByDay.get(cell.ymd) ?? [];
@@ -164,14 +164,17 @@ export default function MonthView({ events, teams, now, canCreate, onEventClick,
           const overflow = dayEvents.length - visible.length;
           return (
             <div key={cell.ymd}
-              onClick={() => { if (canCreate) onDayCreate(cell.ymd); }}
-              className="group bevel-sm p-1.5 flex flex-col gap-1 transition-colors"
+              onClick={e => {
+                const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                setDayPopover({ ymd: cell.ymd, top: r.top, left: r.left });
+              }}
+              className={`bevel-sm p-1.5 flex flex-col gap-1 cursor-pointer transition-colors ${
+                cell.inMonth ? 'bg-[var(--s-elevated)] hover:bg-[var(--s-hover)]' : 'bg-[var(--s-bg)]'
+              }`}
               style={{
-                minHeight: 118,
-                background: cell.inMonth ? 'var(--s-elevated)' : 'var(--s-bg)',
+                minHeight: 124,
                 border: `1px solid ${isToday ? 'rgba(255,184,0,0.4)' : 'var(--s-border)'}`,
-                opacity: cell.inMonth ? 1 : 0.5,
-                cursor: canCreate ? 'pointer' : 'default',
+                opacity: cell.inMonth ? 1 : 0.45,
               }}>
               {/* Numéro du jour */}
               <div className="flex items-center justify-between">
@@ -185,13 +188,9 @@ export default function MonthView({ events, teams, now, canCreate, onEventClick,
                   }}>
                   {cell.date.getDate()}
                 </span>
-                {canCreate && (
-                  <Plus size={13} className="opacity-0 group-hover:opacity-60 transition-opacity"
-                    style={{ color: 'var(--s-gold)' }} />
-                )}
               </div>
 
-              {/* Puces événements */}
+              {/* Puces événements — 2 lignes : titre + pour qui */}
               {visible.map(ev => {
                 const color = eventGameColor(ev, teams);
                 const cancelled = ev.status === 'cancelled';
@@ -199,65 +198,79 @@ export default function MonthView({ events, teams, now, canCreate, onEventClick,
                   <button key={ev.id} type="button"
                     onClick={e => { e.stopPropagation(); onEventClick(ev.id); }}
                     title={`${timeOf(ev.startsAt)} · ${ev.title} — ${eventTargetLabel(ev, teams)}`}
-                    className="flex items-center gap-1 text-left transition-colors hover:bg-[var(--s-hover)]"
+                    className="block w-full text-left transition-colors hover:bg-[var(--s-hover)]"
                     style={{
-                      padding: '2px 4px',
+                      padding: '2px 5px',
                       background: 'var(--s-surface)',
                       borderLeft: `3px solid ${cancelled ? 'var(--s-text-muted)' : color}`,
                       opacity: cancelled ? 0.5 : 1,
                     }}>
-                    <span className="t-mono flex-shrink-0" style={{ fontSize: 12, color: 'var(--s-text-dim)' }}>
-                      {timeOf(ev.startsAt)}
+                    <span className="flex items-center gap-1">
+                      <span className="t-mono flex-shrink-0" style={{ fontSize: 12, color: 'var(--s-text-dim)' }}>
+                        {timeOf(ev.startsAt)}
+                      </span>
+                      <span className="truncate" style={{
+                        fontSize: 12,
+                        color: 'var(--s-text)',
+                        textDecoration: cancelled ? 'line-through' : 'none',
+                      }}>
+                        {ev.title}
+                      </span>
                     </span>
-                    <span className="truncate" style={{
-                      fontSize: 12,
-                      color: 'var(--s-text)',
-                      textDecoration: cancelled ? 'line-through' : 'none',
-                    }}>
-                      {ev.title}
+                    <span className="block truncate" style={{ fontSize: 12, lineHeight: 1.2, color: 'var(--s-text-muted)' }}>
+                      {eventTargetLabel(ev, teams)}
                     </span>
                   </button>
                 );
               })}
 
-              {/* Débordement */}
+              {/* Débordement — le clic sur la case ouvre le panneau complet */}
               {overflow > 0 && (
-                <button type="button"
-                  onClick={e => {
-                    e.stopPropagation();
-                    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                    setDayPopover({ ymd: cell.ymd, top: r.bottom + 4, left: r.left });
-                  }}
-                  className="text-left transition-colors hover:text-[var(--s-text)]"
-                  style={{ fontSize: 12, color: 'var(--s-text-muted)', padding: '1px 4px' }}>
+                <span style={{ fontSize: 12, color: 'var(--s-text-muted)', padding: '0 5px' }}>
                   +{overflow} autre{overflow > 1 ? 's' : ''}
-                </button>
+                </span>
               )}
             </div>
           );
         })}
       </div>
 
-      {/* Popover : liste complète d'une journée */}
+      {/* Panneau du jour — ouvert au clic sur n'importe quelle case */}
       {dayPopover && (
         <Portal>
           <div className="fixed inset-0 z-[60]" onClick={() => setDayPopover(null)} />
-          <div className="fixed z-[61] w-[280px] max-h-[340px] overflow-y-auto bevel-sm animate-fade-in"
+          <div className="fixed z-[61] w-[300px] flex flex-col bevel-sm animate-fade-in"
             style={{
-              top: Math.min(dayPopover.top, window.innerHeight - 360),
-              left: Math.min(dayPopover.left, window.innerWidth - 296),
+              top: Math.min(dayPopover.top, window.innerHeight - 420),
+              left: Math.min(dayPopover.left, window.innerWidth - 316),
+              maxHeight: 420,
               background: 'var(--s-surface)',
               border: '1px solid var(--s-border)',
               boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
             }}>
-            <div className="px-3 py-2 t-label sticky top-0" style={{ background: 'var(--s-surface)', borderBottom: '1px solid var(--s-border)', color: 'var(--s-text-muted)' }}>
-              {(() => {
-                const [y, m, d] = dayPopover.ymd.split('-').map(Number);
-                return new Date(y, m - 1, d).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-              })()}
+            {/* En-tête */}
+            <div className="px-3 py-2.5 flex items-center justify-between flex-shrink-0"
+              style={{ borderBottom: '1px solid var(--s-border)' }}>
+              <span className="t-sub" style={{ color: 'var(--s-text)' }}>
+                {(() => {
+                  const [y, m, d] = dayPopover.ymd.split('-').map(Number);
+                  return new Date(y, m - 1, d).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+                })()}
+              </span>
+              <button type="button" onClick={() => setDayPopover(null)} aria-label="Fermer"
+                className="flex items-center justify-center transition-colors hover:text-[var(--s-text)]"
+                style={{ color: 'var(--s-text-dim)' }}>
+                <X size={14} />
+              </button>
             </div>
-            <div className="p-1.5 space-y-1">
-              {popoverEvents.map(ev => {
+
+            {/* Liste des événements du jour */}
+            <div className="p-1.5 space-y-1 overflow-y-auto flex-1">
+              {popoverEvents.length === 0 ? (
+                <p className="text-xs text-center py-5" style={{ color: 'var(--s-text-muted)' }}>
+                  Aucun événement ce jour.
+                </p>
+              ) : popoverEvents.map(ev => {
                 const color = eventGameColor(ev, teams);
                 const cancelled = ev.status === 'cancelled';
                 const typeInfo = TYPE_INFO[ev.type] ?? TYPE_INFO.autre;
@@ -292,6 +305,16 @@ export default function MonthView({ events, teams, now, canCreate, onEventClick,
                 );
               })}
             </div>
+
+            {/* Créer un événement ce jour */}
+            {canCreate && (
+              <button type="button"
+                onClick={() => { const ymd = dayPopover.ymd; setDayPopover(null); onDayCreate(ymd); }}
+                className="flex items-center justify-center gap-1.5 px-3 py-2.5 flex-shrink-0 text-xs font-semibold transition-colors hover:bg-[var(--s-hover)]"
+                style={{ borderTop: '1px solid var(--s-border)', color: 'var(--s-gold)' }}>
+                <Plus size={13} /> Nouvel événement ce jour
+              </button>
+            )}
           </div>
         </Portal>
       )}
