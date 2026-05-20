@@ -196,12 +196,20 @@ export function TeamsTab(props: TeamsTabProps) {
                 {team.game === 'rocket_league' ? 'RL' : 'TM'}
               </span>
               {team.logoUrl ? (
-                <span className="relative w-6 h-6 flex-shrink-0 bevel-sm overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                <span className="relative w-10 h-10 flex-shrink-0 bevel-sm overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={team.logoUrl} alt="" className="w-full h-full object-contain" />
                 </span>
-              ) : null}
-              <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>{team.name}</span>
+              ) : (
+                <span
+                  className="w-10 h-10 flex-shrink-0 bevel-sm flex items-center justify-center font-display"
+                  style={{ background: 'var(--s-surface)', border: `1px solid ${gameColor}40`, color: gameColor, fontSize: '20px' }}
+                  aria-hidden
+                >
+                  {(team.name.trim().charAt(0) || '?').toUpperCase()}
+                </span>
+              )}
+              <span className="font-display text-xl flex-shrink-0" style={{ color: 'var(--s-text)', letterSpacing: '0.03em' }}>{team.name}</span>
               {isArchived && (
                 <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '2px 7px' }}>ARCHIVÉE</span>
               )}
@@ -627,18 +635,25 @@ export function TeamsTab(props: TeamsTabProps) {
           list: TeamData[],
           color: string,
         ) => list.length === 0 ? null : (
-          <div key={label} className="flex items-start gap-2 py-1.5">
-            <AlertCircle size={12} style={{ color, flexShrink: 0, marginTop: 2 }} />
+          <div key={label} className="flex items-start gap-2.5 py-2.5">
+            <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center bevel-sm"
+              style={{ background: `${color}18`, border: `1px solid ${color}40` }}>
+              <AlertCircle size={13} style={{ color }} />
+            </div>
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-semibold mb-0.5" style={{ color: 'var(--s-text)' }}>
-                {label} <span className="font-normal" style={{ color: 'var(--s-text-muted)' }}>· {list.length}</span>
+              <div className="text-sm font-semibold mb-1.5" style={{ color: 'var(--s-text)' }}>
+                {label}
+                <span className="ml-1.5 t-mono" style={{ color }}>{list.length}</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {list.map(t => (
                   <button key={t.id} type="button"
                     onClick={() => { if (t.id) document.getElementById(`team-${t.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
-                    className="text-xs px-1.5 py-0.5 transition-colors duration-150"
-                    style={{ background: 'var(--s-elevated)', border: `1px solid ${color}40`, color: 'var(--s-text-dim)' }}>
+                    title={`Aller à l'équipe ${t.name}`}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs bevel-sm transition-colors duration-150 hover:bg-[var(--s-hover)]"
+                    style={{ background: 'var(--s-elevated)', border: `1px solid ${color}55`, color: 'var(--s-text)' }}>
+                    <span className="w-1.5 h-1.5 flex-shrink-0"
+                      style={{ background: t.game === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)', borderRadius: '50%' }} />
                     {t.name}
                   </button>
                 ))}
@@ -684,7 +699,13 @@ export function TeamsTab(props: TeamsTabProps) {
 
       {/* Formulaire nouvelle équipe */}
       {showNewTeam && isDirigeantOfActive && (
-        <div className="p-4 mb-4 space-y-3" style={{ background: 'var(--s-elevated)', border: '1px solid rgba(0,129,255,0.2)' }}>
+        <div className="mb-4 bevel-sm relative overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid rgba(0,129,255,0.25)' }}>
+          <div className="h-[2px]" style={{ background: 'linear-gradient(90deg, var(--s-blue), transparent 70%)' }} />
+          <div className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Plus size={13} style={{ color: 'var(--s-blue)' }} />
+            <span className="t-label" style={{ color: 'var(--s-blue)' }}>Nouvelle équipe</span>
+          </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="t-label block mb-1.5">Nom de l&apos;équipe *</label>
@@ -727,22 +748,37 @@ export function TeamsTab(props: TeamsTabProps) {
             {teamActionLoading === 'create' ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
             <span>Créer</span>
           </button>
+          </div>
         </div>
       )}
 
       {teamsLoading ? (
-        <div className="flex items-center justify-center py-8">
-          <Loader2 size={16} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
+        <div className="flex items-center justify-center py-12">
+          <Loader2 size={20} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
         </div>
       ) : noActiveAtAll && archivedCount === 0 ? (
-        <div className="text-center py-6">
-          <Gamepad2 size={20} className="mx-auto mb-2" style={{ color: 'var(--s-text-muted)' }} />
-          <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucune équipe créée.</p>
+        <div className="text-center py-12 px-4">
+          <div className="w-14 h-14 mx-auto mb-4 flex items-center justify-center bevel-sm"
+            style={{ background: 'rgba(0,129,255,0.08)', border: '1px solid rgba(0,129,255,0.2)' }}>
+            <Gamepad2 size={26} style={{ color: 'var(--s-blue)' }} />
+          </div>
+          <p className="t-sub mb-1" style={{ color: 'var(--s-text)' }}>Aucune équipe pour l&apos;instant</p>
+          <p className="t-body" style={{ color: 'var(--s-text-dim)' }}>
+            {isDirigeantOfActive
+              ? 'Crée ta première équipe avec le bouton « Nouvelle équipe » en haut à droite.'
+              : 'Les équipes apparaîtront ici une fois créées par un dirigeant.'}
+          </p>
         </div>
       ) : emptyQueryMatches ? (
-        <div className="text-center py-6">
-          <Search size={20} className="mx-auto mb-2" style={{ color: 'var(--s-text-muted)' }} />
-          <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucun résultat pour « {teamSearch} ».</p>
+        <div className="text-center py-12 px-4">
+          <div className="w-14 h-14 mx-auto mb-4 flex items-center justify-center bevel-sm"
+            style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+            <Search size={26} style={{ color: 'var(--s-text-muted)' }} />
+          </div>
+          <p className="t-sub mb-1" style={{ color: 'var(--s-text)' }}>Aucun résultat</p>
+          <p className="t-body" style={{ color: 'var(--s-text-dim)' }}>
+            Rien ne correspond à « {teamSearch} ».
+          </p>
         </div>
       ) : (() => {
         // Lot 2b D&D — un SEUL DndContext top-level pour gérer 3 cas via onDragEnd.
