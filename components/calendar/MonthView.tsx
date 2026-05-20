@@ -168,11 +168,12 @@ export default function MonthView({ events, teams, now, canCreate, onEventClick,
                 const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
                 setDayPopover({ ymd: cell.ymd, top: r.top, left: r.left });
               }}
-              className={`bevel-sm p-1.5 flex flex-col gap-1 cursor-pointer transition-colors ${
+              className={`bevel-sm p-1.5 flex flex-col gap-1 cursor-pointer transition-colors overflow-hidden ${
                 cell.inMonth ? 'bg-[var(--s-elevated)] hover:bg-[var(--s-hover)]' : 'bg-[var(--s-bg)]'
               }`}
               style={{
-                minHeight: 124,
+                // Hauteur fixe → toutes les lignes de la grille sont identiques.
+                height: 156,
                 border: `1px solid ${isToday ? 'rgba(255,184,0,0.4)' : 'var(--s-border)'}`,
                 opacity: cell.inMonth ? 1 : 0.45,
               }}>
