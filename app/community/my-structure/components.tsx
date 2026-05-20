@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import {
-  User, Trash2, ChevronUp, ChevronDown, Crown, type LucideIcon,
+  User, ChevronUp, ChevronDown, Crown, X, Plus, type LucideIcon,
 } from 'lucide-react';
 import { TAB_DEFS } from './constants';
 import type { DashboardTab } from './types';
@@ -92,9 +92,102 @@ export function SectionPanel({
 type RosterMember = { uid: string; displayName: string; avatarUrl: string; discordAvatar: string };
 type RosterAvailable = { id: string; userId: string; displayName: string; avatarUrl: string; discordAvatar: string };
 
+// ─── Carte "slot rempli" : un membre dans un roster ───────────────────
+function FilledMemberSlot({
+  member, isCaptain, badge, loading, onRemove,
+}: {
+  member: RosterMember;
+  isCaptain?: boolean;
+  badge?: React.ReactNode;       // pastille rôle pour le staff (Coach/Mgr)
+  loading: boolean;
+  onRemove: () => void;
+}) {
+  const avatar = member.avatarUrl || member.discordAvatar;
+  return (
+    <div
+      className="flex items-center gap-2 px-2 py-1.5"
+      style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}
+    >
+      {avatar ? (
+        <Image src={avatar} alt={member.displayName} width={28} height={28}
+          className="flex-shrink-0 bevel-sm" unoptimized />
+      ) : (
+        <div className="w-7 h-7 flex-shrink-0 flex items-center justify-center bevel-sm"
+          style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+          <User size={14} style={{ color: 'var(--s-text-muted)' }} />
+        </div>
+      )}
+      <span className="text-sm truncate flex-1" style={{ color: 'var(--s-text)' }}>
+        {member.displayName}
+      </span>
+      {isCaptain && (
+        <span title="Capitaine"
+          className="flex-shrink-0 w-5 h-5 flex items-center justify-center bevel-sm"
+          style={{ background: 'rgba(255,184,0,0.15)', color: 'var(--s-gold)', border: '1px solid rgba(255,184,0,0.3)' }}>
+          <Crown size={11} />
+        </span>
+      )}
+      {badge}
+      <button
+        type="button"
+        onClick={onRemove}
+        disabled={loading}
+        title="Retirer de l'équipe"
+        className="flex-shrink-0 p-1 text-[var(--s-text-muted)] hover:text-[#ff5555] transition-colors disabled:opacity-40"
+      >
+        <X size={14} />
+      </button>
+    </div>
+  );
+}
+
+// ─── Slot vide : placeholder pointillé "+ Ajouter …" (select natif) ───
+function EmptyAddSlot({
+  emptyLabel, available, loading, onAdd,
+}: {
+  emptyLabel: string;
+  available: RosterAvailable[];
+  loading: boolean;
+  onAdd: (uid: string) => void;
+}) {
+  if (available.length === 0) {
+    return (
+      <div
+        className="flex items-center justify-center gap-1.5 px-2 py-2 text-xs"
+        style={{ border: '1px dashed var(--s-border)', color: 'var(--s-text-muted)' }}
+      >
+        Aucun joueur disponible
+      </div>
+    );
+  }
+  return (
+    <div
+      className="relative flex items-center transition-colors"
+      style={{ border: '1px dashed rgba(255,255,255,0.18)' }}
+    >
+      <Plus size={13} className="absolute left-2.5 pointer-events-none" style={{ color: 'var(--s-text-dim)' }} />
+      <select
+        value=""
+        disabled={loading}
+        onChange={e => { if (e.target.value) onAdd(e.target.value); }}
+        className="w-full cursor-pointer bg-transparent text-xs"
+        style={{ color: 'var(--s-text-dim)', padding: '8px 8px 8px 28px' }}
+      >
+        <option value="">{loading ? 'Chargement…' : `Ajouter ${emptyLabel}`}</option>
+        {available.map(m => (
+          <option key={m.userId} value={m.userId}>{m.displayName}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 // ─── Slot roster joueurs (titulaires/remplaçants) avec capitaine ──────
+// `capacity` défini (RL) → on affiche les slots vides jusqu'à la capacité.
+// `capacity` undefined (TM, illimité) → un seul slot d'ajout après les membres.
 export function RosterSlot({
   label, labelColor, members, available, canAdd, loading, onAdd, onRemove, captainId,
+  capacity, emptyLabel = 'un membre',
 }: {
   label: string;
   labelColor: string;
@@ -105,53 +198,60 @@ export function RosterSlot({
   onAdd: (uid: string) => void;
   onRemove: (uid: string) => void;
   captainId?: string | null;
+  capacity?: number;
+  emptyLabel?: string;
 }) {
+  const filled = members.length;
+  const emptySlots = canAdd
+    ? (capacity !== undefined ? Math.max(0, capacity - filled) : 1)
+    : 0;
+  const isFull = capacity !== undefined && filled >= capacity;
+
   return (
-    <div className="p-2.5" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <p className="t-label mb-2" style={{ color: labelColor }}>{label}</p>
-      <div className="space-y-1.5">
-        {members.map(p => {
-          const isCaptain = !!captainId && captainId === p.uid;
-          return (
-            <div key={p.uid} className="flex items-center gap-1.5 group/slot">
-              {(p.avatarUrl || p.discordAvatar) ? (
-                <Image src={p.avatarUrl || p.discordAvatar} alt={p.displayName} width={14} height={14} className="flex-shrink-0" unoptimized />
-              ) : (
-                <User size={10} style={{ color: 'var(--s-text-muted)' }} />
-              )}
-              <span className="text-xs truncate flex-1" style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
-              {isCaptain && (
-                <span title="Capitaine" className="inline-flex items-center flex-shrink-0" style={{ color: 'var(--s-gold)' }}>
-                  <Crown size={10} />
-                </span>
-              )}
-              <button type="button" onClick={() => onRemove(p.uid)}
-                className="opacity-0 group-hover/slot:opacity-100 transition-opacity duration-100 p-0.5"
-                style={{ color: '#ff5555' }}>
-                <Trash2 size={9} />
-              </button>
-            </div>
-          );
-        })}
+    <div className="p-3" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+      <div className="flex items-center justify-between mb-2.5">
+        <p className="t-label" style={{ color: labelColor }}>{label}</p>
+        {capacity !== undefined && (
+          <span
+            className="t-mono font-bold"
+            style={{ fontSize: '12px', color: isFull ? 'var(--s-green)' : 'var(--s-gold)' }}
+          >
+            {filled}/{capacity}
+          </span>
+        )}
       </div>
-      {canAdd && available.length > 0 && (
-        <select
-          className="settings-input w-full mt-2 text-xs"
-          style={{ padding: '3px 6px', fontSize: '12px' }}
-          value=""
-          disabled={loading}
-          onChange={e => { if (e.target.value) onAdd(e.target.value); }}>
-          <option value="">{loading ? '...' : '+ Ajouter'}</option>
-          {available.map(m => (
-            <option key={m.userId} value={m.userId}>{m.displayName}</option>
-          ))}
-        </select>
-      )}
+      <div className="space-y-1.5">
+        {members.map(p => (
+          <FilledMemberSlot
+            key={p.uid}
+            member={p}
+            isCaptain={!!captainId && captainId === p.uid}
+            loading={loading}
+            onRemove={() => onRemove(p.uid)}
+          />
+        ))}
+        {Array.from({ length: emptySlots }).map((_, i) => (
+          <EmptyAddSlot
+            key={`empty-${i}`}
+            emptyLabel={emptyLabel}
+            available={available}
+            loading={loading}
+            onAdd={onAdd}
+          />
+        ))}
+        {filled === 0 && emptySlots === 0 && (
+          <p className="text-xs text-center py-2" style={{ color: 'var(--s-text-muted)' }}>
+            Aucun membre
+          </p>
+        )}
+      </div>
     </div>
   );
 }
 
 // ─── Slot staff : role picker (Coach/Manager) à l'ajout + toggle live ─
+// Pas de capacité (illimité). Slots remplis = même carte que les joueurs,
+// avec une pastille Coach/Mgr cliquable à la place du badge capitaine.
 export function StaffRosterSlot({
   label, labelColor, members, staffRoles, available, canAdd, loading, onAdd, onRemove, onChangeRole,
 }: {
@@ -169,8 +269,15 @@ export function StaffRosterSlot({
   const [pendingUid, setPendingUid] = useState('');
   const [pendingRole, setPendingRole] = useState<'coach' | 'manager'>('coach');
   return (
-    <div className="p-2.5" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <p className="t-label mb-2" style={{ color: labelColor }}>{label}</p>
+    <div className="p-3" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+      <div className="flex items-center justify-between mb-2.5">
+        <p className="t-label" style={{ color: labelColor }}>{label}</p>
+        {members.length > 0 && (
+          <span className="t-mono font-bold" style={{ fontSize: '12px', color: 'var(--s-text-dim)' }}>
+            {members.length}
+          </span>
+        )}
+      </div>
       <div className="space-y-1.5">
         {members.map(p => {
           const role = staffRoles[p.uid] ?? 'coach';
@@ -179,68 +286,71 @@ export function StaffRosterSlot({
           const pillFg = isManager ? 'var(--s-gold)' : '#4db1ff';
           const pillBorder = isManager ? 'rgba(255,184,0,0.35)' : 'rgba(0,129,255,0.3)';
           return (
-            <div key={p.uid} className="flex items-center gap-1.5 group/slot">
-              {(p.avatarUrl || p.discordAvatar) ? (
-                <Image src={p.avatarUrl || p.discordAvatar} alt={p.displayName} width={14} height={14} className="flex-shrink-0" unoptimized />
-              ) : (
-                <User size={10} style={{ color: 'var(--s-text-muted)' }} />
-              )}
-              <span className="text-xs truncate flex-1" style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
-              <button type="button"
-                onClick={() => onChangeRole(p.uid, isManager ? 'coach' : 'manager')}
-                disabled={loading}
-                title={isManager ? 'Passer en Coach' : 'Passer en Manager'}
-                className="flex-shrink-0"
-                style={{
-                  fontSize: '12px', padding: '2px 7px', letterSpacing: '0.06em', textTransform: 'uppercase',
-                  background: pillBg, color: pillFg, border: `1px solid ${pillBorder}`, cursor: 'pointer',
-                }}>
-                {isManager ? 'Mgr' : 'Coach'}
-              </button>
-              <button type="button" onClick={() => onRemove(p.uid)}
-                className="opacity-0 group-hover/slot:opacity-100 transition-opacity duration-100 p-0.5"
-                style={{ color: '#ff5555' }}>
-                <Trash2 size={9} />
-              </button>
-            </div>
+            <FilledMemberSlot
+              key={p.uid}
+              member={p}
+              loading={loading}
+              onRemove={() => onRemove(p.uid)}
+              badge={
+                <button type="button"
+                  onClick={() => onChangeRole(p.uid, isManager ? 'coach' : 'manager')}
+                  disabled={loading}
+                  title={isManager ? 'Passer en Coach' : 'Passer en Manager'}
+                  className="flex-shrink-0 bevel-sm"
+                  style={{
+                    fontSize: '12px', padding: '3px 8px', letterSpacing: '0.06em', textTransform: 'uppercase',
+                    fontWeight: 700,
+                    background: pillBg, color: pillFg, border: `1px solid ${pillBorder}`, cursor: 'pointer',
+                  }}>
+                  {isManager ? 'Mgr' : 'Coach'}
+                </button>
+              }
+            />
           );
         })}
+        {members.length === 0 && (!canAdd || available.length === 0) && (
+          <p className="text-xs text-center py-2" style={{ color: 'var(--s-text-muted)' }}>
+            Aucun staff
+          </p>
+        )}
       </div>
       {canAdd && available.length > 0 && (
-        <div className="mt-2 flex items-center gap-1.5">
+        <div className="mt-2 p-2 space-y-2" style={{ border: '1px dashed rgba(255,255,255,0.18)' }}>
           <select
-            className="settings-input flex-1 text-xs"
-            style={{ padding: '3px 6px', fontSize: '12px' }}
+            className="settings-input w-full"
+            style={{ padding: '6px 8px', fontSize: '12px' }}
             value={pendingUid}
             disabled={loading}
             onChange={e => setPendingUid(e.target.value)}>
-            <option value="">{loading ? '...' : '+ Ajouter'}</option>
+            <option value="">{loading ? 'Chargement…' : '+ Ajouter du staff'}</option>
             {available.map(m => (
               <option key={m.userId} value={m.userId}>{m.displayName}</option>
             ))}
           </select>
-          <select
-            className="settings-input text-xs"
-            style={{ padding: '3px 6px', fontSize: '12px', width: 70 }}
-            value={pendingRole}
-            disabled={loading || !pendingUid}
-            onChange={e => setPendingRole(e.target.value as 'coach' | 'manager')}>
-            <option value="coach">Coach</option>
-            <option value="manager">Manager</option>
-          </select>
-          <button type="button"
-            disabled={loading || !pendingUid}
-            onClick={() => { if (pendingUid) { onAdd(pendingUid, pendingRole); setPendingUid(''); setPendingRole('coach'); } }}
-            style={{
-              fontSize: '12px', padding: '3px 8px',
-              background: pendingUid ? 'var(--s-gold)' : 'var(--s-elevated)',
-              color: pendingUid ? '#0a0a13' : 'var(--s-text-muted)',
-              border: '1px solid var(--s-border)',
-              cursor: pendingUid ? 'pointer' : 'not-allowed',
-              fontWeight: 700,
-            }}>
-            OK
-          </button>
+          {pendingUid && (
+            <div className="flex items-center gap-1.5">
+              <select
+                className="settings-input flex-1"
+                style={{ padding: '6px 8px', fontSize: '12px' }}
+                value={pendingRole}
+                disabled={loading}
+                onChange={e => setPendingRole(e.target.value as 'coach' | 'manager')}>
+                <option value="coach">Coach</option>
+                <option value="manager">Manager</option>
+              </select>
+              <button type="button"
+                disabled={loading}
+                onClick={() => { onAdd(pendingUid, pendingRole); setPendingUid(''); setPendingRole('coach'); }}
+                className="bevel-sm"
+                style={{
+                  fontSize: '12px', padding: '6px 14px', fontWeight: 700,
+                  background: 'var(--s-gold)', color: '#0a0a13',
+                  border: '1px solid var(--s-gold)', cursor: 'pointer',
+                }}>
+                Ajouter
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

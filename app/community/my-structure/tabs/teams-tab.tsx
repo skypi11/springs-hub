@@ -534,23 +534,27 @@ export function TeamsTab(props: TeamsTabProps) {
 
           <div className="grid grid-cols-3 gap-3">
             <RosterSlot
-              label={`TITULAIRES${isRL ? ' (max 3)' : ''}`}
+              label="TITULAIRES"
               labelColor={gameColor}
               members={team.players}
               available={availableForRoster}
               canAdd={canAddPlayer && !isArchived}
               loading={teamActionLoading === `${team.id}_playerIds`}
               captainId={captainId}
+              capacity={isRL ? 3 : undefined}
+              emptyLabel="un titulaire"
               onAdd={(uid) => handleUpdateTeamRoster(team.id, 'playerIds', [...team.players.map(p => p.uid), uid])}
               onRemove={(uid) => handleUpdateTeamRoster(team.id, 'playerIds', team.players.filter(p => p.uid !== uid).map(p => p.uid))}
             />
             <RosterSlot
-              label={`REMPLAÇANTS${isRL ? ' (max 2)' : ''}`}
+              label="REMPLAÇANTS"
               labelColor="var(--s-text-dim)"
               members={team.subs}
               available={availableForRoster}
               canAdd={canAddSub && !isArchived}
               loading={teamActionLoading === `${team.id}_subIds`}
+              capacity={isRL ? 2 : undefined}
+              emptyLabel="un remplaçant"
               onAdd={(uid) => handleUpdateTeamRoster(team.id, 'subIds', [...team.subs.map(p => p.uid), uid])}
               onRemove={(uid) => handleUpdateTeamRoster(team.id, 'subIds', team.subs.filter(p => p.uid !== uid).map(p => p.uid))}
             />
