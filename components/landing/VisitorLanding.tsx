@@ -456,7 +456,7 @@ function HowItWorksSection() {
       num: '03',
       icon: Zap,
       title: 'Rejoins ou crée',
-      desc: 'Cherche une structure qui recrute, candidate, ou demande à créer la tienne — Springs valide les fondateurs.',
+      desc: 'Cherche une structure qui recrute, candidate, ou demande à créer la tienne — l\'équipe Aedral valide les fondateurs.',
     },
   ];
 
@@ -584,7 +584,7 @@ const faq = [
   },
   {
     q: 'Comment je crée ma structure ?',
-    a: 'Tu te connectes, tu fais une demande de création, et un admin Springs valide après un court échange. C\'est gratuit et rapide.',
+    a: 'Tu te connectes, tu fais une demande de création, et un admin Aedral valide après un court échange. C\'est gratuit et rapide.',
   },
   {
     q: 'Aedral est-il géré par Springs E-Sport ?',

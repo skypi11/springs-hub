@@ -1,5 +1,7 @@
 'use client';
 
+import AdminContentSkeleton from '@/components/admin/AdminContentSkeleton';
+
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
@@ -174,9 +176,7 @@ export default function AdminAuditPage() {
 
   if (loading && logs.length === 0) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 size={24} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
-      </div>
+      <AdminContentSkeleton />
     );
   }
 

@@ -40,7 +40,7 @@ export default function CompactStickyHeader({
         position: 'fixed',
         transform: visible ? 'translateY(0)' : 'translateY(-100%)',
         opacity: visible ? 1 : 0,
-        background: 'rgba(14,14,26,0.92)',
+        background: 'rgba(10,10,10,0.92)',
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
         borderBottom: '1px solid var(--s-border)',

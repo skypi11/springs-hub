@@ -1,5 +1,7 @@
 'use client';
 
+import AdminContentSkeleton from '@/components/admin/AdminContentSkeleton';
+
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
@@ -95,9 +97,7 @@ export default function AdminNotificationsPage() {
 
   if (loading || !data) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 size={24} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
-      </div>
+      <AdminContentSkeleton />
     );
   }
 

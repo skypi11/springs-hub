@@ -566,13 +566,13 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         {/* ─── COMPTES & LIENS (placés après les stats, moins prioritaires) ── */}
         {(profile.discordConnections ?? []).some(c => c.visibleOnProfile) && (
           <div className="pillar-card panel relative overflow-hidden animate-fade-in-d1">
-            <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), rgba(123,47,190,0.3), transparent 70%)' }} />
+            <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
             <div className="absolute top-0 right-0 w-[180px] h-[180px] pointer-events-none opacity-[0.06]"
-              style={{ background: 'radial-gradient(circle at top right, var(--s-violet), transparent 70%)' }} />
+              style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
             <div className="relative z-[1]">
               <div className="panel-header">
                 <div className="flex items-center gap-2">
-                  <Link2 size={13} style={{ color: 'var(--s-violet)' }} />
+                  <Link2 size={13} style={{ color: 'var(--s-gold)' }} />
                   <span className="t-label" style={{ color: 'var(--s-text)' }}>COMPTES & LIENS</span>
                 </div>
               </div>
@@ -588,16 +588,16 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                         <span
                           className="inline-flex items-center gap-2 px-3 py-2 transition-colors bevel-sm"
                           style={{
-                            background: 'rgba(123,47,190,0.06)',
-                            border: '1px solid rgba(123,47,190,0.2)',
+                            background: 'var(--s-elevated)',
+                            border: '1px solid var(--s-border)',
                             color: 'var(--s-text)',
                           }}
                         >
                           <span
                             className="w-6 h-6 flex items-center justify-center font-display text-xs"
                             style={{
-                              background: 'rgba(123,47,190,0.15)',
-                              color: 'var(--s-violet-light)',
+                              background: 'rgba(255,184,0,0.12)',
+                              color: 'var(--s-gold)',
                             }}
                           >
                             {label.charAt(0).toUpperCase()}

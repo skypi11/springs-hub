@@ -148,7 +148,7 @@ export default function AdminDashboardPage() {
             icon={Building2}
             label="Structures actives"
             value={s.activeStructures}
-            accent="#33ff66"
+            accent="#FFB800"
           />
           <StatCard
             icon={AlertCircle}
@@ -161,7 +161,7 @@ export default function AdminDashboardPage() {
             icon={Users}
             label="Utilisateurs"
             value={s.totalUsers}
-            accent="#0081FF"
+            accent="#FFB800"
           />
         </div>
       </div>

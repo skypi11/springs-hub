@@ -70,7 +70,7 @@ const DEV_GROUPS: { title: string; accounts: DevAccount[] }[] = [
     title: 'Autres',
     accounts: [
       { uid: 'discord_dev_pure_member', label: 'Sam (sans équipe)',     color: 'var(--s-text-dim)' },
-      { uid: 'discord_dev_admin',       label: 'Admin Springs',          color: 'var(--s-gold)' },
+      { uid: 'discord_dev_admin',       label: 'Admin Aedral',           color: 'var(--s-gold)' },
       { uid: 'discord_dev_recruit1',    label: 'Tempest (libre)',        color: 'var(--s-green)' },
       { uid: 'discord_dev_recruit2',    label: 'Hollow (libre)',         color: 'var(--s-green)' },
       { uid: 'discord_dev_recruit3',    label: 'Breeze (libre)',         color: 'var(--s-green)' },

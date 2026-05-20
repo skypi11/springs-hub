@@ -156,7 +156,7 @@ export default function CreateStructurePage() {
             <h1 className="font-display text-3xl" style={{ letterSpacing: '0.03em' }}>CRÉER UNE STRUCTURE</h1>
           </div>
           <p className="t-body mt-2" style={{ color: 'var(--s-text-dim)' }}>
-            Remplis ce formulaire pour soumettre ta demande. Un entretien vocal sur Discord sera organisé avec l&apos;équipe Springs avant validation.
+            Remplis ce formulaire pour soumettre ta demande. Un entretien vocal sur Discord sera organisé avec l&apos;équipe Aedral avant validation.
           </p>
         </div>
       </header>
@@ -321,7 +321,7 @@ export default function CreateStructurePage() {
           </div>
           <div className="panel-body">
             <textarea className="settings-input w-full" rows={3}
-              placeholder="Un message pour l'équipe Springs ? Motivation, projets, questions..."
+              placeholder="Un message pour l'équipe Aedral ? Motivation, projets, questions..."
               value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} />
           </div>
         </div>

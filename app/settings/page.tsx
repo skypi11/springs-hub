@@ -940,11 +940,11 @@ export default function SettingsPage() {
             {/* COMPTES LIÉS — connexions Discord (Twitch, YouTube, Spotify, Epic, Steam, etc.) */}
             {section === 'connections' && (
               <div className="pillar-card panel relative group transition-all duration-200 animate-fade-in">
-                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-violet), rgba(123,47,190,0.3), transparent 70%)' }} />
+                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
                 <div className="relative z-[1]">
                   <div className="panel-header">
                     <div className="flex items-center gap-2">
-                      <Link2 size={13} style={{ color: 'var(--s-violet)' }} />
+                      <Link2 size={13} style={{ color: 'var(--s-gold)' }} />
                       <span className="t-label" style={{ color: 'var(--s-text)' }}>COMPTES LIÉS VIA DISCORD</span>
                     </div>
                   </div>
@@ -990,16 +990,16 @@ export default function SettingsPage() {
                               key={conn.type}
                               className="flex items-center gap-3 p-3"
                               style={{
-                                background: isVisible ? 'rgba(123,47,190,0.04)' : 'var(--s-elevated)',
-                                border: `1px solid ${isVisible ? 'rgba(123,47,190,0.2)' : 'var(--s-border)'}`,
+                                background: isVisible ? 'rgba(255,184,0,0.04)' : 'var(--s-elevated)',
+                                border: `1px solid ${isVisible ? 'rgba(255,184,0,0.2)' : 'var(--s-border)'}`,
                               }}
                             >
                               <div
                                 className="w-9 h-9 flex-shrink-0 flex items-center justify-center font-display"
                                 style={{
-                                  background: isVisible ? 'rgba(123,47,190,0.1)' : 'rgba(255,255,255,0.04)',
-                                  border: `1px solid ${isVisible ? 'rgba(123,47,190,0.3)' : 'var(--s-border)'}`,
-                                  color: isVisible ? 'var(--s-violet-light)' : 'var(--s-text-dim)',
+                                  background: isVisible ? 'rgba(255,184,0,0.1)' : 'rgba(255,255,255,0.04)',
+                                  border: `1px solid ${isVisible ? 'rgba(255,184,0,0.3)' : 'var(--s-border)'}`,
+                                  color: isVisible ? 'var(--s-gold)' : 'var(--s-text-dim)',
                                   fontSize: 14,
                                 }}
                               >
@@ -1021,7 +1021,7 @@ export default function SettingsPage() {
                                       href={url}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      style={{ color: 'var(--s-violet-light)' }}
+                                      style={{ color: 'var(--s-gold)' }}
                                       className="hover:underline inline-flex items-center gap-1"
                                     >
                                       Voir <ExternalLink size={9} />
@@ -1056,8 +1056,8 @@ export default function SettingsPage() {
                                   }}
                                   className="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer items-center transition-colors duration-150"
                                   style={{
-                                    background: isVisible ? 'var(--s-violet)' : 'rgba(255,255,255,0.08)',
-                                    border: `1px solid ${isVisible ? 'var(--s-violet-light)' : 'var(--s-border)'}`,
+                                    background: isVisible ? 'var(--s-gold)' : 'rgba(255,255,255,0.08)',
+                                    border: `1px solid ${isVisible ? 'var(--s-gold)' : 'var(--s-border)'}`,
                                     borderRadius: 999,
                                   }}
                                 >

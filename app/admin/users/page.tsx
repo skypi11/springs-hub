@@ -1,5 +1,7 @@
 'use client';
 
+import AdminContentSkeleton from '@/components/admin/AdminContentSkeleton';
+
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -99,9 +101,7 @@ export default function AdminUsersPage() {
 
   if (usersLoading) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 size={24} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
-      </div>
+      <AdminContentSkeleton />
     );
   }
 

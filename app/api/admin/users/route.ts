@@ -19,13 +19,31 @@ async function reassignOrOrphanFoundedStructures(
   const snap = await db.collection('structures').where('founderId', '==', founderUid).get();
   const promoted: string[] = [];
   const orphaned: string[] = [];
+
+  // Un seul batch pour TOUTES les structures du fondateur. Un fondateur a au
+  // plus 2 structures (cap métier) → ~10 opérations, très loin de la limite
+  // Firestore de 500. Atomique : soit tout passe, soit rien — plus de risque
+  // d'état incohérent si une panne survient au milieu (bug de l'audit 19/05).
+  const batch = db.batch();
+
   for (const doc of snap.docs) {
     const data = doc.data();
     const coFounders: string[] = data.coFounderIds ?? [];
-    const batch = db.batch();
+
+    // Toutes les lectures d'abord (queries .where ne peuvent pas être dans le batch)
+    const oldFounderMember = await db.collection('structure_members')
+      .where('structureId', '==', doc.id)
+      .where('userId', '==', founderUid)
+      .get();
+
     if (coFounders.length > 0) {
       const newFounder = coFounders[0];
       const nextCoFounders = coFounders.slice(1);
+      const newFounderMember = await db.collection('structure_members')
+        .where('structureId', '==', doc.id)
+        .where('userId', '==', newFounder)
+        .get();
+
       const updates: Record<string, unknown> = {
         founderId: newFounder,
         coFounderIds: nextCoFounders,
@@ -39,22 +57,11 @@ async function reassignOrOrphanFoundedStructures(
         updates[`coFounderDepartures.${newFounder}`] = FieldValue.delete();
       }
       batch.update(doc.ref, updates);
-      // Promouvoir le membre en fondateur côté structure_members
-      const newFounderMember = await db.collection('structure_members')
-        .where('structureId', '==', doc.id)
-        .where('userId', '==', newFounder)
-        .get();
       for (const m of newFounderMember.docs) batch.update(m.ref, { role: 'fondateur' });
-      // Retirer le membership de l'ancien fondateur (il est banni/supprimé)
-      const oldFounderMember = await db.collection('structure_members')
-        .where('structureId', '==', doc.id)
-        .where('userId', '==', founderUid)
-        .get();
       for (const m of oldFounderMember.docs) batch.delete(m.ref);
       if (oldFounderMember.size > 0) {
         bumpStructureCounter(db, batch, doc.id, 'members', -oldFounderMember.size);
       }
-      await batch.commit();
       promoted.push(doc.id);
     } else {
       batch.update(doc.ref, {
@@ -62,19 +69,16 @@ async function reassignOrOrphanFoundedStructures(
         orphanedAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
-      // Retirer le membership de l'ancien fondateur
-      const oldFounderMember = await db.collection('structure_members')
-        .where('structureId', '==', doc.id)
-        .where('userId', '==', founderUid)
-        .get();
       for (const m of oldFounderMember.docs) batch.delete(m.ref);
       if (oldFounderMember.size > 0) {
         bumpStructureCounter(db, batch, doc.id, 'members', -oldFounderMember.size);
       }
-      await batch.commit();
       orphaned.push(doc.id);
     }
   }
+
+  // Commit unique — no-op si le fondateur n'avait aucune structure.
+  if (!snap.empty) await batch.commit();
   return { promoted, orphaned };
 }
 
@@ -326,6 +330,12 @@ export async function POST(req: NextRequest) {
           else if (key === 'bio') updates[key] = clampString(val, LIMITS.bio);
           else if (key === 'recruitmentMessage') updates[key] = clampString(val, LIMITS.recruitmentMessage);
           else if (key === 'rlTrackerUrl' || key === 'tmIoUrl') updates[key] = safeUrl(val);
+          else if (key === 'games') {
+            // Doit être un tableau de jeux valides — sinon on ignore (anti-corruption)
+            if (Array.isArray(val)) {
+              updates[key] = val.filter(g => g === 'rocket_league' || g === 'trackmania');
+            }
+          }
           else updates[key] = val;
         }
         if (Object.keys(updates).length === 0) {

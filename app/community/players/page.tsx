@@ -291,14 +291,14 @@ export default function PlayersPage() {
           className="bevel relative overflow-hidden animate-fade-in"
           style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
         >
-          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-blue), rgba(0,129,255,0.3), transparent 70%)' }} />
+          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
           <div className="absolute top-0 left-0 w-40 h-40 pointer-events-none"
-            style={{ background: 'radial-gradient(circle at 0% 0%, rgba(0,129,255,0.06), transparent 60%)' }} />
+            style={{ background: 'radial-gradient(circle at 0% 0%, rgba(255,184,0,0.06), transparent 60%)' }} />
           <div className="relative z-[1] px-6 py-4 flex items-center gap-5 flex-wrap">
             {/* Titre + compteur */}
             <div className="flex items-center gap-3 flex-shrink-0">
-              <div className="w-10 h-10 flex items-center justify-center" style={{ background: 'rgba(0,129,255,0.08)', border: '1px solid rgba(0,129,255,0.2)' }}>
-                <User size={18} style={{ color: 'var(--s-blue)' }} />
+              <div className="w-10 h-10 flex items-center justify-center" style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.2)' }}>
+                <User size={18} style={{ color: 'var(--s-gold)' }} />
               </div>
               <div>
                 <h1 className="font-display text-xl tracking-wider leading-none">JOUEURS</h1>

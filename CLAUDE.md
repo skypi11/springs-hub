@@ -111,7 +111,7 @@ Tout le système de design est centralisé ici. **Toujours utiliser les classes 
 /* Texte */
 --s-text:       #eaeaf0     /* principal */
 --s-text-dim:   #7a7a95     /* secondaire */
---s-text-muted: #4a4a60     /* tertiaire, labels discrets */
+--s-text-muted: #6a6a8a     /* tertiaire, labels discrets */
 
 /* Bordures */
 --s-border:     rgba(255,255,255,0.08)   /* NEUTRE — pas violet ! */

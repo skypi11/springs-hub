@@ -108,6 +108,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'uid requis' }, { status: 400 });
   }
 
+  // Rate-limit : endpoint public + enrichi (fetch structures/sub_teams) — protège
+  // contre le scraping en masse des profils.
+  const blocked = await checkRateLimit(limiters.read, rateLimitKey(req));
+  if (blocked) return blocked;
+
   try {
     const db = getAdminDb();
     const snap = await db.collection('users').doc(uid).get();

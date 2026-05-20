@@ -34,34 +34,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profileEnriched, setProfileEnriched] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Handle Discord OAuth callback — signInWithCustomToken déclenche onAuthStateChanged
+  // Handle Discord OAuth callback. Le callback ne met plus le custom token
+  // dans l'URL — il le pose dans un cookie httpOnly. On le consomme via
+  // GET /api/auth/discord/session. signInWithCustomToken déclenche onAuthStateChanged.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const ft = params.get('ft');
-    const did = params.get('did');
-    const du = params.get('du');
-    const da = params.get('da');
+    if (params.get('auth') !== '1') return;
 
-    if (!ft) return;
-
-    // Affichage optimiste immédiat pendant que signInWithCustomToken s'exécute
-    if (du && did) {
-      setUser({
-        uid: `discord_${did}`,
-        discordId: did,
-        discordUsername: du,
-        discordAvatar: da ?? '',
-        displayName: du,
-      });
+    function cleanUrl() {
+      const url = new URL(window.location.href);
+      ['auth', 'auth_error'].forEach(p => url.searchParams.delete(p));
+      window.history.replaceState({}, '', url.toString());
     }
 
-    signInWithCustomToken(auth, ft)
-      .then(() => {
-        const url = new URL(window.location.href);
-        ['ft', 'did', 'du', 'da', 'auth_error'].forEach(p => url.searchParams.delete(p));
-        window.history.replaceState({}, '', url.toString());
+    fetch('/api/auth/discord/session')
+      .then(r => (r.ok ? r.json() : null))
+      .then((data: { ft?: string; did?: string; du?: string; da?: string } | null) => {
+        if (!data?.ft) {
+          cleanUrl();
+          return;
+        }
+        // Affichage optimiste immédiat pendant que signInWithCustomToken s'exécute
+        if (data.du && data.did) {
+          setUser({
+            uid: `discord_${data.did}`,
+            discordId: data.did,
+            discordUsername: data.du,
+            discordAvatar: data.da ?? '',
+            displayName: data.du,
+          });
+        }
+        return signInWithCustomToken(auth, data.ft).then(cleanUrl);
       })
-      .catch(err => console.error('[Auth] signInWithCustomToken FAILED:', err.code, err.message));
+      .catch(err => {
+        console.error('[Auth] session consume FAILED:', err);
+        cleanUrl();
+      });
   }, []);
 
   async function enrichFromApi(fbUser: User) {

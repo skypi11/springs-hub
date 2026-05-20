@@ -136,15 +136,25 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Redirect back to app with token (et nettoyer le cookie state)
-    const params = new URLSearchParams({
+    // Le custom token Firebase NE doit PAS transiter par l'URL (logs Vercel,
+    // historique navigateur, header Referer vers ressources externes). On le
+    // pose dans un cookie httpOnly court (120s) que le client consomme une
+    // seule fois via GET /api/auth/discord/session.
+    const authPayload = JSON.stringify({
       ft: firebaseToken,
       did: discordUser.id,
       du: discordUser.username,
       da: avatarUrl,
     });
-    const res = NextResponse.redirect(`${origin}/?${params.toString()}`);
+    const res = NextResponse.redirect(`${origin}/?auth=1`);
     res.cookies.delete('discord_oauth_state');
+    res.cookies.set('aedral_auth', authPayload, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 120,
+    });
     return res;
   } catch (err) {
     console.error('Discord auth error:', err);

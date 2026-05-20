@@ -294,7 +294,7 @@ export default function CrossTeamTodosPanel({
               <table className="w-full" style={{ borderCollapse: 'separate', borderSpacing: '4px' }}>
                 <thead>
                   <tr>
-                    <th style={{ textAlign: 'left', minWidth: 140 }} />
+                    <th style={{ textAlign: 'left', minWidth: 96 }} />
                     {heatmap.days.map(d => (
                       <th key={d.ymd} className="text-[12px] uppercase tracking-wider font-semibold" style={{ color: 'var(--s-text-muted)', letterSpacing: '0.08em' }}>
                         {d.label}
@@ -315,7 +315,7 @@ export default function CrossTeamTodosPanel({
                                 <Image src={user.avatarUrl} alt={user.displayName} fill className="object-cover" unoptimized />
                               ) : null}
                             </div>
-                            <span className="text-xs truncate" style={{ color: 'var(--s-text)', maxWidth: 110 }}>
+                            <span className="text-xs truncate" style={{ color: 'var(--s-text)', maxWidth: 76 }}>
                               {user?.displayName ?? row.uid}
                             </span>
                           </div>
@@ -327,7 +327,7 @@ export default function CrossTeamTodosPanel({
                             <td key={d.ymd} style={{ textAlign: 'center' }}>
                               <div
                                 title={`${user?.displayName ?? row.uid} — ${d.label} : ${title}`}
-                                className="w-7 h-7 flex items-center justify-center text-[12px] font-bold mx-auto"
+                                className="w-6 h-6 flex items-center justify-center text-[12px] font-bold mx-auto"
                                 style={{ background: bg, border, color: 'rgba(255,255,255,0.85)' }}
                               >
                                 {content}

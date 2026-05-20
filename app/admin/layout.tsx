@@ -54,7 +54,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 PANEL ADMIN
               </h1>
               <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                Accès complet aux outils de gestion Springs
+                Accès complet aux outils de gestion Aedral
               </p>
             </div>
           </div>
