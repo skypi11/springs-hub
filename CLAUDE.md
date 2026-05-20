@@ -446,7 +446,7 @@ Quand une card n'a pas d'image de fond, elle doit quand même avoir de la prése
 
 - **Phase 1** — Fondations : ✅ terminée
 - **Phase 2** — Communauté (structures, roster, calendrier MVP1/MVP2a/MVP2b, co-fondateurs, drawer ÉQUIPES) : ✅ terminée
-- **Phase 2 bis** — Polish UX continu : items shippés au fil de l'eau (rebrand Aedral, landing visiteur, profil RL cross-platform, Steam OpenID, Discord connections sync, /admin/announce dynamique, icônes officielles RL). À ce stade, plutôt traité comme un backlog continu que comme une "Phase" fermable.
+- **Phase 2 bis** — Polish UX continu : items shippés au fil de l'eau (rebrand Aedral, landing visiteur, profil RL cross-platform, Steam OpenID, Discord connections sync, /admin/announce dynamique, icônes officielles RL, upload direct du logo d'équipe, refonte de l'onglet Calendrier avec vues Mois/Semaine/Liste + dispos/consensus intégrés). À ce stade, plutôt traité comme un backlog continu que comme une "Phase" fermable.
 - **Phase 3** — Compétitions natives Aedral : liste, pages individuelles `/competitions/{rl,tm}/[id]`, rebuild TM Monthly Cup, classements RL/TM, inscription équipe/solo, panel admin comps. **Pas démarrée** — la page `/competitions` actuelle pointe sur le vieux site `springs-esport.vercel.app`.
 - **Phase 4** — Finitions : notifications in-app, Discord webhooks, fan zone, mobile, migration liens
 
