@@ -18,6 +18,8 @@ import {
   Trash2,
   Check,
   Users,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
@@ -39,6 +41,7 @@ import {
   isDirigeant,
 } from '@/lib/event-permissions';
 import ReplaysPanel from '@/components/replays/ReplaysPanel';
+import MonthView from './MonthView';
 
 type Presence = {
   id: string;
@@ -49,7 +52,7 @@ type Presence = {
   updatedBy: string | null;
 };
 
-type CalendarEvent = {
+export type CalendarEvent = {
   id: string;
   structureId: string;
   createdBy: string;
@@ -84,7 +87,7 @@ type Member = {
   role: string;
 };
 
-type Team = {
+export type Team = {
   id: string;
   game: string;
   name: string;
@@ -114,7 +117,7 @@ type Props = {
   structureRoles: StructureRoles;
 };
 
-const TYPE_INFO: Record<EventType, { label: string; color: string }> = {
+export const TYPE_INFO: Record<EventType, { label: string; color: string }> = {
   training: { label: 'Entraînement', color: 'var(--s-text-dim)' },
   scrim: { label: 'Scrim', color: 'var(--s-blue)' },
   match: { label: 'Match', color: 'var(--s-gold)' },
@@ -176,7 +179,20 @@ export default function CalendarSection({
   // une équipe ciblée dans la sélection. Les events scope=structure/game sont
   // exclus dès qu'un filtre équipe est actif, pour coller à l'intention utilisateur.
   const [teamFilter, setTeamFilter] = useState<string[]>([]);
-  const [showForm, setShowForm] = useState(false);
+  // Mode d'affichage : grille mois (vision globale) ou liste chronologique.
+  // Persisté en localStorage pour retrouver son choix d'une session à l'autre.
+  const [viewMode, setViewMode] = useState<'month' | 'list'>('month');
+  useEffect(() => {
+    const saved = localStorage.getItem('aedral_calendar_view');
+    if (saved === 'month' || saved === 'list') setViewMode(saved);
+  }, []);
+  const changeView = (v: 'month' | 'list') => {
+    setViewMode(v);
+    try { localStorage.setItem('aedral_calendar_view', v); } catch { /* quota / mode privé */ }
+  };
+  // formPrefill : null = modale fermée ; objet = ouverte (éventuellement pré-remplie
+  // avec une date quand on a cliqué sur une case du calendrier).
+  const [formPrefill, setFormPrefill] = useState<{ startsAt?: string; endsAt?: string } | null>(null);
   const [openEventId, setOpenEventId] = useState<string | null>(null);
   const [now, setNow] = useState<number>(() => Date.now());
   useEffect(() => {
@@ -225,6 +241,25 @@ export default function CalendarSection({
       return asc ? aMs - bMs : bMs - aMs;
     });
   }, [events, filter, now, teamFilter]);
+
+  // Événements pour la vue Mois : filtrés uniquement par le filtre équipe
+  // (la grille gère elle-même le périmètre temporel via la navigation des mois).
+  const monthEvents = useMemo(() => {
+    if (teamFilter.length === 0) return events;
+    return events.filter(e => {
+      if (e.target.scope !== 'teams') return false;
+      const ids = e.target.teamIds ?? [];
+      return ids.some(id => teamFilter.includes(id));
+    });
+  }, [events, teamFilter]);
+
+  // Prochain événement (toutes équipes confondues) — sert au bandeau récap.
+  const nextEvent = useMemo(() => {
+    return events
+      .filter(e => e.startsAt && e.status !== 'cancelled'
+        && new Date(e.endsAt ?? e.startsAt).getTime() >= now)
+      .sort((a, b) => (a.startsAt ?? '').localeCompare(b.startsAt ?? ''))[0] ?? null;
+  }, [events, now]);
 
   const respondMutation = useMutation({
     mutationFn: ({ eventId, status }: { eventId: string; status: PresenceStatus }) =>
@@ -279,37 +314,83 @@ export default function CalendarSection({
         style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,184,0,0.08), transparent 70%)' }} />
 
       {/* Header */}
-      <div className="relative z-[1] px-5 py-3.5 flex items-center justify-between" style={{ borderBottom: '1px solid var(--s-border)' }}>
+      <div className="relative z-[1] px-5 py-3.5 flex items-center justify-between gap-3" style={{ borderBottom: '1px solid var(--s-border)' }}>
         <div className="flex items-center gap-3">
           <div className="w-7 h-7 flex items-center justify-center" style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.2)' }}>
             <CalendarIcon size={13} style={{ color: 'var(--s-gold)' }} />
           </div>
           <span className="font-display text-sm tracking-wider">CALENDRIER</span>
         </div>
-        {canCreateAnything && (
-          <button type="button" onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 text-xs font-bold transition-colors duration-150" style={{ color: 'var(--s-gold)' }}>
-            <Plus size={11} />
-            Nouvel événement
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {/* Bascule de vue : grille mois / liste */}
+          <div className="flex bevel-sm overflow-hidden" style={{ border: '1px solid var(--s-border)' }}>
+            {([
+              { v: 'month' as const, label: 'Mois', icon: <LayoutGrid size={12} /> },
+              { v: 'list' as const, label: 'Liste', icon: <List size={12} /> },
+            ]).map(opt => (
+              <button key={opt.v} type="button" onClick={() => changeView(opt.v)}
+                className="flex items-center gap-1.5 text-xs font-semibold transition-colors duration-150"
+                style={{
+                  padding: '5px 10px',
+                  background: viewMode === opt.v ? 'rgba(255,184,0,0.15)' : 'var(--s-elevated)',
+                  color: viewMode === opt.v ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                }}>
+                {opt.icon}
+                <span>{opt.label}</span>
+              </button>
+            ))}
+          </div>
+          {canCreateAnything && (
+            <button type="button" onClick={() => setFormPrefill({})}
+              className="flex items-center gap-1.5 text-xs font-bold transition-colors duration-150" style={{ color: 'var(--s-gold)' }}>
+              <Plus size={11} />
+              Nouvel événement
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Filters */}
-      <div className="relative z-[1] px-5 pt-4 flex gap-2">
-        {(['upcoming', 'past', 'all'] as const).map(f => (
-          <button key={f} type="button" onClick={() => setFilter(f)}
-            className="tag transition-all duration-150"
-            style={{
-              background: filter === f ? 'rgba(255,184,0,0.15)' : 'transparent',
-              color: filter === f ? 'var(--s-gold)' : 'var(--s-text-dim)',
-              borderColor: filter === f ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
-              cursor: 'pointer', padding: '4px 10px', fontSize: '12px',
-            }}>
-            {f === 'upcoming' ? 'À venir' : f === 'past' ? 'Passés' : 'Tous'}
-          </button>
-        ))}
-      </div>
+      {/* Bandeau récap — accès direct au prochain événement */}
+      {nextEvent && (
+        <button type="button" onClick={() => setOpenEventId(nextEvent.id)}
+          className="relative z-[1] w-full flex items-center gap-3 px-5 py-2.5 text-left transition-colors duration-150 hover:bg-[var(--s-hover)]"
+          style={{ borderBottom: '1px solid var(--s-border)', background: 'var(--s-elevated)' }}>
+          <span className="t-label flex-shrink-0" style={{ color: 'var(--s-gold)' }}>Prochain</span>
+          <span className="flex-shrink-0" style={{ width: 1, height: 14, background: 'var(--s-border)' }} />
+          <span className="t-mono flex-shrink-0" style={{ fontSize: 12, color: 'var(--s-text-dim)' }}>
+            {fmtDateTime(nextEvent.startsAt)}
+          </span>
+          <span className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{nextEvent.title}</span>
+          {(() => {
+            const ti = TYPE_INFO[nextEvent.type] ?? TYPE_INFO.autre;
+            return (
+              <span className="tag flex-shrink-0 ml-auto" style={{ background: `${ti.color}15`, color: ti.color, borderColor: `${ti.color}35`, fontSize: 12, padding: '1px 6px' }}>
+                {ti.label}
+              </span>
+            );
+          })()}
+          <ChevronRight size={13} className="flex-shrink-0" style={{ color: 'var(--s-text-muted)' }} />
+        </button>
+      )}
+
+      {/* Filtres temporels — pertinents uniquement en vue Liste
+          (en vue Mois, le périmètre est donné par la navigation des mois). */}
+      {viewMode === 'list' && (
+        <div className="relative z-[1] px-5 pt-4 flex gap-2">
+          {(['upcoming', 'past', 'all'] as const).map(f => (
+            <button key={f} type="button" onClick={() => setFilter(f)}
+              className="tag transition-all duration-150"
+              style={{
+                background: filter === f ? 'rgba(255,184,0,0.15)' : 'transparent',
+                color: filter === f ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                borderColor: filter === f ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
+                cursor: 'pointer', padding: '4px 10px', fontSize: '12px',
+              }}>
+              {f === 'upcoming' ? 'À venir' : f === 'past' ? 'Passés' : 'Tous'}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Team filter — dropdown multi-select, scalable jusqu'à 20+ équipes */}
       {teams.length > 1 && (
@@ -322,6 +403,15 @@ export default function CalendarSection({
           <div className="flex items-center justify-center py-8">
             <Loader2 size={16} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
           </div>
+        ) : viewMode === 'month' ? (
+          <MonthView
+            events={monthEvents}
+            teams={teams}
+            now={now}
+            canCreate={canCreateAnything}
+            onEventClick={id => setOpenEventId(id)}
+            onDayCreate={ymd => setFormPrefill({ startsAt: `${ymd}T20:00`, endsAt: `${ymd}T22:00` })}
+          />
         ) : filteredEvents.length === 0 ? (
           <div className="text-center py-10">
             <CalendarIcon size={24} className="mx-auto mb-3" style={{ color: 'var(--s-text-muted)' }} />
@@ -346,7 +436,7 @@ export default function CalendarSection({
         )}
       </div>
 
-      {showForm && (
+      {formPrefill !== null && (
         <EventFormModal
           structureId={structureId}
           structureGames={structureGames}
@@ -354,9 +444,11 @@ export default function CalendarSection({
           members={members}
           userContext={userContext}
           structureRoles={structureRoles}
-          onClose={() => setShowForm(false)}
+          initialStartsAt={formPrefill.startsAt}
+          initialEndsAt={formPrefill.endsAt}
+          onClose={() => setFormPrefill(null)}
           onCreated={() => {
-            setShowForm(false);
+            setFormPrefill(null);
             loadEvents();
           }}
         />
@@ -664,6 +756,8 @@ function EventFormModal({
   members,
   userContext,
   structureRoles,
+  initialStartsAt,
+  initialEndsAt,
   onClose,
   onCreated,
 }: {
@@ -673,6 +767,10 @@ function EventFormModal({
   members: Member[];
   userContext: UserContext;
   structureRoles: StructureRoles;
+  // Date/heure pré-remplies — passées quand on a cliqué sur une case du calendrier.
+  // Format "YYYY-MM-DDTHH:mm" (heure locale), contrat de DateTimePicker.
+  initialStartsAt?: string;
+  initialEndsAt?: string;
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -681,8 +779,8 @@ function EventFormModal({
   const [type, setType] = useState<EventType>('training');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
-  const [startsAt, setStartsAt] = useState('');
-  const [endsAt, setEndsAt] = useState('');
+  const [startsAt, setStartsAt] = useState(initialStartsAt ?? '');
+  const [endsAt, setEndsAt] = useState(initialEndsAt ?? '');
   const [scope, setScope] = useState<EventScope>(
     isDirigeant(userContext) ? 'structure' : 'teams'
   );
