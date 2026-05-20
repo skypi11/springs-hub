@@ -47,6 +47,21 @@ export function eventGameColor(ev: CalendarEvent, teams: Team[]): string {
   return 'var(--s-gold)';
 }
 
+// Libellé "pour qui" d'un événement : nom(s) d'équipe, jeu, staff ou structure.
+export function eventTargetLabel(ev: CalendarEvent, teams: Team[]): string {
+  const t = ev.target;
+  if (t.scope === 'structure') return 'Toute la structure';
+  if (t.scope === 'game') {
+    return t.game === 'rocket_league' ? 'Rocket League'
+      : t.game === 'trackmania' ? 'Trackmania' : 'Jeu';
+  }
+  if (t.scope === 'staff') return 'Staff';
+  const names = (t.teamIds ?? [])
+    .map(id => teams.find(tm => tm.id === id)?.name)
+    .filter(Boolean);
+  return names.length ? names.join(', ') : 'Équipes';
+}
+
 type Props = {
   // Événements déjà filtrés par le filtre équipe de CalendarSection.
   events: CalendarEvent[];
@@ -183,7 +198,7 @@ export default function MonthView({ events, teams, now, canCreate, onEventClick,
                 return (
                   <button key={ev.id} type="button"
                     onClick={e => { e.stopPropagation(); onEventClick(ev.id); }}
-                    title={`${timeOf(ev.startsAt)} · ${ev.title}`}
+                    title={`${timeOf(ev.startsAt)} · ${ev.title} — ${eventTargetLabel(ev, teams)}`}
                     className="flex items-center gap-1 text-left transition-colors hover:bg-[var(--s-hover)]"
                     style={{
                       padding: '2px 4px',
@@ -249,23 +264,28 @@ export default function MonthView({ events, teams, now, canCreate, onEventClick,
                 return (
                   <button key={ev.id} type="button"
                     onClick={() => { setDayPopover(null); onEventClick(ev.id); }}
-                    className="w-full flex items-center gap-2 text-left transition-colors hover:bg-[var(--s-hover)]"
+                    className="w-full flex items-start gap-2 text-left transition-colors hover:bg-[var(--s-hover)]"
                     style={{
                       padding: '5px 7px',
                       background: 'var(--s-elevated)',
                       borderLeft: `3px solid ${cancelled ? 'var(--s-text-muted)' : color}`,
                       opacity: cancelled ? 0.55 : 1,
                     }}>
-                    <span className="t-mono flex-shrink-0" style={{ fontSize: 12, color: 'var(--s-text-dim)' }}>
+                    <span className="t-mono flex-shrink-0" style={{ fontSize: 12, color: 'var(--s-text-dim)', marginTop: 1 }}>
                       {timeOf(ev.startsAt)}
                     </span>
-                    <span className="truncate flex-1" style={{
-                      fontSize: 12, color: 'var(--s-text)',
-                      textDecoration: cancelled ? 'line-through' : 'none',
-                    }}>
-                      {ev.title}
+                    <span className="flex-1 min-w-0">
+                      <span className="block truncate" style={{
+                        fontSize: 12, color: 'var(--s-text)',
+                        textDecoration: cancelled ? 'line-through' : 'none',
+                      }}>
+                        {ev.title}
+                      </span>
+                      <span className="block truncate" style={{ fontSize: 12, color: 'var(--s-text-dim)' }}>
+                        {eventTargetLabel(ev, teams)}
+                      </span>
                     </span>
-                    <span className="flex-shrink-0" style={{ fontSize: 12, color: typeInfo.color }}>
+                    <span className="flex-shrink-0" style={{ fontSize: 12, color: typeInfo.color, marginTop: 1 }}>
                       {typeInfo.label}
                     </span>
                   </button>

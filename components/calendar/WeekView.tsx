@@ -23,11 +23,14 @@ import {
 } from '@/lib/availability';
 import type { CalendarEvent, Team } from './CalendarSection';
 import { TYPE_INFO } from './CalendarSection';
-import { eventGameColor } from './MonthView';
+import { eventGameColor, eventTargetLabel } from './MonthView';
 
 const DAY_LABELS = ['LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM', 'DIM'];
 const SLOT_HEIGHT = 22;        // hauteur d'un créneau de 30 min (px)
 const SLOT_COUNT = 36;         // 8h → 2h = 36 créneaux
+// Marge à droite de chaque colonne, jamais couverte par les blocs événements :
+// garantit qu'on peut toujours cliquer pour créer, même quand le créneau est plein.
+const CREATE_GUTTER = 18;
 
 // Axe horaire : 8:00 → 23:30 puis 00:00 → 01:30 (aligné sur DAY_SCHEDULES).
 const TIME_AXIS = (() => {
@@ -234,24 +237,26 @@ export default function WeekView({
                       ? (availUids.includes(soloMember) ? 1 : 0)
                       : availUids.length;
                     const total = avail?.members.length ?? 0;
-                    let bg = 'var(--s-elevated)';
-                    if (availActive && shown > 0) {
+                    const heat = availActive && shown > 0;
+                    let heatBg: string | undefined;
+                    if (heat) {
                       const ratio = soloMember ? 1 : Math.min(1, shown / Math.max(1, total));
-                      bg = `rgba(255,184,0,${(0.1 + ratio * 0.42).toFixed(3)})`;
+                      heatBg = `rgba(255,184,0,${(0.1 + ratio * 0.42).toFixed(3)})`;
                     }
                     const slotTitle = availActive && availUids.length > 0
                       ? `${formatSlotTime(iso)} — Dispo ${availUids.length}/${total} : ${availUids.map(u => memberName.get(u) ?? '?').join(', ')}`
-                      : undefined;
+                      : (canCreate ? 'Cliquer pour créer un événement' : undefined);
                     return (
                       <div key={idx}
                         onClick={() => {
                           if (canCreate && iso) onSlotCreate(iso, addMinutesToIso(iso, 120));
                         }}
                         title={slotTitle}
+                        className={`transition-colors ${heat ? '' : 'bg-[var(--s-elevated)]'} ${canCreate && !heat ? 'hover:bg-[var(--s-hover)]' : ''}`}
                         style={{
                           position: 'absolute', left: 0, right: 0,
                           top: idx * SLOT_HEIGHT, height: SLOT_HEIGHT,
-                          background: bg,
+                          background: heatBg,
                           borderTop: `1px solid ${t.m === 0 ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.03)'}`,
                           cursor: canCreate ? 'pointer' : 'default',
                         }} />
@@ -282,32 +287,31 @@ export default function WeekView({
                   {placements.map(p => {
                     const color = eventGameColor(p.event, teams);
                     const typeInfo = TYPE_INFO[p.event.type] ?? TYPE_INFO.autre;
-                    const widthPct = 100 / p.laneCount;
+                    const target = eventTargetLabel(p.event, teams);
+                    const slots = p.endIdx - p.startIdx;
                     return (
                       <button key={p.event.id} type="button"
                         onClick={e => { e.stopPropagation(); onEventClick(p.event.id); }}
-                        title={`${p.event.title} — ${typeInfo.label}`}
+                        title={`${p.event.title} · ${target} · ${typeInfo.label}`}
                         className="text-left overflow-hidden transition-transform hover:z-[3]"
                         style={{
                           position: 'absolute',
                           top: p.startIdx * SLOT_HEIGHT + 1,
-                          height: Math.max(SLOT_HEIGHT - 2, (p.endIdx - p.startIdx) * SLOT_HEIGHT - 2),
-                          left: `calc(${p.lane * widthPct}% + 1px)`,
-                          width: `calc(${widthPct}% - 2px)`,
+                          height: Math.max(SLOT_HEIGHT - 2, slots * SLOT_HEIGHT - 2),
+                          left: `calc((100% - ${CREATE_GUTTER}px) * ${p.lane / p.laneCount} + 1px)`,
+                          width: `calc((100% - ${CREATE_GUTTER}px) / ${p.laneCount} - 2px)`,
                           background: 'var(--s-surface)',
+                          border: '1px solid var(--s-border)',
                           borderLeft: `3px solid ${color}`,
-                          border: `1px solid var(--s-border)`,
-                          borderLeftWidth: 3,
-                          borderLeftColor: color,
                           padding: '1px 4px',
                           zIndex: 2,
                         }}>
                         <span className="block truncate font-semibold" style={{ fontSize: 12, color: 'var(--s-text)' }}>
                           {p.event.title}
                         </span>
-                        {(p.endIdx - p.startIdx) >= 3 && (
-                          <span className="block truncate t-mono" style={{ fontSize: 12, color: typeInfo.color }}>
-                            {typeInfo.label}
+                        {slots >= 2 && (
+                          <span className="block truncate" style={{ fontSize: 12, color: 'var(--s-text-dim)' }}>
+                            {target}
                           </span>
                         )}
                       </button>
