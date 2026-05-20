@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import CalendarSection from '@/components/calendar/CalendarSection';
 import TeamDetailDrawer, { type DrawerTab, type DrawerTeam } from '@/components/calendar/TeamDetailDrawer';
-import { CalendarClock, ClipboardList, Film } from 'lucide-react';
+import { CalendarClock, ClipboardList, Film, ChevronDown, ChevronUp } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import PublicPreviewFrame from '@/components/ui/PublicPreviewFrame';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
@@ -98,6 +98,9 @@ export default function MyStructurePage() {
   const [captainPickerOpen, setCaptainPickerOpen] = useState<string | null>(null);
   // Drawer détail équipe (Dispos + Exercices) — ouvert via chips des cards équipe
   const [drawerState, setDrawerState] = useState<{ team: DrawerTeam; tab: DrawerTab; canEditConfig: boolean } | null>(null);
+  // Launcher "dispos/exercices/replays par équipe" — replié par défaut pour ne
+  // pas écraser le calendrier (surtout avec beaucoup d'équipes).
+  const [calendarLauncherOpen, setCalendarLauncherOpen] = useState(false);
 
   const [inviteLinks, setInviteLinks] = useState<InviteLink[]>([]);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
@@ -1861,55 +1864,61 @@ export default function MyStructurePage() {
         {/* ═══ CALENDRIER ═══ */}
         {tab === 'calendar' && (
         <div className="animate-fade-in-d3 space-y-6">
-          {/* Launcher Dispos & matching : une carte par équipe accessible (staff ou dirigeant).
-              Cœur de l'UX — le coach accède aux dispos de son équipe depuis ici, le manager
-              et le dirigeant voient toutes les équipes pour préparer les rosters côté calendrier. */}
+          {/* Launcher dispos/exercices/replays par équipe — barre repliable.
+              Replié par défaut pour laisser la place au calendrier. Le coach n'y
+              voit que ses équipes ; dirigeant/manager voient toute la structure. */}
           {(() => {
             const isDirigeant = isDirigeantOfActive;
             const isManagerLevel = isDirigeant || isManagerOfActive;
-            // Équipes visibles :
-            // - dirigeant/manager : toutes les équipes de la structure
-            // - coach : uniquement celles dont il est staff (via staffedTeamIds)
             const visibleTeams = isManagerLevel
               ? teams
               : teams.filter(t => staffedTeamIds.includes(t.id));
             if (visibleTeams.length === 0) return null;
+            const open = calendarLauncherOpen;
             return (
               <div className="bevel relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
                 <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
-                <div className="absolute top-0 right-0 w-40 h-40 pointer-events-none"
-                  style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,184,0,0.06), transparent 70%)' }} />
-                <div className="relative z-[1] px-5 py-3.5 flex items-center gap-3" style={{ borderBottom: '1px solid var(--s-border)' }}>
-                  <div className="w-7 h-7 flex items-center justify-center" style={{ background: 'rgba(255,184,0,0.1)', border: '1px solid rgba(255,184,0,0.25)' }}>
+                {/* En-tête cliquable = repli/dépli */}
+                <button type="button" onClick={() => setCalendarLauncherOpen(o => !o)}
+                  className="relative z-[1] w-full px-5 py-3 flex items-center gap-3 text-left transition-colors duration-150 hover:bg-[var(--s-hover)]"
+                  style={{ borderBottom: open ? '1px solid var(--s-border)' : 'none' }}>
+                  <div className="w-7 h-7 flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,184,0,0.1)', border: '1px solid rgba(255,184,0,0.25)' }}>
                     <CalendarClock size={13} style={{ color: 'var(--s-gold)' }} />
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <h2 className="font-display text-sm tracking-wider">DISPOS, EXERCICES &amp; REPLAYS PAR ÉQUIPE</h2>
-                    <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>Ouvre une équipe pour voir les dispos, les exercices en cours et la bibliothèque de replays.</p>
+                    <p className="text-xs truncate" style={{ color: 'var(--s-text-dim)' }}>
+                      Accès au planning de dispos, aux exercices et aux replays de chaque équipe.
+                    </p>
                   </div>
-                </div>
-                <div className="relative z-[1] p-5 grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
-                  {visibleTeams.map(team => {
-                    const drawerTeam: DrawerTeam = {
-                      id: team.id,
-                      name: team.name,
-                      game: team.game,
-                      players: team.players,
-                      subs: team.subs,
-                      staff: team.staff,
-                    };
-                    const gameTag = team.game === 'rocket_league' ? 'RL' : team.game === 'trackmania' ? 'TM' : team.game;
-                    const gameClass = team.game === 'rocket_league' ? 'tag-blue' : 'tag-green';
-                    return (
-                      <div key={team.id} className="p-3 bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                        <div className="flex items-center gap-2 mb-3">
-                          <span className={`tag ${gameClass}`} style={{ fontSize: '12px', padding: '2px 6px' }}>{gameTag}</span>
+                  <span className="t-mono flex-shrink-0" style={{ fontSize: '12px', color: 'var(--s-text-muted)' }}>
+                    {visibleTeams.length} équipe{visibleTeams.length > 1 ? 's' : ''}
+                  </span>
+                  {open
+                    ? <ChevronUp size={16} className="flex-shrink-0" style={{ color: 'var(--s-text-dim)' }} />
+                    : <ChevronDown size={16} className="flex-shrink-0" style={{ color: 'var(--s-text-dim)' }} />}
+                </button>
+                {open && (
+                  <div className="relative z-[1] p-2 space-y-1">
+                    {visibleTeams.map(team => {
+                      const drawerTeam: DrawerTeam = {
+                        id: team.id,
+                        name: team.name,
+                        game: team.game,
+                        players: team.players,
+                        subs: team.subs,
+                        staff: team.staff,
+                      };
+                      const gameTag = team.game === 'rocket_league' ? 'RL' : team.game === 'trackmania' ? 'TM' : team.game;
+                      const gameClass = team.game === 'rocket_league' ? 'tag-blue' : 'tag-green';
+                      return (
+                        <div key={team.id} className="flex items-center gap-2 px-2 py-1.5"
+                          style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                          <span className={`tag ${gameClass} flex-shrink-0`} style={{ fontSize: '12px', padding: '2px 6px' }}>{gameTag}</span>
                           <span className="font-display text-sm tracking-wider flex-1 truncate">{team.name.toUpperCase()}</span>
-                        </div>
-                        <div className="flex items-center gap-2 flex-wrap">
                           <TeamActionChip
                             icon={<CalendarClock size={12} />}
-                            label="Dispos & matching"
+                            label="Dispos"
                             onClick={() => setDrawerState({ team: drawerTeam, tab: 'availability', canEditConfig: isDirigeant })}
                           />
                           <TeamActionChip
@@ -1923,10 +1932,10 @@ export default function MyStructurePage() {
                             onClick={() => setDrawerState({ team: drawerTeam, tab: 'replays', canEditConfig: isDirigeant })}
                           />
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })()}
