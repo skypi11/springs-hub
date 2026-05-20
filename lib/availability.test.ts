@@ -96,28 +96,20 @@ describe('addMinutesToIso', () => {
 // ─── Génération des slots ──────────────────────────────────────────────
 
 describe('generateDaySlots', () => {
-  it('generates 18 slots for a weekday (17h → 2h next day)', () => {
+  it('generates 36 slots per day (8h → 2h next day)', () => {
     const slots = generateDaySlots('2026-04-14', DAY_SCHEDULES[2]); // mardi
-    expect(slots).toHaveLength(18);
-    expect(slots[0]).toBe('2026-04-14T17:00');
-    expect(slots[13]).toBe('2026-04-14T23:30');
-    expect(slots[14]).toBe('2026-04-15T00:00');
-    expect(slots[17]).toBe('2026-04-15T01:30');
+    expect(slots).toHaveLength(36);
+    expect(slots[0]).toBe('2026-04-14T08:00');
+    expect(slots[31]).toBe('2026-04-14T23:30');
+    expect(slots[32]).toBe('2026-04-15T00:00');
+    expect(slots[35]).toBe('2026-04-15T01:30');
   });
-  it('generates 28 slots for Wednesday (12h → 2h next day)', () => {
-    const slots = generateDaySlots('2026-04-15', DAY_SCHEDULES[3]); // mercredi
-    expect(slots).toHaveLength(28);
-    expect(slots[0]).toBe('2026-04-15T12:00');
-    expect(slots[23]).toBe('2026-04-15T23:30');
-    expect(slots[24]).toBe('2026-04-16T00:00');
-    expect(slots[27]).toBe('2026-04-16T01:30');
-  });
-  it('generates 32 slots for a weekend day (10h → 2h next day)', () => {
-    const slots = generateDaySlots('2026-04-18', DAY_SCHEDULES[6]); // samedi
-    expect(slots).toHaveLength(32);
-    expect(slots[0]).toBe('2026-04-18T10:00');
-    expect(slots[27]).toBe('2026-04-18T23:30');
-    expect(slots[31]).toBe('2026-04-19T01:30');
+  it('uses the same uniform schedule for every day of the week', () => {
+    for (let dow = 1; dow <= 7; dow++) {
+      const slots = generateDaySlots('2026-04-14', DAY_SCHEDULES[dow]);
+      expect(slots).toHaveLength(36);
+      expect(slots[0]).toBe('2026-04-14T08:00');
+    }
   });
   it('slots are chronologically sorted', () => {
     const slots = generateDaySlots('2026-04-14', DAY_SCHEDULES[2]);
@@ -148,22 +140,22 @@ describe('generateWeekGrid', () => {
     expect(grid.days[3].isPast).toBe(false); // jeudi
     expect(grid.days[4].isPast).toBe(false); // vendredi
   });
-  it('total slots for a week = 164 (4×18 + 1×28 + 2×32)', () => {
+  it('total slots for a week = 252 (7 × 36)', () => {
     const grid = generateWeekGrid('2026-04-13', '2026-04-13');
     const total = grid.days.reduce((sum, d) => sum + d.slots.length, 0);
-    expect(total).toBe(4 * 18 + 28 + 2 * 32);
+    expect(total).toBe(7 * 36);
   });
 });
 
 describe('validSlotsForWeek', () => {
   it('returns a set with all week slots', () => {
     const valid = validSlotsForWeek('2026-04-13');
-    expect(valid.size).toBe(164);
+    expect(valid.size).toBe(252);
+    expect(valid.has('2026-04-13T08:00')).toBe(true);   // lundi 8h (début de journée)
     expect(valid.has('2026-04-13T17:00')).toBe(true);   // lundi 17h
-    expect(valid.has('2026-04-15T12:00')).toBe(true);   // mercredi 12h
-    expect(valid.has('2026-04-18T10:00')).toBe(true);   // samedi 10h
-    expect(valid.has('2026-04-13T16:30')).toBe(false);  // avant lundi 17h
-    expect(valid.has('2026-04-14T03:00')).toBe(false);  // après fin lundi (2h max)
+    expect(valid.has('2026-04-14T01:30')).toBe(true);   // nuit lundi→mardi
+    expect(valid.has('2026-04-13T07:30')).toBe(false);  // avant 8h
+    expect(valid.has('2026-04-14T02:00')).toBe(false);  // après fin lundi (2h max)
   });
 });
 

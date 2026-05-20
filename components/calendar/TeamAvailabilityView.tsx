@@ -57,13 +57,12 @@ type ApiResponse = {
 };
 
 // ─── Constantes d'affichage ─────────────────────────────────────────────
-// Plage horaire unifiée pour la heatmap : on couvre la plus large (sam/dim)
-// et on grise les cellules hors schedule des autres jours. Le résultat est
-// une matrice parfaitement rectangulaire, sans scroll horizontal.
-const UNIFIED_START_HOUR = 10;
+// Plage horaire de la heatmap : 8h → 2h, identique pour tous les jours
+// (cf. DAY_SCHEDULES). Matrice parfaitement rectangulaire, sans scroll horizontal.
+const UNIFIED_START_HOUR = 8;
 const UNIFIED_END_HOUR_NEXT_DAY = 2;
 const UNIFIED_SLOT_COUNT =
-  (24 - UNIFIED_START_HOUR) * 2 + UNIFIED_END_HOUR_NEXT_DAY * 2; // 32
+  (24 - UNIFIED_START_HOUR) * 2 + UNIFIED_END_HOUR_NEXT_DAY * 2; // 36
 
 const DAY_LABELS_SHORT = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 

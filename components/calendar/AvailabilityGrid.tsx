@@ -18,12 +18,12 @@ export const AVAILABILITY_QUERY_KEY = ['availability', 'me'] as const;
 // Jours affichés en colonnes
 const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
-// Plage horaire globale pour l'axe Y : 10h → 02h (16h × 2 = 32 slots)
-// Couvre tous les horaires de tous les jours de la semaine.
+// Plage horaire globale pour l'axe Y : 8h → 02h (18h × 2 = 36 slots).
+// Tous les jours ont désormais le même horaire (cf. DAY_SCHEDULES).
 function buildTimeAxis(): { hh: string; mm: string; label: string }[] {
   const out: { hh: string; mm: string; label: string }[] = [];
-  // 10:00 → 23:30
-  for (let h = 10; h < 24; h++) {
+  // 08:00 → 23:30
+  for (let h = 8; h < 24; h++) {
     for (const m of [0, 30]) {
       const hh = h < 10 ? `0${h}` : `${h}`;
       const mm = m === 0 ? '00' : '30';

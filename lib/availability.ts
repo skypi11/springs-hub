@@ -39,14 +39,19 @@ export interface MatchBlock {
 
 // ─── Config des horaires par jour (1 = lundi … 7 = dimanche) ────────────
 
+// Horaires unifiés : tous les jours vont de 8h du matin à 2h du lendemain.
+// (Auparavant variables selon le jour — uniformisés pour simplifier la lecture
+// du planning et de la grille de dispos.)
+const UNIFIED_SCHEDULE: DaySchedule = { startHour: 8, endHourNextDay: 2 };
+
 export const DAY_SCHEDULES: Record<number, DaySchedule> = {
-  1: { startHour: 17, endHourNextDay: 2 }, // Lundi
-  2: { startHour: 17, endHourNextDay: 2 }, // Mardi
-  3: { startHour: 12, endHourNextDay: 2 }, // Mercredi
-  4: { startHour: 17, endHourNextDay: 2 }, // Jeudi
-  5: { startHour: 17, endHourNextDay: 2 }, // Vendredi
-  6: { startHour: 10, endHourNextDay: 2 }, // Samedi
-  7: { startHour: 10, endHourNextDay: 2 }, // Dimanche
+  1: UNIFIED_SCHEDULE, // Lundi
+  2: UNIFIED_SCHEDULE, // Mardi
+  3: UNIFIED_SCHEDULE, // Mercredi
+  4: UNIFIED_SCHEDULE, // Jeudi
+  5: UNIFIED_SCHEDULE, // Vendredi
+  6: UNIFIED_SCHEDULE, // Samedi
+  7: UNIFIED_SCHEDULE, // Dimanche
 };
 
 export const SLOT_DURATION_MINUTES = 30;
