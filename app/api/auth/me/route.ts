@@ -17,9 +17,11 @@ export async function GET(req: NextRequest) {
     const uid = decoded.uid;
 
     const db = getAdminDb();
-    const [userSnap, adminSnap] = await Promise.all([
+    const [userSnap, adminSnap, founderSnap, coFounderSnap] = await Promise.all([
       db.collection('users').doc(uid).get(),
       db.collection('admins').doc(uid).get(),
+      db.collection('structures').where('founderId', '==', uid).limit(1).get(),
+      db.collection('structures').where('coFounderIds', 'array-contains', uid).limit(1).get(),
     ]);
 
     // Si l'utilisateur est banni, on coupe immédiatement
@@ -27,8 +29,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'banned' }, { status: 403 });
     }
 
+    // Rôle dirigeant le plus élevé — dérivé, non persisté. Sert à l'affichage
+    // du rôle dans la sidebar (un fondateur ne doit pas s'afficher « Joueur »).
+    const structureRole: 'fondateur' | 'co_fondateur' | null =
+      !founderSnap.empty ? 'fondateur'
+      : !coFounderSnap.empty ? 'co_fondateur'
+      : null;
+
     return NextResponse.json({
-      user: userSnap.exists ? userSnap.data() : null,
+      user: userSnap.exists ? { ...userSnap.data(), structureRole } : null,
       isAdmin: adminSnap.exists,
     });
   } catch (err) {

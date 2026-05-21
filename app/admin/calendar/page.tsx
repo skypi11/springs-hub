@@ -10,6 +10,7 @@ import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import AdminUserRef from '@/components/admin/AdminUserRef';
+import { normalizeEventType } from '@/lib/event-permissions';
 import {
   CalendarDays, Loader2, MapPin, Clock, Search, ExternalLink,
   CheckCircle2, XCircle, Calendar as CalendarIcon, Ban, RotateCcw, Trash2,
@@ -59,7 +60,7 @@ const TYPE_META: Record<string, { label: string; color: string }> = {
   training:  { label: 'Entraînement', color: '#0081FF' },
   scrim:     { label: 'Scrim',        color: '#FFB800' },
   match:     { label: 'Match',        color: '#FFB800' },
-  springs:   { label: 'Springs',      color: '#FFB800' },
+  tournoi:   { label: 'Tournoi',      color: '#00D9B5' },
   autre:     { label: 'Autre',        color: '#7a7a95' },
 };
 
@@ -291,7 +292,7 @@ export default function AdminCalendarPage() {
         )}
 
         {filtered.map(event => {
-          const typeMeta = TYPE_META[event.type] ?? TYPE_META.autre;
+          const typeMeta = TYPE_META[normalizeEventType(event.type)] ?? TYPE_META.autre;
           const statusMeta = STATUS_META[event.status] ?? STATUS_META.scheduled;
           const StatusIcon = event.status === 'completed'
             ? CheckCircle2

@@ -132,8 +132,8 @@ export function DiscordConfigBlockRenderer(props: {
                   disabled={!draftChannelId}>
                   <option value="">— Pas de ping —</option>
                   {(props.roles ?? []).map(r => (
-                    <option key={r.id} value={r.id} disabled={!r.mentionable && r.id !== opts.currentRoleId}>
-                      @{r.name}{!r.mentionable ? ' (non-mentionnable)' : ''}
+                    <option key={r.id} value={r.id}>
+                      @{r.name}
                     </option>
                   ))}
                 </select>
@@ -143,10 +143,9 @@ export function DiscordConfigBlockRenderer(props: {
                   </p>
                 )}
                 {draftRoleId && (props.roles ?? []).find(r => r.id === draftRoleId && !r.mentionable) && (
-                  <p className="text-xs mt-1" style={{ color: 'var(--s-gold)' }}>
-                    Ce rôle n&apos;est pas mentionnable côté Discord — le ping ne partira pas tant
-                    que tu n&apos;actives pas &quot;Autoriser tout le monde à @mentionner ce rôle&quot;
-                    dans les paramètres du rôle.
+                  <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
+                    Ce rôle n&apos;est pas mentionnable publiquement sur Discord, mais le bot Aedral
+                    peut quand même le ping grâce à sa permission d&apos;administration.
                   </p>
                 )}
               </>

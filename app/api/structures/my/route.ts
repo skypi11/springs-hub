@@ -347,6 +347,13 @@ export async function PUT(req: NextRequest) {
       // Cap à 50 entrées pour limiter la taille du document
       safeUpdates.achievements = updates.achievements.slice(0, 50);
     }
+    if (updates.coverPositionY !== undefined) {
+      // Position verticale d'affichage de la bannière, en % (0 = haut, 100 = bas).
+      const y = Number(updates.coverPositionY);
+      if (Number.isFinite(y)) {
+        safeUpdates.coverPositionY = Math.min(100, Math.max(0, Math.round(y)));
+      }
+    }
 
     await ref.update(safeUpdates);
     return NextResponse.json({ success: true });

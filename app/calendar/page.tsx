@@ -22,6 +22,7 @@ import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import AvailabilityCollapsible from '@/components/calendar/AvailabilityCollapsible';
 import MyTodosSection from '@/components/calendar/MyTodosSection';
 import type { EventType, EventStatus, PresenceStatus } from '@/lib/event-permissions';
+import { normalizeEventType } from '@/lib/event-permissions';
 
 type MyPresence = {
   id: string;
@@ -53,7 +54,7 @@ const TYPE_INFO: Record<EventType, { label: string; color: string }> = {
   training: { label: 'Entraînement', color: 'var(--s-text-dim)' },
   scrim: { label: 'Scrim', color: 'var(--s-blue)' },
   match: { label: 'Match', color: 'var(--s-gold)' },
-  springs: { label: 'Springs', color: 'var(--s-gold)' },
+  tournoi: { label: 'Tournoi', color: '#00D9B5' },
   autre: { label: 'Autre', color: 'var(--s-text-dim)' },
 };
 
@@ -314,7 +315,7 @@ function MyEventCard({
   structure: StructureInfo | undefined;
   onRespond: (structureId: string, eventId: string, status: PresenceStatus) => void;
 }) {
-  const typeInfo = TYPE_INFO[event.type];
+  const typeInfo = TYPE_INFO[normalizeEventType(event.type)];
   const statusInfo = STATUS_INFO[event.status];
   const my = event.myPresence;
 

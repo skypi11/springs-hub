@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { api, ApiError } from '@/lib/api-client';
+import { api, apiForm, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import {
@@ -55,6 +55,7 @@ export default function MyStructurePage() {
   // Editing state
   const [editDesc, setEditDesc] = useState('');
   const [editLogoUrl, setEditLogoUrl] = useState('');
+  const [editCoverPositionY, setEditCoverPositionY] = useState(50);
   const [editDiscordUrl, setEditDiscordUrl] = useState('');
   const [editSocials, setEditSocials] = useState<Record<string, string>>({});
   const [editRecruiting, setEditRecruiting] = useState<{ active: boolean; positions: { game: string; role: string }[]; message: string }>({ active: false, positions: [], message: '' });
@@ -66,7 +67,7 @@ export default function MyStructurePage() {
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamGame, setNewTeamGame] = useState('');
   const [newTeamLabel, setNewTeamLabel] = useState('');
-  const [newTeamLogoUrl, setNewTeamLogoUrl] = useState('');
+  const [newTeamLogoFile, setNewTeamLogoFile] = useState<File | null>(null);
   const [teamLogoEdit, setTeamLogoEdit] = useState<{ teamId: string; value: string } | null>(null);
   const [teamLabelEdit, setTeamLabelEdit] = useState<{ teamId: string; value: string } | null>(null);
   const [teamDiscordEdit, setTeamDiscordEdit] = useState<string | null>(null); // teamId en cours d'édition
@@ -431,6 +432,7 @@ export default function MyStructurePage() {
     setActiveStructure(s);
     setEditDesc(s.description || '');
     setEditLogoUrl(s.logoUrl || '');
+    setEditCoverPositionY(typeof s.coverPositionY === 'number' ? s.coverPositionY : 50);
     setEditDiscordUrl(s.discordUrl || '');
     setEditSocials(s.socials || {});
     setEditRecruiting({
@@ -477,7 +479,7 @@ export default function MyStructurePage() {
     if (!activeStructure || !firebaseUser || !newTeamName.trim() || !newTeamGame || !newTeamLabel.trim()) return;
     setTeamActionLoading('create');
     try {
-      await api('/api/structures/teams', {
+      const res = await api<{ id?: string }>('/api/structures/teams', {
         method: 'POST',
         body: {
           action: 'create',
@@ -485,15 +487,35 @@ export default function MyStructurePage() {
           name: newTeamName,
           game: newTeamGame,
           label: newTeamLabel.trim(),
-          logoUrl: newTeamLogoUrl.trim(),
           playerIds: [],
           subIds: [],
           staffIds: [],
         },
       });
+      // Upload du logo APRÈS création : /api/upload/team-logo exige un teamId
+      // existant. Échec non bloquant — l'équipe reste créée, le logo pourra
+      // être ajouté via « Gérer ».
+      const newTeamId = res?.id;
+      if (newTeamLogoFile && newTeamId) {
+        try {
+          const form = new FormData();
+          form.append('file', newTeamLogoFile);
+          form.append('structureId', activeStructure.id);
+          form.append('teamId', newTeamId);
+          const up = await apiForm<{ url?: string }>('/api/upload/team-logo', form);
+          if (up?.url) {
+            await api('/api/structures/teams', {
+              method: 'POST',
+              body: { action: 'update', structureId: activeStructure.id, teamId: newTeamId, logoUrl: up.url },
+            });
+          }
+        } catch {
+          toast.info('Équipe créée — le logo n\'a pas pu être ajouté, réessaie depuis « Gérer ».');
+        }
+      }
       setNewTeamName('');
       setNewTeamLabel('');
-      setNewTeamLogoUrl('');
+      setNewTeamLogoFile(null);
       setShowNewTeam(false);
       await loadTeams(activeStructure.id);
       toast.success('Équipe créée');
@@ -896,6 +918,7 @@ export default function MyStructurePage() {
           structureId: activeStructure.id,
           description: editDesc,
           logoUrl: editLogoUrl,
+          coverPositionY: editCoverPositionY,
           discordUrl: editDiscordUrl,
           socials: editSocials,
           recruiting: editRecruiting,
@@ -1707,6 +1730,8 @@ export default function MyStructurePage() {
             setShowEmojis={setShowEmojis}
             editLogoUrl={editLogoUrl}
             setEditLogoUrl={setEditLogoUrl}
+            editCoverPositionY={editCoverPositionY}
+            setEditCoverPositionY={setEditCoverPositionY}
             editDiscordUrl={editDiscordUrl}
             setEditDiscordUrl={setEditDiscordUrl}
             editSocials={editSocials}
@@ -1785,8 +1810,8 @@ export default function MyStructurePage() {
               setNewTeamGame={setNewTeamGame}
               newTeamLabel={newTeamLabel}
               setNewTeamLabel={setNewTeamLabel}
-              newTeamLogoUrl={newTeamLogoUrl}
-              setNewTeamLogoUrl={setNewTeamLogoUrl}
+              newTeamLogoFile={newTeamLogoFile}
+              setNewTeamLogoFile={setNewTeamLogoFile}
               showArchived={showArchived}
               setShowArchived={setShowArchived}
               teamMenuOpen={teamMenuOpen}

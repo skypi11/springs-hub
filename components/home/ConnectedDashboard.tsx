@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
+import { normalizeEventType } from '@/lib/event-permissions';
 import type { SpringsUser } from '@/types';
 
 type MyEvent = {
@@ -53,7 +54,7 @@ const TYPE_COLOR: Record<string, string> = {
   training: 'var(--s-text-dim)',
   scrim: 'var(--s-blue)',
   match: 'var(--s-gold)',
-  springs: 'var(--s-violet)',
+  tournoi: '#00D9B5',
   autre: 'var(--s-text-dim)',
 };
 
@@ -61,7 +62,7 @@ const TYPE_LABEL: Record<string, string> = {
   training: 'Entraînement',
   scrim: 'Scrim',
   match: 'Match',
-  springs: 'Springs',
+  tournoi: 'Tournoi',
   autre: 'Autre',
 };
 
@@ -204,12 +205,12 @@ export default function ConnectedDashboard({ user }: { user: SpringsUser }) {
                   style={{
                     fontSize: '12px',
                     padding: '2px 6px',
-                    color: TYPE_COLOR[nextEvent.type] ?? 'var(--s-text)',
-                    border: `1px solid ${TYPE_COLOR[nextEvent.type] ?? 'var(--s-border)'}40`,
+                    color: TYPE_COLOR[normalizeEventType(nextEvent.type)] ?? 'var(--s-text)',
+                    border: `1px solid ${TYPE_COLOR[normalizeEventType(nextEvent.type)] ?? 'var(--s-border)'}40`,
                     background: 'transparent',
                   }}
                 >
-                  {TYPE_LABEL[nextEvent.type] ?? nextEvent.type}
+                  {TYPE_LABEL[normalizeEventType(nextEvent.type)] ?? nextEvent.type}
                 </span>
                 {nextEventStructure && (
                   <span className="t-mono text-xs truncate" style={{ color: 'var(--s-text-muted)' }}>

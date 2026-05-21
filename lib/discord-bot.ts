@@ -106,7 +106,8 @@ const EVENT_COLORS: Record<string, number> = {
   training: 0x4da6ff, // bleu clair
   scrim: 0x7a8a82,    // gris neutre
   match: 0xffb800,    // or Aedral (rare/important)
-  springs: 0x7B2FBE,  // violet Springs (events organisés par Springs E-Sport)
+  tournoi: 0x00d9b5,  // teal — type tournoi générique
+  springs: 0x00d9b5,  // alias rétrocompat (anciens events 'springs')
   autre: 0x7a7a95,    // gris
 };
 
@@ -114,7 +115,8 @@ const EVENT_LABELS: Record<string, string> = {
   training: 'Entraînement',
   scrim: 'Scrim',
   match: 'Match',
-  springs: 'Évènement Springs',
+  tournoi: 'Tournoi',
+  springs: 'Tournoi',  // alias rétrocompat
   autre: 'Autre',
 };
 
@@ -229,19 +231,27 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
   };
   if (input.siteEventUrl) embed.url = input.siteEventUrl;
 
-  // Image principale :
-  //   - Match officiel avec bannière composite : on utilise l'`image` de l'embed
+  // Image principale ET thumbnail — deux conditions INDÉPENDANTES :
+  //   - Match officiel avec bannière composite : on pose l'`image` de l'embed
   //     (pleine largeur, centrée) pour afficher une bannière "TEAM VS ADVERSAIRE"
-  //     générée côté serveur. Propre, centré, avec vrai padding — contrairement
-  //     au "gallery trick" qui collait les logos.
-  //   - Sinon : thumbnail classique en haut-droit (logo équipe ou structure).
+  //     générée côté serveur. Propre, centré, avec vrai padding.
+  //   - On pose TOUJOURS une `thumbnail` en plus (logo équipe en priorité, ou
+  //     logo adversaire / icône author à défaut). Garantit un fallback visuel si
+  //     Discord ne charge pas la bannière composite (route OG lente / en erreur).
   const useMatchBanner = isOfficialMatch
     && !!input.matchBannerUrl
     && /^https:\/\//.test(input.matchBannerUrl);
   if (useMatchBanner && input.matchBannerUrl) {
     embed.image = { url: input.matchBannerUrl };
-  } else if (input.thumbnailUrl && /^https:\/\//.test(input.thumbnailUrl)) {
-    embed.thumbnail = { url: input.thumbnailUrl };
+  }
+  const httpsOrNull = (u?: string | null): string | null =>
+    u && /^https:\/\//.test(u) ? u : null;
+  const thumbnailCandidate =
+    httpsOrNull(input.thumbnailUrl) ??
+    httpsOrNull(input.authorIconUrl) ??
+    httpsOrNull(input.adversaryLogoUrl);
+  if (thumbnailCandidate) {
+    embed.thumbnail = { url: thumbnailCandidate };
   }
 
   // allowed_mentions : liste EXPLICITE des user/role IDs autorisés. Discord ne
@@ -585,6 +595,7 @@ export interface DiscordChannel {
   name: string;
   parentId: string | null;
   parentName: string | null;
+  parentPosition: number | null;
   position: number;
 }
 
@@ -651,26 +662,37 @@ export async function getGuildChannels(guildId: string): Promise<DiscordChannel[
     position: number;
   }>;
 
-  const categories = new Map<string, string>();
+  // On conserve la position des catégories : l'ordre d'affichage Discord suit la
+  // position de chaque catégorie (pas son nom), et la position des salons à
+  // l'intérieur de la catégorie.
+  const categories = new Map<string, { name: string; position: number }>();
   for (const c of raw) {
-    if (c.type === CATEGORY_CHANNEL_TYPE) categories.set(c.id, c.name);
+    if (c.type === CATEGORY_CHANNEL_TYPE) {
+      categories.set(c.id, { name: c.name, position: c.position ?? 0 });
+    }
   }
 
   return raw
     .filter(c => POSTABLE_CHANNEL_TYPES.has(c.type))
-    .map(c => ({
-      id: c.id,
-      name: c.name,
-      parentId: c.parent_id ?? null,
-      parentName: c.parent_id ? (categories.get(c.parent_id) ?? null) : null,
-      position: c.position ?? 0,
-    }))
+    .map(c => {
+      const cat = c.parent_id ? categories.get(c.parent_id) ?? null : null;
+      return {
+        id: c.id,
+        name: c.name,
+        parentId: c.parent_id ?? null,
+        parentName: cat ? cat.name : null,
+        parentPosition: cat ? cat.position : null,
+        position: c.position ?? 0,
+      };
+    })
     .sort((a, b) => {
-      // Tri : catégorie (nom) puis position dans la catégorie. Les salons sans
-      // catégorie passent en premier.
-      const pa = a.parentName ?? '';
-      const pb = b.parentName ?? '';
-      if (pa !== pb) return pa.localeCompare(pb);
-      return a.position - b.position;
+      // Reproduit l'ordre réel du serveur Discord : salons sans catégorie en
+      // premier (parentPosition -1), puis les catégories par leur position, et
+      // les salons par leur position au sein de chaque catégorie.
+      const pa = a.parentPosition ?? -1;
+      const pb = b.parentPosition ?? -1;
+      if (pa !== pb) return pa - pb;
+      if (a.position !== b.position) return a.position - b.position;
+      return a.id.localeCompare(b.id);
     });
 }

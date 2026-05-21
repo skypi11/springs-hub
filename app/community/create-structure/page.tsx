@@ -2,15 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
-import { api, ApiError } from '@/lib/api-client';
+import { api, apiForm, ApiError } from '@/lib/api-client';
 import {
-  Save, Shield, Gamepad2, Users, MessageSquare, Image as ImageIcon,
+  Save, Shield, Gamepad2, Users, MessageSquare,
   AlertCircle, CheckCircle, Loader2, ExternalLink, Hash, Building2,
   ChevronRight
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
+import PendingImagePicker from '@/components/ui/PendingImagePicker';
+import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 
 const LEGAL_STATUSES = [
   { value: 'none', label: 'Aucune' },
@@ -20,10 +21,9 @@ const LEGAL_STATUSES = [
   { value: 'other', label: 'Autre' },
 ];
 
-type FormData = {
+type StructureFormData = {
   name: string;
   tag: string;
-  logoUrl: string;
   description: string;
   games: string[];
   legalStatus: string;
@@ -33,10 +33,9 @@ type FormData = {
   message: string;
 };
 
-const defaultForm: FormData = {
+const defaultForm: StructureFormData = {
   name: '',
   tag: '',
-  logoUrl: '',
   description: '',
   games: [],
   legalStatus: 'none',
@@ -49,12 +48,12 @@ const defaultForm: FormData = {
 export default function CreateStructurePage() {
   const { user, firebaseUser, loading: authLoading } = useAuth();
   const router = useRouter();
-  const [form, setForm] = useState<FormData>(defaultForm);
+  const [form, setForm] = useState<StructureFormData>(defaultForm);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [existingCount, setExistingCount] = useState(0);
   const [loadingExisting, setLoadingExisting] = useState(true);
-  const [logoPreview, setLogoPreview] = useState(false);
 
   // Vérifier les structures existantes du fondateur
   useEffect(() => {
@@ -102,10 +101,24 @@ export default function CreateStructurePage() {
 
     setSaving(true);
     try {
-      await api('/api/structures/request', {
+      const res = await api<{ id?: string }>('/api/structures/request', {
         method: 'POST',
         body: form,
       });
+      // Upload du logo APRÈS création : /api/upload/structure-image exige un
+      // structureId existant. Échec non bloquant — la demande est envoyée, le
+      // logo pourra être ajouté ensuite via Ma structure → Général.
+      if (logoFile && res?.id) {
+        try {
+          const fd = new FormData();
+          fd.append('file', logoFile);
+          fd.append('structureId', res.id);
+          fd.append('type', 'logo');
+          await apiForm('/api/upload/structure-image', fd);
+        } catch {
+          // logo optionnel et éditable plus tard — on n'interrompt pas le flux
+        }
+      }
       router.push('/community?structure_requested=1');
     } catch (err) {
       console.error('[CreateStructure] submit error:', err);
@@ -193,30 +206,15 @@ export default function CreateStructurePage() {
             </div>
 
             {/* Logo */}
-            <div>
-              <label className="t-label block mb-2">Logo (URL, format carré, fond transparent)</label>
-              <div className="flex gap-3 items-start">
-                <input type="url" className="settings-input flex-1" placeholder="https://exemple.com/logo.png"
-                  value={form.logoUrl} onChange={e => { setForm({ ...form, logoUrl: e.target.value }); setLogoPreview(false); }} />
-                {form.logoUrl && (
-                  <button type="button" onClick={() => setLogoPreview(!logoPreview)}
-                    className="btn-springs btn-secondary" style={{ padding: '8px 12px', fontSize: '12px' }}>
-                    <ImageIcon size={12} /> {logoPreview ? 'Masquer' : 'Aperçu'}
-                  </button>
-                )}
-              </div>
-              {logoPreview && form.logoUrl && (
-                <div className="mt-3 p-4 flex items-center gap-4" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                  <div className="w-16 h-16 relative flex-shrink-0 overflow-hidden"
-                    style={{ background: 'repeating-conic-gradient(#333 0% 25%, #222 0% 50%) 50%/16px 16px' }}>
-                    <Image src={form.logoUrl} alt="Logo preview" fill className="object-contain" unoptimized />
-                  </div>
-                  <p className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                    Fond en damier = zones transparentes
-                  </p>
-                </div>
-              )}
-            </div>
+            <PendingImagePicker
+              value={logoFile}
+              onChange={setLogoFile}
+              maxBytes={UPLOAD_LIMITS.STRUCTURE_LOGO_BYTES}
+              label="Logo de la structure (optionnel)"
+              hint="JPEG, PNG, WebP, GIF — max 2 MB. Format carré, fond transparent recommandé."
+              aspect="square"
+              disabled={saving}
+            />
 
             {/* Description */}
             <div>

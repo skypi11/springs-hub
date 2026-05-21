@@ -58,6 +58,7 @@ type StructureData = {
   tag: string;
   logoUrl: string;
   coverUrl: string;
+  coverPositionY: number;
   description: string;
   games: string[];
   discordUrl: string;
@@ -557,7 +558,9 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
           <div className="relative h-[180px] overflow-hidden"
             style={{ background: `linear-gradient(135deg, rgba(${mainColorRaw},0.22) 0%, rgba(${mainColorRaw},0.05) 40%, var(--s-surface) 100%)` }}>
             {structure.coverUrl ? (
-              <Image src={structure.coverUrl} alt="" fill className="object-cover opacity-50" unoptimized />
+              <Image src={structure.coverUrl} alt="" fill unoptimized
+                className="object-cover opacity-50"
+                style={{ objectPosition: `50% ${structure.coverPositionY}%` }} />
             ) : (
               <>
                 <div className="absolute inset-0 hex-bg opacity-70 pointer-events-none" />

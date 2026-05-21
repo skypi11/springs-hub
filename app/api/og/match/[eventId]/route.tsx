@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getAdminDb } from '@/lib/firebase-admin';
+import { captureApiError } from '@/lib/sentry';
 
 // Route publique : l'URL est intégrée dans les messages Discord, donc accessible
 // par Discord pour générer sa preview. Pas d'info sensible, juste nom équipe/
@@ -428,7 +429,93 @@ export async function GET(
         },
       },
     );
-  } catch {
-    return new Response('Error', { status: 500 });
+  } catch (err) {
+    // L'URL est intégrée dans un embed Discord — un 500 laisserait un trou visuel.
+    // On logue pour Sentry puis on renvoie une bannière dégradée mais valide
+    // (aucune dépendance Firestore) pour que l'embed reste propre.
+    captureApiError('API OG/match GET error', err);
+    try {
+      const font = loadRajdhani();
+      const ff = font ? 'Rajdhani' : 'sans-serif';
+      const hexUri = hexTextureDataUri(WIDTH, HEIGHT);
+      return new ImageResponse(
+        (
+          <div
+            style={{
+              width: WIDTH,
+              height: HEIGHT,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background:
+                'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #111111 100%)',
+              position: 'relative',
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={hexUri}
+              width={WIDTH}
+              height={HEIGHT}
+              alt=""
+              style={{ position: 'absolute', top: 0, left: 0 }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 6,
+                background:
+                  'linear-gradient(90deg, #FFB800 0%, #ff8800 50%, #FFB800 100%)',
+                display: 'flex',
+              }}
+            />
+            <div
+              style={{
+                padding: '10px 32px',
+                fontSize: 30,
+                letterSpacing: '10px',
+                color: '#FFB800',
+                background: 'rgba(255,184,0,0.08)',
+                border: '1px solid rgba(255,184,0,0.35)',
+                display: 'flex',
+                fontFamily: ff,
+              }}
+            >
+              MATCH OFFICIEL
+            </div>
+            <div
+              style={{
+                marginTop: 40,
+                fontSize: 28,
+                color: 'rgba(255,255,255,0.5)',
+                letterSpacing: '6px',
+                display: 'flex',
+                fontFamily: ff,
+              }}
+            >
+              AEDRAL
+            </div>
+          </div>
+        ),
+        {
+          width: WIDTH,
+          height: HEIGHT,
+          fonts: font
+            ? [{ name: 'Rajdhani', data: font, style: 'normal', weight: 700 }]
+            : undefined,
+          // Pas de cache long sur la version dégradée : un retry après correction
+          // doit pouvoir resservir la vraie bannière.
+          headers: { 'Cache-Control': 'public, max-age=60' },
+        },
+      );
+    } catch (fallbackErr) {
+      // Dernier recours seulement : même le rendu dégradé a échoué.
+      captureApiError('API OG/match GET fallback render error', fallbackErr);
+      return new Response('Error', { status: 500 });
+    }
   }
 }

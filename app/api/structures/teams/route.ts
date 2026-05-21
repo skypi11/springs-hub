@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
-import { FieldValue, DocumentData } from 'firebase-admin/firestore';
+import { FieldValue, DocumentData, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { createNotification, createNotifications, type NotificationPayload } from '@/lib/notifications';
@@ -217,6 +217,23 @@ export async function POST(req: NextRequest) {
       };
     };
 
+    // groupOrder d'une équipe selon son label, calculé à partir du snapshot des
+    // équipes de la structure :
+    //  - label déjà utilisé → on reprend le groupOrder (le plus petit) de ce groupe
+    //  - nouveau label → le groupe se place en fin de liste (max existant + 1)
+    // Évite qu'un nouveau groupe apparaisse en tête (ancien défaut : groupOrder 0).
+    const computeGroupOrder = (docs: QueryDocumentSnapshot[], labelStr: string): number => {
+      let minSameLabel = Number.POSITIVE_INFINITY;
+      let maxAny = -1;
+      for (const d of docs) {
+        const data = d.data();
+        const go = typeof data.groupOrder === 'number' ? data.groupOrder : 0;
+        if (go > maxAny) maxAny = go;
+        if ((data.label ?? '') === labelStr && go < minSameLabel) minSameLabel = go;
+      }
+      return Number.isFinite(minSameLabel) ? minSameLabel : maxAny + 1;
+    };
+
     switch (action) {
       case 'create': {
         // Création : dirigeants ou responsables (managers) de la structure.
@@ -272,7 +289,7 @@ export async function POST(req: NextRequest) {
           name: name.trim(),
           label: labelStr,
           order: typeof order === 'number' ? order : maxOrder + 1,
-          groupOrder: typeof groupOrder === 'number' ? groupOrder : 0,
+          groupOrder: typeof groupOrder === 'number' ? groupOrder : computeGroupOrder(existingSnap.docs, labelStr),
           status: 'active' as const,
           playerIds: playerIds || [],
           subIds: subIds || [],
@@ -369,7 +386,19 @@ export async function POST(req: NextRequest) {
           if (typeof label !== 'string' || !label.trim()) {
             return NextResponse.json({ error: 'Le label ne peut pas être vide.' }, { status: 400 });
           }
-          updates.label = label.trim();
+          const newLabel = label.trim();
+          updates.label = newLabel;
+          // Si l'équipe change de groupe, on recale son groupOrder : groupe
+          // existant → on reprend son ordre ; nouveau groupe → fin de liste.
+          if (newLabel !== (teamData.label ?? '')) {
+            const allTeamsSnap = await db.collection('sub_teams')
+              .where('structureId', '==', structureId)
+              .get();
+            updates.groupOrder = computeGroupOrder(
+              allTeamsSnap.docs.filter(d => d.id !== teamId),
+              newLabel,
+            );
+          }
         }
 
         // captainId : admin structure OU manager-d'équipe. Doit être titulaire.

@@ -6,12 +6,23 @@
 // - "staff" = dirigeant, manager ou coach (n'importe quel niveau)
 // - "staff d'une équipe" = dirigeant OU membre du staff rattaché à cette équipe (sub_teams.staffIds)
 
-export type EventType = 'training' | 'scrim' | 'match' | 'springs' | 'autre';
+export type EventType = 'training' | 'scrim' | 'match' | 'tournoi' | 'autre';
 export type EventScope = 'structure' | 'teams' | 'game' | 'staff';
 export type EventStatus = 'scheduled' | 'done' | 'cancelled';
 export type PresenceStatus = 'present' | 'absent' | 'maybe' | 'pending';
 
-export const EVENT_TYPES: EventType[] = ['training', 'scrim', 'match', 'springs', 'autre'];
+export const EVENT_TYPES: EventType[] = ['training', 'scrim', 'match', 'tournoi', 'autre'];
+
+// Rétrocompat : l'ancien type 'springs' (events Springs E-Sport) est devenu le
+// type générique 'tournoi'. On normalise à la lecture — aucune migration des
+// documents Firestore déjà créés n'est nécessaire.
+export function normalizeEventType(raw: unknown): EventType {
+  if (raw === 'springs') return 'tournoi';
+  if (raw === 'training' || raw === 'scrim' || raw === 'match' || raw === 'tournoi' || raw === 'autre') {
+    return raw;
+  }
+  return 'autre';
+}
 
 export interface EventTarget {
   scope: EventScope;

@@ -6,15 +6,32 @@ import {
   Plus, Save, Search, Tag, Trash2, UploadCloud,
 } from 'lucide-react';
 import ImageUploader from '@/components/ui/ImageUploader';
+import PendingImagePicker from '@/components/ui/PendingImagePicker';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import {
-  DndContext, closestCenter, useSensors, type DragEndEvent,
+  DndContext, closestCenter, useSensors,
+  type DragEndEvent, type CollisionDetection,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import Portal from '@/components/ui/Portal';
 import type { TeamData, MyStructure, DiscordChannel } from '../types';
 import { SectionPanel, RosterSlot, StaffRosterSlot } from '../components';
-import { SortableTeam, SortableGroup } from '../teams-dnd';
+import { SortableTeam, SortableGroup, GroupDropZone } from '../teams-dnd';
+
+// Collision detection cloisonnée pour le D&D des équipes : un groupe ne peut
+// cibler qu'un autre groupe, une équipe qu'une autre équipe ou une zone de
+// groupe. Sans ce cloisonnement, un drag de groupe « visait » une carte d'équipe
+// et le déplacement était silencieusement annulé (le label revenait en place).
+const partitionedCollision: CollisionDetection = (args) => {
+  const activeId = String(args.active.id);
+  const accept = activeId.startsWith('group:')
+    ? (id: string) => id.startsWith('group:')
+    : (id: string) => id.startsWith('team:') || id.startsWith('groupdrop:');
+  return closestCenter({
+    ...args,
+    droppableContainers: args.droppableContainers.filter(c => accept(String(c.id))),
+  });
+};
 
 // Tab Équipes complet — extrait de page.tsx pour réduire la taille du fichier orchestrateur.
 // Chaque dépendance (état, handler, computed) est passée en prop pour rester React-friendly.
@@ -41,8 +58,8 @@ export interface TeamsTabProps {
   setNewTeamGame: (v: string) => void;
   newTeamLabel: string;
   setNewTeamLabel: (v: string) => void;
-  newTeamLogoUrl: string;
-  setNewTeamLogoUrl: (v: string) => void;
+  newTeamLogoFile: File | null;
+  setNewTeamLogoFile: (v: File | null) => void;
   showArchived: boolean;
   setShowArchived: React.Dispatch<React.SetStateAction<boolean>>;
 
@@ -101,7 +118,7 @@ export function TeamsTab(props: TeamsTabProps) {
     s, activeStructure, teams, teamsLoading,
     teamSearch, setTeamSearch, showNewTeam, setShowNewTeam,
     newTeamName, setNewTeamName, newTeamGame, setNewTeamGame,
-    newTeamLabel, setNewTeamLabel, newTeamLogoUrl, setNewTeamLogoUrl,
+    newTeamLabel, setNewTeamLabel, newTeamLogoFile, setNewTeamLogoFile,
     showArchived, setShowArchived,
     teamMenuOpen, setTeamMenuOpen, teamMenuRect, setTeamMenuRect,
     captainPickerOpen, setCaptainPickerOpen,
@@ -443,22 +460,28 @@ export function TeamsTab(props: TeamsTabProps) {
                     }}>
                     <option value="">— Aucun salon —</option>
                     {(() => {
-                      const channelGroups = new Map<string, DiscordChannel[]>();
+                      // discordChannels est déjà trié selon l'ordre réel du
+                      // serveur Discord (cf. getGuildChannels). On regroupe par
+                      // parentId — pas par nom : deux catégories homonymes ne
+                      // doivent pas fusionner — en conservant l'ordre d'apparition.
+                      const channelGroups = new Map<string, { name: string; list: DiscordChannel[] }>();
                       for (const c of (discordChannels ?? [])) {
-                        const key = c.parentName ?? '';
-                        if (!channelGroups.has(key)) channelGroups.set(key, []);
-                        channelGroups.get(key)!.push(c);
+                        const key = c.parentId ?? '__none__';
+                        if (!channelGroups.has(key)) {
+                          channelGroups.set(key, { name: c.parentName ?? '', list: [] });
+                        }
+                        channelGroups.get(key)!.list.push(c);
                       }
                       const nodes: React.ReactNode[] = [];
-                      for (const [groupName, list] of channelGroups) {
-                        if (groupName) {
+                      for (const [key, grp] of channelGroups) {
+                        if (grp.name) {
                           nodes.push(
-                            <optgroup key={`g_${groupName}`} label={groupName.toUpperCase()}>
-                              {list.map(c => <option key={c.id} value={c.id}>#{c.name}</option>)}
+                            <optgroup key={`g_${key}`} label={grp.name.toUpperCase()}>
+                              {grp.list.map(c => <option key={c.id} value={c.id}>#{c.name}</option>)}
                             </optgroup>
                           );
                         } else {
-                          for (const c of list) {
+                          for (const c of grp.list) {
                             nodes.push(<option key={c.id} value={c.id}>#{c.name}</option>);
                           }
                         }
@@ -783,14 +806,15 @@ export function TeamsTab(props: TeamsTabProps) {
               </select>
             </div>
           </div>
-          <div>
-            <label className="t-label block mb-1.5">Logo de l&apos;équipe (URL, optionnel)</label>
-            <input type="url" className="settings-input w-full text-sm" placeholder="https://..."
-              value={newTeamLogoUrl} onChange={e => setNewTeamLogoUrl(e.target.value)} />
-            <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
-              Lien direct vers une image (PNG/JPG). Si vide, une icône générique est utilisée.
-            </p>
-          </div>
+          <PendingImagePicker
+            value={newTeamLogoFile}
+            onChange={setNewTeamLogoFile}
+            maxBytes={UPLOAD_LIMITS.STRUCTURE_LOGO_BYTES}
+            label="Logo de l'équipe (optionnel)"
+            hint="JPEG, PNG, WebP, GIF — max 2 MB. Format carré recommandé. Si vide, une icône générique est utilisée."
+            aspect="square"
+            disabled={teamActionLoading === 'create'}
+          />
           <button type="button" onClick={handleCreateTeam}
             disabled={!newTeamName.trim() || !newTeamLabel.trim() || !newTeamGame || teamActionLoading === 'create'}
             className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-xs"
@@ -831,30 +855,28 @@ export function TeamsTab(props: TeamsTabProps) {
           </p>
         </div>
       ) : (() => {
-        // Lot 2b D&D — un SEUL DndContext top-level pour gérer 3 cas via onDragEnd.
+        // D&D à deux niveaux cloisonnés (cf. partitionedCollision) : un
+        // SortableContext externe pour les groupes (réordonnables entre eux),
+        // un SortableContext interne par groupe pour ses équipes. Le cloisonnement
+        // empêche qu'un drag de groupe et un drag d'équipe se télescopent.
         const TEAM_GROUP_CAP = 12;
-        const sortableIds: string[] = [];
-        for (const g of groups) {
-          const gKey = g.label || '__nolabel__';
-          sortableIds.push(`group:${gKey}`);
-          if (collapsedTeamGroups.has(gKey)) continue;
-          const isExp = expandedTeamGroups.has(gKey);
-          const needsPag = g.teams.length > TEAM_GROUP_CAP;
-          const shown = needsPag && !isExp ? g.teams.slice(0, TEAM_GROUP_CAP) : g.teams;
-          for (const t of shown) sortableIds.push(`team:${t.id}`);
-        }
         const groupsDraggable = canReorderTeams && groups.length > 1;
+        const groupIds = groups.map(g => `group:${g.label || '__nolabel__'}`);
         const handleDragEnd = (event: DragEndEvent) => {
           const { active, over } = event;
           if (!over || active.id === over.id) return;
           const a = String(active.id);
           const o = String(over.id);
+          // Groupe → groupe : réordonne les labels entre eux (le groupe emporte
+          // ses équipes, jamais imbriqué dans un autre).
           if (a.startsWith('group:') && o.startsWith('group:')) {
             reorderGroups(a.slice(6), o.slice(6));
             return;
           }
-          if (a.startsWith('team:') && o.startsWith('team:')) {
-            const fromTeamId = a.slice(5);
+          if (!a.startsWith('team:')) return;
+          const fromTeamId = a.slice(5);
+          // Équipe → équipe : réordonne dans le groupe, ou change de groupe.
+          if (o.startsWith('team:')) {
             const toTeamId = o.slice(5);
             const fromTeam = teams.find(t => t.id === fromTeamId);
             const toTeam = teams.find(t => t.id === toTeamId);
@@ -868,14 +890,15 @@ export function TeamsTab(props: TeamsTabProps) {
             }
             return;
           }
-          if (a.startsWith('team:') && o.startsWith('group:')) {
-            moveTeamToGroup(a.slice(5), o.slice(6), null);
+          // Équipe → en-tête d'un groupe : rattache l'équipe à la fin de ce groupe.
+          if (o.startsWith('groupdrop:')) {
+            moveTeamToGroup(fromTeamId, o.slice(10), null);
             return;
           }
         };
         return (
-          <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+          <DndContext sensors={dndSensors} collisionDetection={partitionedCollision} onDragEnd={handleDragEnd}>
+            <SortableContext items={groupIds} strategy={verticalListSortingStrategy}>
               <div className="space-y-8">
                 {groups.map(g => {
                   const groupKey = g.label || '__nolabel__';
@@ -885,6 +908,7 @@ export function TeamsTab(props: TeamsTabProps) {
                   const shownTeams = needsPagination && !expanded ? g.teams.slice(0, TEAM_GROUP_CAP) : g.teams;
                   const hiddenCount = g.teams.length - shownTeams.length;
                   const teamsDndEnabled = canReorderTeams && (!needsPagination || expanded);
+                  const teamIds = shownTeams.map(t => `team:${t.id}`);
                   const toggleCollapsed = () => {
                     setCollapsedTeamGroups(prev => {
                       const next = new Set(prev);
@@ -904,49 +928,53 @@ export function TeamsTab(props: TeamsTabProps) {
                     <SortableGroup key={groupKey} id={`group:${groupKey}`} draggable={groupsDraggable}>
                       {({ attributes, listeners, setActivatorNodeRef }) => (
                         <div className="space-y-3">
-                          <div className="w-full flex items-center gap-2" style={{ paddingTop: 4, paddingBottom: 6 }}>
-                            {groupsDraggable && (
+                          <GroupDropZone groupKey={groupKey} disabled={!canReorderTeams}>
+                            <div className="w-full flex items-center gap-2" style={{ paddingTop: 4, paddingBottom: 6 }}>
+                              {groupsDraggable && (
+                                <button
+                                  type="button"
+                                  ref={setActivatorNodeRef}
+                                  {...attributes}
+                                  {...listeners}
+                                  aria-label="Réorganiser le groupe"
+                                  className="flex-shrink-0 p-1 cursor-grab active:cursor-grabbing transition-opacity duration-150 hover:opacity-100"
+                                  style={{ color: 'var(--s-text-muted)', opacity: 0.45 }}
+                                  onClick={e => e.stopPropagation()}
+                                >
+                                  <GripVertical size={14} />
+                                </button>
+                              )}
                               <button
                                 type="button"
-                                ref={setActivatorNodeRef}
-                                {...attributes}
-                                {...listeners}
-                                aria-label="Réorganiser le groupe"
-                                className="flex-shrink-0 p-1 cursor-grab active:cursor-grabbing transition-opacity duration-150 hover:opacity-100"
-                                style={{ color: 'var(--s-text-muted)', opacity: 0.45 }}
-                                onClick={e => e.stopPropagation()}
+                                onClick={toggleCollapsed}
+                                className="flex-1 flex items-center gap-3 text-left group/grouphdr"
                               >
-                                <GripVertical size={14} />
+                                <div className="w-1 self-stretch flex-shrink-0" style={{ background: 'var(--s-gold)', minHeight: 24 }} />
+                                <Tag size={14} style={{ color: 'var(--s-gold)' }} className="flex-shrink-0" />
+                                <h3 className="font-display tracking-wider flex-shrink-0" style={{ color: 'var(--s-gold)', fontSize: 19, lineHeight: 1.1 }}>
+                                  {g.displayLabel.toUpperCase()}
+                                </h3>
+                                <span className="text-xs flex-shrink-0" style={{ color: 'var(--s-text-muted)' }}>
+                                  · {g.teams.length} équipe{g.teams.length > 1 ? 's' : ''}
+                                </span>
+                                <div className="flex-1 h-px" style={{ background: 'var(--s-border)' }} />
+                                <div className="flex-shrink-0 transition-transform duration-150" style={{ color: 'var(--s-text-dim)' }}>
+                                  {groupCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                                </div>
                               </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={toggleCollapsed}
-                              className="flex-1 flex items-center gap-3 text-left group/grouphdr"
-                            >
-                              <div className="w-1 self-stretch flex-shrink-0" style={{ background: 'var(--s-gold)', minHeight: 24 }} />
-                              <Tag size={14} style={{ color: 'var(--s-gold)' }} className="flex-shrink-0" />
-                              <h3 className="font-display tracking-wider flex-shrink-0" style={{ color: 'var(--s-gold)', fontSize: 19, lineHeight: 1.1 }}>
-                                {g.displayLabel.toUpperCase()}
-                              </h3>
-                              <span className="text-xs flex-shrink-0" style={{ color: 'var(--s-text-muted)' }}>
-                                · {g.teams.length} équipe{g.teams.length > 1 ? 's' : ''}
-                              </span>
-                              <div className="flex-1 h-px" style={{ background: 'var(--s-border)' }} />
-                              <div className="flex-shrink-0 transition-transform duration-150" style={{ color: 'var(--s-text-dim)' }}>
-                                {groupCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-                              </div>
-                            </button>
-                          </div>
+                            </div>
+                          </GroupDropZone>
                           {!groupCollapsed && (
                             <>
-                              <div className="space-y-3">
-                                {shownTeams.map(t => (
-                                  <SortableTeam key={t.id} id={`team:${t.id}`} draggable={teamsDndEnabled}>
-                                    {renderTeamCard(t, false, teamsDndEnabled)}
-                                  </SortableTeam>
-                                ))}
-                              </div>
+                              <SortableContext items={teamIds} strategy={verticalListSortingStrategy}>
+                                <div className="space-y-3">
+                                  {shownTeams.map(t => (
+                                    <SortableTeam key={t.id} id={`team:${t.id}`} draggable={teamsDndEnabled}>
+                                      {renderTeamCard(t, false, teamsDndEnabled)}
+                                    </SortableTeam>
+                                  ))}
+                                </div>
+                              </SortableContext>
                               {needsPagination && (
                                 <button
                                   type="button"

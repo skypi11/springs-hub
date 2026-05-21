@@ -43,6 +43,8 @@ type GeneralTabProps = {
   setShowEmojis: Dispatch<SetStateAction<boolean>>;
   editLogoUrl: string;
   setEditLogoUrl: Dispatch<SetStateAction<string>>;
+  editCoverPositionY: number;
+  setEditCoverPositionY: Dispatch<SetStateAction<number>>;
   editDiscordUrl: string;
   setEditDiscordUrl: Dispatch<SetStateAction<string>>;
   editSocials: Record<string, string>;
@@ -71,7 +73,8 @@ export function GeneralTab(props: GeneralTabProps) {
   const {
     s, activeStructure, setActiveStructure, loadStructures,
     editDesc, setEditDesc, descRef, showEmojis, setShowEmojis,
-    editLogoUrl, setEditLogoUrl, editDiscordUrl, setEditDiscordUrl,
+    editLogoUrl, setEditLogoUrl, editCoverPositionY, setEditCoverPositionY,
+    editDiscordUrl, setEditDiscordUrl,
     editSocials, setEditSocials, editAchievements, setEditAchievements,
     discordLoading, handleConnectDiscord, handleDisconnectDiscord, renderDiscordConfigBlock,
     handleSave, saving, saved, error,
@@ -171,7 +174,7 @@ export function GeneralTab(props: GeneralTabProps) {
             </div>
             <ImageUploader
               label="Bannière de la page publique"
-              hint="Ratio 4:1 recommandé (1920×480). Max 5 MB."
+              hint="Format paysage large recommandé. Max 5 MB."
               aspect="banner"
               maxBytes={UPLOAD_LIMITS.STRUCTURE_BANNER_BYTES}
               currentUrl={activeStructure?.coverUrl || null}
@@ -183,6 +186,27 @@ export function GeneralTab(props: GeneralTabProps) {
                 void loadStructures();
               }}
             />
+            {/* Cadrage vertical — la bannière stockée est plus haute que le cadre
+                d'affichage ; ce curseur choisit la bande visible (coverPositionY). */}
+            {activeStructure?.coverUrl && (
+              <div className="space-y-2">
+                <label className="t-label block">Cadrage vertical de la bannière</label>
+                <div className="relative w-full overflow-hidden bevel-sm aspect-[8/1]"
+                  style={{ border: '1px solid var(--s-border)' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={activeStructure.coverUrl} alt=""
+                    className="absolute inset-0 w-full h-full object-cover"
+                    style={{ objectPosition: `50% ${editCoverPositionY}%` }} />
+                </div>
+                <input type="range" min={0} max={100} value={editCoverPositionY}
+                  onChange={e => setEditCoverPositionY(Number(e.target.value))}
+                  className="w-full" style={{ accentColor: 'var(--s-gold)' }}
+                  disabled={!isDirigeantOfActive} />
+                <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                  Aperçu du cadrage tel qu&apos;il apparaîtra sur la page publique. Pense à sauvegarder.
+                </p>
+              </div>
+            )}
           </div>
         </SectionPanel>
 

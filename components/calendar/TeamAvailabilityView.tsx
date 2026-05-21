@@ -533,15 +533,19 @@ function ConsensusHeatmap({
             <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>0 joueur</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <LegendSwatch color="rgba(255,184,0,0.45)" />
-            <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>quelques joueurs</span>
+            <LegendSwatch color="#5c4a1a" />
+            <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>peu</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <LegendSwatch color="rgba(255,184,0,0.8)" border="var(--s-gold)" />
+            <LegendSwatch color="#ffb800" border="#ffd24d" />
             <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>seuil match ({minPlayers}+)</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <LegendSwatch color="repeating-linear-gradient(135deg, rgba(0,0,0,0.35) 0, rgba(0,0,0,0.35) 2px, transparent 2px, transparent 5px), rgba(255,184,0,0.4)" />
+            <LegendSwatch color="#2fc46b" border="#5fe39a" />
+            <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>tous dispos</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <LegendSwatch color="repeating-linear-gradient(135deg, rgba(0,0,0,0.35) 0, rgba(0,0,0,0.35) 2px, transparent 2px, transparent 5px), #a87f15" />
             <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>event planifié</span>
           </div>
         </div>
@@ -629,6 +633,32 @@ function DayHeatmapRow({
   );
 }
 
+// Couleurs d'une case de heatmap selon le nombre de joueurs dispos. Paliers nets
+// (teinte ET luminosité distinctes) au lieu d'un dégradé d'opacité monochrome :
+//   0 · peu (or terne) · moyen (or) · seuil match (or vif) · consensus (vert) · tous (vert vif)
+function heatmapCellColors(
+  count: number,
+  totalMembers: number,
+  minPlayers: number,
+): { bg: string; border: string } {
+  if (count === 0) {
+    return { bg: 'rgba(255,255,255,0.035)', border: 'rgba(255,255,255,0.06)' };
+  }
+  const ratio = totalMembers > 0 ? count / totalMembers : 0;
+  const hasThreshold = minPlayers > 0;
+  const meetsThreshold = hasThreshold && count >= minPlayers;
+  // Tout le monde dispo → vert vif (signal "go" immédiat pour le staff).
+  if (ratio >= 1) return { bg: '#2fc46b', border: '#5fe39a' };
+  // Seuil atteint + large consensus → vert.
+  if (meetsThreshold && ratio >= 0.85) return { bg: '#1f9d57', border: '#33d17a' };
+  // Seuil match atteint → or plein.
+  if (meetsThreshold) return { bg: '#ffb800', border: '#ffd24d' };
+  // En dessous du seuil → progression or terne → or moyen.
+  const progress = hasThreshold ? count / minPlayers : ratio;
+  if (progress >= 0.5) return { bg: '#a87f15', border: 'rgba(255,184,0,0.6)' };
+  return { bg: '#5c4a1a', border: 'rgba(255,184,0,0.4)' };
+}
+
 function HeatmapCell({
   cell,
   count,
@@ -660,25 +690,9 @@ function HeatmapCell({
     );
   }
 
-  const ratio = totalMembers > 0 ? count / totalMembers : 0;
-  const meetsThreshold = count >= minPlayers && minPlayers > 0;
-
-  let bg: string;
-  let border: string;
-  if (count === 0) {
-    bg = 'rgba(255,255,255,0.035)';
-    border = 'rgba(255,255,255,0.06)';
-  } else if (meetsThreshold) {
-    // Au-dessus du seuil → or
-    const op = 0.55 + ratio * 0.4;
-    bg = `rgba(255,184,0,${op})`;
-    border = 'rgba(255,184,0,0.85)';
-  } else {
-    // Sous le seuil → or atténué progressif
-    const op = 0.25 + ratio * 0.5;
-    bg = `rgba(255,184,0,${op})`;
-    border = 'rgba(255,184,0,0.55)';
-  }
+  const cellColors = heatmapCellColors(count, totalMembers, minPlayers);
+  let bg: string = cellColors.bg;
+  const border: string = cellColors.border;
 
   // Si un event est déjà planifié sur ce créneau, on superpose un hachuré fin pour
   // montrer que le créneau est occupé même si des joueurs restent "dispo" au sens des prefs.

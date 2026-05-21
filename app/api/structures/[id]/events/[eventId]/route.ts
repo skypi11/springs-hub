@@ -133,6 +133,29 @@ export async function PATCH(
       }
     }
 
+    // Champs tournoi : éditables uniquement sur un event de type 'tournoi'.
+    // 'springs' est l'ancien nom de 'tournoi' → on accepte les deux côté lecture.
+    if (event.type === 'tournoi' || event.type === 'springs') {
+      if (body.tournoiNom !== undefined) {
+        updates.tournoiNom = String(body.tournoiNom).trim().slice(0, 200) || null;
+      }
+      if (body.tournoiFormat !== undefined) {
+        updates.tournoiFormat = String(body.tournoiFormat).trim().slice(0, 200) || null;
+      }
+      // Les 3 liens suivent la contrainte HTTPS / ≤500 chars. Vide → null.
+      for (const field of ['tournoiUrl', 'tournoiInscriptionUrl', 'tournoiReglementUrl'] as const) {
+        if (body[field] === undefined) continue;
+        const raw = String(body[field]).trim();
+        if (raw.length === 0) {
+          updates[field] = null;
+        } else if (raw.length > 500 || !/^https:\/\//.test(raw)) {
+          return NextResponse.json({ error: 'Lien tournoi : URL HTTPS requise (≤500 chars).' }, { status: 400 });
+        } else {
+          updates[field] = raw;
+        }
+      }
+    }
+
     await eventRef.update(updates);
 
     // Recalc des exercices à deadline relative si la date de l'event a bougé.

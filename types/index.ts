@@ -12,6 +12,9 @@ export interface SpringsUser {
   isFan?: boolean;
   isAdmin?: boolean;
   isFounderApproved?: boolean;
+  // Rôle dirigeant le plus élevé, dérivé au login par GET /api/auth/me — non
+  // persisté en base. Sert notamment à l'affichage du rôle dans la sidebar.
+  structureRole?: 'fondateur' | 'co_fondateur' | null;
   structurePerGame?: Record<string, string>;
   // Recrutement
   isAvailableForRecruitment?: boolean;
@@ -179,7 +182,7 @@ export interface Competition {
 }
 
 // ── Calendrier / Événements de structure ──────────────────────────────────
-export type EventType = 'training' | 'scrim' | 'match' | 'springs' | 'autre';
+export type EventType = 'training' | 'scrim' | 'match' | 'tournoi' | 'autre';
 export type EventScope = 'structure' | 'teams' | 'game';
 export type EventStatus = 'scheduled' | 'done' | 'cancelled';
 export type PresenceStatus = 'present' | 'absent' | 'maybe' | 'pending';
@@ -217,6 +220,12 @@ export interface StructureEvent {
   aTravailler?: string;
   adversaire?: string | null;
   resultat?: string | null;
+  // Champs spécifiques au type 'tournoi'
+  tournoiNom?: string | null;
+  tournoiFormat?: string | null;
+  tournoiUrl?: string | null;
+  tournoiInscriptionUrl?: string | null;
+  tournoiReglementUrl?: string | null;
 }
 
 // ── Annonces Discord — templates dynamiques (admin) ─────────────────────

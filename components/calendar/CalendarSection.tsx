@@ -40,6 +40,7 @@ import {
   canDeleteEvent,
   canMarkTerminated,
   isDirigeant,
+  normalizeEventType,
 } from '@/lib/event-permissions';
 import ReplaysPanel from '@/components/replays/ReplaysPanel';
 import MonthView from './MonthView';
@@ -77,6 +78,11 @@ export type CalendarEvent = {
   adversaire: string | null;
   adversaireLogoUrl: string | null;
   resultat: string | null;
+  tournoiNom: string | null;
+  tournoiFormat: string | null;
+  tournoiUrl: string | null;
+  tournoiInscriptionUrl: string | null;
+  tournoiReglementUrl: string | null;
   presences: Presence[];
 };
 
@@ -123,7 +129,7 @@ export const TYPE_INFO: Record<EventType, { label: string; color: string }> = {
   training: { label: 'Entraînement', color: 'var(--s-text-dim)' },
   scrim: { label: 'Scrim', color: 'var(--s-blue)' },
   match: { label: 'Match', color: 'var(--s-gold)' },
-  springs: { label: 'Springs', color: 'var(--s-gold)' },
+  tournoi: { label: 'Tournoi', color: '#00D9B5' },
   autre: { label: 'Autre', color: 'var(--s-text-dim)' },
 };
 
@@ -372,7 +378,7 @@ export default function CalendarSection({
           </span>
           <span className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{nextEvent.title}</span>
           {(() => {
-            const ti = TYPE_INFO[nextEvent.type] ?? TYPE_INFO.autre;
+            const ti = TYPE_INFO[normalizeEventType(nextEvent.type)] ?? TYPE_INFO.autre;
             return (
               <span className="tag flex-shrink-0 ml-auto" style={{ background: `${ti.color}15`, color: ti.color, borderColor: `${ti.color}35`, fontSize: 12, padding: '1px 6px' }}>
                 {ti.label}
@@ -636,7 +642,7 @@ function EventCard({
   onClick: () => void;
   onRespond: (eventId: string, status: PresenceStatus) => void;
 }) {
-  const typeInfo = TYPE_INFO[event.type] ?? TYPE_INFO.autre;
+  const typeInfo = TYPE_INFO[normalizeEventType(event.type)] ?? TYPE_INFO.autre;
   const statusInfo = STATUS_INFO[event.status] ?? STATUS_INFO.scheduled;
   const myPresence = event.presences.find(p => p.userId === currentUid);
   const counts = {
@@ -836,6 +842,11 @@ function EventFormModal({
   const [adversaire, setAdversaire] = useState('');
   const [adversaireLogoUrl, setAdversaireLogoUrl] = useState('');
   const [resultat, setResultat] = useState('');
+  const [tournoiNom, setTournoiNom] = useState('');
+  const [tournoiFormat, setTournoiFormat] = useState('');
+  const [tournoiUrl, setTournoiUrl] = useState('');
+  const [tournoiInscriptionUrl, setTournoiInscriptionUrl] = useState('');
+  const [tournoiReglementUrl, setTournoiReglementUrl] = useState('');
   const [markDone, setMarkDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -1014,6 +1025,11 @@ function EventFormModal({
           adversaire: adversaire || undefined,
           adversaireLogoUrl: type === 'match' && adversaireLogoUrl ? adversaireLogoUrl : undefined,
           resultat: resultat || undefined,
+          tournoiNom: type === 'tournoi' ? (tournoiNom || undefined) : undefined,
+          tournoiFormat: type === 'tournoi' ? (tournoiFormat || undefined) : undefined,
+          tournoiUrl: type === 'tournoi' ? (tournoiUrl || undefined) : undefined,
+          tournoiInscriptionUrl: type === 'tournoi' ? (tournoiInscriptionUrl || undefined) : undefined,
+          tournoiReglementUrl: type === 'tournoi' ? (tournoiReglementUrl || undefined) : undefined,
           markDoneImmediately: markDone,
         },
       });
@@ -1048,7 +1064,7 @@ function EventFormModal({
                 <option value="training">Entraînement</option>
                 <option value="scrim">Scrim</option>
                 <option value="match">Match</option>
-                <option value="springs">Springs</option>
+                <option value="tournoi">Tournoi</option>
                 <option value="autre">Autre</option>
               </select>
             </div>
@@ -1429,6 +1445,53 @@ function EventFormModal({
             </div>
           )}
 
+          {type === 'tournoi' && (
+            <div className="bevel-sm p-3 space-y-3"
+              style={{ background: 'rgba(0,217,181,0.05)', border: '1px solid rgba(0,217,181,0.3)' }}>
+              <div className="flex items-center gap-2">
+                <span className="tag"
+                  style={{ background: 'rgba(0,217,181,0.15)', color: '#00D9B5', borderColor: 'rgba(0,217,181,0.4)', fontSize: '12px', padding: '2px 8px' }}>
+                  🏆 TOURNOI
+                </span>
+                <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                  Compétition externe ou interne — détails optionnels.
+                </span>
+              </div>
+              <div>
+                <label className="t-label block mb-1.5">Nom du tournoi</label>
+                <input type="text" className="settings-input w-full" value={tournoiNom}
+                  onChange={e => setTournoiNom(e.target.value)}
+                  placeholder="Nom du tournoi" maxLength={200} />
+              </div>
+              <div>
+                <label className="t-label block mb-1.5">Format (optionnel)</label>
+                <input type="text" className="settings-input w-full" value={tournoiFormat}
+                  onChange={e => setTournoiFormat(e.target.value)}
+                  placeholder="ex: BO3 single elim" maxLength={200} />
+              </div>
+              <div>
+                <label className="t-label block mb-1.5">Lien du tournoi (optionnel)</label>
+                <input type="url" className="settings-input w-full" value={tournoiUrl}
+                  onChange={e => setTournoiUrl(e.target.value)}
+                  placeholder="https://..." maxLength={500} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="t-label block mb-1.5">Lien d&apos;inscription (optionnel)</label>
+                  <input type="url" className="settings-input w-full" value={tournoiInscriptionUrl}
+                    onChange={e => setTournoiInscriptionUrl(e.target.value)}
+                    placeholder="https://..." maxLength={500} />
+                </div>
+                <div>
+                  <label className="t-label block mb-1.5">Lien du règlement (optionnel)</label>
+                  <input type="url" className="settings-input w-full" value={tournoiReglementUrl}
+                    onChange={e => setTournoiReglementUrl(e.target.value)}
+                    placeholder="https://..." maxLength={500} />
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center gap-2">
             <input type="checkbox" id="markDone" checked={markDone} onChange={e => setMarkDone(e.target.checked)} />
             <label htmlFor="markDone" className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
@@ -1483,7 +1546,7 @@ function EventDetailModal({
   onReload: () => void;
 }) {
   const toast = useToast();
-  const typeInfo = TYPE_INFO[event.type] ?? TYPE_INFO.autre;
+  const typeInfo = TYPE_INFO[normalizeEventType(event.type)] ?? TYPE_INFO.autre;
   const statusInfo = STATUS_INFO[event.status] ?? STATUS_INFO.scheduled;
   const myPresence = event.presences.find(p => p.userId === currentUid);
 

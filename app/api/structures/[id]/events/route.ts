@@ -11,6 +11,7 @@ import {
   validateEventTarget,
   getInvitedUserIds,
   isStaff,
+  normalizeEventType,
   EVENT_TYPES,
   type EventTarget,
   type EventType,
@@ -108,7 +109,9 @@ export async function GET(
         createdAt: ts(d.createdAt),
         updatedAt: ts(d.updatedAt),
         title: d.title,
-        type: d.type,
+        // Normalisation rétrocompat : les anciens events 'springs' sont servis
+        // comme 'tournoi' sans migration des documents Firestore.
+        type: normalizeEventType(d.type),
         description: d.description ?? '',
         location: d.location ?? '',
         startsAt: ts(d.startsAt),
@@ -125,6 +128,11 @@ export async function GET(
         adversaire: d.adversaire ?? null,
         adversaireLogoUrl: d.adversaireLogoUrl ?? null,
         resultat: d.resultat ?? null,
+        tournoiNom: d.tournoiNom ?? null,
+        tournoiFormat: d.tournoiFormat ?? null,
+        tournoiUrl: d.tournoiUrl ?? null,
+        tournoiInscriptionUrl: d.tournoiInscriptionUrl ?? null,
+        tournoiReglementUrl: d.tournoiReglementUrl ?? null,
         presences: presencesByEvent.get(doc.id) ?? [],
       };
     });
@@ -173,6 +181,11 @@ export async function POST(
       adversaire,
       adversaireLogoUrl,
       resultat,
+      tournoiNom,
+      tournoiFormat,
+      tournoiUrl,
+      tournoiInscriptionUrl,
+      tournoiReglementUrl,
       markDoneImmediately,
     } = body as {
       title?: string;
@@ -185,6 +198,11 @@ export async function POST(
       adversaire?: string;
       adversaireLogoUrl?: string;
       resultat?: string;
+      tournoiNom?: string;
+      tournoiFormat?: string;
+      tournoiUrl?: string;
+      tournoiInscriptionUrl?: string;
+      tournoiReglementUrl?: string;
       markDoneImmediately?: boolean;
     };
 
@@ -291,6 +309,25 @@ export async function POST(
       ? adversaireLogoUrlTrimmed
       : null;
 
+    // Champs tournoi : persistés uniquement quand type === 'tournoi' (sinon null).
+    // Les 3 liens suivent la même contrainte HTTPS / ≤500 chars que adversaireLogoUrl.
+    const isTournoi = type === 'tournoi';
+    const cleanText = (v: unknown): string | null => {
+      const s = String(v ?? '').trim();
+      return s.length > 0 ? s.slice(0, 200) : null;
+    };
+    const cleanHttpsUrl = (v: unknown): string | null => {
+      const s = String(v ?? '').trim();
+      if (s.length === 0) return null;
+      if (s.length > 500 || !/^https:\/\//.test(s)) return null;
+      return s;
+    };
+    const tournoiNomValue = isTournoi ? cleanText(tournoiNom) : null;
+    const tournoiFormatValue = isTournoi ? cleanText(tournoiFormat) : null;
+    const tournoiUrlValue = isTournoi ? cleanHttpsUrl(tournoiUrl) : null;
+    const tournoiInscriptionUrlValue = isTournoi ? cleanHttpsUrl(tournoiInscriptionUrl) : null;
+    const tournoiReglementUrlValue = isTournoi ? cleanHttpsUrl(tournoiReglementUrl) : null;
+
     batch.set(eventRef, {
       structureId,
       createdBy: uid,
@@ -314,6 +351,11 @@ export async function POST(
       adversaire: isMatch ? (adversaire?.trim() ?? null) : null,
       adversaireLogoUrl: adversaireLogoUrlValid,
       resultat: isMatch ? (resultat?.trim() ?? null) : null,
+      tournoiNom: tournoiNomValue,
+      tournoiFormat: tournoiFormatValue,
+      tournoiUrl: tournoiUrlValue,
+      tournoiInscriptionUrl: tournoiInscriptionUrlValue,
+      tournoiReglementUrl: tournoiReglementUrlValue,
     });
 
     for (const userId of invitedUserIds) {
@@ -338,7 +380,12 @@ export async function POST(
     //   - scope=teams  → post dans chaque salon d'équipe configuré (Livraison A)
     //   - scope=structure → post dans le salon structure + ping rôle (Livraison B)
     //   - scope=game   → post dans le salon du jeu + ping rôle (Livraison B)
-    (async () => {
+    //
+    // IMPORTANT : on `await` le fan-out AVANT de répondre. Sur Vercel serverless,
+    // une tâche async non attendue peut être gelée avec le freeze de la fonction
+    // dès le `return` → le post Discord ne partirait jamais. Le bloc est
+    // entièrement try/catch en interne : il ne peut pas faire échouer la création.
+    await (async () => {
       try {
         // Récupérer le displayName du créateur pour le footer de l'embed.
         let createdByName: string | null = null;

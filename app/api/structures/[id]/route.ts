@@ -81,6 +81,7 @@ export async function GET(
       tag: data.tag,
       logoUrl: data.logoUrl || '',
       coverUrl: data.coverUrl || '',
+      coverPositionY: typeof data.coverPositionY === 'number' ? data.coverPositionY : 50,
       description: data.description || '',
       games: data.games || [],
       discordUrl: data.discordUrl || '',

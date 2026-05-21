@@ -1,6 +1,7 @@
 'use client';
 import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
+import { useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
 
@@ -80,6 +81,37 @@ export function SortableGroup({
   return (
     <div ref={setNodeRef} style={style}>
       {children({ attributes, listeners, setActivatorNodeRef, isDragging })}
+    </div>
+  );
+}
+
+// Zone de dépôt autour de l'en-tête d'un groupe : permet de lâcher une équipe
+// directement sur le titre du groupe pour l'y rattacher (en fin de groupe).
+// Indispensable pour viser un groupe replié, qui n'affiche aucune carte cible.
+// Ne se met en surbrillance que pendant un drag d'équipe (id `team:*`).
+export function GroupDropZone({
+  groupKey, disabled, children,
+}: {
+  groupKey: string;
+  disabled: boolean;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver, active } = useDroppable({
+    id: `groupdrop:${groupKey}`,
+    disabled,
+  });
+  const teamDragActive = !!active && String(active.id).startsWith('team:');
+  const highlight = isOver && teamDragActive;
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        outline: highlight ? '2px dashed var(--s-gold)' : '2px dashed transparent',
+        outlineOffset: 3,
+        transition: 'outline-color 0.15s ease',
+      }}
+    >
+      {children}
     </div>
   );
 }

@@ -18,12 +18,14 @@ export async function processSquareImage(
     .toBuffer();
 }
 
-// Traite une bannière : 1920×480 (ratio 4:1), webp, qualité 82.
-// Le "cover" recadre intelligemment si l'image source n'est pas au bon ratio.
+// Traite une bannière : 1920×640 (ratio 3:1), webp, qualité 82.
+// Volontairement plus haute que le cadre d'affichage (plus plat) : cette marge
+// verticale permet de repositionner la bannière via `coverPositionY` sans
+// re-uploader. Le "cover" recadre intelligemment si la source n'est pas au ratio.
 export async function processBanner(
   input: Buffer,
   width = 1920,
-  height = 480,
+  height = 640,
   quality = 82
 ): Promise<Buffer> {
   return await sharp(input, { failOn: 'error' })

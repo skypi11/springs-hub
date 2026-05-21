@@ -297,7 +297,13 @@ export default function Sidebar() {
                   {user.displayName}
                 </p>
                 <p className="text-xs truncate" style={{ color: 'var(--s-text-muted)' }}>
-                  {isAdmin ? 'Admin Aedral' : 'Joueur'}
+                  {isAdmin
+                    ? 'Admin Aedral'
+                    : user.structureRole === 'fondateur'
+                      ? 'Fondateur'
+                      : user.structureRole === 'co_fondateur'
+                        ? 'Co-fondateur'
+                        : 'Joueur'}
                 </p>
               </div>
               <NotificationsBell />

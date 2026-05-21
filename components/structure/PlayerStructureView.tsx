@@ -14,6 +14,7 @@ import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api-client';
 import AvailabilityCollapsible from '@/components/calendar/AvailabilityCollapsible';
 import type { EventType, EventStatus, PresenceStatus } from '@/lib/event-permissions';
+import { normalizeEventType } from '@/lib/event-permissions';
 
 // Layout dédié à un joueur qui est membre d'une structure (pas dirigeant, pas manager, pas coach).
 // Il ne voit ni la configuration, ni le recrutement, ni le palmarès — que ce qui le concerne directement :
@@ -86,7 +87,7 @@ const TYPE_INFO: Record<EventType, { label: string; color: string }> = {
   training: { label: 'Entraînement', color: 'var(--s-text-dim)' },
   scrim: { label: 'Scrim', color: 'var(--s-blue)' },
   match: { label: 'Match', color: 'var(--s-gold)' },
-  springs: { label: 'Springs', color: 'var(--s-gold)' },
+  tournoi: { label: 'Tournoi', color: '#00D9B5' },
   autre: { label: 'Autre', color: 'var(--s-text-dim)' },
 };
 
@@ -505,7 +506,7 @@ function EventRow({ event, busy, onRespond }: {
   busy: boolean;
   onRespond: (s: PresenceStatus) => void;
 }) {
-  const typeInfo = TYPE_INFO[event.type] ?? TYPE_INFO.autre;
+  const typeInfo = TYPE_INFO[normalizeEventType(event.type)] ?? TYPE_INFO.autre;
   const myStatus: PresenceStatus = event.myPresence?.status ?? 'pending';
 
   return (

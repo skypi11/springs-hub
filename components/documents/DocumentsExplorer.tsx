@@ -327,7 +327,7 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
           if (xhr.status >= 200 && xhr.status < 300) resolve();
           else reject(new Error(`R2 status ${xhr.status}`));
         };
-        xhr.onerror = () => reject(new Error('network'));
+        xhr.onerror = () => reject(new Error('échec réseau pendant le transfert du fichier'));
         xhr.send(payload);
       });
 
