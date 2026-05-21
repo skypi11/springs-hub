@@ -271,6 +271,17 @@ function WeekPanel({
   const dragModeRef = useRef<'add' | 'remove' | null>(null);
   const [dragActive, setDragActive] = useState(false);
 
+  // Mobile (< sm) : la grille passe en largeur fluide (colonnes réparties sur
+  // 100%) au lieu de 640px fixe + scroll horizontal — interdit sur le site.
+  const [isNarrow, setIsNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const apply = () => setIsNarrow(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+
   useEffect(() => {
     function onUp() {
       dragModeRef.current = null;
@@ -364,10 +375,15 @@ function WeekPanel({
 
         {/* Grid */}
         <div className="overflow-x-auto">
-          <table className="border-collapse" style={{ minWidth: '640px', userSelect: 'none' }}>
+          <table className="border-collapse" style={{
+            minWidth: isNarrow ? 0 : '640px',
+            width: isNarrow ? '100%' : 'auto',
+            tableLayout: isNarrow ? 'fixed' : 'auto',
+            userSelect: 'none',
+          }}>
             <thead>
               <tr>
-                <th style={{ width: '64px' }} />
+                <th style={{ width: isNarrow ? 44 : 64 }} />
                 {weekGrid.days.map((day, i) => {
                   const date = new Date(day.gridYmd + 'T12:00:00');
                   const dayLabel = DAY_LABELS[i];
@@ -377,7 +393,7 @@ function WeekPanel({
                       fontSize: '12px',
                       color: day.isPast ? 'var(--s-text-muted)' : 'var(--s-text-dim)',
                       fontWeight: 600,
-                      width: '76px',
+                      width: isNarrow ? 'auto' : '76px',
                       opacity: day.isPast ? 0.5 : 1,
                     }}>
                       <div>{dayLabel}</div>
@@ -409,11 +425,11 @@ function WeekPanel({
                     {isHourStart && (
                       <span style={{
                         position: 'absolute',
-                        right: '12px',
+                        right: isNarrow ? '4px' : '12px',
                         top: 0,
                         transform: 'translateY(-50%)',
                         background: 'var(--s-surface)',
-                        padding: '0 4px',
+                        padding: isNarrow ? '0 2px' : '0 4px',
                         whiteSpace: 'nowrap',
                       }}>
                         {axis.label}
@@ -423,7 +439,7 @@ function WeekPanel({
                   {weekGrid.days.map((day) => {
                     const slot = slotForCell(day, axis.hh, axis.mm);
                     if (!slot) {
-                      return <td key={day.gridYmd} style={{ width: '76px', height: `${ROW_HEIGHT}px`, background: 'transparent' }} />;
+                      return <td key={day.gridYmd} style={{ width: isNarrow ? 'auto' : '76px', height: `${ROW_HEIGHT}px`, background: 'transparent' }} />;
                     }
                     const isSelected = slots.has(slot);
                     const slotDayYmd = slot.slice(0, 10);
@@ -448,7 +464,7 @@ function WeekPanel({
                           else if (!shouldAdd && isSelected) onToggle(slot);
                         }}
                         style={{
-                          width: '76px',
+                          width: isNarrow ? 'auto' : '76px',
                           height: `${ROW_HEIGHT}px`,
                           background: isPast
                             ? (isSelected ? 'rgba(255,184,0,0.15)' : 'rgba(255,255,255,0.02)')
