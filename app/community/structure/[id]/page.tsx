@@ -58,7 +58,7 @@ type StructureData = {
   tag: string;
   logoUrl: string;
   coverUrl: string;
-  coverPositionY: number;
+  coverCrop: import('@/types').BannerCrop | null;
   description: string;
   games: string[];
   discordUrl: string;
@@ -565,9 +565,19 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
               background: `linear-gradient(135deg, rgba(${mainColorRaw},0.22) 0%, rgba(${mainColorRaw},0.05) 40%, var(--s-surface) 100%)`,
             }}>
             {structure.coverUrl ? (
-              <Image src={structure.coverUrl} alt="" fill unoptimized
-                className="object-cover opacity-50"
-                style={{ objectPosition: `50% ${structure.coverPositionY}%` }} />
+              <div
+                className="absolute inset-0 opacity-50"
+                style={{
+                  backgroundImage: `url("${structure.coverUrl}")`,
+                  backgroundRepeat: 'no-repeat',
+                  ...(structure.coverCrop
+                    ? {
+                        backgroundSize: `${structure.coverCrop.sizePct}% auto`,
+                        backgroundPosition: `${structure.coverCrop.posX}% ${structure.coverCrop.posY}%`,
+                      }
+                    : { backgroundSize: 'cover', backgroundPosition: 'center' }),
+                }}
+              />
             ) : (
               <>
                 <div className="absolute inset-0 hex-bg opacity-70 pointer-events-none" />

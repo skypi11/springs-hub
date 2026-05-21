@@ -20,6 +20,7 @@ import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import PublicPreviewFrame from '@/components/ui/PublicPreviewFrame';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import type { UserContext } from '@/lib/event-permissions';
+import type { BannerCrop } from '@/types';
 import PlayerStructureView, { type PlayerStructure } from '@/components/structure/PlayerStructureView';
 import DocumentsExplorer from '@/components/documents/DocumentsExplorer';
 import CrossTeamTodosPanel from '@/components/structure/CrossTeamTodosPanel';
@@ -55,7 +56,7 @@ export default function MyStructurePage() {
   // Editing state
   const [editDesc, setEditDesc] = useState('');
   const [editLogoUrl, setEditLogoUrl] = useState('');
-  const [editCoverPositionY, setEditCoverPositionY] = useState(50);
+  const [editCoverCrop, setEditCoverCrop] = useState<BannerCrop | null>(null);
   const [editDiscordUrl, setEditDiscordUrl] = useState('');
   const [editSocials, setEditSocials] = useState<Record<string, string>>({});
   const [editRecruiting, setEditRecruiting] = useState<{ active: boolean; positions: { game: string; role: string }[]; message: string }>({ active: false, positions: [], message: '' });
@@ -432,7 +433,7 @@ export default function MyStructurePage() {
     setActiveStructure(s);
     setEditDesc(s.description || '');
     setEditLogoUrl(s.logoUrl || '');
-    setEditCoverPositionY(typeof s.coverPositionY === 'number' ? s.coverPositionY : 50);
+    setEditCoverCrop(s.coverCrop ?? null);
     setEditDiscordUrl(s.discordUrl || '');
     setEditSocials(s.socials || {});
     setEditRecruiting({
@@ -918,7 +919,7 @@ export default function MyStructurePage() {
           structureId: activeStructure.id,
           description: editDesc,
           logoUrl: editLogoUrl,
-          coverPositionY: editCoverPositionY,
+          coverCrop: editCoverCrop,
           discordUrl: editDiscordUrl,
           socials: editSocials,
           recruiting: editRecruiting,
@@ -1730,8 +1731,8 @@ export default function MyStructurePage() {
             setShowEmojis={setShowEmojis}
             editLogoUrl={editLogoUrl}
             setEditLogoUrl={setEditLogoUrl}
-            editCoverPositionY={editCoverPositionY}
-            setEditCoverPositionY={setEditCoverPositionY}
+            editCoverCrop={editCoverCrop}
+            setEditCoverCrop={setEditCoverCrop}
             editDiscordUrl={editDiscordUrl}
             setEditDiscordUrl={setEditDiscordUrl}
             editSocials={editSocials}

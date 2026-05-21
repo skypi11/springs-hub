@@ -181,6 +181,16 @@ export interface Competition {
   createdAt?: Date;
 }
 
+// ── Bannière de structure — cadrage ───────────────────────────────────────
+// Paramètres d'affichage de la bannière, produits par l'éditeur de cadrage et
+// appliqués tels quels en CSS (background-size / background-position).
+// `coverCrop` null/absent = cadrage par défaut (cover centré).
+export interface BannerCrop {
+  sizePct: number;  // background-size, en % de la largeur du cadre (≥ 100)
+  posX: number;     // background-position-x, en % (0-100)
+  posY: number;     // background-position-y, en % (0-100)
+}
+
 // ── Calendrier / Événements de structure ──────────────────────────────────
 export type EventType = 'training' | 'scrim' | 'match' | 'tournoi' | 'autre';
 export type EventScope = 'structure' | 'teams' | 'game';

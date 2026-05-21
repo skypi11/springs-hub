@@ -114,10 +114,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Update Firestore
-    await ref.update({
+    const updatePayload: Record<string, unknown> = {
       [oldField]: newUrl,
       updatedAt: FieldValue.serverTimestamp(),
-    });
+    };
+    // Nouvelle bannière → on réinitialise le cadrage : l'ancien `coverCrop`
+    // ne correspond plus aux dimensions de la nouvelle image.
+    if (type === 'banner') updatePayload.coverCrop = null;
+    await ref.update(updatePayload);
 
     // Audit log (standalone, pas besoin d'atomicité avec le storage)
     await writeAuditLog(db, {

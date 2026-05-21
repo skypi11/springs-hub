@@ -8,8 +8,10 @@ import {
   Link2, MessageSquare, Settings, Check, X,
 } from 'lucide-react';
 import ImageUploader from '@/components/ui/ImageUploader';
+import BannerCropEditor from '@/components/structure/BannerCropEditor';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import type { MyStructure, TeamData } from '../types';
+import type { BannerCrop } from '@/types';
 import { SOCIAL_LABELS, STATUS_INFO } from '../constants';
 import { SectionPanel } from '../components';
 
@@ -43,8 +45,8 @@ type GeneralTabProps = {
   setShowEmojis: Dispatch<SetStateAction<boolean>>;
   editLogoUrl: string;
   setEditLogoUrl: Dispatch<SetStateAction<string>>;
-  editCoverPositionY: number;
-  setEditCoverPositionY: Dispatch<SetStateAction<number>>;
+  editCoverCrop: BannerCrop | null;
+  setEditCoverCrop: Dispatch<SetStateAction<BannerCrop | null>>;
   editDiscordUrl: string;
   setEditDiscordUrl: Dispatch<SetStateAction<string>>;
   editSocials: Record<string, string>;
@@ -73,7 +75,7 @@ export function GeneralTab(props: GeneralTabProps) {
   const {
     s, activeStructure, setActiveStructure, loadStructures,
     editDesc, setEditDesc, descRef, showEmojis, setShowEmojis,
-    editLogoUrl, setEditLogoUrl, editCoverPositionY, setEditCoverPositionY,
+    editLogoUrl, setEditLogoUrl, editCoverCrop, setEditCoverCrop,
     editDiscordUrl, setEditDiscordUrl,
     editSocials, setEditSocials, editAchievements, setEditAchievements,
     discordLoading, handleConnectDiscord, handleDisconnectDiscord, renderDiscordConfigBlock,
@@ -186,26 +188,15 @@ export function GeneralTab(props: GeneralTabProps) {
                 void loadStructures();
               }}
             />
-            {/* Cadrage vertical — la bannière stockée est plus haute que le cadre
-                d'affichage ; ce curseur choisit la bande visible (coverPositionY). */}
+            {/* Éditeur de cadrage : image entière + cadre 4:1 déplaçable + zoom.
+                Le résultat (coverCrop) est appliqué tel quel sur la page publique. */}
             {activeStructure?.coverUrl && (
-              <div className="space-y-2">
-                <label className="t-label block">Cadrage vertical de la bannière</label>
-                <div className="relative w-full overflow-hidden bevel-sm aspect-[4/1]"
-                  style={{ border: '1px solid var(--s-border)' }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={activeStructure.coverUrl} alt=""
-                    className="absolute inset-0 w-full h-full object-cover"
-                    style={{ objectPosition: `50% ${editCoverPositionY}%` }} />
-                </div>
-                <input type="range" min={0} max={100} value={editCoverPositionY}
-                  onChange={e => setEditCoverPositionY(Number(e.target.value))}
-                  className="w-full" style={{ accentColor: 'var(--s-gold)' }}
-                  disabled={!isDirigeantOfActive} />
-                <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                  Aperçu du cadrage tel qu&apos;il apparaîtra sur la page publique. Pense à sauvegarder.
-                </p>
-              </div>
+              <BannerCropEditor
+                imageUrl={activeStructure.coverUrl}
+                value={editCoverCrop}
+                onChange={setEditCoverCrop}
+                disabled={!isDirigeantOfActive}
+              />
             )}
           </div>
         </SectionPanel>

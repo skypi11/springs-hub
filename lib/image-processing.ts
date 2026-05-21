@@ -18,22 +18,20 @@ export async function processSquareImage(
     .toBuffer();
 }
 
-// Traite une bannière : 1920×640 (ratio 3:1), webp, qualité 82.
-// Volontairement plus haute que le cadre d'affichage (plus plat) : cette marge
-// verticale permet de repositionner la bannière via `coverPositionY` sans
-// re-uploader. Le "cover" recadre intelligemment si la source n'est pas au ratio.
+// Traite une bannière : conserve le ratio source (AUCUN recadrage imposé),
+// borne juste la largeur à 2000px et convertit en webp. Le cadrage final
+// (zone visible) est choisi par l'utilisateur via l'éditeur de cadrage et
+// appliqué à l'affichage en CSS — l'image stockée reste la bannière complète.
 export async function processBanner(
   input: Buffer,
-  width = 1920,
-  height = 640,
+  maxWidth = 2000,
   quality = 82
 ): Promise<Buffer> {
   return await sharp(input, { failOn: 'error' })
     .rotate()
-    .resize(width, height, {
-      fit: 'cover',
-      position: 'center',
-      withoutEnlargement: false,
+    .resize(maxWidth, null, {
+      fit: 'inside',
+      withoutEnlargement: true,
     })
     .webp({ quality, effort: 4 })
     .toBuffer();

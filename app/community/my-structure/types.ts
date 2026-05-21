@@ -79,7 +79,7 @@ export type MyStructure = {
   tag: string;
   logoUrl: string;
   coverUrl?: string;
-  coverPositionY?: number;
+  coverCrop?: import('@/types').BannerCrop | null;
   description: string;
   games: string[];
   discordUrl: string;

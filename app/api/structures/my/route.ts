@@ -347,11 +347,24 @@ export async function PUT(req: NextRequest) {
       // Cap à 50 entrées pour limiter la taille du document
       safeUpdates.achievements = updates.achievements.slice(0, 50);
     }
-    if (updates.coverPositionY !== undefined) {
-      // Position verticale d'affichage de la bannière, en % (0 = haut, 100 = bas).
-      const y = Number(updates.coverPositionY);
-      if (Number.isFinite(y)) {
-        safeUpdates.coverPositionY = Math.min(100, Math.max(0, Math.round(y)));
+    if (updates.coverCrop !== undefined) {
+      // Cadrage de la bannière : null = cadrage par défaut (cover centré),
+      // sinon { sizePct, posX, posY } produit par l'éditeur de cadrage.
+      const c = updates.coverCrop;
+      if (c === null) {
+        safeUpdates.coverCrop = null;
+      } else if (c && typeof c === 'object') {
+        const cc = c as Record<string, unknown>;
+        const size = Number(cc.sizePct);
+        const px = Number(cc.posX);
+        const py = Number(cc.posY);
+        if (Number.isFinite(size) && Number.isFinite(px) && Number.isFinite(py)) {
+          safeUpdates.coverCrop = {
+            sizePct: Math.min(1000, Math.max(100, size)),
+            posX: Math.min(100, Math.max(0, px)),
+            posY: Math.min(100, Math.max(0, py)),
+          };
+        }
       }
     }
 
