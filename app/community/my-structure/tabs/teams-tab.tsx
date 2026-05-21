@@ -289,7 +289,7 @@ export function TeamsTab(props: TeamsTabProps) {
                       <>
                         <div className="fixed inset-0 z-10" onClick={() => setCaptainPickerOpen(null)} />
                         <div
-                          className="absolute left-0 top-full mt-1 z-20 min-w-[200px] py-1 bevel-sm"
+                          className="absolute left-0 top-full mt-1 z-20 min-w-[200px] max-w-[calc(100vw-2rem)] py-1 bevel-sm"
                           style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
                         >
                           <div className="px-3 py-1.5 t-label" style={{ color: 'var(--s-text-muted)' }}>Capitaine</div>
@@ -344,7 +344,7 @@ export function TeamsTab(props: TeamsTabProps) {
                 {menuOpen && teamMenuRect && (
                   <Portal>
                     <div className="fixed inset-0 z-[60]" onClick={() => { setTeamMenuOpen(null); setTeamMenuRect(null); }} />
-                    <div className="fixed z-[61] min-w-[220px] py-1 bevel-sm animate-fade-in"
+                    <div className="fixed z-[61] min-w-[220px] max-w-[calc(100vw-1rem)] py-1 bevel-sm animate-fade-in"
                       style={{
                         top: teamMenuRect.top,
                         right: teamMenuRect.right,

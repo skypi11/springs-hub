@@ -584,7 +584,7 @@ function TeamFilterDropdown({
         </button>
       )}
       {open && (
-        <div className="absolute left-5 top-full mt-1 z-30 w-[280px] max-h-[320px] overflow-hidden flex flex-col bevel-sm"
+        <div className="absolute left-5 top-full mt-1 z-30 w-[min(280px,calc(100vw-2.5rem))] max-h-[320px] overflow-hidden flex flex-col bevel-sm"
           style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
           {teams.length > 6 && (
             <div className="p-2" style={{ borderBottom: '1px solid var(--s-border)' }}>

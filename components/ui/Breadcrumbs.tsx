@@ -12,7 +12,7 @@ export default function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
   return (
     <nav
       aria-label="Fil d'Ariane"
-      className="flex items-center gap-1.5 text-sm animate-fade-in"
+      className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm animate-fade-in"
       style={{ color: 'var(--s-text-muted)' }}
     >
       <Link

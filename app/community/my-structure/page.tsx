@@ -1445,7 +1445,7 @@ export default function MyStructurePage() {
           {/* Header */}
           <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
             <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${statusInfo.color}, ${statusInfo.color}50, transparent 80%)` }} />
-            <div className="relative z-[1] p-8 flex items-center gap-6">
+            <div className="relative z-[1] p-4 sm:p-6 lg:p-8 flex items-center gap-4 sm:gap-6">
               <div className="flex-shrink-0 w-16 h-16 relative overflow-hidden bevel-sm" style={{ background: 'var(--s-elevated)', border: '2px solid var(--s-border)' }}>
                 {s.logoUrl ? (
                   <Image src={s.logoUrl} alt={s.name} fill className="object-contain p-1" unoptimized />
@@ -1455,9 +1455,9 @@ export default function MyStructurePage() {
                   </div>
                 )}
               </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-1">
-                  <h1 className="font-display text-3xl" style={{ letterSpacing: '0.03em' }}>{s.name}</h1>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 sm:gap-3 mb-1 flex-wrap">
+                  <h1 className="font-display text-2xl sm:text-3xl" style={{ letterSpacing: '0.03em' }}>{s.name}</h1>
                   <span className="tag tag-neutral">{s.tag}</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1524,40 +1524,42 @@ export default function MyStructurePage() {
           {/* Glow or subtil */}
           <div className="absolute top-0 left-0 w-64 h-64 pointer-events-none"
             style={{ background: 'radial-gradient(circle at 0% 0%, rgba(255,184,0,0.06), transparent 60%)' }} />
-          <div className="relative z-[1] p-8 flex items-center gap-6">
-            <div className="flex-shrink-0 w-[72px] h-[72px] relative overflow-hidden bevel-sm" style={{ background: 'var(--s-elevated)', border: '2px solid rgba(255,184,0,0.2)' }}>
-              {s.logoUrl ? (
-                <Image src={s.logoUrl} alt={s.name} fill className="object-contain p-1.5" unoptimized />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <Shield size={30} style={{ color: 'var(--s-text-muted)' }} />
-                </div>
-              )}
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-1.5">
-                <h1 className="font-display text-4xl" style={{ letterSpacing: '0.04em' }}>{s.name}</h1>
-                <span className="tag tag-gold" style={{ fontSize: '12px', padding: '3px 10px' }}>{s.tag}</span>
+          <div className="relative z-[1] p-4 sm:p-6 lg:p-8 flex flex-col md:flex-row md:items-center gap-4 md:gap-6">
+            <div className="flex items-center gap-4 sm:gap-5 min-w-0 flex-1">
+              <div className="flex-shrink-0 w-16 h-16 sm:w-[72px] sm:h-[72px] relative overflow-hidden bevel-sm" style={{ background: 'var(--s-elevated)', border: '2px solid rgba(255,184,0,0.2)' }}>
+                {s.logoUrl ? (
+                  <Image src={s.logoUrl} alt={s.name} fill className="object-contain p-1.5" unoptimized />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Shield size={30} style={{ color: 'var(--s-text-muted)' }} />
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1.5">
-                  <StatusIcon size={12} style={{ color: statusInfo.color }} />
-                  <span className="t-mono text-xs" style={{ color: statusInfo.color }}>{statusInfo.label}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 sm:gap-3 mb-1.5 flex-wrap">
+                  <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl" style={{ letterSpacing: '0.04em' }}>{s.name}</h1>
+                  <span className="tag tag-gold" style={{ fontSize: '12px', padding: '3px 10px' }}>{s.tag}</span>
                 </div>
-                <span style={{ color: 'var(--s-text-muted)' }}>·</span>
-                <div className="flex gap-1.5">
-                  {s.games?.map(g => (
-                    <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                      style={{ fontSize: '12px', padding: '2px 6px' }}>
-                      {g === 'rocket_league' ? 'RL' : 'TM'}
-                    </span>
-                  ))}
+                <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <StatusIcon size={12} style={{ color: statusInfo.color }} />
+                    <span className="t-mono text-xs" style={{ color: statusInfo.color }}>{statusInfo.label}</span>
+                  </div>
+                  <span style={{ color: 'var(--s-text-muted)' }}>·</span>
+                  <div className="flex gap-1.5">
+                    {s.games?.map(g => (
+                      <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
+                        style={{ fontSize: '12px', padding: '2px 6px' }}>
+                        {g === 'rocket_league' ? 'RL' : 'TM'}
+                      </span>
+                    ))}
+                  </div>
+                  <span style={{ color: 'var(--s-text-muted)' }}>·</span>
+                  <span className="t-mono text-xs" style={{ color: 'var(--s-text-dim)' }}>{s.members.length} membre{s.members.length > 1 ? 's' : ''}</span>
                 </div>
-                <span style={{ color: 'var(--s-text-muted)' }}>·</span>
-                <span className="t-mono text-xs" style={{ color: 'var(--s-text-dim)' }}>{s.members.length} membre{s.members.length > 1 ? 's' : ''}</span>
               </div>
             </div>
-            <div className="flex flex-col gap-2 flex-shrink-0">
+            <div className="flex flex-col gap-2 md:flex-shrink-0">
               <Link href={`/community/structure/${s.id}`} className="btn-springs btn-secondary bevel-sm-border">
                 <span><Eye size={14} /></span> <span>Page publique</span>
               </Link>

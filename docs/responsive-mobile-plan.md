@@ -51,14 +51,20 @@ hamburger `fixed` < lg, backdrop), `components/layout/LayoutShell.tsx`
   en mobile une sous-nav d'onglets compacts en `flex-wrap` (zéro scroll horizontal)
   la remplace.
 
-### ⬜ Lot 3 — my-structure en profondeur + modales
-- **`app/community/my-structure/page.tsx`** — header (`p-8`, titre `text-4xl`,
-  bloc boutons sans `flex-wrap`) ; vérifier les onglets denses.
-- **`tabs/teams-tab.tsx`** — rosters déjà traités (Lot 1) ; vérifier le reste
-  (formulaire création équipe, menus kebab `min-w-[220px]`).
-- **`tabs/general-tab.tsx`** — emoji picker `width:320px` `absolute` peut déborder.
-- Modales/popovers largeur fixe : `MonthView.tsx` `w-[300px]`, `CalendarSection.tsx`
-  `w-[280px]`, menus `min-w-[220px]` (`MemberActionsMenu.tsx`, `teams-tab.tsx`).
+### ✅ Lot 3 — TERMINÉ
+- **`app/community/my-structure/page.tsx`** — les 2 headers (statut actif /
+  non-actif) : `p-8` → padding responsive, header actif passe en colonne sous
+  `md` (groupe logo+nom puis bloc boutons en dessous), titres
+  `text-3xl`/`text-4xl` → échelle responsive. Onglets (`TabBar`) déjà responsive
+  (flex-wrap + padding `sm:`), rien à faire.
+- **`tabs/teams-tab.tsx`** / **`MemberActionsMenu.tsx`** — menus kebab `min-w-`
+  fixes bornés par `max-w-[calc(100vw-1rem)]` ; menu capitaine borné aussi.
+  Formulaire création équipe déjà en `grid-cols-1 sm:grid-cols-3`.
+- **`tabs/general-tab.tsx`** — emoji picker `width:320px` →
+  `min(320px, calc(100vw - 3rem))`.
+- Popovers largeur fixe : `MonthView.tsx` `w-[300px]` → `min()` + clamp `left`/`top`
+  recalculés ; `CalendarSection.tsx` `w-[280px]` → `w-[min(280px,calc(100vw-2.5rem))]`.
+- Aussi : `Breadcrumbs.tsx` passé en `flex-wrap` (le fil d'Ariane débordait).
 
 ### ⬜ Lot 4 — Calendrier + admin
 - **`components/calendar/`** — vues structurellement larges : `WeekView.tsx`

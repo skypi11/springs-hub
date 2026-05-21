@@ -241,10 +241,11 @@ export default function MonthView({ events, teams, now, canCreate, onEventClick,
       {dayPopover && (
         <Portal>
           <div className="fixed inset-0 z-[60]" onClick={() => setDayPopover(null)} />
-          <div className="fixed z-[61] w-[300px] flex flex-col bevel-sm animate-fade-in"
+          <div className="fixed z-[61] flex flex-col bevel-sm animate-fade-in"
             style={{
-              top: Math.min(dayPopover.top, window.innerHeight - 420),
-              left: Math.min(dayPopover.left, window.innerWidth - 316),
+              width: 'min(300px, calc(100vw - 1rem))',
+              top: Math.max(8, Math.min(dayPopover.top, window.innerHeight - 420)),
+              left: Math.max(8, Math.min(dayPopover.left, window.innerWidth - Math.min(300, window.innerWidth - 16) - 8)),
               maxHeight: 420,
               background: 'var(--s-surface)',
               border: '1px solid var(--s-border)',

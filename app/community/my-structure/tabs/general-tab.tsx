@@ -104,7 +104,7 @@ export function GeneralTab(props: GeneralTabProps) {
                   <span style={{ fontSize: '14px' }}>😀</span> Emojis
                 </button>
                 {showEmojis && (
-                  <div className="absolute left-0 top-full mt-1 p-2 z-50 flex flex-wrap" style={{ width: '320px', background: 'var(--s-surface)', border: '1px solid var(--s-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+                  <div className="absolute left-0 top-full mt-1 p-2 z-50 flex flex-wrap" style={{ width: 'min(320px, calc(100vw - 3rem))', background: 'var(--s-surface)', border: '1px solid var(--s-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
                     {['🏆', '🥇', '🥈', '🥉', '⭐', '🔥', '💪', '🎮', '🎯', '🚀', '⚽', '🏎️', '🏁', '👑', '💎', '🛡️', '⚔️', '🎉', '📢', '💬', '✅', '❌', '🔵', '🟢', '🟡', '🔴', '⚡', '💥', '🌟', '🏅', '👊', '🤝', '📊', '📈', '🗓️', '🎪', '🏟️', '🎖️', '🧩', '🕹️'].map(emoji => (
                       <button key={emoji} type="button"
                         className="hover:bg-[var(--s-hover)] transition-colors duration-100"

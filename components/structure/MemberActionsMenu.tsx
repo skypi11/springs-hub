@@ -173,7 +173,7 @@ export default function MemberActionsMenu(props: MemberActionsMenuProps) {
           />
           <div
             role="menu"
-            className="fixed z-[61] py-1 min-w-[220px] animate-fade-in"
+            className="fixed z-[61] py-1 min-w-[220px] max-w-[calc(100vw-1rem)] animate-fade-in"
             style={{
               top: rect.top,
               right: rect.right,
