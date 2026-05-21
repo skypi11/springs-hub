@@ -19,7 +19,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (authLoading) {
     return (
-      <div className="min-h-screen px-8 py-8 flex items-center justify-center">
+      <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-6 lg:py-8 flex items-center justify-center">
         <Loader2 size={24} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
       </div>
     );
@@ -31,7 +31,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="min-h-screen hex-bg px-8 py-8">
+    <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
       <div className="relative z-[1] space-y-6">
         {/* Header admin */}
         <header

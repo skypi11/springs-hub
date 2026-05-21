@@ -132,7 +132,7 @@ export default function HomePage() {
 
   // Mode connecté : dashboard + écosystème + comps
   return (
-    <div className="min-h-screen hex-bg px-8 py-8 space-y-10">
+    <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-10">
       <div className="relative z-[1] space-y-10">
 
         {user && <ConnectedDashboard user={user} />}

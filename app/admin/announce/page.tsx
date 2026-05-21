@@ -257,7 +257,7 @@ export default function AdminAnnouncePage() {
 
   if (!authLoading && !isAdmin) {
     return (
-      <div className="min-h-screen px-8 py-8 flex items-center justify-center">
+      <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-6 lg:py-8 flex items-center justify-center">
         <div className="panel p-10 text-center max-w-md">
           <AlertCircle size={32} className="mx-auto mb-4" style={{ color: 'var(--s-text-muted)' }} />
           <h2 className="font-display text-2xl mb-2">ACCÈS REFUSÉ</h2>
@@ -268,7 +268,7 @@ export default function AdminAnnouncePage() {
   }
 
   return (
-    <div className="min-h-screen px-8 py-8 space-y-6 hex-bg">
+    <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-6 hex-bg">
       <Breadcrumbs items={[{ label: 'Admin', href: '/admin' }, { label: 'Annonces Discord' }]} />
 
       <header className="flex items-center gap-3">

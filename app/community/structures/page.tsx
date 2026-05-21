@@ -106,7 +106,7 @@ export default function StructuresPage() {
   const gridCols = count < 4 ? 'grid-cols-1 md:grid-cols-2' : count < 9 ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
 
   return (
-    <div className="min-h-screen hex-bg px-8 py-8 space-y-6">
+    <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-6">
       <CompactStickyHeader
         icon={Shield}
         title="Structures"

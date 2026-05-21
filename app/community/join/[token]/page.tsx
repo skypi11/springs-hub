@@ -70,7 +70,7 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
   }, [authLoading, firebaseUser, token, doJoin]);
 
   return (
-    <div className="min-h-screen hex-bg px-8 py-8 flex items-center justify-center">
+    <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 flex items-center justify-center">
       <div className="relative z-[1] bevel p-10 text-center max-w-md w-full" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
         {status === 'loading' && (
           <Loader2 size={32} className="animate-spin mx-auto" style={{ color: 'var(--s-text-dim)' }} />

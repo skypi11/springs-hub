@@ -275,7 +275,7 @@ export default function PlayersPage() {
     : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
 
   return (
-    <div className="min-h-screen hex-bg px-8 py-8 space-y-6">
+    <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-6">
       <CompactStickyHeader
         icon={User}
         title="Joueurs"

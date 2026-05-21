@@ -938,7 +938,7 @@ export default function MyStructurePage() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen px-8 py-8 flex items-center justify-center">
+      <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-6 lg:py-8 flex items-center justify-center">
         <Loader2 size={24} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
       </div>
     );
@@ -961,7 +961,7 @@ export default function MyStructurePage() {
     }
 
     return (
-      <div className="min-h-screen hex-bg px-8 py-8 flex items-center justify-center">
+      <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 flex items-center justify-center">
         <div className="relative z-[1] bevel p-10 text-center max-w-md" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
           <div className="w-14 h-14 mx-auto mb-5 flex items-center justify-center" style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.2)' }}>
             <Shield size={24} style={{ color: 'var(--s-gold)' }} />
@@ -1440,7 +1440,7 @@ export default function MyStructurePage() {
   // Structure en attente, suspendue ou refusée — vue minimale pour tous les rôles.
   if (s.status !== 'active') {
     return (
-      <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
+      <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-8">
         <div className="relative z-[1]">
           {/* Header */}
           <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
@@ -1487,7 +1487,7 @@ export default function MyStructurePage() {
   // ─── Active structure — full dashboard ───────────────────────────────
 
   return (
-    <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
+    <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-8">
       <CompactStickyHeader
         icon={Shield}
         title={s.name || 'Ma structure'}

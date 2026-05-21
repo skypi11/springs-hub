@@ -90,7 +90,7 @@ export default function MyApplicationsPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen hex-bg px-8 py-8 flex items-center justify-center">
+      <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 flex items-center justify-center">
         <Loader2 size={28} className="animate-spin" style={{ color: 'var(--s-gold)' }} />
       </div>
     );
@@ -98,7 +98,7 @@ export default function MyApplicationsPage() {
 
   if (!firebaseUser) {
     return (
-      <div className="min-h-screen hex-bg px-8 py-8 flex items-center justify-center">
+      <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 flex items-center justify-center">
         <div className="panel p-10 text-center max-w-md">
           <AlertCircle size={32} className="mx-auto mb-4" style={{ color: 'var(--s-text-muted)' }} />
           <h2 className="font-display text-2xl mb-2">CONNEXION REQUISE</h2>
@@ -109,7 +109,7 @@ export default function MyApplicationsPage() {
   }
 
   return (
-    <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
+    <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-8">
       <CompactStickyHeader icon={Inbox} title="Mes candidatures" accent="var(--s-gold)" />
       <div className="relative z-[1] space-y-8">
         <Breadcrumbs items={[

@@ -164,7 +164,7 @@ export default function MyCalendarPage() {
   }
 
   return (
-    <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
+    <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-8">
       <CompactStickyHeader
         icon={CalendarIcon}
         title="Mon calendrier"

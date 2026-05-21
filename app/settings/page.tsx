@@ -293,7 +293,7 @@ export default function SettingsPage() {
 
   if (!authLoading && !firebaseUser) {
     return (
-      <div className="min-h-screen px-8 py-8 flex items-center justify-center">
+      <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-6 lg:py-8 flex items-center justify-center">
         <div className="panel p-10 text-center max-w-md">
           <AlertCircle size={32} className="mx-auto mb-4" style={{ color: 'var(--s-text-muted)' }} />
           <h2 className="font-display text-2xl mb-2">CONNEXION REQUISE</h2>
@@ -305,7 +305,7 @@ export default function SettingsPage() {
 
   if (!loaded) {
     return (
-      <div className="min-h-screen px-8 py-8 flex items-center justify-center">
+      <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-6 lg:py-8 flex items-center justify-center">
         <Loader2 size={24} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
       </div>
     );
@@ -389,7 +389,7 @@ export default function SettingsPage() {
   const avatarSrc = form.avatarUrl || user?.discordAvatar || '';
 
   return (
-    <div className="min-h-screen hex-bg px-8 py-8">
+    <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
       <div className="relative z-[1] space-y-6">
 
         <Breadcrumbs items={[{ label: 'Mon profil' }]} />

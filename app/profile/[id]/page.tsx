@@ -124,7 +124,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
   if (loading) {
     return (
-      <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
+      <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-8">
         <div className="space-y-6 animate-fade-in">
           <SkeletonPageHeader accent="var(--s-gold)" />
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -144,7 +144,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
   if (notFound || !profile) {
     return (
-      <div className="min-h-screen px-8 py-8 flex items-center justify-center">
+      <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-6 lg:py-8 flex items-center justify-center">
         <div className="panel p-10 text-center max-w-md">
           <AlertCircle size={32} className="mx-auto mb-4" style={{ color: 'var(--s-text-muted)' }} />
           <h2 className="font-display text-2xl mb-2">PROFIL INTROUVABLE</h2>
@@ -159,7 +159,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const age = profile.age ?? null;
 
   return (
-    <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
+    <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-8">
       <CompactStickyHeader
         icon={User}
         title={profile.displayName || 'Joueur'}

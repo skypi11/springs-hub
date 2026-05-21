@@ -37,7 +37,7 @@ const competitions = [
 
 export default function CompetitionsPage() {
   return (
-    <div className="min-h-screen px-8 py-8 space-y-10">
+    <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-10">
 
       {/* ─── HEADER ───────────────────────────────────────────────────────── */}
       <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>

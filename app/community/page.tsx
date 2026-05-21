@@ -88,7 +88,7 @@ export default function CommunityPage() {
   const topPlayers = availablePlayers.slice(0, 8);
 
   return (
-    <div className="min-h-screen hex-bg px-8 py-8 space-y-8">
+    <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-8">
       <div className="relative z-[1] space-y-8">
 
         {/* Header compact */}
