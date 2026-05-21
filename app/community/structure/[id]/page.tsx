@@ -532,6 +532,46 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
 
   const panelTeam = panelTeamId ? teams.find(t => t.id === panelTeamId) ?? null : null;
 
+  // CTA principal — partagé entre l'overlay desktop et le bloc identité mobile.
+  const ctaContent = isOwner ? (
+    <Link href="/community/my-structure" className="btn-springs btn-secondary bevel-sm flex items-center justify-center gap-2">
+      <Shield size={14} /> Gérer
+    </Link>
+  ) : firebaseUser && !isMember && !joinSent && structure.recruiting?.active ? (
+    <button onClick={() => setShowJoinForm(!showJoinForm)}
+      className="btn-springs btn-primary bevel-sm flex items-center justify-center gap-2"
+      style={{ padding: '10px 20px', fontSize: '13px' }}>
+      <UserPlus size={15} /> Postuler
+    </button>
+  ) : firebaseUser && !isMember && !joinSent && !structure.recruiting?.active ? (
+    <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>
+      Ne recrute pas
+    </span>
+  ) : joinSent ? (
+    <span className="flex items-center gap-2 text-sm font-bold" style={{ color: '#33ff66' }}>
+      <CheckCircle size={15} /> Demande envoyée
+    </span>
+  ) : isMember ? (
+    <span className="tag tag-gold" style={{ fontSize: '12px', padding: '6px 14px' }}>Membre</span>
+  ) : null;
+
+  // Tags d'identité (tag structure + jeux + recrute) — partagés desktop/mobile.
+  const identityTags = (
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="tag tag-gold">{structure.tag}</span>
+      {structure.games?.map(g => (
+        <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}>
+          {g === 'rocket_league' ? 'Rocket League' : 'Trackmania'}
+        </span>
+      ))}
+      {structure.recruiting?.active && (
+        <span className="tag" style={{ background: 'rgba(255,184,0,0.12)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.3)' }}>
+          <Search size={9} /> Recrute
+        </span>
+      )}
+    </div>
+  );
+
   return (
     <>
     <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-8">
@@ -588,8 +628,8 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
             <div className="absolute inset-0 pointer-events-none"
               style={{ background: 'linear-gradient(to top, rgba(8,8,12,0.95) 0%, rgba(8,8,12,0.72) 32%, rgba(8,8,12,0.34) 68%, rgba(8,8,12,0.12) 100%)' }} />
 
-            {/* Identité — calée en bas, posée sur la bannière */}
-            <div className="absolute inset-0 z-[1] flex items-end px-8 pt-8 pb-5">
+            {/* Identité desktop — calée en bas, posée sur la bannière */}
+            <div className="hidden lg:flex absolute inset-0 z-[1] items-end px-8 pt-8 pb-5">
               <div className="flex items-end gap-6 w-full">
                 {/* Logo */}
                 <div className="flex-shrink-0 w-[110px] h-[110px] relative overflow-hidden bevel-sm"
@@ -604,20 +644,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  {/* Tags */}
-                  <div className="flex items-center gap-2 mb-2.5 flex-wrap">
-                    <span className="tag tag-gold">{structure.tag}</span>
-                    {structure.games?.map(g => (
-                      <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}>
-                        {g === 'rocket_league' ? 'Rocket League' : 'Trackmania'}
-                      </span>
-                    ))}
-                    {structure.recruiting?.active && (
-                      <span className="tag" style={{ background: 'rgba(255,184,0,0.12)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.3)' }}>
-                        <Search size={9} /> Recrute
-                      </span>
-                    )}
-                  </div>
+                  <div className="mb-2.5">{identityTags}</div>
                   {/* Nom */}
                   <h1 className="font-display tracking-wider truncate"
                     style={{ color: 'var(--s-text)', fontSize: '46px', lineHeight: 1, textShadow: '0 2px 16px rgba(0,0,0,0.75)' }}>
@@ -627,34 +654,42 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
 
                 {/* CTA principal */}
                 <div className="flex-shrink-0 flex flex-col items-end gap-2">
-                  {isOwner ? (
-                    <Link href="/community/my-structure" className="btn-springs btn-secondary bevel-sm flex items-center gap-2">
-                      <Shield size={14} /> Gérer
-                    </Link>
-                  ) : firebaseUser && !isMember && !joinSent && structure.recruiting?.active ? (
-                    <button onClick={() => setShowJoinForm(!showJoinForm)}
-                      className="btn-springs btn-primary bevel-sm flex items-center gap-2"
-                      style={{ padding: '10px 20px', fontSize: '13px' }}>
-                      <UserPlus size={15} /> Postuler
-                    </button>
-                  ) : firebaseUser && !isMember && !joinSent && !structure.recruiting?.active ? (
-                    <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>
-                      Ne recrute pas
-                    </span>
-                  ) : joinSent ? (
-                    <span className="flex items-center gap-2 text-sm font-bold" style={{ color: '#33ff66' }}>
-                      <CheckCircle size={15} /> Demande envoyée
-                    </span>
-                  ) : isMember ? (
-                    <span className="tag tag-gold" style={{ fontSize: '12px', padding: '6px 14px' }}>Membre</span>
-                  ) : null}
+                  {ctaContent}
                 </div>
               </div>
             </div>
           </div>
 
+          {/* ── Identité mobile : empilée sous la bannière ──
+              La zone 6:1 fait ~55px de haut sur petit écran — trop fine pour
+              porter logo + nom + CTA en superposition. On la sort en flux normal. */}
+          <div className="lg:hidden flex flex-col gap-4 px-4 sm:px-6 py-5" style={{ borderTop: '1px solid var(--s-border)' }}>
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-[76px] h-[76px] relative overflow-hidden bevel-sm"
+                style={{ background: 'var(--s-elevated)', border: `3px solid rgba(${mainColorRaw},0.45)`, boxShadow: '0 8px 28px rgba(0,0,0,0.55)' }}>
+                {structure.logoUrl ? (
+                  <Image src={structure.logoUrl} alt={structure.name} fill className="object-contain p-2" unoptimized />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Shield size={32} style={{ color: 'var(--s-text-muted)' }} />
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0 flex flex-col gap-2">
+                {identityTags}
+                <h1 className="font-display tracking-wider"
+                  style={{ color: 'var(--s-text)', fontSize: 'clamp(24px, 6.5vw, 38px)', lineHeight: 1.05 }}>
+                  {structure.name}
+                </h1>
+              </div>
+            </div>
+            <div className="flex flex-col items-start gap-2">
+              {ctaContent}
+            </div>
+          </div>
+
           {/* ── Barre d'infos : stats + direction sur fond plein ── */}
-          <div className="relative z-[1] px-8 py-4 flex items-center justify-between gap-x-8 gap-y-3 flex-wrap"
+          <div className="relative z-[1] px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-x-8 gap-y-3 flex-wrap"
             style={{ borderTop: '1px solid var(--s-border)' }}>
             <div className="flex items-center gap-6 flex-wrap">
               <HeroStat

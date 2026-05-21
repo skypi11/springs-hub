@@ -491,10 +491,40 @@ export default function SettingsPage() {
         </div>
 
         {/* 2-col layout : sous-nav gauche + contenu droite */}
-        <div className="grid grid-cols-[220px_1fr] gap-6 animate-fade-in-d1">
+        <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6 animate-fade-in-d1">
 
-          {/* ─── SOUS-NAV LATÉRALE ─────────────────────────────────── */}
-          <aside>
+          {/* Sous-nav mobile — onglets repliables (flex-wrap, zéro scroll horizontal) */}
+          <div
+            className="lg:hidden bevel-sm"
+            style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
+          >
+            <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
+            <div className="p-2 flex flex-wrap gap-1.5">
+              {SECTIONS.map(({ key, label, icon: Icon }) => {
+                const active = section === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setSection(key)}
+                    className="flex items-center gap-2 px-3 py-2 transition-colors duration-150"
+                    style={{
+                      background: active ? 'rgba(255,184,0,0.12)' : 'var(--s-elevated)',
+                      border: `1px solid ${active ? 'rgba(255,184,0,0.3)' : 'var(--s-border)'}`,
+                      color: active ? 'var(--s-text)' : 'var(--s-text-dim)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Icon size={14} className="flex-shrink-0" style={{ color: active ? 'var(--s-gold)' : 'var(--s-text-muted)' }} />
+                    <span className="text-sm font-semibold">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ─── SOUS-NAV LATÉRALE (desktop) ─────────────────────────── */}
+          <aside className="hidden lg:block">
             <div
               className="bevel-sm sticky top-[120px]"
               style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}

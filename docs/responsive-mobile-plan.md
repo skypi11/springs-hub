@@ -39,16 +39,17 @@ hamburger `fixed` < lg, backdrop), `components/layout/LayoutShell.tsx`
   `general-tab`, `profile/[id]`, `create-structure`.
 - Fix bandeau d'accueil (`ConnectedDashboard`) : boutons qui débordaient → flex-wrap.
 
-### ⬜ Lot 2 — Hero structure publique + sous-nav réglages
-- **`app/community/structure/[id]/page.tsx`** — le hero : zone en `aspect-ratio: 6/1`
-  → sur mobile ~62px de haut, et l'identité (logo `w-[110px]` + nom `fontSize:46px`
-  + CTA) est posée en `absolute inset-0 flex items-end` → déborde. À repenser pour
-  mobile : empiler logo / nom / CTA, réduire le `46px` (clamp), et soit augmenter
-  la hauteur de la zone hero sur mobile, soit passer l'identité hors de la zone
-  bannière sur petit écran.
-- **`app/settings/page.tsx`** — `grid grid-cols-[220px_1fr]` (sous-nav latérale
-  220px + contenu) : `grid-cols-1 lg:grid-cols-[220px_1fr]` + transformer l'aside
-  en barre horizontale scrollable ou accordéon sur mobile.
+### ✅ Lot 2 — TERMINÉ
+- **`app/community/structure/[id]/page.tsx`** — hero : la zone bannière garde son
+  ratio 6:1 (fidélité à l'éditeur). L'identité (logo + tags + nom + CTA) est
+  dédoublée : overlay `absolute` posé sur la bannière en `lg:`, et bloc empilé en
+  flux normal sous la bannière en mobile (`lg:hidden`). Logo 110→76px, nom
+  `46px` → `clamp(24px,6.5vw,38px)`, CTA/tags partagés via `ctaContent` /
+  `identityTags`. Barre d'infos `px-8` → `px-4 sm:px-6 lg:px-8`.
+- **`app/settings/page.tsx`** — `grid grid-cols-[220px_1fr]` →
+  `grid-cols-1 lg:grid-cols-[220px_1fr]`. L'aside latérale est `hidden lg:block` ;
+  en mobile une sous-nav d'onglets compacts en `flex-wrap` (zéro scroll horizontal)
+  la remplace.
 
 ### ⬜ Lot 3 — my-structure en profondeur + modales
 - **`app/community/my-structure/page.tsx`** — header (`p-8`, titre `text-4xl`,
