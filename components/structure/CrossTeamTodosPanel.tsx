@@ -11,7 +11,7 @@ import { api, ApiError } from '@/lib/api-client';
 import { TODO_TYPE_META, type TodoRef, type TodoType } from '@/lib/todos';
 import TodoDetailDrawer, { type DrawerTodo } from '@/components/calendar/TodoDetailDrawer';
 
-type OverviewTeam = { id: string; name: string; label: string | null; game: string; logoUrl: string | null };
+type OverviewTeam = { id: string; name: string; label: string | null; game: string; logoUrl: string | null; order: number; groupOrder: number };
 type OverviewUser = { uid: string; displayName: string; avatarUrl: string };
 type OverviewTodo = {
   id: string;
@@ -363,7 +363,18 @@ export default function CrossTeamTodosPanel({
           onChange={setTeamFilter}
           options={[
             { value: 'all', label: `Toutes les équipes (${data.teams.length})` },
-            ...data.teams.map(t => ({ value: t.id, label: `${t.name}${t.label ? ` — ${t.label}` : ''}` })),
+            // Même ordre que l'onglet Équipes : groupe (groupOrder, label) puis order, nom.
+            ...[...data.teams]
+              .sort((a, b) => {
+                const ga = a.groupOrder ?? 0, gb = b.groupOrder ?? 0;
+                if (ga !== gb) return ga - gb;
+                const lc = (a.label ?? '').localeCompare(b.label ?? '');
+                if (lc !== 0) return lc;
+                const oa = a.order ?? 0, ob = b.order ?? 0;
+                if (oa !== ob) return oa - ob;
+                return a.name.localeCompare(b.name);
+              })
+              .map(t => ({ value: t.id, label: `${t.name}${t.label ? ` — ${t.label}` : ''}` })),
           ]}
         />
         <SelectChip

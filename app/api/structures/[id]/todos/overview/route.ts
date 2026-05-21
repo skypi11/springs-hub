@@ -64,6 +64,8 @@ export async function GET(
         label: (t.label as string | undefined) ?? null,
         game: (t.game as string | undefined) ?? '',
         logoUrl: (t.logoUrl as string | undefined) ?? null,
+        order: typeof t.order === 'number' ? t.order : 0,
+        groupOrder: typeof t.groupOrder === 'number' ? t.groupOrder : 0,
       }));
 
     // Firestore `in` query : chunks de 30 max sur subTeamId.

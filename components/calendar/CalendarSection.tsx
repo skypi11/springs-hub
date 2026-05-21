@@ -100,6 +100,9 @@ export type Team = {
   game: string;
   name: string;
   logoUrl?: string;
+  label?: string;
+  order?: number;
+  groupOrder?: number;
   playerIds?: string[];
   subIds?: string[];
   staffIds?: string[];
@@ -524,9 +527,19 @@ function TeamFilterDropdown({
   }, [open]);
 
   const query = q.trim().toLowerCase();
-  const filtered = query
+  // Même ordre que l'onglet Équipes : par groupe (groupOrder, label) puis order, nom.
+  const filtered = (query
     ? teams.filter(t => t.name.toLowerCase().includes(query))
-    : teams;
+    : teams.slice()
+  ).sort((a, b) => {
+    const ga = a.groupOrder ?? 0, gb = b.groupOrder ?? 0;
+    if (ga !== gb) return ga - gb;
+    const lc = (a.label ?? '').localeCompare(b.label ?? '');
+    if (lc !== 0) return lc;
+    const oa = a.order ?? 0, ob = b.order ?? 0;
+    if (oa !== ob) return oa - ob;
+    return a.name.localeCompare(b.name);
+  });
 
   // Audiences spéciales — au-dessus de la liste des équipes.
   const SPECIALS = [
