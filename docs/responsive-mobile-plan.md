@@ -66,11 +66,26 @@ hamburger `fixed` < lg, backdrop), `components/layout/LayoutShell.tsx`
   recalculés ; `CalendarSection.tsx` `w-[280px]` → `w-[min(280px,calc(100vw-2.5rem))]`.
 - Aussi : `Breadcrumbs.tsx` passé en `flex-wrap` (le fil d'Ariane débordait).
 
-### ⬜ Lot 4 — Calendrier + admin
-- **`components/calendar/`** — vues structurellement larges : `WeekView.tsx`
-  `aside w-[230px]`, `MonthView.tsx` `grid-cols-7`, heatmap `TeamAvailabilityView`.
-  Envisager une vue mobile dédiée (liste/jour). `CalendarSection.tsx` : nombreux
-  `grid-cols-2`.
+### 🟧 Lot 4 — Calendrier (quasi terminé) + admin
+Fait :
+- `app/calendar/page.tsx` — header responsive, cartes événements compactées.
+- `CalendarSection.tsx` — header en flex-wrap, sélecteur de vue repliable ;
+  vue Semaine masquée < lg (`effectiveViewMode`, matchMedia 1024px) → bascule
+  auto sur Liste. WeekView ne s'affiche donc jamais < lg : rien à corriger dessus.
+- `MonthView.tsx` — cases compactes sur mobile (state `isNarrow`, points
+  colorés au lieu des puces texte) ; le popover du jour reste l'accès au détail.
+- `AvailabilityGrid.tsx` — grille de saisie des dispos en largeur fluide < sm
+  (table-layout fixed, plus de `minWidth:640px` ni de scroll horizontal).
+- `TeamDetailDrawer.tsx` — header/tabs/contenu en padding responsive, onglets
+  raccourcis (« DISPOS & MATCHING » → « DISPOS »).
+
+Reste :
+- **`TeamAvailabilityView.tsx`** — la heatmap consensus (7 lignes jours ×
+  ~32 colonnes de créneaux 30 min). Les colonnes sont en `1fr` donc ça ne
+  déborde PAS (pas de scroll horizontal), mais sur mobile chaque case ≈ 8 px →
+  dense, peu cliquable. Vraie amélioration = transposer (jours en colonnes,
+  créneaux en lignes) ou vue liste mobile. Décision de design à trancher avec
+  l'utilisateur — non bloquant (le layout tient).
 - **`app/admin/*`** — basse priorité (admins sur desktop). `grid-cols-3` figés.
 
 ## Méthode de validation

@@ -112,7 +112,7 @@ export default function TeamDetailDrawer({
           <div className="h-[3px] flex-shrink-0" style={{ background: `linear-gradient(90deg, ${gameColor}, transparent 70%)` }} />
 
           {/* Header */}
-          <header className="flex items-center justify-between gap-4 px-6 pt-5 pb-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--s-border)' }}>
+          <header className="flex items-center justify-between gap-3 px-4 sm:px-6 pt-5 pb-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--s-border)' }}>
             <div className="flex items-center gap-3 min-w-0">
               <span className={`tag ${team.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px', padding: '3px 8px' }}>
                 {gameLabel}
@@ -144,9 +144,9 @@ export default function TeamDetailDrawer({
           </header>
 
           {/* Tabs */}
-          <div className="flex flex-shrink-0 px-6" style={{ borderBottom: '1px solid var(--s-border)', gap: 4 }}>
+          <div className="flex flex-shrink-0 px-4 sm:px-6" style={{ borderBottom: '1px solid var(--s-border)', gap: 4 }}>
             <TabButton
-              label="DISPOS & MATCHING"
+              label="DISPOS"
               icon={<CalendarClock size={14} />}
               active={tab === 'availability'}
               onClick={() => setTab('availability')}
@@ -167,7 +167,7 @@ export default function TeamDetailDrawer({
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto" style={{ overflowX: 'hidden' }}>
-            <div className="px-6 py-6">
+            <div className="px-4 sm:px-6 py-5 sm:py-6">
               {tab === 'availability' && (
                 <TeamAvailabilityView
                   structureId={structureId}
@@ -220,7 +220,7 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-2 px-4 py-3 t-label transition-all duration-150"
+      className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-3 t-label transition-all duration-150 whitespace-nowrap"
       style={{
         fontSize: '12px',
         color: active ? 'var(--s-text)' : 'var(--s-text-muted)',
