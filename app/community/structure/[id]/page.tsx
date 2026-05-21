@@ -540,7 +540,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
         title={structure.name}
         accent={mainColor}
       />
-      <div className="relative z-[1] space-y-8">
+      <div className="relative z-[1] space-y-8 w-full max-w-[1600px] mx-auto">
 
         <Breadcrumbs items={[
           { label: 'Communauté', href: '/community' },
