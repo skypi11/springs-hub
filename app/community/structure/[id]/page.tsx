@@ -554,9 +554,16 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
         <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
           <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${mainColor}, rgba(${mainColorRaw},0.3), transparent 80%)` }} />
 
-          {/* Cover : image si fournie, sinon gradient vivant aux couleurs du jeu */}
-          <div className="relative h-[180px] overflow-hidden"
-            style={{ background: `linear-gradient(135deg, rgba(${mainColorRaw},0.22) 0%, rgba(${mainColorRaw},0.05) 40%, var(--s-surface) 100%)` }}>
+          {/* Cover : image si fournie, sinon gradient vivant aux couleurs du jeu.
+              Ratio bannière 4:1 (format classique), clampé pour rester lisible
+              sur très grand comme sur petit écran. */}
+          <div className="relative overflow-hidden"
+            style={{
+              aspectRatio: '4 / 1',
+              maxHeight: 400,
+              minHeight: 220,
+              background: `linear-gradient(135deg, rgba(${mainColorRaw},0.22) 0%, rgba(${mainColorRaw},0.05) 40%, var(--s-surface) 100%)`,
+            }}>
             {structure.coverUrl ? (
               <Image src={structure.coverUrl} alt="" fill unoptimized
                 className="object-cover opacity-50"

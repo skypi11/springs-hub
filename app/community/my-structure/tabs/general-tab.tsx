@@ -191,7 +191,7 @@ export function GeneralTab(props: GeneralTabProps) {
             {activeStructure?.coverUrl && (
               <div className="space-y-2">
                 <label className="t-label block">Cadrage vertical de la bannière</label>
-                <div className="relative w-full overflow-hidden bevel-sm aspect-[8/1]"
+                <div className="relative w-full overflow-hidden bevel-sm aspect-[4/1]"
                   style={{ border: '1px solid var(--s-border)' }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={activeStructure.coverUrl} alt=""
