@@ -170,12 +170,12 @@ export default function ConnectedDashboard({ user }: { user: SpringsUser }) {
                 : buildStatus(todoCount, nextEvent, primaryStructure)}
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <Link href="/calendar" className="btn-springs btn-secondary bevel-sm">
+          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto sm:flex-shrink-0">
+            <Link href="/calendar" className="btn-springs btn-secondary bevel-sm flex-1 justify-center sm:flex-none">
               <Calendar size={14} />
               Calendrier
             </Link>
-            <Link href="/community/my-structure" className="btn-springs btn-primary bevel-sm">
+            <Link href="/community/my-structure" className="btn-springs btn-primary bevel-sm flex-1 justify-center sm:flex-none">
               <Shield size={14} />
               Ma structure
             </Link>
