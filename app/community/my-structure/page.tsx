@@ -1899,9 +1899,19 @@ export default function MyStructurePage() {
           {(() => {
             const isDirigeant = isDirigeantOfActive;
             const isManagerLevel = isDirigeant || isManagerOfActive;
-            const visibleTeams = isManagerLevel
-              ? teams
-              : teams.filter(t => staffedTeamIds.includes(t.id));
+            const visibleTeams = (isManagerLevel
+              ? teams.slice()
+              : teams.filter(t => staffedTeamIds.includes(t.id))
+            ).sort((a, b) => {
+              // Même ordre que l'onglet Équipes : groupe (groupOrder, label) puis order, nom.
+              const ga = a.groupOrder ?? 0, gb = b.groupOrder ?? 0;
+              if (ga !== gb) return ga - gb;
+              const lc = (a.label ?? '').localeCompare(b.label ?? '');
+              if (lc !== 0) return lc;
+              const oa = a.order ?? 0, ob = b.order ?? 0;
+              if (oa !== ob) return oa - ob;
+              return a.name.localeCompare(b.name);
+            });
             if (visibleTeams.length === 0) return null;
             const open = calendarLauncherOpen;
             return (
