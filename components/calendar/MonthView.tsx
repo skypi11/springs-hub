@@ -8,7 +8,7 @@
 // - "+N" si plus de 3 événements un jour → popover listant la journée
 // - Clic sur une puce → modale détail ; clic sur une case → création pré-remplie
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
 import Portal from '@/components/ui/Portal';
 import type { CalendarEvent, Team } from './CalendarSection';
@@ -77,6 +77,16 @@ export default function MonthView({ events, teams, now, canCreate, onEventClick,
   const todayYmd = ymdOf(today);
   const [anchor, setAnchor] = useState(() => ({ y: today.getFullYear(), m: today.getMonth() }));
   const [dayPopover, setDayPopover] = useState<{ ymd: string; top: number; left: number } | null>(null);
+  // Mobile (< sm) : cases compactes — points colorés au lieu des puces texte,
+  // illisibles dans une colonne de ~46px. Le tap sur la case ouvre le panneau du jour.
+  const [isNarrow, setIsNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const apply = () => setIsNarrow(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
 
   // Grille : 42 cases (6 semaines), démarrage au lundi de la semaine du 1er.
   const cells = useMemo(() => {
@@ -168,13 +178,13 @@ export default function MonthView({ events, teams, now, canCreate, onEventClick,
                 const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
                 setDayPopover({ ymd: cell.ymd, top: r.top, left: r.left });
               }}
-              className={`bevel-sm p-1.5 flex flex-col gap-1 cursor-pointer transition-colors overflow-hidden ${
+              className={`bevel-sm ${isNarrow ? 'p-1' : 'p-1.5'} flex flex-col gap-1 cursor-pointer transition-colors overflow-hidden ${
                 cell.inMonth ? 'bg-[var(--s-elevated)] hover:bg-[var(--s-hover)]' : 'bg-[var(--s-bg)]'
               }`}
               style={{
                 // Hauteur fixe → toutes les lignes de la grille sont identiques.
-                // Dimensionnée pour 2 puces (2 lignes) + en-tête + "+N" sans rognage.
-                height: 148,
+                // Desktop : 2 puces (2 lignes) + en-tête + "+N". Mobile : compacte (points).
+                height: isNarrow ? 64 : 148,
                 border: `1px solid ${isToday ? 'rgba(255,184,0,0.4)' : 'var(--s-border)'}`,
                 opacity: cell.inMonth ? 1 : 0.45,
               }}>
@@ -192,45 +202,67 @@ export default function MonthView({ events, teams, now, canCreate, onEventClick,
                 </span>
               </div>
 
-              {/* Puces événements — 2 lignes : titre + pour qui */}
-              {visible.map(ev => {
-                const color = eventGameColor(ev, teams);
-                const cancelled = ev.status === 'cancelled';
-                return (
-                  <button key={ev.id} type="button"
-                    onClick={e => { e.stopPropagation(); onEventClick(ev.id); }}
-                    title={`${timeOf(ev.startsAt)} · ${ev.title} — ${eventTargetLabel(ev, teams)}`}
-                    className="block w-full text-left transition-colors hover:bg-[var(--s-hover)]"
-                    style={{
-                      padding: '2px 5px',
-                      background: 'var(--s-surface)',
-                      borderLeft: `3px solid ${cancelled ? 'var(--s-text-muted)' : color}`,
-                      opacity: cancelled ? 0.5 : 1,
-                    }}>
-                    <span className="flex items-center gap-1">
-                      <span className="t-mono flex-shrink-0" style={{ fontSize: 12, color: 'var(--s-text-dim)' }}>
-                        {timeOf(ev.startsAt)}
+              {isNarrow ? (
+                /* Mobile : rangée de points colorés, le tap sur la case ouvre le jour */
+                dayEvents.length > 0 && (
+                  <div className="flex flex-wrap gap-[3px] mt-auto">
+                    {dayEvents.slice(0, 10).map(ev => (
+                      <span key={ev.id} style={{
+                        width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
+                        background: ev.status === 'cancelled' ? 'var(--s-text-muted)' : eventGameColor(ev, teams),
+                        opacity: ev.status === 'cancelled' ? 0.5 : 1,
+                      }} />
+                    ))}
+                    {dayEvents.length > 10 && (
+                      <span style={{ fontSize: 9, lineHeight: '5px', color: 'var(--s-text-muted)' }}>
+                        +{dayEvents.length - 10}
                       </span>
-                      <span className="truncate" style={{
-                        fontSize: 12,
-                        color: 'var(--s-text)',
-                        textDecoration: cancelled ? 'line-through' : 'none',
-                      }}>
-                        {ev.title}
-                      </span>
-                    </span>
-                    <span className="block truncate" style={{ fontSize: 12, lineHeight: 1.2, color: 'var(--s-text-muted)' }}>
-                      {eventTargetLabel(ev, teams)}
-                    </span>
-                  </button>
-                );
-              })}
+                    )}
+                  </div>
+                )
+              ) : (
+                <>
+                  {/* Puces événements — 2 lignes : titre + pour qui */}
+                  {visible.map(ev => {
+                    const color = eventGameColor(ev, teams);
+                    const cancelled = ev.status === 'cancelled';
+                    return (
+                      <button key={ev.id} type="button"
+                        onClick={e => { e.stopPropagation(); onEventClick(ev.id); }}
+                        title={`${timeOf(ev.startsAt)} · ${ev.title} — ${eventTargetLabel(ev, teams)}`}
+                        className="block w-full text-left transition-colors hover:bg-[var(--s-hover)]"
+                        style={{
+                          padding: '2px 5px',
+                          background: 'var(--s-surface)',
+                          borderLeft: `3px solid ${cancelled ? 'var(--s-text-muted)' : color}`,
+                          opacity: cancelled ? 0.5 : 1,
+                        }}>
+                        <span className="flex items-center gap-1">
+                          <span className="t-mono flex-shrink-0" style={{ fontSize: 12, color: 'var(--s-text-dim)' }}>
+                            {timeOf(ev.startsAt)}
+                          </span>
+                          <span className="truncate" style={{
+                            fontSize: 12,
+                            color: 'var(--s-text)',
+                            textDecoration: cancelled ? 'line-through' : 'none',
+                          }}>
+                            {ev.title}
+                          </span>
+                        </span>
+                        <span className="block truncate" style={{ fontSize: 12, lineHeight: 1.2, color: 'var(--s-text-muted)' }}>
+                          {eventTargetLabel(ev, teams)}
+                        </span>
+                      </button>
+                    );
+                  })}
 
-              {/* Débordement — le clic sur la case ouvre le panneau complet */}
-              {overflow > 0 && (
-                <span style={{ fontSize: 12, color: 'var(--s-text-muted)', padding: '0 5px' }}>
-                  +{overflow} autre{overflow > 1 ? 's' : ''}
-                </span>
+                  {/* Débordement — le clic sur la case ouvre le panneau complet */}
+                  {overflow > 0 && (
+                    <span style={{ fontSize: 12, color: 'var(--s-text-muted)', padding: '0 5px' }}>
+                      +{overflow} autre{overflow > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </>
               )}
             </div>
           );

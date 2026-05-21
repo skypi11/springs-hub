@@ -177,12 +177,12 @@ export default function MyCalendarPage() {
           <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), var(--s-gold)50, transparent 80%)' }} />
           <div className="absolute top-0 right-0 w-64 h-64 pointer-events-none"
             style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,184,0,0.06), transparent 60%)' }} />
-          <div className="relative z-[1] p-8 flex items-center gap-4">
-            <div className="w-12 h-12 flex items-center justify-center bevel-sm" style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.25)' }}>
+          <div className="relative z-[1] p-4 sm:p-6 lg:p-8 flex items-center gap-3 sm:gap-4">
+            <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center bevel-sm" style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.25)' }}>
               <CalendarIcon size={22} style={{ color: 'var(--s-gold)' }} />
             </div>
-            <div>
-              <h1 className="font-display text-4xl" style={{ letterSpacing: '0.04em' }}>MON CALENDRIER</h1>
+            <div className="min-w-0">
+              <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl" style={{ letterSpacing: '0.04em' }}>MON CALENDRIER</h1>
               <p className="t-body mt-1" style={{ color: 'var(--s-text-dim)' }}>
                 Tous les événements où tu es invité, toutes structures confondues.
               </p>
@@ -327,9 +327,9 @@ function MyEventCard({
     <div className="bevel-sm relative overflow-hidden transition-all duration-150 hover:border-white/20"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
       <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${typeInfo.color}, ${typeInfo.color}50, transparent 70%)` }} />
-      <div className="p-4 flex gap-4 items-center">
+      <div className="p-3 sm:p-4 flex gap-3 sm:gap-4 items-center">
         {/* Date block */}
-        <div className="flex-shrink-0 text-center" style={{ minWidth: '64px' }}>
+        <div className="flex-shrink-0 text-center" style={{ minWidth: '56px' }}>
           <p className="font-display text-3xl leading-none" style={{ color: typeInfo.color }}>
             {event.startsAt ? new Date(event.startsAt).getDate() : '–'}
           </p>

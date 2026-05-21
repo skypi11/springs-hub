@@ -216,6 +216,17 @@ export default function CalendarSection({
     setViewMode(v);
     try { localStorage.setItem('aedral_calendar_view', v); } catch { /* quota / mode privé */ }
   };
+  // La vue Semaine (grille 7 colonnes × créneaux) est inexploitable < lg : on
+  // retombe sur la vue Liste sur mobile/tablette, et le bouton Semaine est masqué.
+  const [isWide, setIsWide] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const apply = () => setIsWide(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+  const effectiveViewMode = !isWide && viewMode === 'week' ? 'list' : viewMode;
   // formPrefill : null = modale fermée ; objet = ouverte (éventuellement pré-remplie
   // avec une date quand on a cliqué sur une case du calendrier).
   const [formPrefill, setFormPrefill] = useState<{ startsAt?: string; endsAt?: string } | null>(null);
@@ -332,15 +343,15 @@ export default function CalendarSection({
         style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,184,0,0.08), transparent 70%)' }} />
 
       {/* Header */}
-      <div className="relative z-[1] px-5 py-3.5 flex items-center justify-between gap-3" style={{ borderBottom: '1px solid var(--s-border)' }}>
+      <div className="relative z-[1] px-4 sm:px-5 py-3.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2.5" style={{ borderBottom: '1px solid var(--s-border)' }}>
         <div className="flex items-center gap-3">
           <div className="w-7 h-7 flex items-center justify-center" style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.2)' }}>
             <CalendarIcon size={13} style={{ color: 'var(--s-gold)' }} />
           </div>
           <span className="font-display text-sm tracking-wider">CALENDRIER</span>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Bascule de vue : grille mois / liste */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          {/* Bascule de vue : grille mois / semaine (desktop) / liste */}
           <div className="flex bevel-sm overflow-hidden" style={{ border: '1px solid var(--s-border)' }}>
             {([
               { v: 'month' as const, label: 'Mois', icon: <LayoutGrid size={12} /> },
@@ -348,11 +359,11 @@ export default function CalendarSection({
               { v: 'list' as const, label: 'Liste', icon: <List size={12} /> },
             ]).map(opt => (
               <button key={opt.v} type="button" onClick={() => changeView(opt.v)}
-                className="flex items-center gap-1.5 text-xs font-semibold transition-colors duration-150"
+                className={`${opt.v === 'week' ? 'hidden lg:flex' : 'flex'} items-center gap-1.5 text-xs font-semibold transition-colors duration-150`}
                 style={{
                   padding: '5px 10px',
-                  background: viewMode === opt.v ? 'rgba(255,184,0,0.15)' : 'var(--s-elevated)',
-                  color: viewMode === opt.v ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                  background: effectiveViewMode === opt.v ? 'rgba(255,184,0,0.15)' : 'var(--s-elevated)',
+                  color: effectiveViewMode === opt.v ? 'var(--s-gold)' : 'var(--s-text-dim)',
                 }}>
                 {opt.icon}
                 <span>{opt.label}</span>
@@ -394,8 +405,8 @@ export default function CalendarSection({
 
       {/* Filtres temporels — pertinents uniquement en vue Liste
           (en vue Mois, le périmètre est donné par la navigation des mois). */}
-      {viewMode === 'list' && (
-        <div className="relative z-[1] px-5 pt-4 flex gap-2">
+      {effectiveViewMode === 'list' && (
+        <div className="relative z-[1] px-4 sm:px-5 pt-4 flex flex-wrap gap-2">
           {(['upcoming', 'past', 'all'] as const).map(f => (
             <button key={f} type="button" onClick={() => setFilter(f)}
               className="tag transition-all duration-150"
@@ -415,12 +426,12 @@ export default function CalendarSection({
       <TeamFilterDropdown teams={teams} value={teamFilter} onChange={setTeamFilter} />
 
       {/* Body */}
-      <div className="relative z-[1] p-5">
+      <div className="relative z-[1] p-4 sm:p-5">
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 size={16} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
           </div>
-        ) : viewMode === 'month' ? (
+        ) : effectiveViewMode === 'month' ? (
           <MonthView
             events={monthEvents}
             teams={teams}
@@ -429,7 +440,7 @@ export default function CalendarSection({
             onEventClick={id => setOpenEventId(id)}
             onDayCreate={ymd => setFormPrefill({ startsAt: `${ymd}T20:00`, endsAt: `${ymd}T22:00` })}
           />
-        ) : viewMode === 'week' ? (
+        ) : effectiveViewMode === 'week' ? (
           <WeekView
             structureId={structureId}
             events={monthEvents}
