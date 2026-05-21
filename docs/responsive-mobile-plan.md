@@ -66,7 +66,7 @@ hamburger `fixed` < lg, backdrop), `components/layout/LayoutShell.tsx`
   recalculés ; `CalendarSection.tsx` `w-[280px]` → `w-[min(280px,calc(100vw-2.5rem))]`.
 - Aussi : `Breadcrumbs.tsx` passé en `flex-wrap` (le fil d'Ariane débordait).
 
-### 🟧 Lot 4 — Calendrier (quasi terminé) + admin
+### ✅ Lot 4 — Calendrier — TERMINÉ (reste admin)
 Fait :
 - `app/calendar/page.tsx` — header responsive, cartes événements compactées.
 - `CalendarSection.tsx` — header en flex-wrap, sélecteur de vue repliable ;
@@ -79,13 +79,13 @@ Fait :
 - `TeamDetailDrawer.tsx` — header/tabs/contenu en padding responsive, onglets
   raccourcis (« DISPOS & MATCHING » → « DISPOS »).
 
+- `TeamAvailabilityView.tsx` — heatmap consensus **transposée < sm** (composant
+  `ConsensusHeatmapTransposed` : jours en 7 colonnes, créneaux 30 min en lignes,
+  cases ~35 px, cliquables). La vue « par joueur » garde sa mini-heatmap dense
+  (sparkline non interactif) — laissée telle quelle, la transposer la rendrait
+  démesurément haute.
+
 Reste :
-- **`TeamAvailabilityView.tsx`** — la heatmap consensus (7 lignes jours ×
-  ~32 colonnes de créneaux 30 min). Les colonnes sont en `1fr` donc ça ne
-  déborde PAS (pas de scroll horizontal), mais sur mobile chaque case ≈ 8 px →
-  dense, peu cliquable. Vraie amélioration = transposer (jours en colonnes,
-  créneaux en lignes) ou vue liste mobile. Décision de design à trancher avec
-  l'utilisateur — non bloquant (le layout tient).
 - **`app/admin/*`** — basse priorité (admins sur desktop). `grid-cols-3` figés.
 
 ## Méthode de validation

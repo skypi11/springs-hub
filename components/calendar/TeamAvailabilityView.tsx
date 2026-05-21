@@ -475,6 +475,17 @@ function ConsensusHeatmap({
     });
   }
 
+  // Mobile (< sm) : 7 jours × 36 créneaux est illisible en lignes. On transpose
+  // — jours en colonnes, créneaux en lignes — comme la grille de saisie des dispos.
+  const [isNarrow, setIsNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const apply = () => setIsNarrow(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+
   return (
     <section>
       <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -488,42 +499,57 @@ function ConsensusHeatmap({
       </div>
 
       <div style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', padding: '10px 12px' }}>
-        {/* Header : labels d'heure */}
-        <div className="flex items-center mb-1.5" style={{ paddingLeft: 52 }}>
-          <div className="relative flex-1" style={{ height: 14 }}>
-            {headerHours.map(h => (
-              <span
-                key={h.col}
-                className="t-mono absolute"
-                style={{
-                  left: `${(h.col / UNIFIED_SLOT_COUNT) * 100}%`,
-                  fontSize: '12px',
-                  color: 'var(--s-text-muted)',
-                  transform: 'translateX(-50%)',
-                }}
-              >
-                {h.label}
-              </span>
-            ))}
-          </div>
-        </div>
+        {isNarrow ? (
+          /* Mobile : heatmap transposée — jours en colonnes, créneaux en lignes */
+          <ConsensusHeatmapTransposed
+            rows={rows}
+            slotCountsByIso={slotCountsByIso}
+            eventSlotsByIso={eventSlotsByIso}
+            totalMembers={totalMembers}
+            minPlayers={minPlayers}
+            selectedSlot={selectedSlot}
+            onSelectSlot={onSelectSlot}
+          />
+        ) : (
+          <>
+            {/* Header : labels d'heure */}
+            <div className="flex items-center mb-1.5" style={{ paddingLeft: 52 }}>
+              <div className="relative flex-1" style={{ height: 14 }}>
+                {headerHours.map(h => (
+                  <span
+                    key={h.col}
+                    className="t-mono absolute"
+                    style={{
+                      left: `${(h.col / UNIFIED_SLOT_COUNT) * 100}%`,
+                      fontSize: '12px',
+                      color: 'var(--s-text-muted)',
+                      transform: 'translateX(-50%)',
+                    }}
+                  >
+                    {h.label}
+                  </span>
+                ))}
+              </div>
+            </div>
 
-        {/* Lignes jours */}
-        <div className="space-y-[3px]">
-          {rows.map(row => (
-            <DayHeatmapRow
-              key={row.day.gridYmd}
-              day={row.day}
-              cells={row.cells}
-              slotCountsByIso={slotCountsByIso}
-              eventSlotsByIso={eventSlotsByIso}
-              totalMembers={totalMembers}
-              minPlayers={minPlayers}
-              selectedSlot={selectedSlot}
-              onSelectSlot={onSelectSlot}
-            />
-          ))}
-        </div>
+            {/* Lignes jours */}
+            <div className="space-y-[3px]">
+              {rows.map(row => (
+                <DayHeatmapRow
+                  key={row.day.gridYmd}
+                  day={row.day}
+                  cells={row.cells}
+                  slotCountsByIso={slotCountsByIso}
+                  eventSlotsByIso={eventSlotsByIso}
+                  totalMembers={totalMembers}
+                  minPlayers={minPlayers}
+                  selectedSlot={selectedSlot}
+                  onSelectSlot={onSelectSlot}
+                />
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Legend */}
         <div className="flex items-center gap-3 mt-3 pt-3 flex-wrap" style={{ borderTop: '1px solid var(--s-border)' }}>
@@ -626,6 +652,89 @@ function DayHeatmapRow({
                 onSelectSlot(isSelected ? null : cell.iso);
               }}
             />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Variante mobile de la heatmap consensus : matrice transposée (jours en
+// colonnes, créneaux de 30 min en lignes) — tient dans la largeur d'un écran
+// étroit là où la version 7 lignes × 36 colonnes donnait des cases de ~8 px.
+function ConsensusHeatmapTransposed({
+  rows,
+  slotCountsByIso,
+  eventSlotsByIso,
+  totalMembers,
+  minPlayers,
+  selectedSlot,
+  onSelectSlot,
+}: {
+  rows: { day: DayGrid; cells: UnifiedCell[] }[];
+  slotCountsByIso: Record<string, number>;
+  eventSlotsByIso: Set<string>;
+  totalMembers: number;
+  minPlayers: number;
+  selectedSlot: string | null;
+  onSelectSlot: (iso: string | null) => void;
+}) {
+  if (rows.length === 0) return null;
+  const slotCount = rows[0].cells.length;
+  const cols = `34px repeat(${rows.length}, minmax(0, 1fr))`;
+
+  return (
+    <div>
+      {/* En-tête : jours en colonnes */}
+      <div className="grid gap-[2px] mb-[3px]" style={{ gridTemplateColumns: cols }}>
+        <div />
+        {rows.map(row => (
+          <div key={row.day.gridYmd} className="text-center leading-tight"
+            style={{ opacity: row.day.isPast ? 0.5 : 1 }}>
+            <div className="t-label" style={{ fontSize: '12px', color: 'var(--s-text-muted)' }}>
+              {DAY_LABELS_SHORT[(row.day.dayOfWeek - 1) % 7]}
+            </div>
+            <div className="font-display" style={{ fontSize: '15px', color: 'var(--s-text-dim)' }}>
+              {parseInt(row.day.gridYmd.slice(-2), 10)}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Une ligne par créneau de 30 min */}
+      <div className="space-y-[2px]">
+        {Array.from({ length: slotCount }).map((_, slotIdx) => {
+          const ref = rows[0].cells[slotIdx];
+          const isHourStart = ref.minute === 0;
+          return (
+            <div key={slotIdx} className="grid gap-[2px]" style={{ gridTemplateColumns: cols }}>
+              <div className="t-mono flex items-center justify-end pr-1.5"
+                style={{ fontSize: '12px', color: 'var(--s-text-dim)' }}>
+                {isHourStart ? `${pad2(ref.hour)}h` : ''}
+              </div>
+              {rows.map(row => {
+                const cell = row.cells[slotIdx];
+                const count = slotCountsByIso[cell.iso] ?? 0;
+                const isSelected = selectedSlot === cell.iso;
+                const hasEvent = eventSlotsByIso.has(cell.iso);
+                return (
+                  <HeatmapCell
+                    key={row.day.gridYmd}
+                    cell={cell}
+                    count={count}
+                    totalMembers={totalMembers}
+                    minPlayers={minPlayers}
+                    isPastDay={row.day.isPast}
+                    isSelected={isSelected}
+                    hasEvent={hasEvent}
+                    onClick={() => {
+                      if (!cell.inSchedule || row.day.isPast) return;
+                      onSelectSlot(isSelected ? null : cell.iso);
+                    }}
+                  />
+                );
+              })}
+            </div>
           );
         })}
       </div>
