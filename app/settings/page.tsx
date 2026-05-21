@@ -427,57 +427,61 @@ export default function SettingsPage() {
           }}
         >
           <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
-          <div className="flex items-center gap-4 px-5 py-3">
-            <div className="w-10 h-10 relative overflow-hidden bevel-sm flex-shrink-0"
-              style={{ background: 'var(--s-elevated)', border: '1px solid rgba(255,184,0,0.2)' }}>
-              {avatarSrc ? (
-                <Image src={avatarSrc} alt="Avatar" fill className="object-cover" unoptimized />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <User size={18} style={{ color: 'var(--s-text-muted)' }} />
-                </div>
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="font-display text-xl truncate" style={{ letterSpacing: '0.04em' }}>
-                {form.displayName || 'MON PROFIL'}
-              </h1>
-              <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                {dirty ? (
-                  <span style={{ color: 'var(--s-gold)' }}>• Modifications non sauvegardées</span>
-                ) : saved ? (
-                  <span style={{ color: '#00D936' }}>✓ Profil sauvegardé</span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3">
+            <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+              <div className="w-10 h-10 relative overflow-hidden bevel-sm flex-shrink-0"
+                style={{ background: 'var(--s-elevated)', border: '1px solid rgba(255,184,0,0.2)' }}>
+                {avatarSrc ? (
+                  <Image src={avatarSrc} alt="Avatar" fill className="object-cover" unoptimized />
                 ) : (
-                  'Paramètres du compte Springs'
+                  <div className="w-full h-full flex items-center justify-center">
+                    <User size={18} style={{ color: 'var(--s-text-muted)' }} />
+                  </div>
                 )}
-              </p>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h1 className="font-display text-xl truncate" style={{ letterSpacing: '0.04em' }}>
+                  {form.displayName || 'MON PROFIL'}
+                </h1>
+                <p className="text-xs truncate" style={{ color: 'var(--s-text-dim)' }}>
+                  {dirty ? (
+                    <span style={{ color: 'var(--s-gold)' }}>• Modifications non sauvegardées</span>
+                  ) : saved ? (
+                    <span style={{ color: '#00D936' }}>✓ Profil sauvegardé</span>
+                  ) : (
+                    'Paramètres du compte Springs'
+                  )}
+                </p>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={() => router.push(`/profile/${firebaseUser?.uid}`)}
-              className="btn-springs btn-secondary bevel-sm hidden md:inline-flex"
-              style={{ padding: '8px 14px', fontSize: '12px' }}
-            >
-              Voir mon profil <ExternalLink size={12} />
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving || !dirty}
-              className="btn-springs btn-primary bevel-sm"
-              style={{
-                padding: '8px 16px',
-                fontSize: '12px',
-                opacity: !dirty && !saving ? 0.5 : 1,
-                cursor: !dirty && !saving ? 'default' : 'pointer',
-              }}
-            >
-              {saving ? (
-                <><Loader2 size={13} className="animate-spin" /> Sauvegarde…</>
-              ) : (
-                <><Save size={13} /> Sauvegarder</>
-              )}
-            </button>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <button
+                type="button"
+                onClick={() => router.push(`/profile/${firebaseUser?.uid}`)}
+                className="btn-springs btn-secondary bevel-sm hidden md:inline-flex"
+                style={{ padding: '8px 14px', fontSize: '12px' }}
+              >
+                Voir mon profil <ExternalLink size={12} />
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || !dirty}
+                className="btn-springs btn-primary bevel-sm flex-1 sm:flex-none justify-center"
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '12px',
+                  opacity: !dirty && !saving ? 0.5 : 1,
+                  cursor: !dirty && !saving ? 'default' : 'pointer',
+                }}
+              >
+                {saving ? (
+                  <><Loader2 size={13} className="animate-spin" /> Sauvegarde…</>
+                ) : (
+                  <><Save size={13} /> Sauvegarder</>
+                )}
+              </button>
+            </div>
           </div>
           {error && (
             <div

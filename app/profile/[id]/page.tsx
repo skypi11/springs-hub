@@ -181,65 +181,68 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           <div className="absolute top-0 left-0 w-[500px] h-[400px] pointer-events-none opacity-[0.06]"
             style={{ background: 'radial-gradient(ellipse at top left, var(--s-gold), transparent 70%)' }} />
 
-          <div className="relative z-[1] p-10 flex items-start gap-8">
-            {/* Avatar */}
-            <div className="flex-shrink-0 w-28 h-28 relative overflow-hidden bevel-sm"
-              style={{ background: 'var(--s-elevated)', border: '2px solid rgba(255,184,0,0.15)' }}>
-              {avatarSrc ? (
-                <Image src={avatarSrc} alt={profile.displayName} fill className="object-cover" unoptimized />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <User size={44} style={{ color: 'var(--s-text-muted)' }} />
-                </div>
-              )}
-            </div>
-
-            <div className="flex-1 min-w-0">
-              {/* Tags */}
-              <div className="flex items-center gap-2 mb-3 flex-wrap">
-                {profile.games?.map(g => (
-                  <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}>
-                    {g === 'rocket_league' ? 'Rocket League' : 'Trackmania'}
-                  </span>
-                ))}
-                {profile.isAvailableForRecruitment && (
-                  <span className="tag tag-gold">
-                    <Search size={9} /> Disponible
-                  </span>
+          <div className="relative z-[1] p-4 sm:p-6 lg:p-10 flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-6 lg:gap-8">
+            <div className="flex items-start gap-4 sm:gap-6 lg:gap-8 min-w-0 flex-1">
+              {/* Avatar */}
+              <div className="flex-shrink-0 w-20 h-20 sm:w-28 sm:h-28 relative overflow-hidden bevel-sm"
+                style={{ background: 'var(--s-elevated)', border: '2px solid rgba(255,184,0,0.15)' }}>
+                {avatarSrc ? (
+                  <Image src={avatarSrc} alt={profile.displayName} fill className="object-cover" unoptimized />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <User size={44} style={{ color: 'var(--s-text-muted)' }} />
+                  </div>
                 )}
               </div>
 
-              {/* Nom */}
-              <h1 className="t-display mb-3">
-                {profile.displayName}
-              </h1>
+              <div className="flex-1 min-w-0">
+                {/* Tags */}
+                <div className="flex items-center gap-2 mb-2.5 flex-wrap">
+                  {profile.games?.map(g => (
+                    <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}>
+                      {g === 'rocket_league' ? 'Rocket League' : 'Trackmania'}
+                    </span>
+                  ))}
+                  {profile.isAvailableForRecruitment && (
+                    <span className="tag tag-gold">
+                      <Search size={9} /> Disponible
+                    </span>
+                  )}
+                </div>
 
-              {/* Infos sous le nom */}
-              <div className="flex items-center gap-5">
-                {country && (
-                  <div className="flex items-center gap-2">
-                    <CountryFlag code={country.code} size={16} />
-                    <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>{country.name}</span>
-                  </div>
-                )}
-                {age !== null && (
-                  <div className="flex items-center gap-1.5">
-                    <Calendar size={12} style={{ color: 'var(--s-text-muted)' }} />
-                    <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>{age} ans</span>
-                  </div>
-                )}
-                {profile.discordUsername && (
-                  <div className="flex items-center gap-1.5" style={{ color: 'var(--s-text-muted)' }}>
-                    <DiscordIcon size={12} />
-                    <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>{profile.discordUsername}</span>
-                  </div>
-                )}
+                {/* Nom */}
+                <h1 className="font-display uppercase mb-2.5"
+                  style={{ fontSize: 'clamp(28px, 7vw, 64px)', lineHeight: 0.95, letterSpacing: '0.04em' }}>
+                  {profile.displayName}
+                </h1>
+
+                {/* Infos sous le nom */}
+                <div className="flex items-center gap-x-4 gap-y-1.5 flex-wrap">
+                  {country && (
+                    <div className="flex items-center gap-2">
+                      <CountryFlag code={country.code} size={16} />
+                      <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>{country.name}</span>
+                    </div>
+                  )}
+                  {age !== null && (
+                    <div className="flex items-center gap-1.5">
+                      <Calendar size={12} style={{ color: 'var(--s-text-muted)' }} />
+                      <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>{age} ans</span>
+                    </div>
+                  )}
+                  {profile.discordUsername && (
+                    <div className="flex items-center gap-1.5" style={{ color: 'var(--s-text-muted)' }}>
+                      <DiscordIcon size={12} />
+                      <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>{profile.discordUsername}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Actions */}
             {isOwner && (
-              <Link href="/settings" className="btn-springs btn-secondary bevel-sm flex-shrink-0 flex items-center gap-2">
+              <Link href="/settings" className="btn-springs btn-secondary bevel-sm flex-shrink-0 flex items-center justify-center gap-2">
                 <Settings size={13} /> Modifier
               </Link>
             )}
