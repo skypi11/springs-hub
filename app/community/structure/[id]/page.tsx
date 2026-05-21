@@ -560,8 +560,8 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
           <div className="relative overflow-hidden"
             style={{
               aspectRatio: '4 / 1',
-              maxHeight: 400,
-              minHeight: 220,
+              maxHeight: 280,
+              minHeight: 180,
               background: `linear-gradient(135deg, rgba(${mainColorRaw},0.22) 0%, rgba(${mainColorRaw},0.05) 40%, var(--s-surface) 100%)`,
             }}>
             {structure.coverUrl ? (
