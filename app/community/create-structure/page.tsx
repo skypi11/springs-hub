@@ -188,8 +188,8 @@ export default function CreateStructurePage() {
           <div className="panel-body space-y-5">
 
             {/* Nom + Tag */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="col-span-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="sm:col-span-2">
                 <label className="t-label block mb-2">Nom de la structure *</label>
                 <input type="text" className="settings-input w-full" placeholder="Ex: Springs E-Sport"
                   value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
@@ -284,7 +284,7 @@ export default function CreateStructurePage() {
             </div>
 
             {/* Nombre équipes + staff */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="t-label block mb-2">Nombre d&apos;équipes actuelles</label>
                 <input type="number" min="0" className="settings-input w-full" placeholder="0"

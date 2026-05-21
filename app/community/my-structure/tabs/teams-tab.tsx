@@ -613,7 +613,7 @@ export function TeamsTab(props: TeamsTabProps) {
             );
           })()}
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <RosterSlot
               label="TITULAIRES"
               labelColor={gameColor}
@@ -779,7 +779,7 @@ export function TeamsTab(props: TeamsTabProps) {
             <Plus size={13} style={{ color: 'var(--s-blue)' }} />
             <span className="t-label" style={{ color: 'var(--s-blue)' }}>Nouvelle équipe</span>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="t-label block mb-1.5">Nom de l&apos;équipe *</label>
               <input type="text" className="settings-input w-full" placeholder="Équipe principale"

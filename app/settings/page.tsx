@@ -561,7 +561,7 @@ export default function SettingsPage() {
                     <span className="tag tag-gold" style={{ fontSize: '8px' }}>OBLIGATOIRE</span>
                   </div>
                   <div className="p-5 space-y-5">
-                    <div className="grid grid-cols-2 gap-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       <div>
                         <label className="t-label block mb-2">Pseudo affiché *</label>
                         <input type="text" value={form.displayName}
@@ -579,7 +579,7 @@ export default function SettingsPage() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       <div>
                         <label className="t-label block mb-2">Pays *</label>
                         <select value={form.country}
@@ -627,7 +627,7 @@ export default function SettingsPage() {
                     <span className="tag tag-neutral" style={{ fontSize: '8px' }}>MIN. 1</span>
                   </div>
                   <div className="p-5 space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <button type="button" onClick={() => toggleGame('rocket_league')}
                         className="p-4 text-left transition-all duration-150 relative overflow-hidden"
                         style={{
@@ -778,7 +778,7 @@ export default function SettingsPage() {
                             <div className="flex-1 h-px" style={{ background: 'var(--s-border)' }} />
                           </div>
 
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                               <label className="t-label block mb-2">Plateforme *</label>
                               <select
@@ -910,7 +910,7 @@ export default function SettingsPage() {
                           <span className="tag tag-green" style={{ fontSize: '12px' }}>TM</span>
                           <span className="t-label" style={{ color: 'var(--s-green)' }}>Config Trackmania</span>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
                             <label className="t-label block mb-2">Pseudo Ubisoft/Nadeo *</label>
                             <input type="text" value={form.pseudoTM}

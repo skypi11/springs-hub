@@ -267,7 +267,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         )}
 
         {/* ─── STATS JEUX ────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-6 animate-fade-in-d1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 animate-fade-in-d1">
 
           {/* Stats RL */}
           {profile.games?.includes('rocket_league') && (() => {
@@ -631,7 +631,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         />
 
         {/* ─── SIDEBAR INFO ──────────────────────────────────────────────── */}
-        <div className="grid grid-cols-3 gap-6 animate-fade-in-d2">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in-d2">
 
           {/* Recrutement */}
           {profile.isAvailableForRecruitment && (

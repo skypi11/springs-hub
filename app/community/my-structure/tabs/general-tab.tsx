@@ -86,9 +86,9 @@ export function GeneralTab(props: GeneralTabProps) {
   const statusInfo = STATUS_INFO[s.status] ?? STATUS_INFO.pending_validation;
 
   return (
-    <div className="grid gap-6 animate-fade-in grid-cols-3">
+    <div className="grid gap-6 animate-fade-in grid-cols-1 lg:grid-cols-3">
       {/* ─── Colonne gauche ──────── */}
-      <div className="col-span-2 space-y-6">
+      <div className="lg:col-span-2 space-y-6">
         {/* DESCRIPTION */}
         <SectionPanel accent="var(--s-gold)" icon={MessageSquare} title="DESCRIPTION"
           collapsed={collapsed.desc} onToggle={() => toggle('desc')}>
@@ -151,7 +151,7 @@ export function GeneralTab(props: GeneralTabProps) {
         <SectionPanel accent="var(--s-gold)" icon={Settings} title="CONFIGURATION"
           collapsed={collapsed.config} onToggle={() => toggle('config')}>
           <div className="space-y-5">
-            <div className="grid grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <ImageUploader
                 label="Logo de la structure"
                 hint="Carré — idéalement fond transparent. Max 2 MB."
@@ -315,7 +315,7 @@ export function GeneralTab(props: GeneralTabProps) {
         {/* RÉSEAUX SOCIAUX */}
         <SectionPanel accent="#5865F2" icon={Link2} title="RÉSEAUX SOCIAUX"
           collapsed={collapsed.socials} onToggle={() => toggle('socials')}>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
             {Object.entries(SOCIAL_LABELS).map(([key, label]) => (
               <div key={key}>
                 <label className="t-label block mb-1.5">{label}</label>
@@ -346,7 +346,7 @@ export function GeneralTab(props: GeneralTabProps) {
               {editAchievements.map((a, i) => (
                 <div key={i} className="p-3 space-y-2.5" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                   <div className="flex items-start gap-2">
-                    <div className="flex-1 grid grid-cols-2 gap-2">
+                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
                         <label className="t-label block mb-1">Placement *</label>
                         <select className="settings-input w-full" value={a.placement}
@@ -382,7 +382,7 @@ export function GeneralTab(props: GeneralTabProps) {
                       <Trash2 size={13} />
                     </button>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
                       <label className="t-label block mb-1">Jeu</label>
                       <select className="settings-input w-full" value={a.game}
@@ -479,7 +479,7 @@ export function GeneralTab(props: GeneralTabProps) {
         </div>
 
         {/* Quick stats */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="bevel-sm p-4 text-center relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
             <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(0,129,255,0.06), transparent 70%)' }} />
             <p className="font-display text-2xl relative z-[1]" style={{ color: 'var(--s-blue)' }}>{teams.filter(t => t.game === 'rocket_league').length}</p>
