@@ -1953,25 +1953,32 @@ export default function MyStructurePage() {
                       const gameTag = team.game === 'rocket_league' ? 'RL' : team.game === 'trackmania' ? 'TM' : team.game;
                       const gameClass = team.game === 'rocket_league' ? 'tag-blue' : 'tag-green';
                       return (
-                        <div key={team.id} className="flex items-center gap-2 px-2 py-1.5"
+                        <div key={team.id} className="flex flex-col sm:flex-row sm:items-center gap-2 px-2 py-2"
                           style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                          <span className={`tag ${gameClass} flex-shrink-0`} style={{ fontSize: '12px', padding: '2px 6px' }}>{gameTag}</span>
-                          <span className="font-display text-sm tracking-wider flex-1 truncate">{team.name.toUpperCase()}</span>
-                          <TeamActionChip
-                            icon={<CalendarClock size={12} />}
-                            label="Dispos"
-                            onClick={() => setDrawerState({ team: drawerTeam, tab: 'availability', canEditConfig: isDirigeant })}
-                          />
-                          <TeamActionChip
-                            icon={<ClipboardList size={12} />}
-                            label="Exercices"
-                            onClick={() => setDrawerState({ team: drawerTeam, tab: 'todos', canEditConfig: isDirigeant })}
-                          />
-                          <TeamActionChip
-                            icon={<Film size={12} />}
-                            label="Replays"
-                            onClick={() => setDrawerState({ team: drawerTeam, tab: 'replays', canEditConfig: isDirigeant })}
-                          />
+                          <div className="flex items-center gap-2 min-w-0 sm:flex-1">
+                            <span className={`tag ${gameClass} flex-shrink-0`} style={{ fontSize: '12px', padding: '2px 6px' }}>{gameTag}</span>
+                            <span className="font-display text-sm tracking-wider truncate min-w-0">{team.name.toUpperCase()}</span>
+                          </div>
+                          <div className="flex items-stretch gap-2">
+                            <TeamActionChip
+                              className="flex-1 sm:flex-none"
+                              icon={<CalendarClock size={12} />}
+                              label="Dispos"
+                              onClick={() => setDrawerState({ team: drawerTeam, tab: 'availability', canEditConfig: isDirigeant })}
+                            />
+                            <TeamActionChip
+                              className="flex-1 sm:flex-none"
+                              icon={<ClipboardList size={12} />}
+                              label="Exercices"
+                              onClick={() => setDrawerState({ team: drawerTeam, tab: 'todos', canEditConfig: isDirigeant })}
+                            />
+                            <TeamActionChip
+                              className="flex-1 sm:flex-none"
+                              icon={<Film size={12} />}
+                              label="Replays"
+                              onClick={() => setDrawerState({ team: drawerTeam, tab: 'replays', canEditConfig: isDirigeant })}
+                            />
+                          </div>
                         </div>
                       );
                     })}

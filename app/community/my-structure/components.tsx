@@ -359,17 +359,18 @@ export function StaffRosterSlot({
 
 // ─── Chip action dans les cards équipe (drawer détail) ────────────────
 export function TeamActionChip({
-  icon, label, onClick,
+  icon, label, onClick, className = '',
 }: {
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
+  className?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bevel-sm transition-all duration-150 hover:opacity-100"
+      className={`flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 text-xs font-semibold bevel-sm transition-all duration-150 hover:opacity-100 min-w-0 ${className}`}
       style={{
         background: 'var(--s-surface)',
         border: '1px solid var(--s-border)',
@@ -378,8 +379,8 @@ export function TeamActionChip({
         cursor: 'pointer',
       }}
     >
-      {icon}
-      <span>{label}</span>
+      <span className="flex-shrink-0">{icon}</span>
+      <span className="truncate">{label}</span>
     </button>
   );
 }
