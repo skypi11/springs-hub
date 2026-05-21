@@ -554,19 +554,20 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
         <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
           <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${mainColor}, rgba(${mainColorRaw},0.3), transparent 80%)` }} />
 
-          {/* Cover : image si fournie, sinon gradient vivant aux couleurs du jeu.
-              Ratio bannière 4:1 (format classique), clampé pour rester lisible
-              sur très grand comme sur petit écran. */}
+          {/* ── Zone hero : bannière en fond, identité posée par-dessus ──
+              Ratio 4:1 (cohérent avec l'éditeur de cadrage), borné pour rester
+              lisible sur petit comme sur très grand écran. */}
           <div className="relative overflow-hidden"
             style={{
               aspectRatio: '4 / 1',
-              maxHeight: 280,
-              minHeight: 180,
-              background: `linear-gradient(135deg, rgba(${mainColorRaw},0.22) 0%, rgba(${mainColorRaw},0.05) 40%, var(--s-surface) 100%)`,
+              minHeight: 220,
+              maxHeight: 360,
+              background: `linear-gradient(135deg, rgba(${mainColorRaw},0.22) 0%, rgba(${mainColorRaw},0.06) 45%, var(--s-surface) 100%)`,
             }}>
+            {/* Fond : bannière cadrée si fournie, sinon décor aux couleurs du jeu */}
             {structure.coverUrl ? (
               <div
-                className="absolute inset-0 opacity-50"
+                className="absolute inset-0"
                 style={{
                   backgroundImage: `url("${structure.coverUrl}")`,
                   backgroundRepeat: 'no-repeat',
@@ -582,78 +583,82 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
               <>
                 <div className="absolute inset-0 hex-bg opacity-70 pointer-events-none" />
                 <div className="absolute top-0 right-0 w-[500px] h-[300px] pointer-events-none"
-                  style={{ background: `radial-gradient(ellipse at top right, rgba(${mainColorRaw},0.18), transparent 70%)` }} />
-                <div className="absolute bottom-0 left-0 w-[400px] h-[250px] pointer-events-none"
-                  style={{ background: `radial-gradient(ellipse at bottom left, rgba(${mainColorRaw},0.12), transparent 70%)` }} />
+                  style={{ background: `radial-gradient(ellipse at top right, rgba(${mainColorRaw},0.2), transparent 70%)` }} />
               </>
             )}
-            <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 0%, transparent 50%, var(--s-surface) 100%)' }} />
-          </div>
+            {/* Voile sombre : bannière nette en haut, texte lisible en bas */}
+            <div className="absolute inset-0 pointer-events-none"
+              style={{ background: 'linear-gradient(to top, rgba(8,8,12,0.95) 0%, rgba(8,8,12,0.72) 32%, rgba(8,8,12,0.34) 68%, rgba(8,8,12,0.12) 100%)' }} />
 
-          <div className="relative z-[1] px-8 pb-6 -mt-[70px]">
-            <div className="flex items-end gap-7 mb-5">
-              {/* Logo plus grand */}
-              <div className="flex-shrink-0 w-36 h-36 relative overflow-hidden bevel-sm"
-                style={{ background: 'var(--s-elevated)', border: `3px solid rgba(${mainColorRaw},0.35)`, boxShadow: `0 0 32px rgba(${mainColorRaw},0.15)` }}>
-                {structure.logoUrl ? (
-                  <Image src={structure.logoUrl} alt={structure.name} fill className="object-contain p-3" unoptimized />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Shield size={56} style={{ color: 'var(--s-text-muted)' }} />
-                  </div>
-                )}
-              </div>
-
-              <div className="flex-1 min-w-0 pb-2">
-                {/* Tags */}
-                <div className="flex items-center gap-2 mb-2 flex-wrap">
-                  <span className="tag tag-gold">{structure.tag}</span>
-                  {structure.games?.map(g => (
-                    <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}>
-                      {g === 'rocket_league' ? 'Rocket League' : 'Trackmania'}
-                    </span>
-                  ))}
-                  {structure.recruiting?.active && (
-                    <span className="tag" style={{ background: 'rgba(255,184,0,0.1)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.25)' }}>
-                      <Search size={9} /> Recrute
-                    </span>
+            {/* Identité — calée en bas, posée sur la bannière */}
+            <div className="absolute inset-0 z-[1] flex items-end px-8 pt-12 pb-6">
+              <div className="flex items-end gap-6 w-full">
+                {/* Logo */}
+                <div className="flex-shrink-0 w-[120px] h-[120px] relative overflow-hidden bevel-sm"
+                  style={{ background: 'var(--s-elevated)', border: `3px solid rgba(${mainColorRaw},0.45)`, boxShadow: '0 8px 28px rgba(0,0,0,0.55)' }}>
+                  {structure.logoUrl ? (
+                    <Image src={structure.logoUrl} alt={structure.name} fill className="object-contain p-2.5" unoptimized />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Shield size={48} style={{ color: 'var(--s-text-muted)' }} />
+                    </div>
                   )}
                 </div>
 
-                {/* Nom */}
-                <h1 className="font-display tracking-wider" style={{ color: 'var(--s-text)', fontSize: '48px', lineHeight: 1 }}>
-                  {structure.name}
-                </h1>
-              </div>
+                <div className="flex-1 min-w-0">
+                  {/* Tags */}
+                  <div className="flex items-center gap-2 mb-2.5 flex-wrap">
+                    <span className="tag tag-gold">{structure.tag}</span>
+                    {structure.games?.map(g => (
+                      <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}>
+                        {g === 'rocket_league' ? 'Rocket League' : 'Trackmania'}
+                      </span>
+                    ))}
+                    {structure.recruiting?.active && (
+                      <span className="tag" style={{ background: 'rgba(255,184,0,0.12)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.3)' }}>
+                        <Search size={9} /> Recrute
+                      </span>
+                    )}
+                  </div>
+                  {/* Nom */}
+                  <h1 className="font-display tracking-wider truncate"
+                    style={{ color: 'var(--s-text)', fontSize: '46px', lineHeight: 1, textShadow: '0 2px 16px rgba(0,0,0,0.75)' }}>
+                    {structure.name}
+                  </h1>
+                </div>
 
-              {/* CTA principal bien visible */}
-              <div className="flex-shrink-0 flex flex-col items-end gap-2 pb-2">
-                {isOwner ? (
-                  <Link href="/community/my-structure" className="btn-springs btn-secondary bevel-sm flex items-center gap-2">
-                    <Shield size={14} /> Gérer
-                  </Link>
-                ) : firebaseUser && !isMember && !joinSent && structure.recruiting?.active ? (
-                  <button onClick={() => setShowJoinForm(!showJoinForm)}
-                    className="btn-springs btn-primary bevel-sm flex items-center gap-2"
-                    style={{ padding: '10px 20px', fontSize: '13px' }}>
-                    <UserPlus size={15} /> Postuler
-                  </button>
-                ) : firebaseUser && !isMember && !joinSent && !structure.recruiting?.active ? (
-                  <span className="t-label" style={{ color: 'var(--s-text-muted)', padding: '6px 0' }}>
-                    Ne recrute pas
-                  </span>
-                ) : joinSent ? (
-                  <span className="flex items-center gap-2 text-sm font-bold" style={{ color: '#33ff66' }}>
-                    <CheckCircle size={15} /> Demande envoyée
-                  </span>
-                ) : isMember ? (
-                  <span className="tag tag-gold" style={{ fontSize: '12px', padding: '6px 14px' }}>Membre</span>
-                ) : null}
+                {/* CTA principal */}
+                <div className="flex-shrink-0 flex flex-col items-end gap-2">
+                  {isOwner ? (
+                    <Link href="/community/my-structure" className="btn-springs btn-secondary bevel-sm flex items-center gap-2">
+                      <Shield size={14} /> Gérer
+                    </Link>
+                  ) : firebaseUser && !isMember && !joinSent && structure.recruiting?.active ? (
+                    <button onClick={() => setShowJoinForm(!showJoinForm)}
+                      className="btn-springs btn-primary bevel-sm flex items-center gap-2"
+                      style={{ padding: '10px 20px', fontSize: '13px' }}>
+                      <UserPlus size={15} /> Postuler
+                    </button>
+                  ) : firebaseUser && !isMember && !joinSent && !structure.recruiting?.active ? (
+                    <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>
+                      Ne recrute pas
+                    </span>
+                  ) : joinSent ? (
+                    <span className="flex items-center gap-2 text-sm font-bold" style={{ color: '#33ff66' }}>
+                      <CheckCircle size={15} /> Demande envoyée
+                    </span>
+                  ) : isMember ? (
+                    <span className="tag tag-gold" style={{ fontSize: '12px', padding: '6px 14px' }}>Membre</span>
+                  ) : null}
+                </div>
               </div>
             </div>
+          </div>
 
-            {/* Stats line */}
-            <div className="flex items-center gap-6 flex-wrap mb-5 pl-1">
+          {/* ── Barre d'infos : stats + direction sur fond plein ── */}
+          <div className="relative z-[1] px-8 py-4 flex items-center justify-between gap-x-8 gap-y-3 flex-wrap"
+            style={{ borderTop: '1px solid var(--s-border)' }}>
+            <div className="flex items-center gap-6 flex-wrap">
               <HeroStat
                 icon={<Users size={13} style={{ color: 'var(--s-gold)' }} />}
                 value={String(structure.members.length)}
@@ -683,7 +688,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
 
             {/* Direction — fondateurs inline */}
             {leaders.length > 0 && (
-              <div className="flex items-center gap-3 flex-wrap pl-1">
+              <div className="flex items-center gap-3 flex-wrap">
                 <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>DIRECTION</span>
                 <div className="flex items-center gap-3 flex-wrap">
                   {leaders.map(l => {
