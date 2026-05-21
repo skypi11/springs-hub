@@ -181,14 +181,13 @@ export interface Competition {
   createdAt?: Date;
 }
 
-// ── Bannière de structure — cadrage ───────────────────────────────────────
-// Paramètres d'affichage de la bannière, produits par l'éditeur de cadrage et
-// appliqués tels quels en CSS (background-size / background-position).
-// `coverCrop` null/absent = cadrage par défaut (cover centré).
-export interface BannerCrop {
-  sizePct: number;  // background-size, en % de la largeur du cadre (≥ 100)
-  posX: number;     // background-position-x, en % (0-100)
-  posY: number;     // background-position-y, en % (0-100)
+// ── Bannière de structure — point focal ───────────────────────────────────
+// Point focal de la bannière (modèle YouTube/Twitch) : l'image s'affiche en
+// `background-size: cover` et `coverFocus` fournit le `background-position`.
+// Indépendant du ratio d'affichage de la bannière. null/absent = centré (50/50).
+export interface BannerFocus {
+  x: number;  // background-position-x, en % (0-100)
+  y: number;  // background-position-y, en % (0-100)
 }
 
 // ── Calendrier / Événements de structure ──────────────────────────────────

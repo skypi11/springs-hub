@@ -118,9 +118,9 @@ export async function POST(req: NextRequest) {
       [oldField]: newUrl,
       updatedAt: FieldValue.serverTimestamp(),
     };
-    // Nouvelle bannière → on réinitialise le cadrage : l'ancien `coverCrop`
-    // ne correspond plus aux dimensions de la nouvelle image.
-    if (type === 'banner') updatePayload.coverCrop = null;
+    // Nouvelle bannière → on réinitialise le point focal (l'ancien ne
+    // correspond plus à la nouvelle image).
+    if (type === 'banner') updatePayload.coverFocus = null;
     await ref.update(updatePayload);
 
     // Audit log (standalone, pas besoin d'atomicité avec le storage)

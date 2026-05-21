@@ -8,10 +8,10 @@ import {
   Link2, MessageSquare, Settings, Check, X,
 } from 'lucide-react';
 import ImageUploader from '@/components/ui/ImageUploader';
-import BannerCropEditor from '@/components/structure/BannerCropEditor';
+import BannerFocusEditor from '@/components/structure/BannerFocusEditor';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import type { MyStructure, TeamData } from '../types';
-import type { BannerCrop } from '@/types';
+import type { BannerFocus } from '@/types';
 import { SOCIAL_LABELS, STATUS_INFO } from '../constants';
 import { SectionPanel } from '../components';
 
@@ -45,8 +45,8 @@ type GeneralTabProps = {
   setShowEmojis: Dispatch<SetStateAction<boolean>>;
   editLogoUrl: string;
   setEditLogoUrl: Dispatch<SetStateAction<string>>;
-  editCoverCrop: BannerCrop | null;
-  setEditCoverCrop: Dispatch<SetStateAction<BannerCrop | null>>;
+  editCoverFocus: BannerFocus | null;
+  setEditCoverFocus: Dispatch<SetStateAction<BannerFocus | null>>;
   editDiscordUrl: string;
   setEditDiscordUrl: Dispatch<SetStateAction<string>>;
   editSocials: Record<string, string>;
@@ -75,7 +75,7 @@ export function GeneralTab(props: GeneralTabProps) {
   const {
     s, activeStructure, setActiveStructure, loadStructures,
     editDesc, setEditDesc, descRef, showEmojis, setShowEmojis,
-    editLogoUrl, setEditLogoUrl, editCoverCrop, setEditCoverCrop,
+    editLogoUrl, setEditLogoUrl, editCoverFocus, setEditCoverFocus,
     editDiscordUrl, setEditDiscordUrl,
     editSocials, setEditSocials, editAchievements, setEditAchievements,
     discordLoading, handleConnectDiscord, handleDisconnectDiscord, renderDiscordConfigBlock,
@@ -188,13 +188,13 @@ export function GeneralTab(props: GeneralTabProps) {
                 void loadStructures();
               }}
             />
-            {/* Éditeur de cadrage : image entière + cadre 4:1 déplaçable + zoom.
-                Le résultat (coverCrop) est appliqué tel quel sur la page publique. */}
+            {/* Éditeur de point focal : image entière + point déplaçable.
+                Le coverFocus est appliqué tel quel (background-position) à l'affichage. */}
             {activeStructure?.coverUrl && (
-              <BannerCropEditor
+              <BannerFocusEditor
                 imageUrl={activeStructure.coverUrl}
-                value={editCoverCrop}
-                onChange={setEditCoverCrop}
+                value={editCoverFocus}
+                onChange={setEditCoverFocus}
                 disabled={!isDirigeantOfActive}
               />
             )}

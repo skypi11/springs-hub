@@ -347,22 +347,19 @@ export async function PUT(req: NextRequest) {
       // Cap à 50 entrées pour limiter la taille du document
       safeUpdates.achievements = updates.achievements.slice(0, 50);
     }
-    if (updates.coverCrop !== undefined) {
-      // Cadrage de la bannière : null = cadrage par défaut (cover centré),
-      // sinon { sizePct, posX, posY } produit par l'éditeur de cadrage.
-      const c = updates.coverCrop;
+    if (updates.coverFocus !== undefined) {
+      // Point focal de la bannière : null = centré, sinon { x, y } en % (0-100).
+      const c = updates.coverFocus;
       if (c === null) {
-        safeUpdates.coverCrop = null;
+        safeUpdates.coverFocus = null;
       } else if (c && typeof c === 'object') {
         const cc = c as Record<string, unknown>;
-        const size = Number(cc.sizePct);
-        const px = Number(cc.posX);
-        const py = Number(cc.posY);
-        if (Number.isFinite(size) && Number.isFinite(px) && Number.isFinite(py)) {
-          safeUpdates.coverCrop = {
-            sizePct: Math.min(1000, Math.max(100, size)),
-            posX: Math.min(100, Math.max(0, px)),
-            posY: Math.min(100, Math.max(0, py)),
+        const x = Number(cc.x);
+        const y = Number(cc.y);
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+          safeUpdates.coverFocus = {
+            x: Math.min(100, Math.max(0, x)),
+            y: Math.min(100, Math.max(0, y)),
           };
         }
       }

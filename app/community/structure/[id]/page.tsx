@@ -58,7 +58,7 @@ type StructureData = {
   tag: string;
   logoUrl: string;
   coverUrl: string;
-  coverCrop: import('@/types').BannerCrop | null;
+  coverFocus: import('@/types').BannerFocus | null;
   description: string;
   games: string[];
   discordUrl: string;
@@ -555,14 +555,12 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
           <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${mainColor}, rgba(${mainColorRaw},0.3), transparent 80%)` }} />
 
           {/* ── Zone hero : bannière en fond, identité posée par-dessus ──
-              Ratio 6:1 (cohérent avec l'éditeur de cadrage). Largeur TOUJOURS
-              100% : pas de max-height — combiné à aspect-ratio, il rétrécirait
-              la largeur. minHeight assure une hauteur mini sur petit écran. */}
-          <div className="relative overflow-hidden"
+              Hauteur fixe responsive + background cover : la bannière remplit
+              toujours la zone, pleine largeur, sur tous les écrans. Le point
+              focal (coverFocus) choisit la partie visible — zéro dépendance
+              au ratio d'affichage. */}
+          <div className="relative overflow-hidden w-full h-[240px] lg:h-[300px]"
             style={{
-              width: '100%',
-              aspectRatio: '6 / 1',
-              minHeight: 200,
               background: `linear-gradient(135deg, rgba(${mainColorRaw},0.22) 0%, rgba(${mainColorRaw},0.06) 45%, var(--s-surface) 100%)`,
             }}>
             {/* Fond : bannière cadrée si fournie, sinon décor aux couleurs du jeu */}
@@ -572,12 +570,10 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                 style={{
                   backgroundImage: `url("${structure.coverUrl}")`,
                   backgroundRepeat: 'no-repeat',
-                  ...(structure.coverCrop
-                    ? {
-                        backgroundSize: `${structure.coverCrop.sizePct}% auto`,
-                        backgroundPosition: `${structure.coverCrop.posX}% ${structure.coverCrop.posY}%`,
-                      }
-                    : { backgroundSize: 'cover', backgroundPosition: 'center' }),
+                  backgroundSize: 'cover',
+                  backgroundPosition: structure.coverFocus
+                    ? `${structure.coverFocus.x}% ${structure.coverFocus.y}%`
+                    : 'center',
                 }}
               />
             ) : (
