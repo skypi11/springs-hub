@@ -404,7 +404,7 @@ Quand une card n'a pas d'image de fond, elle doit quand même avoir de la prése
   subTeamId: null,
   createdBy: "discord_...",
   title: "",
-  type: "training",         // training | scrim | match | springs
+  type: "training",         // training | scrim | match | tournoi | autre
   startsAt: Timestamp,
   endsAt: Timestamp,
   description: "",
