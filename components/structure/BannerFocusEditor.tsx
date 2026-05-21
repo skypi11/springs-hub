@@ -103,7 +103,7 @@ export default function BannerFocusEditor({ imageUrl, value, onChange, disabled 
         <div
           className="relative w-full bevel-sm overflow-hidden"
           style={{
-            height: 92,
+            aspectRatio: '6 / 1',
             border: '1px solid var(--s-border)',
             backgroundImage: `url("${imageUrl}")`,
             backgroundSize: 'cover',

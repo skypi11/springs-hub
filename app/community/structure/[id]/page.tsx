@@ -555,12 +555,13 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
           <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${mainColor}, rgba(${mainColorRaw},0.3), transparent 80%)` }} />
 
           {/* ── Zone hero : bannière en fond, identité posée par-dessus ──
-              Hauteur fixe responsive + background cover : la bannière remplit
-              toujours la zone, pleine largeur, sur tous les écrans. Le point
-              focal (coverFocus) choisit la partie visible — zéro dépendance
-              au ratio d'affichage. */}
-          <div className="relative overflow-hidden w-full h-[240px] lg:h-[300px]"
+              Ratio 6:1 FIXE (sans max-height, qui rétrécirait la largeur) :
+              la bannière est pleine largeur ET son rendu est identique sur tous
+              les écrans — c'est ce qui rend l'aperçu de l'éditeur fidèle.
+              L'éditeur (BannerFocusEditor) utilise le même ratio 6:1. */}
+          <div className="relative overflow-hidden w-full"
             style={{
+              aspectRatio: '6 / 1',
               background: `linear-gradient(135deg, rgba(${mainColorRaw},0.22) 0%, rgba(${mainColorRaw},0.06) 45%, var(--s-surface) 100%)`,
             }}>
             {/* Fond : bannière cadrée si fournie, sinon décor aux couleurs du jeu */}
@@ -588,10 +589,10 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
               style={{ background: 'linear-gradient(to top, rgba(8,8,12,0.95) 0%, rgba(8,8,12,0.72) 32%, rgba(8,8,12,0.34) 68%, rgba(8,8,12,0.12) 100%)' }} />
 
             {/* Identité — calée en bas, posée sur la bannière */}
-            <div className="absolute inset-0 z-[1] flex items-end px-8 pt-12 pb-6">
+            <div className="absolute inset-0 z-[1] flex items-end px-8 pt-8 pb-5">
               <div className="flex items-end gap-6 w-full">
                 {/* Logo */}
-                <div className="flex-shrink-0 w-[120px] h-[120px] relative overflow-hidden bevel-sm"
+                <div className="flex-shrink-0 w-[110px] h-[110px] relative overflow-hidden bevel-sm"
                   style={{ background: 'var(--s-elevated)', border: `3px solid rgba(${mainColorRaw},0.45)`, boxShadow: '0 8px 28px rgba(0,0,0,0.55)' }}>
                   {structure.logoUrl ? (
                     <Image src={structure.logoUrl} alt={structure.name} fill className="object-contain p-2.5" unoptimized />
