@@ -540,7 +540,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
         title={structure.name}
         accent={mainColor}
       />
-      <div className="relative z-[1] space-y-8 w-full max-w-[1600px] mx-auto">
+      <div className="relative z-[1] space-y-8">
 
         <Breadcrumbs items={[
           { label: 'Communauté', href: '/community' },
@@ -555,13 +555,14 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
           <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${mainColor}, rgba(${mainColorRaw},0.3), transparent 80%)` }} />
 
           {/* ── Zone hero : bannière en fond, identité posée par-dessus ──
-              Ratio 4:1 (cohérent avec l'éditeur de cadrage), borné pour rester
-              lisible sur petit comme sur très grand écran. */}
+              Ratio 6:1 (cohérent avec l'éditeur de cadrage). Largeur TOUJOURS
+              100% : pas de max-height — combiné à aspect-ratio, il rétrécirait
+              la largeur. minHeight assure une hauteur mini sur petit écran. */}
           <div className="relative overflow-hidden"
             style={{
-              aspectRatio: '4 / 1',
-              minHeight: 220,
-              maxHeight: 360,
+              width: '100%',
+              aspectRatio: '6 / 1',
+              minHeight: 200,
               background: `linear-gradient(135deg, rgba(${mainColorRaw},0.22) 0%, rgba(${mainColorRaw},0.06) 45%, var(--s-surface) 100%)`,
             }}>
             {/* Fond : bannière cadrée si fournie, sinon décor aux couleurs du jeu */}

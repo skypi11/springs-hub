@@ -5,8 +5,8 @@ import { Move } from 'lucide-react';
 import type { BannerCrop } from '@/types';
 
 // Ratio d'affichage de la bannière sur la page publique — doit rester aligné
-// sur le cadre de app/community/structure/[id]/page.tsx (aspectRatio 4 / 1).
-const BANNER_RATIO = 4;
+// sur le cadre de app/community/structure/[id]/page.tsx (aspectRatio 6 / 1).
+const BANNER_RATIO = 6;
 const MAX_ZOOM = 3;
 
 interface BannerCropEditorProps {
