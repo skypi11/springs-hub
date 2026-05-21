@@ -607,32 +607,34 @@ function FolderCard({ folder, isRenaming, renameValue, onOpen, onStartRename, on
   onMove: () => void; onDelete: () => void;
 }) {
   return (
-    <div className="bevel-sm p-3 flex items-center gap-3 group transition-all"
+    <div className="bevel-sm p-3 flex flex-col gap-2.5 group transition-all"
       style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-      <div className="flex-shrink-0 w-9 h-9 flex items-center justify-center"
-        style={{ background: 'rgba(255,184,0,0.1)', border: '1px solid rgba(255,184,0,0.25)' }}>
-        <FolderIcon size={16} style={{ color: 'var(--s-gold)' }} />
+      <div className="flex items-center gap-3">
+        <div className="flex-shrink-0 w-9 h-9 flex items-center justify-center"
+          style={{ background: 'rgba(255,184,0,0.1)', border: '1px solid rgba(255,184,0,0.25)' }}>
+          <FolderIcon size={16} style={{ color: 'var(--s-gold)' }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          {isRenaming ? (
+            <input autoFocus value={renameValue}
+              onChange={e => onRenameChange(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') onRenameSubmit();
+                if (e.key === 'Escape') onRenameCancel();
+              }}
+              onBlur={onRenameSubmit}
+              className="settings-input w-full text-sm"
+              maxLength={80} />
+          ) : (
+            <button type="button" onClick={onOpen} title={folder.name}
+              className="text-sm font-medium truncate block text-left w-full hover:opacity-100 transition-opacity"
+              style={{ color: 'var(--s-text)' }}>
+              {folder.name}
+            </button>
+          )}
+        </div>
       </div>
-      <div className="flex-1 min-w-0">
-        {isRenaming ? (
-          <input autoFocus value={renameValue}
-            onChange={e => onRenameChange(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') onRenameSubmit();
-              if (e.key === 'Escape') onRenameCancel();
-            }}
-            onBlur={onRenameSubmit}
-            className="settings-input w-full text-sm"
-            maxLength={80} />
-        ) : (
-          <button type="button" onClick={onOpen}
-            className="text-sm font-medium truncate block text-left w-full hover:opacity-100 transition-opacity"
-            style={{ color: 'var(--s-text)' }}>
-            {folder.name}
-          </button>
-        )}
-      </div>
-      <div className="flex items-center gap-1 flex-shrink-0">
+      <div className="flex items-center gap-1 pt-2" style={{ borderTop: '1px solid var(--s-border)' }}>
         <IconBtn title="Renommer" onClick={onStartRename}><Pencil size={12} /></IconBtn>
         <IconBtn title="Déplacer" onClick={onMove}><FolderInput size={12} /></IconBtn>
         <IconBtn title="Supprimer" onClick={onDelete} danger><Trash2 size={12} /></IconBtn>
@@ -651,40 +653,42 @@ function DocCard({ doc, isRenaming, renameValue, canPreview, onPreview, onDownlo
 }) {
   const { Icon, color } = iconForMime(doc.mime);
   return (
-    <div className="bevel-sm p-3 flex items-center gap-3 group"
+    <div className="bevel-sm p-3 flex flex-col gap-2.5 group"
       style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-      <div className="flex-shrink-0 w-9 h-9 flex items-center justify-center"
-        style={{ background: `${color}15`, border: `1px solid ${color}40` }}>
-        <Icon size={16} style={{ color }} />
+      <div className="flex items-center gap-3">
+        <div className="flex-shrink-0 w-9 h-9 flex items-center justify-center"
+          style={{ background: `${color}15`, border: `1px solid ${color}40` }}>
+          <Icon size={16} style={{ color }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          {isRenaming ? (
+            <input autoFocus value={renameValue}
+              onChange={e => onRenameChange(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') onRenameSubmit();
+                if (e.key === 'Escape') onRenameCancel();
+              }}
+              onBlur={onRenameSubmit}
+              className="settings-input w-full text-sm"
+              maxLength={120} />
+          ) : (
+            <>
+              <div className="flex items-center gap-1.5">
+                <div className="text-sm font-medium truncate" title={doc.title} style={{ color: 'var(--s-text)' }}>{doc.title}</div>
+                {doc.encrypted && (
+                  <span title="Chiffré AES-256-GCM" style={{ flexShrink: 0, lineHeight: 0 }}>
+                    <Lock size={11} style={{ color: 'var(--s-gold)' }} />
+                  </span>
+                )}
+              </div>
+              <div className="text-xs truncate" title={doc.filename} style={{ color: 'var(--s-text-muted)' }}>
+                {formatSize(doc.sizeBytes)} · {doc.filename}
+              </div>
+            </>
+          )}
+        </div>
       </div>
-      <div className="flex-1 min-w-0">
-        {isRenaming ? (
-          <input autoFocus value={renameValue}
-            onChange={e => onRenameChange(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') onRenameSubmit();
-              if (e.key === 'Escape') onRenameCancel();
-            }}
-            onBlur={onRenameSubmit}
-            className="settings-input w-full text-sm"
-            maxLength={120} />
-        ) : (
-          <>
-            <div className="flex items-center gap-1.5">
-              <div className="text-sm font-medium truncate" style={{ color: 'var(--s-text)' }}>{doc.title}</div>
-              {doc.encrypted && (
-                <span title="Chiffré AES-256-GCM" style={{ flexShrink: 0, lineHeight: 0 }}>
-                  <Lock size={11} style={{ color: 'var(--s-gold)' }} />
-                </span>
-              )}
-            </div>
-            <div className="text-xs truncate" style={{ color: 'var(--s-text-muted)' }}>
-              {formatSize(doc.sizeBytes)} · {doc.filename}
-            </div>
-          </>
-        )}
-      </div>
-      <div className="flex items-center gap-1 flex-shrink-0">
+      <div className="flex items-center gap-1 pt-2" style={{ borderTop: '1px solid var(--s-border)' }}>
         {canPreview && <IconBtn title="Aperçu" onClick={onPreview}><Eye size={12} /></IconBtn>}
         <IconBtn title="Télécharger" onClick={onDownload}><Download size={12} /></IconBtn>
         <IconBtn title="Renommer" onClick={onStartRename}><Pencil size={12} /></IconBtn>
