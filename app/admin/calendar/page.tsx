@@ -14,7 +14,7 @@ import { normalizeEventType } from '@/lib/event-permissions';
 import {
   CalendarDays, Loader2, MapPin, Clock, Search, ExternalLink,
   CheckCircle2, XCircle, Calendar as CalendarIcon, Ban, RotateCcw, Trash2,
-  ChevronDown, ChevronUp, Users, HelpCircle, Minus,
+  ChevronDown, ChevronUp, Users, HelpCircle, Minus, Pencil, Check,
 } from 'lucide-react';
 
 type AdminEvent = {
@@ -80,6 +80,25 @@ function formatTime(iso: string | null): string {
   const d = new Date(iso);
   return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
+// ISO (UTC) → valeur d'un <input type="datetime-local"> en heure locale du
+// navigateur. Au save on refait new Date(value).toISOString() pour repartir en UTC.
+function isoToLocalInput(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+type EventEditState = {
+  id: string;
+  title: string;
+  type: string;
+  description: string;
+  location: string;
+  startsAt: string;
+  endsAt: string;
+};
 
 export default function AdminCalendarPage() {
   const { firebaseUser, isAdmin } = useAuth();
@@ -98,6 +117,8 @@ export default function AdminCalendarPage() {
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
   const [detailById, setDetailById] = useState<Record<string, EventDetail>>({});
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
+  // Édition directe d'un événement — null = aucun formulaire ouvert.
+  const [editEvent, setEditEvent] = useState<EventEditState | null>(null);
 
   async function toggleDetail(eventId: string) {
     if (expandedEventId === eventId) {
@@ -151,6 +172,40 @@ export default function AdminCalendarPage() {
     try {
       await api('/api/admin/calendar', { method: 'POST', body: { eventId, action } });
       toast.success(conf.success);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
+    }
+    setActionLoading(null);
+  }
+
+  async function handleEventEditSave() {
+    if (!editEvent) return;
+    if (!editEvent.title.trim()) {
+      toast.error('Le titre est obligatoire.');
+      return;
+    }
+    if (!editEvent.startsAt) {
+      toast.error('La date de début est obligatoire.');
+      return;
+    }
+    setActionLoading(`edit_${editEvent.id}`);
+    try {
+      await api('/api/admin/calendar', {
+        method: 'POST',
+        body: {
+          eventId: editEvent.id,
+          action: 'edit',
+          title: editEvent.title,
+          type: editEvent.type,
+          description: editEvent.description,
+          location: editEvent.location,
+          startsAt: new Date(editEvent.startsAt).toISOString(),
+          endsAt: editEvent.endsAt ? new Date(editEvent.endsAt).toISOString() : null,
+        },
+      });
+      toast.success('Événement modifié');
+      setEditEvent(null);
       await load();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
@@ -393,6 +448,27 @@ export default function AdminCalendarPage() {
                       <span>Présences</span>
                       {isOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditEvent(editEvent?.id === event.id ? null : {
+                        id: event.id,
+                        title: event.title,
+                        type: normalizeEventType(event.type),
+                        description: event.description,
+                        location: event.location,
+                        startsAt: isoToLocalInput(event.startsAt),
+                        endsAt: isoToLocalInput(event.endsAt),
+                      })}
+                      className="btn-springs bevel-sm flex items-center gap-1.5"
+                      style={{
+                        fontSize: '12px', padding: '5px 10px',
+                        background: editEvent?.id === event.id ? 'rgba(255,184,0,0.15)' : 'transparent',
+                        color: editEvent?.id === event.id ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                        borderColor: editEvent?.id === event.id ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
+                      }}>
+                      <Pencil size={11} />
+                      <span>Modifier</span>
+                    </button>
                     {event.status === 'scheduled' && (
                       <>
                         <button
@@ -459,6 +535,16 @@ export default function AdminCalendarPage() {
                 </div>
               </div>
 
+              {editEvent?.id === event.id && (
+                <EventEditForm
+                  value={editEvent}
+                  onChange={setEditEvent}
+                  onSave={handleEventEditSave}
+                  onCancel={() => setEditEvent(null)}
+                  saving={actionLoading === `edit_${event.id}`}
+                />
+              )}
+
               {isOpen && (
                 <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--s-border)' }}>
                   {detailLoadingId === event.id && !detail ? (
@@ -475,6 +561,102 @@ export default function AdminCalendarPage() {
         })}
       </div>
     </>
+  );
+}
+
+function EventEditForm({
+  value, onChange, onSave, onCancel, saving,
+}: {
+  value: EventEditState;
+  onChange: (v: EventEditState) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  saving: boolean;
+}) {
+  return (
+    <div
+      className="mt-3 pt-3 space-y-3"
+      style={{ borderTop: '1px solid var(--s-border)' }}
+    >
+      <p className="t-label" style={{ color: 'var(--s-gold)' }}>MODIFIER L&apos;ÉVÉNEMENT</p>
+      <div className="flex gap-3 flex-wrap">
+        <div className="flex-1 min-w-[200px]">
+          <label className="t-label block mb-1">Titre</label>
+          <input
+            type="text"
+            className="settings-input w-full"
+            maxLength={120}
+            value={value.title}
+            onChange={e => onChange({ ...value, title: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="t-label block mb-1">Type</label>
+          <select
+            className="settings-input"
+            value={value.type}
+            onChange={e => onChange({ ...value, type: e.target.value })}
+          >
+            {Object.entries(TYPE_META).map(([k, m]) => (
+              <option key={k} value={k}>{m.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="flex gap-3 flex-wrap">
+        <div className="flex-1 min-w-[160px]">
+          <label className="t-label block mb-1">Début</label>
+          <input
+            type="datetime-local"
+            className="settings-input w-full"
+            value={value.startsAt}
+            onChange={e => onChange({ ...value, startsAt: e.target.value })}
+          />
+        </div>
+        <div className="flex-1 min-w-[160px]">
+          <label className="t-label block mb-1">Fin (optionnel)</label>
+          <input
+            type="datetime-local"
+            className="settings-input w-full"
+            value={value.endsAt}
+            onChange={e => onChange({ ...value, endsAt: e.target.value })}
+          />
+        </div>
+      </div>
+      <div>
+        <label className="t-label block mb-1">Lieu (optionnel)</label>
+        <input
+          type="text"
+          className="settings-input w-full"
+          maxLength={200}
+          value={value.location}
+          onChange={e => onChange({ ...value, location: e.target.value })}
+        />
+      </div>
+      <div>
+        <label className="t-label block mb-1">Description</label>
+        <textarea
+          className="settings-input w-full"
+          rows={3}
+          value={value.description}
+          onChange={e => onChange({ ...value, description: e.target.value })}
+        />
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={onSave}
+          disabled={saving}
+          className="btn-springs btn-primary bevel-sm flex items-center gap-2"
+          style={{ fontSize: '12px', padding: '7px 14px' }}
+        >
+          {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+          <span>Enregistrer</span>
+        </button>
+        <button onClick={onCancel} disabled={saving} className="btn-springs btn-ghost text-xs">
+          Annuler
+        </button>
+      </div>
+    </div>
   );
 }
 

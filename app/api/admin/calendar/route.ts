@@ -3,9 +3,12 @@ import { getAdminDb, verifyAuth, isAdmin } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
+import { clampString } from '@/lib/validation';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 
 const MAX_EVENTS = 500;
+const EVENT_TYPES = ['training', 'scrim', 'match', 'tournoi', 'autre'];
 
 function ts(v: unknown): string | null {
   if (!v) return null;
@@ -197,9 +200,9 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const eventId = String(body.eventId ?? '').trim();
-    const action = body.action as 'cancel' | 'terminate' | 'reopen';
+    const action = body.action as 'cancel' | 'terminate' | 'reopen' | 'edit';
     if (!eventId) return NextResponse.json({ error: 'eventId manquant' }, { status: 400 });
-    if (!['cancel', 'terminate', 'reopen'].includes(action)) {
+    if (!['cancel', 'terminate', 'reopen', 'edit'].includes(action)) {
       return NextResponse.json({ error: 'Action invalide' }, { status: 400 });
     }
 
@@ -210,6 +213,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Événement introuvable' }, { status: 404 });
     }
     const event = eventSnap.data()!;
+
+    if (action === 'edit') {
+      // Édition directe des infos d'un événement (admin) — sans toucher au
+      // statut ni au ciblage (target). title / type / description / lieu / dates.
+      const title = clampString(body.title, 120);
+      if (!title) {
+        return NextResponse.json({ error: 'Le titre est obligatoire.' }, { status: 400 });
+      }
+      const type = EVENT_TYPES.includes(body.type) ? body.type : (event.type ?? 'autre');
+      const description = clampString(body.description, 2000);
+      const location = clampString(body.location, 200);
+      const startsAt = body.startsAt ? new Date(String(body.startsAt)) : null;
+      if (!startsAt || Number.isNaN(startsAt.getTime())) {
+        return NextResponse.json({ error: 'Date de début invalide.' }, { status: 400 });
+      }
+      const endsAtRaw = body.endsAt ? new Date(String(body.endsAt)) : null;
+      const endsAt = endsAtRaw && !Number.isNaN(endsAtRaw.getTime()) ? endsAtRaw : null;
+      if (endsAt && endsAt.getTime() < startsAt.getTime()) {
+        return NextResponse.json({ error: 'La fin doit être après le début.' }, { status: 400 });
+      }
+      await eventRef.update({
+        title,
+        type,
+        description,
+        location,
+        startsAt,
+        endsAt,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      await writeAdminAuditLog(db, {
+        action: 'event_edited',
+        adminUid: uid,
+        targetType: 'event',
+        targetId: eventId,
+        targetLabel: (event.title as string) ?? null,
+        metadata: { structureId: (event.structureId as string) ?? null, newTitle: title },
+      });
+      return NextResponse.json({ success: true });
+    }
 
     if (action === 'cancel') {
       if (event.status === 'cancelled') {
