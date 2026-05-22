@@ -51,6 +51,19 @@ export async function GET(req: NextRequest) {
         rlRank: data.rlStats?.rank || data.rlRank || '',
         rlMmr: data.rlStats?.mmr || data.rlMmr || null,
         rlIconUrl: data.rlStats?.iconUrl || '',
+        // Identité RL officielle (anti-mensonge — voir docs/rl-rank-verification-plan.md)
+        // verified = passé par le flow Lot 2 (snapshot Epic via Discord) OU Steam OpenID lié.
+        rlAccountVerified: !!data.rlEpicId || !!data.steamLinked?.steamId64,
+        // Pseudo du compte officiel à afficher à côté du rang
+        rlAccountName: (data.rlEpicName as string)
+          || (data.steamLinked?.personaName as string)
+          || '',
+        // Plateforme officielle (utile pour les pages qui construisent le lien tracker)
+        rlAccountPlatform: data.rlEpicId
+          ? 'epic'
+          : (data.steamLinked?.steamId64 ? 'steam' : ''),
+        // SteamID64 exposé uniquement pour les Steam-verified (sert au lien tracker)
+        rlSteamId64: data.steamLinked?.steamId64 || '',
         // TM stats
         pseudoTM: data.pseudoTM || '',
         tmTrophies: data.tmStats?.trophies || null,

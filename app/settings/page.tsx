@@ -1066,20 +1066,33 @@ export default function SettingsPage() {
                               )}
                             </div>
                           )}
-                          <div>
-                            <label className="t-label block mb-2">Rang RL (auto-déclaré)</label>
-                            <select value={form.rlRank}
-                              onChange={e => updateForm({ rlRank: e.target.value })}
-                              className="settings-input w-full">
-                              <option value="">— Non renseigné —</option>
-                              {RL_RANKS.map(r => (
-                                <option key={r} value={r}>{r}</option>
-                              ))}
-                            </select>
-                            <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
-                              Affiché sur ton profil. Les visiteurs peuvent cliquer sur les liens ci-dessus pour vérifier sur tracker.gg ou Ballchasing.
-                            </p>
-                          </div>
+                          {/* ── Rang RL — gateé sur la présence d'un compte vérifié ── */}
+                          {(() => {
+                            const hasLink = !!epicLinked || !!steamLinked;
+                            return (
+                              <div>
+                                <label className="t-label block mb-2">Rang RL (auto-déclaré)</label>
+                                <select value={form.rlRank}
+                                  onChange={e => updateForm({ rlRank: e.target.value })}
+                                  disabled={!hasLink}
+                                  className="settings-input w-full disabled:opacity-50 disabled:cursor-not-allowed">
+                                  <option value="">— Non renseigné —</option>
+                                  {RL_RANKS.map(r => (
+                                    <option key={r} value={r}>{r}</option>
+                                  ))}
+                                </select>
+                                {hasLink ? (
+                                  <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
+                                    Affiché à côté de ton lien tracker — n'importe qui peut vérifier en un clic. Modifier ton rang permet à nouveau aux autres de le signaler s'il leur paraît incorrect.
+                                  </p>
+                                ) : (
+                                  <p className="text-xs mt-1.5" style={{ color: '#ff8a8a' }}>
+                                    ⚠️ Lie d'abord ton compte Rocket League (Epic ou Steam ci-dessus) pour que ton rang soit affichable. Un rang sans preuve ne vaut rien et ne sera pas montré sur ta fiche publique.
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       );
                     })()}

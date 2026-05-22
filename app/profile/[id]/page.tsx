@@ -18,6 +18,7 @@ import { SkeletonPageHeader, SkeletonCard } from '@/components/ui/Skeleton';
 import InviteToStructureButton from '@/components/community/InviteToStructureButton';
 import DiscordIcon from '@/components/icons/DiscordIcon';
 import { getEffectiveRLPlatform, buildTrackerGgUrl, buildBallchasingUrl, getRLPlatformMeta } from '@/lib/rl-platform';
+import RLIdentityBadge from '@/components/players/RLIdentityBadge';
 import { getConnectionMeta, buildConnectionUrl } from '@/lib/discord-connections';
 import { Link2 } from 'lucide-react';
 import RankBadge, { getRankTierConfig } from '@/components/rl/RankBadge';
@@ -278,6 +279,14 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
             const trackerHref = effective ? buildTrackerGgUrl(effective.platform, effective.id) : '';
             const ballchasingHref = effective ? buildBallchasingUrl(effective.platform, effective.id) : '';
             const platformMeta = effective ? getRLPlatformMeta(effective.platform) : null;
+            // Statut RL officiel (Lot 2 — anti-mensonge / sticky)
+            const rlAccountVerified = !!profile.rlEpicId || !!profile.steamLinked?.steamId64;
+            const rlAccountName = profile.rlEpicName
+              || profile.steamLinked?.personaName
+              || '';
+            const rlAccountPlatform: 'epic' | 'steam' | '' = profile.rlEpicId
+              ? 'epic'
+              : (profile.steamLinked?.steamId64 ? 'steam' : '');
             return (
               <div className="pillar-card panel relative overflow-hidden group transition-all duration-200 h-full flex flex-col">
                 <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-blue), rgba(0,129,255,0.3), transparent 70%)' }} />
@@ -295,7 +304,17 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       </span>
                     )}
                   </div>
-                  <div className="p-5 flex-1 flex flex-col">
+                  <div className="p-5 flex-1 flex flex-col gap-4">
+                    {/* Statut RL officiel — ✓ vérifié ou ⚠️ non lié */}
+                    <RLIdentityBadge
+                      games={profile.games}
+                      rlAccountVerified={rlAccountVerified}
+                      rlAccountName={rlAccountName}
+                      rlAccountPlatform={rlAccountPlatform}
+                      rlSteamId64={profile.steamLinked?.steamId64 || ''}
+                      rlRank={profile.rlRank}
+                      size="md"
+                    />
                     {rlStats ? (
                       <div className="space-y-5">
                         <div className="flex items-center gap-5">

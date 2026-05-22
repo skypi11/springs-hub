@@ -9,6 +9,7 @@ import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
 import InviteToStructureButton from '@/components/community/InviteToStructureButton';
+import RLIdentityBadge from '@/components/players/RLIdentityBadge';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
 
@@ -25,6 +26,11 @@ type PlayerCard = {
   rlRank: string;
   rlMmr: number | null;
   rlIconUrl: string;
+  // Identité RL officielle (Lot 2 — anti-mensonge)
+  rlAccountVerified: boolean;
+  rlAccountName: string;
+  rlAccountPlatform: 'epic' | 'steam' | '';
+  rlSteamId64: string;
   pseudoTM: string;
   tmTrophies: number | null;
   tmEchelon: number | null;
@@ -695,15 +701,26 @@ function PlayerItem({
           </div>
         </div>
 
-        {/* Stats */}
-        {hasAny && (
+        {/* Stats + statut RL contextuel */}
+        {(hasAny || p.games.includes('rocket_league')) && (
           <div className="space-y-1.5 pt-3 mt-3" style={{ borderTop: '1px dashed var(--s-border)' }}>
-            {p.rlRank && (
+            {/* Rang RL affiché UNIQUEMENT si le compte de jeu est vérifié — un rang sans preuve ne vaut rien */}
+            {p.rlRank && p.rlAccountVerified && (
               <div className="flex items-center gap-2">
                 {p.rlIconUrl && <Image src={p.rlIconUrl} alt="" width={14} height={14} unoptimized />}
                 <span className="text-xs truncate" style={{ color: 'var(--s-text-dim)' }}>{p.rlRank}</span>
               </div>
             )}
+            {/* Badge ✓ ou ⚠️ selon que le compte RL est lié ou non */}
+            <RLIdentityBadge
+              games={p.games}
+              rlAccountVerified={p.rlAccountVerified}
+              rlAccountName={p.rlAccountName}
+              rlAccountPlatform={p.rlAccountPlatform}
+              rlSteamId64={p.rlSteamId64}
+              rlRank={p.rlRank}
+              size="sm"
+            />
             {p.pseudoTM && (
               <div className="flex items-center gap-2">
                 <Gamepad2 size={11} style={{ color: 'var(--s-green)' }} />
