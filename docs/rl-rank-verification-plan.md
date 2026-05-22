@@ -83,22 +83,89 @@ l'admin).
 **Pas de rang sans compte RL lié.** Un rang sans preuve ne vaut rien. Donc le
 champ « rang » n'est exposable que si un compte officiel est posé.
 
-Deux états, propres :
+**Affichage contextuel** (revu 2026-05-23 — Matt veut un signal de confiance
+public, mais sans stigmatiser les joueurs Trackmania-only) :
 
-| État | Affichage |
+| Contexte | Affichage public |
 |---|---|
-| Compte lié + rang déclaré | Pseudo Epic + rang + lien tracker cliquable |
-| Pas de compte lié | « Rang Rocket League : non renseigné » (neutre — pas « invalide » : un joueur Trackmania-only est légitimement sans compte RL) |
+| Joue à RL (jeu coché ou présent dans une équipe RL) **+ compte lié** | ✓ Compte de jeu vérifié *(badge discret, doré)* + pseudo Epic + rang + lien tracker cliquable |
+| Joue à RL **+ aucun compte lié** | ⚠️ **Compte de jeu non lié** *(visible — gage de méfiance pour les recruteurs)*, rang non affichable |
+| Ne joue pas à RL | Pas de section RL du tout — c'est légitime |
+
+Détecter « joue à RL » = `games` contient `rocket_league` OU le user est dans
+une équipe RL (membre d'une `sub_team` `game=rocket_league`). À implémenter en
+Lot 4.
+
+## Synchronisation automatique nocturne
+
+Le `rlEpicName` (pseudo Epic affiché + utilisé pour construire l'URL tracker —
+vérifié : tracker.gg n'accepte PAS l'ID 32-hex pour Epic, seul le pseudo
+fonctionne) peut vieillir si le joueur renomme son compte Epic. Comme la
+plupart des joueurs restent « connectés en permanence » via Firebase et ne
+re-passent jamais par l'OAuth Discord de leur propre initiative, on doit
+rafraîchir nous-mêmes, automatiquement.
+
+**Mécanisme** : on stocke le **`discordRefreshToken`** au moment du callback
+OAuth (aujourd'hui jeté à la ligne 48 de `/api/auth/discord/callback`). Avec
+lui, le serveur peut redemander à Discord un nouvel `access_token` à tout
+moment, sans intervention du joueur, puis re-fetcher ses connexions.
+
+**Passe nocturne** : greffée sur le cron existant `/api/cron/expire-invitations`
+(3 h du matin) — pas de nouveau cron car Vercel Hobby plafonne à 2 et on est
+au max. Pour chaque user :
+
+1. `syncDiscordMember(db, uid)` — met à jour le pseudo serveur `[TAG] Pseudo`
+   et les 7 rôles fonction. **Tourne pour TOUT LE MONDE**, utilise le token du
+   bot (pas de refresh_token nécessaire). Règle au passage le souci historique
+   de rôles/pseudos serveur qui ne se mettaient à jour qu'à la reconnexion.
+2. Si `discordRefreshToken` présent : refresh de l'access_token → re-fetch des
+   connexions Discord → si la connexion `epicgames` a un nouveau pseudo, on
+   met à jour `rlEpicName` (jamais `rlEpicId`, qui reste figé).
+
+**Coût** : zéro. Firestore + API Discord + Vercel functions dans les quotas
+gratuits, pas de nouveau cron.
+
+**Cas où la connexion Epic a disparu** du Discord du joueur : on log, on
+n'écrase pas `rlEpicId` (l'identité officielle reste figée), et on affiche une
+**bannière** sur son profil + ses réglages :
+*« On ne retrouve plus ton compte Epic sur ton Discord — relie-le pour qu'on
+puisse rafraîchir ton pseudo. »* + lien direct vers Paramètres Discord →
+Connexions. Signal discret aussi côté admin.
+
+## Migration des users existants
+
+Les 47 joueurs actuels n'ont **pas** de `discordRefreshToken` stocké (le
+callback OAuth les jetait). Pour que la passe nocturne refresh leur pseudo
+Epic, il faut qu'ils repassent une fois par l'OAuth Discord.
+
+**Solution retenue** : nouveau bouton admin **« Forcer la déco de tout le
+monde »** (`/admin/users`) — appelle `revokeRefreshTokens` Firebase pour tous
+les users en batch. À leur prochaine visite, ils sont déloggés et doivent
+recliquer « Connecter avec Discord » → on capture leur refresh_token au
+passage. Aucune donnée perdue (juste leur session Firebase invalidée). Le clic
+fait ~10 secondes côté joueur.
+
+Précautions du bouton :
+- Double confirmation type *« tape FORCER pour confirmer »*.
+- L'admin sera aussi délogé — pas un drame, mais à signaler.
+- Action journalisée pour chaque user touché (`admin_audit_logs`).
+
+Bonus de la même page : un bouton **« Sync Discord (tous) »** — déclenche
+`syncDiscordMember` pour tous les users à la demande, en complément du cron
+nocturne. Outil admin réutilisable.
 
 ## Modèle de données
 
 Champs à ajouter / clarifier sur `users/{uid}` :
 
 ```
-rlEpicId:        string   // ID Epic permanent — la RÉFÉRENCE officielle figée
-rlEpicName:      string   // pseudo Epic — rafraîchi à l'occasion (login/resync)
-rlEpicLinkedAt:  Timestamp
-rlEpicLinkSource:'discord' | 'admin'   // d'où vient le snapshot
+rlEpicId:           string    // ID Epic permanent — la RÉFÉRENCE officielle figée
+rlEpicName:         string    // pseudo Epic — rafraîchi par la passe nocturne
+rlEpicLinkedAt:     Timestamp
+rlEpicLinkSource:   'discord' | 'admin'   // d'où vient le snapshot
+discordRefreshToken:string    // SERVER-ONLY (allow read: false) — sert au cron
+                              // pour rafraîchir les connexions Discord sans
+                              // intervention du joueur
 ```
 
 Legacy à déprécier (rester compat le temps de migrer) :
@@ -163,9 +230,9 @@ faible. Assumé.
 | Lot | Contenu | Taille |
 |---|---|---|
 | **1** | Socle données : nouveaux champs, helpers, décision finale legacy `rlPlatform`. | Petit |
-| **2** | UI : section « Compte RL » du profil — le flow de confirmation et la règle collante (+ fenêtre 48 h ou pas). | Moyen |
+| **2** | UI : section « Compte RL » du profil — flow de confirmation, règle collante (+ fenêtre 48 h ou pas) + stockage `discordRefreshToken` au callback OAuth + cron nocturne de refresh greffé sur `expire-invitations` + bouton admin **« Forcer la déco de tous »** (migration des 47 users existants) + bouton admin **« Sync Discord (tous) »** + bannière « Epic disparu de Discord » sur les profils concernés. | Moyen-gros |
 | **3** | Rang via sélecteur propre + lien tracker auto-généré côté affichage. Réutiliser `lib/rl-platform.ts`. | Petit-moyen |
-| **4** | Fiche joueur : afficher pseudo Epic + rang + lien tracker. Règle des deux états. | Petit |
+| **4** | Fiche joueur : afficher pseudo Epic + rang + lien tracker. Règle d'affichage contextuel : ✓ doré si lié, ⚠️ visible si joueur RL sans compte, rien si non-RL. | Petit-moyen |
 | **5** | Bouton signaler + collection + vue admin des signalements. | Moyen |
 | **6** | Demande de changement de compte Epic : flow joueur, vue admin, journalisation, détection divergence. | Moyen |
 | **7** | Règles Firestore pour les nouvelles collections + finitions. | Petit |
