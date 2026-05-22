@@ -35,7 +35,7 @@ Plateforme communautaire esport **propriété personnelle de l'utilisateur** (Ma
 
 ### Firebase config (projet existant `monthly-cup`)
 - UID Discord : `discord_SNOWFLAKE`
-- UID Admin : Google UID (collection `admins`)
+- UID Admin : Google UID (collection `aedral_admins` — voir plus bas)
 - `experimentalAutoDetectLongPolling: true` sur Firestore (WebSocket + fallback long-polling)
 
 ### Règles Firestore — workflow important
@@ -258,7 +258,7 @@ Quand une card n'a pas d'image de fond, elle doit quand même avoir de la prése
 | **Coach** | Ajouté par fondateur | Créer événements calendrier, voir infos équipe |
 | **Manager** | Ajouté par fondateur | Gérer roster, calendrier, invitations (si droits délégués) |
 | **Fondateur** | Demande → entretien Springs → validation admin | Gérer sa structure complète, créer sous-équipes, inscrire aux comps |
-| **Admin Springs** | Google OAuth + UID dans collection `admins` | Tout : valider structures, créer comps, override tout |
+| **Admin Aedral** | Google OAuth + UID dans collection `aedral_admins` | Tout : valider structures, créer comps, override tout |
 
 ### Règles fondateur
 - Doit faire une **demande** → Springs fait un entretien → admin valide
@@ -271,12 +271,17 @@ Quand une card n'a pas d'image de fond, elle doit quand même avoir de la prése
 ## Collections Firestore
 
 ### Collections existantes (à réutiliser/étendre)
-- `admins` — `{uid: true}` admins plateforme (Google UIDs) — anciennement nommé "admins Springs", la collection garde son nom legacy
+- `admins` — admins du **vieux site** Springs (TM cup / RL). Collection partagée avec `site cup monthly`. **Ne PAS l'utiliser pour Aedral.**
 - `participants` — profils joueurs TM (ne pas modifier)
 - `editions` — éditions TM cup (ne pas modifier)
 - `results` — résultats TM (ne pas modifier)
 
 ### Nouvelles collections Springs Hub
+
+**`aedral_admins`** — admins de la plateforme Aedral. Collection **dédiée**, distincte de `admins` (vieux site) : les deux repos partagent le projet Firebase `monthly-cup`, donc un admin du vieux site N'EST PAS admin Aedral et inversement.
+- Côté serveur : `isAdmin()` dans [lib/firebase-admin.ts](lib/firebase-admin.ts) lit cette collection. CRUD admins via `/api/admin/users`.
+- Côté `firestore.rules` : fonction `isAedralAdmin()` (collections du Hub) — distincte de `isAdmin()` qui reste branché sur `admins` (collections legacy TM/RL du vieux site).
+- Doc = `{addedBy, addedAt, lastDashboardSeenAt?}`. Seed initial via `scripts/migrate-aedral-admins.mjs`.
 
 **`users`** — profil global Springs (lié au Discord)
 ```javascript
