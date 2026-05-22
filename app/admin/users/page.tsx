@@ -33,6 +33,8 @@ type UserEntry = {
   bio: string;
   games: string[];
   isAvailableForRecruitment: boolean;
+  recruitmentRole: string;
+  recruitmentMessage: string;
   isBanned: boolean;
   banReason: string;
   isAdmin: boolean;
@@ -62,7 +64,12 @@ export default function AdminUsersPage() {
   const [editForm, setEditForm] = useState<{
     displayName: string; bio: string; country: string; games: string[];
     epicAccountId: string; rlTrackerUrl: string; pseudoTM: string; loginTM: string; tmIoUrl: string;
-  }>({ displayName: '', bio: '', country: '', games: [], epicAccountId: '', rlTrackerUrl: '', pseudoTM: '', loginTM: '', tmIoUrl: '' });
+    isAvailableForRecruitment: boolean; recruitmentRole: string; recruitmentMessage: string;
+  }>({
+    displayName: '', bio: '', country: '', games: [],
+    epicAccountId: '', rlTrackerUrl: '', pseudoTM: '', loginTM: '', tmIoUrl: '',
+    isAvailableForRecruitment: false, recruitmentRole: '', recruitmentMessage: '',
+  });
   const [confirmAction, setConfirmAction] = useState<{ userId: string; action: string; label: string } | null>(null);
 
   async function loadUsers() {
@@ -479,6 +486,75 @@ export default function AdminUsersPage() {
                           </div>
                         )}
 
+                        {/* Recrutement */}
+                        <div className="p-3 space-y-3" style={{ background: 'rgba(255,184,0,0.04)', border: '1px solid rgba(255,184,0,0.15)' }}>
+                          <span className="t-label" style={{ color: 'var(--s-gold)' }}>RECRUTEMENT</span>
+                          <button
+                            type="button"
+                            onClick={() => setEditForm(p => ({ ...p, isAvailableForRecruitment: !p.isAvailableForRecruitment }))}
+                            className="flex items-center gap-2.5"
+                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
+                          >
+                            <span
+                              className="relative flex-shrink-0"
+                              style={{
+                                width: 36, height: 20,
+                                background: editForm.isAvailableForRecruitment ? 'var(--s-gold)' : 'var(--s-elevated)',
+                                border: `1px solid ${editForm.isAvailableForRecruitment ? 'var(--s-gold)' : 'var(--s-border)'}`,
+                              }}
+                            >
+                              <span style={{
+                                position: 'absolute', top: 2,
+                                left: editForm.isAvailableForRecruitment ? 18 : 2,
+                                width: 14, height: 14,
+                                background: editForm.isAvailableForRecruitment ? '#000' : 'var(--s-text-muted)',
+                                transition: 'left 0.15s',
+                              }} />
+                            </span>
+                            <span className="text-xs" style={{ color: editForm.isAvailableForRecruitment ? 'var(--s-gold)' : 'var(--s-text-dim)' }}>
+                              Disponible pour rejoindre une équipe
+                            </span>
+                          </button>
+                          {editForm.isAvailableForRecruitment && (
+                            <>
+                              <div>
+                                <label className="t-label block mb-1">Rôle recherché</label>
+                                <div className="flex gap-2">
+                                  {(['joueur', 'coach', 'manager'] as const).map(r => {
+                                    const on = editForm.recruitmentRole === r;
+                                    return (
+                                      <button
+                                        key={r}
+                                        type="button"
+                                        onClick={() => setEditForm(p => ({ ...p, recruitmentRole: on ? '' : r }))}
+                                        className="tag transition-all duration-150"
+                                        style={{
+                                          background: on ? 'rgba(255,184,0,0.15)' : 'transparent',
+                                          color: on ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                                          borderColor: on ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
+                                          cursor: 'pointer', padding: '5px 12px', fontSize: '12px',
+                                        }}
+                                      >
+                                        {r.charAt(0).toUpperCase() + r.slice(1)}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                              <div>
+                                <label className="t-label block mb-1">Message</label>
+                                <textarea
+                                  className="settings-input w-full"
+                                  rows={2}
+                                  maxLength={500}
+                                  value={editForm.recruitmentMessage}
+                                  onChange={e => setEditForm(p => ({ ...p, recruitmentMessage: e.target.value }))}
+                                />
+                              </div>
+                            </>
+                          )}
+                        </div>
+
                         <button
                           type="button"
                           onClick={() => handleUserAction(u.uid, 'edit', { editData: editForm })}
@@ -519,6 +595,9 @@ export default function AdminUsersPage() {
                           displayName: u.displayName, bio: u.bio, country: u.country, games: [...u.games],
                           epicAccountId: u.epicDisplayName || u.epicAccountId, rlTrackerUrl: u.rlTrackerUrl,
                           pseudoTM: u.pseudoTM, loginTM: u.loginTM, tmIoUrl: u.tmIoUrl,
+                          isAvailableForRecruitment: u.isAvailableForRecruitment,
+                          recruitmentRole: u.recruitmentRole,
+                          recruitmentMessage: u.recruitmentMessage,
                         });
                         setEditingUser(u.uid);
                       }

@@ -150,6 +150,8 @@ export async function GET(req: NextRequest) {
         bio: data.bio || '',
         games: data.games || [],
         isAvailableForRecruitment: data.isAvailableForRecruitment || false,
+        recruitmentRole: data.recruitmentRole || '',
+        recruitmentMessage: data.recruitmentMessage || '',
         isBanned: data.isBanned || false,
         banReason: data.banReason || '',
         isAdmin: adminSet.has(doc.id),
