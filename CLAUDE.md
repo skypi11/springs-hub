@@ -27,7 +27,7 @@ Plateforme communautaire esport **propriété personnelle de l'utilisateur** (Ma
 - **Framework** : Next.js (App Router)
 - **Styling** : Tailwind CSS
 - **Base de données** : Firebase Firestore (projet existant `monthly-cup`)
-- **Auth** : Firebase Auth — Discord OAuth (joueurs/fans, scope `identify connections`) + Google OAuth (admins plateforme) + Steam OpenID (liaison RL optionnelle)
+- **Auth** : Firebase Auth — Discord OAuth pour **tout le monde** (joueurs, fans ET admins ; scope `identify connections`) + Steam OpenID (liaison RL optionnelle). Pas de connexion Google sur Aedral — un admin est un utilisateur Discord normal dont l'UID figure dans `aedral_admins`.
 - **Hébergement** : Vercel — domaine prod `aedral.com`, fallback `springs-hub.vercel.app`
 - **Repo GitHub** : `skypi11/springs-hub` (nommage technique conservé malgré le rebrand)
 - **Domaine** : `aedral.com` (acquis via Vercel, $11/an, live depuis 2026-04-26)
@@ -35,7 +35,7 @@ Plateforme communautaire esport **propriété personnelle de l'utilisateur** (Ma
 
 ### Firebase config (projet existant `monthly-cup`)
 - UID Discord : `discord_SNOWFLAKE`
-- UID Admin : Google UID (collection `aedral_admins` — voir plus bas)
+- UID Admin : compte Discord (`discord_SNOWFLAKE`) dont l'UID est listé dans `aedral_admins` (voir plus bas)
 - `experimentalAutoDetectLongPolling: true` sur Firestore (WebSocket + fallback long-polling)
 
 ### Règles Firestore — workflow important
@@ -258,7 +258,7 @@ Quand une card n'a pas d'image de fond, elle doit quand même avoir de la prése
 | **Coach** | Ajouté par fondateur | Créer événements calendrier, voir infos équipe |
 | **Manager** | Ajouté par fondateur | Gérer roster, calendrier, invitations (si droits délégués) |
 | **Fondateur** | Demande → entretien Springs → validation admin | Gérer sa structure complète, créer sous-équipes, inscrire aux comps |
-| **Admin Aedral** | Google OAuth + UID dans collection `aedral_admins` | Tout : valider structures, créer comps, override tout |
+| **Admin Aedral** | Connexion Discord + UID ajouté dans collection `aedral_admins` | Tout : valider structures, créer comps, override tout |
 
 ### Règles fondateur
 - Doit faire une **demande** → Springs fait un entretien → admin valide
