@@ -16,6 +16,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
 import { normalizeEventType } from '@/lib/event-permissions';
+import DiscordIcon, { AEDRAL_DISCORD_INVITE_URL } from '@/components/icons/DiscordIcon';
 import type { SpringsUser } from '@/types';
 
 type MyEvent = {
@@ -322,6 +323,39 @@ export default function ConnectedDashboard({ user }: { user: SpringsUser }) {
           )}
         </WidgetCard>
       </section>
+
+      {/* Invitation Discord communautaire — accent blurple discret */}
+      <a
+        href={AEDRAL_DISCORD_INVITE_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="bevel-sm relative overflow-hidden block group transition-all duration-200 animate-fade-in-d2"
+        style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
+      >
+        <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, #5865f2, rgba(88,101,242,0.3), transparent 70%)' }} />
+        <div className="absolute top-0 right-0 w-40 h-40 pointer-events-none opacity-[0.06] group-hover:opacity-[0.12] transition-opacity"
+          style={{ background: 'radial-gradient(circle at top right, #5865f2, transparent 70%)' }} />
+        <div className="relative z-[1] p-5 flex items-center gap-4 flex-wrap">
+          <div className="w-11 h-11 flex-shrink-0 flex items-center justify-center bevel-sm"
+            style={{ background: 'rgba(88,101,242,0.12)', border: '1px solid rgba(88,101,242,0.3)' }}>
+            <DiscordIcon size={20} />
+          </div>
+          <div className="flex-1 min-w-0" style={{ minWidth: '200px' }}>
+            <p className="font-display tracking-wider" style={{ fontSize: '17px', color: 'var(--s-text)' }}>
+              REJOINS LA COMMUNAUTÉ SUR DISCORD
+            </p>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--s-text-dim)' }}>
+              Entraide, annonces, support et tous les autres joueurs &amp; structures Aedral.
+            </p>
+          </div>
+          <span
+            className="btn-springs btn-secondary bevel-sm flex items-center gap-2 flex-shrink-0"
+            style={{ borderColor: 'rgba(88,101,242,0.4)', color: '#a9b2ff' }}
+          >
+            Rejoindre <ArrowRight size={13} />
+          </span>
+        </div>
+      </a>
     </div>
   );
 }
