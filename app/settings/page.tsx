@@ -92,6 +92,7 @@ export default function SettingsPage() {
   // Compte Epic officiel (anti-mensonge / sticky) — voir docs/rl-rank-verification-plan.md
   const [epicLinked, setEpicLinked] = useState<{ rlEpicId: string; rlEpicName: string } | null>(null);
   const [confirmingEpic, setConfirmingEpic] = useState(false);
+  const [requestingChange, setRequestingChange] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
@@ -216,6 +217,34 @@ export default function SettingsPage() {
       toast.error(msg);
     } finally {
       setConfirmingEpic(false);
+    }
+  }
+
+  // Demande de changement de compte Epic officiel — Lot 6.
+  // Pré-requis : le joueur a déjà lié son nouveau compte Epic à son Discord
+  // (et s'est reconnecté à Aedral). L'API vérifie et crée une demande pour
+  // l'admin.
+  async function handleRequestEpicChange() {
+    const reason = typeof window !== 'undefined'
+      ? window.prompt(
+          'Pour quelle raison veux-tu changer ton compte Epic officiel ?\n\n'
+          + '(Ex : « compte précédent perdu / hacké », « mauvais compte lié par erreur », « j\'ai fusionné mes comptes »…)\n\n'
+          + 'Précision : assure-toi d\'avoir déjà mis à jour ta connexion Epic sur Discord ET de t\'être reconnecté à Aedral. Sinon la demande sera refusée.',
+        )
+      : null;
+    if (!reason || !reason.trim()) return;
+    setRequestingChange(true);
+    try {
+      await api('/api/profile/rl-epic-link/change-request', {
+        method: 'POST',
+        body: { reason: reason.trim() },
+      });
+      toast.success('Demande envoyée. L\'admin va la traiter.');
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Erreur réseau.';
+      toast.error(msg);
+    } finally {
+      setRequestingChange(false);
     }
   }
 
@@ -810,9 +839,19 @@ export default function SettingsPage() {
                                       </p>
                                     </div>
                                   )}
-                                  <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                                    Pour changer le compte lié → demande admin (à venir).
-                                  </p>
+                                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                                    <p className="text-xs flex-1" style={{ color: 'var(--s-text-muted)' }}>
+                                      Pour changer le compte lié, d'abord modifie ta connexion Epic sur Discord, reconnecte-toi à Aedral, puis fais une demande.
+                                    </p>
+                                    <button type="button"
+                                      onClick={handleRequestEpicChange}
+                                      disabled={requestingChange}
+                                      className="btn-springs btn-secondary bevel-sm inline-flex items-center gap-2 disabled:opacity-50"
+                                      style={{ fontSize: '11px', padding: '6px 12px' }}>
+                                      {requestingChange ? <Loader2 size={11} className="animate-spin" /> : null}
+                                      Demander un changement
+                                    </button>
+                                  </div>
                                 </div>
                               );
                             }

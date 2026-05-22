@@ -39,7 +39,12 @@ export type AdminAuditAction =
   // RGPD — actions initiées par l'utilisateur lui-même
   | 'self_delete_account'
   // Broadcasts / notifs
-  | 'notification_broadcast';
+  | 'notification_broadcast'
+  // Signalements de rang (Lot 5 — anti-mensonge RL)
+  | 'rank_report_resolved'
+  // Demandes de changement de compte Epic (Lot 6)
+  | 'rl_epic_link_change_approved'
+  | 'rl_epic_link_change_rejected';
 
 export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event';
 

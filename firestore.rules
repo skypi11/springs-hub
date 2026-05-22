@@ -46,6 +46,21 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── Signalements de rang RL (Lot 5 — anti-mensonge) ─────────────────────
+    // Création/lecture côté client refusées — tout passe par les API routes :
+    //   POST /api/profile/[uid]/rank-report  → crée un report
+    //   GET  /api/admin/rank-reports         → admin liste les reports
+    //   PATCH /api/admin/rank-reports/[id]   → admin résout
+    match /rank_reports/{id} {
+      allow read, write: if false;
+    }
+
+    // ── Demandes de changement de compte Epic (Lot 6) ───────────────────────
+    // Idem, tout passe par les API routes (création par joueur, validation admin).
+    match /rl_link_change_requests/{id} {
+      allow read, write: if false;
+    }
+
     // ── Springs Hub — Profils joueurs globaux ────────────────────────────────
     // Toutes les écritures passent par les API routes (Admin SDK).
     // Le client ne fait que lire pour les profils publics.
