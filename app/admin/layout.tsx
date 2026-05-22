@@ -9,13 +9,15 @@ import { api } from '@/lib/api-client';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 
 // Sous-ensemble de la réponse /api/admin/dashboard utile aux badges de la nav.
+// Tout est optionnel : on tolère une réponse partielle (ex. mismatch de version
+// pendant un déploiement) sans faire planter le layout admin.
 type DashboardBadges = {
-  groups: { users: unknown[]; teams: unknown[]; events: unknown[] };
-  toHandle: {
-    pendingStructures: number;
-    suspendedStructures: number;
-    deletionScheduledStructures: number;
-    orphanedStructures: number;
+  groups?: { users?: unknown[]; teams?: unknown[]; events?: unknown[] };
+  toHandle?: {
+    pendingStructures?: number;
+    suspendedStructures?: number;
+    deletionScheduledStructures?: number;
+    orphanedStructures?: number;
   };
 };
 
@@ -40,14 +42,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const badges: Record<string, number> = data
     ? {
-        '/admin/structures': data.toHandle.pendingStructures,
-        '/admin/users': data.groups.users.length,
-        '/admin/teams': data.groups.teams.length,
-        '/admin/calendar': data.groups.events.length,
+        '/admin/structures': data.toHandle?.pendingStructures ?? 0,
+        '/admin/users': data.groups?.users?.length ?? 0,
+        '/admin/teams': data.groups?.teams?.length ?? 0,
+        '/admin/calendar': data.groups?.events?.length ?? 0,
         '/admin/moderation':
-          data.toHandle.suspendedStructures
-          + data.toHandle.deletionScheduledStructures
-          + data.toHandle.orphanedStructures,
+          (data.toHandle?.suspendedStructures ?? 0)
+          + (data.toHandle?.deletionScheduledStructures ?? 0)
+          + (data.toHandle?.orphanedStructures ?? 0),
       }
     : {};
 

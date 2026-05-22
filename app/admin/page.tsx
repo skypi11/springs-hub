@@ -20,23 +20,33 @@ type NewItem = {
   href: string;
 };
 
+type DashboardGroups = {
+  structureRequests: NewItem[];
+  users: NewItem[];
+  teams: NewItem[];
+  validatedStructures: NewItem[];
+  events: NewItem[];
+};
+
+// Tout est optionnel côté type : on tolère une réponse partielle de l'API
+// (ex. mismatch de version pendant un déploiement) sans faire planter la page.
 type DashboardData = {
-  lastSeenAt: string | null;
-  cappedAt: number;
-  groups: {
-    structureRequests: NewItem[];
-    users: NewItem[];
-    teams: NewItem[];
-    validatedStructures: NewItem[];
-    events: NewItem[];
+  lastSeenAt?: string | null;
+  cappedAt?: number;
+  groups?: {
+    structureRequests?: NewItem[];
+    users?: NewItem[];
+    teams?: NewItem[];
+    validatedStructures?: NewItem[];
+    events?: NewItem[];
   };
-  toHandle: {
-    pendingStructures: number;
-    suspendedStructures: number;
-    deletionScheduledStructures: number;
-    orphanedStructures: number;
+  toHandle?: {
+    pendingStructures?: number;
+    suspendedStructures?: number;
+    deletionScheduledStructures?: number;
+    orphanedStructures?: number;
   };
-  totals: { activeStructures: number; totalUsers: number };
+  totals?: { activeStructures?: number; totalUsers?: number };
 };
 
 // Temps relatif court et lisible — "il y a 3 j", "à l'instant"…
@@ -70,7 +80,7 @@ const TYPE_COLOR: Record<NewItem['type'], string> = {
 };
 
 // Catégories du radar — ordre = priorité d'attention.
-const GROUPS: { key: keyof DashboardData['groups']; label: string }[] = [
+const GROUPS: { key: keyof DashboardGroups; label: string }[] = [
   { key: 'structureRequests', label: 'Demandes de structure' },
   { key: 'users', label: 'Nouveaux inscrits' },
   { key: 'teams', label: 'Nouvelles équipes' },
@@ -99,7 +109,25 @@ export default function AdminDashboardPage() {
     );
   }
 
-  const { groups, toHandle, totals } = data;
+  // Normalisation défensive — l'API peut renvoyer une réponse partielle.
+  const groups = {
+    structureRequests: data.groups?.structureRequests ?? [],
+    users: data.groups?.users ?? [],
+    teams: data.groups?.teams ?? [],
+    validatedStructures: data.groups?.validatedStructures ?? [],
+    events: data.groups?.events ?? [],
+  };
+  const toHandle = {
+    pendingStructures: data.toHandle?.pendingStructures ?? 0,
+    suspendedStructures: data.toHandle?.suspendedStructures ?? 0,
+    deletionScheduledStructures: data.toHandle?.deletionScheduledStructures ?? 0,
+    orphanedStructures: data.toHandle?.orphanedStructures ?? 0,
+  };
+  const totals = {
+    activeStructures: data.totals?.activeStructures ?? 0,
+    totalUsers: data.totals?.totalUsers ?? 0,
+  };
+  const cappedAt = data.cappedAt ?? 60;
   const totalNew =
     groups.structureRequests.length + groups.users.length + groups.teams.length
     + groups.validatedStructures.length + groups.events.length;
@@ -167,7 +195,7 @@ export default function AdminDashboardPage() {
                     <div className="flex items-center gap-2 mb-2">
                       <span className="t-label" style={{ color: 'var(--s-text-dim)' }}>{label}</span>
                       <span className="tag tag-gold" style={{ fontSize: '9px', padding: '1px 6px' }}>
-                        {items.length >= data.cappedAt ? `${data.cappedAt}+` : items.length}
+                        {items.length >= cappedAt ? `${cappedAt}+` : items.length}
                       </span>
                     </div>
                     <div
