@@ -20,17 +20,31 @@ export interface SpringsUser {
   isAvailableForRecruitment?: boolean;
   recruitmentRole?: string;    // 'joueur' | 'coach' | 'manager'
   recruitmentMessage?: string; // message libre
-  // Rocket League
-  // Nouveau modèle cross-platform (depuis 2026-05) : couple (rlPlatform, rlPlatformId)
-  // → on construit auto les URLs tracker.gg et Ballchasing via lib/rl-platform.ts
+  // ── Rocket League ────────────────────────────────────────────────────────
+  // IDENTITÉ OFFICIELLE Epic (anti-mensonge / sticky) — voir
+  // docs/rl-rank-verification-plan.md. rlEpicId est posé une fois (snapshot
+  // de la connexion Epic Discord vérifiée) puis FIGÉ. Toute modification
+  // ultérieure passe par une demande admin. rlEpicName se rafraîchit librement
+  // à chaque login / resync Discord (cosmétique — URL tracker, affichage).
+  rlEpicId?: string;             // ID Epic permanent (32-hex) — RÉFÉRENCE
+  rlEpicName?: string;           // pseudo Epic courant — affichage + URL tracker
+  rlEpicLinkedAt?: Date | string;
+  rlEpicLinkSource?: 'discord' | 'admin';
+
+  // Identité auto-dérivée pour la construction des URLs tracker.gg /
+  // Ballchasing (cross-platform — Steam / PSN / Xbox / Switch en plus d'Epic).
+  // → on construit auto les URLs via lib/rl-platform.ts.
   rlPlatform?: 'epic' | 'steam' | 'psn' | 'xbox' | 'switch';
   rlPlatformId?: string;       // pseudo ou ID selon la plateforme
-  // Legacy (conservés pour rétrocompat avec données existantes) :
+  // Legacy (à migrer / supprimer une fois la nouvelle voie déployée) :
   epicAccountId?: string;      // ID Epic permanent (résolu via Tracker.gg) — sert aux lookups stats
   epicDisplayName?: string;    // pseudo Epic actuel — affiché dans l'UI, peut changer
   rlTrackerUrl?: string;       // lien RL Tracker manuel — déprécié, auto-généré désormais
+
   // Steam OpenID linkage — récupéré via /api/auth/steam/callback.
   // SteamID64 est IMMUABLE → l'URL tracker.gg basée dessus ne casse jamais.
+  // Tient lieu d'identité officielle pour les joueurs Steam (équivalent du
+  // snapshot Epic pour la voie Steam).
   steamLinked?: {
     steamId64: string;
     personaName?: string | null;
