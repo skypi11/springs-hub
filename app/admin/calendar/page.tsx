@@ -31,6 +31,13 @@ type AdminEvent = {
   startsAt: string | null;
   endsAt: string | null;
   target: { scope?: string; teamIds?: string[] } | null;
+  targetLabel: string;
+  targetTeams: { id: string; name: string }[];
+  adversaire: string;
+  adversaireLogoUrl: string;
+  resultat: string;
+  compteRendu: string;
+  aTravailler: string;
   createdBy: string | null;
   createdByName: string;
   createdAt: string | null;
@@ -98,6 +105,8 @@ type EventEditState = {
   location: string;
   startsAt: string;
   endsAt: string;
+  adversaire: string;
+  resultat: string;
 };
 
 export default function AdminCalendarPage() {
@@ -190,6 +199,7 @@ export default function AdminCalendarPage() {
       return;
     }
     setActionLoading(`edit_${editEvent.id}`);
+    const isMatch = editEvent.type === 'match' || editEvent.type === 'scrim';
     try {
       await api('/api/admin/calendar', {
         method: 'POST',
@@ -202,6 +212,8 @@ export default function AdminCalendarPage() {
           location: editEvent.location,
           startsAt: new Date(editEvent.startsAt).toISOString(),
           endsAt: editEvent.endsAt ? new Date(editEvent.endsAt).toISOString() : null,
+          // adversaire / résultat : seulement pour les matchs et scrims
+          ...(isMatch ? { adversaire: editEvent.adversaire, resultat: editEvent.resultat } : {}),
         },
       });
       toast.success('Événement modifié');
@@ -388,11 +400,6 @@ export default function AdminCalendarPage() {
                       <StatusIcon size={9} />
                       {statusMeta.label}
                     </span>
-                    {event.target?.scope && event.target.scope !== 'all' && (
-                      <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 6px' }}>
-                        {event.target.scope}
-                      </span>
-                    )}
                   </div>
 
                   <div className="flex items-center gap-3 mt-1 flex-wrap text-xs" style={{ color: 'var(--s-text-dim)' }}>
@@ -405,6 +412,33 @@ export default function AdminCalendarPage() {
                       <span className="flex items-center gap-1">
                         <MapPin size={10} />
                         {event.location}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Concerne (équipes ciblées) + adversaire */}
+                  <div className="flex items-center gap-3 mt-1 flex-wrap text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                    {event.targetLabel && (
+                      <span className="flex items-center gap-1.5">
+                        <Users size={10} style={{ color: 'var(--s-text-muted)' }} />
+                        <span style={{ color: 'var(--s-text-muted)' }}>Concerne :</span>
+                        <span style={{ color: 'var(--s-text)' }}>{event.targetLabel}</span>
+                      </span>
+                    )}
+                    {(normalizeEventType(event.type) === 'match' || normalizeEventType(event.type) === 'scrim') && event.adversaire && (
+                      <span className="flex items-center gap-1.5">
+                        <span style={{ color: 'var(--s-text-muted)' }}>vs</span>
+                        {event.adversaireLogoUrl ? (
+                          <Image src={event.adversaireLogoUrl} alt="" width={14} height={14} unoptimized className="flex-shrink-0" />
+                        ) : (
+                          <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '0 5px' }}>sans logo</span>
+                        )}
+                        <span style={{ color: 'var(--s-text)' }}>{event.adversaire}</span>
+                        {event.resultat && (
+                          <span className="tag" style={{ fontSize: '12px', padding: '0 5px', background: 'rgba(255,184,0,0.12)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.3)' }}>
+                            {event.resultat}
+                          </span>
+                        )}
                       </span>
                     )}
                   </div>
@@ -433,6 +467,23 @@ export default function AdminCalendarPage() {
                     </p>
                   )}
 
+                  {(event.compteRendu || event.aTravailler) && (
+                    <div className="mt-2 space-y-1.5">
+                      {event.compteRendu && (
+                        <div className="px-2.5 py-1.5 text-xs" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                          <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Compte-rendu</span>
+                          <p className="mt-0.5" style={{ color: 'var(--s-text-dim)', whiteSpace: 'pre-wrap' }}>{event.compteRendu}</p>
+                        </div>
+                      )}
+                      {event.aTravailler && (
+                        <div className="px-2.5 py-1.5 text-xs" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                          <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>À travailler</span>
+                          <p className="mt-0.5" style={{ color: 'var(--s-text-dim)', whiteSpace: 'pre-wrap' }}>{event.aTravailler}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                     <button
                       type="button"
@@ -458,6 +509,8 @@ export default function AdminCalendarPage() {
                         location: event.location,
                         startsAt: isoToLocalInput(event.startsAt),
                         endsAt: isoToLocalInput(event.endsAt),
+                        adversaire: event.adversaire,
+                        resultat: event.resultat,
                       })}
                       className="btn-springs bevel-sm flex items-center gap-1.5"
                       style={{
@@ -642,6 +695,36 @@ function EventEditForm({
           onChange={e => onChange({ ...value, description: e.target.value })}
         />
       </div>
+      {(value.type === 'match' || value.type === 'scrim') && (
+        <div className="space-y-2">
+          <div className="flex gap-3 flex-wrap">
+            <div className="flex-1 min-w-[160px]">
+              <label className="t-label block mb-1">Adversaire</label>
+              <input
+                type="text"
+                className="settings-input w-full"
+                maxLength={80}
+                value={value.adversaire}
+                onChange={e => onChange({ ...value, adversaire: e.target.value })}
+              />
+            </div>
+            <div className="min-w-[110px]">
+              <label className="t-label block mb-1">Résultat</label>
+              <input
+                type="text"
+                className="settings-input w-full"
+                maxLength={40}
+                placeholder="ex : 3-1"
+                value={value.resultat}
+                onChange={e => onChange({ ...value, resultat: e.target.value })}
+              />
+            </div>
+          </div>
+          <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+            Le logo de l&apos;adversaire n&apos;est pas modifiable ici (il est défini par la structure).
+          </p>
+        </div>
+      )}
       <div className="flex gap-2">
         <button
           onClick={onSave}

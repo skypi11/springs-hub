@@ -65,17 +65,23 @@ export async function GET(req: NextRequest) {
       return true;
     });
 
-    // Enrichir : structures + créateurs en 2 batches.
+    // Enrichir : structures + créateurs + équipes ciblées en 3 batches.
     const structureIds = new Set<string>();
     const userIds = new Set<string>();
+    const teamIds = new Set<string>();
     for (const doc of docs) {
       const data = doc.data();
       if (data.structureId) structureIds.add(data.structureId);
       if (data.createdBy) userIds.add(data.createdBy);
+      const tIds = data.target?.teamIds;
+      if (Array.isArray(tIds)) {
+        for (const t of tIds) if (typeof t === 'string') teamIds.add(t);
+      }
     }
-    const [structuresById, usersById] = await Promise.all([
+    const [structuresById, usersById, teamsById] = await Promise.all([
       fetchDocsByIds(db, 'structures', Array.from(structureIds)),
       fetchDocsByIds(db, 'users', Array.from(userIds)),
+      fetchDocsByIds(db, 'sub_teams', Array.from(teamIds)),
     ]);
 
     const nameOf = (uid?: string | null) => {
@@ -84,9 +90,31 @@ export async function GET(req: NextRequest) {
       return u?.displayName || u?.discordUsername || '';
     };
 
+    // Libellé lisible + noms des équipes ciblées par un événement.
+    const buildTargetInfo = (target: unknown): { label: string; teams: { id: string; name: string }[] } => {
+      const t = (target ?? {}) as { scope?: string; teamIds?: unknown; game?: string };
+      const scope = t.scope ?? 'all';
+      if (scope === 'structure') return { label: 'Toute la structure', teams: [] };
+      if (scope === 'staff') return { label: 'Staff', teams: [] };
+      if (scope === 'game') {
+        return {
+          label: t.game === 'rocket_league' ? 'Rocket League'
+            : t.game === 'trackmania' ? 'Trackmania' : 'Jeu',
+          teams: [],
+        };
+      }
+      if (scope === 'teams') {
+        const ids = Array.isArray(t.teamIds) ? (t.teamIds as unknown[]).filter((x): x is string => typeof x === 'string') : [];
+        const teams = ids.map(id => ({ id, name: (teamsById.get(id)?.name as string) || 'Équipe' }));
+        return { label: teams.map(x => x.name).join(', ') || 'Équipes', teams };
+      }
+      return { label: 'Tout le monde', teams: [] };
+    };
+
     const events = docs.map(doc => {
       const d = doc.data();
       const structure = structuresById.get(d.structureId);
+      const targetInfo = buildTargetInfo(d.target);
       return {
         id: doc.id,
         structureId: d.structureId ?? '',
@@ -101,6 +129,13 @@ export async function GET(req: NextRequest) {
         startsAt: ts(d.startsAt),
         endsAt: ts(d.endsAt),
         target: d.target ?? null,
+        targetLabel: targetInfo.label,
+        targetTeams: targetInfo.teams,
+        adversaire: d.adversaire ?? '',
+        adversaireLogoUrl: d.adversaireLogoUrl ?? '',
+        resultat: d.resultat ?? '',
+        compteRendu: d.compteRendu ?? '',
+        aTravailler: d.aTravailler ?? '',
         createdBy: d.createdBy ?? null,
         createdByName: nameOf(d.createdBy),
         createdAt: ts(d.createdAt),
@@ -233,7 +268,7 @@ export async function POST(req: NextRequest) {
       if (endsAt && endsAt.getTime() < startsAt.getTime()) {
         return NextResponse.json({ error: 'La fin doit être après le début.' }, { status: 400 });
       }
-      await eventRef.update({
+      const update: Record<string, unknown> = {
         title,
         type,
         description,
@@ -241,7 +276,12 @@ export async function POST(req: NextRequest) {
         startsAt,
         endsAt,
         updatedAt: FieldValue.serverTimestamp(),
-      });
+      };
+      // adversaire / resultat : seulement si fournis (match/scrim) — on n'écrase
+      // pas un adversaire existant quand on édite un événement d'un autre type.
+      if (body.adversaire !== undefined) update.adversaire = clampString(body.adversaire, 80);
+      if (body.resultat !== undefined) update.resultat = clampString(body.resultat, 40);
+      await eventRef.update(update);
       await writeAdminAuditLog(db, {
         action: 'event_edited',
         adminUid: uid,
