@@ -108,14 +108,20 @@ async function computeUserProfile(db: Firestore, userId: string): Promise<UserPr
 
   if (u.isAvailableForRecruitment === true) roleKeys.add('joueur_libre');
 
-  // Structures du joueur (max 2 : une par jeu) → tags + rôles dirigeant/staff.
-  const spg = (u.structurePerGame ?? {}) as Record<string, string>;
-  const structureIds = [...new Set(Object.values(spg).filter((x): x is string => !!x))];
+  // Structures du joueur via `structure_members` — source fiable qui couvre
+  // TOUT le monde (fondateurs inclus). `structurePerGame` ne se remplit qu'à
+  // l'adhésion à une structure, pas à sa création → un fondateur y serait absent.
+  const membersSnap = await db.collection('structure_members')
+    .where('userId', '==', userId)
+    .get();
+  const structureIds = [...new Set(
+    membersSnap.docs.map(d => d.data().structureId as string).filter(Boolean),
+  )];
   const tags: string[] = [];
 
   if (structureIds.length > 0) {
     const structSnaps = await db.getAll(
-      ...structureIds.map(id => db.collection('structures').doc(id)),
+      ...structureIds.slice(0, 30).map(id => db.collection('structures').doc(id)),
     );
     for (const s of structSnaps) {
       if (!s.exists) continue;
