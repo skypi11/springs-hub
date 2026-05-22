@@ -14,31 +14,31 @@ type NavItem = {
   label: string;
   description: string;
   soon?: boolean;
-  badge?: number;
 };
 
 type Props = {
-  pendingCount?: number;
-  bannedCount?: number;
+  // Compteurs par href : demandes à traiter ou nouveautés depuis la dernière
+  // visite. Le dashboard les calcule, le layout les passe ici.
+  badges?: Record<string, number>;
 };
 
-export default function AdminSidebar({ pendingCount = 0, bannedCount = 0 }: Props) {
-  const pathname = usePathname();
+const ITEMS: NavItem[] = [
+  { href: '/admin', icon: LayoutDashboard, label: 'Dashboard', description: 'Vue globale' },
+  { href: '/admin/structures', icon: Building2, label: 'Structures', description: 'Validations et gestion' },
+  { href: '/admin/users', icon: Users, label: 'Utilisateurs', description: 'Profils, bans, admins' },
+  { href: '/admin/teams', icon: Users2, label: 'Équipes', description: 'Vue cross-structures' },
+  { href: '/admin/calendar', icon: CalendarDays, label: 'Calendrier', description: 'Événements globaux' },
+  { href: '/admin/exercices', icon: ClipboardList, label: 'Exercices', description: 'Stats cross-structures' },
+  { href: '/admin/moderation', icon: ShieldAlert, label: 'Modération', description: 'Bans, structures critiques' },
+  { href: '/admin/notifications', icon: Bell, label: 'Notifications', description: 'Envoyer, historique' },
+  { href: '/admin/discord', icon: MessagesSquare, label: 'Discord', description: 'Stats OAuth, tests' },
+  { href: '/admin/uploads', icon: UploadCloud, label: 'Uploads', description: 'Stockage R2' },
+  { href: '/admin/audit', icon: History, label: 'Audit log', description: 'Actions admin' },
+  { href: '/admin/dev', icon: Wrench, label: 'Outils dev', description: 'Diagnostics, env, crons' },
+];
 
-  const items: NavItem[] = [
-    { href: '/admin', icon: LayoutDashboard, label: 'Dashboard', description: 'Vue globale' },
-    { href: '/admin/structures', icon: Building2, label: 'Structures', description: 'Validations et gestion', badge: pendingCount },
-    { href: '/admin/users', icon: Users, label: 'Utilisateurs', description: 'Profils, bans, admins', badge: bannedCount },
-    { href: '/admin/teams', icon: Users2, label: 'Équipes', description: 'Vue cross-structures' },
-    { href: '/admin/calendar', icon: CalendarDays, label: 'Calendrier', description: 'Événements globaux' },
-    { href: '/admin/exercices', icon: ClipboardList, label: 'Exercices', description: 'Stats cross-structures' },
-    { href: '/admin/moderation', icon: ShieldAlert, label: 'Modération', description: 'Bans, structures critiques' },
-    { href: '/admin/notifications', icon: Bell, label: 'Notifications', description: 'Envoyer, historique' },
-    { href: '/admin/discord', icon: MessagesSquare, label: 'Discord', description: 'Stats OAuth, tests' },
-    { href: '/admin/uploads', icon: UploadCloud, label: 'Uploads', description: 'Stockage R2' },
-    { href: '/admin/audit', icon: History, label: 'Audit log', description: 'Actions admin' },
-    { href: '/admin/dev', icon: Wrench, label: 'Outils dev', description: 'Diagnostics, env, crons' },
-  ];
+export default function AdminSidebar({ badges = {} }: Props) {
+  const pathname = usePathname();
 
   return (
     <aside>
@@ -54,11 +54,12 @@ export default function AdminSidebar({ pendingCount = 0, bannedCount = 0 }: Prop
           <div className="px-3 py-2">
             <span className="t-label">Panel admin</span>
           </div>
-          {items.map((item) => {
+          {ITEMS.map((item) => {
             const Icon = item.icon;
             const active = item.href === '/admin'
               ? pathname === '/admin'
               : pathname === item.href || pathname.startsWith(item.href + '/');
+            const badge = badges[item.href] ?? 0;
             return (
               <Link
                 key={item.href}
@@ -95,12 +96,12 @@ export default function AdminSidebar({ pendingCount = 0, bannedCount = 0 }: Prop
                         BIENTÔT
                       </span>
                     )}
-                    {!item.soon && item.badge && item.badge > 0 ? (
+                    {!item.soon && badge > 0 ? (
                       <span
-                        className="tag tag-gold"
-                        style={{ fontSize: '8px', padding: '0px 5px' }}
+                        className="tag tag-gold ml-auto"
+                        style={{ fontSize: '9px', padding: '1px 6px' }}
                       >
-                        {item.badge}
+                        {badge}
                       </span>
                     ) : null}
                   </div>

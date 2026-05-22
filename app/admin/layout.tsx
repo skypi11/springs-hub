@@ -2,9 +2,22 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { Shield, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api-client';
 import AdminSidebar from '@/components/admin/AdminSidebar';
+
+// Sous-ensemble de la réponse /api/admin/dashboard utile aux badges de la nav.
+type DashboardBadges = {
+  radar: { newUsers: number; newTeams: number; newEvents: number };
+  toHandle: {
+    pendingStructures: number;
+    suspendedStructures: number;
+    deletionScheduledStructures: number;
+    orphanedStructures: number;
+  };
+};
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { isAdmin, loading: authLoading, firebaseUser } = useAuth();
@@ -16,6 +29,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       router.replace('/');
     }
   }, [authLoading, isAdmin, firebaseUser, router]);
+
+  // Même queryKey que le dashboard → React Query déduplique le fetch et les
+  // badges se rafraîchissent quand l'admin clique "marquer comme vu".
+  const { data } = useQuery({
+    queryKey: ['admin', 'dashboard'] as const,
+    queryFn: () => api<DashboardBadges>('/api/admin/dashboard'),
+    enabled: !authLoading && !!firebaseUser && isAdmin,
+  });
+
+  const badges: Record<string, number> = data
+    ? {
+        '/admin/structures': data.toHandle.pendingStructures,
+        '/admin/users': data.radar.newUsers,
+        '/admin/teams': data.radar.newTeams,
+        '/admin/calendar': data.radar.newEvents,
+        '/admin/moderation':
+          data.toHandle.suspendedStructures
+          + data.toHandle.deletionScheduledStructures
+          + data.toHandle.orphanedStructures,
+      }
+    : {};
 
   if (authLoading) {
     return (
@@ -61,8 +95,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </header>
 
         {/* Layout 2 colonnes : sous-nav gauche + contenu droite */}
-        <div className="grid grid-cols-[240px_1fr] gap-6 animate-fade-in-d1">
-          <AdminSidebar />
+        <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6 animate-fade-in-d1">
+          <AdminSidebar badges={badges} />
           <div className="min-w-0 space-y-6">{children}</div>
         </div>
       </div>
