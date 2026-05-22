@@ -5,6 +5,7 @@ import { safeUrl, clampString, LIMITS } from '@/lib/validation';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { countDirigeantSeats, MAX_SEATS_PER_PERSON, type DirigeantRef } from '@/lib/structure-roles';
+import { sendAdminAlert } from '@/lib/admin-discord-alert';
 
 const LEGAL_STATUSES = ['none', 'asso_1901', 'auto_entreprise', 'sas_sarl', 'other'];
 
@@ -107,6 +108,17 @@ export async function POST(req: NextRequest) {
     };
 
     const docRef = await db.collection('structures').add(structureData);
+
+    // Alerte admin sur le Discord Aedral — fire-and-forget (ne throw jamais).
+    const founderSnap = await db.collection('users').doc(uid).get();
+    const founderName = (founderSnap.data()?.displayName as string)
+      || (founderSnap.data()?.discordUsername as string)
+      || 'Un joueur';
+    await sendAdminAlert(db, {
+      title: '🏛️ Nouvelle demande de structure',
+      description: `**${structureData.name}** \`[${structureData.tag}]\`\nDemandée par **${founderName}**.\nÀ valider dans le panel admin.`,
+      url: `${req.nextUrl.origin}/admin/structures`,
+    });
 
     return NextResponse.json({ success: true, id: docRef.id });
   } catch (err) {

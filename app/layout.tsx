@@ -8,6 +8,8 @@ import { ConfirmProvider } from '@/components/ui/ConfirmModal';
 import QueryProvider from '@/components/providers/QueryProvider';
 import CommandPalette from '@/components/ui/CommandPalette';
 import ProfileCompletionGate from '@/components/auth/ProfileCompletionGate';
+import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const outfit = Outfit({
   variable: '--font-outfit',
@@ -42,6 +44,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </ToastProvider>
           </AuthProvider>
         </QueryProvider>
+        {/* Vercel — fréquentation (Analytics) et perfs réelles (Speed Insights) */}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

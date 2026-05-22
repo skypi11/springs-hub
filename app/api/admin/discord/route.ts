@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth, isAdmin } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { getGuildChannels } from '@/lib/discord-bot';
+import { getAdminAlertChannelId, setAdminAlertChannelId, AEDRAL_GUILD_ID } from '@/lib/admin-discord-alert';
 
 const MAX_USERS_SCAN = 2000;
 
@@ -52,6 +54,21 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => a.ym.localeCompare(b.ym))
       .slice(-12);  // 12 derniers mois
 
+    // Salons du serveur Aedral + salon d'alertes admin configuré. Discord peut
+    // être indispo — on dégrade sans casser la page de stats.
+    let channels: { id: string; name: string; category: string }[] = [];
+    let alertChannelId: string | null = null;
+    try {
+      const [chans, cfgId] = await Promise.all([
+        getGuildChannels(AEDRAL_GUILD_ID),
+        getAdminAlertChannelId(db),
+      ]);
+      channels = chans.map(c => ({ id: c.id, name: c.name, category: c.parentName ?? '—' }));
+      alertChannelId = cfgId;
+    } catch (err) {
+      captureApiError('API Admin/Discord channels fetch', err);
+    }
+
     return NextResponse.json({
       stats: {
         totalDiscord,
@@ -65,6 +82,8 @@ export async function GET(req: NextRequest) {
       },
       signupsByMonth,
       truncated: snap.size >= MAX_USERS_SCAN,
+      channels,
+      alertChannelId,
       env: {
         redirectUri: `${req.nextUrl.origin}/api/auth/discord/callback`,
       },
@@ -87,6 +106,21 @@ export async function POST(req: NextRequest) {
     if (blocked) return blocked;
 
     const body = await req.json();
+
+    // Action : choisir le salon des alertes admin (nouvelle demande de structure…).
+    if (body.action === 'set_alert_channel') {
+      const channelId = typeof body.channelId === 'string' ? body.channelId.trim() : '';
+      const db = getAdminDb();
+      if (channelId) {
+        const channels = await getGuildChannels(AEDRAL_GUILD_ID);
+        if (!channels.some(c => c.id === channelId)) {
+          return NextResponse.json({ error: 'Salon introuvable sur le serveur Aedral' }, { status: 400 });
+        }
+      }
+      await setAdminAlertChannelId(db, channelId || null);
+      return NextResponse.json({ ok: true });
+    }
+
     const webhookUrl = typeof body.webhookUrl === 'string' ? body.webhookUrl.trim() : '';
     const message = typeof body.message === 'string' ? body.message : '';
 

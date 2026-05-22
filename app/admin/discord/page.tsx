@@ -7,7 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
 import {
   MessagesSquare, Loader2, Users, Image as ImageIcon, MapPin,
-  CheckCircle2, AlertCircle, Send, Gamepad2,
+  CheckCircle2, AlertCircle, Send, Gamepad2, Bell,
 } from 'lucide-react';
 
 type DiscordData = {
@@ -23,6 +23,8 @@ type DiscordData = {
   };
   signupsByMonth: { ym: string; count: number }[];
   truncated: boolean;
+  channels: { id: string; name: string; category: string }[];
+  alertChannelId: string | null;
   env: { redirectUri: string };
 };
 
@@ -41,15 +43,39 @@ export default function AdminDiscordPage() {
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
 
+  // Canal d'alertes admin
+  const [alertChannel, setAlertChannel] = useState('');
+  const [savingChannel, setSavingChannel] = useState(false);
+  const [channelSaved, setChannelSaved] = useState(false);
+
   async function load() {
     if (!firebaseUser) return;
     setLoading(true);
     try {
-      setData(await api<DiscordData>('/api/admin/discord'));
+      const d = await api<DiscordData>('/api/admin/discord');
+      setData(d);
+      setAlertChannel(d.alertChannelId ?? '');
     } catch (err) {
       console.error('[Admin/Discord] load error:', err);
     }
     setLoading(false);
+  }
+
+  async function handleSaveChannel() {
+    if (!firebaseUser) return;
+    setSavingChannel(true);
+    setChannelSaved(false);
+    try {
+      await api('/api/admin/discord', {
+        method: 'POST',
+        body: { action: 'set_alert_channel', channelId: alertChannel },
+      });
+      setChannelSaved(true);
+      setTimeout(() => setChannelSaved(false), 3000);
+    } catch (err) {
+      setResult({ ok: false, text: err instanceof ApiError ? err.message : 'Erreur réseau' });
+    }
+    setSavingChannel(false);
   }
 
   useEffect(() => {
@@ -177,6 +203,56 @@ export default function AdminDiscordPage() {
           </div>
         </div>
       )}
+
+      {/* Canal d'alertes admin */}
+      <div className="panel p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Bell size={14} style={{ color: 'var(--s-gold)' }} />
+          <span className="t-label">Canal d&apos;alertes admin</span>
+        </div>
+        <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+          Le bot poste une alerte — et te ping — dans ce salon du serveur Aedral
+          à chaque événement à traiter. Pour l&apos;instant : nouvelle demande de structure.
+        </p>
+        {data.channels.length === 0 ? (
+          <div className="flex items-start gap-2 p-2" style={{ background: 'rgba(255,136,0,0.08)', border: '1px solid rgba(255,136,0,0.3)' }}>
+            <AlertCircle size={14} style={{ color: '#ff8800', flexShrink: 0, marginTop: '2px' }} />
+            <p className="text-xs" style={{ color: '#ff8800' }}>
+              Impossible de lister les salons du serveur Aedral (bot hors ligne, non invité,
+              ou variable DISCORD_BOT_TOKEN manquante).
+            </p>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 flex-wrap">
+            <select
+              value={alertChannel}
+              onChange={e => setAlertChannel(e.target.value)}
+              className="settings-input"
+              style={{ fontSize: '12px', minWidth: '240px' }}
+            >
+              <option value="">— Aucun (alertes désactivées) —</option>
+              {data.channels.map(c => (
+                <option key={c.id} value={c.id}>#{c.name} · {c.category}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleSaveChannel}
+              disabled={savingChannel}
+              className="btn-springs btn-primary bevel-sm"
+              style={{ fontSize: '12px', padding: '8px 16px', opacity: savingChannel ? 0.6 : 1 }}
+            >
+              {savingChannel ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+              Enregistrer
+            </button>
+            {channelSaved && (
+              <span className="flex items-center gap-1.5 text-xs" style={{ color: '#33ff66' }}>
+                <CheckCircle2 size={12} /> Enregistré
+              </span>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Webhook tester */}
       <div className="panel p-4 space-y-3">
