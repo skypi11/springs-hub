@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb, verifyAuth, isAdmin } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { captureApiError } from '@/lib/sentry';
+import { clampString } from '@/lib/validation';
+import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 
 const MAX_TEAMS = 1000;
+const TEAM_NAME_MAX = 60;
+const TEAM_LABEL_MAX = 40;
 
 // GET /api/admin/teams — vue cross-structures de toutes les sous-équipes.
 // Filtres optionnels : game, status, structureId.
@@ -124,6 +130,58 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     captureApiError('API Admin/Teams GET error', err);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+  }
+}
+
+// POST /api/admin/teams — éditer une équipe (nom, label). Admin only.
+export async function POST(req: NextRequest) {
+  try {
+    const uid = await verifyAuth(req);
+    if (!uid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    if (!(await isAdmin(uid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+
+    const blocked = await checkRateLimit(limiters.admin, rateLimitKey(req, uid));
+    if (blocked) return blocked;
+
+    const body = await req.json();
+    const { teamId, action } = body;
+    if (!teamId || action !== 'edit') {
+      return NextResponse.json({ error: 'Action invalide' }, { status: 400 });
+    }
+
+    const name = clampString(body.name, TEAM_NAME_MAX);
+    const label = clampString(body.label, TEAM_LABEL_MAX);
+    if (!name) {
+      return NextResponse.json({ error: "Le nom de l'équipe est obligatoire." }, { status: 400 });
+    }
+
+    const db = getAdminDb();
+    const ref = db.collection('sub_teams').doc(teamId);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      return NextResponse.json({ error: 'Équipe introuvable' }, { status: 404 });
+    }
+    const prev = snap.data()!;
+
+    await ref.update({ name, label, updatedAt: FieldValue.serverTimestamp() });
+
+    await writeAdminAuditLog(db, {
+      action: 'team_edited',
+      adminUid: uid,
+      targetType: 'team',
+      targetId: teamId,
+      targetLabel: (prev.name as string) ?? null,
+      metadata: {
+        newName: name,
+        newLabel: label,
+        structureId: (prev.structureId as string) ?? null,
+      },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    captureApiError('API Admin/Teams POST error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

@@ -3,6 +3,7 @@ import { getAdminDb, verifyAuth, isAdmin } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
+import { clampString, LIMITS } from '@/lib/validation';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { addJoinHistory } from '@/lib/member-history';
 import { writeAdminAuditLog, type AdminAuditAction } from '@/lib/admin-audit-log';
@@ -183,6 +184,30 @@ export async function POST(req: NextRequest) {
         });
         break;
 
+      case 'edit': {
+        // Édition directe des infos publiques de la structure (admin) — sans
+        // toucher au statut ni au cycle de validation.
+        const name = clampString(body.name, LIMITS.structureName);
+        const tag = clampString(body.tag, LIMITS.structureTag).toUpperCase();
+        const description = clampString(body.description, LIMITS.structureDescription);
+        const games = Array.isArray(body.games)
+          ? [...new Set(body.games)].filter(g => g === 'rocket_league' || g === 'trackmania')
+          : [];
+        if (!name) return NextResponse.json({ error: 'Le nom est obligatoire.' }, { status: 400 });
+        if (!tag) return NextResponse.json({ error: 'Le tag est obligatoire.' }, { status: 400 });
+        if (games.length === 0) {
+          return NextResponse.json({ error: 'Sélectionne au moins un jeu.' }, { status: 400 });
+        }
+        await ref.update({
+          name,
+          tag,
+          description,
+          games,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        break;
+      }
+
       case 'delete': {
         // Suppression immédiate — atomique avec les memberships associés.
         // Réservé aux cas où la suppression différée n'est pas adaptée
@@ -209,6 +234,7 @@ export async function POST(req: NextRequest) {
       schedule_deletion: 'structure_deletion_scheduled',
       cancel_deletion: 'structure_deletion_cancelled',
       delete: 'structure_deleted',
+      edit: 'structure_edited',
     };
     const auditAction = auditActionByAction[action];
     if (auditAction) {

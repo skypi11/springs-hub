@@ -6,12 +6,13 @@ import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { api } from '@/lib/api-client';
+import { api, ApiError } from '@/lib/api-client';
+import { useToast } from '@/components/ui/Toast';
 import AdminUserRef from '@/components/admin/AdminUserRef';
 import ImpersonateButton from '@/components/admin/ImpersonateButton';
 import {
   Users2, Archive, Loader2, ExternalLink, Search, AlertTriangle,
-  ChevronDown, ChevronUp, User as UserIcon,
+  ChevronDown, ChevronUp, User as UserIcon, Pencil, Check,
 } from 'lucide-react';
 
 type MemberRef = { uid: string; name: string; avatar: string };
@@ -48,6 +49,7 @@ const GAME_META: Record<string, { label: string; color: string; tagClass: string
 
 export default function AdminTeamsPage() {
   const { firebaseUser, isAdmin } = useAuth();
+  const toast = useToast();
   const [teams, setTeams] = useState<AdminTeam[]>([]);
   const [loading, setLoading] = useState(true);
   const [truncated, setTruncated] = useState(false);
@@ -56,6 +58,9 @@ export default function AdminTeamsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('active');
   const [search, setSearch] = useState('');
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
+  // Édition directe d'une équipe — null = aucun formulaire ouvert.
+  const [editTeam, setEditTeam] = useState<{ id: string; name: string; label: string } | null>(null);
+  const [savingTeam, setSavingTeam] = useState(false);
 
   async function load() {
     if (!firebaseUser) return;
@@ -78,6 +83,27 @@ export default function AdminTeamsPage() {
     if (firebaseUser && isAdmin) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firebaseUser, isAdmin, gameFilter, statusFilter]);
+
+  async function handleTeamEditSave() {
+    if (!editTeam) return;
+    if (!editTeam.name.trim()) {
+      toast.error("Le nom de l'équipe est obligatoire.");
+      return;
+    }
+    setSavingTeam(true);
+    try {
+      await api('/api/admin/teams', {
+        method: 'POST',
+        body: { teamId: editTeam.id, action: 'edit', name: editTeam.name, label: editTeam.label },
+      });
+      await load();
+      setEditTeam(null);
+      toast.success('Équipe modifiée');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
+    }
+    setSavingTeam(false);
+  }
 
   // Filtre texte côté client (on a déjà chargé la page, recherche instant sur nom/structure/tag)
   const filtered = useMemo(() => {
@@ -336,6 +362,23 @@ export default function AdminTeamsPage() {
                             </span>
                           )}
                         </div>
+                        {/* Modifier l'équipe — span (pas button) pour rester
+                            cliquable même si la ligne parente est disabled. */}
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            setEditTeam(editTeam?.id === team.id
+                              ? null
+                              : { id: team.id, name: team.name, label: team.label ?? '' });
+                          }}
+                          className="flex items-center gap-1 text-xs cursor-pointer"
+                          style={{ color: editTeam?.id === team.id ? 'var(--s-gold)' : 'var(--s-text-dim)' }}
+                          title="Modifier l'équipe">
+                          <Pencil size={11} />
+                        </span>
                         {/* Lien vers la structure pour voir le détail */}
                         <Link
                           href={`/community/structure/${team.structureId}`}
@@ -349,6 +392,56 @@ export default function AdminTeamsPage() {
                           isOpen ? <ChevronUp size={13} style={{ color: 'var(--s-text-dim)' }} /> : <ChevronDown size={13} style={{ color: 'var(--s-text-dim)' }} />
                         )}
                       </button>
+
+                      {editTeam?.id === team.id && (
+                        <div
+                          className="px-3 pb-3 pt-2 space-y-2"
+                          style={{ borderTop: '1px solid var(--s-border)', background: 'rgba(255,184,0,0.04)' }}
+                        >
+                          <p className="t-label" style={{ color: 'var(--s-gold)' }}>MODIFIER L&apos;ÉQUIPE</p>
+                          <div className="flex gap-2 flex-wrap">
+                            <div className="flex-1 min-w-[160px]">
+                              <label className="t-label block mb-1">Nom</label>
+                              <input
+                                type="text"
+                                className="settings-input w-full"
+                                maxLength={60}
+                                value={editTeam.name}
+                                onChange={e => setEditTeam({ ...editTeam, name: e.target.value })}
+                              />
+                            </div>
+                            <div className="flex-1 min-w-[140px]">
+                              <label className="t-label block mb-1">Label (optionnel)</label>
+                              <input
+                                type="text"
+                                className="settings-input w-full"
+                                maxLength={40}
+                                value={editTeam.label}
+                                onChange={e => setEditTeam({ ...editTeam, label: e.target.value })}
+                                placeholder="ex: Roster A"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={handleTeamEditSave}
+                              disabled={savingTeam}
+                              className="btn-springs btn-primary bevel-sm flex items-center gap-2"
+                              style={{ fontSize: '12px', padding: '7px 14px' }}
+                            >
+                              {savingTeam ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                              <span>Enregistrer</span>
+                            </button>
+                            <button
+                              onClick={() => setEditTeam(null)}
+                              disabled={savingTeam}
+                              className="btn-springs btn-ghost text-xs"
+                            >
+                              Annuler
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       {isOpen && team.totalRoster > 0 && (
                         <div className="px-3 pb-3 pt-1 space-y-3" style={{ borderTop: '1px solid var(--s-border)' }}>

@@ -13,7 +13,7 @@ import AdminUserRef from '@/components/admin/AdminUserRef';
 import ImpersonateButton from '@/components/admin/ImpersonateButton';
 import {
   Building2, CheckCircle, XCircle, Trash2, Loader2, ChevronDown, ChevronUp,
-  ExternalLink, Ban, RotateCcw, RefreshCw,
+  ExternalLink, Ban, RotateCcw, RefreshCw, Pencil,
 } from 'lucide-react';
 
 type StructureRequest = {
@@ -78,6 +78,10 @@ export default function AdminStructuresPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [commentMap, setCommentMap] = useState<Record<string, string>>({});
   const [backfilling, setBackfilling] = useState(false);
+  // Édition directe des infos d'une structure — null = aucun formulaire ouvert.
+  const [editForm, setEditForm] = useState<
+    { id: string; name: string; tag: string; description: string; games: string[] } | null
+  >(null);
 
   async function loadStructures() {
     if (!firebaseUser) return;
@@ -147,6 +151,38 @@ export default function AdminStructuresPage() {
       await loadStructures();
       setExpandedId(null);
       toast.success('Action effectuée');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
+    }
+    setActionLoading(null);
+  }
+
+  async function handleEditSave() {
+    if (!editForm) return;
+    if (!editForm.name.trim() || !editForm.tag.trim()) {
+      toast.error('Le nom et le tag sont obligatoires.');
+      return;
+    }
+    if (editForm.games.length === 0) {
+      toast.error('Sélectionne au moins un jeu.');
+      return;
+    }
+    setActionLoading(`${editForm.id}_edit`);
+    try {
+      await api('/api/admin/structures', {
+        method: 'POST',
+        body: {
+          structureId: editForm.id,
+          action: 'edit',
+          name: editForm.name,
+          tag: editForm.tag,
+          description: editForm.description,
+          games: editForm.games,
+        },
+      });
+      await loadStructures();
+      setEditForm(null);
+      toast.success('Structure modifiée');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
@@ -397,6 +433,96 @@ export default function AdminStructuresPage() {
 
                   <div className="divider" />
 
+                  {editForm?.id === s.id && (
+                    <div
+                      className="bevel-sm p-4 space-y-3"
+                      style={{ background: 'rgba(255,184,0,0.04)', border: '1px solid rgba(255,184,0,0.25)' }}
+                    >
+                      <p className="t-label" style={{ color: 'var(--s-gold)' }}>MODIFIER LES INFOS</p>
+                      <div className="flex gap-3 flex-wrap">
+                        <div className="flex-1 min-w-[200px]">
+                          <label className="t-label block mb-1.5">Nom</label>
+                          <input
+                            type="text"
+                            className="settings-input w-full"
+                            maxLength={50}
+                            value={editForm.name}
+                            onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label className="t-label block mb-1.5">Tag</label>
+                          <input
+                            type="text"
+                            className="settings-input"
+                            maxLength={5}
+                            style={{ width: 110, textTransform: 'uppercase' }}
+                            value={editForm.tag}
+                            onChange={e => setEditForm({ ...editForm, tag: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="t-label block mb-1.5">Description</label>
+                        <textarea
+                          className="settings-input w-full"
+                          rows={3}
+                          value={editForm.description}
+                          onChange={e => setEditForm({ ...editForm, description: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="t-label block mb-1.5">Jeux</label>
+                        <div className="flex gap-2">
+                          {([['rocket_league', 'Rocket League'], ['trackmania', 'Trackmania']] as const).map(([g, label]) => {
+                            const on = editForm.games.includes(g);
+                            return (
+                              <button
+                                key={g}
+                                type="button"
+                                onClick={() => setEditForm({
+                                  ...editForm,
+                                  games: on ? editForm.games.filter(x => x !== g) : [...editForm.games, g],
+                                })}
+                                className="tag transition-all duration-150"
+                                style={{
+                                  background: on ? 'rgba(255,184,0,0.15)' : 'transparent',
+                                  color: on ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                                  borderColor: on ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
+                                  cursor: 'pointer',
+                                  padding: '6px 14px',
+                                  fontSize: '12px',
+                                }}
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleEditSave}
+                          disabled={!!actionLoading}
+                          className="btn-springs btn-primary bevel-sm flex items-center gap-2"
+                          style={{ fontSize: '12px', padding: '8px 16px' }}
+                        >
+                          {actionLoading === `${s.id}_edit`
+                            ? <Loader2 size={12} className="animate-spin" />
+                            : <CheckCircle size={12} />}
+                          <span>Enregistrer</span>
+                        </button>
+                        <button
+                          onClick={() => setEditForm(null)}
+                          disabled={!!actionLoading}
+                          className="btn-springs btn-ghost text-xs"
+                        >
+                          Annuler
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-3">
                     <div>
                       <label className="t-label block mb-2">Commentaire admin</label>
@@ -407,6 +533,20 @@ export default function AdminStructuresPage() {
                     </div>
 
                     <div className="flex gap-2 flex-wrap">
+                      <button
+                        onClick={() => setEditForm(
+                          editForm?.id === s.id
+                            ? null
+                            : { id: s.id, name: s.name, tag: s.tag, description: s.description ?? '', games: s.games ?? [] },
+                        )}
+                        disabled={!!actionLoading}
+                        className="btn-springs bevel-sm flex items-center gap-2"
+                        style={{ background: 'transparent', borderColor: 'var(--s-border)', color: 'var(--s-text-dim)', fontSize: '12px', padding: '8px 16px' }}
+                      >
+                        <Pencil size={12} />
+                        <span>{editForm?.id === s.id ? "Fermer l'édition" : 'Modifier les infos'}</span>
+                      </button>
+
                       {s.status === 'pending_validation' && (
                         <>
                           <button onClick={() => handleAction(s.id, 'approve')}

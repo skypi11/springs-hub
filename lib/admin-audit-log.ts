@@ -18,6 +18,13 @@ export type AdminAuditAction =
   | 'structure_deletion_scheduled'
   | 'structure_deletion_cancelled'
   | 'structure_deleted'
+  | 'structure_edited'
+  // Actions sur équipes
+  | 'team_edited'
+  // Actions sur événements
+  | 'event_edited'
+  | 'event_cancelled'
+  | 'event_deleted'
   // Actions sur utilisateurs
   | 'user_banned'
   | 'user_unbanned'
@@ -34,7 +41,7 @@ export type AdminAuditAction =
   // Broadcasts / notifs
   | 'notification_broadcast';
 
-export type AdminAuditTargetType = 'structure' | 'user';
+export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event';
 
 export interface AdminAuditLogEntry {
   action: AdminAuditAction;
