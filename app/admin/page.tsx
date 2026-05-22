@@ -1,23 +1,34 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Building2, Users, Users2, CalendarDays, AlertCircle, ArrowRight, Loader2,
   ShieldAlert, ClipboardList, UploadCloud, FileText, Megaphone, Check,
-  UserPlus, CheckCircle2, Eye, type LucideIcon,
+  UserPlus, CheckCircle2, type LucideIcon,
 } from 'lucide-react';
 import { api } from '@/lib/api-client';
+
+type NewItem = {
+  type: 'user' | 'structure_request' | 'structure_validated' | 'team' | 'event';
+  id: string;
+  label: string;
+  sublabel: string;
+  avatar: string;
+  ts: number;
+  href: string;
+};
 
 type DashboardData = {
   lastSeenAt: string | null;
   cappedAt: number;
-  radar: {
-    newUsers: number;
-    newStructureRequests: number;
-    newValidatedStructures: number;
-    newTeams: number;
-    newEvents: number;
+  groups: {
+    structureRequests: NewItem[];
+    users: NewItem[];
+    teams: NewItem[];
+    validatedStructures: NewItem[];
+    events: NewItem[];
   };
   toHandle: {
     pendingStructures: number;
@@ -26,14 +37,6 @@ type DashboardData = {
     orphanedStructures: number;
   };
   totals: { activeStructures: number; totalUsers: number };
-  activity: {
-    type: 'user' | 'structure_request' | 'structure_validated' | 'team' | 'event';
-    id: string;
-    label: string;
-    sublabel: string;
-    ts: number;
-    href: string;
-  }[];
 };
 
 // Temps relatif court et lisible — "il y a 3 j", "à l'instant"…
@@ -50,21 +53,7 @@ function timeAgo(ms: number): string {
   return `il y a ${mo} mois`;
 }
 
-// Catégories du radar de nouveauté — ordre = priorité d'attention.
-const RADAR_ITEMS: {
-  key: keyof DashboardData['radar'];
-  label: string;
-  icon: LucideIcon;
-  href: string;
-}[] = [
-  { key: 'newStructureRequests', label: 'Demandes de structure', icon: Building2, href: '/admin/structures' },
-  { key: 'newUsers', label: 'Nouveaux inscrits', icon: UserPlus, href: '/admin/users' },
-  { key: 'newTeams', label: 'Nouvelles équipes', icon: Users2, href: '/admin/teams' },
-  { key: 'newValidatedStructures', label: 'Structures validées', icon: CheckCircle2, href: '/admin/structures' },
-  { key: 'newEvents', label: 'Nouveaux événements', icon: CalendarDays, href: '/admin/calendar' },
-];
-
-const ACTIVITY_ICON: Record<DashboardData['activity'][number]['type'], LucideIcon> = {
+const TYPE_ICON: Record<NewItem['type'], LucideIcon> = {
   user: UserPlus,
   structure_request: Building2,
   structure_validated: CheckCircle2,
@@ -72,13 +61,22 @@ const ACTIVITY_ICON: Record<DashboardData['activity'][number]['type'], LucideIco
   event: CalendarDays,
 };
 
-const ACTIVITY_COLOR: Record<DashboardData['activity'][number]['type'], string> = {
+const TYPE_COLOR: Record<NewItem['type'], string> = {
   user: '#FFB800',
   structure_request: '#FFB800',
   structure_validated: '#33ff66',
   team: '#0081FF',
   event: 'var(--s-text-dim)',
 };
+
+// Catégories du radar — ordre = priorité d'attention.
+const GROUPS: { key: keyof DashboardData['groups']; label: string }[] = [
+  { key: 'structureRequests', label: 'Demandes de structure' },
+  { key: 'users', label: 'Nouveaux inscrits' },
+  { key: 'teams', label: 'Nouvelles équipes' },
+  { key: 'validatedStructures', label: 'Structures validées' },
+  { key: 'events', label: 'Nouveaux événements' },
+];
 
 export default function AdminDashboardPage() {
   const qc = useQueryClient();
@@ -101,11 +99,10 @@ export default function AdminDashboardPage() {
     );
   }
 
-  const { radar, toHandle, totals, activity } = data;
+  const { groups, toHandle, totals } = data;
   const totalNew =
-    radar.newUsers + radar.newStructureRequests + radar.newValidatedStructures
-    + radar.newTeams + radar.newEvents;
-  const cap = (n: number) => (n >= data.cappedAt ? `${data.cappedAt}+` : String(n));
+    groups.structureRequests.length + groups.users.length + groups.teams.length
+    + groups.validatedStructures.length + groups.events.length;
 
   const toHandleItems = [
     { n: toHandle.pendingStructures, label: 'demande(s) de structure en attente', href: '/admin/structures', urgent: true },
@@ -161,32 +158,27 @@ export default function AdminDashboardPage() {
               </span>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-              {RADAR_ITEMS.map(({ key, label, icon: Icon, href }) => {
-                const n = radar[key];
-                const has = n > 0;
+            <div className="space-y-5">
+              {GROUPS.map(({ key, label }) => {
+                const items = groups[key];
+                if (items.length === 0) return null;
                 return (
-                  <Link
-                    key={key}
-                    href={href}
-                    className="bevel-sm p-3 flex flex-col gap-2 transition-all duration-150"
-                    style={{
-                      background: has ? 'rgba(255,184,0,0.06)' : 'var(--s-elevated)',
-                      border: `1px solid ${has ? 'rgba(255,184,0,0.3)' : 'var(--s-border)'}`,
-                      opacity: has ? 1 : 0.55,
-                    }}
-                  >
-                    <Icon size={15} style={{ color: has ? 'var(--s-gold)' : 'var(--s-text-muted)' }} />
-                    <div>
-                      <p
-                        className="font-display text-3xl leading-none"
-                        style={{ color: has ? 'var(--s-text)' : 'var(--s-text-muted)' }}
-                      >
-                        {cap(n)}
-                      </p>
-                      <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-dim)' }}>{label}</p>
+                  <div key={key}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="t-label" style={{ color: 'var(--s-text-dim)' }}>{label}</span>
+                      <span className="tag tag-gold" style={{ fontSize: '9px', padding: '1px 6px' }}>
+                        {items.length >= data.cappedAt ? `${data.cappedAt}+` : items.length}
+                      </span>
                     </div>
-                  </Link>
+                    <div
+                      className="bevel-sm overflow-hidden"
+                      style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}
+                    >
+                      {items.map((item, i) => (
+                        <NewItemRow key={`${item.type}-${item.id}`} item={item} first={i === 0} />
+                      ))}
+                    </div>
+                  </div>
                 );
               })}
             </div>
@@ -232,77 +224,57 @@ export default function AdminDashboardPage() {
         <StatPill icon={AlertCircle} label="En attente" value={toHandle.pendingStructures} emphasis={toHandle.pendingStructures > 0} />
       </div>
 
-      {/* ═══ Activité récente + Accès rapides ═══ */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Activité récente */}
-        <div className="lg:col-span-2 space-y-3">
-          <div className="section-label">
-            <span>Activité récente</span>
-          </div>
-          <div
-            className="bevel-sm overflow-hidden"
-            style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
-          >
-            {activity.length === 0 ? (
-              <div className="p-6 text-center">
-                <Eye size={22} className="mx-auto mb-2" style={{ color: 'var(--s-text-muted)' }} />
-                <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                  Aucune activité depuis ta dernière visite.
-                </p>
-              </div>
-            ) : (
-              activity.map((item, i) => {
-                const Icon = ACTIVITY_ICON[item.type];
-                const color = ACTIVITY_COLOR[item.type];
-                return (
-                  <Link
-                    key={`${item.type}-${item.id}-${i}`}
-                    href={item.href}
-                    className="flex items-center gap-3 px-4 py-2.5 transition-colors duration-150 hover:bg-[var(--s-hover)]"
-                    style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' }}
-                  >
-                    <div
-                      className="w-7 h-7 flex-shrink-0 flex items-center justify-center"
-                      style={{ background: `${color}15`, border: `1px solid ${color}35` }}
-                    >
-                      <Icon size={13} style={{ color }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>
-                        {item.label}
-                      </p>
-                      <p className="text-xs truncate" style={{ color: 'var(--s-text-muted)' }}>
-                        {item.sublabel}
-                      </p>
-                    </div>
-                    <span className="t-mono flex-shrink-0" style={{ fontSize: '12px', color: 'var(--s-text-muted)' }}>
-                      {timeAgo(item.ts)}
-                    </span>
-                  </Link>
-                );
-              })
-            )}
-          </div>
+      {/* ═══ Accès rapides ═══ */}
+      <div>
+        <div className="section-label mb-3">
+          <span>Accès rapides</span>
         </div>
-
-        {/* Accès rapides */}
-        <div className="space-y-3">
-          <div className="section-label">
-            <span>Accès rapides</span>
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-1 gap-3">
-            <QuickLink href="/admin/structures" icon={Building2} label="Structures" accent="#FFB800" />
-            <QuickLink href="/admin/users" icon={Users} label="Utilisateurs" accent="#FFB800" />
-            <QuickLink href="/admin/moderation" icon={ShieldAlert} label="Modération" accent="#ff5555" />
-            <QuickLink href="/admin/calendar" icon={CalendarDays} label="Calendrier" accent="#FFB800" />
-            <QuickLink href="/admin/exercices" icon={ClipboardList} label="Exercices" accent="#FFB800" />
-            <QuickLink href="/admin/audit" icon={FileText} label="Audit log" accent="var(--s-gold)" />
-            <QuickLink href="/admin/uploads" icon={UploadCloud} label="Uploads" accent="#33ff66" />
-            <QuickLink href="/admin/announce" icon={Megaphone} label="Annonces Discord" accent="#7B2FBE" />
-          </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <QuickLink href="/admin/structures" icon={Building2} label="Structures" accent="#FFB800" />
+          <QuickLink href="/admin/users" icon={Users} label="Utilisateurs" accent="#FFB800" />
+          <QuickLink href="/admin/moderation" icon={ShieldAlert} label="Modération" accent="#ff5555" />
+          <QuickLink href="/admin/calendar" icon={CalendarDays} label="Calendrier" accent="#FFB800" />
+          <QuickLink href="/admin/exercices" icon={ClipboardList} label="Exercices" accent="#FFB800" />
+          <QuickLink href="/admin/teams" icon={Users2} label="Équipes" accent="#0081FF" />
+          <QuickLink href="/admin/uploads" icon={UploadCloud} label="Uploads" accent="#33ff66" />
+          <QuickLink href="/admin/audit" icon={FileText} label="Audit log" accent="var(--s-gold)" />
+          <QuickLink href="/admin/announce" icon={Megaphone} label="Annonces Discord" accent="#7B2FBE" />
         </div>
       </div>
     </>
+  );
+}
+
+function NewItemRow({ item, first }: { item: NewItem; first: boolean }) {
+  const Icon = TYPE_ICON[item.type];
+  const color = TYPE_COLOR[item.type];
+  return (
+    <Link
+      href={item.href}
+      className="flex items-center gap-3 px-3 py-2.5 transition-colors duration-150 hover:bg-[var(--s-hover)]"
+      style={{ borderTop: first ? 'none' : '1px solid var(--s-border)' }}
+    >
+      {item.avatar ? (
+        <div className="w-8 h-8 relative flex-shrink-0 overflow-hidden" style={{ border: '1px solid var(--s-border)' }}>
+          <Image src={item.avatar} alt="" fill className="object-cover" unoptimized />
+        </div>
+      ) : (
+        <div
+          className="w-8 h-8 flex-shrink-0 flex items-center justify-center"
+          style={{ background: `${color}15`, border: `1px solid ${color}35` }}
+        >
+          <Icon size={14} style={{ color }} />
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{item.label}</p>
+        <p className="text-xs truncate" style={{ color: 'var(--s-text-muted)' }}>{item.sublabel}</p>
+      </div>
+      <span className="t-mono flex-shrink-0" style={{ fontSize: '12px', color: 'var(--s-text-muted)' }}>
+        {timeAgo(item.ts)}
+      </span>
+      <ArrowRight size={12} className="flex-shrink-0" style={{ color: 'var(--s-text-muted)' }} />
+    </Link>
   );
 }
 

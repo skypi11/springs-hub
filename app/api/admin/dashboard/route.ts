@@ -8,8 +8,6 @@ const SCAN_LIMIT = 60;
 const STRUCTURES_SCAN = 1000;
 // Défaut quand l'admin n'a jamais cliqué "marquer comme vu".
 const DEFAULT_LOOKBACK_DAYS = 7;
-// Taille du flux d'activité récente renvoyé.
-const ACTIVITY_LIMIT = 25;
 
 function toMillis(v: unknown): number | null {
   if (!v) return null;
@@ -21,18 +19,19 @@ function toMillis(v: unknown): number | null {
   return null;
 }
 
-type ActivityItem = {
+type NewItem = {
   type: 'user' | 'structure_request' | 'structure_validated' | 'team' | 'event';
   id: string;
   label: string;
   sublabel: string;
+  avatar: string;
   ts: number;
   href: string;
 };
 
-// GET /api/admin/dashboard — radar de nouveauté depuis la dernière visite
-// "marquée comme vue", cas à traiter, flux d'activité récente. Ne met PAS à jour
-// la dernière visite (c'est le rôle du POST mark_seen, déclenché manuellement).
+// GET /api/admin/dashboard — nouveautés DÉTAILLÉES depuis la dernière visite
+// "marquée comme vue" (la liste exacte des joueurs/équipes/etc., pas juste un
+// compteur), cas à traiter, totaux. Ne met PAS à jour la dernière visite.
 export async function GET(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -60,8 +59,8 @@ export async function GET(req: NextRequest) {
     let suspendedStructures = 0;
     let deletionScheduledStructures = 0;
     let orphanedStructures = 0;
-    const newRequests: ActivityItem[] = [];
-    const newValidated: ActivityItem[] = [];
+    const structureRequests: NewItem[] = [];
+    const validatedStructures: NewItem[] = [];
 
     for (const doc of structuresSnap.docs) {
       const d = doc.data();
@@ -73,24 +72,27 @@ export async function GET(req: NextRequest) {
       else if (status === 'deletion_scheduled') deletionScheduledStructures++;
       else if (status === 'orphaned') orphanedStructures++;
 
+      const logo = (d.logoUrl as string) || '';
       const reqMs = toMillis(d.requestedAt);
       if (reqMs && reqMs >= sinceMs && status === 'pending_validation') {
-        newRequests.push({
+        structureRequests.push({
           type: 'structure_request',
           id: doc.id,
           label: (d.name as string) || 'Structure',
-          sublabel: 'Demande de création',
+          sublabel: d.tag ? `[${d.tag}] · demande de création` : 'Demande de création',
+          avatar: logo,
           ts: reqMs,
           href: '/admin/structures',
         });
       }
       const valMs = toMillis(d.validatedAt);
       if (valMs && valMs >= sinceMs && status === 'active') {
-        newValidated.push({
+        validatedStructures.push({
           type: 'structure_validated',
           id: doc.id,
           label: (d.name as string) || 'Structure',
-          sublabel: 'Structure validée',
+          sublabel: d.tag ? `[${d.tag}] · validée` : 'Structure validée',
+          avatar: logo,
           ts: valMs,
           href: `/community/structure/${doc.id}`,
         });
@@ -98,69 +100,67 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Nouveaux inscrits ──
-    const newUsers: ActivityItem[] = [];
+    const users: NewItem[] = [];
     for (const doc of usersSnap.docs) {
       const d = doc.data();
       const ms = toMillis(d.createdAt);
       if (ms == null || ms < sinceMs) continue;
-      newUsers.push({
+      users.push({
         type: 'user',
         id: doc.id,
         label: (d.displayName as string) || (d.discordUsername as string) || 'Joueur',
-        sublabel: 'Nouvelle inscription',
+        sublabel: (d.discordUsername as string) ? `@${d.discordUsername}` : 'Nouvelle inscription',
+        avatar: (d.avatarUrl as string) || (d.discordAvatar as string) || '',
         ts: ms,
         href: `/profile/${doc.id}`,
       });
     }
 
     // ── Nouvelles équipes ──
-    const newTeams: ActivityItem[] = [];
+    const teams: NewItem[] = [];
     for (const doc of teamsSnap.docs) {
       const d = doc.data();
       const ms = toMillis(d.createdAt);
       if (ms == null || ms < sinceMs) continue;
       const sName = structureName.get(d.structureId as string) ?? '';
-      newTeams.push({
+      teams.push({
         type: 'team',
         id: doc.id,
         label: (d.name as string) || 'Équipe',
-        sublabel: sName ? `Équipe créée · ${sName}` : 'Nouvelle équipe',
+        sublabel: sName || 'Nouvelle équipe',
+        avatar: (d.logoUrl as string) || '',
         ts: ms,
         href: '/admin/teams',
       });
     }
 
     // ── Nouveaux événements ──
-    const newEvents: ActivityItem[] = [];
+    const events: NewItem[] = [];
     for (const doc of eventsSnap.docs) {
       const d = doc.data();
       const ms = toMillis(d.createdAt);
       if (ms == null || ms < sinceMs) continue;
       const sName = structureName.get(d.structureId as string) ?? '';
-      newEvents.push({
+      events.push({
         type: 'event',
         id: doc.id,
         label: (d.title as string) || 'Événement',
-        sublabel: sName ? `Événement créé · ${sName}` : 'Nouvel événement',
+        sublabel: sName || 'Nouvel événement',
+        avatar: '',
         ts: ms,
         href: '/admin/calendar',
       });
     }
 
-    // ── Flux d'activité fusionné, du plus récent au plus ancien ──
-    const activity = [...newUsers, ...newRequests, ...newValidated, ...newTeams, ...newEvents]
-      .sort((a, b) => b.ts - a.ts)
-      .slice(0, ACTIVITY_LIMIT);
-
     return NextResponse.json({
       lastSeenAt: lastSeenMs ? new Date(lastSeenMs).toISOString() : null,
       cappedAt: SCAN_LIMIT,
-      radar: {
-        newUsers: newUsers.length,
-        newStructureRequests: newRequests.length,
-        newValidatedStructures: newValidated.length,
-        newTeams: newTeams.length,
-        newEvents: newEvents.length,
+      groups: {
+        structureRequests,
+        users,
+        teams,
+        validatedStructures,
+        events,
       },
       toHandle: {
         pendingStructures,
@@ -172,7 +172,6 @@ export async function GET(req: NextRequest) {
         activeStructures,
         totalUsers: usersCount.data().count,
       },
-      activity,
     });
   } catch (err) {
     captureApiError('API Admin/Dashboard GET error', err);

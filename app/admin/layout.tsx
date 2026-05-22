@@ -10,7 +10,7 @@ import AdminSidebar from '@/components/admin/AdminSidebar';
 
 // Sous-ensemble de la réponse /api/admin/dashboard utile aux badges de la nav.
 type DashboardBadges = {
-  radar: { newUsers: number; newTeams: number; newEvents: number };
+  groups: { users: unknown[]; teams: unknown[]; events: unknown[] };
   toHandle: {
     pendingStructures: number;
     suspendedStructures: number;
@@ -41,9 +41,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const badges: Record<string, number> = data
     ? {
         '/admin/structures': data.toHandle.pendingStructures,
-        '/admin/users': data.radar.newUsers,
-        '/admin/teams': data.radar.newTeams,
-        '/admin/calendar': data.radar.newEvents,
+        '/admin/users': data.groups.users.length,
+        '/admin/teams': data.groups.teams.length,
+        '/admin/calendar': data.groups.events.length,
         '/admin/moderation':
           data.toHandle.suspendedStructures
           + data.toHandle.deletionScheduledStructures
