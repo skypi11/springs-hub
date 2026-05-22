@@ -420,8 +420,8 @@ export async function POST() {
     }, { merge: true });
   }
 
-  // 4) Admin Springs
-  await write(batchRef, db, db.collection('admins').doc(DEV_UIDS.admin), {
+  // 4) Admin Aedral
+  await write(batchRef, db, db.collection('aedral_admins').doc(DEV_UIDS.admin), {
     uid: DEV_UIDS.admin,
     isDev: true,
     addedAt: FieldValue.serverTimestamp(),

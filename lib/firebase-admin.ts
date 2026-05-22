@@ -38,8 +38,11 @@ export async function verifyAuth(req: NextRequest): Promise<string | null> {
   }
 }
 
-// Vérifier que l'uid est admin Springs (collection `admins`)
+// Vérifier que l'uid est admin Aedral (collection `aedral_admins`).
+// NB : collection DÉDIÉE à Aedral — distincte de `admins`, partagée avec le
+// vieux site Springs (TM cup / RL). Un admin du vieux site n'est PAS admin
+// Aedral, et inversement. Voir scripts/migrate-aedral-admins.mjs.
 export async function isAdmin(uid: string): Promise<boolean> {
-  const snap = await getAdminDb().collection('admins').doc(uid).get();
+  const snap = await getAdminDb().collection('aedral_admins').doc(uid).get();
   return snap.exists;
 }

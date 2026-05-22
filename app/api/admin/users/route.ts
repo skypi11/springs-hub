@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
     // Charger users (plafonné) + admins + structure_members en parallèle
     const [usersSnap, adminsSnap, membersSnap] = await Promise.all([
       db.collection('users').limit(MAX_USERS).get(),
-      db.collection('admins').get(),
+      db.collection('aedral_admins').get(),
       db.collection('structure_members').get(),
     ]);
 
@@ -296,7 +296,7 @@ export async function POST(req: NextRequest) {
         if (userId === adminUid) {
           return NextResponse.json({ error: 'Tu ne peux pas te modifier toi-même' }, { status: 400 });
         }
-        await db.collection('admins').doc(userId).set({
+        await db.collection('aedral_admins').doc(userId).set({
           addedBy: adminUid,
           addedAt: FieldValue.serverTimestamp(),
         });
@@ -315,7 +315,7 @@ export async function POST(req: NextRequest) {
         if (userId === adminUid) {
           return NextResponse.json({ error: 'Tu ne peux pas te retirer tes propres droits admin' }, { status: 400 });
         }
-        await db.collection('admins').doc(userId).delete();
+        await db.collection('aedral_admins').doc(userId).delete();
         await writeAdminAuditLog(db, {
           action: 'user_admin_revoked',
           adminUid,
@@ -471,7 +471,7 @@ export async function POST(req: NextRequest) {
         for (const [sid, n] of decrementByStructure.entries()) {
           bumpStructureCounter(db, batch, sid, 'members', -n);
         }
-        batch.delete(db.collection('admins').doc(userId));
+        batch.delete(db.collection('aedral_admins').doc(userId));
         batch.delete(userRef);
         await batch.commit();
 

@@ -14,7 +14,7 @@ async function requireAdmin(req: NextRequest): Promise<string | NextResponse> {
   const uid = await verifyAuth(req);
   if (!uid) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const db = getAdminDb();
-  const adminSnap = await db.collection('admins').doc(uid).get();
+  const adminSnap = await db.collection('aedral_admins').doc(uid).get();
   if (!adminSnap.exists) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   return uid;
 }

@@ -2,9 +2,19 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Admin du vieux site Springs (TM cup / RL) — collection `admins` partagée
+    // entre les deux repos. Ne gouverne QUE les collections legacy ci-dessous.
     function isAdmin() {
       return request.auth != null &&
         exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Admin Aedral (le Hub) — collection DÉDIÉE `aedral_admins`, distincte de
+    // `admins`. Gouverne les collections du Hub. Un admin du vieux site n'est
+    // PAS admin Aedral. Voir scripts/migrate-aedral-admins.mjs.
+    function isAedralAdmin() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/aedral_admins/$(request.auth.uid));
     }
 
     function isTeamManager(teamId) {
@@ -13,8 +23,16 @@ service cloud.firestore {
              request.auth.uid == team.founderId;
     }
 
-    // ── Admins Springs ──────────────────────────────────────────────────────
+    // ── Admins vieux site Springs (TM cup / RL) ──────────────────────────────
     match /admins/{uid} {
+      // Chaque user peut lire sa propre entrée (pour savoir s'il est admin)
+      allow read: if request.auth != null && request.auth.uid == uid;
+      // Personne côté client ne peut écrire — Admin SDK uniquement
+      allow write: if false;
+    }
+
+    // ── Admins Aedral (le Hub) ───────────────────────────────────────────────
+    match /aedral_admins/{uid} {
       // Chaque user peut lire sa propre entrée (pour savoir s'il est admin)
       allow read: if request.auth != null && request.auth.uid == uid;
       // Personne côté client ne peut écrire — Admin SDK uniquement
@@ -46,7 +64,7 @@ service cloud.firestore {
     // Lecture : admin OU le user lit sa propre ligne. Les pages publiques qui affichent
     // la liste des membres passent par des API routes (Admin SDK), pas de read client.
     match /structure_members/{id} {
-      allow read: if isAdmin() ||
+      allow read: if isAedralAdmin() ||
         (request.auth != null && resource.data.userId == request.auth.uid);
       allow write: if false;
     }
@@ -369,14 +387,14 @@ service cloud.firestore {
     // Lecture : admin Springs uniquement. Les dirigeants voient via une API
     // dédiée qui filtre par structureId (pas de read client direct).
     match /structure_audit_logs/{id} {
-      allow read: if isAdmin();
+      allow read: if isAedralAdmin();
       allow write: if false;
     }
 
     // ── Journal des actions admin ───────────────────────────────────────────────
     match /admin_logs/{id} {
-      allow read: if isAdmin();
-      allow create: if isAdmin();
+      allow read: if isAedralAdmin();
+      allow create: if isAedralAdmin();
       allow update: if false;
       allow delete: if false;
     }
@@ -385,7 +403,7 @@ service cloud.firestore {
     // Écriture : API serveur uniquement (Admin SDK) — voir lib/admin-audit-log.ts.
     // Lecture : admin Springs uniquement.
     match /admin_audit_logs/{id} {
-      allow read: if isAdmin();
+      allow read: if isAedralAdmin();
       allow write: if false;
     }
 

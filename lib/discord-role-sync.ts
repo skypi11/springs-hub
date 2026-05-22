@@ -103,7 +103,7 @@ async function computeUserProfile(db: Firestore, userId: string): Promise<UserPr
 
   const roleKeys = new Set<RoleKey>(['membre']);
 
-  const adminSnap = await db.collection('admins').doc(userId).get();
+  const adminSnap = await db.collection('aedral_admins').doc(userId).get();
   if (adminSnap.exists) roleKeys.add('admin');
 
   if (u.isAvailableForRecruitment === true) roleKeys.add('joueur_libre');

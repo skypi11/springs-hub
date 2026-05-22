@@ -30,7 +30,7 @@ export async function setAdminAlertChannelId(db: Firestore, channelId: string | 
 // ajoutés via le panel sont des comptes Discord, donc on peut les mentionner.
 async function adminDiscordIds(db: Firestore): Promise<string[]> {
   try {
-    const snap = await db.collection('admins').get();
+    const snap = await db.collection('aedral_admins').get();
     return snap.docs
       .map(d => d.id)
       .filter(id => id.startsWith('discord_'))

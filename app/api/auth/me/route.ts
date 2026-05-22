@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     const db = getAdminDb();
     const [userSnap, adminSnap, founderSnap, coFounderSnap] = await Promise.all([
       db.collection('users').doc(uid).get(),
-      db.collection('admins').doc(uid).get(),
+      db.collection('aedral_admins').doc(uid).get(),
       db.collection('structures').where('founderId', '==', uid).limit(1).get(),
       db.collection('structures').where('coFounderIds', 'array-contains', uid).limit(1).get(),
     ]);

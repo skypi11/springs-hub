@@ -16,7 +16,7 @@ const COLLECTIONS_WITH_ISDEV = [
   'structure_invitations',
   'structure_member_history',
   'structure_todos',
-  'admins',
+  'aedral_admins',
 ];
 
 export async function POST() {

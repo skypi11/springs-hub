@@ -5,7 +5,7 @@ import { captureApiError } from '@/lib/sentry';
 // Collections principales à compter pour diagnostic santé.
 const COUNT_COLLECTIONS = [
   'users',
-  'admins',
+  'aedral_admins',
   'structures',
   'structure_members',
   'sub_teams',

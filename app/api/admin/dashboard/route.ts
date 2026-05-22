@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
 
     const db = getAdminDb();
 
-    const adminSnap = await db.collection('admins').doc(uid).get();
+    const adminSnap = await db.collection('aedral_admins').doc(uid).get();
     const lastSeenMs = toMillis(adminSnap.data()?.lastDashboardSeenAt);
     const sinceMs = lastSeenMs ?? Date.now() - DEFAULT_LOOKBACK_DAYS * 86_400_000;
 
@@ -193,7 +193,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Action invalide' }, { status: 400 });
     }
 
-    await getAdminDb().collection('admins').doc(uid).set(
+    await getAdminDb().collection('aedral_admins').doc(uid).set(
       { lastDashboardSeenAt: FieldValue.serverTimestamp() },
       { merge: true },
     );
