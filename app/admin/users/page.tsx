@@ -14,6 +14,7 @@ import ImpersonateButton from '@/components/admin/ImpersonateButton';
 import {
   Loader2, ChevronDown, ChevronUp, User, Search, Edit3, LogOut, Crown,
   Ban, RotateCcw, UserMinus, AlertTriangle, X, Save, Trash2, CheckCircle,
+  RefreshCw,
 } from 'lucide-react';
 
 type UserMembership = {
@@ -654,6 +655,14 @@ export default function AdminUsersPage() {
                       style={{ background: 'rgba(255,255,255,0.03)', color: 'var(--s-text-dim)', borderColor: 'var(--s-border)', fontSize: '12px', padding: '8px 16px' }}>
                       {userActionLoading === `${u.uid}_force_disconnect` ? <Loader2 size={12} className="animate-spin" /> : <LogOut size={12} />}
                       <span>Forcer déco</span>
+                    </button>
+
+                    <button onClick={() => handleUserAction(u.uid, 'sync_discord')}
+                      disabled={!!userActionLoading}
+                      className="btn-springs bevel-sm flex items-center gap-2"
+                      style={{ background: 'rgba(88,101,242,0.1)', color: '#a9b2ff', borderColor: 'rgba(88,101,242,0.3)', fontSize: '12px', padding: '8px 16px' }}>
+                      {userActionLoading === `${u.uid}_sync_discord` ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                      <span>Sync Discord</span>
                     </button>
 
                     <button onClick={() => setConfirmAction({ userId: u.uid, action: 'delete', label: `Supprimer définitivement le compte de ${u.displayName} ? Cette action est IRRÉVERSIBLE.` })}

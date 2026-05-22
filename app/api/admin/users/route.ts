@@ -7,6 +7,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { bumpStructureCounter } from '@/lib/structure-counters';
+import { syncDiscordMember } from '@/lib/discord-role-sync';
 
 // Quand un fondateur est banni/supprimé, on essaie de promouvoir son premier co-fondateur
 // pour ne pas laisser une structure sans tête. Si pas de co-fondateur, on passe la
@@ -275,6 +276,19 @@ export async function POST(req: NextRequest) {
           targetLabel: userLabel,
         });
         return NextResponse.json({ ok: true, message: 'Tokens révoqués — déconnexion forcée' });
+      }
+
+      // ─── Resync Discord (pseudo + rôles sur le serveur Aedral) ─────────
+      case 'sync_discord': {
+        const result = await syncDiscordMember(db, userId);
+        const labels: Record<string, string> = {
+          synced: 'Discord synchronisé (pseudo + rôles)',
+          not_on_server: "Ce joueur n'a pas rejoint le serveur Discord Aedral",
+          no_discord_id: "Ce compte n'est pas lié à Discord",
+          disabled: 'Synchronisation Discord non configurée',
+          error: 'Erreur pendant la synchronisation Discord',
+        };
+        return NextResponse.json({ ok: result === 'synced', message: labels[result] ?? 'Terminé' });
       }
 
       // ─── Ajouter admin ─────────────────────────────────────────────────
