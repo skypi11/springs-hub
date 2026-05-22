@@ -3,6 +3,7 @@ import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { fetchDiscordConnections, mergeConnections, type DiscordConnection } from '@/lib/discord-connections';
+import { syncDiscordMember } from '@/lib/discord-role-sync';
 
 export async function GET(req: NextRequest) {
   // Rate limit OAuth par IP — protège contre le bruteforce de codes Discord
@@ -135,6 +136,10 @@ export async function GET(req: NextRequest) {
         ...(mergedConnections ? { discordConnections: mergedConnections } : {}),
       });
     }
+
+    // Synchronise pseudo serveur + rôles Discord sur le serveur Aedral.
+    // No-op si l'utilisateur n'a pas rejoint le serveur. Ne throw jamais.
+    await syncDiscordMember(db, uid);
 
     // Le custom token Firebase NE doit PAS transiter par l'URL (logs Vercel,
     // historique navigateur, header Referer vers ressources externes). On le

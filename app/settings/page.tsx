@@ -87,6 +87,8 @@ export default function SettingsPage() {
   const [mustComplete, setMustComplete] = useState(false);
   const [steamLinked, setSteamLinked] = useState<SteamLinked | null>(null);
   const [linkingSteam, setLinkingSteam] = useState(false);
+  const [discordSyncing, setDiscordSyncing] = useState(false);
+  const [discordSyncMsg, setDiscordSyncMsg] = useState('');
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
@@ -186,6 +188,26 @@ export default function SettingsPage() {
     } finally {
       setLinkingSteam(false);
     }
+  }
+
+  async function handleDiscordSync() {
+    if (!firebaseUser) return;
+    setDiscordSyncing(true);
+    setDiscordSyncMsg('');
+    try {
+      const r = await api<{ result: string }>('/api/discord/sync-me', { method: 'POST' });
+      const messages: Record<string, string> = {
+        synced: '✓ Pseudo et rôles synchronisés sur le serveur Discord Aedral.',
+        not_on_server: "Tu n'as pas encore rejoint le serveur Discord Aedral. Rejoins-le, puis resynchronise.",
+        no_discord_id: 'Ton compte n\'est pas lié à Discord.',
+        disabled: 'La synchronisation Discord n\'est pas encore activée côté serveur.',
+        error: 'Erreur pendant la synchronisation. Réessaie plus tard.',
+      };
+      setDiscordSyncMsg(messages[r.result] ?? 'Synchronisation terminée.');
+    } catch {
+      setDiscordSyncMsg('Erreur réseau. Réessaie plus tard.');
+    }
+    setDiscordSyncing(false);
   }
 
   async function handleExport() {
@@ -1252,6 +1274,34 @@ export default function SettingsPage() {
                       <p className="text-xs mt-2" style={{ color: 'var(--s-text-muted)' }}>
                         Ton compte Springs est lié à Discord. Pour changer d&apos;identifiant Discord, déconnecte-toi et reconnecte-toi avec un autre compte.
                       </p>
+                    </div>
+
+                    <div className="divider" />
+
+                    {/* Synchronisation du serveur Discord communautaire Aedral */}
+                    <div>
+                      <label className="t-label block mb-2">Serveur Discord Aedral</label>
+                      <p className="text-xs mb-2.5" style={{ color: 'var(--s-text-muted)' }}>
+                        Si tu as rejoint le serveur communautaire Aedral, ton pseudo y devient
+                        « [TAG] Pseudo » et tes rôles (structure, recrutement…) se mettent à jour.
+                        C&apos;est fait à chaque connexion — ce bouton force une resynchronisation.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleDiscordSync}
+                        disabled={discordSyncing}
+                        className="btn-springs btn-secondary bevel-sm inline-flex items-center gap-2 disabled:opacity-50"
+                      >
+                        {discordSyncing
+                          ? <Loader2 size={12} className="animate-spin" />
+                          : <RefreshCw size={12} />}
+                        Resynchroniser mon Discord
+                      </button>
+                      {discordSyncMsg && (
+                        <p className="text-xs mt-2" style={{ color: 'var(--s-text-dim)' }}>
+                          {discordSyncMsg}
+                        </p>
+                      )}
                     </div>
 
                     <div className="divider" />
