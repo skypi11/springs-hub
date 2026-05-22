@@ -88,7 +88,7 @@ export default function AdminUsersPage() {
       ? window.prompt('Pour confirmer, tape FORCER en majuscules :')
       : null;
     if (typed !== 'FORCER') {
-      toast.show({ kind: 'info', message: 'Annulé (mot de confirmation incorrect).' });
+      toast.info('Annulé (mot de confirmation incorrect).');
       return;
     }
     setMassLoading('force_disconnect');
@@ -97,9 +97,9 @@ export default function AdminUsersPage() {
         '/api/admin/users/mass',
         { method: 'POST', body: { action: 'force_disconnect_all', confirm: 'FORCER' } },
       );
-      toast.show({ kind: 'success', message: data.message ?? 'Sessions révoquées.' });
+      toast.success(data.message ?? 'Sessions révoquées.');
     } catch (err) {
-      toast.show({ kind: 'error', message: err instanceof ApiError ? err.message : 'Erreur serveur.' });
+      toast.error(err instanceof ApiError ? err.message : 'Erreur serveur.');
     } finally {
       setMassLoading(null);
     }
@@ -118,12 +118,10 @@ export default function AdminUsersPage() {
         '/api/admin/users/mass',
         { method: 'POST', body: { action: 'sync_discord_all' } },
       );
-      toast.show({
-        kind: data.partial ? 'info' : 'success',
-        message: data.message ?? 'Sync terminée.',
-      });
+      const msg = data.message ?? 'Sync terminée.';
+      if (data.partial) toast.info(msg); else toast.success(msg);
     } catch (err) {
-      toast.show({ kind: 'error', message: err instanceof ApiError ? err.message : 'Erreur serveur.' });
+      toast.error(err instanceof ApiError ? err.message : 'Erreur serveur.');
     } finally {
       setMassLoading(null);
     }
