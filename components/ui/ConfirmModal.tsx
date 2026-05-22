@@ -54,10 +54,15 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
 
   function handleClose(result: boolean) {
     if (!active) return;
-    active.resolve(result);
+    const closing = active;
+    closing.resolve(result);
     setVisible(false);
-    // Laisse l'animation jouer avant de retirer le DOM
-    setTimeout(() => setActive(null), 200);
+    // Laisse l'animation jouer avant de retirer le DOM — mais seulement si
+    // aucune nouvelle modale n'a été ouverte entre-temps. Sans ce garde, deux
+    // confirm() enchaînés se cassent : la fermeture du 1er efface le 2e.
+    setTimeout(() => {
+      setActive(curr => (curr === closing ? null : curr));
+    }, 200);
   }
 
   return (
