@@ -126,7 +126,9 @@ async function computeUserProfile(db: Firestore, userId: string): Promise<UserPr
     for (const s of structSnaps) {
       if (!s.exists) continue;
       const sd = s.data()!;
-      if (sd.status !== 'active') continue; // on ignore les structures non actives
+      // On ne saute que les structures refusées : une structure en attente de
+      // validation a quand même un vrai fondateur — il doit avoir son rôle.
+      if (sd.status === 'rejected') continue;
       if (sd.tag) tags.push(String(sd.tag));
       if (sd.founderId === userId || (sd.coFounderIds ?? []).includes(userId)) roleKeys.add('fondateur');
       if ((sd.managerIds ?? []).includes(userId)) roleKeys.add('manager');
