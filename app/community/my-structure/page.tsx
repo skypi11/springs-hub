@@ -237,9 +237,19 @@ export default function MyStructurePage() {
         api<{ structures: MyStructure[] }>('/api/structures/my').catch(() => ({ structures: [] as MyStructure[] })),
         api<{ structures: PlayerStructure[] }>('/api/structures/my-player').catch(() => ({ structures: [] as PlayerStructure[] })),
       ]);
-      setStructures(staffData.structures ?? []);
-      if (staffData.structures?.length > 0 && !activeStructure) {
-        selectStructure(staffData.structures[0]);
+      const fresh = staffData.structures ?? [];
+      setStructures(fresh);
+      if (!activeStructure) {
+        if (fresh.length > 0) selectStructure(fresh[0]);
+      } else {
+        // Resynchronise la structure affichée avec les données fraîches —
+        // sinon une action (transfert, promotion…) n'apparaît qu'après un
+        // refresh complet. On met à jour l'objet sans toucher aux champs
+        // d'édition en cours (donc setActiveStructure, pas selectStructure).
+        const updated = fresh.find(x => x.id === activeStructure.id);
+        if (updated) setActiveStructure(updated);
+        else if (fresh.length > 0) selectStructure(fresh[0]);
+        else setActiveStructure(null);
       }
       setPlayerStructures(playerData.structures ?? []);
     } catch (err) {
