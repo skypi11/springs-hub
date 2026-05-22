@@ -46,6 +46,13 @@ export async function GET(req: NextRequest) {
 
     const tokenData = await tokenRes.json();
     const accessToken = tokenData.access_token;
+    // refresh_token : long-vivant, sert au cron nocturne pour rafraîchir les
+    // connexions Discord sans intervention du joueur (notamment pseudo Epic
+    // qui sert à construire l'URL tracker.gg). Stocké server-only en aval.
+    const refreshToken: string | undefined =
+      typeof tokenData.refresh_token === 'string' ? tokenData.refresh_token : undefined;
+    const tokenExpiresIn: number | null =
+      typeof tokenData.expires_in === 'number' ? tokenData.expires_in : null;
 
     // Fetch Discord user info
     const userRes = await fetch('https://discord.com/api/users/@me', {
@@ -135,6 +142,23 @@ export async function GET(req: NextRequest) {
         discordAvatar: avatarUrl,
         ...(mergedConnections ? { discordConnections: mergedConnections } : {}),
       });
+    }
+
+    // Persiste le refresh_token Discord dans une collection server-only
+    // (firestore.rules : `match /user_secrets/{uid} { allow read, write: if false; }`).
+    // Jamais exposé client. Lu uniquement par lib/discord-refresh.ts.
+    if (refreshToken) {
+      try {
+        await db.collection('user_secrets').doc(uid).set({
+          discordRefreshToken: refreshToken,
+          discordTokenIssuedAt: FieldValue.serverTimestamp(),
+          discordTokenExpiresIn: tokenExpiresIn,
+        }, { merge: true });
+      } catch (err) {
+        // Non-bloquant : sans refresh_token le cron ne pourra pas resync ce
+        // joueur, mais le login fonctionne quand même.
+        console.error('[Discord callback] store refresh_token failed (non-fatal):', err);
+      }
     }
 
     // Synchronise pseudo serveur + rôles Discord sur le serveur Aedral.

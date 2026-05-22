@@ -39,6 +39,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── Secrets serveur par user (refresh tokens, etc.) ──────────────────────
+    // STRICTEMENT serveur — jamais lu ni écrit côté client. Admin SDK uniquement.
+    // Sert au refresh_token Discord pour la passe nocturne de sync (cron).
+    match /user_secrets/{uid} {
+      allow read, write: if false;
+    }
+
     // ── Springs Hub — Profils joueurs globaux ────────────────────────────────
     // Toutes les écritures passent par les API routes (Admin SDK).
     // Le client ne fait que lire pour les profils publics.

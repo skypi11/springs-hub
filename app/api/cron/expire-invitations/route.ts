@@ -4,6 +4,10 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { createNotifications } from '@/lib/notifications';
 import { captureApiError } from '@/lib/sentry';
 import { expiredDepartures } from '@/lib/structure-roles';
+import { syncDiscordMember } from '@/lib/discord-role-sync';
+import { fetchDiscordConnections, mergeConnections, type DiscordConnection } from '@/lib/discord-connections';
+import { refreshDiscordAccessToken } from '@/lib/discord-refresh';
+import { isValidEpicId } from '@/lib/rl-identity';
 
 // GET /api/cron/expire-invitations
 // Vercel Cron quotidien (3h) — deux nettoyages :
@@ -49,6 +53,68 @@ async function processExpiredDepartures(db: FirebaseFirestore.Firestore): Promis
     processed += expired.length;
   }
   return processed;
+}
+
+// Passe nocturne Discord — voir docs/rl-rank-verification-plan.md.
+// Deux phases par user :
+//  1. syncDiscordMember (pseudo serveur [TAG] Pseudo + 7 rôles) — utilise le
+//     token du bot, marche pour TOUT LE MONDE.
+//  2. Si refresh_token stocké : refresh access_token Discord → fetch
+//     connections → si pseudo Epic a changé, on met à jour rlEpicName
+//     (jamais rlEpicId, qui reste figé).
+//
+// Tolérante aux erreurs par-user — un échec n'interrompt pas la boucle.
+// Petit délai entre users pour rester ami avec le rate-limit Discord.
+async function processNightlyDiscordSync(
+  db: FirebaseFirestore.Firestore,
+): Promise<{ rolesSynced: number; connectionsRefreshed: number; epicNamesUpdated: number; errors: number }> {
+  let rolesSynced = 0;
+  let connectionsRefreshed = 0;
+  let epicNamesUpdated = 0;
+  let errors = 0;
+
+  const usersSnap = await db.collection('users').get();
+  for (const userDoc of usersSnap.docs) {
+    const uid = userDoc.id;
+    try {
+      // Phase 1 — sync rôles/pseudo via bot (no-op si l'user n'est pas sur le serveur)
+      const syncResult = await syncDiscordMember(db, uid);
+      if (syncResult === 'synced') rolesSynced++;
+
+      // Phase 2 — refresh des connexions Discord (besoin du refresh_token user)
+      const refreshed = await refreshDiscordAccessToken(db, uid);
+      if (refreshed) {
+        const fresh = await fetchDiscordConnections(refreshed.accessToken);
+        if (fresh.length > 0) {
+          const existing = userDoc.data().discordConnections as DiscordConnection[] | undefined;
+          const merged = mergeConnections(fresh, existing);
+          const updates: Record<string, unknown> = { discordConnections: merged };
+
+          // Si on a une identité Epic officielle figée, on rafraîchit son
+          // pseudo si la connexion Discord montre toujours ce même compte
+          // avec un nouveau nom.
+          const rlEpicId = userDoc.data().rlEpicId as string | undefined;
+          if (isValidEpicId(rlEpicId)) {
+            const matching = fresh.find(c => c.type === 'epicgames' && c.verified && c.id === rlEpicId);
+            const currentName = userDoc.data().rlEpicName as string | undefined;
+            if (matching?.name && matching.name !== currentName) {
+              updates.rlEpicName = matching.name;
+              updates.rlPlatformId = matching.name; // miroir pour les URLs tracker
+              epicNamesUpdated++;
+            }
+          }
+          await userDoc.ref.update(updates);
+          connectionsRefreshed++;
+        }
+      }
+    } catch (err) {
+      errors++;
+      console.error(`[cron nightly-discord] uid=${uid}`, err);
+    }
+    // ~100ms entre users — pour ~100 users on est sous 15s total + sous le rate-limit Discord
+    await new Promise(r => setTimeout(r, 100));
+  }
+  return { rolesSynced, connectionsRefreshed, epicNamesUpdated, errors };
 }
 
 export async function GET(req: NextRequest) {
@@ -122,11 +188,15 @@ export async function GET(req: NextRequest) {
     // 2. Préavis de départ de co-fondateurs expirés
     const departuresProcessed = await processExpiredDepartures(db);
 
+    // 3. Passe nocturne Discord (sync rôles + refresh connexions/pseudo Epic)
+    const discordSync = await processNightlyDiscordSync(db);
+
     return NextResponse.json({
       ok: true,
       expired: expiredCount,
       cutoffDays: EXPIRY_DAYS,
       coFounderDeparturesProcessed: departuresProcessed,
+      discordSync,
     });
   } catch (err) {
     captureApiError('API cron expire-invitations error', err);

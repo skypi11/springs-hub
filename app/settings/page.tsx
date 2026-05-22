@@ -89,6 +89,9 @@ export default function SettingsPage() {
   const [linkingSteam, setLinkingSteam] = useState(false);
   const [discordSyncing, setDiscordSyncing] = useState(false);
   const [discordSyncMsg, setDiscordSyncMsg] = useState('');
+  // Compte Epic officiel (anti-mensonge / sticky) — voir docs/rl-rank-verification-plan.md
+  const [epicLinked, setEpicLinked] = useState<{ rlEpicId: string; rlEpicName: string } | null>(null);
+  const [confirmingEpic, setConfirmingEpic] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
@@ -190,6 +193,32 @@ export default function SettingsPage() {
     }
   }
 
+  // Snapshot l'ID Epic depuis la connexion Discord vérifiée vers rlEpicId.
+  // Premier lien : libre. Changements ultérieurs : passent par une demande
+  // admin (Lot 6). Voir docs/rl-rank-verification-plan.md.
+  async function handleConfirmEpicLink() {
+    setConfirmingEpic(true);
+    try {
+      const r = await api<{ ok?: boolean; message?: string; rlEpicId?: string; rlEpicName?: string }>(
+        '/api/profile/rl-epic-link',
+        { method: 'POST', body: {} },
+      );
+      if (r.ok && r.rlEpicId) {
+        setEpicLinked({ rlEpicId: r.rlEpicId, rlEpicName: r.rlEpicName ?? '' });
+        toast.success(r.message ?? 'Compte Epic lié.');
+        // Recharge le profil pour propager rlPlatform/rlPlatformId (miroir)
+        await refreshProfile?.();
+      } else {
+        toast.error(r.message ?? "Échec de la liaison.");
+      }
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Erreur réseau.';
+      toast.error(msg);
+    } finally {
+      setConfirmingEpic(false);
+    }
+  }
+
   async function handleDiscordSync() {
     if (!firebaseUser) return;
     setDiscordSyncing(true);
@@ -287,6 +316,15 @@ export default function SettingsPage() {
     // Steam OpenID linkage (priorité absolue pour RL si présent — SteamID64 immuable)
     const steamLinkedData = (data.steamLinked as unknown as SteamLinked | undefined) ?? null;
     setSteamLinked(steamLinkedData);
+
+    // Compte Epic officiel (sticky) — snapshot 32-hex figé via la connexion
+    // Discord vérifiée. Voir docs/rl-rank-verification-plan.md.
+    const rlEpicId = (data.rlEpicId as string) || '';
+    if (rlEpicId) {
+      setEpicLinked({ rlEpicId, rlEpicName: (data.rlEpicName as string) || '' });
+    } else {
+      setEpicLinked(null);
+    }
 
     const initialPlatform: RLPlatform | '' = isValidRLPlatform(savedPlatform)
       ? savedPlatform
@@ -740,6 +778,93 @@ export default function SettingsPage() {
                             <span className="tag tag-blue" style={{ fontSize: '12px' }}>RL</span>
                             <span className="t-label" style={{ color: 'var(--s-blue)' }}>Config Rocket League</span>
                           </div>
+
+                          {/* ── Compte Epic officiel (anti-mensonge / sticky) ── */}
+                          {(() => {
+                            const epicConn = (form.connections ?? []).find(c => c.type === 'epicgames' && c.verified);
+                            const epicMissingFromDiscord = !!epicLinked && (!epicConn || epicConn.id !== epicLinked.rlEpicId);
+
+                            if (epicLinked) {
+                              return (
+                                <div className="p-3 space-y-2"
+                                  style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.3)' }}>
+                                  <div className="flex items-center gap-2">
+                                    <CheckCircle size={14} style={{ color: 'var(--s-gold)' }} />
+                                    <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
+                                      Compte Rocket League vérifié
+                                    </span>
+                                    <span className="tag tag-gold" style={{ fontSize: '9px', padding: '1px 5px' }}>✓ FIGÉ</span>
+                                  </div>
+                                  <div className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                                    <span className="font-semibold" style={{ color: 'var(--s-text)' }}>
+                                      {epicLinked.rlEpicName || `${epicLinked.rlEpicId.slice(0, 10)}…`}
+                                    </span>
+                                    <span className="t-mono ml-2" style={{ color: 'var(--s-text-muted)', fontSize: '10px' }}>
+                                      {epicLinked.rlEpicId}
+                                    </span>
+                                  </div>
+                                  {epicMissingFromDiscord && (
+                                    <div className="p-2" style={{ background: 'rgba(255,85,85,0.08)', border: '1px solid rgba(255,85,85,0.25)' }}>
+                                      <p className="text-xs" style={{ color: '#ff8a8a' }}>
+                                        ⚠️ On ne retrouve plus ce compte Epic sur ton Discord. Relie-le à nouveau (Paramètres Discord → Connexions → Epic Games) pour qu'on puisse rafraîchir ton pseudo automatiquement.
+                                      </p>
+                                    </div>
+                                  )}
+                                  <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                                    Pour changer le compte lié → demande admin (à venir).
+                                  </p>
+                                </div>
+                              );
+                            }
+
+                            if (epicConn) {
+                              return (
+                                <div className="p-3 space-y-2"
+                                  style={{ background: 'rgba(255,184,0,0.04)', border: '1px solid rgba(255,184,0,0.2)' }}>
+                                  <div className="flex items-center gap-2">
+                                    <AlertCircle size={14} style={{ color: 'var(--s-gold)' }} />
+                                    <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
+                                      Confirme ton compte Rocket League
+                                    </span>
+                                  </div>
+                                  <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                                    On voit ce compte Epic sur ton Discord :{' '}
+                                    <span className="font-semibold" style={{ color: 'var(--s-text)' }}>{epicConn.name}</span>.
+                                    <br />
+                                    C'est bien ton compte Rocket League <strong>principal</strong> ? Une fois lié, il est <strong>figé</strong> sur ton profil (changement futur = demande admin).
+                                  </p>
+                                  <div className="flex gap-2 flex-wrap">
+                                    <button type="button"
+                                      onClick={handleConfirmEpicLink}
+                                      disabled={confirmingEpic}
+                                      className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2 disabled:opacity-50"
+                                      style={{ fontSize: '12px', padding: '8px 14px' }}>
+                                      {confirmingEpic ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
+                                      Oui, c'est mon compte principal
+                                    </button>
+                                  </div>
+                                  <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                                    Pas mon compte principal ? Sur Discord → Paramètres → Connexions → retire cette connexion Epic et ajoute la bonne, puis reconnecte-toi à Aedral.
+                                  </p>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div className="p-3 space-y-1"
+                                style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--s-border)' }}>
+                                <div className="flex items-center gap-2">
+                                  <AlertCircle size={14} style={{ color: 'var(--s-text-muted)' }} />
+                                  <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
+                                    Aucun compte Rocket League vérifié
+                                  </span>
+                                </div>
+                                <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                                  Pour qu'on puisse afficher un rang vérifiable, lie ton compte Epic à ton Discord (Paramètres Discord → Connexions → Epic Games), puis reconnecte-toi à Aedral.
+                                </p>
+                              </div>
+                            );
+                          })()}
 
                           {/* ── Liaison Steam (chemin recommandé pour les Steam users) ── */}
                           {steamLinked ? (

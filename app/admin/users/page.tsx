@@ -14,7 +14,7 @@ import ImpersonateButton from '@/components/admin/ImpersonateButton';
 import {
   Loader2, ChevronDown, ChevronUp, User, Search, Edit3, LogOut, Crown,
   Ban, RotateCcw, UserMinus, AlertTriangle, X, Save, Trash2, CheckCircle,
-  RefreshCw,
+  RefreshCw, Zap,
 } from 'lucide-react';
 
 type UserMembership = {
@@ -72,6 +72,62 @@ export default function AdminUsersPage() {
     isAvailableForRecruitment: false, recruitmentRole: '', recruitmentMessage: '',
   });
   const [confirmAction, setConfirmAction] = useState<{ userId: string; action: string; label: string } | null>(null);
+  const [massLoading, setMassLoading] = useState<null | 'force_disconnect' | 'sync_discord'>(null);
+
+  // ─── Actions de masse — toutes les sessions / sync de tout le serveur ───
+  // Cf. docs/rl-rank-verification-plan.md (migration des refresh_token).
+  async function handleMassForceDisconnect() {
+    const ok = await confirm({
+      title: 'Forcer la déconnexion de TOUS les joueurs',
+      message: 'Toutes les sessions Firebase actives vont être révoquées (sauf la tienne). Chaque joueur devra recliquer « Connecter avec Discord » à sa prochaine visite — aucune donnée perdue, juste un re-login. Cette action est journalisée.\n\nUtile pour la migration du refresh_token Discord (sync auto du pseudo Epic).',
+      variant: 'danger',
+      confirmLabel: 'Continuer',
+    });
+    if (!ok) return;
+    const typed = typeof window !== 'undefined'
+      ? window.prompt('Pour confirmer, tape FORCER en majuscules :')
+      : null;
+    if (typed !== 'FORCER') {
+      toast.show({ kind: 'info', message: 'Annulé (mot de confirmation incorrect).' });
+      return;
+    }
+    setMassLoading('force_disconnect');
+    try {
+      const data = await api<{ message?: string; revoked?: number; failed?: number }>(
+        '/api/admin/users/mass',
+        { method: 'POST', body: { action: 'force_disconnect_all', confirm: 'FORCER' } },
+      );
+      toast.show({ kind: 'success', message: data.message ?? 'Sessions révoquées.' });
+    } catch (err) {
+      toast.show({ kind: 'error', message: err instanceof ApiError ? err.message : 'Erreur serveur.' });
+    } finally {
+      setMassLoading(null);
+    }
+  }
+
+  async function handleMassSyncDiscord() {
+    const ok = await confirm({
+      title: 'Sync Discord pour tous',
+      message: 'Met à jour le pseudo serveur ([TAG] Pseudo) et les rôles sur le serveur Discord Aedral pour tous les joueurs. Action non destructive. Peut prendre une minute.',
+      confirmLabel: 'Lancer la sync',
+    });
+    if (!ok) return;
+    setMassLoading('sync_discord');
+    try {
+      const data = await api<{ message?: string; synced?: number; partial?: boolean }>(
+        '/api/admin/users/mass',
+        { method: 'POST', body: { action: 'sync_discord_all' } },
+      );
+      toast.show({
+        kind: data.partial ? 'info' : 'success',
+        message: data.message ?? 'Sync terminée.',
+      });
+    } catch (err) {
+      toast.show({ kind: 'error', message: err instanceof ApiError ? err.message : 'Erreur serveur.' });
+    } finally {
+      setMassLoading(null);
+    }
+  }
 
   async function loadUsers() {
     if (!firebaseUser) return;
@@ -149,6 +205,30 @@ export default function AdminUsersPage() {
             {bannedCount} banni{bannedCount > 1 ? 's' : ''}
           </span>
         )}
+      </div>
+
+      {/* Actions de masse — boutons admin globaux */}
+      <div className="panel p-3 flex flex-wrap items-center gap-3"
+        style={{ borderColor: 'rgba(255,184,0,0.18)', background: 'rgba(255,184,0,0.03)' }}>
+        <Zap size={14} style={{ color: 'var(--s-gold)' }} />
+        <span className="t-label" style={{ color: 'var(--s-gold)' }}>Actions globales</span>
+        <div className="flex-1" />
+        <button type="button"
+          onClick={handleMassSyncDiscord}
+          disabled={!!massLoading}
+          className="btn-springs bevel-sm flex items-center gap-2"
+          style={{ background: 'rgba(88,101,242,0.1)', color: '#a9b2ff', borderColor: 'rgba(88,101,242,0.3)', fontSize: '12px', padding: '8px 16px' }}>
+          {massLoading === 'sync_discord' ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+          <span>Sync Discord (tous)</span>
+        </button>
+        <button type="button"
+          onClick={handleMassForceDisconnect}
+          disabled={!!massLoading}
+          className="btn-springs bevel-sm flex items-center gap-2"
+          style={{ background: 'rgba(255,85,85,0.08)', color: '#ff8a8a', borderColor: 'rgba(255,85,85,0.3)', fontSize: '12px', padding: '8px 16px' }}>
+          {massLoading === 'force_disconnect' ? <Loader2 size={12} className="animate-spin" /> : <LogOut size={12} />}
+          <span>Forcer déco (tous)</span>
+        </button>
       </div>
 
       {/* Barre de recherche + filtres */}
