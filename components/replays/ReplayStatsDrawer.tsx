@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Loader2, AlertTriangle, X, Trophy, Target, Hand, Crosshair,
-  Zap, Gauge, MapPin, Skull, Sigma, BarChart3,
+  Zap, Gauge, MapPin, Skull, Sigma, BarChart3, ChevronDown, ChevronRight,
+  Maximize2, Minimize2,
 } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import Portal from '@/components/ui/Portal';
@@ -30,7 +31,7 @@ interface CachedStats {
   players: PlayerStats[];
 }
 
-interface AggResponse {
+export interface AggResponse {
   totalCount: number;
   parsedCount: number;
   replays: { replayId: string; title: string; stats: CachedStats }[];
@@ -287,7 +288,8 @@ function DrawerBody({
 
 // Carte d'un replay dans la vue "match complet" — wrap StatsBlock + highlight
 // pour le replay focused + sticky title pour repérer où on est en scrollant.
-function ReplayCard({
+// Exportée pour réutilisation dans la page dédiée /community/event/[id]/stats.
+export function ReplayCard({
   index,
   total,
   title,
@@ -356,6 +358,13 @@ function ViewToggle({ view, onChange }: { view: 'single' | 'all'; onChange: (v: 
 // Bloc de stats — utilisé à la fois pour le replay courant et pour la section
 // agrégée du match. Le `mode` ne contrôle que la ligne TEAM ici, mais
 // AggregatedSection le passe à ses propres aggregateByPlayer.
+// Clés des 5 sections collapsibles d'un StatsBlock.
+type SectionKey = 'core' | 'boost' | 'movement' | 'positioning' | 'demos';
+// Default : seule la section Core est dépliée pour limiter le scroll.
+const DEFAULT_SECTIONS_OPEN: Record<SectionKey, boolean> = {
+  core: true, boost: false, movement: false, positioning: false, demos: false,
+};
+
 function StatsBlock({
   title,
   subtitle,
@@ -378,6 +387,35 @@ function StatsBlock({
   const blue = stats.players.filter(p => p.team === 'blue');
   const orange = stats.players.filter(p => p.team === 'orange');
 
+  const [open, setOpen] = useState<Record<SectionKey, boolean>>(DEFAULT_SECTIONS_OPEN);
+  const toggleSection = (k: SectionKey) => setOpen(o => ({ ...o, [k]: !o[k] }));
+  const expandAll = () => setOpen({ core: true, boost: true, movement: true, positioning: true, demos: true });
+  const collapseAll = () => setOpen({ core: false, boost: false, movement: false, positioning: false, demos: false });
+
+  // Résumés en mode replié — formulés courts, sur 1 ligne, pour qu'on capte
+  // l'essentiel sans déplier. Tous calculés depuis les agrégats équipe.
+  const mvp = stats.players.find(p => p.mvp);
+  const summaries: Record<SectionKey, string> = {
+    core: `Score : ${stats.blueGoals}-${stats.orangeGoals}${mvp ? ` · MVP : ${mvp.name}` : ''}`,
+    boost: teamAggBlue.boost && teamAggOrange.boost
+      ? `BPM moy. : ${stats.blueName} ${fmtNum(teamAggBlue.boost.bpm)} · ${stats.orangeName} ${fmtNum(teamAggOrange.boost.bpm)}`
+      : '—',
+    movement: teamAggBlue.movement && teamAggOrange.movement
+      ? `Vitesse moy. : ${stats.blueName} ${fmtNum(teamAggBlue.movement.avgSpeed)} · ${stats.orangeName} ${fmtNum(teamAggOrange.movement.avgSpeed)} km/h`
+      : '—',
+    positioning: teamAggBlue.positioning && teamAggOrange.positioning
+      ? `% derrière balle : ${stats.blueName} ${fmtPct(teamAggBlue.positioning.percentBehindBall)} · ${stats.orangeName} ${fmtPct(teamAggOrange.positioning.percentBehindBall)}`
+      : '—',
+    demos: teamAggBlue.demo && teamAggOrange.demo
+      ? `Demos infligés : ${stats.blueName} ${fmtNum(teamAggBlue.demo.inflicted)} · ${stats.orangeName} ${fmtNum(teamAggOrange.demo.inflicted)}`
+      : '—',
+  };
+
+  const hasBoost = stats.players.some(p => p.boost);
+  const hasMovement = stats.players.some(p => p.movement);
+  const hasPositioning = stats.players.some(p => p.positioning);
+  const hasDemos = stats.players.some(p => p.demo);
+
   return (
     <div className="space-y-4">
       {/* Header bloc */}
@@ -388,7 +426,23 @@ function StatsBlock({
             <div className="text-xs mt-0.5" style={{ color: 'var(--s-text-muted)' }}>{subtitle}</div>
           )}
         </div>
-        {modeToggle}
+        <div className="flex items-center gap-2 flex-wrap">
+          {modeToggle}
+          <div className="inline-flex bevel-sm overflow-hidden" style={{ border: '1px solid var(--s-border)', background: 'var(--s-surface)' }}>
+            <button type="button" onClick={expandAll}
+              title="Tout déplier"
+              className="px-2 py-1.5 text-xs flex items-center gap-1 transition-colors hover:bg-[var(--s-hover)]"
+              style={{ color: 'var(--s-text-dim)' }}>
+              <Maximize2 size={11} />
+            </button>
+            <button type="button" onClick={collapseAll}
+              title="Tout replier"
+              className="px-2 py-1.5 text-xs flex items-center gap-1 transition-colors hover:bg-[var(--s-hover)]"
+              style={{ color: 'var(--s-text-dim)', borderLeft: '1px solid var(--s-border)' }}>
+              <Minimize2 size={11} />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Bandeau score */}
@@ -406,34 +460,33 @@ function StatsBlock({
         </div>
       </div>
 
-      {/* Section Core — avec ligne TEAM en bas */}
-      <Section icon={<Trophy size={13} />} title="CORE">
+      <Section icon={<Trophy size={14} />} title="CORE" summary={summaries.core} open={open.core} onToggle={() => toggleSection('core')}>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <CoreTable label={stats.blueName} accent="#0081FF" players={blue} teamRow={teamAggBlue} />
           <CoreTable label={stats.orangeName} accent="#FFB800" players={orange} teamRow={teamAggOrange} />
         </div>
       </Section>
 
-      {stats.players.some(p => p.boost) && (
-        <Section icon={<Zap size={13} />} title="BOOST">
+      {hasBoost && (
+        <Section icon={<Zap size={14} />} title="BOOST" summary={summaries.boost} open={open.boost} onToggle={() => toggleSection('boost')}>
           <BoostTable players={stats.players} teamRows={[teamAggBlue, teamAggOrange]} />
         </Section>
       )}
 
-      {stats.players.some(p => p.movement) && (
-        <Section icon={<Gauge size={13} />} title="MOUVEMENT">
+      {hasMovement && (
+        <Section icon={<Gauge size={14} />} title="MOUVEMENT" summary={summaries.movement} open={open.movement} onToggle={() => toggleSection('movement')}>
           <MovementTable players={stats.players} teamRows={[teamAggBlue, teamAggOrange]} />
         </Section>
       )}
 
-      {stats.players.some(p => p.positioning) && (
-        <Section icon={<MapPin size={13} />} title="POSITIONNEMENT">
+      {hasPositioning && (
+        <Section icon={<MapPin size={14} />} title="POSITIONNEMENT" summary={summaries.positioning} open={open.positioning} onToggle={() => toggleSection('positioning')}>
           <PositioningTable players={stats.players} teamRows={[teamAggBlue, teamAggOrange]} />
         </Section>
       )}
 
-      {stats.players.some(p => p.demo) && (
-        <Section icon={<Skull size={13} />} title="DEMOS">
+      {hasDemos && (
+        <Section icon={<Skull size={14} />} title="DEMOS" summary={summaries.demos} open={open.demos} onToggle={() => toggleSection('demos')}>
           <DemoTable players={stats.players} teamRows={[teamAggBlue, teamAggOrange]} />
         </Section>
       )}
@@ -445,7 +498,8 @@ function StatsBlock({
 // - Toggle Somme/Moyenne pour les counts (les rates restent toujours en mean)
 // - Joueurs groupés par platformId (un joueur = 1 ligne même s'il est dans N replays)
 // - Ligne TEAM = agrégat des joueurs Blue / Orange
-function AggregatedSection({ aggregated }: { aggregated: AggResponse }) {
+// Exportée pour réutilisation dans la page dédiée /community/event/[id]/stats.
+export function AggregatedSection({ aggregated }: { aggregated: AggResponse }) {
   const [mode, setMode] = useState<AggregationMode>('sum');
 
   // Concatène tous les players de tous les replays parsés.
@@ -517,14 +571,42 @@ function ToggleBtn({ active, onClick, icon, label }: { active: boolean; onClick:
   );
 }
 
-function Section({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+function Section({
+  icon, title, summary, open, onToggle, children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  summary?: string;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
   return (
-    <section>
-      <div className="flex items-center gap-2 mb-2">
-        <span style={{ color: 'var(--s-gold)' }}>{icon}</span>
-        <span className="t-label" style={{ color: 'var(--s-text)' }}>{title}</span>
-      </div>
-      {children}
+    <section className="bevel-sm" style={{ border: '1px solid var(--s-border)', background: 'var(--s-surface)' }}>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[var(--s-hover)]"
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <span style={{ color: 'var(--s-gold)' }}>{icon}</span>
+          <span className="t-label" style={{ color: 'var(--s-text)' }}>{title}</span>
+          {!open && summary && (
+            <span className="text-xs truncate" style={{ color: 'var(--s-text-muted)' }}>
+              <span className="mx-2" style={{ opacity: 0.5 }}>·</span>
+              {summary}
+            </span>
+          )}
+        </div>
+        <span style={{ color: 'var(--s-text-dim)' }}>
+          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </span>
+      </button>
+      {open && (
+        <div className="px-3 pb-3 pt-1">
+          {children}
+        </div>
+      )}
     </section>
   );
 }

@@ -1,7 +1,8 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Film } from 'lucide-react';
+import Link from 'next/link';
+import { Film, BarChart3, ExternalLink } from 'lucide-react';
 import type { UserContext } from '@/lib/event-permissions';
 import { isDirigeant } from '@/lib/event-permissions';
 import { canUploadReplay } from '@/lib/replay-permissions';
@@ -56,9 +57,12 @@ export default function ReplaysPanel({
   const items = data?.replays ?? [];
   const load = () => qc.invalidateQueries({ queryKey });
 
+  // Au moins un replay parsé → on peut proposer le bouton "Voir toutes les stats du match"
+  const hasAnyParsed = items.some(r => r.ballchasingStatus === 'uploaded');
+
   return (
     <div className="space-y-3">
-      {/* Header compact : nombre de replays */}
+      {/* Header compact : nombre de replays + actions */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           <Film size={14} style={{ color: 'var(--s-gold)' }} />
@@ -66,15 +70,32 @@ export default function ReplaysPanel({
             REPLAYS {items.length > 0 && <span style={{ color: 'var(--s-text-muted)' }}>({items.length})</span>}
           </span>
         </div>
-        {canUpload && mode === 'event' && (
-          <ReplayUploader
-            structureId={structureId}
-            teamId={teamId}
-            eventId={eventId ?? null}
-            onUploaded={load}
-            compact
-          />
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Bouton page dédiée — ouvre dans un nouvel onglet pour que le coach
+              puisse consulter les stats en parallèle de la rédaction du compte-rendu */}
+          {mode === 'event' && eventId && hasAnyParsed && (
+            <Link
+              href={`/community/event/${eventId}/stats`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-springs btn-secondary bevel-sm text-xs flex items-center gap-1.5"
+              title="Ouvre les stats détaillées dans un nouvel onglet"
+            >
+              <BarChart3 size={12} />
+              Stats du match
+              <ExternalLink size={10} style={{ opacity: 0.6 }} />
+            </Link>
+          )}
+          {canUpload && mode === 'event' && (
+            <ReplayUploader
+              structureId={structureId}
+              teamId={teamId}
+              eventId={eventId ?? null}
+              onUploaded={load}
+              compact
+            />
+          )}
+        </div>
       </div>
 
       {/* En bibliothèque (drawer équipe), on affiche la zone d'upload large */}
