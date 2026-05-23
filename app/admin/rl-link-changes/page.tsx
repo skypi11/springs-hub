@@ -14,11 +14,12 @@ type ChangeRequest = {
   id: string;
   userUid: string;
   userName: string;
-  currentEpicId: string;
-  currentEpicName: string;
+  platform: 'epic' | 'steam';
+  currentLinkedId: string;
+  currentLinkedName: string;
   currentTrackerUrl: string;
-  requestedEpicId: string;
-  requestedEpicName: string;
+  requestedLinkedId: string;
+  requestedLinkedName: string;
   requestedTrackerUrl: string;
   reason: string;
   status: 'pending' | 'approved' | 'rejected';
@@ -68,8 +69,8 @@ export default function AdminLinkChangesPage() {
     const ok = await confirm({
       title: decision === 'approve' ? 'Approuver le changement' : 'Refuser la demande',
       message: decision === 'approve'
-        ? `Tu vas remplacer le compte Epic officiel de ${r.userName} :\n\n` +
-          `Avant : ${r.currentEpicName}\nAprès : ${r.requestedEpicName}\n\n` +
+        ? `Tu vas remplacer le compte ${r.platform === 'steam' ? 'Steam' : 'Epic'} officiel de ${r.userName} :\n\n` +
+          `Avant : ${r.currentLinkedName}\nAprès : ${r.requestedLinkedName}\n\n` +
           `Cette action est immédiate et journalisée.`
         : `Refuser la demande de ${r.userName} ? Son compte officiel actuel reste inchangé.`,
       variant: decision === 'approve' ? 'default' : 'danger',
@@ -149,6 +150,15 @@ export default function AdminLinkChangesPage() {
                 style={{ color: 'var(--s-text)' }}>
                 {r.userName || r.userUid}
               </Link>
+              {/* Badge plateforme — bleu pour Epic, gris-vert pour Steam */}
+              <span className="tag" style={{
+                background: r.platform === 'steam' ? 'rgba(102,192,244,0.10)' : 'rgba(0,129,255,0.10)',
+                color: r.platform === 'steam' ? '#66c0f4' : '#4fb3ff',
+                borderColor: r.platform === 'steam' ? 'rgba(102,192,244,0.4)' : 'rgba(0,129,255,0.4)',
+                fontSize: '10px',
+              }}>
+                {r.platform === 'steam' ? 'STEAM' : 'EPIC'}
+              </span>
               {r.status === 'pending' && (
                 <span className="tag" style={{ background: 'rgba(255,184,0,0.15)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.4)', fontSize: '10px' }}>
                   EN ATTENTE
@@ -172,9 +182,11 @@ export default function AdminLinkChangesPage() {
             <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-center gap-3 p-3"
               style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
               <div>
-                <p className="t-label mb-1" style={{ color: 'var(--s-text-muted)' }}>Actuel</p>
-                <p className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>{r.currentEpicName}</p>
-                <p className="t-mono text-xs mt-0.5" style={{ color: 'var(--s-text-muted)' }}>{r.currentEpicId}</p>
+                <p className="t-label mb-1" style={{ color: 'var(--s-text-muted)' }}>
+                  Actuel · {r.platform === 'steam' ? 'Steam' : 'Epic'}
+                </p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>{r.currentLinkedName}</p>
+                <p className="t-mono text-xs mt-0.5" style={{ color: 'var(--s-text-muted)' }}>{r.currentLinkedId}</p>
                 {r.currentTrackerUrl && (
                   <a href={r.currentTrackerUrl} target="_blank" rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-xs mt-1.5 hover:underline"
@@ -185,9 +197,11 @@ export default function AdminLinkChangesPage() {
               </div>
               <ArrowRight size={16} style={{ color: 'var(--s-gold)' }} className="hidden md:block" />
               <div>
-                <p className="t-label mb-1" style={{ color: 'var(--s-text-muted)' }}>Demandé</p>
-                <p className="text-sm font-semibold" style={{ color: 'var(--s-gold)' }}>{r.requestedEpicName}</p>
-                <p className="t-mono text-xs mt-0.5" style={{ color: 'var(--s-text-muted)' }}>{r.requestedEpicId}</p>
+                <p className="t-label mb-1" style={{ color: 'var(--s-text-muted)' }}>
+                  Demandé · {r.platform === 'steam' ? 'Steam' : 'Epic'}
+                </p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--s-gold)' }}>{r.requestedLinkedName}</p>
+                <p className="t-mono text-xs mt-0.5" style={{ color: 'var(--s-text-muted)' }}>{r.requestedLinkedId}</p>
                 {r.requestedTrackerUrl && (
                   <a href={r.requestedTrackerUrl} target="_blank" rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-xs mt-1.5 hover:underline"

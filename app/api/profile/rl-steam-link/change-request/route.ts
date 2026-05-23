@@ -1,9 +1,9 @@
-// POST /api/profile/rl-epic-link/change-request
-// Le joueur demande à changer le compte Epic officiel lié à son profil.
-// Pré-requis : il a déjà mis à jour SA connexion Discord pour pointer vers le
-// nouveau compte Epic — on capture cette nouvelle connexion comme "requested".
-// L'admin valide/refuse via /admin/rl-link-changes.
-// Voir docs/rl-rank-verification-plan.md (Lot 6).
+// POST /api/profile/rl-steam-link/change-request
+// Le joueur demande à changer le compte Steam RL officiel lié à son profil.
+// Pré-requis : il a déjà re-lié SA Steam OpenID Aedral vers le nouveau compte
+// (Settings → Lier mon Steam) — on capture cette nouvelle liaison comme
+// "requested" et on l'envoie en validation admin.
+// Voir docs/rl-rank-verification-plan.md.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
@@ -11,9 +11,8 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { clampString } from '@/lib/validation';
-import { findVerifiedEpicConnection, isValidEpicId } from '@/lib/rl-identity';
+import { isValidSteamId64 } from '@/lib/rl-identity';
 import { sendAdminAlert } from '@/lib/admin-discord-alert';
-import type { DiscordConnection } from '@/lib/discord-connections';
 
 export async function POST(req: NextRequest) {
   try {
@@ -37,33 +36,35 @@ export async function POST(req: NextRequest) {
     if (!userSnap.exists) return NextResponse.json({ error: 'Utilisateur introuvable' }, { status: 404 });
     const user = userSnap.data()!;
 
-    const currentEpicId = user.rlEpicId as string | undefined;
-    if (!isValidEpicId(currentEpicId)) {
+    const currentSteamId = user.rlSteamId as string | undefined;
+    if (!isValidSteamId64(currentSteamId)) {
       return NextResponse.json({
-        error: "Tu n'as pas de compte Epic officiel lié — il n'y a rien à changer.",
+        error: "Tu n'as pas de compte Steam RL officiel lié — il n'y a rien à changer.",
       }, { status: 400 });
     }
 
-    const verified = findVerifiedEpicConnection(user.discordConnections as DiscordConnection[] | undefined);
-    if (!verified) {
+    const newSteamId = user.steamLinked?.steamId64 as string | undefined;
+    if (!isValidSteamId64(newSteamId)) {
       return NextResponse.json({
-        error: 'On ne voit aucune connexion Epic vérifiée sur ton Discord. Lie ton nouveau compte Epic à ton Discord, reconnecte-toi à Aedral, puis refais la demande.',
+        error: "Aucun compte Steam lié actuellement. Re-lie Steam (Settings → « Lier mon Steam ») vers le nouveau compte, puis refais la demande.",
       }, { status: 400 });
     }
-    if (verified.id === currentEpicId) {
+    if (newSteamId === currentSteamId) {
       return NextResponse.json({
-        error: 'La connexion Epic sur ton Discord est la MÊME que ton compte officiel actuel. Pour changer : sur Discord, retire cette connexion et lie le nouveau compte, reconnecte-toi, puis reviens.',
+        error: 'Le Steam actuellement lié à Aedral est le MÊME que ton compte officiel. Pour changer : sur Settings, délie Steam et re-lie le nouveau compte, puis reviens.',
       }, { status: 400 });
     }
+    const newSteamName = (user.steamLinked?.personaName as string) || newSteamId;
+    const currentSteamName = (user.rlSteamName as string) || currentSteamId;
 
-    // Bloquer plusieurs demandes Epic pending en parallèle pour le même user
+    // Bloque plusieurs demandes pending en parallèle pour le même user et plateforme
     const pending = await db.collection('rl_link_change_requests')
       .where('userUid', '==', uid)
       .where('status', '==', 'pending')
       .limit(5).get();
-    if (pending.docs.some(d => (d.data().platform || 'epic') === 'epic')) {
+    if (pending.docs.some(d => (d.data().platform || 'epic') === 'steam')) {
       return NextResponse.json({
-        error: 'Tu as déjà une demande de changement Epic en attente. Patiente — l\'admin va la traiter.',
+        error: 'Tu as déjà une demande de changement Steam en attente. Patiente — l\'admin va la traiter.',
       }, { status: 409 });
     }
 
@@ -71,34 +72,29 @@ export async function POST(req: NextRequest) {
     await reqRef.set({
       userUid: uid,
       userName: (user.displayName as string) || (user.discordUsername as string) || '',
-      platform: 'epic',
+      platform: 'steam',
       // Champs génériques (refacto multi-plateforme)
-      currentLinkedId: currentEpicId,
-      currentLinkedName: (user.rlEpicName as string) || '',
-      requestedLinkedId: verified.id,
-      requestedLinkedName: verified.name,
-      // Champs Epic legacy (rétrocompat pour les anciennes demandes)
-      currentEpicId,
-      currentEpicName: (user.rlEpicName as string) || '',
-      requestedEpicId: verified.id,
-      requestedEpicName: verified.name,
+      currentLinkedId: currentSteamId,
+      currentLinkedName: currentSteamName,
+      requestedLinkedId: newSteamId,
+      requestedLinkedName: newSteamName,
       reason,
       status: 'pending',
       createdAt: FieldValue.serverTimestamp(),
     });
 
     await sendAdminAlert(db, {
-      title: '🔁 Demande de changement de compte Epic',
-      description: `**${(user.displayName as string) || uid}** demande à changer son compte Epic officiel.\n\n`
-        + `**Actuel** : \`${(user.rlEpicName as string) || ''}\`\n`
-        + `**Nouveau** : \`${verified.name}\`\n\n`
+      title: '🔁 Demande de changement de compte Steam',
+      description: `**${(user.displayName as string) || uid}** demande à changer son compte Steam RL officiel.\n\n`
+        + `**Actuel** : \`${currentSteamName}\`\n`
+        + `**Nouveau** : \`${newSteamName}\`\n\n`
         + `Raison : ${reason}\n\n`
         + `[Voir la demande →](https://aedral.com/admin/rl-link-changes)`,
     });
 
     return NextResponse.json({ ok: true, requestId: reqRef.id });
   } catch (err) {
-    captureApiError('API rl-epic-link/change-request POST error', err);
+    captureApiError('API rl-steam-link/change-request POST error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

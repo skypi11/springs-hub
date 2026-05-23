@@ -41,10 +41,20 @@ export interface SpringsUser {
   epicDisplayName?: string;    // pseudo Epic actuel — affiché dans l'UI, peut changer
   rlTrackerUrl?: string;       // lien RL Tracker manuel — déprécié, auto-généré désormais
 
+  // IDENTITÉ OFFICIELLE Steam (anti-mensonge / sticky, symétrique à Epic).
+  // rlSteamId est figé à la confirmation : on prend le SteamID64 depuis
+  // `steamLinked.steamId64` au moment où le joueur clique « Oui c'est mon
+  // compte RL Steam ». Toute modification ultérieure = demande admin.
+  // Distinct de `steamLinked` brut : avoir Steam lié ≠ jouer RL sur Steam.
+  rlSteamId?: string;            // SteamID64 figé — RÉFÉRENCE
+  rlSteamName?: string;          // persona Steam courant — affichage + URL tracker
+  rlSteamLinkedAt?: Date | string;
+  rlSteamLinkSource?: 'openid' | 'admin';
+
   // Steam OpenID linkage — récupéré via /api/auth/steam/callback.
-  // SteamID64 est IMMUABLE → l'URL tracker.gg basée dessus ne casse jamais.
-  // Tient lieu d'identité officielle pour les joueurs Steam (équivalent du
-  // snapshot Epic pour la voie Steam).
+  // SteamID64 est IMMUABLE → fournit la matière première pour le snapshot
+  // `rlSteamId` ci-dessus, mais NE compte PAS seul comme identité RL vérifiée
+  // (un joueur peut avoir un compte Steam sans jouer RL dessus).
   steamLinked?: {
     steamId64: string;
     personaName?: string | null;

@@ -133,25 +133,26 @@ export async function GET(req: NextRequest) {
     const requesterIsAdmin = requesterUid ? await isAdminUid(requesterUid) : false;
     const canSeeSmurfFlag = requesterIsAdmin && !isOwner;
 
-    // Identité RL « officielle » pour la fiche — calculée AVANT tout filtrage
-    // des connexions Discord. C'est précisément l'objectif : la fiche doit
-    // afficher le compte de jeu vérifié + son lien tracker, indépendamment du
-    // toggle « visible sur profil » des connexions (qui sert à masquer les
-    // réseaux sociaux, pas l'identité de jeu publique).
-    // Le pseudo Epic n'est pas sensible — il est déjà sur tracker.gg pour
-    // quiconque cherche le joueur. Voir docs/rl-rank-verification-plan.md.
-    const allConns = (data.discordConnections as DiscordConnection[] | undefined) ?? [];
-    const verifiedEpic = allConns.find(c => c.type === 'epicgames' && c.verified && c.name);
-    const epicNameForUrl = (data.rlEpicName as string) || verifiedEpic?.name || '';
+    // Identité RL « officielle » : on ne considère VÉRIFIÉ que les snapshots
+    // explicitement confirmés par le joueur (rlEpicId via Lot 2, rlSteamId via
+    // le nouveau flow Steam). Avoir Steam OpenID lié à Aedral (steamLinked)
+    // ou Epic sur Discord ne suffit PAS — beaucoup de joueurs ont un Steam
+    // mais jouent RL sur Epic (et inversement). Voir docs/rl-rank-verification-plan.md.
+    const hasOfficialEpic = !!data.rlEpicId;
+    const hasOfficialSteam = !!data.rlSteamId;
+    // Priorité Epic post-F2P : tracker.gg/epic est plus fiable que tracker.gg/steam.
+    const useEpic = hasOfficialEpic;
+    const useSteam = !useEpic && hasOfficialSteam;
     const rlAccountFields = {
-      rlAccountVerified: !!data.rlEpicId || !!data.steamLinked?.steamId64,
-      rlAccountName: epicNameForUrl
-        || (data.steamLinked?.personaName as string)
-        || '',
-      rlAccountPlatform: epicNameForUrl
-        ? 'epic'
-        : (data.steamLinked?.steamId64 ? 'steam' : ''),
-      rlSteamId64: data.steamLinked?.steamId64 || '',
+      rlAccountVerified: hasOfficialEpic || hasOfficialSteam,
+      rlAccountName: useEpic
+        ? ((data.rlEpicName as string) || '')
+        : useSteam
+          ? ((data.rlSteamName as string) || '')
+          : '',
+      rlAccountPlatform: useEpic ? 'epic' : useSteam ? 'steam' : '',
+      // SteamID64 exposé uniquement quand on l'utilise pour l'URL tracker.gg
+      rlSteamId64: useSteam ? (data.rlSteamId as string) : '',
     };
 
     // Flag smurf : récupéré uniquement quand un admin (non-owner) consulte la

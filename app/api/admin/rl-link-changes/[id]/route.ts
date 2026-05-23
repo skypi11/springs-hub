@@ -1,8 +1,8 @@
 // PATCH /api/admin/rl-link-changes/[id]
-// Décide d'une demande de changement de compte Epic.
+// Décide d'une demande de changement de compte RL — Epic OU Steam.
 // Body : { decision: 'approve' | 'reject', note?: string }
-// Si approve : met à jour le user (rlEpicId/rlEpicName) atomiquement avec le
-// statut de la demande. Lot 6 — voir docs/rl-rank-verification-plan.md.
+// Si approve : met à jour le user (rlEpicId/rlSteamId selon platform)
+// atomiquement avec le statut de la demande.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth, isAdmin } from '@/lib/firebase-admin';
@@ -10,7 +10,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { clampString } from '@/lib/validation';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
-import { isValidEpicId } from '@/lib/rl-identity';
+import { isValidEpicId, isValidSteamId64 } from '@/lib/rl-identity';
 
 export async function PATCH(
   req: NextRequest,
@@ -37,9 +37,19 @@ export async function PATCH(
       const snap = await tx.get(reqRef);
       if (!snap.exists) throw new Error('not_found');
       const data = snap.data()!;
-      if (data.status !== 'pending') {
-        throw new Error('already_decided');
-      }
+      if (data.status !== 'pending') throw new Error('already_decided');
+
+      const platform = (data.platform as string) || 'epic';
+      // Fallback sur les anciens champs Epic pour les demandes pré-refacto
+      const requestedId = (data.requestedLinkedId as string)
+        || (data.requestedEpicId as string)
+        || '';
+      const requestedName = (data.requestedLinkedName as string)
+        || (data.requestedEpicName as string)
+        || '';
+      const currentName = (data.currentLinkedName as string)
+        || (data.currentEpicName as string)
+        || '';
 
       const update: Record<string, unknown> = {
         status: approve ? 'approved' : 'rejected',
@@ -50,24 +60,34 @@ export async function PATCH(
       tx.update(reqRef, update);
 
       if (approve) {
-        const newId = data.requestedEpicId as string;
-        const newName = (data.requestedEpicName as string) || '';
-        if (!isValidEpicId(newId)) throw new Error('invalid_epic_id');
         const userRef = db.collection('users').doc(data.userUid as string);
-        tx.update(userRef, {
-          rlEpicId: newId,
-          rlEpicName: newName,
-          rlEpicLinkedAt: FieldValue.serverTimestamp(),
-          rlEpicLinkSource: 'admin',
-          rlPlatform: 'epic',
-          rlPlatformId: newName,
-        });
+        if (platform === 'steam') {
+          if (!isValidSteamId64(requestedId)) throw new Error('invalid_steam_id');
+          tx.update(userRef, {
+            rlSteamId: requestedId,
+            rlSteamName: requestedName,
+            rlSteamLinkedAt: FieldValue.serverTimestamp(),
+            rlSteamLinkSource: 'admin',
+          });
+        } else {
+          if (!isValidEpicId(requestedId)) throw new Error('invalid_epic_id');
+          tx.update(userRef, {
+            rlEpicId: requestedId,
+            rlEpicName: requestedName,
+            rlEpicLinkedAt: FieldValue.serverTimestamp(),
+            rlEpicLinkSource: 'admin',
+            // Miroir pour le constructeur d'URL tracker post-F2P (Epic prioritaire)
+            rlPlatform: 'epic',
+            rlPlatformId: requestedName,
+          });
+        }
       }
       return {
+        platform,
         userUid: data.userUid as string,
         userName: (data.userName as string) || '',
-        currentEpicName: (data.currentEpicName as string) || '',
-        requestedEpicName: (data.requestedEpicName as string) || '',
+        currentName,
+        requestedName,
       };
     });
 
@@ -76,15 +96,16 @@ export async function PATCH(
       adminUid,
       targetType: 'user',
       targetId: result.userUid,
-      targetLabel: `${result.userName} — ${result.currentEpicName} → ${result.requestedEpicName}${note ? ` (${note})` : ''}`,
+      targetLabel: `${result.userName} [${result.platform}] — ${result.currentName} → ${result.requestedName}${note ? ` (${note})` : ''}`,
     });
 
-    return NextResponse.json({ ok: true, decision: approve ? 'approved' : 'rejected' });
+    return NextResponse.json({ ok: true, decision: approve ? 'approved' : 'rejected', platform: result.platform });
   } catch (err) {
     const msg = (err as Error)?.message;
     if (msg === 'not_found') return NextResponse.json({ error: 'Demande introuvable' }, { status: 404 });
     if (msg === 'already_decided') return NextResponse.json({ error: 'Demande déjà traitée' }, { status: 409 });
     if (msg === 'invalid_epic_id') return NextResponse.json({ error: 'Nouvel ID Epic invalide' }, { status: 400 });
+    if (msg === 'invalid_steam_id') return NextResponse.json({ error: 'Nouveau SteamID64 invalide' }, { status: 400 });
     captureApiError('API admin/rl-link-changes PATCH error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }

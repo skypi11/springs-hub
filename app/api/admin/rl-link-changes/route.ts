@@ -1,10 +1,12 @@
 // GET /api/admin/rl-link-changes — liste les demandes (pending d'abord).
-// Lot 6 — voir docs/rl-rank-verification-plan.md.
+// Multi-plateforme : Epic + Steam. Lit les champs génériques avec fallback
+// sur les anciens champs Epic-spécifiques.
+// Voir docs/rl-rank-verification-plan.md.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth, isAdmin } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
-import { buildTrackerGgUrl } from '@/lib/rl-platform';
+import { buildTrackerGgUrl, type RLPlatform } from '@/lib/rl-platform';
 
 function ts(v: unknown): string | null {
   if (!v) return null;
@@ -27,18 +29,26 @@ export async function GET(req: NextRequest) {
 
     const requests = snap.docs.map(d => {
       const data = d.data();
-      const currentName = (data.currentEpicName as string) || '';
-      const requestedName = (data.requestedEpicName as string) || '';
+      const platform = ((data.platform as string) || 'epic') as RLPlatform;
+      // Champs génériques en priorité, fallback sur les anciens noms Epic
+      const currentId = (data.currentLinkedId as string) || (data.currentEpicId as string) || '';
+      const currentName = (data.currentLinkedName as string) || (data.currentEpicName as string) || '';
+      const requestedId = (data.requestedLinkedId as string) || (data.requestedEpicId as string) || '';
+      const requestedName = (data.requestedLinkedName as string) || (data.requestedEpicName as string) || '';
+      // ID utilisé pour construire l'URL tracker : pseudo pour Epic, SteamID64 pour Steam
+      const urlInputCurrent = platform === 'steam' ? currentId : currentName;
+      const urlInputRequested = platform === 'steam' ? requestedId : requestedName;
       return {
         id: d.id,
+        platform,
         userUid: data.userUid,
         userName: data.userName || '',
-        currentEpicId: data.currentEpicId || '',
-        currentEpicName: currentName,
-        currentTrackerUrl: currentName ? buildTrackerGgUrl('epic', currentName) : '',
-        requestedEpicId: data.requestedEpicId || '',
-        requestedEpicName: requestedName,
-        requestedTrackerUrl: requestedName ? buildTrackerGgUrl('epic', requestedName) : '',
+        currentLinkedId: currentId,
+        currentLinkedName: currentName,
+        currentTrackerUrl: urlInputCurrent ? buildTrackerGgUrl(platform, urlInputCurrent) : '',
+        requestedLinkedId: requestedId,
+        requestedLinkedName: requestedName,
+        requestedTrackerUrl: urlInputRequested ? buildTrackerGgUrl(platform, urlInputRequested) : '',
         reason: data.reason || '',
         status: data.status || 'pending',
         createdAt: ts(data.createdAt),

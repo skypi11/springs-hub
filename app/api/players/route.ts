@@ -52,31 +52,18 @@ export async function GET(req: NextRequest) {
         rlMmr: data.rlStats?.mmr || data.rlMmr || null,
         rlIconUrl: data.rlStats?.iconUrl || '',
         // Identité RL officielle (anti-mensonge — voir docs/rl-rank-verification-plan.md).
-        // verified = passé par le flow Lot 2 (snapshot Epic via Discord) OU Steam OpenID lié.
-        rlAccountVerified: !!data.rlEpicId || !!data.steamLinked?.steamId64,
-        // Pour le lien tracker.gg : on préfère TOUJOURS Epic quand on l'a quelque
-        // part (snapshot OU connexion Discord vérifiée), parce que post-free-to-play
-        // les stats RL vivent sur Epic même pour les joueurs qui lancent via Steam
-        // (tracker.gg/steam/{id} renvoie souvent une page vide pour eux).
-        rlAccountName: (() => {
-          const epicConn = (data.discordConnections || []).find(
-            (c: { type: string; name: string; verified?: boolean }) => c?.type === 'epicgames' && c?.verified && c?.name,
-          );
-          return (data.rlEpicName as string)
-            || epicConn?.name
-            || (data.steamLinked?.personaName as string)
-            || '';
-        })(),
-        rlAccountPlatform: (() => {
-          const epicConn = (data.discordConnections || []).find(
-            (c: { type: string; name: string; verified?: boolean }) => c?.type === 'epicgames' && c?.verified && c?.name,
-          );
-          if (data.rlEpicName || epicConn?.name) return 'epic';
-          if (data.steamLinked?.steamId64) return 'steam';
-          return '';
-        })(),
-        // SteamID64 exposé uniquement pour les fallbacks Steam (sert au lien tracker)
-        rlSteamId64: data.steamLinked?.steamId64 || '',
+        // Verified = snapshot explicitement confirmé : rlEpicId (flow Lot 2) ou
+        // rlSteamId (flow Steam v2). Avoir Steam OpenID lié à Aedral ou Epic sur
+        // Discord ne suffit PAS — il faut une confirmation explicite via Settings.
+        rlAccountVerified: !!data.rlEpicId || !!data.rlSteamId,
+        rlAccountName: data.rlEpicId
+          ? ((data.rlEpicName as string) || '')
+          : data.rlSteamId
+            ? ((data.rlSteamName as string) || '')
+            : '',
+        rlAccountPlatform: data.rlEpicId ? 'epic' : data.rlSteamId ? 'steam' : '',
+        // SteamID64 exposé uniquement quand on l'utilise pour l'URL tracker
+        rlSteamId64: !data.rlEpicId && data.rlSteamId ? (data.rlSteamId as string) : '',
         // TM stats
         pseudoTM: data.pseudoTM || '',
         tmTrophies: data.tmStats?.trophies || null,

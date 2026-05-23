@@ -89,10 +89,13 @@ export default function SettingsPage() {
   const [linkingSteam, setLinkingSteam] = useState(false);
   const [discordSyncing, setDiscordSyncing] = useState(false);
   const [discordSyncMsg, setDiscordSyncMsg] = useState('');
-  // Compte Epic officiel (anti-mensonge / sticky) — voir docs/rl-rank-verification-plan.md
+  // Comptes RL officiels (anti-mensonge / sticky) — voir docs/rl-rank-verification-plan.md
   const [epicLinked, setEpicLinked] = useState<{ rlEpicId: string; rlEpicName: string } | null>(null);
   const [confirmingEpic, setConfirmingEpic] = useState(false);
   const [requestingChange, setRequestingChange] = useState(false);
+  const [rlSteamLinked, setRlSteamLinked] = useState<{ rlSteamId: string; rlSteamName: string } | null>(null);
+  const [confirmingSteam, setConfirmingSteam] = useState(false);
+  const [requestingSteamChange, setRequestingSteamChange] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
@@ -248,6 +251,56 @@ export default function SettingsPage() {
     }
   }
 
+  // Snapshot le SteamID64 depuis steamLinked (Steam OpenID) vers rlSteamId.
+  // Symétrique à handleConfirmEpicLink.
+  async function handleConfirmSteamLink() {
+    setConfirmingSteam(true);
+    try {
+      const r = await api<{ ok?: boolean; message?: string; rlSteamId?: string; rlSteamName?: string }>(
+        '/api/profile/rl-steam-link',
+        { method: 'POST', body: {} },
+      );
+      if (r.ok && r.rlSteamId) {
+        setRlSteamLinked({ rlSteamId: r.rlSteamId, rlSteamName: r.rlSteamName ?? '' });
+        toast.success(r.message ?? 'Compte Steam RL lié.');
+        await refreshProfile?.();
+      } else {
+        toast.error(r.message ?? 'Échec de la liaison.');
+      }
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Erreur réseau.';
+      toast.error(msg);
+    } finally {
+      setConfirmingSteam(false);
+    }
+  }
+
+  // Demande de changement de compte Steam RL officiel. Pré-requis : avoir
+  // re-lié Steam OpenID vers le nouveau compte au préalable.
+  async function handleRequestSteamChange() {
+    const reason = typeof window !== 'undefined'
+      ? window.prompt(
+          'Pour quelle raison veux-tu changer ton compte Steam RL officiel ?\n\n'
+          + '(Ex : « compte précédent perdu », « mauvais compte lié par erreur »…)\n\n'
+          + 'Précision : assure-toi d\'avoir déjà délié Steam puis re-lié ton nouveau compte (Settings → « Lier mon Steam »). Sinon la demande sera refusée.',
+        )
+      : null;
+    if (!reason || !reason.trim()) return;
+    setRequestingSteamChange(true);
+    try {
+      await api('/api/profile/rl-steam-link/change-request', {
+        method: 'POST',
+        body: { reason: reason.trim() },
+      });
+      toast.success('Demande envoyée. L\'admin va la traiter.');
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Erreur réseau.';
+      toast.error(msg);
+    } finally {
+      setRequestingSteamChange(false);
+    }
+  }
+
   async function handleDiscordSync() {
     if (!firebaseUser) return;
     setDiscordSyncing(true);
@@ -353,6 +406,14 @@ export default function SettingsPage() {
       setEpicLinked({ rlEpicId, rlEpicName: (data.rlEpicName as string) || '' });
     } else {
       setEpicLinked(null);
+    }
+    // Compte Steam RL officiel (sticky) — snapshot SteamID64 figé via Steam OpenID
+    // confirmé comme étant le compte RL du joueur.
+    const rlSteamId = (data.rlSteamId as string) || '';
+    if (rlSteamId) {
+      setRlSteamLinked({ rlSteamId, rlSteamName: (data.rlSteamName as string) || '' });
+    } else {
+      setRlSteamLinked(null);
     }
 
     const initialPlatform: RLPlatform | '' = isValidRLPlatform(savedPlatform)
@@ -989,6 +1050,79 @@ export default function SettingsPage() {
                             </div>
                           )}
 
+                          {/* ── Compte Steam RL officiel (anti-mensonge / sticky) ── */}
+                          {/* S'affiche dès qu'un Steam est lié via OpenID :
+                              - si rlSteamLinked posé : confirme + bouton demande de changement
+                              - sinon : prompt « C'est aussi ton compte RL ? »
+                              Si l'Epic est déjà la voie officielle, on ne suggère rien (évite
+                              le bruit — l'Epic prime post-F2P). */}
+                          {steamLinked && !epicLinked && (() => {
+                            if (rlSteamLinked) {
+                              return (
+                                <div className="p-3 space-y-2"
+                                  style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.3)' }}>
+                                  <div className="flex items-center gap-2">
+                                    <CheckCircle size={14} style={{ color: 'var(--s-gold)' }} />
+                                    <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
+                                      Compte Steam Rocket League vérifié
+                                    </span>
+                                    <span className="tag tag-gold" style={{ fontSize: '9px', padding: '1px 5px' }}>✓ FIGÉ</span>
+                                  </div>
+                                  <div className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                                    <span className="font-semibold" style={{ color: 'var(--s-text)' }}>
+                                      {rlSteamLinked.rlSteamName || rlSteamLinked.rlSteamId}
+                                    </span>
+                                    <span className="t-mono ml-2" style={{ color: 'var(--s-text-muted)', fontSize: '10px' }}>
+                                      {rlSteamLinked.rlSteamId}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                                    <p className="text-xs flex-1" style={{ color: 'var(--s-text-muted)' }}>
+                                      Pour changer le compte Steam lié, d'abord délie puis re-lie Steam ci-dessus, puis fais une demande.
+                                    </p>
+                                    <button type="button"
+                                      onClick={handleRequestSteamChange}
+                                      disabled={requestingSteamChange}
+                                      className="btn-springs btn-secondary bevel-sm inline-flex items-center gap-2 disabled:opacity-50"
+                                      style={{ fontSize: '11px', padding: '6px 12px' }}>
+                                      {requestingSteamChange ? <Loader2 size={11} className="animate-spin" /> : null}
+                                      Demander un changement
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return (
+                              <div className="p-3 space-y-2"
+                                style={{ background: 'rgba(255,184,0,0.04)', border: '1px solid rgba(255,184,0,0.2)' }}>
+                                <div className="flex items-center gap-2">
+                                  <AlertCircle size={14} style={{ color: 'var(--s-gold)' }} />
+                                  <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
+                                    Confirme que ton Steam est ton compte Rocket League
+                                  </span>
+                                </div>
+                                <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                                  Tu as lié <span className="font-semibold" style={{ color: 'var(--s-text)' }}>{steamLinked.personaName || steamLinked.steamId64}</span> à Aedral via Steam.
+                                  <br />
+                                  C'est aussi ton compte sur lequel tu joues à Rocket League ? Une fois confirmé, il est <strong>figé</strong> (changement futur = demande admin).
+                                </p>
+                                <div className="flex gap-2 flex-wrap">
+                                  <button type="button"
+                                    onClick={handleConfirmSteamLink}
+                                    disabled={confirmingSteam}
+                                    className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2 disabled:opacity-50"
+                                    style={{ fontSize: '12px', padding: '8px 14px' }}>
+                                    {confirmingSteam ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
+                                    Oui, mon RL est sur Steam
+                                  </button>
+                                </div>
+                                <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                                  Pas mon RL ? Ne clique pas — tu peux laisser Steam lié pour d'autres usages, mais ton rang RL ne sera pas considéré comme vérifié via Steam.
+                                </p>
+                              </div>
+                            );
+                          })()}
+
                           {/* Séparateur visuel — si Steam lié, le manuel sert juste à override */}
                           <div className="flex items-center gap-3 my-2">
                             <div className="flex-1 h-px" style={{ background: 'var(--s-border)' }} />
@@ -1107,7 +1241,7 @@ export default function SettingsPage() {
                           )}
                           {/* ── Rang RL — gateé sur la présence d'un compte vérifié ── */}
                           {(() => {
-                            const hasLink = !!epicLinked || !!steamLinked;
+                            const hasLink = !!epicLinked || !!rlSteamLinked;
                             return (
                               <div>
                                 <label className="t-label block mb-2">Rang RL (auto-déclaré)</label>
