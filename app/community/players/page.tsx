@@ -672,7 +672,11 @@ function PlayerItem({
       )}
       <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200"
         style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,255,255,0.05), transparent 70%)' }} />
-      <div className="relative z-[1] p-4">
+      {/* Content div passe au-dessus du Link (z-[2]) en z-[3] pour que les
+          enfants interactifs (badge tracker + signaler) soient cliquables.
+          pointer-events:none laisse les clics ailleurs (sur le texte / avatar)
+          traverser jusqu'au Link → la carte reste cliquable comme avant. */}
+      <div className="relative z-[3] p-4" style={{ pointerEvents: 'none' }}>
         <div className="flex items-center gap-3 mb-3">
           {avatar ? (
             <div className="w-12 h-12 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
@@ -713,9 +717,9 @@ function PlayerItem({
               </div>
             )}
             {/* Badge ✓ ou ⚠️ + lien tracker + bouton signaler.
-                Wrapper z-[3] : le Link absolute (z=2) overlay le card et
-                intercepterait sinon les clics sur tracker/signaler. */}
-            <div className="relative z-[3]">
+                pointer-events:auto pour récupérer les clics dans le content
+                div en pointer-events:none. */}
+            <div style={{ pointerEvents: 'auto' }}>
               <RLIdentityBadge
                 games={p.games}
                 rlAccountVerified={p.rlAccountVerified}

@@ -18,6 +18,8 @@ type DashboardBadges = {
     suspendedStructures?: number;
     deletionScheduledStructures?: number;
     orphanedStructures?: number;
+    pendingRankReports?: number;
+    pendingLinkChanges?: number;
   };
 };
 
@@ -50,6 +52,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           (data.toHandle?.suspendedStructures ?? 0)
           + (data.toHandle?.deletionScheduledStructures ?? 0)
           + (data.toHandle?.orphanedStructures ?? 0),
+        '/admin/rank-reports': data.toHandle?.pendingRankReports ?? 0,
+        '/admin/rl-link-changes': data.toHandle?.pendingLinkChanges ?? 0,
       }
     : {};
 

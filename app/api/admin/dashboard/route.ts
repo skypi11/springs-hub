@@ -44,13 +44,18 @@ export async function GET(req: NextRequest) {
     const lastSeenMs = toMillis(adminSnap.data()?.lastDashboardSeenAt);
     const sinceMs = lastSeenMs ?? Date.now() - DEFAULT_LOOKBACK_DAYS * 86_400_000;
 
-    const [structuresSnap, usersCount, usersSnap, teamsSnap, eventsSnap] = await Promise.all([
+    const [structuresSnap, usersCount, usersSnap, teamsSnap, eventsSnap, rankReportsSnap, linkChangeReqSnap] = await Promise.all([
       db.collection('structures').limit(STRUCTURES_SCAN).get(),
       db.collection('users').count().get(),
       db.collection('users').orderBy('createdAt', 'desc').limit(SCAN_LIMIT).get(),
       db.collection('sub_teams').orderBy('createdAt', 'desc').limit(SCAN_LIMIT).get(),
       db.collection('structure_events').orderBy('createdAt', 'desc').limit(SCAN_LIMIT).get(),
+      // Signalements de rang & demandes de changement Epic (Lots 5+6) — counts pour les pastilles sidebar
+      db.collection('rank_reports').where('status', '==', 'pending').count().get(),
+      db.collection('rl_link_change_requests').where('status', '==', 'pending').count().get(),
     ]);
+    const pendingRankReports = rankReportsSnap.data().count;
+    const pendingLinkChanges = linkChangeReqSnap.data().count;
 
     // ── Structures : compteurs d'état + nouveautés (demandes / validations) ──
     const structureName = new Map<string, string>();
@@ -167,6 +172,8 @@ export async function GET(req: NextRequest) {
         suspendedStructures,
         deletionScheduledStructures,
         orphanedStructures,
+        pendingRankReports,
+        pendingLinkChanges,
       },
       totals: {
         activeStructures,
