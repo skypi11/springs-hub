@@ -19,7 +19,7 @@ import InviteToStructureButton from '@/components/community/InviteToStructureBut
 import DiscordIcon from '@/components/icons/DiscordIcon';
 import { getEffectiveRLPlatform, buildTrackerGgUrl, buildBallchasingUrl, getRLPlatformMeta } from '@/lib/rl-platform';
 import RLIdentityBadge from '@/components/players/RLIdentityBadge';
-import ReportRankButton from '@/components/players/ReportRankButton';
+// ReportRankButton est désormais embarqué dans RLIdentityBadge (via canReport)
 import { getConnectionMeta, buildConnectionUrl } from '@/lib/discord-connections';
 import { Link2 } from 'lucide-react';
 import RankBadge, { getRankTierConfig } from '@/components/rl/RankBadge';
@@ -325,26 +325,19 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     )}
                   </div>
                   <div className="p-5 flex-1 flex flex-col gap-4">
-                    {/* Statut RL officiel — ✓ vérifié ou ⚠️ non lié */}
-                    <div className="flex items-start justify-between gap-3 flex-wrap">
-                      <RLIdentityBadge
-                        games={profile.games}
-                        rlAccountVerified={rlAccountVerified}
-                        rlAccountName={rlAccountName}
-                        rlAccountPlatform={rlAccountPlatform}
-                        rlSteamId64={profile.steamLinked?.steamId64 || ''}
-                        rlRank={profile.rlRank}
-                        size="md"
-                      />
-                      {/* Bouton signaler — caché pour propriétaire / non-connecté / pas de rang */}
-                      {!isOwner && firebaseUser && profile.rlRank && (
-                        <ReportRankButton
-                          targetUid={id}
-                          targetName={profile.displayName}
-                          enabled={true}
-                        />
-                      )}
-                    </div>
+                    {/* Statut RL officiel — ✓ vérifié + lien tracker + signaler ou ⚠️ non lié */}
+                    <RLIdentityBadge
+                      games={profile.games}
+                      rlAccountVerified={rlAccountVerified}
+                      rlAccountName={rlAccountName}
+                      rlAccountPlatform={rlAccountPlatform}
+                      rlSteamId64={profile.steamLinked?.steamId64 || ''}
+                      rlRank={profile.rlRank}
+                      targetUid={id}
+                      targetName={profile.displayName}
+                      canReport={!isOwner && !!firebaseUser}
+                      size="md"
+                    />
                     {rlStats ? (
                       <div className="space-y-5">
                         <div className="flex items-center gap-5">

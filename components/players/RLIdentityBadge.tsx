@@ -1,7 +1,8 @@
 // Affiche le statut RL contextuel d'un joueur — pour les cartes / fiches.
 // Trois états (voir docs/rl-rank-verification-plan.md) :
 //   1. Compte RL lié (rlEpicId ou Steam OpenID)
-//      → badge ✓ doré + pseudo Epic/Steam + lien tracker cliquable.
+//      → badge ✓ doré + pseudo Epic/Steam + lien tracker cliquable + bouton
+//        signaler (si visiteur connecté ≠ propriétaire).
 //   2. Le joueur dit pratiquer RL (games contient 'rocket_league') mais aucun
 //      compte n'est lié → ⚠️ avertissement visible, dissuasif pour les
 //      recruteurs.
@@ -9,6 +10,7 @@
 
 import { ExternalLink, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { buildTrackerGgUrl } from '@/lib/rl-platform';
+import ReportRankButton from '@/components/players/ReportRankButton';
 
 export interface RLIdentityBadgeProps {
   games: string[] | undefined;
@@ -17,6 +19,19 @@ export interface RLIdentityBadgeProps {
   rlAccountPlatform?: 'epic' | 'steam' | '' | null;
   rlSteamId64?: string;
   rlRank?: string;
+  /**
+   * UID du joueur — requis pour afficher le bouton signaler.
+   */
+  targetUid?: string;
+  /**
+   * Nom affiché dans la modale du signalement (fallback : « ce joueur »).
+   */
+  targetName?: string;
+  /**
+   * Permet d'afficher le bouton « Signaler le rang ». Mettre true quand le
+   * visiteur est connecté ET n'est pas le propriétaire de la fiche.
+   */
+  canReport?: boolean;
   /**
    * Si on sait que le joueur est dans une équipe RL — alors il "joue à RL"
    * même si `games` n'inclut pas 'rocket_league'. Optionnel — par défaut on
@@ -34,6 +49,9 @@ export default function RLIdentityBadge({
   rlAccountPlatform,
   rlSteamId64,
   rlRank,
+  targetUid,
+  targetName,
+  canReport,
   inRLTeam,
   size = 'sm',
 }: RLIdentityBadgeProps) {
@@ -92,22 +110,53 @@ export default function RLIdentityBadge({
 
   // ── État 1 — compte lié, ✓ vérifié ────────────────────────────────────────
   const nameOrFallback = rlAccountName?.trim() || (rlAccountPlatform === 'steam' ? 'Compte Steam' : 'Compte Epic');
+  const showReport = !!canReport && !!targetUid && !!rlRank;
 
   if (size === 'sm') {
     return (
-      <span
-        className="inline-flex items-center gap-1 tag"
-        title={`Compte ${rlAccountPlatform === 'steam' ? 'Steam' : 'Epic'} vérifié : ${nameOrFallback}${rlRank ? ` (${rlRank})` : ''}`}
-        style={{
-          background: 'rgba(255,184,0,0.10)',
-          color: 'var(--s-gold)',
-          borderColor: 'rgba(255,184,0,0.35)',
-          fontSize: '10px',
-          padding: '2px 6px',
-        }}
-      >
-        <ShieldCheck size={10} />
-        Compte vérifié
+      <span className="inline-flex items-center gap-1.5 flex-wrap">
+        <span
+          className="inline-flex items-center gap-1 tag"
+          title={`Compte ${rlAccountPlatform === 'steam' ? 'Steam' : 'Epic'} vérifié : ${nameOrFallback}${rlRank ? ` (${rlRank})` : ''}`}
+          style={{
+            background: 'rgba(255,184,0,0.10)',
+            color: 'var(--s-gold)',
+            borderColor: 'rgba(255,184,0,0.35)',
+            fontSize: '10px',
+            padding: '2px 6px',
+          }}
+        >
+          <ShieldCheck size={10} />
+          Compte vérifié
+        </span>
+        {trackerHref && (
+          <a
+            href={trackerHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            title={`Voir ${nameOrFallback} sur tracker.gg`}
+            className="inline-flex items-center gap-1 tag transition-colors hover:bg-[var(--s-elevated)]"
+            style={{
+              background: 'transparent',
+              color: 'var(--s-blue)',
+              borderColor: 'rgba(0,129,255,0.35)',
+              fontSize: '10px',
+              padding: '2px 6px',
+              textDecoration: 'none',
+            }}
+          >
+            tracker <ExternalLink size={9} />
+          </a>
+        )}
+        {showReport && (
+          <ReportRankButton
+            targetUid={targetUid}
+            targetName={targetName}
+            enabled
+            size="sm"
+          />
+        )}
       </span>
     );
   }
@@ -131,6 +180,14 @@ export default function RLIdentityBadge({
         >
           Voir tracker.gg <ExternalLink size={10} />
         </a>
+      )}
+      {showReport && (
+        <ReportRankButton
+          targetUid={targetUid}
+          targetName={targetName}
+          enabled
+          size="md"
+        />
       )}
     </div>
   );

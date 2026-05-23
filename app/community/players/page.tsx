@@ -593,6 +593,7 @@ function PlayerItem({
   linkCopied: boolean;
   onGenerateLink: () => void;
 }) {
+  const { firebaseUser } = useAuth();
   const avatar = p.avatarUrl || p.discordAvatar;
   const hasAny = p.rlRank || p.pseudoTM;
   const hasMatch = matches.length > 0;
@@ -711,16 +712,23 @@ function PlayerItem({
                 <span className="text-xs truncate" style={{ color: 'var(--s-text-dim)' }}>{p.rlRank}</span>
               </div>
             )}
-            {/* Badge ✓ ou ⚠️ selon que le compte RL est lié ou non */}
-            <RLIdentityBadge
-              games={p.games}
-              rlAccountVerified={p.rlAccountVerified}
-              rlAccountName={p.rlAccountName}
-              rlAccountPlatform={p.rlAccountPlatform}
-              rlSteamId64={p.rlSteamId64}
-              rlRank={p.rlRank}
-              size="sm"
-            />
+            {/* Badge ✓ ou ⚠️ + lien tracker + bouton signaler.
+                Wrapper z-[3] : le Link absolute (z=2) overlay le card et
+                intercepterait sinon les clics sur tracker/signaler. */}
+            <div className="relative z-[3]">
+              <RLIdentityBadge
+                games={p.games}
+                rlAccountVerified={p.rlAccountVerified}
+                rlAccountName={p.rlAccountName}
+                rlAccountPlatform={p.rlAccountPlatform}
+                rlSteamId64={p.rlSteamId64}
+                rlRank={p.rlRank}
+                targetUid={p.uid}
+                targetName={p.displayName}
+                canReport={!!firebaseUser && firebaseUser.uid !== p.uid}
+                size="sm"
+              />
+            </div>
             {p.pseudoTM && (
               <div className="flex items-center gap-2">
                 <Gamepad2 size={11} style={{ color: 'var(--s-green)' }} />

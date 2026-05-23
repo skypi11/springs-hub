@@ -15,16 +15,24 @@ export interface ReportRankButtonProps {
   targetName?: string;
   /** Désactive si false — typiquement quand le joueur n'a pas de rang à signaler */
   enabled?: boolean;
+  /** `sm` = pill compact pour les cartes ; `md` = bouton plus lisible pour les fiches */
+  size?: 'sm' | 'md';
 }
 
-export default function ReportRankButton({ targetUid, targetName, enabled = true }: ReportRankButtonProps) {
+export default function ReportRankButton({
+  targetUid,
+  targetName,
+  enabled = true,
+  size = 'md',
+}: ReportRankButtonProps) {
   const confirm = useConfirm();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
 
   if (!enabled) return null;
 
-  async function onClick() {
+  async function onClick(e: React.MouseEvent) {
+    e.stopPropagation();
     const ok = await confirm({
       title: 'Signaler ce rang',
       message: `Tu vas signaler le rang affiché par ${targetName ?? 'ce joueur'}. L'admin va recevoir ton signalement et pourra vérifier via le lien tracker.\n\nN'utilise cette fonction que si le rang te paraît clairement faux. Les signalements abusifs sont aussi visibles par l'admin.`,
@@ -49,13 +57,42 @@ export default function ReportRankButton({ targetUid, targetName, enabled = true
     }
   }
 
+  if (size === 'sm') {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={loading}
+        className="inline-flex items-center gap-1 tag transition-colors hover:bg-[var(--s-elevated)] disabled:opacity-50"
+        style={{
+          background: 'transparent',
+          color: '#ff8a8a',
+          borderColor: 'rgba(255,85,85,0.35)',
+          fontSize: '10px',
+          padding: '2px 6px',
+          cursor: loading ? 'not-allowed' : 'pointer',
+        }}
+        title="Signaler le rang à l'admin"
+      >
+        {loading ? <Loader2 size={9} className="animate-spin" /> : <Flag size={9} />}
+        signaler
+      </button>
+    );
+  }
+
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={loading}
-      className="inline-flex items-center gap-1.5 text-xs transition-colors hover:text-white disabled:opacity-50"
-      style={{ color: 'var(--s-text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px 8px' }}
+      className="btn-springs bevel-sm inline-flex items-center gap-1.5 transition-colors disabled:opacity-50"
+      style={{
+        background: 'rgba(255,85,85,0.08)',
+        color: '#ff8a8a',
+        borderColor: 'rgba(255,85,85,0.35)',
+        fontSize: '11px',
+        padding: '6px 12px',
+      }}
       title="Signaler ce rang à l'admin"
     >
       {loading ? <Loader2 size={11} className="animate-spin" /> : <Flag size={11} />}
