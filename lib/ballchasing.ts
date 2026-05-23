@@ -165,7 +165,7 @@ function mapPlayer(
   const stats = (raw.stats as Record<string, Record<string, unknown>> | undefined) ?? {};
   const core = stats.core ?? {};
   const id = (raw.id as Record<string, unknown> | undefined) ?? {};
-  return {
+  const player: BallchasingPlayerStats = {
     name: typeof raw.name === 'string' ? raw.name : '',
     platform: typeof id.platform === 'string' ? id.platform : '',
     platformId: typeof id.id === 'string' ? id.id : '',
@@ -176,8 +176,14 @@ function mapPlayer(
     saves: typeof core.saves === 'number' ? core.saves : 0,
     shots: typeof core.shots === 'number' ? core.shots : 0,
     mvp: core.mvp === true,
-    mmr: typeof core.mvp_mmr === 'number' ? core.mvp_mmr : undefined,
   };
+  // MMR optionnel — depuis le passage F2P de RL, ballchasing ne le renvoie
+  // plus pour la grande majorité des parties. On omet le champ plutôt que
+  // d'y mettre undefined (Firestore refuse `undefined` à l'écriture).
+  if (typeof core.mvp_mmr === 'number') {
+    player.mmr = core.mvp_mmr;
+  }
+  return player;
 }
 
 export async function getReplay(replayId: string): Promise<BallchasingReplay> {
