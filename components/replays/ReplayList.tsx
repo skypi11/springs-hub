@@ -67,7 +67,7 @@ export default function ReplayList({
   const toast = useToast();
   const confirm = useConfirm();
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [statsForId, setStatsForId] = useState<{ id: string; title: string } | null>(null);
+  const [statsForId, setStatsForId] = useState<{ id: string; title: string; eventId: string | null } | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
 
   // Replays sans ballchasingId connu côté client → candidats au batch forward.
@@ -206,6 +206,7 @@ export default function ReplayList({
                         {item.score}
                       </span>
                     )}
+                    <ParsingBadge status={item.ballchasingStatus} />
                   </div>
                   <div className="flex items-center gap-2 mt-1 text-xs flex-wrap" style={{ color: 'var(--s-text-muted)' }}>
                     <span>{formatDate(item.createdAt)}</span>
@@ -229,7 +230,7 @@ export default function ReplayList({
                   {canShowStats && (
                     <IconButton
                       title="Voir les stats détaillées"
-                      onClick={() => setStatsForId({ id: item.id, title: item.title })}
+                      onClick={() => setStatsForId({ id: item.id, title: item.title, eventId: item.eventId ?? null })}
                     >
                       <BarChart3 size={13} />
                     </IconButton>
@@ -260,11 +261,44 @@ export default function ReplayList({
         structureId={structureId}
         replayId={statsForId.id}
         replayTitle={statsForId.title}
+        eventId={statsForId.eventId}
         onClose={() => setStatsForId(null)}
       />
     )}
     </>
   );
+}
+
+function ParsingBadge({ status }: { status?: ReplayListItem['ballchasingStatus'] }) {
+  // Pas d'affichage pour disabled (feature off serveur) ni undefined (replay très ancien).
+  if (!status || status === 'disabled') return null;
+  if (status === 'pending') {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5"
+        style={{ background: 'rgba(255,184,0,0.12)', color: 'var(--s-gold)', border: '1px solid rgba(255,184,0,0.35)' }}>
+        <Loader2 size={9} className="animate-spin" />
+        Parsing
+      </span>
+    );
+  }
+  if (status === 'uploaded') {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5"
+        style={{ background: 'rgba(0,217,54,0.10)', color: 'var(--s-green)', border: '1px solid rgba(0,217,54,0.30)' }}>
+        <Check size={9} />
+        Stats
+      </span>
+    );
+  }
+  if (status === 'failed') {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5"
+        style={{ background: 'rgba(239,68,68,0.10)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.30)' }}>
+        Échec
+      </span>
+    );
+  }
+  return null;
 }
 
 function IconButton({ children, onClick, title, danger, active }: { children: React.ReactNode; onClick: () => void; title: string; danger?: boolean; active?: boolean }) {

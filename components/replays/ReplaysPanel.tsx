@@ -44,6 +44,14 @@ export default function ReplaysPanel({
       if (mode === 'event' && eventId) params.set('eventId', eventId);
       return api<{ replays: ReplayListItem[] }>(`/api/structures/${structureId}/replays?${params.toString()}`);
     },
+    // Auto-refresh toutes les 10s tant qu'au moins un replay est en cours
+    // de parsing ballchasing. Coupe le poll dès que tout est ready/failed
+    // pour économiser les lectures Firestore.
+    refetchInterval: (q) => {
+      const replays = (q.state.data as { replays?: ReplayListItem[] } | undefined)?.replays ?? [];
+      const hasPending = replays.some(r => r.ballchasingStatus === 'pending');
+      return hasPending ? 10_000 : false;
+    },
   });
   const items = data?.replays ?? [];
   const load = () => qc.invalidateQueries({ queryKey });
