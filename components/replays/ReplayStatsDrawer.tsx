@@ -196,18 +196,13 @@ function DrawerBody({
   aggregated: AggResponse | null;
   focusedReplayId: string;
 }) {
-  // Mode "all" = vue match complet (tous les replays parsés empilés + moyenne)
-  // Mode "single" = juste le replay courant. Default sur "all" dès qu'on a ≥2
-  // replays parsés dans l'event — sinon "single" est de toute façon le seul
-  // contenu pertinent.
+  // Mode "single" = juste le replay courant. Mode "all" = empilage de tous
+  // les replays parsés + moyenne. Default = 'single' : le drawer est pour la
+  // consultation rapide d'UN replay (clic sur son bouton stats). La vue
+  // match complet est dispo via le toggle, ou via le bouton "Stats du match"
+  // qui ouvre la page dédiée /community/event/[id]/stats dans un nouvel onglet.
   const hasMultipleParsed = !!aggregated && aggregated.parsedCount >= 2;
-  const [view, setView] = useState<'single' | 'all'>(hasMultipleParsed ? 'all' : 'single');
-  // Si l'aggregated arrive après coup avec plusieurs replays parsés, on
-  // bascule automatiquement sur la vue all (le toggle est dispo si l'user
-  // veut repasser sur single).
-  useEffect(() => {
-    if (hasMultipleParsed) setView('all');
-  }, [hasMultipleParsed]);
+  const [view, setView] = useState<'single' | 'all'>('single');
 
   if (state.kind === 'loading' || state.kind === 'pending') {
     return (
@@ -461,33 +456,55 @@ function StatsBlock({
       </div>
 
       <Section icon={<Trophy size={14} />} title="CORE" summary={summaries.core} open={open.core} onToggle={() => toggleSection('core')}>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          <CoreTable label={stats.blueName} accent="#0081FF" players={blue} teamRow={teamAggBlue} />
-          <CoreTable label={stats.orangeName} accent="#FFB800" players={orange} teamRow={teamAggOrange} />
-        </div>
+        <TwoTeamTables
+          blueLabel={stats.blueName} orangeLabel={stats.orangeName}
+          blue={blue} orange={orange}
+          teamRowBlue={teamAggBlue} teamRowOrange={teamAggOrange}
+          columns={COLUMNS_CORE}
+        />
       </Section>
 
       {hasBoost && (
         <Section icon={<Zap size={14} />} title="BOOST" summary={summaries.boost} open={open.boost} onToggle={() => toggleSection('boost')}>
-          <BoostTable players={stats.players} teamRows={[teamAggBlue, teamAggOrange]} />
+          <TwoTeamTables
+            blueLabel={stats.blueName} orangeLabel={stats.orangeName}
+            blue={blue} orange={orange}
+            teamRowBlue={teamAggBlue} teamRowOrange={teamAggOrange}
+            columns={COLUMNS_BOOST}
+          />
         </Section>
       )}
 
       {hasMovement && (
         <Section icon={<Gauge size={14} />} title="MOUVEMENT" summary={summaries.movement} open={open.movement} onToggle={() => toggleSection('movement')}>
-          <MovementTable players={stats.players} teamRows={[teamAggBlue, teamAggOrange]} />
+          <TwoTeamTables
+            blueLabel={stats.blueName} orangeLabel={stats.orangeName}
+            blue={blue} orange={orange}
+            teamRowBlue={teamAggBlue} teamRowOrange={teamAggOrange}
+            columns={COLUMNS_MOVEMENT}
+          />
         </Section>
       )}
 
       {hasPositioning && (
         <Section icon={<MapPin size={14} />} title="POSITIONNEMENT" summary={summaries.positioning} open={open.positioning} onToggle={() => toggleSection('positioning')}>
-          <PositioningTable players={stats.players} teamRows={[teamAggBlue, teamAggOrange]} />
+          <TwoTeamTables
+            blueLabel={stats.blueName} orangeLabel={stats.orangeName}
+            blue={blue} orange={orange}
+            teamRowBlue={teamAggBlue} teamRowOrange={teamAggOrange}
+            columns={COLUMNS_POSITIONING}
+          />
         </Section>
       )}
 
       {hasDemos && (
         <Section icon={<Skull size={14} />} title="DEMOS" summary={summaries.demos} open={open.demos} onToggle={() => toggleSection('demos')}>
-          <DemoTable players={stats.players} teamRows={[teamAggBlue, teamAggOrange]} />
+          <TwoTeamTables
+            blueLabel={stats.blueName} orangeLabel={stats.orangeName}
+            blue={blue} orange={orange}
+            teamRowBlue={teamAggBlue} teamRowOrange={teamAggOrange}
+            columns={COLUMNS_DEMOS}
+          />
         </Section>
       )}
     </div>
@@ -623,226 +640,198 @@ function ScoreBlock({ label, score, accent, winner }: { label: string; score: nu
   );
 }
 
-// Style appliqué aux lignes TEAM en bas des tables.
+// Style des lignes TEAM en bas des tables. Couleur d'accent appliquée dynamiquement.
 const TEAM_ROW_STYLE: React.CSSProperties = {
   borderTop: '2px solid var(--s-border)',
   background: 'var(--s-elevated)',
   fontWeight: 600,
 };
 
-function CoreTable({ label, accent, players, teamRow }: { label: string; accent: string; players: PlayerStats[]; teamRow?: PlayerStats }) {
+// ── Système unifié de table de stats ──────────────────────────────────────
+// Une colonne décrit son label/title, son accessor (lit la valeur du joueur),
+// son renderer (formate l'affichage), et `better: 'high'|'low'|null` (pour
+// l'étoile best au sein de l'équipe).
+
+interface ColDef {
+  label: React.ReactNode;
+  title?: string;
+  accessor: (p: PlayerStats) => number | undefined;
+  render: (v: number | undefined) => React.ReactNode;
+  better: 'high' | 'low' | null; // null = pas de comparatif (ex: nom)
+  bar?: 'pct'; // mini-barre 0-100% si défini
+  muted?: boolean;
+}
+
+const COLUMNS_CORE: ColDef[] = [
+  { label: <Trophy size={12} className="inline" />, title: 'Score', accessor: p => p.score, render: v => fmtNum(v ?? 0), better: 'high' },
+  { label: <Target size={12} className="inline" />, title: 'Buts', accessor: p => p.goals, render: v => fmtNum(v ?? 0), better: 'high' },
+  { label: 'A', title: 'Passes', accessor: p => p.assists, render: v => fmtNum(v ?? 0), better: 'high' },
+  { label: <Hand size={12} className="inline" />, title: 'Arrêts', accessor: p => p.saves, render: v => fmtNum(v ?? 0), better: 'high' },
+  { label: <Crosshair size={12} className="inline" />, title: 'Tirs', accessor: p => p.shots, render: v => fmtNum(v ?? 0), better: 'high' },
+  { label: '%', title: '% de tir cadré', accessor: p => p.shootingPct, render: v => typeof v === 'number' ? `${Math.round(v)}` : '—', better: 'high', muted: true, bar: 'pct' },
+];
+
+const COLUMNS_BOOST: ColDef[] = [
+  { label: 'BPM', title: 'Boost per minute', accessor: p => p.boost?.bpm, render: v => fmtNum(v ?? 0), better: 'high' },
+  { label: 'BCPM', title: 'Boost collecté par minute', accessor: p => p.boost?.bcpm, render: v => fmtNum(v ?? 0), better: 'high' },
+  { label: 'Avg', title: 'Boost moyen', accessor: p => p.boost?.avgAmount, render: v => fmtNum(v ?? 0), better: 'high' },
+  { label: 'Volé', title: 'Boost volé à l\'adversaire', accessor: p => p.boost?.amountStolen, render: v => fmtNum(v ?? 0), better: 'high' },
+  { label: 'Big', title: 'Gros pads collectés', accessor: p => p.boost?.amountCollectedBig, render: v => fmtNum(v ?? 0), better: 'high' },
+  { label: 'Sm', title: 'Petits pads collectés', accessor: p => p.boost?.amountCollectedSmall, render: v => fmtNum(v ?? 0), better: 'high' },
+  { label: '%0', title: '% du temps à 0 boost (low = mieux)', accessor: p => p.boost?.percentZeroBoost, render: v => fmtPct(v), better: 'low', muted: true, bar: 'pct' },
+  { label: '%100', title: '% du temps à 100 boost (low = mieux, signe de greedy)', accessor: p => p.boost?.percentFullBoost, render: v => fmtPct(v), better: 'low', muted: true, bar: 'pct' },
+];
+
+const COLUMNS_MOVEMENT: ColDef[] = [
+  { label: 'Avg km/h', title: 'Vitesse moyenne', accessor: p => p.movement?.avgSpeed, render: v => fmtNum(v ?? 0), better: 'high' },
+  { label: 'Dist', title: 'Distance parcourue totale', accessor: p => p.movement?.totalDistance, render: v => `${fmtNum((v ?? 0) / 1000, 1)}k`, better: 'high' },
+  { label: 'Super', title: 'Temps passé en supersonic', accessor: p => p.movement?.timeSupersonic, render: v => fmtTime(v ?? 0), better: 'high' },
+  { label: '%SS', title: '% du temps en supersonic', accessor: p => p.movement?.percentSupersonic, render: v => fmtPct(v), better: 'high', muted: true, bar: 'pct' },
+  { label: '%Sol', title: '% du temps au sol', accessor: p => p.movement?.percentGround, render: v => fmtPct(v), better: null, muted: true, bar: 'pct' },
+  { label: 'PS', title: 'Nombre de powerslides', accessor: p => p.movement?.powerslideCount, render: v => fmtNum(v ?? 0), better: 'high' },
+];
+
+const COLUMNS_POSITIONING: ColDef[] = [
+  { label: 'Dist balle', title: 'Distance moyenne à la balle', accessor: p => p.positioning?.avgDistanceToBall, render: v => fmtNum(v ?? 0), better: null },
+  { label: '%Déf', title: '% du temps en moitié défensive', accessor: p => p.positioning?.percentDefensiveHalf, render: v => fmtPct(v), better: null, muted: true, bar: 'pct' },
+  { label: '%Behind', title: '% du temps derrière la balle', accessor: p => p.positioning?.percentBehindBall, render: v => fmtPct(v), better: null, muted: true, bar: 'pct' },
+  { label: 'Most back', title: 'Temps en tant que dernier défenseur', accessor: p => p.positioning?.timeMostBack, render: v => fmtTime(v ?? 0), better: null },
+  { label: 'Most fwd', title: 'Temps en tant que plus avancé', accessor: p => p.positioning?.timeMostForward, render: v => fmtTime(v ?? 0), better: null },
+];
+
+const COLUMNS_DEMOS: ColDef[] = [
+  { label: 'Infligés', title: 'Demos infligés', accessor: p => p.demo?.inflicted, render: v => fmtNum(v ?? 0), better: 'high' },
+  { label: 'Subis', title: 'Demos subis (low = mieux)', accessor: p => p.demo?.taken, render: v => fmtNum(v ?? 0), better: 'low' },
+];
+
+// ── Sub-table par équipe ─────────────────────────────────────────────────
+// Affiche les joueurs d'UNE équipe + sa ligne TEAM en bas. Header sépare le
+// nom de l'équipe en t-label de couleur accent. Lignes joueur ont un fond
+// très subtil de la couleur de l'équipe (cohérence visuelle).
+function TeamSubTable({
+  label,
+  accent,
+  players,
+  teamRow,
+  columns,
+  showName = true,
+}: {
+  label: string;
+  accent: string;
+  players: PlayerStats[];
+  teamRow?: PlayerStats;
+  columns: ColDef[];
+  showName?: boolean;
+}) {
+  // Pour chaque colonne, on calcule l'index du meilleur joueur (selon better:
+  // 'high'/'low') au sein de CETTE équipe — l'étoile signale le standout local.
+  const bestIndexByCol: Record<number, number | null> = useMemo(() => {
+    const out: Record<number, number | null> = {};
+    columns.forEach((col, ci) => {
+      if (!col.better || players.length === 0) { out[ci] = null; return; }
+      let bestI = -1;
+      let bestV = col.better === 'high' ? -Infinity : Infinity;
+      players.forEach((p, pi) => {
+        const v = col.accessor(p);
+        if (typeof v !== 'number') return;
+        if (col.better === 'high' && v > bestV) { bestV = v; bestI = pi; }
+        if (col.better === 'low' && v < bestV) { bestV = v; bestI = pi; }
+      });
+      out[ci] = bestI >= 0 ? bestI : null;
+    });
+    return out;
+  }, [players, columns]);
+
+  // Bg subtil par équipe sur les lignes joueur — renforce l'identité visuelle
+  // sans nuire à la lisibilité (alpha 04).
+  const rowBg = accent + '08';
+
   return (
-    <div className="bevel-sm p-2" style={{ background: 'var(--s-surface)', border: `1px solid ${accent}30` }}>
-      <div className="t-label mb-2 px-1" style={{ color: accent }}>{label}</div>
-      <table className="w-full text-sm">
-        <thead>
-          <tr style={{ color: 'var(--s-text-muted)' }}>
-            <th className="text-left pb-1 font-normal">Joueur</th>
-            <th className="text-right pb-1 font-normal" title="Score"><Trophy size={12} className="inline" /></th>
-            <th className="text-right pb-1 font-normal" title="Buts"><Target size={12} className="inline" /></th>
-            <th className="text-right pb-1 font-normal" title="Passes">A</th>
-            <th className="text-right pb-1 font-normal" title="Arrêts"><Hand size={12} className="inline" /></th>
-            <th className="text-right pb-1 font-normal" title="Tirs"><Crosshair size={12} className="inline" /></th>
-            <th className="text-right pb-1 font-normal" title="% tir">%</th>
-          </tr>
-        </thead>
-        <tbody>
-          {players.map((p, idx) => (
-            <tr key={`${p.platform}-${p.platformId}-${idx}`} style={{ color: 'var(--s-text)' }}>
-              <td className="py-2 truncate max-w-[160px]">
-                <span style={{ color: p.mvp ? 'var(--s-gold)' : 'var(--s-text)' }}>{p.name}</span>
-                {p.mvp && <span className="ml-1 t-label" style={{ color: 'var(--s-gold)' }}>MVP</span>}
-              </td>
-              <td className="text-right py-2 t-mono">{fmtNum(p.score)}</td>
-              <td className="text-right py-2 t-mono">{fmtNum(p.goals)}</td>
-              <td className="text-right py-2 t-mono">{fmtNum(p.assists)}</td>
-              <td className="text-right py-2 t-mono">{fmtNum(p.saves)}</td>
-              <td className="text-right py-2 t-mono">{fmtNum(p.shots)}</td>
-              <td className="text-right py-2 t-mono" style={{ color: 'var(--s-text-muted)' }}>
-                {typeof p.shootingPct === 'number' ? Math.round(p.shootingPct) : '—'}
-              </td>
+    <div className="bevel-sm overflow-hidden" style={{ background: 'var(--s-surface)', border: `1px solid ${accent}40` }}>
+      {showName && (
+        <div className="px-3 py-2 t-label flex items-center gap-2" style={{ color: accent, background: accent + '10', borderBottom: `1px solid ${accent}30` }}>
+          <span style={{ width: 8, height: 8, background: accent, borderRadius: '50%' }} />
+          {label}
+        </div>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr style={{ color: 'var(--s-text-muted)' }}>
+              <th className="text-left pb-1 px-3 pt-2 font-normal">Joueur</th>
+              {columns.map((c, i) => (
+                <th key={i} className="text-right pb-1 pt-2 px-2 font-normal whitespace-nowrap" title={c.title}>
+                  {c.label}
+                </th>
+              ))}
             </tr>
-          ))}
-          {teamRow && (
-            <tr style={{ ...TEAM_ROW_STYLE, color: accent }}>
-              <td className="py-2.5 t-label">TEAM</td>
-              <td className="text-right py-2.5 t-mono">{fmtNum(teamRow.score)}</td>
-              <td className="text-right py-2.5 t-mono">{fmtNum(teamRow.goals)}</td>
-              <td className="text-right py-2.5 t-mono">{fmtNum(teamRow.assists)}</td>
-              <td className="text-right py-2.5 t-mono">{fmtNum(teamRow.saves)}</td>
-              <td className="text-right py-2.5 t-mono">{fmtNum(teamRow.shots)}</td>
-              <td className="text-right py-2.5 t-mono">{typeof teamRow.shootingPct === 'number' ? Math.round(teamRow.shootingPct) : '—'}</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {players.map((p, pi) => (
+              <tr key={`${p.platform}-${p.platformId}-${pi}`}
+                style={{ color: 'var(--s-text)', background: rowBg, borderTop: '1px solid var(--s-border)' }}>
+                <td className="py-2 px-3 truncate max-w-[200px]">
+                  <span style={{ color: p.mvp ? 'var(--s-gold)' : 'var(--s-text)' }}>{p.name}</span>
+                  {p.mvp && <span className="ml-1 t-label" style={{ color: 'var(--s-gold)' }}>MVP</span>}
+                </td>
+                {columns.map((col, ci) => (
+                  <StatCell key={ci} value={col.accessor(p)} col={col} isBest={bestIndexByCol[ci] === pi} accent={accent} />
+                ))}
+              </tr>
+            ))}
+            {teamRow && (
+              <tr style={{ ...TEAM_ROW_STYLE, color: accent }}>
+                <td className="py-2.5 px-3 t-label">TEAM</td>
+                {columns.map((col, ci) => (
+                  <td key={ci} className="text-right py-2.5 px-2 t-mono whitespace-nowrap">
+                    {col.render(col.accessor(teamRow))}
+                  </td>
+                ))}
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
-function BoostTable({ players, teamRows }: { players: PlayerStats[]; teamRows?: PlayerStats[] }) {
+// Cellule de valeur avec étoile (best) et mini-barre (si col.bar='pct').
+function StatCell({ value, col, isBest, accent }: { value: number | undefined; col: ColDef; isBest: boolean; accent: string }) {
+  const display = col.render(value);
+  const showBar = col.bar === 'pct' && typeof value === 'number';
+  const pctValue = showBar ? Math.max(0, Math.min(100, value)) : 0;
+
   return (
-    <div className="bevel-sm p-2 overflow-x-auto" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <table className="w-full text-sm">
-        <thead>
-          <tr style={{ color: 'var(--s-text-muted)' }}>
-            <th className="text-left pb-1 font-normal">Joueur</th>
-            <th className="text-right pb-1 font-normal" title="Boost per minute">BPM</th>
-            <th className="text-right pb-1 font-normal" title="Boost collecté par min">BCPM</th>
-            <th className="text-right pb-1 font-normal" title="Boost moyen">Avg</th>
-            <th className="text-right pb-1 font-normal" title="Volé à l'adversaire">Volé</th>
-            <th className="text-right pb-1 font-normal" title="Gros pads">Big</th>
-            <th className="text-right pb-1 font-normal" title="Petits pads">Sm</th>
-            <th className="text-right pb-1 font-normal" title="% temps à 0 boost">%0</th>
-            <th className="text-right pb-1 font-normal" title="% temps à 100 boost">%100</th>
-          </tr>
-        </thead>
-        <tbody>
-          {players.map((p, i) => p.boost ? (
-            <tr key={i} style={{ color: 'var(--s-text)', borderTop: '1px solid var(--s-border)' }}>
-              <td className="py-2 truncate max-w-[160px]" style={{ color: teamColor(p.team) }}>{p.name}</td>
-              <td className="text-right py-2 t-mono">{fmtNum(p.boost.bpm)}</td>
-              <td className="text-right py-2 t-mono">{fmtNum(p.boost.bcpm)}</td>
-              <td className="text-right py-2 t-mono">{fmtNum(p.boost.avgAmount)}</td>
-              <td className="text-right py-2 t-mono">{fmtNum(p.boost.amountStolen)}</td>
-              <td className="text-right py-2 t-mono">{fmtNum(p.boost.amountCollectedBig)}</td>
-              <td className="text-right py-2 t-mono">{fmtNum(p.boost.amountCollectedSmall)}</td>
-              <td className="text-right py-2 t-mono" style={{ color: 'var(--s-text-muted)' }}>{fmtPct(p.boost.percentZeroBoost)}</td>
-              <td className="text-right py-2 t-mono" style={{ color: 'var(--s-text-muted)' }}>{fmtPct(p.boost.percentFullBoost)}</td>
-            </tr>
-          ) : null)}
-          {teamRows?.map((t, i) => t.boost ? (
-            <tr key={`team-${i}`} style={{ ...TEAM_ROW_STYLE, color: teamColor(t.team) }}>
-              <td className="py-2.5 t-label">{t.name}</td>
-              <td className="text-right py-2.5 t-mono">{fmtNum(t.boost.bpm)}</td>
-              <td className="text-right py-2.5 t-mono">{fmtNum(t.boost.bcpm)}</td>
-              <td className="text-right py-2.5 t-mono">{fmtNum(t.boost.avgAmount)}</td>
-              <td className="text-right py-2.5 t-mono">{fmtNum(t.boost.amountStolen)}</td>
-              <td className="text-right py-2.5 t-mono">{fmtNum(t.boost.amountCollectedBig)}</td>
-              <td className="text-right py-2.5 t-mono">{fmtNum(t.boost.amountCollectedSmall)}</td>
-              <td className="text-right py-2.5 t-mono">{fmtPct(t.boost.percentZeroBoost)}</td>
-              <td className="text-right py-2.5 t-mono">{fmtPct(t.boost.percentFullBoost)}</td>
-            </tr>
-          ) : null)}
-        </tbody>
-      </table>
-    </div>
+    <td className="text-right py-2 px-2 t-mono whitespace-nowrap" style={{ color: col.muted && !isBest ? 'var(--s-text-muted)' : undefined }}>
+      <div className="flex items-center justify-end gap-1">
+        {isBest && (
+          <span title="Top du joueur dans cette équipe" style={{ color: 'var(--s-gold)', fontSize: 10, lineHeight: 1 }}>★</span>
+        )}
+        <span style={isBest ? { color: 'var(--s-gold)', fontWeight: 600 } : undefined}>{display}</span>
+      </div>
+      {showBar && (
+        <div style={{ height: 2, background: 'var(--s-border)', marginTop: 2, marginLeft: 'auto', width: '60px' }}>
+          <div style={{ height: '100%', width: `${pctValue}%`, background: accent, opacity: 0.7 }} />
+        </div>
+      )}
+    </td>
   );
 }
 
-function MovementTable({ players, teamRows }: { players: PlayerStats[]; teamRows?: PlayerStats[] }) {
+// Wrapper haut niveau : rend Blue + Orange côte à côte avec leur sub-table.
+function TwoTeamTables({
+  blueLabel, orangeLabel, blue, orange, teamRowBlue, teamRowOrange, columns,
+}: {
+  blueLabel: string; orangeLabel: string;
+  blue: PlayerStats[]; orange: PlayerStats[];
+  teamRowBlue?: PlayerStats; teamRowOrange?: PlayerStats;
+  columns: ColDef[];
+}) {
   return (
-    <div className="bevel-sm p-2 overflow-x-auto" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <table className="w-full text-sm">
-        <thead>
-          <tr style={{ color: 'var(--s-text-muted)' }}>
-            <th className="text-left pb-1 font-normal">Joueur</th>
-            <th className="text-right pb-1 font-normal" title="Vitesse moyenne">Avg km/h</th>
-            <th className="text-right pb-1 font-normal" title="Distance totale">Dist</th>
-            <th className="text-right pb-1 font-normal" title="Temps en supersonic">Super</th>
-            <th className="text-right pb-1 font-normal" title="% supersonic">%SS</th>
-            <th className="text-right pb-1 font-normal" title="% au sol">%Sol</th>
-            <th className="text-right pb-1 font-normal" title="Powerslides">PS</th>
-          </tr>
-        </thead>
-        <tbody>
-          {players.map((p, i) => p.movement ? (
-            <tr key={i} style={{ color: 'var(--s-text)', borderTop: '1px solid var(--s-border)' }}>
-              <td className="py-2 truncate max-w-[160px]" style={{ color: teamColor(p.team) }}>{p.name}</td>
-              <td className="text-right py-2 t-mono">{fmtNum(p.movement.avgSpeed)}</td>
-              <td className="text-right py-2 t-mono">{fmtNum(p.movement.totalDistance / 1000, 1)}k</td>
-              <td className="text-right py-2 t-mono">{fmtTime(p.movement.timeSupersonic)}</td>
-              <td className="text-right py-2 t-mono" style={{ color: 'var(--s-text-muted)' }}>{fmtPct(p.movement.percentSupersonic)}</td>
-              <td className="text-right py-2 t-mono" style={{ color: 'var(--s-text-muted)' }}>{fmtPct(p.movement.percentGround)}</td>
-              <td className="text-right py-2 t-mono">{p.movement.powerslideCount}</td>
-            </tr>
-          ) : null)}
-          {teamRows?.map((t, i) => t.movement ? (
-            <tr key={`team-${i}`} style={{ ...TEAM_ROW_STYLE, color: teamColor(t.team) }}>
-              <td className="py-2.5 t-label">{t.name}</td>
-              <td className="text-right py-2.5 t-mono">{fmtNum(t.movement.avgSpeed)}</td>
-              <td className="text-right py-2.5 t-mono">{fmtNum(t.movement.totalDistance / 1000, 1)}k</td>
-              <td className="text-right py-2.5 t-mono">{fmtTime(t.movement.timeSupersonic)}</td>
-              <td className="text-right py-2.5 t-mono">{fmtPct(t.movement.percentSupersonic)}</td>
-              <td className="text-right py-2.5 t-mono">{fmtPct(t.movement.percentGround)}</td>
-              <td className="text-right py-2.5 t-mono">{fmtNum(t.movement.powerslideCount)}</td>
-            </tr>
-          ) : null)}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function PositioningTable({ players, teamRows }: { players: PlayerStats[]; teamRows?: PlayerStats[] }) {
-  return (
-    <div className="bevel-sm p-2 overflow-x-auto" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <table className="w-full text-sm">
-        <thead>
-          <tr style={{ color: 'var(--s-text-muted)' }}>
-            <th className="text-left pb-1 font-normal">Joueur</th>
-            <th className="text-right pb-1 font-normal" title="Distance moyenne à la balle">Dist balle</th>
-            <th className="text-right pb-1 font-normal" title="% en moitié défensive">%Déf</th>
-            <th className="text-right pb-1 font-normal" title="% derrière la balle">%Behind</th>
-            <th className="text-right pb-1 font-normal" title="Temps le plus arrière">Most back</th>
-            <th className="text-right pb-1 font-normal" title="Temps le plus avancé">Most fwd</th>
-          </tr>
-        </thead>
-        <tbody>
-          {players.map((p, i) => p.positioning ? (
-            <tr key={i} style={{ color: 'var(--s-text)', borderTop: '1px solid var(--s-border)' }}>
-              <td className="py-2 truncate max-w-[160px]" style={{ color: teamColor(p.team) }}>{p.name}</td>
-              <td className="text-right py-2 t-mono">{fmtNum(p.positioning.avgDistanceToBall)}</td>
-              <td className="text-right py-2 t-mono" style={{ color: 'var(--s-text-muted)' }}>{fmtPct(p.positioning.percentDefensiveHalf)}</td>
-              <td className="text-right py-2 t-mono" style={{ color: 'var(--s-text-muted)' }}>{fmtPct(p.positioning.percentBehindBall)}</td>
-              <td className="text-right py-2 t-mono">{fmtTime(p.positioning.timeMostBack)}</td>
-              <td className="text-right py-2 t-mono">{fmtTime(p.positioning.timeMostForward)}</td>
-            </tr>
-          ) : null)}
-          {teamRows?.map((t, i) => t.positioning ? (
-            <tr key={`team-${i}`} style={{ ...TEAM_ROW_STYLE, color: teamColor(t.team) }}>
-              <td className="py-2.5 t-label">{t.name}</td>
-              <td className="text-right py-2.5 t-mono">{fmtNum(t.positioning.avgDistanceToBall)}</td>
-              <td className="text-right py-2.5 t-mono">{fmtPct(t.positioning.percentDefensiveHalf)}</td>
-              <td className="text-right py-2.5 t-mono">{fmtPct(t.positioning.percentBehindBall)}</td>
-              <td className="text-right py-2.5 t-mono">{fmtTime(t.positioning.timeMostBack)}</td>
-              <td className="text-right py-2.5 t-mono">{fmtTime(t.positioning.timeMostForward)}</td>
-            </tr>
-          ) : null)}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function DemoTable({ players, teamRows }: { players: PlayerStats[]; teamRows?: PlayerStats[] }) {
-  return (
-    <div className="bevel-sm p-2" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <table className="w-full text-sm">
-        <thead>
-          <tr style={{ color: 'var(--s-text-muted)' }}>
-            <th className="text-left pb-1 font-normal">Joueur</th>
-            <th className="text-right pb-1 font-normal">Infligés</th>
-            <th className="text-right pb-1 font-normal">Subis</th>
-          </tr>
-        </thead>
-        <tbody>
-          {players.map((p, i) => p.demo ? (
-            <tr key={i} style={{ color: 'var(--s-text)', borderTop: '1px solid var(--s-border)' }}>
-              <td className="py-2 truncate max-w-[160px]" style={{ color: teamColor(p.team) }}>{p.name}</td>
-              <td className="text-right py-2 t-mono">{fmtNum(p.demo.inflicted)}</td>
-              <td className="text-right py-2 t-mono">{fmtNum(p.demo.taken)}</td>
-            </tr>
-          ) : null)}
-          {teamRows?.map((t, i) => t.demo ? (
-            <tr key={`team-${i}`} style={{ ...TEAM_ROW_STYLE, color: teamColor(t.team) }}>
-              <td className="py-2.5 t-label">{t.name}</td>
-              <td className="text-right py-2.5 t-mono">{fmtNum(t.demo.inflicted)}</td>
-              <td className="text-right py-2.5 t-mono">{fmtNum(t.demo.taken)}</td>
-            </tr>
-          ) : null)}
-        </tbody>
-      </table>
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+      <TeamSubTable label={blueLabel} accent="#0081FF" players={blue} teamRow={teamRowBlue} columns={columns} />
+      <TeamSubTable label={orangeLabel} accent="#FFB800" players={orange} teamRow={teamRowOrange} columns={columns} />
     </div>
   );
 }

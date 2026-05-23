@@ -82,49 +82,93 @@ export default function EventStatsPage({ params }: { params: Promise<{ eventId: 
   const dateStr = formatDate(meta.startsAt);
   const typeLabel = ({ scrim: 'SCRIM', match: 'MATCH', training: 'ENTRAÎNEMENT', tournoi: 'TOURNOI' } as Record<string, string>)[meta.type] || meta.type.toUpperCase();
 
+  // Tente de parser un score "X-Y" → couleur le bandeau victoire/défaite
+  const scoreParts = meta.score?.match(/^(\d+)\s*[-–:]\s*(\d+)$/);
+  const us = scoreParts ? parseInt(scoreParts[1], 10) : null;
+  const them = scoreParts ? parseInt(scoreParts[2], 10) : null;
+  const winState: 'win' | 'loss' | 'draw' | null = meta.result === 'win' ? 'win'
+    : meta.result === 'loss' ? 'loss'
+    : meta.result === 'draw' ? 'draw'
+    : us != null && them != null
+      ? (us > them ? 'win' : us < them ? 'loss' : 'draw')
+      : null;
+  const winColor = winState === 'win' ? '#33ff66' : winState === 'loss' ? '#ef4444' : 'var(--s-text-muted)';
+
   return (
     <div className="hex-bg min-h-screen">
-      <div className="max-w-[1400px] mx-auto px-6 py-6 space-y-6">
-
-        {/* Top bar : retour + lien externe vers la structure */}
-        <div className="flex items-center justify-between gap-3 flex-wrap">
+      {/* Top bar sticky : retour + breadcrumb structure */}
+      <div className="sticky top-0 z-30 backdrop-blur-md"
+        style={{ background: 'rgba(10,10,10,0.85)', borderBottom: '1px solid var(--s-border)' }}>
+        <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
           <Link href="/community/my-structure"
             className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors hover:text-white"
             style={{ color: 'var(--s-text-dim)' }}>
-            <ArrowLeft size={12} /> Ma structure
+            <ArrowLeft size={12} /> Retour à ma structure
           </Link>
-          {meta.structureName && (
-            <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-              {meta.structureName}
-            </span>
-          )}
+          <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--s-text-muted)' }}>
+            {meta.structureName && <span>{meta.structureName}</span>}
+            <span style={{ opacity: 0.5 }}>·</span>
+            <span className="tag tag-gold" style={{ fontSize: '10px', padding: '1px 6px' }}>{typeLabel}</span>
+          </div>
         </div>
+      </div>
 
-        {/* Header match */}
+      <div className="max-w-[1400px] mx-auto px-6 py-6 space-y-6">
+        {/* Header match — bandeau scoreboard style esport */}
         <header className="bevel relative overflow-hidden"
           style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
           <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
-          <div className="p-5">
-            <div className="flex items-center gap-2 flex-wrap mb-2">
-              <span className="tag tag-gold" style={{ fontSize: '11px', padding: '2px 8px' }}>{typeLabel}</span>
-              <BarChart3 size={14} style={{ color: 'var(--s-gold)' }} />
-              <span className="t-label" style={{ color: 'var(--s-gold)' }}>STATS DÉTAILLÉES</span>
+          <div className="p-5 sm:p-6">
+            <div className="flex items-center gap-2 mb-3">
+              <BarChart3 size={13} style={{ color: 'var(--s-gold)' }} />
+              <span className="t-label" style={{ color: 'var(--s-gold)' }}>STATS DÉTAILLÉES DU MATCH</span>
             </div>
-            <h1 className="font-display text-3xl" style={{ color: 'var(--s-text)' }}>{meta.title}</h1>
-            <div className="flex items-center gap-3 mt-2 text-sm flex-wrap" style={{ color: 'var(--s-text-muted)' }}>
+            <h1 className="font-display text-3xl sm:text-4xl mb-4" style={{ color: 'var(--s-text)' }}>{meta.title}</h1>
+
+            {/* Scoreboard : structure vs opponent */}
+            {(meta.opponent || scoreParts) && (
+              <div className="bevel-sm p-4 sm:p-5 my-4 flex items-center justify-center gap-6 sm:gap-10 flex-wrap"
+                style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                {/* Côté nous */}
+                <div className="text-right">
+                  <div className="t-label" style={{ color: 'var(--s-gold)' }}>{meta.structureName || 'Nous'}</div>
+                  {us != null && (
+                    <div className="font-display text-5xl sm:text-6xl leading-none mt-1"
+                      style={{ color: winState === 'win' ? '#33ff66' : 'var(--s-text)' }}>{us}</div>
+                  )}
+                </div>
+                {/* VS séparateur */}
+                <div className="flex flex-col items-center gap-1.5">
+                  <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>VS</span>
+                  {winState && (
+                    <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5"
+                      style={{
+                        background: `${winColor}15`,
+                        color: winColor,
+                        border: `1px solid ${winColor}40`,
+                      }}>
+                      {winState === 'win' ? 'Victoire' : winState === 'loss' ? 'Défaite' : 'Égalité'}
+                    </span>
+                  )}
+                </div>
+                {/* Côté adversaire */}
+                <div className="text-left">
+                  <div className="t-label" style={{ color: 'var(--s-text-dim)' }}>{meta.opponent || 'Adversaire'}</div>
+                  {them != null && (
+                    <div className="font-display text-5xl sm:text-6xl leading-none mt-1"
+                      style={{ color: winState === 'loss' ? '#ef4444' : 'var(--s-text)' }}>{them}</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Meta : date + lien */}
+            <div className="flex items-center gap-3 text-sm flex-wrap" style={{ color: 'var(--s-text-muted)' }}>
               {dateStr && (
                 <span className="flex items-center gap-1.5">
                   <CalendarIcon size={12} /> {dateStr}
                 </span>
               )}
-              {meta.opponent && (<>
-                <span>·</span>
-                <span>vs <strong style={{ color: 'var(--s-text)' }}>{meta.opponent}</strong></span>
-              </>)}
-              {meta.score && (<>
-                <span>·</span>
-                <span className="t-mono">{meta.score}</span>
-              </>)}
             </div>
           </div>
         </header>
