@@ -877,10 +877,40 @@ export default function SettingsPage() {
                             <span className="t-label" style={{ color: 'var(--s-blue)' }}>Config Rocket League</span>
                           </div>
 
-                          {/* ── Compte Epic officiel (anti-mensonge / sticky) ── */}
+                          {/* ── Question 1 : SUR QUELLE PLATEFORME ? ──
+                              Mis en avant en haut pour que l'utilisateur choisisse d'abord,
+                              et que les blocs de vérification suivants soient adaptés à sa
+                              réponse (Epic / Steam / autres). */}
+                          <div className="p-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                            <label className="t-label block mb-2" style={{ color: 'var(--s-text)' }}>
+                              Sur quelle plateforme joues-tu à Rocket League ?
+                            </label>
+                            <select
+                              value={form.rlPlatform}
+                              onChange={e => updateForm({ rlPlatform: (e.target.value as RLPlatform | '') })}
+                              className="settings-input w-full"
+                            >
+                              <option value="">— Choisis ta plateforme —</option>
+                              {RL_PLATFORMS.map(p => (
+                                <option key={p.value} value={p.value}>{p.label}</option>
+                              ))}
+                            </select>
+                            {!form.rlPlatform && (
+                              <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
+                                Choisis ta plateforme — les options de vérification adaptées
+                                s&apos;afficheront en dessous.
+                              </p>
+                            )}
+                          </div>
+
+                          {/* ── Compte Epic officiel (anti-mensonge / sticky) ──
+                              Les SUGGESTIONS (état non confirmé) ne s'affichent que si la
+                              plateforme déclarée est Epic, ou pas encore choisie. L'affichage
+                              du compte confirmé (epicLinked truthy) reste toujours visible. */}
                           {(() => {
                             const epicConn = (form.connections ?? []).find(c => c.type === 'epicgames' && c.verified);
                             const epicMissingFromDiscord = !!epicLinked && (!epicConn || epicConn.id !== epicLinked.rlEpicId);
+                            const epicContext = form.rlPlatform === '' || form.rlPlatform === 'epic';
 
                             if (epicLinked) {
                               return (
@@ -925,7 +955,8 @@ export default function SettingsPage() {
                               );
                             }
 
-                            if (epicConn) {
+                            // Suggestion confirmation Epic : uniquement si plateforme Epic ou vide
+                            if (epicConn && epicContext) {
                               return (
                                 <div className="p-3 space-y-2"
                                   style={{ background: 'rgba(255,184,0,0.04)', border: '1px solid rgba(255,184,0,0.2)' }}>
@@ -958,24 +989,34 @@ export default function SettingsPage() {
                               );
                             }
 
-                            return (
-                              <div className="p-3 space-y-1"
-                                style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--s-border)' }}>
-                                <div className="flex items-center gap-2">
-                                  <AlertCircle size={14} style={{ color: 'var(--s-text-muted)' }} />
-                                  <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
-                                    Aucun compte Rocket League vérifié
-                                  </span>
+                            // "Aucun compte vérifié" : message d'invitation à lier Epic.
+                            // Ne s'affiche qu'en contexte Epic (ou plateforme non choisie).
+                            if (epicContext) {
+                              return (
+                                <div className="p-3 space-y-1"
+                                  style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--s-border)' }}>
+                                  <div className="flex items-center gap-2">
+                                    <AlertCircle size={14} style={{ color: 'var(--s-text-muted)' }} />
+                                    <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
+                                      Aucun compte Rocket League vérifié
+                                    </span>
+                                  </div>
+                                  <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                                    Pour qu'on puisse afficher un rang vérifiable, lie ton compte Epic à ton Discord (Paramètres Discord → Connexions → Epic Games), puis reconnecte-toi à Aedral.
+                                  </p>
                                 </div>
-                                <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                                  Pour qu'on puisse afficher un rang vérifiable, lie ton compte Epic à ton Discord (Paramètres Discord → Connexions → Epic Games), puis reconnecte-toi à Aedral.
-                                </p>
-                              </div>
-                            );
+                              );
+                            }
+                            return null;
                           })()}
 
-                          {/* ── Liaison Steam (chemin recommandé pour les Steam users) ── */}
-                          {steamLinked ? (
+                          {/* ── Liaison Steam ──
+                              Si Steam déjà lié : on affiche l'état (info utile dans tous les cas).
+                              Sinon : suggestion uniquement si plateforme déclarée = Steam ou pas
+                              encore choisie. La mention "(recommandé)" est conditionnée au
+                              contexte Steam pour ne pas tromper les joueurs Epic.  */}
+                          {(form.rlPlatform === '' || form.rlPlatform === 'steam' || steamLinked) && (
+                            steamLinked ? (
                             <div
                               className="p-3 flex items-center gap-3"
                               style={{
@@ -1032,10 +1073,17 @@ export default function SettingsPage() {
                               <div className="flex items-center justify-between gap-3 flex-wrap">
                                 <div className="flex-1 min-w-[200px]">
                                   <p className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
-                                    Lier ton compte Steam (recommandé)
+                                    Lier ton compte Steam
+                                    {form.rlPlatform === 'steam' && (
+                                      <span className="ml-2" style={{ color: 'var(--s-gold)', fontSize: '11px', fontWeight: 600 }}>
+                                        (recommandé)
+                                      </span>
+                                    )}
                                   </p>
                                   <p className="text-xs mt-1" style={{ color: 'var(--s-text-dim)' }}>
-                                    Récupère ton SteamID64 permanent → le lien tracker.gg ne casse JAMAIS, même si tu changes ton pseudo Steam. 2 clics, gratuit.
+                                    {form.rlPlatform === 'steam'
+                                      ? 'Récupère ton SteamID64 permanent → le lien tracker.gg ne casse JAMAIS, même si tu changes ton pseudo Steam. 2 clics, gratuit.'
+                                      : 'Optionnel — utile uniquement si tu joues à Rocket League sur Steam (pas Epic). 2 clics, gratuit.'}
                                   </p>
                                 </div>
                                 <button
@@ -1056,15 +1104,16 @@ export default function SettingsPage() {
                                 </button>
                               </div>
                             </div>
-                          )}
+                          ))}
 
                           {/* ── Compte Steam RL officiel (anti-mensonge / sticky) ── */}
                           {/* S'affiche dès qu'un Steam est lié via OpenID :
                               - si rlSteamLinked posé : confirme + bouton demande de changement
                               - sinon : prompt « C'est aussi ton compte RL ? »
                               Si l'Epic est déjà la voie officielle, on ne suggère rien (évite
-                              le bruit — l'Epic prime post-F2P). */}
-                          {steamLinked && !epicLinked && (() => {
+                              le bruit — l'Epic prime post-F2P). Conditionné aussi sur la
+                              plateforme déclarée pour ne pas spammer les joueurs non-Steam. */}
+                          {steamLinked && !epicLinked && (form.rlPlatform === '' || form.rlPlatform === 'steam') && (() => {
                             if (rlSteamLinked) {
                               return (
                                 <div className="p-3 space-y-2"
@@ -1131,29 +1180,14 @@ export default function SettingsPage() {
                             );
                           })()}
 
-                          {/* Séparateur visuel — si Steam lié, le manuel sert juste à override */}
-                          <div className="flex items-center gap-3 my-2">
-                            <div className="flex-1 h-px" style={{ background: 'var(--s-border)' }} />
-                            <span className="t-label text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                              {steamLinked ? 'ou saisir une autre plateforme' : 'ou saisir manuellement'}
-                            </span>
-                            <div className="flex-1 h-px" style={{ background: 'var(--s-border)' }} />
-                          </div>
+                          {/* Séparateur retiré — le sélecteur plateforme est maintenant
+                              en haut du bloc, plus de "ou saisir manuellement" en bas. */}
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                              <label className="t-label block mb-2">Plateforme *</label>
-                              <select
-                                value={form.rlPlatform}
-                                onChange={e => updateForm({ rlPlatform: (e.target.value as RLPlatform | '') })}
-                                className="settings-input w-full"
-                              >
-                                <option value="">— Choisis ta plateforme —</option>
-                                {RL_PLATFORMS.map(p => (
-                                  <option key={p.value} value={p.value}>{p.label}</option>
-                                ))}
-                              </select>
-                            </div>
+                          {/* ── Saisie ID / pseudo sur la plateforme ──
+                              Le label s'adapte (Pseudo Epic, SteamID64, etc.) selon la
+                              plateforme choisie en haut. Le sélecteur Plateforme a été
+                              déplacé en tête du bloc pour suivre la logique question→réponse. */}
+                          {form.rlPlatform && (
                             <div>
                               <label className="t-label block mb-2">
                                 {platformMeta?.idLabel ?? 'ID sur la plateforme'} *
@@ -1163,15 +1197,14 @@ export default function SettingsPage() {
                                 value={form.rlPlatformId}
                                 onChange={e => updateForm({ rlPlatformId: e.target.value })}
                                 className="settings-input w-full"
-                                placeholder={platformMeta?.idPlaceholder ?? 'Sélectionne une plateforme d\'abord'}
-                                disabled={!form.rlPlatform}
+                                placeholder={platformMeta?.idPlaceholder ?? ''}
                               />
+                              {platformMeta && (
+                                <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
+                                  {platformMeta.idHelp}
+                                </p>
+                              )}
                             </div>
-                          </div>
-                          {platformMeta && (
-                            <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                              {platformMeta.idHelp}
-                            </p>
                           )}
                           {/* Tip Ballchasing — comment apparaître dans leur base */}
                           <details
