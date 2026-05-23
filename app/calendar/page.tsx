@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Calendar as CalendarIcon,
@@ -375,18 +374,20 @@ function MyEventCard({
               </span>
             )}
           </div>
-          <Link href={`/community/structure/${event.structureId}`}
-            onClick={(e) => e.stopPropagation()}
-            className="flex items-center gap-2 mb-1 group">
+          {/* Logo + nom structure non-cliquables : un Link inline causait des
+              ouvertures accidentelles de la page structure au lieu du drawer.
+              Le lien vers la structure reste accessible depuis le header du
+              drawer qui s'ouvre au clic sur la card. */}
+          <div className="flex items-center gap-2 mb-1">
             {structure?.logoUrl ? (
               <Image src={structure.logoUrl} alt={structure.name} width={14} height={14} unoptimized className="flex-shrink-0" />
             ) : (
               <Shield size={12} style={{ color: 'var(--s-text-muted)' }} />
             )}
-            <span className="t-mono text-xs group-hover:text-white transition-colors" style={{ color: 'var(--s-text-dim)' }}>
+            <span className="t-mono text-xs" style={{ color: 'var(--s-text-dim)' }}>
               {structure?.name ?? 'Structure'}
             </span>
-          </Link>
+          </div>
           <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{event.title}</p>
           <div className="flex items-center gap-3 mt-1 flex-wrap">
             <span className="t-mono flex items-center gap-1" style={{ color: 'var(--s-text-dim)' }}>
