@@ -528,6 +528,7 @@ export default function SettingsPage() {
       await api('/api/profile', { method: 'POST', body: { ...rest, connectionVisibility } });
       setSaved(true);
       setDirty(false);
+      toast.success('Profil sauvegardé');
       // Rafraîchir le state global AuthContext pour que ProfileCompletionGate
       // voie le profil complété et n'essaie plus de rediriger vers /settings.
       await refreshProfile();
@@ -543,6 +544,23 @@ export default function SettingsPage() {
 
     setSaving(false);
   }
+
+  // ── Auto-save 2s après dernière modif ──
+  // Ne tente l'auto-save QUE si :
+  // - le formulaire est dirty (= des modifs non sauvées)
+  // - on n'est pas déjà en cours de save
+  // - le formulaire passe la validation (pas d'erreur visible)
+  // Si une erreur de validation existe, on attend que l'utilisateur corrige
+  // ou clique manuellement sur Save (qui montrera l'erreur précise).
+  useEffect(() => {
+    if (!dirty || saving) return;
+    if (validate() !== null) return;
+    const t = setTimeout(() => {
+      handleSave();
+    }, 2000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirty, form, saving]);
 
   const avatarSrc = form.avatarUrl || user?.discordAvatar || '';
 
@@ -1962,6 +1980,43 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* Bouton Save bottom sticky — apparaît dès qu'on a des modifs non sauvées.
+          L'auto-save couvre déjà 90% des cas (debounce 2s), mais ce bouton :
+          - donne le contrôle immédiat à l'utilisateur (skip l'attente)
+          - donne le feedback de validation si invalid (l'auto-save reste silencieux) */}
+      {(dirty || saving) && (
+        <div
+          className="fixed bottom-4 right-4 z-50 animate-fade-in"
+          style={{ pointerEvents: 'none' }}
+        >
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="btn-springs btn-primary bevel-sm flex items-center gap-2"
+            style={{
+              padding: '12px 20px',
+              fontSize: '13px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+              pointerEvents: 'auto',
+            }}
+          >
+            {saving ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                <span>Sauvegarde…</span>
+              </>
+            ) : (
+              <>
+                <Save size={14} />
+                <span>Sauvegarder maintenant</span>
+                <span className="text-[10px] opacity-70 ml-1">· auto dans 2s</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
