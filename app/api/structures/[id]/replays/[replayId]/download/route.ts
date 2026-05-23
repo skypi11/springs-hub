@@ -3,13 +3,20 @@ import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
-import { canDownloadReplay } from '@/lib/replay-permissions';
 import { isStaff } from '@/lib/event-permissions';
 import { generateDownloadUrl } from '@/lib/storage';
 
 // GET /api/structures/[id]/replays/[replayId]/download
 // Retourne une URL signée (60s) pour télécharger le fichier R2.
 // Le nom de fichier original est restauré via ResponseContentDisposition.
+//
+// Périmètre d'autorisation (étendu pour fix accès joueurs aux replays
+// de leur équipe + cas exercice replay_review) :
+// 1. Staff structure → tout
+// 2. Sinon : staff d'équipe, capitaine, OU player/sub de la team du replay
+// 3. Sinon : si l'user a un todo replay_review actif (non done) ciblant
+//    ce replayId, on autorise (cas où le coach assigne à un joueur d'une
+//    autre équipe — rare mais légitime).
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; replayId: string }> }
@@ -36,24 +43,56 @@ export async function GET(
 
     const resolved = await resolveUserContext(db, uid, structureId);
     if (!resolved) return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
-    if (!canDownloadReplay(resolved.context)) {
-      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
-    }
 
-    // Périmètre : staff structure voit tout ; staff/capitaine d'équipe voit uniquement ses équipes
     const teamId = data.teamId as string;
     const ctx = resolved.context;
-    if (!isStaff(ctx)) {
-      const allowed = new Set([...(ctx.staffedTeamIds ?? []), ...(ctx.captainOfTeamIds ?? [])]);
-      if (!allowed.has(teamId)) {
-        return NextResponse.json({ error: 'Équipe hors périmètre' }, { status: 403 });
+
+    // Périmètre par équipe : on autorise staff struct, staff/capitaine de
+    // l'équipe, ou player/sub de l'équipe.
+    let allowed = false;
+    if (isStaff(ctx)) {
+      allowed = true;
+    } else {
+      const targetTeam = resolved.teams.find(t => t.id === teamId);
+      if (targetTeam) {
+        const playerIds = Array.isArray(targetTeam.playerIds) ? (targetTeam.playerIds as string[]) : [];
+        const subIds = Array.isArray(targetTeam.subIds) ? (targetTeam.subIds as string[]) : [];
+        if (
+          ctx.staffedTeamIds.includes(teamId) ||
+          (ctx.captainOfTeamIds ?? []).includes(teamId) ||
+          playerIds.includes(uid) ||
+          subIds.includes(uid)
+        ) {
+          allowed = true;
+        }
       }
+    }
+
+    // Fallback : exercice replay_review actif ciblant ce replay précis.
+    // Permet à un joueur hors team d'accéder s'il a un todo explicite.
+    if (!allowed) {
+      const todoSnap = await db.collection('structure_todos')
+        .where('assigneeId', '==', uid)
+        .where('structureId', '==', structureId)
+        .where('type', '==', 'replay_review')
+        .get();
+      const hasActiveTodo = todoSnap.docs.some(d => {
+        const td = d.data();
+        if (td.done === true) return false;
+        const cfg = td.config as Record<string, unknown> | undefined;
+        return cfg?.replayId === replayId;
+      });
+      if (hasActiveTodo) allowed = true;
+    }
+
+    if (!allowed) {
+      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
     }
 
     const url = await generateDownloadUrl(
       data.r2Key as string,
       60,
-      (data.filename as string) || `${replayId}.replay`
+      (data.filename as string) || `${replayId}.replay`,
     );
 
     return NextResponse.json({ url });

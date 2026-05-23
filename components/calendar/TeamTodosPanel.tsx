@@ -457,6 +457,10 @@ export function NewTodoForm({
   // Feuille de match auto (présences confirmées de l'event lié ∩ roster). Null = pas fetché.
   const [lineup, setLineup] = useState<{ confirmed: string[]; rosterFallback: string[] } | null>(null);
   const [lineupLoading, setLineupLoading] = useState(false);
+  // Replays disponibles pour le picker du type 'replay_review'. Fetch quand
+  // l'event est lié — sinon undefined → le picker n'apparaît pas dans
+  // TodoConfigFields.
+  const [availableReplays, setAvailableReplays] = useState<Array<{ id: string; title: string }> | undefined>(undefined);
 
   // Config spécifique au type — un seul objet, les clés non-pertinentes sont ignorées à la soumission
   const [config, setConfig] = useState<Record<string, unknown>>({});
@@ -552,6 +556,28 @@ export function NewTodoForm({
       })
       .catch(() => { if (!cancelled) setLineup(null); })
       .finally(() => { if (!cancelled) setLineupLoading(false); });
+    return () => { cancelled = true; };
+  }, [eventId, team.id, structureId, firebaseUser]);
+
+  // Fetch les replays liés à l'event courant (pour le picker replay_review).
+  // Si pas d'event lié : on ne fetch pas → availableReplays reste undefined
+  // → le picker ne s'affiche pas dans TodoConfigFields.
+  useEffect(() => {
+    if (!eventId || !firebaseUser) {
+      setAvailableReplays(undefined);
+      return;
+    }
+    let cancelled = false;
+    api<{ replays: { id: string; title: string }[] }>(
+      `/api/structures/${structureId}/replays?teamId=${encodeURIComponent(team.id)}&eventId=${encodeURIComponent(eventId)}`,
+    )
+      .then(data => {
+        if (cancelled) return;
+        setAvailableReplays(Array.isArray(data.replays)
+          ? data.replays.map(r => ({ id: r.id, title: r.title }))
+          : []);
+      })
+      .catch(() => { if (!cancelled) setAvailableReplays([]); });
     return () => { cancelled = true; };
   }, [eventId, team.id, structureId, firebaseUser]);
 
@@ -690,8 +716,15 @@ export function NewTodoForm({
           value={description} onChange={e => setDescription(e.target.value)} />
       </div>
 
-      {/* Champs spécifiques au type sélectionné */}
-      <TodoConfigFields type={type} config={config} onChange={updateConfig} />
+      {/* Champs spécifiques au type sélectionné.
+          Le picker replay (type 'replay_review') s'affiche uniquement si un
+          event est lié → on a une liste de replays à proposer. */}
+      <TodoConfigFields
+        type={type}
+        config={config}
+        onChange={updateConfig}
+        availableReplays={availableReplays}
+      />
 
       <div>
         <div className="flex items-center justify-between mb-1.5 gap-2 flex-wrap">

@@ -1,6 +1,6 @@
 'use client';
 
-import { X, Plus } from 'lucide-react';
+import { X, Plus, Film } from 'lucide-react';
 import {
   DEFAULT_MENTAL_PROMPTS,
   TRAINING_PACKS_MAX,
@@ -9,31 +9,71 @@ import {
   type TrainingPackItem,
 } from '@/lib/todos';
 
+// Replay simplifié pour le picker (cf. NewTodoForm fetch /api/structures/[id]/replays).
+export interface ReplayPickerItem {
+  id: string;
+  title: string;
+  sizeBytes?: number;
+  createdAt?: string | null;
+}
+
 // Rend les champs de config spécifiques à un type de exercice dans un formulaire.
 // Utilisé par NewTodoForm (création) et TemplateEditForm (édition de template).
+//
+// `availableReplays` : liste optionnelle de replays parmi lesquels choisir
+// pour le type 'replay_review' (le picker s'affiche uniquement si fourni).
+// Pour les templates qui n'ont pas de contexte event/équipe, on omet la
+// prop et le picker n'apparaît pas.
 export function TodoConfigFields({
   type,
   config,
   onChange,
+  availableReplays,
 }: {
   type: TodoType;
   config: Record<string, unknown>;
   onChange: (patch: Record<string, unknown>) => void;
+  availableReplays?: ReplayPickerItem[];
 }) {
   if (type === 'free') return null;
 
   if (type === 'replay_review') {
+    const replays = availableReplays ?? [];
+    const selectedReplayId = typeof config.replayId === 'string' ? config.replayId : '';
     return (
-      <div>
-        <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Points à regarder</label>
-        <textarea rows={2} className="settings-input w-full text-sm"
-          placeholder="Ex: les 2 minutes après 3-1, notre rotation défensive"
-          maxLength={500}
-          value={String(config.replayNote ?? '')}
-          onChange={e => onChange({ replayNote: e.target.value })} />
-        <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
-          Le picker replay (bibliothèque équipe) arrive dans la prochaine étape.
-        </p>
+      <div className="space-y-3">
+        {availableReplays !== undefined && (
+          <div>
+            <label className="t-label block mb-1 flex items-center gap-1.5" style={{ fontSize: '12px' }}>
+              <Film size={11} style={{ color: 'var(--s-gold)' }} />
+              Replay à regarder {replays.length === 0 ? '(aucun disponible)' : '*'}
+            </label>
+            {replays.length === 0 ? (
+              <p className="text-xs px-2 py-1.5 bevel-sm"
+                style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', color: 'var(--s-text-muted)' }}>
+                Aucun replay sur l&apos;event courant. Upload un .replay d&apos;abord (section Replays
+                de l&apos;event), puis reviens créer cet exercice.
+              </p>
+            ) : (
+              <select className="settings-input w-full text-sm"
+                value={selectedReplayId}
+                onChange={e => onChange({ replayId: e.target.value || null })}>
+                <option value="">— Choisis un replay —</option>
+                {replays.map(r => (
+                  <option key={r.id} value={r.id}>{r.title}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Points à regarder</label>
+          <textarea rows={2} className="settings-input w-full text-sm"
+            placeholder="Ex: les 2 minutes après 3-1, notre rotation défensive"
+            maxLength={500}
+            value={String(config.replayNote ?? '')}
+            onChange={e => onChange({ replayNote: e.target.value })} />
+        </div>
       </div>
     );
   }

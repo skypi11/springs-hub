@@ -4,7 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
-import { canUploadReplay, canDownloadReplay } from '@/lib/replay-permissions';
+import { canUploadReplay } from '@/lib/replay-permissions';
 import { isStaff } from '@/lib/event-permissions';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import { checkStructureStorageQuota } from '@/lib/structure-storage';
@@ -41,11 +41,15 @@ export async function GET(
     const db = getAdminDb();
     const resolved = await resolveUserContext(db, uid, structureId);
     if (!resolved) return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
-    if (!canDownloadReplay(resolved.context)) {
-      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
-    }
+    // Pas de guard global ici — le filtre par allowedTeamIds ci-dessous fait
+    // l'autorisation effective (un user sans aucune team accessible recevra
+    // un array vide, ce qui est le bon comportement).
 
-    // Détermine le périmètre visible
+    // Détermine le périmètre visible.
+    // - Staff structure : voit tout
+    // - Sinon : équipes où l'user est staff/capitaine, MAIS AUSSI player ou
+    //   sub. Un joueur doit pouvoir voir et télécharger les replays de sa
+    //   propre équipe (typiquement pour revoir un scrim avec son coach).
     const ctx = resolved.context;
     const allowedTeamIds = new Set<string>();
     if (isStaff(ctx)) {
@@ -53,6 +57,12 @@ export async function GET(
     } else {
       for (const id of ctx.staffedTeamIds) allowedTeamIds.add(id);
       for (const id of ctx.captainOfTeamIds ?? []) allowedTeamIds.add(id);
+      // Player ou sub d'une équipe → accès aux replays de cette équipe
+      for (const t of resolved.teams) {
+        const playerIds = Array.isArray(t.playerIds) ? (t.playerIds as string[]) : [];
+        const subIds = Array.isArray(t.subIds) ? (t.subIds as string[]) : [];
+        if (playerIds.includes(uid) || subIds.includes(uid)) allowedTeamIds.add(t.id);
+      }
     }
 
     if (teamId && !allowedTeamIds.has(teamId)) {
