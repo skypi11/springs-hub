@@ -140,6 +140,23 @@
       ]
     },
     {
+      "collectionGroup": "replays",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "structureId", "order": "ASCENDING" },
+        { "fieldPath": "ballchasingStatus", "order": "ASCENDING" },
+        { "fieldPath": "ballchasingUploadedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "replays",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ballchasingStatus", "order": "ASCENDING" },
+        { "fieldPath": "ballchasingUploadedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "structure_folders",
       "queryScope": "COLLECTION",
       "fields": [
