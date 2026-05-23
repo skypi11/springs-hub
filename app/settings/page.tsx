@@ -449,6 +449,25 @@ export default function SettingsPage() {
     setLoaded(true);
   }, [profileQ.isPending, profileQ.data, firebaseUser, loaded]);
 
+  // ── Auto-save 2s après dernière modif ──
+  // IMPORTANT : placé AVANT les early returns ci-dessous pour respecter la
+  // règle des hooks (même nombre de hooks à chaque render). validate() et
+  // handleSave() sont des function declarations donc hoisted dans le scope
+  // du composant → accessibles dans ce closure.
+  // Conditions pour auto-save :
+  // - loaded : on n'essaie pas de save avant que le profil soit chargé
+  // - dirty : il y a des modifs non sauvées
+  // - !saving : pas déjà en cours
+  // - validate() === null : pas d'erreur de validation (sinon on attend que
+  //   l'user corrige ou clique manuellement sur Save pour voir l'erreur)
+  useEffect(() => {
+    if (!loaded || !dirty || saving) return;
+    if (validate() !== null) return;
+    const t = setTimeout(() => { handleSave(); }, 2000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, dirty, form, saving]);
+
   if (!authLoading && !firebaseUser) {
     return (
       <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-6 lg:py-8 flex items-center justify-center">
@@ -545,22 +564,9 @@ export default function SettingsPage() {
     setSaving(false);
   }
 
-  // ── Auto-save 2s après dernière modif ──
-  // Ne tente l'auto-save QUE si :
-  // - le formulaire est dirty (= des modifs non sauvées)
-  // - on n'est pas déjà en cours de save
-  // - le formulaire passe la validation (pas d'erreur visible)
-  // Si une erreur de validation existe, on attend que l'utilisateur corrige
-  // ou clique manuellement sur Save (qui montrera l'erreur précise).
-  useEffect(() => {
-    if (!dirty || saving) return;
-    if (validate() !== null) return;
-    const t = setTimeout(() => {
-      handleSave();
-    }, 2000);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dirty, form, saving]);
+  // Auto-save : voir useEffect en haut du composant (avant les early returns
+  // pour respecter la règle des hooks — react n'autorise pas un nombre de
+  // hooks variable entre les renders).
 
   const avatarSrc = form.avatarUrl || user?.discordAvatar || '';
 
@@ -1224,49 +1230,12 @@ export default function SettingsPage() {
                               )}
                             </div>
                           )}
-                          {/* Tip Ballchasing — comment apparaître dans leur base */}
-                          <details
-                            className="text-xs"
-                            style={{
-                              background: 'rgba(0,129,255,0.04)',
-                              border: '1px solid rgba(0,129,255,0.15)',
-                              padding: '10px 12px',
-                            }}
-                          >
-                            <summary
-                              className="cursor-pointer font-semibold"
-                              style={{ color: 'var(--s-blue)' }}
-                            >
-                              Comment faire apparaître mes stats sur Ballchasing ?
-                            </summary>
-                            <div className="mt-3 space-y-2" style={{ color: 'var(--s-text-dim)', lineHeight: 1.6 }}>
-                              <p>
-                                Rocket League sauvegarde <strong>automatiquement</strong> tes replays dans{' '}
-                                <code style={{ background: 'var(--s-bg)', padding: '1px 4px' }}>Documents\My Games\Rocket League\TAGame\Demos\</code>
-                                {' '}après chaque match.
-                              </p>
-                              <p>
-                                Par contre, l&apos;<strong>upload vers Ballchasing</strong> n&apos;est pas auto. Trois options pour les y envoyer :
-                              </p>
-                              <ul className="list-disc pl-5 space-y-1">
-                                <li>
-                                  <strong>Manuel</strong> : drag-and-drop tes fichiers <code style={{ background: 'var(--s-bg)', padding: '1px 4px' }}>.replay</code> sur{' '}
-                                  <a href="https://ballchasing.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--s-blue)' }}>ballchasing.com</a>
-                                </li>
-                                <li>
-                                  <strong>Auto (recommandé)</strong> : installe l&apos;{' '}
-                                  <a href="https://ballchasing.com/upload" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--s-blue)' }}>uploader desktop Ballchasing</a>
-                                  {' '}— il surveille ton dossier et upload tous tes prochains matchs automatiquement.
-                                </li>
-                                <li>
-                                  <strong>Via BakkesMod</strong> : si tu utilises BakkesMod en partie privée/training, le plugin BallchasingUploader fait pareil (mais bloqué en ranked à cause d&apos;EAC).
-                                </li>
-                              </ul>
-                              <p style={{ color: 'var(--s-text-muted)' }}>
-                                Sans upload, ton profil Ballchasing sera vide même si ton ID est correct.
-                              </p>
-                            </div>
-                          </details>
+                          {/* Note : l'ancien tip 'Comment faire apparaître mes stats sur
+                              Ballchasing' a été retiré — il datait de quand on essayait de
+                              récupérer le rang RL via ballchasing (cassé par EAC depuis F2P).
+                              Aujourd'hui ballchasing est utilisé uniquement pour les replays
+                              uploadés depuis les structures (notre clé API, pas le profil
+                              public du joueur). */}
                           {(trackerPreview || ballchasingPreview) && (
                             <div
                               className="p-3 space-y-2"
