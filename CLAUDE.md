@@ -283,6 +283,12 @@ Quand une card n'a pas d'image de fond, elle doit quand même avoir de la prése
 - Côté `firestore.rules` : fonction `isAedralAdmin()` (collections du Hub) — distincte de `isAdmin()` qui reste branché sur `admins` (collections legacy TM/RL du vieux site).
 - Doc = `{addedBy, addedAt, lastDashboardSeenAt?}`. Seed initial via `scripts/migrate-aedral-admins.mjs`.
 
+**Collections du chantier anti-mensonge rang RL (server-only)** — voir [docs/rl-rank-verification-plan.md](docs/rl-rank-verification-plan.md) et la mémoire `project_rl_rank_strategy`. Toutes en `allow read, write: if false` (Admin SDK uniquement) :
+- `rank_reports` — signalements de rang RL (motif `rank_lie` ou `smurf`).
+- `rl_link_change_requests` — demandes de changement de compte Epic officiel, validées par admin.
+- `user_secrets/{uid}` — `discordRefreshToken` (capturé au callback OAuth, utilisé par la passe nocturne de sync greffée sur le cron `expire-invitations`).
+- `user_admin_flags/{uid}` — flags admin-only sur un user (ex. `suspectedSmurf`) ; jamais visible par le joueur ni les autres visiteurs.
+
 **`users`** — profil global Springs (lié au Discord)
 ```javascript
 {
@@ -451,7 +457,7 @@ Quand une card n'a pas d'image de fond, elle doit quand même avoir de la prése
 
 - **Phase 1** — Fondations : ✅ terminée
 - **Phase 2** — Communauté (structures, roster, calendrier MVP1/MVP2a/MVP2b, co-fondateurs, drawer ÉQUIPES) : ✅ terminée
-- **Phase 2 bis** — Polish UX continu : items shippés au fil de l'eau (rebrand Aedral, landing visiteur, profil RL cross-platform, Steam OpenID, Discord connections sync, /admin/announce dynamique, icônes officielles RL, upload direct du logo d'équipe, refonte de l'onglet Calendrier avec vues Mois/Semaine/Liste + dispos/consensus intégrés). À ce stade, plutôt traité comme un backlog continu que comme une "Phase" fermable.
+- **Phase 2 bis** — Polish UX continu : items shippés au fil de l'eau (rebrand Aedral, landing visiteur, profil RL cross-platform, Steam OpenID, Discord connections sync, /admin/announce dynamique, icônes officielles RL, upload direct du logo d'équipe, refonte de l'onglet Calendrier avec vues Mois/Semaine/Liste + dispos/consensus intégrés, **système anti-mensonge rang RL** — compte Epic vérifié + lien tracker partout + signalements motif faux/smurf + sync auto Discord nocturne — voir [docs/rl-rank-verification-plan.md](docs/rl-rank-verification-plan.md) et la mémoire `project_rl_rank_strategy`). À ce stade, plutôt traité comme un backlog continu que comme une "Phase" fermable.
 - **Phase 3** — Compétitions natives Aedral : liste, pages individuelles `/competitions/{rl,tm}/[id]`, rebuild TM Monthly Cup, classements RL/TM, inscription équipe/solo, panel admin comps. **Pas démarrée** — la page `/competitions` actuelle pointe sur le vieux site `springs-esport.vercel.app`.
 - **Phase 4** — Finitions : notifications in-app, Discord webhooks, fan zone, mobile, migration liens
 
