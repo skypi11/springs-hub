@@ -80,7 +80,10 @@ export async function GET(
         const td = d.data();
         if (td.done === true) return false;
         const cfg = td.config as Record<string, unknown> | undefined;
-        return cfg?.replayId === replayId;
+        // Nouveau format multi-replays + compat mono-replay.
+        if (Array.isArray(cfg?.replayIds) && cfg.replayIds.includes(replayId)) return true;
+        if (cfg?.replayId === replayId) return true;
+        return false;
       });
       if (hasActiveTodo) allowed = true;
     }

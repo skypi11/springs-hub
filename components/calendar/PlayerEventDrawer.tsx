@@ -5,9 +5,10 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';
 import {
-  X, Clock, MapPin, Target, Shield, FileText, ListTodo, ChevronRight,
+  X, MapPin, Target, Shield, FileText, ListTodo, Film, Download,
   CheckCircle, XCircle, HelpCircle, Calendar as CalIcon, ExternalLink,
 } from 'lucide-react';
+import { useToast } from '@/components/ui/Toast';
 import Portal from '@/components/ui/Portal';
 import { api } from '@/lib/api-client';
 import type { EventType, EventStatus, PresenceStatus } from '@/lib/event-permissions';
@@ -45,6 +46,15 @@ type MyTodo = TodoRef & {
   structureTag: string;
   teamName: string;
   eventTitle: string | null;
+};
+
+// Replay listé par /api/structures/[id]/replays — vue minimale pour
+// l'affichage dans le drawer joueur + déclenchement du download.
+type ReplayItem = {
+  id: string;
+  title: string;
+  sizeBytes: number;
+  createdAt: string | null;
 };
 
 const TYPE_INFO: Record<EventType, { label: string; color: string }> = {
@@ -96,12 +106,41 @@ export default function PlayerEventDrawer({
   });
   const linkedTodos = (todosQuery.data?.todos ?? []).filter(t => t.eventId === event.id);
 
+  // Fetch les replays liés à cet event (filtre serveur via eventId).
+  // Le user doit avoir accès aux replays de l'équipe (étape A : élargissement
+  // permissions aux player/sub). Si pas d'accès → array vide silencieux.
+  const teamIdForReplays = (event.target?.scope === 'teams' && event.target.teamIds?.[0]) || '';
+  const replaysQuery = useQuery({
+    queryKey: ['event-replays', event.structureId, event.id, teamIdForReplays] as const,
+    queryFn: () => {
+      const params = new URLSearchParams({ eventId: event.id });
+      if (teamIdForReplays) params.set('teamId', teamIdForReplays);
+      return api<{ replays: ReplayItem[] }>(`/api/structures/${event.structureId}/replays?${params.toString()}`);
+    },
+    enabled: !!teamIdForReplays,
+    staleTime: 30_000,
+  });
+  const eventReplays = replaysQuery.data?.replays ?? [];
+
   // ESC pour fermer
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  const toast = useToast();
+  // Génère une URL signée 60s + déclenche le download. Si l'API refuse
+  // (permission), affiche un toast d'erreur clair.
+  const handleDownload = async (replayId: string) => {
+    try {
+      const res = await api<{ url?: string }>(`/api/structures/${event.structureId}/replays/${replayId}/download`);
+      if (res.url) window.location.href = res.url;
+      else toast.error('Lien de téléchargement indisponible.');
+    } catch (err) {
+      toast.error((err as Error).message || 'Téléchargement refusé.');
+    }
+  };
 
   const typeInfo = TYPE_INFO[normalizeEventType(event.type)];
   const statusInfo = STATUS_INFO[event.status];
@@ -288,6 +327,51 @@ export default function PlayerEventDrawer({
                 style={{ color: 'var(--s-text-dim)', background: 'var(--s-elevated)', border: '1px solid var(--s-border)', lineHeight: 1.55 }}>
                 {event.aTravailler}
               </div>
+            </section>
+          )}
+
+          {/* Replays de cet event — téléchargeables (permissions élargies aux
+              membres de l'équipe). Section affichée uniquement si l'event a
+              une équipe associée (les replays sont scopés par équipe). */}
+          {teamIdForReplays && (
+            <section>
+              <div className="t-label mb-2 flex items-center gap-1.5" style={{ color: 'var(--s-text)' }}>
+                <Film size={11} style={{ color: 'var(--s-gold)' }} />
+                REPLAYS DU SCRIM
+                {eventReplays.length > 0 && (
+                  <span style={{ color: 'var(--s-text-muted)' }}>({eventReplays.length})</span>
+                )}
+              </div>
+              {replaysQuery.isPending ? (
+                <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Chargement…</p>
+              ) : eventReplays.length === 0 ? (
+                <p className="text-xs px-3 py-2 bevel-sm"
+                  style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', color: 'var(--s-text-muted)' }}>
+                  Aucun replay uploadé sur ce scrim.
+                </p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {eventReplays.map(r => (
+                    <li key={r.id} className="px-3 py-2 bevel-sm flex items-center gap-3"
+                      style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate" style={{ color: 'var(--s-text)' }}>
+                          {r.title}
+                        </div>
+                        <div className="text-xs mt-0.5" style={{ color: 'var(--s-text-muted)' }}>
+                          {(r.sizeBytes / (1024 * 1024)).toFixed(1)} MB
+                        </div>
+                      </div>
+                      <button type="button"
+                        onClick={() => handleDownload(r.id)}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs transition-colors hover:bg-[var(--s-hover)]"
+                        style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', color: 'var(--s-text)' }}>
+                        <Download size={11} /> Télécharger
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
           )}
 

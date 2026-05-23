@@ -98,6 +98,20 @@ type Member = {
   role: string;
 };
 
+// Item de la liste d'exercices déjà assignés à un event (affiché dans
+// EventDetailModal sous le bouton 'Assigner des exercices').
+type AssignedTodoItem = {
+  id: string;
+  assigneeId: string;
+  type: string;
+  title: string;
+  description: string;
+  config: Record<string, unknown>;
+  eventId: string | null;
+  deadline: string | null;
+  done: boolean;
+};
+
 export type Team = {
   id: string;
   game: string;
@@ -1605,6 +1619,31 @@ function EventDetailModal({
   });
   const todoTemplates = useTodoTemplates(structureId);
 
+  // Liste des exercices déjà assignés liés à cet event (filtré par eventId
+  // côté client après fetch par subTeamId). Re-fetch quand la team change.
+  const qc = useQueryClient();
+  const assignedTodosQuery = useQuery({
+    queryKey: ['team-todos', structureId, todoTeamId, event.id] as const,
+    queryFn: () => api<{ todos: AssignedTodoItem[] }>(`/api/structures/${structureId}/todos?subTeamId=${encodeURIComponent(todoTeamId)}`),
+    enabled: !!todoTeamId && canEdit,
+    staleTime: 30_000,
+  });
+  const assignedTodos = (assignedTodosQuery.data?.todos ?? []).filter(t => t.eventId === event.id);
+  const reloadAssignedTodos = () => qc.invalidateQueries({ queryKey: ['team-todos', structureId, todoTeamId, event.id] });
+
+  // Supprime un exercice avec confirmation. Erreur silencieuse côté UI
+  // (toast pour feedback). DELETE est autorisé pour le staff de la team.
+  const deleteAssignedTodo = async (todoId: string) => {
+    if (!confirm('Supprimer cet exercice assigné ?')) return;
+    try {
+      await api(`/api/structures/${structureId}/todos/${todoId}`, { method: 'DELETE' });
+      toast.success('Exercice supprimé');
+      reloadAssignedTodos();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur réseau');
+    }
+  };
+
   async function saveNotes() {
     setSaving(true);
     try {
@@ -1922,12 +1961,70 @@ function EventDetailModal({
                     templates={todoTemplates.templates}
                     lockedEventId={event.id}
                     onCancel={() => setShowTodoForm(false)}
-                    onCreated={() => { setShowTodoForm(false); onReload(); }}
+                    onCreated={() => { setShowTodoForm(false); reloadAssignedTodos(); onReload(); }}
                     onTemplateSaved={() => todoTemplates.reload()}
                   />
                 </div>
               );
             })()}
+
+            {/* Liste des exercices déjà assignés à cet event (lecture seule,
+                avec bouton supprimer). Re-fetched à chaque modif via
+                reloadAssignedTodos. Affichée même si le form n'est pas ouvert
+                pour que le coach ait toujours la visibilité. */}
+            {canEdit && todoTeamId && (
+              <div className="mt-3 space-y-1.5">
+                <div className="t-label text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                  Exercices assignés sur ce scrim{assignedTodos.length > 0 ? ` (${assignedTodos.length})` : ''}
+                </div>
+                {assignedTodosQuery.isPending ? (
+                  <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Chargement…</p>
+                ) : assignedTodos.length === 0 ? (
+                  <p className="text-xs px-3 py-2 bevel-sm"
+                    style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', color: 'var(--s-text-muted)' }}>
+                    Aucun exercice assigné pour l&apos;instant.
+                  </p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {assignedTodos.map(todo => {
+                      const member = membersById.get(todo.assigneeId);
+                      const assigneeName = member?.displayName ?? todo.assigneeId.slice(0, 8);
+                      return (
+                        <li key={todo.id} className="px-3 py-2 bevel-sm flex items-center gap-3"
+                          style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-medium truncate" style={{ color: 'var(--s-text)' }}>
+                                {todo.title}
+                              </span>
+                              <span className="tag tag-neutral" style={{ fontSize: '10px', padding: '1px 5px' }}>
+                                {todo.type}
+                              </span>
+                              {todo.done && (
+                                <span className="tag" style={{ background: 'rgba(51,255,102,0.10)', color: '#33ff66', borderColor: 'rgba(51,255,102,0.30)', fontSize: '10px', padding: '1px 5px' }}>
+                                  Fait
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs mt-0.5" style={{ color: 'var(--s-text-muted)' }}>
+                              Assigné à <strong style={{ color: 'var(--s-text)' }}>{assigneeName}</strong>
+                              {todo.deadline ? <> · Deadline {todo.deadline}</> : null}
+                            </div>
+                          </div>
+                          <button type="button"
+                            onClick={() => deleteAssignedTodo(todo.id)}
+                            title="Supprimer cet exercice"
+                            className="flex items-center justify-center transition-colors hover:bg-[var(--s-hover)] flex-shrink-0"
+                            style={{ width: 28, height: 28, border: '1px solid var(--s-border)', color: '#ef4444' }}>
+                            <Trash2 size={12} />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            )}
 
             {/* Affichage legacy — uniquement si l'event a déjà un aTravailler
                 rempli (créé avant la refonte). En lecture seule. */}

@@ -150,7 +150,7 @@ export default function MyTodosSection() {
   }
 
   return (
-    <section className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+    <section id="my-todos" className="bevel animate-fade-in relative overflow-hidden scroll-mt-20" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
       <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), var(--s-gold)50, transparent 70%)' }} />
       <div className="absolute top-0 right-0 w-64 h-64 pointer-events-none"
         style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,184,0,0.07), transparent 60%)' }} />

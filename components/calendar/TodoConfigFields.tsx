@@ -39,14 +39,26 @@ export function TodoConfigFields({
 
   if (type === 'replay_review') {
     const replays = availableReplays ?? [];
-    const selectedReplayId = typeof config.replayId === 'string' ? config.replayId : '';
+    // Lit replayIds (nouveau format) en priorité, fallback sur replayId mono.
+    const selectedIds: string[] = Array.isArray(config.replayIds)
+      ? (config.replayIds as unknown[]).filter((x): x is string => typeof x === 'string')
+      : (typeof config.replayId === 'string' && config.replayId
+        ? [config.replayId]
+        : []);
+    const toggle = (id: string) => {
+      const set = new Set(selectedIds);
+      if (set.has(id)) set.delete(id);
+      else set.add(id);
+      // On clear l'ancien replayId mono pour éviter qu'il traîne en parallèle.
+      onChange({ replayIds: Array.from(set), replayId: null });
+    };
     return (
       <div className="space-y-3">
         {availableReplays !== undefined && (
           <div>
             <label className="t-label block mb-1 flex items-center gap-1.5" style={{ fontSize: '12px' }}>
               <Film size={11} style={{ color: 'var(--s-gold)' }} />
-              Replay à regarder {replays.length === 0 ? '(aucun disponible)' : '*'}
+              Replays à regarder {replays.length === 0 ? '(aucun disponible)' : `(${selectedIds.length} sélectionné${selectedIds.length > 1 ? 's' : ''})`}
             </label>
             {replays.length === 0 ? (
               <p className="text-xs px-2 py-1.5 bevel-sm"
@@ -55,14 +67,24 @@ export function TodoConfigFields({
                 de l&apos;event), puis reviens créer cet exercice.
               </p>
             ) : (
-              <select className="settings-input w-full text-sm"
-                value={selectedReplayId}
-                onChange={e => onChange({ replayId: e.target.value || null })}>
-                <option value="">— Choisis un replay —</option>
-                {replays.map(r => (
-                  <option key={r.id} value={r.id}>{r.title}</option>
-                ))}
-              </select>
+              <div className="space-y-1.5 bevel-sm p-2"
+                style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                {replays.map(r => {
+                  const checked = selectedIds.includes(r.id);
+                  return (
+                    <label key={r.id}
+                      className="flex items-center gap-2 cursor-pointer text-sm py-1 px-1 transition-colors hover:bg-[var(--s-hover)]"
+                      style={{ color: 'var(--s-text)' }}>
+                      <input type="checkbox"
+                        checked={checked}
+                        onChange={() => toggle(r.id)}
+                        className="flex-shrink-0"
+                        style={{ accentColor: 'var(--s-gold)' }} />
+                      <span className="truncate flex-1 min-w-0">{r.title}</span>
+                    </label>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}

@@ -43,7 +43,11 @@ export const TODO_TYPE_META: Record<TodoType, { label: string; short: string; ne
 // Stocké tel quel dans Firestore dans `config`. Objet libre validé selon type.
 
 export interface ReplayReviewConfig {
-  replayId: string | null;   // ref vers structure_replays (picker étape 3)
+  // Multi-replays (BO5 = plusieurs games à regarder). On garde aussi
+  // l'ancien `replayId` pour rétrocompat des vieux todos en base — au runtime,
+  // on lit replayIds en priorité, fallback sur [replayId] si présent.
+  replayIds: string[];       // refs vers structure_replays
+  replayId?: string | null;  // @deprecated — vieux format mono-replay
   replayNote: string;        // "Regarde à 2:15, notre rotation défensive"
 }
 export interface TrainingPackItem {
@@ -273,10 +277,20 @@ export function validateTodoConfig(
       return { ok: true, value: {} };
     }
     case 'replay_review': {
-      const replayId = typeof r.replayId === 'string' && r.replayId.trim() ? r.replayId.trim() : null;
+      // Multi-replays : on lit `replayIds` en priorité (nouveau format),
+      // fallback sur `replayId` mono (ancien format).
+      const rawIds = Array.isArray(r.replayIds) ? r.replayIds : null;
+      let replayIds: string[] = [];
+      if (rawIds) {
+        replayIds = rawIds
+          .map(id => typeof id === 'string' ? id.trim() : '')
+          .filter(id => id.length > 0);
+      } else if (typeof r.replayId === 'string' && r.replayId.trim()) {
+        replayIds = [r.replayId.trim()];
+      }
       return {
         ok: true,
-        value: { replayId, replayNote: s(r.replayNote) },
+        value: { replayIds, replayNote: s(r.replayNote) },
       };
     }
     case 'training_pack': {
