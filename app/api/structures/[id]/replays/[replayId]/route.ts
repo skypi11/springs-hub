@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
@@ -14,6 +15,12 @@ import {
   BallchasingApiError,
 } from '@/lib/ballchasing';
 import { checkBallchasingQuota, quotaErrorMessage } from '@/lib/ballchasing-quota';
+
+// Le forward ballchasing (download R2 + upload + parsing) peut prendre 10-30s,
+// largement au-dessus du timeout Vercel Hobby de 10s. On le découple via
+// `after()` (next/server) pour qu'il tourne en background après la response.
+// maxDuration=60 sécurise le cas où l'after() prend du temps.
+export const maxDuration = 60;
 
 const ALLOWED_RESULTS = new Set(['win', 'loss', 'draw']);
 
@@ -93,19 +100,22 @@ export async function PATCH(
 
     await ref.update(updates);
 
-    // Best-effort : forward le .replay à ballchasing pour parsing async.
-    // On le fait après le update Firestore pour ne pas bloquer le toast user.
-    // Le fetch des stats parsées se fait via GET /stats (poll côté client).
+    // Découple le forward ballchasing de la response : `after()` exécute le
+    // bloc APRÈS que le client a reçu success, ce qui évite le timeout
+    // Vercel et le faux message d'erreur côté UI. Le client voit son replay
+    // marqué 'ready' instantanément avec un badge "Parsing" qui finit en
+    // "Stats prêtes" via le poll de React Query (10s).
     if (shouldForwardToBallchasing) {
-      // Check quota AVANT de spend des appels ballchasing inutiles.
-      const quota = await checkBallchasingQuota(db, structureId);
-      if (!quota.ok) {
-        await ref.update({
-          ballchasingStatus: 'quota_exceeded',
-          ballchasingError: quotaErrorMessage(quota.reason!),
-        }).catch(() => {});
-      } else {
+      after(async () => {
         try {
+          const quota = await checkBallchasingQuota(db, structureId);
+          if (!quota.ok) {
+            await ref.update({
+              ballchasingStatus: 'quota_exceeded',
+              ballchasingError: quotaErrorMessage(quota.reason!),
+            }).catch(() => {});
+            return;
+          }
           const buffer = await downloadBuffer(data.r2Key as string);
           const filename = (data.filename as string) || `${replayId}.replay`;
           const result = await bcUploadReplay(buffer, filename, { visibility: 'private' });
@@ -122,9 +132,9 @@ export async function PATCH(
             ballchasingError: err instanceof Error ? err.message.slice(0, 500) : 'unknown',
             ballchasingErrorStatus: status,
           }).catch(() => {});
-          captureApiError('API replay PATCH ballchasing forward', err);
+          captureApiError('API replay PATCH ballchasing forward (after)', err);
         }
-      }
+      });
     }
 
     return NextResponse.json({ success: true });
