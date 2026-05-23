@@ -105,7 +105,7 @@ export default function StorageQuotaCard({ structureId }: { structureId: string 
           color: 'var(--s-text-dim)',
         }}>
           {pct >= 95 ? (
-            <>Quota presque atteint. Supprime d&apos;anciens fichiers ou passe en premium (10 GB).</>
+            <>Quota presque atteint. Supprime d&apos;anciens fichiers ou passe en premium (5 GB).</>
           ) : (
             <>Tu utilises {pctRounded}% de ton quota. Pense au premium si ton équipe upload beaucoup.</>
           )}

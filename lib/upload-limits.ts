@@ -11,7 +11,7 @@ export const UPLOAD_LIMITS = {
   // le flag `structures.premium = true`. Voir docs/rl-rank-verification-plan.md
   // pour le rationale du modèle freemium par structure.
   STRUCTURE_STORAGE_QUOTA_BYTES: 500 * 1024 * 1024,         // 500 MB free
-  STRUCTURE_STORAGE_QUOTA_BYTES_PREMIUM: 10 * 1024 * 1024 * 1024, // 10 GB premium
+  STRUCTURE_STORAGE_QUOTA_BYTES_PREMIUM: 5 * 1024 * 1024 * 1024, // 5 GB premium
   // Alias rétrocompat — anciennes routes lisaient ce nom. À retirer une fois
   // les imports migrés vers STRUCTURE_STORAGE_QUOTA_BYTES.
   STRUCTURE_DOCS_QUOTA_BYTES: 500 * 1024 * 1024,

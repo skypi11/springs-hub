@@ -85,5 +85,5 @@ export async function checkStructureStorageQuota(
   if (usage.premium) {
     return `Limite premium atteinte (${mb(usage.totalBytes)} / ${mb(usage.quotaBytes)} MB). Libère de la place en supprimant d'anciens fichiers.`;
   }
-  return `Limite de stockage atteinte (${mb(usage.totalBytes)} / ${mb(usage.quotaBytes)} MB). Supprime d'anciens fichiers, ou passe en premium (10 GB).`;
+  return `Limite de stockage atteinte (${mb(usage.totalBytes)} / ${mb(usage.quotaBytes)} MB). Supprime d'anciens fichiers, ou passe en premium (5 GB).`;
 }
