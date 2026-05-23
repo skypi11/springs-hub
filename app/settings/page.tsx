@@ -29,14 +29,12 @@ const RECRUIT_ROLE_LABEL: Record<string, string> = {
   manager: 'Manager',
 };
 
-type Section = 'profile' | 'games' | 'connections' | 'recruitment' | 'account';
+type Section = 'profile' | 'games' | 'account';
 
 const SECTIONS: { key: Section; label: string; icon: typeof User; description: string }[] = [
-  { key: 'profile', label: 'Profil', icon: User, description: 'Identité, pays, bio' },
-  { key: 'games', label: 'Jeux', icon: Gamepad2, description: 'RL et Trackmania' },
-  { key: 'connections', label: 'Comptes liés', icon: Link2, description: 'Twitch, YouTube, Spotify, Epic…' },
-  { key: 'recruitment', label: 'Recrutement', icon: Search, description: 'Dispo pour une équipe' },
-  { key: 'account', label: 'Compte', icon: UserCircle, description: 'Discord et session' },
+  { key: 'profile', label: 'Profil public', icon: User, description: 'Ce que les autres voient' },
+  { key: 'games', label: 'Mes jeux', icon: Gamepad2, description: 'RL et Trackmania' },
+  { key: 'account', label: 'Mon compte', icon: UserCircle, description: 'Discord et session' },
 ];
 
 type FormData = {
@@ -101,11 +99,21 @@ export default function SettingsPage() {
     const params = new URLSearchParams(window.location.search);
     setMustComplete(params.get('complete') === '1');
     // Auto-switch sur la section demandée par la query string (utilisé par
-    // le callback Steam pour atterrir directement sur la config jeux)
-    const SECTION_KEYS: Section[] = ['profile', 'games', 'connections', 'recruitment', 'account'];
+    // le callback Steam pour atterrir directement sur la config jeux).
+    // Compat : anciens deep-links 'connections' / 'recruitment' redirigent
+    // vers 'profile' (depuis la refonte 5→3 sections).
+    const SECTION_KEYS: Section[] = ['profile', 'games', 'account'];
+    const LEGACY_REDIRECTS: Record<string, Section> = {
+      connections: 'profile',
+      recruitment: 'profile',
+    };
     const sectionParam = params.get('section');
-    if (sectionParam && (SECTION_KEYS as string[]).includes(sectionParam)) {
-      setSection(sectionParam as Section);
+    if (sectionParam) {
+      if ((SECTION_KEYS as string[]).includes(sectionParam)) {
+        setSection(sectionParam as Section);
+      } else if (sectionParam in LEGACY_REDIRECTS) {
+        setSection(LEGACY_REDIRECTS[sectionParam]);
+      }
     }
     // Toasts post-redirect Steam OpenID
     if (params.get('steam_linked') === '1') {
@@ -1304,8 +1312,9 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* COMPTES LIÉS — connexions Discord (Twitch, YouTube, Spotify, Epic, Steam, etc.) */}
-            {section === 'connections' && (
+            {/* COMPTES LIÉS — connexions Discord (Twitch, YouTube, Spotify, Epic, Steam, etc.)
+                Rendu dans 'profile' (refonte 5→3 sections) — comptes liés = info publique */}
+            {section === 'profile' && (
               <div className="pillar-card panel relative group transition-all duration-200 animate-fade-in">
                 <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
                 <div className="relative z-[1]">
@@ -1461,8 +1470,8 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* RECRUTEMENT */}
-            {section === 'recruitment' && (
+            {/* RECRUTEMENT — rendu dans 'profile' (refonte 5→3 sections) */}
+            {section === 'profile' && (
               <div className="pillar-card panel relative group transition-all duration-200 animate-fade-in">
                 <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${form.isAvailableForRecruitment ? 'var(--s-gold)' : 'rgba(255,255,255,0.15)'}, transparent 60%)` }} />
                 {form.isAvailableForRecruitment && (
