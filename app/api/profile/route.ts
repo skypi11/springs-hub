@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminAuth, getAdminDb, verifyAuth } from '@/lib/firebase-admin';
+import { getAdminAuth, getAdminDb, verifyAuth, isAdmin as isAdminUid } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { safeUrl, clampString, LIMITS } from '@/lib/validation';
 import { isValidRLPlatform, buildTrackerGgUrl, type RLPlatform } from '@/lib/rl-platform';
@@ -9,6 +9,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { computeAge } from '@/lib/age';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { isValidRLRank } from '@/lib/rl-ranks';
+import { sendAdminAlert } from '@/lib/admin-discord-alert';
 
 type ProfileStructure = {
   id: string;
@@ -125,6 +126,12 @@ export async function GET(req: NextRequest) {
     const requesterUid = await verifyAuth(req);
     const isOwner = requesterUid === uid;
     const structures = await fetchUserStructures(uid);
+    // Flag smurf suspecté : admin-only — jamais visible par le joueur lui-même
+    // (sinon il s'en va avant qu'on enquête) ni par les autres visiteurs (risque
+    // diffamation). On le strippe partout sauf pour les admins consultant la
+    // fiche d'un autre joueur.
+    const requesterIsAdmin = requesterUid ? await isAdminUid(requesterUid) : false;
+    const canSeeSmurfFlag = requesterIsAdmin && !isOwner;
 
     // Identité RL « officielle » pour la fiche — calculée AVANT tout filtrage
     // des connexions Discord. C'est précisément l'objectif : la fiche doit
@@ -147,7 +154,36 @@ export async function GET(req: NextRequest) {
       rlSteamId64: data.steamLinked?.steamId64 || '',
     };
 
+    // Flag smurf : récupéré uniquement quand un admin (non-owner) consulte la
+    // fiche. Stocké dans user_admin_flags/{uid} (collection server-only) pour
+    // ne pas leaker via Firestore client.
+    let suspectedSmurfFlag: Record<string, unknown> | null = null;
+    if (canSeeSmurfFlag) {
+      try {
+        const flagSnap = await getAdminDb().collection('user_admin_flags').doc(uid).get();
+        const flag = flagSnap.data()?.suspectedSmurf;
+        if (flag && typeof flag === 'object') {
+          // Sérialise les Timestamps en ISO pour le JSON
+          const flaggedAt = flag.flaggedAt;
+          const flaggedAtIso = flaggedAt && typeof flaggedAt === 'object' && 'toDate' in flaggedAt
+            ? (flaggedAt as { toDate: () => Date }).toDate().toISOString()
+            : null;
+          suspectedSmurfFlag = {
+            flaggedAt: flaggedAtIso,
+            flaggedBy: flag.flaggedBy ?? null,
+            reportId: flag.reportId ?? null,
+            note: flag.note ?? null,
+          };
+        }
+      } catch (err) {
+        console.error('[Profile GET] smurf flag fetch failed:', err);
+      }
+    }
+
     if (isOwner) {
+      // L'owner ne voit JAMAIS son propre flag (sinon il fuit avant enquête).
+      // Le filtrage est garanti par construction : on n'a pas fetché le flag
+      // ci-dessus pour les owners.
       return NextResponse.json({ ...data, ...rlAccountFields, structures });
     }
 
@@ -159,6 +195,8 @@ export async function GET(req: NextRequest) {
       structures,
     };
     for (const field of PRIVATE_FIELDS) delete publicData[field];
+    // Inject le flag uniquement quand on l'a fetché (= admin viewer)
+    if (suspectedSmurfFlag) publicData.suspectedSmurfFlag = suspectedSmurfFlag;
 
     // Discord connections : filtrer côté serveur sur visibleOnProfile.
     // Sécu critique — sans ça, le toggle "Masqué" dans Settings ne protège rien,
@@ -306,11 +344,39 @@ export async function POST(req: NextRequest) {
       updatedAt: FieldValue.serverTimestamp(),
     };
 
+    // Détection changement de rang RL — voir docs/rl-rank-verification-plan.md.
+    // Si le joueur modifie son rang déclaré, on horodate (rlRankChangedAt) :
+    //  - le cooldown anti-spam des signalements saute pour ce joueur
+    //    (l'API /api/profile/[uid]/rank-report compare cette date),
+    //  - et on ping l'admin sur Discord pour qu'il puisse jeter un œil.
+    const newRank = profileData.rlRank as string;
+    const oldRank = (existingData.rlRank as string) || '';
+    const rankChanged = existing.exists && newRank !== oldRank;
+    if (rankChanged) {
+      profileData.rlRankChangedAt = FieldValue.serverTimestamp();
+    }
+
     if (!existing.exists) {
       profileData.createdAt = FieldValue.serverTimestamp();
     }
 
     await userRef.set(profileData, { merge: true });
+
+    // Ping admin Discord post-écriture (fire-and-forget) — seulement si le rang
+    // a vraiment changé (pas à la création du profil).
+    if (rankChanged) {
+      try {
+        const fromLabel = oldRank || '(vide)';
+        const toLabel = newRank || '(retiré)';
+        await sendAdminAlert(db, {
+          title: '🔁 Rang RL modifié',
+          description: `**${(profileData.displayName as string) || uid}** a changé son rang : \`${fromLabel}\` → \`${toLabel}\`\n\n`
+            + `[Voir le profil](https://aedral.com/profile/${uid})`,
+        });
+      } catch (err) {
+        console.error('[Profile POST] rank change admin alert failed:', err);
+      }
+    }
 
     return NextResponse.json({ success: true });
   } catch (err) {

@@ -21,6 +21,7 @@ export type NotificationType =
   | 'todo_assigned'
   | 'todo_reminder'
   | 'todo_overdue'
+  | 'rank_contested'
   | 'generic';
 
 export type NotificationPayload = {

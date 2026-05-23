@@ -46,6 +46,14 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── Flags admin-only sur un user (suspectedSmurf, etc.) ─────────────────
+    // STRICTEMENT serveur — visible UNIQUEMENT par les admins via l'API. Le
+    // joueur ne doit pas savoir qu'il est flaggé (fuirait avant qu'on enquête).
+    // Voir docs/rl-rank-verification-plan.md (Lot 5 v2).
+    match /user_admin_flags/{uid} {
+      allow read, write: if false;
+    }
+
     // ── Signalements de rang RL (Lot 5 — anti-mensonge) ─────────────────────
     // Création/lecture côté client refusées — tout passe par les API routes :
     //   POST /api/profile/[uid]/rank-report  → crée un report

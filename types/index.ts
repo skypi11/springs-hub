@@ -56,6 +56,11 @@ export interface SpringsUser {
   rlRank?: string;
   rlMmr?: number;
   rlStats?: RLStats;           // stats auto via API TRN (legacy, broken en prod)
+  // Horodatage du dernier changement de rang — sert (a) à réinitialiser le
+  // cooldown anti-spam des signalements quand l'user change son rang
+  // (n'importe qui peut re-signaler immédiatement), (b) à afficher éventuellement
+  // l'ancienneté du rang sur la fiche. Maintenu par POST /api/profile.
+  rlRankChangedAt?: Date | string;
   // Trackmania
   pseudoTM?: string;           // pseudo affiché en course
   loginTM?: string;            // identifiant Ubisoft/Nadeo

@@ -575,6 +575,67 @@ export async function postRecruitmentEmbed(channelId: string, input: Recruitment
   return data.id as string;
 }
 
+// ---------- Signalement de rang (Lot 5 — anti-mensonge) ----------
+
+// Envoie un DM au joueur dont le rang vient d'être contesté par un admin.
+// Mêmes garde-fous que sendTodoDM : retourne ok=false silencieusement si
+// l'utilisateur a désactivé les DMs du bot (cas normal, à ne pas spammer Sentry).
+export async function sendRankContestedDM(
+  discordUserId: string,
+  opts: { reason?: string | null } = {},
+): Promise<{ ok: true; messageId: string } | { ok: false; reason: string }> {
+  // Étape 1 : ouvre le DM channel.
+  const dmRes = await fetch(`${DISCORD_API}/users/@me/channels`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bot ${botToken()}`,
+    },
+    body: JSON.stringify({ recipient_id: discordUserId }),
+  });
+  if (!dmRes.ok) {
+    const body = await dmRes.text().catch(() => '');
+    return { ok: false, reason: `dm_open_${dmRes.status}: ${body.slice(0, 150)}` };
+  }
+  const dm = await dmRes.json();
+  const channelId = dm.id as string;
+
+  // Étape 2 : poste un embed clair.
+  const description =
+    "Un signalement a été déposé sur le rang Rocket League que tu affiches sur Aedral, "
+    + "et un admin a confirmé le problème. **Ton rang a été retiré de ton profil public.**\n\n"
+    + "Pour le réafficher, va sur tes [réglages Aedral](https://aedral.com/settings) → "
+    + "section *Rocket League* et resaisis ton rang à jour. Un coup d'œil à ton tracker "
+    + "officiel suffit pour vérifier.\n\n"
+    + (opts.reason
+      ? `*Note de l'admin :* ${opts.reason.slice(0, 500)}\n\n`
+      : '')
+    + "Tant que tu n'auras pas remis un rang à jour, ta fiche n'en montrera pas.";
+
+  const embed: Record<string, unknown> = {
+    color: 0xffb800,
+    title: '🚩 Ton rang Rocket League a été contesté',
+    description,
+    footer: { text: 'Aedral · système anti-mensonge' },
+    timestamp: new Date().toISOString(),
+  };
+
+  const res = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bot ${botToken()}`,
+    },
+    body: JSON.stringify({ embeds: [embed] }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    return { ok: false, reason: `post_${res.status}: ${body.slice(0, 150)}` };
+  }
+  const data = await res.json();
+  return { ok: true, messageId: data.id as string };
+}
+
 // URL CDN de l'icône d'un serveur (ou null si pas d'icône custom).
 export function guildIconUrl(guildId: string, iconHash: string | null, size = 128): string | null {
   if (!iconHash) return null;

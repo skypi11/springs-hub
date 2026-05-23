@@ -10,7 +10,7 @@ import type { SpringsUser, RLStats } from '@/types';
 import {
   User, Globe, Calendar, Gamepad2, Search, Shield,
   ExternalLink, Settings, Loader2, AlertCircle,
-  Trophy, History, Sparkles,
+  Trophy, History, Sparkles, ShieldAlert,
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
@@ -39,7 +39,7 @@ function CountryFlag({ code, size = 16 }: { code: string; size?: number }) {
 
 export default function ProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { firebaseUser } = useAuth();
+  const { firebaseUser, isAdmin } = useAuth();
   const [profile, setProfile] = useState<(SpringsUser & { age?: number | null }) | null>(null);
   const [rlStats, setRlStats] = useState<RLStats | null>(null);
   const [rlStatsLoaded, setRlStatsLoaded] = useState(false);
@@ -174,6 +174,30 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           { label: 'Joueurs', href: '/community/players' },
           { label: profile.displayName || 'Joueur' },
         ]} />
+
+        {/* ─── BANDEAU ADMIN-ONLY : compte suspecté smurf ──────────────────── */}
+        {isAdmin && (() => {
+          const flag = (profile as typeof profile & {
+            suspectedSmurfFlag?: { flaggedAt: string | null; flaggedBy: string | null; reportId: string | null; note: string | null };
+          }).suspectedSmurfFlag;
+          if (!flag) return null;
+          const dateStr = flag.flaggedAt
+            ? new Date(flag.flaggedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+            : '—';
+          return (
+            <div className="bevel-sm p-3 flex items-start gap-2.5 animate-fade-in"
+              style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.4)' }}>
+              <ShieldAlert size={16} style={{ color: '#ef4444', flexShrink: 0, marginTop: 2 }} />
+              <div className="text-xs flex-1 min-w-0" style={{ color: '#ff8a8a' }}>
+                <strong>Compte suspecté smurf</strong> — flaggé le {dateStr}
+                {flag.note && <span> · *{flag.note}*</span>}
+                <span className="block mt-0.5" style={{ color: 'var(--s-text-muted)' }}>
+                  Visible uniquement par les admins. Sert d'historique pour la modération et les futures inscriptions en compétition.
+                </span>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ─── HERO HEADER ─────────────────────────────────────────────────── */}
         <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>

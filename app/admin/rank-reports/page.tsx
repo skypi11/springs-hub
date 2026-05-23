@@ -16,12 +16,29 @@ type RankReport = {
   targetRlRank: string;
   reporterUid: string;
   reporterName: string;
+  motif: 'rank_lie' | 'smurf';
   message: string | null;
   status: 'pending' | 'resolved' | 'dismissed';
   createdAt: string | null;
   resolvedAt: string | null;
   resolvedBy: string | null;
   resolution: string | null;
+  reporterStats: { total: number; resolved: number; dismissed: number; pending: number };
+};
+
+const MOTIF_META: Record<'rank_lie' | 'smurf', { label: string; bg: string; color: string; border: string }> = {
+  rank_lie: {
+    label: 'Rang faux',
+    bg: 'rgba(0,129,255,0.1)',
+    color: '#4fb3ff',
+    border: 'rgba(0,129,255,0.4)',
+  },
+  smurf: {
+    label: 'Smurf',
+    bg: 'rgba(239,68,68,0.1)',
+    color: '#ff8a8a',
+    border: 'rgba(239,68,68,0.4)',
+  },
 };
 
 function formatDate(iso: string | null): string {
@@ -137,6 +154,17 @@ export default function AdminRankReportsPage() {
                   <span className="tag tag-blue" style={{ fontSize: '10px' }}>
                     {r.targetRlRank || '—'}
                   </span>
+                  {/* Motif du signalement */}
+                  {(() => {
+                    const meta = MOTIF_META[r.motif] ?? MOTIF_META.rank_lie;
+                    return (
+                      <span className="tag" style={{
+                        background: meta.bg, color: meta.color, borderColor: meta.border, fontSize: '10px',
+                      }}>
+                        {meta.label}
+                      </span>
+                    );
+                  })()}
                   {r.status === 'pending' && (
                     <span className="tag" style={{ background: 'rgba(255,184,0,0.15)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.4)', fontSize: '10px' }}>
                       EN ATTENTE
@@ -157,6 +185,22 @@ export default function AdminRankReportsPage() {
                   Signalé par <Link href={`/profile/${r.reporterUid}`} className="hover:underline">{r.reporterName}</Link>
                   {' · '}{formatDate(r.createdAt)}
                 </p>
+                {/* Track-record du reporter — pour repérer les serial-signaleurs */}
+                {r.reporterStats && r.reporterStats.total > 1 && (() => {
+                  const s = r.reporterStats;
+                  // Flag rouge si > 50% rejetés (risque d'abus)
+                  const abuseRisk = s.dismissed >= 2 && s.dismissed / s.total > 0.5;
+                  return (
+                    <p className="text-xs mt-0.5"
+                      style={{ color: abuseRisk ? '#ff8a8a' : 'var(--s-text-muted)' }}
+                      title="Historique des signalements de ce reporter (résolus = légitimes, rejetés = abusifs)"
+                    >
+                      {abuseRisk && '⚠️ '}Reporter : {s.total} signalements — {s.resolved} résolu{s.resolved > 1 ? 's' : ''}, {s.dismissed} rejeté{s.dismissed > 1 ? 's' : ''}
+                      {s.pending > 0 ? `, ${s.pending} en attente` : ''}
+                      {abuseRisk && ' (potentiel signalement abusif)'}
+                    </p>
+                  );
+                })()}
                 {r.message && (
                   <p className="text-sm mt-2 p-2"
                     style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', color: 'var(--s-text)' }}>
