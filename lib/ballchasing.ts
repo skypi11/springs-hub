@@ -129,18 +129,78 @@ export async function uploadReplay(
 // Récupère les stats parsées d'un replay (joueurs, scores, durée, map…).
 // Peut prendre 5-30s après l'upload pour que ballchasing finisse le parsing —
 // le statut passe de "pending" à "ok". Le caller doit gérer le polling.
+//
+// On cache aussi 3 catégories de stats avancées (boost / mouvement / position)
+// au lieu de juste le core, parce que c'est ce qui distingue vraiment les
+// joueurs en analyse de scrim. Tout est optionnel : si ballchasing ne renvoie
+// pas une catégorie, on omet le sous-objet pour éviter undefined en Firestore.
 export interface BallchasingPlayerStats {
   name: string;
   platform: string;
   platformId: string;
   team: 'blue' | 'orange';
+  // Core
   score: number;
   goals: number;
   assists: number;
   saves: number;
   shots: number;
   mvp: boolean;
+  shootingPct?: number;       // shooting_percentage
+  shotsAgainst?: number;
+  goalsAgainst?: number;
   mmr?: number;
+  // Boost — clés du style de jeu (économie + agressivité)
+  boost?: {
+    bpm: number;              // boost per minute (efficiency)
+    bcpm: number;             // boost COLLECTED per min
+    avgAmount: number;
+    amountCollected: number;
+    amountStolen: number;
+    amountCollectedBig: number;
+    amountCollectedSmall: number;
+    amountOverfill: number;
+    timeZeroBoost: number;    // secondes à 0 boost (panique)
+    timeFullBoost: number;    // secondes à 100 (greedy)
+    percentZeroBoost?: number;
+    percentFullBoost?: number;
+  };
+  // Mouvement — vitesse moyenne, % en supersonic = agressivité
+  movement?: {
+    avgSpeed: number;
+    totalDistance: number;
+    timeSupersonic: number;
+    timeBoostSpeed: number;
+    timeSlowSpeed: number;
+    timeGround: number;
+    timeLowAir: number;
+    timeHighAir: number;
+    powerslideCount: number;
+    avgPowerslideDuration: number;
+    percentSupersonic?: number;
+    percentGround?: number;
+  };
+  // Positionnement — où est le joueur sur le terrain
+  positioning?: {
+    avgDistanceToBall: number;
+    avgDistanceToBallPossession: number;
+    avgDistanceToBallNoPossession: number;
+    timeDefensiveHalf: number;
+    timeOffensiveHalf: number;
+    timeBehindBall: number;
+    timeInfrontBall: number;
+    timeMostBack: number;
+    timeMostForward: number;
+    timeClosestToBall: number;
+    timeFarthestFromBall: number;
+    percentBehindBall?: number;
+    percentDefensiveHalf?: number;
+  };
+  // Demos (impacts subis/infligés)
+  demo?: {
+    inflicted: number;
+    taken: number;
+  };
 }
 
 export interface BallchasingReplay {
@@ -158,31 +218,108 @@ export interface BallchasingReplay {
   raw: unknown;
 }
 
+// Lit une valeur numérique en omettant undefined (Firestore refuse undefined).
+function num(o: Record<string, unknown>, k: string): number | undefined {
+  return typeof o[k] === 'number' ? (o[k] as number) : undefined;
+}
+function numOr0(o: Record<string, unknown>, k: string): number {
+  return typeof o[k] === 'number' ? (o[k] as number) : 0;
+}
+// Set un champ optionnel uniquement si défini, pour éviter undefined → Firestore.
+function setIfDefined<T extends object, K extends keyof T>(o: T, k: K, v: T[K] | undefined) {
+  if (v !== undefined) o[k] = v;
+}
+
 function mapPlayer(
   raw: Record<string, unknown>,
   team: 'blue' | 'orange',
 ): BallchasingPlayerStats {
   const stats = (raw.stats as Record<string, Record<string, unknown>> | undefined) ?? {};
   const core = stats.core ?? {};
+  const boost = stats.boost;
+  const movement = stats.movement;
+  const positioning = stats.positioning;
+  const demo = stats.demo;
   const id = (raw.id as Record<string, unknown> | undefined) ?? {};
+
   const player: BallchasingPlayerStats = {
     name: typeof raw.name === 'string' ? raw.name : '',
     platform: typeof id.platform === 'string' ? id.platform : '',
     platformId: typeof id.id === 'string' ? id.id : '',
     team,
-    score: typeof core.score === 'number' ? core.score : 0,
-    goals: typeof core.goals === 'number' ? core.goals : 0,
-    assists: typeof core.assists === 'number' ? core.assists : 0,
-    saves: typeof core.saves === 'number' ? core.saves : 0,
-    shots: typeof core.shots === 'number' ? core.shots : 0,
+    score: numOr0(core, 'score'),
+    goals: numOr0(core, 'goals'),
+    assists: numOr0(core, 'assists'),
+    saves: numOr0(core, 'saves'),
+    shots: numOr0(core, 'shots'),
     mvp: core.mvp === true,
   };
-  // MMR optionnel — depuis le passage F2P de RL, ballchasing ne le renvoie
-  // plus pour la grande majorité des parties. On omet le champ plutôt que
-  // d'y mettre undefined (Firestore refuse `undefined` à l'écriture).
-  if (typeof core.mvp_mmr === 'number') {
-    player.mmr = core.mvp_mmr;
+
+  setIfDefined(player, 'shootingPct', num(core, 'shooting_percentage'));
+  setIfDefined(player, 'shotsAgainst', num(core, 'shots_against'));
+  setIfDefined(player, 'goalsAgainst', num(core, 'goals_against'));
+  // MMR optionnel — depuis F2P, ballchasing ne le renvoie quasi plus.
+  setIfDefined(player, 'mmr', num(core, 'mvp_mmr'));
+
+  if (boost) {
+    player.boost = {
+      bpm: numOr0(boost, 'bpm'),
+      bcpm: numOr0(boost, 'bcpm'),
+      avgAmount: numOr0(boost, 'avg_amount'),
+      amountCollected: numOr0(boost, 'amount_collected'),
+      amountStolen: numOr0(boost, 'amount_stolen'),
+      amountCollectedBig: numOr0(boost, 'amount_collected_big'),
+      amountCollectedSmall: numOr0(boost, 'amount_collected_small'),
+      amountOverfill: numOr0(boost, 'amount_overfill'),
+      timeZeroBoost: numOr0(boost, 'time_zero_boost'),
+      timeFullBoost: numOr0(boost, 'time_full_boost'),
+    };
+    setIfDefined(player.boost, 'percentZeroBoost', num(boost, 'percent_zero_boost'));
+    setIfDefined(player.boost, 'percentFullBoost', num(boost, 'percent_full_boost'));
   }
+
+  if (movement) {
+    player.movement = {
+      avgSpeed: numOr0(movement, 'avg_speed'),
+      totalDistance: numOr0(movement, 'total_distance'),
+      timeSupersonic: numOr0(movement, 'time_supersonic_speed'),
+      timeBoostSpeed: numOr0(movement, 'time_boost_speed'),
+      timeSlowSpeed: numOr0(movement, 'time_slow_speed'),
+      timeGround: numOr0(movement, 'time_ground'),
+      timeLowAir: numOr0(movement, 'time_low_air'),
+      timeHighAir: numOr0(movement, 'time_high_air'),
+      powerslideCount: numOr0(movement, 'count_powerslide'),
+      avgPowerslideDuration: numOr0(movement, 'avg_powerslide_duration'),
+    };
+    setIfDefined(player.movement, 'percentSupersonic', num(movement, 'percent_supersonic_speed'));
+    setIfDefined(player.movement, 'percentGround', num(movement, 'percent_ground'));
+  }
+
+  if (positioning) {
+    player.positioning = {
+      avgDistanceToBall: numOr0(positioning, 'avg_distance_to_ball'),
+      avgDistanceToBallPossession: numOr0(positioning, 'avg_distance_to_ball_possession'),
+      avgDistanceToBallNoPossession: numOr0(positioning, 'avg_distance_to_ball_no_possession'),
+      timeDefensiveHalf: numOr0(positioning, 'time_defensive_half'),
+      timeOffensiveHalf: numOr0(positioning, 'time_offensive_half'),
+      timeBehindBall: numOr0(positioning, 'time_behind_ball'),
+      timeInfrontBall: numOr0(positioning, 'time_infront_ball'),
+      timeMostBack: numOr0(positioning, 'time_most_back'),
+      timeMostForward: numOr0(positioning, 'time_most_forward'),
+      timeClosestToBall: numOr0(positioning, 'time_closest_to_ball'),
+      timeFarthestFromBall: numOr0(positioning, 'time_farthest_from_ball'),
+    };
+    setIfDefined(player.positioning, 'percentBehindBall', num(positioning, 'percent_behind_ball'));
+    setIfDefined(player.positioning, 'percentDefensiveHalf', num(positioning, 'percent_defensive_half'));
+  }
+
+  if (demo) {
+    player.demo = {
+      inflicted: numOr0(demo, 'inflicted'),
+      taken: numOr0(demo, 'taken'),
+    };
+  }
+
   return player;
 }
 

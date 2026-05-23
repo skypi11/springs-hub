@@ -76,9 +76,12 @@ export async function GET(
       return NextResponse.json({ state: 'disabled' });
     }
 
-    // Cache : si on a déjà fetché les stats avec status=ok, on les renvoie direct.
-    if (data.ballchasingStats && (data.ballchasingStats as { status?: string }).status === 'ok') {
-      return NextResponse.json({ state: 'ready', stats: data.ballchasingStats });
+    // Cache : si on a déjà fetché les stats avec status=ok ET le bon format
+    // (statsVersion 2 = inclut boost/movement/positioning/demo), on renvoie direct.
+    // Les caches v1 (uniquement core) sont re-fetched depuis ballchasing.
+    const cachedStats = data.ballchasingStats as { status?: string; statsVersion?: number } | undefined;
+    if (cachedStats && cachedStats.status === 'ok' && cachedStats.statsVersion === 2) {
+      return NextResponse.json({ state: 'ready', stats: cachedStats });
     }
 
     // Cas du replay finalisé AVANT que la clé ballchasing soit configurée :
@@ -137,8 +140,10 @@ export async function GET(
         return NextResponse.json({ state: 'pending', bcStatus: replay.status });
       }
       // Stats prêtes — on cache (sans le `raw` qui peut être lourd) et on renvoie.
+      // statsVersion bumpé quand le shape de `players` change pour invalider le cache.
       const cached = {
         status: replay.status,
+        statsVersion: 2,
         mapName: replay.mapName,
         mapCode: replay.mapCode,
         durationSec: replay.durationSec,

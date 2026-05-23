@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { Download, Trash2, Edit2, Check, X, Loader2, Film, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
+import { Download, Trash2, Edit2, Check, X, Loader2, Film, BarChart3, Sparkles } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import { api } from '@/lib/api-client';
-import ReplayStatsPanel from './ReplayStatsPanel';
+import ReplayStatsDrawer from './ReplayStatsDrawer';
 
 export type ReplayListItem = {
   id: string;
@@ -67,7 +67,40 @@ export default function ReplayList({
   const toast = useToast();
   const confirm = useConfirm();
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [expandedStatsId, setExpandedStatsId] = useState<string | null>(null);
+  const [statsForId, setStatsForId] = useState<{ id: string; title: string } | null>(null);
+  const [batchLoading, setBatchLoading] = useState(false);
+
+  // Replays sans ballchasingId connu côté client → candidats au batch forward.
+  // (le serveur fait la vraie sélection, mais on cache le bouton si rien à faire)
+  const batchCandidates = items.filter(
+    it => it.ballchasingStatus !== 'uploaded' && it.ballchasingStatus !== 'pending'
+  );
+
+  const launchBatch = useCallback(async () => {
+    setBatchLoading(true);
+    try {
+      const res = await api<{ processed: number; succeeded: number; failed: number; remaining: number; truncated: boolean }>(
+        `/api/structures/${structureId}/replays/batch-forward`,
+        { method: 'POST' }
+      );
+      if (res.processed === 0) {
+        toast.success('Tous les replays sont déjà parsés.');
+      } else if (res.failed > 0) {
+        toast.error(`${res.succeeded}/${res.processed} replays envoyés. ${res.failed} échec(s).`);
+      } else {
+        toast.success(
+          res.truncated
+            ? `${res.succeeded} replays envoyés. Reste ${res.remaining}, reclique pour continuer.`
+            : `${res.succeeded} replay(s) envoyés à ballchasing — parsing en cours.`
+        );
+      }
+      onChanged();
+    } catch (err) {
+      toast.error((err as Error).message || 'Échec du batch');
+    } finally {
+      setBatchLoading(false);
+    }
+  }, [structureId, toast, onChanged]);
 
   const download = useCallback(async (id: string) => {
     try {
@@ -109,15 +142,30 @@ export default function ReplayList({
   }
 
   return (
+    <>
+    {/* Bouton "activer pour tous" — visible si au moins 1 replay à processer
+        et si le caller a le droit de upload (proxy raisonnable pour le batch). */}
+    {canEdit && batchCandidates.length > 0 && (
+      <div className="flex justify-end mb-2">
+        <button type="button"
+          onClick={launchBatch}
+          disabled={batchLoading}
+          className="btn-springs btn-secondary bevel-sm text-xs flex items-center gap-1.5"
+          title="Lance le parsing ballchasing pour tous les replays qui ne l'ont pas encore"
+        >
+          {batchLoading ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
+          Parser tous les replays ({batchCandidates.length})
+        </button>
+      </div>
+    )}
     <ul className="space-y-2">
       {items.map(item => {
         const canDelete = canDeleteAny || item.uploadedBy === currentUid;
         const resultBadge = item.result ? RESULT_LABEL[item.result] : null;
         const isEditing = editingId === item.id;
-        const isExpanded = expandedStatsId === item.id;
         // Le bouton stats est masqué si la feature est explicitement désactivée
-        // (pas de clé ballchasing). Tous les autres états (pending/uploaded/failed)
-        // ouvrent le panel qui gère lui-même son rendu.
+        // (pas de clé ballchasing). Tous les autres états ouvrent le drawer
+        // qui gère lui-même son rendu (loading/pending/failed/ready).
         const canShowStats = item.ballchasingStatus !== 'disabled';
 
         return (
@@ -133,88 +181,89 @@ export default function ReplayList({
                 onSaved={() => { setEditingId(null); onChanged(); }}
               />
             ) : (
-              <>
-                <div className="flex items-center gap-3 flex-wrap">
-                  {/* Titre + métadonnées */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {resultBadge && (
-                        <span
-                          className="inline-flex items-center justify-center text-xs font-bold"
-                          style={{
-                            width: 20, height: 20,
-                            background: `${resultBadge.color}20`,
-                            color: resultBadge.color,
-                            border: `1px solid ${resultBadge.color}40`,
-                          }}
-                        >
-                          {resultBadge.text}
-                        </span>
-                      )}
-                      <span className="text-sm font-medium truncate" style={{ color: 'var(--s-text)' }}>
-                        {item.title}
-                      </span>
-                      {item.score && (
-                        <span className="t-mono text-xs" style={{ color: 'var(--s-gold)' }}>
-                          {item.score}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1 text-xs flex-wrap" style={{ color: 'var(--s-text-muted)' }}>
-                      <span>{formatDate(item.createdAt)}</span>
-                      <span>·</span>
-                      <span>{formatSize(item.sizeBytes)}</span>
-                      {item.map && (<><span>·</span><span>{item.map}</span></>)}
-                      {showEventLink && item.eventId && eventTitlesById?.[item.eventId] && (
-                        <>
-                          <span>·</span>
-                          <span>Lié à « {eventTitlesById[item.eventId]} »</span>
-                        </>
-                      )}
-                    </div>
-                    {item.notes && (
-                      <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-dim)' }}>{item.notes}</p>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    {canShowStats && (
-                      <IconButton
-                        title={isExpanded ? 'Masquer les stats' : 'Voir les stats détaillées'}
-                        onClick={() => setExpandedStatsId(isExpanded ? null : item.id)}
-                        active={isExpanded}
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* Titre + métadonnées */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {resultBadge && (
+                      <span
+                        className="inline-flex items-center justify-center text-xs font-bold"
+                        style={{
+                          width: 20, height: 20,
+                          background: `${resultBadge.color}20`,
+                          color: resultBadge.color,
+                          border: `1px solid ${resultBadge.color}40`,
+                        }}
                       >
-                        <BarChart3 size={13} />
-                        {isExpanded
-                          ? <ChevronUp size={11} style={{ marginLeft: 2 }} />
-                          : <ChevronDown size={11} style={{ marginLeft: 2 }} />}
-                      </IconButton>
+                        {resultBadge.text}
+                      </span>
                     )}
-                    <IconButton title="Télécharger" onClick={() => download(item.id)}>
-                      <Download size={13} />
-                    </IconButton>
-                    {canEdit && (
-                      <IconButton title="Modifier" onClick={() => setEditingId(item.id)}>
-                        <Edit2 size={13} />
-                      </IconButton>
-                    )}
-                    {canDelete && (
-                      <IconButton title="Supprimer" onClick={() => remove(item)} danger>
-                        <Trash2 size={13} />
-                      </IconButton>
+                    <span className="text-sm font-medium truncate" style={{ color: 'var(--s-text)' }}>
+                      {item.title}
+                    </span>
+                    {item.score && (
+                      <span className="t-mono text-xs" style={{ color: 'var(--s-gold)' }}>
+                        {item.score}
+                      </span>
                     )}
                   </div>
+                  <div className="flex items-center gap-2 mt-1 text-xs flex-wrap" style={{ color: 'var(--s-text-muted)' }}>
+                    <span>{formatDate(item.createdAt)}</span>
+                    <span>·</span>
+                    <span>{formatSize(item.sizeBytes)}</span>
+                    {item.map && (<><span>·</span><span>{item.map}</span></>)}
+                    {showEventLink && item.eventId && eventTitlesById?.[item.eventId] && (
+                      <>
+                        <span>·</span>
+                        <span>Lié à « {eventTitlesById[item.eventId]} »</span>
+                      </>
+                    )}
+                  </div>
+                  {item.notes && (
+                    <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-dim)' }}>{item.notes}</p>
+                  )}
                 </div>
-                {isExpanded && (
-                  <ReplayStatsPanel structureId={structureId} replayId={item.id} />
-                )}
-              </>
+
+                {/* Actions */}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {canShowStats && (
+                    <IconButton
+                      title="Voir les stats détaillées"
+                      onClick={() => setStatsForId({ id: item.id, title: item.title })}
+                    >
+                      <BarChart3 size={13} />
+                    </IconButton>
+                  )}
+                  <IconButton title="Télécharger" onClick={() => download(item.id)}>
+                    <Download size={13} />
+                  </IconButton>
+                  {canEdit && (
+                    <IconButton title="Modifier" onClick={() => setEditingId(item.id)}>
+                      <Edit2 size={13} />
+                    </IconButton>
+                  )}
+                  {canDelete && (
+                    <IconButton title="Supprimer" onClick={() => remove(item)} danger>
+                      <Trash2 size={13} />
+                    </IconButton>
+                  )}
+                </div>
+              </div>
             )}
           </li>
         );
       })}
     </ul>
+    {/* Drawer stats détaillées (au-dessus de la modal event grâce à z-index élevé) */}
+    {statsForId && (
+      <ReplayStatsDrawer
+        structureId={structureId}
+        replayId={statsForId.id}
+        replayTitle={statsForId.title}
+        onClose={() => setStatsForId(null)}
+      />
+    )}
+    </>
   );
 }
 
