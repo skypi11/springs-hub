@@ -45,6 +45,12 @@ export default function EventStatsPage({ params }: { params: Promise<{ eventId: 
     queryKey: ['event-stats-agg', eventId, metaQuery.data?.structureId],
     queryFn: () => api<AggResponse>(`/api/structures/${metaQuery.data!.structureId}/events/${eventId}/replay-stats-agg`),
     enabled: !!metaQuery.data?.structureId,
+    // Auto-refresh toutes les 10s tant que des replays sont encore en
+    // parsing chez ballchasing. Stop dès que tout est résolu.
+    refetchInterval: (q) => {
+      const data = q.state.data as (AggResponse & { pendingParsingCount?: number }) | undefined;
+      return data && (data.pendingParsingCount ?? 0) > 0 ? 10_000 : false;
+    },
   });
 
   if (metaQuery.isPending) {
@@ -200,6 +206,17 @@ export default function EventStatsPage({ params }: { params: Promise<{ eventId: 
                 ballchasing.com <ExternalLink size={10} className="inline" />
               </a> pour le parsing — patiente quelques secondes après l&apos;upload.
             </p>
+          </div>
+        )}
+
+        {/* Bandeau : replays encore en parsing chez ballchasing — recharge auto 10s */}
+        {statsQuery.data && (statsQuery.data as AggResponse & { pendingParsingCount?: number }).pendingParsingCount! > 0 && (
+          <div className="p-3 bevel-sm flex items-center gap-2"
+            style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.30)', color: 'var(--s-gold)' }}>
+            <Loader2 size={14} className="animate-spin flex-shrink-0" />
+            <span className="text-sm">
+              {(statsQuery.data as AggResponse & { pendingParsingCount?: number }).pendingParsingCount} replay(s) en cours de parsing chez ballchasing — la page se recharge automatiquement.
+            </span>
           </div>
         )}
 
