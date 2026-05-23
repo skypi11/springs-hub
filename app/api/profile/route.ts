@@ -126,12 +126,38 @@ export async function GET(req: NextRequest) {
     const isOwner = requesterUid === uid;
     const structures = await fetchUserStructures(uid);
 
+    // Identité RL « officielle » pour la fiche — calculée AVANT tout filtrage
+    // des connexions Discord. C'est précisément l'objectif : la fiche doit
+    // afficher le compte de jeu vérifié + son lien tracker, indépendamment du
+    // toggle « visible sur profil » des connexions (qui sert à masquer les
+    // réseaux sociaux, pas l'identité de jeu publique).
+    // Le pseudo Epic n'est pas sensible — il est déjà sur tracker.gg pour
+    // quiconque cherche le joueur. Voir docs/rl-rank-verification-plan.md.
+    const allConns = (data.discordConnections as DiscordConnection[] | undefined) ?? [];
+    const verifiedEpic = allConns.find(c => c.type === 'epicgames' && c.verified && c.name);
+    const epicNameForUrl = (data.rlEpicName as string) || verifiedEpic?.name || '';
+    const rlAccountFields = {
+      rlAccountVerified: !!data.rlEpicId || !!data.steamLinked?.steamId64,
+      rlAccountName: epicNameForUrl
+        || (data.steamLinked?.personaName as string)
+        || '',
+      rlAccountPlatform: epicNameForUrl
+        ? 'epic'
+        : (data.steamLinked?.steamId64 ? 'steam' : ''),
+      rlSteamId64: data.steamLinked?.steamId64 || '',
+    };
+
     if (isOwner) {
-      return NextResponse.json({ ...data, structures });
+      return NextResponse.json({ ...data, ...rlAccountFields, structures });
     }
 
     // Vue publique : on calcule l'âge et on retire les champs privés
-    const publicData: Record<string, unknown> = { ...data, age: computeAge(data.dateOfBirth), structures };
+    const publicData: Record<string, unknown> = {
+      ...data,
+      ...rlAccountFields,
+      age: computeAge(data.dateOfBirth),
+      structures,
+    };
     for (const field of PRIVATE_FIELDS) delete publicData[field];
 
     // Discord connections : filtrer côté serveur sur visibleOnProfile.

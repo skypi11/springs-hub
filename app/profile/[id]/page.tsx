@@ -276,27 +276,37 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
           {/* Stats RL */}
           {profile.games?.includes('rocket_league') && (() => {
-            const effective = getEffectiveRLPlatform(profile);
-            const trackerHref = effective ? buildTrackerGgUrl(effective.platform, effective.id) : '';
-            const ballchasingHref = effective ? buildBallchasingUrl(effective.platform, effective.id) : '';
-            const platformMeta = effective ? getRLPlatformMeta(effective.platform) : null;
-            // Statut RL officiel (Lot 2 — anti-mensonge / sticky).
-            // Verified = strict (snapshot ou Steam OpenID). MAIS pour construire
-            // l'URL/affichage du compte de jeu on préfère TOUJOURS Epic quand on
-            // l'a (snapshot ou connexion Discord vérifiée) parce que post-F2P
-            // les stats RL vivent sur Epic.
-            const rlAccountVerified = !!profile.rlEpicId || !!profile.steamLinked?.steamId64;
-            const epicConn = (profile.discordConnections ?? []).find(
-              c => c.type === 'epicgames' && c.verified && c.name,
-            );
-            const rlAccountName = profile.rlEpicName
-              || epicConn?.name
-              || profile.steamLinked?.personaName
-              || '';
-            const rlAccountPlatform: 'epic' | 'steam' | '' =
-              (profile.rlEpicName || epicConn?.name)
-                ? 'epic'
-                : (profile.steamLinked?.steamId64 ? 'steam' : '');
+            // Champs calculés côté serveur par /api/profile (voir route.ts) —
+            // ils sont déjà résolus avec la bonne priorité Epic > Steam et
+            // survivent au filtrage `visibleOnProfile` des connexions Discord
+            // pour les visiteurs non-owners.
+            const p = profile as typeof profile & {
+              rlAccountVerified?: boolean;
+              rlAccountName?: string;
+              rlAccountPlatform?: 'epic' | 'steam' | '';
+              rlSteamId64?: string;
+            };
+            const rlAccountVerified = !!p.rlAccountVerified;
+            const rlAccountName = p.rlAccountName || '';
+            const rlAccountPlatform: 'epic' | 'steam' | '' = p.rlAccountPlatform || '';
+            // ID utilisé pour construire les URLs : pseudo pour Epic, SteamID64 pour Steam
+            const accountIdForUrl = rlAccountPlatform === 'steam'
+              ? (p.rlSteamId64 || '')
+              : rlAccountName;
+            const trackerHref = rlAccountPlatform && accountIdForUrl
+              ? buildTrackerGgUrl(rlAccountPlatform, accountIdForUrl)
+              : '';
+            const ballchasingHref = rlAccountPlatform && accountIdForUrl
+              ? buildBallchasingUrl(rlAccountPlatform, accountIdForUrl)
+              : '';
+            const platformMeta = rlAccountPlatform
+              ? getRLPlatformMeta(rlAccountPlatform)
+              : null;
+            // `effective` conservé pour l'historique de structure UI ci-dessous
+            // (rlStatsLoaded / RLEmptyState font le check `!effective`).
+            const effective = rlAccountPlatform && accountIdForUrl
+              ? { platform: rlAccountPlatform, id: accountIdForUrl }
+              : getEffectiveRLPlatform(profile);
             return (
               <div className="pillar-card panel relative overflow-hidden group transition-all duration-200 h-full flex flex-col">
                 <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-blue), rgba(0,129,255,0.3), transparent 70%)' }} />
