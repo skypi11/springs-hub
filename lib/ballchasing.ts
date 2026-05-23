@@ -83,7 +83,10 @@ export async function uploadReplay(
   params.set('visibility', visibility);
   if (opts.groupId) params.set('group', opts.groupId);
 
-  // Multipart form-data manuel (le client doit nommer le champ `file`).
+  // Multipart form-data (ballchasing attend le champ `file`).
+  // `new Uint8Array(buffer)` recopie les bytes du Buffer Node dans un
+  // Uint8Array "pur" — nécessaire car TS refuse Buffer<ArrayBufferLike>
+  // comme BlobPart (à cause du SharedArrayBuffer possible).
   const form = new FormData();
   const blob = new Blob([new Uint8Array(buffer)], { type: 'application/octet-stream' });
   form.append('file', blob, filename);

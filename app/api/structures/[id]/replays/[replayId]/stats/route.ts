@@ -14,6 +14,10 @@ import {
   BallchasingApiError,
 } from '@/lib/ballchasing';
 
+// Sur Vercel Hobby, default = 10s : trop court pour download R2 (~2s) +
+// upload ballchasing (~5-10s) + parsing (variable). On bump à 60s (max Hobby).
+export const maxDuration = 60;
+
 // GET /api/structures/[id]/replays/[replayId]/stats
 // Retourne les stats parsées du replay (depuis ballchasing.com).
 //
@@ -159,6 +163,10 @@ export async function GET(
     }
   } catch (err) {
     captureApiError('API replay stats', err);
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+    // Temporairement on surface le message d'erreur réel au client pour
+    // faciliter le debug du flow ballchasing. Une fois stabilisé, repasser
+    // sur le message générique "Erreur serveur".
+    const msg = err instanceof Error ? err.message : 'Erreur serveur';
+    return NextResponse.json({ error: msg, debug: true }, { status: 500 });
   }
 }
