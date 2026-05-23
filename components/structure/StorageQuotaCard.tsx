@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { HardDrive, FileText, Film, Sparkles, BarChart3 } from 'lucide-react';
 import { api } from '@/lib/api-client';
+import BallchasingAutoParseToggle from './BallchasingAutoParseToggle';
 
 interface StorageUsage {
   docsBytes: number;
@@ -138,6 +139,11 @@ export default function StorageQuotaCard({ structureId }: { structureId: string 
       {bcQuotaQuery.data && (
         <BallchasingQuotaSubBlock data={bcQuotaQuery.data} />
       )}
+
+      {/* Toggle parsing auto */}
+      <div className="pt-3" style={{ borderTop: '1px solid var(--s-border)' }}>
+        <BallchasingAutoParseToggle structureId={structureId} />
+      </div>
     </div>
   );
 }

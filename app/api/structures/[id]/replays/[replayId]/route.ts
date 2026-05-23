@@ -70,13 +70,21 @@ export async function PATCH(
         return NextResponse.json({ error: 'Fichier absent sur R2 — upload incomplet' }, { status: 409 });
       }
       updates.status = 'ready';
-      // Marqueur ballchasing : pending tant qu'on n'a pas tenté l'upload.
-      // L'upload se fait après le .update() (best-effort, ne bloque pas le user).
-      if (isBallchasingConfigured()) {
-        updates.ballchasingStatus = 'pending';
-        shouldForwardToBallchasing = true;
-      } else {
+      // Marqueur ballchasing :
+      // - 'disabled' si la feature est OFF côté serveur (clé manquante)
+      // - 'manual' si la structure n'a pas activé le parsing auto (default)
+      // - 'pending' si on lance le forward auto
+      if (!isBallchasingConfigured()) {
         updates.ballchasingStatus = 'disabled';
+      } else {
+        // Lit la préférence structure (default false = manuel uniquement)
+        const autoParse = resolved.structure.ballchasingAutoParse === true;
+        if (autoParse) {
+          updates.ballchasingStatus = 'pending';
+          shouldForwardToBallchasing = true;
+        } else {
+          updates.ballchasingStatus = 'manual';
+        }
       }
     }
 

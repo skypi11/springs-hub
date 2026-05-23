@@ -90,11 +90,20 @@ export async function GET(
     // - bcStatus === null (replay très ancien, antérieur à la feature)
     // Et pas de bcId. La clé est maintenant là → on lance le forward "lazy"
     // à la demande, ce qui rattrape les replays historiques sans batch admin.
-    // Récupère aussi les replays bloqués en 'pending' sans bcId : peut
-    // arriver si le forward background (after()) a planté ou n'a jamais été
-    // déclenché. Sinon le client polle à l'infini sans jamais sortir.
+    // Récupère :
+    // - les replays bloqués en 'pending' sans bcId (after() a planté)
+    // - les replays en 'manual' (auto-parse OFF côté structure) → le clic
+    //   sur le bouton stats vaut consentement explicite à parser
+    // - les replays 'disabled'/'quota_exceeded' (la clé / le quota peuvent
+    //   être réglés depuis le finalize initial)
     const needsLazyForward =
-      !bcId && (bcStatus === null || bcStatus === 'disabled' || bcStatus === 'quota_exceeded' || bcStatus === 'pending');
+      !bcId && (
+        bcStatus === null ||
+        bcStatus === 'disabled' ||
+        bcStatus === 'quota_exceeded' ||
+        bcStatus === 'pending' ||
+        bcStatus === 'manual'
+      );
     if (needsLazyForward) {
       // Check quota AVANT de tenter le forward (évite spending API pour rien)
       const quota = await checkBallchasingQuota(db, structureId);

@@ -20,7 +20,7 @@ export type ReplayListItem = {
   map?: string | null;
   notes?: string | null;
   createdAt?: string | null;
-  ballchasingStatus?: 'pending' | 'uploaded' | 'failed' | 'disabled' | 'quota_exceeded' | null;
+  ballchasingStatus?: 'pending' | 'uploaded' | 'failed' | 'disabled' | 'quota_exceeded' | 'manual' | null;
 };
 
 interface Props {
@@ -306,6 +306,16 @@ function ParsingBadge({ status }: { status?: ReplayListItem['ballchasingStatus']
         style={{ background: 'rgba(255,184,0,0.10)', color: 'var(--s-gold)', border: '1px solid rgba(255,184,0,0.30)' }}>
         <Lock size={9} />
         Quota
+      </span>
+    );
+  }
+  if (status === 'manual') {
+    return (
+      <span
+        title="Parsing auto désactivé pour cette structure. Clique sur le bouton stats pour lancer le parsing à la demande."
+        className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5"
+        style={{ background: 'var(--s-elevated)', color: 'var(--s-text-muted)', border: '1px solid var(--s-border)' }}>
+        Non parsé
       </span>
     );
   }
