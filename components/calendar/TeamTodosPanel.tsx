@@ -29,14 +29,17 @@ import { TEMPLATE_NAME_MAX } from '@/lib/todo-templates';
 import { TodoConfigFields } from '@/components/calendar/TodoConfigFields';
 import TodoTemplatesManager, { useTodoTemplates, type TodoTemplateUi } from '@/components/calendar/TodoTemplatesManager';
 
-type Member = {
+// Exporté pour pouvoir construire un TeamRef depuis CalendarSection.tsx
+// (réutilisation de NewTodoForm).
+export type Member = {
   uid: string;
   displayName: string;
   avatarUrl: string;
   discordAvatar: string;
 };
 
-type TeamRef = {
+// Exporté pour réutiliser NewTodoForm depuis EventDetailModal.
+export type TeamRef = {
   id: string;
   name: string;
   players: Member[];
@@ -49,7 +52,9 @@ type TodoWithMeta = TodoRef & {
   assigneeAvatar?: string;
 };
 
-type EventOpt = {
+// Exporté pour réutiliser NewTodoForm depuis EventDetailModal (CalendarSection)
+// avec un event courant verrouillé.
+export type EventOpt = {
   id: string;
   title: string;
   startsAt: string | null;
@@ -406,7 +411,9 @@ function TodoStaffRow({
   );
 }
 
-function NewTodoForm({
+// Exporté pour permettre l'embarquer dans EventDetailModal (CalendarSection)
+// avec un eventId verrouillé sur l'event courant — cf. lockedEventId.
+export function NewTodoForm({
   structureId,
   team,
   events,
@@ -414,6 +421,7 @@ function NewTodoForm({
   onCancel,
   onCreated,
   onTemplateSaved,
+  lockedEventId,
 }: {
   structureId: string;
   team: TeamRef;
@@ -422,6 +430,10 @@ function NewTodoForm({
   onCancel: () => void;
   onCreated: () => void;
   onTemplateSaved: () => void;
+  // Si fourni : l'event lié est forcé sur cet ID et le sélecteur d'event
+  // est remplacé par un affichage figé. Utilisé quand on crée un todo
+  // depuis le contexte d'un event précis (modal event staff).
+  lockedEventId?: string;
 }) {
   const { firebaseUser } = useAuth();
   const toast = useToast();
@@ -429,7 +441,7 @@ function NewTodoForm({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [deadline, setDeadline] = useState('');
-  const [eventId, setEventId] = useState('');
+  const [eventId, setEventId] = useState(lockedEventId ?? '');
   // Deadline relative à l'event : uniquement actif si un event est sélectionné.
   const [deadlineMode, setDeadlineMode] = useState<DeadlineMode>('absolute');
   const [deadlineOffsetDays, setDeadlineOffsetDays] = useState<number>(1); // par défaut J+1 après l'event
@@ -754,23 +766,42 @@ function NewTodoForm({
       </div>
 
       <div>
-        <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Event lié (optionnel)</label>
-        <select className="settings-input w-full text-sm"
-          value={eventId}
-          onChange={e => {
-            const v = e.target.value;
-            setEventId(v);
-            // Si on retire l'event : repasse forcément en deadline absolue (sinon valeur orpheline).
-            if (!v) setDeadlineMode('absolute');
-          }}>
-          <option value="">— Aucun —</option>
-          {events.map(ev => (
-            <option key={ev.id} value={ev.id}>
-              {ev.title}
-              {ev.startsAt ? ` (${new Date(ev.startsAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })})` : ''}
-            </option>
-          ))}
-        </select>
+        <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Event lié{lockedEventId ? '' : ' (optionnel)'}</label>
+        {lockedEventId ? (
+          // Affichage figé quand on crée depuis le contexte d'un event précis :
+          // pas de dropdown, juste le rappel de l'event qui sera lié au todo.
+          (() => {
+            const ev = events.find(e => e.id === lockedEventId);
+            return (
+              <div className="settings-input w-full text-sm flex items-center gap-2"
+                style={{ opacity: 0.7, cursor: 'not-allowed' }}>
+                <span style={{ color: 'var(--s-text)' }}>{ev?.title ?? '(event courant)'}</span>
+                {ev?.startsAt && (
+                  <span style={{ color: 'var(--s-text-muted)' }}>
+                    ({new Date(ev.startsAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })})
+                  </span>
+                )}
+              </div>
+            );
+          })()
+        ) : (
+          <select className="settings-input w-full text-sm"
+            value={eventId}
+            onChange={e => {
+              const v = e.target.value;
+              setEventId(v);
+              // Si on retire l'event : repasse forcément en deadline absolue (sinon valeur orpheline).
+              if (!v) setDeadlineMode('absolute');
+            }}>
+            <option value="">— Aucun —</option>
+            {events.map(ev => (
+              <option key={ev.id} value={ev.id}>
+                {ev.title}
+                {ev.startsAt ? ` (${new Date(ev.startsAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })})` : ''}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       <div>

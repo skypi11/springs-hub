@@ -45,6 +45,9 @@ import {
 import ReplaysPanel from '@/components/replays/ReplaysPanel';
 import MonthView from './MonthView';
 import WeekView from './WeekView';
+import { NewTodoForm, type TeamRef } from './TeamTodosPanel';
+import { useTodoTemplates } from './TodoTemplatesManager';
+import { ListTodo } from 'lucide-react';
 
 type Presence = {
   id: string;
@@ -1589,6 +1592,18 @@ function EventDetailModal({
   const [adversaireLogoUrl, setAdversaireLogoUrl] = useState(event.adversaireLogoUrl ?? '');
   const [resultat, setResultat] = useState(event.resultat ?? '');
   const [saving, setSaving] = useState(false);
+  // État pour le formulaire d'assignation d'exercices (étape 2 refonte UX) :
+  // remplace l'ancien textarea 'À travailler' par des structure_todos ciblés
+  // par joueur, liés à l'event courant via lockedEventId.
+  const [showTodoForm, setShowTodoForm] = useState(false);
+  const [todoTeamId, setTodoTeamId] = useState<string>(() => {
+    // Pré-sélection : si l'event cible 1 seule équipe, on prend celle-là.
+    if (event.target.scope === 'teams' && (event.target.teamIds ?? []).length === 1) {
+      return event.target.teamIds![0];
+    }
+    return '';
+  });
+  const todoTemplates = useTodoTemplates(structureId);
 
   async function saveNotes() {
     setSaving(true);
@@ -1819,14 +1834,121 @@ function EventDetailModal({
             )}
           </div>
 
+          {/* ── À TRAVAILLER ──
+              Refonte UX : on n'écrit plus dans le champ aTravailler de l'event
+              (texte commun à toute l'équipe, pas actionnable). À la place, on
+              crée des exercices (structure_todos) assignés par joueur, liés à
+              cet event via lockedEventId. Les exercices apparaissent ensuite
+              dans 'MES EXERCICES' du calendar de chaque joueur, cochables.
+
+              Pour la rétrocompat : si l'event a déjà un aTravailler legacy non
+              vide, on l'affiche en lecture seule (note du coach historique). */}
           <div>
-            <label className="t-label block mb-1.5">À TRAVAILLER</label>
-            {canEdit ? (
-              <textarea className="settings-input w-full" rows={3} value={aTravailler} onChange={e => setATravailler(e.target.value)} maxLength={10000} />
-            ) : (
-              <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--s-text-dim)' }}>
-                {aTravailler || <em style={{ color: 'var(--s-text-muted)' }}>–</em>}
-              </p>
+            <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+              <label className="t-label">EXERCICES À TRAVAILLER</label>
+              {canEdit && (() => {
+                // Le bouton "Assigner" n'a de sens que si l'event cible une
+                // ou plusieurs équipes précises — pour les scopes structure/
+                // game/staff, on ne peut pas savoir à quelle équipe rattacher
+                // le todo (sub_teams sont au niveau équipe, pas structure).
+                const teamIds = event.target.scope === 'teams' ? (event.target.teamIds ?? []) : [];
+                if (teamIds.length === 0) {
+                  return (
+                    <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                      Disponible uniquement pour les events ciblant une équipe
+                    </span>
+                  );
+                }
+                return (
+                  <button type="button"
+                    onClick={() => setShowTodoForm(v => !v)}
+                    className="btn-springs btn-secondary bevel-sm text-xs flex items-center gap-1.5">
+                    <ListTodo size={11} />
+                    {showTodoForm ? 'Fermer' : 'Assigner des exercices'}
+                  </button>
+                );
+              })()}
+            </div>
+
+            {/* Sélecteur d'équipe si l'event cible plusieurs équipes */}
+            {showTodoForm && event.target.scope === 'teams' && (event.target.teamIds ?? []).length > 1 && (
+              <div className="mb-3">
+                <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Équipe à qui assigner</label>
+                <select className="settings-input w-full text-sm"
+                  value={todoTeamId}
+                  onChange={e => setTodoTeamId(e.target.value)}>
+                  <option value="">— Choisis une équipe —</option>
+                  {(event.target.teamIds ?? []).map(tid => {
+                    const t = teams.find(x => x.id === tid);
+                    return <option key={tid} value={tid}>{t?.name ?? tid}</option>;
+                  })}
+                </select>
+              </div>
+            )}
+
+            {/* Form embarqué — réutilise NewTodoForm de TeamTodosPanel avec
+                eventId verrouillé. Construit un TeamRef depuis Team + membersById. */}
+            {showTodoForm && todoTeamId && (() => {
+              const team = teams.find(t => t.id === todoTeamId);
+              if (!team) return (
+                <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Équipe introuvable.</p>
+              );
+              const toMembers = (ids: string[] | undefined) =>
+                (ids ?? [])
+                  .map(uid => {
+                    const m = membersById.get(uid);
+                    if (!m) return null;
+                    return {
+                      uid,
+                      displayName: m.displayName,
+                      avatarUrl: m.avatarUrl ?? '',
+                      discordAvatar: m.discordAvatar ?? '',
+                    };
+                  })
+                  .filter((m): m is NonNullable<typeof m> => m !== null);
+              const teamRef: TeamRef = {
+                id: team.id,
+                name: team.name,
+                players: toMembers(team.playerIds),
+                subs: toMembers(team.subIds),
+                staff: toMembers(team.staffIds),
+              };
+              return (
+                <div className="p-3 bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                  <NewTodoForm
+                    structureId={structureId}
+                    team={teamRef}
+                    events={[{ id: event.id, title: event.title, startsAt: event.startsAt }]}
+                    templates={todoTemplates.templates}
+                    lockedEventId={event.id}
+                    onCancel={() => setShowTodoForm(false)}
+                    onCreated={() => { setShowTodoForm(false); onReload(); }}
+                    onTemplateSaved={() => todoTemplates.reload()}
+                  />
+                </div>
+              );
+            })()}
+
+            {/* Affichage legacy — uniquement si l'event a déjà un aTravailler
+                rempli (créé avant la refonte). En lecture seule. */}
+            {aTravailler && (
+              <div className="mt-3 p-3 bevel-sm space-y-1"
+                style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                <div className="t-label text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                  Note du coach (legacy — créée avant la migration vers les exercices)
+                </div>
+                <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--s-text-dim)' }}>
+                  {aTravailler}
+                </p>
+                {canEdit && (
+                  <button type="button"
+                    onClick={() => setATravailler('')}
+                    className="text-xs"
+                    style={{ color: 'var(--s-text-muted)', textDecoration: 'underline' }}>
+                    Effacer cette note (les exercices remplaceront la suite)
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
