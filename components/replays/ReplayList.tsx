@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { Download, Trash2, Edit2, Check, X, Loader2, Film, BarChart3, Sparkles } from 'lucide-react';
+import { Download, Trash2, Edit2, Check, X, Loader2, Film, BarChart3, Sparkles, Lock } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import { api } from '@/lib/api-client';
@@ -20,7 +20,7 @@ export type ReplayListItem = {
   map?: string | null;
   notes?: string | null;
   createdAt?: string | null;
-  ballchasingStatus?: 'pending' | 'uploaded' | 'failed' | 'disabled' | null;
+  ballchasingStatus?: 'pending' | 'uploaded' | 'failed' | 'disabled' | 'quota_exceeded' | null;
 };
 
 interface Props {
@@ -295,6 +295,17 @@ function ParsingBadge({ status }: { status?: ReplayListItem['ballchasingStatus']
       <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5"
         style={{ background: 'rgba(239,68,68,0.10)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.30)' }}>
         Échec
+      </span>
+    );
+  }
+  if (status === 'quota_exceeded') {
+    return (
+      <span
+        title="Quota stats hebdo atteint pour cette structure. Reset lundi."
+        className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5"
+        style={{ background: 'rgba(255,184,0,0.10)', color: 'var(--s-gold)', border: '1px solid rgba(255,184,0,0.30)' }}>
+        <Lock size={9} />
+        Quota
       </span>
     );
   }

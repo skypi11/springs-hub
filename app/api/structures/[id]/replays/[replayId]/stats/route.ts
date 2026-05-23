@@ -13,6 +13,7 @@ import {
   isBallchasingConfigured,
   BallchasingApiError,
 } from '@/lib/ballchasing';
+import { checkBallchasingQuota, quotaErrorMessage } from '@/lib/ballchasing-quota';
 
 // Sur Vercel Hobby, default = 10s : trop court pour download R2 (~2s) +
 // upload ballchasing (~5-10s) + parsing (variable). On bump à 60s (max Hobby).
@@ -90,8 +91,21 @@ export async function GET(
     // Et pas de bcId. La clé est maintenant là → on lance le forward "lazy"
     // à la demande, ce qui rattrape les replays historiques sans batch admin.
     const needsLazyForward =
-      !bcId && (bcStatus === null || bcStatus === 'disabled');
+      !bcId && (bcStatus === null || bcStatus === 'disabled' || bcStatus === 'quota_exceeded');
     if (needsLazyForward) {
+      // Check quota AVANT de tenter le forward (évite spending API pour rien)
+      const quota = await checkBallchasingQuota(db, structureId);
+      if (!quota.ok) {
+        await ref.update({
+          ballchasingStatus: 'quota_exceeded',
+          ballchasingError: quotaErrorMessage(quota.reason!),
+        }).catch(() => {});
+        return NextResponse.json({
+          state: 'quota_exceeded',
+          error: quotaErrorMessage(quota.reason!),
+          quota: { used: quota.structureCount.used, limit: quota.structureCount.quota, reason: quota.reason },
+        });
+      }
       try {
         await ref.update({ ballchasingStatus: 'pending' });
         const buffer = await downloadBuffer(data.r2Key as string);
@@ -121,6 +135,12 @@ export async function GET(
       }
     }
 
+    if (bcStatus === 'quota_exceeded') {
+      return NextResponse.json({
+        state: 'quota_exceeded',
+        error: typeof data.ballchasingError === 'string' ? data.ballchasingError : 'Quota stats hebdo atteint',
+      });
+    }
     if (bcStatus === 'failed') {
       return NextResponse.json({
         state: 'failed',

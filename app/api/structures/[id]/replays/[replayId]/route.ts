@@ -13,6 +13,7 @@ import {
   deleteReplay as bcDeleteReplay,
   BallchasingApiError,
 } from '@/lib/ballchasing';
+import { checkBallchasingQuota, quotaErrorMessage } from '@/lib/ballchasing-quota';
 
 const ALLOWED_RESULTS = new Set(['win', 'loss', 'draw']);
 
@@ -96,24 +97,33 @@ export async function PATCH(
     // On le fait après le update Firestore pour ne pas bloquer le toast user.
     // Le fetch des stats parsées se fait via GET /stats (poll côté client).
     if (shouldForwardToBallchasing) {
-      try {
-        const buffer = await downloadBuffer(data.r2Key as string);
-        const filename = (data.filename as string) || `${replayId}.replay`;
-        const result = await bcUploadReplay(buffer, filename, { visibility: 'private' });
+      // Check quota AVANT de spend des appels ballchasing inutiles.
+      const quota = await checkBallchasingQuota(db, structureId);
+      if (!quota.ok) {
         await ref.update({
-          ballchasingId: result.id,
-          ballchasingStatus: 'uploaded',
-          ballchasingUploadedAt: FieldValue.serverTimestamp(),
-          ballchasingDuplicate: result.duplicate,
-        });
-      } catch (err) {
-        const status = err instanceof BallchasingApiError ? err.status : 0;
-        await ref.update({
-          ballchasingStatus: 'failed',
-          ballchasingError: err instanceof Error ? err.message.slice(0, 500) : 'unknown',
-          ballchasingErrorStatus: status,
+          ballchasingStatus: 'quota_exceeded',
+          ballchasingError: quotaErrorMessage(quota.reason!),
         }).catch(() => {});
-        captureApiError('API replay PATCH ballchasing forward', err);
+      } else {
+        try {
+          const buffer = await downloadBuffer(data.r2Key as string);
+          const filename = (data.filename as string) || `${replayId}.replay`;
+          const result = await bcUploadReplay(buffer, filename, { visibility: 'private' });
+          await ref.update({
+            ballchasingId: result.id,
+            ballchasingStatus: 'uploaded',
+            ballchasingUploadedAt: FieldValue.serverTimestamp(),
+            ballchasingDuplicate: result.duplicate,
+          });
+        } catch (err) {
+          const status = err instanceof BallchasingApiError ? err.status : 0;
+          await ref.update({
+            ballchasingStatus: 'failed',
+            ballchasingError: err instanceof Error ? err.message.slice(0, 500) : 'unknown',
+            ballchasingErrorStatus: status,
+          }).catch(() => {});
+          captureApiError('API replay PATCH ballchasing forward', err);
+        }
       }
     }
 

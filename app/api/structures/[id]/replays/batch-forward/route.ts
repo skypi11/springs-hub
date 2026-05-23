@@ -11,6 +11,13 @@ import {
   isBallchasingConfigured,
   BallchasingApiError,
 } from '@/lib/ballchasing';
+import {
+  checkBallchasingQuota,
+  getStructureWeeklyCount,
+  STRUCTURE_WEEKLY_QUOTA,
+  GLOBAL_WEEKLY_QUOTA,
+  quotaErrorMessage,
+} from '@/lib/ballchasing-quota';
 
 // Sur Vercel Hobby max 60s. Avec MAX_PER_CALL=10 forwards en parallèle on tient
 // largement (chacun ~5-10s, total ~10-15s en bottleneck rate-limit ballchasing).
@@ -57,11 +64,36 @@ export async function POST(
       const data = d.data();
       const bcId = typeof data.ballchasingId === 'string' ? data.ballchasingId : '';
       const bcStatus = typeof data.ballchasingStatus === 'string' ? data.ballchasingStatus : null;
-      // On reforward aussi les 'failed' pour retry, mais pas les 'pending' (race condition).
+      // On reforward aussi les 'failed' et 'quota_exceeded' (retry après reset),
+      // mais pas les 'pending' (race condition) ni ceux déjà uploadés.
       return !bcId && bcStatus !== 'pending';
     });
 
-    const toProcess = candidates.slice(0, MAX_PER_CALL);
+    // Pré-check quota : on prend le min entre la place restante côté structure
+    // et la place restante globale Aedral. Si 0, on retourne direct sans forward.
+    const quota = await checkBallchasingQuota(db, structureId);
+    const allowedByQuota = Math.min(
+      quota.structureCount.remaining,
+      quota.globalCount.remaining,
+    );
+    if (allowedByQuota <= 0) {
+      const reason = quota.reason ?? (quota.structureCount.remaining <= 0 ? 'structure' : 'global');
+      return NextResponse.json({
+        processed: 0,
+        succeeded: 0,
+        failed: 0,
+        remaining: candidates.length,
+        truncated: false,
+        quotaExceeded: true,
+        quotaReason: reason,
+        quotaMessage: quotaErrorMessage(reason),
+      });
+    }
+
+    // On traite max(MAX_PER_CALL, quota dispo) — on évite de spendre des
+    // appels qui vont systématiquement échouer côté ballchasing.
+    const maxThisCall = Math.min(MAX_PER_CALL, allowedByQuota);
+    const toProcess = candidates.slice(0, maxThisCall);
     const results = await Promise.allSettled(
       toProcess.map(async d => {
         const ref = d.ref;
@@ -99,12 +131,18 @@ export async function POST(
       else failed++;
     }
 
+    // Recompte le quota après le batch pour le retourner au client
+    const after = await getStructureWeeklyCount(db, structureId);
+
     return NextResponse.json({
       processed: toProcess.length,
       succeeded,
       failed,
       remaining: Math.max(0, candidates.length - toProcess.length),
-      truncated: candidates.length > MAX_PER_CALL,
+      truncated: candidates.length > toProcess.length,
+      quotaTruncated: toProcess.length < Math.min(MAX_PER_CALL, candidates.length),
+      structureQuota: { used: after.used, limit: STRUCTURE_WEEKLY_QUOTA, remaining: after.remaining },
+      globalQuotaLimit: GLOBAL_WEEKLY_QUOTA,
     });
   } catch (err) {
     captureApiError('API replays batch-forward', err);

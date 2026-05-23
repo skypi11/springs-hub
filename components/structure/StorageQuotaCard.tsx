@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { HardDrive, FileText, Film, Sparkles } from 'lucide-react';
+import { HardDrive, FileText, Film, Sparkles, BarChart3 } from 'lucide-react';
 import { api } from '@/lib/api-client';
 
 interface StorageUsage {
@@ -11,6 +11,21 @@ interface StorageUsage {
   quotaBytes: number;
   premium: boolean;
   remainingBytes: number;
+}
+
+interface BcQuota {
+  used: number;
+  quota: number;
+  remaining: number;
+  weekStartIso: string;
+}
+
+function formatNextReset(weekStartIso: string): string {
+  try {
+    const start = new Date(weekStartIso);
+    const next = new Date(start.getTime() + 7 * 24 * 3600 * 1000);
+    return next.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' });
+  } catch { return ''; }
 }
 
 function formatBytes(n: number): string {
@@ -26,6 +41,13 @@ export default function StorageQuotaCard({ structureId }: { structureId: string 
   const { data, isPending, error } = useQuery({
     queryKey: ['structure-storage', structureId],
     queryFn: () => api<StorageUsage>(`/api/structures/${structureId}/storage`),
+    staleTime: 30_000,
+  });
+
+  // Quota stats ballchasing (hebdo) — fetch indépendant, non bloquant pour le rendu.
+  const bcQuotaQuery = useQuery({
+    queryKey: ['structure-bc-quota', structureId],
+    queryFn: () => api<BcQuota>(`/api/structures/${structureId}/ballchasing-quota`),
     staleTime: 30_000,
   });
 
@@ -111,6 +133,44 @@ export default function StorageQuotaCard({ structureId }: { structureId: string 
           )}
         </div>
       )}
+
+      {/* Sous-bloc : quota stats hebdo (parsing ballchasing) */}
+      {bcQuotaQuery.data && (
+        <BallchasingQuotaSubBlock data={bcQuotaQuery.data} />
+      )}
+    </div>
+  );
+}
+
+function BallchasingQuotaSubBlock({ data }: { data: BcQuota }) {
+  const pct = data.quota > 0 ? Math.min(100, (data.used / data.quota) * 100) : 0;
+  const pctRounded = Math.round(pct);
+  const barColor = pct >= 100 ? '#ef4444' : pct > 75 ? 'var(--s-gold)' : 'var(--s-green)';
+  const resetLabel = formatNextReset(data.weekStartIso);
+
+  return (
+    <div className="pt-3" style={{ borderTop: '1px solid var(--s-border)' }}>
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+        <div className="flex items-center gap-2">
+          <BarChart3 size={13} style={{ color: 'var(--s-gold)' }} />
+          <span className="t-label" style={{ color: 'var(--s-text)' }}>STATS PARSÉES (HEBDO)</span>
+        </div>
+        <div className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+          <span style={{ color: 'var(--s-text)' }}>{data.used}</span>
+          {' / '}
+          {data.quota}
+          {' '}
+          <span style={{ color: barColor }}>({pctRounded}%)</span>
+        </div>
+      </div>
+      <div style={{ height: 6, background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: barColor }} />
+      </div>
+      <div className="text-[11px] mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
+        {data.remaining > 0
+          ? <>Reste {data.remaining} replay{data.remaining > 1 ? 's' : ''} parsable{data.remaining > 1 ? 's' : ''} cette semaine{resetLabel ? <> · reset {resetLabel}</> : null}</>
+          : <>Quota atteint{resetLabel ? <> · reset {resetLabel}</> : null}</>}
+      </div>
     </div>
   );
 }
