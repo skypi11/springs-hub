@@ -280,14 +280,23 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
             const trackerHref = effective ? buildTrackerGgUrl(effective.platform, effective.id) : '';
             const ballchasingHref = effective ? buildBallchasingUrl(effective.platform, effective.id) : '';
             const platformMeta = effective ? getRLPlatformMeta(effective.platform) : null;
-            // Statut RL officiel (Lot 2 — anti-mensonge / sticky)
+            // Statut RL officiel (Lot 2 — anti-mensonge / sticky).
+            // Verified = strict (snapshot ou Steam OpenID). MAIS pour construire
+            // l'URL/affichage du compte de jeu on préfère TOUJOURS Epic quand on
+            // l'a (snapshot ou connexion Discord vérifiée) parce que post-F2P
+            // les stats RL vivent sur Epic.
             const rlAccountVerified = !!profile.rlEpicId || !!profile.steamLinked?.steamId64;
+            const epicConn = (profile.discordConnections ?? []).find(
+              c => c.type === 'epicgames' && c.verified && c.name,
+            );
             const rlAccountName = profile.rlEpicName
+              || epicConn?.name
               || profile.steamLinked?.personaName
               || '';
-            const rlAccountPlatform: 'epic' | 'steam' | '' = profile.rlEpicId
-              ? 'epic'
-              : (profile.steamLinked?.steamId64 ? 'steam' : '');
+            const rlAccountPlatform: 'epic' | 'steam' | '' =
+              (profile.rlEpicName || epicConn?.name)
+                ? 'epic'
+                : (profile.steamLinked?.steamId64 ? 'steam' : '');
             return (
               <div className="pillar-card panel relative overflow-hidden group transition-all duration-200 h-full flex flex-col">
                 <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-blue), rgba(0,129,255,0.3), transparent 70%)' }} />

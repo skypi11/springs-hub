@@ -101,22 +101,45 @@ export function buildBallchasingUrl(platform: RLPlatform, id: string): string {
 }
 
 // ── Helper de migration / lecture ─────────────────────────────────────────
-// Lit la plateforme RL effective d'un user, avec fallback legacy sur
-// epicAccountId/epicDisplayName si les nouveaux champs ne sont pas remplis.
+// Lit la plateforme RL effective d'un user pour construire ses URLs externes
+// (tracker.gg, ballchasing). Priorité : Epic > tout le reste, parce que
+// depuis le passage free-to-play la progression RL vit sur le compte Epic
+// même quand le joueur lance le jeu via Steam — donc tracker.gg/steam/{id}
+// est souvent vide pour ces joueurs alors que tracker.gg/epic/{pseudo} est
+// peuplé. Voir docs/rl-rank-verification-plan.md.
 export function getEffectiveRLPlatform(user: {
   rlPlatform?: string;
   rlPlatformId?: string;
-  epicAccountId?: string;
-  epicDisplayName?: string;
+  rlEpicName?: string;        // snapshot Lot 2 (officiel)
+  epicAccountId?: string;     // legacy
+  epicDisplayName?: string;   // legacy
+  discordConnections?: Array<{ type: string; name: string; verified?: boolean }>;
+  steamLinked?: { steamId64?: string };
 }): { platform: RLPlatform; id: string } | null {
-  // Préférer les nouveaux champs si renseignés et valides
+  // 1. Snapshot Epic Lot 2 — la source officielle figée par l'user.
+  const epicSnapshot = user.rlEpicName?.trim();
+  if (epicSnapshot) return { platform: 'epic', id: epicSnapshot };
+
+  // 2. Connexion Epic vérifiée sur Discord — proxy fiable post-F2P, marche
+  //    même quand l'user n'a pas encore confirmé son compte sur Aedral.
+  const epicConn = (user.discordConnections ?? []).find(
+    c => c.type === 'epicgames' && c.verified && c.name?.trim(),
+  );
+  if (epicConn) return { platform: 'epic', id: epicConn.name.trim() };
+
+  // 3. Choix manuel explicite (rlPlatform/rlPlatformId) — respecte la décision
+  //    si l'user a explicitement sélectionné autre chose (PSN, Xbox, Switch).
   if (isValidRLPlatform(user.rlPlatform) && user.rlPlatformId?.trim()) {
     return { platform: user.rlPlatform, id: user.rlPlatformId.trim() };
   }
-  // Fallback legacy : ancien flow stockait epicDisplayName (pseudo) + epicAccountId (ID résolu via TRN)
+
+  // 4. Steam OpenID lié — fallback pour les Steam-only sans aucune Epic.
+  const sid = user.steamLinked?.steamId64?.trim();
+  if (sid) return { platform: 'steam', id: sid };
+
+  // 5. Legacy epicDisplayName / epicAccountId
   const legacyId = user.epicDisplayName?.trim() || user.epicAccountId?.trim();
-  if (legacyId) {
-    return { platform: 'epic', id: legacyId };
-  }
+  if (legacyId) return { platform: 'epic', id: legacyId };
+
   return null;
 }
