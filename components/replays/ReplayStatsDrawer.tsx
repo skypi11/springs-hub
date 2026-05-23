@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Loader2, AlertTriangle, X, Trophy, Target, Hand, Crosshair,
   Zap, Gauge, MapPin, Skull, Sigma, BarChart3,
@@ -144,14 +144,16 @@ export default function ReplayStatsDrawer({
           zIndex: 9600,
         }}
       />
-      {/* Drawer — z-index au-dessus de TeamDetailDrawer/TodoDetailDrawer (9500)
-          pour s'afficher par-dessus la modal event. */}
+      {/* Drawer — quasi plein écran sur grand moniteur (1400px) pour pouvoir
+          déplier les stats détaillées et la vue match complet sans serrer.
+          Reste drawer sur écran <1500px (95vw). z-index au-dessus de
+          TeamDetailDrawer/TodoDetailDrawer (9500). */}
       <aside
         className="animate-slide-in-right"
         style={{
           position: 'fixed',
           top: 0, right: 0, bottom: 0,
-          width: 'min(720px, 100vw)',
+          width: 'min(1400px, 95vw)',
           background: 'var(--s-bg)',
           borderLeft: '1px solid var(--s-border)',
           zIndex: 9601,
@@ -176,15 +178,36 @@ export default function ReplayStatsDrawer({
         </header>
 
         {/* Body scroll */}
-        <div className="flex-1 overflow-y-auto p-5">
-          <DrawerBody state={state} aggregated={aggregated} />
+        <div className="flex-1 overflow-y-auto p-6">
+          <DrawerBody state={state} aggregated={aggregated} focusedReplayId={replayId} />
         </div>
       </aside>
     </Portal>
   );
 }
 
-function DrawerBody({ state, aggregated }: { state: FetchState; aggregated: AggResponse | null }) {
+function DrawerBody({
+  state,
+  aggregated,
+  focusedReplayId,
+}: {
+  state: FetchState;
+  aggregated: AggResponse | null;
+  focusedReplayId: string;
+}) {
+  // Mode "all" = vue match complet (tous les replays parsés empilés + moyenne)
+  // Mode "single" = juste le replay courant. Default sur "all" dès qu'on a ≥2
+  // replays parsés dans l'event — sinon "single" est de toute façon le seul
+  // contenu pertinent.
+  const hasMultipleParsed = !!aggregated && aggregated.parsedCount >= 2;
+  const [view, setView] = useState<'single' | 'all'>(hasMultipleParsed ? 'all' : 'single');
+  // Si l'aggregated arrive après coup avec plusieurs replays parsés, on
+  // bascule automatiquement sur la vue all (le toggle est dispo si l'user
+  // veut repasser sur single).
+  useEffect(() => {
+    if (hasMultipleParsed) setView('all');
+  }, [hasMultipleParsed]);
+
   if (state.kind === 'loading' || state.kind === 'pending') {
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-3"
@@ -221,19 +244,111 @@ function DrawerBody({ state, aggregated }: { state: FetchState; aggregated: AggR
 
   return (
     <div className="space-y-8">
-      {/* ────── Section : REPLAY COURANT (toujours en mode sum pour la ligne TEAM,
-          qui représente le total équipe sur ce match unique) ────── */}
+      {/* Toggle de vue — visible uniquement si event a ≥2 replays parsés */}
+      {hasMultipleParsed && (
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="t-label" style={{ color: 'var(--s-text-muted)' }}>
+            {view === 'all' ? `Tous les replays du match (${aggregated!.parsedCount})` : 'Replay courant uniquement'}
+          </div>
+          <ViewToggle view={view} onChange={setView} />
+        </div>
+      )}
+
+      {view === 'single' && (
+        <StatsBlock
+          title="REPLAY COURANT"
+          stats={stats}
+          mode="sum"
+          showModeToggle={false}
+        />
+      )}
+
+      {view === 'all' && aggregated && (
+        <>
+          {/* Empile chaque replay parsé. Le replay correspondant au clic est
+              entouré d'une bordure or et fait un scroll-into-view au mount. */}
+          {aggregated.replays.map((r, idx) => (
+            <ReplayCard
+              key={r.replayId}
+              index={idx + 1}
+              total={aggregated.replays.length}
+              title={r.title}
+              stats={r.stats}
+              focused={r.replayId === focusedReplayId}
+            />
+          ))}
+          {/* Moyenne du match en bas */}
+          <AggregatedSection aggregated={aggregated} />
+        </>
+      )}
+    </div>
+  );
+}
+
+// Carte d'un replay dans la vue "match complet" — wrap StatsBlock + highlight
+// pour le replay focused + sticky title pour repérer où on est en scrollant.
+function ReplayCard({
+  index,
+  total,
+  title,
+  stats,
+  focused,
+}: {
+  index: number;
+  total: number;
+  title: string;
+  stats: CachedStats;
+  focused: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (focused && ref.current) {
+      // Scroll progressif vers le replay cliqué après l'animation du drawer.
+      const t = setTimeout(() => {
+        ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 350);
+      return () => clearTimeout(t);
+    }
+  }, [focused]);
+
+  return (
+    <div
+      ref={ref}
+      className="bevel p-5"
+      style={{
+        background: focused ? 'rgba(255,184,0,0.04)' : 'var(--s-surface)',
+        border: `1px solid ${focused ? 'var(--s-gold)' : 'var(--s-border)'}`,
+      }}
+    >
       <StatsBlock
-        title="REPLAY COURANT"
+        title={`REPLAY ${index} / ${total}${focused ? ' · CLIQUÉ' : ''}`}
         stats={stats}
         mode="sum"
         showModeToggle={false}
       />
+    </div>
+  );
+}
 
-      {/* ────── Section : MOYENNE DU MATCH (si event ≥ 2 replays parsés) ────── */}
-      {aggregated && aggregated.parsedCount >= 2 && (
-        <AggregatedSection aggregated={aggregated} />
-      )}
+function ViewToggle({ view, onChange }: { view: 'single' | 'all'; onChange: (v: 'single' | 'all') => void }) {
+  return (
+    <div className="inline-flex bevel-sm overflow-hidden" style={{ border: '1px solid var(--s-border)', background: 'var(--s-surface)' }}>
+      <button type="button" onClick={() => onChange('single')}
+        className="px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-colors"
+        style={{
+          background: view === 'single' ? 'var(--s-gold)' : 'transparent',
+          color: view === 'single' ? '#000' : 'var(--s-text-dim)',
+        }}>
+        Replay courant
+      </button>
+      <button type="button" onClick={() => onChange('all')}
+        className="px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-colors"
+        style={{
+          background: view === 'all' ? 'var(--s-gold)' : 'transparent',
+          color: view === 'all' ? '#000' : 'var(--s-text-dim)',
+        }}>
+        Vue match complet
+      </button>
     </div>
   );
 }
@@ -437,44 +552,44 @@ function CoreTable({ label, accent, players, teamRow }: { label: string; accent:
   return (
     <div className="bevel-sm p-2" style={{ background: 'var(--s-surface)', border: `1px solid ${accent}30` }}>
       <div className="t-label mb-2 px-1" style={{ color: accent }}>{label}</div>
-      <table className="w-full text-xs">
+      <table className="w-full text-sm">
         <thead>
           <tr style={{ color: 'var(--s-text-muted)' }}>
             <th className="text-left pb-1 font-normal">Joueur</th>
-            <th className="text-right pb-1 font-normal" title="Score"><Trophy size={10} className="inline" /></th>
-            <th className="text-right pb-1 font-normal" title="Buts"><Target size={10} className="inline" /></th>
+            <th className="text-right pb-1 font-normal" title="Score"><Trophy size={12} className="inline" /></th>
+            <th className="text-right pb-1 font-normal" title="Buts"><Target size={12} className="inline" /></th>
             <th className="text-right pb-1 font-normal" title="Passes">A</th>
-            <th className="text-right pb-1 font-normal" title="Arrêts"><Hand size={10} className="inline" /></th>
-            <th className="text-right pb-1 font-normal" title="Tirs"><Crosshair size={10} className="inline" /></th>
+            <th className="text-right pb-1 font-normal" title="Arrêts"><Hand size={12} className="inline" /></th>
+            <th className="text-right pb-1 font-normal" title="Tirs"><Crosshair size={12} className="inline" /></th>
             <th className="text-right pb-1 font-normal" title="% tir">%</th>
           </tr>
         </thead>
         <tbody>
           {players.map((p, idx) => (
             <tr key={`${p.platform}-${p.platformId}-${idx}`} style={{ color: 'var(--s-text)' }}>
-              <td className="py-1 truncate max-w-[110px]">
+              <td className="py-2 truncate max-w-[160px]">
                 <span style={{ color: p.mvp ? 'var(--s-gold)' : 'var(--s-text)' }}>{p.name}</span>
                 {p.mvp && <span className="ml-1 t-label" style={{ color: 'var(--s-gold)' }}>MVP</span>}
               </td>
-              <td className="text-right py-1 t-mono">{fmtNum(p.score)}</td>
-              <td className="text-right py-1 t-mono">{fmtNum(p.goals)}</td>
-              <td className="text-right py-1 t-mono">{fmtNum(p.assists)}</td>
-              <td className="text-right py-1 t-mono">{fmtNum(p.saves)}</td>
-              <td className="text-right py-1 t-mono">{fmtNum(p.shots)}</td>
-              <td className="text-right py-1 t-mono" style={{ color: 'var(--s-text-muted)' }}>
+              <td className="text-right py-2 t-mono">{fmtNum(p.score)}</td>
+              <td className="text-right py-2 t-mono">{fmtNum(p.goals)}</td>
+              <td className="text-right py-2 t-mono">{fmtNum(p.assists)}</td>
+              <td className="text-right py-2 t-mono">{fmtNum(p.saves)}</td>
+              <td className="text-right py-2 t-mono">{fmtNum(p.shots)}</td>
+              <td className="text-right py-2 t-mono" style={{ color: 'var(--s-text-muted)' }}>
                 {typeof p.shootingPct === 'number' ? Math.round(p.shootingPct) : '—'}
               </td>
             </tr>
           ))}
           {teamRow && (
             <tr style={{ ...TEAM_ROW_STYLE, color: accent }}>
-              <td className="py-1.5 t-label">TEAM</td>
-              <td className="text-right py-1.5 t-mono">{fmtNum(teamRow.score)}</td>
-              <td className="text-right py-1.5 t-mono">{fmtNum(teamRow.goals)}</td>
-              <td className="text-right py-1.5 t-mono">{fmtNum(teamRow.assists)}</td>
-              <td className="text-right py-1.5 t-mono">{fmtNum(teamRow.saves)}</td>
-              <td className="text-right py-1.5 t-mono">{fmtNum(teamRow.shots)}</td>
-              <td className="text-right py-1.5 t-mono">{typeof teamRow.shootingPct === 'number' ? Math.round(teamRow.shootingPct) : '—'}</td>
+              <td className="py-2.5 t-label">TEAM</td>
+              <td className="text-right py-2.5 t-mono">{fmtNum(teamRow.score)}</td>
+              <td className="text-right py-2.5 t-mono">{fmtNum(teamRow.goals)}</td>
+              <td className="text-right py-2.5 t-mono">{fmtNum(teamRow.assists)}</td>
+              <td className="text-right py-2.5 t-mono">{fmtNum(teamRow.saves)}</td>
+              <td className="text-right py-2.5 t-mono">{fmtNum(teamRow.shots)}</td>
+              <td className="text-right py-2.5 t-mono">{typeof teamRow.shootingPct === 'number' ? Math.round(teamRow.shootingPct) : '—'}</td>
             </tr>
           )}
         </tbody>
@@ -486,7 +601,7 @@ function CoreTable({ label, accent, players, teamRow }: { label: string; accent:
 function BoostTable({ players, teamRows }: { players: PlayerStats[]; teamRows?: PlayerStats[] }) {
   return (
     <div className="bevel-sm p-2 overflow-x-auto" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <table className="w-full text-xs">
+      <table className="w-full text-sm">
         <thead>
           <tr style={{ color: 'var(--s-text-muted)' }}>
             <th className="text-left pb-1 font-normal">Joueur</th>
@@ -503,28 +618,28 @@ function BoostTable({ players, teamRows }: { players: PlayerStats[]; teamRows?: 
         <tbody>
           {players.map((p, i) => p.boost ? (
             <tr key={i} style={{ color: 'var(--s-text)', borderTop: '1px solid var(--s-border)' }}>
-              <td className="py-1 truncate max-w-[110px]" style={{ color: teamColor(p.team) }}>{p.name}</td>
-              <td className="text-right py-1 t-mono">{fmtNum(p.boost.bpm)}</td>
-              <td className="text-right py-1 t-mono">{fmtNum(p.boost.bcpm)}</td>
-              <td className="text-right py-1 t-mono">{fmtNum(p.boost.avgAmount)}</td>
-              <td className="text-right py-1 t-mono">{fmtNum(p.boost.amountStolen)}</td>
-              <td className="text-right py-1 t-mono">{fmtNum(p.boost.amountCollectedBig)}</td>
-              <td className="text-right py-1 t-mono">{fmtNum(p.boost.amountCollectedSmall)}</td>
-              <td className="text-right py-1 t-mono" style={{ color: 'var(--s-text-muted)' }}>{fmtPct(p.boost.percentZeroBoost)}</td>
-              <td className="text-right py-1 t-mono" style={{ color: 'var(--s-text-muted)' }}>{fmtPct(p.boost.percentFullBoost)}</td>
+              <td className="py-2 truncate max-w-[160px]" style={{ color: teamColor(p.team) }}>{p.name}</td>
+              <td className="text-right py-2 t-mono">{fmtNum(p.boost.bpm)}</td>
+              <td className="text-right py-2 t-mono">{fmtNum(p.boost.bcpm)}</td>
+              <td className="text-right py-2 t-mono">{fmtNum(p.boost.avgAmount)}</td>
+              <td className="text-right py-2 t-mono">{fmtNum(p.boost.amountStolen)}</td>
+              <td className="text-right py-2 t-mono">{fmtNum(p.boost.amountCollectedBig)}</td>
+              <td className="text-right py-2 t-mono">{fmtNum(p.boost.amountCollectedSmall)}</td>
+              <td className="text-right py-2 t-mono" style={{ color: 'var(--s-text-muted)' }}>{fmtPct(p.boost.percentZeroBoost)}</td>
+              <td className="text-right py-2 t-mono" style={{ color: 'var(--s-text-muted)' }}>{fmtPct(p.boost.percentFullBoost)}</td>
             </tr>
           ) : null)}
           {teamRows?.map((t, i) => t.boost ? (
             <tr key={`team-${i}`} style={{ ...TEAM_ROW_STYLE, color: teamColor(t.team) }}>
-              <td className="py-1.5 t-label">{t.name}</td>
-              <td className="text-right py-1.5 t-mono">{fmtNum(t.boost.bpm)}</td>
-              <td className="text-right py-1.5 t-mono">{fmtNum(t.boost.bcpm)}</td>
-              <td className="text-right py-1.5 t-mono">{fmtNum(t.boost.avgAmount)}</td>
-              <td className="text-right py-1.5 t-mono">{fmtNum(t.boost.amountStolen)}</td>
-              <td className="text-right py-1.5 t-mono">{fmtNum(t.boost.amountCollectedBig)}</td>
-              <td className="text-right py-1.5 t-mono">{fmtNum(t.boost.amountCollectedSmall)}</td>
-              <td className="text-right py-1.5 t-mono">{fmtPct(t.boost.percentZeroBoost)}</td>
-              <td className="text-right py-1.5 t-mono">{fmtPct(t.boost.percentFullBoost)}</td>
+              <td className="py-2.5 t-label">{t.name}</td>
+              <td className="text-right py-2.5 t-mono">{fmtNum(t.boost.bpm)}</td>
+              <td className="text-right py-2.5 t-mono">{fmtNum(t.boost.bcpm)}</td>
+              <td className="text-right py-2.5 t-mono">{fmtNum(t.boost.avgAmount)}</td>
+              <td className="text-right py-2.5 t-mono">{fmtNum(t.boost.amountStolen)}</td>
+              <td className="text-right py-2.5 t-mono">{fmtNum(t.boost.amountCollectedBig)}</td>
+              <td className="text-right py-2.5 t-mono">{fmtNum(t.boost.amountCollectedSmall)}</td>
+              <td className="text-right py-2.5 t-mono">{fmtPct(t.boost.percentZeroBoost)}</td>
+              <td className="text-right py-2.5 t-mono">{fmtPct(t.boost.percentFullBoost)}</td>
             </tr>
           ) : null)}
         </tbody>
@@ -536,7 +651,7 @@ function BoostTable({ players, teamRows }: { players: PlayerStats[]; teamRows?: 
 function MovementTable({ players, teamRows }: { players: PlayerStats[]; teamRows?: PlayerStats[] }) {
   return (
     <div className="bevel-sm p-2 overflow-x-auto" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <table className="w-full text-xs">
+      <table className="w-full text-sm">
         <thead>
           <tr style={{ color: 'var(--s-text-muted)' }}>
             <th className="text-left pb-1 font-normal">Joueur</th>
@@ -551,24 +666,24 @@ function MovementTable({ players, teamRows }: { players: PlayerStats[]; teamRows
         <tbody>
           {players.map((p, i) => p.movement ? (
             <tr key={i} style={{ color: 'var(--s-text)', borderTop: '1px solid var(--s-border)' }}>
-              <td className="py-1 truncate max-w-[110px]" style={{ color: teamColor(p.team) }}>{p.name}</td>
-              <td className="text-right py-1 t-mono">{fmtNum(p.movement.avgSpeed)}</td>
-              <td className="text-right py-1 t-mono">{fmtNum(p.movement.totalDistance / 1000, 1)}k</td>
-              <td className="text-right py-1 t-mono">{fmtTime(p.movement.timeSupersonic)}</td>
-              <td className="text-right py-1 t-mono" style={{ color: 'var(--s-text-muted)' }}>{fmtPct(p.movement.percentSupersonic)}</td>
-              <td className="text-right py-1 t-mono" style={{ color: 'var(--s-text-muted)' }}>{fmtPct(p.movement.percentGround)}</td>
-              <td className="text-right py-1 t-mono">{p.movement.powerslideCount}</td>
+              <td className="py-2 truncate max-w-[160px]" style={{ color: teamColor(p.team) }}>{p.name}</td>
+              <td className="text-right py-2 t-mono">{fmtNum(p.movement.avgSpeed)}</td>
+              <td className="text-right py-2 t-mono">{fmtNum(p.movement.totalDistance / 1000, 1)}k</td>
+              <td className="text-right py-2 t-mono">{fmtTime(p.movement.timeSupersonic)}</td>
+              <td className="text-right py-2 t-mono" style={{ color: 'var(--s-text-muted)' }}>{fmtPct(p.movement.percentSupersonic)}</td>
+              <td className="text-right py-2 t-mono" style={{ color: 'var(--s-text-muted)' }}>{fmtPct(p.movement.percentGround)}</td>
+              <td className="text-right py-2 t-mono">{p.movement.powerslideCount}</td>
             </tr>
           ) : null)}
           {teamRows?.map((t, i) => t.movement ? (
             <tr key={`team-${i}`} style={{ ...TEAM_ROW_STYLE, color: teamColor(t.team) }}>
-              <td className="py-1.5 t-label">{t.name}</td>
-              <td className="text-right py-1.5 t-mono">{fmtNum(t.movement.avgSpeed)}</td>
-              <td className="text-right py-1.5 t-mono">{fmtNum(t.movement.totalDistance / 1000, 1)}k</td>
-              <td className="text-right py-1.5 t-mono">{fmtTime(t.movement.timeSupersonic)}</td>
-              <td className="text-right py-1.5 t-mono">{fmtPct(t.movement.percentSupersonic)}</td>
-              <td className="text-right py-1.5 t-mono">{fmtPct(t.movement.percentGround)}</td>
-              <td className="text-right py-1.5 t-mono">{fmtNum(t.movement.powerslideCount)}</td>
+              <td className="py-2.5 t-label">{t.name}</td>
+              <td className="text-right py-2.5 t-mono">{fmtNum(t.movement.avgSpeed)}</td>
+              <td className="text-right py-2.5 t-mono">{fmtNum(t.movement.totalDistance / 1000, 1)}k</td>
+              <td className="text-right py-2.5 t-mono">{fmtTime(t.movement.timeSupersonic)}</td>
+              <td className="text-right py-2.5 t-mono">{fmtPct(t.movement.percentSupersonic)}</td>
+              <td className="text-right py-2.5 t-mono">{fmtPct(t.movement.percentGround)}</td>
+              <td className="text-right py-2.5 t-mono">{fmtNum(t.movement.powerslideCount)}</td>
             </tr>
           ) : null)}
         </tbody>
@@ -580,7 +695,7 @@ function MovementTable({ players, teamRows }: { players: PlayerStats[]; teamRows
 function PositioningTable({ players, teamRows }: { players: PlayerStats[]; teamRows?: PlayerStats[] }) {
   return (
     <div className="bevel-sm p-2 overflow-x-auto" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <table className="w-full text-xs">
+      <table className="w-full text-sm">
         <thead>
           <tr style={{ color: 'var(--s-text-muted)' }}>
             <th className="text-left pb-1 font-normal">Joueur</th>
@@ -594,22 +709,22 @@ function PositioningTable({ players, teamRows }: { players: PlayerStats[]; teamR
         <tbody>
           {players.map((p, i) => p.positioning ? (
             <tr key={i} style={{ color: 'var(--s-text)', borderTop: '1px solid var(--s-border)' }}>
-              <td className="py-1 truncate max-w-[110px]" style={{ color: teamColor(p.team) }}>{p.name}</td>
-              <td className="text-right py-1 t-mono">{fmtNum(p.positioning.avgDistanceToBall)}</td>
-              <td className="text-right py-1 t-mono" style={{ color: 'var(--s-text-muted)' }}>{fmtPct(p.positioning.percentDefensiveHalf)}</td>
-              <td className="text-right py-1 t-mono" style={{ color: 'var(--s-text-muted)' }}>{fmtPct(p.positioning.percentBehindBall)}</td>
-              <td className="text-right py-1 t-mono">{fmtTime(p.positioning.timeMostBack)}</td>
-              <td className="text-right py-1 t-mono">{fmtTime(p.positioning.timeMostForward)}</td>
+              <td className="py-2 truncate max-w-[160px]" style={{ color: teamColor(p.team) }}>{p.name}</td>
+              <td className="text-right py-2 t-mono">{fmtNum(p.positioning.avgDistanceToBall)}</td>
+              <td className="text-right py-2 t-mono" style={{ color: 'var(--s-text-muted)' }}>{fmtPct(p.positioning.percentDefensiveHalf)}</td>
+              <td className="text-right py-2 t-mono" style={{ color: 'var(--s-text-muted)' }}>{fmtPct(p.positioning.percentBehindBall)}</td>
+              <td className="text-right py-2 t-mono">{fmtTime(p.positioning.timeMostBack)}</td>
+              <td className="text-right py-2 t-mono">{fmtTime(p.positioning.timeMostForward)}</td>
             </tr>
           ) : null)}
           {teamRows?.map((t, i) => t.positioning ? (
             <tr key={`team-${i}`} style={{ ...TEAM_ROW_STYLE, color: teamColor(t.team) }}>
-              <td className="py-1.5 t-label">{t.name}</td>
-              <td className="text-right py-1.5 t-mono">{fmtNum(t.positioning.avgDistanceToBall)}</td>
-              <td className="text-right py-1.5 t-mono">{fmtPct(t.positioning.percentDefensiveHalf)}</td>
-              <td className="text-right py-1.5 t-mono">{fmtPct(t.positioning.percentBehindBall)}</td>
-              <td className="text-right py-1.5 t-mono">{fmtTime(t.positioning.timeMostBack)}</td>
-              <td className="text-right py-1.5 t-mono">{fmtTime(t.positioning.timeMostForward)}</td>
+              <td className="py-2.5 t-label">{t.name}</td>
+              <td className="text-right py-2.5 t-mono">{fmtNum(t.positioning.avgDistanceToBall)}</td>
+              <td className="text-right py-2.5 t-mono">{fmtPct(t.positioning.percentDefensiveHalf)}</td>
+              <td className="text-right py-2.5 t-mono">{fmtPct(t.positioning.percentBehindBall)}</td>
+              <td className="text-right py-2.5 t-mono">{fmtTime(t.positioning.timeMostBack)}</td>
+              <td className="text-right py-2.5 t-mono">{fmtTime(t.positioning.timeMostForward)}</td>
             </tr>
           ) : null)}
         </tbody>
@@ -621,7 +736,7 @@ function PositioningTable({ players, teamRows }: { players: PlayerStats[]; teamR
 function DemoTable({ players, teamRows }: { players: PlayerStats[]; teamRows?: PlayerStats[] }) {
   return (
     <div className="bevel-sm p-2" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <table className="w-full text-xs">
+      <table className="w-full text-sm">
         <thead>
           <tr style={{ color: 'var(--s-text-muted)' }}>
             <th className="text-left pb-1 font-normal">Joueur</th>
@@ -632,16 +747,16 @@ function DemoTable({ players, teamRows }: { players: PlayerStats[]; teamRows?: P
         <tbody>
           {players.map((p, i) => p.demo ? (
             <tr key={i} style={{ color: 'var(--s-text)', borderTop: '1px solid var(--s-border)' }}>
-              <td className="py-1 truncate max-w-[110px]" style={{ color: teamColor(p.team) }}>{p.name}</td>
-              <td className="text-right py-1 t-mono">{fmtNum(p.demo.inflicted)}</td>
-              <td className="text-right py-1 t-mono">{fmtNum(p.demo.taken)}</td>
+              <td className="py-2 truncate max-w-[160px]" style={{ color: teamColor(p.team) }}>{p.name}</td>
+              <td className="text-right py-2 t-mono">{fmtNum(p.demo.inflicted)}</td>
+              <td className="text-right py-2 t-mono">{fmtNum(p.demo.taken)}</td>
             </tr>
           ) : null)}
           {teamRows?.map((t, i) => t.demo ? (
             <tr key={`team-${i}`} style={{ ...TEAM_ROW_STYLE, color: teamColor(t.team) }}>
-              <td className="py-1.5 t-label">{t.name}</td>
-              <td className="text-right py-1.5 t-mono">{fmtNum(t.demo.inflicted)}</td>
-              <td className="text-right py-1.5 t-mono">{fmtNum(t.demo.taken)}</td>
+              <td className="py-2.5 t-label">{t.name}</td>
+              <td className="text-right py-2.5 t-mono">{fmtNum(t.demo.inflicted)}</td>
+              <td className="text-right py-2.5 t-mono">{fmtNum(t.demo.taken)}</td>
             </tr>
           ) : null)}
         </tbody>
