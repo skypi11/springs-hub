@@ -532,22 +532,27 @@ export function AggregatedSection({ aggregated }: { aggregated: AggResponse }) {
   const playersAgg = useMemo(() => aggregateByPlayer(allPlayers, mode), [allPlayers, mode]);
 
   // Synthétise un CachedStats "virtuel" pour réutiliser le rendu existant.
+  // Le score du bandeau est en NOMBRE DE GAMES gagnées par équipe (pas la
+  // somme des buts) — c'est le résultat du match, plus parlant.
+  // Les buts cumulés sont affichés en sous-ligne via le subtitle.
   const synth: CachedStats = useMemo(() => {
     const first = aggregated.replays[0]?.stats;
-    // Score équipe = somme des goals/orangeGoals sur les replays (utile pour le bandeau)
-    let blueGoals = 0, orangeGoals = 0;
+    let blueWins = 0, orangeWins = 0;
+    let blueGoalsTotal = 0, orangeGoalsTotal = 0;
     for (const r of aggregated.replays) {
-      blueGoals += r.stats.blueGoals;
-      orangeGoals += r.stats.orangeGoals;
+      if (r.stats.blueGoals > r.stats.orangeGoals) blueWins++;
+      else if (r.stats.orangeGoals > r.stats.blueGoals) orangeWins++;
+      blueGoalsTotal += r.stats.blueGoals;
+      orangeGoalsTotal += r.stats.orangeGoals;
     }
     return {
       status: 'ok',
       statsVersion: 2,
-      mapName: 'Cumul du match',
+      mapName: `Buts cumulés ${blueGoalsTotal}-${orangeGoalsTotal}`,
       mapCode: '',
       durationSec: aggregated.replays.reduce((s, r) => s + (r.stats.durationSec || 0), 0),
-      blueGoals,
-      orangeGoals,
+      blueGoals: blueWins,
+      orangeGoals: orangeWins,
       blueName: first?.blueName ?? 'Blue',
       orangeName: first?.orangeName ?? 'Orange',
       date: first?.date ?? null,
@@ -557,8 +562,8 @@ export function AggregatedSection({ aggregated }: { aggregated: AggResponse }) {
 
   return (
     <StatsBlock
-      title="MOYENNE DU MATCH"
-      subtitle={`Sur ${aggregated.parsedCount} replays parsés${aggregated.totalCount > aggregated.parsedCount ? ` (${aggregated.totalCount - aggregated.parsedCount} pas encore prêts)` : ''}`}
+      title="RÉSULTAT DU MATCH"
+      subtitle={`Score en games · ${aggregated.parsedCount} replay${aggregated.parsedCount > 1 ? 's' : ''} parsé${aggregated.parsedCount > 1 ? 's' : ''}${aggregated.totalCount > aggregated.parsedCount ? ` (${aggregated.totalCount - aggregated.parsedCount} pas encore prêts)` : ''}`}
       stats={synth}
       mode={mode}
       showModeToggle
