@@ -6,7 +6,13 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { canDownloadReplay } from '@/lib/replay-permissions';
 import { isStaff } from '@/lib/event-permissions';
-import { getReplay, isBallchasingConfigured, BallchasingApiError } from '@/lib/ballchasing';
+import { downloadBuffer } from '@/lib/storage';
+import {
+  getReplay,
+  uploadReplay as bcUploadReplay,
+  isBallchasingConfigured,
+  BallchasingApiError,
+} from '@/lib/ballchasing';
 
 // GET /api/structures/[id]/replays/[replayId]/stats
 // Retourne les stats parsées du replay (depuis ballchasing.com).
@@ -59,16 +65,11 @@ export async function GET(
     }
 
     const bcStatus = typeof data.ballchasingStatus === 'string' ? data.ballchasingStatus : null;
-    const bcId = typeof data.ballchasingId === 'string' ? data.ballchasingId : '';
+    let bcId = typeof data.ballchasingId === 'string' ? data.ballchasingId : '';
 
-    if (!isBallchasingConfigured() || bcStatus === 'disabled') {
+    // Si la clé n'est pas configurée : feature off, point.
+    if (!isBallchasingConfigured()) {
       return NextResponse.json({ state: 'disabled' });
-    }
-    if (bcStatus === 'failed') {
-      return NextResponse.json({
-        state: 'failed',
-        error: typeof data.ballchasingError === 'string' ? data.ballchasingError : 'Upload ballchasing échoué',
-      });
     }
 
     // Cache : si on a déjà fetché les stats avec status=ok, on les renvoie direct.
@@ -76,7 +77,51 @@ export async function GET(
       return NextResponse.json({ state: 'ready', stats: data.ballchasingStats });
     }
 
-    // Pas encore uploadé sur ballchasing ou pas d'id → encore pending.
+    // Cas du replay finalisé AVANT que la clé ballchasing soit configurée :
+    // - bcStatus === 'disabled' (figé au finalize) OU
+    // - bcStatus === null (replay très ancien, antérieur à la feature)
+    // Et pas de bcId. La clé est maintenant là → on lance le forward "lazy"
+    // à la demande, ce qui rattrape les replays historiques sans batch admin.
+    const needsLazyForward =
+      !bcId && (bcStatus === null || bcStatus === 'disabled');
+    if (needsLazyForward) {
+      try {
+        await ref.update({ ballchasingStatus: 'pending' });
+        const buffer = await downloadBuffer(data.r2Key as string);
+        const filename = (data.filename as string) || `${replayId}.replay`;
+        const result = await bcUploadReplay(buffer, filename, { visibility: 'private' });
+        await ref.update({
+          ballchasingId: result.id,
+          ballchasingStatus: 'uploaded',
+          ballchasingUploadedAt: FieldValue.serverTimestamp(),
+          ballchasingDuplicate: result.duplicate,
+          ballchasingError: FieldValue.delete(),
+          ballchasingErrorStatus: FieldValue.delete(),
+        });
+        bcId = result.id;
+        // continue vers le fetch des stats juste après
+      } catch (err) {
+        const status = err instanceof BallchasingApiError ? err.status : 0;
+        await ref.update({
+          ballchasingStatus: 'failed',
+          ballchasingError: err instanceof Error ? err.message.slice(0, 500) : 'unknown',
+          ballchasingErrorStatus: status,
+        }).catch(() => {});
+        return NextResponse.json({
+          state: 'failed',
+          error: err instanceof Error ? err.message : 'Upload ballchasing échoué',
+        });
+      }
+    }
+
+    if (bcStatus === 'failed') {
+      return NextResponse.json({
+        state: 'failed',
+        error: typeof data.ballchasingError === 'string' ? data.ballchasingError : 'Upload ballchasing échoué',
+      });
+    }
+
+    // Pas encore uploadé sur ballchasing ou pas d'id (upload en cours, autre tab) → pending.
     if (!bcId || bcStatus === 'pending') {
       return NextResponse.json({ state: 'pending' });
     }
