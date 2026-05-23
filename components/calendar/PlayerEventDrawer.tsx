@@ -106,6 +106,11 @@ export default function PlayerEventDrawer({
   const typeInfo = TYPE_INFO[normalizeEventType(event.type)];
   const statusInfo = STATUS_INFO[event.status];
   const my = event.myPresence;
+  // Un event est "à venir et modifiable" uniquement s'il est scheduled ET
+  // que sa date n'est pas dépassée — sans ça, un scrim oublié resterait
+  // modifiable indéfiniment en présence ce qui n'a pas de sens.
+  const canChangePresence = event.status === 'scheduled'
+    && (!event.startsAt || new Date(event.startsAt).getTime() > Date.now());
 
   const dateLong = event.startsAt
     ? new Date(event.startsAt).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
@@ -216,13 +221,13 @@ export default function PlayerEventDrawer({
             </section>
           )}
 
-          {/* Ma présence — bouton de réponse si event scheduled */}
+          {/* Ma présence — boutons de réponse si event scheduled ET pas passé */}
           {my && (
             <section>
               <div className="t-label mb-2" style={{ color: 'var(--s-text)' }}>
-                {event.status === 'scheduled' ? 'MA PRÉSENCE' : 'MA RÉPONSE'}
+                {canChangePresence ? 'MA PRÉSENCE' : 'MA RÉPONSE'}
               </div>
-              {event.status === 'scheduled' ? (
+              {canChangePresence ? (
                 <div className="flex gap-2 flex-wrap">
                   {PRESENCE_BTN.map(({ key, label, icon, color }) => {
                     const active = my.status === key;

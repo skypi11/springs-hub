@@ -335,6 +335,9 @@ function MyEventCard({
   const typeInfo = TYPE_INFO[normalizeEventType(event.type)];
   const statusInfo = STATUS_INFO[event.status];
   const my = event.myPresence;
+  // Modification de présence : event scheduled ET pas encore passé.
+  const canChangePresence = event.status === 'scheduled'
+    && (!event.startsAt || new Date(event.startsAt).getTime() > Date.now());
 
   const dateStr = event.startsAt
     ? new Date(event.startsAt).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' })
@@ -424,7 +427,7 @@ function MyEventCard({
 
         {/* My response */}
         <div className="flex-shrink-0 flex flex-col items-end gap-2">
-          {my && event.status === 'scheduled' && (
+          {my && canChangePresence && (
             <div className="flex gap-1">
               {(['present', 'maybe', 'absent'] as const).map(s => (
                 <button key={s} type="button"
@@ -444,7 +447,7 @@ function MyEventCard({
               ))}
             </div>
           )}
-          {my && event.status !== 'scheduled' && (
+          {my && !canChangePresence && (
             <span className="tag" style={{
               background: `${PRESENCE_INFO[my.status].color}15`,
               color: PRESENCE_INFO[my.status].color,
