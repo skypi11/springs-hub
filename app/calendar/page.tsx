@@ -21,6 +21,7 @@ import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import AvailabilityCollapsible from '@/components/calendar/AvailabilityCollapsible';
 import MyTodosSection from '@/components/calendar/MyTodosSection';
+import PlayerEventDrawer, { type PlayerEvent } from '@/components/calendar/PlayerEventDrawer';
 import type { EventType, EventStatus, PresenceStatus } from '@/lib/event-permissions';
 import { normalizeEventType } from '@/lib/event-permissions';
 
@@ -82,6 +83,7 @@ export default function MyCalendarPage() {
   const router = useRouter();
   const qc = useQueryClient();
   const [now, setNow] = useState<number>(() => Date.now());
+  const [openEventId, setOpenEventId] = useState<string | null>(null);
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(t);
@@ -255,7 +257,7 @@ export default function MyCalendarPage() {
                       </div>
                       <div className="space-y-3">
                         {g.events.map((ev) => (
-                          <MyEventCard key={ev.id} event={ev} structure={structures[ev.structureId]} onRespond={respond} />
+                          <MyEventCard key={ev.id} event={ev} structure={structures[ev.structureId]} onRespond={respond} onOpen={setOpenEventId} />
                         ))}
                       </div>
                     </div>
@@ -272,7 +274,7 @@ export default function MyCalendarPage() {
                 </div>
                 <div className="space-y-3">
                   {past.map(ev => (
-                    <MyEventCard key={ev.id} event={ev} structure={structures[ev.structureId]} onRespond={respond} />
+                    <MyEventCard key={ev.id} event={ev} structure={structures[ev.structureId]} onRespond={respond} onOpen={setOpenEventId} />
                   ))}
                 </div>
               </section>
@@ -280,6 +282,20 @@ export default function MyCalendarPage() {
           </>
         )}
       </div>
+
+      {/* Drawer détail event (vue joueur — lecture seule + boutons présence) */}
+      {openEventId && (() => {
+        const ev = events.find(e => e.id === openEventId);
+        if (!ev) return null;
+        return (
+          <PlayerEventDrawer
+            event={ev as PlayerEvent}
+            structure={structures[ev.structureId]}
+            onClose={() => setOpenEventId(null)}
+            onRespond={respond}
+          />
+        );
+      })()}
     </div>
   );
 }
@@ -310,10 +326,12 @@ function MyEventCard({
   event,
   structure,
   onRespond,
+  onOpen,
 }: {
   event: MyEvent;
   structure: StructureInfo | undefined;
   onRespond: (structureId: string, eventId: string, status: PresenceStatus) => void;
+  onOpen: (eventId: string) => void;
 }) {
   const typeInfo = TYPE_INFO[normalizeEventType(event.type)];
   const statusInfo = STATUS_INFO[event.status];
@@ -324,7 +342,9 @@ function MyEventCard({
     : '';
 
   return (
-    <div className="bevel-sm relative overflow-hidden transition-all duration-150 hover:border-white/20"
+    <div
+      onClick={() => onOpen(event.id)}
+      className="bevel-sm relative overflow-hidden transition-all duration-150 hover:border-white/20 cursor-pointer"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
       <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${typeInfo.color}, ${typeInfo.color}50, transparent 70%)` }} />
       <div className="p-3 sm:p-4 flex gap-3 sm:gap-4 items-center">
@@ -356,6 +376,7 @@ function MyEventCard({
             )}
           </div>
           <Link href={`/community/structure/${event.structureId}`}
+            onClick={(e) => e.stopPropagation()}
             className="flex items-center gap-2 mb-1 group">
             {structure?.logoUrl ? (
               <Image src={structure.logoUrl} alt={structure.name} width={14} height={14} unoptimized className="flex-shrink-0" />
@@ -406,7 +427,7 @@ function MyEventCard({
             <div className="flex gap-1">
               {(['present', 'maybe', 'absent'] as const).map(s => (
                 <button key={s} type="button"
-                  onClick={() => onRespond(event.structureId, event.id, s)}
+                  onClick={(e) => { e.stopPropagation(); onRespond(event.structureId, event.id, s); }}
                   title={PRESENCE_INFO[s].label}
                   className="transition-all duration-150"
                   style={{
