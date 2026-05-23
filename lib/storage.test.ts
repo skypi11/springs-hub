@@ -107,6 +107,12 @@ describe('UploadLimits', () => {
   it('quota docs par structure = 500 MB', () => {
     expect(UploadLimits.STRUCTURE_DOCS_QUOTA_BYTES).toBe(500 * 1024 * 1024);
   });
+  it('quota stockage unifié par structure = 500 MB (free)', () => {
+    expect(UploadLimits.STRUCTURE_STORAGE_QUOTA_BYTES).toBe(500 * 1024 * 1024);
+  });
+  it('quota stockage unifié par structure = 10 GB (premium)', () => {
+    expect(UploadLimits.STRUCTURE_STORAGE_QUOTA_BYTES_PREMIUM).toBe(10 * 1024 * 1024 * 1024);
+  });
 });
 
 describe('isAllowedMime', () => {

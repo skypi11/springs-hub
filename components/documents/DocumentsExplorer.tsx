@@ -78,7 +78,7 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
   const documents = documentsQuery.data?.documents ?? [];
   const usage = {
     used: documentsQuery.data?.usageBytes ?? 0,
-    quota: documentsQuery.data?.quotaBytes ?? UPLOAD_LIMITS.STRUCTURE_DOCS_QUOTA_BYTES,
+    quota: documentsQuery.data?.quotaBytes ?? UPLOAD_LIMITS.STRUCTURE_STORAGE_QUOTA_BYTES,
   };
   const loading = foldersQuery.isPending || documentsQuery.isPending;
 

@@ -7,6 +7,7 @@ import { resolveUserContext } from '@/lib/event-context';
 import { canUploadReplay, canDownloadReplay } from '@/lib/replay-permissions';
 import { isStaff } from '@/lib/event-permissions';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
+import { checkStructureStorageQuota } from '@/lib/structure-storage';
 import { StorageKeys, generateUploadUrl, isAllowedMime, sanitizeFilename } from '@/lib/storage';
 
 // Sérialise un Timestamp Firestore en ISO
@@ -129,6 +130,12 @@ export async function POST(
 
     if (!canUploadReplay(resolved.context, teamId)) {
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+    }
+
+    // Quota partagé docs + replays (voir lib/structure-storage.ts). Premium bypass.
+    const quotaError = await checkStructureStorageQuota(db, structureId, sizeBytes);
+    if (quotaError) {
+      return NextResponse.json({ error: quotaError }, { status: 413 });
     }
 
     // Si eventId fourni, valider : même structure, même équipe ciblée, type scrim/match

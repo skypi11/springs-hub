@@ -6,7 +6,13 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { clampString } from '@/lib/validation';
 import { canDeleteReplay, canUploadReplay } from '@/lib/replay-permissions';
-import { fileExists, deleteFileSilent } from '@/lib/storage';
+import { fileExists, deleteFileSilent, downloadBuffer } from '@/lib/storage';
+import {
+  isBallchasingConfigured,
+  uploadReplay as bcUploadReplay,
+  deleteReplay as bcDeleteReplay,
+  BallchasingApiError,
+} from '@/lib/ballchasing';
 
 const ALLOWED_RESULTS = new Set(['win', 'loss', 'draw']);
 
@@ -47,6 +53,7 @@ export async function PATCH(
     }
 
     const updates: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
+    let shouldForwardToBallchasing = false;
 
     // Finalisation : client indique que le PUT R2 est terminé
     if (body.finalize === true && data.status === 'pending') {
@@ -55,6 +62,14 @@ export async function PATCH(
         return NextResponse.json({ error: 'Fichier absent sur R2 — upload incomplet' }, { status: 409 });
       }
       updates.status = 'ready';
+      // Marqueur ballchasing : pending tant qu'on n'a pas tenté l'upload.
+      // L'upload se fait après le .update() (best-effort, ne bloque pas le user).
+      if (isBallchasingConfigured()) {
+        updates.ballchasingStatus = 'pending';
+        shouldForwardToBallchasing = true;
+      } else {
+        updates.ballchasingStatus = 'disabled';
+      }
     }
 
     if (typeof body.title === 'string') {
@@ -76,6 +91,32 @@ export async function PATCH(
     }
 
     await ref.update(updates);
+
+    // Best-effort : forward le .replay à ballchasing pour parsing async.
+    // On le fait après le update Firestore pour ne pas bloquer le toast user.
+    // Le fetch des stats parsées se fait via GET /stats (poll côté client).
+    if (shouldForwardToBallchasing) {
+      try {
+        const buffer = await downloadBuffer(data.r2Key as string);
+        const filename = (data.filename as string) || `${replayId}.replay`;
+        const result = await bcUploadReplay(buffer, filename, { visibility: 'private' });
+        await ref.update({
+          ballchasingId: result.id,
+          ballchasingStatus: 'uploaded',
+          ballchasingUploadedAt: FieldValue.serverTimestamp(),
+          ballchasingDuplicate: result.duplicate,
+        });
+      } catch (err) {
+        const status = err instanceof BallchasingApiError ? err.status : 0;
+        await ref.update({
+          ballchasingStatus: 'failed',
+          ballchasingError: err instanceof Error ? err.message.slice(0, 500) : 'unknown',
+          ballchasingErrorStatus: status,
+        }).catch(() => {});
+        captureApiError('API replay PATCH ballchasing forward', err);
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (err) {
     captureApiError('API replay PATCH', err);
@@ -114,6 +155,9 @@ export async function DELETE(
     }
 
     await deleteFileSilent(data.r2Key as string);
+    // Purge ballchasing si on avait un id (best-effort, ne fait pas planter le delete).
+    const bcId = typeof data.ballchasingId === 'string' ? data.ballchasingId : '';
+    if (bcId) await bcDeleteReplay(bcId);
     await ref.delete();
 
     return NextResponse.json({ success: true });

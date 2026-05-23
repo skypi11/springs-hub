@@ -7,13 +7,12 @@ import { resolveUserContext } from '@/lib/event-context';
 import { canAccessDocuments } from '@/lib/document-permissions';
 import { writeAuditLog } from '@/lib/audit-log';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
+import { checkStructureStorageQuota } from '@/lib/structure-storage';
 import {
   uploadBuffer,
   isAllowedMime,
   sanitizeFilename,
   extensionForStorage,
-  getTotalSize,
-  StorageKeys,
 } from '@/lib/storage';
 import { encryptBuffer, ENCRYPTION_ALGO_LABEL, isEncryptionAvailable } from '@/lib/document-crypto';
 
@@ -81,10 +80,10 @@ export async function POST(
       }
     }
 
-    const currentUsage = await getTotalSize(StorageKeys.structureDocumentsPrefix(structureId));
-    if (currentUsage + sizeBytes > UPLOAD_LIMITS.STRUCTURE_DOCS_QUOTA_BYTES) {
-      const qmb = Math.round(UPLOAD_LIMITS.STRUCTURE_DOCS_QUOTA_BYTES / (1024 * 1024));
-      return NextResponse.json({ error: `Quota dépassé — max ${qmb} MB par structure` }, { status: 413 });
+    // Quota partagé docs + replays (voir lib/structure-storage.ts). Premium bypass.
+    const quotaError = await checkStructureStorageQuota(db, structureId, sizeBytes);
+    if (quotaError) {
+      return NextResponse.json({ error: quotaError }, { status: 413 });
     }
 
     const safeName = sanitizeFilename(filename);

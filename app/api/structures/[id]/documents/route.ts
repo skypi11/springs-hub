@@ -6,13 +6,12 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { canAccessDocuments } from '@/lib/document-permissions';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
+import { checkStructureStorageQuota, computeStructureStorageUsage } from '@/lib/structure-storage';
 import {
-  StorageKeys,
   generateUploadUrl,
   isAllowedMime,
   sanitizeFilename,
   extensionForStorage,
-  getTotalSize,
 } from '@/lib/storage';
 
 function ts(v: unknown): string | null {
@@ -64,21 +63,23 @@ export async function GET(
 
     documents.sort((a, b) => String(a.title ?? '').localeCompare(String(b.title ?? ''), 'fr', { sensitivity: 'base' }));
 
-    // Usage total pour afficher la jauge de quota côté UI (somme des sizeBytes status=ready)
-    const usageSnap = await db.collection('structure_documents')
-      .where('structureId', '==', structureId)
-      .get();
-    const usageBytes = usageSnap.docs.reduce((sum, d) => {
-      const data = d.data();
-      if (data.status !== 'ready') return sum;
-      const sz = typeof data.sizeBytes === 'number' ? data.sizeBytes : 0;
-      return sum + sz;
-    }, 0);
+    // Quota partagé docs + replays (voir lib/structure-storage.ts).
+    // `usageBytes` reste exposé pour rétrocompat client (jauge), mais il vaut le total
+    // pool — pas juste les docs. La jauge reste donc cohérente avec le quota affiché.
+    const usage = await computeStructureStorageUsage(db, structureId);
 
     return NextResponse.json({
       documents,
-      usageBytes,
-      quotaBytes: UPLOAD_LIMITS.STRUCTURE_DOCS_QUOTA_BYTES,
+      usageBytes: usage.totalBytes,
+      quotaBytes: usage.quotaBytes,
+      storage: {
+        docsBytes: usage.docsBytes,
+        replaysBytes: usage.replaysBytes,
+        totalBytes: usage.totalBytes,
+        quotaBytes: usage.quotaBytes,
+        premium: usage.premium,
+        remainingBytes: usage.remainingBytes,
+      },
     });
   } catch (err) {
     captureApiError('API documents GET', err);
@@ -143,11 +144,10 @@ export async function POST(
       }
     }
 
-    // Vérifie le quota total (somme des fichiers ready + ce nouvel upload)
-    const currentUsage = await getTotalSize(StorageKeys.structureDocumentsPrefix(structureId));
-    if (currentUsage + sizeBytes > UPLOAD_LIMITS.STRUCTURE_DOCS_QUOTA_BYTES) {
-      const qmb = Math.round(UPLOAD_LIMITS.STRUCTURE_DOCS_QUOTA_BYTES / (1024 * 1024));
-      return NextResponse.json({ error: `Quota dépassé — max ${qmb} MB par structure` }, { status: 413 });
+    // Quota partagé docs + replays (voir lib/structure-storage.ts). Premium bypass.
+    const quotaError = await checkStructureStorageQuota(db, structureId, sizeBytes);
+    if (quotaError) {
+      return NextResponse.json({ error: quotaError }, { status: 413 });
     }
 
     const safeName = sanitizeFilename(filename);

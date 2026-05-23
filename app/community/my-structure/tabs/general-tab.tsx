@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import ImageUploader from '@/components/ui/ImageUploader';
 import BannerFocusEditor from '@/components/structure/BannerFocusEditor';
+import StorageQuotaCard from '@/components/structure/StorageQuotaCard';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import type { MyStructure, TeamData } from '../types';
 import type { BannerFocus } from '@/types';
@@ -491,6 +492,11 @@ export function GeneralTab(props: GeneralTabProps) {
             <p className="t-label mt-1 relative z-[1]">ÉQUIPES TM</p>
           </div>
         </div>
+
+        {/* Quota de stockage (docs + replays unifiés) */}
+        {activeStructure && (
+          <StorageQuotaCard structureId={activeStructure.id} />
+        )}
       </div>
     </div>
   );

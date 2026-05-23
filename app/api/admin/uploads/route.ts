@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth, isAdmin } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
+import { getStructureQuotaBytes } from '@/lib/structure-storage';
 import { captureApiError } from '@/lib/sentry';
 
 const MAX_DOCS = 5000;
@@ -21,6 +22,7 @@ type StructureUsage = {
   totalBytes: number;
   quotaBytes: number;
   quotaPct: number;
+  premium: boolean;
 };
 
 // GET /api/admin/uploads — vue globale du stockage R2 via les métadonnées Firestore.
@@ -37,7 +39,7 @@ export async function GET(req: NextRequest) {
 
     const [docsSnap, replaysSnap] = await Promise.all([
       db.collection('structure_documents').limit(MAX_DOCS).get(),
-      db.collection('structure_replays').limit(MAX_REPLAYS).get(),
+      db.collection('replays').limit(MAX_REPLAYS).get(),
     ]);
 
     const byStructure = new Map<string, StructureUsage>();
@@ -61,8 +63,9 @@ export async function GET(req: NextRequest) {
           replaysBytes: 0,
           replaysCount: 0,
           totalBytes: 0,
-          quotaBytes: UPLOAD_LIMITS.STRUCTURE_DOCS_QUOTA_BYTES,
+          quotaBytes: UPLOAD_LIMITS.STRUCTURE_STORAGE_QUOTA_BYTES,
           quotaPct: 0,
+          premium: false,
         };
         byStructure.set(structureId, s);
       }
@@ -113,9 +116,12 @@ export async function GET(req: NextRequest) {
       s.structureTag = (struct?.tag as string | undefined) ?? '';
       s.structureLogoUrl = (struct?.logoUrl as string | undefined) ?? '';
       s.founderId = (struct?.founderId as string | undefined) ?? '';
+      s.premium = struct?.premium === true;
+      s.quotaBytes = getStructureQuotaBytes(s.premium);
       if (s.founderId) founderIds.add(s.founderId);
       s.totalBytes = s.docsBytes + s.replaysBytes;
-      s.quotaPct = s.quotaBytes > 0 ? Math.round((s.docsBytes / s.quotaBytes) * 100) : 0;
+      // Le % est calculé sur le total (docs + replays) puisque le quota est partagé
+      s.quotaPct = s.quotaBytes > 0 ? Math.round((s.totalBytes / s.quotaBytes) * 100) : 0;
     }
 
     const foundersById = await fetchDocsByIds(db, 'users', Array.from(founderIds));
@@ -140,7 +146,8 @@ export async function GET(req: NextRequest) {
         replaysCount: gReplaysCount,
         replaysPending: gReplaysPending,
         structuresWithUploads: structures.length,
-        perStructureQuotaBytes: UPLOAD_LIMITS.STRUCTURE_DOCS_QUOTA_BYTES,
+        perStructureQuotaBytes: UPLOAD_LIMITS.STRUCTURE_STORAGE_QUOTA_BYTES,
+        perStructurePremiumQuotaBytes: UPLOAD_LIMITS.STRUCTURE_STORAGE_QUOTA_BYTES_PREMIUM,
       },
       structures,
       truncated: {

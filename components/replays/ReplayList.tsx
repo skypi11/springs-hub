@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { Download, Trash2, Edit2, Check, X, Loader2, Film } from 'lucide-react';
+import { Download, Trash2, Edit2, Check, X, Loader2, Film, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import { api } from '@/lib/api-client';
+import ReplayStatsPanel from './ReplayStatsPanel';
 
 export type ReplayListItem = {
   id: string;
@@ -19,6 +20,7 @@ export type ReplayListItem = {
   map?: string | null;
   notes?: string | null;
   createdAt?: string | null;
+  ballchasingStatus?: 'pending' | 'uploaded' | 'failed' | 'disabled' | null;
 };
 
 interface Props {
@@ -65,6 +67,7 @@ export default function ReplayList({
   const toast = useToast();
   const confirm = useConfirm();
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [expandedStatsId, setExpandedStatsId] = useState<string | null>(null);
 
   const download = useCallback(async (id: string) => {
     try {
@@ -111,6 +114,11 @@ export default function ReplayList({
         const canDelete = canDeleteAny || item.uploadedBy === currentUid;
         const resultBadge = item.result ? RESULT_LABEL[item.result] : null;
         const isEditing = editingId === item.id;
+        const isExpanded = expandedStatsId === item.id;
+        // Le bouton stats est masqué si la feature est explicitement désactivée
+        // (pas de clé ballchasing). Tous les autres états (pending/uploaded/failed)
+        // ouvrent le panel qui gère lui-même son rendu.
+        const canShowStats = item.ballchasingStatus !== 'disabled';
 
         return (
           <li key={item.id} className="bevel-sm p-3" style={{
@@ -125,66 +133,83 @@ export default function ReplayList({
                 onSaved={() => { setEditingId(null); onChanged(); }}
               />
             ) : (
-              <div className="flex items-center gap-3 flex-wrap">
-                {/* Titre + métadonnées */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {resultBadge && (
-                      <span
-                        className="inline-flex items-center justify-center text-xs font-bold"
-                        style={{
-                          width: 20, height: 20,
-                          background: `${resultBadge.color}20`,
-                          color: resultBadge.color,
-                          border: `1px solid ${resultBadge.color}40`,
-                        }}
-                      >
-                        {resultBadge.text}
+              <>
+                <div className="flex items-center gap-3 flex-wrap">
+                  {/* Titre + métadonnées */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {resultBadge && (
+                        <span
+                          className="inline-flex items-center justify-center text-xs font-bold"
+                          style={{
+                            width: 20, height: 20,
+                            background: `${resultBadge.color}20`,
+                            color: resultBadge.color,
+                            border: `1px solid ${resultBadge.color}40`,
+                          }}
+                        >
+                          {resultBadge.text}
+                        </span>
+                      )}
+                      <span className="text-sm font-medium truncate" style={{ color: 'var(--s-text)' }}>
+                        {item.title}
                       </span>
-                    )}
-                    <span className="text-sm font-medium truncate" style={{ color: 'var(--s-text)' }}>
-                      {item.title}
-                    </span>
-                    {item.score && (
-                      <span className="t-mono text-xs" style={{ color: 'var(--s-gold)' }}>
-                        {item.score}
-                      </span>
+                      {item.score && (
+                        <span className="t-mono text-xs" style={{ color: 'var(--s-gold)' }}>
+                          {item.score}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-xs flex-wrap" style={{ color: 'var(--s-text-muted)' }}>
+                      <span>{formatDate(item.createdAt)}</span>
+                      <span>·</span>
+                      <span>{formatSize(item.sizeBytes)}</span>
+                      {item.map && (<><span>·</span><span>{item.map}</span></>)}
+                      {showEventLink && item.eventId && eventTitlesById?.[item.eventId] && (
+                        <>
+                          <span>·</span>
+                          <span>Lié à « {eventTitlesById[item.eventId]} »</span>
+                        </>
+                      )}
+                    </div>
+                    {item.notes && (
+                      <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-dim)' }}>{item.notes}</p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 mt-1 text-xs flex-wrap" style={{ color: 'var(--s-text-muted)' }}>
-                    <span>{formatDate(item.createdAt)}</span>
-                    <span>·</span>
-                    <span>{formatSize(item.sizeBytes)}</span>
-                    {item.map && (<><span>·</span><span>{item.map}</span></>)}
-                    {showEventLink && item.eventId && eventTitlesById?.[item.eventId] && (
-                      <>
-                        <span>·</span>
-                        <span>Lié à « {eventTitlesById[item.eventId]} »</span>
-                      </>
-                    )}
-                  </div>
-                  {item.notes && (
-                    <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-dim)' }}>{item.notes}</p>
-                  )}
-                </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <IconButton title="Télécharger" onClick={() => download(item.id)}>
-                    <Download size={13} />
-                  </IconButton>
-                  {canEdit && (
-                    <IconButton title="Modifier" onClick={() => setEditingId(item.id)}>
-                      <Edit2 size={13} />
+                  {/* Actions */}
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {canShowStats && (
+                      <IconButton
+                        title={isExpanded ? 'Masquer les stats' : 'Voir les stats détaillées'}
+                        onClick={() => setExpandedStatsId(isExpanded ? null : item.id)}
+                        active={isExpanded}
+                      >
+                        <BarChart3 size={13} />
+                        {isExpanded
+                          ? <ChevronUp size={11} style={{ marginLeft: 2 }} />
+                          : <ChevronDown size={11} style={{ marginLeft: 2 }} />}
+                      </IconButton>
+                    )}
+                    <IconButton title="Télécharger" onClick={() => download(item.id)}>
+                      <Download size={13} />
                     </IconButton>
-                  )}
-                  {canDelete && (
-                    <IconButton title="Supprimer" onClick={() => remove(item)} danger>
-                      <Trash2 size={13} />
-                    </IconButton>
-                  )}
+                    {canEdit && (
+                      <IconButton title="Modifier" onClick={() => setEditingId(item.id)}>
+                        <Edit2 size={13} />
+                      </IconButton>
+                    )}
+                    {canDelete && (
+                      <IconButton title="Supprimer" onClick={() => remove(item)} danger>
+                        <Trash2 size={13} />
+                      </IconButton>
+                    )}
+                  </div>
                 </div>
-              </div>
+                {isExpanded && (
+                  <ReplayStatsPanel structureId={structureId} replayId={item.id} />
+                )}
+              </>
             )}
           </li>
         );
@@ -193,7 +218,7 @@ export default function ReplayList({
   );
 }
 
-function IconButton({ children, onClick, title, danger }: { children: React.ReactNode; onClick: () => void; title: string; danger?: boolean }) {
+function IconButton({ children, onClick, title, danger, active }: { children: React.ReactNode; onClick: () => void; title: string; danger?: boolean; active?: boolean }) {
   return (
     <button
       type="button"
@@ -201,11 +226,12 @@ function IconButton({ children, onClick, title, danger }: { children: React.Reac
       title={title}
       className="flex items-center justify-center transition-opacity hover:opacity-100"
       style={{
-        width: 28, height: 28,
-        background: 'var(--s-surface)',
-        border: '1px solid var(--s-border)',
-        color: danger ? '#ef4444' : 'var(--s-text-dim)',
-        opacity: 0.8,
+        minWidth: 28, height: 28,
+        padding: '0 6px',
+        background: active ? 'var(--s-elevated)' : 'var(--s-surface)',
+        border: `1px solid ${active ? 'var(--s-gold)' : 'var(--s-border)'}`,
+        color: danger ? '#ef4444' : active ? 'var(--s-gold)' : 'var(--s-text-dim)',
+        opacity: active ? 1 : 0.8,
       }}
     >
       {children}
