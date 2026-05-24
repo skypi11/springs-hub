@@ -1045,9 +1045,11 @@ export default function MyStructurePage() {
   const captainOfTeamIds = firebaseUser
     ? teams.filter(t => t.captainId === firebaseUser.uid).map(t => t.id)
     : [];
-  // Vue scopée sur ÉQUIPES pour tout rôle non-dirigeant (manager, coach, capitaine) :
+  // Vue scopée sur ÉQUIPES pour les rôles "limités" (coach + capitaine) :
   // n'affiche que les équipes où l'utilisateur est staff ou capitaine.
-  const teamScopeActive = !isDirigeantOfActive && !!firebaseUser;
+  // Modèle A : le RESPONSABLE (managerOfActive) voit TOUTES les équipes comme un
+  // dirigeant — il en est l'admin opérationnel.
+  const teamScopeActive = !isDirigeantOfActive && !isManagerOfActive && !!firebaseUser;
   const isTeamInScope = (team: TeamData) =>
     !teamScopeActive ||
     team.staff.some(st => st.uid === firebaseUser?.uid) ||
@@ -1856,6 +1858,7 @@ export default function MyStructurePage() {
               discordChannelsError={discordChannelsError}
               loadDiscordChannels={loadDiscordChannels}
               isDirigeantOfActive={isDirigeantOfActive}
+              isManagerOfActive={isManagerOfActive}
               isFounderOfActive={isFounderOfActive}
               canReorderTeams={canReorderTeams}
               teamScopeActive={teamScopeActive}

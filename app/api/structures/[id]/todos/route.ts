@@ -66,8 +66,10 @@ export async function POST(
       return NextResponse.json({ error: 'Équipe introuvable dans cette structure.' }, { status: 404 });
     }
 
-    // Permission : staff de l'équipe cible
-    if (!isStaffOfTeam(resolved.context, subTeamId)) {
+    // Permission : staff de l'équipe cible OU coach structure (modèle A — coach
+    // structure peut animer + assigner sur toute équipe, sans pouvoir modifier
+    // l'équipe elle-même).
+    if (!isStaffOfTeam(resolved.context, subTeamId) && !resolved.context.isCoach) {
       return NextResponse.json({ error: 'Permissions insuffisantes pour cette équipe.' }, { status: 403 });
     }
 
@@ -334,7 +336,7 @@ export async function GET(
 
     return NextResponse.json({
       todos,
-      canCreate: isStaffOfTeam(resolved.context, subTeamId),
+      canCreate: isStaffOfTeam(resolved.context, subTeamId) || resolved.context.isCoach,
       isDirigeant: isDirigeant(resolved.context),
     });
   } catch (err) {

@@ -92,6 +92,7 @@ export interface TeamsTabProps {
   loadDiscordChannels: (force?: boolean) => void;
 
   isDirigeantOfActive: boolean;
+  isManagerOfActive: boolean;
   isFounderOfActive: boolean;
   canReorderTeams: boolean;
   teamScopeActive: boolean;
@@ -128,7 +129,7 @@ export function TeamsTab(props: TeamsTabProps) {
     collapsedTeamGroups, setCollapsedTeamGroups,
     healthOpen, setHealthOpen, collapsed, toggle,
     discordChannels, discordChannelsLoading, discordChannelsError, loadDiscordChannels,
-    isDirigeantOfActive, isFounderOfActive, canReorderTeams,
+    isDirigeantOfActive, isManagerOfActive, isFounderOfActive, canReorderTeams,
     teamScopeActive, isTeamInScope,
     handleCreateTeam, handleArchiveTeam, handleSetCaptain,
     handleUpdateTeamLogo, handleUpdateTeamLabel,
@@ -136,6 +137,11 @@ export function TeamsTab(props: TeamsTabProps) {
     handleDeleteTeam, handleUpdateTeamDiscordChannel,
     reorderTeamsInGroup, reorderGroups, moveTeamToGroup, dndSensors,
   } = props;
+
+  // Modèle A (validé Matt 2026-05-24) : Responsable = bras droit du dirigeant,
+  // accès admin équipes complet. On utilise ce booléen partout où "admin équipe"
+  // est requis (au lieu de isDirigeantOfActive qui exclurait le responsable).
+  const isAdminOfActive = isDirigeantOfActive || isManagerOfActive;
 
   // Filtrage par recherche (nom équipe / label / pseudo joueur)
   const q = teamSearch.trim().toLowerCase();
@@ -199,7 +205,7 @@ export function TeamsTab(props: TeamsTabProps) {
     const canAddPlayer = !isRL || team.players.length < 3;
     const canAddSub = !isRL || team.subs.length < 2;
     const captainId = team.captainId ?? null;
-    const canManageTeam = isDirigeantOfActive;
+    const canManageTeam = isAdminOfActive;
     const canDeleteTeam = isFounderOfActive;
     const menuOpen = teamMenuOpen === team.id;
 
@@ -675,7 +681,7 @@ export function TeamsTab(props: TeamsTabProps) {
   return (
     <SectionPanel accent="var(--s-blue)" icon={Gamepad2} title={`ÉQUIPES${teams.length > 0 ? ` · ${teams.filter(t => (t.status ?? 'active') === 'active' && isTeamInScope(t)).length}` : ''}`}
       collapsed={collapsed.teams} onToggle={() => toggle('teams')}
-      action={isDirigeantOfActive ? (
+      action={isAdminOfActive ? (
         <button type="button" onClick={() => setShowNewTeam(prev => !prev)}
           className="flex items-center gap-1.5 text-xs font-bold transition-colors duration-150" style={{ color: 'var(--s-blue)' }}>
           {showNewTeam ? <ChevronUp size={11} /> : <Plus size={11} />}
@@ -692,8 +698,8 @@ export function TeamsTab(props: TeamsTabProps) {
         </div>
       )}
 
-      {/* Dashboard santé équipes — dirigeant only */}
-      {isDirigeantOfActive && !teamsLoading && (() => {
+      {/* Dashboard santé équipes — dirigeant + responsable */}
+      {isAdminOfActive && !teamsLoading && (() => {
         const activeAll = teams.filter(t => (t.status ?? 'active') === 'active');
         if (activeAll.length === 0) return null;
         const noCaptain = activeAll.filter(t => !t.captainId);
@@ -770,8 +776,8 @@ export function TeamsTab(props: TeamsTabProps) {
         </div>
       </div>
 
-      {/* Formulaire nouvelle équipe */}
-      {showNewTeam && isDirigeantOfActive && (
+      {/* Formulaire nouvelle équipe — dirigeant + responsable */}
+      {showNewTeam && isAdminOfActive && (
         <div className="mb-4 bevel-sm relative overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid rgba(0,129,255,0.25)' }}>
           <div className="h-[2px]" style={{ background: 'linear-gradient(90deg, var(--s-blue), transparent 70%)' }} />
           <div className="p-4 space-y-3">
@@ -838,7 +844,7 @@ export function TeamsTab(props: TeamsTabProps) {
           </div>
           <p className="t-sub mb-1" style={{ color: 'var(--s-text)' }}>Aucune équipe pour l&apos;instant</p>
           <p className="t-body" style={{ color: 'var(--s-text-dim)' }}>
-            {isDirigeantOfActive
+            {isAdminOfActive
               ? 'Crée ta première équipe avec le bouton « Nouvelle équipe » en haut à droite.'
               : 'Les équipes apparaîtront ici une fois créées par un dirigeant.'}
           </p>

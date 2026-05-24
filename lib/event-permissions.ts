@@ -86,8 +86,18 @@ export function hasAnyStaffAccess(ctx: UserContext): boolean {
   return isStaff(ctx) || ctx.staffedTeamIds.length > 0;
 }
 
+// Modèle A (validé Matt 2026-05-24) : "Responsable = bras droit" → un user dans
+// structures.managerIds[] est considéré comme staff de TOUTES les équipes de la
+// structure, exactement comme un dirigeant. Ça lui ouvre create event tous types
+// sur toute équipe, todos, modif présence, etc. — cohérent avec le fait qu'il
+// peut déjà créer/modifier les équipes elles-mêmes via checkStructureAccess.
+//
+// Le Coach structure (coachIds) reste géré séparément avec des règles plus
+// restrictives (training/scrim uniquement via canCreateEvent, todos via check
+// dédié dans la route todos).
 export function isStaffOfTeam(ctx: UserContext, teamId: string): boolean {
   if (isDirigeant(ctx)) return true;
+  if (ctx.isManager) return true;
   return !!teamId && ctx.staffedTeamIds.includes(teamId);
 }
 
