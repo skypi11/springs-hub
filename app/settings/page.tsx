@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api, apiDownload, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
@@ -82,6 +82,7 @@ export default function SettingsPage() {
   const { user, firebaseUser, isAdmin, loading: authLoading, signOut, signInWithDiscord, refreshProfile } = useAuth();
   const router = useRouter();
   const toast = useToast();
+  const qc = useQueryClient();
   const [mustComplete, setMustComplete] = useState(false);
   const [steamLinked, setSteamLinked] = useState<SteamLinked | null>(null);
   const [linkingSteam, setLinkingSteam] = useState(false);
@@ -219,7 +220,11 @@ export default function SettingsPage() {
         setEpicLinked({ rlEpicId: r.rlEpicId, rlEpicName: r.rlEpicName ?? '' });
         toast.success(r.message ?? 'Compte Epic lié.');
         // Recharge le profil pour propager rlPlatform/rlPlatformId (miroir)
-        await refreshProfile?.();
+        // + invalide profileQ pour que le 2e useEffect resync les états serveur.
+        await Promise.all([
+          refreshProfile?.(),
+          qc.invalidateQueries({ queryKey: ['profile', firebaseUser?.uid ?? null] }),
+        ]);
       } else {
         toast.error(r.message ?? "Échec de la liaison.");
       }
@@ -271,7 +276,10 @@ export default function SettingsPage() {
       if (r.ok && r.rlSteamId) {
         setRlSteamLinked({ rlSteamId: r.rlSteamId, rlSteamName: r.rlSteamName ?? '' });
         toast.success(r.message ?? 'Compte Steam RL lié.');
-        await refreshProfile?.();
+        await Promise.all([
+          refreshProfile?.(),
+          qc.invalidateQueries({ queryKey: ['profile', firebaseUser?.uid ?? null] }),
+        ]);
       } else {
         toast.error(r.message ?? 'Échec de la liaison.');
       }
@@ -403,26 +411,6 @@ export default function SettingsPage() {
     const savedPlatformId = (data.rlPlatformId as string) || '';
     const connections = (data.discordConnections as DiscordConnection[] | undefined) ?? [];
     const fromDiscord = pickBestRLConnection(connections);
-    // Steam OpenID linkage (priorité absolue pour RL si présent — SteamID64 immuable)
-    const steamLinkedData = (data.steamLinked as unknown as SteamLinked | undefined) ?? null;
-    setSteamLinked(steamLinkedData);
-
-    // Compte Epic officiel (sticky) — snapshot 32-hex figé via la connexion
-    // Discord vérifiée. Voir docs/rl-rank-verification-plan.md.
-    const rlEpicId = (data.rlEpicId as string) || '';
-    if (rlEpicId) {
-      setEpicLinked({ rlEpicId, rlEpicName: (data.rlEpicName as string) || '' });
-    } else {
-      setEpicLinked(null);
-    }
-    // Compte Steam RL officiel (sticky) — snapshot SteamID64 figé via Steam OpenID
-    // confirmé comme étant le compte RL du joueur.
-    const rlSteamId = (data.rlSteamId as string) || '';
-    if (rlSteamId) {
-      setRlSteamLinked({ rlSteamId, rlSteamName: (data.rlSteamName as string) || '' });
-    } else {
-      setRlSteamLinked(null);
-    }
 
     const initialPlatform: RLPlatform | '' = isValidRLPlatform(savedPlatform)
       ? savedPlatform
@@ -448,6 +436,44 @@ export default function SettingsPage() {
     });
     setLoaded(true);
   }, [profileQ.isPending, profileQ.data, firebaseUser, loaded]);
+
+  // ── Sync PERMANENT des comptes RL "officiels" et de la connexion Steam OpenID ──
+  // À chaque update de profileQ.data (refetch au focus de l'onglet, après
+  // confirmation Epic, après callback Steam OpenID…), on resynchronise ces 3
+  // états READ-ONLY côté serveur. Sans ce useEffect, le sélecteur de rang RL
+  // restait disabled tant que l'user ne faisait pas un refresh complet — alors
+  // qu'il venait de vérifier son compte. Cause du bug : l'autre useEffect est
+  // verrouillé par `loaded` pour ne pas écraser les édits user du form.
+  useEffect(() => {
+    if (profileQ.isPending || !profileQ.data) return;
+    const data = profileQ.data as Record<string, unknown>;
+
+    const steamLinkedData = (data.steamLinked as SteamLinked | undefined) ?? null;
+    setSteamLinked(steamLinkedData);
+
+    const rlEpicId = (data.rlEpicId as string) || '';
+    setEpicLinked(rlEpicId ? { rlEpicId, rlEpicName: (data.rlEpicName as string) || '' } : null);
+
+    const rlSteamId = (data.rlSteamId as string) || '';
+    setRlSteamLinked(rlSteamId ? { rlSteamId, rlSteamName: (data.rlSteamName as string) || '' } : null);
+
+    // Merge intelligent de form.connections :
+    //   - Pour les nouvelles connexions Discord ajoutées hors site (Epic Games
+    //     via Discord), on les ajoute pour qu'elles soient détectées comme
+    //     vérifiées (déclenche le bouton "Confirme ton compte Epic").
+    //   - Pour les connexions déjà présentes localement, on PRÉSERVE le toggle
+    //     `visibleOnProfile` éventuellement modifié par l'user sans avoir
+    //     sauvegardé — sinon on écraserait son édit en cours.
+    const freshConnections = (data.discordConnections as DiscordConnection[] | undefined) ?? [];
+    setForm(prev => {
+      const localByKey = new Map(prev.connections.map(c => [`${c.type}:${c.id}`, c]));
+      const merged = freshConnections.map(c => {
+        const local = localByKey.get(`${c.type}:${c.id}`);
+        return local ? { ...c, visibleOnProfile: local.visibleOnProfile } : c;
+      });
+      return { ...prev, connections: merged };
+    });
+  }, [profileQ.isPending, profileQ.data]);
 
   // ── Auto-save 2s après dernière modif ──
   // IMPORTANT : placé AVANT les early returns ci-dessous pour respecter la
