@@ -40,6 +40,15 @@ export interface RLIdentityBadgeProps {
   inRLTeam?: boolean;
   /** `sm` = pill compact pour les cartes ; `md` = ligne pour les fiches. */
   size?: 'sm' | 'md';
+  /**
+   * Ton du badge "non vérifié" :
+   * - `warning` (default) : rouge dissuasif, utilisé sur la fiche profil pour
+   *   alerter explicitement les recruteurs.
+   * - `subtle` : gris neutre, utilisé dans les listes d'annuaire pour ne pas
+   *   polluer visuellement quand 90% des joueurs n'ont pas (encore) lié leur
+   *   compte. La fiche profil garde le ton dissuasif.
+   */
+  tone?: 'warning' | 'subtle';
 }
 
 export default function RLIdentityBadge({
@@ -54,6 +63,7 @@ export default function RLIdentityBadge({
   canReport,
   inRLTeam,
   size = 'sm',
+  tone = 'warning',
 }: RLIdentityBadgeProps) {
   const playsRL = (games ?? []).includes('rocket_league') || !!inRLTeam;
 
@@ -70,23 +80,29 @@ export default function RLIdentityBadge({
     return '';
   })();
 
-  // ── État 2 — RL sans compte lié : ⚠️ warning visible ──────────────────────
+  // ── État 2 — RL sans compte lié ──────────────────────────────────────────
+  // tone='warning' (fiche profil) : rouge dissuasif.
+  // tone='subtle' (annuaire) : gris neutre, on n'agresse pas — 90% des
+  // joueurs n'ont pas encore lié, c'est la norme.
   if (!rlAccountVerified) {
     if (size === 'sm') {
+      const subtle = tone === 'subtle';
       return (
         <span
           className="inline-flex items-center gap-1 tag"
-          title="Ce joueur joue à Rocket League mais n'a pas lié son compte de jeu. Son rang n'est pas vérifiable."
+          title={subtle
+            ? "Compte de jeu non lié — le rang affiché n'est pas vérifié."
+            : "Ce joueur joue à Rocket League mais n'a pas lié son compte de jeu. Son rang n'est pas vérifiable."}
           style={{
-            background: 'rgba(255,85,85,0.10)',
-            color: '#ff8a8a',
-            borderColor: 'rgba(255,85,85,0.35)',
+            background: subtle ? 'transparent' : 'rgba(255,85,85,0.10)',
+            color: subtle ? 'var(--s-text-muted)' : '#ff8a8a',
+            borderColor: subtle ? 'var(--s-border)' : 'rgba(255,85,85,0.35)',
             fontSize: '10px',
             padding: '2px 6px',
           }}
         >
           <ShieldAlert size={10} />
-          Compte de jeu non lié
+          Non vérifié
         </span>
       );
     }

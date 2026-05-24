@@ -1,15 +1,20 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { User, Search, Gamepad2, ArrowUpDown, Sparkles, Star, Target, SlidersHorizontal, X, Bookmark, BookmarkCheck, Link2, Check } from 'lucide-react';
+import {
+  User, Search, Gamepad2, ArrowUpDown, Sparkles, Star, Target, SlidersHorizontal,
+  X, Bookmark, BookmarkCheck, Link2, Check, ShieldCheck, ShieldAlert, Trophy,
+  LayoutGrid, List,
+} from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
 import InviteToStructureButton from '@/components/community/InviteToStructureButton';
 import RLIdentityBadge from '@/components/players/RLIdentityBadge';
+import CountryFlag from '@/components/ui/CountryFlag';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
 
@@ -45,11 +50,6 @@ const ROLE_LABELS: Record<string, string> = {
   joueur: 'Joueur',
   coach: 'Coach',
   manager: 'Manager',
-};
-
-const GAME_SHORT: Record<string, string> = {
-  rocket_league: 'RL',
-  trackmania: 'TM',
 };
 
 // Retourne la liste (dédupliquée) des positions ouvertes qui matchent un joueur.
@@ -88,8 +88,23 @@ export default function PlayersPage() {
   const [echelonMin, setEchelonMin] = useState('');
   const [echelonMax, setEchelonMax] = useState('');
   const [noStructureFilter, setNoStructureFilter] = useState(false);
+  const [verifiedOnlyFilter, setVerifiedOnlyFilter] = useState(false);
   const [localShortlist, setLocalShortlist] = useState<Set<string>>(new Set());
   const [copiedLinkFor, setCopiedLinkFor] = useState<string | null>(null);
+
+  // Vue grille (default) ou liste (annuaire dense) — choix persistant.
+  // Init côté client uniquement (localStorage indisponible en SSR).
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('aedral_players_view');
+      if (stored === 'grid' || stored === 'list') setViewMode(stored);
+    } catch { /* SSR / private mode */ }
+  }, []);
+  const setViewModeStored = (m: 'grid' | 'list') => {
+    setViewMode(m);
+    try { localStorage.setItem('aedral_players_view', m); } catch { /* noop */ }
+  };
 
   const playersQ = useQuery({
     queryKey: ['players', { game: gameFilter, recruiting: recruitingFilter }] as const,
@@ -243,6 +258,12 @@ export default function PlayersPage() {
         const hasAny = Object.values(p.structurePerGame || {}).some(Boolean);
         if (hasAny) return false;
       }
+      // Compte vérifié : si le joueur joue à RL, il doit avoir Epic ou Steam
+      // confirmé. Sinon (pas de RL dans games), on n'applique pas le filtre
+      // (un joueur TM-only n'est pas concerné).
+      if (verifiedOnlyFilter) {
+        if (p.games?.includes('rocket_league') && !p.rlAccountVerified) return false;
+      }
       return true;
     });
     const arr = [...base];
@@ -261,17 +282,18 @@ export default function PlayersPage() {
         break;
     }
     return arr;
-  }, [playersWithMatches, search, sortKey, roleFilter, countryFilter, mmrMinNum, mmrMaxNum, echelonMinNum, echelonMaxNum, noStructureFilter]);
+  }, [playersWithMatches, search, sortKey, roleFilter, countryFilter, mmrMinNum, mmrMaxNum, echelonMinNum, echelonMaxNum, noStructureFilter, verifiedOnlyFilter]);
 
   const availableCount = players.filter(p => p.isAvailableForRecruitment).length;
   const count = filtered.length;
-  const hasAdvancedFilters = roleFilter !== '' || countryFilter !== '' || mmrMin !== '' || mmrMax !== '' || echelonMin !== '' || echelonMax !== '' || noStructureFilter;
+  const hasAdvancedFilters = roleFilter !== '' || countryFilter !== '' || mmrMin !== '' || mmrMax !== '' || echelonMin !== '' || echelonMax !== '' || noStructureFilter || verifiedOnlyFilter;
   const hasFilters = search.trim() !== '' || gameFilter !== '' || recruitingFilter || hasAdvancedFilters;
 
   const resetAll = () => {
     setSearch(''); setGameFilter(''); setRecruitingFilter(false);
     setRoleFilter(''); setCountryFilter(''); setMmrMin(''); setMmrMax('');
     setEchelonMin(''); setEchelonMax(''); setNoStructureFilter(false);
+    setVerifiedOnlyFilter(false);
   };
 
   const gridCols = count < 4
@@ -356,6 +378,30 @@ export default function PlayersPage() {
               </select>
             </div>
 
+            {/* Toggle vue grille / liste — persistant via localStorage.
+                Liste = mode annuaire dense pour scanner vite (utile recruteurs). */}
+            <div className="inline-flex bevel-sm overflow-hidden" style={{ border: '1px solid var(--s-border)', background: 'var(--s-surface)' }}>
+              <button type="button" onClick={() => setViewModeStored('grid')}
+                title="Vue grille"
+                className="px-2 py-1.5 transition-colors"
+                style={{
+                  background: viewMode === 'grid' ? 'var(--s-elevated)' : 'transparent',
+                  color: viewMode === 'grid' ? 'var(--s-gold)' : 'var(--s-text-muted)',
+                }}>
+                <LayoutGrid size={13} />
+              </button>
+              <button type="button" onClick={() => setViewModeStored('list')}
+                title="Vue liste compacte"
+                className="px-2 py-1.5 transition-colors"
+                style={{
+                  background: viewMode === 'list' ? 'var(--s-elevated)' : 'transparent',
+                  color: viewMode === 'list' ? 'var(--s-gold)' : 'var(--s-text-muted)',
+                  borderLeft: '1px solid var(--s-border)',
+                }}>
+                <List size={13} />
+              </button>
+            </div>
+
             {/* Toggle filtres avancés */}
             <button
               type="button"
@@ -433,6 +479,27 @@ export default function PlayersPage() {
                   >
                     {noStructureFilter && <Star size={11} />}
                     Sans structure uniquement
+                  </button>
+                </div>
+
+                {/* Compte RL vérifié uniquement */}
+                <div className="space-y-1.5">
+                  <label className="t-label" style={{ color: 'var(--s-text-dim)' }}>Vérification RL</label>
+                  <button
+                    type="button"
+                    onClick={() => setVerifiedOnlyFilter(v => !v)}
+                    className="tag transition-all duration-150 inline-flex items-center gap-1.5 w-full justify-center"
+                    style={{
+                      background: verifiedOnlyFilter ? 'rgba(255,184,0,0.12)' : 'transparent',
+                      color: verifiedOnlyFilter ? 'var(--s-gold)' : 'var(--s-text-muted)',
+                      borderColor: verifiedOnlyFilter ? 'rgba(255,184,0,0.35)' : 'var(--s-border)',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      padding: '6px 10px',
+                    }}
+                  >
+                    {verifiedOnlyFilter && <ShieldCheck size={11} />}
+                    Compte RL vérifié uniquement
                   </button>
                 </div>
 
@@ -531,6 +598,23 @@ export default function PlayersPage() {
             totalCount={players.length}
             onReset={resetAll}
           />
+        ) : viewMode === 'list' ? (
+          <div className="bevel overflow-hidden animate-fade-in-d2"
+            style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+            {filtered.map(({ player, matches }, idx) => (
+              <PlayerRow
+                key={player.uid}
+                p={player}
+                matches={matches}
+                canShortlist={!!viewerStructureId}
+                isShortlisted={shortlistIds.has(player.uid)}
+                onToggleShortlist={() => toggleShortlist(player.uid)}
+                linkCopied={copiedLinkFor === player.uid}
+                onGenerateLink={() => generateTargetedLink(player.uid, player.games?.[0] || 'rocket_league')}
+                isLast={idx === filtered.length - 1}
+              />
+            ))}
+          </div>
         ) : (
           <div className={`grid ${gridCols} gap-4 animate-fade-in-d2`}>
             {filtered.map(({ player, matches }) => (
@@ -595,109 +679,112 @@ function PlayerItem({
 }) {
   const { firebaseUser } = useAuth();
   const avatar = p.avatarUrl || p.discordAvatar;
-  const hasAny = p.rlRank || p.pseudoTM;
   const hasMatch = matches.length > 0;
+  const isHighlighted = hasMatch || (p.isAvailableForRecruitment && p.rlAccountVerified);
+  // Compte "intéressant" recruteur = vérifié + dispo recrutement → bordure or
+  const accentColor = hasMatch ? 'rgba(0,217,54,0.45)' : isHighlighted ? 'rgba(255,184,0,0.35)' : 'var(--s-border)';
 
   return (
     <div
-      className="pillar-card panel bevel-sm relative overflow-hidden group transition-all duration-200"
+      className="bevel-sm relative overflow-hidden group transition-all duration-200 hover:border-white/20"
       style={{
         background: 'var(--s-surface)',
-        border: hasMatch ? '1px solid rgba(0,217,54,0.35)' : '1px solid var(--s-border)',
+        border: `1px solid ${accentColor}`,
         boxShadow: hasMatch ? '0 0 0 1px rgba(0,217,54,0.1) inset' : undefined,
       }}>
       <Link href={`/profile/${p.uid}`} className="absolute inset-0 z-[2]" aria-label={p.displayName} />
-      {/* Accent top */}
-      {(hasMatch || p.isAvailableForRecruitment) && (
-        <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-green), transparent 80%)' }} />
+
+      {/* Accent top : vert si match recruteur, or si vérifié+dispo */}
+      {(hasMatch || isHighlighted) && (
+        <div className="h-[3px]" style={{
+          background: hasMatch
+            ? 'linear-gradient(90deg, var(--s-green), transparent 80%)'
+            : 'linear-gradient(90deg, var(--s-gold), transparent 80%)',
+        }} />
       )}
-      {/* Toolbar — actions dirigeant/manager + badge match (évite de chevaucher l'avatar) */}
-      {(canShortlist || hasMatch) && (
+
+      {/* Toolbar actions recruteur — épuré, sans flex-wrap moche */}
+      {canShortlist && (
         <div
-          className="relative z-[3] flex items-center justify-between gap-2 px-2 py-1.5"
+          className="relative z-[3] flex items-center justify-end gap-1 px-2 py-1.5"
           style={{ background: 'var(--s-elevated)', borderBottom: '1px solid var(--s-border)' }}
         >
-          <div className="flex gap-1">
-            {canShortlist && (
-              <>
-                <button
-                  type="button"
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleShortlist(); }}
-                  className="w-7 h-7 flex items-center justify-center transition-colors duration-150 bevel-sm"
-                  style={{
-                    background: isShortlisted ? 'rgba(255,184,0,0.15)' : 'var(--s-surface)',
-                    border: `1px solid ${isShortlisted ? 'rgba(255,184,0,0.5)' : 'var(--s-border)'}`,
-                    color: isShortlisted ? 'var(--s-gold)' : 'var(--s-text-muted)',
-                  }}
-                  aria-label={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}
-                  title={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}
-                >
-                  {isShortlisted ? <BookmarkCheck size={14} /> : <Bookmark size={14} />}
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onGenerateLink(); }}
-                  className="w-7 h-7 flex items-center justify-center transition-colors duration-150 bevel-sm"
-                  style={{
-                    background: linkCopied ? 'rgba(0,217,54,0.15)' : 'var(--s-surface)',
-                    border: `1px solid ${linkCopied ? 'rgba(0,217,54,0.5)' : 'var(--s-border)'}`,
-                    color: linkCopied ? '#33ff66' : 'var(--s-text-muted)',
-                  }}
-                  aria-label={linkCopied ? 'Lien copié' : 'Générer un lien d\'invitation perso'}
-                  title={linkCopied ? 'Lien copié !' : 'Générer un lien d\'invitation perso (single-use)'}
-                >
-                  {linkCopied ? <Check size={14} /> : <Link2 size={14} />}
-                </button>
-              </>
-            )}
-          </div>
           {hasMatch && (
-            <div className="flex flex-wrap gap-1 justify-end max-w-[65%]">
-              {matches.map((m, i) => (
-                <span key={i} className="tag inline-flex items-center gap-1"
-                  style={{
-                    fontSize: '12px', padding: '2px 7px',
-                    background: 'rgba(0,217,54,0.15)',
-                    color: '#33ff66',
-                    borderColor: 'rgba(0,217,54,0.45)',
-                    fontWeight: 700,
-                  }}>
-                  <Target size={10} />
-                  Match {ROLE_LABELS[m.role] || m.role} {GAME_SHORT[m.game] || m.game.toUpperCase()}
-                </span>
-              ))}
-            </div>
+            <span className="tag inline-flex items-center gap-1 mr-auto"
+              style={{
+                fontSize: '11px', padding: '2px 6px',
+                background: 'rgba(0,217,54,0.15)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.45)',
+                fontWeight: 600,
+              }}>
+              <Target size={10} />
+              Match {ROLE_LABELS[matches[0].role] || matches[0].role}
+              {matches.length > 1 && <span style={{ opacity: 0.7 }}>+{matches.length - 1}</span>}
+            </span>
           )}
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleShortlist(); }}
+            className="w-7 h-7 flex items-center justify-center transition-colors duration-150 bevel-sm"
+            style={{
+              background: isShortlisted ? 'rgba(255,184,0,0.15)' : 'var(--s-surface)',
+              border: `1px solid ${isShortlisted ? 'rgba(255,184,0,0.5)' : 'var(--s-border)'}`,
+              color: isShortlisted ? 'var(--s-gold)' : 'var(--s-text-muted)',
+            }}
+            aria-label={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}
+            title={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}
+          >
+            {isShortlisted ? <BookmarkCheck size={14} /> : <Bookmark size={14} />}
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onGenerateLink(); }}
+            className="w-7 h-7 flex items-center justify-center transition-colors duration-150 bevel-sm"
+            style={{
+              background: linkCopied ? 'rgba(0,217,54,0.15)' : 'var(--s-surface)',
+              border: `1px solid ${linkCopied ? 'rgba(0,217,54,0.5)' : 'var(--s-border)'}`,
+              color: linkCopied ? '#33ff66' : 'var(--s-text-muted)',
+            }}
+            aria-label={linkCopied ? 'Lien copié' : 'Générer un lien d\'invitation perso'}
+            title={linkCopied ? 'Lien copié !' : 'Générer un lien d\'invitation perso (single-use)'}
+          >
+            {linkCopied ? <Check size={14} /> : <Link2 size={14} />}
+          </button>
         </div>
       )}
+
       <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200"
         style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,255,255,0.05), transparent 70%)' }} />
-      {/* Content div passe au-dessus du Link (z-[2]) en z-[3] pour que les
-          enfants interactifs (badge tracker + signaler) soient cliquables.
-          pointer-events:none laisse les clics ailleurs (sur le texte / avatar)
-          traverser jusqu'au Link → la carte reste cliquable comme avant. */}
+
+      {/* Content — densifié : header avec avatar + pseudo + drapeau + jeu sur 1 ligne,
+          rang/recrut/structure en lignes condensées en dessous.
+          pointer-events:none → clic traverse au Link. */}
       <div className="relative z-[3] p-4" style={{ pointerEvents: 'none' }}>
+        {/* Header user */}
         <div className="flex items-center gap-3 mb-3">
           {avatar ? (
-            <div className="w-12 h-12 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+            <div className="w-11 h-11 relative flex-shrink-0 overflow-hidden bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
               <Image src={avatar} alt={p.displayName} fill className="object-cover" unoptimized />
             </div>
           ) : (
-            <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+            <div className="w-11 h-11 flex-shrink-0 flex items-center justify-center bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
               <User size={16} style={{ color: 'var(--s-text-muted)' }} />
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{p.displayName}</p>
-            <div className="flex items-center gap-1.5 mt-1">
-              {p.country && (
-                <Image src={`https://flagcdn.com/16x12/${p.country.toLowerCase()}.png`}
-                  alt={p.country} width={14} height={10} className="flex-shrink-0" unoptimized />
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{p.displayName}</p>
+              {p.rlAccountVerified && (
+                <span title="Compte RL vérifié" style={{ color: 'var(--s-gold)', display: 'inline-flex', flexShrink: 0 }}>
+                  <ShieldCheck size={12} />
+                </span>
               )}
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <CountryFlag code={p.country} size={16} />
               <div className="flex gap-1">
                 {p.games.map(g => (
                   <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                    style={{ fontSize: '12px', padding: '1px 5px' }}>
+                    style={{ fontSize: '11px', padding: '1px 5px' }}>
                     {g === 'rocket_league' ? 'RL' : 'TM'}
                   </span>
                 ))}
@@ -706,45 +793,56 @@ function PlayerItem({
           </div>
         </div>
 
-        {/* Stats + statut RL contextuel */}
-        {(hasAny || p.games.includes('rocket_league')) && (
-          <div className="space-y-1.5 pt-3 mt-3" style={{ borderTop: '1px dashed var(--s-border)' }}>
-            {/* Rang RL affiché UNIQUEMENT si le compte de jeu est vérifié — un rang sans preuve ne vaut rien */}
-            {p.rlRank && p.rlAccountVerified && (
-              <div className="flex items-center gap-2">
-                {p.rlIconUrl && <Image src={p.rlIconUrl} alt="" width={14} height={14} unoptimized />}
-                <span className="text-xs truncate" style={{ color: 'var(--s-text-dim)' }}>{p.rlRank}</span>
-              </div>
+        {/* Rang RL (uniquement si vérifié — règle anti-mensonge) */}
+        {p.rlRank && p.rlAccountVerified && (
+          <div className="flex items-center gap-1.5 mb-2 text-xs" style={{ color: 'var(--s-text)' }}>
+            {p.rlIconUrl
+              ? <Image src={p.rlIconUrl} alt="" width={14} height={14} unoptimized />
+              : <Trophy size={12} style={{ color: 'var(--s-blue)' }} />}
+            <span className="font-medium truncate">{p.rlRank}</span>
+            {typeof p.rlMmr === 'number' && (
+              <span className="t-mono" style={{ color: 'var(--s-text-muted)', fontSize: '10px' }}>
+                {p.rlMmr} MMR
+              </span>
             )}
-            {/* Badge ✓ ou ⚠️ + lien tracker + bouton signaler.
-                pointer-events:auto pour récupérer les clics dans le content
-                div en pointer-events:none. */}
-            <div style={{ pointerEvents: 'auto' }}>
-              <RLIdentityBadge
-                games={p.games}
-                rlAccountVerified={p.rlAccountVerified}
-                rlAccountName={p.rlAccountName}
-                rlAccountPlatform={p.rlAccountPlatform}
-                rlSteamId64={p.rlSteamId64}
-                rlRank={p.rlRank}
-                targetUid={p.uid}
-                targetName={p.displayName}
-                canReport={!!firebaseUser && firebaseUser.uid !== p.uid}
-                size="sm"
-              />
-            </div>
-            {p.pseudoTM && (
-              <div className="flex items-center gap-2">
-                <Gamepad2 size={11} style={{ color: 'var(--s-green)' }} />
-                <span className="text-xs truncate" style={{ color: 'var(--s-text-dim)' }}>{p.pseudoTM}</span>
-              </div>
+          </div>
+        )}
+
+        {/* Pseudo TM si présent */}
+        {p.pseudoTM && (
+          <div className="flex items-center gap-1.5 mb-2 text-xs" style={{ color: 'var(--s-text)' }}>
+            <Gamepad2 size={12} style={{ color: 'var(--s-green)' }} />
+            <span className="truncate">{p.pseudoTM}</span>
+            {typeof p.tmEchelon === 'number' && (
+              <span className="t-mono" style={{ color: 'var(--s-text-muted)', fontSize: '10px' }}>
+                Éch. {p.tmEchelon}
+              </span>
             )}
+          </div>
+        )}
+
+        {/* Badge "non vérifié" subtle (au lieu de la grosse alerte rouge) */}
+        {p.games.includes('rocket_league') && !p.rlAccountVerified && (
+          <div className="mb-2" style={{ pointerEvents: 'auto' }}>
+            <RLIdentityBadge
+              games={p.games}
+              rlAccountVerified={p.rlAccountVerified}
+              rlAccountName={p.rlAccountName}
+              rlAccountPlatform={p.rlAccountPlatform}
+              rlSteamId64={p.rlSteamId64}
+              rlRank={p.rlRank}
+              targetUid={p.uid}
+              targetName={p.displayName}
+              canReport={!!firebaseUser && firebaseUser.uid !== p.uid}
+              size="sm"
+              tone="subtle"
+            />
           </div>
         )}
 
         {/* Badge recrutement */}
         {p.isAvailableForRecruitment && (
-          <div className="mt-3 pt-2.5" style={{ borderTop: '1px solid rgba(0,217,54,0.2)' }}>
+          <div className="mt-2 pt-2.5" style={{ borderTop: '1px solid rgba(0,217,54,0.2)' }}>
             <div className="flex items-center gap-1.5">
               <Star size={11} style={{ color: '#33ff66', fill: '#33ff66' }} />
               <span className="text-xs font-bold" style={{ color: '#33ff66' }}>
@@ -756,7 +854,7 @@ function PlayerItem({
                 {p.recruitmentMessage}
               </p>
             )}
-            <div className="relative z-[3] mt-3">
+            <div className="relative z-[3] mt-2.5" style={{ pointerEvents: 'auto' }}>
               <InviteToStructureButton
                 targetUserId={p.uid}
                 targetDisplayName={p.displayName}
@@ -765,6 +863,148 @@ function PlayerItem({
                 compact
               />
             </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Vue liste : 1 ligne par joueur, façon annuaire pro. Plus dense que la card,
+// permet de scanner 20+ profils d'un coup. Toggle persistant via localStorage.
+function PlayerRow({
+  p, matches, canShortlist, isShortlisted, onToggleShortlist, linkCopied, onGenerateLink, isLast,
+}: {
+  p: PlayerCard;
+  matches: OpenPosition[];
+  canShortlist: boolean;
+  isShortlisted: boolean;
+  onToggleShortlist: () => void;
+  linkCopied: boolean;
+  onGenerateLink: () => void;
+  isLast: boolean;
+}) {
+  const avatar = p.avatarUrl || p.discordAvatar;
+  const hasMatch = matches.length > 0;
+
+  return (
+    <div
+      className="relative group transition-colors hover:bg-[var(--s-elevated)]"
+      style={{
+        borderBottom: isLast ? 'none' : '1px solid var(--s-border)',
+        background: hasMatch ? 'rgba(0,217,54,0.04)' : undefined,
+      }}>
+      <Link href={`/profile/${p.uid}`} className="absolute inset-0 z-[1]" aria-label={p.displayName} />
+      <div className="relative z-[2] flex items-center gap-3 px-4 py-2.5" style={{ pointerEvents: 'none' }}>
+        {/* Avatar */}
+        {avatar ? (
+          <div className="w-9 h-9 relative flex-shrink-0 overflow-hidden bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+            <Image src={avatar} alt={p.displayName} fill className="object-cover" unoptimized />
+          </div>
+        ) : (
+          <div className="w-9 h-9 flex-shrink-0 flex items-center justify-center bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+            <User size={14} style={{ color: 'var(--s-text-muted)' }} />
+          </div>
+        )}
+
+        {/* Pseudo + vérification */}
+        <div className="flex items-center gap-1.5 min-w-0" style={{ flex: '0 0 200px' }}>
+          <span className="text-sm font-medium truncate" style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
+          {p.rlAccountVerified && (
+            <span title="Compte RL vérifié" style={{ color: 'var(--s-gold)', flexShrink: 0, display: 'inline-flex' }}>
+              <ShieldCheck size={11} />
+            </span>
+          )}
+        </div>
+
+        {/* Pays */}
+        <div style={{ flex: '0 0 28px' }}>
+          <CountryFlag code={p.country} size={20} />
+        </div>
+
+        {/* Jeux */}
+        <div className="flex gap-1" style={{ flex: '0 0 60px' }}>
+          {p.games.map(g => (
+            <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
+              style={{ fontSize: '11px', padding: '1px 5px' }}>
+              {g === 'rocket_league' ? 'RL' : 'TM'}
+            </span>
+          ))}
+        </div>
+
+        {/* Rang RL (si vérifié) ou TM */}
+        <div className="hidden md:flex items-center gap-1.5 text-xs min-w-0" style={{ flex: '1 1 0', color: 'var(--s-text-dim)' }}>
+          {p.rlRank && p.rlAccountVerified ? (
+            <>
+              {p.rlIconUrl
+                ? <Image src={p.rlIconUrl} alt="" width={12} height={12} unoptimized />
+                : <Trophy size={11} style={{ color: 'var(--s-blue)' }} />}
+              <span className="truncate">{p.rlRank}</span>
+            </>
+          ) : p.pseudoTM ? (
+            <>
+              <Gamepad2 size={11} style={{ color: 'var(--s-green)' }} />
+              <span className="truncate">{p.pseudoTM}</span>
+            </>
+          ) : p.games.includes('rocket_league') && !p.rlAccountVerified ? (
+            <span className="inline-flex items-center gap-1" style={{ color: 'var(--s-text-muted)' }}>
+              <ShieldAlert size={10} /> Non vérifié
+            </span>
+          ) : null}
+        </div>
+
+        {/* Badge recrutement */}
+        <div className="hidden lg:block" style={{ flex: '0 0 140px' }}>
+          {p.isAvailableForRecruitment && (
+            <span className="tag inline-flex items-center gap-1"
+              style={{
+                background: 'rgba(0,217,54,0.10)', color: '#33ff66',
+                borderColor: 'rgba(0,217,54,0.30)', fontSize: '11px', padding: '2px 6px',
+              }}>
+              <Star size={10} style={{ fill: '#33ff66' }} />
+              Cherche {ROLE_LABELS[p.recruitmentRole] || 'équipe'}
+            </span>
+          )}
+        </div>
+
+        {/* Match positions (si recruteur) */}
+        {hasMatch && (
+          <span className="hidden lg:inline-flex tag items-center gap-1 flex-shrink-0"
+            style={{
+              fontSize: '11px', padding: '2px 7px',
+              background: 'rgba(0,217,54,0.15)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.45)',
+              fontWeight: 600,
+            }}>
+            <Target size={10} />
+            Match {ROLE_LABELS[matches[0].role] || matches[0].role}
+          </span>
+        )}
+
+        {/* Actions recruteur */}
+        {canShortlist && (
+          <div className="flex gap-1 flex-shrink-0" style={{ pointerEvents: 'auto' }}>
+            <button type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleShortlist(); }}
+              className="w-7 h-7 flex items-center justify-center transition-colors bevel-sm"
+              style={{
+                background: isShortlisted ? 'rgba(255,184,0,0.15)' : 'var(--s-surface)',
+                border: `1px solid ${isShortlisted ? 'rgba(255,184,0,0.5)' : 'var(--s-border)'}`,
+                color: isShortlisted ? 'var(--s-gold)' : 'var(--s-text-muted)',
+              }}
+              title={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}>
+              {isShortlisted ? <BookmarkCheck size={13} /> : <Bookmark size={13} />}
+            </button>
+            <button type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onGenerateLink(); }}
+              className="w-7 h-7 flex items-center justify-center transition-colors bevel-sm"
+              style={{
+                background: linkCopied ? 'rgba(0,217,54,0.15)' : 'var(--s-surface)',
+                border: `1px solid ${linkCopied ? 'rgba(0,217,54,0.5)' : 'var(--s-border)'}`,
+                color: linkCopied ? '#33ff66' : 'var(--s-text-muted)',
+              }}
+              title={linkCopied ? 'Lien copié !' : "Générer un lien d'invitation"}>
+              {linkCopied ? <Check size={13} /> : <Link2 size={13} />}
+            </button>
           </div>
         )}
       </div>
