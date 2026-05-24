@@ -14,8 +14,9 @@ import ImpersonateButton from '@/components/admin/ImpersonateButton';
 import {
   Loader2, ChevronDown, ChevronUp, User, Search, Edit3, LogOut, Crown,
   Ban, RotateCcw, UserMinus, AlertTriangle, X, Save, Trash2, CheckCircle,
-  RefreshCw, Zap,
+  RefreshCw, Zap, Trophy, ShieldCheck,
 } from 'lucide-react';
+import CountryFlag from '@/components/ui/CountryFlag';
 
 type UserMembership = {
   structureId: string;
@@ -39,9 +40,19 @@ type UserEntry = {
   isBanned: boolean;
   banReason: string;
   isAdmin: boolean;
+  // RL — anti-mensonge & contexte recrutement
+  rlPlatform?: string;
+  rlPlatformId?: string;
+  rlRank?: string;
+  rlEpicId?: string;
+  rlEpicName?: string;
+  rlSteamId?: string;
+  rlSteamName?: string;
+  // Legacy
   epicAccountId: string;
   epicDisplayName: string;
   rlTrackerUrl: string;
+  // TM
   pseudoTM: string;
   loginTM: string;
   tmIoUrl: string;
@@ -306,27 +317,67 @@ export default function AdminUsersPage() {
                 )}
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-sm" style={{ color: u.isBanned ? '#ff5555' : 'var(--s-text)' }}>
                       {u.displayName}
                     </span>
                     {u.isAdmin && (
-                      <span className="tag tag-gold" style={{ fontSize: '8px', padding: '0px 5px' }}>ADMIN</span>
+                      <span className="tag tag-gold" style={{ fontSize: '10px', padding: '1px 6px' }}>ADMIN</span>
                     )}
                     {u.isBanned && (
-                      <span className="tag" style={{ background: 'rgba(255,50,50,0.1)', color: '#ff5555', borderColor: 'rgba(255,50,50,0.3)', fontSize: '8px', padding: '0px 5px' }}>BANNI</span>
+                      <span className="tag" style={{ background: 'rgba(255,50,50,0.1)', color: '#ff5555', borderColor: 'rgba(255,50,50,0.3)', fontSize: '10px', padding: '1px 6px' }}>BANNI</span>
+                    )}
+                    {u.isAvailableForRecruitment && (
+                      <span
+                        title={u.recruitmentRole ? `Disponible : ${u.recruitmentRole}` : 'Disponible au recrutement'}
+                        className="tag flex items-center gap-1"
+                        style={{ background: 'rgba(0,217,54,0.10)', color: '#00D936', borderColor: 'rgba(0,217,54,0.30)', fontSize: '10px', padding: '1px 6px' }}>
+                        <Search size={9} />
+                        Recrute{u.recruitmentRole ? ` · ${u.recruitmentRole}` : ''}
+                      </span>
                     )}
                   </div>
-                  <p className="t-mono text-xs truncate" style={{ color: 'var(--s-text-muted)' }}>
-                    {u.discordUsername}
-                  </p>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span className="t-mono text-xs truncate" style={{ color: 'var(--s-text-muted)' }}>
+                      @{u.discordUsername}
+                    </span>
+                    {/* Méta RL — compte vérifié (anti-mensonge) + rang.
+                        Si pas de rang ni de vérif : on n'affiche rien (silencieux). */}
+                    {(u.rlEpicId || u.rlSteamId) && (
+                      <span
+                        title={u.rlEpicId
+                          ? `Compte Epic vérifié : ${u.rlEpicName || u.rlEpicId}`
+                          : `Compte Steam vérifié : ${u.rlSteamName || u.rlSteamId}`}
+                        className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5"
+                        style={{ background: 'rgba(255,184,0,0.10)', color: 'var(--s-gold)', border: '1px solid rgba(255,184,0,0.30)' }}>
+                        <ShieldCheck size={9} />
+                        {u.rlEpicId ? 'Epic' : 'Steam'} vérifié
+                      </span>
+                    )}
+                    {u.rlRank && (
+                      <span
+                        title={
+                          (u.rlEpicId || u.rlSteamId)
+                            ? `Rang déclaré (compte vérifié)`
+                            : `Rang auto-déclaré sans compte vérifié — à prendre avec précaution`
+                        }
+                        className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5"
+                        style={{
+                          background: 'rgba(0,129,255,0.08)',
+                          color: 'var(--s-blue)',
+                          border: '1px solid rgba(0,129,255,0.25)',
+                        }}>
+                        <Trophy size={9} />
+                        {u.rlRank}
+                        {!u.rlEpicId && !u.rlSteamId && (
+                          <AlertTriangle size={9} style={{ color: 'var(--s-gold)', marginLeft: 2 }} />
+                        )}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                {country && (
-                  <span className="t-mono text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                    {country.flag}
-                  </span>
-                )}
+                <CountryFlag code={u.country} size={20} title={country?.name} />
 
                 <div className="flex gap-1">
                   {u.games?.map(g => (
@@ -338,7 +389,7 @@ export default function AdminUsersPage() {
                 </div>
 
                 {u.memberships.length > 0 && (
-                  <span className="tag tag-gold" style={{ fontSize: '8px', padding: '0px 5px' }}>
+                  <span className="tag tag-gold" style={{ fontSize: '10px', padding: '1px 6px' }}>
                     {u.memberships.length} struct.
                   </span>
                 )}
@@ -368,7 +419,10 @@ export default function AdminUsersPage() {
                       </div>
                       <div>
                         <span className="t-label block mb-0.5">Pays</span>
-                        <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{country ? `${country.flag} ${country.name}` : '—'}</span>
+                        <span className="text-xs flex items-center gap-1.5" style={{ color: 'var(--s-text-dim)' }}>
+                          <CountryFlag code={u.country} size={16} title={country?.name} />
+                          {country?.name ?? '—'}
+                        </span>
                       </div>
                       <div>
                         <span className="t-label block mb-0.5">Inscrit le</span>
@@ -446,6 +500,100 @@ export default function AdminUsersPage() {
                       )}
                     </div>
                   </div>
+
+                  {/* Section Rocket League — affichée si l'user a déclaré jouer
+                      à RL OU a un compte vérifié (cas legacy : Epic lié avant
+                      qu'on coche RL dans games). Permet à l'admin de voir d'un
+                      coup l'état de vérification anti-mensonge. */}
+                  {(u.games?.includes('rocket_league') || u.rlEpicId || u.rlSteamId || u.epicAccountId) && (
+                    <div className="px-3 py-3" style={{ background: 'rgba(0,129,255,0.04)', border: '1px solid rgba(0,129,255,0.15)' }}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="tag tag-blue" style={{ fontSize: '11px', padding: '1px 6px' }}>RL</span>
+                        <span className="t-label" style={{ color: 'var(--s-blue)' }}>Rocket League</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                        <div>
+                          <span className="t-label block mb-0.5" style={{ color: 'var(--s-text-muted)' }}>Plateforme déclarée</span>
+                          <span style={{ color: 'var(--s-text)' }}>
+                            {u.rlPlatform ? u.rlPlatform.toUpperCase() : <em style={{ color: 'var(--s-text-muted)' }}>—</em>}
+                          </span>
+                          {u.rlPlatformId && (
+                            <span className="block t-mono mt-0.5" style={{ color: 'var(--s-text-dim)' }}>
+                              {u.rlPlatformId}
+                            </span>
+                          )}
+                        </div>
+                        <div>
+                          <span className="t-label block mb-0.5" style={{ color: 'var(--s-text-muted)' }}>Rang auto-déclaré</span>
+                          {u.rlRank ? (
+                            <span className="inline-flex items-center gap-1" style={{ color: 'var(--s-text)' }}>
+                              <Trophy size={10} style={{ color: 'var(--s-blue)' }} />
+                              {u.rlRank}
+                              {!u.rlEpicId && !u.rlSteamId && (
+                                <span title="Rang déclaré sans compte vérifié — méfiance">
+                                  <AlertTriangle size={10} style={{ color: 'var(--s-gold)' }} />
+                                </span>
+                              )}
+                            </span>
+                          ) : <em style={{ color: 'var(--s-text-muted)' }}>—</em>}
+                        </div>
+                        <div>
+                          <span className="t-label block mb-0.5" style={{ color: 'var(--s-text-muted)' }}>Epic vérifié</span>
+                          {u.rlEpicId ? (
+                            <span className="inline-flex items-center gap-1" style={{ color: 'var(--s-gold)' }}>
+                              <ShieldCheck size={10} /> {u.rlEpicName || u.rlEpicId.slice(0, 10)}…
+                            </span>
+                          ) : <em style={{ color: 'var(--s-text-muted)' }}>—</em>}
+                        </div>
+                        <div>
+                          <span className="t-label block mb-0.5" style={{ color: 'var(--s-text-muted)' }}>Steam vérifié</span>
+                          {u.rlSteamId ? (
+                            <span className="inline-flex items-center gap-1" style={{ color: 'var(--s-gold)' }}>
+                              <ShieldCheck size={10} /> {u.rlSteamName || u.rlSteamId}
+                            </span>
+                          ) : <em style={{ color: 'var(--s-text-muted)' }}>—</em>}
+                        </div>
+                      </div>
+                      {u.rlTrackerUrl && (
+                        <div className="mt-2 pt-2" style={{ borderTop: '1px solid rgba(0,129,255,0.15)' }}>
+                          <a href={u.rlTrackerUrl} target="_blank" rel="noopener noreferrer"
+                            className="text-xs inline-flex items-center gap-1 hover:underline"
+                            style={{ color: 'var(--s-blue)' }}>
+                            Lien tracker.gg →
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Section Trackmania */}
+                  {u.games?.includes('trackmania') && (u.pseudoTM || u.loginTM || u.tmIoUrl) && (
+                    <div className="px-3 py-3" style={{ background: 'rgba(0,217,54,0.04)', border: '1px solid rgba(0,217,54,0.15)' }}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="tag tag-green" style={{ fontSize: '11px', padding: '1px 6px' }}>TM</span>
+                        <span className="t-label" style={{ color: 'var(--s-green)' }}>Trackmania</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                        <div>
+                          <span className="t-label block mb-0.5" style={{ color: 'var(--s-text-muted)' }}>Pseudo</span>
+                          <span style={{ color: 'var(--s-text)' }}>{u.pseudoTM || <em style={{ color: 'var(--s-text-muted)' }}>—</em>}</span>
+                        </div>
+                        <div>
+                          <span className="t-label block mb-0.5" style={{ color: 'var(--s-text-muted)' }}>Login</span>
+                          <span className="t-mono" style={{ color: 'var(--s-text)' }}>{u.loginTM || <em style={{ color: 'var(--s-text-muted)' }}>—</em>}</span>
+                        </div>
+                        <div>
+                          <span className="t-label block mb-0.5" style={{ color: 'var(--s-text-muted)' }}>tm.io</span>
+                          {u.tmIoUrl ? (
+                            <a href={u.tmIoUrl} target="_blank" rel="noopener noreferrer"
+                              className="hover:underline" style={{ color: 'var(--s-green)' }}>
+                              Profil →
+                            </a>
+                          ) : <em style={{ color: 'var(--s-text-muted)' }}>—</em>}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {u.isBanned && u.banReason && (
                     <div className="px-3 py-2" style={{ background: 'rgba(255,50,50,0.05)', border: '1px solid rgba(255,50,50,0.2)' }}>

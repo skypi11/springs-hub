@@ -156,9 +156,23 @@ export async function GET(req: NextRequest) {
         isBanned: data.isBanned || false,
         banReason: data.banReason || '',
         isAdmin: adminSet.has(doc.id),
+        // ── Rocket League ────────────────────────────────────────────────
+        // Plateforme déclarée + ID, rang auto-déclaré, et les snapshots
+        // anti-mensonge (Epic / Steam vérifiés). Permet à l'admin de
+        // détecter d'un coup d'œil les profils suspects (rang sans vérif,
+        // pseudo Epic différent du compte vérifié, etc.).
+        rlPlatform: data.rlPlatform || '',
+        rlPlatformId: data.rlPlatformId || '',
+        rlRank: data.rlRank || '',
+        rlEpicId: data.rlEpicId || '',
+        rlEpicName: data.rlEpicName || '',
+        rlSteamId: data.rlSteamId || '',
+        rlSteamName: data.rlSteamName || '',
+        // Champs legacy gardés pour rétrocompat (vieux comptes pre-cross-platform)
         epicAccountId: data.epicAccountId || '',
         epicDisplayName: data.epicDisplayName || '',
         rlTrackerUrl: data.rlTrackerUrl || '',
+        // ── Trackmania ──────────────────────────────────────────────────
         pseudoTM: data.pseudoTM || '',
         loginTM: data.loginTM || '',
         tmIoUrl: data.tmIoUrl || '',
