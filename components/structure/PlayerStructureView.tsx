@@ -593,7 +593,7 @@ function StaffContactsSection({ structure }: { structure: PlayerStructure }) {
     groups.push({ label: 'Co-fondateur', icon: Crown, color: 'var(--s-gold)', users: structure.coFounders });
   }
   if (structure.managers.length > 0) {
-    groups.push({ label: 'Manager', icon: BookOpen, color: 'var(--s-gold)', users: structure.managers });
+    groups.push({ label: 'Responsable', icon: BookOpen, color: 'var(--s-gold)', users: structure.managers });
   }
   if (structure.coaches.length > 0) {
     groups.push({ label: 'Coach', icon: Headphones, color: '#4da6ff', users: structure.coaches });

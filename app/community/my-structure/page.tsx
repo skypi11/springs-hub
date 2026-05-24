@@ -1413,7 +1413,7 @@ export default function MyStructurePage() {
         )
       : [];
     const specialRoles: string[] = [];
-    if (memberUid && (activeStructure.managerIds ?? []).includes(memberUid)) specialRoles.push('manager de structure');
+    if (memberUid && (activeStructure.managerIds ?? []).includes(memberUid)) specialRoles.push('responsable de structure');
     if (memberUid && (activeStructure.coachIds ?? []).includes(memberUid)) specialRoles.push('coach de structure');
     const captainOf = memberUid ? teams.filter(t => t.captainId === memberUid).map(t => t.name) : [];
     if (captainOf.length > 0) specialRoles.push(`capitaine de ${captainOf.join(', ')}`);
