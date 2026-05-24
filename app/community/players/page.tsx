@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
+import Portal from '@/components/ui/Portal';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
 import InviteToStructureButton from '@/components/community/InviteToStructureButton';
 import RLIdentityBadge from '@/components/players/RLIdentityBadge';
@@ -69,6 +70,27 @@ function recommendedScore(p: PlayerCard): number {
   if (p.isAvailableForRecruitment) s += 5;
   if (p.structures.length > 0) s += 1;
   return s;
+}
+
+// Hiérarchie pour choisir LA structure principale à afficher dans la card
+// (un joueur peut être fondateur d'une structure ET responsable d'une autre —
+// on doit toujours mettre en avant le rôle le plus important).
+const ROLE_PRIORITY: Record<PrimaryRole, number> = {
+  fondateur: 0,
+  co_fondateur: 1,
+  responsable: 2,
+  coach_structure: 3,
+  manager_equipe: 4,
+  coach_equipe: 5,
+  capitaine: 6,
+  joueur: 7,
+  membre: 8,
+};
+function pickTopStructure(structures: EnrichedStructure[]): EnrichedStructure | undefined {
+  if (structures.length === 0) return undefined;
+  return [...structures].sort(
+    (a, b) => (ROLE_PRIORITY[a.primaryRole] ?? 99) - (ROLE_PRIORITY[b.primaryRole] ?? 99),
+  )[0];
 }
 
 function matchPositions(playerRole: string, playerGames: string[], positions: OpenPosition[]): OpenPosition[] {
@@ -547,14 +569,43 @@ function ViewToggle({ viewMode, onChange }: { viewMode: 'grid' | 'list'; onChang
 // Dropdown custom de tri (pas <select> natif moche)
 function SortDropdown({ value, onChange, hasMatches }: { value: SortKey; onChange: (k: SortKey) => void; hasMatches: boolean }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Le parent header a .bevel + overflow-hidden — un menu en absolute serait
+  // clippé. On le rend via Portal en position: fixed, ancré sous le bouton.
+  const updatePos = useCallback(() => {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    setPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+  }, []);
+
   useEffect(() => {
+    if (!open) return;
+    updatePos();
+    const onScroll = () => updatePos();
+    const onResize = () => updatePos();
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [open, updatePos]);
+
+  useEffect(() => {
+    if (!open) return;
     const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t)) return;
+      if (menuRef.current?.contains(t)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
-  }, []);
+  }, [open]);
+
   const options: { key: SortKey; label: string; hint?: string }[] = [
     { key: 'recommended', label: 'Recommandé', hint: hasMatches ? 'Match + vérifié + dispo' : 'Vérifié + dispo' },
     { key: 'recent', label: 'Plus récents' },
@@ -562,8 +613,8 @@ function SortDropdown({ value, onChange, hasMatches }: { value: SortKey; onChang
   ];
   const current = options.find(o => o.key === value) ?? options[0];
   return (
-    <div ref={ref} className="relative">
-      <button type="button" onClick={() => setOpen(v => !v)}
+    <>
+      <button ref={btnRef} type="button" onClick={() => setOpen(v => !v)}
         className="tag transition-all duration-150 inline-flex items-center gap-1.5"
         style={{
           background: open ? 'rgba(255,184,0,0.12)' : 'transparent',
@@ -575,27 +626,39 @@ function SortDropdown({ value, onChange, hasMatches }: { value: SortKey; onChang
         Tri : <strong>{current.label}</strong>
         <ChevronDown size={11} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
       </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 z-30 min-w-[220px] bevel-sm overflow-hidden"
-          style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
-          {options.map(o => {
-            const active = o.key === value;
-            return (
-              <button key={o.key} type="button"
-                onClick={() => { onChange(o.key); setOpen(false); }}
-                className="w-full text-left px-3 py-2 transition-colors hover:bg-[var(--s-elevated)] flex items-center gap-2"
-                style={{ color: active ? 'var(--s-gold)' : 'var(--s-text)' }}>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium">{o.label}</div>
-                  {o.hint && <div className="text-xs" style={{ color: 'var(--s-text-muted)' }}>{o.hint}</div>}
-                </div>
-                {active && <Check size={13} style={{ color: 'var(--s-gold)' }} />}
-              </button>
-            );
-          })}
-        </div>
+      {open && pos && (
+        <Portal>
+          <div ref={menuRef}
+            className="bevel-sm overflow-hidden"
+            style={{
+              position: 'fixed',
+              top: pos.top,
+              right: pos.right,
+              minWidth: 220,
+              zIndex: 1000,
+              background: 'var(--s-surface)',
+              border: '1px solid var(--s-border)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            }}>
+            {options.map(o => {
+              const active = o.key === value;
+              return (
+                <button key={o.key} type="button"
+                  onClick={() => { onChange(o.key); setOpen(false); }}
+                  className="w-full text-left px-3 py-2 transition-colors hover:bg-[var(--s-elevated)] flex items-center gap-2"
+                  style={{ color: active ? 'var(--s-gold)' : 'var(--s-text)' }}>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium">{o.label}</div>
+                    {o.hint && <div className="text-xs" style={{ color: 'var(--s-text-muted)' }}>{o.hint}</div>}
+                  </div>
+                  {active && <Check size={13} style={{ color: 'var(--s-gold)' }} />}
+                </button>
+              );
+            })}
+          </div>
+        </Portal>
       )}
-    </div>
+    </>
   );
 }
 
@@ -652,8 +715,8 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
   const tier = getRankTierConfig(p.rlRank);
   const accentColor = hasMatch ? 'rgba(0,217,54,0.55)' : (p.rlAccountVerified && p.isAvailableForRecruitment) ? 'rgba(255,184,0,0.55)' : 'var(--s-border)';
   const accentWidth = hasMatch || (p.rlAccountVerified && p.isAvailableForRecruitment) ? '2px' : '1px';
-  // Premier rôle structure (le plus prestigieux car structures triées par priorité)
-  const topStructure = p.structures[0];
+  // Structure la plus "haut placée" (fondateur > responsable > … > joueur)
+  const topStructure = pickTopStructure(p.structures);
 
   return (
     <div className="bevel-sm relative overflow-hidden group transition-all duration-200 hover:border-white/30"
@@ -817,7 +880,7 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
 }) {
   const avatar = p.avatarUrl || p.discordAvatar;
   const hasMatch = matches.length > 0;
-  const topStructure = p.structures[0];
+  const topStructure = pickTopStructure(p.structures);
   const tier = getRankTierConfig(p.rlRank);
 
   return (
