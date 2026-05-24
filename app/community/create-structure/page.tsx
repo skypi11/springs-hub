@@ -198,7 +198,7 @@ export default function CreateStructurePage() {
                 <label className="t-label block mb-2">Tag *</label>
                 <div className="relative">
                   <Hash size={12} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--s-text-muted)' }} />
-                  <input type="text" className="settings-input w-full pl-8" placeholder="EXA" maxLength={5}
+                  <input type="text" className="settings-input has-icon w-full" placeholder="EXA" maxLength={5}
                     value={form.tag} onChange={e => setForm({ ...form, tag: e.target.value.toUpperCase() })}
                     style={{ textTransform: 'uppercase' }} />
                 </div>

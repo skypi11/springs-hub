@@ -244,7 +244,7 @@ export default function AdminUsersPage() {
       <div className="flex gap-4 items-start flex-wrap">
         <div className="relative flex-1 min-w-[260px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--s-text-muted)' }} />
-          <input type="text" className="settings-input w-full pl-9"
+          <input type="text" className="settings-input has-icon w-full"
             placeholder="Rechercher par pseudo, Discord ou UID..."
             value={userSearch} onChange={e => setUserSearch(e.target.value)} />
         </div>

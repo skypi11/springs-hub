@@ -142,7 +142,7 @@ export default function StructuresPage() {
             {/* Recherche */}
             <div className="flex-1 relative min-w-[200px]">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--s-text-muted)' }} />
-              <input type="text" className="settings-input w-full pl-9" style={{ fontSize: '14px' }}
+              <input type="text" className="settings-input has-icon w-full" style={{ fontSize: '14px' }}
                 placeholder="Rechercher par nom ou tag…"
                 value={search} onChange={e => setSearch(e.target.value)} />
             </div>

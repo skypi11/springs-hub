@@ -368,9 +368,13 @@
 }
 
 /* ── FORM INPUTS ─────────────────────────────────────────────────── */
+/* `--input-pl` permet d'overrider le padding-left sans casser le reste
+   (Tailwind `pl-*` ne marche pas ici car .settings-input est chargé après
+   les utilities). Pour un input avec icône à gauche, ajouter la classe
+   `.has-icon` (ou .has-icon-lg pour une icône plus large). */
 .settings-input {
   width: 100%;
-  padding: 10px 14px;
+  padding: 10px 14px 10px var(--input-pl, 14px);
   font-size: 13px;
   font-family: inherit;
   color: var(--s-text);
@@ -380,6 +384,8 @@
   outline: none;
   transition: border-color 0.15s;
 }
+.settings-input.has-icon { --input-pl: 36px; }
+.settings-input.has-icon-lg { --input-pl: 42px; }
 .settings-input:focus {
   border-color: rgba(123,47,190,0.4);
 }

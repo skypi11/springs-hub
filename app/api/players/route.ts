@@ -124,16 +124,26 @@ export async function GET(req: NextRequest) {
     });
 
     // ── Enrichissement structures / équipes / rôles ────────────────────────
-    // Source de vérité = `structure_members` (couvre fondateurs anciens même
-    // sans `users.structurePerGame` setté — invariant pas toujours respecté
-    // historiquement). Batch via `where userId IN (chunks de 30)`.
+    // Deux sources combinées pour ne rater aucun lien user ↔ structure :
+    //   1. `structure_members` (where userId IN chunks) — couvre les joueurs
+    //      et la plupart des rôles, mais pas forcément les fondateurs anciens
+    //      validés avant le fix de écriture systématique du doc.
+    //   2. `structures where founderId IN chunks` — garantit qu'on trouve TOUTES
+    //      les structures fondées par les users de la page, même sans
+    //      structure_members existant. Les jeux sont dérivés depuis structure.games.
     const userIds = userDocs.map(d => d.id);
-    const membershipsByUser = await fetchMembershipsForUsers(db, userIds);
+    const [membershipsByUser, foundedByUser] = await Promise.all([
+      fetchMembershipsForUsers(db, userIds),
+      fetchFoundedStructuresForUsers(db, userIds),
+    ]);
 
-    // Collecte les structureIds uniques de cette page depuis les memberships.
+    // Collecte les structureIds uniques de cette page depuis les deux sources.
     const uniqueStructureIds = new Set<string>();
     for (const list of membershipsByUser.values()) {
       for (const m of list) uniqueStructureIds.add(m.structureId);
+    }
+    for (const list of foundedByUser.values()) {
+      for (const f of list) uniqueStructureIds.add(f.structureId);
     }
 
     // Batch fetch structures (chunks de 30 pour la limite Firestore `in`)
@@ -147,11 +157,19 @@ export async function GET(req: NextRequest) {
       const data = doc.data();
       const uid = doc.id;
 
-      // Dérive le mapping game → structureId depuis structure_members. Si un
-      // user a plusieurs memberships sur le même jeu (ne devrait pas, l'invariant
-      // 1-struct/jeu est garanti par /api/structures/join), on garde le premier.
+      // Dérive le mapping game → structureId depuis structure_members.
+      // Puis complète avec les structures fondées (cas où le doc structure_members
+      // manque — vieux fondateurs). Les structures fondées priorisent : un user
+      // qui est fondateur d'une structure ET joueur d'une autre sur le même jeu
+      // verra sa structure fondée comme principale.
       const memberships = membershipsByUser.get(uid) ?? [];
+      const founded = foundedByUser.get(uid) ?? [];
       const structurePerGame: Record<string, string> = {};
+      for (const f of founded) {
+        for (const g of f.games) {
+          if (g && f.structureId) structurePerGame[g] = f.structureId;
+        }
+      }
       for (const m of memberships) {
         if (m.game && m.structureId && !structurePerGame[m.game]) {
           structurePerGame[m.game] = m.structureId;
@@ -237,6 +255,38 @@ export async function GET(req: NextRequest) {
     captureApiError('API Players GET error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
+}
+
+// Récupère les structures fondées par chaque user (founderId IN chunks de 30).
+// Indispensable car certains anciens fondateurs n'ont pas de doc
+// `structure_members` (le fix a été mis en place rétroactivement). On
+// dérive les jeux depuis `structure.games` pour reconstruire le mapping
+// game → structureId.
+async function fetchFoundedStructuresForUsers(
+  db: Firestore,
+  userIds: string[],
+): Promise<Map<string, Array<{ structureId: string; games: string[] }>>> {
+  const result = new Map<string, Array<{ structureId: string; games: string[] }>>();
+  if (userIds.length === 0) return result;
+
+  for (let i = 0; i < userIds.length; i += FIRESTORE_IN_CHUNK) {
+    const chunk = userIds.slice(i, i + FIRESTORE_IN_CHUNK);
+    const snap = await db.collection('structures')
+      .where('founderId', 'in', chunk)
+      .get();
+    for (const d of snap.docs) {
+      const data = d.data();
+      const uid = data.founderId as string;
+      if (!uid) continue;
+      // Exclut les structures non actives (pending_validation, rejected, suspended)
+      if (data.status && data.status !== 'active') continue;
+      const games = Array.isArray(data.games) ? (data.games as string[]) : [];
+      const list = result.get(uid) ?? [];
+      list.push({ structureId: d.id, games });
+      result.set(uid, list);
+    }
+  }
+  return result;
 }
 
 // Récupère les memberships actifs des users en paramètre, groupés par userId.
