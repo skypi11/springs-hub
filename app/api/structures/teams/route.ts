@@ -131,6 +131,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'structureId et action requis' }, { status: 400 });
     }
 
+    // Cap absolu sécurité sur les arrays de membres — au-delà = bug client ou
+    // attaque. Les caps métier (RL 3+2) restent imposés plus bas par jeu.
+    // Bloque aussi la croissance illimitée d'un doc Firestore (limite 1 MB).
+    const MAX_PLAYERS_PER_TEAM = 50;
+    const MAX_SUBS_PER_TEAM = 30;
+    const MAX_STAFF_PER_TEAM = 20;
+    if (Array.isArray(playerIds) && playerIds.length > MAX_PLAYERS_PER_TEAM) {
+      return NextResponse.json({ error: `Trop de titulaires (max ${MAX_PLAYERS_PER_TEAM}).` }, { status: 400 });
+    }
+    if (Array.isArray(subIds) && subIds.length > MAX_SUBS_PER_TEAM) {
+      return NextResponse.json({ error: `Trop de remplaçants (max ${MAX_SUBS_PER_TEAM}).` }, { status: 400 });
+    }
+    if (Array.isArray(staffIds) && staffIds.length > MAX_STAFF_PER_TEAM) {
+      return NextResponse.json({ error: `Trop de staff (max ${MAX_STAFF_PER_TEAM}).` }, { status: 400 });
+    }
+
     const structureData = await checkStructureAccess(uid, structureId);
     if (!structureData) {
       return NextResponse.json({ error: 'Accès refusé ou structure introuvable' }, { status: 403 });
@@ -262,9 +278,11 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // Calculer l'ordre par défaut : dernier dans son label
+        // Calculer l'ordre par défaut : dernier dans son label.
+        // Hard cap 500 — aligné avec le GET, évite scan runaway.
         const existingSnap = await db.collection('sub_teams')
           .where('structureId', '==', structureId)
+          .limit(500)
           .get();
         const sameLabel = existingSnap.docs.filter(d => (d.data().label ?? '') === labelStr);
         const maxOrder = sameLabel.reduce((acc, d) => Math.max(acc, typeof d.data().order === 'number' ? d.data().order : 0), -1);

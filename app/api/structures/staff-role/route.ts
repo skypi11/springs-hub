@@ -17,6 +17,12 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 const ALLOWED_ROLES = new Set(['manager', 'coach']);
 
+// Cap sécurité — empêche un array runaway qui ferait gonfler le doc structure
+// au-delà de la limite Firestore (1 MB / doc) et casserait les queries dépendant
+// de array-contains. 100 = largement au-dessus du raisonnable (une grosse
+// structure aurait ~10-20 staff max).
+const MAX_STAFF_PER_ROLE = 100;
+
 export async function POST(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -70,6 +76,18 @@ export async function POST(req: NextRequest) {
     }
 
     const field = role === 'manager' ? 'managerIds' : 'coachIds';
+
+    // Cap sécurité à l'ajout — pas au retrait (qui doit toujours marcher pour
+    // débloquer une situation anormale).
+    if (enabled) {
+      const currentIds = (data[field] as string[] | undefined) ?? [];
+      if (!currentIds.includes(targetUserId) && currentIds.length >= MAX_STAFF_PER_ROLE) {
+        return NextResponse.json({
+          error: `Limite atteinte : maximum ${MAX_STAFF_PER_ROLE} ${role}s par structure.`,
+        }, { status: 400 });
+      }
+    }
+
     await structureRef.update({
       [field]: enabled ? FieldValue.arrayUnion(targetUserId) : FieldValue.arrayRemove(targetUserId),
       updatedAt: FieldValue.serverTimestamp(),
