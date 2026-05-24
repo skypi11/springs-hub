@@ -42,9 +42,9 @@ export type EnrichedStructure = {
   name: string;
   tag: string;
   logoUrl: string;
-  game: string;                  // 'rocket_league' | 'trackmania' (= clé dans structurePerGame)
-  primaryRole: PrimaryRole;      // dérivé via computeMemberRole
-  affiliations: TeamAffiliation[]; // équipes de cette structure où l'user est actif
+  games: string[];               // ['rocket_league', 'trackmania'] — agrégés si l'user est dans cette struct sur plusieurs jeux
+  primaryRole: PrimaryRole;      // dérivé via computeMemberRole (même rôle quel que soit le jeu)
+  affiliations: TeamAffiliation[]; // équipes de cette structure où l'user est actif (tous jeux confondus)
 };
 
 export type PlayerCard = {
@@ -176,8 +176,12 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // Enrichi par structure rejointe par ce user
-      const enrichedStructures: EnrichedStructure[] = [];
+      // Enrichi par structure rejointe par ce user.
+      // DÉDUPLIQUE par structureId — si l'user est dans la même structure pour
+      // plusieurs jeux (RL + TM), on agrège les `games` et les `affiliations`
+      // (équipes) en UNE seule entrée par structure. Sans ça, l'UI affichait
+      // 2x la même structure (ex: "Fondateur ADL" + "Fondateur ADL").
+      const structureMap = new Map<string, EnrichedStructure>();
       for (const [g, sid] of Object.entries(structurePerGame)) {
         if (!sid) continue;
         const s = structuresById.get(sid);
@@ -204,16 +208,32 @@ export async function GET(req: NextRequest) {
           })),
         });
 
-        enrichedStructures.push({
-          id: sid,
-          name: (s.name as string) ?? '',
-          tag: (s.tag as string) ?? '',
-          logoUrl: (s.logoUrl as string) ?? '',
-          game: g,
-          primaryRole: role.primary,
-          affiliations: role.affiliations,
-        });
+        const existing = structureMap.get(sid);
+        if (existing) {
+          // Merge : ajout du jeu + concat des affiliations (dédup par teamId)
+          if (!existing.games.includes(g)) existing.games.push(g);
+          const seenTeamIds = new Set(existing.affiliations.map(a => a.teamId));
+          for (const aff of role.affiliations) {
+            if (!seenTeamIds.has(aff.teamId)) {
+              existing.affiliations.push(aff);
+              seenTeamIds.add(aff.teamId);
+            }
+          }
+          // primaryRole : on garde le plus haut (mais structure-level role est
+          // identique pour les 2 jeux, donc rarement différent)
+        } else {
+          structureMap.set(sid, {
+            id: sid,
+            name: (s.name as string) ?? '',
+            tag: (s.tag as string) ?? '',
+            logoUrl: (s.logoUrl as string) ?? '',
+            games: [g],
+            primaryRole: role.primary,
+            affiliations: [...role.affiliations],
+          });
+        }
       }
+      const enrichedStructures = Array.from(structureMap.values());
 
       return {
         uid,

@@ -27,7 +27,7 @@ type EnrichedStructure = {
   name: string;
   tag: string;
   logoUrl: string;
-  game: string;
+  games: string[];
   primaryRole: PrimaryRole;
   affiliations: TeamAffiliation[];
 };
@@ -137,8 +137,8 @@ export default function PlayersPage() {
   // Tri (client)
   const [sortKey, setSortKey] = useState<SortKey>('recommended');
 
-  // Vue grille/liste — par défaut LISTE (annuaire dense), persistant.
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+  // Vue grille/liste — par défaut GRILLE (cards trading), persistant.
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   useEffect(() => {
     try {
       const stored = localStorage.getItem('aedral_players_view');
@@ -693,9 +693,43 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-// Ligne d'affiliation : [logo] [Rôle] [équipe] chez [STRUCTURE]
-// "Joueur LU Tomioka chez ARAN". Or uniquement sur "Fondateur" / "Co-fondateur"
-// (rare et précieux selon la DA). Les autres rôles en blanc neutre.
+// Affiliation détaillée (vue card) : ligne 1 = rôle structure + tag struct,
+// ligne 2+ = équipes où le joueur est actif dans cette structure (préfixe ↳).
+// Or uniquement sur "Fondateur"/"Co-fondateur" (rare et précieux, DA).
+function StructureBlock({ s }: { s: EnrichedStructure }) {
+  const isLeader = s.primaryRole === 'fondateur' || s.primaryRole === 'co_fondateur';
+  // Affiliations équipes : on les expose en lignes ↳ secondaires.
+  // Si le rôle structure-level est déjà "joueur"/"capitaine"/"membre", on ne
+  // duplique pas l'équipe (déjà incarnée par le rôle de top).
+  const showTeams = !['joueur', 'capitaine', 'membre'].includes(s.primaryRole);
+  return (
+    <div className="flex items-start gap-2 min-w-0">
+      {s.logoUrl ? (
+        <Image src={s.logoUrl} alt={s.name} width={20} height={20} unoptimized
+          className="flex-shrink-0 bevel-sm mt-0.5" style={{ background: 'var(--s-elevated)' }} />
+      ) : (
+        <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center bevel-sm mt-0.5"
+          style={{ background: 'var(--s-elevated)' }}>
+          <Crown size={10} style={{ color: isLeader ? 'var(--s-gold)' : 'var(--s-text-muted)' }} />
+        </div>
+      )}
+      <div className="flex flex-col min-w-0 flex-1 leading-tight">
+        <div className="text-[11px] font-semibold truncate">
+          <span style={{ color: isLeader ? 'var(--s-gold)' : 'var(--s-text)' }}>{PRIMARY_ROLE_LABELS[s.primaryRole]}</span>
+          <span style={{ color: 'var(--s-text-muted)' }}> · </span>
+          <span style={{ color: 'var(--s-text)' }}>{s.tag || s.name}</span>
+        </div>
+        {showTeams && s.affiliations.slice(0, 2).map(a => (
+          <div key={a.teamId} className="text-[10px] truncate" style={{ color: 'var(--s-text-dim)' }}>
+            ↳ {TEAM_ROLE_LABEL[a.role] || 'Joueur'} · {a.teamName}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Ligne compacte (vue liste) : [logo] [Rôle] · [STRUCT] · [équipe?]
 function StructureLine({ s, size = 'sm' }: { s: EnrichedStructure; size?: 'sm' | 'xs' }) {
   const logoSize = size === 'sm' ? 14 : 12;
   const team = s.affiliations[0]?.teamName;
@@ -709,15 +743,23 @@ function StructureLine({ s, size = 'sm' }: { s: EnrichedStructure; size?: 'sm' |
       )}
       <span className="truncate">
         <strong style={{ color: isLeader ? 'var(--s-gold)' : 'var(--s-text)' }}>{PRIMARY_ROLE_LABELS[s.primaryRole]}</strong>
-        {team && (
-          <span style={{ color: 'var(--s-text-muted)' }}> {team}</span>
-        )}
-        {' chez '}
+        {' · '}
         <span style={{ color: 'var(--s-text)' }}>{s.tag || s.name}</span>
+        {team && (
+          <span style={{ color: 'var(--s-text-muted)' }}> · {team}</span>
+        )}
       </span>
     </div>
   );
 }
+
+const TEAM_ROLE_LABEL: Record<string, string> = {
+  joueur: 'Joueur',
+  remplacant: 'Remplaçant',
+  capitaine: 'Capitaine',
+  manager: 'Manager',
+  coach: 'Coach',
+};
 
 function Switch({ label, value, onChange, accent = '#33ff66' }: { label: string; value: boolean; onChange: (v: boolean) => void; accent?: string }) {
   return (
@@ -750,19 +792,33 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
   const hasMatch = matches.length > 0;
   const rankTier = getRankTierConfig(p.rlRank);
   const sortedStructures = sortStructuresByPriority(p.structures);
-  const topStructure = sortedStructures[0];
-  const extraCount = Math.max(0, sortedStructures.length - 1);
+  const visibleStructures = sortedStructures.slice(0, 3);
+  const extraCount = Math.max(0, sortedStructures.length - visibleStructures.length);
   const tier = getRoleTier(sortedStructures);
   const isLeader = tier === 'leader';
   const showInvite = canShortlist && p.isAvailableForRecruitment;
 
-  // Bordure : or 2px UNIQUEMENT pour fondateur, vert si match recrutement actif,
-  // sinon neutre. Plus de jaune sur les staff.
-  const borderColor = hasMatch ? 'rgba(0,217,54,0.55)' : isLeader ? 'var(--s-gold)' : 'var(--s-border)';
-  const borderWidth = (hasMatch || isLeader) ? '2px' : '1px';
+  // Pas de bordure or pleine (trop tape-à-l'œil). À la place :
+  //   - leader  → box-shadow GOLD glow (interne + externe) → effet "carte précieuse"
+  //   - match   → box-shadow GREEN glow
+  //   - sinon   → bordure neutre fine + ombre standard
+  const baseBorder = hasMatch
+    ? '1px solid rgba(0,217,54,0.40)'
+    : isLeader
+      ? '1px solid rgba(255,184,0,0.25)'
+      : '1px solid var(--s-border)';
+  const baseShadow = hasMatch
+    ? 'inset 0 0 0 1px rgba(0,217,54,0.18), 0 0 18px rgba(0,217,54,0.20), 0 2px 10px rgba(0,0,0,0.30)'
+    : isLeader
+      ? 'inset 0 0 0 1px rgba(255,184,0,0.18), 0 0 22px rgba(255,184,0,0.18), 0 2px 12px rgba(0,0,0,0.35)'
+      : '0 2px 8px rgba(0,0,0,0.25)';
+  const hoverShadow = hasMatch
+    ? 'inset 0 0 0 1px rgba(0,217,54,0.32), 0 0 28px rgba(0,217,54,0.32), 0 6px 18px rgba(0,0,0,0.40)'
+    : isLeader
+      ? 'inset 0 0 0 1px rgba(255,184,0,0.32), 0 0 32px rgba(255,184,0,0.30), 0 6px 18px rgba(0,0,0,0.45)'
+      : 'inset 0 0 0 1px rgba(255,255,255,0.10), 0 0 18px rgba(255,255,255,0.06), 0 6px 16px rgba(0,0,0,0.40)';
 
-  // Dégradé subtil pour la zone avatar — neutre par défaut, légèrement teinté
-  // sur leader (or 6%) ou match recrutement (vert 8%) pour donner du caractère.
+  // Dégradé subtil pour la zone avatar
   const headerTint = hasMatch
     ? 'linear-gradient(180deg, rgba(0,217,54,0.10), transparent 100%)'
     : isLeader
@@ -770,18 +826,21 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
       : 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent 100%)';
 
   return (
-    <div className="bevel-sm relative overflow-hidden group transition-all duration-200 hover:translate-y-[-2px]"
+    <div className="bevel-sm relative overflow-hidden group transition-all duration-200 hover:translate-y-[-3px]"
       style={{
         background: 'var(--s-surface)',
-        border: `${borderWidth} solid ${borderColor}`,
-        boxShadow: isLeader ? '0 0 0 1px rgba(255,184,0,0.10), 0 4px 16px rgba(0,0,0,0.35)' : '0 2px 8px rgba(0,0,0,0.25)',
+        border: baseBorder,
+        boxShadow: baseShadow,
         display: 'flex',
         flexDirection: 'column',
-      }}>
+        ['--card-hover-shadow' as string]: hoverShadow,
+      } as React.CSSProperties}
+      onMouseEnter={e => { e.currentTarget.style.boxShadow = hoverShadow; }}
+      onMouseLeave={e => { e.currentTarget.style.boxShadow = baseShadow; }}>
       <Link href={`/profile/${p.uid}`} className="absolute inset-0 z-[2]" aria-label={p.displayName} />
 
-      {/* ────── ZONE AVATAR — carré full-width avec dégradé bas ────── */}
-      <div className="relative" style={{ aspectRatio: '1 / 1', background: headerTint }}>
+      {/* ────── ZONE AVATAR — 4:3 (un peu moins haut qu'un carré pour laisser place aux affiliations) ────── */}
+      <div className="relative" style={{ aspectRatio: '4 / 3', background: headerTint }}>
         {/* Hex pattern subtil en fond de la zone avatar pour les leaders */}
         {isLeader && (
           <div className="absolute inset-0 hex-bg pointer-events-none" style={{ opacity: 0.6 }} />
@@ -897,36 +956,19 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
         {/* Séparateur */}
         <div className="h-px" style={{ background: 'var(--s-border)' }} />
 
-        {/* Affiliation : structure principale en footer */}
-        <div className="flex-1 flex flex-col justify-end">
-          {topStructure ? (
-            <div className="flex items-start gap-2 min-w-0">
-              {topStructure.logoUrl ? (
-                <Image src={topStructure.logoUrl} alt={topStructure.name} width={22} height={22} unoptimized
-                  className="flex-shrink-0 bevel-sm" style={{ background: 'var(--s-elevated)' }} />
-              ) : (
-                <div className="w-[22px] h-[22px] flex-shrink-0 flex items-center justify-center bevel-sm"
-                  style={{ background: 'var(--s-elevated)' }}>
-                  <Crown size={11} style={{ color: 'var(--s-text-muted)' }} />
+        {/* Affiliations — jusqu'à 3 structures, format détaillé (rôle + ↳ équipes) */}
+        <div className="flex-1 flex flex-col gap-2">
+          {visibleStructures.length > 0 ? (
+            <>
+              {visibleStructures.map(s => (
+                <StructureBlock key={s.id} s={s} />
+              ))}
+              {extraCount > 0 && (
+                <div className="text-[10px] italic pl-7" style={{ color: 'var(--s-text-muted)' }}>
+                  + {extraCount} autre{extraCount > 1 ? 's' : ''}
                 </div>
               )}
-              <div className="flex flex-col min-w-0 flex-1">
-                <span className="text-[11px] font-semibold leading-tight truncate"
-                  style={{ color: isLeader ? 'var(--s-gold)' : 'var(--s-text)' }}>
-                  {PRIMARY_ROLE_LABELS[topStructure.primaryRole]}
-                </span>
-                <span className="text-[10px] leading-tight truncate" style={{ color: 'var(--s-text-dim)' }}>
-                  {topStructure.affiliations[0]?.teamName
-                    ? `${topStructure.affiliations[0].teamName} · ${topStructure.tag || topStructure.name}`
-                    : (topStructure.tag || topStructure.name)}
-                </span>
-                {extraCount > 0 && (
-                  <span className="text-[10px] italic" style={{ color: 'var(--s-text-muted)' }}>
-                    + {extraCount} autre{extraCount > 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
-            </div>
+            </>
           ) : (
             <div className="text-[11px] italic" style={{ color: 'var(--s-text-muted)' }}>Sans structure</div>
           )}
@@ -960,7 +1002,7 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
   const avatar = p.avatarUrl || p.discordAvatar;
   const hasMatch = matches.length > 0;
   const sortedStructures = sortStructuresByPriority(p.structures);
-  const visibleStructures = sortedStructures.slice(0, 2);
+  const visibleStructures = sortedStructures.slice(0, 3);
   const extraCount = sortedStructures.length - visibleStructures.length;
   const rankTier = getRankTierConfig(p.rlRank);
   const isLeader = getRoleTier(sortedStructures) === 'leader';
@@ -1038,7 +1080,7 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
           {visibleStructures.length > 0 ? (
             <>
               {visibleStructures.map(s => (
-                <StructureLine key={`${s.id}-${s.game}`} s={s} size="xs" />
+                <StructureLine key={s.id} s={s} size="xs" />
               ))}
               {extraCount > 0 && (
                 <span className="text-xs italic" style={{ color: 'var(--s-text-muted)' }}>
