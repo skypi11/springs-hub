@@ -3,6 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { canAccessRecruitment, structureContext } from '@/lib/structure-permissions';
 
 // Shortlist = favoris de joueurs suivis par une structure (Phase 3 item L).
 // Stockage : subcollection `structures/{id}/shortlist/{userId}`.
@@ -15,10 +16,14 @@ async function assertDirigeant(db: FirebaseFirestore.Firestore, structureId: str
   const snap = await db.collection('structures').doc(structureId).get();
   if (!snap.exists) return { ok: false as const, status: 404, error: 'Structure introuvable' };
   const data = snap.data()!;
-  const isFounder = data.founderId === uid;
-  const isCoFounder = (data.coFounderIds ?? []).includes(uid);
-  const isManager = (data.managerIds ?? []).includes(uid);
-  if (!isFounder && !isCoFounder && !isManager) {
+  const ctx = structureContext(uid, {
+    founderId: data.founderId,
+    coFounderIds: data.coFounderIds,
+    managerIds: data.managerIds,
+    coachIds: data.coachIds,
+    status: data.status,
+  });
+  if (!canAccessRecruitment(ctx)) {
     return { ok: false as const, status: 403, error: 'Accès refusé' };
   }
   return { ok: true as const, structure: data };

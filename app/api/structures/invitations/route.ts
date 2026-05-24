@@ -10,6 +10,7 @@ import { addJoinHistory, closeOpenHistory } from '@/lib/member-history';
 import { addAuditLog, writeAuditLog } from '@/lib/audit-log';
 import { bumpStructureCounter } from '@/lib/structure-counters';
 import { postRecruitmentEmbed } from '@/lib/discord-bot';
+import { canManageMembers, structureContext } from '@/lib/structure-permissions';
 
 // Durée de validité d'un lien d'invitation. Au-delà, le lien est inactivable
 // automatiquement à la consommation, pour éviter qu'un token leaké il y a 6 mois
@@ -17,16 +18,22 @@ import { postRecruitmentEmbed } from '@/lib/discord-bot';
 const INVITE_LINK_TTL_DAYS = 30;
 const INVITE_LINK_TTL_MS = INVITE_LINK_TTL_DAYS * 24 * 60 * 60 * 1000;
 
-// Vérifier fondateur/co-fondateur/manager
+// Lit la structure + vérifie que l'user a le droit de gérer les invitations
+// (canManageMembers = dirigeant ou responsable). Reste strict sur status='active'
+// (pas juste 'non suspended' — exclut aussi pending_validation, deletion_scheduled).
 async function checkManageAccess(uid: string, structureId: string) {
   const db = getAdminDb();
   const snap = await db.collection('structures').doc(structureId).get();
   if (!snap.exists) return null;
   const data = snap.data()!;
-  const isFounder = data.founderId === uid;
-  const isCoFounder = (data.coFounderIds ?? []).includes(uid);
-  const isManager = (data.managerIds ?? []).includes(uid);
-  if (!isFounder && !isCoFounder && !isManager) return null;
+  const ctx = structureContext(uid, {
+    founderId: data.founderId,
+    coFounderIds: data.coFounderIds,
+    managerIds: data.managerIds,
+    coachIds: data.coachIds,
+    status: data.status,
+  });
+  if (!canManageMembers(ctx)) return null;
   if (data.status !== 'active') return null;
   return data;
 }

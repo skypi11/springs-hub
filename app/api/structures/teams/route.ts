@@ -7,18 +7,23 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { createNotification, createNotifications, type NotificationPayload } from '@/lib/notifications';
 import { bumpStructureCounterStandalone } from '@/lib/structure-counters';
 import { extractR2Key, deleteFileSilent } from '@/lib/storage';
+import { canManageTeams, structureContext } from '@/lib/structure-permissions';
 
-// Vérifier que l'utilisateur a les droits sur la structure (fondateur ou co-fondateur)
+// Lit la structure + vérifie que l'user a le droit "admin" (dirigeant ou
+// responsable). Utilise canManageTeams() comme source de vérité.
 async function checkStructureAccess(uid: string, structureId: string) {
   const db = getAdminDb();
   const snap = await db.collection('structures').doc(structureId).get();
   if (!snap.exists) return null;
   const data = snap.data()!;
-  const isFounder = data.founderId === uid;
-  const isCoFounder = (data.coFounderIds ?? []).includes(uid);
-  const isManager = (data.managerIds ?? []).includes(uid);
-  if (!isFounder && !isCoFounder && !isManager) return null;
-  if (data.status === 'suspended') return null;
+  const ctx = structureContext(uid, {
+    founderId: data.founderId,
+    coFounderIds: data.coFounderIds,
+    managerIds: data.managerIds,
+    coachIds: data.coachIds,
+    status: data.status,
+  });
+  if (!canManageTeams(ctx)) return null;
   return data;
 }
 

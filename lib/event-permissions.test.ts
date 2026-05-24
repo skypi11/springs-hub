@@ -91,8 +91,8 @@ describe('isStaffOfTeam', () => {
   it('manager listé dans staffedTeamIds → true', () => {
     expect(isStaffOfTeam(managerOfTeams('u1', ['t1', 't2']), 't1')).toBe(true);
   });
-  it('manager non listé → false', () => {
-    expect(isStaffOfTeam(managerOfTeams('u1', ['t2']), 't1')).toBe(false);
+  it("manager (responsable) non listé staff team → true (modèle A : responsable = staff de toute équipe)", () => {
+    expect(isStaffOfTeam(managerOfTeams('u1', ['t2']), 't1')).toBe(true);
   });
   it('joueur → false', () => {
     expect(isStaffOfTeam(player(), 't1')).toBe(false);
@@ -203,9 +203,9 @@ describe('canCreateEvent — scope=teams', () => {
     const target: EventTarget = { scope: 'teams', teamIds: ['t1', 't2'] };
     expect(canCreateEvent(managerOfTeams('u1', ['t1', 't2']), target)).toBe(true);
   });
-  it("manager staff d'une partie seulement → KO", () => {
+  it("manager (responsable) → OK même staff d'aucune équipe (modèle A : responsable = staff de toute équipe)", () => {
     const target: EventTarget = { scope: 'teams', teamIds: ['t1', 't2'] };
-    expect(canCreateEvent(managerOfTeams('u1', ['t1']), target)).toBe(false);
+    expect(canCreateEvent(managerOfTeams('u1', ['t1']), target)).toBe(true);
   });
   it('coach staff de toutes → OK', () => {
     const target: EventTarget = { scope: 'teams', teamIds: ['t1'] };

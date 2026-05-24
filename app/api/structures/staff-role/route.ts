@@ -3,6 +3,7 @@ import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { canPromoteStaff, structureContext } from '@/lib/structure-permissions';
 
 // POST /api/structures/staff-role
 // Body: { structureId, targetUserId, role: 'manager' | 'coach', enabled: boolean }
@@ -52,17 +53,23 @@ export async function POST(req: NextRequest) {
     }
     const data = structureSnap.data()!;
 
-    // Fondateurs ET co-fondateurs peuvent assigner coach/manager
-    const isFounder = data.founderId === uid;
-    const isCoFounder = (data.coFounderIds ?? []).includes(uid);
-    if (!isFounder && !isCoFounder) {
+    // Promotion staff = dirigeants uniquement (responsable exclu).
+    // canPromoteStaff vérifie aussi que la structure n'est pas suspendue.
+    const ctx = structureContext(uid, {
+      founderId: data.founderId,
+      coFounderIds: data.coFounderIds,
+      managerIds: data.managerIds,
+      coachIds: data.coachIds,
+      status: data.status,
+    });
+    if (!canPromoteStaff(ctx)) {
+      if (data.status === 'suspended') {
+        return NextResponse.json({ error: 'Structure suspendue — action bloquée.' }, { status: 403 });
+      }
       return NextResponse.json(
-        { error: 'Seuls les dirigeants peuvent assigner les rôles coach/manager.' },
+        { error: 'Seuls les dirigeants peuvent assigner les rôles coach/responsable.' },
         { status: 403 }
       );
-    }
-    if (data.status === 'suspended') {
-      return NextResponse.json({ error: 'Structure suspendue — action bloquée.' }, { status: 403 });
     }
 
     // La cible doit être membre

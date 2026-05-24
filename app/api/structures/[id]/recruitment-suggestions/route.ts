@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { canAccessRecruitment, structureContext } from '@/lib/structure-permissions';
 
 // Cap sur la taille du résultat — on renvoie les meilleurs candidats triés
 const MAX_SUGGESTIONS = 30;
@@ -24,16 +25,20 @@ export async function GET(
 
     const db = getAdminDb();
 
-    // Vérifier accès dirigeant/staff
+    // Vérifier accès admin structure (dirigeant ou responsable)
     const structSnap = await db.collection('structures').doc(structureId).get();
     if (!structSnap.exists) {
       return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
     }
     const structData = structSnap.data()!;
-    const isFounder = structData.founderId === uid;
-    const isCoFounder = (structData.coFounderIds ?? []).includes(uid);
-    const isManager = (structData.managerIds ?? []).includes(uid);
-    if (!isFounder && !isCoFounder && !isManager) {
+    const ctx = structureContext(uid, {
+      founderId: structData.founderId,
+      coFounderIds: structData.coFounderIds,
+      managerIds: structData.managerIds,
+      coachIds: structData.coachIds,
+      status: structData.status,
+    });
+    if (!canAccessRecruitment(ctx)) {
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
     }
 
