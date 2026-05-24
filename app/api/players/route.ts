@@ -1,93 +1,264 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
+import type { Firestore } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { fetchDocsByIds } from '@/lib/firestore-helpers';
+import { computeMemberRole, type MemberRoleTeam, type PrimaryRole, type TeamAffiliation } from '@/lib/member-role';
 
-// Plafond dur — protège contre les coûts qui explosent quand l'annuaire grossit.
-// La recherche/le filtrage par texte se fait toujours côté client sur ce sous-ensemble.
-// Pour passer à l'échelle (>500 users) il faudra un service de recherche (Algolia, Meilisearch)
-// car Firestore n'a pas de full-text search.
-const MAX_PLAYERS = 200;
+// GET /api/players — annuaire public paginé.
+//
+// Architecture scalable : pagination cursor + enrichissement par batch.
+// Coût par PAGE (50 users), pas par TOTAL. Scale infiniment.
+//
+// Étapes par requête :
+//   1. Query users avec filtres Firestore (where) + cursor (startAfter) + limit
+//   2. Collecte uniqueStructureIds depuis structurePerGame de la page
+//   3. Batch fetch structures (where __name__ IN chunks de 30)
+//   4. Batch fetch sub_teams (where structureId IN chunks de 30)
+//   5. Pour chaque user, enrichi via computeMemberRole → role + affiliations
+//
+// Query params :
+//   - game = 'rocket_league' | 'trackmania' (filtre array-contains)
+//   - recruiting = 'true' (filtre isAvailableForRecruitment)
+//   - verifiedOnly = 'true' (RL : exclut les non-vérifiés)
+//   - country = code ISO (filtre exact)
+//   - cursor = uid du dernier user de la page précédente (startAfter)
+//   - limit = nb par page (default 50, max 100)
+//
+// Réponse :
+//   {
+//     players: PlayerCard[],
+//     nextCursor: string | null,  // null = plus rien après
+//     pageSize: number,
+//   }
 
-// GET /api/players — liste publique des joueurs
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 100;
+const FIRESTORE_IN_CHUNK = 30; // limite Firestore `in` queries
+
+export type EnrichedStructure = {
+  id: string;
+  name: string;
+  tag: string;
+  logoUrl: string;
+  game: string;                  // 'rocket_league' | 'trackmania' (= clé dans structurePerGame)
+  primaryRole: PrimaryRole;      // dérivé via computeMemberRole
+  affiliations: TeamAffiliation[]; // équipes de cette structure où l'user est actif
+};
+
+export type PlayerCard = {
+  uid: string;
+  displayName: string;
+  discordAvatar: string;
+  avatarUrl: string;
+  country: string;
+  games: string[];
+  isAvailableForRecruitment: boolean;
+  recruitmentRole: string;
+  recruitmentMessage: string;
+  rlRank: string;
+  rlIconUrl: string;
+  rlAccountVerified: boolean;
+  rlAccountName: string;
+  rlAccountPlatform: 'epic' | 'steam' | '';
+  rlSteamId64: string;
+  pseudoTM: string;
+  structures: EnrichedStructure[];
+  createdAt: string | null;
+};
+
 export async function GET(req: NextRequest) {
   try {
     const blocked = await checkRateLimit(limiters.read, rateLimitKey(req));
     if (blocked) return blocked;
 
     const db = getAdminDb();
-    const game = req.nextUrl.searchParams.get('game');
-    const recruitingOnly = req.nextUrl.searchParams.get('recruiting') === 'true';
+    const { searchParams } = req.nextUrl;
+    const game = searchParams.get('game');
+    const recruitingOnly = searchParams.get('recruiting') === 'true';
+    const verifiedOnly = searchParams.get('verifiedOnly') === 'true';
+    const country = searchParams.get('country');
+    const cursor = searchParams.get('cursor');
+    const limitParam = parseInt(searchParams.get('limit') ?? '', 10);
+    const pageSize = Math.min(
+      MAX_PAGE_SIZE,
+      Number.isFinite(limitParam) && limitParam > 0 ? limitParam : DEFAULT_PAGE_SIZE,
+    );
 
-    // Filtres poussés côté Firestore quand c'est possible
-    let query: FirebaseFirestore.Query = db.collection('users');
+    // Tri par __name__ (== uid). Stable, indexé auto, supporte cursor.
+    let query: FirebaseFirestore.Query = db.collection('users').orderBy('__name__');
+
     if (recruitingOnly) {
       query = query.where('isAvailableForRecruitment', '==', true);
     }
     if (game) {
-      // array-contains : nécessite un index simple sur `games`
       query = query.where('games', 'array-contains', game);
     }
+    if (country) {
+      query = query.where('country', '==', country);
+    }
 
-    const snap = await query.limit(MAX_PLAYERS).get();
+    if (cursor) {
+      const cursorDoc = await db.collection('users').doc(cursor).get();
+      if (cursorDoc.exists) {
+        query = query.startAfter(cursorDoc);
+      }
+    }
 
+    query = query.limit(pageSize);
+    const snap = await query.get();
     const isDevEnv = process.env.NODE_ENV === 'development';
-    const players = [];
-    for (const doc of snap.docs) {
-      const data = doc.data();
-      if (data.isDev === true && !isDevEnv) continue;
 
-      players.push({
-        uid: doc.id,
-        displayName: data.displayName || data.discordUsername || '',
-        discordAvatar: data.discordAvatar || '',
-        avatarUrl: data.avatarUrl || '',
-        country: data.country || '',
-        games: data.games || [],
-        isAvailableForRecruitment: data.isAvailableForRecruitment || false,
-        recruitmentRole: data.recruitmentRole || '',
-        recruitmentMessage: data.recruitmentMessage || '',
-        // RL stats
-        rlRank: data.rlStats?.rank || data.rlRank || '',
-        rlMmr: data.rlStats?.mmr || data.rlMmr || null,
-        rlIconUrl: data.rlStats?.iconUrl || '',
-        // Identité RL officielle (anti-mensonge — voir docs/rl-rank-verification-plan.md).
-        // Verified = snapshot explicitement confirmé : rlEpicId (flow Lot 2) ou
-        // rlSteamId (flow Steam v2). Avoir Steam OpenID lié à Aedral ou Epic sur
-        // Discord ne suffit PAS — il faut une confirmation explicite via Settings.
+    // Filtre les comptes dev en prod (post-query car pas indexé)
+    const userDocs = snap.docs.filter(d => {
+      const data = d.data();
+      if (data.isDev === true && !isDevEnv) return false;
+      // verifiedOnly côté serveur : si le user joue à RL ET pas vérifié → exclu
+      if (verifiedOnly) {
+        const games = (data.games as string[]) ?? [];
+        const isVerified = !!data.rlEpicId || !!data.rlSteamId;
+        if (games.includes('rocket_league') && !isVerified) return false;
+      }
+      return true;
+    });
+
+    // ── Enrichissement structures / équipes / rôles ────────────────────────
+    // Collecte les structureIds uniques de cette page (pas plus de pageSize × 2
+    // typiquement = max ~100 IDs pour pageSize=50 et 2 jeux/user).
+    const uniqueStructureIds = new Set<string>();
+    for (const d of userDocs) {
+      const spg = (d.data().structurePerGame as Record<string, string> | undefined) ?? {};
+      for (const sid of Object.values(spg)) {
+        if (typeof sid === 'string' && sid) uniqueStructureIds.add(sid);
+      }
+    }
+
+    // Batch fetch structures (chunks de 30 pour la limite Firestore `in`)
+    const structuresById = await fetchDocsByIds(db, 'structures', [...uniqueStructureIds]);
+
+    // Batch fetch sub_teams pour ces structures
+    // (where structureId IN [...]) — chunks de 30
+    const teamsByStructureId = await fetchTeamsForStructures(db, [...uniqueStructureIds]);
+
+    const players: PlayerCard[] = userDocs.map(doc => {
+      const data = doc.data();
+      const uid = doc.id;
+      const structurePerGame = (data.structurePerGame as Record<string, string> | undefined) ?? {};
+
+      // Enrichi par structure rejointe par ce user
+      const enrichedStructures: EnrichedStructure[] = [];
+      for (const [g, sid] of Object.entries(structurePerGame)) {
+        if (!sid) continue;
+        const s = structuresById.get(sid);
+        if (!s) continue;
+        const allTeams = teamsByStructureId.get(sid) ?? [];
+        // Filtre équipes du même jeu (les sub_teams ont un champ `game`)
+        const teamsForGame = allTeams.filter(t => (t.game ?? '') === g);
+
+        const role = computeMemberRole({
+          userId: uid,
+          founderId: (s.founderId as string) ?? '',
+          coFounderIds: (s.coFounderIds as string[]) ?? [],
+          managerIds: (s.managerIds as string[]) ?? [],
+          coachIds: (s.coachIds as string[]) ?? [],
+          teams: teamsForGame.map(t => ({
+            id: t.id,
+            name: (t.name as string) ?? 'Équipe',
+            playerIds: (t.playerIds as string[]) ?? [],
+            subIds: (t.subIds as string[]) ?? [],
+            staffIds: (t.staffIds as string[]) ?? [],
+            staffRoles: (t.staffRoles as Record<string, 'coach' | 'manager'>) ?? {},
+            captainId: (t.captainId as string | null) ?? null,
+            status: t.status as 'active' | 'archived' | undefined,
+          })),
+        });
+
+        enrichedStructures.push({
+          id: sid,
+          name: (s.name as string) ?? '',
+          tag: (s.tag as string) ?? '',
+          logoUrl: (s.logoUrl as string) ?? '',
+          game: g,
+          primaryRole: role.primary,
+          affiliations: role.affiliations,
+        });
+      }
+
+      return {
+        uid,
+        displayName: (data.displayName as string) || (data.discordUsername as string) || '',
+        discordAvatar: (data.discordAvatar as string) || '',
+        avatarUrl: (data.avatarUrl as string) || '',
+        country: (data.country as string) || '',
+        games: (data.games as string[]) || [],
+        isAvailableForRecruitment: (data.isAvailableForRecruitment as boolean) || false,
+        recruitmentRole: (data.recruitmentRole as string) || '',
+        recruitmentMessage: (data.recruitmentMessage as string) || '',
+        rlRank: (data.rlRank as string) || '',
+        rlIconUrl: (data.rlStats as { iconUrl?: string } | undefined)?.iconUrl || '',
         rlAccountVerified: !!data.rlEpicId || !!data.rlSteamId,
         rlAccountName: data.rlEpicId
           ? ((data.rlEpicName as string) || '')
           : data.rlSteamId
             ? ((data.rlSteamName as string) || '')
             : '',
-        rlAccountPlatform: data.rlEpicId ? 'epic' : data.rlSteamId ? 'steam' : '',
-        // SteamID64 exposé uniquement quand on l'utilise pour l'URL tracker
+        rlAccountPlatform: (data.rlEpicId ? 'epic' : data.rlSteamId ? 'steam' : '') as 'epic' | 'steam' | '',
         rlSteamId64: !data.rlEpicId && data.rlSteamId ? (data.rlSteamId as string) : '',
-        // TM stats
-        pseudoTM: data.pseudoTM || '',
-        tmTrophies: data.tmStats?.trophies || null,
-        tmEchelon: data.tmStats?.echelon || null,
-        // Structure info
-        structurePerGame: data.structurePerGame || {},
+        pseudoTM: (data.pseudoTM as string) || '',
+        structures: enrichedStructures,
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
-      });
-    }
-
-    // Trier : dispo au recrutement en premier, puis par nom
-    players.sort((a, b) => {
-      if (a.isAvailableForRecruitment && !b.isAvailableForRecruitment) return -1;
-      if (!a.isAvailableForRecruitment && b.isAvailableForRecruitment) return 1;
-      return a.displayName.localeCompare(b.displayName);
+      };
     });
+
+    // nextCursor = uid du dernier user retourné, ou null si page incomplète
+    const nextCursor = snap.docs.length < pageSize
+      ? null
+      : snap.docs[snap.docs.length - 1].id;
 
     return NextResponse.json({
       players,
-      truncated: snap.size >= MAX_PLAYERS,
-      max: MAX_PLAYERS,
+      nextCursor,
+      pageSize,
     });
   } catch (err) {
     captureApiError('API Players GET error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
+}
+
+// Récupère toutes les sub_teams des structures en paramètre, groupées par
+// structureId. Une seule query par chunk de 30 grâce à `where IN` Firestore.
+async function fetchTeamsForStructures(
+  db: Firestore,
+  structureIds: string[],
+): Promise<Map<string, Array<MemberRoleTeam & { id: string; game?: string }>>> {
+  const result = new Map<string, Array<MemberRoleTeam & { id: string; game?: string }>>();
+  if (structureIds.length === 0) return result;
+
+  for (let i = 0; i < structureIds.length; i += FIRESTORE_IN_CHUNK) {
+    const chunk = structureIds.slice(i, i + FIRESTORE_IN_CHUNK);
+    const snap = await db.collection('sub_teams')
+      .where('structureId', 'in', chunk)
+      .get();
+    for (const d of snap.docs) {
+      const data = d.data();
+      const sid = data.structureId as string;
+      const team: MemberRoleTeam & { id: string; game?: string } = {
+        id: d.id,
+        name: (data.name as string) ?? 'Équipe',
+        playerIds: (data.playerIds as string[]) ?? [],
+        subIds: (data.subIds as string[]) ?? [],
+        staffIds: (data.staffIds as string[]) ?? [],
+        staffRoles: (data.staffRoles as Record<string, 'coach' | 'manager'>) ?? {},
+        captainId: (data.captainId as string | null) ?? null,
+        status: data.status as 'active' | 'archived' | undefined,
+        game: data.game as string | undefined,
+      };
+      const list = result.get(sid) ?? [];
+      list.push(team);
+      result.set(sid, list);
+    }
+  }
+  return result;
 }

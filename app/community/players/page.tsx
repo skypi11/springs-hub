@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  User, Search, Gamepad2, ArrowUpDown, Sparkles, Star, Target, SlidersHorizontal,
-  X, Bookmark, BookmarkCheck, Link2, Check, ShieldCheck, ShieldAlert, Trophy,
-  LayoutGrid, List,
+  User, Search, Gamepad2, Sparkles, Star, Target, SlidersHorizontal,
+  X, Bookmark, BookmarkCheck, Link2, Check, ShieldCheck, ShieldAlert, Crown,
+  LayoutGrid, List, Loader2, ArrowDownNarrowWide, ChevronDown,
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
@@ -15,8 +15,21 @@ import { SkeletonGrid } from '@/components/ui/Skeleton';
 import InviteToStructureButton from '@/components/community/InviteToStructureButton';
 import RLIdentityBadge from '@/components/players/RLIdentityBadge';
 import CountryFlag from '@/components/ui/CountryFlag';
+import RankBadge, { getRankTierConfig } from '@/components/rl/RankBadge';
+import { PRIMARY_ROLE_LABELS, type PrimaryRole, type TeamAffiliation } from '@/lib/member-role';
+import { RL_RANKS } from '@/lib/rl-ranks';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
+
+type EnrichedStructure = {
+  id: string;
+  name: string;
+  tag: string;
+  logoUrl: string;
+  game: string;
+  primaryRole: PrimaryRole;
+  affiliations: TeamAffiliation[];
+};
 
 type PlayerCard = {
   uid: string;
@@ -29,21 +42,18 @@ type PlayerCard = {
   recruitmentRole: string;
   recruitmentMessage: string;
   rlRank: string;
-  rlMmr: number | null;
   rlIconUrl: string;
-  // Identité RL officielle (Lot 2 — anti-mensonge)
   rlAccountVerified: boolean;
   rlAccountName: string;
   rlAccountPlatform: 'epic' | 'steam' | '';
   rlSteamId64: string;
   pseudoTM: string;
-  tmTrophies: number | null;
-  tmEchelon: number | null;
-  structurePerGame: Record<string, string>;
+  structures: EnrichedStructure[];
+  createdAt: string | null;
 };
 
-type SortKey = 'default' | 'alpha' | 'available' | 'mmr' | 'match';
-
+type PlayersPage = { players: PlayerCard[]; nextCursor: string | null; pageSize: number };
+type SortKey = 'recommended' | 'recent' | 'alpha';
 type OpenPosition = { game: string; role: string };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -52,17 +62,19 @@ const ROLE_LABELS: Record<string, string> = {
   manager: 'Manager',
 };
 
-// Retourne la liste (dédupliquée) des positions ouvertes qui matchent un joueur.
-// Un match = le poste ouvert a le même `role` que le `recruitmentRole` du joueur
-// ET le jeu du poste est dans les jeux pratiqués par le joueur.
-function matchPositions(
-  playerRole: string,
-  playerGames: string[],
-  positions: OpenPosition[]
-): OpenPosition[] {
+// Score "Recommandé" : vérifié + dispo recrutement > vérifié > dispo > reste
+function recommendedScore(p: PlayerCard): number {
+  let s = 0;
+  if (p.rlAccountVerified) s += 10;
+  if (p.isAvailableForRecruitment) s += 5;
+  if (p.structures.length > 0) s += 1;
+  return s;
+}
+
+function matchPositions(playerRole: string, playerGames: string[], positions: OpenPosition[]): OpenPosition[] {
   if (!playerRole || positions.length === 0) return [];
-  const matches: OpenPosition[] = [];
   const seen = new Set<string>();
+  const matches: OpenPosition[] = [];
   for (const p of positions) {
     if (p.role !== playerRole) continue;
     if (!playerGames.includes(p.game)) continue;
@@ -76,48 +88,63 @@ function matchPositions(
 
 export default function PlayersPage() {
   const { firebaseUser } = useAuth();
+  const qc = useQueryClient();
+
+  // Filtres (envoyés au serveur)
   const [gameFilter, setGameFilter] = useState('');
   const [recruitingFilter, setRecruitingFilter] = useState(false);
-  const [search, setSearch] = useState('');
-  const [sortKey, setSortKey] = useState<SortKey>('default');
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [roleFilter, setRoleFilter] = useState('');
-  const [countryFilter, setCountryFilter] = useState('');
-  const [mmrMin, setMmrMin] = useState('');
-  const [mmrMax, setMmrMax] = useState('');
-  const [echelonMin, setEchelonMin] = useState('');
-  const [echelonMax, setEchelonMax] = useState('');
-  const [noStructureFilter, setNoStructureFilter] = useState(false);
   const [verifiedOnlyFilter, setVerifiedOnlyFilter] = useState(false);
-  const [localShortlist, setLocalShortlist] = useState<Set<string>>(new Set());
-  const [copiedLinkFor, setCopiedLinkFor] = useState<string | null>(null);
+  const [countryFilter, setCountryFilter] = useState('');
+  // Filtres client (sur la page courante)
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [rankMinFilter, setRankMinFilter] = useState('');
+  const [noStructureFilter, setNoStructureFilter] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
-  // Vue grille (default) ou liste (annuaire dense) — choix persistant.
-  // Init côté client uniquement (localStorage indisponible en SSR).
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  // Tri (client)
+  const [sortKey, setSortKey] = useState<SortKey>('recommended');
+
+  // Vue grille/liste — par défaut LISTE (annuaire dense), persistant.
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   useEffect(() => {
     try {
       const stored = localStorage.getItem('aedral_players_view');
       if (stored === 'grid' || stored === 'list') setViewMode(stored);
-    } catch { /* SSR / private mode */ }
+    } catch { /* SSR */ }
   }, []);
   const setViewModeStored = (m: 'grid' | 'list') => {
     setViewMode(m);
     try { localStorage.setItem('aedral_players_view', m); } catch { /* noop */ }
   };
 
-  const playersQ = useQuery({
-    queryKey: ['players', { game: gameFilter, recruiting: recruitingFilter }] as const,
-    queryFn: () => {
+  // Shortlist (recruteurs) + génération de lien
+  const [localShortlist, setLocalShortlist] = useState<Set<string>>(new Set());
+  const [copiedLinkFor, setCopiedLinkFor] = useState<string | null>(null);
+
+  // ── Fetch paginé (cursor) via useInfiniteQuery ─────────────────────────
+  const queryKey = ['players', { game: gameFilter, recruiting: recruitingFilter, verified: verifiedOnlyFilter, country: countryFilter }] as const;
+  const playersQ = useInfiniteQuery({
+    queryKey,
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) => {
       const params = new URLSearchParams();
       if (gameFilter) params.set('game', gameFilter);
       if (recruitingFilter) params.set('recruiting', 'true');
-      return api<{ players: PlayerCard[] }>(`/api/players?${params.toString()}`);
+      if (verifiedOnlyFilter) params.set('verifiedOnly', 'true');
+      if (countryFilter) params.set('country', countryFilter);
+      if (pageParam) params.set('cursor', pageParam);
+      return api<PlayersPage>(`/api/players?${params.toString()}`);
     },
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
   });
-  const players = playersQ.data?.players ?? [];
+  const allPlayers = useMemo(
+    () => (playersQ.data?.pages ?? []).flatMap(p => p.players),
+    [playersQ.data],
+  );
   const loading = playersQ.isPending;
 
+  // ── Structures du viewer (pour shortlist + matching positions) ─────────
   type StructureMy = {
     id: string;
     status: string;
@@ -157,13 +184,17 @@ export default function PlayersPage() {
     queryFn: () => api<{ shortlist: { uid: string }[] }>(`/api/structures/${viewerStructureId}/shortlist`),
     enabled: !!firebaseUser && !!viewerStructureId,
   });
-  const serverShortlistIds = useMemo(() => {
-    return new Set<string>((shortlistQ.data?.shortlist ?? []).map(s => s.uid));
-  }, [shortlistQ.data]);
+  const serverShortlistIds = useMemo(
+    () => new Set<string>((shortlistQ.data?.shortlist ?? []).map(s => s.uid)),
+    [shortlistQ.data],
+  );
   const shortlistIds = useMemo(() => {
     if (localShortlist.size === 0) return serverShortlistIds;
     const merged = new Set(serverShortlistIds);
-    for (const id of localShortlist) merged.has(id) ? merged.delete(id) : merged.add(id);
+    for (const id of localShortlist) {
+      if (merged.has(id)) merged.delete(id);
+      else merged.add(id);
+    }
     return merged;
   }, [serverShortlistIds, localShortlist]);
 
@@ -172,28 +203,15 @@ export default function PlayersPage() {
     try {
       const data = await api<{ token?: string }>('/api/structures/invitations', {
         method: 'POST',
-        body: {
-          action: 'create_link',
-          structureId: viewerStructureId,
-          targetUserId: targetUid,
-          game: targetGame,
-        },
+        body: { action: 'create_link', structureId: viewerStructureId, targetUserId: targetUid, game: targetGame },
       });
-      if (!data.token) {
-        alert('Impossible de générer le lien');
-        return;
-      }
+      if (!data.token) { alert('Impossible de générer le lien'); return; }
       const url = `${window.location.origin}/community/join/${data.token}`;
-      try {
-        await navigator.clipboard.writeText(url);
-      } catch {
-        window.prompt('Lien copié impossible — copie manuellement :', url);
-      }
+      try { await navigator.clipboard.writeText(url); }
+      catch { window.prompt('Lien copié impossible — copie manuellement :', url); }
       setCopiedLinkFor(targetUid);
       setTimeout(() => setCopiedLinkFor(prev => (prev === targetUid ? null : prev)), 2000);
-    } catch {
-      alert('Erreur réseau');
-    }
+    } catch { alert('Erreur réseau'); }
   }, [firebaseUser, viewerStructureId]);
 
   const toggleShortlist = useCallback(async (targetUid: string) => {
@@ -201,129 +219,119 @@ export default function PlayersPage() {
     const alreadyIn = shortlistIds.has(targetUid);
     setLocalShortlist(prev => {
       const next = new Set(prev);
-      next.has(targetUid) ? next.delete(targetUid) : next.add(targetUid);
+      if (next.has(targetUid)) next.delete(targetUid);
+      else next.add(targetUid);
       return next;
     });
     try {
       const url = `/api/structures/${viewerStructureId}/shortlist${alreadyIn ? `?userId=${encodeURIComponent(targetUid)}` : ''}`;
-      await api(url, {
-        method: alreadyIn ? 'DELETE' : 'POST',
-        body: alreadyIn ? null : { userId: targetUid },
-      });
+      await api(url, { method: alreadyIn ? 'DELETE' : 'POST', body: alreadyIn ? null : { userId: targetUid } });
     } catch {
       setLocalShortlist(prev => {
         const next = new Set(prev);
-        next.has(targetUid) ? next.delete(targetUid) : next.add(targetUid);
+        if (next.has(targetUid)) next.delete(targetUid);
+        else next.add(targetUid);
         return next;
       });
     }
   }, [firebaseUser, viewerStructureId, shortlistIds]);
 
-  // Enrichit chaque joueur avec ses positions matching (calcul local, pas de round-trip)
+  // ── Enrichi avec matches + filtres client ──────────────────────────────
   const playersWithMatches = useMemo(() => {
-    if (viewerOpenPositions.length === 0) return players.map(p => ({ player: p, matches: [] as OpenPosition[] }));
-    return players.map(p => ({
+    if (viewerOpenPositions.length === 0) return allPlayers.map(p => ({ player: p, matches: [] as OpenPosition[] }));
+    return allPlayers.map(p => ({
       player: p,
       matches: p.isAvailableForRecruitment
         ? matchPositions(p.recruitmentRole, p.games, viewerOpenPositions)
         : [],
     }));
-  }, [players, viewerOpenPositions]);
+  }, [allPlayers, viewerOpenPositions]);
 
-  // Liste unique des pays présents chez les joueurs actuellement chargés.
-  // Dérivée du dataset plutôt que codée en dur — si seule la FR est représentée,
-  // on n'affiche que FR dans le select pour éviter des filtres qui retournent 0.
   const availableCountries = useMemo(() => {
     const set = new Set<string>();
-    for (const p of players) if (p.country) set.add(p.country);
+    for (const p of allPlayers) if (p.country) set.add(p.country);
     return [...set].sort();
-  }, [players]);
+  }, [allPlayers]);
 
-  const mmrMinNum = mmrMin ? parseInt(mmrMin, 10) : null;
-  const mmrMaxNum = mmrMax ? parseInt(mmrMax, 10) : null;
-  const echelonMinNum = echelonMin ? parseInt(echelonMin, 10) : null;
-  const echelonMaxNum = echelonMax ? parseInt(echelonMax, 10) : null;
+  // Rang RL min : on compare l'index dans RL_RANKS (ordre croissant)
+  const rankMinIndex = rankMinFilter ? RL_RANKS.indexOf(rankMinFilter as typeof RL_RANKS[number]) : -1;
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const base = playersWithMatches.filter(({ player: p }) => {
       if (q && !(p.displayName.toLowerCase().includes(q) || (p.pseudoTM && p.pseudoTM.toLowerCase().includes(q)))) return false;
       if (roleFilter && p.recruitmentRole !== roleFilter) return false;
-      if (countryFilter && p.country !== countryFilter) return false;
-      if (mmrMinNum !== null && (p.rlMmr == null || p.rlMmr < mmrMinNum)) return false;
-      if (mmrMaxNum !== null && (p.rlMmr == null || p.rlMmr > mmrMaxNum)) return false;
-      if (echelonMinNum !== null && (p.tmEchelon == null || p.tmEchelon < echelonMinNum)) return false;
-      if (echelonMaxNum !== null && (p.tmEchelon == null || p.tmEchelon > echelonMaxNum)) return false;
-      if (noStructureFilter) {
-        const hasAny = Object.values(p.structurePerGame || {}).some(Boolean);
-        if (hasAny) return false;
-      }
-      // Compte vérifié : si le joueur joue à RL, il doit avoir Epic ou Steam
-      // confirmé. Sinon (pas de RL dans games), on n'applique pas le filtre
-      // (un joueur TM-only n'est pas concerné).
-      if (verifiedOnlyFilter) {
-        if (p.games?.includes('rocket_league') && !p.rlAccountVerified) return false;
+      if (noStructureFilter && p.structures.length > 0) return false;
+      if (rankMinIndex >= 0) {
+        // Pour comparer, on a besoin du rang VÉRIFIÉ. Sinon, on exclut.
+        if (!p.rlAccountVerified || !p.rlRank) return false;
+        const playerIdx = RL_RANKS.indexOf(p.rlRank as typeof RL_RANKS[number]);
+        if (playerIdx < 0 || playerIdx < rankMinIndex) return false;
       }
       return true;
     });
     const arr = [...base];
     switch (sortKey) {
+      case 'recommended':
+        arr.sort((a, b) => {
+          const sa = recommendedScore(a.player) + (a.matches.length > 0 ? 100 : 0);
+          const sb = recommendedScore(b.player) + (b.matches.length > 0 ? 100 : 0);
+          if (sb !== sa) return sb - sa;
+          return a.player.displayName.localeCompare(b.player.displayName);
+        });
+        break;
+      case 'recent':
+        arr.sort((a, b) => {
+          const ta = a.player.createdAt ? new Date(a.player.createdAt).getTime() : 0;
+          const tb = b.player.createdAt ? new Date(b.player.createdAt).getTime() : 0;
+          return tb - ta;
+        });
+        break;
       case 'alpha':
         arr.sort((a, b) => a.player.displayName.localeCompare(b.player.displayName));
         break;
-      case 'available':
-        arr.sort((a, b) => Number(b.player.isAvailableForRecruitment) - Number(a.player.isAvailableForRecruitment));
-        break;
-      case 'mmr':
-        arr.sort((a, b) => (b.player.rlMmr ?? -1) - (a.player.rlMmr ?? -1));
-        break;
-      case 'match':
-        arr.sort((a, b) => b.matches.length - a.matches.length);
-        break;
     }
     return arr;
-  }, [playersWithMatches, search, sortKey, roleFilter, countryFilter, mmrMinNum, mmrMaxNum, echelonMinNum, echelonMaxNum, noStructureFilter, verifiedOnlyFilter]);
+  }, [playersWithMatches, search, sortKey, roleFilter, noStructureFilter, rankMinIndex]);
 
-  const availableCount = players.filter(p => p.isAvailableForRecruitment).length;
-  const count = filtered.length;
-  const hasAdvancedFilters = roleFilter !== '' || countryFilter !== '' || mmrMin !== '' || mmrMax !== '' || echelonMin !== '' || echelonMax !== '' || noStructureFilter || verifiedOnlyFilter;
+  const hasAdvancedFilters = roleFilter !== '' || countryFilter !== '' || rankMinFilter !== '' || noStructureFilter || verifiedOnlyFilter;
   const hasFilters = search.trim() !== '' || gameFilter !== '' || recruitingFilter || hasAdvancedFilters;
+  const advancedFiltersCount = [roleFilter, countryFilter, rankMinFilter, noStructureFilter ? '1' : '', verifiedOnlyFilter ? '1' : ''].filter(Boolean).length;
 
   const resetAll = () => {
     setSearch(''); setGameFilter(''); setRecruitingFilter(false);
-    setRoleFilter(''); setCountryFilter(''); setMmrMin(''); setMmrMax('');
-    setEchelonMin(''); setEchelonMax(''); setNoStructureFilter(false);
     setVerifiedOnlyFilter(false);
+    setRoleFilter(''); setCountryFilter(''); setRankMinFilter(''); setNoStructureFilter(false);
+    qc.invalidateQueries({ queryKey: ['players'] });
   };
 
-  const gridCols = count < 4
-    ? 'grid-cols-1 md:grid-cols-2'
-    : count < 9
-    ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
-    : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
+  // ── Scroll infini : observer sur un sentinel en bas de la liste ────────
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node || !playersQ.hasNextPage) return;
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0]?.isIntersecting && !playersQ.isFetchingNextPage) {
+        playersQ.fetchNextPage();
+      }
+    }, { rootMargin: '400px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [playersQ]);
+
+  const count = filtered.length;
 
   return (
     <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-6">
-      <CompactStickyHeader
-        icon={User}
-        title="Joueurs"
-        accent="var(--s-gold)"
-      />
+      <CompactStickyHeader icon={User} title="Joueurs" accent="var(--s-gold)" />
       <div className="relative z-[1] space-y-6">
-        <Breadcrumbs items={[
-          { label: 'Communauté', href: '/community' },
-          { label: 'Joueurs' },
-        ]} />
+        <Breadcrumbs items={[{ label: 'Communauté', href: '/community' }, { label: 'Joueurs' }]} />
+
         {/* Header compact */}
-        <header
-          className="bevel relative overflow-hidden animate-fade-in"
-          style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
-        >
+        <header className="bevel relative overflow-hidden animate-fade-in"
+          style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
           <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
-          <div className="absolute top-0 left-0 w-40 h-40 pointer-events-none"
-            style={{ background: 'radial-gradient(circle at 0% 0%, rgba(255,184,0,0.06), transparent 60%)' }} />
-          <div className="relative z-[1] px-6 py-4 flex items-center gap-5 flex-wrap">
-            {/* Titre + compteur */}
+          <div className="relative z-[1] px-6 py-4 flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-3 flex-shrink-0">
               <div className="w-10 h-10 flex items-center justify-center" style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.2)' }}>
                 <User size={18} style={{ color: 'var(--s-gold)' }} />
@@ -331,304 +339,166 @@ export default function PlayersPage() {
               <div>
                 <h1 className="font-display text-xl tracking-wider leading-none">JOUEURS</h1>
                 <p className="t-mono text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
-                  {loading ? 'Chargement…' : `${players.length} joueur${players.length > 1 ? 's' : ''}${availableCount > 0 ? ` · ${availableCount} disponible${availableCount > 1 ? 's' : ''}` : ''}`}
+                  {loading ? 'Chargement…' : `${allPlayers.length}${playersQ.hasNextPage ? '+' : ''} joueur${allPlayers.length > 1 ? 's' : ''} chargé${allPlayers.length > 1 ? 's' : ''}`}
                 </p>
               </div>
             </div>
 
-            {/* Recherche */}
             <div className="flex-1 relative min-w-[200px]">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--s-text-muted)' }} />
               <input type="text" className="settings-input w-full pl-9" style={{ fontSize: '14px' }}
-                placeholder="Rechercher par pseudo ou pseudo TM…"
+                placeholder="Rechercher par pseudo…"
                 value={search} onChange={e => setSearch(e.target.value)} />
             </div>
 
-            {/* Filtres jeux */}
             <div className="flex items-center gap-2">
               <FilterChip active={!gameFilter} onClick={() => setGameFilter('')} color="neutral">Tous</FilterChip>
               <FilterChip active={gameFilter === 'rocket_league'} onClick={() => setGameFilter(gameFilter === 'rocket_league' ? '' : 'rocket_league')} color="blue">RL</FilterChip>
               <FilterChip active={gameFilter === 'trackmania'} onClick={() => setGameFilter(gameFilter === 'trackmania' ? '' : 'trackmania')} color="green">TM</FilterChip>
             </div>
 
-            {/* Disponibles */}
-            <FilterChip
-              active={recruitingFilter}
-              onClick={() => setRecruitingFilter(!recruitingFilter)}
-              color="green"
-            >
+            <FilterChip active={recruitingFilter} onClick={() => setRecruitingFilter(!recruitingFilter)} color="green">
               <Star size={10} style={{ marginRight: '4px' }} />
               Dispo au recrutement
             </FilterChip>
 
-            {/* Tri */}
-            <div className="relative flex items-center gap-2">
-              <ArrowUpDown size={13} style={{ color: 'var(--s-text-muted)' }} />
-              <select
-                value={sortKey}
-                onChange={e => setSortKey(e.target.value as SortKey)}
-                className="settings-input"
-                style={{ fontSize: '12px', padding: '6px 10px', cursor: 'pointer' }}
-              >
-                <option value="default">Par défaut</option>
-                <option value="alpha">A → Z</option>
-                <option value="available">Disponibles en 1er</option>
-                <option value="mmr">MMR RL décroissant</option>
-                {viewerOpenPositions.length > 0 && <option value="match">Match avec ma structure</option>}
-              </select>
-            </div>
+            <SortDropdown value={sortKey} onChange={setSortKey} hasMatches={viewerOpenPositions.length > 0} />
 
-            {/* Toggle vue grille / liste — persistant via localStorage.
-                Liste = mode annuaire dense pour scanner vite (utile recruteurs). */}
-            <div className="inline-flex bevel-sm overflow-hidden" style={{ border: '1px solid var(--s-border)', background: 'var(--s-surface)' }}>
-              <button type="button" onClick={() => setViewModeStored('grid')}
-                title="Vue grille"
-                className="px-2 py-1.5 transition-colors"
-                style={{
-                  background: viewMode === 'grid' ? 'var(--s-elevated)' : 'transparent',
-                  color: viewMode === 'grid' ? 'var(--s-gold)' : 'var(--s-text-muted)',
-                }}>
-                <LayoutGrid size={13} />
-              </button>
-              <button type="button" onClick={() => setViewModeStored('list')}
-                title="Vue liste compacte"
-                className="px-2 py-1.5 transition-colors"
-                style={{
-                  background: viewMode === 'list' ? 'var(--s-elevated)' : 'transparent',
-                  color: viewMode === 'list' ? 'var(--s-gold)' : 'var(--s-text-muted)',
-                  borderLeft: '1px solid var(--s-border)',
-                }}>
-                <List size={13} />
-              </button>
-            </div>
+            <ViewToggle viewMode={viewMode} onChange={setViewModeStored} />
 
-            {/* Toggle filtres avancés */}
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(v => !v)}
+            <button type="button" onClick={() => setShowAdvanced(v => !v)}
               className="tag transition-all duration-150 inline-flex items-center gap-1.5"
               style={{
                 background: showAdvanced || hasAdvancedFilters ? 'rgba(255,184,0,0.12)' : 'transparent',
                 color: showAdvanced || hasAdvancedFilters ? 'var(--s-gold)' : 'var(--s-text-muted)',
                 borderColor: showAdvanced || hasAdvancedFilters ? 'rgba(255,184,0,0.35)' : 'var(--s-border)',
                 cursor: 'pointer',
-              }}
-            >
+              }}>
               <SlidersHorizontal size={12} />
-              Filtres avancés
-              {hasAdvancedFilters && (
+              Filtres
+              {advancedFiltersCount > 0 && (
                 <span className="tag" style={{ fontSize: '12px', padding: '0 5px', background: 'rgba(255,184,0,0.25)', color: 'var(--s-gold)', borderColor: 'transparent' }}>
-                  {[roleFilter, countryFilter, mmrMin, mmrMax, echelonMin, echelonMax, noStructureFilter ? '1' : ''].filter(Boolean).length}
+                  {advancedFiltersCount}
                 </span>
               )}
             </button>
           </div>
 
-          {/* Panel filtres avancés (expand) */}
+          {/* Panel filtres avancés — 3 groupes Identité / RL / TM */}
           {showAdvanced && (
-            <div className="relative z-[1] px-6 py-4 border-t animate-fade-in-d1" style={{ borderColor: 'var(--s-border)', background: 'rgba(255,184,0,0.03)' }}>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Rôle recherché */}
-                <div className="space-y-1.5">
-                  <label className="t-label" style={{ color: 'var(--s-text-dim)' }}>Rôle recherché</label>
-                  <select
-                    value={roleFilter}
-                    onChange={e => setRoleFilter(e.target.value)}
-                    className="settings-input w-full"
-                    style={{ fontSize: '13px', padding: '6px 10px', cursor: 'pointer' }}
-                  >
-                    <option value="">Tous</option>
-                    <option value="joueur">Joueur</option>
-                    <option value="coach">Coach</option>
-                    <option value="manager">Manager</option>
-                  </select>
-                </div>
-
-                {/* Pays */}
-                <div className="space-y-1.5">
-                  <label className="t-label" style={{ color: 'var(--s-text-dim)' }}>Pays</label>
-                  <select
-                    value={countryFilter}
-                    onChange={e => setCountryFilter(e.target.value)}
-                    className="settings-input w-full"
-                    style={{ fontSize: '13px', padding: '6px 10px', cursor: 'pointer' }}
-                    disabled={availableCountries.length === 0}
-                  >
-                    <option value="">Tous</option>
-                    {availableCountries.map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Sans structure */}
-                <div className="space-y-1.5">
-                  <label className="t-label" style={{ color: 'var(--s-text-dim)' }}>Statut structure</label>
-                  <button
-                    type="button"
-                    onClick={() => setNoStructureFilter(v => !v)}
-                    className="tag transition-all duration-150 inline-flex items-center gap-1.5 w-full justify-center"
-                    style={{
-                      background: noStructureFilter ? 'rgba(0,217,54,0.12)' : 'transparent',
-                      color: noStructureFilter ? '#33ff66' : 'var(--s-text-muted)',
-                      borderColor: noStructureFilter ? 'rgba(0,217,54,0.35)' : 'var(--s-border)',
-                      cursor: 'pointer',
-                      fontSize: '13px',
-                      padding: '6px 10px',
-                    }}
-                  >
-                    {noStructureFilter && <Star size={11} />}
-                    Sans structure uniquement
-                  </button>
-                </div>
-
-                {/* Compte RL vérifié uniquement */}
-                <div className="space-y-1.5">
-                  <label className="t-label" style={{ color: 'var(--s-text-dim)' }}>Vérification RL</label>
-                  <button
-                    type="button"
-                    onClick={() => setVerifiedOnlyFilter(v => !v)}
-                    className="tag transition-all duration-150 inline-flex items-center gap-1.5 w-full justify-center"
-                    style={{
-                      background: verifiedOnlyFilter ? 'rgba(255,184,0,0.12)' : 'transparent',
-                      color: verifiedOnlyFilter ? 'var(--s-gold)' : 'var(--s-text-muted)',
-                      borderColor: verifiedOnlyFilter ? 'rgba(255,184,0,0.35)' : 'var(--s-border)',
-                      cursor: 'pointer',
-                      fontSize: '13px',
-                      padding: '6px 10px',
-                    }}
-                  >
-                    {verifiedOnlyFilter && <ShieldCheck size={11} />}
-                    Compte RL vérifié uniquement
-                  </button>
-                </div>
-
-                {/* MMR RL min/max */}
-                <div className="space-y-1.5">
-                  <label className="t-label" style={{ color: 'var(--s-text-dim)' }}>MMR RL (min / max)</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      placeholder="min"
-                      value={mmrMin}
-                      onChange={e => setMmrMin(e.target.value)}
-                      className="settings-input w-full"
-                      style={{ fontSize: '13px', padding: '6px 10px' }}
-                    />
-                    <span style={{ color: 'var(--s-text-muted)' }}>→</span>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      placeholder="max"
-                      value={mmrMax}
-                      onChange={e => setMmrMax(e.target.value)}
-                      className="settings-input w-full"
-                      style={{ fontSize: '13px', padding: '6px 10px' }}
-                    />
+            <div className="relative z-[1] px-6 py-5 border-t animate-fade-in-d1"
+              style={{ borderColor: 'var(--s-border)', background: 'rgba(255,184,0,0.02)' }}>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                {/* Groupe IDENTITÉ */}
+                <FilterGroup icon={<User size={11} />} title="IDENTITÉ" accent="var(--s-text)">
+                  <div className="space-y-3">
+                    <Field label="Rôle recherché">
+                      <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)} className="settings-input w-full text-sm">
+                        <option value="">Tous</option>
+                        <option value="joueur">Joueur</option>
+                        <option value="coach">Coach</option>
+                        <option value="manager">Manager</option>
+                      </select>
+                    </Field>
+                    <Field label="Pays">
+                      <select value={countryFilter} onChange={e => setCountryFilter(e.target.value)} className="settings-input w-full text-sm"
+                        disabled={availableCountries.length === 0}>
+                        <option value="">Tous</option>
+                        {availableCountries.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </Field>
+                    <Switch label="Libre (sans structure)" value={noStructureFilter} onChange={setNoStructureFilter} />
                   </div>
-                </div>
+                </FilterGroup>
 
-                {/* Échelon TM min/max */}
-                <div className="space-y-1.5">
-                  <label className="t-label" style={{ color: 'var(--s-text-dim)' }}>Échelon TM (min / max)</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      placeholder="min"
-                      value={echelonMin}
-                      onChange={e => setEchelonMin(e.target.value)}
-                      className="settings-input w-full"
-                      style={{ fontSize: '13px', padding: '6px 10px' }}
-                    />
-                    <span style={{ color: 'var(--s-text-muted)' }}>→</span>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      placeholder="max"
-                      value={echelonMax}
-                      onChange={e => setEchelonMax(e.target.value)}
-                      className="settings-input w-full"
-                      style={{ fontSize: '13px', padding: '6px 10px' }}
-                    />
+                {/* Groupe ROCKET LEAGUE */}
+                <FilterGroup icon={<Gamepad2 size={11} />} title="ROCKET LEAGUE" accent="var(--s-blue)">
+                  <div className="space-y-3">
+                    <Field label="Rang minimum (vérifié uniquement)">
+                      <select value={rankMinFilter} onChange={e => setRankMinFilter(e.target.value)} className="settings-input w-full text-sm">
+                        <option value="">Tous</option>
+                        {RL_RANKS.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </Field>
+                    <Switch label="Compte vérifié uniquement (Epic/Steam)" value={verifiedOnlyFilter} onChange={setVerifiedOnlyFilter} accent="var(--s-gold)" />
                   </div>
-                </div>
+                </FilterGroup>
 
-                {/* Reset */}
-                <div className="space-y-1.5 flex flex-col justify-end">
-                  {hasAdvancedFilters && (
-                    <button
-                      type="button"
-                      onClick={resetAll}
-                      className="tag transition-all duration-150 inline-flex items-center gap-1.5 justify-center"
-                      style={{
-                        background: 'transparent',
-                        color: '#ff5555',
-                        borderColor: 'rgba(255,85,85,0.3)',
-                        cursor: 'pointer',
-                        fontSize: '13px',
-                        padding: '6px 10px',
-                      }}
-                    >
-                      <X size={11} />
-                      Réinitialiser
-                    </button>
-                  )}
-                </div>
+                {/* Groupe TRACKMANIA */}
+                <FilterGroup icon={<Gamepad2 size={11} />} title="TRACKMANIA" accent="var(--s-green)">
+                  <div className="space-y-3">
+                    <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                      Aucun filtre TM disponible — utilise &laquo; Jeux : TM &raquo; en haut pour ne voir que les joueurs Trackmania.
+                    </p>
+                  </div>
+                </FilterGroup>
+              </div>
+
+              {/* Footer panel */}
+              <div className="mt-5 pt-4 flex items-center justify-between" style={{ borderTop: '1px solid var(--s-border)' }}>
+                <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                  {advancedFiltersCount > 0 ? `${advancedFiltersCount} filtre${advancedFiltersCount > 1 ? 's' : ''} actif${advancedFiltersCount > 1 ? 's' : ''}` : 'Aucun filtre actif'}
+                </span>
+                {hasFilters && (
+                  <button type="button" onClick={resetAll}
+                    className="text-xs inline-flex items-center gap-1.5 px-3 py-1.5 transition-colors"
+                    style={{ background: 'transparent', border: '1px solid rgba(255,85,85,0.3)', color: '#ff5555' }}>
+                    <X size={11} /> Réinitialiser
+                  </button>
+                )}
               </div>
             </div>
           )}
         </header>
 
-        {/* Compteur de résultats */}
+        {/* Compteur résultats */}
         {!loading && hasFilters && (
           <p className="t-mono text-xs animate-fade-in-d1" style={{ color: 'var(--s-text-muted)' }}>
-            {count} résultat{count > 1 ? 's' : ''}
-            {count !== players.length && ` sur ${players.length}`}
+            {count} résultat{count > 1 ? 's' : ''}{count !== allPlayers.length && ` sur ${allPlayers.length} chargé${allPlayers.length > 1 ? 's' : ''}`}
           </p>
         )}
 
         {/* Liste */}
         {loading ? (
-          <SkeletonGrid count={8} cols="grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" cardHeight={220} accent="var(--s-gold)" />
+          <SkeletonGrid count={8} cols="grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" cardHeight={180} accent="var(--s-gold)" />
         ) : filtered.length === 0 ? (
-          <EmptyState
-            hasFilters={hasFilters}
-            totalCount={players.length}
-            onReset={resetAll}
-          />
+          <EmptyState hasFilters={hasFilters} totalCount={allPlayers.length} onReset={resetAll} />
         ) : viewMode === 'list' ? (
           <div className="bevel overflow-hidden animate-fade-in-d2"
             style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
             {filtered.map(({ player, matches }, idx) => (
-              <PlayerRow
-                key={player.uid}
-                p={player}
-                matches={matches}
+              <PlayerRow key={player.uid} p={player} matches={matches}
                 canShortlist={!!viewerStructureId}
                 isShortlisted={shortlistIds.has(player.uid)}
                 onToggleShortlist={() => toggleShortlist(player.uid)}
                 linkCopied={copiedLinkFor === player.uid}
                 onGenerateLink={() => generateTargetedLink(player.uid, player.games?.[0] || 'rocket_league')}
-                isLast={idx === filtered.length - 1}
-              />
+                isLast={idx === filtered.length - 1} />
             ))}
           </div>
         ) : (
-          <div className={`grid ${gridCols} gap-4 animate-fade-in-d2`}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 animate-fade-in-d2">
             {filtered.map(({ player, matches }) => (
-              <PlayerItem
-                key={player.uid}
-                p={player}
-                matches={matches}
+              <PlayerItem key={player.uid} p={player} matches={matches}
                 canShortlist={!!viewerStructureId}
                 isShortlisted={shortlistIds.has(player.uid)}
                 onToggleShortlist={() => toggleShortlist(player.uid)}
                 linkCopied={copiedLinkFor === player.uid}
-                onGenerateLink={() => generateTargetedLink(player.uid, player.games?.[0] || 'rocket_league')}
-              />
+                onGenerateLink={() => generateTargetedLink(player.uid, player.games?.[0] || 'rocket_league')} />
             ))}
+          </div>
+        )}
+
+        {/* Sentinel scroll infini */}
+        {playersQ.hasNextPage && (
+          <div ref={loadMoreRef} className="flex justify-center py-6">
+            {playersQ.isFetchingNextPage ? (
+              <span className="inline-flex items-center gap-2 text-sm" style={{ color: 'var(--s-text-muted)' }}>
+                <Loader2 size={14} className="animate-spin" /> Chargement de la suite…
+              </span>
+            ) : (
+              <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Fais défiler pour charger la suite</span>
+            )}
           </div>
         )}
       </div>
@@ -636,66 +506,165 @@ export default function PlayersPage() {
   );
 }
 
-function FilterChip({
-  active, onClick, color, children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  color: 'neutral' | 'blue' | 'green';
-  children: React.ReactNode;
-}) {
+// ─── Sous-composants ──────────────────────────────────────────────────────
+
+function FilterChip({ active, onClick, color, children }: { active: boolean; onClick: () => void; color: 'neutral' | 'blue' | 'green'; children: React.ReactNode }) {
   const palette = color === 'blue'
     ? { bg: 'rgba(0,129,255,0.12)', fg: 'var(--s-blue)', border: 'rgba(0,129,255,0.35)' }
     : color === 'green'
-    ? { bg: 'rgba(0,217,54,0.12)', fg: '#33ff66', border: 'rgba(0,217,54,0.35)' }
-    : { bg: 'rgba(255,255,255,0.08)', fg: 'var(--s-text)', border: 'rgba(255,255,255,0.2)' };
+      ? { bg: 'rgba(0,217,54,0.12)', fg: '#33ff66', border: 'rgba(0,217,54,0.35)' }
+      : { bg: 'rgba(255,255,255,0.08)', fg: 'var(--s-text)', border: 'rgba(255,255,255,0.2)' };
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="tag transition-all duration-150"
+    <button type="button" onClick={onClick} className="tag transition-all duration-150"
       style={{
         background: active ? palette.bg : 'transparent',
         color: active ? palette.fg : 'var(--s-text-muted)',
         borderColor: active ? palette.border : 'var(--s-border)',
         cursor: 'pointer',
-      }}
-    >
+      }}>
       {children}
     </button>
   );
 }
 
-function PlayerItem({
-  p, matches, canShortlist, isShortlisted, onToggleShortlist, linkCopied, onGenerateLink,
-}: {
-  p: PlayerCard;
-  matches: OpenPosition[];
-  canShortlist: boolean;
-  isShortlisted: boolean;
-  onToggleShortlist: () => void;
-  linkCopied: boolean;
-  onGenerateLink: () => void;
+function ViewToggle({ viewMode, onChange }: { viewMode: 'grid' | 'list'; onChange: (m: 'grid' | 'list') => void }) {
+  return (
+    <div className="inline-flex bevel-sm overflow-hidden" style={{ border: '1px solid var(--s-border)', background: 'var(--s-surface)' }}>
+      <button type="button" onClick={() => onChange('list')} title="Vue liste compacte"
+        className="px-2 py-1.5 transition-colors"
+        style={{ background: viewMode === 'list' ? 'var(--s-elevated)' : 'transparent', color: viewMode === 'list' ? 'var(--s-gold)' : 'var(--s-text-muted)' }}>
+        <List size={13} />
+      </button>
+      <button type="button" onClick={() => onChange('grid')} title="Vue grille"
+        className="px-2 py-1.5 transition-colors"
+        style={{ background: viewMode === 'grid' ? 'var(--s-elevated)' : 'transparent', color: viewMode === 'grid' ? 'var(--s-gold)' : 'var(--s-text-muted)', borderLeft: '1px solid var(--s-border)' }}>
+        <LayoutGrid size={13} />
+      </button>
+    </div>
+  );
+}
+
+// Dropdown custom de tri (pas <select> natif moche)
+function SortDropdown({ value, onChange, hasMatches }: { value: SortKey; onChange: (k: SortKey) => void; hasMatches: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
+  const options: { key: SortKey; label: string; hint?: string }[] = [
+    { key: 'recommended', label: 'Recommandé', hint: hasMatches ? 'Match + vérifié + dispo' : 'Vérifié + dispo' },
+    { key: 'recent', label: 'Plus récents' },
+    { key: 'alpha', label: 'A → Z' },
+  ];
+  const current = options.find(o => o.key === value) ?? options[0];
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setOpen(v => !v)}
+        className="tag transition-all duration-150 inline-flex items-center gap-1.5"
+        style={{
+          background: open ? 'rgba(255,184,0,0.12)' : 'transparent',
+          color: open ? 'var(--s-gold)' : 'var(--s-text-muted)',
+          borderColor: open ? 'rgba(255,184,0,0.35)' : 'var(--s-border)',
+          cursor: 'pointer',
+        }}>
+        <ArrowDownNarrowWide size={12} />
+        Tri : <strong>{current.label}</strong>
+        <ChevronDown size={11} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-30 min-w-[220px] bevel-sm overflow-hidden"
+          style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+          {options.map(o => {
+            const active = o.key === value;
+            return (
+              <button key={o.key} type="button"
+                onClick={() => { onChange(o.key); setOpen(false); }}
+                className="w-full text-left px-3 py-2 transition-colors hover:bg-[var(--s-elevated)] flex items-center gap-2"
+                style={{ color: active ? 'var(--s-gold)' : 'var(--s-text)' }}>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium">{o.label}</div>
+                  {o.hint && <div className="text-xs" style={{ color: 'var(--s-text-muted)' }}>{o.hint}</div>}
+                </div>
+                {active && <Check size={13} style={{ color: 'var(--s-gold)' }} />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FilterGroup({ icon, title, accent, children }: { icon: React.ReactNode; title: string; accent: string; children: React.ReactNode }) {
+  return (
+    <div className="bevel-sm p-4" style={{ background: 'var(--s-surface)', border: `1px solid var(--s-border)` }}>
+      <div className="flex items-center gap-2 mb-3 pb-2" style={{ borderBottom: `1px solid var(--s-border)` }}>
+        <span style={{ color: accent }}>{icon}</span>
+        <span className="t-label" style={{ color: accent }}>{title}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="t-label block mb-1" style={{ color: 'var(--s-text-dim)', fontSize: '11px' }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function Switch({ label, value, onChange, accent = '#33ff66' }: { label: string; value: boolean; onChange: (v: boolean) => void; accent?: string }) {
+  return (
+    <button type="button" onClick={() => onChange(!value)} aria-pressed={value}
+      className="flex items-center justify-between w-full gap-3 text-left transition-colors px-2 py-1.5 hover:bg-[var(--s-elevated)]"
+      style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}>
+      <span className="text-sm" style={{ color: value ? 'var(--s-text)' : 'var(--s-text-dim)' }}>{label}</span>
+      <span className="flex-shrink-0 relative transition-all" style={{
+        width: 34, height: 18,
+        background: value ? accent : 'var(--s-elevated)',
+        border: `1px solid ${value ? accent : 'var(--s-border)'}`,
+      }}>
+        <span className="absolute top-1/2 -translate-y-1/2 transition-all" style={{
+          left: value ? 18 : 2,
+          width: 12, height: 12,
+          background: value ? '#000' : 'var(--s-text-dim)',
+        }} />
+      </span>
+    </button>
+  );
+}
+
+// ─── Card grille (hauteur fixe propre ~180px) ─────────────────────────────
+function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist, linkCopied, onGenerateLink }: {
+  p: PlayerCard; matches: OpenPosition[]; canShortlist: boolean; isShortlisted: boolean;
+  onToggleShortlist: () => void; linkCopied: boolean; onGenerateLink: () => void;
 }) {
   const { firebaseUser } = useAuth();
   const avatar = p.avatarUrl || p.discordAvatar;
   const hasMatch = matches.length > 0;
-  const isHighlighted = hasMatch || (p.isAvailableForRecruitment && p.rlAccountVerified);
-  // Compte "intéressant" recruteur = vérifié + dispo recrutement → bordure or
-  const accentColor = hasMatch ? 'rgba(0,217,54,0.45)' : isHighlighted ? 'rgba(255,184,0,0.35)' : 'var(--s-border)';
+  const tier = getRankTierConfig(p.rlRank);
+  const accentColor = hasMatch ? 'rgba(0,217,54,0.55)' : (p.rlAccountVerified && p.isAvailableForRecruitment) ? 'rgba(255,184,0,0.55)' : 'var(--s-border)';
+  const accentWidth = hasMatch || (p.rlAccountVerified && p.isAvailableForRecruitment) ? '2px' : '1px';
+  // Premier rôle structure (le plus prestigieux car structures triées par priorité)
+  const topStructure = p.structures[0];
 
   return (
-    <div
-      className="bevel-sm relative overflow-hidden group transition-all duration-200 hover:border-white/20"
+    <div className="bevel-sm relative overflow-hidden group transition-all duration-200 hover:border-white/30"
       style={{
         background: 'var(--s-surface)',
-        border: `1px solid ${accentColor}`,
-        boxShadow: hasMatch ? '0 0 0 1px rgba(0,217,54,0.1) inset' : undefined,
+        border: `${accentWidth} solid ${accentColor}`,
+        minHeight: 180,
       }}>
       <Link href={`/profile/${p.uid}`} className="absolute inset-0 z-[2]" aria-label={p.displayName} />
 
-      {/* Accent top : vert si match recruteur, or si vérifié+dispo */}
-      {(hasMatch || isHighlighted) && (
+      {(hasMatch || (p.rlAccountVerified && p.isAvailableForRecruitment)) && (
         <div className="h-[3px]" style={{
           background: hasMatch
             ? 'linear-gradient(90deg, var(--s-green), transparent 80%)'
@@ -703,61 +672,26 @@ function PlayerItem({
         }} />
       )}
 
-      {/* Toolbar actions recruteur — épuré, sans flex-wrap moche */}
       {canShortlist && (
-        <div
-          className="relative z-[3] flex items-center justify-end gap-1 px-2 py-1.5"
-          style={{ background: 'var(--s-elevated)', borderBottom: '1px solid var(--s-border)' }}
-        >
+        <div className="relative z-[3] flex items-center justify-end gap-1 px-2 py-1.5"
+          style={{ background: 'var(--s-elevated)', borderBottom: '1px solid var(--s-border)' }}>
           {hasMatch && (
             <span className="tag inline-flex items-center gap-1 mr-auto"
-              style={{
-                fontSize: '11px', padding: '2px 6px',
-                background: 'rgba(0,217,54,0.15)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.45)',
-                fontWeight: 600,
-              }}>
-              <Target size={10} />
-              Match {ROLE_LABELS[matches[0].role] || matches[0].role}
-              {matches.length > 1 && <span style={{ opacity: 0.7 }}>+{matches.length - 1}</span>}
+              style={{ fontSize: '11px', padding: '2px 6px', background: 'rgba(0,217,54,0.15)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.45)', fontWeight: 600 }}>
+              <Target size={10} /> Match {ROLE_LABELS[matches[0].role] || matches[0].role}
             </span>
           )}
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleShortlist(); }}
-            className="w-7 h-7 flex items-center justify-center transition-colors duration-150 bevel-sm"
-            style={{
-              background: isShortlisted ? 'rgba(255,184,0,0.15)' : 'var(--s-surface)',
-              border: `1px solid ${isShortlisted ? 'rgba(255,184,0,0.5)' : 'var(--s-border)'}`,
-              color: isShortlisted ? 'var(--s-gold)' : 'var(--s-text-muted)',
-            }}
-            aria-label={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}
-            title={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}
-          >
+          <IconButton onClick={onToggleShortlist} active={isShortlisted} accent="var(--s-gold)"
+            title={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}>
             {isShortlisted ? <BookmarkCheck size={14} /> : <Bookmark size={14} />}
-          </button>
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onGenerateLink(); }}
-            className="w-7 h-7 flex items-center justify-center transition-colors duration-150 bevel-sm"
-            style={{
-              background: linkCopied ? 'rgba(0,217,54,0.15)' : 'var(--s-surface)',
-              border: `1px solid ${linkCopied ? 'rgba(0,217,54,0.5)' : 'var(--s-border)'}`,
-              color: linkCopied ? '#33ff66' : 'var(--s-text-muted)',
-            }}
-            aria-label={linkCopied ? 'Lien copié' : 'Générer un lien d\'invitation perso'}
-            title={linkCopied ? 'Lien copié !' : 'Générer un lien d\'invitation perso (single-use)'}
-          >
+          </IconButton>
+          <IconButton onClick={onGenerateLink} active={linkCopied} accent="#33ff66"
+            title={linkCopied ? 'Lien copié !' : "Générer un lien d'invitation"}>
             {linkCopied ? <Check size={14} /> : <Link2 size={14} />}
-          </button>
+          </IconButton>
         </div>
       )}
 
-      <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-        style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,255,255,0.05), transparent 70%)' }} />
-
-      {/* Content — densifié : header avec avatar + pseudo + drapeau + jeu sur 1 ligne,
-          rang/recrut/structure en lignes condensées en dessous.
-          pointer-events:none → clic traverse au Link. */}
       <div className="relative z-[3] p-4" style={{ pointerEvents: 'none' }}>
         {/* Header user */}
         <div className="flex items-center gap-3 mb-3">
@@ -771,7 +705,7 @@ function PlayerItem({
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{p.displayName}</p>
               {p.rlAccountVerified && (
                 <span title="Compte RL vérifié" style={{ color: 'var(--s-gold)', display: 'inline-flex', flexShrink: 0 }}>
@@ -791,77 +725,67 @@ function PlayerItem({
               </div>
             </div>
           </div>
+          {/* Rang RL avec vraie icône Psyonix si vérifié */}
+          {p.rlRank && p.rlAccountVerified && tier && (
+            <div className="flex-shrink-0">
+              <RankBadge rank={p.rlRank} size={44} />
+            </div>
+          )}
         </div>
 
-        {/* Rang RL (uniquement si vérifié — règle anti-mensonge) */}
-        {p.rlRank && p.rlAccountVerified && (
-          <div className="flex items-center gap-1.5 mb-2 text-xs" style={{ color: 'var(--s-text)' }}>
-            {p.rlIconUrl
-              ? <Image src={p.rlIconUrl} alt="" width={14} height={14} unoptimized />
-              : <Trophy size={12} style={{ color: 'var(--s-blue)' }} />}
-            <span className="font-medium truncate">{p.rlRank}</span>
-            {typeof p.rlMmr === 'number' && (
-              <span className="t-mono" style={{ color: 'var(--s-text-muted)', fontSize: '10px' }}>
-                {p.rlMmr} MMR
-              </span>
+        {/* Affiliation structure (1ère + rôle) */}
+        {topStructure ? (
+          <div className="flex items-center gap-2 text-xs mb-2" style={{ color: 'var(--s-text-dim)' }}>
+            {topStructure.logoUrl ? (
+              <Image src={topStructure.logoUrl} alt={topStructure.name} width={14} height={14} unoptimized className="flex-shrink-0" />
+            ) : (
+              <Crown size={11} style={{ color: 'var(--s-gold)', flexShrink: 0 }} />
             )}
+            <span className="truncate">
+              <strong style={{ color: 'var(--s-text)' }}>{PRIMARY_ROLE_LABELS[topStructure.primaryRole]}</strong>
+              {' chez '}
+              <span style={{ color: 'var(--s-text)' }}>{topStructure.tag || topStructure.name}</span>
+              {topStructure.affiliations[0] && (
+                <span style={{ color: 'var(--s-text-muted)' }}> · {topStructure.affiliations[0].teamName}</span>
+              )}
+            </span>
+          </div>
+        ) : (
+          <div className="text-xs mb-2 italic" style={{ color: 'var(--s-text-muted)' }}>Sans structure</div>
+        )}
+
+        {/* Badge "non vérifié" subtle si RL sans vérif */}
+        {p.games.includes('rocket_league') && !p.rlAccountVerified && (
+          <div className="mb-2" style={{ pointerEvents: 'auto' }}>
+            <RLIdentityBadge games={p.games} rlAccountVerified={p.rlAccountVerified}
+              rlAccountName={p.rlAccountName} rlAccountPlatform={p.rlAccountPlatform}
+              rlSteamId64={p.rlSteamId64} rlRank={p.rlRank}
+              targetUid={p.uid} targetName={p.displayName}
+              canReport={!!firebaseUser && firebaseUser.uid !== p.uid}
+              size="sm" tone="subtle" />
           </div>
         )}
 
         {/* Pseudo TM si présent */}
         {p.pseudoTM && (
-          <div className="flex items-center gap-1.5 mb-2 text-xs" style={{ color: 'var(--s-text)' }}>
-            <Gamepad2 size={12} style={{ color: 'var(--s-green)' }} />
+          <div className="flex items-center gap-1.5 text-xs mb-2" style={{ color: 'var(--s-text-dim)' }}>
+            <Gamepad2 size={11} style={{ color: 'var(--s-green)' }} />
             <span className="truncate">{p.pseudoTM}</span>
-            {typeof p.tmEchelon === 'number' && (
-              <span className="t-mono" style={{ color: 'var(--s-text-muted)', fontSize: '10px' }}>
-                Éch. {p.tmEchelon}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Badge "non vérifié" subtle (au lieu de la grosse alerte rouge) */}
-        {p.games.includes('rocket_league') && !p.rlAccountVerified && (
-          <div className="mb-2" style={{ pointerEvents: 'auto' }}>
-            <RLIdentityBadge
-              games={p.games}
-              rlAccountVerified={p.rlAccountVerified}
-              rlAccountName={p.rlAccountName}
-              rlAccountPlatform={p.rlAccountPlatform}
-              rlSteamId64={p.rlSteamId64}
-              rlRank={p.rlRank}
-              targetUid={p.uid}
-              targetName={p.displayName}
-              canReport={!!firebaseUser && firebaseUser.uid !== p.uid}
-              size="sm"
-              tone="subtle"
-            />
           </div>
         )}
 
         {/* Badge recrutement */}
         {p.isAvailableForRecruitment && (
-          <div className="mt-2 pt-2.5" style={{ borderTop: '1px solid rgba(0,217,54,0.2)' }}>
+          <div className="mt-2 pt-2" style={{ borderTop: '1px solid rgba(0,217,54,0.2)' }}>
             <div className="flex items-center gap-1.5">
               <Star size={11} style={{ color: '#33ff66', fill: '#33ff66' }} />
               <span className="text-xs font-bold" style={{ color: '#33ff66' }}>
                 Cherche {ROLE_LABELS[p.recruitmentRole] || 'équipe'}
               </span>
             </div>
-            {p.recruitmentMessage && (
-              <p className="text-xs mt-1 line-clamp-2" style={{ color: 'var(--s-text-muted)' }}>
-                {p.recruitmentMessage}
-              </p>
-            )}
-            <div className="relative z-[3] mt-2.5" style={{ pointerEvents: 'auto' }}>
-              <InviteToStructureButton
-                targetUserId={p.uid}
-                targetDisplayName={p.displayName}
-                targetGames={p.games}
-                isAvailableForRecruitment={p.isAvailableForRecruitment}
-                compact
-              />
+            <div className="relative z-[3] mt-2" style={{ pointerEvents: 'auto' }}>
+              <InviteToStructureButton targetUserId={p.uid} targetDisplayName={p.displayName}
+                targetGames={p.games} isAvailableForRecruitment={p.isAvailableForRecruitment} compact />
             </div>
           </div>
         )}
@@ -870,26 +794,34 @@ function PlayerItem({
   );
 }
 
-// Vue liste : 1 ligne par joueur, façon annuaire pro. Plus dense que la card,
-// permet de scanner 20+ profils d'un coup. Toggle persistant via localStorage.
-function PlayerRow({
-  p, matches, canShortlist, isShortlisted, onToggleShortlist, linkCopied, onGenerateLink, isLast,
-}: {
-  p: PlayerCard;
-  matches: OpenPosition[];
-  canShortlist: boolean;
-  isShortlisted: boolean;
-  onToggleShortlist: () => void;
-  linkCopied: boolean;
-  onGenerateLink: () => void;
-  isLast: boolean;
+function IconButton({ children, onClick, active, accent, title }: { children: React.ReactNode; onClick: () => void; active: boolean; accent: string; title: string }) {
+  return (
+    <button type="button"
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClick(); }}
+      className="w-7 h-7 flex items-center justify-center transition-colors duration-150 bevel-sm"
+      style={{
+        background: active ? `${accent}26` : 'var(--s-surface)',
+        border: `1px solid ${active ? accent : 'var(--s-border)'}`,
+        color: active ? accent : 'var(--s-text-muted)',
+      }}
+      title={title}>
+      {children}
+    </button>
+  );
+}
+
+// ─── Vue liste — 1 ligne par joueur ──────────────────────────────────────
+function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist, linkCopied, onGenerateLink, isLast }: {
+  p: PlayerCard; matches: OpenPosition[]; canShortlist: boolean; isShortlisted: boolean;
+  onToggleShortlist: () => void; linkCopied: boolean; onGenerateLink: () => void; isLast: boolean;
 }) {
   const avatar = p.avatarUrl || p.discordAvatar;
   const hasMatch = matches.length > 0;
+  const topStructure = p.structures[0];
+  const tier = getRankTierConfig(p.rlRank);
 
   return (
-    <div
-      className="relative group transition-colors hover:bg-[var(--s-elevated)]"
+    <div className="relative group transition-colors hover:bg-[var(--s-elevated)]"
       style={{
         borderBottom: isLast ? 'none' : '1px solid var(--s-border)',
         background: hasMatch ? 'rgba(0,217,54,0.04)' : undefined,
@@ -907,8 +839,7 @@ function PlayerRow({
           </div>
         )}
 
-        {/* Pseudo + vérification */}
-        <div className="flex items-center gap-1.5 min-w-0" style={{ flex: '0 0 200px' }}>
+        <div className="flex items-center gap-1.5 min-w-0" style={{ flex: '0 0 180px' }}>
           <span className="text-sm font-medium truncate" style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
           {p.rlAccountVerified && (
             <span title="Compte RL vérifié" style={{ color: 'var(--s-gold)', flexShrink: 0, display: 'inline-flex' }}>
@@ -917,12 +848,8 @@ function PlayerRow({
           )}
         </div>
 
-        {/* Pays */}
-        <div style={{ flex: '0 0 28px' }}>
-          <CountryFlag code={p.country} size={20} />
-        </div>
+        <CountryFlag code={p.country} size={20} />
 
-        {/* Jeux */}
         <div className="flex gap-1" style={{ flex: '0 0 60px' }}>
           {p.games.map(g => (
             <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
@@ -932,79 +859,71 @@ function PlayerRow({
           ))}
         </div>
 
-        {/* Rang RL (si vérifié) ou TM */}
-        <div className="hidden md:flex items-center gap-1.5 text-xs min-w-0" style={{ flex: '1 1 0', color: 'var(--s-text-dim)' }}>
-          {p.rlRank && p.rlAccountVerified ? (
+        {/* Rang RL avec icône */}
+        <div className="hidden md:flex items-center gap-1.5 text-xs min-w-0" style={{ flex: '0 0 160px', color: 'var(--s-text-dim)' }}>
+          {p.rlRank && p.rlAccountVerified && tier ? (
             <>
-              {p.rlIconUrl
-                ? <Image src={p.rlIconUrl} alt="" width={12} height={12} unoptimized />
-                : <Trophy size={11} style={{ color: 'var(--s-blue)' }} />}
-              <span className="truncate">{p.rlRank}</span>
-            </>
-          ) : p.pseudoTM ? (
-            <>
-              <Gamepad2 size={11} style={{ color: 'var(--s-green)' }} />
-              <span className="truncate">{p.pseudoTM}</span>
+              <RankBadge rank={p.rlRank} size={20} />
+              <span className="truncate" style={{ color: tier.color }}>{p.rlRank}</span>
             </>
           ) : p.games.includes('rocket_league') && !p.rlAccountVerified ? (
             <span className="inline-flex items-center gap-1" style={{ color: 'var(--s-text-muted)' }}>
               <ShieldAlert size={10} /> Non vérifié
             </span>
+          ) : p.pseudoTM ? (
+            <>
+              <Gamepad2 size={11} style={{ color: 'var(--s-green)' }} />
+              <span className="truncate">{p.pseudoTM}</span>
+            </>
           ) : null}
         </div>
 
+        {/* Structure + rôle */}
+        <div className="hidden lg:flex items-center gap-1.5 text-xs min-w-0" style={{ flex: '1 1 0', color: 'var(--s-text-dim)' }}>
+          {topStructure ? (
+            <>
+              {topStructure.logoUrl
+                ? <Image src={topStructure.logoUrl} alt="" width={12} height={12} unoptimized className="flex-shrink-0" />
+                : <Crown size={10} style={{ color: 'var(--s-gold)', flexShrink: 0 }} />}
+              <span className="truncate">
+                <strong style={{ color: 'var(--s-text)' }}>{PRIMARY_ROLE_LABELS[topStructure.primaryRole]}</strong>
+                {' · '}
+                {topStructure.tag || topStructure.name}
+              </span>
+            </>
+          ) : (
+            <span className="italic" style={{ color: 'var(--s-text-muted)' }}>Sans structure</span>
+          )}
+        </div>
+
         {/* Badge recrutement */}
-        <div className="hidden lg:block" style={{ flex: '0 0 140px' }}>
+        <div className="hidden lg:block" style={{ flex: '0 0 130px' }}>
           {p.isAvailableForRecruitment && (
             <span className="tag inline-flex items-center gap-1"
-              style={{
-                background: 'rgba(0,217,54,0.10)', color: '#33ff66',
-                borderColor: 'rgba(0,217,54,0.30)', fontSize: '11px', padding: '2px 6px',
-              }}>
+              style={{ background: 'rgba(0,217,54,0.10)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.30)', fontSize: '11px', padding: '2px 6px' }}>
               <Star size={10} style={{ fill: '#33ff66' }} />
-              Cherche {ROLE_LABELS[p.recruitmentRole] || 'équipe'}
+              {ROLE_LABELS[p.recruitmentRole] || 'Cherche équipe'}
             </span>
           )}
         </div>
 
-        {/* Match positions (si recruteur) */}
         {hasMatch && (
-          <span className="hidden lg:inline-flex tag items-center gap-1 flex-shrink-0"
-            style={{
-              fontSize: '11px', padding: '2px 7px',
-              background: 'rgba(0,217,54,0.15)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.45)',
-              fontWeight: 600,
-            }}>
-            <Target size={10} />
-            Match {ROLE_LABELS[matches[0].role] || matches[0].role}
+          <span className="hidden xl:inline-flex tag items-center gap-1 flex-shrink-0"
+            style={{ fontSize: '11px', padding: '2px 7px', background: 'rgba(0,217,54,0.15)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.45)', fontWeight: 600 }}>
+            <Target size={10} /> Match
           </span>
         )}
 
-        {/* Actions recruteur */}
         {canShortlist && (
           <div className="flex gap-1 flex-shrink-0" style={{ pointerEvents: 'auto' }}>
-            <button type="button"
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleShortlist(); }}
-              className="w-7 h-7 flex items-center justify-center transition-colors bevel-sm"
-              style={{
-                background: isShortlisted ? 'rgba(255,184,0,0.15)' : 'var(--s-surface)',
-                border: `1px solid ${isShortlisted ? 'rgba(255,184,0,0.5)' : 'var(--s-border)'}`,
-                color: isShortlisted ? 'var(--s-gold)' : 'var(--s-text-muted)',
-              }}
+            <IconButton onClick={onToggleShortlist} active={isShortlisted} accent="var(--s-gold)"
               title={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}>
               {isShortlisted ? <BookmarkCheck size={13} /> : <Bookmark size={13} />}
-            </button>
-            <button type="button"
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onGenerateLink(); }}
-              className="w-7 h-7 flex items-center justify-center transition-colors bevel-sm"
-              style={{
-                background: linkCopied ? 'rgba(0,217,54,0.15)' : 'var(--s-surface)',
-                border: `1px solid ${linkCopied ? 'rgba(0,217,54,0.5)' : 'var(--s-border)'}`,
-                color: linkCopied ? '#33ff66' : 'var(--s-text-muted)',
-              }}
+            </IconButton>
+            <IconButton onClick={onGenerateLink} active={linkCopied} accent="#33ff66"
               title={linkCopied ? 'Lien copié !' : "Générer un lien d'invitation"}>
               {linkCopied ? <Check size={13} /> : <Link2 size={13} />}
-            </button>
+            </IconButton>
           </div>
         )}
       </div>
@@ -1012,24 +931,14 @@ function PlayerRow({
   );
 }
 
-function EmptyState({
-  hasFilters, totalCount, onReset,
-}: {
-  hasFilters: boolean;
-  totalCount: number;
-  onReset: () => void;
-}) {
+function EmptyState({ hasFilters, totalCount, onReset }: { hasFilters: boolean; totalCount: number; onReset: () => void }) {
   if (hasFilters) {
     return (
       <div className="bevel p-12 text-center animate-fade-in-d2" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
         <Search size={32} className="mx-auto mb-4" style={{ color: 'var(--s-text-muted)' }} />
         <h3 className="font-display text-lg tracking-wider mb-2">AUCUN RÉSULTAT</h3>
-        <p className="t-body mb-5" style={{ color: 'var(--s-text-dim)' }}>
-          Aucun joueur ne correspond à tes filtres.
-        </p>
-        <button type="button" onClick={onReset} className="btn-springs btn-secondary bevel-sm">
-          Réinitialiser les filtres
-        </button>
+        <p className="t-body mb-5" style={{ color: 'var(--s-text-dim)' }}>Aucun joueur ne correspond à tes filtres.</p>
+        <button type="button" onClick={onReset} className="btn-springs btn-secondary bevel-sm">Réinitialiser les filtres</button>
       </div>
     );
   }
@@ -1039,16 +948,15 @@ function EmptyState({
       <div className="relative z-[1]">
         <Sparkles size={32} className="mx-auto mb-4" style={{ color: 'var(--s-blue)' }} />
         <h3 className="font-display text-xl tracking-wider mb-2">
-          {totalCount === 0 ? 'PERSONNE N\'EST ENCORE INSCRIT' : 'AUCUN JOUEUR DISPONIBLE'}
+          {totalCount === 0 ? "PERSONNE N'EST ENCORE INSCRIT" : 'AUCUN JOUEUR DISPONIBLE'}
         </h3>
         <p className="t-body mb-6 max-w-md mx-auto" style={{ color: 'var(--s-text-dim)' }}>
           {totalCount === 0
-            ? 'Sois le premier joueur Springs — crée ton profil et rejoins la communauté.'
-            : 'Personne n\'est marqué comme disponible au recrutement pour l\'instant.'}
+            ? 'Sois le premier joueur Aedral — crée ton profil et rejoins la communauté.'
+            : "Personne n'est marqué comme disponible au recrutement pour l'instant."}
         </p>
         <Link href="/settings" className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2">
-          <Star size={14} />
-          Marque-toi disponible
+          <Star size={14} /> Marque-toi disponible
         </Link>
       </div>
     </div>
