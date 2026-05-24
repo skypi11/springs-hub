@@ -766,7 +766,7 @@ export function TeamsTab(props: TeamsTabProps) {
           <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--s-text-muted)' }} />
           <input type="text" value={teamSearch} onChange={e => setTeamSearch(e.target.value)}
             placeholder="Rechercher une équipe, un label, un joueur..."
-            className="settings-input w-full pl-7 text-sm" />
+            className="settings-input has-icon-sm w-full text-sm" />
         </div>
       </div>
 
