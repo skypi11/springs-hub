@@ -717,7 +717,7 @@ function StructureBlock({ s }: { s: EnrichedStructure }) {
         <div className="text-[11px] font-semibold truncate">
           <span style={{ color: isLeader ? 'var(--s-gold)' : 'var(--s-text)' }}>{PRIMARY_ROLE_LABELS[s.primaryRole]}</span>
           <span style={{ color: 'var(--s-text-muted)' }}> · </span>
-          <span style={{ color: 'var(--s-text)' }}>{s.tag || s.name}</span>
+          <span style={{ color: 'var(--s-text)' }}>{s.name || s.tag}</span>
         </div>
         {showTeams && s.affiliations.slice(0, 2).map(a => (
           <div key={a.teamId} className="text-[10px] truncate" style={{ color: 'var(--s-text-dim)' }}>
@@ -744,7 +744,7 @@ function StructureLine({ s, size = 'sm' }: { s: EnrichedStructure; size?: 'sm' |
       <span className="truncate">
         <strong style={{ color: isLeader ? 'var(--s-gold)' : 'var(--s-text)' }}>{PRIMARY_ROLE_LABELS[s.primaryRole]}</strong>
         {' · '}
-        <span style={{ color: 'var(--s-text)' }}>{s.tag || s.name}</span>
+        <span style={{ color: 'var(--s-text)' }}>{s.name || s.tag}</span>
         {team && (
           <span style={{ color: 'var(--s-text-muted)' }}> · {team}</span>
         )}
@@ -839,8 +839,8 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
       onMouseLeave={e => { e.currentTarget.style.boxShadow = baseShadow; }}>
       <Link href={`/profile/${p.uid}`} className="absolute inset-0 z-[2]" aria-label={p.displayName} />
 
-      {/* ────── ZONE AVATAR — 4:3 (un peu moins haut qu'un carré pour laisser place aux affiliations) ────── */}
-      <div className="relative" style={{ aspectRatio: '4 / 3', background: headerTint }}>
+      {/* ────── ZONE AVATAR — 1:1 (format carré demandé par l'utilisateur) ────── */}
+      <div className="relative" style={{ aspectRatio: '1 / 1', background: headerTint }}>
         {/* Hex pattern subtil en fond de la zone avatar pour les leaders */}
         {isLeader && (
           <div className="absolute inset-0 hex-bg pointer-events-none" style={{ opacity: 0.6 }} />

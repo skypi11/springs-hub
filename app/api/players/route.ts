@@ -124,26 +124,49 @@ export async function GET(req: NextRequest) {
     });
 
     // ── Enrichissement structures / équipes / rôles ────────────────────────
-    // Deux sources combinées pour ne rater aucun lien user ↔ structure :
-    //   1. `structure_members` (where userId IN chunks) — couvre les joueurs
-    //      et la plupart des rôles, mais pas forcément les fondateurs anciens
-    //      validés avant le fix de écriture systématique du doc.
-    //   2. `structures where founderId IN chunks` — garantit qu'on trouve TOUTES
-    //      les structures fondées par les users de la page, même sans
-    //      structure_members existant. Les jeux sont dérivés depuis structure.games.
+    // 3 sources combinées pour ne rater AUCUN lien user ↔ structure :
+    //   1. `structure_members` (where userId IN chunks de 30) — joueurs + cas standards
+    //   2. `structures where founderId IN chunks de 30` — fondateurs anciens sans
+    //      doc structure_members écrit (avant le fix admin/structures approve)
+    //   3. `structures where coFounderIds/managerIds/coachIds array-contains-any
+    //      chunks de 10` — staff structure ajoutés sans structure_members
+    //      (ex: cat_aran fondatrice ARAN + Responsable TTC sur le même jeu — sans
+    //      cette 3e source on ne voyait pas TTC car structurePerGame ne contenait
+    //      qu'1 struct par jeu).
+    //
+    // Modèle interne : on track désormais TOUTES les structures par user
+    // (set unique de structureIds), pas juste 1 par jeu. Les `games` de la
+    // struct sont agrégés depuis les sources (membership.game ou structure.games).
     const userIds = userDocs.map(d => d.id);
-    const [membershipsByUser, foundedByUser] = await Promise.all([
+    const [membershipsByUser, foundedByUser, staffByUser] = await Promise.all([
       fetchMembershipsForUsers(db, userIds),
       fetchFoundedStructuresForUsers(db, userIds),
+      fetchStaffStructuresForUsers(db, userIds),
     ]);
 
-    // Collecte les structureIds uniques de cette page depuis les deux sources.
-    const uniqueStructureIds = new Set<string>();
-    for (const list of membershipsByUser.values()) {
-      for (const m of list) uniqueStructureIds.add(m.structureId);
+    // Pour chaque user : Map<structureId, Set<game>>
+    const userStructureGames = new Map<string, Map<string, Set<string>>>();
+    const addStructureGame = (uid: string, sid: string, games: string[]) => {
+      let perUser = userStructureGames.get(uid);
+      if (!perUser) { perUser = new Map(); userStructureGames.set(uid, perUser); }
+      let set = perUser.get(sid);
+      if (!set) { set = new Set(); perUser.set(sid, set); }
+      for (const g of games) if (g) set.add(g);
+    };
+    for (const [uid, list] of membershipsByUser) {
+      for (const m of list) addStructureGame(uid, m.structureId, [m.game]);
     }
-    for (const list of foundedByUser.values()) {
-      for (const f of list) uniqueStructureIds.add(f.structureId);
+    for (const [uid, list] of foundedByUser) {
+      for (const f of list) addStructureGame(uid, f.structureId, f.games);
+    }
+    for (const [uid, list] of staffByUser) {
+      for (const s of list) addStructureGame(uid, s.structureId, s.games);
+    }
+
+    // Collecte les structureIds uniques de la page entière (pour batch fetch)
+    const uniqueStructureIds = new Set<string>();
+    for (const perUser of userStructureGames.values()) {
+      for (const sid of perUser.keys()) uniqueStructureIds.add(sid);
     }
 
     // Batch fetch structures (chunks de 30 pour la limite Firestore `in`)
@@ -157,38 +180,18 @@ export async function GET(req: NextRequest) {
       const data = doc.data();
       const uid = doc.id;
 
-      // Dérive le mapping game → structureId depuis structure_members.
-      // Puis complète avec les structures fondées (cas où le doc structure_members
-      // manque — vieux fondateurs). Les structures fondées priorisent : un user
-      // qui est fondateur d'une structure ET joueur d'une autre sur le même jeu
-      // verra sa structure fondée comme principale.
-      const memberships = membershipsByUser.get(uid) ?? [];
-      const founded = foundedByUser.get(uid) ?? [];
-      const structurePerGame: Record<string, string> = {};
-      for (const f of founded) {
-        for (const g of f.games) {
-          if (g && f.structureId) structurePerGame[g] = f.structureId;
-        }
-      }
-      for (const m of memberships) {
-        if (m.game && m.structureId && !structurePerGame[m.game]) {
-          structurePerGame[m.game] = m.structureId;
-        }
-      }
+      // Toutes les structures où l'user est impliqué (set de structureIds → set de games)
+      const perUserStructs = userStructureGames.get(uid) ?? new Map<string, Set<string>>();
 
-      // Enrichi par structure rejointe par ce user.
-      // DÉDUPLIQUE par structureId — si l'user est dans la même structure pour
-      // plusieurs jeux (RL + TM), on agrège les `games` et les `affiliations`
-      // (équipes) en UNE seule entrée par structure. Sans ça, l'UI affichait
-      // 2x la même structure (ex: "Fondateur ADL" + "Fondateur ADL").
-      const structureMap = new Map<string, EnrichedStructure>();
-      for (const [g, sid] of Object.entries(structurePerGame)) {
-        if (!sid) continue;
+      const enrichedStructures: EnrichedStructure[] = [];
+      for (const [sid, gameSet] of perUserStructs) {
         const s = structuresById.get(sid);
         if (!s) continue;
+        if (s.status && s.status !== 'active') continue;
+
+        // Toutes les équipes de la struct (tous jeux confondus — on agrège pour
+        // que le rôle calculé reflète l'ensemble des affiliations équipes).
         const allTeams = teamsByStructureId.get(sid) ?? [];
-        // Filtre équipes du même jeu (les sub_teams ont un champ `game`)
-        const teamsForGame = allTeams.filter(t => (t.game ?? '') === g);
 
         const role = computeMemberRole({
           userId: uid,
@@ -196,7 +199,7 @@ export async function GET(req: NextRequest) {
           coFounderIds: (s.coFounderIds as string[]) ?? [],
           managerIds: (s.managerIds as string[]) ?? [],
           coachIds: (s.coachIds as string[]) ?? [],
-          teams: teamsForGame.map(t => ({
+          teams: allTeams.map(t => ({
             id: t.id,
             name: (t.name as string) ?? 'Équipe',
             playerIds: (t.playerIds as string[]) ?? [],
@@ -208,32 +211,16 @@ export async function GET(req: NextRequest) {
           })),
         });
 
-        const existing = structureMap.get(sid);
-        if (existing) {
-          // Merge : ajout du jeu + concat des affiliations (dédup par teamId)
-          if (!existing.games.includes(g)) existing.games.push(g);
-          const seenTeamIds = new Set(existing.affiliations.map(a => a.teamId));
-          for (const aff of role.affiliations) {
-            if (!seenTeamIds.has(aff.teamId)) {
-              existing.affiliations.push(aff);
-              seenTeamIds.add(aff.teamId);
-            }
-          }
-          // primaryRole : on garde le plus haut (mais structure-level role est
-          // identique pour les 2 jeux, donc rarement différent)
-        } else {
-          structureMap.set(sid, {
-            id: sid,
-            name: (s.name as string) ?? '',
-            tag: (s.tag as string) ?? '',
-            logoUrl: (s.logoUrl as string) ?? '',
-            games: [g],
-            primaryRole: role.primary,
-            affiliations: [...role.affiliations],
-          });
-        }
+        enrichedStructures.push({
+          id: sid,
+          name: (s.name as string) ?? '',
+          tag: (s.tag as string) ?? '',
+          logoUrl: (s.logoUrl as string) ?? '',
+          games: Array.from(gameSet),
+          primaryRole: role.primary,
+          affiliations: role.affiliations,
+        });
       }
-      const enrichedStructures = Array.from(structureMap.values());
 
       return {
         uid,
@@ -304,6 +291,46 @@ async function fetchFoundedStructuresForUsers(
       const list = result.get(uid) ?? [];
       list.push({ structureId: d.id, games });
       result.set(uid, list);
+    }
+  }
+  return result;
+}
+
+// Récupère les structures où un user est dans `coFounderIds`/`managerIds`/`coachIds`
+// (3 queries par chunk de 10 — limite Firestore `array-contains-any`).
+// Indispensable car certains staff sont juste référencés dans ces arrays sans
+// avoir de doc `structure_members` (cas typique : cat_aran Responsable TTC
+// sans membership doc → invisible avec les 2 premières sources).
+async function fetchStaffStructuresForUsers(
+  db: Firestore,
+  userIds: string[],
+): Promise<Map<string, Array<{ structureId: string; games: string[] }>>> {
+  const result = new Map<string, Array<{ structureId: string; games: string[] }>>();
+  if (userIds.length === 0) return result;
+
+  const ARRAY_CONTAINS_ANY_CHUNK = 10;
+  const STAFF_FIELDS = ['coFounderIds', 'managerIds', 'coachIds'] as const;
+
+  for (let i = 0; i < userIds.length; i += ARRAY_CONTAINS_ANY_CHUNK) {
+    const chunk = userIds.slice(i, i + ARRAY_CONTAINS_ANY_CHUNK);
+    for (const field of STAFF_FIELDS) {
+      const snap = await db.collection('structures')
+        .where(field, 'array-contains-any', chunk)
+        .get();
+      for (const d of snap.docs) {
+        const data = d.data();
+        if (data.status && data.status !== 'active') continue;
+        const games = Array.isArray(data.games) ? (data.games as string[]) : [];
+        const arr = (data[field] as string[] | undefined) ?? [];
+        for (const uid of arr) {
+          if (!chunk.includes(uid)) continue;
+          const list = result.get(uid) ?? [];
+          if (!list.some(e => e.structureId === d.id)) {
+            list.push({ structureId: d.id, games });
+            result.set(uid, list);
+          }
+        }
+      }
     }
   }
   return result;
