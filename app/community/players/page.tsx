@@ -86,11 +86,10 @@ const ROLE_PRIORITY: Record<PrimaryRole, number> = {
   joueur: 7,
   membre: 8,
 };
-function pickTopStructure(structures: EnrichedStructure[]): EnrichedStructure | undefined {
-  if (structures.length === 0) return undefined;
+function sortStructuresByPriority(structures: EnrichedStructure[]): EnrichedStructure[] {
   return [...structures].sort(
     (a, b) => (ROLE_PRIORITY[a.primaryRole] ?? 99) - (ROLE_PRIORITY[b.primaryRole] ?? 99),
-  )[0];
+  );
 }
 
 function matchPositions(playerRole: string, playerGames: string[], positions: OpenPosition[]): OpenPosition[] {
@@ -683,6 +682,32 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+// Ligne d'affiliation : [logo] [Rôle] [équipe] chez [STRUCTURE]
+// L'équipe (s'il y en a une) est positionnée entre le rôle et la structure,
+// ordre validé avec l'utilisateur : "Joueur LU Tomioka chez ARAN".
+function StructureLine({ s, size = 'sm' }: { s: EnrichedStructure; size?: 'sm' | 'xs' }) {
+  const logoSize = size === 'sm' ? 14 : 12;
+  const textColor = 'var(--s-text-dim)';
+  const team = s.affiliations[0]?.teamName;
+  return (
+    <div className="flex items-center gap-2 min-w-0" style={{ color: textColor, fontSize: size === 'sm' ? '12px' : '11px' }}>
+      {s.logoUrl ? (
+        <Image src={s.logoUrl} alt={s.name} width={logoSize} height={logoSize} unoptimized className="flex-shrink-0" />
+      ) : (
+        <Crown size={logoSize - 2} style={{ color: 'var(--s-gold)', flexShrink: 0 }} />
+      )}
+      <span className="truncate">
+        <strong style={{ color: 'var(--s-text)' }}>{PRIMARY_ROLE_LABELS[s.primaryRole]}</strong>
+        {team && (
+          <span style={{ color: 'var(--s-text-muted)' }}> {team}</span>
+        )}
+        {' chez '}
+        <span style={{ color: 'var(--s-text)' }}>{s.tag || s.name}</span>
+      </span>
+    </div>
+  );
+}
+
 function Switch({ label, value, onChange, accent = '#33ff66' }: { label: string; value: boolean; onChange: (v: boolean) => void; accent?: string }) {
   return (
     <button type="button" onClick={() => onChange(!value)} aria-pressed={value}
@@ -715,8 +740,10 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
   const tier = getRankTierConfig(p.rlRank);
   const accentColor = hasMatch ? 'rgba(0,217,54,0.55)' : (p.rlAccountVerified && p.isAvailableForRecruitment) ? 'rgba(255,184,0,0.55)' : 'var(--s-border)';
   const accentWidth = hasMatch || (p.rlAccountVerified && p.isAvailableForRecruitment) ? '2px' : '1px';
-  // Structure la plus "haut placée" (fondateur > responsable > … > joueur)
-  const topStructure = pickTopStructure(p.structures);
+  // Top 2 structures triées par hiérarchie (fondateur > responsable > … > joueur)
+  const sortedStructures = sortStructuresByPriority(p.structures);
+  const visibleStructures = sortedStructures.slice(0, 2);
+  const extraCount = sortedStructures.length - visibleStructures.length;
 
   return (
     <div className="bevel-sm relative overflow-hidden group transition-all duration-200 hover:border-white/30"
@@ -796,22 +823,17 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
           )}
         </div>
 
-        {/* Affiliation structure (1ère + rôle) */}
-        {topStructure ? (
-          <div className="flex items-center gap-2 text-xs mb-2" style={{ color: 'var(--s-text-dim)' }}>
-            {topStructure.logoUrl ? (
-              <Image src={topStructure.logoUrl} alt={topStructure.name} width={14} height={14} unoptimized className="flex-shrink-0" />
-            ) : (
-              <Crown size={11} style={{ color: 'var(--s-gold)', flexShrink: 0 }} />
+        {/* Affiliations : top 2 structures triées par hiérarchie de rôle */}
+        {visibleStructures.length > 0 ? (
+          <div className="flex flex-col gap-1 mb-2">
+            {visibleStructures.map(s => (
+              <StructureLine key={`${s.id}-${s.game}`} s={s} />
+            ))}
+            {extraCount > 0 && (
+              <div className="text-xs italic" style={{ color: 'var(--s-text-muted)' }}>
+                + {extraCount} autre{extraCount > 1 ? 's' : ''}
+              </div>
             )}
-            <span className="truncate">
-              <strong style={{ color: 'var(--s-text)' }}>{PRIMARY_ROLE_LABELS[topStructure.primaryRole]}</strong>
-              {' chez '}
-              <span style={{ color: 'var(--s-text)' }}>{topStructure.tag || topStructure.name}</span>
-              {topStructure.affiliations[0] && (
-                <span style={{ color: 'var(--s-text-muted)' }}> · {topStructure.affiliations[0].teamName}</span>
-              )}
-            </span>
           </div>
         ) : (
           <div className="text-xs mb-2 italic" style={{ color: 'var(--s-text-muted)' }}>Sans structure</div>
@@ -880,7 +902,9 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
 }) {
   const avatar = p.avatarUrl || p.discordAvatar;
   const hasMatch = matches.length > 0;
-  const topStructure = pickTopStructure(p.structures);
+  const sortedStructures = sortStructuresByPriority(p.structures);
+  const visibleStructures = sortedStructures.slice(0, 2);
+  const extraCount = sortedStructures.length - visibleStructures.length;
   const tier = getRankTierConfig(p.rlRank);
 
   return (
@@ -941,21 +965,21 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
           ) : null}
         </div>
 
-        {/* Structure + rôle */}
-        <div className="hidden lg:flex items-center gap-1.5 text-xs min-w-0" style={{ flex: '1 1 0', color: 'var(--s-text-dim)' }}>
-          {topStructure ? (
+        {/* Structures (top 2 par hiérarchie) */}
+        <div className="hidden lg:flex flex-col gap-0.5 min-w-0" style={{ flex: '1 1 0' }}>
+          {visibleStructures.length > 0 ? (
             <>
-              {topStructure.logoUrl
-                ? <Image src={topStructure.logoUrl} alt="" width={12} height={12} unoptimized className="flex-shrink-0" />
-                : <Crown size={10} style={{ color: 'var(--s-gold)', flexShrink: 0 }} />}
-              <span className="truncate">
-                <strong style={{ color: 'var(--s-text)' }}>{PRIMARY_ROLE_LABELS[topStructure.primaryRole]}</strong>
-                {' · '}
-                {topStructure.tag || topStructure.name}
-              </span>
+              {visibleStructures.map(s => (
+                <StructureLine key={`${s.id}-${s.game}`} s={s} size="xs" />
+              ))}
+              {extraCount > 0 && (
+                <span className="text-xs italic" style={{ color: 'var(--s-text-muted)' }}>
+                  + {extraCount} autre{extraCount > 1 ? 's' : ''}
+                </span>
+              )}
             </>
           ) : (
-            <span className="italic" style={{ color: 'var(--s-text-muted)' }}>Sans structure</span>
+            <span className="text-xs italic" style={{ color: 'var(--s-text-muted)' }}>Sans structure</span>
           )}
         </div>
 
