@@ -54,6 +54,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── État cron (pagination cursor entre runs) ────────────────────────────
+    // Privé : seul l'Admin SDK depuis les routes cron y écrit/lit. Aucun
+    // intérêt côté client. Préfixe `_` = convention "collection système".
+    match /_cron_state/{key} {
+      allow read, write: if false;
+    }
+
     // ── Signalements de rang RL (Lot 5 — anti-mensonge) ─────────────────────
     // Création/lecture côté client refusées — tout passe par les API routes :
     //   POST /api/profile/[uid]/rank-report  → crée un report

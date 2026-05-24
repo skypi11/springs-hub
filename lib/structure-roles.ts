@@ -103,3 +103,4 @@ export function expiredDepartures(
   if (!departures) return [];
   return Object.keys(departures).filter(uid => isDepartureNoticeExpired(departures[uid], now));
 }
+

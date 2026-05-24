@@ -80,6 +80,14 @@
       ]
     },
     {
+      "collectionGroup": "structure_invitations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "structure_members",
       "queryScope": "COLLECTION",
       "fields": [
