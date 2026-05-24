@@ -92,6 +92,38 @@ function sortStructuresByPriority(structures: EnrichedStructure[]): EnrichedStru
   );
 }
 
+// 3 tiers de couleur basés sur le rôle le plus élevé de l'user, en variations d'or
+// (pas de violet — réservé Springs E-Sport). Plus le tier est haut, plus l'accent
+// est intense. La DA monochrome+or est conservée.
+type Tier = 'leader' | 'staff' | 'player';
+function getRoleTier(structures: EnrichedStructure[]): Tier {
+  if (structures.length === 0) return 'player';
+  const top = structures[0].primaryRole;
+  if (top === 'fondateur' || top === 'co_fondateur') return 'leader';
+  if (top === 'responsable' || top === 'coach_structure' || top === 'manager_equipe' || top === 'coach_equipe') return 'staff';
+  return 'player';
+}
+const TIER_STYLES: Record<Tier, { accent: string; bg: string; bar: string }> = {
+  // Fondateur / co-fondateur — or vif, bg or 9%
+  leader: {
+    accent: 'var(--s-gold)',
+    bg: 'rgba(255,184,0,0.09)',
+    bar: 'var(--s-gold)',
+  },
+  // Staff structure ou équipe — or pâle, bg or 4%
+  staff: {
+    accent: 'rgba(255,184,0,0.55)',
+    bg: 'rgba(255,184,0,0.04)',
+    bar: 'rgba(255,184,0,0.45)',
+  },
+  // Joueur lambda — pas d'accent fort
+  player: {
+    accent: 'var(--s-border)',
+    bg: 'transparent',
+    bar: 'transparent',
+  },
+};
+
 function matchPositions(playerRole: string, playerGames: string[], positions: OpenPosition[]): OpenPosition[] {
   if (!playerRole || positions.length === 0) return [];
   const seen = new Set<string>();
@@ -737,73 +769,83 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
   const { firebaseUser } = useAuth();
   const avatar = p.avatarUrl || p.discordAvatar;
   const hasMatch = matches.length > 0;
-  const tier = getRankTierConfig(p.rlRank);
-  const accentColor = hasMatch ? 'rgba(0,217,54,0.55)' : (p.rlAccountVerified && p.isAvailableForRecruitment) ? 'rgba(255,184,0,0.55)' : 'var(--s-border)';
-  const accentWidth = hasMatch || (p.rlAccountVerified && p.isAvailableForRecruitment) ? '2px' : '1px';
-  // Top 2 structures triées par hiérarchie (fondateur > responsable > … > joueur)
+  const rankTier = getRankTierConfig(p.rlRank);
+  // Tier visuel basé sur le rôle le plus élevé du joueur
   const sortedStructures = sortStructuresByPriority(p.structures);
   const visibleStructures = sortedStructures.slice(0, 2);
   const extraCount = sortedStructures.length - visibleStructures.length;
+  const tier = getRoleTier(sortedStructures);
+  const tierStyle = TIER_STYLES[tier];
+
+  // Match recrutement = signal le plus fort, override l'accent du tier
+  const accentColor = hasMatch ? 'rgba(0,217,54,0.65)' : tierStyle.accent;
+  const barColor = hasMatch ? 'var(--s-green)' : tierStyle.bar;
+  const bgTint = hasMatch ? 'rgba(0,217,54,0.06)' : tierStyle.bg;
+
+  const showInvite = canShortlist && p.isAvailableForRecruitment;
 
   return (
-    <div className="bevel-sm relative overflow-hidden group transition-all duration-200 hover:border-white/30"
+    <div className="bevel-sm relative overflow-hidden group transition-all duration-200"
       style={{
-        background: 'var(--s-surface)',
-        border: `${accentWidth} solid ${accentColor}`,
-        minHeight: 180,
+        background: `linear-gradient(180deg, ${bgTint} 0%, transparent 100%), var(--s-surface)`,
+        border: `1px solid ${accentColor}`,
+        minHeight: 200,
       }}>
-      <Link href={`/profile/${p.uid}`} className="absolute inset-0 z-[2]" aria-label={p.displayName} />
-
-      {(hasMatch || (p.rlAccountVerified && p.isAvailableForRecruitment)) && (
-        <div className="h-[3px]" style={{
-          background: hasMatch
-            ? 'linear-gradient(90deg, var(--s-green), transparent 80%)'
-            : 'linear-gradient(90deg, var(--s-gold), transparent 80%)',
-        }} />
+      {/* Accent bar gauche colorée par tier (or vif / or pâle / neutre / vert si match) */}
+      {barColor !== 'transparent' && (
+        <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ background: barColor, zIndex: 1 }} />
       )}
 
+      <Link href={`/profile/${p.uid}`} className="absolute inset-0 z-[2]" aria-label={p.displayName} />
+
+      {/* Actions flottantes : bookmark (toujours si canShortlist) + invite (si dispo recrutement) */}
       {canShortlist && (
-        <div className="relative z-[3] flex items-center justify-end gap-1 px-2 py-1.5"
-          style={{ background: 'var(--s-elevated)', borderBottom: '1px solid var(--s-border)' }}>
-          {hasMatch && (
-            <span className="tag inline-flex items-center gap-1 mr-auto"
-              style={{ fontSize: '11px', padding: '2px 6px', background: 'rgba(0,217,54,0.15)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.45)', fontWeight: 600 }}>
-              <Target size={10} /> Match {ROLE_LABELS[matches[0].role] || matches[0].role}
-            </span>
-          )}
+        <div className={`absolute top-2 right-2 z-[4] flex items-center gap-1 transition-opacity duration-150 ${isShortlisted || linkCopied ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
           <IconButton onClick={onToggleShortlist} active={isShortlisted} accent="var(--s-gold)"
             title={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}>
             {isShortlisted ? <BookmarkCheck size={14} /> : <Bookmark size={14} />}
           </IconButton>
-          <IconButton onClick={onGenerateLink} active={linkCopied} accent="#33ff66"
-            title={linkCopied ? 'Lien copié !' : "Générer un lien d'invitation"}>
-            {linkCopied ? <Check size={14} /> : <Link2 size={14} />}
-          </IconButton>
+          {showInvite && (
+            <IconButton onClick={onGenerateLink} active={linkCopied} accent="#33ff66"
+              title={linkCopied ? 'Lien copié !' : "Générer un lien d'invitation"}>
+              {linkCopied ? <Check size={14} /> : <Link2 size={14} />}
+            </IconButton>
+          )}
         </div>
       )}
 
-      <div className="relative z-[3] p-4" style={{ pointerEvents: 'none' }}>
-        {/* Header user */}
-        <div className="flex items-center gap-3 mb-3">
+      {/* Pastille Match en haut à gauche si match recrutement */}
+      {hasMatch && (
+        <div className="absolute top-2 left-2 z-[3]">
+          <span className="tag inline-flex items-center gap-1"
+            style={{ fontSize: '10px', padding: '2px 6px', background: 'rgba(0,217,54,0.18)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.45)', fontWeight: 700 }}>
+            <Target size={10} /> MATCH
+          </span>
+        </div>
+      )}
+
+      <div className="relative z-[3] p-4 pl-5 h-full flex flex-col" style={{ pointerEvents: 'none' }}>
+        {/* Header — avatar 56px + nom + flag + rang */}
+        <div className="flex items-start gap-3 mb-3">
           {avatar ? (
-            <div className="w-11 h-11 relative flex-shrink-0 overflow-hidden bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+            <div className="w-14 h-14 relative flex-shrink-0 overflow-hidden bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
               <Image src={avatar} alt={p.displayName} fill className="object-cover" unoptimized />
             </div>
           ) : (
-            <div className="w-11 h-11 flex-shrink-0 flex items-center justify-center bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-              <User size={16} style={{ color: 'var(--s-text-muted)' }} />
+            <div className="w-14 h-14 flex-shrink-0 flex items-center justify-center bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+              <User size={20} style={{ color: 'var(--s-text-muted)' }} />
             </div>
           )}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 pt-0.5">
             <div className="flex items-center gap-1.5">
-              <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{p.displayName}</p>
+              <p className="text-base font-semibold truncate" style={{ color: 'var(--s-text)' }}>{p.displayName}</p>
               {p.rlAccountVerified && (
                 <span title="Compte RL vérifié" style={{ color: 'var(--s-gold)', display: 'inline-flex', flexShrink: 0 }}>
-                  <ShieldCheck size={12} />
+                  <ShieldCheck size={13} />
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2 mt-1.5">
               <CountryFlag code={p.country} size={16} />
               <div className="flex gap-1">
                 {p.games.map(g => (
@@ -815,63 +857,70 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
               </div>
             </div>
           </div>
-          {/* Rang RL avec vraie icône Psyonix si vérifié */}
-          {p.rlRank && p.rlAccountVerified && tier && (
-            <div className="flex-shrink-0">
-              <RankBadge rank={p.rlRank} size={44} />
+          {/* Rang RL — vraie icône Psyonix, 48px */}
+          {p.rlRank && p.rlAccountVerified && rankTier && (
+            <div className="flex-shrink-0 -mt-1" title={p.rlRank}>
+              <RankBadge rank={p.rlRank} size={48} />
             </div>
           )}
         </div>
 
-        {/* Affiliations : top 2 structures triées par hiérarchie de rôle */}
-        {visibleStructures.length > 0 ? (
-          <div className="flex flex-col gap-1 mb-2">
-            {visibleStructures.map(s => (
-              <StructureLine key={`${s.id}-${s.game}`} s={s} />
-            ))}
-            {extraCount > 0 && (
-              <div className="text-xs italic" style={{ color: 'var(--s-text-muted)' }}>
-                + {extraCount} autre{extraCount > 1 ? 's' : ''}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="text-xs mb-2 italic" style={{ color: 'var(--s-text-muted)' }}>Sans structure</div>
-        )}
+        {/* Séparateur fin */}
+        <div className="h-px mb-3" style={{ background: 'var(--s-border)' }} />
 
-        {/* Badge "non vérifié" subtle si RL sans vérif */}
-        {p.games.includes('rocket_league') && !p.rlAccountVerified && (
-          <div className="mb-2" style={{ pointerEvents: 'auto' }}>
-            <RLIdentityBadge games={p.games} rlAccountVerified={p.rlAccountVerified}
-              rlAccountName={p.rlAccountName} rlAccountPlatform={p.rlAccountPlatform}
-              rlSteamId64={p.rlSteamId64} rlRank={p.rlRank}
-              targetUid={p.uid} targetName={p.displayName}
-              canReport={!!firebaseUser && firebaseUser.uid !== p.uid}
-              size="sm" tone="subtle" />
-          </div>
-        )}
+        {/* Affiliations — 2 lignes max */}
+        <div className="flex-1 flex flex-col gap-1.5">
+          {visibleStructures.length > 0 ? (
+            <>
+              {visibleStructures.map(s => (
+                <StructureLine key={`${s.id}-${s.game}`} s={s} />
+              ))}
+              {extraCount > 0 && (
+                <div className="text-xs italic" style={{ color: 'var(--s-text-muted)' }}>
+                  + {extraCount} autre{extraCount > 1 ? 's' : ''}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-xs italic" style={{ color: 'var(--s-text-muted)' }}>Sans structure</div>
+          )}
 
-        {/* Pseudo TM si présent */}
-        {p.pseudoTM && (
-          <div className="flex items-center gap-1.5 text-xs mb-2" style={{ color: 'var(--s-text-dim)' }}>
-            <Gamepad2 size={11} style={{ color: 'var(--s-green)' }} />
-            <span className="truncate">{p.pseudoTM}</span>
-          </div>
-        )}
-
-        {/* Badge recrutement */}
-        {p.isAvailableForRecruitment && (
-          <div className="mt-2 pt-2" style={{ borderTop: '1px solid rgba(0,217,54,0.2)' }}>
-            <div className="flex items-center gap-1.5">
-              <Star size={11} style={{ color: '#33ff66', fill: '#33ff66' }} />
-              <span className="text-xs font-bold" style={{ color: '#33ff66' }}>
-                Cherche {ROLE_LABELS[p.recruitmentRole] || 'équipe'}
-              </span>
+          {/* Pseudo TM si présent et pas déjà couvert via tags */}
+          {p.pseudoTM && (
+            <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--s-text-dim)' }}>
+              <Gamepad2 size={11} style={{ color: 'var(--s-green)' }} />
+              <span className="truncate">{p.pseudoTM}</span>
             </div>
-            <div className="relative z-[3] mt-2" style={{ pointerEvents: 'auto' }}>
-              <InviteToStructureButton targetUserId={p.uid} targetDisplayName={p.displayName}
-                targetGames={p.games} isAvailableForRecruitment={p.isAvailableForRecruitment} compact />
+          )}
+        </div>
+
+        {/* Footer — recrutement + non vérifié */}
+        <div className="mt-3 flex items-center justify-between gap-2">
+          {p.isAvailableForRecruitment ? (
+            <span className="tag inline-flex items-center gap-1"
+              style={{ background: 'rgba(0,217,54,0.12)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.30)', fontSize: '11px', padding: '2px 7px', fontWeight: 600 }}>
+              <Star size={10} style={{ fill: '#33ff66' }} />
+              Cherche {ROLE_LABELS[p.recruitmentRole] || 'équipe'}
+            </span>
+          ) : <span />}
+
+          {p.games.includes('rocket_league') && !p.rlAccountVerified && (
+            <div style={{ pointerEvents: 'auto' }}>
+              <RLIdentityBadge games={p.games} rlAccountVerified={p.rlAccountVerified}
+                rlAccountName={p.rlAccountName} rlAccountPlatform={p.rlAccountPlatform}
+                rlSteamId64={p.rlSteamId64} rlRank={p.rlRank}
+                targetUid={p.uid} targetName={p.displayName}
+                canReport={!!firebaseUser && firebaseUser.uid !== p.uid}
+                size="sm" tone="subtle" />
             </div>
+          )}
+        </div>
+
+        {/* Invite — caché si pas dispo au recrutement (sinon le lien n'a aucun sens) */}
+        {showInvite && (
+          <div className="mt-2" style={{ pointerEvents: 'auto' }}>
+            <InviteToStructureButton targetUserId={p.uid} targetDisplayName={p.displayName}
+              targetGames={p.games} isAvailableForRecruitment={p.isAvailableForRecruitment} compact />
           </div>
         )}
       </div>
@@ -905,32 +954,43 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
   const sortedStructures = sortStructuresByPriority(p.structures);
   const visibleStructures = sortedStructures.slice(0, 2);
   const extraCount = sortedStructures.length - visibleStructures.length;
-  const tier = getRankTierConfig(p.rlRank);
+  const rankTier = getRankTierConfig(p.rlRank);
+  const tier = getRoleTier(sortedStructures);
+  const tierStyle = TIER_STYLES[tier];
+
+  const bgTint = hasMatch ? 'rgba(0,217,54,0.06)' : tierStyle.bg;
+  const barColor = hasMatch ? 'var(--s-green)' : tierStyle.bar;
+  const showInvite = canShortlist && p.isAvailableForRecruitment;
 
   return (
     <div className="relative group transition-colors hover:bg-[var(--s-elevated)]"
       style={{
         borderBottom: isLast ? 'none' : '1px solid var(--s-border)',
-        background: hasMatch ? 'rgba(0,217,54,0.04)' : undefined,
+        background: bgTint !== 'transparent' ? bgTint : undefined,
       }}>
+      {/* Accent bar gauche (2px) — or vif / or pâle / vert si match */}
+      {barColor !== 'transparent' && (
+        <div className="absolute left-0 top-0 bottom-0 w-[2px]" style={{ background: barColor, zIndex: 1 }} />
+      )}
+
       <Link href={`/profile/${p.uid}`} className="absolute inset-0 z-[1]" aria-label={p.displayName} />
-      <div className="relative z-[2] flex items-center gap-3 px-4 py-2.5" style={{ pointerEvents: 'none' }}>
-        {/* Avatar */}
+      <div className="relative z-[2] flex items-center gap-3 px-4 pl-5 py-3" style={{ pointerEvents: 'none' }}>
+        {/* Avatar 40px (plus présent qu'avant) */}
         {avatar ? (
-          <div className="w-9 h-9 relative flex-shrink-0 overflow-hidden bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+          <div className="w-10 h-10 relative flex-shrink-0 overflow-hidden bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
             <Image src={avatar} alt={p.displayName} fill className="object-cover" unoptimized />
           </div>
         ) : (
-          <div className="w-9 h-9 flex-shrink-0 flex items-center justify-center bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-            <User size={14} style={{ color: 'var(--s-text-muted)' }} />
+          <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+            <User size={16} style={{ color: 'var(--s-text-muted)' }} />
           </div>
         )}
 
         <div className="flex items-center gap-1.5 min-w-0" style={{ flex: '0 0 180px' }}>
-          <span className="text-sm font-medium truncate" style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
+          <span className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
           {p.rlAccountVerified && (
             <span title="Compte RL vérifié" style={{ color: 'var(--s-gold)', flexShrink: 0, display: 'inline-flex' }}>
-              <ShieldCheck size={11} />
+              <ShieldCheck size={12} />
             </span>
           )}
         </div>
@@ -946,20 +1006,20 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
           ))}
         </div>
 
-        {/* Rang RL avec icône */}
-        <div className="hidden md:flex items-center gap-1.5 text-xs min-w-0" style={{ flex: '0 0 160px', color: 'var(--s-text-dim)' }}>
-          {p.rlRank && p.rlAccountVerified && tier ? (
+        {/* Rang RL — icône 24px + label coloré */}
+        <div className="hidden md:flex items-center gap-2 text-xs min-w-0" style={{ flex: '0 0 160px', color: 'var(--s-text-dim)' }}>
+          {p.rlRank && p.rlAccountVerified && rankTier ? (
             <>
-              <RankBadge rank={p.rlRank} size={20} />
-              <span className="truncate" style={{ color: tier.color }}>{p.rlRank}</span>
+              <RankBadge rank={p.rlRank} size={24} />
+              <span className="truncate font-medium" style={{ color: rankTier.color }}>{p.rlRank}</span>
             </>
           ) : p.games.includes('rocket_league') && !p.rlAccountVerified ? (
             <span className="inline-flex items-center gap-1" style={{ color: 'var(--s-text-muted)' }}>
-              <ShieldAlert size={10} /> Non vérifié
+              <ShieldAlert size={11} /> Non vérifié
             </span>
           ) : p.pseudoTM ? (
             <>
-              <Gamepad2 size={11} style={{ color: 'var(--s-green)' }} />
+              <Gamepad2 size={12} style={{ color: 'var(--s-green)' }} />
               <span className="truncate">{p.pseudoTM}</span>
             </>
           ) : null}
@@ -1001,16 +1061,19 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
           </span>
         )}
 
+        {/* Actions : bookmark toujours si canShortlist, invite seulement si dispo */}
         {canShortlist && (
-          <div className="flex gap-1 flex-shrink-0" style={{ pointerEvents: 'auto' }}>
+          <div className={`flex gap-1 flex-shrink-0 transition-opacity duration-150 ${isShortlisted || linkCopied ? 'opacity-100' : 'opacity-60 group-hover:opacity-100'}`} style={{ pointerEvents: 'auto' }}>
             <IconButton onClick={onToggleShortlist} active={isShortlisted} accent="var(--s-gold)"
               title={isShortlisted ? 'Retirer de la shortlist' : 'Ajouter à la shortlist'}>
               {isShortlisted ? <BookmarkCheck size={13} /> : <Bookmark size={13} />}
             </IconButton>
-            <IconButton onClick={onGenerateLink} active={linkCopied} accent="#33ff66"
-              title={linkCopied ? 'Lien copié !' : "Générer un lien d'invitation"}>
-              {linkCopied ? <Check size={13} /> : <Link2 size={13} />}
-            </IconButton>
+            {showInvite && (
+              <IconButton onClick={onGenerateLink} active={linkCopied} accent="#33ff66"
+                title={linkCopied ? 'Lien copié !' : "Générer un lien d'invitation"}>
+                {linkCopied ? <Check size={13} /> : <Link2 size={13} />}
+              </IconButton>
+            )}
           </div>
         )}
       </div>
