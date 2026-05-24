@@ -49,17 +49,19 @@ export async function GET(req: NextRequest) {
 
     const db = getAdminDb();
 
-    // Tout d'un coup — un seul where par type
+    // Tout d'un coup — un seul where par type.
+    // Hard cap 1000 par type : au-delà = config anormale (les invitations
+    // expirent via cron à 30j, donc en régime nominal max quelques dizaines).
     const [linksSnap, requestsSnap, directInvitesSnap] = await Promise.all([
       db.collection('structure_invitations')
         .where('structureId', '==', structureId)
-        .where('type', '==', 'invite_link').get(),
+        .where('type', '==', 'invite_link').limit(1000).get(),
       db.collection('structure_invitations')
         .where('structureId', '==', structureId)
-        .where('type', '==', 'join_request').get(),
+        .where('type', '==', 'join_request').limit(1000).get(),
       db.collection('structure_invitations')
         .where('structureId', '==', structureId)
-        .where('type', '==', 'direct_invite').get(),
+        .where('type', '==', 'direct_invite').limit(1000).get(),
     ]);
 
     const nowMs = Date.now();

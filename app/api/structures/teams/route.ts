@@ -31,8 +31,11 @@ export async function GET(req: NextRequest) {
     }
 
     const db = getAdminDb();
+    // Hard cap 500 équipes / structure (au-delà = config invraisemblable,
+    // évite un scan runaway si bug ou attaque).
     const snap = await db.collection('sub_teams')
       .where('structureId', '==', structureId)
+      .limit(500)
       .get();
 
     // Collecter tous les IDs de joueurs/staff de toutes les équipes en un seul batch

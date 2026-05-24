@@ -7,6 +7,11 @@
 //   - action='sync_discord_all'      → syncDiscordMember pour tous (pseudo
 //     serveur + 7 rôles). Bonus : complète le cron nocturne à la demande.
 //
+// SCALABILITÉ : pagination cursor + état persisté par action dans `_cron_state`.
+// Chaque appel traite MAX_PER_RUN users puis renvoie `partial: true` + le
+// cursor. L'admin (ou un script) relance l'appel jusqu'à `partial: false`.
+// Coût par run constant peu importe la taille de la base — scale infiniment.
+//
 // Confirmation server-side : `confirm: 'FORCER'` requis pour la déco (très
 // destructive — toutes les sessions tombent). 'sync_discord_all' n'a pas
 // besoin de confirm car réversible et bénin.
@@ -19,6 +24,50 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { syncDiscordMember } from '@/lib/discord-role-sync';
+import { loadCronState, saveCronState } from '@/lib/cron-state';
+import type { Firestore } from 'firebase-admin/firestore';
+
+export const maxDuration = 60;
+
+// Limites par run (sous le timeout Vercel 60s Hobby avec marge)
+const FORCE_DISCO_LIMIT_PER_RUN = 500;   // ~10ms / revokeRefreshTokens = 5s
+const DISCORD_SYNC_LIMIT_PER_RUN = 200;  // 80ms + sync ≈ ~30s
+
+// Pagine la collection users avec un cursor persisté par action.
+async function fetchUsersPage(
+  db: Firestore,
+  stateKey: string,
+  limit: number,
+): Promise<{ docs: FirebaseFirestore.QueryDocumentSnapshot[]; cycleComplete: boolean }> {
+  const state = await loadCronState(db, stateKey);
+
+  let query = db.collection('users').orderBy('__name__').limit(limit);
+  if (state?.lastCursor) {
+    const cursorDoc = await db.collection('users').doc(state.lastCursor).get();
+    if (cursorDoc.exists) query = query.startAfter(cursorDoc);
+  }
+
+  const snap = await query.get();
+  const cycleComplete = snap.docs.length < limit;
+  return { docs: snap.docs, cycleComplete };
+}
+
+async function advanceCursor(
+  db: Firestore,
+  stateKey: string,
+  docs: FirebaseFirestore.QueryDocumentSnapshot[],
+  cycleComplete: boolean,
+  processed: number,
+): Promise<void> {
+  const state = await loadCronState(db, stateKey);
+  const newCursor = cycleComplete || docs.length === 0 ? null : docs[docs.length - 1].id;
+  await saveCronState(db, stateKey, {
+    lastCursor: newCursor,
+    lastRunAt: Date.now(),
+    processed,
+    cycleStartedAt: state?.lastCursor ? state.cycleStartedAt : Date.now(),
+  });
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,9 +80,9 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json().catch(() => ({}));
     const action = typeof body?.action === 'string' ? body.action : '';
+    const reset = body?.reset === true;
 
     const db = getAdminDb();
-    const usersSnap = await db.collection('users').get();
 
     if (action === 'force_disconnect_all') {
       if (body?.confirm !== 'FORCER') {
@@ -42,8 +91,12 @@ export async function POST(req: NextRequest) {
         }, { status: 400 });
       }
 
+      const stateKey = 'mass_force_disconnect';
+      if (reset) await saveCronState(db, stateKey, { lastCursor: null, lastRunAt: Date.now() });
+
+      const { docs, cycleComplete } = await fetchUsersPage(db, stateKey, FORCE_DISCO_LIMIT_PER_RUN);
       const adminAuth = getAdminAuth();
-      const targets = usersSnap.docs.filter(d => d.id !== adminUid); // on s'épargne soi-même
+      const targets = docs.filter(d => d.id !== adminUid); // on s'épargne soi-même
       let revoked = 0;
       let failed = 0;
       const failedIds: string[] = [];
@@ -59,25 +112,36 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      await advanceCursor(db, stateKey, docs, cycleComplete, docs.length);
+
       await writeAdminAuditLog(db, {
         action: 'user_force_disconnected',
         adminUid,
         targetType: 'user',
         targetId: 'mass',
-        targetLabel: `Mass force-déco — ${revoked} déconnectés (${failed} échec)`,
+        targetLabel: `Mass force-déco run — ${revoked} déconnectés (${failed} échec) | ${cycleComplete ? 'cycle COMPLET' : 'à relancer'}`,
       });
 
       return NextResponse.json({
         ok: true,
-        message: `${revoked} session(s) révoquée(s). ${failed > 0 ? `${failed} échec(s).` : ''}`,
+        partial: !cycleComplete,
+        message: cycleComplete
+          ? `${revoked} session(s) révoquée(s) — cycle TERMINÉ.`
+          : `${revoked} session(s) révoquée(s). Relance pour continuer (${docs.length} traités ce run).`,
         revoked,
         failed,
         failedIds: failed > 0 ? failedIds : undefined,
+        processedThisRun: docs.length,
+        cycleComplete,
         note: 'Toi-même n\'a PAS été déconnecté(e) — pour ne pas casser ta session admin.',
       });
     }
 
     if (action === 'sync_discord_all') {
+      const stateKey = 'mass_sync_discord';
+      if (reset) await saveCronState(db, stateKey, { lastCursor: null, lastRunAt: Date.now() });
+
+      const { docs, cycleComplete } = await fetchUsersPage(db, stateKey, DISCORD_SYNC_LIMIT_PER_RUN);
       let synced = 0;
       let notOnServer = 0;
       let noDiscord = 0;
@@ -85,16 +149,14 @@ export async function POST(req: NextRequest) {
       const startedAt = Date.now();
       const HARD_DEADLINE_MS = 50_000; // marge sous le timeout Vercel function (60s Hobby)
 
-      for (const doc of usersSnap.docs) {
+      let lastProcessedIndex = -1;
+      for (let i = 0; i < docs.length; i++) {
         if (Date.now() - startedAt > HARD_DEADLINE_MS) {
-          // On préfère renvoyer un résultat partiel plutôt qu'un timeout opaque.
-          return NextResponse.json({
-            ok: true,
-            partial: true,
-            message: `Sync interrompue par sécurité (proche du timeout). ${synced} synchro(s). Relance pour finir.`,
-            synced, notOnServer, noDiscord, errored,
-          });
+          // Sortie anticipée — on persiste le cursor au dernier user traité
+          // pour reprendre au bon endroit au prochain run.
+          break;
         }
+        const doc = docs[i];
         try {
           const r = await syncDiscordMember(db, doc.id);
           if (r === 'synced') synced++;
@@ -105,13 +167,29 @@ export async function POST(req: NextRequest) {
           errored++;
           console.error(`[mass sync_discord] ${doc.id}`, err);
         }
+        lastProcessedIndex = i;
         await new Promise(r => setTimeout(r, 80));
       }
 
+      // Si on a été stoppé par le deadline avant la fin de la page, on persiste
+      // le cursor au dernier user effectivement traité (pas docs[length-1]).
+      const processedDocs = lastProcessedIndex >= 0 ? docs.slice(0, lastProcessedIndex + 1) : [];
+      const reachedEndOfPage = lastProcessedIndex === docs.length - 1;
+      const effectiveCycleComplete = reachedEndOfPage && cycleComplete;
+      await advanceCursor(db, stateKey, processedDocs, effectiveCycleComplete, processedDocs.length);
+
       return NextResponse.json({
         ok: true,
-        message: `${synced} joueur(s) synchronisé(s) sur Discord.`,
-        synced, notOnServer, noDiscord, errored,
+        partial: !effectiveCycleComplete,
+        message: effectiveCycleComplete
+          ? `${synced} joueur(s) synchronisé(s) sur Discord — cycle TERMINÉ.`
+          : `${synced} joueur(s) synchronisé(s). Relance pour continuer (${processedDocs.length} traités ce run).`,
+        synced,
+        notOnServer,
+        noDiscord,
+        errored,
+        processedThisRun: processedDocs.length,
+        cycleComplete: effectiveCycleComplete,
       });
     }
 

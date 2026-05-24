@@ -38,7 +38,9 @@ export async function GET(req: NextRequest) {
 
   try {
     const db = getAdminDb();
-    const snap = await db.collection('announce_templates').orderBy('updatedAt', 'desc').get();
+    // Hard cap 200 templates — un admin n'aura jamais besoin de plus, et ça
+    // évite un scan runaway si quelqu'un spam la collection.
+    const snap = await db.collection('announce_templates').orderBy('updatedAt', 'desc').limit(200).get();
     const templates: AnnounceTemplate[] = snap.docs.map(d => {
       const data = d.data();
       return {

@@ -41,9 +41,11 @@ export async function resolveUserContext(
     .get();
   const membership = memberSnap.empty ? null : memberSnap.docs[0].data();
 
-  // Toutes les équipes de la structure (sub_teams)
+  // Toutes les équipes de la structure (sub_teams).
+  // Hard cap 500 — aligné avec /api/structures/teams (config invraisemblable au-delà).
   const teamsSnap = await db.collection('sub_teams')
     .where('structureId', '==', structureId)
+    .limit(500)
     .get();
   const teams: (DocumentData & { id: string })[] = teamsSnap.docs.map(d => ({
     ...d.data(),
