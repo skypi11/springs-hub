@@ -124,14 +124,16 @@ export async function GET(req: NextRequest) {
     });
 
     // ── Enrichissement structures / équipes / rôles ────────────────────────
-    // Collecte les structureIds uniques de cette page (pas plus de pageSize × 2
-    // typiquement = max ~100 IDs pour pageSize=50 et 2 jeux/user).
+    // Source de vérité = `structure_members` (couvre fondateurs anciens même
+    // sans `users.structurePerGame` setté — invariant pas toujours respecté
+    // historiquement). Batch via `where userId IN (chunks de 30)`.
+    const userIds = userDocs.map(d => d.id);
+    const membershipsByUser = await fetchMembershipsForUsers(db, userIds);
+
+    // Collecte les structureIds uniques de cette page depuis les memberships.
     const uniqueStructureIds = new Set<string>();
-    for (const d of userDocs) {
-      const spg = (d.data().structurePerGame as Record<string, string> | undefined) ?? {};
-      for (const sid of Object.values(spg)) {
-        if (typeof sid === 'string' && sid) uniqueStructureIds.add(sid);
-      }
+    for (const list of membershipsByUser.values()) {
+      for (const m of list) uniqueStructureIds.add(m.structureId);
     }
 
     // Batch fetch structures (chunks de 30 pour la limite Firestore `in`)
@@ -144,7 +146,17 @@ export async function GET(req: NextRequest) {
     const players: PlayerCard[] = userDocs.map(doc => {
       const data = doc.data();
       const uid = doc.id;
-      const structurePerGame = (data.structurePerGame as Record<string, string> | undefined) ?? {};
+
+      // Dérive le mapping game → structureId depuis structure_members. Si un
+      // user a plusieurs memberships sur le même jeu (ne devrait pas, l'invariant
+      // 1-struct/jeu est garanti par /api/structures/join), on garde le premier.
+      const memberships = membershipsByUser.get(uid) ?? [];
+      const structurePerGame: Record<string, string> = {};
+      for (const m of memberships) {
+        if (m.game && m.structureId && !structurePerGame[m.game]) {
+          structurePerGame[m.game] = m.structureId;
+        }
+      }
 
       // Enrichi par structure rejointe par ce user
       const enrichedStructures: EnrichedStructure[] = [];
@@ -225,6 +237,34 @@ export async function GET(req: NextRequest) {
     captureApiError('API Players GET error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
+}
+
+// Récupère les memberships actifs des users en paramètre, groupés par userId.
+// Une seule query par chunk de 30 grâce à `where IN` Firestore sur `userId`.
+async function fetchMembershipsForUsers(
+  db: Firestore,
+  userIds: string[],
+): Promise<Map<string, Array<{ structureId: string; game: string }>>> {
+  const result = new Map<string, Array<{ structureId: string; game: string }>>();
+  if (userIds.length === 0) return result;
+
+  for (let i = 0; i < userIds.length; i += FIRESTORE_IN_CHUNK) {
+    const chunk = userIds.slice(i, i + FIRESTORE_IN_CHUNK);
+    const snap = await db.collection('structure_members')
+      .where('userId', 'in', chunk)
+      .get();
+    for (const d of snap.docs) {
+      const data = d.data();
+      const uid = data.userId as string;
+      const structureId = data.structureId as string;
+      const game = (data.game as string) || '';
+      if (!uid || !structureId || !game) continue;
+      const list = result.get(uid) ?? [];
+      list.push({ structureId, game });
+      result.set(uid, list);
+    }
+  }
+  return result;
 }
 
 // Récupère toutes les sub_teams des structures en paramètre, groupées par

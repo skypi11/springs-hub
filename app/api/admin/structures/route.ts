@@ -104,9 +104,13 @@ export async function POST(req: NextRequest) {
     switch (action) {
       case 'approve': {
         // Atomique : status structure + isFounderApproved + ajout membre fondateur
+        // + write structurePerGame pour CHAQUE jeu déclaré.
         // Doc ID déterministe pour qu'un double-clic écrive sur le même doc (idempotent).
         const memberRef = db.collection('structure_members').doc(`${structureId}_${data.founderId}`);
         const userRef = db.collection('users').doc(data.founderId);
+        const founderGames: string[] = Array.isArray(data.games) && data.games.length > 0
+          ? data.games
+          : ['rocket_league'];
         const batch = db.batch();
         batch.update(ref, {
           status: 'active',
@@ -116,18 +120,23 @@ export async function POST(req: NextRequest) {
           // Init compteurs dénormalisés : fondateur = 1 membre, 0 équipe
           counters: { teams: 0, members: 1 },
         });
-        batch.update(userRef, { isFounderApproved: true });
+        // Set structurePerGame.{game} = structureId pour TOUS les jeux de la
+        // structure — sinon le fondateur apparaît "Sans structure" dans l'annuaire
+        // (l'API /players se base sur ce champ).
+        const userUpdates: Record<string, unknown> = { isFounderApproved: true };
+        for (const g of founderGames) userUpdates[`structurePerGame.${g}`] = structureId;
+        batch.update(userRef, userUpdates);
         batch.set(memberRef, {
           structureId,
           userId: data.founderId,
-          game: data.games?.[0] || 'rocket_league',
+          game: founderGames[0],
           role: 'fondateur',
           joinedAt: FieldValue.serverTimestamp(),
         });
         addJoinHistory(db, batch, {
           structureId,
           userId: data.founderId,
-          game: data.games?.[0] || 'rocket_league',
+          game: founderGames[0],
           role: 'fondateur',
           reason: 'founder',
         });
