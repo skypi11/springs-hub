@@ -111,6 +111,29 @@ export default function WeekView({
   const availWeek = avail?.weeks.find(w => w.mondayYmd === weekMonday) ?? null;
   const availActive = !!selectedTeamId && !!availWeek;
 
+  // Total titulaires de l'équipe (pour distinguer "matchable" vs "titulaires
+  // au complet" — palette 3 paliers validée Matt 2026-05-25).
+  const titularsTotal = useMemo(
+    () => avail ? avail.members.filter(m => m.isTitulaire).length : 0,
+    [avail],
+  );
+
+  // Compte de titulaires dispos par slot (séparé du compte total) — pour la
+  // palette : seul le palier OR exige "tous les titulaires présents".
+  const titularsBySlot = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!avail || !availWeek) return map;
+    for (const m of avail.members) {
+      if (!m.isTitulaire) continue;
+      const conflicts = new Set(m.conflictSlots);
+      for (const s of m.slotsByWeek[weekMonday] ?? []) {
+        if (conflicts.has(s)) continue;
+        map.set(s, (map.get(s) ?? 0) + 1);
+      }
+    }
+    return map;
+  }, [avail, availWeek, weekMonday]);
+
   // Heatmap : pour chaque slot iso, qui est dispo (hors conflit d'event).
   const availabilityBySlot = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -231,7 +254,12 @@ export default function WeekView({
               return (
                 <div key={day.gridYmd} className="relative"
                   style={{ height: SLOT_COUNT * SLOT_HEIGHT, borderLeft: '1px solid var(--s-border)' }}>
-                  {/* Cases de fond (créneaux 30 min) */}
+                  {/* Cases de fond (créneaux 30 min).
+                      Palette 3 paliers alignée avec la heatmap de l'équipe
+                      (validée Matt 2026-05-25) :
+                        gris  : < minPlayers dispo (pas matchable)
+                        VERT  : ≥ minPlayers dispo (matcher possible)
+                        OR    : tous les titulaires dispos (créneau optimal) */}
                   {TIME_AXIS.map((t, idx) => {
                     const iso = day.slots[idx];
                     const availUids = availActive ? (availabilityBySlot.get(iso) ?? []) : [];
@@ -239,14 +267,27 @@ export default function WeekView({
                       ? (availUids.includes(soloMember) ? 1 : 0)
                       : availUids.length;
                     const total = avail?.members.length ?? 0;
+                    const minPlayers = avail?.team.minPlayersForMatch ?? 0;
+                    const titularDispoCount = titularsBySlot.get(iso) ?? 0;
                     const heat = availActive && shown > 0;
                     let heatBg: string | undefined;
                     if (heat) {
-                      const ratio = soloMember ? 1 : Math.min(1, shown / Math.max(1, total));
-                      heatBg = `rgba(255,184,0,${(0.1 + ratio * 0.42).toFixed(3)})`;
+                      if (soloMember) {
+                        // Mode solo : on isole 1 joueur → halo or atténué pour visualiser ses créneaux.
+                        heatBg = 'rgba(255,184,0,0.35)';
+                      } else if (titularsTotal > 0 && titularDispoCount >= titularsTotal) {
+                        // Tous les titulaires dispos → OR (créneau optimal).
+                        heatBg = 'rgba(255,184,0,0.45)';
+                      } else if (minPlayers > 0 && shown >= minPlayers) {
+                        // Matchable → VERT.
+                        heatBg = 'rgba(47,196,107,0.35)';
+                      } else {
+                        // Insuffisant mais ≥ 1 → neutre clair (subtle, indique que qq'un est là).
+                        heatBg = 'rgba(255,255,255,0.08)';
+                      }
                     }
                     const slotTitle = availActive && availUids.length > 0
-                      ? `${formatSlotTime(iso)} — Dispo ${availUids.length}/${total} : ${availUids.map(u => memberName.get(u) ?? '?').join(', ')}`
+                      ? `${formatSlotTime(iso)} — Dispo ${availUids.length}/${total} (dont ${titularDispoCount}/${titularsTotal} titulaires) : ${availUids.map(u => memberName.get(u) ?? '?').join(', ')}`
                       : (canCreate ? 'Cliquer pour créer un événement' : undefined);
                     return (
                       <div key={idx}
