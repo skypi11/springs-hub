@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Home, Users, Trophy, LogOut, Swords, Settings, Building2, Calendar, Search, Menu, X, Inbox } from 'lucide-react';
+import { Home, Users, Trophy, LogOut, Swords, Settings, Building2, Calendar, Search, Menu, X, Inbox, BookOpen } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import NotificationsBell from '@/components/ui/NotificationsBell';
 import DevSwitcher from '@/components/dev/DevSwitcher';
@@ -15,6 +15,7 @@ const navItems = [
   { href: '/', icon: Home, label: 'Accueil' },
   { href: '/community', icon: Users, label: 'Communauté' },
   { href: '/competitions', icon: Trophy, label: 'Compétitions' },
+  { href: '/guide', icon: BookOpen, label: 'Guide' },
   { href: '/settings', icon: Settings, label: 'Mon profil' },
 ];
 

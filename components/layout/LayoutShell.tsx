@@ -5,6 +5,8 @@ import { useAuth } from '@/context/AuthContext';
 import Sidebar from './Sidebar';
 import LegalFooter from './LegalFooter';
 import ImpersonationBanner from '@/components/admin/ImpersonationBanner';
+import WelcomeModal from '@/components/onboarding/WelcomeModal';
+import { checkProfileCompletion } from '@/lib/profile-completion';
 
 // Landing visiteur full-bleed sur `/` uniquement quand non-connecté.
 // Partout ailleurs (pages internes, ou `/` connecté) → layout standard avec sidebar.
@@ -31,6 +33,13 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
     );
   }
 
+  // Modal Bienvenue affiché UNE seule fois après onboarding (validé Matt
+  // 2026-05-25). Conditionné à : user connecté + profil complet (sinon
+  // ProfileCompletionGate render OnboardingWizard par-dessus → on cache).
+  // Le modal se gère lui-même via localStorage flag.
+  const profileComplete = user ? checkProfileCompletion(user).complete : false;
+  const showWelcome = !!user && profileComplete;
+
   return (
     <>
       <Sidebar />
@@ -39,6 +48,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
         <div className="flex-1">{children}</div>
         <LegalFooter />
       </div>
+      {showWelcome && <WelcomeModal />}
     </>
   );
 }
