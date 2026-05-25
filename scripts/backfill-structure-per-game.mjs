@@ -23,8 +23,21 @@ if (existsSync('.env.local')) {
 }
 
 function parseServiceAccount(raw) {
-  if (raw.startsWith('{')) return JSON.parse(raw);
-  return JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
+  // base64-encoded service account ?
+  if (!raw.trim().startsWith('{')) {
+    return JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
+  }
+  // JSON brut — dotenv conserve les \n littéraux dans private_key qui font
+  // crasher JSON.parse. Fallback : on échappe les newlines dans private_key.
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const fixed = raw.replace(
+      /"private_key":\s*"([^"]+)"/,
+      (_m, key) => `"private_key": "${key.replace(/\r?\n/g, '\\n')}"`,
+    );
+    return JSON.parse(fixed);
+  }
 }
 
 if (getApps().length === 0) {
