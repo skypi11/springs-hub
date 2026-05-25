@@ -45,6 +45,7 @@ import {
 import ReplaysPanel from '@/components/replays/ReplaysPanel';
 import MonthView from './MonthView';
 import WeekView from './WeekView';
+import StaffAvailabilityView from './StaffAvailabilityView';
 import { NewTodoForm, type TeamRef } from './TeamTodosPanel';
 import { useTodoTemplates } from './TodoTemplatesManager';
 import { ListTodo } from 'lucide-react';
@@ -225,12 +226,12 @@ export default function CalendarSection({
   const [teamFilter, setTeamFilter] = useState<string[]>([]);
   // Mode d'affichage : grille mois (vision globale), semaine (créneaux + dispos)
   // ou liste chronologique. Persisté en localStorage entre les sessions.
-  const [viewMode, setViewMode] = useState<'month' | 'week' | 'list'>('month');
+  const [viewMode, setViewMode] = useState<'month' | 'week' | 'list' | 'staff'>('month');
   useEffect(() => {
     const saved = localStorage.getItem('aedral_calendar_view');
-    if (saved === 'month' || saved === 'week' || saved === 'list') setViewMode(saved);
-  }, []);
-  const changeView = (v: 'month' | 'week' | 'list') => {
+    if (saved === 'month' || saved === 'week' || saved === 'list' || saved === 'staff') setViewMode(saved);
+}, []);
+  const changeView = (v: 'month' | 'week' | 'list' | 'staff') => {
     setViewMode(v);
     try { localStorage.setItem('aedral_calendar_view', v); } catch { /* quota / mode privé */ }
   };
@@ -369,13 +370,18 @@ export default function CalendarSection({
           <span className="font-display text-sm tracking-wider">CALENDRIER</span>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          {/* Bascule de vue : grille mois / semaine (desktop) / liste */}
+          {/* Bascule de vue : grille mois / semaine (desktop) / liste / staff (responsable+) */}
           <div className="flex bevel-sm overflow-hidden" style={{ border: '1px solid var(--s-border)' }}>
             {([
-              { v: 'month' as const, label: 'Mois', icon: <LayoutGrid size={12} /> },
-              { v: 'week' as const, label: 'Semaine', icon: <CalendarRange size={12} /> },
-              { v: 'list' as const, label: 'Liste', icon: <List size={12} /> },
-            ]).map(opt => (
+              { v: 'month' as const, label: 'Mois', icon: <LayoutGrid size={12} />, gated: false },
+              { v: 'week' as const, label: 'Semaine', icon: <CalendarRange size={12} />, gated: false },
+              { v: 'list' as const, label: 'Liste', icon: <List size={12} />, gated: false },
+              // Onglet STAFF : nouveau (Matt 2026-05-25) — affiche les dispos du
+              // pool staff (dirigeants + responsable + coach structure + staff
+              // d'équipes + capitaines). Visible uniquement pour le responsable +
+              // dirigeants (= ceux qui organisent des réunions staff).
+              { v: 'staff' as const, label: 'Staff', icon: <Users size={12} />, gated: !(isDirigeant(userContext) || userContext.isManager) },
+            ]).filter(opt => !opt.gated).map(opt => (
               <button key={opt.v} type="button" onClick={() => changeView(opt.v)}
                 className={`${opt.v === 'week' ? 'hidden lg:flex' : 'flex'} items-center gap-1.5 text-xs font-semibold transition-colors duration-150`}
                 style={{
@@ -468,6 +474,14 @@ export default function CalendarSection({
             canCreate={canCreateAnything}
             onEventClick={id => setOpenEventId(id)}
             onSlotCreate={(startsAt, endsAt) => setFormPrefill({ startsAt, endsAt })}
+          />
+        ) : effectiveViewMode === 'staff' ? (
+          <StaffAvailabilityView
+            structureId={structureId}
+            members={members}
+            teams={teams}
+            structureRoles={structureRoles}
+            canEditConfig={isDirigeant(userContext)}
           />
         ) : filteredEvents.length === 0 ? (
           <div className="text-center py-10">
