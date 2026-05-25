@@ -12,7 +12,7 @@
 // La couche dispos n'existe que sur la semaine courante + la suivante : c'est
 // la fenêtre sur laquelle les joueurs déclarent leurs créneaux.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Loader2, Users, Check, CalendarClock } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -61,11 +61,28 @@ type AvailMember = {
   slotsByWeek: Record<string, string[]>;
   conflictSlots: string[];
 };
+type StaffRoleKind = 'coach_team' | 'manager_team' | 'coach_structure' | 'responsable';
+type AvailStaff = {
+  uid: string;
+  displayName: string;
+  discordAvatar: string;
+  avatarUrl: string;
+  role: StaffRoleKind;
+  slotsByWeek: Record<string, string[]>;
+};
 type AvailResponse = {
   team: { id: string; name: string; game: string; minPlayersForMatch: number; minMatchDurationMinutes: number };
   today: string;
   weeks: { mondayYmd: string; weekId: string; blocks: MatchBlock[] }[];
   members: AvailMember[];
+  staff: AvailStaff[];
+};
+
+const STAFF_ROLE_LABELS: Record<StaffRoleKind, string> = {
+  coach_team: "Coach d'équipe",
+  manager_team: "Manager d'équipe",
+  coach_structure: 'Coach structure',
+  responsable: 'Responsable',
 };
 
 type Props = {
@@ -87,6 +104,26 @@ export default function WeekView({
   const [weekMonday, setWeekMonday] = useState(() => getMondayYmd(todayYmd));
   // Joueur isolé : si défini, la heatmap n'affiche que ses créneaux à lui.
   const [soloMember, setSoloMember] = useState<string | null>(null);
+
+  // Toggle overlay staff (validé Matt 2026-05-25 — Option B) : bordures bleu
+  // clair sur les slots où ≥ 1 staff (coach équipe + manager équipe + coach
+  // structure) est dispo. OFF par défaut pour éviter saturation visuelle.
+  // Persisté localStorage par structure pour conserver le choix de l'user.
+  const staffOverlayKey = `aedral_week_staff_overlay_${structureId}`;
+  const [showStaffOverlay, setShowStaffOverlay] = useState(false);
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(staffOverlayKey);
+      if (stored === '1') setShowStaffOverlay(true);
+    } catch { /* SSR */ }
+  }, [staffOverlayKey]);
+  const toggleStaffOverlay = () => {
+    setShowStaffOverlay(prev => {
+      const next = !prev;
+      try { localStorage.setItem(staffOverlayKey, next ? '1' : '0'); } catch { /* noop */ }
+      return next;
+    });
+  };
 
   const grid = useMemo(() => generateWeekGrid(weekMonday, todayYmd), [weekMonday, todayYmd]);
 
@@ -133,6 +170,28 @@ export default function WeekView({
     }
     return map;
   }, [avail, availWeek, weekMonday]);
+
+  // Dispos staff par slot (overlay bleu clair) — filtré sur Coach équipe +
+  // Manager équipe + Coach structure (validé Matt Q3 — pas les responsables
+  // ni dirigeants). Les responsables ont leur propre vue dédiée (onglet STAFF).
+  const RELEVANT_STAFF_ROLES = new Set<StaffRoleKind>(['coach_team', 'manager_team', 'coach_structure']);
+  const relevantStaff = useMemo(
+    () => avail ? avail.staff.filter(s => RELEVANT_STAFF_ROLES.has(s.role)) : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [avail],
+  );
+  const staffBySlot = useMemo(() => {
+    const map = new Map<string, AvailStaff[]>();
+    if (!avail || !availWeek) return map;
+    for (const s of relevantStaff) {
+      for (const iso of s.slotsByWeek[weekMonday] ?? []) {
+        const list = map.get(iso);
+        if (list) list.push(s);
+        else map.set(iso, [s]);
+      }
+    }
+    return map;
+  }, [avail, availWeek, weekMonday, relevantStaff]);
 
   // Heatmap : pour chaque slot iso, qui est dispo (hors conflit d'event).
   const availabilityBySlot = useMemo(() => {
@@ -197,6 +256,29 @@ export default function WeekView({
           <ChevronRight size={16} />
         </button>
         <span className="font-display text-lg tracking-wider" style={{ color: 'var(--s-text)' }}>{rangeLabel}</span>
+
+        {/* Toggle overlay staff — visible quand une équipe est sélectionnée et
+            qu'au moins 1 staff existe pour cette équipe. Affiche une bordure
+            droite bleu clair sur les slots où le staff est dispo. */}
+        {availActive && relevantStaff.length > 0 && (
+          <button type="button" onClick={toggleStaffOverlay}
+            title={showStaffOverlay ? 'Masquer les dispos du staff' : 'Afficher les dispos du staff (coach, manager)'}
+            className="ml-2 bevel-sm text-xs font-semibold transition-colors flex items-center gap-1.5"
+            style={{
+              padding: '5px 10px',
+              background: showStaffOverlay ? 'rgba(135,206,250,0.18)' : 'var(--s-elevated)',
+              border: `1px solid ${showStaffOverlay ? 'rgba(135,206,250,0.55)' : 'var(--s-border)'}`,
+              color: showStaffOverlay ? 'rgb(135,206,250)' : 'var(--s-text-dim)',
+            }}>
+            <span style={{
+              display: 'inline-block',
+              width: 8, height: 12,
+              borderRight: '3px solid rgba(135,206,250,0.9)',
+            }} />
+            Staff {showStaffOverlay ? 'visible' : 'masqué'}
+          </button>
+        )}
+
         <button type="button" onClick={goToday}
           className="ml-auto bevel-sm text-xs font-semibold transition-colors hover:bg-[var(--s-hover)]"
           style={{ padding: '5px 12px', background: 'var(--s-elevated)', border: '1px solid var(--s-border)', color: 'var(--s-text-dim)' }}>
@@ -286,9 +368,19 @@ export default function WeekView({
                         heatBg = 'rgba(255,255,255,0.08)';
                       }
                     }
+                    // Overlay staff (validé Matt 2026-05-25, option B) : bordure
+                    // droite épaisse bleu clair si ≥ 1 staff (coach/manager équipe
+                    // + coach structure) est dispo sur ce slot. Toggle global ON/OFF.
+                    const staffHere = (availActive && showStaffOverlay)
+                      ? (staffBySlot.get(iso) ?? [])
+                      : [];
+                    const hasStaff = staffHere.length > 0;
+                    const staffTitle = hasStaff
+                      ? ` · Staff dispo : ${staffHere.map(s => `${s.displayName} (${STAFF_ROLE_LABELS[s.role]})`).join(', ')}`
+                      : '';
                     const slotTitle = availActive && availUids.length > 0
-                      ? `${formatSlotTime(iso)} — Dispo ${availUids.length}/${total} (dont ${titularDispoCount}/${titularsTotal} titulaires) : ${availUids.map(u => memberName.get(u) ?? '?').join(', ')}`
-                      : (canCreate ? 'Cliquer pour créer un événement' : undefined);
+                      ? `${formatSlotTime(iso)} — Dispo ${availUids.length}/${total} (dont ${titularDispoCount}/${titularsTotal} titulaires) : ${availUids.map(u => memberName.get(u) ?? '?').join(', ')}${staffTitle}`
+                      : (hasStaff ? `${formatSlotTime(iso)}${staffTitle}` : (canCreate ? 'Cliquer pour créer un événement' : undefined));
                     return (
                       <div key={idx}
                         onClick={() => {
@@ -301,6 +393,8 @@ export default function WeekView({
                           top: idx * SLOT_HEIGHT, height: SLOT_HEIGHT,
                           background: heatBg,
                           borderTop: `1px solid ${t.m === 0 ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.03)'}`,
+                          // Bordure droite bleu clair = staff dispo (overlay)
+                          borderRight: hasStaff ? '3px solid rgba(135,206,250,0.9)' : undefined,
                           cursor: canCreate ? 'pointer' : 'default',
                         }} />
                     );

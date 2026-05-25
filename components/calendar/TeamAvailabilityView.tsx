@@ -47,13 +47,6 @@ type Staff = {
   slotsByWeek: Record<string, string[]>;
 };
 
-const STAFF_ROLE_LABELS: Record<StaffRoleKind, string> = {
-  coach_team: "Coach d'équipe",
-  manager_team: "Manager d'équipe",
-  coach_structure: 'Coach structure',
-  responsable: 'Responsable',
-};
-
 type WeekData = {
   mondayYmd: string;
   weekId: string;
@@ -166,23 +159,16 @@ export default function TeamAvailabilityView({
   const [minDurationHours, setMinDurationHours] = useState(1);
   const [configDirty, setConfigDirty] = useState(false);
 
-  // Staff inclus dans le matching (contrainte dure : leur dispo est requise
-  // pour qu'un slot soit suggéré). Cas typique : un manager veut planifier un
-  // training avec ses joueurs + le coach structure → il coche le coach ici.
-  const [includedStaffUids, setIncludedStaffUids] = useState<Set<string>>(() => new Set());
-  const includedStaffCsv = useMemo(
-    () => Array.from(includedStaffUids).sort().join(','),
-    [includedStaffUids],
-  );
-
-  const queryKey = ['team-availability', structureId, teamId, includedStaffCsv] as const;
+  // Note 2026-05-25 : le panel "STAFF DISPONIBLE" + l'inclusion staff dans
+  // le matching ont été déplacés vers la vue semaine du calendrier de structure
+  // (CalendarSection/WeekView) avec une couche overlay dédiée — évite le
+  // doublon UI et centralise sur 1 seul endroit le contexte planification.
+  const queryKey = ['team-availability', structureId, teamId] as const;
   const { data, isPending: loading } = useQuery({
     queryKey,
-    queryFn: () => {
-      let url = `/api/structures/teams/availability?structureId=${encodeURIComponent(structureId)}&teamId=${encodeURIComponent(teamId)}`;
-      if (includedStaffCsv) url += `&includeStaffUids=${encodeURIComponent(includedStaffCsv)}`;
-      return api<ApiResponse>(url);
-    },
+    queryFn: () => api<ApiResponse>(
+      `/api/structures/teams/availability?structureId=${encodeURIComponent(structureId)}&teamId=${encodeURIComponent(teamId)}`,
+    ),
     enabled: !!firebaseUser,
   });
 
@@ -463,101 +449,10 @@ export default function TeamAvailabilityView({
             />
           )}
 
-          {/* ═══ DISPOS STAFF (coach / manager / responsable) ═══
-              Affichage permanent + checkbox d'inclusion dans le matching.
-              Quand un staff est inclus, sa présence devient une contrainte dure
-              pour le matching de créneaux (le slot suggéré ne tombera que
-              quand il sera dispo). */}
-          {data.staff.length > 0 && (
-            <StaffPanel
-              staff={data.staff}
-              mondayYmd={currentWeek.mondayYmd}
-              includedUids={includedStaffUids}
-              onToggle={(uid) => {
-                setIncludedStaffUids(prev => {
-                  const next = new Set(prev);
-                  if (next.has(uid)) next.delete(uid); else next.add(uid);
-                  return next;
-                });
-              }}
-            />
-          )}
+          {/* Note 2026-05-25 : le panel staff dispo a été déplacé vers la vue
+              semaine du calendrier de structure (overlay bleu sur slots). */}
         </>
       )}
-    </div>
-  );
-}
-
-// ─── Panel staff : affichage + sélection pour le matching ─────────────────
-
-function StaffPanel({
-  staff,
-  mondayYmd,
-  includedUids,
-  onToggle,
-}: {
-  staff: Staff[];
-  mondayYmd: string;
-  includedUids: Set<string>;
-  onToggle: (uid: string) => void;
-}) {
-  return (
-    <div className="bevel-sm overflow-hidden"
-      style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <div className="px-4 py-3 border-b flex items-center justify-between gap-2"
-        style={{ borderColor: 'var(--s-border)', background: 'var(--s-elevated)' }}>
-        <div>
-          <div className="font-display text-sm tracking-wider">STAFF DISPONIBLE</div>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--s-text-dim)' }}>
-            Coche un staff pour l&apos;inclure dans le matching (le créneau ne sera suggéré que s&apos;il est dispo).
-          </p>
-        </div>
-        {includedUids.size > 0 && (
-          <span className="tag tag-gold" style={{ fontSize: '11px', padding: '2px 7px' }}>
-            {includedUids.size} inclus
-          </span>
-        )}
-      </div>
-      <div className="divide-y" style={{ borderColor: 'var(--s-border)' }}>
-        {staff.map(s => {
-          const slots = s.slotsByWeek[mondayYmd] ?? [];
-          const included = includedUids.has(s.uid);
-          const avatar = s.avatarUrl || s.discordAvatar;
-          return (
-            <div key={s.uid} className="px-4 py-2.5 flex items-center gap-3 transition-colors"
-              style={{
-                background: included ? 'rgba(255,184,0,0.05)' : 'transparent',
-                borderColor: 'var(--s-border)',
-              }}>
-              <label className="flex items-center cursor-pointer flex-shrink-0">
-                <input type="checkbox" checked={included}
-                  onChange={() => onToggle(s.uid)}
-                  className="w-4 h-4 cursor-pointer"
-                  style={{ accentColor: 'var(--s-gold)' }} />
-              </label>
-              {avatar ? (
-                <Image src={avatar} alt={s.displayName} width={28} height={28} unoptimized
-                  className="flex-shrink-0 bevel-sm"
-                  style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }} />
-              ) : (
-                <div className="w-7 h-7 flex-shrink-0 flex items-center justify-center bevel-sm"
-                  style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }} />
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>
-                  {s.displayName}
-                </div>
-                <div className="text-[11px]" style={{ color: 'var(--s-text-dim)' }}>
-                  {STAFF_ROLE_LABELS[s.role]}
-                </div>
-              </div>
-              <div className="text-xs flex-shrink-0" style={{ color: slots.length === 0 ? 'var(--s-text-muted)' : 'var(--s-text-dim)' }}>
-                {slots.length === 0 ? 'Aucun créneau dispo' : `${slots.length} créneau${slots.length > 1 ? 'x' : ''} dispo`}
-              </div>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }

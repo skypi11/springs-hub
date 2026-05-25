@@ -641,10 +641,9 @@ export async function POST(req: NextRequest) {
       }
 
       case 'updateMatchConfig': {
-        // Réservé aux dirigeants (fondateur / co-fondateur) — pas aux managers.
-        if (!isDirigeant) {
-          return NextResponse.json({ error: 'Réservé aux dirigeants.' }, { status: 403 });
-        }
+        // Autorisé : admin structure (dirigeant + responsable) OU manager
+        // d'équipe de CETTE équipe précise (validé Matt 2026-05-25 — un manager
+        // d'équipe doit pouvoir ajuster son propre consensus).
         if (!teamId) {
           return NextResponse.json({ error: 'teamId requis' }, { status: 400 });
         }
@@ -666,8 +665,15 @@ export async function POST(req: NextRequest) {
         if (!teamSnap.exists) {
           return NextResponse.json({ error: 'Équipe introuvable' }, { status: 404 });
         }
-        if (teamSnap.data()!.structureId !== structureId) {
+        const teamData = teamSnap.data()!;
+        if (teamData.structureId !== structureId) {
           return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+        }
+        const isTeamManagerHere = isTeamManagerOf(teamData);
+        if (!isAdminOfStructure && !isTeamManagerHere) {
+          return NextResponse.json({
+            error: 'Réservé aux dirigeants, responsables ou manager de cette équipe.',
+          }, { status: 403 });
         }
 
         await ref.update({

@@ -1972,6 +1972,13 @@ export default function MyStructurePage() {
                       };
                       const gameTag = team.game === 'rocket_league' ? 'RL' : team.game === 'trackmania' ? 'TM' : team.game;
                       const gameClass = team.game === 'rocket_league' ? 'tag-blue' : 'tag-green';
+                      // canEditConfig pour le consensus : dirigeant OU responsable (admin
+                      // structure) OU manager d'équipe de CETTE équipe (validé Matt 2026-05-25).
+                      const myStaffRole = firebaseUser
+                        ? (team.staffRoles as Record<string, 'coach' | 'manager'> | undefined)?.[firebaseUser.uid]
+                        : undefined;
+                      const isTeamManagerHere = myStaffRole === 'manager';
+                      const canEditTeamConfig = isDirigeant || isManagerOfActive || isTeamManagerHere;
                       return (
                         <div key={team.id} className="flex flex-col sm:flex-row sm:items-center gap-2 px-2 py-2"
                           style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
@@ -1984,19 +1991,19 @@ export default function MyStructurePage() {
                               className="flex-1 sm:flex-none"
                               icon={<CalendarClock size={12} />}
                               label="Dispos"
-                              onClick={() => setDrawerState({ team: drawerTeam, tab: 'availability', canEditConfig: isDirigeant })}
+                              onClick={() => setDrawerState({ team: drawerTeam, tab: 'availability', canEditConfig: canEditTeamConfig })}
                             />
                             <TeamActionChip
                               className="flex-1 sm:flex-none"
                               icon={<ClipboardList size={12} />}
                               label="Exercices"
-                              onClick={() => setDrawerState({ team: drawerTeam, tab: 'todos', canEditConfig: isDirigeant })}
+                              onClick={() => setDrawerState({ team: drawerTeam, tab: 'todos', canEditConfig: canEditTeamConfig })}
                             />
                             <TeamActionChip
                               className="flex-1 sm:flex-none"
                               icon={<Film size={12} />}
                               label="Replays"
-                              onClick={() => setDrawerState({ team: drawerTeam, tab: 'replays', canEditConfig: isDirigeant })}
+                              onClick={() => setDrawerState({ team: drawerTeam, tab: 'replays', canEditConfig: canEditTeamConfig })}
                             />
                           </div>
                         </div>
