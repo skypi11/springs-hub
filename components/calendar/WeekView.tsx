@@ -13,10 +13,12 @@
 // la fenêtre sur laquelle les joueurs déclarent leurs créneaux.
 
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { isDirigeant, type UserContext } from '@/lib/event-permissions';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Loader2, Users, Check, CalendarClock } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { api } from '@/lib/api-client';
+import { api, ApiError } from '@/lib/api-client';
+import { useToast } from '@/components/ui/Toast';
 import {
   addDays, getMondayYmd, parisYmd, generateWeekGrid, addMinutesToIso,
   formatSlotTime, type MatchBlock,
@@ -92,12 +94,13 @@ type Props = {
   teamFilter: string[];
   now: number;
   canCreate: boolean;
+  userContext: UserContext;       // pour gater le bouton "Configurer consensus"
   onEventClick: (id: string) => void;
   onSlotCreate: (startsAt: string, endsAt: string) => void;
 };
 
 export default function WeekView({
-  structureId, events, teams, teamFilter, now, canCreate, onEventClick, onSlotCreate,
+  structureId, events, teams, teamFilter, now, canCreate, userContext, onEventClick, onSlotCreate,
 }: Props) {
   const { firebaseUser } = useAuth();
   const todayYmd = parisYmd(new Date(now));
@@ -647,6 +650,26 @@ export default function WeekView({
                     </p>
                   )}
                 </div>
+
+                {/* Configuration consensus — accessible aux admin structure
+                    + manager de cette équipe précise. Validé Matt 2026-05-25. */}
+                {(() => {
+                  const selectedTeam = teams.find(t => t.id === selectedTeamId);
+                  const myStaffRole = firebaseUser
+                    ? (selectedTeam?.staffRoles ?? {})[firebaseUser.uid]
+                    : undefined;
+                  const isAdmin = isDirigeant(userContext) || userContext.isManager;
+                  const canEditConsensus = isAdmin || myStaffRole === 'manager';
+                  if (!canEditConsensus || !avail) return null;
+                  return (
+                    <ConsensusConfigInline
+                      structureId={structureId}
+                      teamId={avail.team.id}
+                      initialMinPlayers={avail.team.minPlayersForMatch}
+                      initialMinDurationMinutes={avail.team.minMatchDurationMinutes}
+                    />
+                  );
+                })()}
               </div>
             )}
           </aside>
@@ -704,4 +727,106 @@ function blockLabel(block: MatchBlock): string {
   const day = d.toLocaleDateString('fr-FR', { weekday: 'short' });
   const endPlus = addMinutesToIso(block.endSlot, 30);
   return `${day} · ${formatSlotTime(block.startSlot)}-${formatSlotTime(endPlus)}`;
+}
+
+// ─── Réglage consensus inline (panneau dispos) ──────────────────────────
+// Validé Matt 2026-05-25 : remplace le bouton "Configurer" séparé dans le
+// drawer équipe — accessible directement sous "Créneaux consensus".
+// Gating de permission fait par le parent (admin structure OU manager équipe).
+function ConsensusConfigInline({
+  structureId,
+  teamId,
+  initialMinPlayers,
+  initialMinDurationMinutes,
+}: {
+  structureId: string;
+  teamId: string;
+  initialMinPlayers: number;
+  initialMinDurationMinutes: number;
+}) {
+  const toast = useToast();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [minPlayers, setMinPlayers] = useState(initialMinPlayers);
+  const [minDurationH, setMinDurationH] = useState(initialMinDurationMinutes / 60);
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    if (!dirty) {
+      setMinPlayers(initialMinPlayers);
+      setMinDurationH(initialMinDurationMinutes / 60);
+    }
+  }, [initialMinPlayers, initialMinDurationMinutes, dirty]);
+
+  const save = useMutation({
+    mutationFn: () => api('/api/structures/teams', {
+      method: 'POST',
+      body: {
+        action: 'updateMatchConfig',
+        structureId,
+        teamId,
+        minPlayersForMatch: minPlayers,
+        minMatchDurationMinutes: Math.round(minDurationH * 60),
+      },
+    }),
+    onSuccess: () => {
+      toast.success('Consensus mis à jour');
+      setDirty(false);
+      qc.invalidateQueries({ queryKey: ['team-availability', structureId, teamId] });
+    },
+    onError: (err: Error) => toast.error(err instanceof ApiError ? err.message : 'Erreur'),
+  });
+
+  return (
+    <div className="mt-1" style={{ borderTop: '1px solid var(--s-border)', paddingTop: 8 }}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between gap-2 transition-colors hover:bg-[var(--s-hover)]"
+        style={{
+          padding: '4px 6px',
+          background: open ? 'rgba(255,184,0,0.06)' : 'transparent',
+          color: open ? 'var(--s-gold)' : 'var(--s-text-dim)',
+          border: '1px solid var(--s-border)',
+        }}>
+        <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          ⚙ Régler le consensus
+        </span>
+        <span style={{ fontSize: 10, color: 'var(--s-text-muted)' }}>
+          {open ? '×' : '+'}
+        </span>
+      </button>
+      {open && (
+        <div className="mt-2 space-y-2 p-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+          <div>
+            <label className="block mb-1" style={{ fontSize: 10, color: 'var(--s-text-muted)', textTransform: 'uppercase' }}>
+              Min joueurs pour matcher
+            </label>
+            <input type="number" min={1} max={10}
+              value={minPlayers}
+              onChange={e => { setMinPlayers(parseInt(e.target.value, 10) || 1); setDirty(true); }}
+              className="settings-input w-full"
+              style={{ fontSize: 12, padding: '4px 8px' }} />
+          </div>
+          <div>
+            <label className="block mb-1" style={{ fontSize: 10, color: 'var(--s-text-muted)', textTransform: 'uppercase' }}>
+              Durée min du match (heures)
+            </label>
+            <input type="number" min={0.5} max={8} step={0.5}
+              value={minDurationH}
+              onChange={e => { setMinDurationH(parseFloat(e.target.value) || 1); setDirty(true); }}
+              className="settings-input w-full"
+              style={{ fontSize: 12, padding: '4px 8px' }} />
+          </div>
+          {dirty && (
+            <button type="button" onClick={() => save.mutate()}
+              disabled={save.isPending}
+              className="btn-springs btn-primary bevel-sm flex items-center justify-center gap-1.5 w-full"
+              style={{ fontSize: 11, padding: '6px 10px' }}>
+              {save.isPending ? <Loader2 size={11} className="animate-spin" /> : null}
+              Enregistrer
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }

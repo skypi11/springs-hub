@@ -472,6 +472,7 @@ export default function CalendarSection({
             teamFilter={teamFilter}
             now={now}
             canCreate={canCreateAnything}
+            userContext={userContext}
             onEventClick={id => setOpenEventId(id)}
             onSlotCreate={(startsAt, endsAt) => setFormPrefill({ startsAt, endsAt })}
           />
@@ -559,15 +560,10 @@ function TeamFilterDropdown({
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
 
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as HTMLElement;
-      if (!t.closest('[data-team-filter-root]')) setOpen(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [open]);
+  // Fermeture au clic dehors : on garde le listener mousedown (compat existante)
+  // MAIS on ajoute aussi un overlay invisible plein écran (z lower que le panel)
+  // qui intercepte les clics, plus fiable quand des handlers stoppent la
+  // propagation (ex: bouton "Réinitialiser" en dehors du root).
 
   const query = q.trim().toLowerCase();
   // Même ordre que l'onglet Équipes : par groupe (groupOrder, label) puis order, nom.
@@ -625,6 +621,9 @@ function TeamFilterDropdown({
           style={{ color: 'var(--s-text-muted)', padding: '2px 6px' }}>
           Réinitialiser
         </button>
+      )}
+      {open && (
+        <div className="fixed inset-0 z-[25]" onClick={() => setOpen(false)} />
       )}
       {open && (
         <div className="absolute left-5 top-full mt-1 z-30 w-[min(280px,calc(100vw-2.5rem))] max-h-[320px] overflow-hidden flex flex-col bevel-sm"
