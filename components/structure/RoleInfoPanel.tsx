@@ -1,6 +1,7 @@
 'use client';
 
 import { Crown, Shield, UserCheck, Headphones, Briefcase, Star, Users, Check, X, BookOpen } from 'lucide-react';
+import Portal from '@/components/ui/Portal';
 import {
   ROLE_DEFINITIONS,
   ROLE_COLOR_MAP,
@@ -138,34 +139,39 @@ export function AllRolesPanel() {
 
 // Modal d'aide : affiche la matrice complète de tous les rôles. Accessible
 // depuis le general-tab pour les dirigeants. Le contenu scrolle si nécessaire.
+// Wrappé en Portal pour ne pas dépendre du containing block du parent
+// (ex: un parent avec transform/filter casse `position: fixed`).
 export function RolesHelpModal({ onClose }: { onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }}
-      onClick={onClose}>
-      <div className="w-full max-w-3xl max-h-[90vh] flex flex-col bevel"
-        style={{ background: 'var(--s-bg)', border: '1px solid var(--s-border)' }}
-        onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--s-border)' }}>
-          <div className="flex items-center gap-2">
-            <BookOpen size={18} style={{ color: 'var(--s-gold)' }} />
-            <h2 className="font-display text-xl tracking-wider">RÔLES & PERMISSIONS</h2>
+    <Portal>
+      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }}
+        onClick={onClose}>
+        <div className="w-full max-w-3xl max-h-[90vh] flex flex-col bevel"
+          style={{ background: 'var(--s-bg)', border: '1px solid var(--s-border)' }}
+          onClick={e => e.stopPropagation()}>
+          <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--s-border)' }}>
+            <div className="flex items-center gap-2">
+              <BookOpen size={18} style={{ color: 'var(--s-gold)' }} />
+              <h2 className="font-display text-xl tracking-wider">RÔLES & PERMISSIONS</h2>
+            </div>
+            <button type="button" onClick={onClose}
+              className="w-7 h-7 flex items-center justify-center transition-colors duration-150"
+              style={{ background: 'transparent', border: '1px solid var(--s-border)', color: 'var(--s-text-dim)' }}
+              aria-label="Fermer">
+              <X size={14} />
+            </button>
           </div>
-          <button type="button" onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center transition-colors duration-150"
-            style={{ background: 'transparent', border: '1px solid var(--s-border)', color: 'var(--s-text-dim)' }}
-            aria-label="Fermer">
-            <X size={14} />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-5 py-4">
-          <AllRolesPanel />
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            <AllRolesPanel />
+          </div>
         </div>
       </div>
-    </div>
+    </Portal>
   );
 }
 
 // Modal de confirmation de promotion : affiche l'info du rôle + boutons confirmer/annuler.
+// Wrappé en Portal (idem RolesHelpModal) pour ignorer le containing block du parent.
 export function PromoteRoleModal({
   role,
   targetName,
@@ -182,34 +188,36 @@ export function PromoteRoleModal({
   const def = ROLE_DEFINITIONS[role];
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }}
-      onClick={onCancel}>
-      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto bevel"
-        style={{ background: 'var(--s-bg)', border: '1px solid var(--s-border)' }}
-        onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--s-border)' }}>
-          <h2 className="font-display text-xl tracking-wider">PROMOUVOIR {def.name.toUpperCase()}</h2>
-          <p className="text-sm mt-1" style={{ color: 'var(--s-text-dim)' }}>
-            Tu vas promouvoir <strong style={{ color: 'var(--s-text)' }}>{targetName}</strong> au rôle de <strong style={{ color: 'var(--s-gold)' }}>{def.name}</strong>.
-            Voici ce qu'il pourra faire :
-          </p>
-        </div>
+    <Portal>
+      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }}
+        onClick={onCancel}>
+        <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto bevel"
+          style={{ background: 'var(--s-bg)', border: '1px solid var(--s-border)' }}
+          onClick={e => e.stopPropagation()}>
+          <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--s-border)' }}>
+            <h2 className="font-display text-xl tracking-wider">PROMOUVOIR {def.name.toUpperCase()}</h2>
+            <p className="text-sm mt-1" style={{ color: 'var(--s-text-dim)' }}>
+              Tu vas promouvoir <strong style={{ color: 'var(--s-text)' }}>{targetName}</strong> au rôle de <strong style={{ color: 'var(--s-gold)' }}>{def.name}</strong>.
+              Voici ce qu'il pourra faire :
+            </p>
+          </div>
 
-        <div className="px-5 py-4">
-          <RoleInfoCard role={def} />
-        </div>
+          <div className="px-5 py-4">
+            <RoleInfoCard role={def} />
+          </div>
 
-        <div className="px-5 py-4 border-t flex items-center justify-end gap-2" style={{ borderColor: 'var(--s-border)' }}>
-          <button type="button" onClick={onCancel} disabled={busy}
-            className="btn-springs btn-secondary bevel-sm">
-            Annuler
-          </button>
-          <button type="button" onClick={onConfirm} disabled={busy}
-            className="btn-springs btn-primary bevel-sm">
-            {busy ? 'Promotion…' : `Confirmer la promotion`}
-          </button>
+          <div className="px-5 py-4 border-t flex items-center justify-end gap-2" style={{ borderColor: 'var(--s-border)' }}>
+            <button type="button" onClick={onCancel} disabled={busy}
+              className="btn-springs btn-secondary bevel-sm">
+              Annuler
+            </button>
+            <button type="button" onClick={onConfirm} disabled={busy}
+              className="btn-springs btn-primary bevel-sm">
+              {busy ? 'Promotion…' : `Confirmer la promotion`}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Portal>
   );
 }

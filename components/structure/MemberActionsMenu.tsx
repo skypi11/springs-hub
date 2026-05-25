@@ -227,22 +227,21 @@ export default function MemberActionsMenu(props: MemberActionsMenuProps) {
 
       {/* Modal "À propos du rôle" qui apparait au moment de la promotion.
           Affiche tous les droits débloqués pour que le promoteur sache exactement
-          ce qu'il donne (évite les promotions à l'aveugle). */}
+          ce qu'il donne (évite les promotions à l'aveugle).
+          PromoteRoleModal wrappe lui-même via Portal — pas de double wrap ici. */}
       {promoteIntent && (
-        <Portal>
-          <PromoteRoleModal
-            role={promoteIntent}
-            targetName={targetName}
-            busy={anyBusy}
-            onCancel={() => setPromoteIntent(null)}
-            onConfirm={() => {
-              if (promoteIntent === 'coach_structure') onToggleCoach();
-              else if (promoteIntent === 'responsable') onToggleManager();
-              else if (promoteIntent === 'co_fondateur') onPromoteCoFounder();
-              setPromoteIntent(null);
-            }}
-          />
-        </Portal>
+        <PromoteRoleModal
+          role={promoteIntent}
+          targetName={targetName}
+          busy={anyBusy}
+          onCancel={() => setPromoteIntent(null)}
+          onConfirm={() => {
+            if (promoteIntent === 'coach_structure') onToggleCoach();
+            else if (promoteIntent === 'responsable') onToggleManager();
+            else if (promoteIntent === 'co_fondateur') onPromoteCoFounder();
+            setPromoteIntent(null);
+          }}
+        />
       )}
     </>
   );
