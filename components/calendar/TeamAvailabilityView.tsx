@@ -412,15 +412,18 @@ export default function TeamAvailabilityView({
 
           {/* ═══ HEATMAP CONSENSUS ═══ */}
           {mode === 'consensus' && (
-            <ConsensusHeatmap
-              rows={rows}
-              slotCountsByIso={slotCountsByIso}
-              eventSlotsByIso={eventSlotsByIso}
-              totalMembers={totalMembers}
-              minPlayers={data.team.minPlayersForMatch}
-              selectedSlot={selectedSlot}
-              onSelectSlot={setSelectedSlot}
-            />
+            <>
+              <HeatmapLegend minPlayers={data.team.minPlayersForMatch} totalMembers={totalMembers} />
+              <ConsensusHeatmap
+                rows={rows}
+                slotCountsByIso={slotCountsByIso}
+                eventSlotsByIso={eventSlotsByIso}
+                totalMembers={totalMembers}
+                minPlayers={data.team.minPlayersForMatch}
+                selectedSlot={selectedSlot}
+                onSelectSlot={setSelectedSlot}
+              />
+            </>
           )}
 
           {/* Détail d'un slot sélectionné */}
@@ -867,9 +870,49 @@ function ConsensusHeatmapTransposed({
   );
 }
 
-// Couleurs d'une case de heatmap selon le nombre de joueurs dispos. Paliers nets
-// (teinte ET luminosité distinctes) au lieu d'un dégradé d'opacité monochrome :
-//   0 · peu (or terne) · moyen (or) · seuil match (or vif) · consensus (vert) · tous (vert vif)
+// Mini-légende affichée au-dessus de la heatmap consensus — 3 carrés + label.
+// Permet à un nouvel utilisateur de comprendre immédiatement le code couleur
+// sans avoir à survoler chaque cellule pour deviner.
+function HeatmapLegend({
+  minPlayers,
+  totalMembers,
+}: {
+  minPlayers: number;
+  totalMembers: number;
+}) {
+  const items: Array<{ bg: string; border: string; label: string }> = [
+    { bg: 'rgba(255,255,255,0.10)', border: 'rgba(255,255,255,0.18)', label: `< ${minPlayers} dispo` },
+    { bg: '#ffb800', border: '#ffd24d', label: `≥ ${minPlayers} dispo (matcher possible)` },
+    { bg: '#2fc46b', border: '#5fe39a', label: totalMembers > 0 ? `${totalMembers}/${totalMembers} dispo (créneau parfait)` : 'tout le monde' },
+  ];
+  return (
+    <div className="flex flex-wrap items-center gap-3 px-1 py-2 text-xs" style={{ color: 'var(--s-text-dim)' }}>
+      <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Lecture :</span>
+      {items.map((it, i) => (
+        <div key={i} className="flex items-center gap-1.5">
+          <span style={{
+            display: 'inline-block',
+            width: 14,
+            height: 14,
+            background: it.bg,
+            border: `1px solid ${it.border}`,
+            borderRadius: 2,
+          }} />
+          <span>{it.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Couleurs d'une case de heatmap — 3 paliers nets seulement (validé Matt 2026-05-25).
+// Avant : 6 paliers dont 3 nuances d'or quasi-indiscernables (myrtille).
+// Maintenant :
+//   ○ Vide        : 0 dispo                            → gris très pâle
+//   ░ Insuffisant : 1 à (seuil - 1)                    → blanc 8% (neutre)
+//   ■ Minimum OK  : seuil atteint, pas encore complet  → OR (signal "matcher possible")
+//   ■ Complet     : 100% des joueurs dispos            → VERT (signal "créneau parfait")
+// Légende visuelle affichée au-dessus de la heatmap (HeatmapLegend).
 function heatmapCellColors(
   count: number,
   totalMembers: number,
@@ -878,19 +921,18 @@ function heatmapCellColors(
   if (count === 0) {
     return { bg: 'rgba(255,255,255,0.035)', border: 'rgba(255,255,255,0.06)' };
   }
-  const ratio = totalMembers > 0 ? count / totalMembers : 0;
   const hasThreshold = minPlayers > 0;
   const meetsThreshold = hasThreshold && count >= minPlayers;
-  // Tout le monde dispo → vert vif (signal "go" immédiat pour le staff).
-  if (ratio >= 1) return { bg: '#2fc46b', border: '#5fe39a' };
-  // Seuil atteint + large consensus → vert.
-  if (meetsThreshold && ratio >= 0.85) return { bg: '#1f9d57', border: '#33d17a' };
-  // Seuil match atteint → or plein.
-  if (meetsThreshold) return { bg: '#ffb800', border: '#ffd24d' };
-  // En dessous du seuil → progression or terne → or moyen.
-  const progress = hasThreshold ? count / minPlayers : ratio;
-  if (progress >= 0.5) return { bg: '#a87f15', border: 'rgba(255,184,0,0.6)' };
-  return { bg: '#5c4a1a', border: 'rgba(255,184,0,0.4)' };
+  // Tout le monde dispo → vert (créneau parfait, on peut faire un match plein roster).
+  if (totalMembers > 0 && count >= totalMembers) {
+    return { bg: '#2fc46b', border: '#5fe39a' };
+  }
+  // Seuil minimum atteint → or (rare et précieux selon DA — signal fort "go").
+  if (meetsThreshold) {
+    return { bg: '#ffb800', border: '#ffd24d' };
+  }
+  // 1 jusqu'au seuil-1 → neutre clair (pas la peine, mais on voit qu'il y a du monde).
+  return { bg: 'rgba(255,255,255,0.10)', border: 'rgba(255,255,255,0.18)' };
 }
 
 function HeatmapCell({
