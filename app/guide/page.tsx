@@ -30,7 +30,8 @@ const SECTIONS: Section[] = [
     items: [
       "Connexion en 1 clic avec ton compte Discord",
       "Lier ton compte Steam (SteamID immuable) pour authentifier ton pseudo Rocket League",
-      "Vérifier ton compte Rocket League (Epic ou Steam) — ton rang affiché est alors prouvé, plus de fake rank",
+      "Vérifier ton compte Rocket League (Epic ou Steam) — le lien tracker.gg apparaît sur ton profil et n'importe qui peut vérifier ton rang en 1 clic",
+      "Ton rang RL reste auto-déclaré, mais comme le compte est vérifié, les autres peuvent te signaler si tu mens",
       "Badge ✓ Vérifié visible publiquement quand ton compte de jeu est confirmé",
       "Connexions Discord (Twitch, YouTube, Instagram, etc.) sync automatique avec toggle visibilité par compte",
       "Choix d'être disponible au recrutement avec rôle visé (joueur / coach / manager)",
@@ -88,7 +89,7 @@ const SECTIONS: Section[] = [
     items: [
       "Annuaire public des joueurs (filtrable par jeu, pays, rang, statut recrutement)",
       "Annuaire public des structures (filtrable par jeu, statut)",
-      "Cartes joueur format trading card : avatar, drapeau, rang RL officiel, structure(s) actuelle(s)",
+      "Cartes joueur format trading card : avatar, drapeau, rang RL déclaré + badge ✓ si compte vérifié, structure(s) actuelle(s)",
       "Activer le mode « disponible au recrutement » avec rôle recherché et message libre",
       "Shortlist privée par structure : suivre les joueurs qui t'intéressent",
       "Suggestions automatiques basées sur les positions ouvertes de ta structure",
