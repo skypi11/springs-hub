@@ -15,6 +15,7 @@ import {
   ChevronLeft, ChevronRight, X, Sparkles,
 } from 'lucide-react';
 import Portal from '@/components/ui/Portal';
+import AedralLogo from '@/components/brand/AedralLogo';
 
 const VERSION = 'v1';
 const STORAGE_KEY = `aedral_welcome_seen_${VERSION}`;
@@ -54,7 +55,7 @@ const SLIDES: Slide[] = [
     intro: "Garde une trace de chaque match et progresse en continu.",
     bullets: [
       "Upload tes replays Rocket League depuis chaque événement",
-      "Stats automatiques par match (buts, saves, assists, MMR…)",
+      "Stats automatiques par match (buts, saves, assists, possession, boost…)",
       "Assigne des exercices à tes joueurs (training libre, replay review, défis)",
       "Compte rendu commun + points à travailler par joueur",
     ],
@@ -117,15 +118,23 @@ export default function WelcomeModal() {
             </button>
           </div>
 
-          {/* Slide content */}
+          {/* Slide content — slide 0 (Bienvenue) affiche le logo Aedral
+              à la place de l'icône Sparkles pour renforcer l'identité. */}
           <div className="flex-1 overflow-y-auto px-6 sm:px-8 py-8">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 flex items-center justify-center bevel-sm flex-shrink-0"
-                style={{ background: 'rgba(255,184,0,0.12)', border: '1px solid rgba(255,184,0,0.35)' }}>
-                <Icon size={22} style={{ color: 'var(--s-gold)' }} />
+            {isFirst ? (
+              <div className="flex flex-col items-center text-center mb-4">
+                <AedralLogo variant="mark" theme="dark" height={64} className="mb-4" />
+                <h2 className="font-display text-2xl sm:text-3xl tracking-wider">{slide.title}</h2>
               </div>
-              <h2 className="font-display text-2xl sm:text-3xl tracking-wider">{slide.title}</h2>
-            </div>
+            ) : (
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 flex items-center justify-center bevel-sm flex-shrink-0"
+                  style={{ background: 'rgba(255,184,0,0.12)', border: '1px solid rgba(255,184,0,0.35)' }}>
+                  <Icon size={22} style={{ color: 'var(--s-gold)' }} />
+                </div>
+                <h2 className="font-display text-2xl sm:text-3xl tracking-wider">{slide.title}</h2>
+              </div>
+            )}
             <p className="text-sm sm:text-base mb-6" style={{ color: 'var(--s-text-dim)' }}>{slide.intro}</p>
             <ul className="space-y-3">
               {slide.bullets.map((b, i) => (

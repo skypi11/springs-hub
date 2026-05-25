@@ -30,7 +30,7 @@ const SECTIONS: Section[] = [
     items: [
       "Connexion en 1 clic avec ton compte Discord",
       "Lier ton compte Steam (SteamID immuable) pour authentifier ton pseudo Rocket League",
-      "Lier ton compte Epic Games via Discord pour le rang RL (anti-mensonge)",
+      "Vérifier ton compte Rocket League (Epic ou Steam) — ton rang affiché est alors prouvé, plus de fake rank",
       "Badge ✓ Vérifié visible publiquement quand ton compte de jeu est confirmé",
       "Connexions Discord (Twitch, YouTube, Instagram, etc.) sync automatique avec toggle visibilité par compte",
       "Choix d'être disponible au recrutement avec rôle visé (joueur / coach / manager)",
@@ -102,7 +102,7 @@ const SECTIONS: Section[] = [
     intro: "Upload tes replays Rocket League et accède aux stats détaillées de chaque match.",
     items: [
       "Upload multi-fichiers depuis un événement (match, scrim, training)",
-      "Stats automatiques parsées : buts, saves, assists, démos, possession, MMR du match",
+      "Stats automatiques parsées : buts, saves, assists, démos, possession, boost",
       "Lien direct entre un événement et ses replays (1 clic pour les retrouver)",
       "Téléchargement sécurisé (URL valide 60 secondes)",
       "Quota stockage par structure (extensible à mesure que la plateforme grandit)",
