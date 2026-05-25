@@ -57,6 +57,10 @@ type UserEntry = {
   loginTM: string;
   tmIoUrl: string;
   memberships: UserMembership[];
+  // Rôles dérivés (source de vérité pour les filtres) : fondateur, co_fondateur,
+  // responsable (managerIds), coach (coachIds), joueur. Agrégé côté API depuis
+  // structures + structure_members.
+  derivedRoles?: string[];
   createdAt?: string;
 };
 
@@ -191,10 +195,17 @@ export default function AdminUsersPage() {
   if (userFilter === 'admin') filteredUsers = filteredUsers.filter(u => u.isAdmin);
   if (userFilter === 'banned') filteredUsers = filteredUsers.filter(u => u.isBanned);
   if (userFilter === 'recruiting') filteredUsers = filteredUsers.filter(u => u.isAvailableForRecruitment);
-  if (userFilter === 'fondateur') filteredUsers = filteredUsers.filter(u => u.memberships.some(m => m.role === 'fondateur' || m.role === 'co_fondateur'));
-  if (userFilter === 'manager') filteredUsers = filteredUsers.filter(u => u.memberships.some(m => m.role === 'manager'));
-  if (userFilter === 'coach') filteredUsers = filteredUsers.filter(u => u.memberships.some(m => m.role === 'coach'));
-  if (userFilter === 'joueur') filteredUsers = filteredUsers.filter(u => u.memberships.some(m => m.role === 'joueur'));
+  // Filtre par rôle : utilise derivedRoles (source de vérité, agrège memberships
+  // + managerIds/coachIds des structures). Sinon les Responsables (managerIds)
+  // n'apparaissaient pas car structure_members.role ne vaut jamais 'manager'.
+  if (userFilter === 'fondateur') filteredUsers = filteredUsers.filter(u =>
+    (u.derivedRoles ?? []).some(r => r === 'fondateur' || r === 'co_fondateur'));
+  if (userFilter === 'manager') filteredUsers = filteredUsers.filter(u =>
+    (u.derivedRoles ?? []).includes('responsable'));
+  if (userFilter === 'coach') filteredUsers = filteredUsers.filter(u =>
+    (u.derivedRoles ?? []).includes('coach'));
+  if (userFilter === 'joueur') filteredUsers = filteredUsers.filter(u =>
+    (u.derivedRoles ?? []).includes('joueur'));
 
   return (
     <>
@@ -253,8 +264,8 @@ export default function AdminUsersPage() {
             { value: 'all', label: 'Tous' },
             { value: 'admin', label: 'Admins' },
             { value: 'fondateur', label: 'Fondateurs' },
-            { value: 'manager', label: 'Managers' },
-            { value: 'coach', label: 'Coachs' },
+            { value: 'manager', label: 'Responsables' },
+            { value: 'coach', label: 'Coachs struct' },
             { value: 'joueur', label: 'Joueurs' },
             { value: 'banned', label: 'Bannis' },
             { value: 'recruiting', label: 'Dispo' },

@@ -96,17 +96,46 @@ export async function GET(req: NextRequest) {
 
     const db = getAdminDb();
 
-    // Charger users (plafonné) + admins + structure_members en parallèle
-    const [usersSnap, adminsSnap, membersSnap] = await Promise.all([
+    // Charger users (plafonné) + admins + structure_members + structures en parallèle
+    const [usersSnap, adminsSnap, membersSnap, structuresSnap] = await Promise.all([
       db.collection('users').limit(MAX_USERS).get(),
       db.collection('aedral_admins').get(),
       db.collection('structure_members').get(),
+      db.collection('structures').get(),
     ]);
 
     const adminSet = new Set(adminsSnap.docs.map(d => d.id));
 
-    // Map structureId → structure name (lazy load)
+    // Map structureId → structure name + rôles staff structure-level
+    // (managerIds = responsable, coachIds = coach structure). Permet de
+    // calculer derivedRoles côté serveur sans lecture supplémentaire.
     const structureNames: Record<string, string> = {};
+    for (const sDoc of structuresSnap.docs) {
+      const sd = sDoc.data();
+      structureNames[sDoc.id] = sd.name || sDoc.id;
+    }
+
+    // Rôles dérivés par user : agrège memberships (joueur/fondateur/co-fondateur)
+    // + structures.managerIds (responsable) + structures.coachIds (coach structure)
+    // + sub_teams.staffRoles (manager/coach équipe — chargé séparément).
+    // Évite que le filtre admin "Responsable" / "Coach" rate les staff stockés
+    // dans les arrays plutôt que structure_members.role.
+    const derivedRolesByUser: Record<string, Set<string>> = {};
+    const addRole = (uid: string, role: string) => {
+      if (!uid) return;
+      if (!derivedRolesByUser[uid]) derivedRolesByUser[uid] = new Set();
+      derivedRolesByUser[uid].add(role);
+    };
+    // Source A : structures (managerIds + coachIds + founderId + coFounderIds)
+    for (const sDoc of structuresSnap.docs) {
+      const sd = sDoc.data();
+      if (sd.status && sd.status !== 'active' && sd.status !== 'pending_validation') continue;
+      if (typeof sd.founderId === 'string') addRole(sd.founderId, 'fondateur');
+      for (const u of (sd.coFounderIds as string[] | undefined) ?? []) addRole(u, 'co_fondateur');
+      for (const u of (sd.managerIds as string[] | undefined) ?? []) addRole(u, 'responsable');
+      for (const u of (sd.coachIds as string[] | undefined) ?? []) addRole(u, 'coach');
+    }
+    // Source B : structure_members (joueur, role variable)
     const membersByUser: Record<string, { structureId: string; game: string; role: string }[]> = {};
     for (const doc of membersSnap.docs) {
       const d = doc.data();
@@ -117,21 +146,8 @@ export async function GET(req: NextRequest) {
         game: d.game,
         role: d.role,
       });
-      if (d.structureId && !structureNames[d.structureId]) {
-        structureNames[d.structureId] = ''; // placeholder
-      }
-    }
-
-    // Fetch structure names
-    const structureIds = Object.keys(structureNames);
-    if (structureIds.length > 0) {
-      // Firestore 'in' max 30 — batch
-      for (let i = 0; i < structureIds.length; i += 30) {
-        const batch = structureIds.slice(i, i + 30);
-        const sSnap = await db.collection('structures').where('__name__', 'in', batch).get();
-        for (const doc of sSnap.docs) {
-          structureNames[doc.id] = doc.data().name || doc.id;
-        }
+      if (d.role === 'joueur' || d.role === 'fondateur' || d.role === 'co_fondateur') {
+        addRole(d.userId, d.role);
       }
     }
 
@@ -177,6 +193,9 @@ export async function GET(req: NextRequest) {
         loginTM: data.loginTM || '',
         tmIoUrl: data.tmIoUrl || '',
         memberships,
+        // Rôles dérivés (source de vérité pour le filtre admin) — voir
+        // derivedRolesByUser ci-dessus.
+        derivedRoles: Array.from(derivedRolesByUser[doc.id] ?? []),
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
       };
     });
