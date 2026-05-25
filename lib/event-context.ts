@@ -102,6 +102,7 @@ export async function resolveUserContext(
     for (const id of structure.coachIds) if (typeof id === 'string' && id) coachSet.add(id);
   }
 
+  const captainSet = new Set<string>();
   for (const t of teams) {
     const staffIds = Array.isArray(t.staffIds) ? (t.staffIds as string[]) : [];
     const staffRoles = (t.staffRoles ?? {}) as Record<string, 'coach' | 'manager'>;
@@ -112,12 +113,16 @@ export async function resolveUserContext(
       if (role === 'manager') managerSet.add(uid);
       else coachSet.add(uid);
     }
+    // Capitaines : invitables aux réunions staff (brief capitaines avant tournoi, etc.)
+    const captainId = typeof t.captainId === 'string' ? t.captainId : null;
+    if (captainId) captainSet.add(captainId);
   }
 
   const staffAudience: StaffAudience = {
     dirigeantIds: Array.from(dirigeantSet),
     managerIds: Array.from(managerSet),
     coachIds: Array.from(coachSet),
+    captainIds: Array.from(captainSet),
   };
 
   return { structure, context, membership, teams, staffAudience };

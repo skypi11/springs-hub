@@ -252,6 +252,9 @@ export interface StaffAudience {
   dirigeantIds: string[];   // founderId + coFounderIds
   managerIds: string[];     // structure.managerIds ∪ team staff role='manager'
   coachIds: string[];       // structure.coachIds ∪ team staff role='coach'
+  captainIds: string[];     // sub_teams.captainId — un joueur capitaine peut être
+                            // invité à une réunion staff au cas par cas (ex: brief
+                            // capitaines avant tournoi). Validé Matt 2026-05-25.
 }
 
 // Union déduplicée de tous les uid présents dans l'audience staff.
@@ -260,6 +263,7 @@ export function getAllStaffAudienceIds(audience: StaffAudience): string[] {
   for (const id of audience.dirigeantIds) if (id) set.add(id);
   for (const id of audience.managerIds) if (id) set.add(id);
   for (const id of audience.coachIds) if (id) set.add(id);
+  for (const id of audience.captainIds) if (id) set.add(id);
   return Array.from(set);
 }
 

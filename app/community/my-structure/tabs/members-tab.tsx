@@ -268,6 +268,7 @@ export function MembersTab(props: MembersTabProps) {
                         busyKey={invActionLoading}
                         memberId={m.id}
                         userId={m.userId}
+                        targetName={m.displayName}
                         onToggleCoach={() => handleToggleStaffRole(m.userId, m.displayName, 'coach', !isCoachRow)}
                         onToggleManager={() => handleToggleStaffRole(m.userId, m.displayName, 'manager', !isManagerRow)}
                         onPromoteCoFounder={() => handlePromoteToCoFounder(m.userId, m.displayName)}

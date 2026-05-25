@@ -6,6 +6,8 @@ import {
   Loader2, UserCog, Briefcase,
 } from 'lucide-react';
 import Portal from '@/components/ui/Portal';
+import { PromoteRoleModal } from '@/components/structure/RoleInfoPanel';
+import type { StructureRole } from '@/lib/role-capabilities';
 
 export interface MemberActionsMenuProps {
   canManageStaffRoles: boolean;
@@ -17,6 +19,8 @@ export interface MemberActionsMenuProps {
   busyKey: string | null;
   memberId: string;
   userId: string;
+  // Nom du membre cible — utilisé dans le modal de confirmation de promotion.
+  targetName: string;
   onToggleCoach: () => void;
   onToggleManager: () => void;
   onPromoteCoFounder: () => void;
@@ -29,7 +33,7 @@ export default function MemberActionsMenu(props: MemberActionsMenuProps) {
   const {
     canManageStaffRoles, canManageCoFounder, canRemove,
     isCoach, isManager, isCoFounder,
-    busyKey, memberId, userId,
+    busyKey, memberId, userId, targetName,
     onToggleCoach, onToggleManager,
     onPromoteCoFounder, onDemoteCoFounder, onTransferOwnership,
     onRemove,
@@ -38,6 +42,10 @@ export default function MemberActionsMenu(props: MemberActionsMenuProps) {
   const [open, setOpen] = useState(false);
   const [rect, setRect] = useState<{ top: number; right: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+
+  // Modal de confirmation de promotion (uniquement pour les PROMOTIONS, pas les retraits).
+  // Affiche les droits débloqués pour que le fondateur sache ce qu'il donne.
+  const [promoteIntent, setPromoteIntent] = useState<StructureRole | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -74,18 +82,19 @@ export default function MemberActionsMenu(props: MemberActionsMenuProps) {
   }> = [];
 
   if (canManageStaffRoles) {
+    // Promotion → modal explicatif. Retrait → action directe (pas besoin de modal).
     items.push({
       key: 'toggle-coach',
       label: isCoach ? 'Retirer Coach' : 'Promouvoir Coach',
       icon: <UserCog size={13} style={{ color: isCoach ? '#ff8888' : '#4db1ff' }} />,
-      onClick: onToggleCoach,
+      onClick: isCoach ? onToggleCoach : () => setPromoteIntent('coach_structure'),
       busy: busyKey === `${userId}:coach`,
     });
     items.push({
       key: 'toggle-manager',
       label: isManager ? 'Retirer Responsable' : 'Promouvoir Responsable',
       icon: <Briefcase size={13} style={{ color: isManager ? '#ff8888' : 'var(--s-gold)' }} />,
-      onClick: onToggleManager,
+      onClick: isManager ? onToggleManager : () => setPromoteIntent('responsable'),
       busy: busyKey === `${userId}:manager`,
     });
   }
@@ -112,7 +121,7 @@ export default function MemberActionsMenu(props: MemberActionsMenuProps) {
         key: 'promote',
         label: 'Promouvoir co-fondateur',
         icon: <ChevronUp size={13} style={{ color: 'var(--s-gold)' }} />,
-        onClick: onPromoteCoFounder,
+        onClick: () => setPromoteIntent('co_fondateur'),
         accent: true,
         busy: busyKey === userId,
       });
@@ -213,6 +222,26 @@ export default function MemberActionsMenu(props: MemberActionsMenuProps) {
               );
             })}
           </div>
+        </Portal>
+      )}
+
+      {/* Modal "À propos du rôle" qui apparait au moment de la promotion.
+          Affiche tous les droits débloqués pour que le promoteur sache exactement
+          ce qu'il donne (évite les promotions à l'aveugle). */}
+      {promoteIntent && (
+        <Portal>
+          <PromoteRoleModal
+            role={promoteIntent}
+            targetName={targetName}
+            busy={anyBusy}
+            onCancel={() => setPromoteIntent(null)}
+            onConfirm={() => {
+              if (promoteIntent === 'coach_structure') onToggleCoach();
+              else if (promoteIntent === 'responsable') onToggleManager();
+              else if (promoteIntent === 'co_fondateur') onPromoteCoFounder();
+              setPromoteIntent(null);
+            }}
+          />
         </Portal>
       )}
     </>

@@ -124,6 +124,7 @@ export type Team = {
   subIds?: string[];
   staffIds?: string[];
   staffRoles?: Record<string, 'coach' | 'manager'>;
+  captainId?: string | null;
 };
 
 // Rôles structure — utilisés pour dériver l'audience staff côté client
@@ -901,8 +902,8 @@ function EventFormModal({
   // Qui peut créer un événement scope='staff' : dirigeants + managers (pas les coachs).
   const canCreateStaffEvent = isDirigeant(userContext) || userContext.isManager;
 
-  // Audience staff dérivée côté client : 3 groupes (dirigeants/managers/coachs).
-  // Fusion rôles structure + staff d'équipe via sub_teams.staffRoles.
+  // Audience staff dérivée côté client : 4 groupes (dirigeants/managers/coachs/capitaines).
+  // Fusion rôles structure + staff d'équipe via sub_teams.staffRoles + capitaines.
   const staffAudienceGroups = useMemo(() => {
     const dir = new Set<string>();
     if (structureRoles.founderId) dir.add(structureRoles.founderId);
@@ -912,6 +913,7 @@ function EventFormModal({
     for (const id of structureRoles.managerIds ?? []) if (id) mgr.add(id);
     const coach = new Set<string>();
     for (const id of structureRoles.coachIds ?? []) if (id) coach.add(id);
+    const captain = new Set<string>();
 
     for (const t of teams) {
       const staffIds = t.staffIds ?? [];
@@ -922,16 +924,20 @@ function EventFormModal({
         if (r === 'manager') mgr.add(uid);
         else coach.add(uid);
       }
+      if (t.captainId) captain.add(t.captainId);
     }
 
     // Dédupe inter-groupes : on privilégie le rôle le plus haut.
-    for (const id of dir) { mgr.delete(id); coach.delete(id); }
-    for (const id of mgr) coach.delete(id);
+    // Hiérarchie : dirigeant > manager > coach > capitaine.
+    for (const id of dir) { mgr.delete(id); coach.delete(id); captain.delete(id); }
+    for (const id of mgr) { coach.delete(id); captain.delete(id); }
+    for (const id of coach) captain.delete(id);
 
     return {
       dirigeants: Array.from(dir),
       managers: Array.from(mgr),
       coaches: Array.from(coach),
+      captains: Array.from(captain),
     };
   }, [structureRoles, teams]);
 
@@ -1026,6 +1032,7 @@ function EventFormModal({
         ...staffAudienceGroups.dirigeants,
         ...staffAudienceGroups.managers,
         ...staffAudienceGroups.coaches,
+        ...staffAudienceGroups.captains,
       ];
       staffUserIds = pool.filter(uid => staffSelection[uid]);
       if (staffUserIds.length === 0) {
@@ -1311,22 +1318,24 @@ function EventFormModal({
 
             {scope === 'staff' && (() => {
               const groups: Array<{
-                key: 'dirigeants' | 'managers' | 'coaches';
+                key: 'dirigeants' | 'managers' | 'coaches' | 'captains';
                 label: string;
                 color: string;
                 uids: string[];
               }> = [
                 { key: 'dirigeants', label: 'Dirigeants', color: 'var(--s-gold)', uids: staffAudienceGroups.dirigeants },
-                { key: 'managers', label: 'Managers', color: 'var(--s-gold)', uids: staffAudienceGroups.managers },
+                { key: 'managers', label: 'Responsables / Managers', color: 'var(--s-gold)', uids: staffAudienceGroups.managers },
                 { key: 'coaches', label: 'Coachs', color: 'var(--s-blue)', uids: staffAudienceGroups.coaches },
+                { key: 'captains', label: 'Capitaines', color: 'var(--s-green)', uids: staffAudienceGroups.captains },
               ];
-              const total =
-                staffAudienceGroups.dirigeants.length +
-                staffAudienceGroups.managers.length +
-                staffAudienceGroups.coaches.length;
-              const checkedCount =
-                [...staffAudienceGroups.dirigeants, ...staffAudienceGroups.managers, ...staffAudienceGroups.coaches]
-                  .filter(uid => staffSelection[uid]).length;
+              const allUids = [
+                ...staffAudienceGroups.dirigeants,
+                ...staffAudienceGroups.managers,
+                ...staffAudienceGroups.coaches,
+                ...staffAudienceGroups.captains,
+              ];
+              const total = allUids.length;
+              const checkedCount = allUids.filter(uid => staffSelection[uid]).length;
               return (
                 <div className="mt-0 p-3 bevel-sm space-y-3"
                   style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
@@ -1362,7 +1371,7 @@ function EventFormModal({
 
                   {total === 0 ? (
                     <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                      Aucun membre staff (dirigeants/managers/coachs) dans cette structure.
+                      Aucun membre staff (dirigeants/responsables/coachs/capitaines) dans cette structure.
                     </p>
                   ) : (
                     <div className="space-y-3">

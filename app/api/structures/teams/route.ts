@@ -390,10 +390,18 @@ export async function POST(req: NextRequest) {
         }
         if (playerIds !== undefined) updates.playerIds = playerIds;
         if (subIds !== undefined) updates.subIds = subIds;
-        if (staffIds !== undefined) updates.staffIds = staffIds;
 
-        // staffRoles : autorisé si on peut éditer le staff. Nettoyé en fonction
-        // du staffIds effectif (celui passé OU celui stocké si inchangé).
+        // staffIds + staffRoles : ÉDITION RÉSERVÉE AUX ADMINS STRUCTURE.
+        // Un manager d'équipe ne peut PAS modifier le staff de sa propre équipe
+        // (sinon il pourrait kick le coach et le re-promouvoir manager → escalade
+        // silencieuse à son propre niveau, dommageable pour la chaîne de
+        // responsabilité). Validé Matt 2026-05-25.
+        if ((staffIds !== undefined || staffRoles !== undefined) && !isAdminOfStructure) {
+          return NextResponse.json({
+            error: "Modification du staff réservée aux dirigeants ou au responsable de structure.",
+          }, { status: 403 });
+        }
+        if (staffIds !== undefined) updates.staffIds = staffIds;
         if (staffRoles !== undefined) {
           const effectiveStaffIds: string[] = staffIds !== undefined ? staffIds : (teamData.staffIds ?? []);
           updates.staffRoles = sanitizeStaffRoles(staffRoles, effectiveStaffIds);

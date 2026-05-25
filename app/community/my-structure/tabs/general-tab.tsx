@@ -1,15 +1,16 @@
 'use client';
 
-import { type RefObject, type ReactNode, type Dispatch, type SetStateAction } from 'react';
+import { useState, type RefObject, type ReactNode, type Dispatch, type SetStateAction } from 'react';
 import ReactMarkdown from 'react-markdown';
 import {
   Shield, Trophy, Loader2, AlertCircle,
   Save, Plus, Trash2, CheckCircle,
-  Link2, MessageSquare, Settings, Check, X,
+  Link2, MessageSquare, Settings, Check, X, BookOpen,
 } from 'lucide-react';
 import ImageUploader from '@/components/ui/ImageUploader';
 import BannerFocusEditor from '@/components/structure/BannerFocusEditor';
 import StorageQuotaCard from '@/components/structure/StorageQuotaCard';
+import { RolesHelpModal } from '@/components/structure/RoleInfoPanel';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import type { MyStructure, TeamData } from '../types';
 import type { BannerFocus } from '@/types';
@@ -85,6 +86,11 @@ export function GeneralTab(props: GeneralTabProps) {
   } = props;
 
   const statusInfo = STATUS_INFO[s.status] ?? STATUS_INFO.pending_validation;
+
+  // Modal d'aide "Rôles & permissions" — déclenchable depuis le bouton bas de
+  // la sidebar droite. Permet aux dirigeants de consulter la matrice complète
+  // sans devoir quitter la page.
+  const [rolesHelpOpen, setRolesHelpOpen] = useState(false);
 
   return (
     <div className="grid gap-6 animate-fade-in grid-cols-1 lg:grid-cols-3">
@@ -497,7 +503,27 @@ export function GeneralTab(props: GeneralTabProps) {
         {activeStructure && (
           <StorageQuotaCard structureId={activeStructure.id} />
         )}
+
+        {/* Aide rôles & permissions — accessible aux dirigeants pour comprendre
+            ce qu'ils donnent quand ils promeuvent un membre. */}
+        {isDirigeantOfActive && (
+          <button type="button" onClick={() => setRolesHelpOpen(true)}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bevel-sm transition-colors duration-150"
+            style={{
+              background: 'rgba(255,184,0,0.06)',
+              border: '1px solid rgba(255,184,0,0.25)',
+              color: 'var(--s-gold)',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,184,0,0.12)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,184,0,0.06)')}>
+            <BookOpen size={13} />
+            <span className="font-display text-sm tracking-wider">RÔLES & PERMISSIONS</span>
+          </button>
+        )}
       </div>
+
+      {rolesHelpOpen && <RolesHelpModal onClose={() => setRolesHelpOpen(false)} />}
     </div>
   );
 }
