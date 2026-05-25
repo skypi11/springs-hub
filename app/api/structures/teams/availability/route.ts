@@ -58,6 +58,17 @@ export async function GET(req: NextRequest) {
 
     const structureId = req.nextUrl.searchParams.get('structureId');
     const teamId = req.nextUrl.searchParams.get('teamId');
+    // includeStaffUids : liste d'uids de staff à AJOUTER au matching de créneaux
+    // (CSV ex: 'uid1,uid2'). Utile pour le cas "manager veut planifier un
+    // training avec ses joueurs + coach structure" — le coach devient une
+    // contrainte dure (sa présence est requise pour qu'un slot soit suggéré).
+    // Si vide, comportement historique : matching joueurs uniquement.
+    const includeStaffUidsCsv = req.nextUrl.searchParams.get('includeStaffUids') || '';
+    const includeStaffUids = includeStaffUidsCsv
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
     if (!structureId || !teamId) {
       return NextResponse.json({ error: 'structureId et teamId requis' }, { status: 400 });
     }
@@ -81,12 +92,49 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Équipe ne correspond pas à la structure' }, { status: 400 });
     }
 
-    // Joueurs de l'équipe = titulaires + remplaçants (le staff n'est pas comptabilisé
-    // dans le matching — on cherche à planifier des matchs entre joueurs).
+    // Joueurs de l'équipe = titulaires + remplaçants. Le matching de créneaux
+    // reste basé UNIQUEMENT sur ces joueurs (on planifie des matchs entre eux).
     const memberIds: string[] = Array.from(new Set([
       ...((teamData.playerIds as string[]) || []),
       ...((teamData.subIds as string[]) || []),
     ])).filter(Boolean);
+
+    // Staff lié à cette équipe — pour l'AFFICHAGE des dispos uniquement (validé
+    // Matt 2026-05-25 : un manager veut savoir quand le coach est dispo pour
+    // planifier un entraînement). 3 sources fusionnées (dédup) :
+    //   - team.staffIds (manager / coach d'équipe, sub_teams.staffRoles)
+    //   - structure.coachIds (coach structure mobile — toutes équipes)
+    //   - structure.managerIds (responsable structure — toutes équipes)
+    // Si l'inclusion dans le matching devient nécessaire plus tard, on ajoutera
+    // un toggle ?includeStaff=true qui injectera ces uids dans playerSlots.
+    const teamStaffIds = (teamData.staffIds as string[]) || [];
+    const teamStaffRoles = (teamData.staffRoles as Record<string, 'coach' | 'manager'>) || {};
+    const structData = resolved.structure as { coachIds?: string[]; managerIds?: string[] };
+    const structureCoachIds = structData.coachIds || [];
+    const structureManagerIds = structData.managerIds || [];
+    const staffSet = new Set<string>();
+    const staffRoleByUid = new Map<string, 'coach_team' | 'manager_team' | 'coach_structure' | 'responsable'>();
+    for (const uid of teamStaffIds) {
+      if (!uid || memberIds.includes(uid)) continue; // évite doublon avec roster
+      const r = teamStaffRoles[uid] ?? 'coach';
+      staffSet.add(uid);
+      staffRoleByUid.set(uid, r === 'manager' ? 'manager_team' : 'coach_team');
+    }
+    for (const uid of structureCoachIds) {
+      if (!uid || memberIds.includes(uid)) continue;
+      if (!staffSet.has(uid)) {
+        staffSet.add(uid);
+        staffRoleByUid.set(uid, 'coach_structure');
+      }
+    }
+    for (const uid of structureManagerIds) {
+      if (!uid || memberIds.includes(uid)) continue;
+      if (!staffSet.has(uid)) {
+        staffSet.add(uid);
+        staffRoleByUid.set(uid, 'responsable');
+      }
+    }
+    const staffIds = Array.from(staffSet);
 
     const minPlayersForMatch = typeof teamData.minPlayersForMatch === 'number'
       ? teamData.minPlayersForMatch
@@ -121,12 +169,25 @@ export async function GET(req: NextRequest) {
       playerSlotsByWeek[nextMonday][mid] = new Set();
     }
 
-    if (memberIds.length > 0) {
-      const availEntries = memberIds.flatMap(mid =>
+    // Dispos du staff (séparé des joueurs — pas inclus dans le matching).
+    // Init en parallèle pour minimiser les round-trips.
+    const staffSlotsByWeek: Record<string, Record<string, Set<string>>> = {
+      [currentMonday]: {},
+      [nextMonday]: {},
+    };
+    for (const sid of staffIds) {
+      staffSlotsByWeek[currentMonday][sid] = new Set();
+      staffSlotsByWeek[nextMonday][sid] = new Set();
+    }
+
+    if (memberIds.length > 0 || staffIds.length > 0) {
+      const allUids = [...memberIds, ...staffIds];
+      const availEntries = allUids.flatMap(uid =>
         weekMondays.map(m => ({
-          uid: mid,
+          uid,
           mondayYmd: m,
-          ref: db.collection('user_availability').doc(`${mid}_${getIsoWeekId(m)}`),
+          isStaff: !memberIds.includes(uid),
+          ref: db.collection('user_availability').doc(`${uid}_${getIsoWeekId(m)}`),
         }))
       );
       const snaps = await db.getAll(...availEntries.map(e => e.ref));
@@ -135,7 +196,9 @@ export async function GET(req: NextRequest) {
         const entry = availEntries[i];
         const data = snap.data();
         const slots = (data?.slots ?? []) as string[];
-        const set = playerSlotsByWeek[entry.mondayYmd][entry.uid];
+        const set = entry.isStaff
+          ? staffSlotsByWeek[entry.mondayYmd][entry.uid]
+          : playerSlotsByWeek[entry.mondayYmd][entry.uid];
         for (const s of slots) set.add(s);
       });
     }
@@ -167,10 +230,13 @@ export async function GET(req: NextRequest) {
       staffIds: t.staffIds,
     }));
 
+    // Conflits events : couvre joueurs ET staff inclus dans le matching
+    // (sinon un slot suggéré pourrait tomber sur un event où le coach est invité).
+    const matchingUids = [...memberIds, ...includeStaffUids.filter(uid => staffIds.includes(uid))];
     const conflictSlotsByPlayer: Record<string, Set<string>> = {};
-    for (const mid of memberIds) conflictSlotsByPlayer[mid] = new Set();
+    for (const uid of matchingUids) conflictSlotsByPlayer[uid] = new Set();
 
-    const memberSet = new Set(memberIds);
+    const memberSet = new Set(matchingUids);
     for (const doc of evSnap.docs) {
       const ev = doc.data();
       if (ev.status === 'cancelled') continue;
@@ -202,18 +268,29 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Matching par semaine
+    // Matching par semaine. includeStaffUids ajoute le staff comme "joueurs
+    // virtuels" → leur présence devient une contrainte dure pour qu'un slot
+    // soit suggéré. minPlayersForMatch ne change pas (le manager peut ajuster
+    // côté UI si besoin).
+    const matchingStaffIds = includeStaffUids.filter(uid => staffIds.includes(uid));
     const weeks = weekMondays.map(mondayYmd => {
       const orderedSlots = orderedSlotsByWeek[mondayYmd];
       const playerSlots: Record<string, Set<string>> = {};
       for (const mid of memberIds) {
         playerSlots[mid] = playerSlotsByWeek[mondayYmd][mid] ?? new Set();
       }
+      for (const sid of matchingStaffIds) {
+        playerSlots[sid] = staffSlotsByWeek[mondayYmd][sid] ?? new Set();
+      }
+      // Si le manager force l'inclusion du staff, on bump minPlayers pour que
+      // CHAQUE staff inclus soit obligatoirement présent (sinon le matching
+      // pourrait suggérer un slot où le coach n'est pas là).
+      const effectiveMinPlayers = minPlayersForMatch + matchingStaffIds.length;
       const blocks = findMatchBlocks({
         playerSlots,
         conflictSlotsByPlayer,
         orderedSlots,
-        minPlayers: minPlayersForMatch,
+        minPlayers: effectiveMinPlayers,
         minDurationMinutes: minMatchDurationMinutes,
       });
       return {
@@ -223,8 +300,8 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // Enrichissement joueurs (profil affiché côté front)
-    const usersById = await fetchDocsByIds(db, 'users', memberIds);
+    // Enrichissement joueurs + staff en parallèle
+    const usersById = await fetchDocsByIds(db, 'users', [...memberIds, ...staffIds]);
     const members = memberIds.map(mid => {
       const u = usersById.get(mid);
       return {
@@ -241,6 +318,24 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    // Staff de l'équipe (et coach/responsable structure) — affichage uniquement,
+    // pas dans le matching. Le frontend peut afficher ces dispos en parallèle
+    // pour aider à planifier un entraînement avec le coach.
+    const staff = staffIds.map(sid => {
+      const u = usersById.get(sid);
+      return {
+        uid: sid,
+        displayName: u?.displayName || u?.discordUsername || '',
+        discordAvatar: u?.discordAvatar || '',
+        avatarUrl: u?.avatarUrl || '',
+        role: staffRoleByUid.get(sid) ?? 'coach_team',
+        slotsByWeek: {
+          [currentMonday]: Array.from(staffSlotsByWeek[currentMonday][sid]).sort(),
+          [nextMonday]: Array.from(staffSlotsByWeek[nextMonday][sid]).sort(),
+        },
+      };
+    });
+
     return NextResponse.json({
       team: {
         id: teamId,
@@ -252,6 +347,7 @@ export async function GET(req: NextRequest) {
       today: todayYmd,
       weeks,
       members,
+      staff,
     });
   } catch (err) {
     captureApiError('API Structures/teams/availability GET error', err);
