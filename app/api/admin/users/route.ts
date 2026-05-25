@@ -96,12 +96,13 @@ export async function GET(req: NextRequest) {
 
     const db = getAdminDb();
 
-    // Charger users (plafonné) + admins + structure_members + structures en parallèle
-    const [usersSnap, adminsSnap, membersSnap, structuresSnap] = await Promise.all([
+    // Charger users (plafonné) + admins + structure_members + structures + sub_teams
+    const [usersSnap, adminsSnap, membersSnap, structuresSnap, teamsSnap] = await Promise.all([
       db.collection('users').limit(MAX_USERS).get(),
       db.collection('aedral_admins').get(),
       db.collection('structure_members').get(),
       db.collection('structures').get(),
+      db.collection('sub_teams').get(),
     ]);
 
     const adminSet = new Set(adminsSnap.docs.map(d => d.id));
@@ -149,6 +150,20 @@ export async function GET(req: NextRequest) {
       if (d.role === 'joueur' || d.role === 'fondateur' || d.role === 'co_fondateur') {
         addRole(d.userId, d.role);
       }
+    }
+    // Source C : sub_teams (manager_equipe, coach_equipe, capitaine, remplacant)
+    // — uniquement équipes actives (les archivées n'attribuent plus de rôles).
+    for (const tDoc of teamsSnap.docs) {
+      const td = tDoc.data();
+      if (td.status === 'archived') continue;
+      const staffIds = (td.staffIds as string[] | undefined) ?? [];
+      const staffRoles = (td.staffRoles as Record<string, 'coach' | 'manager'> | undefined) ?? {};
+      for (const uid of staffIds) {
+        const r = staffRoles[uid] ?? 'coach';
+        addRole(uid, r === 'manager' ? 'manager_equipe' : 'coach_equipe');
+      }
+      const captainId = typeof td.captainId === 'string' ? td.captainId : null;
+      if (captainId) addRole(captainId, 'capitaine');
     }
 
     const users = usersSnap.docs.map(doc => {

@@ -196,14 +196,19 @@ export default function AdminUsersPage() {
   if (userFilter === 'banned') filteredUsers = filteredUsers.filter(u => u.isBanned);
   if (userFilter === 'recruiting') filteredUsers = filteredUsers.filter(u => u.isAvailableForRecruitment);
   // Filtre par rôle : utilise derivedRoles (source de vérité, agrège memberships
-  // + managerIds/coachIds des structures). Sinon les Responsables (managerIds)
-  // n'apparaissaient pas car structure_members.role ne vaut jamais 'manager'.
+  // + managerIds/coachIds des structures + sub_teams staff/captainId).
   if (userFilter === 'fondateur') filteredUsers = filteredUsers.filter(u =>
     (u.derivedRoles ?? []).some(r => r === 'fondateur' || r === 'co_fondateur'));
   if (userFilter === 'manager') filteredUsers = filteredUsers.filter(u =>
     (u.derivedRoles ?? []).includes('responsable'));
   if (userFilter === 'coach') filteredUsers = filteredUsers.filter(u =>
     (u.derivedRoles ?? []).includes('coach'));
+  if (userFilter === 'manager_equipe') filteredUsers = filteredUsers.filter(u =>
+    (u.derivedRoles ?? []).includes('manager_equipe'));
+  if (userFilter === 'coach_equipe') filteredUsers = filteredUsers.filter(u =>
+    (u.derivedRoles ?? []).includes('coach_equipe'));
+  if (userFilter === 'capitaine') filteredUsers = filteredUsers.filter(u =>
+    (u.derivedRoles ?? []).includes('capitaine'));
   if (userFilter === 'joueur') filteredUsers = filteredUsers.filter(u =>
     (u.derivedRoles ?? []).includes('joueur'));
 
@@ -266,6 +271,9 @@ export default function AdminUsersPage() {
             { value: 'fondateur', label: 'Fondateurs' },
             { value: 'manager', label: 'Responsables' },
             { value: 'coach', label: 'Coachs struct' },
+            { value: 'manager_equipe', label: "Managers d'équipe" },
+            { value: 'coach_equipe', label: "Coachs d'équipe" },
+            { value: 'capitaine', label: 'Capitaines' },
             { value: 'joueur', label: 'Joueurs' },
             { value: 'banned', label: 'Bannis' },
             { value: 'recruiting', label: 'Dispo' },
