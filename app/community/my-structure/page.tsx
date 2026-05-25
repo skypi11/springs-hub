@@ -1169,6 +1169,7 @@ export default function MyStructurePage() {
       await loadInvitations(activeStructure.id);
     } catch (err) {
       console.error('[MyStructure] create link error:', err);
+      toast.error(err instanceof ApiError ? err.message : 'Erreur lors de la création du lien.');
     }
     setInvActionLoading(null);
   }
@@ -1184,6 +1185,7 @@ export default function MyStructurePage() {
       await loadInvitations(activeStructure.id);
     } catch (err) {
       console.error('[MyStructure] revoke link error:', err);
+      toast.error(err instanceof ApiError ? err.message : 'Erreur lors de la révocation du lien.');
     }
     setInvActionLoading(null);
   }
@@ -1199,6 +1201,7 @@ export default function MyStructurePage() {
       await loadInvitations(activeStructure.id);
     } catch (err) {
       console.error('[MyStructure] cancel direct invite error:', err);
+      toast.error(err instanceof ApiError ? err.message : 'Erreur lors de l\'annulation de l\'invitation.');
     }
     setInvActionLoading(null);
   }
@@ -1217,8 +1220,12 @@ export default function MyStructurePage() {
       });
       await loadInvitations(activeStructure.id);
       if (accept) await loadStructures();
+      if (accept) toast.success('Demande acceptée — le joueur a rejoint la structure.');
     } catch (err) {
       console.error('[MyStructure] request action error:', err);
+      // Cas typique : "Ce joueur a déjà une structure pour ce jeu." (joueur fondateur
+      // ailleurs sur le même jeu — invariant 1-struct/jeu). Message remonté tel quel.
+      toast.error(err instanceof ApiError ? err.message : 'Impossible de traiter cette demande.');
     }
     setInvActionLoading(null);
   }
