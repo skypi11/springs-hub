@@ -8,6 +8,7 @@ import { createNotification } from '@/lib/notifications';
 import { addJoinHistory } from '@/lib/member-history';
 import { addAuditLog } from '@/lib/audit-log';
 import { bumpStructureCounter } from '@/lib/structure-counters';
+import { canJoinStructure, addStructureToGame, STRUCTURE_MEMBERSHIP_CAP } from '@/lib/structure-membership';
 
 // GET /api/me/applications
 // Retourne les demandes envoyées (join_request pending) + invitations reçues (direct_invite pending)
@@ -159,8 +160,9 @@ export async function POST(req: NextRequest) {
             const userRef = db.collection('users').doc(uid);
             const userDoc = await tx.get(userRef);
             const spg = (userDoc.exists && (userDoc.data()!.structurePerGame || {})) || {};
-            if (spg[joinGame] && spg[joinGame] !== structureId) {
-              throw new Error('ALREADY_HAS_GAME_STRUCTURE');
+            const joinCheck = canJoinStructure(spg, joinGame, structureId);
+            if (!joinCheck.ok && joinCheck.reason === 'cap_reached') {
+              throw new Error('STRUCTURE_CAP_REACHED');
             }
 
             tx.set(memberRef, {
@@ -175,7 +177,8 @@ export async function POST(req: NextRequest) {
               acceptedAt: FieldValue.serverTimestamp(),
             });
             if (userDoc.exists) {
-              tx.update(userRef, { [`structurePerGame.${joinGame}`]: structureId });
+              const newArray = addStructureToGame(spg, joinGame, structureId);
+              tx.update(userRef, { [`structurePerGame.${joinGame}`]: newArray });
             }
             addJoinHistory(db, tx, {
               structureId,
@@ -200,7 +203,8 @@ export async function POST(req: NextRequest) {
             INVALID_INVITE:            { msg: 'Invitation déjà traitée', status: 400 },
             STRUCTURE_INACTIVE:        { msg: 'Structure inactive', status: 400 },
             ALREADY_MEMBER:            { msg: 'Déjà membre de cette structure', status: 400 },
-            ALREADY_HAS_GAME_STRUCTURE:{ msg: 'Tu as déjà une structure pour ce jeu', status: 400 },
+            ALREADY_HAS_GAME_STRUCTURE:{ msg: 'Tu as déjà une structure pour ce jeu', status: 400 }, // legacy
+            STRUCTURE_CAP_REACHED:     { msg: `Tu es déjà dans ${STRUCTURE_MEMBERSHIP_CAP} structures sur ce jeu (max). Quitte-en une avant.`, status: 400 },
           };
           const handled = map[code];
           if (handled) return NextResponse.json({ error: handled.msg }, { status: handled.status });

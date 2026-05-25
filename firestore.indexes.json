@@ -88,6 +88,22 @@
       ]
     },
     {
+      "collectionGroup": "sub_teams",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "game", "order": "ASCENDING" },
+        { "fieldPath": "playerIds", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "sub_teams",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "game", "order": "ASCENDING" },
+        { "fieldPath": "subIds", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
       "collectionGroup": "structure_members",
       "queryScope": "COLLECTION",
       "fields": [

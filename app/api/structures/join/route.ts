@@ -8,6 +8,7 @@ import { addJoinHistory, closeOpenHistory } from '@/lib/member-history';
 import { addAuditLog } from '@/lib/audit-log';
 import { bumpStructureCounter } from '@/lib/structure-counters';
 import { postRecruitmentEmbed } from '@/lib/discord-bot';
+import { canJoinStructure, addStructureToGame, removeStructureFromGame, STRUCTURE_MEMBERSHIP_CAP } from '@/lib/structure-membership';
 
 // POST /api/structures/join — rejoindre une structure (via lien ou demande)
 export async function POST(req: NextRequest) {
@@ -81,13 +82,17 @@ export async function POST(req: NextRequest) {
             const memberDoc = await tx.get(memberRef);
             if (memberDoc.exists) throw new Error('ALREADY_MEMBER');
 
-            // Invariant 1-struct/jeu via users.structurePerGame (source de vérité)
+            // Invariant cap : max 2 structures par jeu (toutes rôles confondus).
+            // structurePerGame[game] est un array string[] (legacy string wrappé).
             const userRef = db.collection('users').doc(uid);
             const userDoc = await tx.get(userRef);
             const spg = (userDoc.exists && (userDoc.data()!.structurePerGame || {})) || {};
-            if (spg[joinGame] && spg[joinGame] !== sid) {
-              throw new Error('ALREADY_HAS_GAME_STRUCTURE');
+            const joinCheck = canJoinStructure(spg, joinGame, sid);
+            if (!joinCheck.ok && joinCheck.reason === 'cap_reached') {
+              throw new Error('STRUCTURE_CAP_REACHED');
             }
+            // already_in_structure : on a déjà testé memberDoc.exists au-dessus,
+            // mais re-check par sécurité (cohérence array <-> structure_members).
 
             // Writes atomiques
             tx.set(memberRef, {
@@ -98,7 +103,8 @@ export async function POST(req: NextRequest) {
               joinedAt: FieldValue.serverTimestamp(),
             });
             if (userDoc.exists) {
-              tx.update(userRef, { [`structurePerGame.${joinGame}`]: sid });
+              const newArray = addStructureToGame(spg, joinGame, sid);
+              tx.update(userRef, { [`structurePerGame.${joinGame}`]: newArray });
             }
             if (linkData.targetUserId) {
               tx.update(linkRef, {
@@ -139,7 +145,8 @@ export async function POST(req: NextRequest) {
             NOT_FOR_YOU:               { msg: 'Ce lien d\'invitation n\'est pas pour toi.', status: 403 },
             STRUCTURE_INACTIVE:        { msg: 'Structure inactive.', status: 400 },
             ALREADY_MEMBER:            { msg: 'Tu es déjà membre de cette structure.', status: 400 },
-            ALREADY_HAS_GAME_STRUCTURE:{ msg: 'Tu as déjà une structure pour ce jeu.', status: 400 },
+            ALREADY_HAS_GAME_STRUCTURE:{ msg: 'Tu as déjà une structure pour ce jeu.', status: 400 }, // legacy
+            STRUCTURE_CAP_REACHED:     { msg: `Tu es déjà dans ${STRUCTURE_MEMBERSHIP_CAP} structures sur ce jeu (le maximum autorisé). Quitte d'abord l'une d'elles.`, status: 400 },
           };
           const handled = map[code];
           if (handled) return NextResponse.json({ error: handled.msg }, { status: handled.status });
@@ -288,10 +295,14 @@ export async function POST(req: NextRequest) {
         batch.delete(memberDoc.ref);
 
         if (userSnap.exists) {
+          // Retire la structure du tableau pour ce jeu (compat array).
+          // Si après retrait le tableau est vide, on supprime la clé.
           const spg = userSnap.data()!.structurePerGame || {};
-          if (spg[memberData.game] === structureId) {
-            delete spg[memberData.game];
-            batch.update(userRef, { structurePerGame: spg });
+          const newArray = removeStructureFromGame(spg, memberData.game, structureId);
+          if (newArray.length === 0) {
+            batch.update(userRef, { [`structurePerGame.${memberData.game}`]: FieldValue.delete() });
+          } else {
+            batch.update(userRef, { [`structurePerGame.${memberData.game}`]: newArray });
           }
         }
 

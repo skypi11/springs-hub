@@ -6,6 +6,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { countDirigeantSeats, MAX_SEATS_PER_PERSON, type DirigeantRef } from '@/lib/structure-roles';
 import { sendAdminAlert } from '@/lib/admin-discord-alert';
+import { canJoinStructure, addStructureToGame, STRUCTURE_MEMBERSHIP_CAP } from '@/lib/structure-membership';
 
 const LEGAL_STATUSES = ['none', 'asso_1901', 'auto_entreprise', 'sas_sarl', 'other'];
 
@@ -70,6 +71,21 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
+    // Check cap "max N structures par jeu" pour TOUS les jeux que la nouvelle
+    // structure couvre. Mode strict : on inclut les pending dans le compte.
+    const userSnap = await db.collection('users').doc(uid).get();
+    const userSpg = (userSnap.exists && (userSnap.data()!.structurePerGame || {})) || {};
+    for (const g of body.games) {
+      // structureId pas encore connu — on passe une sentinelle qui ne matchera
+      // aucune struct existante, donc seul le cap importe.
+      const check = canJoinStructure(userSpg, g, '__new__');
+      if (!check.ok && check.reason === 'cap_reached') {
+        return NextResponse.json({
+          error: `Tu es déjà dans ${STRUCTURE_MEMBERSHIP_CAP} structures sur ${g} (max). Quitte-en une avant de pouvoir en fonder une nouvelle.`,
+        }, { status: 400 });
+      }
+    }
+
     // Vérifier que le nom ou tag n'est pas déjà pris (case-insensitive sur le nom)
     const nameLower = body.name.trim().toLowerCase();
     const tagUpper = body.tag.trim().toUpperCase();
@@ -108,6 +124,17 @@ export async function POST(req: NextRequest) {
     };
 
     const docRef = await db.collection('structures').add(structureData);
+
+    // Compte la struct dans le cap dès la création (mode strict : pending compte).
+    // Sans ça, un user peut soumettre 10 demandes pending et toutes les voir validées
+    // au-delà du cap. addStructureToGame est idempotent (dédup si déjà présent).
+    if (userSnap.exists) {
+      const updates: Record<string, unknown> = {};
+      for (const g of body.games) {
+        updates[`structurePerGame.${g}`] = addStructureToGame(userSpg, g, docRef.id);
+      }
+      await db.collection('users').doc(uid).update(updates);
+    }
 
     // Alerte admin sur le Discord Aedral — fire-and-forget (ne throw jamais).
     const founderSnap = await db.collection('users').doc(uid).get();

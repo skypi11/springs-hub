@@ -15,7 +15,9 @@ export interface SpringsUser {
   // Rôle dirigeant le plus élevé, dérivé au login par GET /api/auth/me — non
   // persisté en base. Sert notamment à l'affichage du rôle dans la sidebar.
   structureRole?: 'fondateur' | 'co_fondateur' | null;
-  structurePerGame?: Record<string, string>;
+  // Schema 2026-05-25 : array (max 2 structures par jeu). Lecture défensive via
+  // lib/structure-membership.ts (string legacy wrappé automatiquement en [string]).
+  structurePerGame?: Record<string, string | string[]>;
   // Recrutement
   isAvailableForRecruitment?: boolean;
   recruitmentRole?: string;    // 'joueur' | 'coach' | 'manager'

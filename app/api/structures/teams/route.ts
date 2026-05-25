@@ -193,51 +193,83 @@ export async function POST(req: NextRequest) {
       return out;
     };
 
-    // Règle : 1 joueur = max 1 équipe active par jeu dans la structure.
-    // Staff libre (un coach/manager peut couvrir plusieurs équipes). Les équipes
-    // archivées ne bloquent pas. Le joueur reste libre d'être dans une équipe RL
-    // ET une équipe TM en parallèle (c'est un autre jeu).
+    // Règle (validée Matt 2026-05-25) : 1 joueur = max 1 équipe active par jeu,
+    // CROSS-STRUCTURE. Un joueur ne peut pas être titulaire/remplaçant dans 2
+    // équipes RL différentes, qu'elles soient dans la même structure ou non.
+    // Staff libre (un coach/manager peut couvrir plusieurs équipes).
+    // Les équipes archivées ne bloquent pas. Différents jeux libres entre eux.
     const checkPlayerExclusivity = async (
       candidatePlayerIds: string[],
       candidateSubIds: string[],
       teamGame: string,
       excludeTeamId?: string,
     ): Promise<{ ok: true } | { ok: false; error: string }> => {
-      const candidates = new Set<string>([...candidatePlayerIds, ...candidateSubIds].filter(Boolean));
-      if (candidates.size === 0) return { ok: true };
+      const candidates = Array.from(new Set([...candidatePlayerIds, ...candidateSubIds].filter(Boolean)));
+      if (candidates.length === 0) return { ok: true };
 
-      const snap = await db.collection('sub_teams')
-        .where('structureId', '==', structureId)
-        .where('game', '==', teamGame)
-        .get();
+      // 2 queries cross-structure via array-contains-any (max 30 valeurs).
+      // Pour RL on a max 3 titulaires + 2 remplaçants = 5 candidats — bien sous 30.
+      const [playerSnap, subSnap] = await Promise.all([
+        db.collection('sub_teams')
+          .where('game', '==', teamGame)
+          .where('playerIds', 'array-contains-any', candidates)
+          .get(),
+        db.collection('sub_teams')
+          .where('game', '==', teamGame)
+          .where('subIds', 'array-contains-any', candidates)
+          .get(),
+      ]);
 
-      const conflicts: { userId: string; teamName: string }[] = [];
-      for (const d of snap.docs) {
+      // Dédup les docs (peuvent être dans les 2 résultats), filtre l'équipe
+      // en cours d'update et les équipes archivées.
+      const docsById = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+      for (const d of [...playerSnap.docs, ...subSnap.docs]) {
         if (d.id === excludeTeamId) continue;
+        if (d.data().status === 'archived') continue;
+        docsById.set(d.id, d);
+      }
+
+      // Pour chaque doc conflictuel, lister les candidats incriminés + récupère
+      // le nom de structure pour un message clair (l'user comprend si c'est
+      // cross-structure).
+      const conflicts: { userId: string; teamName: string; structureId: string }[] = [];
+      const conflictStructIds = new Set<string>();
+      const candidateSet = new Set(candidates);
+      for (const d of docsById.values()) {
         const t = d.data();
-        if (t.status === 'archived') continue;
         const occupied = new Set<string>([
           ...((t.playerIds ?? []) as string[]),
           ...((t.subIds ?? []) as string[]),
         ]);
-        for (const uid of candidates) {
-          if (occupied.has(uid)) conflicts.push({ userId: uid, teamName: t.name ?? '?' });
+        for (const uid of candidateSet) {
+          if (occupied.has(uid)) {
+            conflicts.push({ userId: uid, teamName: t.name ?? '?', structureId: t.structureId as string });
+            conflictStructIds.add(t.structureId as string);
+          }
         }
       }
 
       if (conflicts.length === 0) return { ok: true };
 
-      // Résoudre les displayName pour un message clair
-      const ids = Array.from(new Set(conflicts.map(c => c.userId)));
-      const usersById = await fetchDocsByIds(db, 'users', ids);
+      // Enrichi avec displayName + nom de structure pour message clair
+      const userIds = Array.from(new Set(conflicts.map(c => c.userId)));
+      const [usersById, structuresById] = await Promise.all([
+        fetchDocsByIds(db, 'users', userIds),
+        fetchDocsByIds(db, 'structures', Array.from(conflictStructIds)),
+      ]);
       const parts = conflicts.map(c => {
         const u = usersById.get(c.userId);
         const name = u?.displayName || u?.discordUsername || c.userId;
-        return `${name} (déjà dans ${c.teamName})`;
+        const s = structuresById.get(c.structureId);
+        const inOurStruct = c.structureId === structureId;
+        const where = inOurStruct
+          ? c.teamName
+          : `${c.teamName} (${s?.tag || s?.name || 'autre structure'})`;
+        return `${name} (déjà dans ${where})`;
       });
       return {
         ok: false,
-        error: `Un joueur ne peut être que dans une seule équipe par jeu : ${parts.join(', ')}.`,
+        error: `Un joueur ne peut être que dans une seule équipe par jeu (toutes structures confondues) : ${parts.join(', ')}.`,
       };
     };
 

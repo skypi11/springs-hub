@@ -8,6 +8,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { addJoinHistory } from '@/lib/member-history';
 import { writeAdminAuditLog, type AdminAuditAction } from '@/lib/admin-audit-log';
 import { computeStaffSize } from '@/lib/structure-counters';
+import { addStructureToGame, removeStructureFromGame } from '@/lib/structure-membership';
 
 const MAX_STRUCTURES = 500;
 
@@ -111,6 +112,12 @@ export async function POST(req: NextRequest) {
         const founderGames: string[] = Array.isArray(data.games) && data.games.length > 0
           ? data.games
           : ['rocket_league'];
+
+        // Lecture défensive du structurePerGame actuel pour merger en array
+        // (compat avec le format legacy string ET le nouveau format array).
+        const founderSnapForSpg = await userRef.get();
+        const currentSpg = (founderSnapForSpg.exists && (founderSnapForSpg.data()!.structurePerGame || {})) || {};
+
         const batch = db.batch();
         batch.update(ref, {
           status: 'active',
@@ -120,11 +127,14 @@ export async function POST(req: NextRequest) {
           // Init compteurs dénormalisés : fondateur = 1 membre, 0 équipe
           counters: { teams: 0, members: 1 },
         });
-        // Set structurePerGame.{game} = structureId pour TOUS les jeux de la
-        // structure — sinon le fondateur apparaît "Sans structure" dans l'annuaire
-        // (l'API /players se base sur ce champ).
+        // Set structurePerGame.{game} = array contenant la structure, mergé
+        // avec les structures déjà présentes pour ce jeu (max 2). En théorie le
+        // fondateur n'aura pas déjà 2 autres struct sur ce jeu — sinon la
+        // création aurait été bloquée en amont. AddStructureToGame throw si cap.
         const userUpdates: Record<string, unknown> = { isFounderApproved: true };
-        for (const g of founderGames) userUpdates[`structurePerGame.${g}`] = structureId;
+        for (const g of founderGames) {
+          userUpdates[`structurePerGame.${g}`] = addStructureToGame(currentSpg, g, structureId);
+        }
         batch.update(userRef, userUpdates);
         batch.set(memberRef, {
           structureId,
@@ -144,7 +154,29 @@ export async function POST(req: NextRequest) {
         break;
       }
 
-      case 'reject':
+      case 'reject': {
+        // Retire la struct (pending) du structurePerGame du fondateur — sinon
+        // elle reste comptée dans son cap "max N par jeu" alors qu'elle est
+        // rejetée. À la création (request), on l'avait ajoutée pour le strict mode.
+        const founderId = data.founderId as string | undefined;
+        const founderGames: string[] = Array.isArray(data.games) ? data.games : [];
+        if (founderId && founderGames.length > 0) {
+          const founderUserRef = db.collection('users').doc(founderId);
+          const founderSnap = await founderUserRef.get();
+          if (founderSnap.exists) {
+            const spg = (founderSnap.data()!.structurePerGame || {}) as Record<string, string | string[]>;
+            const updates: Record<string, unknown> = {};
+            for (const g of founderGames) {
+              const newArr = removeStructureFromGame(spg, g, structureId);
+              if (newArr.length === 0) {
+                updates[`structurePerGame.${g}`] = FieldValue.delete();
+              } else {
+                updates[`structurePerGame.${g}`] = newArr;
+              }
+            }
+            if (Object.keys(updates).length > 0) await founderUserRef.update(updates);
+          }
+        }
         await ref.update({
           status: 'rejected',
           reviewComment: comment || '',
@@ -152,6 +184,7 @@ export async function POST(req: NextRequest) {
           validatedAt: FieldValue.serverTimestamp(),
         });
         break;
+      }
 
       case 'suspend':
         await ref.update({
