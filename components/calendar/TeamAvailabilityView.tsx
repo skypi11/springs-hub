@@ -215,18 +215,27 @@ export default function TeamAvailabilityView({
   const savingConfig = saveConfigMutation.isPending;
   const saveConfig = () => saveConfigMutation.mutate();
 
-  // Grille unifiée pour la semaine courante affichée
-  const { rows, slotCountsByIso, eventSlotsByIso } = useMemo(() => {
-    if (!data) return { rows: [], slotCountsByIso: {}, eventSlotsByIso: new Set<string>() };
+  // Grille unifiée pour la semaine courante affichée.
+  // 2 comptes par slot (validé Matt 2026-05-25) :
+  //   - totalCount    : tous les joueurs (tit + rmp) dispos sur le slot
+  //   - titularCount  : uniquement les titulaires dispos
+  // Sert à distinguer "matchable" (totalCount ≥ minPlayers → vert) vs "équipe
+  // titulaire au complet" (titularCount === titulairesTotal → or).
+  const { rows, slotCountsByIso, titularCountsByIso, eventSlotsByIso } = useMemo(() => {
+    if (!data) return { rows: [], slotCountsByIso: {}, titularCountsByIso: {}, eventSlotsByIso: new Set<string>() };
     const week = data.weeks[weekIdx];
-    if (!week) return { rows: [], slotCountsByIso: {}, eventSlotsByIso: new Set<string>() };
+    if (!week) return { rows: [], slotCountsByIso: {}, titularCountsByIso: {}, eventSlotsByIso: new Set<string>() };
     const grid = generateWeekGrid(week.mondayYmd, data.today);
     const weekDaySet = new Set(grid.days.map(d => d.gridYmd));
 
     const counts: Record<string, number> = {};
+    const titularCounts: Record<string, number> = {};
     for (const m of data.members) {
       const slots = m.slotsByWeek[week.mondayYmd] ?? [];
-      for (const s of slots) counts[s] = (counts[s] ?? 0) + 1;
+      for (const s of slots) {
+        counts[s] = (counts[s] ?? 0) + 1;
+        if (m.isTitulaire) titularCounts[s] = (titularCounts[s] ?? 0) + 1;
+      }
     }
 
     // Agrégation des slots déjà pris par un event (tous membres confondus — si au moins
@@ -250,8 +259,14 @@ export default function TeamAvailabilityView({
       day,
       cells: buildUnifiedRow(day),
     }));
-    return { rows, slotCountsByIso: counts, eventSlotsByIso: eventSet };
+    return { rows, slotCountsByIso: counts, titularCountsByIso: titularCounts, eventSlotsByIso: eventSet };
   }, [data, weekIdx]);
+
+  // Total des titulaires de l'équipe (constant pour cette équipe — sert au calcul
+  // du palier OR : "équipe titulaire au complet").
+  const titularsTotal = useMemo(() =>
+    data ? data.members.filter(m => m.isTitulaire).length : 0,
+  [data]);
 
   if (loading) {
     return (
@@ -410,20 +425,22 @@ export default function TeamAvailabilityView({
             </div>
           </div>
 
-          {/* ═══ HEATMAP CONSENSUS ═══ */}
+          {/* ═══ HEATMAP CONSENSUS ═══
+              Légende intégrée en bas de la heatmap (mise à jour avec la
+              nouvelle palette 3 paliers : gris insuffisant / vert matchable
+              / or équipe titulaire complète). */}
           {mode === 'consensus' && (
-            <>
-              <HeatmapLegend minPlayers={data.team.minPlayersForMatch} totalMembers={totalMembers} />
-              <ConsensusHeatmap
-                rows={rows}
-                slotCountsByIso={slotCountsByIso}
-                eventSlotsByIso={eventSlotsByIso}
-                totalMembers={totalMembers}
-                minPlayers={data.team.minPlayersForMatch}
-                selectedSlot={selectedSlot}
-                onSelectSlot={setSelectedSlot}
-              />
-            </>
+            <ConsensusHeatmap
+              rows={rows}
+              slotCountsByIso={slotCountsByIso}
+              titularCountsByIso={titularCountsByIso}
+              eventSlotsByIso={eventSlotsByIso}
+              totalMembers={totalMembers}
+              titularsTotal={titularsTotal}
+              minPlayers={data.team.minPlayersForMatch}
+              selectedSlot={selectedSlot}
+              onSelectSlot={setSelectedSlot}
+            />
           )}
 
           {/* Détail d'un slot sélectionné */}
@@ -578,16 +595,20 @@ function SegButton({
 function ConsensusHeatmap({
   rows,
   slotCountsByIso,
+  titularCountsByIso,
   eventSlotsByIso,
   totalMembers,
+  titularsTotal,
   minPlayers,
   selectedSlot,
   onSelectSlot,
 }: {
   rows: { day: DayGrid; cells: UnifiedCell[] }[];
   slotCountsByIso: Record<string, number>;
+  titularCountsByIso: Record<string, number>;
   eventSlotsByIso: Set<string>;
   totalMembers: number;
+  titularsTotal: number;
   minPlayers: number;
   selectedSlot: string | null;
   onSelectSlot: (iso: string | null) => void;
@@ -632,8 +653,10 @@ function ConsensusHeatmap({
           <ConsensusHeatmapTransposed
             rows={rows}
             slotCountsByIso={slotCountsByIso}
+            titularCountsByIso={titularCountsByIso}
             eventSlotsByIso={eventSlotsByIso}
             totalMembers={totalMembers}
+            titularsTotal={titularsTotal}
             minPlayers={minPlayers}
             selectedSlot={selectedSlot}
             onSelectSlot={onSelectSlot}
@@ -668,8 +691,10 @@ function ConsensusHeatmap({
                   day={row.day}
                   cells={row.cells}
                   slotCountsByIso={slotCountsByIso}
+                  titularCountsByIso={titularCountsByIso}
                   eventSlotsByIso={eventSlotsByIso}
                   totalMembers={totalMembers}
+                  titularsTotal={titularsTotal}
                   minPlayers={minPlayers}
                   selectedSlot={selectedSlot}
                   onSelectSlot={onSelectSlot}
@@ -679,27 +704,23 @@ function ConsensusHeatmap({
           </>
         )}
 
-        {/* Legend */}
+        {/* Legend — 3 paliers nets (validé Matt 2026-05-25) */}
         <div className="flex items-center gap-3 mt-3 pt-3 flex-wrap" style={{ borderTop: '1px solid var(--s-border)' }}>
           <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>CHAQUE CASE = 30 MIN</span>
           <div className="flex items-center gap-1.5">
-            <LegendSwatch color="rgba(255,255,255,0.04)" />
-            <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>0 joueur</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <LegendSwatch color="#5c4a1a" />
-            <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>peu</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <LegendSwatch color="#ffb800" border="#ffd24d" />
-            <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>seuil match ({minPlayers}+)</span>
+            <LegendSwatch color="rgba(255,255,255,0.10)" border="rgba(255,255,255,0.18)" />
+            <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>moins de {minPlayers} dispo</span>
           </div>
           <div className="flex items-center gap-1.5">
             <LegendSwatch color="#2fc46b" border="#5fe39a" />
-            <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>tous dispos</span>
+            <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>{minPlayers}+ dispo — matcher possible</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <LegendSwatch color="repeating-linear-gradient(135deg, rgba(0,0,0,0.35) 0, rgba(0,0,0,0.35) 2px, transparent 2px, transparent 5px), #a87f15" />
+            <LegendSwatch color="#ffb800" border="#ffd24d" />
+            <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>titulaires au complet</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <LegendSwatch color="repeating-linear-gradient(135deg, rgba(0,0,0,0.35) 0, rgba(0,0,0,0.35) 2px, transparent 2px, transparent 5px), rgba(255,255,255,0.10)" />
             <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>event planifié</span>
           </div>
         </div>
@@ -724,8 +745,10 @@ function DayHeatmapRow({
   day,
   cells,
   slotCountsByIso,
+  titularCountsByIso,
   eventSlotsByIso,
   totalMembers,
+  titularsTotal,
   minPlayers,
   selectedSlot,
   onSelectSlot,
@@ -733,8 +756,10 @@ function DayHeatmapRow({
   day: DayGrid;
   cells: UnifiedCell[];
   slotCountsByIso: Record<string, number>;
+  titularCountsByIso: Record<string, number>;
   eventSlotsByIso: Set<string>;
   totalMembers: number;
+  titularsTotal: number;
   minPlayers: number;
   selectedSlot: string | null;
   onSelectSlot: (iso: string | null) => void;
@@ -763,6 +788,7 @@ function DayHeatmapRow({
       >
         {cells.map(cell => {
           const count = slotCountsByIso[cell.iso] ?? 0;
+          const titularCount = titularCountsByIso[cell.iso] ?? 0;
           const isSelected = selectedSlot === cell.iso;
           const hasEvent = eventSlotsByIso.has(cell.iso);
           return (
@@ -770,7 +796,9 @@ function DayHeatmapRow({
               key={cell.iso}
               cell={cell}
               count={count}
+              titularCount={titularCount}
               totalMembers={totalMembers}
+              titularsTotal={titularsTotal}
               minPlayers={minPlayers}
               isPastDay={day.isPast}
               isSelected={isSelected}
@@ -793,16 +821,20 @@ function DayHeatmapRow({
 function ConsensusHeatmapTransposed({
   rows,
   slotCountsByIso,
+  titularCountsByIso,
   eventSlotsByIso,
   totalMembers,
+  titularsTotal,
   minPlayers,
   selectedSlot,
   onSelectSlot,
 }: {
   rows: { day: DayGrid; cells: UnifiedCell[] }[];
   slotCountsByIso: Record<string, number>;
+  titularCountsByIso: Record<string, number>;
   eventSlotsByIso: Set<string>;
   totalMembers: number;
+  titularsTotal: number;
   minPlayers: number;
   selectedSlot: string | null;
   onSelectSlot: (iso: string | null) => void;
@@ -843,6 +875,7 @@ function ConsensusHeatmapTransposed({
               {rows.map(row => {
                 const cell = row.cells[slotIdx];
                 const count = slotCountsByIso[cell.iso] ?? 0;
+                const titularCount = titularCountsByIso[cell.iso] ?? 0;
                 const isSelected = selectedSlot === cell.iso;
                 const hasEvent = eventSlotsByIso.has(cell.iso);
                 return (
@@ -850,7 +883,9 @@ function ConsensusHeatmapTransposed({
                     key={row.day.gridYmd}
                     cell={cell}
                     count={count}
+                    titularCount={titularCount}
                     totalMembers={totalMembers}
+                    titularsTotal={titularsTotal}
                     minPlayers={minPlayers}
                     isPastDay={row.day.isPast}
                     isSelected={isSelected}
@@ -870,75 +905,46 @@ function ConsensusHeatmapTransposed({
   );
 }
 
-// Mini-légende affichée au-dessus de la heatmap consensus — 3 carrés + label.
-// Permet à un nouvel utilisateur de comprendre immédiatement le code couleur
-// sans avoir à survoler chaque cellule pour deviner.
-function HeatmapLegend({
-  minPlayers,
-  totalMembers,
-}: {
-  minPlayers: number;
-  totalMembers: number;
-}) {
-  const items: Array<{ bg: string; border: string; label: string }> = [
-    { bg: 'rgba(255,255,255,0.10)', border: 'rgba(255,255,255,0.18)', label: `< ${minPlayers} dispo` },
-    { bg: '#ffb800', border: '#ffd24d', label: `≥ ${minPlayers} dispo (matcher possible)` },
-    { bg: '#2fc46b', border: '#5fe39a', label: totalMembers > 0 ? `${totalMembers}/${totalMembers} dispo (créneau parfait)` : 'tout le monde' },
-  ];
-  return (
-    <div className="flex flex-wrap items-center gap-3 px-1 py-2 text-xs" style={{ color: 'var(--s-text-dim)' }}>
-      <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Lecture :</span>
-      {items.map((it, i) => (
-        <div key={i} className="flex items-center gap-1.5">
-          <span style={{
-            display: 'inline-block',
-            width: 14,
-            height: 14,
-            background: it.bg,
-            border: `1px solid ${it.border}`,
-            borderRadius: 2,
-          }} />
-          <span>{it.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // Couleurs d'une case de heatmap — 3 paliers nets seulement (validé Matt 2026-05-25).
 // Avant : 6 paliers dont 3 nuances d'or quasi-indiscernables (myrtille).
 // Maintenant :
-//   ○ Vide        : 0 dispo                            → gris très pâle
-//   ░ Insuffisant : 1 à (seuil - 1)                    → blanc 8% (neutre)
-//   ■ Minimum OK  : seuil atteint, pas encore complet  → OR (signal "matcher possible")
-//   ■ Complet     : 100% des joueurs dispos            → VERT (signal "créneau parfait")
-// Légende visuelle affichée au-dessus de la heatmap (HeatmapLegend).
+//   ○ Vide        : 0 dispo                                → gris très pâle
+//   ░ Insuffisant : 1 à (seuil - 1) joueurs dispos         → blanc 10% (neutre)
+//   ■ Matchable   : seuil min atteint, mais pas tous titulaires → VERT
+//   ■ Tit complet : tous les titulaires sont dispos        → OR
+//
+// Note : OR = palier supérieur (équipe titulaire au complet, créneau optimal).
+// VERT = palier intermédiaire (matcher possible, mais avec subs/remplacements).
+// Sémantique inversée par rapport à l'ancienne (où or = seuil, vert = complet)
+// pour mieux refléter l'usage : l'or reste "rare et précieux" (DA), donc on
+// le réserve au cas optimal "équipe titulaire complète".
 function heatmapCellColors(
   count: number,
-  totalMembers: number,
+  titularCount: number,
+  titularsTotal: number,
   minPlayers: number,
 ): { bg: string; border: string } {
   if (count === 0) {
     return { bg: 'rgba(255,255,255,0.035)', border: 'rgba(255,255,255,0.06)' };
   }
-  const hasThreshold = minPlayers > 0;
-  const meetsThreshold = hasThreshold && count >= minPlayers;
-  // Tout le monde dispo → vert (créneau parfait, on peut faire un match plein roster).
-  if (totalMembers > 0 && count >= totalMembers) {
-    return { bg: '#2fc46b', border: '#5fe39a' };
-  }
-  // Seuil minimum atteint → or (rare et précieux selon DA — signal fort "go").
-  if (meetsThreshold) {
+  // Tous les titulaires dispos → OR (créneau optimal, équipe principale au complet).
+  if (titularsTotal > 0 && titularCount >= titularsTotal) {
     return { bg: '#ffb800', border: '#ffd24d' };
   }
-  // 1 jusqu'au seuil-1 → neutre clair (pas la peine, mais on voit qu'il y a du monde).
+  // Seuil minimum atteint → VERT (matchable, possiblement avec remplaçants).
+  if (minPlayers > 0 && count >= minPlayers) {
+    return { bg: '#2fc46b', border: '#5fe39a' };
+  }
+  // En dessous du seuil → neutre clair (on voit qu'il y a du monde mais pas assez).
   return { bg: 'rgba(255,255,255,0.10)', border: 'rgba(255,255,255,0.18)' };
 }
 
 function HeatmapCell({
   cell,
   count,
+  titularCount,
   totalMembers,
+  titularsTotal,
   minPlayers,
   isPastDay,
   isSelected,
@@ -947,7 +953,9 @@ function HeatmapCell({
 }: {
   cell: UnifiedCell;
   count: number;
+  titularCount: number;
   totalMembers: number;
+  titularsTotal: number;
   minPlayers: number;
   isPastDay: boolean;
   isSelected: boolean;
@@ -966,7 +974,7 @@ function HeatmapCell({
     );
   }
 
-  const cellColors = heatmapCellColors(count, totalMembers, minPlayers);
+  const cellColors = heatmapCellColors(count, titularCount, titularsTotal, minPlayers);
   let bg: string = cellColors.bg;
   const border: string = cellColors.border;
 
@@ -979,7 +987,8 @@ function HeatmapCell({
 
   const hhmm = `${pad2(cell.hour)}:${pad2(cell.minute)}`;
   const eventSuffix = hasEvent ? ' · event planifié' : '';
-  const title = `${hhmm} — ${count}/${totalMembers} joueur${count > 1 ? 's' : ''} dispo${count > 1 ? 's' : ''}${eventSuffix}`;
+  const titularSuffix = titularsTotal > 0 ? ` (dont ${titularCount}/${titularsTotal} titulaires)` : '';
+  const title = `${hhmm} — ${count}/${totalMembers} dispo${titularSuffix}${eventSuffix}`;
 
   return (
     <button
