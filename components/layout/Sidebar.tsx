@@ -15,7 +15,6 @@ const navItems = [
   { href: '/', icon: Home, label: 'Accueil' },
   { href: '/community', icon: Users, label: 'Communauté' },
   { href: '/competitions', icon: Trophy, label: 'Compétitions' },
-  { href: '/guide', icon: BookOpen, label: 'Guide' },
   { href: '/settings', icon: Settings, label: 'Mon profil' },
 ];
 
@@ -213,6 +212,18 @@ export default function Sidebar() {
             <span className="font-medium text-sm">Mon calendrier</span>
           </Link>
         )}
+
+        {/* Guide — placé sous "Mon calendrier" (validé Matt 2026-05-25) */}
+        <Link href="/guide"
+          className="flex items-center gap-3 px-3 py-2.5 transition-all duration-150"
+          style={{
+            background: pathname.startsWith('/guide') ? 'rgba(255,184,0,0.08)' : 'transparent',
+            color: pathname.startsWith('/guide') ? 'var(--s-gold)' : 'var(--s-text-dim)',
+            borderLeft: pathname.startsWith('/guide') ? '3px solid var(--s-gold)' : '3px solid transparent',
+          }}>
+          <BookOpen size={17} style={{ color: pathname.startsWith('/guide') ? 'var(--s-gold)' : 'var(--s-text-muted)', flexShrink: 0 }} />
+          <span className="font-medium text-sm">Guide</span>
+        </Link>
 
         {/* Admin */}
         {isAdmin && (
