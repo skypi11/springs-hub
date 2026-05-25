@@ -105,25 +105,50 @@ export default function WeekView({
   // Joueur isolé : si défini, la heatmap n'affiche que ses créneaux à lui.
   const [soloMember, setSoloMember] = useState<string | null>(null);
 
-  // Toggle overlay staff (validé Matt 2026-05-25 — Option B) : bordures bleu
-  // clair sur les slots où ≥ 1 staff (coach équipe + manager équipe + coach
-  // structure) est dispo. OFF par défaut pour éviter saturation visuelle.
-  // Persisté localStorage par structure pour conserver le choix de l'user.
-  const staffOverlayKey = `aedral_week_staff_overlay_${structureId}`;
-  const [showStaffOverlay, setShowStaffOverlay] = useState(false);
+  // Sélecteur staff (refonte Matt 2026-05-25) : au lieu d'un toggle global
+  // qui affichait tous les staff sans distinction, on coche staff par staff.
+  // Chaque staff sélectionné se voit assigner une couleur cycliques (palette
+  // de 6) — pastille de cette couleur dans le coin haut-droit de chaque slot
+  // où il est dispo. Permet de voir IMMÉDIATEMENT qui est dispo (manager vs
+  // coach, etc.) sans avoir à survoler.
+  const [selectedStaffUids, setSelectedStaffUids] = useState<Set<string>>(() => new Set());
+  const [staffPickerOpen, setStaffPickerOpen] = useState(false);
+  const staffPickerKey = `aedral_week_staff_selection_${structureId}`;
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(staffOverlayKey);
-      if (stored === '1') setShowStaffOverlay(true);
-    } catch { /* SSR */ }
-  }, [staffOverlayKey]);
-  const toggleStaffOverlay = () => {
-    setShowStaffOverlay(prev => {
-      const next = !prev;
-      try { localStorage.setItem(staffOverlayKey, next ? '1' : '0'); } catch { /* noop */ }
+      const stored = localStorage.getItem(staffPickerKey);
+      if (stored) {
+        const arr = JSON.parse(stored) as string[];
+        if (Array.isArray(arr)) setSelectedStaffUids(new Set(arr));
+      }
+    } catch { /* SSR ou parse fail */ }
+  }, [staffPickerKey]);
+  const persistStaffSelection = (next: Set<string>) => {
+    try { localStorage.setItem(staffPickerKey, JSON.stringify(Array.from(next))); } catch { /* noop */ }
+  };
+  const toggleStaffPick = (uid: string) => {
+    setSelectedStaffUids(prev => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid); else next.add(uid);
+      persistStaffSelection(next);
       return next;
     });
   };
+  const clearStaffPick = () => {
+    setSelectedStaffUids(new Set());
+    persistStaffSelection(new Set());
+  };
+
+  // Palette cyclique de 6 couleurs distinctes pour les pastilles staff —
+  // hors palette DA (or/vert réservés au consensus joueurs).
+  const STAFF_COLORS = useMemo(() => [
+    '#87cefa', // bleu clair
+    '#ff8fa3', // rose
+    '#a78bfa', // violet pâle
+    '#fbbf24', // ambre/jaune
+    '#34d399', // turquoise
+    '#f97316', // orange
+  ], []);
 
   const grid = useMemo(() => generateWeekGrid(weekMonday, todayYmd), [weekMonday, todayYmd]);
 
@@ -180,10 +205,23 @@ export default function WeekView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [avail],
   );
-  const staffBySlot = useMemo(() => {
+  // Couleur attribuée à chaque staff sélectionné (par index dans la liste
+  // relevantStaff, stable et déterministe pour un user donné).
+  const staffColorByUid = useMemo(() => {
+    const m = new Map<string, string>();
+    relevantStaff.forEach((s, i) => {
+      m.set(s.uid, STAFF_COLORS[i % STAFF_COLORS.length]);
+    });
+    return m;
+  }, [relevantStaff, STAFF_COLORS]);
+
+  // Pour chaque slot, la liste des staff SÉLECTIONNÉS qui sont dispos
+  // (filtré sur selectedStaffUids — pas le pool complet).
+  const selectedStaffBySlot = useMemo(() => {
     const map = new Map<string, AvailStaff[]>();
-    if (!avail || !availWeek) return map;
+    if (!avail || !availWeek || selectedStaffUids.size === 0) return map;
     for (const s of relevantStaff) {
+      if (!selectedStaffUids.has(s.uid)) continue;
       for (const iso of s.slotsByWeek[weekMonday] ?? []) {
         const list = map.get(iso);
         if (list) list.push(s);
@@ -191,7 +229,7 @@ export default function WeekView({
       }
     }
     return map;
-  }, [avail, availWeek, weekMonday, relevantStaff]);
+  }, [avail, availWeek, weekMonday, relevantStaff, selectedStaffUids]);
 
   // Heatmap : pour chaque slot iso, qui est dispo (hors conflit d'event).
   const availabilityBySlot = useMemo(() => {
@@ -257,26 +295,68 @@ export default function WeekView({
         </button>
         <span className="font-display text-lg tracking-wider" style={{ color: 'var(--s-text)' }}>{rangeLabel}</span>
 
-        {/* Toggle overlay staff — visible quand une équipe est sélectionnée et
-            qu'au moins 1 staff existe pour cette équipe. Affiche une bordure
-            droite bleu clair sur les slots où le staff est dispo. */}
+        {/* Sélecteur staff (refonte Matt 2026-05-25) — dropdown multi-checkbox.
+            Style aligné sur le filtre équipe "Afficher : ..." pour cohérence UX.
+            Visible quand une équipe est sélectionnée et qu'au moins 1 staff
+            existe pour cette équipe. */}
         {availActive && relevantStaff.length > 0 && (
-          <button type="button" onClick={toggleStaffOverlay}
-            title={showStaffOverlay ? 'Masquer les dispos du staff' : 'Afficher les dispos du staff (coach, manager)'}
-            className="ml-2 bevel-sm text-xs font-semibold transition-colors flex items-center gap-1.5"
-            style={{
-              padding: '5px 10px',
-              background: showStaffOverlay ? 'rgba(135,206,250,0.18)' : 'var(--s-elevated)',
-              border: `1px solid ${showStaffOverlay ? 'rgba(135,206,250,0.55)' : 'var(--s-border)'}`,
-              color: showStaffOverlay ? 'rgb(135,206,250)' : 'var(--s-text-dim)',
-            }}>
-            <span style={{
-              display: 'inline-block',
-              width: 8, height: 12,
-              borderRight: '3px solid rgba(135,206,250,0.9)',
-            }} />
-            Staff {showStaffOverlay ? 'visible' : 'masqué'}
-          </button>
+          <div className="relative ml-2">
+            <button type="button" onClick={() => setStaffPickerOpen(o => !o)}
+              className="flex items-center gap-1.5 transition-all duration-150"
+              style={{
+                background: selectedStaffUids.size > 0 ? 'rgba(135,206,250,0.15)' : 'var(--s-elevated)',
+                color: selectedStaffUids.size > 0 ? 'rgb(135,206,250)' : 'var(--s-text-dim)',
+                border: `1px solid ${selectedStaffUids.size > 0 ? 'rgba(135,206,250,0.45)' : 'var(--s-border)'}`,
+                cursor: 'pointer', padding: '4px 10px', fontSize: '12px',
+                textTransform: 'uppercase', letterSpacing: '0.04em',
+              }}>
+              <Users size={11} />
+              <span>Staff {selectedStaffUids.size}/{relevantStaff.length}</span>
+              <ChevronRight size={11} style={{ transform: staffPickerOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
+            </button>
+            {selectedStaffUids.size > 0 && (
+              <button type="button" onClick={clearStaffPick}
+                className="absolute -right-1 translate-x-full top-1/2 -translate-y-1/2 text-xs transition-colors duration-150"
+                style={{ color: 'var(--s-text-muted)', padding: '2px 6px' }}>
+                Réinitialiser
+              </button>
+            )}
+            {staffPickerOpen && (
+              <>
+                <div className="fixed inset-0 z-[20]" onClick={() => setStaffPickerOpen(false)} />
+                <div className="absolute left-0 top-full mt-1 z-[30] w-[280px] max-h-[320px] overflow-y-auto bevel-sm"
+                  style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+                  <div className="px-3 py-2 border-b" style={{ borderColor: 'var(--s-border)' }}>
+                    <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>Coche le staff à afficher</p>
+                  </div>
+                  <div className="divide-y" style={{ borderColor: 'var(--s-border)' }}>
+                    {relevantStaff.map(s => {
+                      const checked = selectedStaffUids.has(s.uid);
+                      const color = staffColorByUid.get(s.uid) ?? '#fff';
+                      return (
+                        <label key={s.uid} className="flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors hover:bg-[var(--s-elevated)]">
+                          <input type="checkbox" checked={checked}
+                            onChange={() => toggleStaffPick(s.uid)}
+                            className="w-4 h-4 cursor-pointer"
+                            style={{ accentColor: color }} />
+                          <span style={{
+                            display: 'inline-block',
+                            width: 10, height: 10, borderRadius: '50%',
+                            background: color,
+                            boxShadow: '0 0 0 1px rgba(0,0,0,0.35)',
+                          }} />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{s.displayName}</div>
+                            <div className="text-[10px]" style={{ color: 'var(--s-text-dim)' }}>{STAFF_ROLE_LABELS[s.role]}</div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         )}
 
         <button type="button" onClick={goToday}
@@ -368,12 +448,11 @@ export default function WeekView({
                         heatBg = 'rgba(255,255,255,0.08)';
                       }
                     }
-                    // Overlay staff (validé Matt 2026-05-25, option B) : bordure
-                    // droite épaisse bleu clair si ≥ 1 staff (coach/manager équipe
-                    // + coach structure) est dispo sur ce slot. Toggle global ON/OFF.
-                    const staffHere = (availActive && showStaffOverlay)
-                      ? (staffBySlot.get(iso) ?? [])
-                      : [];
+                    // Overlay staff (refonte Matt 2026-05-25) : pastilles 6px
+                    // dans le coin haut-droit, une par staff SÉLECTIONNÉ et
+                    // dispo. Couleur attribuée par staff (palette cyclique).
+                    // Visuel : on voit en 1 coup d'œil combien de staff + lesquels.
+                    const staffHere = availActive ? (selectedStaffBySlot.get(iso) ?? []) : [];
                     const hasStaff = staffHere.length > 0;
                     const staffTitle = hasStaff
                       ? ` · Staff dispo : ${staffHere.map(s => `${s.displayName} (${STAFF_ROLE_LABELS[s.role]})`).join(', ')}`
@@ -381,22 +460,46 @@ export default function WeekView({
                     const slotTitle = availActive && availUids.length > 0
                       ? `${formatSlotTime(iso)} — Dispo ${availUids.length}/${total} (dont ${titularDispoCount}/${titularsTotal} titulaires) : ${availUids.map(u => memberName.get(u) ?? '?').join(', ')}${staffTitle}`
                       : (hasStaff ? `${formatSlotTime(iso)}${staffTitle}` : (canCreate ? 'Cliquer pour créer un événement' : undefined));
+                    // Pastilles : max 3 visibles + "+N" si plus
+                    const visiblePastilles = staffHere.slice(0, 3);
+                    const extraPastilles = staffHere.length - visiblePastilles.length;
                     return (
                       <div key={idx}
                         onClick={() => {
                           if (canCreate && iso) onSlotCreate(iso, addMinutesToIso(iso, 120));
                         }}
                         title={slotTitle}
-                        className={`transition-colors ${heat ? '' : 'bg-[var(--s-elevated)]'} ${canCreate && !heat ? 'hover:bg-[var(--s-hover)]' : ''}`}
+                        className={`relative transition-colors ${heat ? '' : 'bg-[var(--s-elevated)]'} ${canCreate && !heat ? 'hover:bg-[var(--s-hover)]' : ''}`}
                         style={{
                           position: 'absolute', left: 0, right: 0,
                           top: idx * SLOT_HEIGHT, height: SLOT_HEIGHT,
                           background: heatBg,
                           borderTop: `1px solid ${t.m === 0 ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.03)'}`,
-                          // Bordure droite bleu clair = staff dispo (overlay)
-                          borderRight: hasStaff ? '3px solid rgba(135,206,250,0.9)' : undefined,
                           cursor: canCreate ? 'pointer' : 'default',
-                        }} />
+                        }}>
+                        {/* Pastilles staff sélectionnés — coin haut-droit */}
+                        {hasStaff && (
+                          <div className="absolute top-0.5 right-0.5 flex items-center gap-[2px] pointer-events-none z-[2]">
+                            {visiblePastilles.map(s => (
+                              <span key={s.uid} style={{
+                                display: 'inline-block',
+                                width: 6, height: 6, borderRadius: '50%',
+                                background: staffColorByUid.get(s.uid) ?? '#fff',
+                                boxShadow: '0 0 0 1px rgba(0,0,0,0.35)',
+                              }} />
+                            ))}
+                            {extraPastilles > 0 && (
+                              <span style={{
+                                fontSize: 8,
+                                color: 'var(--s-text-dim)',
+                                background: 'rgba(0,0,0,0.5)',
+                                padding: '0 2px',
+                                lineHeight: '8px',
+                              }}>+{extraPastilles}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
 
