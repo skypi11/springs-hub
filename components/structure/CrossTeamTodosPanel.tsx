@@ -1,15 +1,33 @@
 'use client';
 
+// Refonte 2026-05-26 — Onglet "Exercices" structure repensé pour un coach pro :
+//   - Header avec bouton "+ Nouvel exercice" (modal avec sélecteur d'équipe + NewTodoForm)
+//   - 3 compteurs (en retard / cette semaine / faits 7j)
+//   - Section "À RELANCER" : exos en retard groupés PAR JOUEUR avec bouton copier mention Discord
+//   - Section "PERFORMANCE 7 DERNIERS JOURS" : leaderboard par joueur (barre + %)
+//   - Liste filtrée enrichie : ligne d'exo riche (titre + tags steps + date + assignee + état)
+//
+// La heatmap brute par jour a été virée (illisible, info inactionnable).
+
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';
 import {
-  AlertTriangle, Clock, CheckCircle2, Calendar, Filter, Loader2, ListChecks, Users,
-  Activity, ChevronDown, ChevronUp,
+  AlertTriangle, Clock, CheckCircle2, Filter, Loader2, ListChecks, Users, Plus, Copy, X,
+  type LucideIcon,
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api-client';
-import { TODO_TYPE_META, type TodoRef, type TodoType } from '@/lib/todos';
+import { useToast } from '@/components/ui/Toast';
+import Portal from '@/components/ui/Portal';
+import {
+  TODO_TYPE_META, getSteps, getStepProgress,
+  type TodoRef, type TodoType, type ExerciseStep,
+} from '@/lib/todos';
 import TodoDetailDrawer, { type DrawerTodo } from '@/components/calendar/TodoDetailDrawer';
+import { NewTodoForm, type TeamRef, type Member, type EventOpt } from '@/components/calendar/TeamTodosPanel';
+import { useTodoTemplates } from '@/components/calendar/TodoTemplatesManager';
+
+// ─── Types ────────────────────────────────────────────────────────────────
 
 type OverviewTeam = { id: string; name: string; label: string | null; game: string; logoUrl: string | null; order: number; groupOrder: number };
 type OverviewUser = { uid: string; displayName: string; avatarUrl: string };
@@ -23,6 +41,7 @@ type OverviewTodo = {
   description: string;
   config: Record<string, unknown>;
   response: Record<string, unknown> | null;
+  steps?: ExerciseStep[];
   eventId: string | null;
   deadline: string | null;
   deadlineAt: number | null;
@@ -31,11 +50,12 @@ type OverviewTodo = {
   done: boolean;
   doneAt: number | null;
   doneBy: string | null;
+  lockedAt: number | null;
+  lockedBy: string | null;
   createdBy: string;
   createdAt: number;
 };
 type OverviewCounts = { overdue: number; dueToday: number; dueThisWeek: number; doneLast7d: number; pendingTotal: number };
-
 type OverviewData = {
   teams: OverviewTeam[];
   users: OverviewUser[];
@@ -45,52 +65,72 @@ type OverviewData = {
   isDirigeant: boolean;
 };
 
+// Shape du payload renvoyé par /api/structures/teams?structureId=X (utilisé pour la modal create)
+type TeamFull = {
+  id: string;
+  name: string;
+  label: string;
+  game: string;
+  players: Member[];
+  subs: Member[];
+  staff: Member[];
+  status: 'active' | 'archived';
+};
+
 type StateFilter = 'all' | 'overdue' | 'today' | 'week' | 'pending' | 'done';
 
 const GAME_COLOR: Record<string, string> = {
   rocket_league: 'var(--s-blue)',
   trackmania: 'var(--s-green)',
 };
-const GAME_SHORT: Record<string, string> = {
-  rocket_league: 'RL',
-  trackmania: 'TM',
-};
 
-function formatDeadline(ms: number | null, done: boolean): { text: string; color: string; bg: string } {
-  if (done) return { text: 'Terminé', color: 'var(--s-gold)', bg: 'rgba(255,184,0,0.10)' };
-  if (ms === null) return { text: 'Sans deadline', color: 'var(--s-text-muted)', bg: 'transparent' };
+const DAY_MS = 86_400_000;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────
+
+function formatDeadlineLabel(ms: number | null, done: boolean): { text: string; color: string; bg: string; border: string } {
+  if (done) return { text: 'Terminé', color: 'var(--s-gold)', bg: 'rgba(255,184,0,0.10)', border: 'rgba(255,184,0,0.30)' };
+  if (ms === null) return { text: 'Sans deadline', color: 'var(--s-text-muted)', bg: 'transparent', border: 'var(--s-border)' };
   const now = Date.now();
   const delta = ms - now;
   const abs = Math.abs(delta);
   const mins = Math.round(abs / 60_000);
   const hours = Math.round(abs / 3_600_000);
-  const days = Math.round(abs / 86_400_000);
+  const days = Math.round(abs / DAY_MS);
   let core: string;
   if (mins < 60) core = `${mins} min`;
   else if (hours < 48) core = `${hours} h`;
   else core = `${days} j`;
-  if (delta < 0) return { text: `En retard de ${core}`, color: '#ff7a7a', bg: 'rgba(255,85,85,0.10)' };
-  if (delta < 24 * 3_600_000) return { text: `Dans ${core}`, color: 'var(--s-gold)', bg: 'rgba(255,184,0,0.10)' };
-  return { text: `Dans ${core}`, color: 'var(--s-text-dim)', bg: 'var(--s-elevated)' };
+  if (delta < 0) return {
+    text: `En retard de ${core}`,
+    color: '#ff7a7a', bg: 'rgba(255,85,85,0.10)', border: 'rgba(255,85,85,0.35)',
+  };
+  if (delta < 24 * 3_600_000) return {
+    text: `Dans ${core}`,
+    color: 'var(--s-gold)', bg: 'rgba(255,184,0,0.10)', border: 'rgba(255,184,0,0.30)',
+  };
+  return {
+    text: `Dans ${core}`,
+    color: 'var(--s-text-dim)', bg: 'var(--s-elevated)', border: 'var(--s-border)',
+  };
 }
 
-function parisYmdClient(ms: number): string {
-  return new Intl.DateTimeFormat('en-CA', {
+// Format date courte ("14 mai", "lun 14") pour l'affichage dans les lignes
+function formatShortDate(ms: number): string {
+  return new Intl.DateTimeFormat('fr-FR', {
     timeZone: 'Europe/Paris',
-    year: 'numeric', month: '2-digit', day: '2-digit',
+    day: '2-digit', month: 'short',
   }).format(new Date(ms));
 }
 
-// "lun 14", "mar 15" — libellé court des colonnes.
-function parisDayLabel(ms: number): string {
-  const fmt = new Intl.DateTimeFormat('fr-FR', {
-    timeZone: 'Europe/Paris', weekday: 'short', day: '2-digit',
-  });
-  return fmt.format(new Date(ms)).replace('.', '');
+// Discord ID extrait de l'uid Aedral (format `discord_SNOWFLAKE`)
+function uidToDiscordId(uid: string): string | null {
+  if (!uid.startsWith('discord_')) return null;
+  const id = uid.slice('discord_'.length);
+  return /^\d{15,32}$/.test(id) ? id : null;
 }
 
-const DAY_MS = 86_400_000;
-const HEATMAP_MAX_PLAYERS = 15;
+// ─── Composant principal ──────────────────────────────────────────────────
 
 export default function CrossTeamTodosPanel({
   structureId,
@@ -103,13 +143,14 @@ export default function CrossTeamTodosPanel({
   onConsumedTodo?: () => void;
   onOpenTeam?: (teamId: string) => void;
 }) {
+  const toast = useToast();
   const [teamFilter, setTeamFilter] = useState<string>('all');
-  const [stateFilter, setStateFilter] = useState<StateFilter>('overdue');
+  const [stateFilter, setStateFilter] = useState<StateFilter>('pending');
   const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
-  const [heatmapOpen, setHeatmapOpen] = useState(true);
   const [openTodoId, setOpenTodoId] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const { data, isPending: loading, error: queryError } = useQuery({
+  const { data, isPending: loading, error: queryError, refetch } = useQuery({
     queryKey: ['structure', structureId, 'todos-overview'] as const,
     queryFn: () => api<OverviewData>(`/api/structures/${structureId}/todos/overview`),
   });
@@ -137,53 +178,69 @@ export default function CrossTeamTodosPanel({
     return m;
   }, [data]);
 
-  // Heatmap : 7 derniers jours Paris × top joueurs actifs sur la fenêtre.
-  const heatmap = useMemo(() => {
-    if (!data) return null;
+  // ── À RELANCER : exos en retard groupés par joueur ──────────────────────
+  const relancer = useMemo(() => {
+    if (!data) return [];
     const now = Date.now();
-    // Jour Paris courant -> 7 derniers jours YMDs (ascendant, J-6 d'abord).
-    const todayMs = now;
-    const days: { ymd: string; label: string; ms: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const ms = todayMs - i * DAY_MS;
-      days.push({ ymd: parisYmdClient(ms), label: parisDayLabel(ms), ms });
-    }
-    const daySet = new Set(days.map(d => d.ymd));
-
-    // Aggrégation par joueur × jour.
-    type Cell = { total: number; done: number; overdue: number };
-    const byPlayer = new Map<string, Map<string, Cell>>();
+    const byUser = new Map<string, OverviewTodo[]>();
     for (const t of data.todos) {
-      if (!t.deadline || !daySet.has(t.deadline)) continue;
-      let perDay = byPlayer.get(t.assigneeId);
-      if (!perDay) { perDay = new Map(); byPlayer.set(t.assigneeId, perDay); }
-      let c = perDay.get(t.deadline);
-      if (!c) { c = { total: 0, done: 0, overdue: 0 }; perDay.set(t.deadline, c); }
-      c.total++;
-      if (t.done) c.done++;
-      else if (t.deadlineAt !== null && t.deadlineAt < now) c.overdue++;
+      if (t.done) continue;
+      if (t.deadlineAt === null || t.deadlineAt >= now) continue;
+      let list = byUser.get(t.assigneeId);
+      if (!list) { list = []; byUser.set(t.assigneeId, list); }
+      list.push(t);
     }
-    // Liste ordonnée : plus gros totaux d'abord, cap HEATMAP_MAX_PLAYERS.
-    const rows = Array.from(byPlayer.entries())
-      .map(([uid, perDay]) => {
-        let total = 0;
-        for (const c of perDay.values()) total += c.total;
-        return { uid, perDay, total };
-      })
-      .sort((a, b) => b.total - a.total)
-      .slice(0, HEATMAP_MAX_PLAYERS);
+    return Array.from(byUser.entries())
+      .map(([uid, todos]) => ({
+        uid,
+        user: userMap.get(uid),
+        todos: todos.sort((a, b) => (a.deadlineAt ?? 0) - (b.deadlineAt ?? 0)),
+      }))
+      .sort((a, b) => b.todos.length - a.todos.length);
+  }, [data, userMap]);
 
-    return { days, rows };
-  }, [data]);
+  // ── PERFORMANCE 7 derniers jours : par joueur, ratio fait/total ────────
+  const performance = useMemo(() => {
+    if (!data) return [];
+    const now = Date.now();
+    const sevenDaysAgo = now - 7 * DAY_MS;
+    // On compte les exos dont la deadline OU la création est dans la fenêtre des 7j
+    type Stats = { done: number; total: number; lockedCount: number };
+    const byUser = new Map<string, Stats>();
+    for (const t of data.todos) {
+      const inWindow =
+        (t.deadlineAt !== null && t.deadlineAt >= sevenDaysAgo) ||
+        (t.createdAt >= sevenDaysAgo);
+      if (!inWindow) continue;
+      let s = byUser.get(t.assigneeId);
+      if (!s) { s = { done: 0, total: 0, lockedCount: 0 }; byUser.set(t.assigneeId, s); }
+      s.total++;
+      if (t.done) s.done++;
+      if (t.lockedAt) s.lockedCount++;
+    }
+    return Array.from(byUser.entries())
+      .map(([uid, s]) => ({
+        uid,
+        user: userMap.get(uid),
+        done: s.done,
+        total: s.total,
+        pct: s.total > 0 ? Math.round((s.done / s.total) * 100) : 0,
+      }))
+      .sort((a, b) => {
+        if (a.pct !== b.pct) return b.pct - a.pct;
+        return b.total - a.total;
+      });
+  }, [data, userMap]);
 
+  // ── Liste filtrée (gardée comme avant) ──────────────────────────────────
   const filteredTodos = useMemo(() => {
     if (!data) return [];
     const now = Date.now();
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
     const todayEndMs = todayEnd.getTime();
-    const weekEndMs = todayEndMs + 6 * 86400000;
-    const sevenDaysAgoMs = now - 7 * 86400000;
+    const weekEndMs = todayEndMs + 6 * DAY_MS;
+    const sevenDaysAgoMs = now - 7 * DAY_MS;
 
     const matches = data.todos.filter(t => {
       if (teamFilter !== 'all' && t.subTeamId !== teamFilter) return false;
@@ -217,7 +274,6 @@ export default function CrossTeamTodosPanel({
       </div>
     );
   }
-
   if (error) {
     return (
       <div className="text-sm p-5 bevel-sm" style={{ background: 'rgba(255,85,85,0.08)', border: '1px solid rgba(255,85,85,0.3)', color: '#ff9999' }}>
@@ -225,7 +281,6 @@ export default function CrossTeamTodosPanel({
       </div>
     );
   }
-
   if (!data) return null;
 
   const counts = data.counts;
@@ -233,8 +288,26 @@ export default function CrossTeamTodosPanel({
 
   return (
     <div className="space-y-5">
-      {/* Compteurs globaux */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* ── Header avec bouton Nouvel exercice ──────────────────────────── */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <ListChecks size={16} style={{ color: 'var(--s-gold)' }} />
+          <h2 className="font-display text-xl tracking-wider" style={{ letterSpacing: '0.05em' }}>
+            EXERCICES
+          </h2>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowCreateModal(true)}
+          className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-sm"
+        >
+          <Plus size={13} />
+          <span>Nouvel exercice</span>
+        </button>
+      </div>
+
+      {/* ── 3 compteurs ─────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-3 gap-3">
         <CountCard
           label="En retard"
           value={counts.overdue}
@@ -244,19 +317,11 @@ export default function CrossTeamTodosPanel({
           onClick={() => setStateFilter('overdue')}
         />
         <CountCard
-          label="Aujourd'hui"
-          value={counts.dueToday}
+          label="Cette semaine"
+          value={counts.dueToday + counts.dueThisWeek}
           icon={Clock}
           color="var(--s-gold)"
-          active={stateFilter === 'today'}
-          onClick={() => setStateFilter('today')}
-        />
-        <CountCard
-          label="Cette semaine"
-          value={counts.dueThisWeek}
-          icon={Calendar}
-          color="var(--s-text-dim)"
-          active={stateFilter === 'week'}
+          active={stateFilter === 'today' || stateFilter === 'week'}
           onClick={() => setStateFilter('week')}
         />
         <CountCard
@@ -269,89 +334,71 @@ export default function CrossTeamTodosPanel({
         />
       </div>
 
-      {/* Heatmap joueurs × 7 derniers jours */}
-      {heatmap && heatmap.rows.length > 0 && (
-        <div className="bevel-sm" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-          <button
-            type="button"
-            onClick={() => setHeatmapOpen(o => !o)}
-            className="w-full px-4 py-2.5 flex items-center justify-between cursor-pointer"
-            style={{ borderBottom: heatmapOpen ? '1px solid var(--s-border)' : 'none' }}
-          >
+      {/* ── Section À RELANCER ──────────────────────────────────────────── */}
+      {relancer.length > 0 && (
+        <section className="bevel-sm overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid rgba(255,85,85,0.30)' }}>
+          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, #ff5555, rgba(255,85,85,0.4), transparent 70%)' }} />
+          <div className="px-4 py-2.5 flex items-center justify-between"
+            style={{ background: 'rgba(255,85,85,0.06)', borderBottom: '1px solid rgba(255,85,85,0.20)' }}>
             <div className="flex items-center gap-2">
-              <Activity size={13} style={{ color: '#4da6ff' }} />
-              <span className="font-display text-xs tracking-wider uppercase" style={{ letterSpacing: '0.08em' }}>
-                Activité 7 derniers jours
+              <AlertTriangle size={13} style={{ color: '#ff5555' }} />
+              <span className="font-display text-xs tracking-wider uppercase" style={{ letterSpacing: '0.08em', color: '#ff9999' }}>
+                À relancer
               </span>
-              <span className="text-[12px] uppercase tracking-wider" style={{ color: 'var(--s-text-muted)' }}>
-                · top {heatmap.rows.length} joueur{heatmap.rows.length > 1 ? 's' : ''}
+              <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                · {relancer.length} joueur{relancer.length > 1 ? 's' : ''} concerné{relancer.length > 1 ? 's' : ''}
               </span>
             </div>
-            {heatmapOpen ? <ChevronUp size={14} style={{ color: 'var(--s-text-muted)' }} /> : <ChevronDown size={14} style={{ color: 'var(--s-text-muted)' }} />}
-          </button>
-          {heatmapOpen && (
-            <div className="p-4 overflow-x-auto">
-              <table className="w-full" style={{ borderCollapse: 'separate', borderSpacing: '4px' }}>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: 'left', minWidth: 96 }} />
-                    {heatmap.days.map(d => (
-                      <th key={d.ymd} className="text-[12px] uppercase tracking-wider font-semibold" style={{ color: 'var(--s-text-muted)', letterSpacing: '0.08em' }}>
-                        {d.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {heatmap.rows.map(row => {
-                    const user = userMap.get(row.uid);
-                    return (
-                      <tr key={row.uid}>
-                        <td className="pr-2">
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 flex-shrink-0 bevel-sm overflow-hidden relative"
-                              style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                              {user?.avatarUrl ? (
-                                <Image src={user.avatarUrl} alt={user.displayName} fill className="object-cover" unoptimized />
-                              ) : null}
-                            </div>
-                            <span className="text-xs truncate" style={{ color: 'var(--s-text)', maxWidth: 76 }}>
-                              {user?.displayName ?? row.uid}
-                            </span>
-                          </div>
-                        </td>
-                        {heatmap.days.map(d => {
-                          const cell = row.perDay.get(d.ymd);
-                          const { bg, border, content, title } = heatmapCellStyle(cell);
-                          return (
-                            <td key={d.ymd} style={{ textAlign: 'center' }}>
-                              <div
-                                title={`${user?.displayName ?? row.uid} — ${d.label} : ${title}`}
-                                className="w-6 h-6 flex items-center justify-center text-[12px] font-bold mx-auto"
-                                style={{ background: bg, border, color: 'rgba(255,255,255,0.85)' }}
-                              >
-                                {content}
-                              </div>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              <div className="flex items-center gap-4 mt-3 text-[12px] uppercase tracking-wider" style={{ color: 'var(--s-text-muted)', letterSpacing: '0.08em' }}>
-                <LegendDot color="rgba(51,255,102,0.22)" border="rgba(51,255,102,0.45)" label="Tous faits" />
-                <LegendDot color="rgba(255,184,0,0.18)" border="rgba(255,184,0,0.45)" label="Partiel" />
-                <LegendDot color="rgba(255,85,85,0.22)" border="rgba(255,85,85,0.5)" label="Retard" />
-                <LegendDot color="transparent" border="var(--s-border)" label="Rien" />
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
+          <div className="divide-y" style={{ borderColor: 'var(--s-border)' }}>
+            {relancer.map(({ uid, user, todos }) => (
+              <RelanceRow
+                key={uid}
+                uid={uid}
+                user={user}
+                todos={todos}
+                teamMap={teamMap}
+                onOpenTodo={(id) => setOpenTodoId(id)}
+                onCopyMention={() => {
+                  const did = uidToDiscordId(uid);
+                  if (!did) {
+                    toast.error('UID Discord invalide');
+                    return;
+                  }
+                  void navigator.clipboard.writeText(`<@${did}>`).then(
+                    () => toast.success('Mention copiée — colle dans Discord'),
+                    () => toast.error('Impossible de copier'),
+                  );
+                }}
+              />
+            ))}
+          </div>
+        </section>
       )}
 
-      {/* Filtres */}
+      {/* ── Section PERFORMANCE 7j ──────────────────────────────────────── */}
+      {performance.length > 0 && (
+        <section className="bevel-sm overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
+          <div className="px-4 py-2.5 flex items-center gap-2"
+            style={{ borderBottom: '1px solid var(--s-border)' }}>
+            <CheckCircle2 size={13} style={{ color: 'var(--s-gold)' }} />
+            <span className="font-display text-xs tracking-wider uppercase" style={{ letterSpacing: '0.08em' }}>
+              Performance 7 derniers jours
+            </span>
+            <span className="text-xs ml-auto" style={{ color: 'var(--s-text-muted)' }}>
+              {performance.length} joueur{performance.length > 1 ? 's' : ''} actif{performance.length > 1 ? 's' : ''}
+            </span>
+          </div>
+          <div className="p-4 space-y-2">
+            {performance.map(row => (
+              <PerformanceRow key={row.uid} row={row} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Filtres ─────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1.5" style={{ color: 'var(--s-text-muted)' }}>
           <Filter size={12} />
@@ -363,7 +410,6 @@ export default function CrossTeamTodosPanel({
           onChange={setTeamFilter}
           options={[
             { value: 'all', label: `Toutes les équipes (${data.teams.length})` },
-            // Même ordre que l'onglet Équipes : groupe (groupOrder, label) puis order, nom.
             ...[...data.teams]
               .sort((a, b) => {
                 const ga = a.groupOrder ?? 0, gb = b.groupOrder ?? 0;
@@ -401,7 +447,7 @@ export default function CrossTeamTodosPanel({
         />
       </div>
 
-      {/* Liste des exercices */}
+      {/* ── Liste des exercices ─────────────────────────────────────────── */}
       {filteredTodos.length === 0 ? (
         <div className="p-10 text-center bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
           <div className="font-display text-sm tracking-wider mb-1" style={{ color: 'var(--s-text-dim)' }}>
@@ -444,16 +490,31 @@ export default function CrossTeamTodosPanel({
           />
         );
       })()}
+
+      {/* Modal Nouvel exercice */}
+      {showCreateModal && (
+        <CreateTodoModal
+          structureId={structureId}
+          visibleTeamIds={data.teams.map(t => t.id)}
+          onClose={() => setShowCreateModal(false)}
+          onCreated={() => {
+            setShowCreateModal(false);
+            void refetch();
+          }}
+        />
+      )}
     </div>
   );
 }
+
+// ─── Sous-composants ──────────────────────────────────────────────────────
 
 function CountCard({
   label, value, icon: Icon, color, active, onClick,
 }: {
   label: string;
   value: number;
-  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
+  icon: LucideIcon;
   color: string;
   active: boolean;
   onClick: () => void;
@@ -485,7 +546,7 @@ function CountCard({
 function SelectChip({
   icon: Icon, value, onChange, options,
 }: {
-  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
+  icon: LucideIcon;
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
@@ -514,45 +575,139 @@ function SelectChip({
   );
 }
 
-function heatmapCellStyle(cell: { total: number; done: number; overdue: number } | undefined): {
-  bg: string; border: string; content: string; title: string;
-} {
-  if (!cell || cell.total === 0) {
-    return { bg: 'transparent', border: '1px dashed var(--s-border)', content: '', title: 'rien assigné' };
-  }
-  if (cell.overdue > 0) {
-    return {
-      bg: 'rgba(255,85,85,0.22)',
-      border: '1px solid rgba(255,85,85,0.5)',
-      content: `${cell.done}/${cell.total}`,
-      title: `${cell.overdue} en retard sur ${cell.total}`,
-    };
-  }
-  if (cell.done === cell.total) {
-    return {
-      bg: 'rgba(51,255,102,0.22)',
-      border: '1px solid rgba(51,255,102,0.45)',
-      content: `${cell.total}`,
-      title: `${cell.total}/${cell.total} faits`,
-    };
-  }
-  return {
-    bg: 'rgba(255,184,0,0.18)',
-    border: '1px solid rgba(255,184,0,0.45)',
-    content: `${cell.done}/${cell.total}`,
-    title: `${cell.done}/${cell.total} faits`,
-  };
-}
-
-function LegendDot({ color, border, label }: { color: string; border: string; label: string }) {
+// Ligne "À relancer" : 1 joueur + ses exos en retard + bouton copier mention
+function RelanceRow({
+  uid, user, todos, teamMap, onOpenTodo, onCopyMention,
+}: {
+  uid: string;
+  user: OverviewUser | undefined;
+  todos: OverviewTodo[];
+  teamMap: Map<string, OverviewTeam>;
+  onOpenTodo: (id: string) => void;
+  onCopyMention: () => void;
+}) {
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className="inline-block w-3 h-3" style={{ background: color, border }} />
-      {label}
-    </span>
+    <div className="p-3 flex items-start gap-3">
+      <div className="w-9 h-9 flex-shrink-0 bevel-sm overflow-hidden relative"
+        style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+        {user?.avatarUrl ? (
+          <Image src={user.avatarUrl} alt={user.displayName} fill className="object-cover" unoptimized />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-xs font-bold" style={{ color: 'var(--s-text-muted)' }}>
+            {(user?.displayName ?? '?').slice(0, 2).toUpperCase()}
+          </div>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap mb-1.5">
+          <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
+            {user?.displayName ?? uid}
+          </span>
+          <span className="px-1.5 py-0.5 text-xs font-bold"
+            style={{
+              fontSize: '11px',
+              background: 'rgba(255,85,85,0.12)',
+              border: '1px solid rgba(255,85,85,0.35)',
+              color: '#ff9999',
+            }}>
+            {todos.length} EXO{todos.length > 1 ? 'S' : ''} EN RETARD
+          </span>
+        </div>
+        <ul className="space-y-1">
+          {todos.map(t => {
+            const team = teamMap.get(t.subTeamId);
+            const deadline = formatDeadlineLabel(t.deadlineAt, t.done);
+            const meta = TODO_TYPE_META[t.type];
+            const stepProgress = getStepProgress(t);
+            const isMulti = stepProgress.total > 1;
+            return (
+              <li key={t.id}>
+                <button type="button" onClick={() => onOpenTodo(t.id)}
+                  className="w-full text-left flex items-center gap-2 px-2 py-1 transition-colors hover:bg-[var(--s-elevated)]"
+                  style={{ borderRadius: 2 }}>
+                  <span className="px-1.5 py-0.5"
+                    style={{
+                      fontSize: '10px', fontWeight: 700,
+                      background: 'var(--s-elevated)',
+                      border: '1px solid var(--s-border)',
+                      color: 'var(--s-text-dim)',
+                    }}>
+                    {isMulti ? `${stepProgress.done}/${stepProgress.total}` : meta.short.toUpperCase()}
+                  </span>
+                  <span className="text-sm flex-1 truncate" style={{ color: 'var(--s-text)' }}>
+                    {t.title}
+                  </span>
+                  {team && (
+                    <span className="text-xs hidden sm:inline" style={{ color: 'var(--s-text-muted)' }}>
+                      {team.name}
+                    </span>
+                  )}
+                  <span className="text-xs font-semibold" style={{ color: deadline.color }}>
+                    {deadline.text}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+      <button type="button" onClick={onCopyMention}
+        className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 bevel-sm transition-colors hover:brightness-110"
+        style={{
+          fontSize: '11px',
+          fontWeight: 700,
+          background: 'var(--s-elevated)',
+          border: '1px solid var(--s-border)',
+          color: 'var(--s-text-dim)',
+          cursor: 'pointer',
+        }}
+        title="Copier la mention Discord pour le ping">
+        <Copy size={11} />
+        <span className="hidden sm:inline">Mention Discord</span>
+      </button>
+    </div>
   );
 }
 
+// Ligne leaderboard performance 7j
+function PerformanceRow({ row }: { row: { uid: string; user: OverviewUser | undefined; done: number; total: number; pct: number } }) {
+  const color = row.pct >= 80
+    ? '#33ff66'
+    : row.pct >= 50
+    ? 'var(--s-gold)'
+    : row.pct > 0
+    ? '#ff9f43'
+    : '#ff5555';
+  return (
+    <div className="flex items-center gap-3">
+      <div className="w-7 h-7 flex-shrink-0 bevel-sm overflow-hidden relative"
+        style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+        {row.user?.avatarUrl ? (
+          <Image src={row.user.avatarUrl} alt={row.user.displayName} fill className="object-cover" unoptimized />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-[10px] font-bold" style={{ color: 'var(--s-text-muted)' }}>
+            {(row.user?.displayName ?? '?').slice(0, 2).toUpperCase()}
+          </div>
+        )}
+      </div>
+      <span className="text-sm font-semibold flex-shrink-0" style={{ color: 'var(--s-text)', minWidth: '100px' }}>
+        {row.user?.displayName ?? row.uid}
+      </span>
+      <div className="flex-1 h-2 relative" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+        <div className="absolute inset-y-0 left-0 transition-all"
+          style={{ width: `${row.pct}%`, background: color }} />
+      </div>
+      <span className="text-xs font-mono flex-shrink-0" style={{ color: 'var(--s-text-dim)', minWidth: '40px', textAlign: 'right' }}>
+        {row.done}/{row.total}
+      </span>
+      <span className="text-xs font-bold flex-shrink-0" style={{ color, minWidth: '40px', textAlign: 'right' }}>
+        {row.pct}%
+      </span>
+    </div>
+  );
+}
+
+// Ligne d'exo enrichie : titre + tag steps/type + preview steps si multi + dates + assignee + état
 function TodoRow({
   todo, team, assignee, onOpen, onOpenTeam,
 }: {
@@ -563,40 +718,70 @@ function TodoRow({
   onOpenTeam?: () => void;
 }) {
   const meta = TODO_TYPE_META[todo.type];
-  const deadline = formatDeadline(todo.deadlineAt, todo.done);
+  const deadline = formatDeadlineLabel(todo.deadlineAt, todo.done);
   const gameColor = team ? (GAME_COLOR[team.game] ?? 'var(--s-text-dim)') : 'var(--s-text-dim)';
-  const gameShort = team ? (GAME_SHORT[team.game] ?? team.game.toUpperCase()) : '';
+  const steps = getSteps(todo);
+  const stepProgress = getStepProgress(todo);
+  const isMulti = stepProgress.total > 1;
+  const stepsPreview = isMulti
+    ? steps.slice(0, 4).map(s => TODO_TYPE_META[s.type].short).join(' · ') + (steps.length > 4 ? ` · +${steps.length - 4}` : '')
+    : '';
 
   return (
     <li className="bevel-sm transition-colors cursor-pointer hover:brightness-110"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
       onClick={onOpen}>
-      <div className="p-3 flex items-center gap-3">
+      <div className="p-3 flex items-start gap-3">
         {/* Assignee avatar */}
-        <div className="w-8 h-8 flex-shrink-0 bevel-sm overflow-hidden relative"
+        <div className="w-9 h-9 flex-shrink-0 bevel-sm overflow-hidden relative"
           style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
           {assignee?.avatarUrl ? (
             <Image src={assignee.avatarUrl} alt={assignee.displayName} fill className="object-cover" unoptimized />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-[12px] font-bold" style={{ color: 'var(--s-text-muted)' }}>
+            <div className="w-full h-full flex items-center justify-center text-xs font-bold" style={{ color: 'var(--s-text-muted)' }}>
               {(assignee?.displayName ?? '?').slice(0, 2).toUpperCase()}
             </div>
           )}
         </div>
 
-        {/* Titre + meta */}
+        {/* Contenu central */}
         <div className="flex-1 min-w-0">
+          {/* Row 1 : tag + titre + lock */}
           <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-            {todo.type !== 'free' && (
-              <span className="text-[12px] font-bold uppercase tracking-wider px-1.5 py-0.5"
-                style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', color: 'var(--s-text-dim)' }}>
-                {meta.short}
-              </span>
-            )}
-            <span className="text-sm font-semibold truncate" style={{ color: todo.done ? 'var(--s-text-dim)' : 'var(--s-text)' }}>
+            <span className="px-1.5 py-0.5 font-bold uppercase tracking-wider"
+              style={{
+                fontSize: '11px',
+                background: isMulti ? 'rgba(255,184,0,0.10)' : 'var(--s-elevated)',
+                border: `1px solid ${isMulti ? 'rgba(255,184,0,0.30)' : 'var(--s-border)'}`,
+                color: isMulti ? 'var(--s-gold)' : 'var(--s-text-dim)',
+              }}>
+              {isMulti ? `${stepProgress.done}/${stepProgress.total} ÉTAPES` : meta.short.toUpperCase()}
+            </span>
+            <span className="text-sm font-semibold truncate" style={{
+              color: todo.done ? 'var(--s-text-dim)' : 'var(--s-text)',
+              textDecoration: todo.done ? 'line-through' : 'none',
+            }}>
               {todo.title}
             </span>
+            {todo.lockedAt && (
+              <span className="text-xs px-1 py-0.5"
+                style={{
+                  fontSize: '10px',
+                  background: 'rgba(255,184,0,0.10)',
+                  border: '1px solid rgba(255,184,0,0.30)',
+                  color: 'var(--s-gold)',
+                }}>
+                VERROUILLÉ
+              </span>
+            )}
           </div>
+          {/* Row 2 : preview steps si multi */}
+          {isMulti && stepsPreview && (
+            <div className="text-xs mb-1 truncate" style={{ color: 'var(--s-text-muted)', letterSpacing: '0.05em' }}>
+              {stepsPreview}
+            </div>
+          )}
+          {/* Row 3 : assignee + équipe + créé le */}
           <div className="flex items-center gap-2 text-xs flex-wrap" style={{ color: 'var(--s-text-muted)' }}>
             <span className="font-semibold" style={{ color: 'var(--s-text-dim)' }}>
               {assignee?.displayName ?? '—'}
@@ -607,32 +792,163 @@ function TodoRow({
                 <span className="inline-flex items-center gap-1">
                   <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: gameColor }} />
                   {team.name}{team.label ? ` — ${team.label}` : ''}
-                  {gameShort && <span className="ml-1 text-[12px] opacity-70">{gameShort}</span>}
                 </span>
               </>
             )}
+            <span>·</span>
+            <span title={`Créé le ${new Date(todo.createdAt).toLocaleString('fr-FR')}`}>
+              Créé {formatShortDate(todo.createdAt)}
+            </span>
           </div>
         </div>
 
-        {/* Deadline badge */}
-        <div className="flex-shrink-0 text-right">
-          <div className="text-xs px-2 py-1 bevel-sm inline-block"
-            style={{ background: deadline.bg, color: deadline.color, border: '1px solid var(--s-border)' }}>
+        {/* Deadline + lien équipe */}
+        <div className="flex-shrink-0 flex flex-col items-end gap-1">
+          <div className="text-xs px-2 py-1 bevel-sm whitespace-nowrap"
+            style={{ background: deadline.bg, color: deadline.color, border: `1px solid ${deadline.border}` }}>
             {deadline.text}
           </div>
           {team && onOpenTeam && (
-            <div className="mt-1">
-              <button
-                type="button"
-                onClick={e => { e.stopPropagation(); onOpenTeam(); }}
-                className="text-[12px] uppercase tracking-wider cursor-pointer hover:text-white transition-colors"
-                style={{ color: 'var(--s-text-muted)', background: 'transparent', border: 'none', padding: 0 }}>
-                Voir équipe →
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); onOpenTeam(); }}
+              className="text-[10px] uppercase tracking-wider cursor-pointer hover:text-white transition-colors"
+              style={{ color: 'var(--s-text-muted)', background: 'transparent', border: 'none', padding: 0 }}>
+              Voir équipe →
+            </button>
           )}
         </div>
       </div>
     </li>
+  );
+}
+
+// ─── Modal Nouvel exercice ────────────────────────────────────────────────
+// Fetch les équipes complètes (avec rosters) puis affiche un sélecteur d'équipe.
+// Une fois l'équipe choisie, on instancie le NewTodoForm existant.
+
+function CreateTodoModal({
+  structureId,
+  visibleTeamIds,
+  onClose,
+  onCreated,
+}: {
+  structureId: string;
+  visibleTeamIds: string[];
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const visibleSet = useMemo(() => new Set(visibleTeamIds), [visibleTeamIds]);
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const templates = useTodoTemplates(structureId);
+
+  const teamsQuery = useQuery({
+    queryKey: ['structure', structureId, 'teams-full-for-todos'] as const,
+    queryFn: () => api<{ teams: TeamFull[] }>(`/api/structures/teams?structureId=${structureId}`),
+  });
+
+  // Auto-sélection si une seule équipe visible
+  useEffect(() => {
+    if (!teamsQuery.data) return;
+    const visible = teamsQuery.data.teams.filter(t => visibleSet.has(t.id) && t.status === 'active');
+    if (visible.length === 1 && !selectedTeamId) {
+      setSelectedTeamId(visible[0].id);
+    }
+  }, [teamsQuery.data, visibleSet, selectedTeamId]);
+
+  const visibleTeams = (teamsQuery.data?.teams ?? [])
+    .filter(t => visibleSet.has(t.id) && t.status === 'active');
+  const selectedTeam = selectedTeamId
+    ? visibleTeams.find(t => t.id === selectedTeamId)
+    : null;
+
+  // Events vides — la création depuis l'onglet exercices ne propose pas de lier un event
+  // (l'utilisateur peut toujours le faire depuis l'onglet calendrier de l'équipe).
+  const events: EventOpt[] = [];
+
+  return (
+    <Portal>
+      <div
+        className="fixed inset-0 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto"
+        style={{ background: 'rgba(0,0,0,0.72)', zIndex: 9700 }}
+        onClick={onClose}
+      >
+        <div
+          className="bevel w-full max-w-2xl my-auto"
+          style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
+          <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid var(--s-border)' }}>
+            <div className="flex items-center gap-2">
+              <Plus size={14} style={{ color: 'var(--s-gold)' }} />
+              <span className="font-display text-sm tracking-wider uppercase" style={{ letterSpacing: '0.08em' }}>
+                Nouvel exercice
+              </span>
+            </div>
+            <button type="button" onClick={onClose}
+              className="p-1" style={{ color: 'var(--s-text-dim)', cursor: 'pointer' }}
+              aria-label="Fermer">
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="p-4 space-y-3">
+            {teamsQuery.isPending ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 size={18} className="animate-spin" style={{ color: 'var(--s-text-muted)' }} />
+              </div>
+            ) : teamsQuery.error ? (
+              <div className="text-sm p-3" style={{ background: 'rgba(255,85,85,0.08)', border: '1px solid rgba(255,85,85,0.3)', color: '#ff9999' }}>
+                Impossible de charger les équipes.
+              </div>
+            ) : visibleTeams.length === 0 ? (
+              <div className="text-sm p-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', color: 'var(--s-text-muted)' }}>
+                Aucune équipe à gérer.
+              </div>
+            ) : (
+              <>
+                {/* Sélecteur d'équipe */}
+                <div>
+                  <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Équipe *</label>
+                  <select
+                    className="settings-input w-full text-sm"
+                    value={selectedTeamId ?? ''}
+                    onChange={e => setSelectedTeamId(e.target.value || null)}
+                  >
+                    <option value="">— Choisir une équipe —</option>
+                    {visibleTeams.map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}{t.label ? ` — ${t.label}` : ''} ({(t.game === 'rocket_league' ? 'RL' : t.game === 'trackmania' ? 'TM' : t.game.toUpperCase())})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Form de création — instancié seulement si équipe choisie */}
+                {selectedTeam && (
+                  <NewTodoForm
+                    key={selectedTeam.id /* reset le form si on change d'équipe */}
+                    structureId={structureId}
+                    team={{
+                      id: selectedTeam.id,
+                      name: selectedTeam.name,
+                      players: selectedTeam.players,
+                      subs: selectedTeam.subs,
+                      staff: selectedTeam.staff,
+                    } satisfies TeamRef}
+                    events={events}
+                    templates={templates.templates}
+                    onCancel={onClose}
+                    onCreated={onCreated}
+                    onTemplateSaved={() => templates.reload()}
+                  />
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </Portal>
   );
 }
