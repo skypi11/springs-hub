@@ -13,9 +13,10 @@ import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';
 import {
-  AlertTriangle, Clock, CheckCircle2, Filter, Loader2, ListChecks, Users, Plus, Copy, X,
+  AlertTriangle, Clock, CheckCircle2, Filter, Loader2, ListChecks, Users, Plus, Send, X,
   type LucideIcon,
 } from 'lucide-react';
+import { useMutation } from '@tanstack/react-query';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import Portal from '@/components/ui/Portal';
@@ -123,13 +124,6 @@ function formatShortDate(ms: number): string {
   }).format(new Date(ms));
 }
 
-// Discord ID extrait de l'uid Aedral (format `discord_SNOWFLAKE`)
-function uidToDiscordId(uid: string): string | null {
-  if (!uid.startsWith('discord_')) return null;
-  const id = uid.slice('discord_'.length);
-  return /^\d{15,32}$/.test(id) ? id : null;
-}
-
 // ─── Composant principal ──────────────────────────────────────────────────
 
 export default function CrossTeamTodosPanel({
@@ -155,6 +149,20 @@ export default function CrossTeamTodosPanel({
     queryFn: () => api<OverviewData>(`/api/structures/${structureId}/todos/overview`),
   });
   const error = queryError ? (queryError instanceof ApiError ? queryError.message : queryError.message || 'Erreur de chargement') : null;
+
+  // Ping Discord d'un assignee — envoie un DM via le bot avec la liste de ses exos en retard
+  const pingMutation = useMutation({
+    mutationFn: ({ assigneeId }: { assigneeId: string }) =>
+      api<{ overdueCount: number }>(`/api/structures/${structureId}/todos/ping-assignee`, {
+        method: 'POST',
+        body: { assigneeId },
+      }),
+    onSuccess: (res) => {
+      toast.success(`DM envoyé — ${res.overdueCount} exo${res.overdueCount > 1 ? 's' : ''} listé${res.overdueCount > 1 ? 's' : ''}`);
+    },
+    onError: (err: Error) => toast.error(err.message || 'Erreur'),
+  });
+  const pingingUid = pingMutation.isPending ? pingMutation.variables?.assigneeId ?? null : null;
 
   // Deep-link : si initialTodoId pointe vers un exercice qu'on a chargé, ouvrir le drawer une fois.
   useEffect(() => {
@@ -358,18 +366,9 @@ export default function CrossTeamTodosPanel({
                 user={user}
                 todos={todos}
                 teamMap={teamMap}
+                pinging={pingingUid === uid}
                 onOpenTodo={(id) => setOpenTodoId(id)}
-                onCopyMention={() => {
-                  const did = uidToDiscordId(uid);
-                  if (!did) {
-                    toast.error('UID Discord invalide');
-                    return;
-                  }
-                  void navigator.clipboard.writeText(`<@${did}>`).then(
-                    () => toast.success('Mention copiée — colle dans Discord'),
-                    () => toast.error('Impossible de copier'),
-                  );
-                }}
+                onPing={() => pingMutation.mutate({ assigneeId: uid })}
               />
             ))}
           </div>
@@ -575,16 +574,17 @@ function SelectChip({
   );
 }
 
-// Ligne "À relancer" : 1 joueur + ses exos en retard + bouton copier mention
+// Ligne "À relancer" : 1 joueur + ses exos en retard + bouton ping Discord
 function RelanceRow({
-  uid, user, todos, teamMap, onOpenTodo, onCopyMention,
+  uid, user, todos, teamMap, pinging, onOpenTodo, onPing,
 }: {
   uid: string;
   user: OverviewUser | undefined;
   todos: OverviewTodo[];
   teamMap: Map<string, OverviewTeam>;
+  pinging: boolean;
   onOpenTodo: (id: string) => void;
-  onCopyMention: () => void;
+  onPing: () => void;
 }) {
   return (
     <div className="p-3 flex items-start gap-3">
@@ -651,19 +651,20 @@ function RelanceRow({
           })}
         </ul>
       </div>
-      <button type="button" onClick={onCopyMention}
+      <button type="button" onClick={onPing}
+        disabled={pinging}
         className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 bevel-sm transition-colors hover:brightness-110"
         style={{
           fontSize: '11px',
           fontWeight: 700,
-          background: 'var(--s-elevated)',
-          border: '1px solid var(--s-border)',
-          color: 'var(--s-text-dim)',
-          cursor: 'pointer',
+          background: pinging ? 'var(--s-elevated)' : 'rgba(255,184,0,0.12)',
+          border: `1px solid ${pinging ? 'var(--s-border)' : 'rgba(255,184,0,0.35)'}`,
+          color: pinging ? 'var(--s-text-dim)' : 'var(--s-gold)',
+          cursor: pinging ? 'wait' : 'pointer',
         }}
-        title="Copier la mention Discord pour le ping">
-        <Copy size={11} />
-        <span className="hidden sm:inline">Mention Discord</span>
+        title="Envoyer un DM Discord via le bot Aedral">
+        {pinging ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
+        <span className="hidden sm:inline">{pinging ? 'Envoi…' : 'Relancer sur Discord'}</span>
       </button>
     </div>
   );

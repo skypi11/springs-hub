@@ -121,10 +121,24 @@ export async function GET(
     const usersMap = await fetchDocsByIds(db, 'users', Array.from(assigneeIds));
     const users = Array.from(assigneeIds).map(uid => {
       const u = usersMap.get(uid);
+      const rawAvatar = (u?.avatarUrl as string | undefined) || (u?.discordAvatar as string | undefined) || '';
+      // Fallback avatar Discord par défaut quand le doc user n'a pas d'avatar
+      // (vieux comptes pré-callback Discord ou users créés autrement).
+      // Format Discord post-pomelo : 6 avatars par défaut, index = (id >> 22) % 6
+      let avatarUrl = rawAvatar;
+      if (!avatarUrl && uid.startsWith('discord_')) {
+        const discordId = uid.slice('discord_'.length);
+        if (/^\d{15,32}$/.test(discordId)) {
+          try {
+            const idx = Number(BigInt(discordId) >> BigInt(22)) % 6;
+            avatarUrl = `https://cdn.discordapp.com/embed/avatars/${idx}.png`;
+          } catch { /* ignore */ }
+        }
+      }
       return {
         uid,
         displayName: (u?.displayName as string | undefined) ?? (u?.discordUsername as string | undefined) ?? uid,
-        avatarUrl: (u?.avatarUrl as string | undefined) ?? (u?.discordAvatar as string | undefined) ?? '',
+        avatarUrl,
       };
     });
 

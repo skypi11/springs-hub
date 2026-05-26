@@ -150,6 +150,13 @@ export async function PATCH(
             return NextResponse.json({ error: resp.error }, { status: 400 });
           }
           nextResponse = resp.value;
+          // attachmentUrl est un méta-champ orthogonal au type (capture d'écran preuve).
+          // Les validateurs strip les clés inconnues — on préserve l'URL ici en passe-plat.
+          // Pas de validation : c'est le serveur d'upload qui contrôle l'URL réelle (R2 public).
+          const rawAttUrl = (body?.response as Record<string, unknown> | undefined)?.attachmentUrl;
+          if (typeof rawAttUrl === 'string' && rawAttUrl) {
+            nextResponse = { ...(nextResponse ?? {}), attachmentUrl: rawAttUrl };
+          }
         }
       } else if (!willBeCompleted) {
         // Décocher → on garde la réponse (Matt préfère : éditable jusqu'à validation globale)
@@ -211,9 +218,15 @@ export async function PATCH(
       if (!resp.ok) {
         return NextResponse.json({ error: resp.error }, { status: 400 });
       }
+      // Préserve attachmentUrl en passe-plat (cf. toggleStep — méta orthogonal au type)
+      let nextResp: Record<string, unknown> | null = resp.value;
+      const rawAttUrl = (body?.response as Record<string, unknown> | undefined)?.attachmentUrl;
+      if (typeof rawAttUrl === 'string' && rawAttUrl) {
+        nextResp = { ...(nextResp ?? {}), attachmentUrl: rawAttUrl };
+      }
 
       const nextSteps: ExerciseStep[] = currentSteps.map((s, i) =>
-        i === idx ? { ...s, response: resp.value } : s
+        i === idx ? { ...s, response: nextResp } : s
       );
 
       await ref.update({
