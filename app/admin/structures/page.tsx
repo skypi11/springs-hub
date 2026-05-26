@@ -13,8 +13,10 @@ import AdminUserRef from '@/components/admin/AdminUserRef';
 import ImpersonateButton from '@/components/admin/ImpersonateButton';
 import {
   Building2, CheckCircle, XCircle, Trash2, Loader2, ChevronDown, ChevronUp,
-  ExternalLink, Ban, RotateCcw, RefreshCw, Pencil,
+  ExternalLink, Ban, RotateCcw, RefreshCw, Pencil, Users,
 } from 'lucide-react';
+import Link from 'next/link';
+import { getProfileHref } from '@/lib/user-slug';
 
 type StructureRequest = {
   id: string;
@@ -310,6 +312,13 @@ export default function AdminStructuresPage() {
                       redirectTo="/community/my-structure"
                     />
                   </div>
+
+                  {/* Section Membres — lazy-loaded à l'ouverture du panel.
+                      Utile pour l'admin qui veut savoir qui est dans une structure
+                      sans avoir à impersonner le fondateur. */}
+                  <div className="divider" />
+                  <MembersSection structureId={s.id} />
+
                   <div className="divider" />
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -612,3 +621,169 @@ export default function AdminStructuresPage() {
     </>
   );
 }
+
+// ─── Section Membres ──────────────────────────────────────────────────────
+// Fetch lazy à l'ouverture du panneau. Affiche tous les membres groupés par
+// rôle principal (fondateur → joueur), avec lien clickable vers leur profil.
+
+type AdminMember = {
+  uid: string;
+  displayName: string;
+  slug: string;
+  avatarUrl: string;
+  country: string;
+  roles: string[];
+  game: string;
+};
+
+const ROLE_LABELS: Record<string, string> = {
+  fondateur: 'Fondateur',
+  co_fondateur: 'Co-fondateur',
+  responsable: 'Responsable',
+  coach_structure: 'Coach structure',
+  manager_equipe: "Manager d'équipe",
+  coach_equipe: 'Coach',
+  capitaine: 'Capitaine',
+  joueur: 'Joueur',
+  remplacant: 'Remplaçant',
+  membre: 'Membre',
+};
+
+const ROLE_COLORS: Record<string, { bg: string; border: string; color: string }> = {
+  fondateur: { bg: 'rgba(255,184,0,0.15)', border: 'rgba(255,184,0,0.40)', color: 'var(--s-gold)' },
+  co_fondateur: { bg: 'rgba(255,184,0,0.10)', border: 'rgba(255,184,0,0.30)', color: 'var(--s-gold)' },
+  responsable: { bg: 'rgba(123,47,190,0.15)', border: 'rgba(123,47,190,0.40)', color: '#a364d9' },
+  coach_structure: { bg: 'rgba(0,129,255,0.12)', border: 'rgba(0,129,255,0.35)', color: 'var(--s-blue)' },
+  manager_equipe: { bg: 'rgba(0,129,255,0.08)', border: 'rgba(0,129,255,0.25)', color: 'var(--s-blue)' },
+  coach_equipe: { bg: 'rgba(0,217,54,0.10)', border: 'rgba(0,217,54,0.30)', color: '#33ff66' },
+};
+
+function MembersSection({ structureId }: { structureId: string }) {
+  const { firebaseUser } = useAuth();
+  const [data, setData] = useState<{ members: AdminMember[]; total: number } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (!firebaseUser) return;
+    let cancelled = false;
+    setLoading(true);
+    api<{ members: AdminMember[]; total: number }>(`/api/admin/structures/${structureId}/members`)
+      .then(res => {
+        if (!cancelled) setData(res);
+      })
+      .catch((e: Error) => {
+        if (!cancelled) setErr(e.message || 'Erreur de chargement');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [structureId, firebaseUser]);
+
+  if (loading) {
+    return (
+      <div>
+        <p className="t-label mb-2 flex items-center gap-2">
+          <Users size={12} style={{ color: 'var(--s-gold)' }} />
+          MEMBRES
+        </p>
+        <div className="flex items-center gap-2 p-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+          <Loader2 size={12} className="animate-spin" style={{ color: 'var(--s-text-muted)' }} />
+          <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Chargement…</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (err || !data) {
+    return (
+      <div>
+        <p className="t-label mb-2 flex items-center gap-2">
+          <Users size={12} style={{ color: 'var(--s-gold)' }} />
+          MEMBRES
+        </p>
+        <p className="text-xs p-3" style={{ background: 'rgba(255,85,85,0.08)', border: '1px solid rgba(255,85,85,0.3)', color: '#ff9999' }}>
+          {err || 'Erreur de chargement'}
+        </p>
+      </div>
+    );
+  }
+
+  if (data.members.length === 0) {
+    return (
+      <div>
+        <p className="t-label mb-2 flex items-center gap-2">
+          <Users size={12} style={{ color: 'var(--s-gold)' }} />
+          MEMBRES (0)
+        </p>
+        <p className="text-xs p-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', color: 'var(--s-text-muted)' }}>
+          Aucun membre pour cette structure.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <p className="t-label mb-2 flex items-center gap-2">
+        <Users size={12} style={{ color: 'var(--s-gold)' }} />
+        MEMBRES ({data.total})
+      </p>
+      <div className="space-y-1.5">
+        {data.members.map(m => {
+          const primaryRole = m.roles[0] ?? 'membre';
+          const roleStyle = ROLE_COLORS[primaryRole] ?? {
+            bg: 'var(--s-elevated)', border: 'var(--s-border)', color: 'var(--s-text-dim)',
+          };
+          return (
+            <Link key={m.uid} href={getProfileHref({ uid: m.uid, slug: m.slug })}
+              className="flex items-center gap-3 p-2 transition-colors hover:bg-[var(--s-hover)]"
+              style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+              {/* Avatar */}
+              <div className="w-7 h-7 flex-shrink-0 bevel-sm overflow-hidden relative"
+                style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                {m.avatarUrl ? (
+                  <Image src={m.avatarUrl} alt={m.displayName} fill className="object-cover" unoptimized sizes="28px" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-[10px] font-bold" style={{ color: 'var(--s-text-muted)' }}>
+                    {m.displayName.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+              </div>
+              {/* Nom */}
+              <span className="text-sm font-semibold flex-1 truncate" style={{ color: 'var(--s-text)' }}>
+                {m.displayName}
+              </span>
+              {/* Game tag si rôle équipe */}
+              {m.game && (
+                <span className={`tag flex-shrink-0 ${m.game === 'rocket_league' ? 'tag-blue' : m.game === 'trackmania' ? 'tag-green' : 'tag-neutral'}`}
+                  style={{ fontSize: '10px', padding: '1px 5px' }}>
+                  {m.game === 'rocket_league' ? 'RL' : m.game === 'trackmania' ? 'TM' : m.game.toUpperCase()}
+                </span>
+              )}
+              {/* Tous les rôles (chips) */}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {m.roles.map(role => {
+                  const style = ROLE_COLORS[role] ?? roleStyle;
+                  return (
+                    <span key={role} className="px-1.5 py-0.5"
+                      style={{
+                        fontSize: '10px', fontWeight: 700,
+                        background: style.bg,
+                        border: `1px solid ${style.border}`,
+                        color: style.color,
+                      }}>
+                      {(ROLE_LABELS[role] ?? role).toUpperCase()}
+                    </span>
+                  );
+                })}
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
