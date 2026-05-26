@@ -198,6 +198,14 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const playsTM = profile.games?.includes('trackmania') ?? false;
   const gameCount = (playsRL ? 1 : 0) + (playsTM ? 1 : 0);
 
+  // Bannière auto pour le hero — image du jeu principal en fond fadé.
+  // RL prioritaire si multi-jeux (couleur signature plus distinctive).
+  const heroBanner = playsRL
+    ? { image: '/rocket-league.webp', accent: 'rgba(0,129,255,0.5)' }
+    : playsTM
+      ? { image: '/tm.webp', accent: 'rgba(0,217,54,0.5)' }
+      : null;
+
   return (
     <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-8">
       <CompactStickyHeader
@@ -238,23 +246,55 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         })()}
 
         {/* ─── HERO HEADER ─────────────────────────────────────────────────── */}
-        <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+        <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', minHeight: '320px' }}>
           <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 80%)' }} />
 
-          {/* Glows */}
-          <div className="absolute top-0 left-0 w-[500px] h-[400px] pointer-events-none opacity-[0.06]"
+          {/* Bannière auto par jeu — image en fond à droite, fadée à gauche pour préserver la lisibilité du contenu */}
+          {heroBanner && (
+            <>
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  backgroundImage: `url(${heroBanner.image})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'right center',
+                  opacity: 0.45,
+                }}
+              />
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background: `linear-gradient(to right, var(--s-surface) 30%, rgba(10,10,10,0.5) 65%, transparent 100%)`,
+                }}
+              />
+              {/* Accent gradient venant de la droite — couleur du jeu */}
+              <div
+                className="absolute top-0 right-0 w-[60%] h-full pointer-events-none opacity-30"
+                style={{
+                  background: `radial-gradient(ellipse at right center, ${heroBanner.accent}, transparent 70%)`,
+                }}
+              />
+            </>
+          )}
+
+          {/* Glow or (signature Aedral) */}
+          <div className="absolute top-0 left-0 w-[500px] h-[400px] pointer-events-none opacity-[0.08]"
             style={{ background: 'radial-gradient(ellipse at top left, var(--s-gold), transparent 70%)' }} />
 
-          <div className="relative z-[1] p-4 sm:p-6 lg:p-10 flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-6 lg:gap-8">
-            <div className="flex items-start gap-4 sm:gap-6 lg:gap-8 min-w-0 flex-1">
-              {/* Avatar */}
-              <div className="flex-shrink-0 w-20 h-20 sm:w-28 sm:h-28 relative overflow-hidden bevel-sm"
-                style={{ background: 'var(--s-elevated)', border: '2px solid rgba(255,184,0,0.15)' }}>
+          <div className="relative z-[1] p-5 sm:p-6 lg:p-10 flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-6 lg:gap-10 min-h-[320px]">
+            <div className="flex items-center gap-5 sm:gap-6 lg:gap-10 min-w-0 flex-1">
+              {/* Avatar — beaucoup plus grand pour donner de la présence (style trading card) */}
+              <div className="flex-shrink-0 w-28 h-28 sm:w-40 sm:h-40 lg:w-52 lg:h-52 relative overflow-hidden bevel-sm"
+                style={{
+                  background: 'var(--s-elevated)',
+                  border: `3px solid ${isLeader ? 'rgba(255,184,0,0.55)' : 'rgba(255,255,255,0.08)'}`,
+                  boxShadow: isLeader ? '0 0 50px rgba(255,184,0,0.25)' : 'none',
+                }}>
                 {avatarSrc ? (
-                  <Image src={avatarSrc} alt={profile.displayName} fill className="object-cover" unoptimized />
+                  <Image src={avatarSrc} alt={profile.displayName} fill className="object-cover" unoptimized sizes="(max-width: 640px) 112px, (max-width: 1024px) 160px, 208px" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    <User size={44} style={{ color: 'var(--s-text-muted)' }} />
+                    <User size={64} style={{ color: 'var(--s-text-muted)' }} />
                   </div>
                 )}
               </div>
@@ -421,7 +461,11 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     </div>
                     {effective && (
                       <span className="tag tag-blue" style={{ fontSize: '8px' }}>
-                        {platformMeta?.label.replace(/ \(.+\)$/, '') ?? ''} · {effective.id}
+                        {/* Pour Epic : pseudo = public et visible sur tracker → OK d'afficher.
+                            Pour Steam : SteamID64 = identifiant permanent sensible → masquer (juste "STEAM"). */}
+                        {effective.platform === 'steam'
+                          ? 'STEAM'
+                          : `${platformMeta?.label.replace(/ \(.+\)$/, '') ?? ''} · ${effective.id}`}
                       </span>
                     )}
                   </div>
@@ -477,23 +521,51 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     ) : rlStatsLoaded && !effective ? (
                       <RLEmptyState isOwner={isOwner} />
                     ) : rlStatsLoaded ? (
-                      /* Pas de stats auto mais on a une plateforme — rang déclaré + boutons cliquables */
+                      /* Pas de stats auto live (tracker.gg API cassée) — rang déclaré + badge en gros watermark */
                       <div className="space-y-4">
                         {profile.rlRank ? (() => {
                           const tierConfig = getRankTierConfig(profile.rlRank);
                           const accent = tierConfig?.color ?? '#0081FF';
                           return (
                             <div
-                              className="flex items-center gap-4 p-4"
+                              className="relative overflow-hidden p-5 sm:p-6"
                               style={{
                                 background: tierConfig?.bgColor ?? 'rgba(0,129,255,0.05)',
                                 border: `1px solid ${tierConfig?.borderColor ?? 'rgba(0,129,255,0.15)'}`,
+                                minHeight: '180px',
                               }}
                             >
-                              <RankBadge rank={profile.rlRank} size={56} />
-                              <div className="flex-1">
-                                <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>Rang déclaré</p>
-                                <p className="font-display text-xl" style={{ color: accent }}>{profile.rlRank}</p>
+                              {/* Badge rang en watermark — gigantesque, semi-transparent, à droite */}
+                              <div
+                                className="absolute pointer-events-none"
+                                style={{
+                                  right: '-30px',
+                                  top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  opacity: 0.18,
+                                }}
+                              >
+                                <RankBadge rank={profile.rlRank} size={220} />
+                              </div>
+                              {/* Glow radial du tier */}
+                              <div
+                                className="absolute top-0 right-0 w-full h-full pointer-events-none"
+                                style={{
+                                  background: `radial-gradient(ellipse at right center, ${accent}25, transparent 60%)`,
+                                }}
+                              />
+                              {/* Contenu texte à gauche par-dessus le watermark */}
+                              <div className="relative z-[1] flex items-center gap-4">
+                                <RankBadge rank={profile.rlRank} size={72} />
+                                <div className="min-w-0">
+                                  <p className="t-label mb-1" style={{ color: 'var(--s-text-muted)' }}>Rang déclaré</p>
+                                  <p
+                                    className="font-display tracking-wider"
+                                    style={{ color: accent, fontSize: 'clamp(22px, 3vw, 32px)', lineHeight: 1 }}
+                                  >
+                                    {profile.rlRank}
+                                  </p>
+                                </div>
                               </div>
                             </div>
                           );
@@ -510,23 +582,58 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       </div>
                     )}
 
+                    {/* ─── STATS AGRÉGÉES (placeholder) ─────────────────────
+                        Prévu pour quand un joueur aura assez de replays parsés
+                        via ballchasing. Pour l'instant on affiche un teaser
+                        "à venir" pour montrer le slot futur. */}
+                    <div
+                      className="relative overflow-hidden p-4"
+                      style={{
+                        background: 'var(--s-elevated)',
+                        border: '1px dashed rgba(0,129,255,0.25)',
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-10 h-10 flex items-center justify-center bevel-sm flex-shrink-0"
+                          style={{ background: 'rgba(0,129,255,0.08)', border: '1px solid rgba(0,129,255,0.2)' }}
+                        >
+                          <Trophy size={16} style={{ color: 'var(--s-blue)' }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="t-label mb-0.5" style={{ color: 'var(--s-blue)' }}>STATS AGRÉGÉES — À VENIR</p>
+                          <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                            Moyennes buts / saves / assists / possession dès que ses replays seront analysés sur Aedral.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Boutons tracker.gg & Ballchasing — en pill buttons distincts (plus de présence) */}
                     {effective && (trackerHref || ballchasingHref) && (
                       <div className="mt-auto pt-4">
-                        <div className="divider mb-4" />
-                        <div className="space-y-2">
+                        <div className="flex flex-wrap gap-2">
                           {trackerHref && (
                             <a href={trackerHref} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider transition-colors hover:text-white"
-                              style={{ color: 'var(--s-blue)' }}>
-                              Voir sur tracker.gg <ExternalLink size={11} />
+                              className="inline-flex items-center gap-2 px-3 py-2 bevel-sm text-xs font-bold uppercase tracking-wider transition-all hover:scale-[1.02]"
+                              style={{
+                                background: 'rgba(0,129,255,0.1)',
+                                border: '1px solid rgba(0,129,255,0.3)',
+                                color: 'var(--s-blue)',
+                              }}>
+                              Tracker.gg <ExternalLink size={11} />
                             </a>
                           )}
                           {ballchasingHref && (
                             <a href={ballchasingHref} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider transition-colors hover:text-white"
-                              style={{ color: 'var(--s-blue)' }}
+                              className="inline-flex items-center gap-2 px-3 py-2 bevel-sm text-xs font-bold uppercase tracking-wider transition-all hover:scale-[1.02]"
+                              style={{
+                                background: 'var(--s-elevated)',
+                                border: '1px solid var(--s-border)',
+                                color: 'var(--s-text)',
+                              }}
                               title="Ballchasing référence uniquement les replays uploadés (via BakkesMod ou upload manuel). Si vide, c'est que le joueur n'a pas encore eu de replay uploadé.">
-                              Replays Ballchasing <ExternalLink size={11} />
+                              Ballchasing <ExternalLink size={11} />
                             </a>
                           )}
                         </div>

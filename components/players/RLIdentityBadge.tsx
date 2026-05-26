@@ -125,7 +125,15 @@ export default function RLIdentityBadge({
   }
 
   // ── État 1 — compte lié, ✓ vérifié ────────────────────────────────────────
-  const nameOrFallback = rlAccountName?.trim() || (rlAccountPlatform === 'steam' ? 'Compte Steam' : 'Compte Epic');
+  // Le SteamID64 (17 chiffres) est un identifiant permanent sensible — on ne
+  // l'affiche jamais publiquement. Si la Steam Web API key manquait au moment
+  // du link, `rlAccountName` peut le contenir en fallback → on le détecte et
+  // on bascule sur le label générique "Compte Steam".
+  const rawName = rlAccountName?.trim() || '';
+  const looksLikeSteamId = /^7656\d{13}$/.test(rawName);
+  const nameOrFallback = (rawName && !looksLikeSteamId)
+    ? rawName
+    : (rlAccountPlatform === 'steam' ? 'Compte Steam' : 'Compte Epic');
   const showReport = !!canReport && !!targetUid && !!rlRank;
 
   if (size === 'sm') {
