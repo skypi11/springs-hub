@@ -6,6 +6,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { hasAnyStaffAccess } from '@/lib/event-permissions';
 import { validateCreateTemplate, TEMPLATE_MAX_PER_SCOPE } from '@/lib/todo-templates';
+import { getStructurePlan, getLimit } from '@/lib/plan-limits';
 
 function tsMs(v: unknown): number | null {
   if (!v) return null;
@@ -124,6 +125,8 @@ export async function POST(
     const { scope, name, type, titleTemplate, descriptionTemplate, config, steps } = validation.value;
 
     // Hard cap : compte les templates existants du même scope/owner.
+    // Le cap STRUCTURE dépend du plan freemium (free=15, pro=50). Le cap PERSO
+    // reste à TEMPLATE_MAX_PER_SCOPE (limite anti-spam, pas freemium).
     const countQuery = scope === 'personal'
       ? db.collection('structure_todo_templates')
           .where('structureId', '==', structureId)
@@ -133,10 +136,16 @@ export async function POST(
           .where('structureId', '==', structureId)
           .where('scope', '==', 'structure');
 
-    const existing = await countQuery.limit(TEMPLATE_MAX_PER_SCOPE + 1).get();
-    if (existing.size >= TEMPLATE_MAX_PER_SCOPE) {
+    let cap = TEMPLATE_MAX_PER_SCOPE;
+    if (scope === 'structure') {
+      const plan = getStructurePlan(resolved.structure as Record<string, unknown>);
+      cap = getLimit(plan, 'maxSharedTemplates');
+    }
+    const existing = await countQuery.limit(cap + 1).get();
+    if (existing.size >= cap) {
+      const upgradeHint = scope === 'structure' ? ' Passe en Pro pour augmenter la limite.' : '';
       return NextResponse.json({
-        error: `Limite atteinte (${TEMPLATE_MAX_PER_SCOPE} templates max dans ce scope).`,
+        error: `Limite atteinte (${cap} templates max dans ce scope).${upgradeHint}`,
       }, { status: 400 });
     }
 

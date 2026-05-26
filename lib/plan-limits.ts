@@ -52,7 +52,10 @@ export const PLAN_LIMITS = {
     // Parsing ballchasing (replays/semaine via auto-parse)
     weeklyParseQuota: 20,
     // Templates exercices partagés à la structure
-    maxSharedTemplates: 50,
+    // (compat ascendante : les structures qui avaient plus de templates avant
+    // l'application de cette limite ne perdent rien — c'est l'AJOUT du 16e qui
+    // est bloqué côté API check)
+    maxSharedTemplates: 15,
     // Équipes max par structure (limite douce, jamais hard cap aujourd'hui)
     maxTeams: Infinity,
     // Branding custom (couleur d'accent, bannière custom au-delà des standards)
@@ -67,7 +70,7 @@ export const PLAN_LIMITS = {
   pro: {
     storageBytes: UPLOAD_LIMITS.STRUCTURE_STORAGE_QUOTA_BYTES_PREMIUM, // 5 GB
     weeklyParseQuota: 100,
-    maxSharedTemplates: 500,
+    maxSharedTemplates: 50,
     maxTeams: Infinity,
     customBranding: true,
     interactiveDiscordButtons: true,
