@@ -708,14 +708,26 @@ export function NewTodoForm({
                     <span className="text-sm font-bold truncate" style={{ color: 'var(--s-text)' }}>
                       {tpl.name}
                     </span>
-                    <span className="px-1 py-0.5" style={{
-                      fontSize: '12px',
-                      background: 'var(--s-surface)',
-                      border: '1px solid var(--s-border)',
-                      color: 'var(--s-text-dim)',
-                    }}>
-                      {TODO_TYPE_META[tpl.type].short.toUpperCase()}
-                    </span>
+                    {/* v3 : si template multi-step, on affiche le compteur "N ÉTAPES" au lieu du tag de type */}
+                    {Array.isArray(tpl.steps) && tpl.steps.length > 1 ? (
+                      <span className="px-1 py-0.5" style={{
+                        fontSize: '12px',
+                        background: 'var(--s-surface)',
+                        border: '1px solid var(--s-border)',
+                        color: 'var(--s-text-dim)',
+                      }}>
+                        {tpl.steps.length} ÉTAPES
+                      </span>
+                    ) : (
+                      <span className="px-1 py-0.5" style={{
+                        fontSize: '12px',
+                        background: 'var(--s-surface)',
+                        border: '1px solid var(--s-border)',
+                        color: 'var(--s-text-dim)',
+                      }}>
+                        {TODO_TYPE_META[tpl.type].short.toUpperCase()}
+                      </span>
+                    )}
                     {tpl.scope === 'structure' && (
                       <span className="px-1 py-0.5" style={{
                         fontSize: '12px',

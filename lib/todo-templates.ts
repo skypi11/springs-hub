@@ -7,8 +7,10 @@ import {
   TODO_DESCRIPTION_MAX,
   TODO_TYPES,
   TRAINING_PACKS_MAX,
+  validateSteps,
   type TodoType,
   type TrainingPackItem,
+  type ExerciseStep,
 } from '@/lib/todos';
 
 export const TEMPLATE_NAME_MAX = 60;
@@ -23,10 +25,11 @@ export interface TodoTemplate {
   ownerId: string;        // créateur — reste propriétaire même après partage (scope=A)
   scope: TemplateScope;
   name: string;           // ex : "Scouting 3v3", "Étirements pré-match"
-  type: TodoType;
+  type: TodoType;          // legacy : type du 1er step (proxy pour rétrocompat)
   titleTemplate: string;
   descriptionTemplate: string;
-  config: Record<string, unknown>;
+  config: Record<string, unknown>; // legacy : config du 1er step (proxy)
+  steps?: ExerciseStep[];  // v3 — source de vérité multi-step (absent = template legacy 1-step)
   createdAt: number;      // ms epoch
   updatedAt: number;      // ms epoch
 }
@@ -34,6 +37,9 @@ export interface TodoTemplate {
 export interface CreateTemplateInput {
   scope: unknown;
   name: unknown;
+  // v3 — nouvelle source de vérité (steps[]). Si fourni, prend le pas sur type+config.
+  steps?: unknown;
+  // legacy (rétrocompat clients pas encore migrés)
   type?: unknown;
   titleTemplate?: unknown;
   descriptionTemplate?: unknown;
@@ -43,10 +49,13 @@ export interface CreateTemplateInput {
 export interface ValidatedTemplateInput {
   scope: TemplateScope;
   name: string;
+  // legacy fields maintenus (= 1er step) pour les lecteurs pas encore migrés
   type: TodoType;
   titleTemplate: string;
   descriptionTemplate: string;
   config: Record<string, unknown>;
+  // v3 source de vérité
+  steps: ExerciseStep[];
 }
 
 function s(v: unknown, max: number): string {
@@ -122,28 +131,48 @@ export function validateCreateTemplate(
   }
   const name = input.name.trim().slice(0, TEMPLATE_NAME_MAX);
 
-  let type: TodoType = 'free';
-  if (typeof input.type === 'string' && (TODO_TYPES as readonly string[]).includes(input.type)) {
-    type = input.type as TodoType;
-  }
-
   const titleTemplate = s(input.titleTemplate, TODO_TITLE_MAX);
   const descriptionTemplate = s(input.descriptionTemplate, TODO_DESCRIPTION_MAX);
-  const config = cleanTemplateConfig(type, input.config);
+
+  // Résolution steps : v3 si fourni, sinon fallback wrap legacy single-type.
+  let steps: ExerciseStep[];
+  if (input.steps !== undefined && input.steps !== null) {
+    const stepsResult = validateSteps(input.steps);
+    if (!stepsResult.ok) return { ok: false, error: stepsResult.error };
+    steps = stepsResult.value;
+  } else {
+    let legacyType: TodoType = 'free';
+    if (typeof input.type === 'string' && (TODO_TYPES as readonly string[]).includes(input.type)) {
+      legacyType = input.type as TodoType;
+    }
+    const config = cleanTemplateConfig(legacyType, input.config);
+    steps = [{
+      id: `step-${Math.random().toString(36).slice(2, 10)}`,
+      type: legacyType,
+      config,
+      completed: false,
+    }];
+  }
+
+  // Champs legacy maintenus = ceux du 1er step (proxy pour lecteurs pas encore migrés)
+  const type: TodoType = steps[0].type;
+  const config: Record<string, unknown> = steps[0].config;
 
   return {
     ok: true,
-    value: { scope, name, type, titleTemplate, descriptionTemplate, config },
+    value: { scope, name, type, titleTemplate, descriptionTemplate, config, steps },
   };
 }
 
 // Patch partiel pour éditer un template existant. Seuls les champs fournis sont validés.
-// Le type est figé à la création (changer le type revient à créer un nouveau template).
+// Pour les templates multi-step (v3), on peut fournir `steps` qui remplace toute
+// la liste. Si `steps` fourni, on resynchronise aussi type/config legacy (= 1er step).
 export interface UpdateTemplateInput {
   name?: unknown;
   titleTemplate?: unknown;
   descriptionTemplate?: unknown;
   config?: unknown;
+  steps?: unknown;
 }
 
 export function validateUpdateTemplate(
@@ -167,7 +196,15 @@ export function validateUpdateTemplate(
     patch.descriptionTemplate = s(input.descriptionTemplate, TODO_DESCRIPTION_MAX);
   }
 
-  if (input.config !== undefined) {
+  // v3 : édition de la liste de steps. Resynchronise legacy type/config = 1er step.
+  if (input.steps !== undefined) {
+    const stepsRes = validateSteps(input.steps);
+    if (!stepsRes.ok) return { ok: false, error: stepsRes.error };
+    patch.steps = stepsRes.value;
+    patch.type = stepsRes.value[0].type;
+    patch.config = stepsRes.value[0].config;
+  } else if (input.config !== undefined) {
+    // Legacy : édition de config sans changer steps (compat anciens clients)
     patch.config = cleanTemplateConfig(existingType, input.config);
   }
 

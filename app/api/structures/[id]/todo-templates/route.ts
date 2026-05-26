@@ -70,6 +70,9 @@ export async function GET(
         titleTemplate: (d.titleTemplate as string) ?? '',
         descriptionTemplate: (d.descriptionTemplate as string) ?? '',
         config: (d.config && typeof d.config === 'object') ? d.config : {},
+        // v3 — passé tel quel (le client utilise getSteps en lecture défensive
+        // si steps absent, applyTemplate dans NewTodoForm wrap legacy en 1 step).
+        ...(Array.isArray(d.steps) ? { steps: d.steps } : {}),
         createdAt: tsMs(d.createdAt) ?? 0,
         updatedAt: tsMs(d.updatedAt) ?? tsMs(d.createdAt) ?? 0,
       };
@@ -118,7 +121,7 @@ export async function POST(
     if (!validation.ok) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
-    const { scope, name, type, titleTemplate, descriptionTemplate, config } = validation.value;
+    const { scope, name, type, titleTemplate, descriptionTemplate, config, steps } = validation.value;
 
     // Hard cap : compte les templates existants du même scope/owner.
     const countQuery = scope === 'personal'
@@ -144,10 +147,18 @@ export async function POST(
       ownerId: uid,
       scope,
       name,
+      // legacy fields = type/config du 1er step (rétrocompat lecteurs pas encore migrés)
       type,
       titleTemplate,
       descriptionTemplate,
       config,
+      // v3 — source de vérité multi-step
+      steps: steps.map(s => ({
+        id: s.id,
+        type: s.type,
+        ...(s.label ? { label: s.label } : {}),
+        config: s.config,
+      })),
       createdAt: now,
       updatedAt: now,
     });

@@ -14,9 +14,11 @@ import {
   TODO_TYPES,
   TODO_TYPE_META,
   type TodoType,
+  type ExerciseStep,
 } from '@/lib/todos';
 import { TEMPLATE_NAME_MAX } from '@/lib/todo-templates';
 import { TodoConfigFields } from '@/components/calendar/TodoConfigFields';
+import { ExerciseStepsEditor } from '@/components/calendar/ExerciseStepsEditor';
 
 export type TodoTemplateUi = {
   id: string;
@@ -28,6 +30,13 @@ export type TodoTemplateUi = {
   titleTemplate: string;
   descriptionTemplate: string;
   config: Record<string, unknown>;
+  // v3 — multi-step. Si absent, le template est legacy single-type (wrap en 1 step à l'usage).
+  steps?: Array<{
+    id?: string;
+    type: TodoType;
+    label?: string;
+    config: Record<string, unknown>;
+  }>;
   createdAt: number;
   updatedAt: number;
 };
@@ -456,21 +465,48 @@ function TemplateEditForm({
   const [name, setName] = useState(template.name);
   const [titleTemplate, setTitleTemplate] = useState(template.titleTemplate);
   const [descriptionTemplate, setDescriptionTemplate] = useState(template.descriptionTemplate);
-  const [config, setConfig] = useState<Record<string, unknown>>(template.config);
   const [saving, setSaving] = useState(false);
 
-  const updateConfig = useCallback((patch: Record<string, unknown>) => {
-    setConfig(prev => ({ ...prev, ...patch }));
-  }, []);
+  // v3 : init steps depuis le template (wrap legacy si steps absent)
+  const [steps, setSteps] = useState<ExerciseStep[]>(() => {
+    if (Array.isArray(template.steps) && template.steps.length > 0) {
+      return template.steps.map(s => ({
+        id: s.id ?? `step-${Math.random().toString(36).slice(2, 10)}`,
+        type: s.type,
+        ...(s.label ? { label: s.label } : {}),
+        config: s.config ?? {},
+        completed: false,
+      }));
+    }
+    // Legacy template single-type → wrap en 1 step
+    return [{
+      id: `step-${Math.random().toString(36).slice(2, 10)}`,
+      type: template.type,
+      config: template.config ?? {},
+      completed: false,
+    }];
+  });
 
   async function save() {
     if (!firebaseUser || saving) return;
     if (!name.trim()) { toast.error('Nom requis'); return; }
+    if (steps.length === 0) { toast.error('Au moins une étape'); return; }
     setSaving(true);
     try {
+      const stepsPayload = steps.map(s => ({
+        id: s.id,
+        type: s.type,
+        ...(s.label ? { label: s.label } : {}),
+        config: s.config,
+      }));
       await api(`/api/structures/${structureId}/todo-templates/${template.id}`, {
         method: 'PATCH',
-        body: { name: name.trim(), titleTemplate, descriptionTemplate, config },
+        body: {
+          name: name.trim(),
+          titleTemplate,
+          descriptionTemplate,
+          steps: stepsPayload,
+        },
       });
       toast.success('Template mis à jour');
       onSaved();
@@ -480,11 +516,14 @@ function TemplateEditForm({
     setSaving(false);
   }
 
+  const isMultiStep = steps.length > 1;
+
   return (
     <div className="p-3 space-y-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-gold)' }}>
       <div className="flex items-center gap-2">
         <span className="t-label" style={{ fontSize: '12px', color: 'var(--s-gold)' }}>
-          ÉDITION DU TEMPLATE — {TODO_TYPE_META[template.type].short.toUpperCase()}
+          ÉDITION DU TEMPLATE
+          {!isMultiStep && ` — ${TODO_TYPE_META[steps[0].type].short.toUpperCase()}`}
         </span>
       </div>
 
@@ -511,7 +550,8 @@ function TemplateEditForm({
           value={descriptionTemplate} onChange={e => setDescriptionTemplate(e.target.value)} />
       </div>
 
-      <TodoConfigFields type={template.type} config={config} onChange={updateConfig} />
+      {/* v3 : éditeur multi-step (drag&drop, add/remove). Limité à TODO_MAX_STEPS. */}
+      <ExerciseStepsEditor steps={steps} onChange={setSteps} />
 
       <div className="flex items-center gap-2 pt-1">
         <button type="button" onClick={save} disabled={saving || !name.trim()}
