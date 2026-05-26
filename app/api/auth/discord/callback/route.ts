@@ -4,6 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { fetchDiscordConnections, mergeConnections, type DiscordConnection } from '@/lib/discord-connections';
 import { syncDiscordMember } from '@/lib/discord-role-sync';
+import { generateBaseSlug, generateUniqueSlug } from '@/lib/user-slug';
 
 export async function GET(req: NextRequest) {
   // Rate limit OAuth par IP — protège contre le bruteforce de codes Discord
@@ -124,11 +125,25 @@ export async function GET(req: NextRequest) {
 
     // Write user profile to Firestore (Admin SDK — bypass security rules)
     if (!userSnap.exists) {
+      // Génère un slug public unique à partir du username Discord. Utilisé
+      // dans /profile/[slug] au lieu de l'uid (qui contient le snowflake
+      // Discord, sensible). Voir lib/user-slug.ts.
+      const baseSlug = generateBaseSlug(discordUser.username);
+      let slug: string | null = null;
+      try {
+        slug = await generateUniqueSlug(baseSlug, db);
+      } catch (err) {
+        // Non-fatal : si la génération échoue, l'user pourra quand même se
+        // connecter (les liens utiliseront l'uid en fallback). Le backfill
+        // pourra réessayer plus tard.
+        console.error('[Discord callback] slug generation failed (non-fatal):', err);
+      }
       await userRef.set({
         discordId: discordUser.id,
         discordUsername: discordUser.username,
         discordAvatar: avatarUrl,
         displayName: discordUser.username,
+        ...(slug ? { slug } : {}),
         games: [],
         isFan: false,
         isBanned: false,
@@ -136,6 +151,9 @@ export async function GET(req: NextRequest) {
         createdAt: FieldValue.serverTimestamp(),
       });
     } else {
+      // User existant : on ne touche PAS au slug pour ne pas casser les liens
+      // déjà partagés. Le slug ne peut changer que via une action explicite
+      // dans les settings (à implémenter plus tard).
       await userRef.update({
         discordId: discordUser.id,
         discordUsername: discordUser.username,

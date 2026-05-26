@@ -4,6 +4,7 @@ export interface SpringsUser {
   discordUsername: string;
   discordAvatar?: string;
   displayName: string;
+  slug?: string;               // Slug public utilisé dans /profile/[slug] — généré au signup, unique. Voir lib/user-slug.ts.
   avatarUrl?: string;          // URL custom, sinon discordAvatar
   bio?: string;
   country?: string;

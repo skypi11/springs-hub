@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '@/context/AuthContext';
 import { countries } from '@/lib/countries';
@@ -57,6 +58,7 @@ function CountryFlag({ code, size = 16 }: { code: string; size?: number }) {
 
 export default function ProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const { firebaseUser, isAdmin } = useAuth();
   const [profile, setProfile] = useState<(SpringsUser & { age?: number | null }) | null>(null);
   const [rlStats, setRlStats] = useState<RLStats | null>(null);
@@ -78,18 +80,27 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
-  const isOwner = firebaseUser?.uid === id;
+  // L'uid réel du profil consulté (récupéré après chargement). Le param `id`
+  // de la route peut être un slug, donc on ne peut pas s'y fier pour les
+  // comparaisons d'ownership ni les API qui attendent un uid Discord.
+  const profileUid = profile?.uid ?? '';
+  const isOwner = !!firebaseUser?.uid && !!profileUid && firebaseUser.uid === profileUid;
 
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(`/api/profile?uid=${encodeURIComponent(id)}`);
+        // Le param `id` peut être un uid legacy (discord_*) ou un slug (noxx-26).
+        // L'API accepte les deux via `uid=` ou `slug=`.
+        const isLegacy = /^discord_\d{15,20}$/.test(id);
+        const queryKey = isLegacy ? 'uid' : 'slug';
+        const res = await fetch(`/api/profile?${queryKey}=${encodeURIComponent(id)}`);
         if (!res.ok) {
           setNotFound(true);
           setLoading(false);
           return;
         }
-        const data = { uid: id, ...await res.json() } as SpringsUser & { age?: number | null };
+        // L'API renvoie `uid` explicitement dans le payload (renvoyé pour les 2 lookups uid/slug).
+        const data = await res.json() as SpringsUser & { age?: number | null };
         setProfile(data);
 
         // Fetch RL stats si le joueur joue à RL.
@@ -112,8 +123,10 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         }
 
         // Historique Springs (Monthly Cup + League Series)
+        // L'API history attend un uid Discord — on utilise data.uid (résolu côté serveur),
+        // pas le param `id` qui peut être un slug.
         try {
-          const hRes = await fetch(`/api/profile/history?uid=${encodeURIComponent(id)}`);
+          const hRes = await fetch(`/api/profile/history?uid=${encodeURIComponent(data.uid)}`);
           if (hRes.ok) setHistory(await hRes.json());
         } catch (err) {
           console.error('[Profile] history fetch error:', err);
@@ -141,6 +154,18 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
     }
     load();
   }, [id]);
+
+  // Canonicalisation URL : si l'URL contient un uid legacy (discord_*) mais que
+  // le profil a un slug, on remplace l'URL par le slug. Évite d'exposer le
+  // snowflake Discord dans la barre d'adresse même si un lien interne pointait
+  // vers l'uid. router.replace = pas d'entrée history, scroll préservé.
+  useEffect(() => {
+    if (!profile?.slug) return;
+    const isLegacyInUrl = /^discord_\d{15,20}$/.test(id);
+    if (isLegacyInUrl && profile.slug !== id) {
+      router.replace(`/profile/${profile.slug}`, { scroll: false });
+    }
+  }, [profile?.slug, id, router]);
 
   if (loading) {
     return (
@@ -478,7 +503,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       rlAccountPlatform={rlAccountPlatform}
                       rlSteamId64={profile.steamLinked?.steamId64 || ''}
                       rlRank={profile.rlRank}
-                      targetUid={id}
+                      targetUid={profileUid}
                       targetName={profile.displayName}
                       canReport={!isOwner && !!firebaseUser}
                       size="md"
@@ -864,7 +889,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                         </div>
                       )}
                       <InviteToStructureButton
-                        targetUserId={id}
+                        targetUserId={profileUid}
                         targetDisplayName={profile.displayName || 'ce joueur'}
                         targetGames={profile.games ?? []}
                         isAvailableForRecruitment={profile.isAvailableForRecruitment}

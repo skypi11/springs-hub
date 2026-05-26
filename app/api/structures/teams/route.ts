@@ -58,6 +58,7 @@ export async function GET(req: NextRequest) {
       if (!u) return [];
       return [{
         uid: id,
+        slug: (u.slug as string) || '',
         displayName: u.displayName || u.discordUsername || '',
         discordAvatar: u.discordAvatar || '',
         avatarUrl: u.avatarUrl || '',

@@ -51,6 +51,7 @@ export async function GET(
       return {
         id: doc.id,
         userId: memberData.userId,
+        slug: u?.slug || '',
         game: memberData.game,
         role: memberData.role,
         displayName: u?.displayName || u?.discordUsername || '',

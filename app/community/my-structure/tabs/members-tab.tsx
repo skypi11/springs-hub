@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Clock, Loader2, User, UserPlus, Users } from 'lucide-react';
 import MemberActionsMenu from '@/components/structure/MemberActionsMenu';
+import { getProfileHref } from '@/lib/user-slug';
 import {
   computeMemberRole, groupAffiliations, PRIMARY_ROLE_LABELS,
   type MemberRoleTeam,
@@ -93,7 +94,7 @@ export function MembersTab(props: MembersTabProps) {
             const daysSince = m.joinedAt ? Math.floor((now - m.joinedAt) / (24 * 60 * 60 * 1000)) : null;
             return (
               <div key={m.id} className="flex items-center gap-3 px-5 py-3">
-                <Link href={`/profile/${m.userId}`} className="flex items-center gap-3 flex-1 min-w-0">
+                <Link href={getProfileHref({ uid: m.userId, slug: (m as { slug?: string }).slug })} className="flex items-center gap-3 flex-1 min-w-0">
                   {avatar ? (
                     <div className="w-8 h-8 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                       <Image src={avatar} alt={m.displayName} fill className="object-cover" unoptimized />
@@ -211,7 +212,7 @@ export function MembersTab(props: MembersTabProps) {
                       style={{ background: 'transparent' }}
                       onMouseEnter={e => (e.currentTarget.style.background = 'var(--s-elevated)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                      <Link href={`/profile/${m.userId}`} className="flex items-center gap-3 flex-1 min-w-0">
+                      <Link href={getProfileHref({ uid: m.userId, slug: (m as { slug?: string }).slug })} className="flex items-center gap-3 flex-1 min-w-0">
                         {avatar ? (
                           <div className="w-8 h-8 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                             <Image src={avatar} alt={m.displayName} fill className="object-cover" unoptimized />
@@ -338,7 +339,7 @@ export function MembersTab(props: MembersTabProps) {
                     style={{ background: 'transparent' }}
                     onMouseEnter={e => (e.currentTarget.style.background = 'var(--s-elevated)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                    <Link href={`/profile/${h.userId}`} className="flex items-center gap-3 flex-1 min-w-0">
+                    <Link href={getProfileHref({ uid: h.userId, slug: (h as { slug?: string }).slug })} className="flex items-center gap-3 flex-1 min-w-0">
                       {avatar ? (
                         <div className="w-8 h-8 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                           <Image src={avatar} alt={h.displayName} fill className="object-cover" unoptimized />

@@ -17,10 +17,12 @@ import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import { SkeletonPageHeader, SkeletonCard } from '@/components/ui/Skeleton';
 import { computeMemberRole, groupAffiliations, PRIMARY_ROLE_LABELS, type MemberRoleTeam, type PrimaryRole } from '@/lib/member-role';
 import DiscordIcon from '@/components/icons/DiscordIcon';
+import { getProfileHref } from '@/lib/user-slug';
 
 type Member = {
   id: string;
   userId: string;
+  slug?: string;
   game: string;
   role: string;
   displayName: string;
@@ -31,6 +33,7 @@ type Member = {
 
 type TeamPlayer = {
   uid: string;
+  slug?: string;
   displayName: string;
   discordAvatar: string;
   avatarUrl: string;
@@ -107,7 +110,7 @@ const PRIMARY_ROLE_COLORS: Record<PrimaryRole, string> = {
 function PlayerRow({ player, color, isCaptain }: { player: TeamPlayer; color: string; isCaptain?: boolean }) {
   const av = player.avatarUrl || player.discordAvatar;
   return (
-    <Link href={`/profile/${player.uid}`}
+    <Link href={getProfileHref(player)}
       className="flex items-center gap-3 px-3 py-2 transition-colors duration-150 hover:bg-[var(--s-hover)]"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
       {av ? (
@@ -729,7 +732,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                     const leaderPrimary = roleFor(l.userId).primary;
                     const roleConf = { label: PRIMARY_ROLE_LABELS[leaderPrimary], color: PRIMARY_ROLE_COLORS[leaderPrimary] };
                     return (
-                      <Link key={l.id} href={`/profile/${l.userId}`}
+                      <Link key={l.id} href={getProfileHref({ uid: l.userId, slug: l.slug })}
                         className="flex items-center gap-2 px-2.5 py-1 transition-colors duration-150 hover:bg-[var(--s-elevated)]"
                         style={{ background: 'rgba(255,184,0,0.04)', border: '1px solid rgba(255,184,0,0.12)' }}>
                         {avatar ? (
@@ -1000,7 +1003,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                         return (
                           <Link
                             key={m.userId}
-                            href={`/profile/${m.userId}`}
+                            href={getProfileHref({ uid: m.userId, slug: m.slug })}
                             className="flex flex-col items-center text-center gap-2 px-3 py-4 transition-all duration-150 hover:bg-[var(--s-elevated)]"
                             style={{
                               background: 'var(--s-surface)',

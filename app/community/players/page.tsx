@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
+import { getProfileHref } from '@/lib/user-slug';
 import Portal from '@/components/ui/Portal';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
 import InviteToStructureButton from '@/components/community/InviteToStructureButton';
@@ -837,7 +838,7 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
       } as React.CSSProperties}
       onMouseEnter={e => { e.currentTarget.style.boxShadow = hoverShadow; }}
       onMouseLeave={e => { e.currentTarget.style.boxShadow = baseShadow; }}>
-      <Link href={`/profile/${p.uid}`} className="absolute inset-0 z-[2]" aria-label={p.displayName} />
+      <Link href={getProfileHref(p)} className="absolute inset-0 z-[2]" aria-label={p.displayName} />
 
       {/* ────── ZONE AVATAR — 1:1 (format carré demandé par l'utilisateur) ────── */}
       <div className="relative" style={{ aspectRatio: '1 / 1', background: headerTint }}>
@@ -1023,7 +1024,7 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
         <div className="absolute left-0 top-0 bottom-0 w-[2px]" style={{ background: barColor, zIndex: 1 }} />
       )}
 
-      <Link href={`/profile/${p.uid}`} className="absolute inset-0 z-[1]" aria-label={p.displayName} />
+      <Link href={getProfileHref(p)} className="absolute inset-0 z-[1]" aria-label={p.displayName} />
       <div className="relative z-[2] flex items-center gap-3 px-4 pl-5 py-3" style={{ pointerEvents: 'none' }}>
         {/* Avatar 40px (plus présent qu'avant) */}
         {avatar ? (

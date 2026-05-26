@@ -49,6 +49,7 @@ export type EnrichedStructure = {
 
 export type PlayerCard = {
   uid: string;
+  slug: string;
   displayName: string;
   discordAvatar: string;
   avatarUrl: string;
@@ -224,6 +225,7 @@ export async function GET(req: NextRequest) {
 
       return {
         uid,
+        slug: (data.slug as string) || '',
         displayName: (data.displayName as string) || (data.discordUsername as string) || '',
         discordAvatar: (data.discordAvatar as string) || '',
         avatarUrl: (data.avatarUrl as string) || '',

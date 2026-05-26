@@ -100,13 +100,16 @@ async function fetchUserStructures(uid: string): Promise<ProfileStructure[]> {
 // `dateOfBirth` sert uniquement à calculer l'âge côté serveur.
 const PRIVATE_FIELDS = ['dateOfBirth', 'discordId', 'isBanned', 'banReason', 'bannedAt', 'bannedBy'];
 
-// GET /api/profile?uid=discord_XXX — lire un profil
+// GET /api/profile?uid=discord_XXX OU /api/profile?slug=noxx-26 — lire un profil
+// On accepte les deux pour la transition slug : les liens internes utilisent le
+// slug, mais l'API publique reste compat avec l'uid pour les intégrations.
 // Si le requester est le propriétaire (token Firebase), renvoie le document complet.
 // Sinon, masque les champs privés et expose uniquement `age` calculé serveur.
 export async function GET(req: NextRequest) {
-  const uid = req.nextUrl.searchParams.get('uid');
-  if (!uid) {
-    return NextResponse.json({ error: 'uid requis' }, { status: 400 });
+  const uidParam = req.nextUrl.searchParams.get('uid');
+  const slugParam = req.nextUrl.searchParams.get('slug');
+  if (!uidParam && !slugParam) {
+    return NextResponse.json({ error: 'uid ou slug requis' }, { status: 400 });
   }
 
   // Rate-limit : endpoint public + enrichi (fetch structures/sub_teams) — protège
@@ -116,11 +119,22 @@ export async function GET(req: NextRequest) {
 
   try {
     const db = getAdminDb();
-    const snap = await db.collection('users').doc(uid).get();
 
-    if (!snap.exists) {
+    // Lookup direct par uid si fourni, sinon lookup par slug via where()
+    let snap: FirebaseFirestore.DocumentSnapshot | null = null;
+    if (uidParam) {
+      snap = await db.collection('users').doc(uidParam).get();
+    } else if (slugParam) {
+      const querySnap = await db.collection('users').where('slug', '==', slugParam).limit(1).get();
+      if (!querySnap.empty) snap = querySnap.docs[0];
+    }
+
+    if (!snap || !snap.exists) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 });
     }
+
+    // L'uid effectif pour les checks d'ownership et les lookups dépendants
+    const uid = snap.id;
 
     const data = snap.data() ?? {};
     const requesterUid = await verifyAuth(req);
@@ -185,11 +199,12 @@ export async function GET(req: NextRequest) {
       // L'owner ne voit JAMAIS son propre flag (sinon il fuit avant enquête).
       // Le filtrage est garanti par construction : on n'a pas fetché le flag
       // ci-dessus pour les owners.
-      return NextResponse.json({ ...data, ...rlAccountFields, structures });
+      return NextResponse.json({ uid, ...data, ...rlAccountFields, structures });
     }
 
     // Vue publique : on calcule l'âge et on retire les champs privés
     const publicData: Record<string, unknown> = {
+      uid,
       ...data,
       ...rlAccountFields,
       age: computeAge(data.dateOfBirth),
