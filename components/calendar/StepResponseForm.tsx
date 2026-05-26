@@ -14,6 +14,7 @@ import { useRef, useState } from 'react';
 import Image from 'next/image';
 import { X, Check, Image as ImageIcon, Loader2, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
+import { auth } from '@/lib/firebase';
 import {
   TODO_RESPONSE_MAX,
   normalizeTrainingPacks,
@@ -85,10 +86,22 @@ export function StepResponseForm({
     }
     setUploading(true);
     try {
+      // Le projet n'utilise PAS les cookies pour l'auth — il faut injecter
+      // Authorization: Bearer <firebase_id_token> manuellement (cf. lib/api-client.ts).
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        toast.error('Session expirée, recharge la page.');
+        setUploading(false);
+        return;
+      }
       const fd = new FormData();
       fd.append('file', file);
       fd.append('stepId', stepId);
-      const res = await fetch(uploadUrl, { method: 'POST', body: fd, credentials: 'include' });
+      const res = await fetch(uploadUrl, {
+        method: 'POST',
+        body: fd,
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erreur upload');
       setAttachmentUrl(data.attachmentUrl as string);

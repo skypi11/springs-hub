@@ -47,6 +47,9 @@ export async function GET(req: NextRequest) {
         description: (d.description as string) ?? '',
         config: (d.config && typeof d.config === 'object') ? d.config : {},
         response: (d.response && typeof d.response === 'object') ? d.response : null,
+        // v3 : on propage les steps[] s'ils existent (sinon getSteps() côté client wrap legacy en 1 step).
+        // Critique pour le drawer multi-step et toggleStep — sans ça stepId ne matche pas en base.
+        ...(Array.isArray(d.steps) ? { steps: d.steps } : {}),
         eventId: (d.eventId as string | null) ?? null,
         deadline: (d.deadline as string | null) ?? null,
         deadlineAt: typeof d.deadlineAt === 'number'
