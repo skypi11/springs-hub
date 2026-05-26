@@ -39,6 +39,7 @@ import { TeamsTab } from './tabs/teams-tab';
 import { RecruitmentTab } from './tabs/recruitment-tab';
 import { MembersTab } from './tabs/members-tab';
 import { GeneralTab } from './tabs/general-tab';
+import { ReplaysTab } from './tabs/replays-tab';
 import { PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 
@@ -100,10 +101,6 @@ export default function MyStructurePage() {
   const [captainPickerOpen, setCaptainPickerOpen] = useState<string | null>(null);
   // Drawer détail équipe (Dispos + Exercices) — ouvert via chips des cards équipe
   const [drawerState, setDrawerState] = useState<{ team: DrawerTeam; tab: DrawerTab; canEditConfig: boolean } | null>(null);
-  // Launcher "dispos/exercices/replays par équipe" — replié par défaut pour ne
-  // pas écraser le calendrier (surtout avec beaucoup d'équipes).
-  const [calendarLauncherOpen, setCalendarLauncherOpen] = useState(false);
-
   const [inviteLinks, setInviteLinks] = useState<InviteLink[]>([]);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
   const [directInvites, setDirectInvites] = useState<DirectInvite[]>([]);
@@ -160,11 +157,11 @@ export default function MyStructurePage() {
     const isManager = !isDirigeant && (activeStructure.managerIds ?? []).includes(firebaseUser.uid);
     const isCoach = !isDirigeant && !isManager && (activeStructure.coachIds ?? []).includes(firebaseUser.uid);
     const visible: DashboardTab[] = isDirigeant
-      ? ['general', 'teams', 'recruitment', 'members', 'calendar', 'todos', 'documents']
+      ? ['general', 'teams', 'recruitment', 'members', 'calendar', 'todos', 'replays', 'documents']
       : isManager
-      ? ['teams', 'members', 'calendar', 'todos']
+      ? ['teams', 'members', 'calendar', 'todos', 'replays']
       : isCoach
-      ? ['members', 'calendar', 'todos']
+      ? ['members', 'calendar', 'todos', 'replays']
       : ['calendar'];
     if (!visible.includes(tab)) setTab(visible[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -197,7 +194,7 @@ export default function MyStructurePage() {
     const { tab: tabParam, teamId, todoId } = deepLinkRef.current;
     if (!tabParam && !teamId && !todoId) return;
 
-    const validTabs: DashboardTab[] = ['general', 'teams', 'recruitment', 'members', 'calendar', 'todos', 'documents'];
+    const validTabs: DashboardTab[] = ['general', 'teams', 'recruitment', 'members', 'calendar', 'todos', 'replays', 'documents'];
     if (tabParam && (validTabs as string[]).includes(tabParam)) {
       setTab(tabParam as DashboardTab);
     }
@@ -1014,11 +1011,11 @@ export default function MyStructurePage() {
     ? teams.some(t => t.captainId === firebaseUser.uid)
     : false;
   const visibleTabs: DashboardTab[] = isDirigeantOfActive
-    ? ['general', 'teams', 'recruitment', 'members', 'calendar', 'todos', 'documents']
+    ? ['general', 'teams', 'recruitment', 'members', 'calendar', 'todos', 'replays', 'documents']
     : isManagerOfActive
-    ? ['teams', 'recruitment', 'members', 'calendar', 'todos']
+    ? ['teams', 'recruitment', 'members', 'calendar', 'todos', 'replays']
     : isCoachOfActive
-    ? ['members', 'calendar', 'todos']
+    ? ['members', 'calendar', 'todos', 'replays']
     : captainOnlyAccess
     ? ['teams', 'calendar']
     : ['calendar'];
@@ -1915,105 +1912,9 @@ export default function MyStructurePage() {
         {/* ═══ CALENDRIER ═══ */}
         {tab === 'calendar' && (
         <div className="animate-fade-in-d3 space-y-6">
-          {/* Launcher dispos/exercices/replays par équipe — barre repliable.
-              Replié par défaut pour laisser la place au calendrier. Le coach n'y
-              voit que ses équipes ; dirigeant/manager voient toute la structure. */}
-          {(() => {
-            const isDirigeant = isDirigeantOfActive;
-            const isManagerLevel = isDirigeant || isManagerOfActive;
-            const visibleTeams = (isManagerLevel
-              ? teams.slice()
-              : teams.filter(t => staffedTeamIds.includes(t.id))
-            ).sort((a, b) => {
-              // Même ordre que l'onglet Équipes : groupe (groupOrder, label) puis order, nom.
-              const ga = a.groupOrder ?? 0, gb = b.groupOrder ?? 0;
-              if (ga !== gb) return ga - gb;
-              const lc = (a.label ?? '').localeCompare(b.label ?? '');
-              if (lc !== 0) return lc;
-              const oa = a.order ?? 0, ob = b.order ?? 0;
-              if (oa !== ob) return oa - ob;
-              return a.name.localeCompare(b.name);
-            });
-            if (visibleTeams.length === 0) return null;
-            const open = calendarLauncherOpen;
-            return (
-              <div className="bevel relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
-                {/* En-tête cliquable = repli/dépli */}
-                <button type="button" onClick={() => setCalendarLauncherOpen(o => !o)}
-                  className="relative z-[1] w-full px-5 py-3 flex items-center gap-3 text-left transition-colors duration-150 hover:bg-[var(--s-hover)]"
-                  style={{ borderBottom: open ? '1px solid var(--s-border)' : 'none' }}>
-                  <div className="w-7 h-7 flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,184,0,0.1)', border: '1px solid rgba(255,184,0,0.25)' }}>
-                    <CalendarClock size={13} style={{ color: 'var(--s-gold)' }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h2 className="font-display text-sm tracking-wider">DISPOS, EXERCICES &amp; REPLAYS PAR ÉQUIPE</h2>
-                    <p className="text-xs truncate" style={{ color: 'var(--s-text-dim)' }}>
-                      Accès au planning de dispos, aux exercices et aux replays de chaque équipe.
-                    </p>
-                  </div>
-                  <span className="t-mono flex-shrink-0" style={{ fontSize: '12px', color: 'var(--s-text-muted)' }}>
-                    {visibleTeams.length} équipe{visibleTeams.length > 1 ? 's' : ''}
-                  </span>
-                  {open
-                    ? <ChevronUp size={16} className="flex-shrink-0" style={{ color: 'var(--s-text-dim)' }} />
-                    : <ChevronDown size={16} className="flex-shrink-0" style={{ color: 'var(--s-text-dim)' }} />}
-                </button>
-                {open && (
-                  <div className="relative z-[1] p-2 space-y-1">
-                    {visibleTeams.map(team => {
-                      const drawerTeam: DrawerTeam = {
-                        id: team.id,
-                        name: team.name,
-                        game: team.game,
-                        players: team.players,
-                        subs: team.subs,
-                        staff: team.staff,
-                      };
-                      const gameTag = team.game === 'rocket_league' ? 'RL' : team.game === 'trackmania' ? 'TM' : team.game;
-                      const gameClass = team.game === 'rocket_league' ? 'tag-blue' : 'tag-green';
-                      // canEditConfig pour le consensus : dirigeant OU responsable (admin
-                      // structure) OU manager d'équipe de CETTE équipe (validé Matt 2026-05-25).
-                      const myStaffRole = firebaseUser
-                        ? (team.staffRoles as Record<string, 'coach' | 'manager'> | undefined)?.[firebaseUser.uid]
-                        : undefined;
-                      const isTeamManagerHere = myStaffRole === 'manager';
-                      const canEditTeamConfig = isDirigeant || isManagerOfActive || isTeamManagerHere;
-                      return (
-                        <div key={team.id} className="flex flex-col sm:flex-row sm:items-center gap-2 px-2 py-2"
-                          style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                          <div className="flex items-center gap-2 min-w-0 sm:flex-1">
-                            <span className={`tag ${gameClass} flex-shrink-0`} style={{ fontSize: '12px', padding: '2px 6px' }}>{gameTag}</span>
-                            <span className="font-display text-sm tracking-wider truncate min-w-0">{team.name.toUpperCase()}</span>
-                          </div>
-                          <div className="flex items-stretch gap-2">
-                            <TeamActionChip
-                              className="flex-1 sm:flex-none"
-                              icon={<CalendarClock size={12} />}
-                              label="Dispos"
-                              onClick={() => setDrawerState({ team: drawerTeam, tab: 'availability', canEditConfig: canEditTeamConfig })}
-                            />
-                            <TeamActionChip
-                              className="flex-1 sm:flex-none"
-                              icon={<ClipboardList size={12} />}
-                              label="Exercices"
-                              onClick={() => setDrawerState({ team: drawerTeam, tab: 'todos', canEditConfig: canEditTeamConfig })}
-                            />
-                            <TeamActionChip
-                              className="flex-1 sm:flex-none"
-                              icon={<Film size={12} />}
-                              label="Replays"
-                              onClick={() => setDrawerState({ team: drawerTeam, tab: 'replays', canEditConfig: canEditTeamConfig })}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+          {/* Note (2026-05-26) : l'ancien panneau "Dispos/Exercices/Replays par équipe"
+              a été retiré — doublon avec l'onglet Calendrier (heatmap dispos),
+              l'onglet Exercices (CrossTeamTodosPanel) et le nouvel onglet Replays. */}
           <CalendarSection
             structureId={s.id}
             structureGames={s.games ?? []}
@@ -2047,6 +1948,18 @@ export default function MyStructurePage() {
                 };
                 setDrawerState({ team: drawerTeam, tab: 'todos', canEditConfig: isDirigeantOfActive });
               }}
+            />
+          </div>
+        )}
+
+        {/* ═══ REPLAYS (cross-équipes) ═══ */}
+        {tab === 'replays' && firebaseUser && (
+          <div className="animate-fade-in-d3">
+            <ReplaysTab
+              structureId={s.id}
+              teams={teams}
+              userContext={userContext}
+              currentUid={firebaseUser.uid}
             />
           </div>
         )}

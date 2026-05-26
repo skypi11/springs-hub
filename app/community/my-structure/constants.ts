@@ -9,6 +9,7 @@ export const TAB_DEFS: { key: DashboardTab; label: string; color: string }[] = [
   { key: 'members', label: 'Membres', color: 'var(--s-gold)' },
   { key: 'calendar', label: 'Calendrier', color: 'var(--s-gold)' },
   { key: 'todos', label: 'Exercices', color: '#4da6ff' },
+  { key: 'replays', label: 'Replays', color: 'var(--s-gold)' },
   { key: 'documents', label: 'Documents', color: 'var(--s-gold)' },
 ];
 
