@@ -62,6 +62,9 @@ export async function GET(req: NextRequest) {
         done: !!d.done,
         doneAt: tsMs(d.doneAt),
         doneBy: (d.doneBy as string | null) ?? null,
+        // v3 — verrouillage (lockedAt set = exo validé globalement, plus modifiable)
+        lockedAt: tsMs(d.lockedAt),
+        lockedBy: (d.lockedBy as string | null) ?? null,
         createdBy: d.createdBy as string,
         createdAt: tsMs(d.createdAt) ?? 0,
       };

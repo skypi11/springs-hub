@@ -303,6 +303,11 @@ export interface TodoRef {
   done: boolean;            // calculé = tous les steps completed (maintenu top-level pour le tri/count rapide)
   doneAt: number | null;    // ms epoch — instant où le dernier step a été coché
   doneBy: string | null;
+  // Verrouillage v3 : une fois lockedAt set, le joueur ne peut plus modifier ses
+  // réponses ni décocher de steps. Action explicite via "Verrouiller l'exercice"
+  // après que tous les steps soient cochés. Un staff peut forcer la réouverture.
+  lockedAt?: number | null;
+  lockedBy?: string | null;
   createdBy: string;
   createdAt: number;        // ms epoch
 }

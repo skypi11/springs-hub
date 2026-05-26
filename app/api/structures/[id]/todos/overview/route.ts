@@ -97,6 +97,8 @@ export async function GET(
         description: (d.description as string | undefined) ?? '',
         config: (d.config && typeof d.config === 'object') ? d.config as Record<string, unknown> : {},
         response: (d.response && typeof d.response === 'object') ? d.response as Record<string, unknown> : null,
+        // v3 : propage les steps[] pour que le drawer staff affiche la checklist multi-step + captures
+        ...(Array.isArray(d.steps) ? { steps: d.steps } : {}),
         eventId: (d.eventId as string | null) ?? null,
         deadline,
         deadlineAt,
@@ -107,6 +109,9 @@ export async function GET(
         done: !!d.done,
         doneAt: tsMs(d.doneAt),
         doneBy: (d.doneBy as string | null) ?? null,
+        // v3 — verrouillage
+        lockedAt: tsMs(d.lockedAt),
+        lockedBy: (d.lockedBy as string | null) ?? null,
         createdBy: d.createdBy as string,
         createdAt: tsMs(d.createdAt) ?? 0,
       };

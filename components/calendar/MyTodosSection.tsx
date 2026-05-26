@@ -191,6 +191,29 @@ export default function MyTodosSection() {
     onError: (err: Error) => toast.error(err.message || 'Erreur'),
   });
 
+  // v3 — Verrouillage de l'exercice (validation globale). Une fois cliqué,
+  // plus aucune modification possible (sauf si un staff fait unlock).
+  const lockMutation = useMutation({
+    mutationFn: ({ todo }: { todo: MyTodo }) =>
+      api(`/api/structures/${todo.structureId}/todos/${todo.id}`, {
+        method: 'PATCH',
+        body: { action: 'lock' },
+      }).then(() => ({ todo })),
+    onSuccess: ({ todo }) => {
+      qc.setQueryData<{ todos: MyTodo[] }>(['todos', 'me'], (prev) => {
+        if (!prev) return prev;
+        return {
+          todos: prev.todos.map((t) =>
+            t.id === todo.id ? { ...t, lockedAt: Date.now(), lockedBy: firebaseUser?.uid ?? null } : t
+          ),
+        };
+      });
+      toast.success('Exercice verrouillé');
+    },
+    onError: (err: Error) => toast.error(err.message || 'Erreur'),
+  });
+  const lockingTodoId = lockMutation.isPending ? lockMutation.variables?.todo.id ?? null : null;
+
   // Action depuis la ligne : toujours ouvrir le drawer (détail complet + action ciblée).
   // Le drawer décide ensuite quoi afficher selon le type (form de réponse ou bouton "terminer").
   function handleOpen(todo: MyTodo) {
@@ -296,12 +319,17 @@ export default function MyTodosSection() {
             onClose={() => setOpenTodoId(null)}
             todo={openTodo}
             canEdit={!!openTodo}
+            isStaff={false /* MyTodosSection = vue joueur ; le staff a ses propres outils dans CrossTeamTodosPanel */}
             toggleStepId={openTodo ? togglingStepId : null}
+            locking={openTodo ? lockingTodoId === openTodo.id : false}
             onToggleStep={openTodo ? async (stepId, completed, response) => {
               await toggleStepMutation.mutateAsync({ todo: openTodo, stepId, completed, response });
             } : undefined}
             onEditStepResponse={openTodo ? async (stepId, response) => {
               await editStepResponseMutation.mutateAsync({ todo: openTodo, stepId, response });
+            } : undefined}
+            onLock={openTodo ? async () => {
+              await lockMutation.mutateAsync({ todo: openTodo });
             } : undefined}
           />
         );

@@ -57,9 +57,13 @@ export default function TodoDetailDrawer({
   onClose,
   todo,
   canEdit = false,
+  isStaff = false,
   toggleStepId,
+  locking = false,
   onToggleStep,
   onEditStepResponse,
+  onLock,
+  onUnlock,
   extraInfo,
 }: {
   open: boolean;
@@ -67,8 +71,12 @@ export default function TodoDetailDrawer({
   todo: DrawerTodo | null;
   /** Si true, l'utilisateur peut cocher les steps / saisir des réponses (= assignee ou staff). */
   canEdit?: boolean;
+  /** Si true, le viewer est un staff de l'équipe (peut unlock un exo verrouillé). */
+  isStaff?: boolean;
   /** stepId actuellement en cours d'API call (pour disable + spinner). */
   toggleStepId?: string | null;
+  /** Si true, l'action lock/unlock est en cours (disable bouton + spinner). */
+  locking?: boolean;
   /**
    * Toggle un step (cocher/décocher). Pour les types needsResponse, response
    * est requis quand completed=true. Le drawer gère le form de réponse en interne.
@@ -76,6 +84,10 @@ export default function TodoDetailDrawer({
   onToggleStep?: (stepId: string, completed: boolean, response?: Record<string, unknown>) => Promise<void> | void;
   /** Édition d'une réponse déjà saisie (sans changer l'état completed). */
   onEditStepResponse?: (stepId: string, response: Record<string, unknown>) => Promise<void> | void;
+  /** Verrouille définitivement l'exo (tous steps cocher requis côté serveur). */
+  onLock?: () => Promise<void> | void;
+  /** Déverrouille (staff uniquement). */
+  onUnlock?: () => Promise<void> | void;
   /** Slot optionnel pour afficher le "créé par" ou autres infos contextuelles fournies par le parent. */
   extraInfo?: React.ReactNode;
 }) {
@@ -120,9 +132,16 @@ export default function TodoDetailDrawer({
   const deadlineRel = formatRelative(todo.deadlineAt, now);
   const doneFull = formatDeadlineFull(todo.doneAt);
 
-  // Endpoint d'upload screenshot — disponible uniquement si l'utilisateur peut éditer
+  // v3 — verrouillage : si lockedAt set, l'exo est en read-only même pour l'assignee.
+  // Seul le staff peut le réouvrir via 'unlock'.
+  const isLocked = typeof todo.lockedAt === 'number' && todo.lockedAt > 0;
+  const effectiveCanEdit = canEdit && !isLocked;
+  const allStepsDone = progress.total > 0 && progress.done === progress.total;
+  const canShowLockBtn = canEdit && !isLocked && allStepsDone;
+
+  // Endpoint d'upload screenshot — disponible uniquement si éditable
   // ET qu'on a structureId+todoId pour construire l'URL.
-  const screenshotUploadUrl = canEdit && todo.structureId && todo.id
+  const screenshotUploadUrl = effectiveCanEdit && todo.structureId && todo.id
     ? `/api/structures/${todo.structureId}/todos/${todo.id}/screenshot`
     : undefined;
 
@@ -232,6 +251,21 @@ export default function TodoDetailDrawer({
             </button>
           </header>
 
+          {/* Banner verrouillé — visible quand lockedAt set */}
+          {isLocked && (
+            <div className="flex items-center gap-2.5 px-6 py-2.5 flex-shrink-0"
+              style={{
+                background: 'rgba(255,184,0,0.08)',
+                borderBottom: '1px solid rgba(255,184,0,0.25)',
+              }}>
+              <Check size={14} style={{ color: 'var(--s-gold)' }} />
+              <span className="text-xs font-semibold" style={{ color: 'var(--s-gold)' }}>
+                Exercice verrouillé — plus aucune modification possible
+                {isStaff && ' (tu peux le déverrouiller en bas)'}
+              </span>
+            </div>
+          )}
+
           {/* Contenu scrollable */}
           <div className="flex-1 overflow-y-auto" style={{ overflowX: 'hidden' }}>
             <div className="px-6 py-5 space-y-5">
@@ -258,7 +292,7 @@ export default function TodoDetailDrawer({
                       step={step}
                       index={idx}
                       isMultiStep={isMultiStep}
-                      canEdit={canEdit}
+                      canEdit={effectiveCanEdit}
                       isToggling={toggleStepId === step.id}
                       openForm={openFormStepId === step.id}
                       openFormMode={formMode}
@@ -345,9 +379,33 @@ export default function TodoDetailDrawer({
             </div>
           </div>
 
-          {/* Footer minimaliste : juste fermer (les actions sont sur chaque step) */}
-          <footer className="flex items-center justify-end gap-2 px-6 py-3 flex-shrink-0"
+          {/* Footer : bouton lock/unlock conditionnel + fermer */}
+          <footer className="flex items-center justify-between gap-2 px-6 py-3 flex-shrink-0"
             style={{ borderTop: '1px solid var(--s-border)', background: 'var(--s-surface)' }}>
+            <div className="flex items-center gap-2">
+              {/* Bouton "Verrouiller" — apparaît UNIQUEMENT quand tous les steps sont cocher,
+                  pas encore locked, et le viewer peut éditer. Une fois cliqué, l'exo bascule
+                  en read-only (cf. message banner haut). */}
+              {canShowLockBtn && onLock && (
+                <button type="button" onClick={() => onLock()}
+                  disabled={locking}
+                  className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-sm"
+                  style={{ opacity: locking ? 0.6 : 1, cursor: locking ? 'wait' : 'pointer' }}>
+                  {locking ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                  <span>Verrouiller l&apos;exercice</span>
+                </button>
+              )}
+              {/* Bouton "Déverrouiller" — staff uniquement, exo locked */}
+              {isLocked && isStaff && onUnlock && (
+                <button type="button" onClick={() => onUnlock()}
+                  disabled={locking}
+                  className="btn-springs btn-secondary bevel-sm flex items-center gap-2 text-sm"
+                  style={{ opacity: locking ? 0.6 : 1, cursor: locking ? 'wait' : 'pointer' }}>
+                  {locking ? <Loader2 size={13} className="animate-spin" /> : null}
+                  <span>Déverrouiller</span>
+                </button>
+              )}
+            </div>
             <button type="button" onClick={onClose}
               className="text-sm" style={{ color: 'var(--s-text-dim)', cursor: 'pointer' }}>
               Fermer

@@ -21,9 +21,12 @@ import {
 
 // PATCH /api/structures/[id]/todos/[todoId]
 // Actions :
-//  - toggle done : { action: 'toggle' } — l'assignee ou un staff d'équipe (legacy single-step)
-//  - toggleStep  : { action: 'toggleStep', stepId, completed, response? } — multi-steps v3
-//  - edit        : { action: 'edit', title?, description?, deadline? } — staff d'équipe uniquement
+//  - toggle done       : { action: 'toggle' } — l'assignee ou un staff d'équipe (legacy single-step)
+//  - toggleStep        : { action: 'toggleStep', stepId, completed, response? } — multi-steps v3
+//  - editStepResponse  : { action: 'editStepResponse', stepId, response } — édite réponse step (avant verrouillage)
+//  - lock              : { action: 'lock' } — verrouille l'exo (tous steps doivent être done). Assignee ou staff.
+//  - unlock            : { action: 'unlock' } — déverrouille pour permettre modification. Staff uniquement.
+//  - edit              : { action: 'edit', title?, description?, deadline? } — staff d'équipe uniquement
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; todoId: string }> }
@@ -103,6 +106,11 @@ export async function PATCH(
       return NextResponse.json({ success: true, done: willBeDone });
     }
 
+    // Garde verrouillage : si l'exo est lockedAt set, plus aucune modif de step
+    // (l'assignee a explicitement validé tout l'exo via 'lock'). Le staff peut
+    // forcer la réouverture via 'unlock' avant de re-toggler.
+    const isLocked = typeof data.lockedAt === 'number' && data.lockedAt > 0;
+
     // ── v3 : toggle d'un step individuel ────────────────────────────────────
     // L'assignee ou un staff peut cocher/décocher un step. Si needsResponse,
     // une réponse valide est requise pour passer le step à completed.
@@ -110,6 +118,9 @@ export async function PATCH(
     if (action === 'toggleStep') {
       if (!isAssignee && !isStaff) {
         return NextResponse.json({ error: 'Permissions insuffisantes.' }, { status: 403 });
+      }
+      if (isLocked) {
+        return NextResponse.json({ error: 'Exercice verrouillé. Demande au staff de le déverrouiller.' }, { status: 403 });
       }
       const stepId = typeof body?.stepId === 'string' ? body.stepId.trim() : '';
       if (!stepId) {
@@ -178,6 +189,9 @@ export async function PATCH(
       if (!isAssignee && !isStaff) {
         return NextResponse.json({ error: 'Permissions insuffisantes.' }, { status: 403 });
       }
+      if (isLocked) {
+        return NextResponse.json({ error: 'Exercice verrouillé. Demande au staff de le déverrouiller.' }, { status: 403 });
+      }
       const stepId = typeof body?.stepId === 'string' ? body.stepId.trim() : '';
       if (!stepId) {
         return NextResponse.json({ error: 'stepId manquant.' }, { status: 400 });
@@ -204,6 +218,52 @@ export async function PATCH(
 
       await ref.update({
         steps: nextSteps,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return NextResponse.json({ success: true });
+    }
+
+    // ── v3 : verrouillage de l'exercice (validation globale) ────────────────
+    // L'assignee ou un staff peut verrouiller, MAIS uniquement si tous les
+    // steps sont déjà completed. Une fois locked, plus aucune modif n'est
+    // possible (toggleStep/editStepResponse rejettent), sauf si un staff fait
+    // 'unlock' pour réautoriser la modification.
+    if (action === 'lock') {
+      if (!isAssignee && !isStaff) {
+        return NextResponse.json({ error: 'Permissions insuffisantes.' }, { status: 403 });
+      }
+      if (isLocked) {
+        // idempotent : déjà verrouillé, pas d'erreur
+        return NextResponse.json({ success: true, alreadyLocked: true });
+      }
+      const currentSteps: ExerciseStep[] = getSteps(data);
+      const allDone = currentSteps.length > 0 && currentSteps.every(s => s.completed === true);
+      if (!allDone) {
+        return NextResponse.json({
+          error: 'Toutes les étapes doivent être validées avant de verrouiller.',
+        }, { status: 400 });
+      }
+      await ref.update({
+        lockedAt: FieldValue.serverTimestamp(),
+        lockedBy: uid,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return NextResponse.json({ success: true });
+    }
+
+    // ── v3 : déverrouillage (staff uniquement) ──────────────────────────────
+    // Permet de réautoriser la modification d'un exo déjà verrouillé. Action
+    // réservée au staff pour éviter qu'un joueur unlock après s'être trompé.
+    if (action === 'unlock') {
+      if (!isStaff) {
+        return NextResponse.json({ error: 'Seul le staff peut déverrouiller un exercice.' }, { status: 403 });
+      }
+      if (!isLocked) {
+        return NextResponse.json({ success: true, alreadyUnlocked: true });
+      }
+      await ref.update({
+        lockedAt: null,
+        lockedBy: null,
         updatedAt: FieldValue.serverTimestamp(),
       });
       return NextResponse.json({ success: true });
