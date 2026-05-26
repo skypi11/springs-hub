@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { api, apiForm, ApiError } from '@/lib/api-client';
@@ -12,6 +13,7 @@ import {
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import PendingImagePicker from '@/components/ui/PendingImagePicker';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
+import DiscordIcon, { AEDRAL_DISCORD_INVITE_URL } from '@/components/icons/DiscordIcon';
 
 const LEGAL_STATUSES = [
   { value: 'none', label: 'Aucune' },
@@ -54,6 +56,11 @@ export default function CreateStructurePage() {
   const [error, setError] = useState('');
   const [existingCount, setExistingCount] = useState(0);
   const [loadingExisting, setLoadingExisting] = useState(true);
+  // État succès post-submit : on AFFICHE une page de confirmation avec le lien
+  // Discord en évidence (au lieu de rediriger silencieusement) pour s'assurer
+  // que le demandeur rejoint bien le serveur Discord (sinon Matt ne peut pas
+  // le contacter pour l'entretien de validation).
+  const [submitted, setSubmitted] = useState(false);
 
   // Vérifier les structures existantes du fondateur
   useEffect(() => {
@@ -119,7 +126,11 @@ export default function CreateStructurePage() {
           // logo optionnel et éditable plus tard — on n'interrompt pas le flux
         }
       }
-      router.push('/community?structure_requested=1');
+      // Au lieu de rediriger silencieusement, on affiche une page de confirmation
+      // qui pousse fortement à rejoindre le Discord Aedral (étape nécessaire
+      // pour l'entretien de validation par Matt).
+      setSubmitted(true);
+      setSaving(false);
     } catch (err) {
       console.error('[CreateStructure] submit error:', err);
       setError(err instanceof ApiError ? err.message : 'Erreur réseau.');
@@ -142,6 +153,82 @@ export default function CreateStructurePage() {
           <AlertCircle size={32} className="mx-auto mb-4" style={{ color: 'var(--s-gold)' }} />
           <h2 className="font-display text-2xl mb-2">LIMITE ATTEINTE</h2>
           <p className="t-body">Tu as déjà 2 structures (en attente ou actives). Tu ne peux pas en créer davantage.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Page de confirmation post-submit ──────────────────────────────────
+  // Affichée en plein écran après que la demande a été envoyée. Met le
+  // Discord Aedral en avant car c'est par là que Matt prendra contact pour
+  // l'entretien de validation (sinon il a aucun moyen fiable de joindre
+  // le demandeur — Discord en ami est souvent refusé/ignoré).
+  if (submitted) {
+    return (
+      <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-6 lg:py-8 flex items-center justify-center">
+        <div className="bevel max-w-xl w-full p-8 sm:p-10 relative overflow-hidden animate-fade-in"
+          style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+          <div className="h-[3px] -mx-8 sm:-mx-10 -mt-8 sm:-mt-10 mb-6"
+            style={{ background: 'linear-gradient(90deg, var(--s-gold), var(--s-gold), transparent 80%)' }} />
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center justify-center w-16 h-16 bevel-sm mb-4"
+              style={{ background: 'rgba(47,196,107,0.10)', border: '1px solid rgba(47,196,107,0.30)' }}>
+              <CheckCircle size={28} style={{ color: '#33ff66' }} />
+            </div>
+            <h1 className="font-display text-3xl mb-2" style={{ letterSpacing: '0.03em' }}>
+              DEMANDE ENVOYÉE
+            </h1>
+            <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+              Ta demande de création de structure a bien été reçue par l&apos;équipe Aedral.
+            </p>
+          </div>
+
+          {/* CTA Discord — en évidence avec accent or */}
+          <div className="bevel-sm p-5 mb-5 relative overflow-hidden"
+            style={{ background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.35)' }}>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="flex-shrink-0 w-9 h-9 bevel-sm flex items-center justify-center"
+                style={{ background: 'rgba(88,101,242,0.15)', border: '1px solid rgba(88,101,242,0.35)' }}>
+                <DiscordIcon size={16} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="font-display text-lg mb-1" style={{ color: 'var(--s-gold)', letterSpacing: '0.03em' }}>
+                  ÉTAPE OBLIGATOIRE : REJOINS LE DISCORD AEDRAL
+                </h2>
+                <p className="text-sm" style={{ color: 'var(--s-text)' }}>
+                  Un entretien vocal aura lieu avec l&apos;équipe Aedral avant validation. <strong>Sans Discord on ne peut pas te contacter</strong> — ta demande restera en attente.
+                </p>
+              </div>
+            </div>
+            <a
+              href={AEDRAL_DISCORD_INVITE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-springs btn-primary bevel-sm w-full flex items-center justify-center gap-2"
+            >
+              <DiscordIcon size={14} />
+              <span>Rejoindre le Discord Aedral</span>
+              <ExternalLink size={12} />
+            </a>
+          </div>
+
+          <div className="text-xs space-y-2" style={{ color: 'var(--s-text-muted)' }}>
+            <p>
+              <strong style={{ color: 'var(--s-text-dim)' }}>Prochaines étapes :</strong>
+            </p>
+            <ol className="space-y-1 list-decimal list-inside pl-1">
+              <li>Rejoins le serveur Discord ci-dessus (1 clic, 30 secondes)</li>
+              <li>Présente-toi dans le salon <code className="t-mono px-1" style={{ background: 'var(--s-elevated)', color: 'var(--s-gold)' }}>#bienvenue</code></li>
+              <li>Un dirigeant Aedral te contactera pour l&apos;entretien</li>
+              <li>Une fois validée, ta structure deviendra active</li>
+            </ol>
+          </div>
+
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <Link href="/community" className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+              Retour à la communauté →
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -173,6 +260,35 @@ export default function CreateStructurePage() {
           </p>
         </div>
       </header>
+
+      {/* Bannière Discord — obligatoire pour que Matt puisse contacter le demandeur.
+          Mise en évidence forte (or + icône Discord) pour que personne ne loupe. */}
+      <div className="bevel-sm p-4 flex items-start sm:items-center gap-3 flex-col sm:flex-row animate-fade-in"
+        style={{ background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.35)' }}>
+        <div className="flex-shrink-0 w-10 h-10 bevel-sm flex items-center justify-center"
+          style={{ background: 'rgba(88,101,242,0.15)', border: '1px solid rgba(88,101,242,0.35)' }}>
+          <DiscordIcon size={16} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
+            Avant de soumettre : rejoins le Discord Aedral
+          </p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--s-text-dim)' }}>
+            Un dirigeant te contactera pour l&apos;entretien de validation. <strong>Sans Discord, on ne peut pas te joindre</strong> et ta demande restera en attente.
+          </p>
+        </div>
+        <a
+          href={AEDRAL_DISCORD_INVITE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn-springs btn-primary bevel-sm flex items-center gap-2 flex-shrink-0 w-full sm:w-auto justify-center"
+          style={{ fontSize: '12px', padding: '8px 14px' }}
+        >
+          <DiscordIcon size={12} />
+          <span>Rejoindre Discord</span>
+          <ExternalLink size={11} />
+        </a>
+      </div>
 
       {/* Formulaire */}
       <form onSubmit={handleSubmit} className="space-y-6 animate-fade-in-d1">
