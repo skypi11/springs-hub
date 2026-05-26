@@ -106,7 +106,22 @@ export default function WeekView({
   const todayYmd = parisYmd(new Date(now));
   const [weekMonday, setWeekMonday] = useState(() => getMondayYmd(todayYmd));
   // Joueur isolé : si défini, la heatmap n'affiche que ses créneaux à lui.
-  const [soloMember, setSoloMember] = useState<string | null>(null);
+  // v3 (2026-05-26) : sélection multi-joueurs (remplace l'ancien `soloMember`).
+  // Quand des joueurs sont cochés :
+  //   - la heatmap se filtre sur eux uniquement
+  //   - les blocs consensus sont recalculés en INTERSECTION (tous dispos en même temps)
+  // Si Set vide = toute l'équipe (comportement original).
+  const [selectedPlayerUids, setSelectedPlayerUids] = useState<Set<string>>(() => new Set());
+  function togglePlayerPick(uid: string) {
+    setSelectedPlayerUids(prev => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid); else next.add(uid);
+      return next;
+    });
+  }
+  function clearPlayerPick() {
+    setSelectedPlayerUids(new Set());
+  }
 
   // Sélecteur staff (refonte Matt 2026-05-25) : au lieu d'un toggle global
   // qui affichait tous les staff sans distinction, on coche staff par staff.
@@ -202,13 +217,14 @@ export default function WeekView({
     [avail],
   );
 
-  // Compte de titulaires dispos par slot (séparé du compte total) — pour la
-  // palette : seul le palier OR exige "tous les titulaires présents".
+  // Compte de titulaires dispos par slot — utilisé pour le palier "tous titulaires"
+  // de la heatmap. Si des joueurs sont sélectionnés, on filtre dessus.
   const titularsBySlot = useMemo(() => {
     const map = new Map<string, number>();
     if (!avail || !availWeek) return map;
     for (const m of avail.members) {
       if (!m.isTitulaire) continue;
+      if (selectedPlayerUids.size > 0 && !selectedPlayerUids.has(m.uid)) continue;
       const conflicts = new Set(m.conflictSlots);
       for (const s of m.slotsByWeek[weekMonday] ?? []) {
         if (conflicts.has(s)) continue;
@@ -216,7 +232,7 @@ export default function WeekView({
       }
     }
     return map;
-  }, [avail, availWeek, weekMonday]);
+  }, [avail, availWeek, weekMonday, selectedPlayerUids]);
 
   // Dispos staff par slot (overlay bleu clair) — filtré sur Coach équipe +
   // Manager équipe + Coach structure (validé Matt Q3 — pas les responsables
@@ -254,10 +270,12 @@ export default function WeekView({
   }, [avail, availWeek, weekMonday, relevantStaff, selectedStaffUids]);
 
   // Heatmap : pour chaque slot iso, qui est dispo (hors conflit d'event).
+  // Si des joueurs sont sélectionnés, on ne compte qu'eux.
   const availabilityBySlot = useMemo(() => {
     const map = new Map<string, string[]>();
     if (!avail || !availWeek) return map;
     for (const m of avail.members) {
+      if (selectedPlayerUids.size > 0 && !selectedPlayerUids.has(m.uid)) continue;
       const conflicts = new Set(m.conflictSlots);
       for (const s of m.slotsByWeek[weekMonday] ?? []) {
         if (conflicts.has(s)) continue;
@@ -267,7 +285,83 @@ export default function WeekView({
       }
     }
     return map;
-  }, [avail, availWeek, weekMonday]);
+  }, [avail, availWeek, weekMonday, selectedPlayerUids]);
+
+  // Nombre effectif de titulaires considérés — pour le palier "tous dispos".
+  // Si sélection active : compte des sélectionnés qui sont titulaires.
+  // Sinon : compte total des titulaires de l'équipe.
+  const titularsTotalEffective = useMemo(() => {
+    if (!avail) return 0;
+    if (selectedPlayerUids.size === 0) return titularsTotal;
+    return avail.members.filter(m => m.isTitulaire && selectedPlayerUids.has(m.uid)).length;
+  }, [avail, selectedPlayerUids, titularsTotal]);
+
+  // Blocs consensus EFFECTIFS — soit ceux pré-calculés serveur (toute l'équipe),
+  // soit recalculés en INTERSECTION quand des joueurs sont sélectionnés.
+  // Intersection = tous les sélectionnés doivent être dispos sur le slot.
+  const effectiveBlocks = useMemo<MatchBlock[]>(() => {
+    if (!avail || !availWeek) return [];
+    if (selectedPlayerUids.size === 0) return availWeek.blocks;
+
+    // Slot durée min en nombre de créneaux 30min
+    const minSlots = Math.ceil(avail.team.minMatchDurationMinutes / 30);
+    if (minSlots <= 0) return [];
+
+    // Pour chaque slot, vérifier que TOUS les sélectionnés sont dispos
+    const targets = avail.members.filter(m => selectedPlayerUids.has(m.uid));
+    if (targets.length === 0) return [];
+
+    const targetSlots = targets.map(m => ({
+      slots: new Set(m.slotsByWeek[weekMonday] ?? []),
+      conflicts: new Set(m.conflictSlots),
+    }));
+
+    // Récolte tous les slots OK (intersection), triés par ordre ISO
+    const okSlots: string[] = [];
+    const firstSlots = targetSlots[0].slots;
+    for (const iso of firstSlots) {
+      if (targetSlots[0].conflicts.has(iso)) continue;
+      const allOk = targetSlots.every(t => t.slots.has(iso) && !t.conflicts.has(iso));
+      if (allOk) okSlots.push(iso);
+    }
+    okSlots.sort();
+
+    // Groupe les slots contigus (+30 min) en blocs
+    const blocks: MatchBlock[] = [];
+    let current: string[] = [];
+    const targetUids = targets.map(t => t.uid);
+    for (const iso of okSlots) {
+      if (current.length === 0) {
+        current.push(iso);
+      } else {
+        const last = current[current.length - 1];
+        const lastTs = new Date(last).getTime();
+        const nextTs = new Date(iso).getTime();
+        if (nextTs - lastTs === 30 * 60_000) {
+          current.push(iso);
+        } else {
+          if (current.length >= minSlots) {
+            blocks.push({
+              startSlot: current[0],
+              endSlot: current[current.length - 1],
+              durationMinutes: current.length * 30,
+              playerIds: targetUids,
+            });
+          }
+          current = [iso];
+        }
+      }
+    }
+    if (current.length >= minSlots) {
+      blocks.push({
+        startSlot: current[0],
+        endSlot: current[current.length - 1],
+        durationMinutes: current.length * 30,
+        playerIds: targetUids,
+      });
+    }
+    return blocks;
+  }, [avail, availWeek, weekMonday, selectedPlayerUids]);
 
   const memberName = useMemo(() => {
     const m = new Map<string, string>();
@@ -381,15 +475,15 @@ export default function WeekView({
           </div>
         )}
 
-        {/* Toggle Heatmap consensus — visible uniquement si une équipe est sélectionnée
-            (sinon il n'y a pas de heatmap à toggler). Permet de voir uniquement les
-            pastilles staff sans pollution colorée. */}
+        {/* Toggle CONSENSUS — masque uniquement les blocs encadrés or (les créneaux
+            où ≥ minPlayers sont dispos en continu). La heatmap reste visible.
+            Utile pour voir uniquement les dispos brutes sans validation. */}
         {availActive && (
           <button type="button" onClick={toggleConsensus}
             className="bevel-sm transition-colors hover:bg-[var(--s-hover)]"
             title={consensusVisible
-              ? 'Masquer la heatmap consensus pour voir uniquement les dispos staff'
-              : 'Afficher la heatmap consensus (gris/vert/or)'}
+              ? 'Masquer les blocs consensus encadrés or'
+              : 'Afficher les blocs consensus (créneaux où l\'équipe peut jouer ensemble)'}
             style={{
               padding: '5px 10px',
               fontSize: '12px',
@@ -400,7 +494,7 @@ export default function WeekView({
               textTransform: 'uppercase',
               letterSpacing: '0.04em',
             }}>
-            Heatmap : {consensusVisible ? 'ON' : 'OFF'}
+            Consensus : {consensusVisible ? 'ON' : 'OFF'}
           </button>
         )}
 
@@ -470,26 +564,32 @@ export default function WeekView({
                   {TIME_AXIS.map((t, idx) => {
                     const iso = day.slots[idx];
                     const availUids = availActive ? (availabilityBySlot.get(iso) ?? []) : [];
-                    const shown = soloMember
-                      ? (availUids.includes(soloMember) ? 1 : 0)
-                      : availUids.length;
+                    // En mode sélection, availUids est DÉJÀ filtré sur les sélectionnés
+                    // (cf. availabilityBySlot), donc shown = nombre brut.
+                    const shown = availUids.length;
                     const total = avail?.members.length ?? 0;
                     const minPlayers = avail?.team.minPlayersForMatch ?? 0;
                     const titularDispoCount = titularsBySlot.get(iso) ?? 0;
-                    const heat = availActive && shown > 0 && consensusVisible;
+                    // Palette refondue 2026-05-26 : OR strictement réservé aux BLOCS CONSENSUS
+                    // (encadrés). La heatmap reste sur des paliers gris/vert clair/vert vif —
+                    // jamais d'or → plus aucune confusion visuelle avec les blocs consensus.
+                    // Si des joueurs sont sélectionnés : palier "tous dispos" = tous LES SÉLECTIONNÉS,
+                    // pas toute l'équipe. Sinon (rien sélectionné) : tous les titulaires.
+                    const heat = availActive && shown > 0;
                     let heatBg: string | undefined;
                     if (heat) {
-                      if (soloMember) {
-                        // Mode solo : on isole 1 joueur → halo or atténué pour visualiser ses créneaux.
-                        heatBg = 'rgba(255,184,0,0.35)';
-                      } else if (titularsTotal > 0 && titularDispoCount >= titularsTotal) {
-                        // Tous les titulaires dispos → OR (créneau optimal).
-                        heatBg = 'rgba(255,184,0,0.45)';
-                      } else if (minPlayers > 0 && shown >= minPlayers) {
-                        // Matchable → VERT.
-                        heatBg = 'rgba(47,196,107,0.35)';
+                      const isSelectionMode = selectedPlayerUids.size > 0;
+                      const allTargetsDispo = isSelectionMode
+                        ? shown >= selectedPlayerUids.size
+                        : (titularsTotalEffective > 0 && titularDispoCount >= titularsTotalEffective);
+                      if (allTargetsDispo) {
+                        // Tous les cibles dispos → VERT VIF (créneau optimal pour le set ciblé).
+                        heatBg = 'rgba(47,196,107,0.55)';
+                      } else if (!isSelectionMode && minPlayers > 0 && shown >= minPlayers) {
+                        // Matchable (≥ minPlayers) — uniquement en mode équipe entière.
+                        heatBg = 'rgba(47,196,107,0.28)';
                       } else {
-                        // Insuffisant mais ≥ 1 → neutre clair (subtle, indique que qq'un est là).
+                        // Insuffisant mais ≥ 1 → neutre clair (qq'un est là).
                         heatBg = 'rgba(255,255,255,0.08)';
                       }
                     }
@@ -548,8 +648,10 @@ export default function WeekView({
                     );
                   })}
 
-                  {/* Blocs consensus (contour) — masqués quand toggle off */}
-                  {consensusVisible && availActive && availWeek && availWeek.blocks.map((b, bi) => {
+                  {/* Blocs consensus (contour OR) — masqués quand toggle off.
+                      Utilise effectiveBlocks : toute l'équipe par défaut, OU intersection
+                      des joueurs sélectionnés. */}
+                  {consensusVisible && availActive && effectiveBlocks.map((b, bi) => {
                     const range = blockRange(b, day.slots);
                     if (!range) return null;
                     return (
@@ -626,54 +728,71 @@ export default function WeekView({
               </p>
             ) : (
               <div className="p-2 space-y-3">
-                {/* Joueurs — clic pour isoler ses dispos dans la grille */}
+                {/* Joueurs — checkbox pour multi-sélection.
+                    Heatmap + consensus se recalculent sur les joueurs cochés (intersection).
+                    Aucun coché = toute l'équipe (comportement par défaut). */}
                 <div className="space-y-1">
-                  <button type="button" onClick={() => setSoloMember(null)}
+                  <button type="button" onClick={clearPlayerPick}
                     className="w-full flex items-center gap-2 transition-colors hover:bg-[var(--s-hover)]"
                     style={{
                       padding: '4px 6px',
-                      background: soloMember === null ? 'rgba(255,184,0,0.12)' : 'transparent',
-                      border: `1px solid ${soloMember === null ? 'rgba(255,184,0,0.35)' : 'var(--s-border)'}`,
+                      background: selectedPlayerUids.size === 0 ? 'rgba(47,196,107,0.10)' : 'transparent',
+                      border: `1px solid ${selectedPlayerUids.size === 0 ? 'rgba(47,196,107,0.30)' : 'var(--s-border)'}`,
                     }}>
-                    <Users size={12} style={{ color: 'var(--s-gold)' }} />
+                    <Users size={12} style={{ color: selectedPlayerUids.size === 0 ? '#33ff66' : 'var(--s-text-dim)' }} />
                     <span style={{ fontSize: 12, color: 'var(--s-text)' }}>Toute l&apos;équipe</span>
+                    {selectedPlayerUids.size > 0 && (
+                      <span className="ml-auto text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                        réinit
+                      </span>
+                    )}
                   </button>
                   {(avail?.members ?? []).map(m => {
                     const count = (m.slotsByWeek[weekMonday] ?? [])
                       .filter(s => !m.conflictSlots.includes(s)).length;
-                    const active = soloMember === m.uid;
+                    const checked = selectedPlayerUids.has(m.uid);
                     return (
-                      <button key={m.uid} type="button"
-                        onClick={() => setSoloMember(active ? null : m.uid)}
-                        className="w-full flex items-center gap-2 transition-colors hover:bg-[var(--s-hover)]"
+                      <label key={m.uid}
+                        className="w-full flex items-center gap-2 transition-colors hover:bg-[var(--s-hover)] cursor-pointer"
                         style={{
                           padding: '4px 6px',
-                          background: active ? 'rgba(255,184,0,0.12)' : 'transparent',
-                          border: `1px solid ${active ? 'rgba(255,184,0,0.35)' : 'var(--s-border)'}`,
+                          background: checked ? 'rgba(47,196,107,0.10)' : 'transparent',
+                          border: `1px solid ${checked ? 'rgba(47,196,107,0.30)' : 'var(--s-border)'}`,
                         }}>
+                        <input type="checkbox"
+                          checked={checked}
+                          onChange={() => togglePlayerPick(m.uid)}
+                          className="cursor-pointer flex-shrink-0"
+                          style={{ accentColor: '#33ff66', width: 12, height: 12 }} />
                         <span className="flex-shrink-0" style={{
                           width: 6, height: 6,
                           background: m.isTitulaire ? 'var(--s-gold)' : 'var(--s-text-muted)',
-                        }} />
+                        }} title={m.isTitulaire ? 'Titulaire' : 'Remplaçant'} />
                         <span className="truncate flex-1 text-left" style={{ fontSize: 12, color: 'var(--s-text)' }}>
                           {m.displayName}
                         </span>
                         <span className="t-mono flex-shrink-0" style={{ fontSize: 12, color: 'var(--s-text-dim)' }}>
                           {count > 0 ? `${count / 2}h` : '—'}
                         </span>
-                      </button>
+                      </label>
                     );
                   })}
                 </div>
 
-                {/* Consensus de la semaine */}
+                {/* Consensus de la semaine — utilise effectiveBlocks
+                    (toute l'équipe par défaut, ou intersection si joueurs sélectionnés) */}
                 <div>
                   <div className="t-label mb-1.5" style={{ color: 'var(--s-text-muted)' }}>
                     Créneaux consensus
+                    {selectedPlayerUids.size > 0 && (
+                      <span className="ml-1" style={{ color: 'var(--s-gold)' }}>
+                        · {selectedPlayerUids.size} joueur{selectedPlayerUids.size > 1 ? 's' : ''} sélectionné{selectedPlayerUids.size > 1 ? 's' : ''}
+                      </span>
+                    )}
                   </div>
-                  {availWeek && availWeek.blocks.length > 0 ? (
+                  {effectiveBlocks.length > 0 ? (
                     <div className="space-y-1">
-                      {availWeek.blocks.map((b, bi) => (
+                      {effectiveBlocks.map((b, bi) => (
                         <div key={bi} className="flex items-center gap-1.5"
                           style={{ padding: '3px 6px', background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.25)' }}>
                           <Check size={11} style={{ color: 'var(--s-gold)', flexShrink: 0 }} />
@@ -718,26 +837,27 @@ export default function WeekView({
         )}
       </div>
 
-      {/* Légende — visible quand une équipe est sélectionnée pour rappeler les codes couleur */}
+      {/* Légende — palette refondue : or strictement réservé aux blocs consensus,
+          heatmap en paliers de vert (pas d'or pour éviter la confusion visuelle) */}
       {availActive && (
         <div className="flex items-center gap-4 flex-wrap text-xs pt-1"
           style={{ color: 'var(--s-text-muted)' }}>
           <span className="font-bold uppercase tracking-wider" style={{ letterSpacing: '0.08em' }}>Légende :</span>
+          <LegendItem swatch={{ background: 'rgba(47,196,107,0.55)' }} label={selectedPlayerUids.size > 0 ? 'Tous sélectionnés dispo' : 'Tous titulaires dispo'} />
+          {selectedPlayerUids.size === 0 && (
+            <LegendItem swatch={{ background: 'rgba(47,196,107,0.28)' }} label={`≥ ${avail?.team.minPlayersForMatch ?? '?'} dispo (matchable)`} />
+          )}
+          <LegendItem swatch={{ background: 'rgba(255,255,255,0.08)' }} label="1 ou + (insuffisant)" />
+          <LegendItem swatch={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }} label="Personne" />
           {consensusVisible && (
-            <>
-              <LegendItem swatch={{ background: 'rgba(255,184,0,0.45)' }} label="Tous titulaires" />
-              <LegendItem swatch={{ background: 'rgba(47,196,107,0.35)' }} label={`≥ ${avail?.team.minPlayersForMatch ?? '?'} dispo (matchable)`} />
-              <LegendItem swatch={{ background: 'rgba(255,255,255,0.08)' }} label="1 ou + (insuffisant)" />
-              <LegendItem swatch={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }} label="Personne" />
-              <LegendItem swatch={{ background: 'transparent', border: '1.5px solid var(--s-gold)' }} label="Bloc consensus" />
-            </>
+            <LegendItem swatch={{ background: 'transparent', border: '1.5px solid var(--s-gold)' }} label="Bloc consensus (or)" />
           )}
           {selectedStaffUids.size > 0 && (
             <>
-              {consensusVisible && <span style={{ color: 'var(--s-text-dim)' }}>·</span>}
+              <span style={{ color: 'var(--s-text-dim)' }}>·</span>
               <span className="inline-flex items-center gap-1.5">
                 <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#87cefa', boxShadow: '0 0 0 1px rgba(0,0,0,0.35)' }} />
-                <span>Pastille staff (couleur par personne)</span>
+                <span>Pastille staff</span>
               </span>
             </>
           )}
