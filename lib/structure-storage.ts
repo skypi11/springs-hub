@@ -2,39 +2,50 @@
 // Lit les tailles depuis Firestore (champ `sizeBytes` sur les docs ready), pas
 // depuis R2 (plus rapide, plus précis : un upload pending ne compte pas).
 //
-// Le quota est de STRUCTURE_STORAGE_QUOTA_BYTES en free tier, bumpé à
-// STRUCTURE_STORAGE_QUOTA_BYTES_PREMIUM quand `structures.{id}.premium === true`.
-// Voir docs/rl-rank-verification-plan.md (section freemium storage).
+// Le quota dépend du PLAN de la structure (free vs pro). Source de vérité dans
+// lib/plan-limits.ts. Legacy `premium: true` → 'pro' via getStructurePlan().
 
 import type { Firestore } from 'firebase-admin/firestore';
-import { UPLOAD_LIMITS } from '@/lib/upload-limits';
+import { getStructurePlan, getLimit, type StructurePlan } from '@/lib/plan-limits';
 
 export interface StructureStorageUsage {
   docsBytes: number;
   replaysBytes: number;
   totalBytes: number;
   quotaBytes: number;
-  premium: boolean;
+  plan: StructurePlan;
+  premium: boolean;             // @deprecated — alias rétrocompat de `plan === 'pro'`
   remainingBytes: number;
 }
 
-// Lit le flag premium d'une structure. False par défaut (clé absente ou false).
+// Lit le plan d'une structure (avec fallback legacy `premium: true` → 'pro').
+export async function getStructurePlanFromDb(
+  db: Firestore,
+  structureId: string,
+): Promise<StructurePlan> {
+  try {
+    const snap = await db.collection('structures').doc(structureId).get();
+    return getStructurePlan(snap.data() ?? null);
+  } catch {
+    return 'free';
+  }
+}
+
+// @deprecated — alias rétrocompat pour les call sites pas encore migrés.
+// Préférer getStructurePlanFromDb() qui renvoie le plan typé directement.
 export async function isStructurePremium(
   db: Firestore,
   structureId: string,
 ): Promise<boolean> {
-  try {
-    const snap = await db.collection('structures').doc(structureId).get();
-    return snap.data()?.premium === true;
-  } catch {
-    return false;
-  }
+  return (await getStructurePlanFromDb(db, structureId)) === 'pro';
 }
 
-export function getStructureQuotaBytes(premium: boolean): number {
-  return premium
-    ? UPLOAD_LIMITS.STRUCTURE_STORAGE_QUOTA_BYTES_PREMIUM
-    : UPLOAD_LIMITS.STRUCTURE_STORAGE_QUOTA_BYTES;
+export function getStructureQuotaBytes(planOrPremium: StructurePlan | boolean): number {
+  // Accepte les 2 signatures pendant la transition (anciens appels passent un boolean)
+  const plan: StructurePlan = typeof planOrPremium === 'boolean'
+    ? (planOrPremium ? 'pro' : 'free')
+    : planOrPremium;
+  return getLimit(plan, 'storageBytes');
 }
 
 // Calcule l'usage actuel + le quota applicable + le restant.
@@ -43,10 +54,10 @@ export async function computeStructureStorageUsage(
   db: Firestore,
   structureId: string,
 ): Promise<StructureStorageUsage> {
-  const [docsSnap, replaysSnap, premium] = await Promise.all([
+  const [docsSnap, replaysSnap, plan] = await Promise.all([
     db.collection('structure_documents').where('structureId', '==', structureId).get(),
     db.collection('replays').where('structureId', '==', structureId).get(),
-    isStructurePremium(db, structureId),
+    getStructurePlanFromDb(db, structureId),
   ]);
 
   const sumReady = (snap: FirebaseFirestore.QuerySnapshot): number =>
@@ -60,13 +71,14 @@ export async function computeStructureStorageUsage(
   const docsBytes = sumReady(docsSnap);
   const replaysBytes = sumReady(replaysSnap);
   const totalBytes = docsBytes + replaysBytes;
-  const quotaBytes = getStructureQuotaBytes(premium);
+  const quotaBytes = getStructureQuotaBytes(plan);
   return {
     docsBytes,
     replaysBytes,
     totalBytes,
     quotaBytes,
-    premium,
+    plan,
+    premium: plan === 'pro',
     remainingBytes: Math.max(0, quotaBytes - totalBytes),
   };
 }
@@ -82,8 +94,8 @@ export async function checkStructureStorageQuota(
   if (usage.totalBytes + sizeBytes <= usage.quotaBytes) return null;
 
   const mb = (n: number) => Math.round(n / (1024 * 1024));
-  if (usage.premium) {
-    return `Limite premium atteinte (${mb(usage.totalBytes)} / ${mb(usage.quotaBytes)} MB). Libère de la place en supprimant d'anciens fichiers.`;
+  if (usage.plan === 'pro') {
+    return `Limite Pro atteinte (${mb(usage.totalBytes)} / ${mb(usage.quotaBytes)} MB). Libère de la place en supprimant d'anciens fichiers.`;
   }
-  return `Limite de stockage atteinte (${mb(usage.totalBytes)} / ${mb(usage.quotaBytes)} MB). Supprime d'anciens fichiers, ou passe en premium (5 GB).`;
+  return `Limite de stockage atteinte (${mb(usage.totalBytes)} / ${mb(usage.quotaBytes)} MB). Supprime d'anciens fichiers, ou passe en Pro (5 GB).`;
 }

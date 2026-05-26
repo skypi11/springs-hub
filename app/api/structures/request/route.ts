@@ -119,6 +119,9 @@ export async function POST(req: NextRequest) {
       managerIds: [],
       coachIds: [],
       status: 'pending_validation',
+      // Plan freemium par défaut : 'free'. Sera switché en 'pro' manuellement
+      // par un admin ou via webhook subscription (cf. lib/plan-limits.ts).
+      plan: 'free',
       requestedAt: FieldValue.serverTimestamp(),
       createdAt: FieldValue.serverTimestamp(),
     };

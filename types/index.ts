@@ -156,6 +156,11 @@ export interface Structure {
   coachIds?: string[];
   // Préavis de départ co-fondateur (7 jours) — clé = uid, valeur = timestamp du dépôt
   coFounderDepartures?: Record<string, Date | string | number>;
+  // Plan freemium (préparation backend — pas encore exposé UI / payant).
+  // Source de vérité : lib/plan-limits.ts (getStructurePlan + getLimit).
+  // Legacy : `premium: true` (boolean) maps vers `plan: 'pro'` via getStructurePlan.
+  plan?: 'free' | 'pro';
+  premium?: boolean;            // @deprecated — utiliser `plan` à la place
   // Statut
   status: 'pending_validation' | 'active' | 'suspended' | 'deletion_scheduled' | 'orphaned';
   reviewComment?: string;       // commentaire admin (approbation/refus)
