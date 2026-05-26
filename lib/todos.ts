@@ -111,6 +111,143 @@ export type TodoResponse =
   | ({ type: 'scouting' } & ScoutingResponse)
   | ({ type: 'mental_checkin' } & MentalCheckinResponse);
 
+// ---------- EXERCICES MULTI-STEPS (v3 — 2026-05-26) ----------
+//
+// Un exercice n'est plus un type+config unique mais une LISTE de steps,
+// chaque step ayant son propre type/config/réponse/état completed.
+//
+// Stratégie compat ascendante :
+//   - Les anciens docs (sans `steps[]`) sont automatiquement vus comme un
+//     exo à 1 step via `getSteps()` (wrap { type, config, response, done } legacy).
+//   - Les nouveaux docs sont écrits avec `steps[]` ET maintenir `type='free'`
+//     + `config={}` au top-level pour les composants pas encore migrés.
+//   - Le champ top-level `done` est toujours maintenu (calculé = tous steps
+//     completed) pour le tri/comptage rapide sans avoir à lire `steps`.
+
+export const TODO_MAX_STEPS = 10;
+
+export interface ExerciseStep {
+  id: string;                              // uuid local (drag&drop + cocher individuellement)
+  type: TodoType;                           // un des TODO_TYPES
+  label?: string;                           // titre custom optionnel (sinon TODO_TYPE_META[type].label)
+  config: Record<string, unknown>;          // config spécifique au type (mêmes validateurs que `config` legacy)
+  // ── État côté joueur ────────────────────────────────────────────────────
+  response?: Record<string, unknown> | null; // réponse (si TODO_TYPE_META[type].needsResponse)
+  completed?: boolean;                       // case cochée par le joueur
+  completedAt?: number | null;               // ms epoch
+  completedBy?: string | null;
+}
+
+// Lecture défensive : renvoie toujours un tableau de steps, même pour les
+// anciens docs single-type (wrap en 1 step legacy).
+export function getSteps(todo: { steps?: unknown; type?: unknown; config?: unknown; response?: unknown; done?: unknown; doneAt?: unknown; doneBy?: unknown; title?: unknown }): ExerciseStep[] {
+  if (Array.isArray(todo.steps) && todo.steps.length > 0) {
+    return todo.steps.filter((s): s is ExerciseStep =>
+      !!s && typeof s === 'object' && typeof (s as ExerciseStep).id === 'string'
+    );
+  }
+  // Legacy : wrap l'ancien { type, config, response } en un step unique.
+  const legacyType: TodoType = (typeof todo.type === 'string' && (TODO_TYPES as readonly string[]).includes(todo.type))
+    ? todo.type as TodoType
+    : 'free';
+  return [{
+    id: 'legacy',
+    type: legacyType,
+    config: (todo.config && typeof todo.config === 'object' ? todo.config : {}) as Record<string, unknown>,
+    response: (todo.response && typeof todo.response === 'object' ? todo.response : null) as Record<string, unknown> | null,
+    completed: todo.done === true,
+    completedAt: typeof todo.doneAt === 'number' ? todo.doneAt : null,
+    completedBy: typeof todo.doneBy === 'string' ? todo.doneBy : null,
+  }];
+}
+
+export type TodoStatus = 'pending' | 'in_progress' | 'done';
+
+// Calcule le statut global d'un exercice à partir de ses steps.
+// - 'done'        : TOUS les steps completed
+// - 'in_progress' : au moins 1 step completed mais pas tous
+// - 'pending'    : 0 step completed
+export function computeTodoStatus(todo: Parameters<typeof getSteps>[0]): TodoStatus {
+  const steps = getSteps(todo);
+  if (steps.length === 0) return 'pending';
+  const doneCount = steps.filter(s => s.completed === true).length;
+  if (doneCount === 0) return 'pending';
+  if (doneCount === steps.length) return 'done';
+  return 'in_progress';
+}
+
+// Compteur affiché dans les cards : "2/4 étapes".
+export function getStepProgress(todo: Parameters<typeof getSteps>[0]): { done: number; total: number } {
+  const steps = getSteps(todo);
+  return { done: steps.filter(s => s.completed === true).length, total: steps.length };
+}
+
+// Valide + normalise un step côté création/édition.
+export function validateExerciseStep(
+  raw: unknown,
+): { ok: true; value: ExerciseStep } | { ok: false; error: string } {
+  if (!raw || typeof raw !== 'object') return { ok: false, error: 'Step invalide.' };
+  const r = raw as Record<string, unknown>;
+
+  const id = typeof r.id === 'string' && r.id.trim()
+    ? r.id.trim().slice(0, 64)
+    : `step-${Math.random().toString(36).slice(2, 10)}`;
+
+  const type: TodoType = (typeof r.type === 'string' && (TODO_TYPES as readonly string[]).includes(r.type))
+    ? r.type as TodoType
+    : 'free';
+
+  const configResult = validateTodoConfig(type, r.config);
+  if (!configResult.ok) return { ok: false, error: `Step "${type}" : ${configResult.error}` };
+
+  const step: ExerciseStep = {
+    id,
+    type,
+    config: configResult.value,
+    completed: false,
+  };
+  if (typeof r.label === 'string' && r.label.trim()) {
+    step.label = r.label.trim().slice(0, TODO_TITLE_MAX);
+  }
+  return { ok: true, value: step };
+}
+
+// Valide une liste de steps pour création/édition d'exercice.
+export function validateSteps(
+  raw: unknown,
+): { ok: true; value: ExerciseStep[] } | { ok: false; error: string } {
+  if (!Array.isArray(raw)) return { ok: false, error: 'Les steps doivent être un tableau.' };
+  if (raw.length === 0) return { ok: false, error: 'Au moins une étape requise.' };
+  if (raw.length > TODO_MAX_STEPS) return { ok: false, error: `Trop d'étapes (max ${TODO_MAX_STEPS}).` };
+  const steps: ExerciseStep[] = [];
+  const seenIds = new Set<string>();
+  for (const r of raw) {
+    const res = validateExerciseStep(r);
+    if (!res.ok) return res;
+    // Garantir l'unicité des ids dans le tableau
+    let finalId = res.value.id;
+    while (seenIds.has(finalId)) {
+      finalId = `${res.value.id}-${Math.random().toString(36).slice(2, 6)}`;
+    }
+    seenIds.add(finalId);
+    steps.push({ ...res.value, id: finalId });
+  }
+  return { ok: true, value: steps };
+}
+
+// Validation de la réponse d'un step (utilisée à l'API PATCH toggleStep).
+// Délègue à validateTodoResponse selon le type du step.
+export function validateStepResponse(
+  stepType: TodoType,
+  raw: unknown,
+): { ok: true; value: Record<string, unknown> | null } | { ok: false; error: string } {
+  // Pour les types sans réponse, on accepte null/undefined.
+  if (!TODO_TYPE_META[stepType].needsResponse) {
+    return { ok: true, value: null };
+  }
+  return validateTodoResponse(stepType, raw);
+}
+
 // ---------- TodoRef ----------
 
 export interface TodoRef {
@@ -121,15 +258,18 @@ export interface TodoRef {
   type: TodoType;
   title: string;
   description: string;
-  config: Record<string, unknown>; // sérialisé tel quel depuis Firestore
+  config: Record<string, unknown>; // sérialisé tel quel depuis Firestore (legacy — vide pour les exos multi-step)
   response: Record<string, unknown> | null;
+  // Nouveau format multi-steps (2026-05-26). Si absent, l'exo est un legacy
+  // single-type wrap automatiquement en 1 step via getSteps().
+  steps?: ExerciseStep[];
   eventId: string | null;
   deadline: string | null;  // "YYYY-MM-DD" ou null — jour de la deadline en heure Paris (pour affichage + tri secondaire)
   deadlineAt: number | null; // ms epoch — moment exact où la deadline tombe (source de vérité pour isOverdue/tri)
   deadlineMode: DeadlineMode | null;  // null = pas de deadline ; 'absolute' = fixée ; 'relative' = calée sur event.startsAt
   deadlineOffsetDays: number | null;  // uniquement si mode='relative' — N jours autour de event.startsAt (0 = au début de l'event)
-  done: boolean;
-  doneAt: number | null;    // ms epoch
+  done: boolean;            // calculé = tous les steps completed (maintenu top-level pour le tri/count rapide)
+  doneAt: number | null;    // ms epoch — instant où le dernier step a été coché
   doneBy: string | null;
   createdBy: string;
   createdAt: number;        // ms epoch
@@ -138,6 +278,10 @@ export interface TodoRef {
 export interface CreateTodoInput {
   subTeamId: unknown;
   assigneeIds: unknown;
+  // Nouveau format multi-steps. Si fourni, prend le pas sur type+config.
+  steps?: unknown;
+  // Format legacy (rétrocompat, encore utilisé par seed dev et anciens clients).
+  // Si steps[] absent, on wrap type+config en un step unique en aval.
   type?: unknown;
   title: unknown;
   description?: unknown;
@@ -152,6 +296,12 @@ export interface CreateTodoInput {
 export interface ValidatedTodoInput {
   subTeamId: string;
   assigneeIds: string[];
+  // Source de vérité v3 : la liste des steps. Toujours présente après validation
+  // (les inputs legacy single-type sont wrappés en 1 step ici).
+  steps: ExerciseStep[];
+  // Champs legacy maintenus pour rétrocompat des composants/cron pas encore migrés.
+  // - `type` = type du 1er step (ou 'free')
+  // - `config` = config du 1er step (peu utile mais évite undefined)
   type: TodoType;
   title: string;
   description: string;
@@ -438,12 +588,6 @@ export function validateCreateTodo(
     return { ok: false, error: 'Aucun joueur valide assigné.' };
   }
 
-  // type — rétrocompat : absent ou invalide → 'free'
-  let type: TodoType = 'free';
-  if (typeof input.type === 'string' && (TODO_TYPES as readonly string[]).includes(input.type)) {
-    type = input.type as TodoType;
-  }
-
   if (typeof input.title !== 'string' || !input.title.trim()) {
     return { ok: false, error: 'Le titre est obligatoire.' };
   }
@@ -454,8 +598,31 @@ export function validateCreateTodo(
     description = input.description.trim().slice(0, TODO_DESCRIPTION_MAX);
   }
 
-  const configResult = validateTodoConfig(type, input.config);
-  if (!configResult.ok) return { ok: false, error: configResult.error };
+  // Résolution steps : nouveau format prioritaire, fallback wrap legacy single-type.
+  let steps: ExerciseStep[];
+  if (input.steps !== undefined && input.steps !== null) {
+    const stepsResult = validateSteps(input.steps);
+    if (!stepsResult.ok) return { ok: false, error: stepsResult.error };
+    steps = stepsResult.value;
+  } else {
+    // Legacy : on wrap { type, config } en un seul step.
+    let legacyType: TodoType = 'free';
+    if (typeof input.type === 'string' && (TODO_TYPES as readonly string[]).includes(input.type)) {
+      legacyType = input.type as TodoType;
+    }
+    const configResult = validateTodoConfig(legacyType, input.config);
+    if (!configResult.ok) return { ok: false, error: configResult.error };
+    steps = [{
+      id: `step-${Math.random().toString(36).slice(2, 10)}`,
+      type: legacyType,
+      config: configResult.value,
+      completed: false,
+    }];
+  }
+
+  // Type/config top-level maintenus pour compat ascendante des lecteurs legacy.
+  const type: TodoType = steps[0].type;
+  const config: Record<string, unknown> = steps[0].config;
 
   let eventId: string | null = null;
   if (typeof input.eventId === 'string' && input.eventId.trim()) {
@@ -501,8 +668,7 @@ export function validateCreateTodo(
   return {
     ok: true,
     value: {
-      subTeamId, assigneeIds, type, title, description,
-      config: configResult.value,
+      subTeamId, assigneeIds, steps, type, title, description, config,
       eventId, deadline, deadlineAt, deadlineMode, deadlineOffsetDays,
       postToChannel,
     },

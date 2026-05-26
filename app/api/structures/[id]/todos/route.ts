@@ -52,7 +52,7 @@ export async function POST(
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
     const {
-      subTeamId, assigneeIds, type, title, description, config,
+      subTeamId, assigneeIds, steps, type, title, description, config,
       eventId,
       deadline: absoluteDeadline,
       deadlineAt: absoluteDeadlineAt,
@@ -119,14 +119,30 @@ export async function POST(
     const createdIds: string[] = [];
     for (const assigneeId of assigneeIds) {
       const ref = db.collection('structure_todos').doc();
+      // Steps : copie profonde par assignee pour que chacun puisse cocher ses
+      // propres steps indépendamment (sinon ils partageraient la même référence).
+      const stepsForAssignee = steps.map(s => ({
+        id: s.id,
+        type: s.type,
+        ...(s.label ? { label: s.label } : {}),
+        config: s.config,
+        response: null,
+        completed: false,
+        completedAt: null,
+        completedBy: null,
+      }));
       batch.set(ref, {
         structureId,
         subTeamId,
         assigneeId,
+        // v3 — source de vérité
+        steps: stepsForAssignee,
+        // Champs legacy maintenus pour les lecteurs/cron pas encore migrés.
+        // type/config = ceux du 1er step (juste un proxy).
         type,
         title,
         description,
-        config,      // objet validé selon type — voir validateTodoConfig
+        config,
         response: null,
         eventId,
         deadline,                                    // "YYYY-MM-DD" ou null (calculée si relative)
@@ -134,7 +150,7 @@ export async function POST(
         deadlineMode: deadlineMode ?? null,          // 'absolute' | 'relative' | null
         deadlineOffsetDays: deadlineOffsetDays ?? null,  // uniquement si mode='relative'
         postToChannel,                               // false = DM privé uniquement ; true = aussi embed dans le channel team
-        done: false,
+        done: false,                                 // maintenu top-level = tous les steps completed
         doneAt: null,
         doneBy: null,
         createdBy: uid,

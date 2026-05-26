@@ -11,14 +11,18 @@ import {
   TODO_TYPES,
   validateTodoConfig,
   validateTodoResponse,
+  validateStepResponse,
+  getSteps,
   TODO_TYPE_META,
   endOfDayParisMs,
   type TodoType,
+  type ExerciseStep,
 } from '@/lib/todos';
 
 // PATCH /api/structures/[id]/todos/[todoId]
 // Actions :
-//  - toggle done : { action: 'toggle' } — l'assignee ou un staff d'équipe
+//  - toggle done : { action: 'toggle' } — l'assignee ou un staff d'équipe (legacy single-step)
+//  - toggleStep  : { action: 'toggleStep', stepId, completed, response? } — multi-steps v3
 //  - edit        : { action: 'edit', title?, description?, deadline? } — staff d'équipe uniquement
 export async function PATCH(
   req: NextRequest,
@@ -97,6 +101,112 @@ export async function PATCH(
 
       await ref.update(updates);
       return NextResponse.json({ success: true, done: willBeDone });
+    }
+
+    // ── v3 : toggle d'un step individuel ────────────────────────────────────
+    // L'assignee ou un staff peut cocher/décocher un step. Si needsResponse,
+    // une réponse valide est requise pour passer le step à completed.
+    // L'API recalcule le `done` top-level (= tous steps completed).
+    if (action === 'toggleStep') {
+      if (!isAssignee && !isStaff) {
+        return NextResponse.json({ error: 'Permissions insuffisantes.' }, { status: 403 });
+      }
+      const stepId = typeof body?.stepId === 'string' ? body.stepId.trim() : '';
+      if (!stepId) {
+        return NextResponse.json({ error: 'stepId manquant.' }, { status: 400 });
+      }
+      const willBeCompleted = body?.completed === true;
+
+      // Lecture défensive : si pas de steps[] en base, on wrap le doc en 1 step legacy.
+      // Permet d'attaquer ce endpoint sur les anciens exos sans migration préalable.
+      const currentSteps: ExerciseStep[] = getSteps(data);
+      const idx = currentSteps.findIndex(s => s.id === stepId);
+      if (idx === -1) {
+        return NextResponse.json({ error: 'Step introuvable dans cet exercice.' }, { status: 404 });
+      }
+
+      const targetStep = currentSteps[idx];
+      const needsResp = TODO_TYPE_META[targetStep.type].needsResponse;
+
+      // Validation réponse si on coche un step needsResponse
+      // (le staff peut forcer la clôture sans réponse — utile pour annulation)
+      let nextResponse: Record<string, unknown> | null = targetStep.response ?? null;
+      if (willBeCompleted && needsResp) {
+        const requireResp = isAssignee && !isStaff;
+        if (requireResp || body?.response !== undefined) {
+          const resp = validateStepResponse(targetStep.type, body?.response);
+          if (!resp.ok) {
+            return NextResponse.json({ error: resp.error }, { status: 400 });
+          }
+          nextResponse = resp.value;
+        }
+      } else if (!willBeCompleted) {
+        // Décocher → on garde la réponse (Matt préfère : éditable jusqu'à validation globale)
+      }
+
+      // Recompose le tableau steps avec le step modifié
+      const nowMs = Date.now();
+      const nextSteps: ExerciseStep[] = currentSteps.map((s, i) => {
+        if (i !== idx) return s;
+        return {
+          ...s,
+          response: nextResponse,
+          completed: willBeCompleted,
+          completedAt: willBeCompleted ? nowMs : null,
+          completedBy: willBeCompleted ? uid : null,
+        };
+      });
+
+      // Recalcule done global = tous les steps completed
+      const allDone = nextSteps.every(s => s.completed === true);
+      const updates: Record<string, unknown> = {
+        steps: nextSteps,
+        done: allDone,
+        doneAt: allDone ? FieldValue.serverTimestamp() : null,
+        doneBy: allDone ? uid : null,
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
+      await ref.update(updates);
+      return NextResponse.json({ success: true, completed: willBeCompleted, allDone });
+    }
+
+    // ── v3 : éditer la réponse d'un step déjà coché ─────────────────────────
+    // Permet à l'assignee de modifier son texte sans changer l'état completed
+    // (cohérent avec la décision : "réponse éditable jusqu'à validation globale").
+    if (action === 'editStepResponse') {
+      if (!isAssignee && !isStaff) {
+        return NextResponse.json({ error: 'Permissions insuffisantes.' }, { status: 403 });
+      }
+      const stepId = typeof body?.stepId === 'string' ? body.stepId.trim() : '';
+      if (!stepId) {
+        return NextResponse.json({ error: 'stepId manquant.' }, { status: 400 });
+      }
+
+      const currentSteps: ExerciseStep[] = getSteps(data);
+      const idx = currentSteps.findIndex(s => s.id === stepId);
+      if (idx === -1) {
+        return NextResponse.json({ error: 'Step introuvable dans cet exercice.' }, { status: 404 });
+      }
+      const targetStep = currentSteps[idx];
+      if (!TODO_TYPE_META[targetStep.type].needsResponse) {
+        return NextResponse.json({ error: 'Ce type de step n\'attend pas de réponse.' }, { status: 400 });
+      }
+
+      const resp = validateStepResponse(targetStep.type, body?.response);
+      if (!resp.ok) {
+        return NextResponse.json({ error: resp.error }, { status: 400 });
+      }
+
+      const nextSteps: ExerciseStep[] = currentSteps.map((s, i) =>
+        i === idx ? { ...s, response: resp.value } : s
+      );
+
+      await ref.update({
+        steps: nextSteps,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return NextResponse.json({ success: true });
     }
 
     if (action === 'edit') {

@@ -382,13 +382,17 @@ describe('validateCreateTodo', () => {
     }
   });
 
-  it('replay_review accepte sans replayId (note seule)', () => {
+  it('replay_review accepte sans replayId (note seule, replayIds vide)', () => {
     const r = validateCreateTodo({
       subTeamId: 'team1', assigneeIds: ['u1'], title: 'x', type: 'replay_review',
       config: { replayNote: 'Regarde la 2e mi-temps' },
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.value.config.replayId).toBeNull();
+    if (r.ok) {
+      const cfg = r.value.config as { replayIds: string[]; replayNote: string };
+      expect(cfg.replayIds).toEqual([]);
+      expect(cfg.replayNote).toBe('Regarde la 2e mi-temps');
+    }
   });
 });
 
