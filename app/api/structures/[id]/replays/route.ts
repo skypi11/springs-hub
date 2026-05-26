@@ -9,6 +9,7 @@ import { isStaff } from '@/lib/event-permissions';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import { checkStructureStorageQuota } from '@/lib/structure-storage';
 import { StorageKeys, generateUploadUrl, isAllowedMime, sanitizeFilename } from '@/lib/storage';
+import { fetchDocsByIds } from '@/lib/firestore-helpers';
 
 // Sérialise un Timestamp Firestore en ISO
 function ts(v: unknown): string | null {
@@ -75,13 +76,32 @@ export async function GET(
     // Firestore limite les where à 30 éléments sur 'in' — on re-filtre en mémoire si pas staff
     const snap = await query.get();
 
-    const replays = snap.docs
+    const replaysFiltered = snap.docs
       .map(d => ({ id: d.id, ...d.data() }) as Record<string, unknown>)
-      .filter(r => allowedTeamIds.has(r.teamId as string))
-      .map(r => ({
+      .filter(r => allowedTeamIds.has(r.teamId as string));
+
+    // Enrichissement : récupère les titres d'events liés (1 batch get).
+    // Permet à la bibliothèque cross-équipes d'afficher "Lié à l'event {titre}"
+    // et de proposer un dropdown filtre avec les vrais titres.
+    const eventIds = Array.from(new Set(
+      replaysFiltered
+        .map(r => r.eventId)
+        .filter((v): v is string => typeof v === 'string' && !!v),
+    ));
+    const eventsMap = eventIds.length > 0
+      ? await fetchDocsByIds(db, 'structure_events', eventIds)
+      : new Map();
+
+    const replays = replaysFiltered.map(r => {
+      const eId = typeof r.eventId === 'string' ? r.eventId : null;
+      const ev = eId ? eventsMap.get(eId) : null;
+      return {
         ...r,
         createdAt: ts(r.createdAt),
-      }));
+        // Titre de l'event lié (null si pas d'event ou event supprimé)
+        eventTitle: ev ? ((ev.title as string | undefined) ?? null) : null,
+      };
+    });
 
     // Tri décroissant par date
     replays.sort((a, b) => {

@@ -17,6 +17,10 @@ import type { UserContext } from '@/lib/event-permissions';
 import ReplayList, { type ReplayListItem } from '@/components/replays/ReplayList';
 import type { TeamData } from '../types';
 
+// Extension locale : l'API enrichit chaque replay avec le titre de l'event lié
+// (fetché via batch get côté serveur). Pas modifié ReplayListItem (utilisé ailleurs).
+type ReplayWithEventTitle = ReplayListItem & { eventTitle?: string | null };
+
 interface Props {
   structureId: string;
   teams: TeamData[];
@@ -36,7 +40,7 @@ export function ReplaysTab({ structureId, teams, userContext, currentUid }: Prop
   const queryKey = ['structure-replays', structureId] as const;
   const { data, isPending: loading, error: queryError } = useQuery({
     queryKey,
-    queryFn: () => api<{ replays: ReplayListItem[] }>(`/api/structures/${structureId}/replays`),
+    queryFn: () => api<{ replays: ReplayWithEventTitle[] }>(`/api/structures/${structureId}/replays`),
     // Auto-refresh tant qu'il y a des replays en parsing ballchasing
     refetchInterval: (q) => {
       const replays = (q.state.data as { replays?: ReplayListItem[] } | undefined)?.replays ?? [];
@@ -49,16 +53,19 @@ export function ReplaysTab({ structureId, teams, userContext, currentUid }: Prop
     : null;
   const allReplays = data?.replays ?? [];
 
-  // Set des eventIds présents (pour le dropdown event)
+  // Set des eventIds présents (pour le dropdown event).
+  // Utilise `eventTitle` enrichi par l'API. Fallback "Event sans titre" si l'event
+  // a été supprimé ou n'a plus de titre.
   const eventOptions = useMemo(() => {
     const map = new Map<string, string>();
     for (const r of allReplays) {
       if (r.eventId && !map.has(r.eventId)) {
-        // On utilise le titre du replay comme fallback de label si pas d'event titre
-        map.set(r.eventId, r.title || r.filename);
+        map.set(r.eventId, r.eventTitle?.trim() || 'Event sans titre');
       }
     }
-    return Array.from(map.entries()).map(([id, label]) => ({ id, label }));
+    return Array.from(map.entries())
+      .map(([id, label]) => ({ id, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
   }, [allReplays]);
 
   // Filtres côté client (les données fetched sont déjà scopées sur la structure)
