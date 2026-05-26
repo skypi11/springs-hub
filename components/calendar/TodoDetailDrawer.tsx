@@ -1,11 +1,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { X, Check, Loader2, Calendar as CalIcon, Shield, Clock, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { X, Check, Loader2, Calendar as CalIcon, Shield, Clock, AlertTriangle, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import Portal from '@/components/ui/Portal';
-import { TODO_TYPE_META, isOverdue, type TodoRef } from '@/lib/todos';
-import { TodoConfigSummary, TodoResponseSummary } from './TeamTodosPanel';
+import {
+  TODO_TYPE_META,
+  isOverdue,
+  getSteps,
+  getStepProgress,
+  normalizeTrainingPacks,
+  type TodoRef,
+  type ExerciseStep,
+} from '@/lib/todos';
+import { StepResponseForm } from './StepResponseForm';
 
 // Formatte un ms epoch en string lisible Paris ("jeu. 15 janv. 2026 · 18:30").
 function formatDeadlineFull(ms: number | null): string | null {
@@ -48,25 +56,33 @@ export default function TodoDetailDrawer({
   open,
   onClose,
   todo,
-  toggling,
-  onPrimaryAction,
-  primaryActionLabel,
-  responseForm,
+  canEdit = false,
+  toggleStepId,
+  onToggleStep,
+  onEditStepResponse,
   extraInfo,
 }: {
   open: boolean;
   onClose: () => void;
   todo: DrawerTodo | null;
-  toggling?: boolean;
-  // Action principale (coché / rouvert / répondre) — le parent décide quoi faire selon le contexte.
-  onPrimaryAction?: () => void;
-  primaryActionLabel?: string;
-  // Form de réponse inline — rendu par le parent (évite de dupliquer la logique de ResponseForm).
-  responseForm?: React.ReactNode;
-  // Slot optionnel pour afficher le "créé par" ou autres infos contextuelles fournies par le parent.
+  /** Si true, l'utilisateur peut cocher les steps / saisir des réponses (= assignee ou staff). */
+  canEdit?: boolean;
+  /** stepId actuellement en cours d'API call (pour disable + spinner). */
+  toggleStepId?: string | null;
+  /**
+   * Toggle un step (cocher/décocher). Pour les types needsResponse, response
+   * est requis quand completed=true. Le drawer gère le form de réponse en interne.
+   */
+  onToggleStep?: (stepId: string, completed: boolean, response?: Record<string, unknown>) => Promise<void> | void;
+  /** Édition d'une réponse déjà saisie (sans changer l'état completed). */
+  onEditStepResponse?: (stepId: string, response: Record<string, unknown>) => Promise<void> | void;
+  /** Slot optionnel pour afficher le "créé par" ou autres infos contextuelles fournies par le parent. */
   extraInfo?: React.ReactNode;
 }) {
   const [visible, setVisible] = useState(false);
+  // stepId pour lequel on a ouvert le form de réponse (validation OU édition).
+  const [openFormStepId, setOpenFormStepId] = useState<string | null>(null);
+  const [formMode, setFormMode] = useState<'validate' | 'edit'>('validate');
 
   useEffect(() => {
     if (open) {
@@ -74,6 +90,7 @@ export default function TodoDetailDrawer({
       return () => clearTimeout(t);
     }
     setVisible(false);
+    setOpenFormStepId(null);
   }, [open]);
 
   useEffect(() => {
@@ -94,12 +111,27 @@ export default function TodoDetailDrawer({
 
   if (!open || !todo) return null;
 
-  const meta = TODO_TYPE_META[todo.type];
+  const steps = getSteps(todo);
+  const progress = getStepProgress(todo);
+  const isMultiStep = steps.length > 1;
   const now = Date.now();
   const overdue = !todo.done && isOverdue(todo, now);
   const deadlineFull = formatDeadlineFull(todo.deadlineAt);
   const deadlineRel = formatRelative(todo.deadlineAt, now);
   const doneFull = formatDeadlineFull(todo.doneAt);
+
+  async function handleStepToggle(step: ExerciseStep, response?: Record<string, unknown>) {
+    if (!onToggleStep) return;
+    const willBeCompleted = !step.completed;
+    await onToggleStep(step.id, willBeCompleted, response);
+    setOpenFormStepId(null);
+  }
+
+  async function handleEditResponse(step: ExerciseStep, response: Record<string, unknown>) {
+    if (!onEditStepResponse) return;
+    await onEditStepResponse(step.id, response);
+    setOpenFormStepId(null);
+  }
 
   return (
     <Portal>
@@ -120,7 +152,7 @@ export default function TodoDetailDrawer({
         <aside
           onClick={e => e.stopPropagation()}
           style={{
-            width: 'min(640px, 94vw)',
+            width: 'min(680px, 94vw)',
             height: '100%',
             background: 'var(--s-surface)',
             borderLeft: '1px solid var(--s-border)',
@@ -133,13 +165,11 @@ export default function TodoDetailDrawer({
             overflow: 'hidden',
           }}
         >
-          {/* Accent bar violet (système/navigation) */}
           <div className="h-[3px] flex-shrink-0" style={{ background: 'linear-gradient(90deg, var(--s-gold), var(--s-gold) 50%, transparent 70%)' }} />
 
           {/* Header : statut + titre + close */}
           <header className="flex items-start justify-between gap-4 px-6 pt-5 pb-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--s-border)' }}>
             <div className="flex items-start gap-3 min-w-0 flex-1">
-              {/* Indicateur statut (grand visuel) */}
               <div className="flex-shrink-0 flex items-center justify-center"
                 style={{
                   width: 36,
@@ -155,28 +185,25 @@ export default function TodoDetailDrawer({
                   : <Clock size={16} style={{ color: 'var(--s-text-dim)' }} />}
               </div>
               <div className="min-w-0 flex-1">
-                {todo.type !== 'free' && (
-                  <div className="mb-1">
-                    <span className="px-1.5 py-0.5 text-xs font-bold tracking-wider"
-                      style={{
-                        fontSize: '12px',
-                        background: 'var(--s-surface)',
-                        border: '1px solid var(--s-border)',
-                        color: 'var(--s-text-dim)',
-                      }}>
-                      {meta.short.toUpperCase()}
-                    </span>
-                  </div>
-                )}
                 <h2 className="font-display text-2xl" style={{ letterSpacing: '0.03em', color: 'var(--s-text)', lineHeight: 1.15 }}>
                   {todo.title}
                 </h2>
-                <p className="text-xs mt-1.5" style={{ color: todo.done ? 'var(--s-gold)' : overdue ? '#ff9999' : 'var(--s-text-dim)' }}>
-                  {todo.done
-                    ? (doneFull ? `Terminé le ${doneFull}` : 'Terminé')
-                    : overdue
-                    ? 'En retard'
-                    : 'À faire'}
+                <p className="text-xs mt-1.5 flex items-center gap-2 flex-wrap" style={{ color: todo.done ? 'var(--s-gold)' : overdue ? '#ff9999' : 'var(--s-text-dim)' }}>
+                  <span>
+                    {todo.done
+                      ? (doneFull ? `Terminé le ${doneFull}` : 'Terminé')
+                      : overdue
+                      ? 'En retard'
+                      : 'À faire'}
+                  </span>
+                  {isMultiStep && (
+                    <>
+                      <span style={{ color: 'var(--s-text-muted)' }}>·</span>
+                      <span style={{ color: 'var(--s-text-dim)' }}>
+                        {progress.done}/{progress.total} étape{progress.total > 1 ? 's' : ''}
+                      </span>
+                    </>
+                  )}
                 </p>
               </div>
             </div>
@@ -186,8 +213,7 @@ export default function TodoDetailDrawer({
               className="flex items-center justify-center transition-opacity duration-150 hover:opacity-100"
               aria-label="Fermer"
               style={{
-                width: 36,
-                height: 36,
+                width: 36, height: 36,
                 background: 'var(--s-elevated)',
                 border: '1px solid var(--s-border)',
                 color: 'var(--s-text-dim)',
@@ -203,7 +229,6 @@ export default function TodoDetailDrawer({
           {/* Contenu scrollable */}
           <div className="flex-1 overflow-y-auto" style={{ overflowX: 'hidden' }}>
             <div className="px-6 py-5 space-y-5">
-              {/* Description */}
               {todo.description && (
                 <section>
                   <h3 className="text-xs font-bold tracking-wider mb-2" style={{ color: 'var(--s-text-muted)', letterSpacing: '0.1em' }}>
@@ -215,29 +240,32 @@ export default function TodoDetailDrawer({
                 </section>
               )}
 
-              {/* Config type-specific */}
-              {!todo.done && todo.type !== 'free' && (
-                <section>
-                  <h3 className="text-xs font-bold tracking-wider mb-2" style={{ color: 'var(--s-text-muted)', letterSpacing: '0.1em' }}>
-                    DÉTAILS
-                  </h3>
-                  <div className="p-3 bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                    <TodoConfigSummary todo={todo} />
-                  </div>
-                </section>
-              )}
-
-              {/* Réponse (si terminé) */}
-              {todo.done && todo.response && (
-                <section>
-                  <h3 className="text-xs font-bold tracking-wider mb-2" style={{ color: 'var(--s-text-muted)', letterSpacing: '0.1em' }}>
-                    RÉPONSE
-                  </h3>
-                  <div className="p-3 bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                    <TodoResponseSummary todo={todo} />
-                  </div>
-                </section>
-              )}
+              {/* CHECKLIST DE STEPS — cœur de la v3 multi-step */}
+              <section>
+                <h3 className="text-xs font-bold tracking-wider mb-3" style={{ color: 'var(--s-text-muted)', letterSpacing: '0.1em' }}>
+                  {isMultiStep ? `ÉTAPES (${progress.done}/${progress.total})` : 'À FAIRE'}
+                </h3>
+                <div className="space-y-2.5">
+                  {steps.map((step, idx) => (
+                    <StepCard
+                      key={step.id}
+                      step={step}
+                      index={idx}
+                      isMultiStep={isMultiStep}
+                      canEdit={canEdit}
+                      isToggling={toggleStepId === step.id}
+                      openForm={openFormStepId === step.id}
+                      openFormMode={formMode}
+                      onOpenValidate={() => { setOpenFormStepId(step.id); setFormMode('validate'); }}
+                      onOpenEdit={() => { setOpenFormStepId(step.id); setFormMode('edit'); }}
+                      onCancelForm={() => setOpenFormStepId(null)}
+                      onSubmitValidate={(resp) => handleStepToggle(step, resp)}
+                      onSubmitEdit={(resp) => handleEditResponse(step, resp)}
+                      onUncheck={() => handleStepToggle(step)}
+                    />
+                  ))}
+                </div>
+              </section>
 
               {/* Métadonnées : Équipe / Event / Deadline */}
               <section>
@@ -307,39 +335,265 @@ export default function TodoDetailDrawer({
                   {extraInfo}
                 </div>
               </section>
-
-              {/* Formulaire de réponse inline — injecté par le parent */}
-              {responseForm && (
-                <section>
-                  {responseForm}
-                </section>
-              )}
             </div>
           </div>
 
-          {/* Footer : action principale */}
-          {onPrimaryAction && (
-            <footer className="flex items-center gap-2 px-6 py-4 flex-shrink-0"
-              style={{ borderTop: '1px solid var(--s-border)', background: 'var(--s-surface)' }}>
-              <button type="button" onClick={onPrimaryAction}
-                disabled={!!toggling}
-                className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-sm"
-                style={{ cursor: toggling ? 'wait' : 'pointer' }}>
-                {toggling
-                  ? <Loader2 size={14} className="animate-spin" />
-                  : todo.done
-                  ? <CheckCircle2 size={14} />
-                  : <Check size={14} />}
-                <span>{primaryActionLabel || (todo.done ? 'Rouvrir le exercice' : 'Marquer comme terminé')}</span>
-              </button>
-              <button type="button" onClick={onClose}
-                className="text-sm" style={{ color: 'var(--s-text-dim)', cursor: 'pointer' }}>
-                Fermer
-              </button>
-            </footer>
-          )}
+          {/* Footer minimaliste : juste fermer (les actions sont sur chaque step) */}
+          <footer className="flex items-center justify-end gap-2 px-6 py-3 flex-shrink-0"
+            style={{ borderTop: '1px solid var(--s-border)', background: 'var(--s-surface)' }}>
+            <button type="button" onClick={onClose}
+              className="text-sm" style={{ color: 'var(--s-text-dim)', cursor: 'pointer' }}>
+              Fermer
+            </button>
+          </footer>
         </aside>
       </div>
     </Portal>
   );
+}
+
+// ─── Carte d'un step ────────────────────────────────────────────────────────
+
+function StepCard({
+  step,
+  index,
+  isMultiStep,
+  canEdit,
+  isToggling,
+  openForm,
+  openFormMode,
+  onOpenValidate,
+  onOpenEdit,
+  onCancelForm,
+  onSubmitValidate,
+  onSubmitEdit,
+  onUncheck,
+}: {
+  step: ExerciseStep;
+  index: number;
+  isMultiStep: boolean;
+  canEdit: boolean;
+  isToggling: boolean;
+  openForm: boolean;
+  openFormMode: 'validate' | 'edit';
+  onOpenValidate: () => void;
+  onOpenEdit: () => void;
+  onCancelForm: () => void;
+  onSubmitValidate: (response?: Record<string, unknown>) => void;
+  onSubmitEdit: (response: Record<string, unknown>) => void;
+  onUncheck: () => void;
+}) {
+  const meta = TODO_TYPE_META[step.type];
+  const needsResp = meta.needsResponse;
+  const completed = step.completed === true;
+  const stepTitle = step.label?.trim() || meta.label;
+
+  return (
+    <div
+      className="bevel-sm"
+      style={{
+        background: completed ? 'rgba(255,184,0,0.06)' : 'var(--s-elevated)',
+        border: `1px solid ${completed ? 'rgba(255,184,0,0.35)' : 'var(--s-border)'}`,
+      }}
+    >
+      {/* Header : checkbox + numéro/label + tag type + bouton action */}
+      <div className="flex items-start gap-3 p-3">
+        {/* Checkbox cliquable si pas needsResp (type free/watch_party) ou déjà complété */}
+        <button
+          type="button"
+          onClick={() => {
+            if (!canEdit || isToggling) return;
+            if (completed) {
+              onUncheck();
+            } else if (needsResp) {
+              onOpenValidate();
+            } else {
+              onSubmitValidate(undefined); // free/watch_party : pas de réponse à valider
+            }
+          }}
+          disabled={!canEdit || isToggling}
+          className="flex-shrink-0 flex items-center justify-center transition-all duration-150"
+          style={{
+            width: 22, height: 22, marginTop: 1,
+            background: completed ? 'var(--s-gold)' : 'transparent',
+            border: `1.5px solid ${completed ? 'var(--s-gold)' : 'var(--s-text-muted)'}`,
+            cursor: canEdit && !isToggling ? 'pointer' : 'not-allowed',
+            opacity: canEdit ? 1 : 0.5,
+          }}
+          aria-label={completed ? 'Décocher cette étape' : 'Cocher cette étape'}
+        >
+          {isToggling
+            ? <Loader2 size={12} className="animate-spin" style={{ color: completed ? '#000' : 'var(--s-text-dim)' }} />
+            : completed
+            ? <Check size={13} style={{ color: '#000' }} strokeWidth={3} />
+            : null}
+        </button>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-0.5">
+            {isMultiStep && (
+              <span className="text-xs font-bold" style={{ color: 'var(--s-text-muted)' }}>
+                Étape {index + 1}
+              </span>
+            )}
+            <span className="px-1.5 py-0.5" style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              background: 'var(--s-surface)',
+              border: '1px solid var(--s-border)',
+              color: 'var(--s-text-dim)',
+            }}>
+              {meta.short.toUpperCase()}
+            </span>
+          </div>
+          <p className="text-sm font-semibold" style={{ color: completed ? 'var(--s-text-dim)' : 'var(--s-text)', textDecoration: completed ? 'line-through' : 'none' }}>
+            {stepTitle}
+          </p>
+
+          {/* Détails de la config (si pas free et qu'il y a quelque chose à afficher) */}
+          {step.type !== 'free' && (
+            <StepConfigPreview step={step} />
+          )}
+        </div>
+
+        {/* Bouton "Modifier la réponse" pour les steps déjà cochés needsResp */}
+        {canEdit && completed && needsResp && !openForm && (
+          <button
+            type="button"
+            onClick={onOpenEdit}
+            className="flex-shrink-0 flex items-center gap-1.5 px-2 py-1 transition-colors"
+            style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              background: 'transparent',
+              border: '1px solid var(--s-border)',
+              color: 'var(--s-text-dim)',
+              cursor: 'pointer',
+            }}
+            title="Modifier ma réponse"
+          >
+            <Pencil size={10} />
+            Modifier
+          </button>
+        )}
+      </div>
+
+      {/* Réponse déjà saisie (visible quand validé sans form ouvert) */}
+      {completed && step.response && !openForm && (
+        <div className="mx-3 mb-3 p-2.5" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+          <StepResponseSummary step={step} />
+        </div>
+      )}
+
+      {/* Form de réponse inline — pour validation ou édition */}
+      {openForm && canEdit && needsResp && (
+        <div className="px-3 pb-3">
+          <StepResponseForm
+            type={step.type}
+            config={step.config}
+            initialResponse={openFormMode === 'edit' ? step.response : null}
+            onCancel={onCancelForm}
+            onSubmit={openFormMode === 'edit' ? onSubmitEdit : (resp) => onSubmitValidate(resp)}
+            submitLabel={openFormMode === 'edit' ? 'Sauvegarder' : 'Valider cette étape'}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Aperçu compact de la config d'un step ──────────────────────────────────
+
+function StepConfigPreview({ step }: { step: ExerciseStep }) {
+  const c = step.config;
+  const rows: { label: string; value: string; mono?: boolean }[] = [];
+  switch (step.type) {
+    case 'replay_review':
+      if (typeof c.replayNote === 'string' && c.replayNote) rows.push({ label: 'À regarder', value: c.replayNote });
+      break;
+    case 'training_pack': {
+      const packs = normalizeTrainingPacks(c).filter(p => p.code);
+      if (packs.length === 1) {
+        rows.push({ label: 'Code', value: packs[0].code, mono: true });
+        if (packs[0].objective) rows.push({ label: 'Objectif', value: packs[0].objective });
+      } else if (packs.length > 1) {
+        rows.push({ label: `Packs (${packs.length})`, value: packs.map(p => p.code).join(', '), mono: true });
+      }
+      break;
+    }
+    case 'vod_review':
+      if (typeof c.url === 'string' && c.url) rows.push({ label: 'VOD', value: c.url, mono: true });
+      if (typeof c.focus === 'string' && c.focus) rows.push({ label: 'Focus', value: c.focus });
+      break;
+    case 'scouting':
+      if (typeof c.opponent === 'string' && c.opponent) rows.push({ label: 'Adversaire', value: c.opponent });
+      break;
+    case 'watch_party':
+      if (typeof c.location === 'string' && c.location) rows.push({ label: 'Lieu', value: c.location });
+      break;
+    case 'mental_checkin': {
+      const prompts = Array.isArray(c.prompts) ? (c.prompts as unknown[]).filter(p => typeof p === 'string') : [];
+      if (prompts.length > 0) rows.push({ label: 'À évaluer', value: prompts.join(' · ') });
+      break;
+    }
+  }
+  if (rows.length === 0) return null;
+  return (
+    <div className="mt-1.5 space-y-0.5">
+      {rows.map((r, i) => (
+        <div key={i} className="text-xs flex flex-wrap gap-1.5" style={{ color: 'var(--s-text-muted)' }}>
+          <span style={{ color: 'var(--s-text-dim)', fontWeight: 600 }}>{r.label} :</span>
+          <span style={{ color: 'var(--s-text)', fontFamily: r.mono ? 'monospace' : undefined, wordBreak: 'break-word' }}>
+            {r.value}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Résumé compact de la réponse d'un step ────────────────────────────────
+
+function StepResponseSummary({ step }: { step: ExerciseStep }) {
+  const r = step.response ?? {};
+  switch (step.type) {
+    case 'replay_review':
+    case 'vod_review': {
+      const analysis = typeof (r as { analysis?: unknown }).analysis === 'string'
+        ? (r as { analysis: string }).analysis : '';
+      return <p className="text-xs whitespace-pre-wrap" style={{ color: 'var(--s-text)' }}>{analysis || '(vide)'}</p>;
+    }
+    case 'scouting': {
+      const notes = typeof (r as { notes?: unknown }).notes === 'string'
+        ? (r as { notes: string }).notes : '';
+      return <p className="text-xs whitespace-pre-wrap" style={{ color: 'var(--s-text)' }}>{notes || '(vide)'}</p>;
+    }
+    case 'training_pack': {
+      const results = Array.isArray((r as { results?: unknown }).results) ? (r as { results: unknown[] }).results : [];
+      const comment = typeof (r as { comment?: unknown }).comment === 'string' ? (r as { comment: string }).comment : '';
+      const done = results.filter(x => x && typeof x === 'object' && (x as { done?: boolean }).done === true).length;
+      return (
+        <div className="text-xs space-y-0.5" style={{ color: 'var(--s-text)' }}>
+          <div>{done}/{results.length} pack{results.length > 1 ? 's' : ''} réussi{done > 1 ? 's' : ''}</div>
+          {comment && <div className="whitespace-pre-wrap" style={{ color: 'var(--s-text-dim)' }}>{comment}</div>}
+        </div>
+      );
+    }
+    case 'mental_checkin': {
+      const ratings = Array.isArray((r as { ratings?: unknown }).ratings) ? (r as { ratings: unknown[] }).ratings : [];
+      const prompts = Array.isArray(step.config.prompts) ? (step.config.prompts as unknown[]).filter(p => typeof p === 'string') as string[] : [];
+      return (
+        <div className="text-xs flex flex-wrap gap-x-3 gap-y-0.5" style={{ color: 'var(--s-text)' }}>
+          {ratings.map((n, i) => (
+            <span key={i}>
+              <span style={{ color: 'var(--s-text-dim)' }}>{prompts[i] ?? `#${i + 1}`}: </span>
+              <span style={{ color: 'var(--s-gold)', fontWeight: 700 }}>{String(n)}/5</span>
+            </span>
+          ))}
+        </div>
+      );
+    }
+    default:
+      return null;
+  }
 }

@@ -13,10 +13,13 @@ import {
   isOverdue,
   validateTodoResponse,
   normalizeTrainingPacks,
+  getSteps,
+  getStepProgress,
   TODO_TYPE_META,
   TODO_RESPONSE_MAX,
   type TodoRef,
   type TodoType,
+  type ExerciseStep,
 } from '@/lib/todos';
 import { TodoConfigSummary, TodoResponseSummary } from './TeamTodosPanel';
 import TodoDetailDrawer from './TodoDetailDrawer';
@@ -131,6 +134,63 @@ export default function MyTodosSection() {
     toggleMutation.mutate({ todo, response });
   }
 
+  // v3 : toggle d'un step individuel (cocher/décocher + saisir réponse).
+  // Recompute `done` global = tous steps completed → mis à jour dans le cache.
+  const toggleStepMutation = useMutation({
+    mutationFn: ({ todo, stepId, completed, response }: {
+      todo: MyTodo; stepId: string; completed: boolean; response?: Record<string, unknown>;
+    }) =>
+      api(`/api/structures/${todo.structureId}/todos/${todo.id}`, {
+        method: 'PATCH',
+        body: { action: 'toggleStep', stepId, completed, ...(response ? { response } : {}) },
+      }).then(() => ({ todo, stepId, completed, response })),
+    onSuccess: ({ todo, stepId, completed, response }) => {
+      qc.setQueryData<{ todos: MyTodo[] }>(['todos', 'me'], (prev) => {
+        if (!prev) return prev;
+        return {
+          todos: prev.todos.map((t) => {
+            if (t.id !== todo.id) return t;
+            const currentSteps = getSteps(t);
+            const nextSteps: ExerciseStep[] = currentSteps.map(s =>
+              s.id === stepId
+                ? { ...s, completed, completedAt: completed ? Date.now() : null, response: response ?? s.response ?? null }
+                : s
+            );
+            const allDone = nextSteps.every(s => s.completed === true);
+            return { ...t, steps: nextSteps, done: allDone, doneAt: allDone ? Date.now() : null };
+          }),
+        };
+      });
+    },
+    onError: (err: Error) => toast.error(err.message || 'Erreur'),
+  });
+  const togglingStepId = toggleStepMutation.isPending ? toggleStepMutation.variables?.stepId ?? null : null;
+
+  const editStepResponseMutation = useMutation({
+    mutationFn: ({ todo, stepId, response }: { todo: MyTodo; stepId: string; response: Record<string, unknown> }) =>
+      api(`/api/structures/${todo.structureId}/todos/${todo.id}`, {
+        method: 'PATCH',
+        body: { action: 'editStepResponse', stepId, response },
+      }).then(() => ({ todo, stepId, response })),
+    onSuccess: ({ todo, stepId, response }) => {
+      qc.setQueryData<{ todos: MyTodo[] }>(['todos', 'me'], (prev) => {
+        if (!prev) return prev;
+        return {
+          todos: prev.todos.map((t) => {
+            if (t.id !== todo.id) return t;
+            const currentSteps = getSteps(t);
+            const nextSteps: ExerciseStep[] = currentSteps.map(s =>
+              s.id === stepId ? { ...s, response } : s
+            );
+            return { ...t, steps: nextSteps };
+          }),
+        };
+      });
+      toast.success('Réponse mise à jour');
+    },
+    onError: (err: Error) => toast.error(err.message || 'Erreur'),
+  });
+
   // Action depuis la ligne : toujours ouvrir le drawer (détail complet + action ciblée).
   // Le drawer décide ensuite quoi afficher selon le type (form de réponse ou bouton "terminer").
   function handleOpen(todo: MyTodo) {
@@ -181,9 +241,14 @@ export default function MyTodosSection() {
                 toggling={togglingId === t.id}
                 onOpen={() => handleOpen(t)}
                 onToggleCheckbox={() => {
-                  // Checkbox : si besoin de réponse, ouvrir le drawer pour que l'utilisateur remplisse ;
-                  // sinon toggle direct.
-                  if (!t.done && TODO_TYPE_META[t.type].needsResponse) {
+                  // v3 : pour les exos multi-step, le checkbox de la ligne ouvre forcément
+                  // le drawer (on ne peut pas tout cocher d'un clic — il y a N étapes).
+                  // Pour les single-step avec needsResponse : pareil, drawer.
+                  // Pour les single-step simples (free/watch_party) : toggle direct.
+                  const steps = getSteps(t);
+                  const isMulti = steps.length > 1;
+                  const needsResp = TODO_TYPE_META[t.type].needsResponse;
+                  if (isMulti || (!t.done && needsResp)) {
                     handleOpen(t);
                   } else {
                     toggle(t);
@@ -221,38 +286,23 @@ export default function MyTodosSection() {
         )}
       </div>
 
-      {/* Drawer de détail — ouvert au clic sur une ligne. Affiche le form de réponse si le type le demande. */}
+      {/* Drawer de détail — affiche la checklist multi-step + callbacks step-level.
+          Pour les exos legacy single-type, getSteps() les wrap en 1 step automatiquement. */}
       {(() => {
         const openTodo = openTodoId ? todos.find(t => t.id === openTodoId) ?? null : null;
-        if (!openTodo) {
-          return (
-            <TodoDetailDrawer
-              open={false}
-              onClose={() => setOpenTodoId(null)}
-              todo={null}
-            />
-          );
-        }
-        const needsResp = TODO_TYPE_META[openTodo.type].needsResponse;
-        // Form de réponse : uniquement si type le demande ET pas encore done.
-        // Sinon, bouton primaire "Marquer terminé" (ou "Rouvrir" si done).
-        const showResponseForm = needsResp && !openTodo.done;
         return (
           <TodoDetailDrawer
-            open={true}
+            open={!!openTodo}
             onClose={() => setOpenTodoId(null)}
             todo={openTodo}
-            toggling={togglingId === openTodo.id}
-            onPrimaryAction={showResponseForm ? undefined : () => toggle(openTodo)}
-            primaryActionLabel={openTodo.done ? 'Rouvrir le exercice' : 'Marquer comme terminé'}
-            responseForm={showResponseForm ? (
-              <ResponseForm
-                type={openTodo.type}
-                config={openTodo.config as Record<string, unknown>}
-                onCancel={() => setOpenTodoId(null)}
-                onSubmit={(resp) => toggle(openTodo, resp)}
-              />
-            ) : null}
+            canEdit={!!openTodo}
+            toggleStepId={openTodo ? togglingStepId : null}
+            onToggleStep={openTodo ? async (stepId, completed, response) => {
+              await toggleStepMutation.mutateAsync({ todo: openTodo, stepId, completed, response });
+            } : undefined}
+            onEditStepResponse={openTodo ? async (stepId, response) => {
+              await editStepResponseMutation.mutateAsync({ todo: openTodo, stepId, response });
+            } : undefined}
           />
         );
       })()}
@@ -276,6 +326,9 @@ function TodoRow({
   const overdue = isOverdue(todo, Date.now());
   const deadlineInfo = todo.deadline ? formatDeadline(todo.deadline, today) : null;
   const meta = TODO_TYPE_META[todo.type];
+  // v3 : compteur d'étapes pour les exos multi-step (X/N) — affiché à côté du titre
+  const stepProgress = getStepProgress(todo);
+  const isMultiStep = stepProgress.total > 1;
 
   return (
     <div className="bevel-sm flex items-start gap-3 p-3 transition-all duration-150 hover:brightness-110"
@@ -318,7 +371,20 @@ function TodoRow({
           }}>
             {todo.title}
           </p>
-          {todo.type !== 'free' && (
+          {/* Compteur d'étapes (v3) — visible uniquement si multi-step */}
+          {isMultiStep && (
+            <span className="px-1.5 py-0.5 font-bold tracking-wider"
+              style={{
+                fontSize: '11px',
+                background: stepProgress.done === stepProgress.total ? 'rgba(255,184,0,0.12)' : 'var(--s-surface)',
+                border: `1px solid ${stepProgress.done === stepProgress.total ? 'rgba(255,184,0,0.35)' : 'var(--s-border)'}`,
+                color: stepProgress.done === stepProgress.total ? 'var(--s-gold)' : 'var(--s-text-dim)',
+              }}>
+              {stepProgress.done}/{stepProgress.total} ÉTAPES
+            </span>
+          )}
+          {/* Tag de type uniquement si single-step (sinon les types sont mixed) */}
+          {!isMultiStep && todo.type !== 'free' && (
             <span className="px-1.5 py-0.5 text-xs font-bold tracking-wider"
               style={{
                 fontSize: '12px',

@@ -371,17 +371,41 @@ function TodoStaffRow({
           <span className="text-xs font-semibold" style={{ color: 'var(--s-text-dim)' }}>
             {todo.assigneeName}
           </span>
-          {todo.type !== 'free' && (
-            <span className="px-1.5 py-0.5 text-xs font-bold tracking-wider"
-              style={{
-                fontSize: '12px',
-                background: 'var(--s-elevated)',
-                border: '1px solid var(--s-border)',
-                color: 'var(--s-text-dim)',
-              }}>
-              {TODO_TYPE_META[todo.type].short.toUpperCase()}
-            </span>
-          )}
+          {(() => {
+            // v3 : si exo multi-step, on affiche "X/N étapes" au lieu du tag de type unique
+            // (les types des steps peuvent être hétérogènes).
+            const todoSteps = (todo as TodoRef & { steps?: unknown[] }).steps;
+            const isMulti = Array.isArray(todoSteps) && todoSteps.length > 1;
+            if (isMulti) {
+              const total = todoSteps.length;
+              const doneCount = todoSteps.filter(s => s && typeof s === 'object' && (s as { completed?: boolean }).completed === true).length;
+              return (
+                <span className="px-1.5 py-0.5 font-bold tracking-wider"
+                  style={{
+                    fontSize: '11px',
+                    background: doneCount === total ? 'rgba(255,184,0,0.12)' : 'var(--s-elevated)',
+                    border: `1px solid ${doneCount === total ? 'rgba(255,184,0,0.35)' : 'var(--s-border)'}`,
+                    color: doneCount === total ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                  }}>
+                  {doneCount}/{total} ÉTAPES
+                </span>
+              );
+            }
+            if (todo.type !== 'free') {
+              return (
+                <span className="px-1.5 py-0.5 text-xs font-bold tracking-wider"
+                  style={{
+                    fontSize: '12px',
+                    background: 'var(--s-elevated)',
+                    border: '1px solid var(--s-border)',
+                    color: 'var(--s-text-dim)',
+                  }}>
+                  {TODO_TYPE_META[todo.type].short.toUpperCase()}
+                </span>
+              );
+            }
+            return null;
+          })()}
           {deadlineInfo && (
             <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: deadlineInfo.color }}>
               <CalIcon size={11} /> {deadlineInfo.label}
