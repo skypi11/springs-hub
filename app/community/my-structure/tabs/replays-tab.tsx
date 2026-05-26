@@ -54,18 +54,25 @@ export function ReplaysTab({ structureId, teams, userContext, currentUid }: Prop
   const allReplays = data?.replays ?? [];
 
   // Set des eventIds présents (pour le dropdown event).
-  // Utilise `eventTitle` enrichi par l'API. Fallback "Event sans titre" si l'event
-  // a été supprimé ou n'a plus de titre.
+  // Tri par date du replay le plus récent associé à chaque event (desc) — plus
+  // utile que l'alphabétique pour scroller en mode "qu'est-ce qui s'est passé
+  // récemment". Fallback "Event sans titre" si l'event a été supprimé.
   const eventOptions = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, { label: string; latestDate: string }>();
     for (const r of allReplays) {
-      if (r.eventId && !map.has(r.eventId)) {
-        map.set(r.eventId, r.eventTitle?.trim() || 'Event sans titre');
+      if (!r.eventId) continue;
+      const dateIso = r.createdAt ?? '';
+      const existing = map.get(r.eventId);
+      if (!existing || dateIso > existing.latestDate) {
+        map.set(r.eventId, {
+          label: r.eventTitle?.trim() || 'Event sans titre',
+          latestDate: dateIso,
+        });
       }
     }
     return Array.from(map.entries())
-      .map(([id, label]) => ({ id, label }))
-      .sort((a, b) => a.label.localeCompare(b.label));
+      .map(([id, { label, latestDate }]) => ({ id, label, latestDate }))
+      .sort((a, b) => b.latestDate.localeCompare(a.latestDate));
   }, [allReplays]);
 
   // Filtres côté client (les données fetched sont déjà scopées sur la structure)
@@ -92,12 +99,24 @@ export function ReplaysTab({ structureId, teams, userContext, currentUid }: Prop
   }
 
   // Build des titres d'events (eventId → titre) à passer à ReplayList pour
-  // afficher "Lié à l'event ..." sur chaque ligne (récupère depuis nos options).
+  // afficher la pill event sur chaque ligne.
   const eventTitlesById = useMemo(() => {
     const obj: Record<string, string> = {};
     for (const opt of eventOptions) obj[opt.id] = opt.label;
     return obj;
   }, [eventOptions]);
+
+  // Build label équipe (id → { name, game }) pour la pill équipe colorée par jeu.
+  const teamLabelById = useMemo(() => {
+    const obj: Record<string, { name: string; game: string }> = {};
+    for (const t of teams) {
+      obj[t.id] = {
+        name: t.label ? `${t.name} — ${t.label}` : t.name,
+        game: t.game,
+      };
+    }
+    return obj;
+  }, [teams]);
 
   if (loading) {
     return (
@@ -201,6 +220,7 @@ export function ReplaysTab({ structureId, teams, userContext, currentUid }: Prop
           onChanged={reload}
           showEventLink
           eventTitlesById={eventTitlesById}
+          teamLabelById={teamLabelById}
         />
       )}
     </div>

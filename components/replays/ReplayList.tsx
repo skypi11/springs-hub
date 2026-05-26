@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { Download, Trash2, Edit2, Check, X, Loader2, Film, BarChart3, Sparkles, Lock } from 'lucide-react';
+import { Download, Trash2, Edit2, Check, X, Loader2, Film, BarChart3, Sparkles, Lock, Calendar } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import { api } from '@/lib/api-client';
@@ -31,8 +31,11 @@ interface Props {
   canEdit: boolean;        // staff upload-right sur les équipes concernées (simplifié : passé en prop)
   onChanged: () => void;   // parent recharge après suppression / edit
   emptyLabel?: string;
-  showEventLink?: boolean; // affiche "Lié à l'event..." dans la liste bibliothèque
+  showEventLink?: boolean; // affiche pill "Event" dans la liste bibliothèque
   eventTitlesById?: Record<string, string>;
+  // Map teamId → { name, game } pour afficher une pill équipe en évidence
+  // (bibliothèque cross-équipes — non utilisé en mode event où l'équipe est implicite).
+  teamLabelById?: Record<string, { name: string; game: string }>;
 }
 
 const RESULT_LABEL: Record<string, { text: string; color: string }> = {
@@ -63,6 +66,7 @@ export default function ReplayList({
   emptyLabel,
   showEventLink,
   eventTitlesById,
+  teamLabelById,
 }: Props) {
   const toast = useToast();
   const confirm = useConfirm();
@@ -208,17 +212,36 @@ export default function ReplayList({
                     )}
                     <ParsingBadge status={item.ballchasingStatus} />
                   </div>
+                  {/* Pills en évidence : équipe + event lié.
+                      Visibles uniquement quand showEventLink (= mode bibliothèque).
+                      En mode event/équipe ces infos sont implicites donc pas dupliquées. */}
+                  {showEventLink && (item.eventId || teamLabelById?.[item.teamId]) && (
+                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                      {teamLabelById?.[item.teamId] && (
+                        <span className={`tag ${teamLabelById[item.teamId].game === 'rocket_league' ? 'tag-blue' : teamLabelById[item.teamId].game === 'trackmania' ? 'tag-green' : 'tag-neutral'}`}
+                          style={{ fontSize: '11px', padding: '2px 7px' }}>
+                          {teamLabelById[item.teamId].name}
+                        </span>
+                      )}
+                      {item.eventId && eventTitlesById?.[item.eventId] && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5"
+                          style={{
+                            fontSize: '11px',
+                            background: 'rgba(255,184,0,0.08)',
+                            border: '1px solid rgba(255,184,0,0.30)',
+                            color: 'var(--s-gold)',
+                          }}>
+                            <Calendar size={9} />
+                            {eventTitlesById[item.eventId]}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 mt-1 text-xs flex-wrap" style={{ color: 'var(--s-text-muted)' }}>
                     <span>{formatDate(item.createdAt)}</span>
                     <span>·</span>
                     <span>{formatSize(item.sizeBytes)}</span>
                     {item.map && (<><span>·</span><span>{item.map}</span></>)}
-                    {showEventLink && item.eventId && eventTitlesById?.[item.eventId] && (
-                      <>
-                        <span>·</span>
-                        <span>Lié à « {eventTitlesById[item.eventId]} »</span>
-                      </>
-                    )}
                   </div>
                   {item.notes && (
                     <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-dim)' }}>{item.notes}</p>
