@@ -13,6 +13,7 @@ import { Film, Filter, Loader2, Users, Calendar as CalIcon, ExternalLink } from 
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { isDirigeant } from '@/lib/event-permissions';
+import { canUploadReplay } from '@/lib/replay-permissions';
 import type { UserContext } from '@/lib/event-permissions';
 import ReplayList, { type ReplayListItem } from '@/components/replays/ReplayList';
 import type { TeamData } from '../types';
@@ -216,7 +217,9 @@ export function ReplaysTab({ structureId, teams, userContext, currentUid }: Prop
           items={filtered}
           currentUid={currentUid}
           canDeleteAny={canDeleteAny}
-          canEdit={true /* Le staff de la structure peut éditer les replays — fine-grained per-team check fait côté API */}
+          // Fine-grained par replay : même règle que pour l'upload (staff struct,
+          // staff de l'équipe, capitaine de l'équipe) — cohérent avec le check API.
+          canEdit={(item) => canUploadReplay(userContext, item.teamId)}
           onChanged={reload}
           showEventLink
           eventTitlesById={eventTitlesById}

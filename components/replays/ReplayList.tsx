@@ -28,7 +28,10 @@ interface Props {
   items: ReplayListItem[];
   currentUid: string;
   canDeleteAny: boolean;   // dirigeant → peut supprimer les replays de tous
-  canEdit: boolean;        // staff upload-right sur les équipes concernées (simplifié : passé en prop)
+  // Droits d'édition (titre/notes/score) — soit un boolean global (vue 1-équipe),
+  // soit une fonction par replay (vue bibliothèque cross-équipes : on vérifie
+  // l'autorisation par teamId du replay via canUploadReplay).
+  canEdit: boolean | ((item: ReplayListItem) => boolean);
   onChanged: () => void;   // parent recharge après suppression / edit
   emptyLabel?: string;
   showEventLink?: boolean; // affiche pill "Event" dans la liste bibliothèque
@@ -79,6 +82,15 @@ export default function ReplayList({
   const batchCandidates = items.filter(
     it => it.ballchasingStatus !== 'uploaded' && it.ballchasingStatus !== 'pending'
   );
+
+  // Helper : résout canEdit (boolean ou fonction par item)
+  const checkCanEdit = (item: ReplayListItem): boolean =>
+    typeof canEdit === 'function' ? canEdit(item) : canEdit;
+  // Pour le bouton global "Parser tous" : vrai dès qu'on peut éditer au moins 1 replay
+  // (équivalent à l'ancien comportement qui prenait canEdit global).
+  const canEditAny = typeof canEdit === 'function'
+    ? items.some(it => canEdit(it))
+    : canEdit;
 
   const launchBatch = useCallback(async () => {
     setBatchLoading(true);
@@ -149,7 +161,7 @@ export default function ReplayList({
     <>
     {/* Bouton "activer pour tous" — visible si au moins 1 replay à processer
         et si le caller a le droit de upload (proxy raisonnable pour le batch). */}
-    {canEdit && batchCandidates.length > 0 && (
+    {canEditAny && batchCandidates.length > 0 && (
       <div className="flex justify-end mb-2">
         <button type="button"
           onClick={launchBatch}
@@ -261,7 +273,7 @@ export default function ReplayList({
                   <IconButton title="Télécharger" onClick={() => download(item.id)}>
                     <Download size={13} />
                   </IconButton>
-                  {canEdit && (
+                  {checkCanEdit(item) && (
                     <IconButton title="Modifier" onClick={() => setEditingId(item.id)}>
                       <Edit2 size={13} />
                     </IconButton>
