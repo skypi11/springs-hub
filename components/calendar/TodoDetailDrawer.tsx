@@ -120,6 +120,12 @@ export default function TodoDetailDrawer({
   const deadlineRel = formatRelative(todo.deadlineAt, now);
   const doneFull = formatDeadlineFull(todo.doneAt);
 
+  // Endpoint d'upload screenshot — disponible uniquement si l'utilisateur peut éditer
+  // ET qu'on a structureId+todoId pour construire l'URL.
+  const screenshotUploadUrl = canEdit && todo.structureId && todo.id
+    ? `/api/structures/${todo.structureId}/todos/${todo.id}/screenshot`
+    : undefined;
+
   async function handleStepToggle(step: ExerciseStep, response?: Record<string, unknown>) {
     if (!onToggleStep) return;
     const willBeCompleted = !step.completed;
@@ -256,6 +262,7 @@ export default function TodoDetailDrawer({
                       isToggling={toggleStepId === step.id}
                       openForm={openFormStepId === step.id}
                       openFormMode={formMode}
+                      screenshotUploadUrl={screenshotUploadUrl}
                       onOpenValidate={() => { setOpenFormStepId(step.id); setFormMode('validate'); }}
                       onOpenEdit={() => { setOpenFormStepId(step.id); setFormMode('edit'); }}
                       onCancelForm={() => setOpenFormStepId(null)}
@@ -362,6 +369,7 @@ function StepCard({
   isToggling,
   openForm,
   openFormMode,
+  screenshotUploadUrl,
   onOpenValidate,
   onOpenEdit,
   onCancelForm,
@@ -376,6 +384,7 @@ function StepCard({
   isToggling: boolean;
   openForm: boolean;
   openFormMode: 'validate' | 'edit';
+  screenshotUploadUrl?: string;
   onOpenValidate: () => void;
   onOpenEdit: () => void;
   onCancelForm: () => void;
@@ -480,8 +489,23 @@ function StepCard({
 
       {/* Réponse déjà saisie (visible quand validé sans form ouvert) */}
       {completed && step.response && !openForm && (
-        <div className="mx-3 mb-3 p-2.5" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+        <div className="mx-3 mb-3 p-2.5 space-y-2" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
           <StepResponseSummary step={step} />
+          {/* Capture d'écran si présente — thumbnail cliquable qui ouvre en grand */}
+          {(() => {
+            const attUrl = typeof (step.response as Record<string, unknown>)?.attachmentUrl === 'string'
+              ? (step.response as { attachmentUrl: string }).attachmentUrl : '';
+            if (!attUrl) return null;
+            return (
+              <a href={attUrl} target="_blank" rel="noopener noreferrer"
+                className="block relative bevel-sm overflow-hidden"
+                style={{ width: '160px', height: '100px', background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}
+                title="Cliquer pour voir en grand">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={attUrl} alt="Capture d'écran" className="absolute inset-0 w-full h-full object-cover" />
+              </a>
+            );
+          })()}
         </div>
       )}
 
@@ -492,6 +516,8 @@ function StepCard({
             type={step.type}
             config={step.config}
             initialResponse={openFormMode === 'edit' ? step.response : null}
+            uploadUrl={screenshotUploadUrl}
+            stepId={step.id}
             onCancel={onCancelForm}
             onSubmit={openFormMode === 'edit' ? onSubmitEdit : (resp) => onSubmitValidate(resp)}
             submitLabel={openFormMode === 'edit' ? 'Sauvegarder' : 'Valider cette étape'}

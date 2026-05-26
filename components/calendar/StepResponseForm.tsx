@@ -10,8 +10,9 @@
 //   - TodoDetailDrawer (un form par step dans la checklist v3)
 //   - MyTodosSection (mode legacy single-step pour les vieux exos)
 
-import { useState } from 'react';
-import { X, Check } from 'lucide-react';
+import { useRef, useState } from 'react';
+import Image from 'next/image';
+import { X, Check, Image as ImageIcon, Loader2, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
 import {
   TODO_RESPONSE_MAX,
@@ -27,6 +28,10 @@ export function StepResponseForm({
   onCancel,
   onSubmit,
   submitLabel = 'Valider & terminer',
+  // v3 — props pour permettre l'upload de capture d'écran (optionnel).
+  // Si non fourni, le bloc upload n'apparaît pas.
+  uploadUrl,
+  stepId,
 }: {
   type: TodoType;
   config: Record<string, unknown>;
@@ -35,6 +40,10 @@ export function StepResponseForm({
   onCancel: () => void;
   onSubmit: (response: Record<string, unknown>) => void;
   submitLabel?: string;
+  /** URL de l'endpoint d'upload screenshot (ex: `/api/structures/[id]/todos/[id]/screenshot`). */
+  uploadUrl?: string;
+  /** Identifiant du step (envoyé au serveur pour cibler la clé de stockage). */
+  stepId?: string;
 }) {
   const toast = useToast();
 
@@ -53,6 +62,44 @@ export function StepResponseForm({
   const [freeplayActualMinutes, setFreeplayActualMinutes] = useState<string>(
     typeof init.actualMinutes === 'number' ? String(init.actualMinutes) : '',
   );
+  // Capture d'écran (optionnelle, partagée par tous les types).
+  // Init depuis initialResponse.attachmentUrl si édition.
+  const [attachmentUrl, setAttachmentUrl] = useState<string>(
+    typeof init.attachmentUrl === 'string' ? init.attachmentUrl : '',
+  );
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  async function handleFileUpload(file: File) {
+    if (!uploadUrl || !stepId) {
+      toast.error('Upload indisponible.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image trop lourde (max 5 MB).');
+      return;
+    }
+    if (file.type && !file.type.startsWith('image/')) {
+      toast.error('Format non supporté — utilise une image.');
+      return;
+    }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('stepId', stepId);
+      const res = await fetch(uploadUrl, { method: 'POST', body: fd, credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur upload');
+      setAttachmentUrl(data.attachmentUrl as string);
+      toast.success('Capture ajoutée');
+    } catch (err) {
+      toast.error((err as Error).message || 'Erreur upload');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
 
   const promptsRaw = Array.isArray(config.prompts) ? config.prompts as unknown[] : [];
   const prompts: string[] = promptsRaw
@@ -115,7 +162,11 @@ export function StepResponseForm({
       toast.error(check.error);
       return;
     }
-    onSubmit(check.value);
+    // v3 : attache l'attachmentUrl si présent (passe-plat, pas validé côté serveur).
+    const finalPayload: Record<string, unknown> = attachmentUrl
+      ? { ...check.value, attachmentUrl }
+      : check.value;
+    onSubmit(finalPayload);
   }
 
   const fieldLabel: Record<TodoType, string> = {
@@ -273,9 +324,79 @@ export function StepResponseForm({
         </div>
       )}
 
+      {/* Capture d'écran — visible uniquement si l'upload est branché (uploadUrl + stepId) */}
+      {uploadUrl && stepId && (
+        <div>
+          <label className="t-label block mb-1.5" style={{ fontSize: '12px' }}>
+            Capture d&apos;écran (optionnel)
+          </label>
+          {attachmentUrl ? (
+            <div className="flex items-start gap-2">
+              <a href={attachmentUrl} target="_blank" rel="noopener noreferrer"
+                className="block relative bevel-sm overflow-hidden flex-shrink-0"
+                style={{
+                  width: '120px', height: '80px',
+                  background: 'var(--s-elevated)',
+                  border: '1px solid var(--s-border)',
+                }}
+                title="Cliquer pour ouvrir en grand">
+                <Image src={attachmentUrl} alt="Capture d'écran" fill className="object-cover" unoptimized />
+              </a>
+              <button type="button" onClick={() => setAttachmentUrl('')}
+                disabled={uploading}
+                className="flex items-center gap-1 px-2 py-1 transition-colors"
+                style={{
+                  fontSize: '11px', fontWeight: 700,
+                  background: 'transparent',
+                  border: '1px solid rgba(255,85,85,0.35)',
+                  color: '#ff8a8a',
+                  cursor: uploading ? 'wait' : 'pointer',
+                }}>
+                <Trash2 size={11} /> Retirer
+              </button>
+            </div>
+          ) : (
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                disabled={uploading}
+                onChange={e => {
+                  const f = e.target.files?.[0];
+                  if (f) handleFileUpload(f);
+                }}
+                style={{ display: 'none' }}
+              />
+              <button type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="flex items-center gap-2 px-3 py-2 bevel-sm transition-colors"
+                style={{
+                  fontSize: '12px', fontWeight: 600,
+                  background: 'var(--s-surface)',
+                  border: '1px dashed var(--s-border)',
+                  color: 'var(--s-text-dim)',
+                  cursor: uploading ? 'wait' : 'pointer',
+                }}>
+                {uploading
+                  ? <Loader2 size={13} className="animate-spin" />
+                  : <ImageIcon size={13} />}
+                <span>{uploading ? 'Upload en cours…' : 'Ajouter une capture'}</span>
+              </button>
+              <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
+                Preuve visuelle (score training pack, temps workshop…). Max 5 MB, compressée automatiquement.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
         <button type="button" onClick={submit}
-          className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-xs">
+          disabled={uploading}
+          className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-xs"
+          style={{ opacity: uploading ? 0.5 : 1 }}>
           <Check size={12} />
           <span>{submitLabel}</span>
         </button>

@@ -1,5 +1,23 @@
 import sharp from 'sharp';
 
+// Traite une capture d'écran (résultat training pack, score workshop, etc.) :
+// borne la largeur à 1920px (laisse le ratio source), webp qualité 82.
+// Cible ~200-500 KB pour une capture 1920×1080 typique.
+export async function processScreenshot(
+  input: Buffer,
+  maxWidth = 1920,
+  quality = 82
+): Promise<Buffer> {
+  return await sharp(input, { failOn: 'error' })
+    .rotate()
+    .resize(maxWidth, null, {
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    .webp({ quality, effort: 4 })
+    .toBuffer();
+}
+
 // Traite une image de profil / logo : carré 512×512, webp, qualité 85.
 // Accepte jpeg/png/webp/gif en entrée, ressort webp ~50-200 KB.
 export async function processSquareImage(

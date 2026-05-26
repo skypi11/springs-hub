@@ -203,6 +203,8 @@ export const StorageKeys = {
     `users/${uid}/avatar-${version}.webp`,
   eventReplay: (structureId: string, eventId: string, replayId: string) =>
     `structures/${structureId}/replays/${eventId}/${replayId}.replay`,
+  todoStepScreenshot: (structureId: string, todoId: string, stepId: string, version: number) =>
+    `structures/${structureId}/todo-screenshots/${todoId}/${stepId}-${version}.webp`,
   structureDocument: (structureId: string, documentId: string, filename: string) =>
     `structures/${structureId}/documents/${documentId}/${sanitizeFilename(filename)}`,
   // Préfixes pour calculs de quota
