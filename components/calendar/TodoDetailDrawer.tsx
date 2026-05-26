@@ -536,6 +536,14 @@ function StepConfigPreview({ step }: { step: ExerciseStep }) {
       if (prompts.length > 0) rows.push({ label: 'À évaluer', value: prompts.join(' · ') });
       break;
     }
+    case 'workshop_map':
+      if (typeof c.code === 'string' && c.code) rows.push({ label: 'Map', value: c.code, mono: true });
+      if (typeof c.objective === 'string' && c.objective) rows.push({ label: 'Objectif', value: c.objective });
+      break;
+    case 'free_play':
+      if (typeof c.durationMinutes === 'number') rows.push({ label: 'Durée', value: `${c.durationMinutes} min` });
+      if (typeof c.focus === 'string' && c.focus) rows.push({ label: 'Focus', value: c.focus });
+      break;
   }
   if (rows.length === 0) return null;
   return (
@@ -590,6 +598,22 @@ function StepResponseSummary({ step }: { step: ExerciseStep }) {
               <span style={{ color: 'var(--s-gold)', fontWeight: 700 }}>{String(n)}/5</span>
             </span>
           ))}
+        </div>
+      );
+    }
+    case 'workshop_map': {
+      const result = typeof (r as { result?: unknown }).result === 'string'
+        ? (r as { result: string }).result : '';
+      return <p className="text-xs whitespace-pre-wrap" style={{ color: 'var(--s-text)' }}>{result || '(vide)'}</p>;
+    }
+    case 'free_play': {
+      const notes = typeof (r as { notes?: unknown }).notes === 'string' ? (r as { notes: string }).notes : '';
+      const actual = typeof (r as { actualMinutes?: unknown }).actualMinutes === 'number'
+        ? (r as { actualMinutes: number }).actualMinutes : null;
+      return (
+        <div className="text-xs space-y-0.5" style={{ color: 'var(--s-text)' }}>
+          {actual !== null && <div><span style={{ color: 'var(--s-text-dim)' }}>Temps réel : </span><span style={{ color: 'var(--s-gold)', fontWeight: 700 }}>{actual} min</span></div>}
+          {notes && <div className="whitespace-pre-wrap">{notes}</div>}
         </div>
       );
     }

@@ -8,7 +8,7 @@ import { isStaffOfTeam } from '@/lib/event-permissions';
 import {
   TODO_TITLE_MAX,
   TODO_DESCRIPTION_MAX,
-  TODO_TYPES,
+  TODO_TYPES_ALL,
   validateTodoConfig,
   validateTodoResponse,
   validateStepResponse,
@@ -65,7 +65,7 @@ export async function PATCH(
         return NextResponse.json({ error: 'Permissions insuffisantes.' }, { status: 403 });
       }
       const willBeDone = !data.done;
-      const type: TodoType = (typeof data.type === 'string' && (TODO_TYPES as readonly string[]).includes(data.type))
+      const type: TodoType = (typeof data.type === 'string' && (TODO_TYPES_ALL as readonly string[]).includes(data.type))
         ? (data.type as TodoType)
         : 'free';
       const needsResponse = TODO_TYPE_META[type].needsResponse;
@@ -228,10 +228,10 @@ export async function PATCH(
 
       // Changement de type + config ensemble : si type fourni, config doit être revalidée
       // (les clés d'un type ne correspondent pas à un autre type)
-      const newType: TodoType | undefined = (typeof body.type === 'string' && (TODO_TYPES as readonly string[]).includes(body.type))
+      const newType: TodoType | undefined = (typeof body.type === 'string' && (TODO_TYPES_ALL as readonly string[]).includes(body.type))
         ? (body.type as TodoType)
         : undefined;
-      const currentType: TodoType = (typeof data.type === 'string' && (TODO_TYPES as readonly string[]).includes(data.type))
+      const currentType: TodoType = (typeof data.type === 'string' && (TODO_TYPES_ALL as readonly string[]).includes(data.type))
         ? (data.type as TodoType)
         : 'free';
       const effectiveType = newType ?? currentType;

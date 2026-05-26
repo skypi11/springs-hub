@@ -293,20 +293,25 @@ const TODO_COLORS: Record<string, number> = {
   free:           0x7a7a95, // gris (tâche libre)
   replay_review:  0x4da6ff, // bleu (replay)
   training_pack:  0xb88200, // or-dim (entraînement)
+  workshop_map:   0x4dffcf, // turquoise (workshop)
+  free_play:      0xa564d9, // violet-light (pratique libre)
   vod_review:     0xff6bb5, // rose (vidéo)
-  scouting:       0xff9f43, // orange (analyse adversaire)
-  watch_party:    0x5865f2, // blurple (watch)
   mental_checkin: 0x00d936, // vert (mental/fitness)
+  // deprecated mais présent pour les vieux docs encore en base
+  scouting:       0xff9f43,
+  watch_party:    0x5865f2,
 };
 
 const TODO_LABELS: Record<string, string> = {
   free:           'Tâche libre',
   replay_review:  'Visionnage replay',
   training_pack:  'Training pack',
+  workshop_map:   'Map Workshop',
+  free_play:      'Free play',
   vod_review:     'VOD review',
+  mental_checkin: 'Check-in mental',
   scouting:       'Analyse adversaire',
   watch_party:    'Watch party',
-  mental_checkin: 'Check-in mental',
 };
 
 export interface TodoEmbedInput {

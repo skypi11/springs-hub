@@ -1045,6 +1045,8 @@ function titlePlaceholderFor(type: TodoType): string {
   switch (type) {
     case 'replay_review':  return 'Visionnage replay vs Alpha — samedi';
     case 'training_pack':  return 'Training pack défensif — 30 min';
+    case 'workshop_map':   return 'Map Wall Reads — 10 séries';
+    case 'free_play':      return 'Free play wall dribbles — 20 min';
     case 'vod_review':     return 'VOD G2 vs Karmine — rotations';
     case 'scouting':       return 'Scouting Team Nova — BO5 de dimanche';
     case 'watch_party':    return 'Watch party finale RLCS — 21h';
@@ -1092,6 +1094,14 @@ export function TodoConfigSummary({ todo }: { todo: TodoRef }) {
       if (prompts.length > 0) rows.push({ label: 'Items', value: prompts.join(' · ') });
       break;
     }
+    case 'workshop_map':
+      if (typeof c.code === 'string' && c.code) rows.push({ label: 'Map', value: c.code, mono: true });
+      if (typeof c.objective === 'string' && c.objective) rows.push({ label: 'Objectif', value: c.objective });
+      break;
+    case 'free_play':
+      if (typeof c.durationMinutes === 'number') rows.push({ label: 'Durée', value: `${c.durationMinutes} min` });
+      if (typeof c.focus === 'string' && c.focus) rows.push({ label: 'Focus', value: c.focus });
+      break;
     default:
       break;
   }
@@ -1189,6 +1199,22 @@ export function TodoResponseSummary({ todo }: { todo: TodoRef }) {
           ))}
         </div>
       );
+      break;
+    }
+    case 'workshop_map':
+      if (typeof r.result === 'string' && r.result) body = r.result;
+      break;
+    case 'free_play': {
+      const notes = typeof r.notes === 'string' ? r.notes : '';
+      const actual = typeof r.actualMinutes === 'number' ? r.actualMinutes : null;
+      if (notes || actual !== null) {
+        body = (
+          <div className="text-xs space-y-0.5" style={{ color: 'var(--s-text)' }}>
+            {actual !== null && <div><span style={{ color: 'var(--s-text-dim)' }}>Temps réel : </span><strong style={{ color: 'var(--s-gold)' }}>{actual} min</strong></div>}
+            {notes && <div className="whitespace-pre-wrap">{notes}</div>}
+          </div>
+        );
+      }
       break;
     }
     default:

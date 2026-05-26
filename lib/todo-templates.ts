@@ -5,7 +5,7 @@
 import {
   TODO_TITLE_MAX,
   TODO_DESCRIPTION_MAX,
-  TODO_TYPES,
+  TODO_TYPES_ALL,
   TRAINING_PACKS_MAX,
   validateSteps,
   type TodoType,
@@ -110,6 +110,25 @@ export function cleanTemplateConfig(type: TodoType, raw: unknown): Record<string
       }
       return { prompts };
     }
+    case 'workshop_map':
+      return { code: s(r.code, 500), objective: s(r.objective, 500) };
+    case 'free_play': {
+      let durationMinutes = typeof r.durationMinutes === 'number'
+        ? r.durationMinutes
+        : Number(r.durationMinutes);
+      if (!Number.isFinite(durationMinutes) || durationMinutes < 5) durationMinutes = 30;
+      if (durationMinutes > 180) durationMinutes = 180;
+      return {
+        durationMinutes: Math.round(durationMinutes),
+        focus: s(r.focus, 500),
+      };
+    }
+    case 'scouting':
+      // Deprecated mais on accepte encore en lecture/édition d'anciens templates
+      return { opponent: s(r.opponent, 120) };
+    case 'watch_party':
+      // Deprecated mais on accepte encore en lecture/édition d'anciens templates
+      return { location: s(r.location, 200) };
     default: {
       const _exhaustive: never = type;
       void _exhaustive;
@@ -142,7 +161,7 @@ export function validateCreateTemplate(
     steps = stepsResult.value;
   } else {
     let legacyType: TodoType = 'free';
-    if (typeof input.type === 'string' && (TODO_TYPES as readonly string[]).includes(input.type)) {
+    if (typeof input.type === 'string' && (TODO_TYPES_ALL as readonly string[]).includes(input.type)) {
       legacyType = input.type as TodoType;
     }
     const config = cleanTemplateConfig(legacyType, input.config);

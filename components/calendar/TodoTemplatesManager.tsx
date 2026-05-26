@@ -147,29 +147,45 @@ function TemplateCreateForm({
 }) {
   const { firebaseUser } = useAuth();
   const toast = useToast();
-  const [type, setType] = useState<TodoType>('free');
   const [scope, setScope] = useState<'personal' | 'structure'>('personal');
   const [name, setName] = useState('');
   const [titleTemplate, setTitleTemplate] = useState('');
   const [descriptionTemplate, setDescriptionTemplate] = useState('');
-  const [config, setConfig] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
 
-  const updateConfig = useCallback((patch: Record<string, unknown>) => {
-    setConfig(prev => ({ ...prev, ...patch }));
-  }, []);
-
-  // Reset config quand le type change — les clés diffèrent d'un type à l'autre.
-  useEffect(() => { setConfig({}); }, [type]);
+  // v3 : init avec 1 step 'free' vide. L'utilisateur compose les étapes via ExerciseStepsEditor.
+  const [steps, setSteps] = useState<ExerciseStep[]>(() => [{
+    id: `step-${Math.random().toString(36).slice(2, 10)}`,
+    type: 'free',
+    config: {},
+    completed: false,
+  }]);
 
   async function save() {
     if (!firebaseUser || saving) return;
     if (!name.trim()) { toast.error('Nom requis'); return; }
+    if (steps.length === 0) { toast.error('Au moins une étape'); return; }
     setSaving(true);
     try {
+      const stepsPayload = steps.map(s => ({
+        id: s.id,
+        type: s.type,
+        ...(s.label ? { label: s.label } : {}),
+        config: s.config,
+      }));
       await api(`/api/structures/${structureId}/todo-templates`, {
         method: 'POST',
-        body: { scope, name: name.trim(), type, titleTemplate, descriptionTemplate, config },
+        body: {
+          scope,
+          name: name.trim(),
+          // legacy fields (proxy = 1er step) pour rétrocompat des lecteurs pas migrés
+          type: steps[0].type,
+          titleTemplate,
+          descriptionTemplate,
+          config: steps[0].config,
+          // v3 — source de vérité
+          steps: stepsPayload,
+        },
       });
       toast.success(scope === 'structure' ? 'Template partagé créé' : 'Template personnel créé');
       onSaved();
@@ -189,13 +205,11 @@ function TemplateCreateForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Type *</label>
-          <select className="settings-input w-full text-sm"
-            value={type} onChange={e => setType(e.target.value as TodoType)}>
-            {TODO_TYPES.map(t => (
-              <option key={t} value={t}>{TODO_TYPE_META[t].label}</option>
-            ))}
-          </select>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Nom du template *</label>
+          <input type="text" className="settings-input w-full text-sm"
+            placeholder="Routine pré-match"
+            maxLength={TEMPLATE_NAME_MAX}
+            value={name} onChange={e => setName(e.target.value)} autoFocus />
         </div>
         <div>
           <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Visibilité</label>
@@ -205,14 +219,6 @@ function TemplateCreateForm({
             <option value="structure">Partagé avec la structure</option>
           </select>
         </div>
-      </div>
-
-      <div>
-        <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Nom du template *</label>
-        <input type="text" className="settings-input w-full text-sm"
-          placeholder="Scouting 3v3 — BO5"
-          maxLength={TEMPLATE_NAME_MAX}
-          value={name} onChange={e => setName(e.target.value)} autoFocus />
       </div>
 
       <div>
@@ -230,7 +236,8 @@ function TemplateCreateForm({
           value={descriptionTemplate} onChange={e => setDescriptionTemplate(e.target.value)} />
       </div>
 
-      <TodoConfigFields type={type} config={config} onChange={updateConfig} />
+      {/* v3 : éditeur multi-step (drag&drop, add/remove). Limite TODO_MAX_STEPS. */}
+      <ExerciseStepsEditor steps={steps} onChange={setSteps} />
 
       <div className="flex items-center gap-2 pt-1">
         <button type="button" onClick={save} disabled={saving || !name.trim()}

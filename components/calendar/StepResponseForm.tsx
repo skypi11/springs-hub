@@ -46,6 +46,13 @@ export function StepResponseForm({
   const [notes, setNotes] = useState<string>(
     typeof init.notes === 'string' ? init.notes : '',
   );
+  // v3 — nouveaux types
+  const [workshopResult, setWorkshopResult] = useState<string>(
+    typeof init.result === 'string' ? init.result : '',
+  );
+  const [freeplayActualMinutes, setFreeplayActualMinutes] = useState<string>(
+    typeof init.actualMinutes === 'number' ? String(init.actualMinutes) : '',
+  );
 
   const promptsRaw = Array.isArray(config.prompts) ? config.prompts as unknown[] : [];
   const prompts: string[] = promptsRaw
@@ -87,6 +94,14 @@ export function StepResponseForm({
         return { notes };
       case 'mental_checkin':
         return { ratings };
+      case 'workshop_map':
+        return { result: workshopResult };
+      case 'free_play': {
+        const payload: Record<string, unknown> = { notes };
+        const m = Number(freeplayActualMinutes);
+        if (Number.isFinite(m) && m > 0) payload.actualMinutes = Math.round(m);
+        return payload;
+      }
       default:
         return null;
     }
@@ -111,6 +126,8 @@ export function StepResponseForm({
     training_pack: 'Ton résultat *',
     scouting: 'Tes notes *',
     mental_checkin: '',
+    workshop_map: 'Ton résultat *',
+    free_play: 'Ce que tu as travaillé *',
   };
 
   return (
@@ -220,6 +237,39 @@ export function StepResponseForm({
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {type === 'workshop_map' && (
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>{fieldLabel[type]}</label>
+          <textarea rows={3} className="settings-input w-full text-sm"
+            placeholder="Ex: 9/10 wall reads consécutifs réussis, j'ai galéré sur les double resets"
+            maxLength={TODO_RESPONSE_MAX}
+            value={workshopResult} onChange={e => setWorkshopResult(e.target.value)} />
+        </div>
+      )}
+
+      {type === 'free_play' && (
+        <div className="space-y-2">
+          <div>
+            <label className="t-label block mb-1" style={{ fontSize: '12px' }}>{fieldLabel[type]}</label>
+            <textarea rows={3} className="settings-input w-full text-sm"
+              placeholder="Ce que tu as travaillé concrètement, ce qui a marché ou pas"
+              maxLength={TODO_RESPONSE_MAX}
+              value={notes} onChange={e => setNotes(e.target.value)} />
+          </div>
+          <div>
+            <label className="t-label block mb-1" style={{ fontSize: '12px' }}>
+              Temps réel passé (min, optionnel)
+            </label>
+            <input type="number" min={1} max={600}
+              className="settings-input text-sm"
+              style={{ width: '90px' }}
+              placeholder="30"
+              value={freeplayActualMinutes}
+              onChange={e => setFreeplayActualMinutes(e.target.value)} />
+          </div>
         </div>
       )}
 

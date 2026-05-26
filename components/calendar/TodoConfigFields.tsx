@@ -4,6 +4,8 @@ import { X, Plus, Film } from 'lucide-react';
 import {
   DEFAULT_MENTAL_PROMPTS,
   TRAINING_PACKS_MAX,
+  FREEPLAY_MIN_MINUTES,
+  FREEPLAY_MAX_MINUTES,
   normalizeTrainingPacks,
   type TodoType,
   type TrainingPackItem,
@@ -183,6 +185,8 @@ export function TodoConfigFields({
     );
   }
 
+  // Deprecated 2026-05-26 — gardé pour édition d'anciens exos/templates uniquement.
+  // Plus créable via le picker (TODO_TYPES n'inclut plus scouting).
   if (type === 'scouting') {
     return (
       <div>
@@ -192,6 +196,82 @@ export function TodoConfigFields({
           maxLength={120}
           value={String(config.opponent ?? '')}
           onChange={e => onChange({ opponent: e.target.value })} />
+      </div>
+    );
+  }
+
+  if (type === 'workshop_map') {
+    return (
+      <div className="space-y-2">
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Code Workshop / URL Steam *</label>
+          <input type="text" className="settings-input w-full text-sm"
+            placeholder="2884906763 ou https://steamcommunity.com/sharedfiles/filedetails/?id=2884906763"
+            maxLength={500}
+            value={String(config.code ?? '')}
+            onChange={e => onChange({ code: e.target.value })}
+            style={{ fontFamily: 'var(--s-font-mono, monospace)' }} />
+        </div>
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Objectif</label>
+          <input type="text" className="settings-input w-full text-sm"
+            placeholder="Ex: 10 wall reads consécutifs sans rater"
+            maxLength={500}
+            value={String(config.objective ?? '')}
+            onChange={e => onChange({ objective: e.target.value })} />
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'free_play') {
+    const duration = typeof config.durationMinutes === 'number'
+      ? config.durationMinutes
+      : (Number(config.durationMinutes) || 30);
+    return (
+      <div className="space-y-2">
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>
+            Durée cible (minutes) — {FREEPLAY_MIN_MINUTES} à {FREEPLAY_MAX_MINUTES}
+          </label>
+          <div className="flex items-center gap-2">
+            <input type="number" min={FREEPLAY_MIN_MINUTES} max={FREEPLAY_MAX_MINUTES}
+              className="settings-input text-sm"
+              style={{ width: '90px' }}
+              value={duration}
+              onChange={e => {
+                const n = Number(e.target.value);
+                if (Number.isFinite(n)) {
+                  onChange({ durationMinutes: Math.max(FREEPLAY_MIN_MINUTES, Math.min(FREEPLAY_MAX_MINUTES, Math.round(n))) });
+                }
+              }} />
+            <div className="flex flex-wrap gap-1">
+              {[10, 15, 20, 30, 45, 60].map(n => (
+                <button key={n} type="button"
+                  onClick={() => onChange({ durationMinutes: n })}
+                  className="px-2 py-0.5 transition-all"
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    background: duration === n ? 'var(--s-elevated)' : 'var(--s-surface)',
+                    border: `1px solid ${duration === n ? 'var(--s-gold)' : 'var(--s-border)'}`,
+                    color: duration === n ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                    cursor: 'pointer',
+                  }}>
+                  {n} min
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Focus *</label>
+          <input type="text" className="settings-input w-full text-sm"
+            placeholder="Ex: wall dribbles + recoveries, ou aerials sans boost"
+            maxLength={500}
+            value={String(config.focus ?? '')}
+            onChange={e => onChange({ focus: e.target.value })} />
+        </div>
       </div>
     );
   }

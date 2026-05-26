@@ -8,35 +8,57 @@ export const TODO_CONFIG_TEXT_MAX = 500;
 export const TODO_RESPONSE_MAX = 4000;
 
 // ---------- Types de exercices ----------
+// Refonte 2026-05-26 : retiré `watch_party` (= event social, pas un exercice)
+// et `scouting` (couvert par `vod_review`). Ajouté `workshop_map` (essentiel RL)
+// et `free_play` (pratique libre chronométrée).
+//
+// Les anciens types restent dans l'union TodoType (pour ne pas casser les anciens
+// docs en base et les types TS). On les liste comme `DEPRECATED_TODO_TYPES` :
+//   - acceptés par validateExerciseStep (pas de fallback 'free')
+//   - PAS exposés dans le picker UI (TODO_TYPES = canonical seulement)
+//   - leurs labels/metas restent dans TODO_TYPE_META
 
 export type TodoType =
   | 'free'            // Tâche libre (fallback historique)
   | 'replay_review'   // Visionnage replay RL avec analyse
   | 'training_pack'   // Training pack RL avec code + objectif
-  | 'vod_review'      // Visionnage VOD externe (YouTube/Twitch) + analyse
-  | 'scouting'        // Analyse adversaire
-  | 'watch_party'     // Visionnage groupé (event calendrier lié)
-  | 'mental_checkin'; // Auto-évaluation rapide mental/fitness
+  | 'workshop_map'    // Map Steam Workshop (passing, dribbles, etc.)
+  | 'free_play'       // Pratique libre chronométrée avec focus
+  | 'vod_review'      // Visionnage VOD externe (YouTube/Twitch) + analyse (scouting inclus)
+  | 'mental_checkin'  // Auto-évaluation rapide mental/fitness
+  // Deprecated 2026-05-26 — gardés pour rétrocompat lecture, plus créables
+  | 'scouting'
+  | 'watch_party';
 
+/** Types canonical exposés dans le picker UI (création nouveaux exos/templates). */
 export const TODO_TYPES: readonly TodoType[] = [
   'free',
   'replay_review',
   'training_pack',
+  'workshop_map',
+  'free_play',
   'vod_review',
-  'scouting',
-  'watch_party',
   'mental_checkin',
 ];
 
+/** Types deprecated — acceptés en lecture pour les anciens docs, pas en création. */
+export const DEPRECATED_TODO_TYPES: readonly TodoType[] = ['scouting', 'watch_party'];
+
+/** Union complète (canonical + deprecated) — utilisé par les validateurs. */
+export const TODO_TYPES_ALL: readonly TodoType[] = [...TODO_TYPES, ...DEPRECATED_TODO_TYPES];
+
 // Métadonnées affichage par type (source de vérité unique, UI + éventuels rapports).
 export const TODO_TYPE_META: Record<TodoType, { label: string; short: string; needsResponse: boolean }> = {
-  free:           { label: 'Tâche libre',         short: 'Tâche',     needsResponse: false },
-  replay_review:  { label: 'Visionnage replay',   short: 'Replay',    needsResponse: true  },
-  training_pack:  { label: 'Training pack',       short: 'Training',  needsResponse: true  },
-  vod_review:     { label: 'VOD review',          short: 'VOD',       needsResponse: true  },
-  scouting:       { label: 'Analyse adversaire',  short: 'Scouting',  needsResponse: true  },
-  watch_party:    { label: 'Watch party',         short: 'Watch',     needsResponse: false },
-  mental_checkin: { label: 'Check-in mental',     short: 'Check-in',  needsResponse: true  },
+  free:           { label: 'Tâche libre',          short: 'Tâche',     needsResponse: false },
+  replay_review:  { label: 'Visionnage replay',    short: 'Replay',    needsResponse: true  },
+  training_pack:  { label: 'Training pack',        short: 'Training',  needsResponse: true  },
+  workshop_map:   { label: 'Map Workshop',         short: 'Workshop',  needsResponse: true  },
+  free_play:      { label: 'Free play',            short: 'Freeplay',  needsResponse: true  },
+  vod_review:     { label: 'VOD review',           short: 'VOD',       needsResponse: true  },
+  mental_checkin: { label: 'Check-in mental',      short: 'Check-in',  needsResponse: true  },
+  // Deprecated — affichage maintenu pour les anciens docs uniquement
+  scouting:       { label: 'Analyse adversaire',   short: 'Scouting',  needsResponse: true  },
+  watch_party:    { label: 'Watch party',          short: 'Watch',     needsResponse: false },
 };
 
 // ---------- Config par type (défini à la création par le staff) ----------
@@ -81,6 +103,16 @@ export interface WatchPartyConfig {
 export interface MentalCheckinConfig {
   prompts: string[];         // questions à noter /5 (défaut: humeur / énergie / motivation)
 }
+export interface WorkshopMapConfig {
+  code: string;              // code Steam Workshop OU URL "https://steamcommunity.com/sharedfiles/filedetails/?id=..."
+  objective: string;         // ce qu'on veut accomplir (ex: "10 wall reads consécutifs sans rater")
+}
+export interface FreePlayConfig {
+  durationMinutes: number;   // durée cible en minutes (5-180)
+  focus: string;             // sur quoi se concentrer (ex: "wall dribbles + recoveries")
+}
+export const FREEPLAY_MIN_MINUTES = 5;
+export const FREEPLAY_MAX_MINUTES = 180;
 
 export type TodoConfig =
   | ({ type: 'free' } & Record<string, never>)
@@ -147,7 +179,7 @@ export function getSteps(todo: { steps?: unknown; type?: unknown; config?: unkno
     );
   }
   // Legacy : wrap l'ancien { type, config, response } en un step unique.
-  const legacyType: TodoType = (typeof todo.type === 'string' && (TODO_TYPES as readonly string[]).includes(todo.type))
+  const legacyType: TodoType = (typeof todo.type === 'string' && (TODO_TYPES_ALL as readonly string[]).includes(todo.type))
     ? todo.type as TodoType
     : 'free';
   return [{
@@ -193,7 +225,7 @@ export function validateExerciseStep(
     ? r.id.trim().slice(0, 64)
     : `step-${Math.random().toString(36).slice(2, 10)}`;
 
-  const type: TodoType = (typeof r.type === 'string' && (TODO_TYPES as readonly string[]).includes(r.type))
+  const type: TodoType = (typeof r.type === 'string' && (TODO_TYPES_ALL as readonly string[]).includes(r.type))
     ? r.type as TodoType
     : 'free';
 
@@ -485,6 +517,23 @@ export function validateTodoConfig(
       if (prompts.length === 0) prompts = [...DEFAULT_MENTAL_PROMPTS];
       return { ok: true, value: { prompts } };
     }
+    case 'workshop_map': {
+      const code = s(r.code, 500);
+      if (!code) return { ok: false, error: 'Code Workshop ou URL Steam requis.' };
+      return { ok: true, value: { code, objective: s(r.objective, 500) } };
+    }
+    case 'free_play': {
+      let durationMinutes = typeof r.durationMinutes === 'number'
+        ? r.durationMinutes
+        : Number(r.durationMinutes);
+      if (!Number.isFinite(durationMinutes) || durationMinutes < FREEPLAY_MIN_MINUTES) {
+        durationMinutes = FREEPLAY_MIN_MINUTES;
+      }
+      if (durationMinutes > FREEPLAY_MAX_MINUTES) durationMinutes = FREEPLAY_MAX_MINUTES;
+      const focus = s(r.focus, 500);
+      if (!focus) return { ok: false, error: 'Indique sur quoi se concentrer pendant le free play.' };
+      return { ok: true, value: { durationMinutes: Math.round(durationMinutes), focus } };
+    }
     default: {
       const _exhaustive: never = type;
       void _exhaustive;
@@ -551,6 +600,23 @@ export function validateTodoResponse(
       if (cleaned.length === 0) return { ok: false, error: 'Aucune note fournie.' };
       return { ok: true, value: { ratings: cleaned } };
     }
+    case 'workshop_map': {
+      // Réponse libre : résultat de la session sur la map (ex: "9/10 wall reads").
+      const result = s(r.result, TODO_RESPONSE_MAX);
+      if (!result) return { ok: false, error: 'Indique ton résultat sur la map.' };
+      return { ok: true, value: { result } };
+    }
+    case 'free_play': {
+      // Notes libres + temps effectif (optionnel, peut différer du durationMinutes cible).
+      const notes = s(r.notes, TODO_RESPONSE_MAX);
+      if (!notes) return { ok: false, error: 'Indique ce que tu as travaillé pendant ton free play.' };
+      let actualMinutes: number | null = null;
+      if (r.actualMinutes !== undefined && r.actualMinutes !== null && r.actualMinutes !== '') {
+        const n = typeof r.actualMinutes === 'number' ? r.actualMinutes : Number(r.actualMinutes);
+        if (Number.isFinite(n) && n > 0 && n <= 600) actualMinutes = Math.round(n);
+      }
+      return { ok: true, value: { notes, ...(actualMinutes !== null ? { actualMinutes } : {}) } };
+    }
     default: {
       const _exhaustive: never = type;
       void _exhaustive;
@@ -607,7 +673,7 @@ export function validateCreateTodo(
   } else {
     // Legacy : on wrap { type, config } en un seul step.
     let legacyType: TodoType = 'free';
-    if (typeof input.type === 'string' && (TODO_TYPES as readonly string[]).includes(input.type)) {
+    if (typeof input.type === 'string' && (TODO_TYPES_ALL as readonly string[]).includes(input.type)) {
       legacyType = input.type as TodoType;
     }
     const configResult = validateTodoConfig(legacyType, input.config);
