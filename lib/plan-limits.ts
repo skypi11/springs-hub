@@ -58,13 +58,20 @@ export const PLAN_LIMITS = {
     maxSharedTemplates: 15,
     // Équipes max par structure (limite douce, jamais hard cap aujourd'hui)
     maxTeams: Infinity,
-    // Branding custom (couleur d'accent, bannière custom au-delà des standards)
+    // Branding avancé : couleur d'accent custom (autre que l'or Aedral),
+    // sub-domain `aran.aedral.com` (nécessite Vercel Pro côté infra),
+    // favicon custom, logo grand format sur la page publique.
+    // ⚠️ NE COUVRE PAS la bannière de structure : elle existe DÉJÀ en gratuit.
     customBranding: false,
-    // Boutons Discord interactifs (vote présence, etc.) au-delà des embeds simples
+    // Boutons Discord interactifs (RSVP event, valider exo depuis Discord, etc.)
+    // au-delà des embeds simples. Nécessite endpoint /api/discord/interactions.
     interactiveDiscordButtons: false,
-    // Analytics agrégées (stats RL, performance joueurs cross-events)
+    // Dashboard staff agrégé : tendances 30j équipe, comparaisons joueurs, MVP,
+    // win rate cross-events. ⚠️ NE COUVRE PAS les stats individuelles d'un joueur
+    // sur son propre profil — celles-ci restent gratuites (cf. placeholder profil).
     advancedAnalytics: false,
-    // Hosting tournois white-label avec branding de la structure
+    // Hosting tournois white-label : organiser ses propres tournois avec
+    // branding de la structure (vs branding Aedral). Phase 3+ feature.
     whiteLabelTournaments: false,
   },
   pro: {
