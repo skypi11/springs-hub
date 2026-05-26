@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   UserCircle, Shield, Users, CalendarClock, Search,
-  Film, ClipboardList, MessageCircle, Lock, BookOpen, ChevronRight,
+  Film, ClipboardList, MessageCircle, Lock, BookOpen, ChevronRight, Camera,
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
@@ -19,6 +19,11 @@ type Section = {
   title: string;
   intro: string;
   items: string[];
+  screenshot: {
+    page: string;
+    caption: string;
+    focus: string;
+  };
 };
 
 const SECTIONS: Section[] = [
@@ -36,6 +41,11 @@ const SECTIONS: Section[] = [
       "Connexions Discord (Twitch, YouTube, Instagram, etc.) sync automatique avec toggle visibilité par compte",
       "Choix d'être disponible au recrutement avec rôle visé (joueur / coach / manager)",
     ],
+    screenshot: {
+      page: '/profile/[ton uid]',
+      caption: 'Ta page profil publique',
+      focus: 'Cadre complet : avatar + drapeau + pseudo + badge vérifié + rang RL + bouton tracker.gg + liste structures + comptes liés visibles.',
+    },
   },
   {
     id: 'structures',
@@ -50,6 +60,11 @@ const SECTIONS: Section[] = [
       "Multi-jeux : une structure peut couvrir Rocket League ET Trackmania",
       "Liaison Discord — installe le bot Aedral sur ton serveur Discord pour les notifs",
     ],
+    screenshot: {
+      page: '/community/structure/[id]',
+      caption: 'Page publique d\'une structure (idéalement une grosse — ARAN ou TTC)',
+      focus: 'Header avec bannière + logo + tag + description + tags multi-jeux + nombre de membres et d\'équipes. Cadrer pour bien voir la bannière et l\'en-tête.',
+    },
   },
   {
     id: 'equipes',
@@ -64,6 +79,11 @@ const SECTIONS: Section[] = [
       "Salon Discord lié à chaque équipe pour les notifs ciblées",
       "Un joueur ne peut être que dans 1 équipe par jeu (toutes structures confondues)",
     ],
+    screenshot: {
+      page: '/community/my-structure → onglet Équipes',
+      caption: 'Vue gestion des équipes côté staff',
+      focus: 'Liste des équipes d\'une structure avec roster visible (titulaires + remplaçants + capitaine ★). Si possible, montrer 2-3 équipes pour donner l\'impression de structure organisée.',
+    },
   },
   {
     id: 'calendrier',
@@ -80,6 +100,11 @@ const SECTIONS: Section[] = [
       "Notifications Discord automatiques quand un event est créé",
       "Le manager d'équipe configure le minimum de joueurs requis pour un match",
     ],
+    screenshot: {
+      page: '/community/my-structure → onglet Calendrier → vue Semaine',
+      caption: 'Heatmap consensus dispos avec overlay staff',
+      focus: 'Vue Semaine avec la heatmap colorée (gris/vert/or) bien visible, panneau dispos latéral à droite, et idéalement 2-3 staff cochés pour montrer les pastilles colorées sur les slots.',
+    },
   },
   {
     id: 'recrutement',
@@ -95,6 +120,11 @@ const SECTIONS: Section[] = [
       "Suggestions automatiques basées sur les positions ouvertes de ta structure",
       "Envoi d'invitations directes (joueur vers structure ou inverse)",
     ],
+    screenshot: {
+      page: '/community/players',
+      caption: 'Annuaire joueurs vue grille (trading cards)',
+      focus: 'Cadrage qui montre 2-3 lignes de cards joueur en grille (5-6 par ligne). Bien voir l\'effet trading card portrait avec avatars + drapeaux + rang RL + tags rôle. Si possible, avoir au moins 1 fondateur visible (halo or).',
+    },
   },
   {
     id: 'replays',
@@ -110,6 +140,11 @@ const SECTIONS: Section[] = [
       "Joueurs : accès aux replays de leur équipe + leurs exercices replay review",
       "Staff : suppression des replays + accès aux stats agrégées par event",
     ],
+    screenshot: {
+      page: 'Event scrim/match avec replays uploadés → modal Stats',
+      caption: 'Stats parsées d\'un replay RL',
+      focus: 'Modal ou panneau stats d\'un replay avec les chiffres bien visibles : buts/saves/assists/démos par joueur + score d\'équipe. Cadrer assez serré pour que les chiffres soient lisibles sur le screenshot affiché en miniature.',
+    },
   },
   {
     id: 'exercices',
@@ -124,6 +159,11 @@ const SECTIONS: Section[] = [
       "Suivi par joueur : exercices à faire, terminés, en retard",
       "Compte rendu commun (event) + points à travailler perso (exercices) — séparation propre",
     ],
+    screenshot: {
+      page: 'Event scrim → Debrief / Points à travailler',
+      caption: 'Debrief post-scrim avec todos assignés par joueur',
+      focus: 'Vue debrief d\'un événement avec le compte rendu commun en haut et la liste des points à travailler ciblés par joueur en bas (avec les avatars + intitulés). Si tu n\'as pas d\'exemple, montre l\'écran "Mes exercices" d\'un joueur.',
+    },
   },
   {
     id: 'bot-discord',
@@ -138,6 +178,11 @@ const SECTIONS: Section[] = [
       "Sync nocturne : ton pseudo Discord et tes connexions tierces se mettent à jour automatiquement",
       "Rôles Discord auto : le bot peut attribuer des rôles selon ton statut (fondateur, joueur, etc.)",
     ],
+    screenshot: {
+      page: 'Discord — salon où le bot Aedral poste une notif d\'event',
+      caption: 'Embed Discord d\'un événement publié par le bot',
+      focus: 'Capture Discord d\'un embed d\'événement créé par le bot Aedral : titre, type, date/heure, équipe concernée, participants. Si possible, montrer aussi le bouton de RSVP. Bon screenshot "wow" — donne envie d\'installer le bot.',
+    },
   },
   {
     id: 'roles',
@@ -151,6 +196,11 @@ const SECTIONS: Section[] = [
       "Modal explicatif au moment de promouvoir quelqu'un (tu vois ce que tu donnes avant de valider)",
       "Documents staff (contrats, sensibles) accessibles uniquement aux fondateurs et co-fondateurs",
     ],
+    screenshot: {
+      page: '/community/my-structure → bouton "Rôles & permissions"',
+      caption: 'Modal Rôles & permissions',
+      focus: 'Modal RolesHelpModal grand ouvert qui montre la hiérarchie complète des 7 rôles avec leurs permissions. Si le modal est trop grand pour tout afficher, prends 2 screenshots (haut + bas) — sinon zoome juste en haut.',
+    },
   },
 ];
 
@@ -262,6 +312,32 @@ export default function GuidePage() {
                       <h2 className="font-display text-xl sm:text-2xl tracking-wider">{s.title.toUpperCase()}</h2>
                     </div>
                     <p className="text-sm mb-4" style={{ color: 'var(--s-text-dim)' }}>{s.intro}</p>
+
+                    {/* Screenshot placeholder — à remplacer par l'image réelle */}
+                    <div
+                      className="bevel-sm relative overflow-hidden mb-5 hex-bg"
+                      style={{
+                        background: 'var(--s-elevated)',
+                        border: '1px dashed rgba(255,184,0,0.3)',
+                        aspectRatio: '16 / 9',
+                      }}
+                    >
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
+                        <div
+                          className="w-12 h-12 flex items-center justify-center bevel-sm mb-3"
+                          style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.25)' }}
+                        >
+                          <Camera size={20} style={{ color: 'var(--s-gold)' }} />
+                        </div>
+                        <div className="t-label mb-1" style={{ color: 'var(--s-gold)' }}>SCREENSHOT À CAPTURER</div>
+                        <div className="text-sm font-semibold mb-2" style={{ color: 'var(--s-text)' }}>{s.screenshot.caption}</div>
+                        <div className="text-xs mb-2" style={{ color: 'var(--s-text-muted)' }}>
+                          <span className="t-mono">{s.screenshot.page}</span>
+                        </div>
+                        <p className="text-xs max-w-md" style={{ color: 'var(--s-text-dim)' }}>{s.screenshot.focus}</p>
+                      </div>
+                    </div>
+
                     <ul className="space-y-2">
                       {s.items.map((item, i) => (
                         <li key={i} className="flex items-start gap-2.5 text-sm" style={{ color: 'var(--s-text)' }}>
