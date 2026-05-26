@@ -19,6 +19,7 @@ import {
 import { useMutation } from '@tanstack/react-query';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/ui/ConfirmModal';
 import Portal from '@/components/ui/Portal';
 import {
   TODO_TYPE_META, getSteps, getStepProgress,
@@ -138,6 +139,7 @@ export default function CrossTeamTodosPanel({
   onOpenTeam?: (teamId: string) => void;
 }) {
   const toast = useToast();
+  const confirm = useConfirm();
   const [teamFilter, setTeamFilter] = useState<string>('all');
   const [stateFilter, setStateFilter] = useState<StateFilter>('pending');
   const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
@@ -163,6 +165,30 @@ export default function CrossTeamTodosPanel({
     onError: (err: Error) => toast.error(err.message || 'Erreur'),
   });
   const pingingUid = pingMutation.isPending ? pingMutation.variables?.assigneeId ?? null : null;
+
+  // Suppression d'un exercice (staff uniquement — API contrôle déjà la permission)
+  const deleteMutation = useMutation({
+    mutationFn: ({ todoId }: { todoId: string }) =>
+      api(`/api/structures/${structureId}/todos/${todoId}`, { method: 'DELETE' }).then(() => ({ todoId })),
+    onSuccess: () => {
+      toast.success('Exercice supprimé');
+      setOpenTodoId(null);
+      void refetch();
+    },
+    onError: (err: Error) => toast.error(err.message || 'Erreur'),
+  });
+  const deletingTodoId = deleteMutation.isPending ? deleteMutation.variables?.todoId ?? null : null;
+
+  async function handleDeleteTodo(todoId: string, title: string) {
+    const ok = await confirm({
+      title: 'Supprimer cet exercice ?',
+      message: `« ${title} » sera supprimé définitivement pour tous les assignés. Les réponses et captures déjà saisies seront perdues. Action irréversible.`,
+      confirmLabel: 'Supprimer',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    deleteMutation.mutate({ todoId });
+  }
 
   // Deep-link : si initialTodoId pointe vers un exercice qu'on a chargé, ouvrir le drawer une fois.
   useEffect(() => {
@@ -471,7 +497,7 @@ export default function CrossTeamTodosPanel({
         </ul>
       )}
 
-      {/* Drawer détail — read-only côté overview staff (pas de toggle, pas de response form) */}
+      {/* Drawer détail — vue staff : read-only sur les steps, mais bouton supprimer dispo */}
       {(() => {
         if (!openTodoId || !data) return null;
         const ot = data.todos.find(t => t.id === openTodoId);
@@ -486,6 +512,9 @@ export default function CrossTeamTodosPanel({
             open
             onClose={() => setOpenTodoId(null)}
             todo={drawerTodo}
+            isStaff
+            deleting={deletingTodoId === ot.id}
+            onDelete={() => handleDeleteTodo(ot.id, ot.title)}
           />
         );
       })()}

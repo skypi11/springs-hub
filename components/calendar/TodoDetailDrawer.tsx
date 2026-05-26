@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { X, Check, Loader2, Calendar as CalIcon, Shield, Clock, AlertTriangle, Pencil } from 'lucide-react';
+import { X, Check, Loader2, Calendar as CalIcon, Shield, Clock, AlertTriangle, Pencil, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import Portal from '@/components/ui/Portal';
 import {
@@ -60,10 +60,12 @@ export default function TodoDetailDrawer({
   isStaff = false,
   toggleStepId,
   locking = false,
+  deleting = false,
   onToggleStep,
   onEditStepResponse,
   onLock,
   onUnlock,
+  onDelete,
   extraInfo,
 }: {
   open: boolean;
@@ -71,12 +73,14 @@ export default function TodoDetailDrawer({
   todo: DrawerTodo | null;
   /** Si true, l'utilisateur peut cocher les steps / saisir des réponses (= assignee ou staff). */
   canEdit?: boolean;
-  /** Si true, le viewer est un staff de l'équipe (peut unlock un exo verrouillé). */
+  /** Si true, le viewer est un staff de l'équipe (peut unlock + supprimer l'exo). */
   isStaff?: boolean;
   /** stepId actuellement en cours d'API call (pour disable + spinner). */
   toggleStepId?: string | null;
   /** Si true, l'action lock/unlock est en cours (disable bouton + spinner). */
   locking?: boolean;
+  /** Si true, l'action delete est en cours. */
+  deleting?: boolean;
   /**
    * Toggle un step (cocher/décocher). Pour les types needsResponse, response
    * est requis quand completed=true. Le drawer gère le form de réponse en interne.
@@ -86,6 +90,8 @@ export default function TodoDetailDrawer({
   onEditStepResponse?: (stepId: string, response: Record<string, unknown>) => Promise<void> | void;
   /** Verrouille définitivement l'exo (tous steps cocher requis côté serveur). */
   onLock?: () => Promise<void> | void;
+  /** Supprime l'exo (staff uniquement — UI ne montre le bouton que si onDelete est fourni). */
+  onDelete?: () => Promise<void> | void;
   /** Déverrouille (staff uniquement). */
   onUnlock?: () => Promise<void> | void;
   /** Slot optionnel pour afficher le "créé par" ou autres infos contextuelles fournies par le parent. */
@@ -379,7 +385,7 @@ export default function TodoDetailDrawer({
             </div>
           </div>
 
-          {/* Footer : bouton lock/unlock conditionnel + fermer */}
+          {/* Footer : bouton lock/unlock + supprimer (staff) + fermer */}
           <footer className="flex items-center justify-between gap-2 px-6 py-3 flex-shrink-0"
             style={{ borderTop: '1px solid var(--s-border)', background: 'var(--s-surface)' }}>
             <div className="flex items-center gap-2">
@@ -406,10 +412,30 @@ export default function TodoDetailDrawer({
                 </button>
               )}
             </div>
-            <button type="button" onClick={onClose}
-              className="text-sm" style={{ color: 'var(--s-text-dim)', cursor: 'pointer' }}>
-              Fermer
-            </button>
+            <div className="flex items-center gap-3">
+              {/* Bouton "Supprimer" — staff uniquement (onDelete fourni). Confirmation gérée par le parent. */}
+              {onDelete && (
+                <button type="button" onClick={() => onDelete()}
+                  disabled={deleting}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bevel-sm transition-colors"
+                  style={{
+                    fontSize: '12px', fontWeight: 700,
+                    background: 'transparent',
+                    border: '1px solid rgba(255,85,85,0.35)',
+                    color: '#ff8a8a',
+                    cursor: deleting ? 'wait' : 'pointer',
+                    opacity: deleting ? 0.6 : 1,
+                  }}
+                  title="Supprimer définitivement cet exercice">
+                  {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                  <span>{deleting ? 'Suppression…' : 'Supprimer'}</span>
+                </button>
+              )}
+              <button type="button" onClick={onClose}
+                className="text-sm" style={{ color: 'var(--s-text-dim)', cursor: 'pointer' }}>
+                Fermer
+              </button>
+            </div>
           </footer>
         </aside>
       </div>
