@@ -116,6 +116,23 @@ export default function WeekView({
   // coach, etc.) sans avoir à survoler.
   const [selectedStaffUids, setSelectedStaffUids] = useState<Set<string>>(() => new Set());
   const [staffPickerOpen, setStaffPickerOpen] = useState(false);
+  // Toggle pour masquer la heatmap consensus (utile quand on regarde uniquement
+  // les pastilles staff sans être pollué par le fond coloré).
+  const [consensusVisible, setConsensusVisible] = useState(true);
+  const consensusKey = `aedral_week_consensus_visible_${structureId}`;
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(consensusKey);
+      if (stored === 'false') setConsensusVisible(false);
+    } catch { /* SSR */ }
+  }, [consensusKey]);
+  function toggleConsensus() {
+    setConsensusVisible(prev => {
+      const next = !prev;
+      try { localStorage.setItem(consensusKey, String(next)); } catch { /* noop */ }
+      return next;
+    });
+  }
   const staffPickerKey = `aedral_week_staff_selection_${structureId}`;
   useEffect(() => {
     try {
@@ -143,13 +160,15 @@ export default function WeekView({
   };
 
   // Palette cyclique de 6 couleurs distinctes pour les pastilles staff —
-  // hors palette DA (or/vert réservés au consensus joueurs).
+  // hors palette consensus (or = créneau optimal, vert = matchable).
+  // L'ambre/jaune et le turquoise originaux clashaient visuellement avec
+  // l'or et le vert de la heatmap → remplacés par cyan + magenta.
   const STAFF_COLORS = useMemo(() => [
     '#87cefa', // bleu clair
     '#ff8fa3', // rose
     '#a78bfa', // violet pâle
-    '#fbbf24', // ambre/jaune
-    '#34d399', // turquoise
+    '#22d3ee', // cyan
+    '#f472b6', // magenta
     '#f97316', // orange
   ], []);
 
@@ -362,6 +381,29 @@ export default function WeekView({
           </div>
         )}
 
+        {/* Toggle Heatmap consensus — visible uniquement si une équipe est sélectionnée
+            (sinon il n'y a pas de heatmap à toggler). Permet de voir uniquement les
+            pastilles staff sans pollution colorée. */}
+        {availActive && (
+          <button type="button" onClick={toggleConsensus}
+            className="bevel-sm transition-colors hover:bg-[var(--s-hover)]"
+            title={consensusVisible
+              ? 'Masquer la heatmap consensus pour voir uniquement les dispos staff'
+              : 'Afficher la heatmap consensus (gris/vert/or)'}
+            style={{
+              padding: '5px 10px',
+              fontSize: '12px',
+              background: consensusVisible ? 'rgba(255,184,0,0.10)' : 'var(--s-elevated)',
+              border: `1px solid ${consensusVisible ? 'rgba(255,184,0,0.35)' : 'var(--s-border)'}`,
+              color: consensusVisible ? 'var(--s-gold)' : 'var(--s-text-dim)',
+              cursor: 'pointer',
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+            }}>
+            Heatmap : {consensusVisible ? 'ON' : 'OFF'}
+          </button>
+        )}
+
         <button type="button" onClick={goToday}
           className="ml-auto bevel-sm text-xs font-semibold transition-colors hover:bg-[var(--s-hover)]"
           style={{ padding: '5px 12px', background: 'var(--s-elevated)', border: '1px solid var(--s-border)', color: 'var(--s-text-dim)' }}>
@@ -434,7 +476,7 @@ export default function WeekView({
                     const total = avail?.members.length ?? 0;
                     const minPlayers = avail?.team.minPlayersForMatch ?? 0;
                     const titularDispoCount = titularsBySlot.get(iso) ?? 0;
-                    const heat = availActive && shown > 0;
+                    const heat = availActive && shown > 0 && consensusVisible;
                     let heatBg: string | undefined;
                     if (heat) {
                       if (soloMember) {
@@ -506,8 +548,8 @@ export default function WeekView({
                     );
                   })}
 
-                  {/* Blocs consensus (contour) */}
-                  {availActive && availWeek && availWeek.blocks.map((b, bi) => {
+                  {/* Blocs consensus (contour) — masqués quand toggle off */}
+                  {consensusVisible && availActive && availWeek && availWeek.blocks.map((b, bi) => {
                     const range = blockRange(b, day.slots);
                     if (!range) return null;
                     return (
@@ -675,7 +717,51 @@ export default function WeekView({
           </aside>
         )}
       </div>
+
+      {/* Légende — visible quand une équipe est sélectionnée pour rappeler les codes couleur */}
+      {availActive && (
+        <div className="flex items-center gap-4 flex-wrap text-xs pt-1"
+          style={{ color: 'var(--s-text-muted)' }}>
+          <span className="font-bold uppercase tracking-wider" style={{ letterSpacing: '0.08em' }}>Légende :</span>
+          {consensusVisible && (
+            <>
+              <LegendItem swatch={{ background: 'rgba(255,184,0,0.45)' }} label="Tous titulaires" />
+              <LegendItem swatch={{ background: 'rgba(47,196,107,0.35)' }} label={`≥ ${avail?.team.minPlayersForMatch ?? '?'} dispo (matchable)`} />
+              <LegendItem swatch={{ background: 'rgba(255,255,255,0.08)' }} label="1 ou + (insuffisant)" />
+              <LegendItem swatch={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }} label="Personne" />
+              <LegendItem swatch={{ background: 'transparent', border: '1.5px solid var(--s-gold)' }} label="Bloc consensus" />
+            </>
+          )}
+          {selectedStaffUids.size > 0 && (
+            <>
+              {consensusVisible && <span style={{ color: 'var(--s-text-dim)' }}>·</span>}
+              <span className="inline-flex items-center gap-1.5">
+                <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#87cefa', boxShadow: '0 0 0 1px rgba(0,0,0,0.35)' }} />
+                <span>Pastille staff (couleur par personne)</span>
+              </span>
+            </>
+          )}
+        </div>
+      )}
     </div>
+  );
+}
+
+// Petit composant interne pour la légende — swatch coloré + label
+function LegendItem({ swatch, label }: {
+  swatch: { background: string; border?: string };
+  label: string;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span style={{
+        display: 'inline-block',
+        width: 14, height: 10,
+        background: swatch.background,
+        border: swatch.border ?? '1px solid rgba(255,255,255,0.05)',
+      }} />
+      <span>{label}</span>
+    </span>
   );
 }
 
