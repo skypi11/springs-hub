@@ -24,9 +24,11 @@ import {
   type TodoRef,
   type TodoType,
   type DeadlineMode,
+  type ExerciseStep,
 } from '@/lib/todos';
 import { TEMPLATE_NAME_MAX } from '@/lib/todo-templates';
 import { TodoConfigFields } from '@/components/calendar/TodoConfigFields';
+import { ExerciseStepsEditor } from '@/components/calendar/ExerciseStepsEditor';
 import TodoTemplatesManager, { useTodoTemplates, type TodoTemplateUi } from '@/components/calendar/TodoTemplatesManager';
 
 // Exporté pour pouvoir construire un TeamRef depuis CalendarSection.tsx
@@ -437,7 +439,6 @@ export function NewTodoForm({
 }) {
   const { firebaseUser } = useAuth();
   const toast = useToast();
-  const [type, setType] = useState<TodoType>('free');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [deadline, setDeadline] = useState('');
@@ -462,32 +463,51 @@ export function NewTodoForm({
   // TodoConfigFields.
   const [availableReplays, setAvailableReplays] = useState<Array<{ id: string; title: string }> | undefined>(undefined);
 
-  // Config spécifique au type — un seul objet, les clés non-pertinentes sont ignorées à la soumission
-  const [config, setConfig] = useState<Record<string, unknown>>({});
-  function updateConfig(patch: Record<string, unknown>) {
-    setConfig(prev => ({ ...prev, ...patch }));
-  }
-  // Changer de type réinitialise la config (les champs d'un type ne correspondent pas à un autre)
-  function changeType(t: TodoType) {
-    setType(t);
-    if (t === 'mental_checkin') setConfig({ prompts: [...DEFAULT_MENTAL_PROMPTS] });
-    else setConfig({});
-  }
+  // v3 : un exercice = liste de steps composables. Init avec 1 step 'free' vide
+  // (l'utilisateur peut changer le type ou en ajouter d'autres via ExerciseStepsEditor).
+  const [steps, setSteps] = useState<ExerciseStep[]>(() => [{
+    id: `step-${Math.random().toString(36).slice(2, 10)}`,
+    type: 'free',
+    config: {},
+    completed: false,
+  }]);
 
-  // Applique un template : pré-remplit type + title + description + config.
-  // Ne touche pas aux assignees/deadline/eventId — ceux-ci sont contextuels à chaque exercice.
+  // Applique un template : pré-remplit title + description + steps.
+  // Compat ascendante : un template legacy (champs `type`/`config` sans `steps`)
+  // est wrappé en un step unique. Les nouveaux templates ont `steps[]` direct.
   function applyTemplate(tpl: TodoTemplateUi) {
-    setType(tpl.type);
     setTitle(tpl.titleTemplate);
     setDescription(tpl.descriptionTemplate);
-    // Pour mental_checkin sans prompts dans le template, on repose sur les defaults.
-    if (tpl.type === 'mental_checkin') {
-      const prompts = Array.isArray((tpl.config as { prompts?: unknown }).prompts)
-        ? ((tpl.config as { prompts: unknown[] }).prompts).filter(p => typeof p === 'string') as string[]
-        : [];
-      setConfig({ prompts: prompts.length > 0 ? prompts : [...DEFAULT_MENTAL_PROMPTS] });
+
+    const tplWithSteps = tpl as TodoTemplateUi & { steps?: unknown };
+    if (Array.isArray(tplWithSteps.steps) && tplWithSteps.steps.length > 0) {
+      // Template v3 multi-step — on régénère des ids locaux pour éviter les collisions
+      const tplSteps = (tplWithSteps.steps as Array<{ type?: unknown; label?: unknown; config?: unknown }>);
+      const resolved: ExerciseStep[] = tplSteps.map(s => ({
+        id: `step-${Math.random().toString(36).slice(2, 10)}`,
+        type: (typeof s.type === 'string' && (TODO_TYPES as readonly string[]).includes(s.type) ? s.type : 'free') as TodoType,
+        ...(typeof s.label === 'string' && s.label ? { label: s.label } : {}),
+        config: (s.config && typeof s.config === 'object' ? s.config : {}) as Record<string, unknown>,
+        completed: false,
+      }));
+      setSteps(resolved.length > 0 ? resolved : [{
+        id: `step-${Math.random().toString(36).slice(2, 10)}`, type: 'free', config: {}, completed: false,
+      }]);
     } else {
-      setConfig({ ...tpl.config });
+      // Template legacy single-type — wrap en 1 step
+      let cfg = (tpl.config && typeof tpl.config === 'object' ? { ...tpl.config } : {}) as Record<string, unknown>;
+      if (tpl.type === 'mental_checkin') {
+        const prompts = Array.isArray((cfg as { prompts?: unknown }).prompts)
+          ? ((cfg as { prompts: unknown[] }).prompts).filter(p => typeof p === 'string') as string[]
+          : [];
+        cfg = { prompts: prompts.length > 0 ? prompts : [...DEFAULT_MENTAL_PROMPTS] };
+      }
+      setSteps([{
+        id: `step-${Math.random().toString(36).slice(2, 10)}`,
+        type: tpl.type,
+        config: cfg,
+        completed: false,
+      }]);
     }
     setShowTemplatePicker(false);
     toast.success(`Template « ${tpl.name} » appliqué`);
@@ -498,15 +518,25 @@ export function NewTodoForm({
     if (!saveAsName.trim()) { toast.error('Donne un nom au template'); return; }
     setSavingTemplate(true);
     try {
+      // v3 : on envoie steps[] au template. type/config restent pour rétrocompat
+      // (= type/config du 1er step, l'API templates les accepte encore).
+      const stepsPayload = steps.map(s => ({
+        type: s.type,
+        ...(s.label ? { label: s.label } : {}),
+        config: s.config,
+      }));
       await api(`/api/structures/${structureId}/todo-templates`, {
         method: 'POST',
         body: {
           scope: saveAsShared ? 'structure' : 'personal',
           name: saveAsName.trim(),
-          type,
+          // legacy fields : 1er step (compat ascendante des lecteurs existants)
+          type: steps[0]?.type ?? 'free',
           titleTemplate: title.trim(),
           descriptionTemplate: description.trim(),
-          config,
+          config: steps[0]?.config ?? {},
+          // v3 : la source de vérité
+          steps: stepsPayload,
         },
       });
       toast.success(saveAsShared ? 'Template partagé enregistré' : 'Template personnel enregistré');
@@ -592,17 +622,25 @@ export function NewTodoForm({
     if (!firebaseUser || creating) return;
     if (!title.trim()) { toast.error('Titre requis'); return; }
     if (assigneeIds.length === 0) { toast.error('Sélectionne au moins un joueur'); return; }
+    if (steps.length === 0) { toast.error('Au moins une étape requise'); return; }
     setCreating(true);
     try {
+      // v3 : envoi steps[] — l'API extrait type/config du 1er step pour le
+      // proxy legacy au top-level (champ `type`/`config` du doc Firestore).
+      const stepsPayload = steps.map(s => ({
+        id: s.id,
+        type: s.type,
+        ...(s.label ? { label: s.label } : {}),
+        config: s.config,
+      }));
       const data = await api<{ count: number }>(`/api/structures/${structureId}/todos`, {
         method: 'POST',
         body: {
           subTeamId: team.id,
           assigneeIds,
-          type,
+          steps: stepsPayload,
           title: title.trim(),
           description: description.trim() || undefined,
-          config,
           eventId: eventId || undefined,
           ...(eventId && deadlineMode === 'relative'
             ? { deadlineMode: 'relative', deadlineOffsetDays }
@@ -677,33 +715,10 @@ export function NewTodoForm({
         </div>
       )}
 
-      {/* Type picker — chips horizontales, le choix du type change les champs affichés */}
       <div>
-        <label className="t-label block mb-1.5" style={{ fontSize: '12px' }}>Type de exercice</label>
-        <div className="flex flex-wrap gap-1.5">
-          {TODO_TYPES.map(t => {
-            const active = type === t;
-            return (
-              <button key={t} type="button"
-                onClick={() => changeType(t)}
-                className="px-2.5 py-1 text-xs font-bold transition-all duration-150"
-                style={{
-                  background: active ? 'var(--s-elevated)' : 'var(--s-surface)',
-                  border: `1px solid ${active ? 'var(--s-gold)' : 'var(--s-border)'}`,
-                  color: active ? 'var(--s-gold)' : 'var(--s-text-dim)',
-                  cursor: 'pointer',
-                }}>
-                {TODO_TYPE_META[t].short.toUpperCase()}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div>
-        <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Titre *</label>
+        <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Titre de l&apos;exercice *</label>
         <input type="text" className="settings-input w-full text-sm"
-          placeholder={titlePlaceholderFor(type)}
+          placeholder={titlePlaceholderFor(steps[0]?.type ?? 'free')}
           maxLength={TODO_TITLE_MAX}
           value={title} onChange={e => setTitle(e.target.value)} />
       </div>
@@ -711,18 +726,16 @@ export function NewTodoForm({
       <div>
         <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Description (optionnelle)</label>
         <textarea rows={2} className="settings-input w-full text-sm"
-          placeholder="Contexte, consignes, points d'attention"
+          placeholder="Contexte général, consignes, points d'attention communs à toutes les étapes"
           maxLength={TODO_DESCRIPTION_MAX}
           value={description} onChange={e => setDescription(e.target.value)} />
       </div>
 
-      {/* Champs spécifiques au type sélectionné.
-          Le picker replay (type 'replay_review') s'affiche uniquement si un
-          event est lié → on a une liste de replays à proposer. */}
-      <TodoConfigFields
-        type={type}
-        config={config}
-        onChange={updateConfig}
+      {/* v3 : l'exercice est une liste de steps composables.
+          Chaque step a son propre type + config (drag&drop pour réorganiser). */}
+      <ExerciseStepsEditor
+        steps={steps}
+        onChange={setSteps}
         availableReplays={availableReplays}
       />
 
