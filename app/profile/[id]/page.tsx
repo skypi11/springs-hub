@@ -8,7 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { countries } from '@/lib/countries';
 import type { SpringsUser, RLStats } from '@/types';
 import {
-  User, Globe, Calendar, Gamepad2, Search, Shield,
+  User, Calendar, Gamepad2, Search, Shield,
   ExternalLink, Settings, Loader2, AlertCircle,
   Trophy, History, Sparkles, ShieldAlert,
 } from 'lucide-react';
@@ -23,6 +23,24 @@ import RLIdentityBadge from '@/components/players/RLIdentityBadge';
 import { getConnectionMeta, buildConnectionUrl } from '@/lib/discord-connections';
 import { Link2 } from 'lucide-react';
 import RankBadge, { getRankTierConfig } from '@/components/rl/RankBadge';
+
+// Priorité hiérarchique des rôles structure — utilisée pour identifier le rôle principal
+// d'un joueur dans le hero (ex : un fondateur ARAN qui est aussi joueur dans TTC affiche "Fondateur ARAN").
+const ROLE_PRIORITY: Record<string, number> = {
+  fondateur: 0, co_fondateur: 1, responsable: 2, coach_structure: 3,
+  manager_equipe: 4, coach_equipe: 5, capitaine: 6, joueur: 7,
+  remplacant: 8, membre: 9,
+};
+const ROLE_LABELS: Record<string, string> = {
+  fondateur: 'Fondateur', co_fondateur: 'Co-fondateur',
+  responsable: 'Responsable', coach_structure: 'Coach structure',
+  manager_equipe: "Manager d'équipe", coach_equipe: 'Coach',
+  capitaine: 'Capitaine', joueur: 'Joueur',
+  remplacant: 'Remplaçant', membre: 'Membre',
+};
+const TEAM_ROLE_LABELS: Record<string, string> = {
+  joueur: 'Joueur', remplacant: 'Remplaçant', coach: 'Coach', manager: 'Manager', capitaine: 'Capitaine',
+};
 
 function CountryFlag({ code, size = 16 }: { code: string; size?: number }) {
   if (!code || code === 'OTHER') return <span>🌍</span>;
@@ -160,6 +178,26 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const avatarSrc = profile.avatarUrl || profile.discordAvatar || '';
   const age = profile.age ?? null;
 
+  // Structures triées par hiérarchie de rôle — la première = rôle "principal" affiché dans le hero.
+  const sortedStructures = [...(profile.structures ?? [])].sort(
+    (a, b) => (ROLE_PRIORITY[a.role] ?? 99) - (ROLE_PRIORITY[b.role] ?? 99),
+  );
+  const topStructure = sortedStructures[0] ?? null;
+  const isLeader = topStructure?.role === 'fondateur' || topStructure?.role === 'co_fondateur';
+
+  // Comptes Discord visibles publiquement (sidebar)
+  const visibleConnections = (profile.discordConnections ?? []).filter(c => c.visibleOnProfile);
+
+  // Historique Springs : on ne render la card QUE si données réelles présentes.
+  // Phase 3 (compétitions natives) pas encore branchée → éviter le panel "Aucune participation" qui fait vide.
+  const tmCount = history?.tm?.editionsPlayed ?? 0;
+  const rlCount = history?.rl?.competitions.length ?? 0;
+  const hasHistory = tmCount > 0 || rlCount > 0;
+
+  const playsRL = profile.games?.includes('rocket_league') ?? false;
+  const playsTM = profile.games?.includes('trackmania') ?? false;
+  const gameCount = (playsRL ? 1 : 0) + (playsTM ? 1 : 0);
+
   return (
     <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-8">
       <CompactStickyHeader
@@ -237,10 +275,44 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                 </div>
 
                 {/* Nom */}
-                <h1 className="font-display uppercase mb-2.5"
+                <h1 className="font-display uppercase mb-1.5"
                   style={{ fontSize: 'clamp(28px, 7vw, 64px)', lineHeight: 0.95, letterSpacing: '0.04em' }}>
                   {profile.displayName}
                 </h1>
+
+                {/* Rôle principal (calculé sur la structure de plus haut rang) */}
+                {topStructure && (
+                  <Link
+                    href={`/community/structure/${topStructure.id}`}
+                    className="inline-flex items-center gap-2 mb-2.5 transition-opacity hover:opacity-80"
+                  >
+                    {topStructure.logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={topStructure.logoUrl}
+                        alt={topStructure.name}
+                        className="w-5 h-5 object-contain flex-shrink-0"
+                      />
+                    ) : (
+                      <Shield size={14} style={{ color: isLeader ? 'var(--s-gold)' : 'var(--s-text-muted)' }} />
+                    )}
+                    <span
+                      className="text-sm font-semibold"
+                      style={{ color: isLeader ? 'var(--s-gold)' : 'var(--s-text)' }}
+                    >
+                      {ROLE_LABELS[topStructure.role] ?? 'Membre'}
+                    </span>
+                    <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>·</span>
+                    <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                      {topStructure.name}
+                      {topStructure.tag && (
+                        <span className="t-mono ml-1.5" style={{ color: 'var(--s-text-muted)', fontSize: '12px' }}>
+                          [{topStructure.tag}]
+                        </span>
+                      )}
+                    </span>
+                  </Link>
+                )}
 
                 {/* Infos sous le nom */}
                 <div className="flex items-center gap-x-4 gap-y-1.5 flex-wrap">
@@ -275,9 +347,14 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           </div>
         </header>
 
+        {/* ─── BODY : layout 2 colonnes (main 2/3 + sidebar 1/3 sticky) ──── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in-d1">
+          {/* MAIN COLUMN (2/3) — Bio + Stats jeux + Historique */}
+          <div className="lg:col-span-2 space-y-6 min-w-0">
+
         {/* ─── BIO ───────────────────────────────────────────────────────── */}
         {profile.bio && (
-          <div className="pillar-card panel relative overflow-hidden animate-fade-in-d1">
+          <div className="pillar-card panel relative overflow-hidden">
             <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.15), transparent 60%)' }} />
             <div className="relative z-[1]">
               <div className="panel-header">
@@ -296,7 +373,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         )}
 
         {/* ─── STATS JEUX ────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 animate-fade-in-d1">
+        <div className={`grid gap-6 ${gameCount === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
 
           {/* Stats RL */}
           {profile.games?.includes('rocket_league') && (() => {
@@ -632,227 +709,176 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           )}
         </div>
 
-        {/* ─── COMPTES & LIENS (placés après les stats, moins prioritaires) ── */}
-        {(profile.discordConnections ?? []).some(c => c.visibleOnProfile) && (
-          <div className="pillar-card panel relative overflow-hidden animate-fade-in-d1">
-            <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
-            <div className="absolute top-0 right-0 w-[180px] h-[180px] pointer-events-none opacity-[0.06]"
-              style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
-            <div className="relative z-[1]">
-              <div className="panel-header">
-                <div className="flex items-center gap-2">
-                  <Link2 size={13} style={{ color: 'var(--s-gold)' }} />
-                  <span className="t-label" style={{ color: 'var(--s-text)' }}>COMPTES & LIENS</span>
-                </div>
-              </div>
-              <div className="p-5">
-                <div className="flex flex-wrap gap-2">
-                  {(profile.discordConnections ?? [])
-                    .filter(c => c.visibleOnProfile)
-                    .map(conn => {
-                      const meta = getConnectionMeta(conn.type);
-                      const url = buildConnectionUrl(conn);
-                      const label = meta?.label ?? conn.type;
-                      const inner = (
-                        <span
-                          className="inline-flex items-center gap-2 px-3 py-2 transition-colors bevel-sm"
-                          style={{
-                            background: 'var(--s-elevated)',
-                            border: '1px solid var(--s-border)',
-                            color: 'var(--s-text)',
-                          }}
-                        >
-                          <span
-                            className="w-6 h-6 flex items-center justify-center font-display text-xs"
-                            style={{
-                              background: 'rgba(255,184,0,0.12)',
-                              color: 'var(--s-gold)',
-                            }}
-                          >
-                            {label.charAt(0).toUpperCase()}
-                          </span>
-                          <span className="text-xs font-semibold">{label}</span>
-                          <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>·</span>
-                          <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{conn.name}</span>
-                          {url && <ExternalLink size={10} style={{ color: 'var(--s-text-muted)' }} />}
-                        </span>
-                      );
-                      return url ? (
-                        <a key={conn.type} href={url} target="_blank" rel="noopener noreferrer">
-                          {inner}
-                        </a>
-                      ) : (
-                        <span key={conn.type}>{inner}</span>
-                      );
-                    })}
-                </div>
-              </div>
-            </div>
-          </div>
+        {/* ─── HISTORIQUE SPRINGS ────────────────────────────────────────── */}
+        {/* Card masquée tant qu'il n'y a aucune participation enregistrée
+            (Phase 3 compétitions natives Aedral pas encore branchée). */}
+        {hasHistory && (
+          <SpringsHistoryPanel
+            history={history}
+            games={profile.games ?? []}
+            hasTmIdentity={Boolean((profile.pseudoTM || '').trim() || (profile.loginTM || '').trim())}
+            isOwner={isOwner}
+          />
         )}
 
-        {/* ─── HISTORIQUE SPRINGS ────────────────────────────────────────── */}
-        <SpringsHistoryPanel
-          history={history}
-          games={profile.games ?? []}
-          hasTmIdentity={Boolean((profile.pseudoTM || '').trim() || (profile.loginTM || '').trim())}
-          isOwner={isOwner}
-        />
+          </div>
+          {/* ── FIN MAIN COLUMN ── */}
 
-        {/* ─── SIDEBAR INFO ──────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in-d2">
+          {/* SIDEBAR (1/3) — Recrutement + Structures + Comptes compacts */}
+          <aside className="space-y-6 min-w-0">
+            <div className="lg:sticky lg:top-[88px] space-y-6">
 
-          {/* Recrutement */}
-          {profile.isAvailableForRecruitment && (
-            <div className="pillar-card panel relative overflow-hidden group transition-all duration-200">
-              <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
-              <div className="absolute top-0 right-0 w-[150px] h-[150px] pointer-events-none opacity-[0.06]"
-                style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
-              <div className="relative z-[1]">
-                <div className="panel-header">
-                  <div className="flex items-center gap-2">
-                    <Search size={13} style={{ color: 'var(--s-gold)' }} />
-                    <span className="t-label" style={{ color: 'var(--s-text)' }}>DISPONIBLE AU RECRUTEMENT</span>
-                  </div>
-                  <span className="tag tag-gold" style={{ fontSize: '12px' }}>OUVERT</span>
-                </div>
-                <div className="p-5 space-y-3">
-                  {profile.recruitmentRole && (
-                    <div className="flex items-center gap-2 px-3 py-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                      <span className="t-label">RÔLE</span>
-                      <span className="text-sm font-semibold ml-auto" style={{ color: 'var(--s-text)' }}>
-                        {profile.recruitmentRole.charAt(0).toUpperCase() + profile.recruitmentRole.slice(1)}
-                      </span>
-                    </div>
-                  )}
-                  {profile.recruitmentMessage && (
-                    <div className="prose-springs text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                      <ReactMarkdown>{profile.recruitmentMessage}</ReactMarkdown>
-                    </div>
-                  )}
-                  <InviteToStructureButton
-                    targetUserId={id}
-                    targetDisplayName={profile.displayName || 'ce joueur'}
-                    targetGames={profile.games ?? []}
-                    isAvailableForRecruitment={profile.isAvailableForRecruitment}
-                    className="w-full justify-center"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Structure(s) */}
-          <div className="pillar-card panel relative overflow-hidden group transition-all duration-200">
-            <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.15), transparent 60%)' }} />
-            <div className="relative z-[1]">
-              <div className="panel-header">
-                <div className="flex items-center gap-2">
-                  <Shield size={13} style={{ color: 'var(--s-text-dim)' }} />
-                  <span className="t-label" style={{ color: 'var(--s-text)' }}>STRUCTURE{(profile.structures?.length ?? 0) > 1 ? 'S' : ''}</span>
-                </div>
-              </div>
-              <div className="p-5 space-y-3">
-                {(!profile.structures || profile.structures.length === 0) ? (
-                  <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucune structure pour le moment.</p>
-                ) : profile.structures.map(ps => {
-                  const roleLabels: Record<string, string> = {
-                    fondateur: 'Fondateur', co_fondateur: 'Co-fondateur',
-                    responsable: 'Responsable', coach_structure: 'Coach structure',
-                    manager_equipe: "Manager d'équipe", coach_equipe: 'Coach',
-                    capitaine: 'Capitaine', joueur: 'Joueur', remplacant: 'Remplaçant', membre: 'Membre',
-                  };
-                  const teamRoleLabels: Record<string, string> = {
-                    joueur: 'Joueur', remplacant: 'Remplaçant', coach: 'Coach', manager: 'Manager', capitaine: 'Capitaine',
-                  };
-                  return (
-                    <Link key={ps.id} href={`/community/structure/${ps.id}`}
-                      className="block p-3 bevel-sm transition-colors duration-150"
-                      style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                      <div className="flex items-center gap-3">
-                        {ps.logoUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={ps.logoUrl} alt={ps.name} className="w-8 h-8 object-contain bevel-sm flex-shrink-0"
-                            style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }} />
-                        ) : (
-                          <div className="w-8 h-8 flex items-center justify-center bevel-sm flex-shrink-0"
-                            style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-                            <Shield size={13} style={{ color: 'var(--s-text-muted)' }} />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>
-                            {ps.name}
-                            {ps.tag && <span className="ml-1.5 t-mono" style={{ color: 'var(--s-text-muted)', fontSize: '12px' }}>[{ps.tag}]</span>}
-                          </p>
-                          <p className="t-mono" style={{ fontSize: '12px', color: 'var(--s-gold)' }}>{roleLabels[ps.role] ?? 'Membre'}</p>
-                        </div>
+              {/* Recrutement (uniquement si dispo) */}
+              {profile.isAvailableForRecruitment && (
+                <div className="pillar-card panel relative overflow-hidden">
+                  <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
+                  <div className="absolute top-0 right-0 w-[150px] h-[150px] pointer-events-none opacity-[0.06]"
+                    style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
+                  <div className="relative z-[1]">
+                    <div className="panel-header">
+                      <div className="flex items-center gap-2">
+                        <Search size={13} style={{ color: 'var(--s-gold)' }} />
+                        <span className="t-label" style={{ color: 'var(--s-text)' }}>RECRUTEMENT</span>
                       </div>
-                      {ps.teams.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {ps.teams.map(t => {
-                            const gameClass = t.game === 'rocket_league' ? 'tag-blue' : t.game === 'trackmania' ? 'tag-green' : 'tag-neutral';
-                            return (
-                              <span key={t.id} className={`tag ${gameClass}`} style={{ fontSize: '12px', padding: '2px 7px' }}>
-                                {teamRoleLabels[t.role]} · {t.name}
-                              </span>
-                            );
-                          })}
+                      <span className="tag tag-gold" style={{ fontSize: '11px' }}>OUVERT</span>
+                    </div>
+                    <div className="p-5 space-y-3">
+                      {profile.recruitmentRole && (
+                        <div className="flex items-center gap-2 px-3 py-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                          <span className="t-label">RÔLE</span>
+                          <span className="text-sm font-semibold ml-auto" style={{ color: 'var(--s-text)' }}>
+                            {profile.recruitmentRole.charAt(0).toUpperCase() + profile.recruitmentRole.slice(1)}
+                          </span>
                         </div>
                       )}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Infos rapides */}
-          <div className="pillar-card panel relative overflow-hidden group transition-all duration-200">
-            <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.15), transparent 60%)' }} />
-            <div className="relative z-[1]">
-              <div className="panel-header">
-                <div className="flex items-center gap-2">
-                  <Globe size={13} style={{ color: 'var(--s-text-dim)' }} />
-                  <span className="t-label" style={{ color: 'var(--s-text)' }}>INFORMATIONS</span>
-                </div>
-              </div>
-              <div className="p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>Jeux</span>
-                  <div className="flex gap-1.5">
-                    {profile.games?.map(g => (
-                      <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                        style={{ fontSize: '12px', padding: '2px 6px' }}>
-                        {g === 'rocket_league' ? 'RL' : 'TM'}
-                      </span>
-                    ))}
+                      {profile.recruitmentMessage && (
+                        <div className="prose-springs text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                          <ReactMarkdown>{profile.recruitmentMessage}</ReactMarkdown>
+                        </div>
+                      )}
+                      <InviteToStructureButton
+                        targetUserId={id}
+                        targetDisplayName={profile.displayName || 'ce joueur'}
+                        targetGames={profile.games ?? []}
+                        isAvailableForRecruitment={profile.isAvailableForRecruitment}
+                        className="w-full justify-center"
+                      />
+                    </div>
                   </div>
                 </div>
-                {country && (
-                  <>
-                    <div className="divider" />
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>Pays</span>
-                      <span className="text-xs flex items-center gap-1.5" style={{ color: 'var(--s-text)' }}>
-                        <CountryFlag code={country.code} size={14} /> {country.name}
-                      </span>
+              )}
+
+              {/* Structure(s) — utilise sortedStructures (triées par hiérarchie de rôle) */}
+              {sortedStructures.length > 0 && (
+                <div className="pillar-card panel relative overflow-hidden">
+                  <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.15), transparent 60%)' }} />
+                  <div className="relative z-[1]">
+                    <div className="panel-header">
+                      <div className="flex items-center gap-2">
+                        <Shield size={13} style={{ color: 'var(--s-text-dim)' }} />
+                        <span className="t-label" style={{ color: 'var(--s-text)' }}>STRUCTURE{sortedStructures.length > 1 ? 'S' : ''}</span>
+                      </div>
                     </div>
-                  </>
-                )}
-                {age !== null && (
-                  <>
-                    <div className="divider" />
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>Âge</span>
-                      <span className="font-display text-sm">{age} ans</span>
+                    <div className="p-5 space-y-3">
+                      {sortedStructures.map(ps => {
+                        const psIsLeader = ps.role === 'fondateur' || ps.role === 'co_fondateur';
+                        return (
+                          <Link key={ps.id} href={`/community/structure/${ps.id}`}
+                            className="block p-3 bevel-sm transition-colors duration-150"
+                            style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                            <div className="flex items-center gap-3">
+                              {ps.logoUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={ps.logoUrl} alt={ps.name} className="w-8 h-8 object-contain bevel-sm flex-shrink-0"
+                                  style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }} />
+                              ) : (
+                                <div className="w-8 h-8 flex items-center justify-center bevel-sm flex-shrink-0"
+                                  style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                                  <Shield size={13} style={{ color: 'var(--s-text-muted)' }} />
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>
+                                  {ps.name}
+                                  {ps.tag && <span className="ml-1.5 t-mono" style={{ color: 'var(--s-text-muted)', fontSize: '12px' }}>[{ps.tag}]</span>}
+                                </p>
+                                <p className="t-mono" style={{ fontSize: '12px', color: psIsLeader ? 'var(--s-gold)' : 'var(--s-text-dim)' }}>
+                                  {ROLE_LABELS[ps.role] ?? 'Membre'}
+                                </p>
+                              </div>
+                            </div>
+                            {ps.teams.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {ps.teams.map(t => {
+                                  const gameClass = t.game === 'rocket_league' ? 'tag-blue' : t.game === 'trackmania' ? 'tag-green' : 'tag-neutral';
+                                  return (
+                                    <span key={t.id} className={`tag ${gameClass}`} style={{ fontSize: '12px', padding: '2px 7px' }}>
+                                      {TEAM_ROLE_LABELS[t.role]} · {t.name}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </Link>
+                        );
+                      })}
                     </div>
-                  </>
-                )}
-              </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Comptes & liens — version compacte (chips inline) */}
+              {visibleConnections.length > 0 && (
+                <div className="pillar-card panel relative overflow-hidden">
+                  <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
+                  <div className="relative z-[1]">
+                    <div className="panel-header">
+                      <div className="flex items-center gap-2">
+                        <Link2 size={13} style={{ color: 'var(--s-gold)' }} />
+                        <span className="t-label" style={{ color: 'var(--s-text)' }}>COMPTES & LIENS</span>
+                      </div>
+                    </div>
+                    <div className="p-4">
+                      <div className="flex flex-wrap gap-1.5">
+                        {visibleConnections.map(conn => {
+                          const meta = getConnectionMeta(conn.type);
+                          const url = buildConnectionUrl(conn);
+                          const label = meta?.label ?? conn.type;
+                          const inner = (
+                            <span
+                              className="inline-flex items-center gap-1.5 px-2 py-1 transition-colors bevel-sm"
+                              style={{
+                                background: 'var(--s-elevated)',
+                                border: '1px solid var(--s-border)',
+                                color: 'var(--s-text-dim)',
+                                fontSize: '12px',
+                              }}
+                            >
+                              <span className="font-semibold" style={{ color: 'var(--s-text)' }}>{label}</span>
+                              <span style={{ color: 'var(--s-text-muted)' }}>·</span>
+                              <span className="truncate" style={{ maxWidth: '120px' }}>{conn.name}</span>
+                              {url && <ExternalLink size={9} style={{ color: 'var(--s-text-muted)', flexShrink: 0 }} />}
+                            </span>
+                          );
+                          return url ? (
+                            <a key={conn.type} href={url} target="_blank" rel="noopener noreferrer">
+                              {inner}
+                            </a>
+                          ) : (
+                            <span key={conn.type}>{inner}</span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
             </div>
-          </div>
+          </aside>
+          {/* ── FIN SIDEBAR ── */}
         </div>
+        {/* ── FIN GRID 2 COLS ── */}
 
       </div>
     </div>
