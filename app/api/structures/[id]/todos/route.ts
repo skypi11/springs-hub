@@ -213,6 +213,16 @@ export async function POST(
           .map(toDiscordId)
           .filter((v): v is string => !!v);
 
+        // v3 : si exo multi-step, construit la liste des étapes pour l'embed.
+        // Format : "Type — Label" (ex: "REPLAY — Game 1 vs Alpha", "TRAINING — Air dribbles").
+        const stepsList: string[] = steps.length > 1
+          ? steps.map(s => {
+              const typeLabel = TODO_TYPE_META[s.type].short;
+              const lbl = s.label?.trim();
+              return lbl ? `**${typeLabel}** — ${lbl}` : `**${typeLabel}**`;
+            })
+          : [];
+
         const embedInput = {
           title,
           type,
@@ -226,6 +236,7 @@ export async function POST(
           thumbnailUrl: teamLogoUrl || structureLogoUrl,
           authorIconUrl: teamLogoUrl || structureLogoUrl,
           pingUserIds,
+          ...(stepsList.length > 0 ? { stepsList } : {}),
         };
 
         // 1) Embed dans le channel de l'équipe si configuré ET si le créateur a coché "aussi publier dans channel".

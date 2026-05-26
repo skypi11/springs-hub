@@ -324,6 +324,9 @@ export interface TodoEmbedInput {
   pingUserIds?: string[];             // snowflakes à ping — assignés
   // Résumé de config par type (ex: nombre de packs, URL VOD courte…). Si null, pas de field extra.
   configSummary?: string | null;
+  // v3 : liste des steps pour les exos multi-step (1 ligne par step, avec type + label).
+  // Si fourni et > 1 step, affiché comme field dédié "📋 Étapes" au lieu de configSummary.
+  stepsList?: string[];
 }
 
 // Poste un embed "nouveau exercice" dans un channel Discord. Même forme que postEventEmbed :
@@ -351,7 +354,15 @@ export async function postTodoEmbed(channelId: string, input: TodoEmbedInput): P
   if (input.teamName) {
     fields.push({ name: '👥 Équipe', value: input.teamName.slice(0, 256), inline: true });
   }
-  if (input.configSummary) {
+  // v3 : si exo multi-step, on affiche la liste des étapes en priorité.
+  // Sinon fallback sur configSummary single-step (legacy).
+  if (input.stepsList && input.stepsList.length > 1) {
+    const lines = input.stepsList
+      .slice(0, 10) // hard cap aligné sur TODO_MAX_STEPS
+      .map((line, i) => `**${i + 1}.** ${line}`)
+      .join('\n');
+    fields.push({ name: `📋 Étapes (${input.stepsList.length})`, value: lines.slice(0, 1024), inline: false });
+  } else if (input.configSummary) {
     fields.push({ name: '🎯 Détail', value: input.configSummary.slice(0, 1024), inline: false });
   }
 
