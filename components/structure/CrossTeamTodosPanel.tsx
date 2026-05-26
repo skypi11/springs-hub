@@ -13,7 +13,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';
 import {
-  AlertTriangle, Clock, CheckCircle2, Filter, Loader2, ListChecks, Users, Plus, Send, X,
+  AlertTriangle, Clock, CheckCircle2, Filter, Loader2, ListChecks, Users, Plus, Send, X, Library,
   type LucideIcon,
 } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
@@ -27,7 +27,8 @@ import {
 } from '@/lib/todos';
 import TodoDetailDrawer, { type DrawerTodo } from '@/components/calendar/TodoDetailDrawer';
 import { NewTodoForm, type TeamRef, type Member, type EventOpt } from '@/components/calendar/TeamTodosPanel';
-import { useTodoTemplates } from '@/components/calendar/TodoTemplatesManager';
+import TodoTemplatesManager, { useTodoTemplates } from '@/components/calendar/TodoTemplatesManager';
+import { useAuth } from '@/context/AuthContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -145,6 +146,9 @@ export default function CrossTeamTodosPanel({
   const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
   const [openTodoId, setOpenTodoId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showTemplatesManager, setShowTemplatesManager] = useState(false);
+  const { firebaseUser } = useAuth();
+  const templates = useTodoTemplates(structureId);
 
   const { data, isPending: loading, error: queryError, refetch } = useQuery({
     queryKey: ['structure', structureId, 'todos-overview'] as const,
@@ -330,14 +334,33 @@ export default function CrossTeamTodosPanel({
             EXERCICES
           </h2>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowCreateModal(true)}
-          className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-sm"
-        >
-          <Plus size={13} />
-          <span>Nouvel exercice</span>
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Gérer les templates — modal complète (création/édition/suppression/partage) */}
+          <button
+            type="button"
+            onClick={() => setShowTemplatesManager(true)}
+            className="bevel-sm flex items-center gap-2 px-3 py-2 transition-colors hover:bg-[var(--s-hover)]"
+            style={{
+              fontSize: '13px', fontWeight: 600,
+              background: 'var(--s-elevated)',
+              border: '1px solid var(--s-border)',
+              color: 'var(--s-text-dim)',
+              cursor: 'pointer',
+            }}
+            title="Créer / éditer / partager des templates d'exercices"
+          >
+            <Library size={13} />
+            <span>Templates ({templates.templates.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-sm"
+          >
+            <Plus size={13} />
+            <span>Nouvel exercice</span>
+          </button>
+        </div>
       </div>
 
       {/* ── 3 compteurs ─────────────────────────────────────────────────── */}
@@ -529,6 +552,18 @@ export default function CrossTeamTodosPanel({
             setShowCreateModal(false);
             void refetch();
           }}
+        />
+      )}
+
+      {/* Modal Gestion templates — permet de créer/éditer/partager des templates
+          d'exercices sans devoir passer par le panel d'une équipe spécifique. */}
+      {showTemplatesManager && firebaseUser && (
+        <TodoTemplatesManager
+          structureId={structureId}
+          currentUid={firebaseUser.uid}
+          templates={templates.templates}
+          onClose={() => setShowTemplatesManager(false)}
+          onChanged={() => templates.reload()}
         />
       )}
     </div>
