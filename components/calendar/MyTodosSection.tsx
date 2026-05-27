@@ -58,7 +58,13 @@ function formatDeadline(ymd: string, today: string): { label: string; color: str
   return { label: dd, color: 'var(--s-text-dim)' };
 }
 
-export default function MyTodosSection() {
+export default function MyTodosSection({
+  requestOpenTodoId,
+  onRequestConsumed,
+}: {
+  requestOpenTodoId?: string | null;
+  onRequestConsumed?: () => void;
+} = {}) {
   const { firebaseUser } = useAuth();
   const toast = useToast();
   const qc = useQueryClient();
@@ -87,6 +93,18 @@ export default function MyTodosSection() {
     url.searchParams.delete('todo');
     window.history.replaceState({}, '', url.toString());
   }, [todos]);
+
+  // Ouverture externe (depuis le mini-calendrier mensuel par ex.) : le parent
+  // bump `requestOpenTodoId` → on ouvre le drawer si l'id est connu, puis on
+  // notifie le parent qu'il peut reset à null (pour pouvoir re-déclencher
+  // sur le même id si l'utilisateur ferme et reclique).
+  useEffect(() => {
+    if (!requestOpenTodoId || todos.length === 0) return;
+    if (todos.some(t => t.id === requestOpenTodoId)) {
+      setOpenTodoId(requestOpenTodoId);
+    }
+    onRequestConsumed?.();
+  }, [requestOpenTodoId, todos, onRequestConsumed]);
 
   const { pending, done } = useMemo(() => {
     const p: MyTodo[] = [];

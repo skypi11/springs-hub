@@ -102,6 +102,19 @@ export default function MyCalendarPage() {
   const events = data?.events ?? [];
   const structures = data?.structures ?? {};
 
+  // Cache partagé avec MyTodosSection (même queryKey) — pas de double fetch.
+  // On l'utilise pour enrichir le mini-mois avec les exos (échéances).
+  const { data: todosData } = useQuery({
+    queryKey: ['todos', 'me'] as const,
+    queryFn: () => api<{ todos: Array<{ id: string; title: string; structureId: string; done: boolean; deadlineAt: number | null }> }>('/api/todos/me'),
+    enabled: !!firebaseUser,
+  });
+  const todos = todosData?.todos ?? [];
+
+  // Drawer todo piloté depuis le mini-mois : on bump `requestedTodoId`,
+  // MyTodosSection l'ouvre, puis reset via onRequestConsumed.
+  const [requestedTodoId, setRequestedTodoId] = useState<string | null>(null);
+
   const presenceMutation = useMutation({
     mutationFn: ({ structureId, eventId, status }: { structureId: string; eventId: string; status: PresenceStatus }) =>
       api(`/api/structures/${structureId}/events/${eventId}/presence`, {
@@ -120,18 +133,35 @@ export default function MyCalendarPage() {
     presenceMutation.mutate({ structureId, eventId, status });
   };
 
-  // Events enrichis pour le mini-mois (title + structureLabel pour le panel
-  // "events du jour" qui s'affiche au clic sur une cellule).
-  const miniEvents: MiniEvent[] = useMemo(
-    () => events.map((e) => ({
+  // Items enrichis pour le mini-mois : events + exos avec échéance non-done.
+  // Les exos sont positionnés à `deadlineAt` (end-of-day Paris) avec une
+  // couleur magenta dédiée gérée côté widget (kind: 'todo').
+  const miniEvents: MiniEvent[] = useMemo(() => {
+    const fromEvents: MiniEvent[] = events.map((e) => ({
       id: e.id,
+      kind: 'event' as const,
       startsAt: e.startsAt,
       type: e.type,
       title: e.title,
       structureLabel: structures[e.structureId]?.name,
-    })),
-    [events, structures],
-  );
+    }));
+    const fromTodos: MiniEvent[] = todos
+      .filter((t) => !t.done && typeof t.deadlineAt === 'number')
+      .map((t) => ({
+        id: t.id,
+        kind: 'todo' as const,
+        startsAt: new Date(t.deadlineAt as number).toISOString(),
+        type: 'autre',
+        title: t.title,
+        structureLabel: structures[t.structureId]?.name,
+      }));
+    return [...fromEvents, ...fromTodos];
+  }, [events, todos, structures]);
+
+  const handleMiniItemClick = (id: string, kind: 'event' | 'todo') => {
+    if (kind === 'event') setOpenEventId(id);
+    else setRequestedTodoId(id);
+  };
 
   const { upcomingGroups, past } = useMemo(() => {
     const upcomingList: MyEvent[] = [];
@@ -209,15 +239,20 @@ export default function MyCalendarPage() {
         <AvailabilityCollapsible />
 
         {/* Mes exercices */}
-        <MyTodosSection />
+        <MyTodosSection
+          requestOpenTodoId={requestedTodoId}
+          onRequestConsumed={() => setRequestedTodoId(null)}
+        />
 
         {/* Mini calendrier mensuel — vue d'ensemble + navigation par jour.
-            Clic sur un jour avec events → panel inline listant les events du
-            jour, click sur un event → ouvre le drawer détail. */}
-        {events.length > 0 && (
+            Clic sur un jour avec items → panel inline listant events + exos
+            du jour, click sur un item → ouvre le drawer correspondant
+            (PlayerEventDrawer pour event, TodoDetailDrawer via MyTodosSection
+            pour exo). */}
+        {miniEvents.length > 0 && (
           <MiniMonthWidget
             events={miniEvents}
-            onEventClick={setOpenEventId}
+            onItemClick={handleMiniItemClick}
           />
         )}
 

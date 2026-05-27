@@ -21,6 +21,9 @@ const TYPE_LABEL: Record<EventType, string> = {
   autre: 'Autre',
 };
 
+// Couleur dédiée pour les exercices (échéance) — distincte des 4 types d'event.
+const TODO_COLOR = '#E91E63';
+
 const DAY_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 const MONTH_LABELS = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -29,11 +32,22 @@ const MONTH_LABELS = [
 
 export type MiniEvent = {
   id: string;
+  kind: 'event' | 'todo';
   startsAt: string | null;
   type: EventType;
   title: string;
   structureLabel?: string;
 };
+
+function colorFor(item: MiniEvent): string {
+  if (item.kind === 'todo') return TODO_COLOR;
+  return TYPE_COLOR[normalizeEventType(item.type)];
+}
+
+function labelFor(item: MiniEvent): string {
+  if (item.kind === 'todo') return 'Exo';
+  return TYPE_LABEL[normalizeEventType(item.type)];
+}
 
 function ymdOf(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -54,10 +68,10 @@ function fmtTime(iso: string | null): string {
 
 export default function MiniMonthWidget({
   events,
-  onEventClick,
+  onItemClick,
 }: {
   events: MiniEvent[];
-  onEventClick: (eventId: string) => void;
+  onItemClick: (id: string, kind: 'event' | 'todo') => void;
 }) {
   const today = useMemo(() => new Date(), []);
   const [cursor, setCursor] = useState({ year: today.getFullYear(), month: today.getMonth() });
@@ -200,7 +214,7 @@ export default function MiniMonthWidget({
           const colors: string[] = [];
           const seen = new Set<string>();
           for (const e of cell.events) {
-            const c = TYPE_COLOR[normalizeEventType(e.type)];
+            const c = colorFor(e);
             if (!seen.has(c)) {
               seen.add(c);
               colors.push(c);
@@ -277,6 +291,7 @@ export default function MiniMonthWidget({
         <Legend color="var(--s-blue)" label="Scrim" />
         <Legend color="#00D9B5" label="Tournoi" />
         <Legend color="var(--s-text-dim)" label="Training" />
+        <Legend color={TODO_COLOR} label="Exo (échéance)" />
       </div>
 
       {/* Panel events du jour sélectionné */}
@@ -304,13 +319,14 @@ export default function MiniMonthWidget({
           </div>
           <ul className="divide-y" style={{ borderColor: 'var(--s-border)' }}>
             {selectedEvents.map((ev) => {
-              const t = normalizeEventType(ev.type);
-              const color = TYPE_COLOR[t];
+              const color = colorFor(ev);
+              const label = labelFor(ev);
+              const timeLabel = ev.kind === 'todo' ? 'ÉCH.' : fmtTime(ev.startsAt);
               return (
-                <li key={ev.id}>
+                <li key={`${ev.kind}-${ev.id}`}>
                   <button
                     type="button"
-                    onClick={() => onEventClick(ev.id)}
+                    onClick={() => onItemClick(ev.id, ev.kind)}
                     className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors"
                     style={{ cursor: 'pointer' }}
                     onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
@@ -318,9 +334,15 @@ export default function MiniMonthWidget({
                   >
                     <span
                       className="t-mono flex-shrink-0"
-                      style={{ fontSize: '12px', color: 'var(--s-text-dim)', minWidth: '38px' }}
+                      style={{
+                        fontSize: ev.kind === 'todo' ? '11px' : '12px',
+                        color: ev.kind === 'todo' ? color : 'var(--s-text-dim)',
+                        minWidth: '38px',
+                        fontWeight: ev.kind === 'todo' ? 600 : 500,
+                        letterSpacing: ev.kind === 'todo' ? '0.05em' : 0,
+                      }}
                     >
-                      {fmtTime(ev.startsAt)}
+                      {timeLabel}
                     </span>
                     <span
                       className="flex-shrink-0"
@@ -343,7 +365,7 @@ export default function MiniMonthWidget({
                             padding: '1px 5px',
                           }}
                         >
-                          {TYPE_LABEL[t]}
+                          {label}
                         </span>
                         <span className="text-sm font-medium truncate" style={{ color: 'var(--s-text)' }}>
                           {ev.title}
