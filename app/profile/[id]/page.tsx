@@ -24,6 +24,8 @@ import RLIdentityBadge from '@/components/players/RLIdentityBadge';
 import { getConnectionMeta, buildConnectionUrl } from '@/lib/discord-connections';
 import { Link2 } from 'lucide-react';
 import RankBadge, { getRankTierConfig } from '@/components/rl/RankBadge';
+import GameTag from '@/components/games/GameTag';
+import { getGame } from '@/lib/games-registry';
 
 // Priorité hiérarchique des rôles structure — utilisée pour identifier le rôle principal
 // d'un joueur dans le hero (ex : un fondateur ARAN qui est aussi joueur dans TTC affiche "Fondateur ARAN").
@@ -328,9 +330,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                 {/* Tags */}
                 <div className="flex items-center gap-2 mb-2.5 flex-wrap">
                   {profile.games?.map(g => (
-                    <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}>
-                      {g === 'rocket_league' ? 'Rocket League' : 'Trackmania'}
-                    </span>
+                    <GameTag key={g} gameId={g} variant="full" />
                   ))}
                   {profile.isAvailableForRecruitment && (
                     <span className="tag tag-gold">
@@ -942,9 +942,21 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                             {ps.teams.length > 0 && (
                               <div className="mt-2 flex flex-wrap gap-1.5">
                                 {ps.teams.map(t => {
-                                  const gameClass = t.game === 'rocket_league' ? 'tag-blue' : t.game === 'trackmania' ? 'tag-green' : 'tag-neutral';
+                                  const g = getGame(t.game);
                                   return (
-                                    <span key={t.id} className={`tag ${gameClass}`} style={{ fontSize: '12px', padding: '2px 7px' }}>
+                                    <span
+                                      key={t.id}
+                                      className="tag"
+                                      style={g
+                                        ? {
+                                            fontSize: '12px',
+                                            padding: '2px 7px',
+                                            background: `rgba(${g.colorRgb}, 0.1)`,
+                                            color: g.colorLight,
+                                            borderColor: `rgba(${g.colorRgb}, 0.25)`,
+                                          }
+                                        : { fontSize: '12px', padding: '2px 7px' }}
+                                    >
                                       {TEAM_ROLE_LABELS[t.role]} · {t.name}
                                     </span>
                                   );

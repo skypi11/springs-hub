@@ -7,6 +7,8 @@ import type { UserContext } from '@/lib/event-permissions';
 import TeamAvailabilityView from './TeamAvailabilityView';
 import TeamTodosPanel from './TeamTodosPanel';
 import ReplaysPanel from '@/components/replays/ReplaysPanel';
+import GameTag from '@/components/games/GameTag';
+import { getGameColor } from '@/lib/games-registry';
 
 export type DrawerTab = 'availability' | 'todos' | 'replays';
 
@@ -73,8 +75,7 @@ export default function TeamDetailDrawer({
 
   if (!open || !team) return null;
 
-  const gameColor = team.game === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)';
-  const gameLabel = team.game === 'rocket_league' ? 'RL' : 'TM';
+  const gameColor = getGameColor(team.game);
 
   return (
     <Portal>
@@ -114,9 +115,7 @@ export default function TeamDetailDrawer({
           {/* Header */}
           <header className="flex items-center justify-between gap-3 px-4 sm:px-6 pt-5 pb-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--s-border)' }}>
             <div className="flex items-center gap-3 min-w-0">
-              <span className={`tag ${team.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px', padding: '3px 8px' }}>
-                {gameLabel}
-              </span>
+              <GameTag gameId={team.game} style={{ padding: '3px 8px' }} />
               <h2 className="font-display text-2xl truncate" style={{ letterSpacing: '0.04em', color: 'var(--s-text)' }}>
                 {team.name}
               </h2>

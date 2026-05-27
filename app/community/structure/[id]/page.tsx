@@ -18,6 +18,13 @@ import { SkeletonPageHeader, SkeletonCard } from '@/components/ui/Skeleton';
 import { computeMemberRole, groupAffiliations, PRIMARY_ROLE_LABELS, type MemberRoleTeam, type PrimaryRole } from '@/lib/member-role';
 import DiscordIcon from '@/components/icons/DiscordIcon';
 import { getProfileHref } from '@/lib/user-slug';
+import GameTag from '@/components/games/GameTag';
+import {
+  ALL_GAME_DEFS,
+  getGameColor,
+  getGameColorRgb,
+  getGameLabel,
+} from '@/lib/games-registry';
 
 type Member = {
   id: string;
@@ -134,9 +141,8 @@ function PlayerRow({ player, color, isCaptain }: { player: TeamPlayer; color: st
 // Taille ~220px, affiche l'essentiel (nom, capitaine, cluster avatars, compteur) — le détail
 // complet (rosters, staff) est dans le TeamDetailPanel qui slide depuis la droite.
 function TeamCardCompact({ team, onOpen }: { team: Team; onOpen: () => void }) {
-  const gcRaw = team.game === 'rocket_league' ? '0,129,255' : '0,217,54';
-  const gcVar = team.game === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)';
-  const gameLabel = team.game === 'rocket_league' ? 'RL' : 'TM';
+  const gcRaw = getGameColorRgb(team.game);
+  const gcVar = getGameColor(team.game);
   const isArchived = team.status === 'archived';
 
   const captain = team.captainId
@@ -183,7 +189,7 @@ function TeamCardCompact({ team, onOpen }: { team: Team; onOpen: () => void }) {
             )}
           </div>
           <div className="flex flex-col items-end gap-1 flex-shrink-0">
-            <span className={`tag ${team.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px' }}>{gameLabel}</span>
+            <GameTag gameId={team.game} />
             {isArchived && <span className="tag tag-neutral" style={{ fontSize: '8px', padding: '1px 5px' }}>ARCHIVÉE</span>}
           </div>
         </div>
@@ -275,9 +281,8 @@ function TeamDetailPanel({ team, onClose }: { team: Team; onClose: () => void })
     };
   }, [onClose]);
 
-  const gcRaw = team.game === 'rocket_league' ? '0,129,255' : '0,217,54';
-  const gcVar = team.game === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)';
-  const gameLabel = team.game === 'rocket_league' ? 'Rocket League' : 'Trackmania';
+  const gcRaw = getGameColorRgb(team.game);
+  const gcVar = getGameColor(team.game);
   const isArchived = team.status === 'archived';
 
   return (
@@ -316,7 +321,7 @@ function TeamDetailPanel({ team, onClose }: { team: Team; onClose: () => void })
           <div className="flex-1 min-w-0">
             <h2 className="font-display tracking-wider" style={{ color: 'var(--s-text)', fontSize: '22px', lineHeight: 1.1 }}>{team.name}</h2>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <span className={`tag ${team.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}>{gameLabel}</span>
+              <GameTag gameId={team.game} variant="full" />
               {team.label && <span className="tag tag-neutral">{team.label}</span>}
               {isArchived && <span className="tag tag-neutral">ARCHIVÉE</span>}
             </div>
@@ -391,7 +396,9 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
   const [teamSearch, setTeamSearch] = useState('');
   const [joinError, setJoinError] = useState('');
   const [showJoinForm, setShowJoinForm] = useState(false);
-  const [activeTab, setActiveTab] = useState<'rocket_league' | 'trackmania' | 'archived'>('rocket_league');
+  // Onglet actif : gameId d'une registry OU 'archived'. Reste typé string pour
+  // accepter automatiquement les futurs jeux ajoutés à la registry.
+  const [activeTab, setActiveTab] = useState<string>(ALL_GAME_DEFS[0]?.id ?? 'archived');
   const [panelTeamId, setPanelTeamId] = useState<string | null>(null);
 
   const structureQ = useQuery({
@@ -563,9 +570,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
     <div className="flex items-center gap-2 flex-wrap">
       <span className="tag tag-gold">{structure.tag}</span>
       {structure.games?.map(g => (
-        <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}>
-          {g === 'rocket_league' ? 'Rocket League' : 'Trackmania'}
-        </span>
+        <GameTag key={g} gameId={g} variant="full" />
       ))}
       {structure.recruiting?.active && (
         <span className="tag" style={{ background: 'rgba(255,184,0,0.12)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.3)' }}>
@@ -768,7 +773,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
             {(() => {
               const positions = structure.recruiting?.active ? (structure.recruiting.positions || []) : [];
               const hasPositions = positions.length > 0;
-              const gameLabel = (g: string) => g === 'rocket_league' ? 'Rocket League' : g === 'trackmania' ? 'Trackmania' : g;
+              const gameLabel = (g: string) => getGameLabel(g);
               const roleLabel = (r: string) => {
                 const map: Record<string, string> = { joueur: 'Joueur', titulaire: 'Titulaire', sub: 'Remplaçant', coach: 'Coach', manager: 'Manager' };
                 return map[r] || r;
@@ -875,19 +880,35 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
             {/* 2. ÉQUIPES — onglets par jeu + grille de cards compactes (scale 20+ équipes).
                 Le roster complet est dans un panneau latéral (TeamDetailPanel). */}
             {teams.length > 0 && (() => {
-              const rlAll = teams.filter(t => t.game === 'rocket_league' && (t.status ?? 'active') === 'active');
-              const tmAll = teams.filter(t => t.game === 'trackmania' && (t.status ?? 'active') === 'active');
+              // Onglets dynamiques : un par jeu de la registry qui a des équipes actives,
+              // + un "Archivées" si présent. Ajouter un nouveau jeu dans la registry
+              // → un onglet apparaît tout seul ici.
+              const teamsByGame = new Map<string, Team[]>();
+              for (const t of teams) {
+                if ((t.status ?? 'active') !== 'active') continue;
+                const arr = teamsByGame.get(t.game) ?? [];
+                arr.push(t);
+                teamsByGame.set(t.game, arr);
+              }
               const archAll = teams.filter(t => t.status === 'archived');
 
-              const tabs: { key: 'rocket_league' | 'trackmania' | 'archived'; label: string; count: number; color: string }[] = [];
-              if (rlAll.length > 0) tabs.push({ key: 'rocket_league', label: 'Rocket League', count: rlAll.length, color: 'var(--s-blue)' });
-              if (tmAll.length > 0) tabs.push({ key: 'trackmania', label: 'Trackmania', count: tmAll.length, color: 'var(--s-green)' });
-              if (archAll.length > 0) tabs.push({ key: 'archived', label: 'Archivées', count: archAll.length, color: 'var(--s-text-dim)' });
+              const tabs: { key: string; label: string; count: number; color: string }[] = [];
+              for (const g of ALL_GAME_DEFS) {
+                const list = teamsByGame.get(g.id) ?? [];
+                if (list.length > 0) {
+                  tabs.push({ key: g.id, label: g.label, count: list.length, color: g.color });
+                }
+              }
+              if (archAll.length > 0) {
+                tabs.push({ key: 'archived', label: 'Archivées', count: archAll.length, color: 'var(--s-text-dim)' });
+              }
 
               if (tabs.length === 0) return null;
               const effectiveTab = tabs.find(t => t.key === activeTab) ? activeTab : tabs[0].key;
 
-              const pool = effectiveTab === 'rocket_league' ? rlAll : effectiveTab === 'trackmania' ? tmAll : archAll;
+              const pool = effectiveTab === 'archived'
+                ? archAll
+                : (teamsByGame.get(effectiveTab) ?? []);
 
               const q = teamSearch.trim().toLowerCase();
               const filtered = !q ? pool : pool.filter(t => {
@@ -911,7 +932,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
               });
 
               const showSearch = pool.length > 4;
-              const totalAll = rlAll.length + tmAll.length + archAll.length;
+              const totalAll = Array.from(teamsByGame.values()).reduce((n, arr) => n + arr.length, 0) + archAll.length;
 
               return (
                 <div className="space-y-5">
@@ -1056,10 +1077,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                                 />
                               )}
                               {m.games.map(g => (
-                                <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                                  style={{ fontSize: '12px', padding: '1px 5px' }}>
-                                  {g === 'rocket_league' ? 'RL' : 'TM'}
-                                </span>
+                                <GameTag key={g} gameId={g} style={{ padding: '1px 5px' }} />
                               ))}
                             </div>
                           </Link>
@@ -1120,10 +1138,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                           <span className="text-sm font-medium" style={{ color: 'var(--s-text)' }}>
                             {p.role.charAt(0).toUpperCase() + p.role.slice(1)}
                           </span>
-                          <span className={`tag ${p.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                            style={{ fontSize: '12px', padding: '2px 8px' }}>
-                            {p.game === 'rocket_league' ? 'RL' : 'TM'}
-                          </span>
+                          <GameTag gameId={p.game} style={{ padding: '2px 8px' }} />
                         </button>
                       );
                     })}
@@ -1210,10 +1225,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-semibold truncate" style={{ color: 'var(--s-text)' }}>{a.competition}</p>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <span className={`tag ${a.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                                style={{ fontSize: '8px', padding: '0px 4px' }}>
-                                {a.game === 'rocket_league' ? 'RL' : 'TM'}
-                              </span>
+                              <GameTag gameId={a.game} style={{ fontSize: '8px', padding: '0px 4px' }} />
                               {a.date && (
                                 <span className="t-mono" style={{ color: 'var(--s-text-muted)', fontSize: '12px' }}>
                                   {new Date(a.date + '-01').toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}

@@ -29,6 +29,7 @@ import TodoDetailDrawer, { type DrawerTodo } from '@/components/calendar/TodoDet
 import { NewTodoForm, type TeamRef, type Member, type EventOpt } from '@/components/calendar/TeamTodosPanel';
 import TodoTemplatesManager, { useTodoTemplates } from '@/components/calendar/TodoTemplatesManager';
 import { useAuth } from '@/context/AuthContext';
+import { getGameShortLabel } from '@/lib/games-registry';
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -984,7 +985,7 @@ function CreateTodoModal({
                     <option value="">— Choisir une équipe —</option>
                     {visibleTeams.map(t => (
                       <option key={t.id} value={t.id}>
-                        {t.name}{t.label ? ` — ${t.label}` : ''} ({(t.game === 'rocket_league' ? 'RL' : t.game === 'trackmania' ? 'TM' : t.game.toUpperCase())})
+                        {t.name}{t.label ? ` — ${t.label}` : ''} ({getGameShortLabel(t.game)})
                       </option>
                     ))}
                   </select>

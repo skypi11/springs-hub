@@ -10,6 +10,7 @@ import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import AdminUserRef from '@/components/admin/AdminUserRef';
 import ImpersonateButton from '@/components/admin/ImpersonateButton';
+import { ALL_GAME_DEFS } from '@/lib/games-registry';
 import {
   Users2, Archive, Loader2, ExternalLink, Search, AlertTriangle,
   ChevronDown, ChevronUp, User as UserIcon, Pencil, Check,
@@ -145,9 +146,12 @@ export default function AdminTeamsPage() {
   const stats = useMemo(() => {
     const total = teams.length;
     const empty = teams.filter(t => t.totalRoster === 0).length;
-    const rlCount = teams.filter(t => t.game === 'rocket_league').length;
-    const tmCount = teams.filter(t => t.game === 'trackmania').length;
-    return { total, empty, rlCount, tmCount };
+    // Compteur par jeu — dérivé de la registry pour rester scalable.
+    const byGame = ALL_GAME_DEFS.map(g => ({
+      def: g,
+      count: teams.filter(t => t.game === g.id).length,
+    }));
+    return { total, empty, byGame };
   }, [teams]);
 
   if (loading) {
@@ -169,8 +173,20 @@ export default function AdminTeamsPage() {
             {stats.empty} vide{stats.empty > 1 ? 's' : ''}
           </span>
         )}
-        <span className="tag tag-blue" style={{ fontSize: '12px' }}>{stats.rlCount} RL</span>
-        <span className="tag tag-green" style={{ fontSize: '12px' }}>{stats.tmCount} TM</span>
+        {stats.byGame.map(({ def, count }) => (
+          <span
+            key={def.id}
+            className="tag"
+            style={{
+              fontSize: '12px',
+              background: `rgba(${def.colorRgb}, 0.1)`,
+              color: def.colorLight,
+              borderColor: `rgba(${def.colorRgb}, 0.25)`,
+            }}
+          >
+            {count} {def.shortLabel}
+          </span>
+        ))}
         {truncated && <span className="tag tag-gold">Résultats tronqués (max 1000)</span>}
       </div>
 

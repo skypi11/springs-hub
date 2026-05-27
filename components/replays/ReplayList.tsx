@@ -6,6 +6,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import { api } from '@/lib/api-client';
 import ReplayStatsDrawer from './ReplayStatsDrawer';
+import { getGame } from '@/lib/games-registry';
 
 export type ReplayListItem = {
   id: string;
@@ -229,12 +230,31 @@ export default function ReplayList({
                       En mode event/équipe ces infos sont implicites donc pas dupliquées. */}
                   {showEventLink && (item.eventId || teamLabelById?.[item.teamId]) && (
                     <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                      {teamLabelById?.[item.teamId] && (
-                        <span className={`tag ${teamLabelById[item.teamId].game === 'rocket_league' ? 'tag-blue' : teamLabelById[item.teamId].game === 'trackmania' ? 'tag-green' : 'tag-neutral'}`}
-                          style={{ fontSize: '11px', padding: '2px 7px' }}>
-                          {teamLabelById[item.teamId].name}
-                        </span>
-                      )}
+                      {teamLabelById?.[item.teamId] && (() => {
+                        const teamGame = getGame(teamLabelById[item.teamId].game);
+                        return (
+                          <span
+                            className="tag"
+                            style={teamGame
+                              ? {
+                                  fontSize: '11px',
+                                  padding: '2px 7px',
+                                  background: `rgba(${teamGame.colorRgb}, 0.1)`,
+                                  color: teamGame.colorLight,
+                                  borderColor: `rgba(${teamGame.colorRgb}, 0.25)`,
+                                }
+                              : {
+                                  fontSize: '11px',
+                                  padding: '2px 7px',
+                                  background: 'rgba(255,255,255,0.04)',
+                                  color: 'var(--s-text-dim)',
+                                  borderColor: 'var(--s-border)',
+                                }}
+                          >
+                            {teamLabelById[item.teamId].name}
+                          </span>
+                        );
+                      })()}
                       {item.eventId && eventTitlesById?.[item.eventId] && (
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5"
                           style={{

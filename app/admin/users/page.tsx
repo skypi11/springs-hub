@@ -17,6 +17,7 @@ import {
   RefreshCw, Zap, Trophy, ShieldCheck,
 } from 'lucide-react';
 import CountryFlag from '@/components/ui/CountryFlag';
+import GameTag from '@/components/games/GameTag';
 
 type UserMembership = {
   structureId: string;
@@ -400,10 +401,7 @@ export default function AdminUsersPage() {
 
                 <div className="flex gap-1">
                   {u.games?.map(g => (
-                    <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                      style={{ fontSize: '12px', padding: '1px 6px' }}>
-                      {g === 'rocket_league' ? 'RL' : 'TM'}
-                    </span>
+                    <GameTag key={g} gameId={g} style={{ padding: '1px 6px' }} />
                   ))}
                 </div>
 
@@ -456,10 +454,7 @@ export default function AdminUsersPage() {
                         <span className="t-label block mb-0.5">Jeux</span>
                         <div className="flex gap-1">
                           {u.games?.length > 0 ? u.games.map(g => (
-                            <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                              style={{ fontSize: '12px', padding: '1px 6px' }}>
-                              {g === 'rocket_league' ? 'Rocket League' : 'Trackmania'}
-                            </span>
+                            <GameTag key={g} gameId={g} variant="full" style={{ padding: '1px 6px' }} />
                           )) : <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>—</span>}
                         </div>
                       </div>
@@ -490,10 +485,7 @@ export default function AdminUsersPage() {
                                 <p className="text-xs font-semibold truncate" style={{ color: 'var(--s-text)' }}>{m.structureName}</p>
                                 <div className="flex items-center gap-2 mt-0.5">
                                   <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>{m.role}</span>
-                                  <span className={`tag ${m.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                                    style={{ fontSize: '8px', padding: '0px 4px' }}>
-                                    {m.game === 'rocket_league' ? 'RL' : 'TM'}
-                                  </span>
+                                  <GameTag gameId={m.game} style={{ fontSize: '8px', padding: '0px 4px' }} />
                                 </div>
                               </div>
                               <button

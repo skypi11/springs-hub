@@ -13,6 +13,8 @@ import {
   Megaphone,
 } from 'lucide-react';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
+import GameTag from '@/components/games/GameTag';
+import { ALL_GAME_DEFS, getGameColor, getGameShortLabel } from '@/lib/games-registry';
 
 type StructureSummary = {
   id: string;
@@ -250,8 +252,8 @@ function Section({
 }
 
 function StructureFeedCard({ s }: { s: StructureSummary }) {
-  const primaryGame = s.games.includes('rocket_league') ? 'rocket_league' : 'trackmania';
-  const accentColor = primaryGame === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)';
+  const primaryGame = ALL_GAME_DEFS.find(g => s.games.includes(g.id))?.id ?? s.games[0];
+  const accentColor = getGameColor(primaryGame);
 
   return (
     <Link href={`/community/structure/${s.id}`}
@@ -277,10 +279,7 @@ function StructureFeedCard({ s }: { s: StructureSummary }) {
             </div>
             <div className="flex items-center gap-1.5">
               {s.games.map(g => (
-                <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                  style={{ fontSize: '12px', padding: '1px 5px' }}>
-                  {g === 'rocket_league' ? 'RL' : 'TM'}
-                </span>
+                <GameTag key={g} gameId={g} style={{ padding: '1px 5px' }} />
               ))}
               <span className="t-mono text-xs ml-1" style={{ color: 'var(--s-text-muted)' }}>
                 · {s.memberCount} membre{s.memberCount > 1 ? 's' : ''}
@@ -317,10 +316,7 @@ function PlayerFeedCard({ p }: { p: PlayerSummary }) {
             <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{p.displayName}</p>
             <div className="flex items-center gap-1 mt-1">
               {p.games.map(g => (
-                <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                  style={{ fontSize: '12px', padding: '1px 5px' }}>
-                  {g === 'rocket_league' ? 'RL' : 'TM'}
-                </span>
+                <GameTag key={g} gameId={g} style={{ padding: '1px 5px' }} />
               ))}
             </div>
           </div>
@@ -367,7 +363,7 @@ function RecruitingStructureCard({ s }: { s: StructureSummary }) {
           <div className="flex flex-wrap gap-1.5 pt-2" style={{ borderTop: '1px dashed var(--s-border)' }}>
             {positions.slice(0, 3).map((pos, i) => (
               <span key={i} className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 6px' }}>
-                {pos.game === 'rocket_league' ? 'RL' : 'TM'} · {ROLE_LABELS[pos.role] || pos.role}
+                {getGameShortLabel(pos.game)} · {ROLE_LABELS[pos.role] || pos.role}
               </span>
             ))}
             {positions.length > 3 && (

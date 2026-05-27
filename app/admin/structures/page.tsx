@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { getProfileHref } from '@/lib/user-slug';
+import GameTag from '@/components/games/GameTag';
 
 type StructureRequest = {
   id: string;
@@ -289,10 +290,7 @@ export default function AdminStructuresPage() {
                     {statusConf.label}
                   </span>
                   {s.games?.map(g => (
-                    <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                      style={{ fontSize: '12px', padding: '1px 6px' }}>
-                      {g === 'rocket_league' ? 'RL' : 'TM'}
-                    </span>
+                    <GameTag key={g} gameId={g} style={{ padding: '1px 6px' }} />
                   ))}
                   {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </div>

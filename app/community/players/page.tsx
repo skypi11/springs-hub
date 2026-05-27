@@ -19,6 +19,8 @@ import RLIdentityBadge from '@/components/players/RLIdentityBadge';
 import CountryFlag from '@/components/ui/CountryFlag';
 import RankBadge, { getRankTierConfig } from '@/components/rl/RankBadge';
 import { PRIMARY_ROLE_LABELS, type PrimaryRole, type TeamAffiliation } from '@/lib/member-role';
+import GameTag from '@/components/games/GameTag';
+import { ALL_GAME_DEFS } from '@/lib/games-registry';
 import { RL_RANKS } from '@/lib/rl-ranks';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
@@ -386,8 +388,17 @@ export default function PlayersPage() {
 
             <div className="flex items-center gap-2">
               <FilterChip active={!gameFilter} onClick={() => setGameFilter('')} color="neutral">Tous</FilterChip>
-              <FilterChip active={gameFilter === 'rocket_league'} onClick={() => setGameFilter(gameFilter === 'rocket_league' ? '' : 'rocket_league')} color="blue">RL</FilterChip>
-              <FilterChip active={gameFilter === 'trackmania'} onClick={() => setGameFilter(gameFilter === 'trackmania' ? '' : 'trackmania')} color="green">TM</FilterChip>
+              {ALL_GAME_DEFS.map(g => (
+                <FilterChip
+                  key={g.id}
+                  active={gameFilter === g.id}
+                  onClick={() => setGameFilter(gameFilter === g.id ? '' : g.id)}
+                  color="neutral"
+                  customColor={{ rgb: g.colorRgb, fg: g.color }}
+                >
+                  {g.shortLabel}
+                </FilterChip>
+              ))}
             </div>
 
             <FilterChip active={recruitingFilter} onClick={() => setRecruitingFilter(!recruitingFilter)} color="green">
@@ -541,9 +552,16 @@ export default function PlayersPage() {
 
 // ─── Sous-composants ──────────────────────────────────────────────────────
 
-function FilterChip({ active, onClick, color, children }: { active: boolean; onClick: () => void; color: 'neutral' | 'blue' | 'green'; children: React.ReactNode }) {
-  const palette = color === 'blue'
-    ? { bg: 'rgba(0,129,255,0.12)', fg: 'var(--s-blue)', border: 'rgba(0,129,255,0.35)' }
+function FilterChip({ active, onClick, color, customColor, children }: {
+  active: boolean;
+  onClick: () => void;
+  color: 'neutral' | 'green';
+  /** Couleur custom (depuis la registry des jeux) — override `color` si fourni */
+  customColor?: { rgb: string; fg: string };
+  children: React.ReactNode;
+}) {
+  const palette = customColor
+    ? { bg: `rgba(${customColor.rgb}, 0.12)`, fg: customColor.fg, border: `rgba(${customColor.rgb}, 0.35)` }
     : color === 'green'
       ? { bg: 'rgba(0,217,54,0.12)', fg: '#33ff66', border: 'rgba(0,217,54,0.35)' }
       : { bg: 'rgba(255,255,255,0.08)', fg: 'var(--s-text)', border: 'rgba(255,255,255,0.2)' };
@@ -913,10 +931,7 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
             <CountryFlag code={p.country} size={16} />
             <div className="flex gap-1">
               {p.games.map(g => (
-                <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                  style={{ fontSize: '10px', padding: '0 4px', lineHeight: '14px' }}>
-                  {g === 'rocket_league' ? 'RL' : 'TM'}
-                </span>
+                <GameTag key={g} gameId={g} size="sm" style={{ padding: '0 4px', lineHeight: '14px' }} />
               ))}
             </div>
           </div>
@@ -1050,10 +1065,7 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
 
         <div className="flex gap-1" style={{ flex: '0 0 60px' }}>
           {p.games.map(g => (
-            <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-              style={{ fontSize: '11px', padding: '1px 5px' }}>
-              {g === 'rocket_league' ? 'RL' : 'TM'}
-            </span>
+            <GameTag key={g} gameId={g} style={{ fontSize: '11px', padding: '1px 5px' }} />
           ))}
         </div>
 

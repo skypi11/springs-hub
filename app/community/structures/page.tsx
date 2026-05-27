@@ -8,6 +8,8 @@ import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
 import { useAuth } from '@/context/AuthContext';
+import GameTag from '@/components/games/GameTag';
+import { ALL_GAME_DEFS, getGameColor, getGameColorRgb } from '@/lib/games-registry';
 
 type StructureCard = {
   id: string;
@@ -149,9 +151,17 @@ export default function StructuresPage() {
 
             {/* Filtres jeux */}
             <div className="flex items-center gap-2">
-              <FilterChip active={!gameFilter} onClick={() => setGameFilter('')} color="neutral">Tous</FilterChip>
-              <FilterChip active={gameFilter === 'rocket_league'} onClick={() => setGameFilter(gameFilter === 'rocket_league' ? '' : 'rocket_league')} color="blue">RL</FilterChip>
-              <FilterChip active={gameFilter === 'trackmania'} onClick={() => setGameFilter(gameFilter === 'trackmania' ? '' : 'trackmania')} color="green">TM</FilterChip>
+              <FilterChip active={!gameFilter} onClick={() => setGameFilter('')}>Tous</FilterChip>
+              {ALL_GAME_DEFS.map(g => (
+                <FilterChip
+                  key={g.id}
+                  active={gameFilter === g.id}
+                  onClick={() => setGameFilter(gameFilter === g.id ? '' : g.id)}
+                  customColor={{ rgb: g.colorRgb, fg: g.color }}
+                >
+                  {g.shortLabel}
+                </FilterChip>
+              ))}
             </div>
 
             {/* Tri */}
@@ -201,17 +211,20 @@ export default function StructuresPage() {
 }
 
 function FilterChip({
-  active, onClick, color, children,
+  active, onClick, customColor, children,
 }: {
   active: boolean;
   onClick: () => void;
-  color: 'neutral' | 'blue' | 'green';
+  /** Couleur custom (depuis la registry des jeux) — si absent → palette neutre */
+  customColor?: { rgb: string; fg: string };
   children: React.ReactNode;
 }) {
-  const palette = color === 'blue'
-    ? { bg: 'rgba(0,129,255,0.12)', fg: 'var(--s-blue)', border: 'rgba(0,129,255,0.35)' }
-    : color === 'green'
-    ? { bg: 'rgba(0,217,54,0.12)', fg: 'var(--s-green)', border: 'rgba(0,217,54,0.35)' }
+  const palette = customColor
+    ? {
+        bg: `rgba(${customColor.rgb}, 0.12)`,
+        fg: customColor.fg,
+        border: `rgba(${customColor.rgb}, 0.35)`,
+      }
     : { bg: 'rgba(255,255,255,0.08)', fg: 'var(--s-text)', border: 'rgba(255,255,255,0.2)' };
   return (
     <button
@@ -232,9 +245,12 @@ function FilterChip({
 
 function StructureItem({ s, match }: { s: StructureCard; match: boolean }) {
   const isRecruiting = s.recruiting?.active;
-  const primaryGame = s.games.includes('rocket_league') ? 'rocket_league' : 'trackmania';
-  const accentColor = primaryGame === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)';
-  const glowColor = primaryGame === 'rocket_league' ? 'rgba(0,129,255,0.1)' : 'rgba(0,217,54,0.1)';
+  // Jeu primaire = 1er jeu de la registry présent dans la structure, sinon 1er
+  // déclaré sur la structure (fallback). Permet d'ajouter de nouveaux jeux
+  // sans toucher à cette logique.
+  const primaryGame = ALL_GAME_DEFS.find(g => s.games.includes(g.id))?.id ?? s.games[0];
+  const accentColor = getGameColor(primaryGame);
+  const glowColor = `rgba(${getGameColorRgb(primaryGame)}, 0.1)`;
 
   return (
     <Link href={`/community/structure/${s.id}`}
@@ -265,10 +281,7 @@ function StructureItem({ s, match }: { s: StructureCard; match: boolean }) {
             </div>
             <div className="flex items-center gap-1.5">
               {s.games.map(g => (
-                <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                  style={{ fontSize: '12px', padding: '1px 6px' }}>
-                  {g === 'rocket_league' ? 'RL' : 'TM'}
-                </span>
+                <GameTag key={g} gameId={g} style={{ padding: '1px 6px' }} />
               ))}
             </div>
           </div>

@@ -22,6 +22,7 @@ import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import { RL_RANKS } from '@/lib/rl-ranks';
 import { RL_PLATFORMS, getRLPlatformMeta, buildTrackerGgUrl, buildBallchasingUrl, isValidRLPlatform, type RLPlatform } from '@/lib/rl-platform';
 import { getConnectionMeta, buildConnectionUrl, pickBestRLConnection, type DiscordConnection } from '@/lib/discord-connections';
+import GameTag from '@/components/games/GameTag';
 
 const RECRUIT_ROLE_LABEL: Record<string, string> = {
   joueur: 'Joueur',
@@ -1729,13 +1730,7 @@ export default function SettingsPage() {
                                         Aucun jeu
                                       </span>
                                     ) : (
-                                      <span
-                                        key={g}
-                                        className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                                        style={{ fontSize: '12px', padding: '1px 5px' }}
-                                      >
-                                        {g === 'rocket_league' ? 'RL' : 'TM'}
-                                      </span>
+                                      <GameTag key={g} gameId={g} style={{ padding: '1px 5px' }} />
                                     ),
                                   )}
                                 </div>
