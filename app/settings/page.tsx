@@ -36,7 +36,7 @@ type Section = 'profile' | 'games' | 'account';
 
 const SECTIONS: { key: Section; label: string; icon: typeof User; description: string }[] = [
   { key: 'profile', label: 'Profil public', icon: User, description: 'Ce que les autres voient' },
-  { key: 'games', label: 'Mes jeux', icon: Gamepad2, description: 'RL et Trackmania' },
+  { key: 'games', label: 'Mes jeux', icon: Gamepad2, description: 'Tes jeux pratiqués + comptes' },
   { key: 'account', label: 'Mon compte', icon: UserCircle, description: 'Discord et session' },
 ];
 
