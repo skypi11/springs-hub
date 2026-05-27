@@ -36,6 +36,22 @@ export interface StructureRoleData {
   managerIds?: string[];
   coachIds?: string[];
   status?: string;
+  /**
+   * Scope par jeu pour les Responsables (managerIds).
+   * - Clé : uid
+   * - Valeur : liste des `gameId` (de la registry) où le user est responsable
+   *
+   * Sémantique :
+   * - **Pas d'entrée** pour un uid présent dans `managerIds` → all-games
+   *   (rétrocompat avec le système avant scope par jeu).
+   * - **Liste vide []** → cas dégénéré, équivaut à pas responsable du tout.
+   * - **Liste non vide** → responsable uniquement pour ces jeux.
+   *
+   * Ajouté 2026-05-27 pour scaler à N jeux (un Responsable RL ≠ Responsable Val).
+   */
+  managerGames?: Record<string, string[]>;
+  /** Idem `managerGames` mais pour les coachs. Même sémantique (absence = all-games). */
+  coachGames?: Record<string, string[]>;
 }
 
 // Contexte minimal : uid de l'user + état des rôles structure.
@@ -69,6 +85,67 @@ export function isResponsable(ctx: StructureContext): boolean {
 
 export function isCoach(ctx: StructureContext): boolean {
   return !!ctx.uid && (ctx.structure.coachIds ?? []).includes(ctx.uid);
+}
+
+// ─── Rôles scopés par jeu (multi-jeux, 2026-05-27) ─────────────────────────
+//
+// Helpers pour la couche permissions scopée par jeu. Un Responsable RL n'a
+// AUCUN droit sur les équipes Valorant si la structure a explicitement scopé
+// son rôle via `managerGames[uid] = ['rocket_league']`.
+//
+// Sémantique d'absence (rétrocompat) :
+//   - `managerGames` / `coachGames` ABSENT pour un uid présent dans la liste
+//     plate → le user est responsable/coach pour TOUS les jeux. Garantit que
+//     les structures existantes continuent à marcher sans migration de data.
+//   - Liste vide [] → dégénéré, équivaut à pas responsable/coach.
+//
+// USAGE :
+//   - Les helpers globaux `isResponsable(ctx)` / `isCoach(ctx)` restent inchangés
+//     et retournent true SI le user est responsable/coach pour AU MOINS un jeu
+//     (ou all-games en cas d'absence du scope).
+//   - Les helpers scopés `isResponsableForGame(ctx, gameId)` / `isCoachForGame`
+//     vérifient en plus que le user a bien la permission sur ce jeu précis.
+//   - Pour les permissions `can*` team-level, préférer les variantes scopées
+//     qui prennent un gameId optionnel (à brancher progressivement aux call
+//     sites — voir TODO en fin de fichier).
+
+/** Liste des jeux où l'user est responsable. `null` = all-games (rétrocompat). `[]` = aucun. */
+export function getResponsableGames(ctx: StructureContext): string[] | null {
+  if (!isResponsable(ctx)) return [];
+  const scoped = ctx.structure.managerGames?.[ctx.uid];
+  return Array.isArray(scoped) ? scoped : null;
+}
+
+/** Liste des jeux où l'user est coach. `null` = all-games (rétrocompat). `[]` = aucun. */
+export function getCoachGames(ctx: StructureContext): string[] | null {
+  if (!isCoach(ctx)) return [];
+  const scoped = ctx.structure.coachGames?.[ctx.uid];
+  return Array.isArray(scoped) ? scoped : null;
+}
+
+/** True si l'user est responsable de la structure pour le `gameId` donné. */
+export function isResponsableForGame(ctx: StructureContext, gameId: string): boolean {
+  if (!isResponsable(ctx)) return false;
+  const games = getResponsableGames(ctx);
+  return games === null ? true : games.includes(gameId);
+}
+
+/** True si l'user est coach de la structure pour le `gameId` donné. */
+export function isCoachForGame(ctx: StructureContext, gameId: string): boolean {
+  if (!isCoach(ctx)) return false;
+  const games = getCoachGames(ctx);
+  return games === null ? true : games.includes(gameId);
+}
+
+/** True si l'user est admin structure pour `gameId` (dirigeant OR responsable du jeu).
+ *  Les dirigeants ne sont jamais scopés — ils gèrent toujours toute la structure. */
+export function isStructureAdminForGame(ctx: StructureContext, gameId: string): boolean {
+  return isDirigeant(ctx) || isResponsableForGame(ctx, gameId);
+}
+
+/** True si l'user a un rôle staff (dirigeant/responsable/coach) sur `gameId`. */
+export function isStructureStaffForGame(ctx: StructureContext, gameId: string): boolean {
+  return isStructureAdminForGame(ctx, gameId) || isCoachForGame(ctx, gameId);
 }
 
 // Admin structure : dirigeant OU responsable. Couvre la majorité des actions
@@ -200,4 +277,55 @@ export function canAccessCalendarSection(ctx: StructureContext): boolean {
 // Utile dans les routes API qui font le `db.collection('structures').doc(id).get()`.
 export function structureContext(uid: string, structure: StructureRoleData): StructureContext {
   return { uid, structure };
+}
+
+// ─── PERMISSIONS scopées par jeu (2026-05-27) ─────────────────────────────
+//
+// Variantes des `can*` qui prennent un `gameId` optionnel. Quand le gameId est
+// fourni, le check applique le scope `managerGames` / `coachGames`. Sans
+// gameId, comportement identique aux helpers historiques (rétrocompat).
+//
+// 🚧 PLAN DE MIGRATION (futur) — pour éviter la PR géante en une fois :
+//
+//   Étape 1 (faite maintenant)  Poser le socle technique :
+//                               - Types managerGames / coachGames
+//                               - Helpers getResponsableGames / getCoachGames
+//                               - Variantes ForGame des `is*`
+//                               - canManageEventsForGame / canManageTodosForGame
+//   Étape 2 (UI Settings)       Page /settings/struct ou /admin members :
+//                               sélecteur de jeux pour chaque manager/coach
+//                               (ajoute/edit managerGames[uid] / coachGames[uid]).
+//   Étape 3 (Migration call sites) Brancher progressivement les routes API events,
+//                                  todos, replays pour utiliser les ForGame
+//                                  variants. Chaque route migrée gagne le scope.
+//   Étape 4 (Default to scope) Quand toutes les routes sont migrées et que
+//                              les structures multi-jeux ont configuré leurs
+//                              scopes, on peut considérer le all-games (null)
+//                              comme dépréciation douce.
+//
+// Pendant l'étape 1-3 : les structures actuelles continuent à fonctionner
+// EXACTEMENT comme avant (aucune migration de data nécessaire — l'absence de
+// `managerGames`/`coachGames` est interprétée comme all-games).
+
+/** Variante scopée de canManageTeams. Si gameId non fourni → comportement legacy. */
+export function canManageTeamsForGame(ctx: StructureContext, gameId?: string): boolean {
+  if (!isWritable(ctx)) return false;
+  if (!gameId) return isStructureAdmin(ctx);
+  return isStructureAdminForGame(ctx, gameId);
+}
+
+/** Variante scopée pour la gestion des événements (training/scrim/match). */
+export function canManageEventsForGame(ctx: StructureContext, gameId?: string): boolean {
+  if (!isWritable(ctx)) return false;
+  // Events : staff structure (admin OR coach). Modèle A.
+  if (!gameId) return isStructureStaff(ctx);
+  return isStructureStaffForGame(ctx, gameId);
+}
+
+/** Variante scopée pour la gestion des exercices (todos) sur une équipe. */
+export function canManageTodosForGame(ctx: StructureContext, gameId?: string): boolean {
+  if (!isWritable(ctx)) return false;
+  // Todos : staff structure (admin OR coach). Modèle A.
+  if (!gameId) return isStructureStaff(ctx);
+  return isStructureStaffForGame(ctx, gameId);
 }
