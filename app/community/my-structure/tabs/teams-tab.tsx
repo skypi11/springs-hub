@@ -18,7 +18,7 @@ import type { TeamData, MyStructure, DiscordChannel } from '../types';
 import { SectionPanel, RosterSlot, StaffRosterSlot } from '../components';
 import { SortableTeam, SortableGroup, GroupDropZone } from '../teams-dnd';
 import GameTag from '@/components/games/GameTag';
-import { getGame, getGameColor } from '@/lib/games-registry';
+import { getGame, getGameColor, ALL_GAME_DEFS } from '@/lib/games-registry';
 
 // Collision detection cloisonnée pour le D&D des équipes : un groupe ne peut
 // cibler qu'un autre groupe, une équipe qu'une autre équipe ou une zone de
@@ -815,8 +815,9 @@ export function TeamsTab(props: TeamsTabProps) {
               <select className="settings-input w-full" value={newTeamGame}
                 onChange={e => setNewTeamGame(e.target.value)}>
                 <option value="">Choisir...</option>
-                {s.games?.includes('rocket_league') && <option value="rocket_league">Rocket League</option>}
-                {s.games?.includes('trackmania') && <option value="trackmania">Trackmania</option>}
+                {ALL_GAME_DEFS.filter(g => s.games?.includes(g.id)).map(g => (
+                  <option key={g.id} value={g.id}>{g.label}</option>
+                ))}
               </select>
             </div>
           </div>

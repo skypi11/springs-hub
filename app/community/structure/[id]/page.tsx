@@ -454,8 +454,11 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
   const isOwner = firebaseUser?.uid === structure.founderId || (structure.coFounderIds ?? []).includes(firebaseUser?.uid ?? '');
   const isMember = structure.members.some(m => m.userId === firebaseUser?.uid);
   const socialEntries = Object.entries(structure.socials).filter(([, v]) => v);
-  const mainColor = structure.games?.includes('rocket_league') ? 'var(--s-blue)' : structure.games?.includes('trackmania') ? 'var(--s-green)' : 'var(--s-gold)';
-  const mainColorRaw = structure.games?.includes('rocket_league') ? '0,129,255' : structure.games?.includes('trackmania') ? '0,217,54' : '255,184,0';
+  // Couleur principale = 1er jeu de la registry présent dans la structure
+  // (fallback or si aucun jeu connu). Marche pour RL/TM/Val/futurs jeux.
+  const mainGameDef = ALL_GAME_DEFS.find(g => structure.games?.includes(g.id));
+  const mainColor = mainGameDef?.color ?? 'var(--s-gold)';
+  const mainColorRaw = mainGameDef?.colorRgb ?? '255,184,0';
   // Calcul du rôle dérivé pour chaque membre — vérité d'affichage unique,
   // même source que le dashboard privé. On cache le résultat par userId pour ne pas recalculer.
   // L'API renvoie `players/subs/staff` enrichis ; computeMemberRole attend
@@ -812,8 +815,9 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                       <label className="t-label block mb-1.5">Jeu *</label>
                       <select className="settings-input w-full" value={joinGame} onChange={e => { setJoinGame(e.target.value); setJoinRole('joueur'); }}>
                         <option value="">Choisir...</option>
-                        {structure.games?.includes('rocket_league') && <option value="rocket_league">Rocket League</option>}
-                        {structure.games?.includes('trackmania') && <option value="trackmania">Trackmania</option>}
+                        {ALL_GAME_DEFS.filter(g => structure.games?.includes(g.id)).map(g => (
+                          <option key={g.id} value={g.id}>{g.label}</option>
+                        ))}
                       </select>
                     </div>
                   )}

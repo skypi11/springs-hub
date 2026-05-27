@@ -249,25 +249,21 @@ export function GeneralTab(props: GeneralTabProps) {
                   currentRoleId: activeStructure.discordIntegration.structureRoleId ?? null,
                   currentRoleName: activeStructure.discordIntegration.structureRoleName ?? null,
                 })}
-                {activeStructure.games.includes('rocket_league') && renderDiscordConfigBlock({
-                  key: 'game:rocket_league',
-                  scope: { scope: 'game', game: 'rocket_league' },
-                  label: 'Rocket League',
-                  accentColor: '#0081FF',
-                  currentChannelId: activeStructure.discordIntegration.gameChannels?.rocket_league?.channelId ?? null,
-                  currentChannelName: activeStructure.discordIntegration.gameChannels?.rocket_league?.channelName ?? null,
-                  currentRoleId: activeStructure.discordIntegration.gameChannels?.rocket_league?.roleId ?? null,
-                  currentRoleName: activeStructure.discordIntegration.gameChannels?.rocket_league?.roleName ?? null,
-                })}
-                {activeStructure.games.includes('trackmania') && renderDiscordConfigBlock({
-                  key: 'game:trackmania',
-                  scope: { scope: 'game', game: 'trackmania' },
-                  label: 'Trackmania',
-                  accentColor: '#00D936',
-                  currentChannelId: activeStructure.discordIntegration.gameChannels?.trackmania?.channelId ?? null,
-                  currentChannelName: activeStructure.discordIntegration.gameChannels?.trackmania?.channelName ?? null,
-                  currentRoleId: activeStructure.discordIntegration.gameChannels?.trackmania?.roleId ?? null,
-                  currentRoleName: activeStructure.discordIntegration.gameChannels?.trackmania?.roleName ?? null,
+                {/* Bloc Discord config par jeu — généré depuis la registry pour
+                    chaque jeu pratiqué par la structure. Ajouter un jeu dans
+                    la registry fait apparaître son bloc Discord auto. */}
+                {ALL_GAME_DEFS.filter(g => activeStructure.games.includes(g.id)).map(g => {
+                  const gameCh = (activeStructure.discordIntegration!.gameChannels as Record<string, { channelId?: string; channelName?: string; roleId?: string; roleName?: string } | undefined> | undefined)?.[g.id];
+                  return renderDiscordConfigBlock({
+                    key: `game:${g.id}`,
+                    scope: { scope: 'game', game: g.id },
+                    label: g.label,
+                    accentColor: g.color,
+                    currentChannelId: gameCh?.channelId ?? null,
+                    currentChannelName: gameCh?.channelName ?? null,
+                    currentRoleId: gameCh?.roleId ?? null,
+                    currentRoleName: gameCh?.roleName ?? null,
+                  });
                 })}
                 {renderDiscordConfigBlock({
                   key: 'staff',
@@ -340,7 +336,7 @@ export function GeneralTab(props: GeneralTabProps) {
         <SectionPanel accent="var(--s-gold)" icon={Trophy} title="PALMARÈS"
           collapsed={collapsed.palmares} onToggle={() => toggle('palmares')}
           action={
-            <button type="button" onClick={() => setEditAchievements([...editAchievements, { placement: '', competition: '', game: s.games[0] || 'rocket_league', date: '' }])}
+            <button type="button" onClick={() => setEditAchievements([...editAchievements, { placement: '', competition: '', game: s.games[0] || ALL_GAME_DEFS[0]?.id, date: '' }])}
               className="flex items-center gap-1.5 text-xs font-bold transition-colors duration-150" style={{ color: 'var(--s-gold)' }}>
               <Plus size={11} /> Ajouter
             </button>
@@ -400,8 +396,9 @@ export function GeneralTab(props: GeneralTabProps) {
                           achs[i] = { ...a, game: e.target.value };
                           setEditAchievements(achs);
                         }}>
-                        <option value="rocket_league">Rocket League</option>
-                        <option value="trackmania">Trackmania</option>
+                        {ALL_GAME_DEFS.map(g => (
+                          <option key={g.id} value={g.id}>{g.label}</option>
+                        ))}
                       </select>
                     </div>
                     <div>

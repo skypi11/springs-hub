@@ -24,7 +24,7 @@ import type { BannerFocus } from '@/types';
 import PlayerStructureView, { type PlayerStructure } from '@/components/structure/PlayerStructureView';
 import DocumentsExplorer from '@/components/documents/DocumentsExplorer';
 import GameTag from '@/components/games/GameTag';
-import { gameHasFeature } from '@/lib/games-registry';
+import { gameHasFeature, ALL_GAME_DEFS, getGameColor } from '@/lib/games-registry';
 import CrossTeamTodosPanel from '@/components/structure/CrossTeamTodosPanel';
 import { safeCopy } from '@/lib/clipboard';
 import type {
@@ -457,7 +457,7 @@ export default function MyStructurePage() {
     setEditAchievements((s.achievements || []).map(a => ({
       placement: a.placement || a.title || '',
       competition: a.competition || '',
-      game: a.game || s.games?.[0] || 'rocket_league',
+      game: a.game || s.games?.[0] || ALL_GAME_DEFS[0]?.id,
       date: a.date || '',
     })));
     setSaved(false);
@@ -1674,11 +1674,12 @@ export default function MyStructurePage() {
             >
               <div
                 className="h-[3px]"
-                style={{
-                  background: s.games.includes('rocket_league')
-                    ? 'linear-gradient(90deg, var(--s-blue), transparent 70%)'
-                    : 'linear-gradient(90deg, var(--s-green), transparent 70%)',
-                }}
+                style={(() => {
+                  // Couleur principale = 1er jeu de la registry présent dans la structure
+                  const mainGame = ALL_GAME_DEFS.find(g => s.games.includes(g.id))?.id ?? s.games[0];
+                  const color = getGameColor(mainGame);
+                  return { background: `linear-gradient(90deg, ${color}, transparent 70%)` };
+                })()}
               />
               <div className="p-5">
                 <div className="flex items-center gap-4 mb-4">

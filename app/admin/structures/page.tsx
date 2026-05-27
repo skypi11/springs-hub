@@ -18,6 +18,7 @@ import {
 import Link from 'next/link';
 import { getProfileHref } from '@/lib/user-slug';
 import GameTag from '@/components/games/GameTag';
+import { ALL_GAME_DEFS } from '@/lib/games-registry';
 
 type StructureRequest = {
   id: string;
@@ -480,28 +481,28 @@ export default function AdminStructuresPage() {
                       </div>
                       <div>
                         <label className="t-label block mb-1.5">Jeux</label>
-                        <div className="flex gap-2">
-                          {([['rocket_league', 'Rocket League'], ['trackmania', 'Trackmania']] as const).map(([g, label]) => {
-                            const on = editForm.games.includes(g);
+                        <div className="flex gap-2 flex-wrap">
+                          {ALL_GAME_DEFS.map(g => {
+                            const on = editForm.games.includes(g.id);
                             return (
                               <button
-                                key={g}
+                                key={g.id}
                                 type="button"
                                 onClick={() => setEditForm({
                                   ...editForm,
-                                  games: on ? editForm.games.filter(x => x !== g) : [...editForm.games, g],
+                                  games: on ? editForm.games.filter(x => x !== g.id) : [...editForm.games, g.id],
                                 })}
                                 className="tag transition-all duration-150"
                                 style={{
-                                  background: on ? 'rgba(255,184,0,0.15)' : 'transparent',
-                                  color: on ? 'var(--s-gold)' : 'var(--s-text-dim)',
-                                  borderColor: on ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
+                                  background: on ? `rgba(${g.colorRgb}, 0.15)` : 'transparent',
+                                  color: on ? g.colorLight : 'var(--s-text-dim)',
+                                  borderColor: on ? `rgba(${g.colorRgb}, 0.4)` : 'var(--s-border)',
                                   cursor: 'pointer',
                                   padding: '6px 14px',
                                   fontSize: '12px',
                                 }}
                               >
-                                {label}
+                                {g.label}
                               </button>
                             );
                           })}

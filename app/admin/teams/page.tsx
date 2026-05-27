@@ -214,26 +214,27 @@ export default function AdminTeamsPage() {
           ))}
         </div>
         <div className="divider" style={{ width: '1px', height: '20px' }} />
-        {/* Game */}
-        <div className="flex gap-1">
-          {[
-            { value: '', label: 'Tous jeux' },
-            { value: 'rocket_league', label: 'RL' },
-            { value: 'trackmania', label: 'TM' },
-          ].map(f => (
-            <button key={f.value} onClick={() => setGameFilter(f.value)}
-              className="tag transition-all duration-150"
-              style={{
-                background: gameFilter === f.value ? 'rgba(255,184,0,0.15)' : 'transparent',
-                color: gameFilter === f.value ? 'var(--s-gold)' : 'var(--s-text-dim)',
-                borderColor: gameFilter === f.value ? 'rgba(255,184,0,0.4)' : 'var(--s-border)',
-                cursor: 'pointer',
-                padding: '6px 14px',
-                fontSize: '12px',
-              }}>
-              {f.label}
-            </button>
-          ))}
+        {/* Game — généré depuis la registry pour scaler à N jeux */}
+        <div className="flex gap-1 flex-wrap">
+          {[{ value: '', shortLabel: 'Tous jeux', colorRgb: '255,255,255', color: 'var(--s-gold)' },
+            ...ALL_GAME_DEFS.map(g => ({ value: g.id, shortLabel: g.shortLabel, colorRgb: g.colorRgb, color: g.colorLight })),
+          ].map(f => {
+            const active = gameFilter === f.value;
+            return (
+              <button key={f.value} onClick={() => setGameFilter(f.value)}
+                className="tag transition-all duration-150"
+                style={{
+                  background: active ? `rgba(${f.colorRgb}, 0.15)` : 'transparent',
+                  color: active ? f.color : 'var(--s-text-dim)',
+                  borderColor: active ? `rgba(${f.colorRgb}, 0.4)` : 'var(--s-border)',
+                  cursor: 'pointer',
+                  padding: '6px 14px',
+                  fontSize: '12px',
+                }}>
+                {f.shortLabel}
+              </button>
+            );
+          })}
         </div>
         {/* Recherche */}
         <div className="flex-1 min-w-[200px] relative">

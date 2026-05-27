@@ -15,6 +15,7 @@ import type {
   Suggestion, ShortlistItem, EditRecruiting,
 } from '../types';
 import GameTag from '@/components/games/GameTag';
+import { ALL_GAME_DEFS } from '@/lib/games-registry';
 
 // Tab Recrutement complet — extrait de page.tsx pour réduire la taille du fichier orchestrateur.
 // Regroupe : settings recrutement (annonce + postes), liens d'invitation, demandes reçues,
@@ -126,8 +127,9 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
                         positions[i] = { ...p, game: e.target.value };
                         setEditRecruiting({ ...editRecruiting, positions });
                       }}>
-                      <option value="rocket_league">Rocket League</option>
-                      <option value="trackmania">Trackmania</option>
+                      {ALL_GAME_DEFS.map(g => (
+                        <option key={g.id} value={g.id}>{g.label}</option>
+                      ))}
                     </select>
                     <select className="settings-input flex-1" value={p.role}
                       onChange={e => {
@@ -150,7 +152,7 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
                 <button type="button" onClick={() => {
                   setEditRecruiting({
                     ...editRecruiting,
-                    positions: [...editRecruiting.positions, { game: s.games[0] || 'rocket_league', role: 'joueur' }],
+                    positions: [...editRecruiting.positions, { game: s.games[0] || ALL_GAME_DEFS[0]?.id, role: 'joueur' }],
                   });
                 }}
                   className="flex items-center gap-2 text-xs font-bold transition-colors duration-150" style={{ color: '#33ff66' }}>
@@ -188,8 +190,9 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
                 <label className="t-label block mb-1">Jeu (optionnel — pré-rempli pour le joueur)</label>
                 <select className="settings-input w-full" value={newLinkGame} onChange={e => setNewLinkGame(e.target.value)}>
                   <option value="">Tous les jeux</option>
-                  {s.games?.includes('rocket_league') && <option value="rocket_league">Rocket League</option>}
-                  {s.games?.includes('trackmania') && <option value="trackmania">Trackmania</option>}
+                  {ALL_GAME_DEFS.filter(g => s.games?.includes(g.id)).map(g => (
+                    <option key={g.id} value={g.id}>{g.label}</option>
+                  ))}
                 </select>
               </div>
               <button type="button" onClick={handleCreateLink} disabled={invActionLoading === 'create_link'}

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import CountryFlag from '@/components/ui/CountryFlag';
 import GameTag from '@/components/games/GameTag';
+import { ALL_GAME_DEFS } from '@/lib/games-registry';
 
 type UserMembership = {
   structureId: string;
@@ -650,26 +651,28 @@ export default function AdminUsersPage() {
 
                         <div>
                           <label className="t-label block mb-1.5">Jeux pratiqués</label>
-                          <div className="flex gap-2">
-                            {[
-                              { value: 'rocket_league', label: 'Rocket League', tagClass: 'tag-blue' },
-                              { value: 'trackmania', label: 'Trackmania', tagClass: 'tag-green' },
-                            ].map(g => {
-                              const active = editForm.games.includes(g.value);
+                          <div className="flex gap-2 flex-wrap">
+                            {ALL_GAME_DEFS.map(g => {
+                              const active = editForm.games.includes(g.id);
                               return (
-                                <button key={g.value} type="button"
+                                <button key={g.id} type="button"
                                   onClick={() => {
                                     setEditForm(p => ({
                                       ...p,
                                       games: active
-                                        ? p.games.filter(x => x !== g.value)
-                                        : [...p.games, g.value],
+                                        ? p.games.filter(x => x !== g.id)
+                                        : [...p.games, g.id],
                                     }));
                                   }}
-                                  className={`tag ${active ? g.tagClass : ''} transition-all duration-150`}
+                                  className="tag transition-all duration-150"
                                   style={{
-                                    padding: '5px 12px', fontSize: '12px', cursor: 'pointer',
+                                    padding: '5px 12px',
+                                    fontSize: '12px',
+                                    cursor: 'pointer',
                                     opacity: active ? 1 : 0.4,
+                                    background: active ? `rgba(${g.colorRgb}, 0.1)` : 'transparent',
+                                    color: active ? g.colorLight : 'var(--s-text-dim)',
+                                    borderColor: active ? `rgba(${g.colorRgb}, 0.35)` : 'var(--s-border)',
                                   }}>
                                   {g.label}
                                 </button>

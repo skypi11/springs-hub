@@ -519,7 +519,7 @@ export default function PlayersPage() {
                 isShortlisted={shortlistIds.has(player.uid)}
                 onToggleShortlist={() => toggleShortlist(player.uid)}
                 linkCopied={copiedLinkFor === player.uid}
-                onGenerateLink={() => generateTargetedLink(player.uid, player.games?.[0] || 'rocket_league')}
+                onGenerateLink={() => generateTargetedLink(player.uid, player.games?.[0] || ALL_GAME_DEFS[0]?.id)}
                 isLast={idx === filtered.length - 1} />
             ))}
           </div>
@@ -531,7 +531,7 @@ export default function PlayersPage() {
                 isShortlisted={shortlistIds.has(player.uid)}
                 onToggleShortlist={() => toggleShortlist(player.uid)}
                 linkCopied={copiedLinkFor === player.uid}
-                onGenerateLink={() => generateTargetedLink(player.uid, player.games?.[0] || 'rocket_league')} />
+                onGenerateLink={() => generateTargetedLink(player.uid, player.games?.[0] || ALL_GAME_DEFS[0]?.id)} />
             ))}
           </div>
         )}
