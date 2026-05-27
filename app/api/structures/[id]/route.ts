@@ -94,6 +94,9 @@ export async function GET(
       coFounderIds: data.coFounderIds ?? [],
       managerIds: data.managerIds ?? [],
       coachIds: data.coachIds ?? [],
+      // Scope par jeu pour multi-jeux. Absence = all-games rétrocompat.
+      managerGames: data.managerGames ?? {},
+      coachGames: data.coachGames ?? {},
       members,
       createdAtMs,
       eventsCount,

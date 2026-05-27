@@ -1,9 +1,10 @@
 'use client';
-import React from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Clock, Loader2, User, UserPlus, Users } from 'lucide-react';
 import MemberActionsMenu from '@/components/structure/MemberActionsMenu';
+import StaffGamesScopeModal from '@/components/structure/StaffGamesScopeModal';
 import { getProfileHref } from '@/lib/user-slug';
 import {
   computeMemberRole, groupAffiliations, PRIMARY_ROLE_LABELS,
@@ -52,6 +53,14 @@ export function MembersTab(props: MembersTabProps) {
     handleToggleStaffRole, handlePromoteToCoFounder, handleDemoteCoFounder,
     handleTransferOwnership, handleRemoveMember,
   } = props;
+
+  // Modal de configuration du scope par jeu pour un Responsable/Coach.
+  // Ouvert depuis MemberActionsMenu via onOpenStaffGamesScope.
+  const [scopeTarget, setScopeTarget] = useState<{
+    userId: string;
+    name: string;
+    role: 'manager' | 'coach';
+  } | null>(null);
 
   // ─── Bannière "sans équipe" (dirigeants only) ────────────────────────────
   const renderUnassignedBanner = () => {
@@ -273,6 +282,14 @@ export function MembersTab(props: MembersTabProps) {
                         onDemoteCoFounder={() => handleDemoteCoFounder(m.userId, m.displayName)}
                         onTransferOwnership={() => handleTransferOwnership(m.userId, m.displayName)}
                         onRemove={() => handleRemoveMember(m.id, m.displayName)}
+                        onOpenStaffGamesScope={canManageStaffRoles && (isCoachRow || isManagerRow)
+                          ? () => setScopeTarget({
+                              userId: m.userId,
+                              name: m.displayName,
+                              // Priorité au rôle de plus haut niveau si user a les 2
+                              role: isManagerRow ? 'manager' : 'coach',
+                            })
+                          : undefined}
                       />
                     </div>
                   );
@@ -377,11 +394,39 @@ export function MembersTab(props: MembersTabProps) {
     );
   };
 
+  // Lookup du scope actuel pour le target sélectionné (managerGames/coachGames
+  // depuis la structure). Null/undefined = all-games rétrocompat.
+  const currentScope: string[] | null = (() => {
+    if (!scopeTarget) return null;
+    const field = scopeTarget.role === 'manager' ? s.managerGames : s.coachGames;
+    const scoped = field?.[scopeTarget.userId];
+    return Array.isArray(scoped) ? scoped : null;
+  })();
+
   return (
     <>
       {renderUnassignedBanner()}
       {renderMembersList()}
       {renderHistory()}
+      {scopeTarget && (
+        <StaffGamesScopeModal
+          open
+          onClose={() => setScopeTarget(null)}
+          structureId={s.id}
+          targetUserId={scopeTarget.userId}
+          targetName={scopeTarget.name}
+          role={scopeTarget.role}
+          structureGames={s.games ?? []}
+          currentScope={currentScope}
+          onSaved={() => {
+            // Le parent (page my-structure) refetch via React Query
+            // grâce à l'invalidation côté API (mutations utilisent invalidateQueries).
+            // Ici on ferme juste le modal — le state de la struct sera refresh
+            // via la query au prochain tick.
+            setScopeTarget(null);
+          }}
+        />
+      )}
     </>
   );
 }

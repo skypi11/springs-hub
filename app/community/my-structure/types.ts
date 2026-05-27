@@ -100,6 +100,10 @@ export type MyStructure = {
   } | null;
   managerIds?: string[];
   coachIds?: string[];
+  /** Scope par jeu pour les Responsables (multi-jeux). Absence d'entrée = all-games. */
+  managerGames?: Record<string, string[]>;
+  /** Idem pour les Coachs. */
+  coachGames?: Record<string, string[]>;
   discordIntegration?: {
     guildId: string;
     guildName: string;

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   MoreVertical, Shield, ChevronUp, ChevronDown, UserMinus,
-  Loader2, UserCog, Briefcase,
+  Loader2, UserCog, Briefcase, Gamepad2,
 } from 'lucide-react';
 import Portal from '@/components/ui/Portal';
 import { PromoteRoleModal } from '@/components/structure/RoleInfoPanel';
@@ -27,6 +27,9 @@ export interface MemberActionsMenuProps {
   onDemoteCoFounder: () => void;
   onTransferOwnership: () => void;
   onRemove: () => void;
+  /** Callback ouverture modal de scope par jeu (visible si user est manager ou coach
+   *  et que canManageStaffRoles=true) — multi-jeux scope, 2026-05-27. */
+  onOpenStaffGamesScope?: () => void;
 }
 
 export default function MemberActionsMenu(props: MemberActionsMenuProps) {
@@ -37,6 +40,7 @@ export default function MemberActionsMenu(props: MemberActionsMenuProps) {
     onToggleCoach, onToggleManager,
     onPromoteCoFounder, onDemoteCoFounder, onTransferOwnership,
     onRemove,
+    onOpenStaffGamesScope,
   } = props;
 
   const [open, setOpen] = useState(false);
@@ -97,6 +101,16 @@ export default function MemberActionsMenu(props: MemberActionsMenuProps) {
       onClick: isManager ? onToggleManager : () => setPromoteIntent('responsable'),
       busy: busyKey === `${userId}:manager`,
     });
+    // Configurer le scope par jeu — uniquement si déjà promu coach OU manager
+    // ET si callback fourni par le parent (qui détient la structure pour modal).
+    if (onOpenStaffGamesScope && (isCoach || isManager)) {
+      items.push({
+        key: 'staff-games-scope',
+        label: 'Configurer jeux du rôle',
+        icon: <Gamepad2 size={13} style={{ color: 'var(--s-text-dim)' }} />,
+        onClick: onOpenStaffGamesScope,
+      });
+    }
   }
 
   if (canManageCoFounder) {
