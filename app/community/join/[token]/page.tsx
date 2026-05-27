@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Shield, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
+import { ALL_GAME_DEFS } from '@/lib/games-registry';
 
 type LinkInfo = {
   structureId: string;
@@ -89,8 +90,9 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
               <label className="t-label block mb-2">Jeu</label>
               <select className="settings-input w-full" value={game} onChange={e => setGame(e.target.value)}>
                 <option value="">Choisir...</option>
-                {linkInfo.structureGames.includes('rocket_league') && <option value="rocket_league">Rocket League</option>}
-                {linkInfo.structureGames.includes('trackmania') && <option value="trackmania">Trackmania</option>}
+                {ALL_GAME_DEFS.filter(g => linkInfo.structureGames.includes(g.id)).map(g => (
+                  <option key={g.id} value={g.id}>{g.label}</option>
+                ))}
               </select>
             </div>
             <button onClick={() => doJoin(game)} disabled={!game}

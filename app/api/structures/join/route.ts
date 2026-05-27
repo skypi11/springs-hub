@@ -9,6 +9,7 @@ import { addAuditLog } from '@/lib/audit-log';
 import { bumpStructureCounter } from '@/lib/structure-counters';
 import { postRecruitmentEmbed } from '@/lib/discord-bot';
 import { canJoinStructure, addStructureToGame, removeStructureFromGame, STRUCTURE_MEMBERSHIP_CAP } from '@/lib/structure-membership';
+import { ALL_GAME_DEFS } from '@/lib/games-registry';
 
 // POST /api/structures/join — rejoindre une structure (via lien ou demande)
 export async function POST(req: NextRequest) {
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
               throw new Error('STRUCTURE_INACTIVE');
             }
             const structData = structDoc.data()!;
-            const joinGame: string = linkData.game || game || structData.games?.[0] || 'rocket_league';
+            const joinGame: string = linkData.game || game || structData.games?.[0] || ALL_GAME_DEFS[0]?.id;
 
             // Membership check via doc ID déterministe (évite une query)
             const memberRef = db.collection('structure_members').doc(`${sid}_${uid}`);
@@ -246,7 +247,7 @@ export async function POST(req: NextRequest) {
               personAvatarUrl: applicantData?.avatarUrl || applicantData?.discordAvatar || null,
               structureName: structData.name,
               structureLogoUrl: structData.logoUrl || null,
-              game: game || 'rocket_league',
+              game: game || ALL_GAME_DEFS[0]?.id,
               role: role || 'joueur',
               country: applicantData?.country || null,
               message: message?.trim() || null,

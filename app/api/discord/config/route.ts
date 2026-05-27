@@ -3,6 +3,7 @@ import { verifyAuth, getAdminDb } from '@/lib/firebase-admin';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { captureApiError } from '@/lib/sentry';
 import { addAuditLog } from '@/lib/audit-log';
+import { isKnownGame } from '@/lib/games-registry';
 
 // POST /api/discord/config
 // Met à jour la config Discord au niveau structure (salon + rôle à ping) pour
@@ -35,8 +36,8 @@ export async function POST(req: NextRequest) {
     if (!['structure', 'game', 'staff'].includes(body.scope)) {
       return NextResponse.json({ error: 'scope invalide.' }, { status: 400 });
     }
-    if (body.scope === 'game' && (!body.game || (body.game !== 'rocket_league' && body.game !== 'trackmania'))) {
-      return NextResponse.json({ error: 'game invalide (rocket_league | trackmania).' }, { status: 400 });
+    if (body.scope === 'game' && (!body.game || !isKnownGame(body.game))) {
+      return NextResponse.json({ error: 'game invalide.' }, { status: 400 });
     }
 
     // Validation des snowflakes Discord. null/'' = unset, sinon ^\d{1,32}$.

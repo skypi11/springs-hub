@@ -12,6 +12,7 @@ import { bumpStructureCounter } from '@/lib/structure-counters';
 import { postRecruitmentEmbed } from '@/lib/discord-bot';
 import { canManageMembers, structureContext } from '@/lib/structure-permissions';
 import { canJoinStructure, addStructureToGame, STRUCTURE_MEMBERSHIP_CAP } from '@/lib/structure-membership';
+import { ALL_GAME_DEFS } from '@/lib/games-registry';
 
 // Durée de validité d'un lien d'invitation. Au-delà, le lien est inactivable
 // automatiquement à la consommation, pour éviter qu'un token leaké il y a 6 mois
@@ -299,7 +300,7 @@ export async function POST(req: NextRequest) {
             }
 
             applicantId = data.applicantId;
-            joinGame = game || data.game || structureData.games?.[0] || 'rocket_league';
+            joinGame = game || data.game || structureData.games?.[0] || ALL_GAME_DEFS[0]?.id;
             joinRole = data.role || role || 'joueur';
 
             const memberRef = db.collection('structure_members').doc(`${structureId}_${applicantId}`);

@@ -107,6 +107,9 @@ export default function OnboardingWizard({ onClose }: { onClose: () => void }) {
     }
     if (s === 3) {
       if (data.games.length === 0) return 'Choisis au moins un jeu.';
+      // TODO (phase 3 multi-jeux) : déporter ces validators game-specific
+      // dans la registry sous forme d'une fonction validateOnboarding(gameId, data)
+      // par jeu, pour qu'ajouter Valorant ne demande pas de modifier ce switch.
       if (data.games.includes('rocket_league')) {
         if (!data.rlPlatform) return 'Choisis ta plateforme Rocket League.';
         if (!data.rlPlatformId.trim()) return `Renseigne ton ${getRLPlatformMeta(data.rlPlatform).idLabel}.`;

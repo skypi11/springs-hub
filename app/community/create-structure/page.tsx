@@ -14,6 +14,7 @@ import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import PendingImagePicker from '@/components/ui/PendingImagePicker';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import DiscordIcon, { AEDRAL_DISCORD_INVITE_URL } from '@/components/icons/DiscordIcon';
+import { ALL_GAME_DEFS } from '@/lib/games-registry';
 
 const LEGAL_STATUSES = [
   { value: 'none', label: 'Aucune' },
@@ -351,29 +352,32 @@ export default function CreateStructurePage() {
             </div>
           </div>
           <div className="panel-body">
-            <div className="flex gap-3">
-              <button type="button" onClick={() => toggleGame('rocket_league')}
-                className="flex-1 p-4 text-center transition-all duration-150"
-                style={{
-                  background: form.games.includes('rocket_league') ? 'rgba(0,129,255,0.1)' : 'var(--s-elevated)',
-                  border: `1px solid ${form.games.includes('rocket_league') ? 'rgba(0,129,255,0.4)' : 'var(--s-border)'}`,
-                }}>
-                <Gamepad2 size={20} className="mx-auto mb-2" style={{ color: form.games.includes('rocket_league') ? '#4da6ff' : 'var(--s-text-muted)' }} />
-                <p className="font-display text-sm" style={{ color: form.games.includes('rocket_league') ? '#4da6ff' : 'var(--s-text-dim)' }}>
-                  ROCKET LEAGUE
-                </p>
-              </button>
-              <button type="button" onClick={() => toggleGame('trackmania')}
-                className="flex-1 p-4 text-center transition-all duration-150"
-                style={{
-                  background: form.games.includes('trackmania') ? 'rgba(0,217,54,0.1)' : 'var(--s-elevated)',
-                  border: `1px solid ${form.games.includes('trackmania') ? 'rgba(0,217,54,0.4)' : 'var(--s-border)'}`,
-                }}>
-                <Gamepad2 size={20} className="mx-auto mb-2" style={{ color: form.games.includes('trackmania') ? '#33ff66' : 'var(--s-text-muted)' }} />
-                <p className="font-display text-sm" style={{ color: form.games.includes('trackmania') ? '#33ff66' : 'var(--s-text-dim)' }}>
-                  TRACKMANIA
-                </p>
-              </button>
+            <div className="flex gap-3 flex-wrap">
+              {ALL_GAME_DEFS.map(g => {
+                const active = form.games.includes(g.id);
+                return (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => toggleGame(g.id)}
+                    className="flex-1 p-4 text-center transition-all duration-150"
+                    style={{
+                      minWidth: '160px',
+                      background: active ? `rgba(${g.colorRgb}, 0.1)` : 'var(--s-elevated)',
+                      border: `1px solid ${active ? `rgba(${g.colorRgb}, 0.4)` : 'var(--s-border)'}`,
+                    }}
+                  >
+                    <Gamepad2 size={20} className="mx-auto mb-2"
+                      style={{ color: active ? g.colorLight : 'var(--s-text-muted)' }}
+                    />
+                    <p className="font-display text-sm"
+                      style={{ color: active ? g.colorLight : 'var(--s-text-dim)' }}
+                    >
+                      {g.label.toUpperCase()}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
