@@ -6,6 +6,7 @@ import { safeUrl, clampString, LIMITS } from '@/lib/validation';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { expiredDepartures } from '@/lib/structure-roles';
+import { isKnownGame } from '@/lib/games-registry';
 
 // Lazy-process les préavis de départ de co-fondateurs expirés sur une structure.
 // Appelée au moment des lectures (pas de cron). Retire du coFounderIds, nettoie la map
@@ -363,6 +364,36 @@ export async function PUT(req: NextRequest) {
           };
         }
       }
+    }
+    // Jeux pratiqués par la structure (multi-jeux, 2026-05-27).
+    // Validation stricte : que des jeux connus de la registry, au moins 1,
+    // et on REFUSE de retirer un jeu qui a encore des équipes actives
+    // (sinon orphelinage des équipes + cascade de bugs).
+    if (updates.games !== undefined && Array.isArray(updates.games)) {
+      const cleaned = [...new Set(updates.games.filter((g: unknown): g is string =>
+        typeof g === 'string' && isKnownGame(g)
+      ))];
+      if (cleaned.length === 0) {
+        return NextResponse.json({ error: 'Au moins un jeu doit être activé.' }, { status: 400 });
+      }
+      const currentGames = (data.games as string[] | undefined) ?? [];
+      const removedGames = currentGames.filter(g => !cleaned.includes(g));
+      if (removedGames.length > 0) {
+        // Vérifier qu'aucune équipe active n'utilise un jeu retiré
+        const teamsSnap = await db.collection('sub_teams')
+          .where('structureId', '==', structureId)
+          .where('game', 'in', removedGames)
+          .limit(50)
+          .get();
+        const blockingTeams = teamsSnap.docs.filter(d => (d.data().status ?? 'active') === 'active');
+        if (blockingTeams.length > 0) {
+          const sample = blockingTeams.slice(0, 3).map(d => d.data().name as string).join(', ');
+          return NextResponse.json({
+            error: `Impossible de retirer ${removedGames.join(', ')} — équipes actives encore présentes (${sample}${blockingTeams.length > 3 ? '…' : ''}). Archive d'abord ces équipes.`,
+          }, { status: 400 });
+        }
+      }
+      safeUpdates.games = cleaned;
     }
 
     await ref.update(safeUpdates);

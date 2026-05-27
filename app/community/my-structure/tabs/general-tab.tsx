@@ -5,8 +5,10 @@ import ReactMarkdown from 'react-markdown';
 import {
   Shield, Trophy, Loader2, AlertCircle,
   Save, Plus, Trash2, CheckCircle,
-  Link2, MessageSquare, Settings, Check, X, BookOpen,
+  Link2, MessageSquare, Settings, Check, X, BookOpen, Gamepad2,
 } from 'lucide-react';
+import { api, ApiError } from '@/lib/api-client';
+import { useToast } from '@/components/ui/Toast';
 import ImageUploader from '@/components/ui/ImageUploader';
 import BannerFocusEditor from '@/components/structure/BannerFocusEditor';
 import StorageQuotaCard from '@/components/structure/StorageQuotaCard';
@@ -94,6 +96,39 @@ export function GeneralTab(props: GeneralTabProps) {
   // sans devoir quitter la page.
   const [rolesHelpOpen, setRolesHelpOpen] = useState(false);
 
+  // ─── JEUX PRATIQUÉS (édition dirigeant) ────────────────────────────────
+  // State local + save dédié (act structural séparé du handleSave global).
+  const toast = useToast();
+  const [editGames, setEditGames] = useState<string[]>(() => s.games ?? []);
+  const [savingGames, setSavingGames] = useState(false);
+  const gamesDirty = (() => {
+    const a = [...(s.games ?? [])].sort();
+    const b = [...editGames].sort();
+    if (a.length !== b.length) return true;
+    return a.some((v, i) => v !== b[i]);
+  })();
+  function toggleGame(gameId: string) {
+    setEditGames(prev =>
+      prev.includes(gameId) ? prev.filter(g => g !== gameId) : [...prev, gameId]
+    );
+  }
+  async function handleSaveGames() {
+    if (!gamesDirty || editGames.length === 0) return;
+    setSavingGames(true);
+    try {
+      await api('/api/structures/my', {
+        method: 'PUT',
+        body: { structureId: s.id, games: editGames },
+      });
+      toast.success('Jeux de la structure mis à jour');
+      await loadStructures();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
+    } finally {
+      setSavingGames(false);
+    }
+  }
+
   return (
     <div className="grid gap-6 animate-fade-in grid-cols-1 lg:grid-cols-3">
       {/* ─── Colonne gauche ──────── */}
@@ -152,6 +187,109 @@ export function GeneralTab(props: GeneralTabProps) {
                   <ReactMarkdown>{editDesc}</ReactMarkdown>
                 </div>
               </div>
+            )}
+          </div>
+        </SectionPanel>
+
+        {/* JEUX PRATIQUÉS — act structural, save dédié.
+            Visible et éditable par les dirigeants uniquement.
+            Affiché en 2e position (après DESCRIPTION) car c'est ce qui
+            détermine ce que la structure peut faire (équipes, recrutement…). */}
+        <SectionPanel accent="var(--s-gold)" icon={Gamepad2} title="JEUX PRATIQUÉS"
+          collapsed={collapsed.games} onToggle={() => toggle('games')}>
+          <div className="space-y-4">
+            <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+              Active les jeux où ta structure est active. Cocher un jeu débloque
+              la création d'équipes pour ce jeu, le recrutement et le calendrier
+              dédié. Décocher un jeu est bloqué tant qu'il reste des équipes
+              actives sur ce jeu.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {ALL_GAME_DEFS.map(g => {
+                const active = editGames.includes(g.id);
+                return (
+                  <button
+                    key={g.id}
+                    type="button"
+                    disabled={!isDirigeantOfActive}
+                    onClick={() => toggleGame(g.id)}
+                    className="p-4 text-left transition-all duration-150 relative overflow-hidden"
+                    style={{
+                      background: active ? `rgba(${g.colorRgb}, 0.10)` : 'var(--s-elevated)',
+                      border: active
+                        ? `2px solid rgba(${g.colorRgb}, 0.5)`
+                        : '2px solid var(--s-border)',
+                      cursor: isDirigeantOfActive ? 'pointer' : 'not-allowed',
+                      opacity: isDirigeantOfActive ? 1 : 0.6,
+                    }}
+                  >
+                    {active && (
+                      <div
+                        className="absolute top-0 right-0 w-24 h-24 pointer-events-none opacity-[0.10]"
+                        style={{ background: `radial-gradient(circle at top right, ${g.color}, transparent 70%)` }}
+                      />
+                    )}
+                    <div className="relative z-[1] flex items-center gap-3">
+                      <div
+                        className="w-9 h-9 flex items-center justify-center flex-shrink-0"
+                        style={{
+                          background: `rgba(${g.colorRgb}, 0.10)`,
+                          border: `1px solid rgba(${g.colorRgb}, 0.25)`,
+                        }}
+                      >
+                        <Gamepad2 size={16} style={{ color: g.color }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className="text-sm font-semibold truncate"
+                          style={{ color: active ? g.colorLight : 'var(--s-text)' }}
+                        >
+                          {g.label}
+                        </p>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--s-text-muted)' }}>
+                          {g.shortLabel} · {g.roster.allowSolo ? 'Solo' : `${g.roster.titulaires}v${g.roster.titulaires}`}
+                        </p>
+                      </div>
+                      {active && (
+                        <CheckCircle size={16} className="flex-shrink-0" style={{ color: g.color }} />
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {isDirigeantOfActive && (
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleSaveGames}
+                  disabled={!gamesDirty || savingGames || editGames.length === 0}
+                  className="btn-springs btn-primary bevel-sm flex items-center gap-2 px-4 py-2"
+                  style={{
+                    fontSize: '13px',
+                    opacity: !gamesDirty || editGames.length === 0 ? 0.5 : 1,
+                    cursor: !gamesDirty || editGames.length === 0 ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {savingGames ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                  {savingGames ? 'Enregistrement…' : 'Enregistrer les jeux'}
+                </button>
+                {gamesDirty && (
+                  <span className="text-xs" style={{ color: 'var(--s-gold)' }}>
+                    ⚠ Changement non enregistré
+                  </span>
+                )}
+                {editGames.length === 0 && (
+                  <span className="text-xs" style={{ color: '#ff8888' }}>
+                    Au moins un jeu requis
+                  </span>
+                )}
+              </div>
+            )}
+            {!isDirigeantOfActive && (
+              <p className="text-xs italic" style={{ color: 'var(--s-text-muted)' }}>
+                Seuls les dirigeants (fondateur + cofondateurs) peuvent modifier les jeux activés.
+              </p>
             )}
           </div>
         </SectionPanel>
