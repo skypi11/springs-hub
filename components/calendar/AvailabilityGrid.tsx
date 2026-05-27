@@ -184,7 +184,7 @@ export default function AvailabilityGrid() {
         </p>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 text-sm" style={{ color: 'var(--s-text-muted)' }}>
           <span className="flex items-center gap-2">
-            <span className="inline-block" style={{ width: '16px', height: '14px', background: 'var(--s-gold)', border: '1px solid rgba(255,184,0,0.5)' }} />
+            <span className="inline-block" style={{ width: '16px', height: '14px', background: 'rgba(255,184,0,0.40)', border: '1px solid rgba(255,184,0,0.65)' }} />
             Dispo
           </span>
           <span className="flex items-center gap-2">
@@ -197,47 +197,52 @@ export default function AvailabilityGrid() {
         </div>
       </div>
 
-      <WeekPanel
-        title="SEMAINE COURANTE"
-        weekGrid={currentGrid}
-        slots={currentSet}
-        onToggle={(slot) => {
-          setCurrentSet(prev => {
-            const next = new Set(prev);
-            if (next.has(slot)) next.delete(slot);
-            else next.add(slot);
-            return next;
-          });
-          setCurrentDirty(true);
-        }}
-        dirty={currentDirty}
-        saving={saving === 'current'}
-        onSave={() => save('current')}
-        copyLabel={data.previous.slots.length > 0 ? 'Copier semaine précédente' : null}
-        onCopy={copyFromPrevious}
-        today={data.today}
-      />
+      {/* Stack par défaut, 2 colonnes côte à côte à partir de 1700px (au-dessous,
+          la table interne minWidth:640px ne tient pas dans la moitié de l'espace
+          avec la sidebar 260px et déclencherait un scroll horizontal interdit). */}
+      <div className="grid grid-cols-1 gap-8 [@media(min-width:1700px)]:grid-cols-2 [@media(min-width:1700px)]:gap-6">
+        <WeekPanel
+          title="SEMAINE COURANTE"
+          weekGrid={currentGrid}
+          slots={currentSet}
+          onToggle={(slot) => {
+            setCurrentSet(prev => {
+              const next = new Set(prev);
+              if (next.has(slot)) next.delete(slot);
+              else next.add(slot);
+              return next;
+            });
+            setCurrentDirty(true);
+          }}
+          dirty={currentDirty}
+          saving={saving === 'current'}
+          onSave={() => save('current')}
+          copyLabel={data.previous.slots.length > 0 ? 'Copier semaine précédente' : null}
+          onCopy={copyFromPrevious}
+          today={data.today}
+        />
 
-      <WeekPanel
-        title="SEMAINE SUIVANTE"
-        weekGrid={nextGrid}
-        slots={nextSet}
-        onToggle={(slot) => {
-          setNextSet(prev => {
-            const next = new Set(prev);
-            if (next.has(slot)) next.delete(slot);
-            else next.add(slot);
-            return next;
-          });
-          setNextDirty(true);
-        }}
-        dirty={nextDirty}
-        saving={saving === 'next'}
-        onSave={() => save('next')}
-        copyLabel={currentSet.size > 0 ? 'Copier semaine courante' : null}
-        onCopy={copyFromCurrent}
-        today={data.today}
-      />
+        <WeekPanel
+          title="SEMAINE SUIVANTE"
+          weekGrid={nextGrid}
+          slots={nextSet}
+          onToggle={(slot) => {
+            setNextSet(prev => {
+              const next = new Set(prev);
+              if (next.has(slot)) next.delete(slot);
+              else next.add(slot);
+              return next;
+            });
+            setNextDirty(true);
+          }}
+          dirty={nextDirty}
+          saving={saving === 'next'}
+          onSave={() => save('next')}
+          copyLabel={currentSet.size > 0 ? 'Copier semaine courante' : null}
+          onCopy={copyFromCurrent}
+          today={data.today}
+        />
+      </div>
     </div>
   );
 }
@@ -467,10 +472,13 @@ function WeekPanel({
                           width: isNarrow ? 'auto' : '76px',
                           height: `${ROW_HEIGHT}px`,
                           background: isPast
-                            ? (isSelected ? 'rgba(255,184,0,0.15)' : 'rgba(255,255,255,0.02)')
+                            ? (isSelected ? 'rgba(255,184,0,0.10)' : 'rgba(255,255,255,0.02)')
                             : isSelected
-                              ? 'var(--s-gold)'
+                              ? 'rgba(255,184,0,0.40)'
                               : 'var(--s-elevated)',
+                          boxShadow: !isPast && isSelected
+                            ? 'inset 0 0 0 1px rgba(255,184,0,0.55)'
+                            : 'none',
                           borderLeft: '1px solid var(--s-bg)',
                           borderRight: '1px solid var(--s-bg)',
                           borderTop: isHourStart
@@ -479,7 +487,7 @@ function WeekPanel({
                           borderBottom: 'none',
                           cursor: isPast ? 'not-allowed' : dragActive ? 'grabbing' : 'pointer',
                           opacity: isPast ? 0.5 : 1,
-                          transition: 'background-color 100ms',
+                          transition: 'background-color 100ms, box-shadow 100ms',
                         }}
                       />
                     );
