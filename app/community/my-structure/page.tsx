@@ -158,6 +158,12 @@ export default function MyStructurePage() {
     const isDirigeant = isFounder || isCoFounder;
     const isManager = !isDirigeant && (activeStructure.managerIds ?? []).includes(firebaseUser.uid);
     const isCoach = !isDirigeant && !isManager && (activeStructure.coachIds ?? []).includes(firebaseUser.uid);
+    // Staff d'équipe (coach/manager assigné via sub_teams.staffIds) sans rôle
+    // structure-wide : voit les mêmes onglets qu'un coach structure mais scopé
+    // à ses équipes (via teamScopeActive). Sans ça, ces coachs tombaient sur
+    // ['calendar'] et perdaient l'accès à membres/todos/replays.
+    const isTeamStaff = !isDirigeant && !isManager && !isCoach
+      && teams.some(t => t.staff.some(st => st.uid === firebaseUser.uid));
     // Replays masqués si aucun jeu de la structure ne supporte le parsing
     // (typiquement structure 100% Valorant/TM, sans RL).
     const hasReplaySupport = (activeStructure.games ?? []).some(g => gameHasFeature(g, 'replayParsing'));
@@ -165,13 +171,13 @@ export default function MyStructurePage() {
       ? ['general', 'teams', 'recruitment', 'members', 'calendar', 'todos', 'replays', 'documents']
       : isManager
       ? ['teams', 'members', 'calendar', 'todos', 'replays']
-      : isCoach
+      : isCoach || isTeamStaff
       ? ['members', 'calendar', 'todos', 'replays']
       : ['calendar'];
     const visible = hasReplaySupport ? base : base.filter(t => t !== 'replays');
     if (!visible.includes(tab)) setTab(visible[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStructure?.id, firebaseUser?.uid]);
+  }, [activeStructure?.id, firebaseUser?.uid, teams.length]);
 
   // Hydrate la liste des groupes repliés depuis localStorage à chaque changement
   // de structure active. Clé scopée par structureId pour que deux structures
@@ -1013,7 +1019,12 @@ export default function MyStructurePage() {
   // La branding et le toggle recrutement restent dirigeant-only (PUT API gate).
   // Capitaine-seul : accès uniquement à "son" équipe via ÉQUIPES (scope automatique)
   // et au calendrier. Pas de recrutement ni de membres structure-wide.
-  const captainOnlyAccess = !isDirigeantOfActive && !isManagerOfActive && !isCoachOfActive && firebaseUser
+  // Staff d'équipe (coach/manager assigné via sub_teams.staffIds) sans rôle
+  // structure-wide. Mêmes onglets qu'un coach structure mais scopé à ses équipes.
+  const isTeamStaffOnly = !isDirigeantOfActive && !isManagerOfActive && !isCoachOfActive && firebaseUser
+    ? teams.some(t => t.staff.some(st => st.uid === firebaseUser.uid))
+    : false;
+  const captainOnlyAccess = !isDirigeantOfActive && !isManagerOfActive && !isCoachOfActive && !isTeamStaffOnly && firebaseUser
     ? teams.some(t => t.captainId === firebaseUser.uid)
     : false;
   const hasReplaySupportActive = (s.games ?? []).some(g => gameHasFeature(g, 'replayParsing'));
@@ -1021,7 +1032,7 @@ export default function MyStructurePage() {
     ? ['general', 'teams', 'recruitment', 'members', 'calendar', 'todos', 'replays', 'documents']
     : isManagerOfActive
     ? ['teams', 'recruitment', 'members', 'calendar', 'todos', 'replays']
-    : isCoachOfActive
+    : isCoachOfActive || isTeamStaffOnly
     ? ['members', 'calendar', 'todos', 'replays']
     : captainOnlyAccess
     ? ['teams', 'calendar']
