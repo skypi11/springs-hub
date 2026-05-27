@@ -43,10 +43,14 @@ export default function Sidebar() {
     const seen = user.lastChangelogSeenAt;
     if (!seen) return true; // jamais vu
     // user.lastChangelogSeenAt peut être :
-    // - string ISO (rare, depuis nos APIs sérialisées)
+    // - string ISO (rare, depuis nos APIs sérialisées en string)
     // - Date instance (rare)
     // - Firestore Timestamp objet avec .toDate() (cas client SDK)
-    // - Plain object { seconds, nanoseconds } (sérialisation Next.js par moments)
+    // - Plain object { _seconds, _nanoseconds } (sérialisation JSON d'un
+    //   Admin SDK Timestamp — c'est CE format qui sort de /api/auth/me, car
+    //   JSON.stringify n'expose que les props enumerable own, qui sont les
+    //   underscore-prefixed sur l'Admin SDK)
+    // - Plain object { seconds, nanoseconds } (autres sérialisations)
     let seenMs: number | null = null;
     if (typeof seen === 'string') {
       seenMs = new Date(seen).getTime();
@@ -54,6 +58,8 @@ export default function Sidebar() {
       seenMs = seen.getTime();
     } else if (typeof (seen as { toDate?: () => Date }).toDate === 'function') {
       seenMs = (seen as { toDate: () => Date }).toDate().getTime();
+    } else if (typeof (seen as { _seconds?: number })._seconds === 'number') {
+      seenMs = (seen as { _seconds: number })._seconds * 1000;
     } else if (typeof (seen as { seconds?: number }).seconds === 'number') {
       seenMs = (seen as { seconds: number }).seconds * 1000;
     }

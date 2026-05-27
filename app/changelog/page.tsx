@@ -47,7 +47,7 @@ function fmtMonth(iso: string): string {
 }
 
 export default function ChangelogPage() {
-  const { firebaseUser } = useAuth();
+  const { firebaseUser, refreshProfile } = useAuth();
   const [filter, setFilter] = useState<ChangelogCategory | 'all'>('all');
 
   const { data, isPending } = useQuery({
@@ -56,13 +56,16 @@ export default function ChangelogPage() {
     staleTime: 60_000,
   });
 
-  // Mark as seen au mount (silencieux, ignore les erreurs).
+  // Mark as seen au mount + recharge le profil pour que le dot rouge
+  // sidebar disparaisse immédiatement (sans attendre un F5).
   useEffect(() => {
     if (!firebaseUser) return;
-    api('/api/profile/mark-changelog-seen', { method: 'POST' }).catch(() => {
-      // Silencieux : non bloquant. Le dot restera mais l'user a vu la page.
-    });
-  }, [firebaseUser]);
+    api('/api/profile/mark-changelog-seen', { method: 'POST' })
+      .then(() => refreshProfile())
+      .catch(() => {
+        // Silencieux : non bloquant.
+      });
+  }, [firebaseUser, refreshProfile]);
 
   // Pré-parse toutes les descriptions en sections. Mémoïsé pour éviter
   // le re-parse à chaque changement de filtre.
