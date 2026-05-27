@@ -1982,6 +1982,7 @@ function EventDetailModal({
                 players: toMembers(team.playerIds),
                 subs: toMembers(team.subIds),
                 staff: toMembers(team.staffIds),
+                game: team.game,
               };
               return (
                 <div className="p-3 bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>

@@ -129,6 +129,56 @@ export function cleanTemplateConfig(type: TodoType, raw: unknown): Record<string
     case 'watch_party':
       // Deprecated mais on accepte encore en lecture/édition d'anciens templates
       return { location: s(r.location, 200) };
+    // FPS / Valorant — templates acceptent les champs avec valeurs optionnelles
+    // (utilisateur les remplit à l'instanciation s'ils sont vides).
+    case 'aim_trainer': {
+      const out: Record<string, unknown> = {
+        software: s(r.software, 60),
+        scenario: s(r.scenario, 120),
+        focus: s(r.focus, 500),
+      };
+      if (r.targetScore !== undefined && r.targetScore !== null && r.targetScore !== '') {
+        const n = typeof r.targetScore === 'number' ? r.targetScore : Number(r.targetScore);
+        if (Number.isFinite(n) && n >= 0) out.targetScore = Math.round(n);
+      }
+      return out;
+    }
+    case 'lineups': {
+      let count = typeof r.count === 'number' ? r.count : Number(r.count);
+      if (!Number.isFinite(count) || count < 1) count = 1;
+      if (count > 20) count = 20;
+      return {
+        agent: s(r.agent, 60),
+        map: s(r.map, 60),
+        count: Math.round(count),
+        notes: s(r.notes, 500),
+      };
+    }
+    case 'custom_game': {
+      let durationMinutes = typeof r.durationMinutes === 'number'
+        ? r.durationMinutes
+        : Number(r.durationMinutes);
+      if (!Number.isFinite(durationMinutes) || durationMinutes < 5) durationMinutes = 30;
+      if (durationMinutes > 180) durationMinutes = 180;
+      return {
+        mode: s(r.mode, 120),
+        durationMinutes: Math.round(durationMinutes),
+        focus: s(r.focus, 500),
+      };
+    }
+    case 'warmup_routine': {
+      let durationMinutes = typeof r.durationMinutes === 'number'
+        ? r.durationMinutes
+        : Number(r.durationMinutes);
+      if (!Number.isFinite(durationMinutes) || durationMinutes < 5) durationMinutes = 15;
+      if (durationMinutes > 90) durationMinutes = 90;
+      const rawSteps = Array.isArray(r.steps) ? r.steps : [];
+      const steps = rawSteps
+        .map(x => typeof x === 'string' ? x.trim().slice(0, 200) : '')
+        .filter(x => x.length > 0)
+        .slice(0, 10);
+      return { durationMinutes: Math.round(durationMinutes), steps };
+    }
     default: {
       const _exhaustive: never = type;
       void _exhaustive;

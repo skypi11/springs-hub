@@ -6,6 +6,11 @@ import {
   TRAINING_PACKS_MAX,
   FREEPLAY_MIN_MINUTES,
   FREEPLAY_MAX_MINUTES,
+  LINEUPS_MIN_COUNT,
+  LINEUPS_MAX_COUNT,
+  WARMUP_MIN_MINUTES,
+  WARMUP_MAX_MINUTES,
+  WARMUP_MAX_STEPS,
   normalizeTrainingPacks,
   type TodoType,
   type TrainingPackItem,
@@ -335,6 +340,211 @@ export function TodoConfigFields({
               + Ajouter un item
             </button>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── FPS / Valorant ──────────────────────────────────────────────────────
+  if (type === 'aim_trainer') {
+    return (
+      <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Logiciel *</label>
+            <input type="text" className="settings-input w-full text-sm"
+              placeholder="Aimlabs / Kovaak's / Range Val"
+              maxLength={60}
+              value={String(config.software ?? '')}
+              onChange={e => onChange({ software: e.target.value })} />
+          </div>
+          <div>
+            <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Score cible</label>
+            <input type="number" className="settings-input w-full text-sm"
+              placeholder="ex: 32000"
+              min={0}
+              value={config.targetScore === undefined ? '' : String(config.targetScore)}
+              onChange={e => {
+                const v = e.target.value;
+                if (v === '') onChange({ targetScore: undefined });
+                else {
+                  const n = Number(v);
+                  if (Number.isFinite(n) && n >= 0) onChange({ targetScore: Math.round(n) });
+                }
+              }} />
+          </div>
+        </div>
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Scénario *</label>
+          <input type="text" className="settings-input w-full text-sm"
+            placeholder="Ex: Gridshot Ultimate, Tile Frenzy, VT 1 Wall 6 Targets Small"
+            maxLength={120}
+            value={String(config.scenario ?? '')}
+            onChange={e => onChange({ scenario: e.target.value })} />
+        </div>
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Focus</label>
+          <input type="text" className="settings-input w-full text-sm"
+            placeholder="Ex: tracking long range, click timing"
+            maxLength={500}
+            value={String(config.focus ?? '')}
+            onChange={e => onChange({ focus: e.target.value })} />
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'lineups') {
+    const count = typeof config.count === 'number'
+      ? config.count
+      : (Number(config.count) || LINEUPS_MIN_COUNT);
+    return (
+      <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Agent *</label>
+            <input type="text" className="settings-input w-full text-sm"
+              placeholder="Sage, Brimstone, Cypher…"
+              maxLength={60}
+              value={String(config.agent ?? '')}
+              onChange={e => onChange({ agent: e.target.value })} />
+          </div>
+          <div>
+            <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Map *</label>
+            <input type="text" className="settings-input w-full text-sm"
+              placeholder="Ascent, Haven, Bind…"
+              maxLength={60}
+              value={String(config.map ?? '')}
+              onChange={e => onChange({ map: e.target.value })} />
+          </div>
+        </div>
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>
+            Nombre de lineups à apprendre — {LINEUPS_MIN_COUNT} à {LINEUPS_MAX_COUNT}
+          </label>
+          <input type="number" min={LINEUPS_MIN_COUNT} max={LINEUPS_MAX_COUNT}
+            className="settings-input text-sm" style={{ width: '90px' }}
+            value={count}
+            onChange={e => {
+              const n = Number(e.target.value);
+              if (Number.isFinite(n)) {
+                onChange({ count: Math.max(LINEUPS_MIN_COUNT, Math.min(LINEUPS_MAX_COUNT, Math.round(n))) });
+              }
+            }} />
+        </div>
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Notes / source</label>
+          <input type="text" className="settings-input w-full text-sm"
+            placeholder="Ex: lineups smokes A site depuis CT, YouTube ProGuides"
+            maxLength={500}
+            value={String(config.notes ?? '')}
+            onChange={e => onChange({ notes: e.target.value })} />
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'custom_game') {
+    const duration = typeof config.durationMinutes === 'number'
+      ? config.durationMinutes
+      : (Number(config.durationMinutes) || 30);
+    return (
+      <div className="space-y-2">
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Mode *</label>
+          <input type="text" className="settings-input w-full text-sm"
+            placeholder="Ex: 1v1 aim duels, 5v5 scrim custom, Deathmatch focus"
+            maxLength={120}
+            value={String(config.mode ?? '')}
+            onChange={e => onChange({ mode: e.target.value })} />
+        </div>
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>
+            Durée (minutes) — {FREEPLAY_MIN_MINUTES} à {FREEPLAY_MAX_MINUTES}
+          </label>
+          <input type="number" min={FREEPLAY_MIN_MINUTES} max={FREEPLAY_MAX_MINUTES}
+            className="settings-input text-sm" style={{ width: '90px' }}
+            value={duration}
+            onChange={e => {
+              const n = Number(e.target.value);
+              if (Number.isFinite(n)) {
+                onChange({ durationMinutes: Math.max(FREEPLAY_MIN_MINUTES, Math.min(FREEPLAY_MAX_MINUTES, Math.round(n))) });
+              }
+            }} />
+        </div>
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Focus</label>
+          <input type="text" className="settings-input w-full text-sm"
+            placeholder="Ex: peek timings, utility usage, comms"
+            maxLength={500}
+            value={String(config.focus ?? '')}
+            onChange={e => onChange({ focus: e.target.value })} />
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'warmup_routine') {
+    const duration = typeof config.durationMinutes === 'number'
+      ? config.durationMinutes
+      : (Number(config.durationMinutes) || 15);
+    const steps = Array.isArray(config.steps)
+      ? (config.steps as unknown[]).map(s => typeof s === 'string' ? s : '')
+      : [];
+    function setStep(i: number, v: string) {
+      const next = [...steps];
+      next[i] = v;
+      onChange({ steps: next });
+    }
+    function removeStep(i: number) {
+      onChange({ steps: steps.filter((_, idx) => idx !== i) });
+    }
+    function addStep() {
+      if (steps.length >= WARMUP_MAX_STEPS) return;
+      onChange({ steps: [...steps, ''] });
+    }
+    return (
+      <div className="space-y-2">
+        <div>
+          <label className="t-label block mb-1" style={{ fontSize: '12px' }}>
+            Durée totale (minutes) — {WARMUP_MIN_MINUTES} à {WARMUP_MAX_MINUTES}
+          </label>
+          <input type="number" min={WARMUP_MIN_MINUTES} max={WARMUP_MAX_MINUTES}
+            className="settings-input text-sm" style={{ width: '90px' }}
+            value={duration}
+            onChange={e => {
+              const n = Number(e.target.value);
+              if (Number.isFinite(n)) {
+                onChange({ durationMinutes: Math.max(WARMUP_MIN_MINUTES, Math.min(WARMUP_MAX_MINUTES, Math.round(n))) });
+              }
+            }} />
+        </div>
+        <div>
+          <label className="t-label block mb-1.5" style={{ fontSize: '12px' }}>
+            Étapes (max {WARMUP_MAX_STEPS}) *
+          </label>
+          <div className="space-y-1.5">
+            {steps.map((s, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input type="text" className="settings-input flex-1 text-sm"
+                  placeholder="Ex: 200 kills DM, 50 wall reads, 5 min aim trainer"
+                  maxLength={200}
+                  value={s}
+                  onChange={e => setStep(i, e.target.value)} />
+                <button type="button" onClick={() => removeStep(i)}
+                  className="p-1" style={{ color: '#ff5555', opacity: 0.5, cursor: 'pointer' }}
+                  aria-label="Retirer">
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+            {steps.length < WARMUP_MAX_STEPS && (
+              <button type="button" onClick={addStep}
+                className="text-xs" style={{ color: 'var(--s-gold)', cursor: 'pointer' }}>
+                + Ajouter une étape
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );

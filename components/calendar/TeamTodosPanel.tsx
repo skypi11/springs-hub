@@ -29,6 +29,7 @@ import {
 import { TEMPLATE_NAME_MAX } from '@/lib/todo-templates';
 import { TodoConfigFields } from '@/components/calendar/TodoConfigFields';
 import { ExerciseStepsEditor } from '@/components/calendar/ExerciseStepsEditor';
+import { getAvailableTodoTypes } from '@/lib/games-registry';
 import TodoTemplatesManager, { useTodoTemplates, type TodoTemplateUi } from '@/components/calendar/TodoTemplatesManager';
 
 // Exporté pour pouvoir construire un TeamRef depuis CalendarSection.tsx
@@ -47,6 +48,10 @@ export type TeamRef = {
   players: Member[];
   subs: Member[];
   staff: Member[];
+  /** Jeu de l'équipe — sert à filtrer les types d'exo proposés par la registry
+   *  des jeux (RL → training_pack, Val → aim_trainer/lineups, etc.). Optionnel
+   *  pour rétrocompat — fallback sur tous les types si absent. */
+  game?: string;
 };
 
 type TodoWithMeta = TodoRef & {
@@ -773,6 +778,7 @@ export function NewTodoForm({
         steps={steps}
         onChange={setSteps}
         availableReplays={availableReplays}
+        availableTypes={getAvailableTodoTypes(team.game)}
       />
 
       <div>
@@ -1101,6 +1107,24 @@ export function TodoConfigSummary({ todo }: { todo: TodoRef }) {
     case 'free_play':
       if (typeof c.durationMinutes === 'number') rows.push({ label: 'Durée', value: `${c.durationMinutes} min` });
       if (typeof c.focus === 'string' && c.focus) rows.push({ label: 'Focus', value: c.focus });
+      break;
+    case 'aim_trainer':
+      if (typeof c.software === 'string' && c.software) rows.push({ label: 'Soft', value: c.software });
+      if (typeof c.scenario === 'string' && c.scenario) rows.push({ label: 'Scénario', value: c.scenario });
+      if (typeof c.targetScore === 'number') rows.push({ label: 'Cible', value: String(c.targetScore), mono: true });
+      break;
+    case 'lineups':
+      if (typeof c.agent === 'string' && c.agent) rows.push({ label: 'Agent', value: c.agent });
+      if (typeof c.map === 'string' && c.map) rows.push({ label: 'Map', value: c.map });
+      if (typeof c.count === 'number') rows.push({ label: 'À apprendre', value: `${c.count}` });
+      break;
+    case 'custom_game':
+      if (typeof c.mode === 'string' && c.mode) rows.push({ label: 'Mode', value: c.mode });
+      if (typeof c.durationMinutes === 'number') rows.push({ label: 'Durée', value: `${c.durationMinutes} min` });
+      break;
+    case 'warmup_routine':
+      if (typeof c.durationMinutes === 'number') rows.push({ label: 'Durée', value: `${c.durationMinutes} min` });
+      if (Array.isArray(c.steps)) rows.push({ label: 'Étapes', value: `${c.steps.length}` });
       break;
     default:
       break;

@@ -194,6 +194,7 @@ export default function TeamDetailDrawer({
                     players: team.players,
                     subs: team.subs,
                     staff: team.staff,
+                    game: team.game,
                   }}
                   embedded
                 />

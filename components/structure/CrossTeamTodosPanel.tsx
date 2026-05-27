@@ -1002,6 +1002,7 @@ function CreateTodoModal({
                       players: selectedTeam.players,
                       subs: selectedTeam.subs,
                       staff: selectedTeam.staff,
+                      game: selectedTeam.game,
                     } satisfies TeamRef}
                     events={events}
                     templates={templates.templates}

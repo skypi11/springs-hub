@@ -8,6 +8,7 @@
  */
 
 import type { GameType } from '@/types';
+import type { TodoType } from '@/lib/todos';
 
 /**
  * GameId reste typé strict en phase 1 (synchro avec GameType legacy).
@@ -60,6 +61,11 @@ export interface GameDef {
   features: GameFeatureFlags;
   /** Template URL profil tracker.gg, `{id}` remplacé par l'id du compte de jeu */
   trackerUrlTemplate?: string;
+  /** Types d'exo proposables pour ce jeu dans le picker NewTodoForm.
+   *  La validation server accepte tous les types canoniques ; ce champ filtre
+   *  uniquement l'UI pour éviter de proposer "training pack RL" à une équipe Valorant.
+   *  Ne pas inclure de types deprecated. */
+  availableTodoTypes: TodoType[];
 }
 
 /**
@@ -85,6 +91,10 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
       trackerProfile: true,
     },
     trackerUrlTemplate: 'https://rocketleague.tracker.network/rocket-league/profile/epic/{id}/overview',
+    availableTodoTypes: [
+      'free', 'replay_review', 'training_pack', 'workshop_map', 'free_play',
+      'vod_review', 'mental_checkin', 'warmup_routine',
+    ],
   },
   trackmania: {
     id: 'trackmania',
@@ -103,6 +113,9 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
       rankAutoSync: false,
       trackerProfile: false,
     },
+    availableTodoTypes: [
+      'free', 'vod_review', 'mental_checkin',
+    ],
   },
   valorant: {
     id: 'valorant',
@@ -127,6 +140,10 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
       trackerProfile: true,
     },
     trackerUrlTemplate: 'https://tracker.gg/valorant/profile/riot/{id}/overview',
+    availableTodoTypes: [
+      'free', 'aim_trainer', 'lineups', 'custom_game',
+      'vod_review', 'mental_checkin', 'warmup_routine',
+    ],
   },
 };
 
@@ -202,4 +219,12 @@ export function gameHasFeature(id: string | null | undefined, feature: keyof Gam
 export function isKnownGame(id: string | null | undefined): id is GameId {
   if (!id) return false;
   return id in GAMES_REGISTRY;
+}
+
+/** Types d'exo proposables pour ce jeu (filtre UI du picker NewTodoForm).
+ *  Si jeu inconnu, fallback sur la liste générique commune à tous les jeux. */
+export function getAvailableTodoTypes(id: string | null | undefined): TodoType[] {
+  const g = getGame(id);
+  if (g) return g.availableTodoTypes;
+  return ['free', 'vod_review', 'mental_checkin'];
 }

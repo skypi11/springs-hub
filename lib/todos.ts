@@ -19,18 +19,26 @@ export const TODO_RESPONSE_MAX = 4000;
 //   - leurs labels/metas restent dans TODO_TYPE_META
 
 export type TodoType =
-  | 'free'            // Tâche libre (fallback historique)
-  | 'replay_review'   // Visionnage replay RL avec analyse
-  | 'training_pack'   // Training pack RL avec code + objectif
-  | 'workshop_map'    // Map Steam Workshop (passing, dribbles, etc.)
-  | 'free_play'       // Pratique libre chronométrée avec focus
-  | 'vod_review'      // Visionnage VOD externe (YouTube/Twitch) + analyse (scouting inclus)
-  | 'mental_checkin'  // Auto-évaluation rapide mental/fitness
+  | 'free'            // Tâche libre (fallback historique) — CROSS-JEUX
+  | 'replay_review'   // Visionnage replay RL avec analyse — RL only
+  | 'training_pack'   // Training pack RL avec code + objectif — RL only
+  | 'workshop_map'    // Map Steam Workshop (passing, dribbles, etc.) — RL/CS principalement
+  | 'free_play'       // Pratique libre chronométrée avec focus — RL surtout
+  | 'vod_review'      // Visionnage VOD externe (YouTube/Twitch) + analyse — CROSS-JEUX
+  | 'mental_checkin'  // Auto-évaluation rapide mental/fitness — CROSS-JEUX
+  // FPS / Valorant (ajoutés 2026-05-27)
+  | 'aim_trainer'     // Session Aimlabs/Kovaak's/Range Val avec scénario + score cible
+  | 'lineups'         // Apprendre des lineups smokes/flashs par agent par map
+  | 'custom_game'     // Custom 1v1 aim duels, 5v5 scrim custom
+  | 'warmup_routine'  // Routine warm-up structurée avant scrim/match — CROSS-JEUX
   // Deprecated 2026-05-26 — gardés pour rétrocompat lecture, plus créables
   | 'scouting'
   | 'watch_party';
 
-/** Types canonical exposés dans le picker UI (création nouveaux exos/templates). */
+/** Types canonical exposés dans le picker UI (création nouveaux exos/templates).
+ * Filtré par jeu via GameDef.availableTodoTypes côté NewTodoForm — la liste
+ * complète ici sert de référence pour la validation server-side (qui accepte
+ * tous les types canoniques, peu importe le jeu). */
 export const TODO_TYPES: readonly TodoType[] = [
   'free',
   'replay_review',
@@ -39,6 +47,11 @@ export const TODO_TYPES: readonly TodoType[] = [
   'free_play',
   'vod_review',
   'mental_checkin',
+  // FPS / Valorant
+  'aim_trainer',
+  'lineups',
+  'custom_game',
+  'warmup_routine',
 ];
 
 /** Types deprecated — acceptés en lecture pour les anciens docs, pas en création. */
@@ -56,6 +69,11 @@ export const TODO_TYPE_META: Record<TodoType, { label: string; short: string; ne
   free_play:      { label: 'Free play',            short: 'Freeplay',  needsResponse: true  },
   vod_review:     { label: 'VOD review',           short: 'VOD',       needsResponse: true  },
   mental_checkin: { label: 'Check-in mental',      short: 'Check-in',  needsResponse: true  },
+  // FPS / Valorant
+  aim_trainer:    { label: 'Aim trainer',          short: 'Aim',       needsResponse: true  },
+  lineups:        { label: 'Lineups',              short: 'Lineups',   needsResponse: true  },
+  custom_game:    { label: 'Custom game',          short: 'Custom',    needsResponse: true  },
+  warmup_routine: { label: 'Routine warm-up',      short: 'Warm-up',   needsResponse: false },
   // Deprecated — affichage maintenu pour les anciens docs uniquement
   scouting:       { label: 'Analyse adversaire',   short: 'Scouting',  needsResponse: true  },
   watch_party:    { label: 'Watch party',          short: 'Watch',     needsResponse: false },
@@ -114,6 +132,34 @@ export interface FreePlayConfig {
 export const FREEPLAY_MIN_MINUTES = 5;
 export const FREEPLAY_MAX_MINUTES = 180;
 
+// ── FPS / Valorant (2026-05-27) ─────────────────────────────────────────────
+export interface AimTrainerConfig {
+  software: string;          // "Aimlabs", "Kovaak's", "Range Valorant", autre…
+  scenario: string;          // nom du scénario / playlist
+  targetScore?: number;      // score cible optionnel
+  focus: string;             // ex: "tracking long range", "click timing"
+}
+export interface LineupsConfig {
+  agent: string;             // "Sage", "Brimstone", "Cypher"…
+  map: string;               // "Ascent", "Haven", "Bind"…
+  count: number;             // nombre de lineups à apprendre dans cette session
+  notes: string;             // contexte / source / focus
+}
+export const LINEUPS_MIN_COUNT = 1;
+export const LINEUPS_MAX_COUNT = 20;
+export interface CustomGameConfig {
+  mode: string;              // "1v1 aim duels", "5v5 scrim custom", "Deathmatch focus"
+  durationMinutes: number;   // 5-180
+  focus: string;             // ce qu'on doit travailler
+}
+export interface WarmupRoutineConfig {
+  durationMinutes: number;   // 5-90, durée cible totale
+  steps: string[];           // mini-tâches "200 kills DM", "50 wall reads", etc.
+}
+export const WARMUP_MIN_MINUTES = 5;
+export const WARMUP_MAX_MINUTES = 90;
+export const WARMUP_MAX_STEPS = 10;
+
 export type TodoConfig =
   | ({ type: 'free' } & Record<string, never>)
   | ({ type: 'replay_review' } & ReplayReviewConfig)
@@ -121,7 +167,11 @@ export type TodoConfig =
   | ({ type: 'vod_review' } & VodReviewConfig)
   | ({ type: 'scouting' } & ScoutingConfig)
   | ({ type: 'watch_party' } & WatchPartyConfig)
-  | ({ type: 'mental_checkin' } & MentalCheckinConfig);
+  | ({ type: 'mental_checkin' } & MentalCheckinConfig)
+  | ({ type: 'aim_trainer' } & AimTrainerConfig)
+  | ({ type: 'lineups' } & LineupsConfig)
+  | ({ type: 'custom_game' } & CustomGameConfig)
+  | ({ type: 'warmup_routine' } & WarmupRoutineConfig);
 
 export const DEFAULT_MENTAL_PROMPTS = ['Humeur', 'Énergie', 'Motivation'];
 
@@ -133,15 +183,22 @@ export interface TrainingPackResponse { results: TrainingPackResult[]; comment: 
 export interface VodReviewResponse { analysis: string }
 export interface ScoutingResponse { notes: string }
 export interface MentalCheckinResponse { ratings: number[] } // 1-5, longueur = prompts
+export interface AimTrainerResponse { scoreAchieved?: number; notes: string }
+export interface LineupsResponse { countLearned: number; notes: string }
+export interface CustomGameResponse { result: string; notes: string }
 
 export type TodoResponse =
   | { type: 'free' }
   | { type: 'watch_party' }
+  | { type: 'warmup_routine' }
   | ({ type: 'replay_review' } & ReplayReviewResponse)
   | ({ type: 'training_pack' } & TrainingPackResponse)
   | ({ type: 'vod_review' } & VodReviewResponse)
   | ({ type: 'scouting' } & ScoutingResponse)
-  | ({ type: 'mental_checkin' } & MentalCheckinResponse);
+  | ({ type: 'mental_checkin' } & MentalCheckinResponse)
+  | ({ type: 'aim_trainer' } & AimTrainerResponse)
+  | ({ type: 'lineups' } & LineupsResponse)
+  | ({ type: 'custom_game' } & CustomGameResponse);
 
 // ---------- EXERCICES MULTI-STEPS (v3 — 2026-05-26) ----------
 //
@@ -539,6 +596,58 @@ export function validateTodoConfig(
       if (!focus) return { ok: false, error: 'Indique sur quoi se concentrer pendant le free play.' };
       return { ok: true, value: { durationMinutes: Math.round(durationMinutes), focus } };
     }
+    case 'aim_trainer': {
+      const software = s(r.software, 60);
+      const scenario = s(r.scenario, 120);
+      if (!software) return { ok: false, error: 'Indique le logiciel (Aimlabs, Kovaak\'s, Range Val…).' };
+      if (!scenario) return { ok: false, error: 'Indique le scénario à jouer.' };
+      const focus = s(r.focus, 500);
+      let targetScore: number | undefined;
+      if (r.targetScore !== undefined && r.targetScore !== null && r.targetScore !== '') {
+        const n = typeof r.targetScore === 'number' ? r.targetScore : Number(r.targetScore);
+        if (Number.isFinite(n) && n > 0) targetScore = Math.round(n);
+      }
+      return { ok: true, value: { software, scenario, focus, ...(targetScore !== undefined ? { targetScore } : {}) } };
+    }
+    case 'lineups': {
+      const agent = s(r.agent, 60);
+      const map = s(r.map, 60);
+      if (!agent) return { ok: false, error: 'Indique l\'agent concerné.' };
+      if (!map) return { ok: false, error: 'Indique la map concernée.' };
+      let count = typeof r.count === 'number' ? r.count : Number(r.count);
+      if (!Number.isFinite(count) || count < LINEUPS_MIN_COUNT) count = LINEUPS_MIN_COUNT;
+      if (count > LINEUPS_MAX_COUNT) count = LINEUPS_MAX_COUNT;
+      return { ok: true, value: { agent, map, count: Math.round(count), notes: s(r.notes, 500) } };
+    }
+    case 'custom_game': {
+      const mode = s(r.mode, 120);
+      if (!mode) return { ok: false, error: 'Indique le mode (1v1 aim duels, 5v5 scrim custom…).' };
+      let durationMinutes = typeof r.durationMinutes === 'number'
+        ? r.durationMinutes
+        : Number(r.durationMinutes);
+      if (!Number.isFinite(durationMinutes) || durationMinutes < FREEPLAY_MIN_MINUTES) {
+        durationMinutes = FREEPLAY_MIN_MINUTES;
+      }
+      if (durationMinutes > FREEPLAY_MAX_MINUTES) durationMinutes = FREEPLAY_MAX_MINUTES;
+      const focus = s(r.focus, 500);
+      return { ok: true, value: { mode, durationMinutes: Math.round(durationMinutes), focus } };
+    }
+    case 'warmup_routine': {
+      let durationMinutes = typeof r.durationMinutes === 'number'
+        ? r.durationMinutes
+        : Number(r.durationMinutes);
+      if (!Number.isFinite(durationMinutes) || durationMinutes < WARMUP_MIN_MINUTES) {
+        durationMinutes = WARMUP_MIN_MINUTES;
+      }
+      if (durationMinutes > WARMUP_MAX_MINUTES) durationMinutes = WARMUP_MAX_MINUTES;
+      const rawSteps = Array.isArray(r.steps) ? r.steps : [];
+      const steps = rawSteps
+        .map(x => (typeof x === 'string' ? x.trim().slice(0, 200) : ''))
+        .filter(x => x.length > 0)
+        .slice(0, WARMUP_MAX_STEPS);
+      if (steps.length === 0) return { ok: false, error: 'Ajoute au moins une étape (ex: "200 kills DM").' };
+      return { ok: true, value: { durationMinutes: Math.round(durationMinutes), steps } };
+    }
     default: {
       const _exhaustive: never = type;
       void _exhaustive;
@@ -621,6 +730,35 @@ export function validateTodoResponse(
         if (Number.isFinite(n) && n > 0 && n <= 600) actualMinutes = Math.round(n);
       }
       return { ok: true, value: { notes, ...(actualMinutes !== null ? { actualMinutes } : {}) } };
+    }
+    case 'warmup_routine':
+      // Bouton "fait", pas de saisie spécifique requise.
+      return { ok: true, value: {} };
+    case 'aim_trainer': {
+      const notes = s(r.notes, TODO_RESPONSE_MAX);
+      if (!notes) return { ok: false, error: 'Décris brièvement ta session (score, ressentis…).' };
+      let scoreAchieved: number | undefined;
+      if (r.scoreAchieved !== undefined && r.scoreAchieved !== null && r.scoreAchieved !== '') {
+        const n = typeof r.scoreAchieved === 'number' ? r.scoreAchieved : Number(r.scoreAchieved);
+        if (Number.isFinite(n) && n >= 0) scoreAchieved = Math.round(n);
+      }
+      return { ok: true, value: { notes, ...(scoreAchieved !== undefined ? { scoreAchieved } : {}) } };
+    }
+    case 'lineups': {
+      const notes = s(r.notes, TODO_RESPONSE_MAX);
+      let countLearned = typeof r.countLearned === 'number' ? r.countLearned : Number(r.countLearned);
+      if (!Number.isFinite(countLearned) || countLearned < 0) countLearned = 0;
+      if (countLearned > LINEUPS_MAX_COUNT) countLearned = LINEUPS_MAX_COUNT;
+      if (countLearned === 0 && !notes) {
+        return { ok: false, error: 'Indique au moins le nombre appris ou laisse un commentaire.' };
+      }
+      return { ok: true, value: { countLearned: Math.round(countLearned), notes } };
+    }
+    case 'custom_game': {
+      const result = s(r.result, 200);
+      const notes = s(r.notes, TODO_RESPONSE_MAX);
+      if (!result && !notes) return { ok: false, error: 'Indique le résultat ou laisse des notes.' };
+      return { ok: true, value: { result, notes } };
     }
     default: {
       const _exhaustive: never = type;

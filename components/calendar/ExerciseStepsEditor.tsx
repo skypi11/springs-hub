@@ -36,6 +36,11 @@ interface ExerciseStepsEditorProps {
   /** Liste de replays pour le picker du type replay_review (passe à chaque StepEditor). */
   availableReplays?: ReplayPickerItem[];
   maxSteps?: number;
+  /** Filtre les types d'exo affichés dans le picker (depuis games-registry par jeu de l'équipe).
+   *  Si non fourni → tous TODO_TYPES. Si fourni, on garantit que le type actuel du
+   *  step reste sélectionnable même s'il n'est pas dans la liste (cas template legacy
+   *  ou exo importé d'un autre jeu). */
+  availableTypes?: TodoType[];
 }
 
 function newStepId(): string {
@@ -53,6 +58,7 @@ export function ExerciseStepsEditor({
   onChange,
   availableReplays,
   maxSteps = TODO_MAX_STEPS,
+  availableTypes,
 }: ExerciseStepsEditorProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -126,6 +132,7 @@ export function ExerciseStepsEditor({
                 onMoveUp={index > 0 ? () => onChange(arrayMove(steps, index, index - 1)) : undefined}
                 onMoveDown={index < steps.length - 1 ? () => onChange(arrayMove(steps, index, index + 1)) : undefined}
                 availableReplays={availableReplays}
+                availableTypes={availableTypes}
               />
             ))}
           </div>
@@ -164,12 +171,14 @@ interface SortableStepItemProps {
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   availableReplays?: ReplayPickerItem[];
+  availableTypes?: TodoType[];
 }
 
 function SortableStepItem({
   step, index, canDelete,
   onChangeType, onChangeLabel, onChangeConfig, onDelete, onMoveUp, onMoveDown,
   availableReplays,
+  availableTypes,
 }: SortableStepItemProps) {
   const labelId = useId();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: step.id });
@@ -272,9 +281,15 @@ function SortableStepItem({
         )}
       </div>
 
-      {/* Sélecteur de type — chips horizontales compactes */}
+      {/* Sélecteur de type — chips horizontales compactes.
+          Filtré par jeu via availableTypes (registry des jeux). On garantit
+          que le type actuel reste affiché même s'il n'est pas dans la liste
+          filtrée (cas template d'un autre jeu ou exo importé). */}
       <div className="flex flex-wrap gap-1">
-        {TODO_TYPES.map(t => {
+        {(availableTypes
+          ? Array.from(new Set<TodoType>([step.type, ...availableTypes]))
+          : TODO_TYPES
+        ).map(t => {
           const active = step.type === t;
           return (
             <button

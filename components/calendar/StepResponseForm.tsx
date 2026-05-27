@@ -185,6 +185,7 @@ export function StepResponseForm({
   const fieldLabel: Record<TodoType, string> = {
     free: '',
     watch_party: '',
+    warmup_routine: '',
     replay_review: 'Ton analyse *',
     vod_review: 'Ton analyse *',
     training_pack: 'Ton résultat *',
@@ -192,6 +193,9 @@ export function StepResponseForm({
     mental_checkin: '',
     workshop_map: 'Ton résultat *',
     free_play: 'Ce que tu as travaillé *',
+    aim_trainer: 'Ta session (score, ressentis…) *',
+    lineups: 'Notes (les lineups appris, ce qui bloque…)',
+    custom_game: 'Résultat & notes *',
   };
 
   return (
