@@ -6,6 +6,24 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { pickValorantRiotId, type DiscordConnection } from '@/lib/discord-connections';
 import { fetchValorantMmr, fetchValorantAccountByPuuid } from '@/lib/valorant-henrikdev';
 
+// Traduit un status HenrikDev en message user-friendly. Détecte 401/403
+// (API key manquante/invalide) pour aider Matt à diagnostiquer la config env.
+function errorMessageForHenrikStatus(status: number, context: string): string {
+  if (status === 401 || status === 403) {
+    return `Erreur HenrikDev (${status}) sur ${context} — l'API key est manquante ou invalide. Configurez HENRIKDEV_API_KEY en env Vercel (clé gratuite à demander sur le Discord HenrikDev).`;
+  }
+  if (status === 404) {
+    return `Compte Riot introuvable sur HenrikDev (${context}). Joue au moins une game classée pour apparaître dans leur base.`;
+  }
+  if (status === 429) {
+    return `Rate limit HenrikDev (${status}). Réessaie dans 1 minute.`;
+  }
+  if (status >= 500 || status === 0) {
+    return `HenrikDev indisponible (${status || 'network'}). Réessaie dans quelques minutes.`;
+  }
+  return `Erreur HenrikDev (${status}) sur ${context}. Réessaie dans quelques minutes.`;
+}
+
 // POST /api/profile/sync-valorant-rank
 //
 // Trigger une sync immédiate du rang Valorant pour le user authentifié.
@@ -51,9 +69,7 @@ export async function POST(req: NextRequest) {
       const acc = await fetchValorantAccountByPuuid(riotId.puuid);
       if (!acc.ok) {
         return NextResponse.json({
-          error: acc.status === 404
-            ? 'Compte Riot introuvable sur HenrikDev. Joue au moins une game classée pour apparaître.'
-            : `Erreur HenrikDev (${acc.status}). Réessaie dans quelques minutes.`,
+          error: errorMessageForHenrikStatus(acc.status, 'résolution du RiotID'),
         }, { status: acc.status === 404 ? 404 : 502 });
       }
       resolvedName = acc.data.name;
@@ -94,7 +110,7 @@ export async function POST(req: NextRequest) {
         });
       }
       return NextResponse.json({
-        error: `Erreur HenrikDev (${res.status}). Réessaie dans quelques minutes.`,
+        error: errorMessageForHenrikStatus(res.status, 'récupération du rang'),
       }, { status: 502 });
     }
 
