@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/Toast';
 import AdminUserRef from '@/components/admin/AdminUserRef';
 import ImpersonateButton from '@/components/admin/ImpersonateButton';
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
+import GameTag from '@/components/games/GameTag';
 import {
   Users2, Archive, Loader2, ExternalLink, Search, AlertTriangle,
   ChevronDown, ChevronUp, User as UserIcon, Pencil, Check,
@@ -43,10 +44,11 @@ type AdminTeam = {
   archivedAt: string | null;
 };
 
-const GAME_META: Record<string, { label: string; color: string; tagClass: string }> = {
-  rocket_league: { label: 'RL', color: '#0081FF', tagClass: 'tag-blue' },
-  trackmania: { label: 'TM', color: '#00D936', tagClass: 'tag-green' },
-};
+// Dérivé de la registry pour rester scalable — un nouveau jeu apparaît auto.
+// `tagClass` n'est plus utilisé (l'UI rend des styles inline depuis g.color/colorRgb).
+const GAME_META: Record<string, { label: string; color: string; tagClass: string }> = Object.fromEntries(
+  ALL_GAME_DEFS.map(g => [g.id, { label: g.shortLabel, color: g.color, tagClass: '' }])
+);
 
 export default function AdminTeamsPage() {
   const { firebaseUser, isAdmin } = useAuth();
@@ -344,9 +346,7 @@ export default function AdminTeamsPage() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-semibold truncate">{team.name}</span>
                             {gameMeta && (
-                              <span className={`tag ${gameMeta.tagClass}`} style={{ fontSize: '12px', padding: '1px 5px' }}>
-                                {gameMeta.label}
-                              </span>
+                              <GameTag gameId={team.game} style={{ fontSize: '12px', padding: '1px 5px' }} />
                             )}
                             {team.status === 'archived' && (
                               <span className="tag tag-neutral flex items-center gap-1" style={{ fontSize: '12px', padding: '1px 5px' }}>

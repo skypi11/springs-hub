@@ -9,6 +9,7 @@ import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
+import GameTag from '@/components/games/GameTag';
 
 type StructureRef = {
   id: string;
@@ -38,10 +39,8 @@ type ReceivedInvite = {
   structure: StructureRef;
 };
 
-const GAME_LABELS: Record<string, { label: string; cls: string }> = {
-  rocket_league: { label: 'Rocket League', cls: 'tag-blue' },
-  trackmania: { label: 'Trackmania', cls: 'tag-green' },
-};
+// Dérivé de la registry pour rester scalable. `cls` n'est plus utilisé —
+// l'UI utilise <GameTag /> directement aux call sites.
 
 const ROLE_LABELS: Record<string, string> = {
   joueur: 'Joueur',
@@ -154,7 +153,6 @@ export default function MyApplicationsPage() {
           ) : (
             <div className="space-y-3">
               {receivedInvites.map(inv => {
-                const gameConf = GAME_LABELS[inv.game] || { label: inv.game, cls: 'tag-neutral' };
                 const roleLabel = ROLE_LABELS[inv.role] || inv.role;
                 const isBusy = actionId === inv.id;
                 return (
@@ -180,7 +178,7 @@ export default function MyApplicationsPage() {
                           {inv.structure.tag && <span className="tag tag-gold" style={{ fontSize: '12px' }}>{inv.structure.tag}</span>}
                         </div>
                         <div className="flex items-center gap-2 flex-wrap mb-2">
-                          <span className={`tag ${gameConf.cls}`} style={{ fontSize: '12px' }}>{gameConf.label}</span>
+                          <GameTag gameId={inv.game} variant="full" />
                           <span className="tag tag-neutral" style={{ fontSize: '12px' }}>{roleLabel}</span>
                           {inv.createdAt && (
                             <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>{formatDate(inv.createdAt)}</span>
@@ -240,7 +238,6 @@ export default function MyApplicationsPage() {
           ) : (
             <div className="space-y-3">
               {sentRequests.map(req => {
-                const gameConf = GAME_LABELS[req.game] || { label: req.game || '—', cls: 'tag-neutral' };
                 const roleLabel = ROLE_LABELS[req.role] || req.role;
                 const isBusy = actionId === req.id;
                 return (
@@ -269,7 +266,7 @@ export default function MyApplicationsPage() {
                           </span>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap mb-2">
-                          <span className={`tag ${gameConf.cls}`} style={{ fontSize: '12px' }}>{gameConf.label}</span>
+                          <GameTag gameId={req.game} variant="full" />
                           <span className="tag tag-neutral" style={{ fontSize: '12px' }}>{roleLabel}</span>
                           {req.createdAt && (
                             <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>{formatDate(req.createdAt)}</span>

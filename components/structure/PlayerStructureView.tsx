@@ -15,6 +15,7 @@ import { api } from '@/lib/api-client';
 import AvailabilityCollapsible from '@/components/calendar/AvailabilityCollapsible';
 import type { EventType, EventStatus, PresenceStatus } from '@/lib/event-permissions';
 import { normalizeEventType } from '@/lib/event-permissions';
+import { ALL_GAME_DEFS } from '@/lib/games-registry';
 
 // Layout dédié à un joueur qui est membre d'une structure (pas dirigeant, pas manager, pas coach).
 // Il ne voit ni la configuration, ni le recrutement, ni le palmarès — que ce qui le concerne directement :
@@ -78,10 +79,11 @@ type MyEvent = {
   myPresence: { id: string; status: PresenceStatus; respondedAt: string | null } | null;
 };
 
-const GAME_INFO: Record<string, { label: string; color: string; short: string }> = {
-  rocket_league: { label: 'Rocket League', color: 'var(--s-blue)', short: 'RL' },
-  trackmania: { label: 'Trackmania', color: 'var(--s-green)', short: 'TM' },
-};
+// Dérivé de la registry des jeux pour rester scalable — un nouveau jeu
+// ajouté dans lib/games-registry.ts est immédiatement supporté ici.
+const GAME_INFO: Record<string, { label: string; color: string; short: string }> = Object.fromEntries(
+  ALL_GAME_DEFS.map(g => [g.id, { label: g.label, color: g.color, short: g.shortLabel }])
+);
 
 const TYPE_INFO: Record<EventType, { label: string; color: string }> = {
   training: { label: 'Entraînement', color: 'var(--s-text-dim)' },
