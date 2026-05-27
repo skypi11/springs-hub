@@ -61,6 +61,12 @@ export async function GET(req: NextRequest) {
       { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' } }
     );
   } catch (err) {
+    // Index Firestore en cours de construction (juste après un deploy) →
+    // graceful empty au lieu de planter Sentry / 500 visible côté user.
+    if (err instanceof Error && /FAILED_PRECONDITION|requires an index/i.test(err.message)) {
+      console.warn('[API changelog] index Firestore en construction, retour vide :', err.message);
+      return NextResponse.json({ items: [] });
+    }
     captureApiError('API changelog GET error', err);
     return NextResponse.json({ error: 'server_error' }, { status: 500 });
   }

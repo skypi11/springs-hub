@@ -42,7 +42,22 @@ export default function Sidebar() {
     if (!user) return true; // visiteur non connecté → on signale qu'il y a du contenu
     const seen = user.lastChangelogSeenAt;
     if (!seen) return true; // jamais vu
-    const seenMs = new Date(typeof seen === 'string' ? seen : seen.toISOString()).getTime();
+    // user.lastChangelogSeenAt peut être :
+    // - string ISO (rare, depuis nos APIs sérialisées)
+    // - Date instance (rare)
+    // - Firestore Timestamp objet avec .toDate() (cas client SDK)
+    // - Plain object { seconds, nanoseconds } (sérialisation Next.js par moments)
+    let seenMs: number | null = null;
+    if (typeof seen === 'string') {
+      seenMs = new Date(seen).getTime();
+    } else if (seen instanceof Date) {
+      seenMs = seen.getTime();
+    } else if (typeof (seen as { toDate?: () => Date }).toDate === 'function') {
+      seenMs = (seen as { toDate: () => Date }).toDate().getTime();
+    } else if (typeof (seen as { seconds?: number }).seconds === 'number') {
+      seenMs = (seen as { seconds: number }).seconds * 1000;
+    }
+    if (seenMs == null) return true; // format inattendu → on affiche le dot par défaut
     const latestMs = new Date(latestChangelog.publishedAt).getTime();
     return latestMs > seenMs;
   })();
