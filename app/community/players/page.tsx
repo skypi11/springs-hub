@@ -18,6 +18,8 @@ import InviteToStructureButton from '@/components/community/InviteToStructureBut
 import RLIdentityBadge from '@/components/players/RLIdentityBadge';
 import CountryFlag from '@/components/ui/CountryFlag';
 import RankBadge, { getRankTierConfig } from '@/components/rl/RankBadge';
+import ValorantRankBadge from '@/components/valorant/RankBadge';
+import { getValorantTierConfig } from '@/lib/valorant-ranks';
 import { PRIMARY_ROLE_LABELS, type PrimaryRole, type TeamAffiliation } from '@/lib/member-role';
 import GameTag from '@/components/games/GameTag';
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
@@ -52,6 +54,7 @@ type PlayerCard = {
   rlAccountPlatform: 'epic' | 'steam' | '';
   rlSteamId64: string;
   pseudoTM: string;
+  valorantRank: string;
   structures: EnrichedStructure[];
   createdAt: string | null;
 };
@@ -940,33 +943,54 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
         {/* Séparateur */}
         <div className="h-px" style={{ background: 'var(--s-border)' }} />
 
-        {/* Rang RL — bloc central, signe distinctif de chaque joueur */}
+        {/* Rang du joueur — priorité : RL vérifié > RL non vérifié > Val > TM > vide */}
         <div className="flex items-center gap-2 min-h-[36px]">
-          {p.rlRank && p.rlAccountVerified && rankTier ? (
-            <>
-              <RankBadge rank={p.rlRank} size={36} />
-              <div className="flex flex-col min-w-0">
-                <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--s-text-muted)' }}>Rang RL</span>
-                <span className="text-xs font-semibold truncate" style={{ color: rankTier.color }}>{p.rlRank}</span>
-              </div>
-            </>
-          ) : p.games.includes('rocket_league') && !p.rlAccountVerified ? (
-            <div style={{ pointerEvents: 'auto' }}>
-              <RLIdentityBadge games={p.games} rlAccountVerified={p.rlAccountVerified}
-                rlAccountName={p.rlAccountName} rlAccountPlatform={p.rlAccountPlatform}
-                rlSteamId64={p.rlSteamId64} rlRank={p.rlRank}
-                targetUid={p.uid} targetName={p.displayName}
-                canReport={!!firebaseUser && firebaseUser.uid !== p.uid}
-                size="sm" tone="subtle" />
-            </div>
-          ) : p.pseudoTM ? (
-            <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--s-text-dim)' }}>
-              <Gamepad2 size={12} style={{ color: 'var(--s-green)' }} />
-              <span className="truncate">{p.pseudoTM}</span>
-            </div>
-          ) : (
-            <span className="text-[10px] italic" style={{ color: 'var(--s-text-muted)' }}>—</span>
-          )}
+          {(() => {
+            const valTier = getValorantTierConfig(p.valorantRank);
+            if (p.rlRank && p.rlAccountVerified && rankTier) {
+              return (
+                <>
+                  <RankBadge rank={p.rlRank} size={36} />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--s-text-muted)' }}>Rang RL</span>
+                    <span className="text-xs font-semibold truncate" style={{ color: rankTier.color }}>{p.rlRank}</span>
+                  </div>
+                </>
+              );
+            }
+            if (p.games.includes('rocket_league') && !p.rlAccountVerified) {
+              return (
+                <div style={{ pointerEvents: 'auto' }}>
+                  <RLIdentityBadge games={p.games} rlAccountVerified={p.rlAccountVerified}
+                    rlAccountName={p.rlAccountName} rlAccountPlatform={p.rlAccountPlatform}
+                    rlSteamId64={p.rlSteamId64} rlRank={p.rlRank}
+                    targetUid={p.uid} targetName={p.displayName}
+                    canReport={!!firebaseUser && firebaseUser.uid !== p.uid}
+                    size="sm" tone="subtle" />
+                </div>
+              );
+            }
+            if (p.valorantRank && valTier) {
+              return (
+                <>
+                  <ValorantRankBadge rank={p.valorantRank} size={36} />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--s-text-muted)' }}>Rang Val</span>
+                    <span className="text-xs font-semibold truncate" style={{ color: valTier.color }}>{p.valorantRank}</span>
+                  </div>
+                </>
+              );
+            }
+            if (p.pseudoTM) {
+              return (
+                <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                  <Gamepad2 size={12} style={{ color: 'var(--s-green)' }} />
+                  <span className="truncate">{p.pseudoTM}</span>
+                </div>
+              );
+            }
+            return <span className="text-[10px] italic" style={{ color: 'var(--s-text-muted)' }}>—</span>;
+          })()}
         </div>
 
         {/* Séparateur */}
@@ -1069,23 +1093,43 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
           ))}
         </div>
 
-        {/* Rang RL — icône 24px + label coloré */}
+        {/* Rang du joueur — icône 24px + label coloré. Priorité RL > Val > TM. */}
         <div className="hidden md:flex items-center gap-2 text-xs min-w-0" style={{ flex: '0 0 160px', color: 'var(--s-text-dim)' }}>
-          {p.rlRank && p.rlAccountVerified && rankTier ? (
-            <>
-              <RankBadge rank={p.rlRank} size={24} />
-              <span className="truncate font-medium" style={{ color: rankTier.color }}>{p.rlRank}</span>
-            </>
-          ) : p.games.includes('rocket_league') && !p.rlAccountVerified ? (
-            <span className="inline-flex items-center gap-1" style={{ color: 'var(--s-text-muted)' }}>
-              <ShieldAlert size={11} /> Non vérifié
-            </span>
-          ) : p.pseudoTM ? (
-            <>
-              <Gamepad2 size={12} style={{ color: 'var(--s-green)' }} />
-              <span className="truncate">{p.pseudoTM}</span>
-            </>
-          ) : null}
+          {(() => {
+            const valTier = getValorantTierConfig(p.valorantRank);
+            if (p.rlRank && p.rlAccountVerified && rankTier) {
+              return (
+                <>
+                  <RankBadge rank={p.rlRank} size={24} />
+                  <span className="truncate font-medium" style={{ color: rankTier.color }}>{p.rlRank}</span>
+                </>
+              );
+            }
+            if (p.games.includes('rocket_league') && !p.rlAccountVerified) {
+              return (
+                <span className="inline-flex items-center gap-1" style={{ color: 'var(--s-text-muted)' }}>
+                  <ShieldAlert size={11} /> Non vérifié
+                </span>
+              );
+            }
+            if (p.valorantRank && valTier) {
+              return (
+                <>
+                  <ValorantRankBadge rank={p.valorantRank} size={24} />
+                  <span className="truncate font-medium" style={{ color: valTier.color }}>{p.valorantRank}</span>
+                </>
+              );
+            }
+            if (p.pseudoTM) {
+              return (
+                <>
+                  <Gamepad2 size={12} style={{ color: 'var(--s-green)' }} />
+                  <span className="truncate">{p.pseudoTM}</span>
+                </>
+              );
+            }
+            return null;
+          })()}
         </div>
 
         {/* Structures (top 2 par hiérarchie) */}

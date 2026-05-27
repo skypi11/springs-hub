@@ -65,6 +65,7 @@ export type PlayerCard = {
   rlAccountPlatform: 'epic' | 'steam' | '';
   rlSteamId64: string;
   pseudoTM: string;
+  valorantRank: string;
   structures: EnrichedStructure[];
   createdAt: string | null;
 };
@@ -245,6 +246,7 @@ export async function GET(req: NextRequest) {
         rlAccountPlatform: (data.rlEpicId ? 'epic' : data.rlSteamId ? 'steam' : '') as 'epic' | 'steam' | '',
         rlSteamId64: !data.rlEpicId && data.rlSteamId ? (data.rlSteamId as string) : '',
         pseudoTM: (data.pseudoTM as string) || '',
+        valorantRank: (data.valorantRank as string) || '',
         structures: enrichedStructures,
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
       };

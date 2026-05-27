@@ -24,6 +24,9 @@ import RLIdentityBadge from '@/components/players/RLIdentityBadge';
 import { getConnectionMeta, buildConnectionUrl } from '@/lib/discord-connections';
 import { Link2 } from 'lucide-react';
 import RankBadge, { getRankTierConfig } from '@/components/rl/RankBadge';
+import ValorantRankBadge from '@/components/valorant/RankBadge';
+import { getValorantTierConfig } from '@/lib/valorant-ranks';
+import { pickValorantRiotId } from '@/lib/discord-connections';
 import GameTag from '@/components/games/GameTag';
 import { getGame } from '@/lib/games-registry';
 
@@ -839,6 +842,94 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
               </div>
             </div>
           )}
+
+          {/* Valorant card — rang déclaratif + (à venir) stats agrégées via HenrikDev */}
+          {profile.games?.includes('valorant') && (() => {
+            const valTier = getValorantTierConfig(profile.valorantRank);
+            const accent = valTier?.color ?? '#FF4655';
+            return (
+              <div className="pillar-card panel relative overflow-hidden group transition-all duration-200 h-full flex flex-col">
+                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, #FF4655, rgba(255,70,85,0.3), transparent 70%)' }} />
+                <div className="absolute top-0 right-0 w-[200px] h-[200px] pointer-events-none opacity-[0.06]"
+                  style={{ background: 'radial-gradient(circle at top right, #FF4655, transparent 70%)' }} />
+                <div className="relative z-[1] flex-1 flex flex-col">
+                  <div className="panel-header">
+                    <div className="flex items-center gap-2">
+                      <Gamepad2 size={13} style={{ color: '#FF6B78' }} />
+                      <span className="t-label" style={{ color: 'var(--s-text)' }}>VALORANT</span>
+                    </div>
+                  </div>
+                  <div className="p-5 space-y-4 flex-1 flex flex-col">
+                    {profile.valorantRank && valTier ? (
+                      <div
+                        className="relative overflow-hidden p-5"
+                        style={{
+                          background: valTier.bgColor,
+                          border: `1px solid ${valTier.borderColor}`,
+                          minHeight: '140px',
+                        }}
+                      >
+                        <div
+                          className="absolute pointer-events-none"
+                          style={{ right: '-20px', top: '50%', transform: 'translateY(-50%)', opacity: 0.18 }}
+                        >
+                          <ValorantRankBadge rank={profile.valorantRank} size={180} />
+                        </div>
+                        <div
+                          className="absolute top-0 right-0 w-full h-full pointer-events-none"
+                          style={{ background: `radial-gradient(ellipse at right center, ${accent}25, transparent 60%)` }}
+                        />
+                        <div className="relative z-[1] flex items-center gap-4">
+                          <ValorantRankBadge rank={profile.valorantRank} size={64} />
+                          <div className="min-w-0">
+                            <p className="t-label mb-1" style={{ color: 'var(--s-text-muted)' }}>
+                              Rang {profile.valorantRankSource === 'henrikdev' ? 'auto (HenrikDev)' : 'déclaré'}
+                            </p>
+                            <p
+                              className="font-display tracking-wider"
+                              style={{ color: accent, fontSize: 'clamp(20px, 2.5vw, 28px)', lineHeight: 1 }}
+                            >
+                              {profile.valorantRank}
+                              {profile.valorantRR != null && profile.valorantRankSource === 'henrikdev' && (
+                                <span className="ml-2 text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                                  · {profile.valorantRR} RR
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs p-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', color: 'var(--s-text-muted)' }}>
+                        Aucun rang renseigné.{isOwner ? ' Ajoute ton rang dans tes paramètres.' : ''}
+                      </div>
+                    )}
+                    {/* Lien tracker.gg Valorant si RiotID Discord lié */}
+                    {(() => {
+                      const riotId = pickValorantRiotId(profile.discordConnections);
+                      if (!riotId) return null;
+                      const tracker = `https://tracker.gg/valorant/profile/riot/${encodeURIComponent(`${riotId.name}#${riotId.tag}`)}/overview`;
+                      return (
+                        <a
+                          href={tracker}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-between gap-2 px-3 py-2 transition-colors duration-150 hover:bg-[var(--s-hover)]"
+                          style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}
+                        >
+                          <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                            <Link2 size={11} className="inline mr-1.5" style={{ verticalAlign: '-2px' }} />
+                            tracker.gg/{riotId.name}#{riotId.tag}
+                          </span>
+                          <span className="t-mono text-xs" style={{ color: '#FF6B78' }}>↗</span>
+                        </a>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* ─── HISTORIQUE SPRINGS ────────────────────────────────────────── */}
