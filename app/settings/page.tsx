@@ -1371,8 +1371,9 @@ export default function SettingsPage() {
                           <span className="tag" style={{ fontSize: '12px', background: 'rgba(255,70,85,0.10)', color: '#FF6B78', borderColor: 'rgba(255,70,85,0.25)' }}>VAL</span>
                           <span className="t-label" style={{ color: '#FF6B78' }}>Config Valorant</span>
                         </div>
+                        <ValorantSyncBlock currentRank={form.valorantRank} />
                         <div>
-                          <label className="t-label block mb-2">Rang Valorant (auto-déclaré)</label>
+                          <label className="t-label block mb-2">Ou rang manuel (si pas de compte Riot lié)</label>
                           <select value={form.valorantRank}
                             onChange={e => updateForm({ valorantRank: e.target.value })}
                             className="settings-input w-full">
@@ -1382,7 +1383,7 @@ export default function SettingsPage() {
                             ))}
                           </select>
                           <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
-                            Lie ton compte Riot dans ton Discord (Connexions → Riot Games) puis reconnecte-toi : on capture ton RiotID. La sync auto du rang via API HenrikDev arrive bientôt — pour l'instant, déclaratif.
+                            Si tu lies ton compte Riot dans ton Discord (Connexions → Riot Games) et que tu te reconnectes sur Aedral, ton rang sera synchronisé automatiquement via le bouton ci-dessus et chaque nuit en arrière-plan.
                           </p>
                         </div>
                       </div>
@@ -2040,6 +2041,71 @@ export default function SettingsPage() {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Bloc "Sync rang Valorant via Discord/HenrikDev" affiché dans la section
+ * Config Valorant. Appelle POST /api/profile/sync-valorant-rank et affiche
+ * le résultat (rang récupéré, ou erreur si pas de Riot lié / unranked / etc.).
+ */
+function ValorantSyncBlock({ currentRank }: { currentRank: string }) {
+  const toast = useToast();
+  const [syncing, setSyncing] = useState(false);
+  const [lastResult, setLastResult] = useState<{ rank: string; rr: number; riotId: string; notRanked?: boolean } | null>(null);
+
+  async function handleSync() {
+    setSyncing(true);
+    try {
+      const res = await api<{ ok: true; rank: string; rr: number; riotId: string; notRanked?: boolean }>(
+        '/api/profile/sync-valorant-rank',
+        { method: 'POST' }
+      );
+      setLastResult({ rank: res.rank, rr: res.rr, riotId: res.riotId, notRanked: res.notRanked });
+      toast.success(res.notRanked
+        ? `Compte ${res.riotId} sync — non classé`
+        : `Rang sync : ${res.rank} (${res.rr} RR)`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  return (
+    <div>
+      <label className="t-label block mb-2">Sync auto via Riot (recommandé)</label>
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          type="button"
+          onClick={handleSync}
+          disabled={syncing}
+          className="btn-springs bevel-sm flex items-center gap-2 px-4 py-2"
+          style={{
+            fontSize: '13px',
+            background: '#FF4655',
+            border: '1px solid #FF4655',
+            color: '#fff',
+            cursor: syncing ? 'wait' : 'pointer',
+            fontWeight: 600,
+          }}
+        >
+          {syncing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+          {syncing ? 'Synchronisation…' : 'Sync mon rang maintenant'}
+        </button>
+        {lastResult && (
+          <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+            ✓ {lastResult.riotId} · {lastResult.notRanked ? 'Non classé' : `${lastResult.rank} (${lastResult.rr} RR)`}
+          </span>
+        )}
+      </div>
+      <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
+        Récupère ton rang actuel via l'API HenrikDev à partir de ton compte Riot lié dans Discord. Aussi synchronisé automatiquement chaque nuit en arrière-plan.
+        {currentRank && (
+          <span> Rang actuel stocké : <strong style={{ color: 'var(--s-text-dim)' }}>{currentRank}</strong>.</span>
+        )}
+      </p>
     </div>
   );
 }

@@ -7,6 +7,7 @@
 // Noms en anglais (Iron/Bronze/Silver…) car c'est le standard Valorant officiel
 // même en VF (contrairement à RL qui traduit "Diamant", "Argent", etc.).
 export const VALORANT_RANKS = [
+  'Unranked',
   'Iron 1', 'Iron 2', 'Iron 3',
   'Bronze 1', 'Bronze 2', 'Bronze 3',
   'Silver 1', 'Silver 2', 'Silver 3',
@@ -25,6 +26,7 @@ export function isValidValorantRank(v: unknown): v is ValorantRank {
 }
 
 export type ValorantTier =
+  | 'unranked'
   | 'iron' | 'bronze' | 'silver' | 'gold'
   | 'platinum' | 'diamond' | 'ascendant' | 'immortal'
   | 'radiant';
@@ -42,6 +44,7 @@ interface TierConfig {
 
 // Couleurs alignées sur les codes officiels Riot Valorant.
 const TIERS: Record<ValorantTier, TierConfig> = {
+  unranked:  { color: '#7a7a95', bgColor: 'rgba(122,122,149,0.08)', borderColor: 'rgba(122,122,149,0.25)', label: 'Non classé' },
   iron:      { color: '#5A5A5A', bgColor: 'rgba(90,90,90,0.10)',    borderColor: 'rgba(90,90,90,0.35)',    label: 'Iron' },
   bronze:    { color: '#A06A3E', bgColor: 'rgba(160,106,62,0.10)',  borderColor: 'rgba(160,106,62,0.35)',  label: 'Bronze' },
   silver:    { color: '#C0C0C0', bgColor: 'rgba(192,192,192,0.10)', borderColor: 'rgba(192,192,192,0.35)', label: 'Silver' },
@@ -56,6 +59,7 @@ const TIERS: Record<ValorantTier, TierConfig> = {
 export function getValorantTier(rank: string | null | undefined): ValorantTier | null {
   if (!rank) return null;
   const lower = rank.toLowerCase().trim();
+  if (lower === 'unranked' || lower === 'unrated' || lower === 'non classé') return 'unranked';
   if (lower.startsWith('iron')) return 'iron';
   if (lower.startsWith('bronze')) return 'bronze';
   if (lower.startsWith('silver')) return 'silver';
@@ -75,9 +79,11 @@ export function getValorantTierConfig(rank: string | null | undefined): TierConf
 
 // Mappe un rang Val vers le nom de fichier dans public/valorant-ranks/.
 // Ex: "Diamond 2" → "diamond-2", "Radiant" → "radiant".
+// "Unranked" → null (pas d'icône officielle → fallback Trophy dans RankBadge).
 export function getValorantRankIconFile(rank: string | null | undefined): string | null {
   if (!rank) return null;
   const lower = rank.toLowerCase().trim();
+  if (lower === 'unranked' || lower === 'unrated' || lower === 'non classé') return null;
   if (lower === 'radiant') return 'radiant';
   return lower.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 }

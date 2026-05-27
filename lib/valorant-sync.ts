@@ -122,12 +122,25 @@ export async function syncValorantRanksBatch(db: Firestore): Promise<SyncStats> 
       continue;
     }
 
-    await doc.ref.update({
+    // Storage PUUID immuable (anti-mensonge) + détection changement.
+    // Si l'user a relié un autre compte Riot dans Discord, on log et on
+    // accepte le changement (futur : alerter staff, flagger éventuellement).
+    const updates: Record<string, unknown> = {
       valorantRank: res.data.rank,
       valorantRR: res.data.rr,
       valorantRankSource: 'henrikdev',
       valorantRankSyncedAt: FieldValue.serverTimestamp(),
-    });
+    };
+    const oldPuuid = (data.valorantPuuid as string) || '';
+    if (!oldPuuid) {
+      updates.valorantPuuid = riotId.puuid;
+      updates.valorantPuuidLinkedAt = FieldValue.serverTimestamp();
+    } else if (oldPuuid !== riotId.puuid) {
+      console.warn(`[valorant-sync] PUUID change detected for user ${doc.id}: ${oldPuuid} → ${riotId.puuid}`);
+      updates.valorantPuuid = riotId.puuid;
+      updates.valorantPuuidLinkedAt = FieldValue.serverTimestamp();
+    }
+    await doc.ref.update(updates);
     stats.synced++;
   }
 

@@ -87,6 +87,12 @@ export interface SpringsUser {
   valorantRR?: number;          // Rank Rating dans le tier actuel (0-100)
   valorantRankSyncedAt?: Date | string; // dernière sync HenrikDev (si auto)
   valorantRankSource?: 'declared' | 'henrikdev'; // source du rang affiché
+  // PUUID Riot encrypted — immuable côté Riot. Stocké au premier link via
+  // Discord connection (pickValorantRiotId().puuid). Sert de "compte vérifié"
+  // anti-mensonge style RL : si le user change de PUUID (= relié un autre
+  // compte Riot dans Discord), on détecte et on peut alerter / flagger.
+  valorantPuuid?: string;
+  valorantPuuidLinkedAt?: Date | string; // timestamp du premier link
   createdAt?: Date;
   // Enrichissement renvoyé par GET /api/profile — structures où le joueur est impliqué
   structures?: ProfileStructure[];
