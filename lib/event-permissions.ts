@@ -54,6 +54,20 @@ export interface UserContext {
   isCoach: boolean;
   staffedTeamIds: string[];
   captainOfTeamIds?: string[];
+  /**
+   * Scope par jeu pour les rôles structure-wide (multi-jeux, 2026-05-27).
+   * - `null` ou absent → all-games rétrocompat (rôle actif sur tous les jeux)
+   * - liste non vide → rôle actif uniquement sur ces gameIds
+   * - liste vide `[]` → dégénéré (équivaut à pas avoir le rôle pour aucun jeu)
+   *
+   * Utilisé conjointement avec `teamGames` ci-dessous : quand un helper
+   * vérifie `isStaffOfTeam(ctx, teamId)`, il regarde le game de cette team
+   * (via teamGames) et applique le scope si défini.
+   */
+  managerGames?: string[] | null;
+  coachGames?: string[] | null;
+  /** Map teamId → game (rocket_league, valorant…) pour appliquer le scope. */
+  teamGames?: Record<string, string>;
 }
 
 export interface MemberRef {
@@ -95,11 +109,44 @@ export function hasAnyStaffAccess(ctx: UserContext): boolean {
 // Le Coach structure (coachIds) reste géré séparément avec des règles plus
 // restrictives (training/scrim uniquement via canCreateEvent, todos via check
 // dédié dans la route todos).
+//
+// 2026-05-27 : multi-jeux. Si ctx.managerGames/coachGames est défini (liste),
+// le rôle structure n'est actif que pour les jeux listés. On vérifie le game
+// de la team via ctx.teamGames[teamId]. Si teamGames absent → rétrocompat
+// all-games (comportement identique à avant).
+
+/** Vrai si l'user est manager de la structure pour le jeu de cette team. */
+function isManagerForTeam(ctx: UserContext, teamId: string): boolean {
+  if (!ctx.isManager) return false;
+  if (ctx.managerGames == null) return true; // all-games rétrocompat
+  const teamGame = ctx.teamGames?.[teamId];
+  if (!teamGame) return true; // game inconnu = fallback permissif (don't break legacy)
+  return ctx.managerGames.includes(teamGame);
+}
+
+/** Vrai si l'user est coach de la structure pour le jeu de cette team. */
+function isCoachForTeam(ctx: UserContext, teamId: string): boolean {
+  if (!ctx.isCoach) return false;
+  if (ctx.coachGames == null) return true; // all-games rétrocompat
+  const teamGame = ctx.teamGames?.[teamId];
+  if (!teamGame) return true;
+  return ctx.coachGames.includes(teamGame);
+}
+
 export function isStaffOfTeam(ctx: UserContext, teamId: string): boolean {
   if (isDirigeant(ctx)) return true;
-  if (ctx.isManager) return true;
+  // Modèle A : manager structure = staff de toute team. Multi-jeux : scopé
+  // si ctx.managerGames est défini (uniquement les jeux listés).
+  if (isManagerForTeam(ctx, teamId)) return true;
   return !!teamId && ctx.staffedTeamIds.includes(teamId);
 }
+
+// Note : isStaffOfAllTeams / isStaffOfAnyTeam ont une sémantique stricte
+// "membre de staffIds de toutes/au moins une", indépendante du modèle A.
+// On NE rajoute PAS le check manager structure-wide ici pour ne pas casser
+// les call sites qui s'attendent à la sémantique team-level pure.
+// Les call sites qui veulent la sémantique "peut agir comme staff sur N teams"
+// doivent boucler sur isStaffOfTeam(ctx, id) eux-mêmes.
 
 export function isStaffOfAllTeams(ctx: UserContext, teamIds: string[]): boolean {
   if (isDirigeant(ctx)) return true;
@@ -111,6 +158,9 @@ export function isStaffOfAnyTeam(ctx: UserContext, teamIds: string[]): boolean {
   if (isDirigeant(ctx)) return true;
   return teamIds.some(id => ctx.staffedTeamIds.includes(id));
 }
+
+// Exports pour les call sites qui veulent check explicitement le scope par jeu.
+export { isCoachForTeam, isManagerForTeam };
 
 // ---------- Capitaine d'équipe ----------
 // Le capitaine est un joueur désigné par le fondateur pour gérer le calendrier
@@ -169,8 +219,12 @@ export function canCreateEvent(ctx: UserContext, target: EventTarget, type?: Eve
     // Coach structure (coachIds) : intervient à la demande sur n'importe quelle
     // équipe, mais uniquement pour des entraînements / scrims — pas de match officiel
     // ni d'événement Springs (ceux-là restent dirigeants).
+    // Multi-jeux : le coach scopé n'a accès qu'aux équipes des jeux listés
+    // dans ctx.coachGames (null = all-games rétrocompat).
     if (ctx.isCoach && type && (type === 'training' || type === 'scrim')) {
-      return true;
+      if (teamIds.every(id => isCoachForTeam(ctx, id))) {
+        return true;
+      }
     }
     return false;
   }

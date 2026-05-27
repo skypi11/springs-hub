@@ -74,6 +74,28 @@ export async function resolveUserContext(
   const isManager = inStructureManagerIds || memberRole === 'manager';
   const isCoach = inStructureCoachIds || memberRole === 'coach';
 
+  // Multi-jeux (2026-05-27) : scope par jeu pour les rôles structure-wide.
+  // Absence d'entrée dans managerGames/coachGames pour ce uid → null = all-games
+  // (rétrocompat absolue). Liste explicite = rôle actif uniquement sur ces jeux.
+  // Note : on ne lit le scope que pour les rôles structure-wide (managerIds/coachIds),
+  // pas pour le memberRole 'manager'/'coach' qui n'est pas scopable (legacy).
+  const managerGames: string[] | null = (inStructureManagerIds
+    && structure.managerGames
+    && Array.isArray(structure.managerGames[uid]))
+    ? (structure.managerGames[uid] as string[])
+    : null;
+  const coachGames: string[] | null = (inStructureCoachIds
+    && structure.coachGames
+    && Array.isArray(structure.coachGames[uid]))
+    ? (structure.coachGames[uid] as string[])
+    : null;
+
+  // Map teamId → game pour appliquer le scope lors des checks isStaffOfTeam.
+  const teamGames: Record<string, string> = {};
+  for (const t of teams) {
+    if (typeof t.game === 'string' && t.game) teamGames[t.id] = t.game;
+  }
+
   const context: UserContext = {
     uid,
     isFounder,
@@ -82,6 +104,9 @@ export async function resolveUserContext(
     isCoach,
     staffedTeamIds,
     captainOfTeamIds,
+    managerGames,
+    coachGames,
+    teamGames,
   };
 
   // Audience staff = pool autorisé pour scope='staff'. On fusionne les rôles

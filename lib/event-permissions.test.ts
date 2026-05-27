@@ -486,3 +486,59 @@ describe('validateEventTarget', () => {
     expect(r.ok).toBe(false);
   });
 });
+
+
+// ─── Multi-jeux (2026-05-27) — scope par jeu pour managers/coachs structure ──
+
+describe('Multi-jeux : isStaffOfTeam scopé par jeu', () => {
+  const t1Game = { t1: 'rocket_league', t2: 'valorant' };
+
+  it('manager all-games (managerGames absent) → staff de toute team (rétrocompat)', () => {
+    const c = ctx({ isManager: true, teamGames: t1Game });
+    expect(isStaffOfTeam(c, 't1')).toBe(true);
+    expect(isStaffOfTeam(c, 't2')).toBe(true);
+  });
+
+  it('manager scopé RL uniquement → bloqué sur team valorant', () => {
+    const c = ctx({ isManager: true, managerGames: ['rocket_league'], teamGames: t1Game });
+    expect(isStaffOfTeam(c, 't1')).toBe(true);   // team RL
+    expect(isStaffOfTeam(c, 't2')).toBe(false);  // team Val
+  });
+
+  it('manager scopé liste vide → bloqué partout', () => {
+    const c = ctx({ isManager: true, managerGames: [], teamGames: t1Game });
+    expect(isStaffOfTeam(c, 't1')).toBe(false);
+    expect(isStaffOfTeam(c, 't2')).toBe(false);
+  });
+
+  it('manager scopé MAIS aussi dans staffedTeamIds → reste staff via staffedTeamIds', () => {
+    const c = ctx({ isManager: true, managerGames: ['rocket_league'], teamGames: t1Game, staffedTeamIds: ['t2'] });
+    expect(isStaffOfTeam(c, 't2')).toBe(true); // pas via scope mais via team direct
+  });
+
+  it('dirigeant ignore le scope (jamais limité)', () => {
+    const c = ctx({ isFounder: true, managerGames: ['rocket_league'], teamGames: t1Game });
+    expect(isStaffOfTeam(c, 't2')).toBe(true);
+  });
+});
+
+describe('Multi-jeux : canCreateEvent coach scopé', () => {
+  const teamGames = { t1: 'rocket_league', t2: 'valorant' };
+
+  it('coach all-games → OK sur training pour toute team', () => {
+    const c = ctx({ isCoach: true, teamGames });
+    expect(canCreateEvent(c, { scope: 'teams', teamIds: ['t1'] }, 'training')).toBe(true);
+    expect(canCreateEvent(c, { scope: 'teams', teamIds: ['t2'] }, 'training')).toBe(true);
+  });
+
+  it('coach scopé RL → OK training RL, KO training Val', () => {
+    const c = ctx({ isCoach: true, coachGames: ['rocket_league'], teamGames });
+    expect(canCreateEvent(c, { scope: 'teams', teamIds: ['t1'] }, 'training')).toBe(true);
+    expect(canCreateEvent(c, { scope: 'teams', teamIds: ['t2'] }, 'training')).toBe(false);
+  });
+
+  it('coach scopé sur 1 des 2 teams ciblées → KO (every requis)', () => {
+    const c = ctx({ isCoach: true, coachGames: ['rocket_league'], teamGames });
+    expect(canCreateEvent(c, { scope: 'teams', teamIds: ['t1', 't2'] }, 'training')).toBe(false);
+  });
+});
