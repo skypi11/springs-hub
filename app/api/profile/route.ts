@@ -9,6 +9,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { computeAge } from '@/lib/age';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { isValidRLRank } from '@/lib/rl-ranks';
+import { isValidValorantRank } from '@/lib/valorant-ranks';
 import { sendAdminAlert } from '@/lib/admin-discord-alert';
 
 type ProfileStructure = {
@@ -353,6 +354,13 @@ export async function POST(req: NextRequest) {
       pseudoTM: body.games.includes('trackmania') ? body.pseudoTM?.trim() || '' : '',
       loginTM: body.games.includes('trackmania') ? body.loginTM?.trim() || '' : '',
       tmIoUrl: body.games.includes('trackmania') ? safeUrl(body.tmIoUrl) : '',
+      // Rang Valorant déclaratif (saisi via /settings). Le cron HenrikDev
+      // pourra plus tard override avec rangSource='henrikdev' si Riot Discord
+      // connection liée. Saisie manuelle = source 'declared'.
+      valorantRank: body.games.includes('valorant') && isValidValorantRank(body.valorantRank) ? body.valorantRank : '',
+      ...(body.games.includes('valorant') && isValidValorantRank(body.valorantRank)
+        ? { valorantRankSource: 'declared' as const }
+        : {}),
       isAvailableForRecruitment: body.isAvailableForRecruitment || false,
       recruitmentRole: body.isAvailableForRecruitment ? body.recruitmentRole || '' : '',
       recruitmentMessage: body.isAvailableForRecruitment ? clampString(body.recruitmentMessage, LIMITS.recruitmentMessage) : '',

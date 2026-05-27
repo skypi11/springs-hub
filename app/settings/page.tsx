@@ -20,6 +20,7 @@ import MarkdownEditor from '@/components/ui/MarkdownEditor';
 import ImageUploader from '@/components/ui/ImageUploader';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import { RL_RANKS } from '@/lib/rl-ranks';
+import { VALORANT_RANKS } from '@/lib/valorant-ranks';
 import { RL_PLATFORMS, getRLPlatformMeta, buildTrackerGgUrl, buildBallchasingUrl, isValidRLPlatform, type RLPlatform } from '@/lib/rl-platform';
 import { getConnectionMeta, buildConnectionUrl, pickBestRLConnection, type DiscordConnection } from '@/lib/discord-connections';
 import GameTag from '@/components/games/GameTag';
@@ -51,6 +52,7 @@ type FormData = {
   pseudoTM: string;
   loginTM: string;
   tmIoUrl: string;
+  valorantRank: string;
   isAvailableForRecruitment: boolean;
   recruitmentRole: string;
   recruitmentMessage: string;
@@ -71,6 +73,7 @@ const defaultForm: FormData = {
   pseudoTM: '',
   loginTM: '',
   tmIoUrl: '',
+  valorantRank: '',
   isAvailableForRecruitment: false,
   recruitmentRole: '',
   recruitmentMessage: '',
@@ -428,6 +431,7 @@ export default function SettingsPage() {
       rlPlatformId: initialPlatformId,
       rlRank: (data.rlRank as string) ?? '',
       pseudoTM: (data.pseudoTM as string) ?? '',
+      valorantRank: (data.valorantRank as string) ?? '',
       loginTM: (data.loginTM as string) ?? '',
       tmIoUrl: (data.tmIoUrl as string) ?? '',
       isAvailableForRecruitment: (data.isAvailableForRecruitment as boolean) ?? false,
@@ -1351,6 +1355,30 @@ export default function SettingsPage() {
                           <input type="url" value={form.tmIoUrl}
                             onChange={e => updateForm({ tmIoUrl: e.target.value })}
                             className="settings-input w-full" placeholder="https://trackmania.io/#/player/..." />
+                        </div>
+                      </div>
+                    )}
+
+                    {form.games.includes('valorant') && (
+                      <div className="p-4 space-y-4 relative overflow-hidden" style={{ background: 'rgba(255,70,85,0.04)', border: '1px solid rgba(255,70,85,0.15)' }}>
+                        <div className="h-[2px] -mt-4 -mx-4 mb-4" style={{ background: 'linear-gradient(90deg, #FF4655, transparent 60%)' }} />
+                        <div className="flex items-center gap-2">
+                          <span className="tag" style={{ fontSize: '12px', background: 'rgba(255,70,85,0.10)', color: '#FF6B78', borderColor: 'rgba(255,70,85,0.25)' }}>VAL</span>
+                          <span className="t-label" style={{ color: '#FF6B78' }}>Config Valorant</span>
+                        </div>
+                        <div>
+                          <label className="t-label block mb-2">Rang Valorant (auto-déclaré)</label>
+                          <select value={form.valorantRank}
+                            onChange={e => updateForm({ valorantRank: e.target.value })}
+                            className="settings-input w-full">
+                            <option value="">— Non renseigné —</option>
+                            {VALORANT_RANKS.map(r => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </select>
+                          <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
+                            Lie ton compte Riot dans ton Discord (Connexions → Riot Games) puis reconnecte-toi : on capture ton RiotID. La sync auto du rang via API HenrikDev arrive bientôt — pour l'instant, déclaratif.
+                          </p>
                         </div>
                       </div>
                     )}

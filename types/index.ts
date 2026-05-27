@@ -79,6 +79,14 @@ export interface SpringsUser {
   loginTM?: string;            // identifiant Ubisoft/Nadeo
   tmIoUrl?: string;            // URL trackmania.io du joueur
   tmStats?: TMStats;           // stats auto via API
+  // Valorant — rang & stats agrégées. Source : déclaratif (saisie /settings) OU
+  // sync nocturne via HenrikDev API (déclenché par cron si Riot connection liée).
+  // Format `valorantRank` : libellé Riot officiel ("Diamond 2", "Radiant", etc.).
+  // Validation : lib/valorant-ranks.ts → isValidValorantRank().
+  valorantRank?: string;
+  valorantRR?: number;          // Rank Rating dans le tier actuel (0-100)
+  valorantRankSyncedAt?: Date | string; // dernière sync HenrikDev (si auto)
+  valorantRankSource?: 'declared' | 'henrikdev'; // source du rang affiché
   createdAt?: Date;
   // Enrichissement renvoyé par GET /api/profile — structures où le joueur est impliqué
   structures?: ProfileStructure[];

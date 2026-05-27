@@ -181,6 +181,29 @@ export function pickBestRLConnection(
   return null;
 }
 
+/**
+ * Extrait le RiotID Valorant depuis la connexion Discord 'riotgames'.
+ * Discord renvoie le RiotID complet "Name#TAG" dans `connection.name`,
+ * et le PUUID Riot encrypted dans `connection.id` (immuable, à garder pour
+ * appels API ultérieurs vers HenrikDev / Riot officiel).
+ *
+ * @returns { name: 'Skypi', tag: 'EUW', puuid: '...' } ou null si pas de connexion Riot.
+ */
+export function pickValorantRiotId(
+  connections: DiscordConnection[] | null | undefined,
+): { name: string; tag: string; puuid: string } | null {
+  if (!connections) return null;
+  const conn = connections.find(c => c.type === 'riotgames');
+  if (!conn || !conn.name) return null;
+  const hashIdx = conn.name.lastIndexOf('#');
+  if (hashIdx < 1 || hashIdx === conn.name.length - 1) return null;
+  return {
+    name: conn.name.slice(0, hashIdx).trim(),
+    tag: conn.name.slice(hashIdx + 1).trim(),
+    puuid: conn.id,
+  };
+}
+
 // Merge les nouvelles connexions fetchées avec celles déjà en Firestore,
 // en préservant les toggles `visibleOnProfile` existants. Retire celles qui
 // ont disparu côté Discord (user les a déliées).
