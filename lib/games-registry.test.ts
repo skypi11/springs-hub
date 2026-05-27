@@ -17,9 +17,10 @@ import {
 } from './games-registry';
 
 describe('GAMES_REGISTRY invariants', () => {
-  it('contient au moins RL et TM', () => {
+  it('contient au moins RL, TM et Valorant', () => {
     expect(GAMES_REGISTRY.rocket_league).toBeDefined();
     expect(GAMES_REGISTRY.trackmania).toBeDefined();
+    expect(GAMES_REGISTRY.valorant).toBeDefined();
   });
 
   it('chaque def a un id qui match sa clé (cohérence interne)', () => {
@@ -78,6 +79,21 @@ describe('GAMES_REGISTRY invariants', () => {
     expect(tm.features.replayParsing).toBe(false);
     expect(tm.features.rankAutoSync).toBe(false);
   });
+
+  it('Valorant : 5 titulaires + 2 remplaçants, pas de solo', () => {
+    const val = GAMES_REGISTRY.valorant;
+    expect(val.roster.titulaires).toBe(5);
+    expect(val.roster.remplacants).toBe(2);
+    expect(val.roster.allowSolo).toBe(false);
+  });
+
+  it('Valorant : MVP sans rankVerification/replayParsing mais avec tracker.gg', () => {
+    const val = GAMES_REGISTRY.valorant;
+    expect(val.features.rankVerification).toBe(false);
+    expect(val.features.replayParsing).toBe(false);
+    expect(val.features.rankAutoSync).toBe(false);
+    expect(val.features.trackerProfile).toBe(true);
+  });
 });
 
 describe('getGame', () => {
@@ -93,7 +109,7 @@ describe('getGame', () => {
 
   it('retourne undefined pour un id inconnu (pas de throw)', () => {
     expect(getGame('lol')).toBeUndefined();
-    expect(getGame('valorant')).toBeUndefined();
+    expect(getGame('cs2')).toBeUndefined();
   });
 });
 
@@ -103,7 +119,7 @@ describe('getGameOrThrow', () => {
   });
 
   it('throw pour un id inconnu', () => {
-    expect(() => getGameOrThrow('valorant')).toThrow(/Unknown game/);
+    expect(() => getGameOrThrow('cs2')).toThrow(/Unknown game/);
   });
 });
 
@@ -154,6 +170,10 @@ describe('getGameBySlug', () => {
     expect(getGameBySlug('tm')?.id).toBe('trackmania');
   });
 
+  it('résout val → valorant', () => {
+    expect(getGameBySlug('val')?.id).toBe('valorant');
+  });
+
   it('undefined si slug inconnu', () => {
     expect(getGameBySlug('xxx')).toBeUndefined();
     expect(getGameBySlug(null)).toBeUndefined();
@@ -180,10 +200,12 @@ describe('isKnownGame', () => {
   it('true pour jeu connu', () => {
     expect(isKnownGame('rocket_league')).toBe(true);
     expect(isKnownGame('trackmania')).toBe(true);
+    expect(isKnownGame('valorant')).toBe(true);
   });
 
   it('false pour inconnu/null/vide', () => {
-    expect(isKnownGame('valorant')).toBe(false);
+    expect(isKnownGame('cs2')).toBe(false);
+    expect(isKnownGame('lol')).toBe(false);
     expect(isKnownGame(null)).toBe(false);
     expect(isKnownGame('')).toBe(false);
   });

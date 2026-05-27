@@ -104,6 +104,30 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
       trackerProfile: false,
     },
   },
+  valorant: {
+    id: 'valorant',
+    label: 'Valorant',
+    shortLabel: 'VAL',
+    slug: 'val',
+    // Rouge tactique officiel Riot Valorant. Distinct des autres jeux
+    // (RL bleu, TM vert) et de l'or Aedral réservé aux CTA/highlights.
+    color: '#FF4655',
+    colorLight: '#FF6B78',
+    colorRgb: '255,70,85',
+    logoUrl: '/valorant.jpg',
+    bannerUrl: '/valorant-banner.jpg',
+    roster: { titulaires: 5, remplacants: 2, allowSolo: false },
+    features: {
+      // MVP : pas de vérification de rang ni de parsing automatique pour l'instant.
+      // Possible plus tard via Discord connection Riot (capture RiotID au login)
+      // + HenrikDev API en cron nocturne pour agréger rang + hs%/body%/leg%.
+      rankVerification: false,
+      replayParsing: false,
+      rankAutoSync: false,
+      trackerProfile: true,
+    },
+    trackerUrlTemplate: 'https://tracker.gg/valorant/profile/riot/{id}/overview',
+  },
 };
 
 /** Liste ordonnée de toutes les définitions de jeux supportés */
