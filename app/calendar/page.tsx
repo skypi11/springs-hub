@@ -120,30 +120,18 @@ export default function MyCalendarPage() {
     presenceMutation.mutate({ structureId, eventId, status });
   };
 
-  // Scroll vers le 1er event d'un jour (clic depuis le mini-mois) + flash visuel.
-  const scrollToDay = (ymd: string) => {
-    const evsOfDay = events
-      .filter((e) => {
-        if (!e.startsAt) return false;
-        const d = new Date(e.startsAt);
-        const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        return k === ymd;
-      })
-      .sort((a, b) => {
-        const ta = a.startsAt ? new Date(a.startsAt).getTime() : 0;
-        const tb = b.startsAt ? new Date(b.startsAt).getTime() : 0;
-        return ta - tb;
-      });
-    if (!evsOfDay.length) return;
-    const el = document.getElementById(`event-${evsOfDay[0].id}`);
-    if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    el.style.transition = 'box-shadow 250ms';
-    el.style.boxShadow = '0 0 0 2px rgba(255,184,0,0.55), 0 0 28px rgba(255,184,0,0.20)';
-    window.setTimeout(() => {
-      el.style.boxShadow = '';
-    }, 1800);
-  };
+  // Events enrichis pour le mini-mois (title + structureLabel pour le panel
+  // "events du jour" qui s'affiche au clic sur une cellule).
+  const miniEvents: MiniEvent[] = useMemo(
+    () => events.map((e) => ({
+      id: e.id,
+      startsAt: e.startsAt,
+      type: e.type,
+      title: e.title,
+      structureLabel: structures[e.structureId]?.name,
+    })),
+    [events, structures],
+  );
 
   const { upcomingGroups, past } = useMemo(() => {
     const upcomingList: MyEvent[] = [];
@@ -224,12 +212,12 @@ export default function MyCalendarPage() {
         <MyTodosSection />
 
         {/* Mini calendrier mensuel — vue d'ensemble + navigation par jour.
-            Le widget montre tous les events (à venir + passés) avec un point
-            coloré par type. Clic sur un jour → scroll vers le 1er event du jour. */}
+            Clic sur un jour avec events → panel inline listant les events du
+            jour, click sur un event → ouvre le drawer détail. */}
         {events.length > 0 && (
           <MiniMonthWidget
-            events={events as MiniEvent[]}
-            onDayClick={scrollToDay}
+            events={miniEvents}
+            onEventClick={setOpenEventId}
           />
         )}
 
@@ -294,7 +282,6 @@ export default function MyCalendarPage() {
                         {g.events.map((ev) => (
                           <MyEventCard
                             key={ev.id}
-                            cardId={`event-${ev.id}`}
                             event={ev}
                             structure={structures[ev.structureId]}
                             onRespond={respond}
@@ -318,7 +305,6 @@ export default function MyCalendarPage() {
                   {past.map(ev => (
                     <MyEventCard
                       key={ev.id}
-                      cardId={`event-${ev.id}`}
                       event={ev}
                       structure={structures[ev.structureId]}
                       onRespond={respond}
@@ -376,13 +362,11 @@ function MyEventCard({
   structure,
   onRespond,
   onOpen,
-  cardId,
 }: {
   event: MyEvent;
   structure: StructureInfo | undefined;
   onRespond: (structureId: string, eventId: string, status: PresenceStatus) => void;
   onOpen: (eventId: string) => void;
-  cardId?: string;
 }) {
   const typeInfo = TYPE_INFO[normalizeEventType(event.type)];
   const statusInfo = STATUS_INFO[event.status];
@@ -397,7 +381,6 @@ function MyEventCard({
 
   return (
     <div
-      id={cardId}
       onClick={() => onOpen(event.id)}
       className="bevel-sm relative overflow-hidden transition-all duration-150 hover:border-white/20 cursor-pointer"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
