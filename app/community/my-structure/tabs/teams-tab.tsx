@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { useState } from 'react';
 import {
   AlertCircle, Archive, ArchiveRestore, ChevronDown, ChevronUp, Crown, Eye,
   Gamepad2, GripVertical, ImageIcon, Loader2, MessageSquare, Settings,
@@ -154,9 +154,18 @@ export function TeamsTab(props: TeamsTabProps) {
     const allMembers = [...t.players, ...t.subs, ...t.staff];
     return allMembers.some(m => (m.displayName ?? '').toLowerCase().includes(q));
   };
-  const activeTeams = teams.filter(t => (t.status ?? 'active') === 'active' && matchTeam(t) && isTeamInScope(t));
-  const archivedTeams = teams.filter(t => t.status === 'archived' && matchTeam(t) && isTeamInScope(t));
+  // Filtre par jeu — '' = tous. Géré localement (ne traverse pas le parent
+  // pour éviter de polluer le state global de page.tsx avec un état transient).
+  const [gameFilter, setGameFilter] = useState<string>('');
+  const matchGame = (t: TeamData) => !gameFilter || t.game === gameFilter;
+  const activeTeams = teams.filter(t => (t.status ?? 'active') === 'active' && matchTeam(t) && matchGame(t) && isTeamInScope(t));
+  const archivedTeams = teams.filter(t => t.status === 'archived' && matchTeam(t) && matchGame(t) && isTeamInScope(t));
   const archivedCount = teams.filter(t => t.status === 'archived' && isTeamInScope(t)).length;
+  // Compteur par jeu (sans appliquer gameFilter, pour afficher le badge "N" sur chaque chip)
+  const teamsByGameCount = ALL_GAME_DEFS.map(g => ({
+    def: g,
+    count: teams.filter(t => (t.status ?? 'active') === 'active' && t.game === g.id && isTeamInScope(t)).length,
+  })).filter(x => x.count > 0); // n'afficher que les jeux qui ont des équipes
 
   // Grouper par label (label vide = "Sans label")
   type Group = { label: string; displayLabel: string; groupOrder: number; teams: TeamData[] };
@@ -774,14 +783,56 @@ export function TeamsTab(props: TeamsTabProps) {
         );
       })()}
 
-      {/* Toolbar : recherche */}
-      <div className="flex items-center gap-2 mb-4">
-        <div className="flex-1 relative">
+      {/* Toolbar : recherche + filtre par jeu */}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <div className="flex-1 relative min-w-[200px]">
           <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--s-text-muted)' }} />
           <input type="text" value={teamSearch} onChange={e => setTeamSearch(e.target.value)}
             placeholder="Rechercher une équipe, un label, un joueur..."
             className="settings-input has-icon-sm w-full text-sm" />
         </div>
+        {/* Chips de filtre par jeu — visibles uniquement si > 1 jeu pratiqué
+            (sinon le filtre n'apporte rien). Compteur par chip. */}
+        {teamsByGameCount.length > 1 && (
+          <div className="flex items-center gap-1 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setGameFilter('')}
+              className="tag transition-all duration-150"
+              style={{
+                background: gameFilter === '' ? 'rgba(255,255,255,0.08)' : 'transparent',
+                color: gameFilter === '' ? 'var(--s-text)' : 'var(--s-text-muted)',
+                borderColor: gameFilter === '' ? 'rgba(255,255,255,0.2)' : 'var(--s-border)',
+                cursor: 'pointer',
+                padding: '4px 10px',
+                fontSize: '12px',
+              }}
+            >
+              Tous
+            </button>
+            {teamsByGameCount.map(({ def, count }) => {
+              const active = gameFilter === def.id;
+              return (
+                <button
+                  key={def.id}
+                  type="button"
+                  onClick={() => setGameFilter(active ? '' : def.id)}
+                  className="tag transition-all duration-150"
+                  style={{
+                    background: active ? `rgba(${def.colorRgb}, 0.12)` : 'transparent',
+                    color: active ? def.colorLight : 'var(--s-text-muted)',
+                    borderColor: active ? `rgba(${def.colorRgb}, 0.35)` : 'var(--s-border)',
+                    cursor: 'pointer',
+                    padding: '4px 10px',
+                    fontSize: '12px',
+                  }}
+                >
+                  {def.shortLabel} · {count}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Formulaire nouvelle équipe — dirigeant + responsable */}
