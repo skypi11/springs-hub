@@ -464,9 +464,13 @@ const RECRUITMENT_COLORS = {
   direct_invite: 0xffb800,  // or Aedral — outgoing
 } as const;
 
+// Note : GAME_LABELS local conservé pour compat ascendante (l'embed Discord
+// est un point chaud, on évite de coupler à la registry web côté serveur bot).
+// À jour avec la registry pour les jeux supportés en MVP.
 const GAME_LABELS: Record<string, string> = {
   rocket_league: 'Rocket League',
   trackmania: 'Trackmania',
+  valorant: 'Valorant',
 };
 
 const RECRUITMENT_ROLE_LABELS: Record<string, string> = {
@@ -492,6 +496,9 @@ export interface RecruitmentEmbedInput {
   // Niveau jeu (rendu uniquement si pertinent pour le jeu visé).
   rlRank?: string | null;
   pseudoTM?: string | null;
+  valorantRank?: string | null;
+  /** RiotID formaté "Name#TAG" si lié — affiché dans l'embed Val pour aider le staff à identifier. */
+  riotId?: string | null;
   // Lien vers le Hub (rend le titre cliquable). Mène typiquement vers
   // /community/my-structure?tab=recruitment.
   siteUrl?: string | null;
@@ -534,14 +541,22 @@ export async function postRecruitmentEmbed(channelId: string, input: Recruitment
 
   // Niveau jeu — uniquement si pertinent pour le jeu visé. Mettre des champs
   // vides pour des jeux non concernés rendrait l'embed bruyant.
-  // TODO (phase 3 multi-jeux) : déporter ces branches dans la registry sous
-  // forme d'une callback formatProfileFields(input) par jeu, car chaque jeu
-  // pioche dans un champ source différent (rlRank, pseudoTM, valorantRank…).
+  // TODO (phase 4) : déporter ces branches dans la registry sous forme d'une
+  // callback formatProfileFields(input) par jeu, pour qu'ajouter un 4e jeu
+  // ne demande pas d'éditer ce fichier.
   if (input.game === 'rocket_league' && input.rlRank) {
     fields.push({ name: '🏆 Rang RL', value: input.rlRank.slice(0, 64), inline: true });
   }
   if (input.game === 'trackmania' && input.pseudoTM) {
     fields.push({ name: '🎯 Pseudo TM', value: input.pseudoTM.slice(0, 64), inline: true });
+  }
+  if (input.game === 'valorant') {
+    if (input.valorantRank) {
+      fields.push({ name: '🎯 Rang Val', value: input.valorantRank.slice(0, 64), inline: true });
+    }
+    if (input.riotId) {
+      fields.push({ name: '🆔 RiotID', value: input.riotId.slice(0, 64), inline: true });
+    }
   }
 
   const authorObj: Record<string, unknown> = { name: authorName };

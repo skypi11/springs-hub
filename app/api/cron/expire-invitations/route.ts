@@ -10,6 +10,7 @@ import { fetchDiscordConnections, mergeConnections, type DiscordConnection } fro
 import { refreshDiscordAccessToken } from '@/lib/discord-refresh';
 import { isValidEpicId } from '@/lib/rl-identity';
 import { loadCronState, saveCronState } from '@/lib/cron-state';
+import { syncValorantRanksBatch } from '@/lib/valorant-sync';
 
 // GET /api/cron/expire-invitations
 // Vercel Cron quotidien (3h) — trois tâches refondues pour SCALER :
@@ -256,6 +257,10 @@ export async function GET(req: NextRequest) {
     const expired = await expireInvitations(db);
     const departures = await processExpiredDepartures(db);
     const discordSync = await processNightlyDiscordSync(db);
+    // Passe 4 (2026-05-27) : sync rang Valorant via HenrikDev pour les users
+    // avec 'valorant' in games + Riot Discord connection. Cursor-paginé,
+    // 50 users/run (rate limit HenrikDev). Voir lib/valorant-sync.ts.
+    const valorantRankSync = await syncValorantRanksBatch(db);
 
     return NextResponse.json({
       ok: true,
@@ -263,6 +268,7 @@ export async function GET(req: NextRequest) {
       cutoffDays: EXPIRY_DAYS,
       coFounderDepartures: departures,
       discordSync,
+      valorantRankSync,
     });
   } catch (err) {
     captureApiError('API cron expire-invitations error', err);

@@ -10,6 +10,7 @@ import { bumpStructureCounter } from '@/lib/structure-counters';
 import { postRecruitmentEmbed } from '@/lib/discord-bot';
 import { canJoinStructure, addStructureToGame, removeStructureFromGame, STRUCTURE_MEMBERSHIP_CAP } from '@/lib/structure-membership';
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
+import { pickValorantRiotId } from '@/lib/discord-connections';
 
 // POST /api/structures/join — rejoindre une structure (via lien ou demande)
 export async function POST(req: NextRequest) {
@@ -253,6 +254,11 @@ export async function POST(req: NextRequest) {
               message: message?.trim() || null,
               rlRank: applicantData?.rlStats?.rank || applicantData?.rlRank || null,
               pseudoTM: applicantData?.pseudoTM || null,
+              valorantRank: applicantData?.valorantRank || null,
+              riotId: (() => {
+                const r = pickValorantRiotId(applicantData?.discordConnections);
+                return r ? `${r.name}#${r.tag}` : null;
+              })(),
               siteUrl: `${req.nextUrl.origin}/community/my-structure?tab=recruitment`,
               pingRoleId: structData.discordIntegration?.staffRoleId || null,
             });

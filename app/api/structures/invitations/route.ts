@@ -13,6 +13,7 @@ import { postRecruitmentEmbed } from '@/lib/discord-bot';
 import { canManageMembers, structureContext } from '@/lib/structure-permissions';
 import { canJoinStructure, addStructureToGame, STRUCTURE_MEMBERSHIP_CAP } from '@/lib/structure-membership';
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
+import { pickValorantRiotId } from '@/lib/discord-connections';
 
 // Durée de validité d'un lien d'invitation. Au-delà, le lien est inactivable
 // automatiquement à la consommation, pour éviter qu'un token leaké il y a 6 mois
@@ -586,6 +587,11 @@ export async function POST(req: NextRequest) {
               message: typeof message === 'string' ? message.trim() || null : null,
               rlRank: targetData.rlStats?.rank || targetData.rlRank || null,
               pseudoTM: targetData.pseudoTM || null,
+              valorantRank: targetData.valorantRank || null,
+              riotId: (() => {
+                const r = pickValorantRiotId(targetData.discordConnections);
+                return r ? `${r.name}#${r.tag}` : null;
+              })(),
               siteUrl: `${req.nextUrl.origin}/community/my-structure?tab=recruitment`,
               pingRoleId: structureData.discordIntegration?.staffRoleId || null,
             });
