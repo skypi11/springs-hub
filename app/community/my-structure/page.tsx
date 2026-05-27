@@ -24,6 +24,7 @@ import type { BannerFocus } from '@/types';
 import PlayerStructureView, { type PlayerStructure } from '@/components/structure/PlayerStructureView';
 import DocumentsExplorer from '@/components/documents/DocumentsExplorer';
 import GameTag from '@/components/games/GameTag';
+import { gameHasFeature } from '@/lib/games-registry';
 import CrossTeamTodosPanel from '@/components/structure/CrossTeamTodosPanel';
 import { safeCopy } from '@/lib/clipboard';
 import type {
@@ -157,13 +158,17 @@ export default function MyStructurePage() {
     const isDirigeant = isFounder || isCoFounder;
     const isManager = !isDirigeant && (activeStructure.managerIds ?? []).includes(firebaseUser.uid);
     const isCoach = !isDirigeant && !isManager && (activeStructure.coachIds ?? []).includes(firebaseUser.uid);
-    const visible: DashboardTab[] = isDirigeant
+    // Replays masqués si aucun jeu de la structure ne supporte le parsing
+    // (typiquement structure 100% Valorant/TM, sans RL).
+    const hasReplaySupport = (activeStructure.games ?? []).some(g => gameHasFeature(g, 'replayParsing'));
+    const base: DashboardTab[] = isDirigeant
       ? ['general', 'teams', 'recruitment', 'members', 'calendar', 'todos', 'replays', 'documents']
       : isManager
       ? ['teams', 'members', 'calendar', 'todos', 'replays']
       : isCoach
       ? ['members', 'calendar', 'todos', 'replays']
       : ['calendar'];
+    const visible = hasReplaySupport ? base : base.filter(t => t !== 'replays');
     if (!visible.includes(tab)) setTab(visible[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeStructure?.id, firebaseUser?.uid]);
@@ -1011,7 +1016,8 @@ export default function MyStructurePage() {
   const captainOnlyAccess = !isDirigeantOfActive && !isManagerOfActive && !isCoachOfActive && firebaseUser
     ? teams.some(t => t.captainId === firebaseUser.uid)
     : false;
-  const visibleTabs: DashboardTab[] = isDirigeantOfActive
+  const hasReplaySupportActive = (s.games ?? []).some(g => gameHasFeature(g, 'replayParsing'));
+  const baseTabs: DashboardTab[] = isDirigeantOfActive
     ? ['general', 'teams', 'recruitment', 'members', 'calendar', 'todos', 'replays', 'documents']
     : isManagerOfActive
     ? ['teams', 'recruitment', 'members', 'calendar', 'todos', 'replays']
@@ -1020,6 +1026,7 @@ export default function MyStructurePage() {
     : captainOnlyAccess
     ? ['teams', 'calendar']
     : ['calendar'];
+  const visibleTabs: DashboardTab[] = hasReplaySupportActive ? baseTabs : baseTabs.filter(t => t !== 'replays');
   const myDepartureIso = firebaseUser ? s.coFounderDepartures?.[firebaseUser.uid] : null;
   const myDepartureRemainingMs = myDepartureIso ? Math.max(0, new Date(myDepartureIso).getTime() + DEPARTURE_NOTICE_MS - now) : null;
 

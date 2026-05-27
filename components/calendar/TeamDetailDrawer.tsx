@@ -8,7 +8,7 @@ import TeamAvailabilityView from './TeamAvailabilityView';
 import TeamTodosPanel from './TeamTodosPanel';
 import ReplaysPanel from '@/components/replays/ReplaysPanel';
 import GameTag from '@/components/games/GameTag';
-import { getGameColor } from '@/lib/games-registry';
+import { getGameColor, gameHasFeature } from '@/lib/games-registry';
 
 export type DrawerTab = 'availability' | 'todos' | 'replays';
 
@@ -50,12 +50,17 @@ export default function TeamDetailDrawer({
 
   useEffect(() => {
     if (open) {
-      setTab(initialTab);
+      // Si on ouvre sur l'onglet replays alors que le jeu n'a pas de replay
+      // (Valorant, TM), fallback sur DISPOS.
+      const safeTab: DrawerTab = initialTab === 'replays' && team && !gameHasFeature(team.game, 'replayParsing')
+        ? 'availability'
+        : initialTab;
+      setTab(safeTab);
       const t = setTimeout(() => setVisible(true), 10);
       return () => clearTimeout(t);
     }
     setVisible(false);
-  }, [open, initialTab]);
+  }, [open, initialTab, team]);
 
   useEffect(() => {
     if (!open) return;
@@ -76,6 +81,10 @@ export default function TeamDetailDrawer({
   if (!open || !team) return null;
 
   const gameColor = getGameColor(team.game);
+  // Replays activés uniquement pour les jeux qui supportent le parsing
+  // (RL via ballchasing). Valorant et TM n'ont pas de système replay,
+  // donc l'onglet est masqué et le tab par défaut switch.
+  const hasReplays = gameHasFeature(team.game, 'replayParsing');
 
   return (
     <Portal>
@@ -156,12 +165,14 @@ export default function TeamDetailDrawer({
               active={tab === 'todos'}
               onClick={() => setTab('todos')}
             />
-            <TabButton
-              label="REPLAYS"
-              icon={<Film size={14} />}
-              active={tab === 'replays'}
-              onClick={() => setTab('replays')}
-            />
+            {hasReplays && (
+              <TabButton
+                label="REPLAYS"
+                icon={<Film size={14} />}
+                active={tab === 'replays'}
+                onClick={() => setTab('replays')}
+              />
+            )}
           </div>
 
           {/* Content */}
@@ -187,7 +198,7 @@ export default function TeamDetailDrawer({
                   embedded
                 />
               )}
-              {tab === 'replays' && (
+              {tab === 'replays' && hasReplays && (
                 <ReplaysPanel
                   structureId={structureId}
                   teamId={team.id}
