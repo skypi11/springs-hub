@@ -1,0 +1,10 @@
+{
+  "key": "patch-notes-2026-05-27-fixes",
+  "label": "Patch notes — 27 mai 2026 (correctifs)",
+  "title": "🐛 Petits correctifs — 27 mai",
+  "description": "**🐛 Coachs d'équipe : retour des onglets**\nLes coachs assignés à une équipe précise (badge \"Coach Elite 1\" par exemple) ne voyaient plus que le calendrier dans leur structure. Ils retrouvent maintenant l'accès normal aux onglets MEMBRES, CALENDRIER, EXERCICES et REPLAYS — scopés à leurs équipes.\n\n**🐛 Pastille rouge \"Nouveau\" qui ne disparaissait pas**\nLa pastille rouge sur l'entrée NOUVEAUTÉS de la sidebar restait affichée même après avoir consulté la page, à cause d'un format de date mal interprété. Elle s'efface maintenant correctement dès qu'on ouvre /changelog (sans même devoir rafraîchir).",
+  "color": 65331,
+  "defaultChannelHint": "annonces",
+  "publishOnSite": true,
+  "category": "fix"
+}

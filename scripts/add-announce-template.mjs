@@ -64,7 +64,21 @@ try {
   process.exit(1);
 }
 
-const { label, title = '', description, color = 0xFFB800, defaultChannelHint = null, key } = payload;
+const {
+  label,
+  title = '',
+  description,
+  color = 0xFFB800,
+  defaultChannelHint = null,
+  key,
+  // Publication sur la page /changelog (timeline publique).
+  // Default true : aligné sur le comportement de l'API admin pour qu'un script
+  // Claude qui ajoute des patch notes les rende immédiatement visibles sur le site.
+  publishOnSite = true,
+  // Catégorie principale (override admin). Si non fournie, l'auto-tag par emoji
+  // dans la description fera son boulot côté /changelog. 'feature' = défaut sûr.
+  category = 'feature',
+} = payload;
 
 if (!label?.trim()) {
   console.error('Champ "label" requis.');
@@ -119,14 +133,24 @@ const existingSnap = await db.collection('announce_templates').where('key', '=='
 
 if (!existingSnap.empty) {
   const doc = existingSnap.docs[0];
-  await doc.ref.update({
+  const existingData = doc.data();
+  const updates = {
     label,
     title,
     description,
     color,
     defaultChannelHint,
+    publishOnSite,
+    category,
     updatedAt: FieldValue.serverTimestamp(),
-  });
+  };
+  // Si on publie sur le site et que la template n'avait pas encore de publishedAt
+  // (jamais publiée auparavant), on le set maintenant. Sinon on garde la date
+  // historique pour ne pas faire remonter d'anciennes templates en tête de timeline.
+  if (publishOnSite && !existingData.publishedAt) {
+    updates.publishedAt = FieldValue.serverTimestamp();
+  }
+  await doc.ref.update(updates);
   console.log(`✓ Template mise à jour (existait déjà) : ${doc.id}`);
   console.log(`  key: ${finalKey}`);
   console.log(`  label: ${label}`);
@@ -138,6 +162,11 @@ if (!existingSnap.empty) {
     description,
     color,
     defaultChannelHint,
+    publishOnSite,
+    category,
+    // publishedAt = serverTimestamp si publié sur le site, sinon null (peut
+    // être set plus tard via PUT admin si on toggle publishOnSite à true).
+    publishedAt: publishOnSite ? FieldValue.serverTimestamp() : null,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
     createdBy: 'system',
