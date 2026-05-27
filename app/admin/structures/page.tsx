@@ -755,10 +755,7 @@ function MembersSection({ structureId }: { structureId: string }) {
               </span>
               {/* Game tag si rôle équipe */}
               {m.game && (
-                <span className={`tag flex-shrink-0 ${m.game === 'rocket_league' ? 'tag-blue' : m.game === 'trackmania' ? 'tag-green' : 'tag-neutral'}`}
-                  style={{ fontSize: '10px', padding: '1px 5px' }}>
-                  {m.game === 'rocket_league' ? 'RL' : m.game === 'trackmania' ? 'TM' : m.game.toUpperCase()}
-                </span>
+                <GameTag gameId={m.game} className="flex-shrink-0" style={{ fontSize: '10px', padding: '1px 5px' }} />
               )}
               {/* Tous les rôles (chips) */}
               <div className="flex items-center gap-1 flex-shrink-0">

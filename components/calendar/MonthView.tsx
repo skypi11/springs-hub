@@ -13,6 +13,7 @@ import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
 import Portal from '@/components/ui/Portal';
 import type { CalendarEvent, Team } from './CalendarSection';
 import { TYPE_INFO } from './CalendarSection';
+import { getGameColor, getGameLabel } from '@/lib/games-registry';
 
 const WEEKDAYS = ['LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM', 'DIM'];
 const MONTHS = [
@@ -32,8 +33,8 @@ function timeOf(iso: string | null): string {
 // On colore par jeu (et pas par équipe) car une structure peut avoir 15+ équipes :
 // 15 couleurs distinctes seraient illisibles. Le nom de l'équipe reste sur la puce.
 export function eventGameColor(ev: CalendarEvent, teams: Team[]): string {
-  const colorForGame = (g?: string) =>
-    g === 'rocket_league' ? 'var(--s-blue)' : g === 'trackmania' ? 'var(--s-green)' : 'var(--s-gold)';
+  // Fallback or pour les events non rattachés à un jeu (structure-wide, staff).
+  const colorForGame = (g?: string) => g ? getGameColor(g) : 'var(--s-gold)';
   const t = ev.target;
   if (t.scope === 'game') return colorForGame(t.game);
   if (t.scope === 'teams') {
@@ -52,8 +53,7 @@ export function eventTargetLabel(ev: CalendarEvent, teams: Team[]): string {
   const t = ev.target;
   if (t.scope === 'structure') return 'Toute la structure';
   if (t.scope === 'game') {
-    return t.game === 'rocket_league' ? 'Rocket League'
-      : t.game === 'trackmania' ? 'Trackmania' : 'Jeu';
+    return getGameLabel(t.game);
   }
   if (t.scope === 'staff') return 'Staff';
   const names = (t.teamIds ?? [])

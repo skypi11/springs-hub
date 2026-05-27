@@ -17,6 +17,8 @@ import Portal from '@/components/ui/Portal';
 import type { TeamData, MyStructure, DiscordChannel } from '../types';
 import { SectionPanel, RosterSlot, StaffRosterSlot } from '../components';
 import { SortableTeam, SortableGroup, GroupDropZone } from '../teams-dnd';
+import GameTag from '@/components/games/GameTag';
+import { getGame, getGameColor } from '@/lib/games-registry';
 
 // Collision detection cloisonnée pour le D&D des équipes : un groupe ne peut
 // cibler qu'un autre groupe, une équipe qu'une autre équipe ou une zone de
@@ -185,7 +187,7 @@ export function TeamsTab(props: TeamsTabProps) {
   // (absolute top-2 left-2). On décale alors la ligne d'en-tête pour ne pas que
   // le tag jeu (RL/TM) passe sous la poignée.
   const renderTeamCard = (team: TeamData, isArchived: boolean, hasGrip = false) => {
-    const gameColor = team.game === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)';
+    const gameColor = getGameColor(team.game);
     const assignedIds = [...team.players.map(p => p.uid), ...team.subs.map(p => p.uid), ...team.staff.map(p => p.uid)];
     const rosterLockedIds = new Set<string>();
     for (const t of teams) {
@@ -201,9 +203,11 @@ export function TeamsTab(props: TeamsTabProps) {
     const availableForStaff = s.members.filter(m =>
       m.game === team.game && !assignedIds.includes(m.userId)
     );
-    const isRL = team.game === 'rocket_league';
-    const canAddPlayer = !isRL || team.players.length < 3;
-    const canAddSub = !isRL || team.subs.length < 2;
+    // Limites roster dérivées de la registry : marche pour RL (3+2), TM (1+0),
+    // et tout nouveau jeu ajouté (ex. Val 5+2). Jeu inconnu = pas de limite.
+    const rosterDef = getGame(team.game)?.roster;
+    const canAddPlayer = !rosterDef || team.players.length < rosterDef.titulaires;
+    const canAddSub = !rosterDef || team.subs.length < rosterDef.remplacants;
     const captainId = team.captainId ?? null;
     const canManageTeam = isAdminOfActive;
     const canDeleteTeam = isFounderOfActive;
@@ -220,9 +224,7 @@ export function TeamsTab(props: TeamsTabProps) {
         <div className="p-4 space-y-3">
           <div className={`flex items-center justify-between gap-2 ${hasGrip ? 'pl-6' : ''}`}>
             <div className="flex items-center gap-2.5 flex-wrap">
-              <span className={`tag ${team.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px', padding: '2px 7px' }}>
-                {team.game === 'rocket_league' ? 'RL' : 'TM'}
-              </span>
+              <GameTag gameId={team.game} style={{ padding: '2px 7px' }} />
               {team.logoUrl ? (
                 <span className="relative w-10 h-10 flex-shrink-0 bevel-sm overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -628,7 +630,7 @@ export function TeamsTab(props: TeamsTabProps) {
               canAdd={canAddPlayer && !isArchived}
               loading={teamActionLoading === `${team.id}_playerIds`}
               captainId={captainId}
-              capacity={isRL ? 3 : undefined}
+              capacity={rosterDef && !rosterDef.allowSolo ? rosterDef.titulaires : undefined}
               emptyLabel="un titulaire"
               onAdd={(uid) => handleUpdateTeamRoster(team.id, 'playerIds', [...team.players.map(p => p.uid), uid])}
               onRemove={(uid) => handleUpdateTeamRoster(team.id, 'playerIds', team.players.filter(p => p.uid !== uid).map(p => p.uid))}
@@ -640,7 +642,7 @@ export function TeamsTab(props: TeamsTabProps) {
               available={availableForRoster}
               canAdd={canAddSub && !isArchived}
               loading={teamActionLoading === `${team.id}_subIds`}
-              capacity={isRL ? 2 : undefined}
+              capacity={rosterDef && !rosterDef.allowSolo ? rosterDef.remplacants : undefined}
               emptyLabel="un remplaçant"
               onAdd={(uid) => handleUpdateTeamRoster(team.id, 'subIds', [...team.subs.map(p => p.uid), uid])}
               onRemove={(uid) => handleUpdateTeamRoster(team.id, 'subIds', team.subs.filter(p => p.uid !== uid).map(p => p.uid))}
@@ -704,7 +706,13 @@ export function TeamsTab(props: TeamsTabProps) {
         if (activeAll.length === 0) return null;
         const noCaptain = activeAll.filter(t => !t.captainId);
         const noStaff = activeAll.filter(t => t.staff.length === 0);
-        const rlIncomplete = activeAll.filter(t => t.game === 'rocket_league' && t.players.length < 3);
+        // Équipes incomplètes : tous jeux non-solo dont les titulaires sont en
+        // sous-effectif (RL : <3, Val : <5…). Solo (TM) exclu par allowSolo.
+        const rlIncomplete = activeAll.filter(t => {
+          const r = getGame(t.game)?.roster;
+          if (!r || r.allowSolo) return false;
+          return t.players.length < r.titulaires;
+        });
         const totalFlagged = noCaptain.length + noStaff.length + rlIncomplete.length;
         if (totalFlagged === 0) return null;
         const defaultOpen = totalFlagged <= 5;
@@ -732,7 +740,7 @@ export function TeamsTab(props: TeamsTabProps) {
                     className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs bevel-sm transition-colors duration-150 hover:bg-[var(--s-hover)]"
                     style={{ background: 'var(--s-elevated)', border: `1px solid ${color}55`, color: 'var(--s-text)' }}>
                     <span className="w-1.5 h-1.5 flex-shrink-0"
-                      style={{ background: t.game === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)', borderRadius: '50%' }} />
+                      style={{ background: getGameColor(t.game), borderRadius: '50%' }} />
                     {t.name}
                   </button>
                 ))}

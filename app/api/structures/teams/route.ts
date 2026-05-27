@@ -8,6 +8,7 @@ import { createNotification, createNotifications, type NotificationPayload } fro
 import { bumpStructureCounterStandalone } from '@/lib/structure-counters';
 import { extractR2Key, deleteFileSilent } from '@/lib/storage';
 import { canManageTeams, structureContext } from '@/lib/structure-permissions';
+import { getGame, getGameLabel } from '@/lib/games-registry';
 
 // Lit la structure + vérifie que l'user a le droit "admin" (dirigeant ou
 // responsable). Utilise canManageTeams() comme source de vérité.
@@ -306,13 +307,17 @@ export async function POST(req: NextRequest) {
         // label optionnel au niveau API pour compat ascendante ; l'UX l'impose.
         const labelStr = typeof label === 'string' ? label.trim() : '';
 
-        // Vérifier les limites RL : max 3 titulaires, 2 remplaçants
-        if (game === 'rocket_league') {
-          if ((playerIds || []).length > 3) {
-            return NextResponse.json({ error: 'Max 3 titulaires pour une équipe RL.' }, { status: 400 });
-          }
-          if ((subIds || []).length > 2) {
-            return NextResponse.json({ error: 'Max 2 remplaçants pour une équipe RL.' }, { status: 400 });
+        // Vérifier les limites de roster selon le jeu (registry).
+        // Jeu solo (allowSolo, ex. TM) → pas de limite stricte appliquée ici.
+        {
+          const r = getGame(game)?.roster;
+          if (r && !r.allowSolo) {
+            if ((playerIds || []).length > r.titulaires) {
+              return NextResponse.json({ error: `Max ${r.titulaires} titulaires pour une équipe ${getGameLabel(game)}.` }, { status: 400 });
+            }
+            if ((subIds || []).length > r.remplacants) {
+              return NextResponse.json({ error: `Max ${r.remplacants} remplaçants pour une équipe ${getGameLabel(game)}.` }, { status: 400 });
+            }
           }
         }
 
@@ -387,13 +392,16 @@ export async function POST(req: NextRequest) {
 
         const teamGame = game || teamData.game;
 
-        // Vérifier les limites RL
-        if (teamGame === 'rocket_league') {
-          if (playerIds && playerIds.length > 3) {
-            return NextResponse.json({ error: 'Max 3 titulaires pour une équipe RL.' }, { status: 400 });
-          }
-          if (subIds && subIds.length > 2) {
-            return NextResponse.json({ error: 'Max 2 remplaçants pour une équipe RL.' }, { status: 400 });
+        // Vérifier les limites de roster selon le jeu (registry).
+        {
+          const r = getGame(teamGame)?.roster;
+          if (r && !r.allowSolo) {
+            if (playerIds && playerIds.length > r.titulaires) {
+              return NextResponse.json({ error: `Max ${r.titulaires} titulaires pour une équipe ${getGameLabel(teamGame)}.` }, { status: 400 });
+            }
+            if (subIds && subIds.length > r.remplacants) {
+              return NextResponse.json({ error: `Max ${r.remplacants} remplaçants pour une équipe ${getGameLabel(teamGame)}.` }, { status: 400 });
+            }
           }
         }
 

@@ -9,6 +9,7 @@ import { addJoinHistory } from '@/lib/member-history';
 import { writeAdminAuditLog, type AdminAuditAction } from '@/lib/admin-audit-log';
 import { computeStaffSize } from '@/lib/structure-counters';
 import { addStructureToGame, removeStructureFromGame } from '@/lib/structure-membership';
+import { isKnownGame } from '@/lib/games-registry';
 
 const MAX_STRUCTURES = 500;
 
@@ -233,7 +234,7 @@ export async function POST(req: NextRequest) {
         const tag = clampString(body.tag, LIMITS.structureTag).toUpperCase();
         const description = clampString(body.description, LIMITS.structureDescription);
         const games = Array.isArray(body.games)
-          ? [...new Set(body.games)].filter(g => g === 'rocket_league' || g === 'trackmania')
+          ? [...new Set(body.games)].filter((g): g is string => typeof g === 'string' && isKnownGame(g))
           : [];
         if (!name) return NextResponse.json({ error: 'Le nom est obligatoire.' }, { status: 400 });
         if (!tag) return NextResponse.json({ error: 'Le tag est obligatoire.' }, { status: 400 });

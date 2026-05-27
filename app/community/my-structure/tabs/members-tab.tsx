@@ -13,6 +13,8 @@ import type { DashboardTab, MyStructure, TeamData, HistoryItem } from '../types'
 import {
   DEPARTURE_NOTICE_MS, PRIMARY_ROLE_ORDER, PRIMARY_ROLE_COLORS,
 } from '../constants';
+import GameTag from '@/components/games/GameTag';
+import { isKnownGame } from '@/lib/games-registry';
 
 // Tab Membres complet — extrait de page.tsx pour réduire la taille du fichier orchestrateur.
 // Comprend : bannière "sans équipe" (dirigeants only), liste des membres avec actions,
@@ -107,9 +109,7 @@ export function MembersTab(props: MembersTabProps) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{m.displayName}</p>
-                      <span className={`tag ${m.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px', padding: '2px 6px' }}>
-                        {m.game === 'rocket_league' ? 'RL' : 'TM'}
-                      </span>
+                      <GameTag gameId={m.game} style={{ padding: '2px 6px' }} />
                       {isRecentRecruit && (
                         <span className="tag" style={{ fontSize: '12px', padding: '2px 6px', background: 'rgba(255,184,0,0.12)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.35)' }}>
                           NOUVELLE RECRUE
@@ -226,11 +226,8 @@ export function MembersTab(props: MembersTabProps) {
                           <p className="text-xs font-semibold truncate" style={{ color: 'var(--s-text)' }}>{m.displayName}</p>
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <p className="t-mono" style={{ fontSize: '12px', color: structuralColor }}>{primaryLabel}</p>
-                            {(m.game === 'rocket_league' || m.game === 'trackmania') && (
-                              <span className={`tag ${m.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                                style={{ fontSize: '12px', padding: '2px 7px' }}>
-                                {m.game === 'rocket_league' ? 'RL' : 'TM'}
-                              </span>
+                            {isKnownGame(m.game) && (
+                              <GameTag gameId={m.game} style={{ padding: '2px 7px' }} />
                             )}
                             {affiliationBadges.map(b => {
                               const c = badgeColors[b.key] ?? badgeColors.joueur;
@@ -352,9 +349,7 @@ export function MembersTab(props: MembersTabProps) {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{h.displayName || h.userId}</p>
-                          <span className={`tag ${h.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px', padding: '2px 8px' }}>
-                            {h.game === 'rocket_league' ? 'RL' : 'TM'}
-                          </span>
+                          <GameTag gameId={h.game} style={{ padding: '2px 8px' }} />
                           {h.isOpen ? (
                             <span className="tag" style={{ fontSize: '12px', padding: '2px 8px', background: 'rgba(0,217,54,0.12)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.35)' }}>
                               Actif

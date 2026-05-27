@@ -23,6 +23,7 @@ import type { UserContext } from '@/lib/event-permissions';
 import type { BannerFocus } from '@/types';
 import PlayerStructureView, { type PlayerStructure } from '@/components/structure/PlayerStructureView';
 import DocumentsExplorer from '@/components/documents/DocumentsExplorer';
+import GameTag from '@/components/games/GameTag';
 import CrossTeamTodosPanel from '@/components/structure/CrossTeamTodosPanel';
 import { safeCopy } from '@/lib/clipboard';
 import type {
@@ -1564,10 +1565,7 @@ export default function MyStructurePage() {
                   <span style={{ color: 'var(--s-text-muted)' }}>·</span>
                   <div className="flex gap-1.5">
                     {s.games?.map(g => (
-                      <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                        style={{ fontSize: '12px', padding: '2px 6px' }}>
-                        {g === 'rocket_league' ? 'RL' : 'TM'}
-                      </span>
+                      <GameTag key={g} gameId={g} style={{ padding: '2px 6px' }} />
                     ))}
                   </div>
                   <span style={{ color: 'var(--s-text-muted)' }}>·</span>
@@ -1701,13 +1699,7 @@ export default function MyStructurePage() {
                     </div>
                     <div className="flex items-center gap-1.5">
                       {s.games.map((g) => (
-                        <span
-                          key={g}
-                          className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                          style={{ fontSize: '12px', padding: '1px 6px' }}
-                        >
-                          {g === 'rocket_league' ? 'RL' : 'TM'}
-                        </span>
+                        <GameTag key={g} gameId={g} style={{ padding: '1px 6px' }} />
                       ))}
                     </div>
                   </div>

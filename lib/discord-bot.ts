@@ -534,6 +534,9 @@ export async function postRecruitmentEmbed(channelId: string, input: Recruitment
 
   // Niveau jeu — uniquement si pertinent pour le jeu visé. Mettre des champs
   // vides pour des jeux non concernés rendrait l'embed bruyant.
+  // TODO (phase 3 multi-jeux) : déporter ces branches dans la registry sous
+  // forme d'une callback formatProfileFields(input) par jeu, car chaque jeu
+  // pioche dans un champ source différent (rlRank, pseudoTM, valorantRank…).
   if (input.game === 'rocket_league' && input.rlRank) {
     fields.push({ name: '🏆 Rang RL', value: input.rlRank.slice(0, 64), inline: true });
   }

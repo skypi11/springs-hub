@@ -8,6 +8,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { bumpStructureCounter } from '@/lib/structure-counters';
 import { syncDiscordMember } from '@/lib/discord-role-sync';
+import { isKnownGame } from '@/lib/games-registry';
 
 // Quand un fondateur est banni/supprimé, on essaie de promouvoir son premier co-fondateur
 // pour ne pas laisser une structure sans tête. Si pas de co-fondateur, on passe la
@@ -397,7 +398,7 @@ export async function POST(req: NextRequest) {
           else if (key === 'games') {
             // Doit être un tableau de jeux valides — sinon on ignore (anti-corruption)
             if (Array.isArray(val)) {
-              updates[key] = val.filter(g => g === 'rocket_league' || g === 'trackmania');
+              updates[key] = val.filter(g => isKnownGame(g));
             }
           }
           else updates[key] = val;

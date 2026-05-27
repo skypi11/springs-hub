@@ -16,6 +16,8 @@ import type { MyStructure, TeamData } from '../types';
 import type { BannerFocus } from '@/types';
 import { SOCIAL_LABELS, STATUS_INFO } from '../constants';
 import { SectionPanel } from '../components';
+import GameTag from '@/components/games/GameTag';
+import { ALL_GAME_DEFS } from '@/lib/games-registry';
 
 type Achievement = { placement: string; competition: string; game: string; date: string };
 
@@ -461,10 +463,7 @@ export function GeneralTab(props: GeneralTabProps) {
               <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>Jeux</span>
               <div className="flex gap-1.5">
                 {s.games?.map(g => (
-                  <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`}
-                    style={{ fontSize: '12px', padding: '2px 6px' }}>
-                    {g === 'rocket_league' ? 'RL' : 'TM'}
-                  </span>
+                  <GameTag key={g} gameId={g} style={{ padding: '2px 6px' }} />
                 ))}
               </div>
             </div>
@@ -485,19 +484,33 @@ export function GeneralTab(props: GeneralTabProps) {
           </div>
         </div>
 
-        {/* Quick stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="bevel-sm p-4 text-center relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-            <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(0,129,255,0.06), transparent 70%)' }} />
-            <p className="font-display text-2xl relative z-[1]" style={{ color: 'var(--s-blue)' }}>{teams.filter(t => t.game === 'rocket_league').length}</p>
-            <p className="t-label mt-1 relative z-[1]">ÉQUIPES RL</p>
-          </div>
-          <div className="bevel-sm p-4 text-center relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-            <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(0,217,54,0.06), transparent 70%)' }} />
-            <p className="font-display text-2xl relative z-[1]" style={{ color: 'var(--s-green)' }}>{teams.filter(t => t.game === 'trackmania').length}</p>
-            <p className="t-label mt-1 relative z-[1]">ÉQUIPES TM</p>
-          </div>
-        </div>
+        {/* Quick stats — un compteur par jeu de la structure, depuis la registry.
+            Grille adaptée au nombre de jeux (max 4 par ligne pour rester lisible). */}
+        {(() => {
+          const cards = ALL_GAME_DEFS
+            .filter(g => s.games?.includes(g.id))
+            .map(g => ({ def: g, count: teams.filter(t => t.game === g.id).length }));
+          if (cards.length === 0) return null;
+          const cols = cards.length === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2';
+          return (
+            <div className={`grid ${cols} gap-3`}>
+              {cards.map(({ def, count }) => (
+                <div
+                  key={def.id}
+                  className="bevel-sm p-4 text-center relative overflow-hidden"
+                  style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
+                >
+                  <div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{ background: `radial-gradient(circle at 50% 0%, rgba(${def.colorRgb}, 0.06), transparent 70%)` }}
+                  />
+                  <p className="font-display text-2xl relative z-[1]" style={{ color: def.color }}>{count}</p>
+                  <p className="t-label mt-1 relative z-[1]">ÉQUIPES {def.shortLabel}</p>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* Quota de stockage (docs + replays unifiés) */}
         {activeStructure && (

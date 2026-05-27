@@ -14,6 +14,7 @@ import type {
   MyStructure, InviteLink, JoinRequest, DirectInvite,
   Suggestion, ShortlistItem, EditRecruiting,
 } from '../types';
+import GameTag from '@/components/games/GameTag';
 
 // Tab Recrutement complet — extrait de page.tsx pour réduire la taille du fichier orchestrateur.
 // Regroupe : settings recrutement (annonce + postes), liens d'invitation, demandes reçues,
@@ -206,9 +207,7 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
                         /join/{link.token.slice(0, 8)}...
                       </p>
                       {link.game && (
-                        <span className={`tag ${link.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px', padding: '1px 5px' }}>
-                          {link.game === 'rocket_league' ? 'RL' : 'TM'}
-                        </span>
+                        <GameTag gameId={link.game} style={{ padding: '1px 5px' }} />
                       )}
                     </div>
                     <button type="button" onClick={async () => {
@@ -273,9 +272,7 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
                         </div>
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           {jr.game && (
-                            <span className={`tag ${jr.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px', padding: '1px 6px' }}>
-                              {jr.game === 'rocket_league' ? 'RL' : 'TM'}
-                            </span>
+                            <GameTag gameId={jr.game} style={{ padding: '1px 6px' }} />
                           )}
                           {jr.role && jr.role !== 'joueur' && (
                             <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 6px' }}>{jr.role}</span>
@@ -353,9 +350,7 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
                         </div>
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           {di.game && (
-                            <span className={`tag ${di.game === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px', padding: '1px 6px' }}>
-                              {di.game === 'rocket_league' ? 'RL' : 'TM'}
-                            </span>
+                            <GameTag gameId={di.game} style={{ padding: '1px 6px' }} />
                           )}
                           {di.role && di.role !== 'joueur' && (
                             <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 6px' }}>{di.role}</span>
@@ -429,9 +424,7 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
                       </div>
                       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                         {sl.games.map(g => (
-                          <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px', padding: '1px 6px' }}>
-                            {g === 'rocket_league' ? 'RL' : 'TM'}
-                          </span>
+                          <GameTag key={g} gameId={g} style={{ padding: '1px 6px' }} />
                         ))}
                         {sl.rlRank && (
                           <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
@@ -505,9 +498,7 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
                       </div>
                       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                         {sg.matchingGames.map(g => (
-                          <span key={g} className={`tag ${g === 'rocket_league' ? 'tag-blue' : 'tag-green'}`} style={{ fontSize: '12px', padding: '1px 6px' }}>
-                            {g === 'rocket_league' ? 'RL' : 'TM'}
-                          </span>
+                          <GameTag key={g} gameId={g} style={{ padding: '1px 6px' }} />
                         ))}
                         {sg.rlRank && (
                           <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>

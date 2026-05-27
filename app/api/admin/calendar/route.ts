@@ -6,6 +6,7 @@ import { captureApiError } from '@/lib/sentry';
 import { clampString } from '@/lib/validation';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
+import { getGameLabel } from '@/lib/games-registry';
 
 const MAX_EVENTS = 500;
 const EVENT_TYPES = ['training', 'scrim', 'match', 'tournoi', 'autre'];
@@ -98,8 +99,7 @@ export async function GET(req: NextRequest) {
       if (scope === 'staff') return { label: 'Staff', teams: [] };
       if (scope === 'game') {
         return {
-          label: t.game === 'rocket_league' ? 'Rocket League'
-            : t.game === 'trackmania' ? 'Trackmania' : 'Jeu',
+          label: getGameLabel(t.game),
           teams: [],
         };
       }

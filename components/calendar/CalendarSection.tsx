@@ -45,6 +45,7 @@ import {
 import ReplaysPanel from '@/components/replays/ReplaysPanel';
 import MonthView from './MonthView';
 import WeekView from './WeekView';
+import { ALL_GAME_DEFS, getGameColor, getGameColorRgb, getGameLabel, getGameShortLabel } from '@/lib/games-registry';
 import StaffAvailabilityView from './StaffAvailabilityView';
 import { NewTodoForm, type TeamRef } from './TeamTodosPanel';
 import { useTodoTemplates } from './TodoTemplatesManager';
@@ -660,7 +661,7 @@ function TeamFilterDropdown({
               </div>
             ) : filtered.map(t => {
               const selected = value.includes(t.id);
-              const color = t.game === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)';
+              const color = getGameColor(t.game);
               return (
                 <button key={t.id} type="button" onClick={() => toggle(t.id)}
                   className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors duration-150 hover:bg-[var(--s-hover)]">
@@ -709,7 +710,7 @@ function EventCard({
 
   const targetLabel = (() => {
     if (event.target.scope === 'structure') return 'Toute la structure';
-    if (event.target.scope === 'game') return event.target.game === 'rocket_league' ? 'Rocket League' : event.target.game === 'trackmania' ? 'Trackmania' : 'Jeu';
+    if (event.target.scope === 'game') return getGameLabel(event.target.game);
     if (event.target.scope === 'staff') return 'Staff';
     const names = (event.target.teamIds ?? [])
       .map(id => teams.find(t => t.id === id)?.name)
@@ -1214,18 +1215,23 @@ function EventFormModal({
               <div className="flex flex-wrap gap-2 p-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                 {selectableTeams.length === 0 ? (
                   <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucune équipe disponible.</p>
-                ) : selectableTeams.map(t => (
-                  <button key={t.id} type="button" onClick={() => toggleTeam(t.id)}
-                    className="tag transition-all duration-150"
-                    style={{
-                      background: selectedTeamIds.includes(t.id) ? (t.game === 'rocket_league' ? 'rgba(0,129,255,0.15)' : 'rgba(0,217,54,0.15)') : 'transparent',
-                      color: selectedTeamIds.includes(t.id) ? (t.game === 'rocket_league' ? 'var(--s-blue)' : 'var(--s-green)') : 'var(--s-text-dim)',
-                      borderColor: selectedTeamIds.includes(t.id) ? (t.game === 'rocket_league' ? 'rgba(0,129,255,0.4)' : 'rgba(0,217,54,0.4)') : 'var(--s-border)',
-                      cursor: 'pointer', padding: '4px 10px', fontSize: '12px',
-                    }}>
-                    {t.name} · {t.game === 'rocket_league' ? 'RL' : 'TM'}
-                  </button>
-                ))}
+                ) : selectableTeams.map(t => {
+                  const isSelected = selectedTeamIds.includes(t.id);
+                  const rgb = getGameColorRgb(t.game);
+                  const fg = getGameColor(t.game);
+                  return (
+                    <button key={t.id} type="button" onClick={() => toggleTeam(t.id)}
+                      className="tag transition-all duration-150"
+                      style={{
+                        background: isSelected ? `rgba(${rgb}, 0.15)` : 'transparent',
+                        color: isSelected ? fg : 'var(--s-text-dim)',
+                        borderColor: isSelected ? `rgba(${rgb}, 0.4)` : 'var(--s-border)',
+                        cursor: 'pointer', padding: '4px 10px', fontSize: '12px',
+                      }}>
+                      {t.name} · {getGameShortLabel(t.game)}
+                    </button>
+                  );
+                })}
               </div>
             )}
 
@@ -1312,20 +1318,23 @@ function EventFormModal({
 
             {scope === 'game' && (
               <div className="flex gap-2">
-                {structureGames.includes('rocket_league') && (
-                  <button type="button" onClick={() => setGame('rocket_league')}
-                    className={`tag ${game === 'rocket_league' ? 'tag-blue' : 'tag-neutral'}`}
-                    style={{ cursor: 'pointer', padding: '4px 10px', fontSize: '12px' }}>
-                    Rocket League
-                  </button>
-                )}
-                {structureGames.includes('trackmania') && (
-                  <button type="button" onClick={() => setGame('trackmania')}
-                    className={`tag ${game === 'trackmania' ? 'tag-green' : 'tag-neutral'}`}
-                    style={{ cursor: 'pointer', padding: '4px 10px', fontSize: '12px' }}>
-                    Trackmania
-                  </button>
-                )}
+                {ALL_GAME_DEFS.filter(g => structureGames.includes(g.id)).map(g => {
+                  const isSelected = game === g.id;
+                  return (
+                    <button key={g.id} type="button" onClick={() => setGame(g.id)}
+                      className="tag"
+                      style={{
+                        cursor: 'pointer',
+                        padding: '4px 10px',
+                        fontSize: '12px',
+                        background: isSelected ? `rgba(${g.colorRgb}, 0.1)` : 'rgba(255,255,255,0.04)',
+                        color: isSelected ? g.colorLight : 'var(--s-text-dim)',
+                        borderColor: isSelected ? `rgba(${g.colorRgb}, 0.25)` : 'var(--s-border)',
+                      }}>
+                      {g.label}
+                    </button>
+                  );
+                })}
               </div>
             )}
 
@@ -1689,7 +1698,7 @@ function EventDetailModal({
 
   const targetLabel = (() => {
     if (event.target.scope === 'structure') return 'Toute la structure';
-    if (event.target.scope === 'game') return event.target.game === 'rocket_league' ? 'Rocket League' : 'Trackmania';
+    if (event.target.scope === 'game') return getGameLabel(event.target.game);
     if (event.target.scope === 'staff') return 'Staff';
     const names = (event.target.teamIds ?? [])
       .map(id => teams.find(t => t.id === id)?.name)
