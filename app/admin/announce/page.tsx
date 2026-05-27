@@ -498,37 +498,44 @@ export default function AdminAnnouncePage() {
               </div>
             </div>
 
-            {/* Catégorie changelog — détermine emoji + couleur dans la timeline /changelog */}
-            <div>
-              <label className="t-label block mb-2">Catégorie (pour la timeline /changelog)</label>
-              <div className="flex flex-wrap gap-1.5">
-                {ALL_CHANGELOG_CATEGORIES.map(cat => {
-                  const active = category === cat.id;
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => setCategory(cat.id)}
-                      className="tag flex items-center gap-1.5 transition-all duration-150"
-                      style={{
-                        background: active ? `rgba(${cat.colorRgb}, 0.15)` : 'transparent',
-                        color: active ? cat.color : 'var(--s-text-muted)',
-                        borderColor: active ? `rgba(${cat.colorRgb}, 0.4)` : 'var(--s-border)',
-                        cursor: 'pointer',
-                        padding: '5px 10px',
-                        fontSize: '12px',
-                      }}
-                      title={cat.hint}
-                    >
-                      <span>{cat.emoji}</span> {cat.label}
-                    </button>
-                  );
-                })}
+            {/* Catégorie changelog — auto-détectée depuis les emojis du markdown,
+                ce selector sert juste d'override "principal" (couleur de la card
+                + emoji avatar) si tu veux forcer manuellement. Vide ou 'feature' =
+                la dominante des sections est utilisée. */}
+            <details className="bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+              <summary className="px-3 py-2 text-xs cursor-pointer flex items-center gap-2" style={{ color: 'var(--s-text-muted)' }}>
+                ⚙️ Avancé : override catégorie principale (sinon auto-détectée)
+              </summary>
+              <div className="p-3 space-y-2">
+                <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                  Par défaut, la timeline /changelog détecte automatiquement les catégories à partir des emojis dans les titres de sections du markdown (**🎯 ...**, **🐛 ...**, etc.). Ce selector force la couleur principale de la card.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {ALL_CHANGELOG_CATEGORIES.map(cat => {
+                    const active = category === cat.id;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setCategory(cat.id)}
+                        className="tag flex items-center gap-1.5 transition-all duration-150"
+                        style={{
+                          background: active ? `rgba(${cat.colorRgb}, 0.15)` : 'transparent',
+                          color: active ? cat.color : 'var(--s-text-muted)',
+                          borderColor: active ? `rgba(${cat.colorRgb}, 0.4)` : 'var(--s-border)',
+                          cursor: 'pointer',
+                          padding: '4px 8px',
+                          fontSize: '11px',
+                        }}
+                        title={cat.hint}
+                      >
+                        <span>{cat.emoji}</span> {cat.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
-                {getChangelogCategory(category).hint}
-              </p>
-            </div>
+            </details>
 
             {/* Toggle publication sur le site */}
             <div className="p-3 bevel-sm" style={{ background: publishOnSite ? 'rgba(255,184,0,0.05)' : 'var(--s-elevated)', border: `1px solid ${publishOnSite ? 'rgba(255,184,0,0.25)' : 'var(--s-border)'}` }}>

@@ -13,14 +13,27 @@ import {
   getChangelogCategory,
   type ChangelogCategory,
 } from '@/lib/changelog-categories';
+import {
+  parseChangelogSections,
+  dominantCategory,
+  type ChangelogSection,
+} from '@/lib/changelog-auto-tag';
 
 interface ChangelogItem {
   id: string;
   key: string;
   title: string;
   description: string;
-  category: string;
+  category: string;       // catégorie "principale" override admin (fallback si pas de sections)
   publishedAt: string;
+}
+
+interface ParsedItem extends ChangelogItem {
+  sections: ChangelogSection[];
+  /** Catégorie d'avatar de la card : override admin si défini, sinon dominante des sections */
+  mainCategory: ChangelogCategory;
+  /** Set des catégories présentes (sections + main) pour filtrage rapide */
+  allCategories: Set<ChangelogCategory>;
 }
 
 function fmtDate(iso: string): string {
@@ -40,12 +53,10 @@ export default function ChangelogPage() {
   const { data, isPending } = useQuery({
     queryKey: ['changelog'] as const,
     queryFn: () => api<{ items: ChangelogItem[] }>('/api/changelog'),
-    // Pas besoin de refetch agressif — la timeline change rarement
     staleTime: 60_000,
   });
 
   // Mark as seen au mount (silencieux, ignore les erreurs).
-  // Le user authentifié signale au serveur qu'il a vu la page → reset le dot rouge sidebar.
   useEffect(() => {
     if (!firebaseUser) return;
     api('/api/profile/mark-changelog-seen', { method: 'POST' }).catch(() => {
@@ -53,24 +64,55 @@ export default function ChangelogPage() {
     });
   }, [firebaseUser]);
 
+  // Pré-parse toutes les descriptions en sections. Mémoïsé pour éviter
+  // le re-parse à chaque changement de filtre.
   const items = data?.items ?? [];
-  const filtered = useMemo(
-    () => filter === 'all' ? items : items.filter(i => i.category === filter),
-    [items, filter]
-  );
-
-  // Compteurs par catégorie (sur l'ensemble, pas le filtré — montre le scope)
-  const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const i of items) counts[i.category] = (counts[i.category] ?? 0) + 1;
-    return counts;
+  const parsed = useMemo<ParsedItem[]>(() => {
+    return items.map(it => {
+      const sections = parseChangelogSections(it.description);
+      // Catégorie principale = override admin si valide, sinon dominante des sections
+      const adminMain = getChangelogCategory(it.category).id;
+      const main = sections.length > 0 ? dominantCategory(sections) : adminMain;
+      const all = new Set<ChangelogCategory>([main]);
+      for (const s of sections) all.add(s.category);
+      return {
+        ...it,
+        sections,
+        mainCategory: main,
+        allCategories: all,
+      };
+    });
   }, [items]);
 
-  // Groupage par mois pour les séparateurs visuels de la timeline
+  // Filtre : pour chaque card, on filtre les sections matching. Une card est
+  // affichée si elle a au moins une section matching (ou si filter === 'all').
+  const filtered = useMemo<ParsedItem[]>(() => {
+    if (filter === 'all') return parsed;
+    return parsed
+      .filter(it => it.allCategories.has(filter))
+      .map(it => ({
+        ...it,
+        // On garde aussi les sections sans catégorie (intro) pour préserver le contexte
+        sections: it.sections.filter(s => s.category === filter),
+      }));
+  }, [parsed, filter]);
+
+  // Compteurs par catégorie sur l'ensemble (pas le filtré)
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const it of parsed) {
+      for (const cat of it.allCategories) {
+        counts[cat] = (counts[cat] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }, [parsed]);
+
+  // Groupage par mois
   const grouped = useMemo(() => {
-    const map = new Map<string, ChangelogItem[]>();
+    const map = new Map<string, ParsedItem[]>();
     for (const i of filtered) {
-      const monthKey = i.publishedAt.slice(0, 7); // YYYY-MM
+      const monthKey = i.publishedAt.slice(0, 7);
       const arr = map.get(monthKey) ?? [];
       arr.push(i);
       map.set(monthKey, arr);
@@ -100,14 +142,14 @@ export default function ChangelogPage() {
             <div className="min-w-0">
               <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl" style={{ letterSpacing: '0.04em' }}>NOUVEAUTÉS</h1>
               <p className="t-body mt-1" style={{ color: 'var(--s-text-dim)' }}>
-                Tout ce qui a changé sur Aedral, dans l'ordre du plus récent.
+                Tout ce qui a changé sur Aedral, dans l'ordre du plus récent. Filtre par catégorie pour zoomer sur un type de changement.
               </p>
             </div>
           </div>
         </header>
 
         {/* Filtres par catégorie */}
-        {items.length > 0 && (
+        {parsed.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -122,7 +164,7 @@ export default function ChangelogPage() {
                 fontSize: '12px',
               }}
             >
-              Tous · {items.length}
+              Tous · {parsed.length}
             </button>
             {ALL_CHANGELOG_CATEGORIES.map(cat => {
               const count = categoryCounts[cat.id] ?? 0;
@@ -158,8 +200,8 @@ export default function ChangelogPage() {
           </div>
         )}
 
-        {/* Empty */}
-        {!isPending && items.length === 0 && (
+        {/* Empty (no items) */}
+        {!isPending && parsed.length === 0 && (
           <div className="bevel p-10 text-center animate-fade-in" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
             <Sparkles size={32} className="mx-auto mb-4" style={{ color: 'var(--s-text-muted)' }} />
             <h2 className="font-display text-xl mb-2">Aucune nouveauté pour l'instant</h2>
@@ -169,12 +211,20 @@ export default function ChangelogPage() {
           </div>
         )}
 
+        {/* Empty (filtré) */}
+        {!isPending && parsed.length > 0 && filtered.length === 0 && (
+          <div className="bevel p-8 text-center animate-fade-in" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+            <p className="t-body" style={{ color: 'var(--s-text-dim)' }}>
+              Aucun patch dans cette catégorie.
+            </p>
+          </div>
+        )}
+
         {/* Timeline groupée par mois */}
         {!isPending && grouped.length > 0 && (
           <div className="space-y-10">
             {grouped.map(({ month, items: monthItems }) => (
               <section key={month} className="space-y-4 animate-fade-in">
-                {/* Séparateur de mois */}
                 <div className="flex items-center gap-3">
                   <span
                     className="font-display text-sm tracking-wider"
@@ -191,81 +241,149 @@ export default function ChangelogPage() {
                   </span>
                 </div>
 
-                {/* Cards de patch */}
                 <div className="space-y-4">
-                  {monthItems.map((item, idx) => {
-                    const cat = getChangelogCategory(item.category);
-                    return (
-                      <article
-                        key={item.id}
-                        id={item.key}
-                        className="bevel relative overflow-hidden"
-                        style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', animationDelay: `${idx * 50}ms` }}
-                      >
-                        <div
-                          className="h-[3px]"
-                          style={{ background: `linear-gradient(90deg, ${cat.color}, ${cat.color}50, transparent 70%)` }}
-                        />
-                        <div
-                          className="absolute top-0 right-0 w-48 h-48 pointer-events-none opacity-[0.08]"
-                          style={{ background: `radial-gradient(circle at top right, ${cat.color}, transparent 70%)` }}
-                        />
-                        <div className="relative z-[1] p-5 sm:p-6 space-y-3">
-                          {/* Header card */}
-                          <div className="flex items-start gap-3 flex-wrap">
-                            <div
-                              className="flex-shrink-0 flex items-center justify-center bevel-sm"
-                              style={{
-                                width: 40,
-                                height: 40,
-                                background: `rgba(${cat.colorRgb}, 0.10)`,
-                                border: `1px solid rgba(${cat.colorRgb}, 0.25)`,
-                                fontSize: 20,
-                              }}
-                            >
-                              {cat.emoji}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap mb-1">
-                                <span
-                                  className="tag"
-                                  style={{
-                                    fontSize: '10px',
-                                    background: `rgba(${cat.colorRgb}, 0.12)`,
-                                    color: cat.color,
-                                    borderColor: `rgba(${cat.colorRgb}, 0.30)`,
-                                    padding: '2px 6px',
-                                  }}
-                                >
-                                  {cat.label.toUpperCase()}
-                                </span>
-                                <span className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                                  {fmtDate(item.publishedAt)}
-                                </span>
-                              </div>
-                              <h2
-                                className="font-display text-lg sm:text-xl"
-                                style={{ letterSpacing: '0.02em', color: 'var(--s-text)' }}
-                              >
-                                {item.title}
-                              </h2>
-                            </div>
-                          </div>
-
-                          {/* Body markdown — rendu avec le prose Aedral */}
-                          <div className="prose-springs text-sm max-w-none" style={{ color: 'var(--s-text-dim)' }}>
-                            <ReactMarkdown>{item.description}</ReactMarkdown>
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  })}
+                  {monthItems.map((item, idx) => (
+                    <ChangelogCard key={item.id} item={item} delayMs={idx * 50} />
+                  ))}
                 </div>
               </section>
             ))}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Card patch ─────────────────────────────────────────────────────────────
+
+function ChangelogCard({ item, delayMs }: { item: ParsedItem; delayMs: number }) {
+  const mainCat = getChangelogCategory(item.mainCategory);
+
+  return (
+    <article
+      id={item.key}
+      className="bevel relative overflow-hidden"
+      style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', animationDelay: `${delayMs}ms` }}
+    >
+      <div
+        className="h-[3px]"
+        style={{ background: `linear-gradient(90deg, ${mainCat.color}, ${mainCat.color}50, transparent 70%)` }}
+      />
+      <div
+        className="absolute top-0 right-0 w-48 h-48 pointer-events-none opacity-[0.08]"
+        style={{ background: `radial-gradient(circle at top right, ${mainCat.color}, transparent 70%)` }}
+      />
+      <div className="relative z-[1] p-5 sm:p-6 space-y-4">
+        {/* Header card */}
+        <div className="flex items-start gap-3 flex-wrap">
+          <div
+            className="flex-shrink-0 flex items-center justify-center bevel-sm"
+            style={{
+              width: 44,
+              height: 44,
+              background: `rgba(${mainCat.colorRgb}, 0.10)`,
+              border: `1px solid rgba(${mainCat.colorRgb}, 0.25)`,
+              fontSize: 22,
+            }}
+          >
+            {mainCat.emoji}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              {/* Tags de toutes les catégories présentes (multi) */}
+              {Array.from(item.allCategories).map(catId => {
+                const cat = getChangelogCategory(catId);
+                return (
+                  <span
+                    key={catId}
+                    className="tag"
+                    style={{
+                      fontSize: '10px',
+                      background: `rgba(${cat.colorRgb}, 0.12)`,
+                      color: cat.color,
+                      borderColor: `rgba(${cat.colorRgb}, 0.30)`,
+                      padding: '2px 6px',
+                    }}
+                    title={cat.hint}
+                  >
+                    {cat.emoji} {cat.label.toUpperCase()}
+                  </span>
+                );
+              })}
+              <span className="t-mono text-xs ml-auto" style={{ color: 'var(--s-text-muted)' }}>
+                {fmtDate(item.publishedAt)}
+              </span>
+            </div>
+            <h2
+              className="font-display text-lg sm:text-xl"
+              style={{ letterSpacing: '0.02em', color: 'var(--s-text)' }}
+            >
+              {item.title}
+            </h2>
+          </div>
+        </div>
+
+        {/* Sections — chacune avec son sous-tag de catégorie */}
+        {item.sections.length === 0 ? (
+          // Pas de sections détectées : fallback rendu markdown brut
+          <div className="prose-springs text-sm max-w-none" style={{ color: 'var(--s-text-dim)' }}>
+            <ReactMarkdown>{item.description}</ReactMarkdown>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {item.sections.map((section, sIdx) => (
+              <ChangelogSectionBlock key={sIdx} section={section} />
+            ))}
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}
+
+// ─── Section block ──────────────────────────────────────────────────────────
+
+function ChangelogSectionBlock({ section }: { section: ChangelogSection }) {
+  const cat = getChangelogCategory(section.category);
+  const hasTitle = !!section.title;
+
+  return (
+    <div
+      className="relative"
+      style={{
+        paddingLeft: hasTitle ? 16 : 0,
+        borderLeft: hasTitle ? `2px solid rgba(${cat.colorRgb}, 0.25)` : 'none',
+      }}
+    >
+      {hasTitle && (
+        <div className="flex items-start gap-2 mb-2 flex-wrap">
+          <h3
+            className="font-display text-sm sm:text-base"
+            style={{ letterSpacing: '0.02em', color: 'var(--s-text)' }}
+          >
+            {section.emoji && <span className="mr-1.5">{section.emoji}</span>}
+            {section.title}
+          </h3>
+          <span
+            className="tag"
+            style={{
+              fontSize: '9px',
+              background: `rgba(${cat.colorRgb}, 0.10)`,
+              color: cat.color,
+              borderColor: `rgba(${cat.colorRgb}, 0.25)`,
+              padding: '1px 5px',
+            }}
+          >
+            {cat.label.toUpperCase()}
+          </span>
+        </div>
+      )}
+      {section.body && (
+        <div className="prose-springs text-sm max-w-none" style={{ color: 'var(--s-text-dim)' }}>
+          <ReactMarkdown>{section.body}</ReactMarkdown>
+        </div>
+      )}
     </div>
   );
 }
