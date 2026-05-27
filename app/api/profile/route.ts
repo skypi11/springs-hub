@@ -99,7 +99,16 @@ async function fetchUserStructures(uid: string): Promise<ProfileStructure[]> {
 
 // Champs privés — jamais renvoyés aux autres utilisateurs.
 // `dateOfBirth` sert uniquement à calculer l'âge côté serveur.
-const PRIVATE_FIELDS = ['dateOfBirth', 'discordId', 'isBanned', 'banReason', 'bannedAt', 'bannedBy'];
+// Champs strippés pour les visiteurs tiers (non owner). Les champs Valorant
+// 'rank'/'rr'/'source'/'syncedAt' restent publics (affichés sur la fiche)
+// mais le PUUID Riot est filtré (identifiant immuable utilisé en interne pour
+// la vérif anti-mensonge — pas besoin d'être exposé même si non secret au sens
+// strict). La connection Discord riotgames porte le même PUUID et reste filtrée
+// par visibleOnProfile.
+const PRIVATE_FIELDS = [
+  'dateOfBirth', 'discordId', 'isBanned', 'banReason', 'bannedAt', 'bannedBy',
+  'valorantPuuid', 'valorantPuuidLinkedAt',
+];
 
 // GET /api/profile?uid=discord_XXX OU /api/profile?slug=noxx-26 — lire un profil
 // On accepte les deux pour la transition slug : les liens internes utilisent le
