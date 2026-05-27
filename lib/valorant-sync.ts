@@ -22,13 +22,19 @@ import { loadCronState, saveCronState } from '@/lib/cron-state';
 const STATE_KEY = 'valorant_rank_sync';
 
 // Limites par run — respectent le timeout Vercel Hobby (60s) avec marge.
-// HenrikDev sans API key : 30 req/min → 200 req/run prend ~7min, trop.
-// Avec API key (60 req/min) : ~200 req prend ~3min30s, encore trop.
-// → On limite à 50 users par run (rate-safe sans API key, et 1 minute de
-// boulot effectif). Cycle complet 5k users = 100 jours. Acceptable car
-// rang Val bouge lentement et fallback déclaratif dispo.
-const USERS_LIMIT_PER_RUN = 50;
-const HENRIKDEV_DELAY_MS = 1100; // ~55 req/min, marge sous le 60 with key
+// HenrikDev tier Standard (30 req/min, sans review manuelle) = 1 req toutes
+// les 2 secondes pour rester safe. Sync à la demande (route POST dédiée)
+// consomme 1-2 req par user, donc on garde une marge.
+//
+// Pour cycler en cron : 25 users/run × 2.1s = ~53s effectifs, dans la fenêtre
+// Vercel Hobby (60s). Cycle complet 1000 users Val = 40 jours. Acceptable
+// car rang Val bouge lentement et fallback déclaratif + sync à la demande
+// dispo immédiatement.
+//
+// Si on passe en tier Enhanced (90 req/min) on pourra réduire HENRIKDEV_DELAY_MS
+// à ~700ms et passer USERS_LIMIT_PER_RUN à 80.
+const USERS_LIMIT_PER_RUN = 25;
+const HENRIKDEV_DELAY_MS = 2100; // ~28 req/min, marge sous le 30 du tier Standard
 
 interface SyncStats {
   scanned: number;
