@@ -11,7 +11,10 @@ import {
   validSlotsForWeek,
 } from '@/lib/availability';
 
-const MAX_SLOTS_PER_WEEK = 200; // garde-fou (la vraie valeur max est 164)
+// Garde-fou anti-abus. La vraie valeur max théorique est 7 jours × 36 slots/jour
+// (schedule 8h → 2h du matin = 18h × 2 slots/30min) = 252. On laisse une marge
+// pour absorber une éventuelle extension future du schedule sans re-deploy.
+const MAX_SLOTS_PER_WEEK = 400;
 
 // GET /api/availability/me
 // Renvoie mes dispos pour 3 semaines : précédente (lecture seule, pour le bouton

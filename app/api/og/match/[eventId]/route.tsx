@@ -2,6 +2,7 @@ import { ImageResponse } from 'next/og';
 import { NextRequest } from 'next/server';
 import fs from 'node:fs';
 import path from 'node:path';
+import sharp from 'sharp';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 
@@ -66,6 +67,31 @@ function nameFontSize(maxLen: number): number {
 
 function initials(name: string): string {
   return name.trim().slice(0, 3).toUpperCase() || '?';
+}
+
+// Convertit n'importe quelle image (R2 webp ou URL externe png/jpg) en data URI PNG.
+// satori / @vercel/og gère mal le WebP — c'est la raison pour laquelle les logos
+// d'équipe (R2 webp) ne s'affichaient pas alors que les logos adversaires
+// (URLs externes png/jpg collées à la main) fonctionnaient. On force PNG pour
+// les deux côtés pour avoir un comportement uniforme et robuste.
+async function loadLogoAsPngDataUri(url: string | null): Promise<string | null> {
+  if (!url) return null;
+  try {
+    const res = await fetch(url, { cache: 'force-cache' });
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    // Sharp : décode WebP/PNG/JPG/etc. et re-encode en PNG. Limite la résolution
+    // à 512px (le LogoBox affiche en 220×220 — pas besoin de plus haute).
+    const png = await sharp(buf, { failOn: 'error' })
+      .resize(512, 512, { fit: 'inside', withoutEnlargement: true })
+      .png()
+      .toBuffer();
+    return `data:image/png;base64,${png.toString('base64')}`;
+  } catch {
+    // Fail silencieux : si on n'arrive pas à fetch/décoder, le LogoBox tombera
+    // sur le fallback "initiales" et l'image reste propre.
+    return null;
+  }
 }
 
 // IMPORTANT : le runtime Vercel tourne en UTC. Sans timeZone explicite, une
@@ -169,6 +195,13 @@ export async function GET(
 
     const adversaire = (ev.adversaire as string | undefined) || 'Adversaire';
     const adversaryLogoUrl = (ev.adversaireLogoUrl as string | undefined) || null;
+
+    // Décode les 2 logos en parallèle vers PNG dataURI (cf. helper ci-dessus —
+    // satori ne gère pas le WebP, donc on convertit systématiquement).
+    const [teamLogoDataUri, adversaryLogoDataUri] = await Promise.all([
+      loadLogoAsPngDataUri(teamLogoUrl),
+      loadLogoAsPngDataUri(adversaryLogoUrl),
+    ]);
 
     const teamLabel = teamName.toUpperCase().slice(0, 22);
     const advLabel = adversaire.toUpperCase().slice(0, 22);
@@ -332,7 +365,7 @@ export async function GET(
               }}
             >
               <LogoBox
-                url={teamLogoUrl}
+                url={teamLogoDataUri}
                 fallback={initials(teamName)}
                 tint="rgba(255,255,255,0.25)"
                 glowColor="rgba(255,255,255,0.06)"
@@ -380,7 +413,7 @@ export async function GET(
               }}
             >
               <LogoBox
-                url={adversaryLogoUrl}
+                url={adversaryLogoDataUri}
                 fallback={initials(adversaire)}
                 tint="rgba(255,184,0,0.45)"
                 glowColor="rgba(255,184,0,0.08)"
