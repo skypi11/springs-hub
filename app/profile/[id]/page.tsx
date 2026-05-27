@@ -98,7 +98,15 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         // L'API accepte les deux via `uid=` ou `slug=`.
         const isLegacy = /^discord_\d{15,20}$/.test(id);
         const queryKey = isLegacy ? 'uid' : 'slug';
-        const res = await fetch(`/api/profile?${queryKey}=${encodeURIComponent(id)}`);
+        // Bearer token critique pour isOwner côté serveur : sans ça, on est
+        // vu comme visiteur public et nos propres connections masquées
+        // (Riot Games, Twitch, etc.) sont filtrées de la réponse — ce qui
+        // empêche l'affichage de la card Valorant + lien tracker.gg pour
+        // un user qui a son Riot en "Masqué" (cas légitime de visibilité
+        // privée mais qui doit quand même nous afficher nos propres infos).
+        const token = firebaseUser ? await firebaseUser.getIdToken() : null;
+        const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+        const res = await fetch(`/api/profile?${queryKey}=${encodeURIComponent(id)}`, { headers });
         if (!res.ok) {
           setNotFound(true);
           setLoading(false);
@@ -158,7 +166,8 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
       setLoading(false);
     }
     load();
-  }, [id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, firebaseUser?.uid]);
 
   // Canonicalisation URL : si l'URL contient un uid legacy (discord_*) mais que
   // le profil a un slug, on remplace l'URL par le slug. Évite d'exposer le
