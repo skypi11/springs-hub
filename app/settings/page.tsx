@@ -21,6 +21,7 @@ import ImageUploader from '@/components/ui/ImageUploader';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import { RL_RANKS } from '@/lib/rl-ranks';
 import { VALORANT_RANKS } from '@/lib/valorant-ranks';
+import { ALL_GAME_DEFS } from '@/lib/games-registry';
 import { RL_PLATFORMS, getRLPlatformMeta, buildTrackerGgUrl, buildBallchasingUrl, isValidRLPlatform, type RLPlatform } from '@/lib/rl-platform';
 import { getConnectionMeta, buildConnectionUrl, pickBestRLConnection, type DiscordConnection } from '@/lib/discord-connections';
 import GameTag from '@/components/games/GameTag';
@@ -874,46 +875,50 @@ export default function SettingsPage() {
                     <span className="tag tag-neutral" style={{ fontSize: '8px' }}>MIN. 1</span>
                   </div>
                   <div className="p-5 space-y-4">
+                    {/* Pickers générés depuis la registry — ajouter un jeu dans
+                        lib/games-registry.ts fera apparaître son picker automatiquement. */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <button type="button" onClick={() => toggleGame('rocket_league')}
-                        className="p-4 text-left transition-all duration-150 relative overflow-hidden"
-                        style={{
-                          background: form.games.includes('rocket_league') ? 'rgba(0,129,255,0.08)' : 'var(--s-elevated)',
-                          border: form.games.includes('rocket_league') ? '2px solid rgba(0,129,255,0.4)' : '2px solid var(--s-border)',
-                          cursor: 'pointer',
-                        }}>
-                        {form.games.includes('rocket_league') && (
-                          <div className="absolute top-0 right-0 w-24 h-24 pointer-events-none opacity-[0.08]"
-                            style={{ background: 'radial-gradient(circle at top right, var(--s-blue), transparent 70%)' }} />
-                        )}
-                        <div className="relative z-[1] flex items-center gap-3">
-                          <div className="w-8 h-8 flex items-center justify-center" style={{ background: 'rgba(0,129,255,0.1)', border: '1px solid rgba(0,129,255,0.2)' }}>
-                            <Gamepad2 size={14} style={{ color: 'var(--s-blue)' }} />
-                          </div>
-                          <span className="text-sm font-semibold" style={{ color: form.games.includes('rocket_league') ? 'var(--s-blue)' : 'var(--s-text)' }}>Rocket League</span>
-                          {form.games.includes('rocket_league') && <CheckCircle size={14} className="ml-auto" style={{ color: 'var(--s-blue)' }} />}
-                        </div>
-                      </button>
-
-                      <button type="button" onClick={() => toggleGame('trackmania')}
-                        className="p-4 text-left transition-all duration-150 relative overflow-hidden"
-                        style={{
-                          background: form.games.includes('trackmania') ? 'rgba(0,217,54,0.08)' : 'var(--s-elevated)',
-                          border: form.games.includes('trackmania') ? '2px solid rgba(0,217,54,0.4)' : '2px solid var(--s-border)',
-                          cursor: 'pointer',
-                        }}>
-                        {form.games.includes('trackmania') && (
-                          <div className="absolute top-0 right-0 w-24 h-24 pointer-events-none opacity-[0.08]"
-                            style={{ background: 'radial-gradient(circle at top right, var(--s-green), transparent 70%)' }} />
-                        )}
-                        <div className="relative z-[1] flex items-center gap-3">
-                          <div className="w-8 h-8 flex items-center justify-center" style={{ background: 'rgba(0,217,54,0.1)', border: '1px solid rgba(0,217,54,0.2)' }}>
-                            <Gamepad2 size={14} style={{ color: 'var(--s-green)' }} />
-                          </div>
-                          <span className="text-sm font-semibold" style={{ color: form.games.includes('trackmania') ? 'var(--s-green)' : 'var(--s-text)' }}>Trackmania</span>
-                          {form.games.includes('trackmania') && <CheckCircle size={14} className="ml-auto" style={{ color: 'var(--s-green)' }} />}
-                        </div>
-                      </button>
+                      {ALL_GAME_DEFS.map(g => {
+                        const active = form.games.includes(g.id);
+                        return (
+                          <button
+                            key={g.id}
+                            type="button"
+                            onClick={() => toggleGame(g.id)}
+                            className="p-4 text-left transition-all duration-150 relative overflow-hidden"
+                            style={{
+                              background: active ? `rgba(${g.colorRgb}, 0.08)` : 'var(--s-elevated)',
+                              border: active ? `2px solid rgba(${g.colorRgb}, 0.4)` : '2px solid var(--s-border)',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {active && (
+                              <div
+                                className="absolute top-0 right-0 w-24 h-24 pointer-events-none opacity-[0.08]"
+                                style={{ background: `radial-gradient(circle at top right, ${g.color}, transparent 70%)` }}
+                              />
+                            )}
+                            <div className="relative z-[1] flex items-center gap-3">
+                              <div
+                                className="w-8 h-8 flex items-center justify-center"
+                                style={{
+                                  background: `rgba(${g.colorRgb}, 0.1)`,
+                                  border: `1px solid rgba(${g.colorRgb}, 0.2)`,
+                                }}
+                              >
+                                <Gamepad2 size={14} style={{ color: g.color }} />
+                              </div>
+                              <span
+                                className="text-sm font-semibold"
+                                style={{ color: active ? g.colorLight : 'var(--s-text)' }}
+                              >
+                                {g.label}
+                              </span>
+                              {active && <CheckCircle size={14} className="ml-auto" style={{ color: g.color }} />}
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
 
                     {form.games.includes('rocket_league') && (() => {
