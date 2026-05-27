@@ -904,10 +904,26 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                         Aucun rang renseigné.{isOwner ? ' Ajoute ton rang dans tes paramètres.' : ''}
                       </div>
                     )}
-                    {/* Lien tracker.gg Valorant si RiotID Discord lié */}
+                    {/* Lien tracker.gg Valorant si RiotID Discord lié (avec tag).
+                        Si le tag manque encore (Discord renvoie parfois juste le name),
+                        on affiche un état "en cours d'enrichissement" car le callback
+                        ou le cron HenrikDev va le résoudre via le PUUID. */}
                     {(() => {
                       const riotId = pickValorantRiotId(profile.discordConnections);
                       if (!riotId) return null;
+                      if (!riotId.tag) {
+                        return (
+                          <div
+                            className="flex items-center gap-2 px-3 py-2"
+                            style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}
+                          >
+                            <Link2 size={11} style={{ color: 'var(--s-text-muted)' }} />
+                            <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                              Compte Riot lié — RiotID en cours de résolution…
+                            </span>
+                          </div>
+                        );
+                      }
                       const tracker = `https://tracker.gg/valorant/profile/riot/${encodeURIComponent(`${riotId.name}#${riotId.tag}`)}/overview`;
                       return (
                         <a

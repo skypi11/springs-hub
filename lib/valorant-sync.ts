@@ -16,7 +16,7 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
 import { pickValorantRiotId, type DiscordConnection } from '@/lib/discord-connections';
-import { fetchValorantMmr } from '@/lib/valorant-henrikdev';
+import { fetchValorantMmr, fetchValorantAccountByPuuid } from '@/lib/valorant-henrikdev';
 import { loadCronState, saveCronState } from '@/lib/cron-state';
 
 const STATE_KEY = 'valorant_rank_sync';
@@ -84,10 +84,27 @@ export async function syncValorantRanksBatch(db: Firestore): Promise<SyncStats> 
     const riotId = pickValorantRiotId(connections);
     if (!riotId) continue; // pas de Riot lié → on respecte la saisie déclarative
 
-    // Sleep avant call pour respecter rate-limit HenrikDev
+    // Si on n'a pas de tag (Discord renvoie parfois juste le name sans #TAG),
+    // on résout d'abord via le PUUID. Cas typique : user fraîchement loggé
+    // avant que le callback Discord ait pu enrichir la connection.
+    let resolvedName = riotId.name;
+    let resolvedTag = riotId.tag;
+    if (!resolvedTag) {
+      await new Promise(r => setTimeout(r, HENRIKDEV_DELAY_MS));
+      const acc = await fetchValorantAccountByPuuid(riotId.puuid);
+      if (!acc.ok) {
+        if (acc.status === 404) stats.notRanked++;
+        else stats.errors++;
+        continue;
+      }
+      resolvedName = acc.data.name;
+      resolvedTag = acc.data.tag;
+    }
+
+    // Sleep avant call MMR pour respecter rate-limit HenrikDev
     await new Promise(r => setTimeout(r, HENRIKDEV_DELAY_MS));
 
-    const res = await fetchValorantMmr({ name: riotId.name, tag: riotId.tag });
+    const res = await fetchValorantMmr({ name: resolvedName, tag: resolvedTag });
     if (!res.ok) {
       if (res.status === 404) {
         stats.notRanked++;

@@ -590,7 +590,8 @@ export async function POST(req: NextRequest) {
               valorantRank: targetData.valorantRank || null,
               riotId: (() => {
                 const r = pickValorantRiotId(targetData.discordConnections);
-                return r ? `${r.name}#${r.tag}` : null;
+                if (!r) return null;
+                return r.tag ? `${r.name}#${r.tag}` : (r.name || null);
               })(),
               siteUrl: `${req.nextUrl.origin}/community/my-structure?tab=recruitment`,
               pingRoleId: structureData.discordIntegration?.staffRoleId || null,

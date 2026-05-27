@@ -3,6 +3,7 @@ import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { fetchDiscordConnections, mergeConnections, type DiscordConnection } from '@/lib/discord-connections';
+import { fetchValorantAccountByPuuid } from '@/lib/valorant-henrikdev';
 import { syncDiscordMember } from '@/lib/discord-role-sync';
 import { generateBaseSlug, generateUniqueSlug } from '@/lib/user-slug';
 
@@ -91,6 +92,29 @@ export async function GET(req: NextRequest) {
         ? (userSnap.data()?.discordConnections as DiscordConnection[] | undefined)
         : undefined;
       mergedConnections = mergeConnections(fresh, existing);
+
+      // Enrichissement Riot/Valorant : Discord renvoie souvent le `name` sans
+      // le tag (format "Skypi" au lieu de "Skypi#EUW"). On résout le RiotID
+      // complet via HenrikDev à partir du PUUID, puis on écrit "Name#TAG"
+      // dans le `name` de la connection pour que pickValorantRiotId fonctionne
+      // partout (profil, embed Discord, cron sync). Erreur silencieuse — on
+      // garde le name partiel si HenrikDev down.
+      const riotConn = mergedConnections?.find(c => c.type === 'riotgames');
+      if (riotConn && riotConn.id && !riotConn.name.includes('#')) {
+        try {
+          const acc = await fetchValorantAccountByPuuid(riotConn.id);
+          if (acc.ok) {
+            const fullRiotId = `${acc.data.name}#${acc.data.tag}`;
+            mergedConnections = mergedConnections!.map(c =>
+              c.type === 'riotgames' && c.id === riotConn.id
+                ? { ...c, name: fullRiotId }
+                : c
+            );
+          }
+        } catch (err) {
+          console.error('[Discord callback] HenrikDev resolve RiotID failed (non-fatal):', err);
+        }
+      }
     } catch (err) {
       console.error('[Discord callback] fetch connections failed (non-fatal):', err);
     }

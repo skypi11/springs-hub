@@ -183,25 +183,38 @@ export function pickBestRLConnection(
 
 /**
  * Extrait le RiotID Valorant depuis la connexion Discord 'riotgames'.
- * Discord renvoie le RiotID complet "Name#TAG" dans `connection.name`,
- * et le PUUID Riot encrypted dans `connection.id` (immuable, à garder pour
- * appels API ultérieurs vers HenrikDev / Riot officiel).
  *
- * @returns { name: 'Skypi', tag: 'EUW', puuid: '...' } ou null si pas de connexion Riot.
+ * Discord stocke en pratique :
+ * - `connection.id` : PUUID Riot encrypted (toujours présent, immuable)
+ * - `connection.name` : soit "Name#TAG" complet, soit juste "Name" sans tag
+ *   (le format dépend du contexte et peut évoluer)
+ *
+ * On retourne :
+ * - `puuid` toujours (clé immuable pour appels HenrikDev futurs)
+ * - `name` et `tag` si on peut les extraire de `connection.name`. Sinon `tag: ''`
+ *   et `name: connection.name` (utiliser fetchValorantAccountByPuuid pour résoudre).
+ *
+ * @returns `{ name, tag, puuid }` (tag peut être vide) ou null si pas de connexion Riot.
  */
 export function pickValorantRiotId(
   connections: DiscordConnection[] | null | undefined,
 ): { name: string; tag: string; puuid: string } | null {
   if (!connections) return null;
   const conn = connections.find(c => c.type === 'riotgames');
-  if (!conn || !conn.name) return null;
-  const hashIdx = conn.name.lastIndexOf('#');
-  if (hashIdx < 1 || hashIdx === conn.name.length - 1) return null;
-  return {
-    name: conn.name.slice(0, hashIdx).trim(),
-    tag: conn.name.slice(hashIdx + 1).trim(),
-    puuid: conn.id,
-  };
+  if (!conn || !conn.id) return null;
+  const rawName = (conn.name ?? '').trim();
+  const hashIdx = rawName.lastIndexOf('#');
+  // Format "Name#TAG" complet
+  if (hashIdx >= 1 && hashIdx < rawName.length - 1) {
+    return {
+      name: rawName.slice(0, hashIdx).trim(),
+      tag: rawName.slice(hashIdx + 1).trim(),
+      puuid: conn.id,
+    };
+  }
+  // Format partiel — pas de tag dans name. On retourne ce qu'on a, le caller
+  // peut résoudre via HenrikDev fetchValorantAccountByPuuid si nécessaire.
+  return { name: rawName, tag: '', puuid: conn.id };
 }
 
 // Merge les nouvelles connexions fetchées avec celles déjà en Firestore,

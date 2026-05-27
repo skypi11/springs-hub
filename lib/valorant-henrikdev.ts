@@ -39,6 +39,47 @@ export interface HenrikMmrOk {
 }
 
 /**
+ * Résout le RiotID complet (name + tag) depuis un PUUID Riot.
+ * Utile quand Discord nous fournit le PUUID mais pas le tag (le `name` de la
+ * connection Discord ne contient pas toujours le format complet "Name#TAG").
+ *
+ * @example
+ *   const acc = await fetchValorantAccountByPuuid('abc-def-...', 'eu');
+ *   if (acc.ok) console.log(`${acc.data.name}#${acc.data.tag}`);
+ */
+export async function fetchValorantAccountByPuuid(
+  puuid: string,
+  region: ValorantRegion = 'eu',
+): Promise<{ ok: true; data: { name: string; tag: string; region: string } } | HenrikMmrError> {
+  const url = `${HENRIKDEV_BASE}/v1/by-puuid/account/${encodeURIComponent(puuid)}`;
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  const apiKey = process.env.HENRIKDEV_API_KEY;
+  if (apiKey) headers['Authorization'] = apiKey;
+
+  try {
+    const res = await fetch(url, { headers, cache: 'no-store' });
+    if (!res.ok) {
+      return { ok: false, status: res.status, message: `HenrikDev HTTP ${res.status}` };
+    }
+    const json = await res.json() as {
+      data?: { name?: string; tag?: string; region?: string };
+    };
+    const name = json.data?.name;
+    const tag = json.data?.tag;
+    if (!name || !tag) {
+      return { ok: false, status: 404, message: 'Compte Riot non résolu (réponse incomplète)' };
+    }
+    return { ok: true, data: { name, tag, region: json.data?.region ?? region } };
+  } catch (err) {
+    return {
+      ok: false,
+      status: 0,
+      message: err instanceof Error ? err.message : 'HenrikDev fetch failed',
+    };
+  }
+}
+
+/**
  * Récupère le rang Valorant actuel d'un joueur via son RiotID.
  *
  * @example
