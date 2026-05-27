@@ -5,6 +5,7 @@ import {
   getGame,
   getGameOrThrow,
   getGameColor,
+  getGameColorRgb,
   getGameLabel,
   getGameShortLabel,
   getGameLogoUrl,
@@ -110,6 +111,12 @@ describe('getters avec fallback', () => {
   it('getGameColor fallback neutre si jeu inconnu', () => {
     expect(getGameColor('lol')).toBe('var(--s-text-dim)');
     expect(getGameColor('rocket_league')).toBe('#0081FF');
+  });
+
+  it('getGameColorRgb parsable en R,G,B et match getGameColor', () => {
+    expect(getGameColorRgb('rocket_league')).toBe('0,129,255');
+    expect(getGameColorRgb('trackmania')).toBe('0,217,54');
+    expect(getGameColorRgb('lol')).toMatch(/^\d+,\d+,\d+$/); // fallback valide
   });
 
   it('getGameLabel fallback "Jeu inconnu"', () => {

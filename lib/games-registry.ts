@@ -48,6 +48,8 @@ export interface GameDef {
   color: string;
   /** Variante claire (hover, glow) */
   colorLight: string;
+  /** Composants RGB de `color` sous forme "R,G,B" — sert aux `rgba(${colorRgb}, 0.1)` (glows, fond pills) */
+  colorRgb: string;
   /** Chemin asset logo carré (dans /public), commence par "/" */
   logoUrl: string;
   /** Chemin asset bannière 6:1 (dans /public), commence par "/" */
@@ -72,6 +74,7 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
     slug: 'rl',
     color: '#0081FF',
     colorLight: '#3FA0FF',
+    colorRgb: '0,129,255',
     logoUrl: '/rocket-league.webp',
     bannerUrl: '/rocket-league.webp',
     roster: { titulaires: 3, remplacants: 2, allowSolo: false },
@@ -90,6 +93,7 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
     slug: 'tm',
     color: '#00D936',
     colorLight: '#3FF06A',
+    colorRgb: '0,217,54',
     logoUrl: '/tm.webp',
     bannerUrl: '/tm.webp',
     roster: { titulaires: 1, remplacants: 0, allowSolo: true },
@@ -127,6 +131,11 @@ export function getGameOrThrow(id: string): GameDef {
 /** Couleur principale d'un jeu, avec fallback neutre si jeu inconnu */
 export function getGameColor(id: string | null | undefined): string {
   return getGame(id)?.color ?? 'var(--s-text-dim)';
+}
+
+/** Composants RGB "R,G,B" pour usage dans `rgba()`, avec fallback gris dim */
+export function getGameColorRgb(id: string | null | undefined): string {
+  return getGame(id)?.colorRgb ?? '122,122,149'; // matches --s-text-dim
 }
 
 /** Label complet ("Rocket League") avec fallback "Jeu inconnu" */
