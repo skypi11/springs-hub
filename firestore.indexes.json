@@ -253,6 +253,14 @@
         { "fieldPath": "targetId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "announce_templates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "publishOnSite", "order": "ASCENDING" },
+        { "fieldPath": "publishedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
