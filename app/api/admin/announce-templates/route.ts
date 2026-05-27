@@ -9,6 +9,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { captureApiError } from '@/lib/sentry';
 import { clampString } from '@/lib/validation';
 import type { AnnounceTemplate } from '@/types';
+import { isValidChangelogCategory } from '@/lib/changelog-categories';
 
 async function requireAdmin(req: NextRequest): Promise<string | NextResponse> {
   const uid = await verifyAuth(req);
@@ -55,6 +56,10 @@ export async function GET(req: NextRequest) {
         updatedAt: data.updatedAt?.toDate?.()?.toISOString?.() ?? null,
         createdBy: data.createdBy ?? null,
         lastUsedAt: data.lastUsedAt?.toDate?.()?.toISOString?.() ?? null,
+        // Champs changelog public — defaults pour les vieux templates qui n'avaient pas ces champs
+        publishOnSite: data.publishOnSite !== false, // default true (les anciens templates apparaissent)
+        category: data.category ?? 'feature',
+        publishedAt: data.publishedAt?.toDate?.()?.toISOString?.() ?? null,
       };
     });
     return NextResponse.json({ templates });
@@ -89,6 +94,12 @@ export async function POST(req: NextRequest) {
     const key = body.key ? slugify(String(body.key)) : slugify(label);
 
     const db = getAdminDb();
+    // Champs changelog public (timeline /changelog).
+    // Default publishOnSite=true pour qu'un nouvel admin n'oublie pas de cocher
+    // — il peut désactiver explicitement pour les annonces Discord-only.
+    const publishOnSite = body.publishOnSite !== false;
+    const category = isValidChangelogCategory(body.category) ? body.category : 'feature';
+
     const docRef = await db.collection('announce_templates').add({
       key,
       label,
@@ -96,6 +107,11 @@ export async function POST(req: NextRequest) {
       description,
       color,
       defaultChannelHint,
+      publishOnSite,
+      category,
+      // publishedAt = serverTimestamp si publié sur le site, sinon null (peut
+      // être set plus tard via PUT si on toggle publishOnSite à true plus tard).
+      publishedAt: publishOnSite ? FieldValue.serverTimestamp() : null,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
       createdBy: auth,

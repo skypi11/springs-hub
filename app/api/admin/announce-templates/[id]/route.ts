@@ -6,6 +6,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { captureApiError } from '@/lib/sentry';
 import { clampString } from '@/lib/validation';
+import { isValidChangelogCategory } from '@/lib/changelog-categories';
 
 async function requireAdmin(req: NextRequest): Promise<string | NextResponse> {
   const uid = await verifyAuth(req);
@@ -44,6 +45,23 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     // Marqueur d'utilisation — utile pour tri "récent"
     if (body.markUsed === true) {
       updates.lastUsedAt = FieldValue.serverTimestamp();
+    }
+    // Catégorie changelog — fallback 'feature' si valeur invalide.
+    if (body.category !== undefined) {
+      updates.category = isValidChangelogCategory(body.category) ? body.category : 'feature';
+    }
+    // Toggle publication sur le site. Si on passe de false à true, on set
+    // publishedAt si pas déjà défini (premier ship). Si on passe à false,
+    // on garde publishedAt (sert d'archive si on republie).
+    if (typeof body.publishOnSite === 'boolean') {
+      updates.publishOnSite = body.publishOnSite;
+      if (body.publishOnSite) {
+        const db = getAdminDb();
+        const existing = await db.collection('announce_templates').doc(id).get();
+        if (existing.exists && !existing.data()?.publishedAt) {
+          updates.publishedAt = FieldValue.serverTimestamp();
+        }
+      }
     }
 
     const db = getAdminDb();

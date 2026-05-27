@@ -93,6 +93,8 @@ export interface SpringsUser {
   // compte Riot dans Discord), on détecte et on peut alerter / flagger.
   valorantPuuid?: string;
   valorantPuuidLinkedAt?: Date | string; // timestamp du premier link
+  // Dernière fois que l'user a ouvert /changelog (sert au dot rouge sidebar).
+  lastChangelogSeenAt?: Date | string;
   createdAt?: Date;
   // Enrichissement renvoyé par GET /api/profile — structures où le joueur est impliqué
   structures?: ProfileStructure[];
@@ -303,6 +305,16 @@ export interface AnnounceTemplate {
   updatedAt?: Date | string;
   createdBy?: string;          // uid admin
   lastUsedAt?: Date | string;  // pour tri "récemment utilisé"
+  // Publication sur le site public /changelog (timeline). Quand true,
+  // l'annonce apparaît dans la page changelog publique. Defaults to true
+  // pour les nouvelles annonces — mettre à false pour Discord-only.
+  publishOnSite?: boolean;
+  /** Catégorie de la timeline (feature / ux / tech / fix / security).
+   *  Défaut 'feature' si absent. Voir lib/changelog-categories.ts. */
+  category?: string;
+  /** Date de publication sur le site (premier ship). Utilisé pour ordonner
+   *  la timeline indépendamment du updatedAt qui peut bouger sur édition. */
+  publishedAt?: Date | string;
 }
 
 // ── Replays ──────────────────────────────────────────────────────────────

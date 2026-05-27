@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import type { AnnounceTemplate } from '@/types';
+import { ALL_CHANGELOG_CATEGORIES, getChangelogCategory } from '@/lib/changelog-categories';
 
 interface BroadcastChannel {
   id: string;
@@ -44,10 +45,15 @@ interface SendResponse {
 const AEDRAL_OR = 0xFFB800;
 
 // Template locale "Vide" — pas stockée en Firestore, juste un reset rapide
-const BLANK_TEMPLATE: Pick<AnnounceTemplate, 'title' | 'description' | 'color' | 'defaultChannelHint'> = {
+const BLANK_TEMPLATE: Pick<AnnounceTemplate, 'title' | 'description' | 'color' | 'defaultChannelHint'> & {
+  category: string;
+  publishOnSite: boolean;
+} = {
   title: '',
   description: '',
   color: AEDRAL_OR,
+  category: 'feature',
+  publishOnSite: true,
 };
 
 export default function AdminAnnouncePage() {
@@ -70,6 +76,8 @@ export default function AdminAnnouncePage() {
   const [title, setTitle] = useState(BLANK_TEMPLATE.title);
   const [description, setDescription] = useState(BLANK_TEMPLATE.description);
   const [color, setColor] = useState(BLANK_TEMPLATE.color);
+  const [category, setCategory] = useState<string>(BLANK_TEMPLATE.category);
+  const [publishOnSite, setPublishOnSite] = useState<boolean>(BLANK_TEMPLATE.publishOnSite);
   const [sending, setSending] = useState(false);
   const [savingTpl, setSavingTpl] = useState(false);
   const [lastSent, setLastSent] = useState<SendResponse | null>(null);
@@ -124,6 +132,8 @@ export default function AdminAnnouncePage() {
       setTitle(BLANK_TEMPLATE.title);
       setDescription(BLANK_TEMPLATE.description);
       setColor(BLANK_TEMPLATE.color);
+      setCategory(BLANK_TEMPLATE.category);
+      setPublishOnSite(BLANK_TEMPLATE.publishOnSite);
       return;
     }
     const tpl = templates.find(t => t.id === tplId);
@@ -131,6 +141,8 @@ export default function AdminAnnouncePage() {
     setTitle(tpl.title);
     setDescription(tpl.description);
     setColor(tpl.color);
+    setCategory(tpl.category ?? 'feature');
+    setPublishOnSite(tpl.publishOnSite !== false);
     // Auto-sélectionne le channel suggéré si dispo
     if (tpl.defaultChannelHint && channels) {
       const hint = tpl.defaultChannelHint.toLowerCase();
@@ -156,7 +168,11 @@ export default function AdminAnnouncePage() {
     try {
       const res = await api<{ ok: true; id: string }>('/api/admin/announce-templates', {
         method: 'POST',
-        body: { label: label.trim(), title, description, color, defaultChannelHint: channelHint?.trim() ?? null },
+        body: {
+          label: label.trim(), title, description, color,
+          defaultChannelHint: channelHint?.trim() ?? null,
+          category, publishOnSite,
+        },
       });
       toast.success(`Template "${label.trim()}" sauvegardée`);
       setSelectedTemplateId(res.id);
@@ -174,7 +190,7 @@ export default function AdminAnnouncePage() {
     try {
       await api(`/api/admin/announce-templates/${selectedTemplateId}`, {
         method: 'PATCH',
-        body: { title, description, color },
+        body: { title, description, color, category, publishOnSite },
       });
       toast.success('Template mise à jour');
       await loadTemplates();
@@ -203,6 +219,8 @@ export default function AdminAnnouncePage() {
       setTitle(BLANK_TEMPLATE.title);
       setDescription(BLANK_TEMPLATE.description);
       setColor(BLANK_TEMPLATE.color);
+      setCategory(BLANK_TEMPLATE.category);
+      setPublishOnSite(BLANK_TEMPLATE.publishOnSite);
       await loadTemplates();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Erreur de suppression');
@@ -245,8 +263,20 @@ export default function AdminAnnouncePage() {
   // Détecte si le contenu actuel diffère de la template sélectionnée
   const selectedTpl = templates.find(t => t.id === selectedTemplateId);
   const isDirty = selectedTpl
-    ? (selectedTpl.title !== title || selectedTpl.description !== description || selectedTpl.color !== color)
-    : (title !== BLANK_TEMPLATE.title || description !== BLANK_TEMPLATE.description || color !== BLANK_TEMPLATE.color);
+    ? (
+        selectedTpl.title !== title
+        || selectedTpl.description !== description
+        || selectedTpl.color !== color
+        || (selectedTpl.category ?? 'feature') !== category
+        || (selectedTpl.publishOnSite !== false) !== publishOnSite
+      )
+    : (
+        title !== BLANK_TEMPLATE.title
+        || description !== BLANK_TEMPLATE.description
+        || color !== BLANK_TEMPLATE.color
+        || category !== BLANK_TEMPLATE.category
+        || publishOnSite !== BLANK_TEMPLATE.publishOnSite
+      );
 
   // Grouper les channels par catégorie
   const channelsByCategory = (channels ?? []).reduce<Record<string, BroadcastChannel[]>>((acc, c) => {
@@ -466,6 +496,61 @@ export default function AdminAnnouncePage() {
                   Or Aedral
                 </button>
               </div>
+            </div>
+
+            {/* Catégorie changelog — détermine emoji + couleur dans la timeline /changelog */}
+            <div>
+              <label className="t-label block mb-2">Catégorie (pour la timeline /changelog)</label>
+              <div className="flex flex-wrap gap-1.5">
+                {ALL_CHANGELOG_CATEGORIES.map(cat => {
+                  const active = category === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setCategory(cat.id)}
+                      className="tag flex items-center gap-1.5 transition-all duration-150"
+                      style={{
+                        background: active ? `rgba(${cat.colorRgb}, 0.15)` : 'transparent',
+                        color: active ? cat.color : 'var(--s-text-muted)',
+                        borderColor: active ? `rgba(${cat.colorRgb}, 0.4)` : 'var(--s-border)',
+                        cursor: 'pointer',
+                        padding: '5px 10px',
+                        fontSize: '12px',
+                      }}
+                      title={cat.hint}
+                    >
+                      <span>{cat.emoji}</span> {cat.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
+                {getChangelogCategory(category).hint}
+              </p>
+            </div>
+
+            {/* Toggle publication sur le site */}
+            <div className="p-3 bevel-sm" style={{ background: publishOnSite ? 'rgba(255,184,0,0.05)' : 'var(--s-elevated)', border: `1px solid ${publishOnSite ? 'rgba(255,184,0,0.25)' : 'var(--s-border)'}` }}>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={publishOnSite}
+                  onChange={e => setPublishOnSite(e.target.checked)}
+                  className="w-4 h-4 cursor-pointer"
+                  style={{ accentColor: 'var(--s-gold)' }}
+                />
+                <div className="flex-1">
+                  <span className="text-sm font-semibold" style={{ color: publishOnSite ? 'var(--s-gold)' : 'var(--s-text)' }}>
+                    Publier aussi sur le site (page /changelog)
+                  </span>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--s-text-muted)' }}>
+                    {publishOnSite
+                      ? '✓ Visible par tous les visiteurs du site dans la timeline Nouveautés. Décocher pour annonce Discord-only.'
+                      : 'Annonce Discord-only. Cocher pour publier aussi sur /changelog (touche les 80 % d\'inscrits qui ne sont pas sur le Discord).'}
+                  </p>
+                </div>
+              </label>
             </div>
 
             {/* Envoi */}

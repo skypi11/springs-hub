@@ -4,9 +4,11 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Home, Users, Trophy, LogOut, Swords, Settings, Building2, Calendar, Search, Menu, X, Inbox, BookOpen } from 'lucide-react';
+import { Home, Users, Trophy, LogOut, Swords, Settings, Building2, Calendar, Search, Menu, X, Inbox, BookOpen, Sparkles } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import NotificationsBell from '@/components/ui/NotificationsBell';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api-client';
 import DevSwitcher from '@/components/dev/DevSwitcher';
 import AedralLogo from '@/components/brand/AedralLogo';
 import DiscordIcon, { AEDRAL_DISCORD_INVITE_URL } from '@/components/icons/DiscordIcon';
@@ -23,6 +25,27 @@ export default function Sidebar() {
   const { user, isAdmin, loading, signInWithDiscord, signOut } = useAuth();
   const [isMac, setIsMac] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Dot rouge "Nouveau" sur l'entrée Nouveautés : on compare le publishedAt
+  // du dernier patch à user.lastChangelogSeenAt. Si nouveau patch depuis la
+  // dernière visite, dot affiché. Refresh à chaque navigation pour éviter
+  // le stale (mais cache CDN /api/changelog/latest absorbe les pics).
+  // Note : pour les visiteurs non connectés (user null), le dot est affiché
+  // dès qu'il y a un patch (= ils sont nouveaux, montrer qu'il y a du contenu).
+  const { data: latestChangelog } = useQuery({
+    queryKey: ['changelog', 'latest'] as const,
+    queryFn: () => api<{ publishedAt: string | null }>('/api/changelog/latest'),
+    staleTime: 60_000,
+  });
+  const hasNewChangelog = (() => {
+    if (!latestChangelog?.publishedAt) return false;
+    if (!user) return true; // visiteur non connecté → on signale qu'il y a du contenu
+    const seen = user.lastChangelogSeenAt;
+    if (!seen) return true; // jamais vu
+    const seenMs = new Date(typeof seen === 'string' ? seen : seen.toISOString()).getTime();
+    const latestMs = new Date(latestChangelog.publishedAt).getTime();
+    return latestMs > seenMs;
+  })();
 
   useEffect(() => {
     if (typeof navigator !== 'undefined') {
@@ -223,6 +246,32 @@ export default function Sidebar() {
           }}>
           <BookOpen size={17} style={{ color: pathname.startsWith('/guide') ? 'var(--s-gold)' : 'var(--s-text-muted)', flexShrink: 0 }} />
           <span className="font-medium text-sm">Guide</span>
+        </Link>
+
+        {/* Nouveautés — timeline /changelog, dot rouge si patch non vu */}
+        <Link href="/changelog"
+          className="flex items-center gap-3 px-3 py-2.5 transition-all duration-150 relative"
+          style={{
+            background: pathname.startsWith('/changelog') ? 'rgba(255,184,0,0.08)' : 'transparent',
+            color: pathname.startsWith('/changelog') ? 'var(--s-gold)' : 'var(--s-text-dim)',
+            borderLeft: pathname.startsWith('/changelog') ? '3px solid var(--s-gold)' : '3px solid transparent',
+          }}>
+          <Sparkles size={17} style={{ color: pathname.startsWith('/changelog') ? 'var(--s-gold)' : 'var(--s-text-muted)', flexShrink: 0 }} />
+          <span className="font-medium text-sm">Nouveautés</span>
+          {hasNewChangelog && !pathname.startsWith('/changelog') && (
+            <span
+              className="ml-auto flex-shrink-0"
+              aria-label="Nouveau"
+              title="Nouveau patch publié"
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: '#ff5555',
+                boxShadow: '0 0 8px rgba(255,85,85,0.6)',
+              }}
+            />
+          )}
         </Link>
 
         {/* Admin */}
