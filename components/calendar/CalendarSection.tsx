@@ -236,17 +236,10 @@ export default function CalendarSection({
     setViewMode(v);
     try { localStorage.setItem('aedral_calendar_view', v); } catch { /* quota / mode privé */ }
   };
-  // La vue Semaine (grille 7 colonnes × créneaux) est inexploitable < lg : on
-  // retombe sur la vue Liste sur mobile/tablette, et le bouton Semaine est masqué.
-  const [isWide, setIsWide] = useState(true);
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 1024px)');
-    const apply = () => setIsWide(mq.matches);
-    apply();
-    mq.addEventListener('change', apply);
-    return () => mq.removeEventListener('change', apply);
-  }, []);
-  const effectiveViewMode = !isWide && viewMode === 'week' ? 'list' : viewMode;
+  // Vue Semaine : la grille 7 colonnes × créneaux 30 min est inexploitable en
+  // <lg, mais la WeekView a maintenant un mode mobile (1 jour à la fois avec
+  // strip de sélection des 7 jours). On laisse donc le bouton accessible partout.
+  const effectiveViewMode = viewMode;
   // formPrefill : null = modale fermée ; objet = ouverte (éventuellement pré-remplie
   // avec une date quand on a cliqué sur une case du calendrier).
   const [formPrefill, setFormPrefill] = useState<{ startsAt?: string; endsAt?: string } | null>(null);
@@ -371,7 +364,7 @@ export default function CalendarSection({
           <span className="font-display text-sm tracking-wider">CALENDRIER</span>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          {/* Bascule de vue : grille mois / semaine (desktop) / liste / staff (responsable+) */}
+          {/* Bascule de vue : grille mois / semaine / liste / staff (responsable+) */}
           <div className="flex bevel-sm overflow-hidden" style={{ border: '1px solid var(--s-border)' }}>
             {([
               { v: 'month' as const, label: 'Mois', icon: <LayoutGrid size={12} />, gated: false },
@@ -384,7 +377,7 @@ export default function CalendarSection({
               { v: 'staff' as const, label: 'Staff', icon: <Users size={12} />, gated: !(isDirigeant(userContext) || userContext.isManager) },
             ]).filter(opt => !opt.gated).map(opt => (
               <button key={opt.v} type="button" onClick={() => changeView(opt.v)}
-                className={`${opt.v === 'week' ? 'hidden lg:flex' : 'flex'} items-center gap-1.5 text-xs font-semibold transition-colors duration-150`}
+                className="flex items-center gap-1.5 text-xs font-semibold transition-colors duration-150"
                 style={{
                   padding: '5px 10px',
                   background: effectiveViewMode === opt.v ? 'rgba(255,184,0,0.15)' : 'var(--s-elevated)',

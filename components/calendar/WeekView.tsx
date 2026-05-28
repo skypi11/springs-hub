@@ -189,6 +189,29 @@ export default function WeekView({
 
   const grid = useMemo(() => generateWeekGrid(weekMonday, todayYmd), [weekMonday, todayYmd]);
 
+  // Responsive : en mobile/tablette (<lg), la grille 7 colonnes est illisible.
+  // On bascule en "Vue Jour" — un seul jour à la fois, sélectionnable via une
+  // bande de 7 chips au-dessus de la grille. Le panneau latéral Dispos passe
+  // sous la grille (au lieu de à droite).
+  const [isWide, setIsWide] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const apply = () => setIsWide(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+  // Jour sélectionné en mode mobile (index 0..6 dans grid.days).
+  // Reset au jour courant à chaque changement de semaine pour éviter de tomber
+  // sur un jour passé ou hors-grille.
+  const [mobileDayIdx, setMobileDayIdx] = useState(0);
+  useEffect(() => {
+    const todayIdx = grid.days.findIndex(d => d.gridYmd === todayYmd);
+    setMobileDayIdx(todayIdx >= 0 ? todayIdx : 0);
+  }, [grid, todayYmd]);
+  // Jours affichés : tous (desktop) ou juste le sélectionné (mobile).
+  const displayedDays = isWide ? grid.days : [grid.days[mobileDayIdx] ?? grid.days[0]];
+
   // Couche dispos : une seule équipe ciblée. Les jetons spéciaux du filtre
   // (staff, structure — préfixés "__") ne sont pas des équipes et sont ignorés.
   // Si la structure n'a qu'une équipe, pas de filtre à régler — on la prend d'office.
@@ -505,37 +528,84 @@ export default function WeekView({
         </button>
       </div>
 
-      <div className="flex gap-4 items-start">
+      {/* Sélecteur de jour mobile — 7 chips (LUN..DIM) qui ciblent le jour
+          affiché dans la grille. Inutile en desktop où les 7 jours sont visibles
+          côte-à-côte. */}
+      {!isWide && (
+        <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(7, 1fr)' }}>
+          {grid.days.map((d, i) => {
+            const isToday = d.gridYmd === todayYmd;
+            const isSelected = i === mobileDayIdx;
+            const date = new Date(d.gridYmd + 'T12:00:00');
+            return (
+              <button key={d.gridYmd} type="button"
+                onClick={() => setMobileDayIdx(i)}
+                className="flex flex-col items-center justify-center bevel-sm transition-colors"
+                style={{
+                  padding: '6px 2px',
+                  background: isSelected
+                    ? 'rgba(255,184,0,0.15)'
+                    : (isToday ? 'rgba(255,184,0,0.06)' : 'var(--s-elevated)'),
+                  border: `1px solid ${isSelected
+                    ? 'rgba(255,184,0,0.55)'
+                    : (isToday ? 'rgba(255,184,0,0.25)' : 'var(--s-border)')}`,
+                  opacity: d.isPast && !isSelected ? 0.5 : 1,
+                  cursor: 'pointer',
+                }}>
+                <span className="t-label" style={{
+                  fontSize: 9,
+                  color: isSelected ? 'var(--s-gold)' : (isToday ? 'var(--s-gold)' : 'var(--s-text-muted)'),
+                }}>
+                  {DAY_LABELS[i]}
+                </span>
+                <span className="font-display" style={{
+                  fontSize: 16,
+                  color: isSelected ? 'var(--s-gold)' : 'var(--s-text)',
+                  lineHeight: 1.1,
+                }}>
+                  {date.getDate()}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="flex flex-col lg:flex-row gap-4 items-start">
         {/* Grille principale */}
-        <div className="flex-1 min-w-0">
-          {/* En-têtes des jours */}
-          <div className="grid" style={{ gridTemplateColumns: `46px repeat(7, 1fr)` }}>
-            <div />
-            {grid.days.map((d, i) => {
-              const isToday = d.gridYmd === todayYmd;
-              const date = new Date(d.gridYmd + 'T12:00:00');
-              return (
-                <div key={d.gridYmd} className="text-center pb-1.5"
-                  style={{ opacity: d.isPast ? 0.5 : 1 }}>
-                  <div className="t-label" style={{ color: isToday ? 'var(--s-gold)' : 'var(--s-text-muted)' }}>
-                    {DAY_LABELS[i]}
+        <div className="flex-1 min-w-0 w-full">
+          {/* En-têtes des jours — desktop uniquement (le strip mobile au-dessus
+              fait office de header en <lg). */}
+          {isWide && (
+            <div className="grid" style={{ gridTemplateColumns: `46px repeat(${displayedDays.length}, 1fr)` }}>
+              <div />
+              {displayedDays.map(d => {
+                const i = grid.days.indexOf(d);
+                const isToday = d.gridYmd === todayYmd;
+                const date = new Date(d.gridYmd + 'T12:00:00');
+                return (
+                  <div key={d.gridYmd} className="text-center pb-1.5"
+                    style={{ opacity: d.isPast ? 0.5 : 1 }}>
+                    <div className="t-label" style={{ color: isToday ? 'var(--s-gold)' : 'var(--s-text-muted)' }}>
+                      {DAY_LABELS[i]}
+                    </div>
+                    <div className="font-display flex items-center justify-center mx-auto"
+                      style={{
+                        fontSize: 15,
+                        width: isToday ? 22 : 'auto', height: isToday ? 22 : 'auto',
+                        background: isToday ? 'var(--s-gold)' : 'transparent',
+                        color: isToday ? '#0a0a0a' : 'var(--s-text-dim)',
+                      }}>
+                      {date.getDate()}
+                    </div>
                   </div>
-                  <div className="font-display flex items-center justify-center mx-auto"
-                    style={{
-                      fontSize: 15,
-                      width: isToday ? 22 : 'auto', height: isToday ? 22 : 'auto',
-                      background: isToday ? 'var(--s-gold)' : 'transparent',
-                      color: isToday ? '#0a0a0a' : 'var(--s-text-dim)',
-                    }}>
-                    {date.getDate()}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Corps de grille */}
-          <div className="grid" style={{ gridTemplateColumns: `46px repeat(7, 1fr)` }}>
+          <div className="grid" style={{ gridTemplateColumns: `46px repeat(${displayedDays.length}, 1fr)` }}>
             {/* Axe horaire */}
             <div className="relative" style={{ height: SLOT_COUNT * SLOT_HEIGHT }}>
               {TIME_AXIS.map((t, idx) => (
@@ -549,7 +619,7 @@ export default function WeekView({
             </div>
 
             {/* Colonnes jours */}
-            {grid.days.map(day => {
+            {displayedDays.map(day => {
               const dayEvents = eventsByDay.get(day.gridYmd) ?? [];
               const placements = layoutDayEvents(dayEvents);
               return (
@@ -712,7 +782,7 @@ export default function WeekView({
 
         {/* Panneau latéral dispos — visible seulement si une équipe est ciblée */}
         {selectedTeamId && (
-          <aside className="flex-shrink-0 w-[230px] bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+          <aside className="w-full lg:w-[230px] lg:flex-shrink-0 bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
             <div className="px-3 py-2.5 flex items-center gap-2" style={{ borderBottom: '1px solid var(--s-border)' }}>
               <CalendarClock size={13} style={{ color: 'var(--s-gold)' }} />
               <span className="t-label">Dispos {avail?.team.name ? `· ${avail.team.name}` : ''}</span>
