@@ -66,6 +66,11 @@ export interface GameDef {
    *  uniquement l'UI pour éviter de proposer "training pack RL" à une équipe Valorant.
    *  Ne pas inclure de types deprecated. */
   availableTodoTypes: TodoType[];
+  /** Libellé court de la source de vérification du compte joueur (affiché dans le
+   *  guide pour expliquer comment lier son compte officiel à son profil Aedral).
+   *  Ex: "Epic (via tracker.gg) ou Steam", "Riot (via Discord connection)".
+   *  Absent = pas de vérification disponible pour ce jeu (déclaratif uniquement). */
+  accountSourceLabel?: string;
 }
 
 /**
@@ -95,6 +100,7 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
       'free', 'replay_review', 'training_pack', 'workshop_map', 'free_play',
       'vod_review', 'mental_checkin', 'warmup_routine',
     ],
+    accountSourceLabel: 'Compte Epic (via tracker.gg) ou Steam',
   },
   trackmania: {
     id: 'trackmania',
@@ -144,6 +150,7 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
       'free', 'aim_trainer', 'lineups', 'custom_game',
       'vod_review', 'mental_checkin', 'warmup_routine',
     ],
+    accountSourceLabel: 'Compte Riot (capturé via ta connexion Discord)',
   },
 };
 

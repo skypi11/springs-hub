@@ -15,6 +15,7 @@ import {
 } from './LandingMockups';
 import ScrollReveal from './ScrollReveal';
 import DiscordIcon, { AEDRAL_DISCORD_INVITE_URL } from '@/components/icons/DiscordIcon';
+import { ALL_GAME_DEFS } from '@/lib/games-registry';
 
 type PublicStats = {
   structures: number;
@@ -117,11 +118,13 @@ function HeroSection({ stats }: { stats: PublicStats | null }) {
             <span style={{ color: 'var(--s-gold)' }}>ENFIN ORGANISÉ.</span>
           </h1>
 
-          <p className="t-body mb-10 max-w-2xl" style={{ fontSize: '17px', lineHeight: 1.6, color: 'var(--s-text-dim)' }}>
+          <p className="t-body mb-8 max-w-2xl" style={{ fontSize: '17px', lineHeight: 1.6, color: 'var(--s-text-dim)' }}>
             Aedral réunit structures, joueurs et compétitions de l&apos;écosystème
             amateur en un seul endroit. Recrutement, gestion d&apos;équipe, calendrier,
             tournois — tout ce qu&apos;il faut pour faire vivre ta passion.
           </p>
+
+          <SupportedGamesStrip />
 
           <div className="flex items-center gap-3 flex-wrap justify-center mb-16">
             <button onClick={signInWithDiscord} type="button"
@@ -143,6 +146,38 @@ function HeroSection({ stats }: { stats: PublicStats | null }) {
         </div>
       </div>
     </section>
+  );
+}
+
+// Bande de jeux supportés, alimentée par la Game Registry. Ajouter un nouveau
+// jeu dans lib/games-registry.ts le fait apparaître ici sans toucher au landing.
+function SupportedGamesStrip() {
+  return (
+    <div className="flex items-center gap-3 sm:gap-5 flex-wrap justify-center mb-10">
+      <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>
+        Jeux supportés
+      </span>
+      <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center">
+        {ALL_GAME_DEFS.map(g => (
+          <div key={g.id}
+            className="flex items-center gap-2 bevel-sm transition-colors"
+            style={{
+              padding: '5px 10px 5px 6px',
+              background: 'var(--s-elevated)',
+              border: `1px solid rgba(${g.colorRgb}, 0.25)`,
+            }}>
+            <Image src={g.logoUrl} alt={g.label}
+              width={22} height={22}
+              style={{ objectFit: 'cover' }} />
+            <span className="font-display" style={{
+              fontSize: 13, letterSpacing: '0.04em', color: g.color,
+            }}>
+              {g.label.toUpperCase()}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -592,7 +627,7 @@ const faq = [
   },
   {
     q: 'Quels jeux sont supportés ?',
-    a: 'Aujourd\'hui : Rocket League et Trackmania. La plateforme est conçue pour s\'étendre à d\'autres titres en fonction des demandes communautaires.',
+    a: `Aujourd'hui : ${ALL_GAME_DEFS.map(g => g.label).join(', ')}. La plateforme est conçue pour s'étendre à d'autres titres en fonction des demandes communautaires — chaque ajout passe par une seule entrée de configuration côté code, le reste suit (équipes, calendrier, recrutement, exercices).`,
   },
 ];
 

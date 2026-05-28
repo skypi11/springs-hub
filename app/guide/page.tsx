@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   UserCircle, Shield, Users, CalendarClock, Search,
   Film, ClipboardList, MessageCircle, Lock, BookOpen, ChevronRight,
+  Gamepad2, CheckCircle2, XCircle,
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
+import { ALL_GAME_DEFS } from '@/lib/games-registry';
 
 // Page Guide / Découvrir Aedral — validée Matt 2026-05-25.
 // Texte d'abord (screenshots V2 selon retour). Ton pro/clean style Linear/Notion.
@@ -29,12 +32,13 @@ const SECTIONS: Section[] = [
     intro: "Ton profil Aedral te suit partout — pseudo, drapeau, jeux pratiqués, comptes vérifiés.",
     items: [
       "Connexion en 1 clic avec ton compte Discord",
-      "Lier ton compte Steam (SteamID immuable) pour authentifier ton pseudo Rocket League",
-      "Vérifier ton compte Rocket League (Epic ou Steam) — le lien tracker.gg apparaît sur ton profil et n'importe qui peut vérifier ton rang en 1 clic",
-      "Ton rang RL reste auto-déclaré, mais comme le compte est vérifié, les autres peuvent te signaler si tu mens",
-      "Badge ✓ Vérifié visible publiquement quand ton compte de jeu est confirmé",
+      "Lier tes comptes de jeu officiels (Epic, Steam, Riot selon le jeu) pour authentifier ton identité et bloquer les usurpations",
+      "Lien tracker public sur ton profil quand ton compte de jeu est vérifié — n'importe qui peut contrôler ton rang en 1 clic",
+      "Rang auto-déclaré, mais comme ton compte est vérifié, les autres peuvent te signaler si tu mens",
+      "Badge ✓ Vérifié visible publiquement quand un compte de jeu est confirmé",
       "Connexions Discord (Twitch, YouTube, Instagram, etc.) sync automatique avec toggle visibilité par compte",
       "Choix d'être disponible au recrutement avec rôle visé (joueur / coach / manager)",
+      "Pour la liste précise des comptes vérifiables par jeu, voir la section Spécificités par jeu plus bas",
     ],
   },
   {
@@ -47,7 +51,7 @@ const SECTIONS: Section[] = [
       "Rejoindre une structure existante via lien d'invitation ou demande",
       "Maximum 2 structures par jeu (un joueur peut être fondateur d'une et responsable d'une autre)",
       "Identité personnalisable : nom, tag, logo, bannière, description",
-      "Multi-jeux : une structure peut couvrir Rocket League ET Trackmania",
+      "Multi-jeux : une seule structure peut gérer plusieurs jeux en parallèle, chaque équipe étant attachée à un jeu précis",
       "Liaison Discord — installe le bot Aedral sur ton serveur Discord pour les notifs",
     ],
   },
@@ -57,7 +61,7 @@ const SECTIONS: Section[] = [
     title: 'Équipes & roster',
     intro: "Organise tes équipes compétitives au sein de ta structure.",
     items: [
-      "Créer des équipes par jeu (RL : max 3 titulaires + 2 remplaçants)",
+      "Créer des équipes par jeu — le format roster (titulaires + remplaçants) suit le standard du jeu (voir Spécificités par jeu plus bas)",
       "Désigner un capitaine (joueur qui gère le calendrier de son équipe)",
       "Ajouter du staff par équipe (manager ou coach) avec droits spécifiques",
       "Logo et identité par équipe + groupe d'équipes (ex: « Académie », « Sénior »)",
@@ -89,7 +93,7 @@ const SECTIONS: Section[] = [
     items: [
       "Annuaire public des joueurs (filtrable par jeu, pays, rang, statut recrutement)",
       "Annuaire public des structures (filtrable par jeu, statut)",
-      "Cartes joueur format trading card : avatar, drapeau, rang RL déclaré + badge ✓ si compte vérifié, structure(s) actuelle(s)",
+      "Cartes joueur format trading card : avatar, drapeau, rang déclaré + badge ✓ si compte vérifié, structure(s) actuelle(s)",
       "Activer le mode « disponible au recrutement » avec rôle recherché et message libre",
       "Shortlist privée par structure : suivre les joueurs qui t'intéressent",
       "Suggestions automatiques basées sur les positions ouvertes de ta structure",
@@ -100,15 +104,16 @@ const SECTIONS: Section[] = [
     id: 'replays',
     icon: Film,
     title: 'Replays & analyses',
-    intro: "Upload tes replays Rocket League et accède aux stats détaillées de chaque match.",
+    intro: "Upload tes replays et accède aux stats détaillées de chaque match. Pour l'instant, le parsing automatique des stats est disponible uniquement sur Rocket League.",
     items: [
       "Upload multi-fichiers depuis un événement (match, scrim, training)",
-      "Stats automatiques parsées : buts, saves, assists, démos, possession, boost",
+      "Stats automatiques parsées : buts, saves, assists, démos, possession, boost (Rocket League uniquement)",
       "Lien direct entre un événement et ses replays (1 clic pour les retrouver)",
       "Téléchargement sécurisé (URL valide 60 secondes)",
       "Quota stockage par structure (extensible à mesure que la plateforme grandit)",
       "Joueurs : accès aux replays de leur équipe + leurs exercices replay review",
       "Staff : suppression des replays + accès aux stats agrégées par event",
+      "Voir la section Spécificités par jeu pour la liste des jeux supportant le parsing",
     ],
   },
   {
@@ -154,8 +159,26 @@ const SECTIONS: Section[] = [
   },
 ];
 
+// Section "Spécificités par jeu" — rendu custom (grid de cards), pas une liste
+// d'items comme les autres sections. Métadonnées TOC séparées pour scroll spy.
+const GAMES_SECTION_META = {
+  id: 'jeux',
+  icon: Gamepad2,
+  title: 'Spécificités par jeu',
+};
+
+// Entrées TOC complètes : sections classiques + section jeux custom à la fin.
+// Sert à la fois à la sidebar et au scroll spy. Le type d'icône suit celui
+// utilisé par Section.icon pour rester compatible avec les forward refs Lucide
+// (typeof Gamepad2, etc. — sinon ComponentType est trop large).
+type TocEntry = { id: string; icon: Section['icon']; title: string };
+const TOC_ENTRIES: TocEntry[] = [
+  ...SECTIONS.map(s => ({ id: s.id, icon: s.icon, title: s.title })),
+  GAMES_SECTION_META,
+];
+
 export default function GuidePage() {
-  const [activeId, setActiveId] = useState<string>(SECTIONS[0].id);
+  const [activeId, setActiveId] = useState<string>(TOC_ENTRIES[0].id);
 
   // Scroll spy : met à jour la section active dans la table des matières
   useEffect(() => {
@@ -172,8 +195,8 @@ export default function GuidePage() {
       },
       { rootMargin: '-100px 0px -60% 0px' },
     );
-    for (const s of SECTIONS) {
-      const el = document.getElementById(s.id);
+    for (const entry of TOC_ENTRIES) {
+      const el = document.getElementById(entry.id);
       if (el) observer.observe(el);
     }
     return () => observer.disconnect();
@@ -224,12 +247,12 @@ export default function GuidePage() {
                 <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Sommaire</span>
               </div>
               <ul className="py-1">
-                {SECTIONS.map(s => {
-                  const Icon = s.icon;
-                  const active = activeId === s.id;
+                {TOC_ENTRIES.map(entry => {
+                  const Icon = entry.icon;
+                  const active = activeId === entry.id;
                   return (
-                    <li key={s.id}>
-                      <a href={`#${s.id}`}
+                    <li key={entry.id}>
+                      <a href={`#${entry.id}`}
                         className="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
                         style={{
                           color: active ? 'var(--s-gold)' : 'var(--s-text-dim)',
@@ -237,7 +260,7 @@ export default function GuidePage() {
                           borderLeft: `3px solid ${active ? 'var(--s-gold)' : 'transparent'}`,
                         }}>
                         <Icon size={13} />
-                        <span className="truncate">{s.title}</span>
+                        <span className="truncate">{entry.title}</span>
                       </a>
                     </li>
                   );
@@ -275,6 +298,9 @@ export default function GuidePage() {
               );
             })}
 
+            {/* Section custom : grid de cards par jeu, alimentée par la registry */}
+            <GameSpecificsSection />
+
             {/* Footer guide */}
             <section className="bevel relative overflow-hidden animate-fade-in"
               style={{ background: 'var(--s-surface)', border: '1px solid rgba(255,184,0,0.25)' }}>
@@ -301,6 +327,115 @@ export default function GuidePage() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Section "Spécificités par jeu" ────────────────────────────────────────
+// Rendu custom (grid de cards), alimenté par lib/games-registry.ts. Ajouter
+// un nouveau jeu dans la registry le fait apparaître ici sans toucher au guide.
+function GameSpecificsSection() {
+  return (
+    <section id={GAMES_SECTION_META.id} className="scroll-mt-24 bevel relative overflow-hidden animate-fade-in"
+      style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+      <div className="px-5 sm:px-7 py-5">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-9 h-9 flex items-center justify-center bevel-sm flex-shrink-0"
+            style={{ background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.2)' }}>
+            <Gamepad2 size={16} style={{ color: 'var(--s-gold)' }} />
+          </div>
+          <h2 className="font-display text-xl sm:text-2xl tracking-wider">
+            {GAMES_SECTION_META.title.toUpperCase()}
+          </h2>
+        </div>
+        <p className="text-sm mb-5" style={{ color: 'var(--s-text-dim)' }}>
+          Chaque jeu apporte ses propres règles : taille du roster, mode de vérification
+          du compte officiel, features avancées (parsing replays, sync rang). Voici ce
+          que tu trouveras sur Aedral aujourd&apos;hui.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {ALL_GAME_DEFS.map(g => (
+            <GameSpecCard key={g.id} game={g} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function GameSpecCard({ game: g }: { game: typeof ALL_GAME_DEFS[number] }) {
+  // Format roster en string court lisible humain
+  const rosterLabel = g.roster.allowSolo
+    ? `Solo (1 joueur)${g.roster.titulaires > 1 ? ` ou ${g.roster.titulaires} en équipe` : ''}`
+    : `${g.roster.titulaires} titulaires + ${g.roster.remplacants} remplaçants`;
+
+  return (
+    <div className="bevel-sm relative overflow-hidden" style={{
+      background: 'var(--s-elevated)',
+      border: `1px solid rgba(${g.colorRgb}, 0.25)`,
+    }}>
+      {/* Accent top */}
+      <div className="h-[2px]" style={{
+        background: `linear-gradient(90deg, ${g.color}, ${g.color}40, transparent 70%)`,
+      }} />
+      <div className="p-4">
+        {/* Header card : logo + label */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex-shrink-0 overflow-hidden bevel-sm" style={{
+            width: 40, height: 40, border: `1px solid rgba(${g.colorRgb}, 0.4)`,
+          }}>
+            <Image src={g.logoUrl} alt={g.label} width={40} height={40}
+              style={{ objectFit: 'cover' }} />
+          </div>
+          <div className="min-w-0">
+            <h3 className="font-display tracking-wider" style={{
+              fontSize: 18, color: g.color, lineHeight: 1.1,
+            }}>
+              {g.label.toUpperCase()}
+            </h3>
+            <span className="t-mono" style={{ fontSize: 11, color: 'var(--s-text-muted)' }}>
+              {g.shortLabel} · /{g.slug}
+            </span>
+          </div>
+        </div>
+
+        {/* Specs grid */}
+        <dl className="space-y-2 text-sm">
+          <SpecRow label="Format roster" value={rosterLabel} />
+          <SpecRow label="Vérification du compte"
+            value={g.accountSourceLabel ?? 'Aucune (rang déclaratif uniquement)'} />
+          <SpecFeatureRow label="Sync auto du rang" enabled={g.features.rankAutoSync} />
+          <SpecFeatureRow label="Parsing replays" enabled={g.features.replayParsing} />
+          <SpecFeatureRow label="Lien tracker public" enabled={g.features.trackerProfile} />
+        </dl>
+      </div>
+    </div>
+  );
+}
+
+function SpecRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start gap-2">
+      <dt className="flex-shrink-0 t-label" style={{ color: 'var(--s-text-muted)', minWidth: 140 }}>
+        {label}
+      </dt>
+      <dd style={{ color: 'var(--s-text)' }}>{value}</dd>
+    </div>
+  );
+}
+
+function SpecFeatureRow({ label, enabled }: { label: string; enabled: boolean }) {
+  return (
+    <div className="flex items-start gap-2">
+      <dt className="flex-shrink-0 t-label" style={{ color: 'var(--s-text-muted)', minWidth: 140 }}>
+        {label}
+      </dt>
+      <dd className="flex items-center gap-1.5" style={{
+        color: enabled ? '#33ff66' : 'var(--s-text-dim)',
+      }}>
+        {enabled ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+        <span>{enabled ? 'Oui' : 'Non'}</span>
+      </dd>
     </div>
   );
 }
