@@ -19,7 +19,7 @@ import { encryptBuffer, ENCRYPTION_ALGO_LABEL, isEncryptionAvailable } from '@/l
 // POST /api/structures/[id]/documents/upload-sensitive
 // Upload direct vers le serveur (multipart/form-data) : le fichier est chiffré
 // AES-256-GCM côté serveur avant d'être poussé sur R2. Le fichier ne transite
-// jamais en clair hors du serveur Next.js — même les credentials R2 qui fuitent
+// jamais en clair hors du serveur Next.js, même les credentials R2 qui fuitent
 // ne donnent pas accès au contenu.
 //
 // FormData attendu : file (File), folderId (string|''), title (string)
@@ -36,7 +36,7 @@ export async function POST(
 
     if (!isEncryptionAvailable()) {
       return NextResponse.json(
-        { error: 'Chiffrement non configuré — contacter un admin' },
+        { error: 'Chiffrement non configuré, contacter un admin' },
         { status: 500 }
       );
     }
@@ -67,7 +67,7 @@ export async function POST(
     if (!filename) return NextResponse.json({ error: 'filename requis' }, { status: 400 });
     if (sizeBytes <= 0 || sizeBytes > UPLOAD_LIMITS.STAFF_DOCUMENT_BYTES) {
       const mb = Math.round(UPLOAD_LIMITS.STAFF_DOCUMENT_BYTES / (1024 * 1024));
-      return NextResponse.json({ error: `Taille invalide — max ${mb} MB par fichier` }, { status: 413 });
+      return NextResponse.json({ error: `Taille invalide, max ${mb} MB par fichier` }, { status: 413 });
     }
     if (!isAllowedMime(mime, 'DOCUMENTS')) {
       return NextResponse.json({ error: 'Type de fichier non supporté' }, { status: 415 });

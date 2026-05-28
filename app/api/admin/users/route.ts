@@ -12,7 +12,7 @@ import { isKnownGame } from '@/lib/games-registry';
 
 // Quand un fondateur est banni/supprimé, on essaie de promouvoir son premier co-fondateur
 // pour ne pas laisser une structure sans tête. Si pas de co-fondateur, on passe la
-// structure en `orphaned` (non éditable, mais visible) — l'admin devra intervenir.
+// structure en `orphaned` (non éditable, mais visible), l'admin devra intervenir.
 // Retourne la liste des structures orphelines pour info.
 async function reassignOrOrphanFoundedStructures(
   db: FirebaseFirestore.Firestore,
@@ -24,7 +24,7 @@ async function reassignOrOrphanFoundedStructures(
 
   // Un seul batch pour TOUTES les structures du fondateur. Un fondateur a au
   // plus 2 structures (cap métier) → ~10 opérations, très loin de la limite
-  // Firestore de 500. Atomique : soit tout passe, soit rien — plus de risque
+  // Firestore de 500. Atomique : soit tout passe, soit rien, plus de risque
   // d'état incohérent si une panne survient au milieu (bug de l'audit 19/05).
   const batch = db.batch();
 
@@ -79,16 +79,16 @@ async function reassignOrOrphanFoundedStructures(
     }
   }
 
-  // Commit unique — no-op si le fondateur n'avait aucune structure.
+  // Commit unique, no-op si le fondateur n'avait aucune structure.
   if (!snap.empty) await batch.commit();
   return { promoted, orphaned };
 }
 
-// Plafond dur sur le nombre d'utilisateurs renvoyés en une seule fois — protège
+// Plafond dur sur le nombre d'utilisateurs renvoyés en une seule fois, protège
 // la facture Firestore quand la base grossit. Au-delà, prévoir une vraie pagination + recherche.
 const MAX_USERS = 500;
 
-// GET /api/admin/users — lister tous les utilisateurs inscrits (admin only)
+// GET /api/admin/users, lister tous les utilisateurs inscrits (admin only)
 export async function GET(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -119,7 +119,7 @@ export async function GET(req: NextRequest) {
 
     // Rôles dérivés par user : agrège memberships (joueur/fondateur/co-fondateur)
     // + structures.managerIds (responsable) + structures.coachIds (coach structure)
-    // + sub_teams.staffRoles (manager/coach équipe — chargé séparément).
+    // + sub_teams.staffRoles (manager/coach équipe, chargé séparément).
     // Évite que le filtre admin "Responsable" / "Coach" rate les staff stockés
     // dans les arrays plutôt que structure_members.role.
     const derivedRolesByUser: Record<string, Set<string>> = {};
@@ -153,7 +153,7 @@ export async function GET(req: NextRequest) {
       }
     }
     // Source C : sub_teams (manager_equipe, coach_equipe, capitaine, remplacant)
-    // — uniquement équipes actives (les archivées n'attribuent plus de rôles).
+    //, uniquement équipes actives (les archivées n'attribuent plus de rôles).
     for (const tDoc of teamsSnap.docs) {
       const td = tDoc.data();
       if (td.status === 'archived') continue;
@@ -209,7 +209,7 @@ export async function GET(req: NextRequest) {
         loginTM: data.loginTM || '',
         tmIoUrl: data.tmIoUrl || '',
         memberships,
-        // Rôles dérivés (source de vérité pour le filtre admin) — voir
+        // Rôles dérivés (source de vérité pour le filtre admin), voir
         // derivedRolesByUser ci-dessus.
         derivedRoles: Array.from(derivedRolesByUser[doc.id] ?? []),
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
@@ -234,7 +234,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/admin/users — actions admin sur un utilisateur
+// POST /api/admin/users, actions admin sur un utilisateur
 export async function POST(req: NextRequest) {
   try {
     const adminUid = await verifyAuth(req);
@@ -260,7 +260,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Utilisateur introuvable' }, { status: 404 });
     }
 
-    // Snapshot du label cible avant toute mutation — utile surtout pour delete où
+    // Snapshot du label cible avant toute mutation, utile surtout pour delete où
     // le doc disparaît avant l'audit log.
     const userData = userSnap.data() ?? {};
     const userLabel: string = userData.displayName || userData.discordUsername || userId;
@@ -289,7 +289,7 @@ export async function POST(req: NextRequest) {
           targetLabel: userLabel,
           metadata: { reason: reason || null, promotedStructures: promoted, orphanedStructures: orphaned },
         });
-        return NextResponse.json({ ok: true, message: parts.join(' — ') });
+        return NextResponse.json({ ok: true, message: parts.join(', ') });
       }
 
       // ─── Débannir ───────────────────────────────────────────────────────
@@ -324,7 +324,7 @@ export async function POST(req: NextRequest) {
           targetId: userId,
           targetLabel: userLabel,
         });
-        return NextResponse.json({ ok: true, message: 'Tokens révoqués — déconnexion forcée' });
+        return NextResponse.json({ ok: true, message: 'Tokens révoqués, déconnexion forcée' });
       }
 
       // ─── Resync Discord (pseudo + rôles sur le serveur Aedral) ─────────
@@ -390,13 +390,13 @@ export async function POST(req: NextRequest) {
         const updates: Record<string, unknown> = {};
         for (const [key, val] of Object.entries(editObj)) {
           if (!allowed[key]) continue;
-          // Sanitization par champ — URLs passent par safeUrl, textes par clampString
+          // Sanitization par champ, URLs passent par safeUrl, textes par clampString
           if (key === 'displayName') updates[key] = clampString(val, LIMITS.displayName);
           else if (key === 'bio') updates[key] = clampString(val, LIMITS.bio);
           else if (key === 'recruitmentMessage') updates[key] = clampString(val, LIMITS.recruitmentMessage);
           else if (key === 'rlTrackerUrl' || key === 'tmIoUrl') updates[key] = safeUrl(val);
           else if (key === 'games') {
-            // Doit être un tableau de jeux valides — sinon on ignore (anti-corruption)
+            // Doit être un tableau de jeux valides, sinon on ignore (anti-corruption)
             if (Array.isArray(val)) {
               updates[key] = val.filter(g => isKnownGame(g));
             }
@@ -495,7 +495,7 @@ export async function POST(req: NextRequest) {
           await doc.ref.update(updates);
         }
 
-        // 3. Supprimer Firebase Auth EN PREMIER — si Firestore est supprimé d'abord
+        // 3. Supprimer Firebase Auth EN PREMIER, si Firestore est supprimé d'abord
         // et que Auth échoue, on se retrouve avec un compte connectable sans profil.
         try {
           await authAdmin.deleteUser(userId);
@@ -539,7 +539,7 @@ export async function POST(req: NextRequest) {
             orphanedStructures: orphaned,
           },
         });
-        return NextResponse.json({ ok: true, message: parts.join(' — ') });
+        return NextResponse.json({ ok: true, message: parts.join(', ') });
       }
 
       default:

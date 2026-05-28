@@ -90,7 +90,7 @@ export default function TodoDetailDrawer({
   onEditStepResponse?: (stepId: string, response: Record<string, unknown>) => Promise<void> | void;
   /** Verrouille définitivement l'exo (tous steps cocher requis côté serveur). */
   onLock?: () => Promise<void> | void;
-  /** Supprime l'exo (staff uniquement — UI ne montre le bouton que si onDelete est fourni). */
+  /** Supprime l'exo (staff uniquement, UI ne montre le bouton que si onDelete est fourni). */
   onDelete?: () => Promise<void> | void;
   /** Déverrouille (staff uniquement). */
   onUnlock?: () => Promise<void> | void;
@@ -138,14 +138,14 @@ export default function TodoDetailDrawer({
   const deadlineRel = formatRelative(todo.deadlineAt, now);
   const doneFull = formatDeadlineFull(todo.doneAt);
 
-  // v3 — verrouillage : si lockedAt set, l'exo est en read-only même pour l'assignee.
+  // v3, verrouillage : si lockedAt set, l'exo est en read-only même pour l'assignee.
   // Seul le staff peut le réouvrir via 'unlock'.
   const isLocked = typeof todo.lockedAt === 'number' && todo.lockedAt > 0;
   const effectiveCanEdit = canEdit && !isLocked;
   const allStepsDone = progress.total > 0 && progress.done === progress.total;
   const canShowLockBtn = canEdit && !isLocked && allStepsDone;
 
-  // Endpoint d'upload screenshot — disponible uniquement si éditable
+  // Endpoint d'upload screenshot, disponible uniquement si éditable
   // ET qu'on a structureId+todoId pour construire l'URL.
   const screenshotUploadUrl = effectiveCanEdit && todo.structureId && todo.id
     ? `/api/structures/${todo.structureId}/todos/${todo.id}/screenshot`
@@ -257,7 +257,7 @@ export default function TodoDetailDrawer({
             </button>
           </header>
 
-          {/* Banner verrouillé — visible quand lockedAt set */}
+          {/* Banner verrouillé, visible quand lockedAt set */}
           {isLocked && (
             <div className="flex items-center gap-2.5 px-6 py-2.5 flex-shrink-0"
               style={{
@@ -266,7 +266,7 @@ export default function TodoDetailDrawer({
               }}>
               <Check size={14} style={{ color: 'var(--s-gold)' }} />
               <span className="text-xs font-semibold" style={{ color: 'var(--s-gold)' }}>
-                Exercice verrouillé — plus aucune modification possible
+                Exercice verrouillé, plus aucune modification possible
                 {isStaff && ' (tu peux le déverrouiller en bas)'}
               </span>
             </div>
@@ -286,7 +286,7 @@ export default function TodoDetailDrawer({
                 </section>
               )}
 
-              {/* CHECKLIST DE STEPS — cœur de la v3 multi-step */}
+              {/* CHECKLIST DE STEPS, cœur de la v3 multi-step */}
               <section>
                 <h3 className="text-xs font-bold tracking-wider mb-3" style={{ color: 'var(--s-text-muted)', letterSpacing: '0.1em' }}>
                   {isMultiStep ? `ÉTAPES (${progress.done}/${progress.total})` : 'À FAIRE'}
@@ -389,7 +389,7 @@ export default function TodoDetailDrawer({
           <footer className="flex items-center justify-between gap-2 px-6 py-3 flex-shrink-0"
             style={{ borderTop: '1px solid var(--s-border)', background: 'var(--s-surface)' }}>
             <div className="flex items-center gap-2">
-              {/* Bouton "Verrouiller" — apparaît UNIQUEMENT quand tous les steps sont cocher,
+              {/* Bouton "Verrouiller", apparaît UNIQUEMENT quand tous les steps sont cocher,
                   pas encore locked, et le viewer peut éditer. Une fois cliqué, l'exo bascule
                   en read-only (cf. message banner haut). */}
               {canShowLockBtn && onLock && (
@@ -401,7 +401,7 @@ export default function TodoDetailDrawer({
                   <span>Verrouiller l&apos;exercice</span>
                 </button>
               )}
-              {/* Bouton "Déverrouiller" — staff uniquement, exo locked */}
+              {/* Bouton "Déverrouiller", staff uniquement, exo locked */}
               {isLocked && isStaff && onUnlock && (
                 <button type="button" onClick={() => onUnlock()}
                   disabled={locking}
@@ -413,7 +413,7 @@ export default function TodoDetailDrawer({
               )}
             </div>
             <div className="flex items-center gap-3">
-              {/* Bouton "Supprimer" — staff uniquement (onDelete fourni). Confirmation gérée par le parent. */}
+              {/* Bouton "Supprimer", staff uniquement (onDelete fourni). Confirmation gérée par le parent. */}
               {onDelete && (
                 <button type="button" onClick={() => onDelete()}
                   disabled={deleting}
@@ -575,7 +575,7 @@ function StepCard({
       {completed && step.response && !openForm && (
         <div className="mx-3 mb-3 p-2.5 space-y-2" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
           <StepResponseSummary step={step} />
-          {/* Capture d'écran si présente — thumbnail cliquable qui ouvre en grand */}
+          {/* Capture d'écran si présente, thumbnail cliquable qui ouvre en grand */}
           {(() => {
             const attUrl = typeof (step.response as Record<string, unknown>)?.attachmentUrl === 'string'
               ? (step.response as { attachmentUrl: string }).attachmentUrl : '';
@@ -593,7 +593,7 @@ function StepCard({
         </div>
       )}
 
-      {/* Form de réponse inline — pour validation ou édition */}
+      {/* Form de réponse inline, pour validation ou édition */}
       {openForm && canEdit && needsResp && (
         <div className="px-3 pb-3">
           <StepResponseForm

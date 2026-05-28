@@ -90,7 +90,7 @@ export default function AvailabilityGrid() {
     enabled: !!firebaseUser,
   });
 
-  // État local des slots (Set de strings) par semaine — permet l'édition sans rerequests
+  // État local des slots (Set de strings) par semaine, permet l'édition sans rerequests
   const [currentSet, setCurrentSet] = useState<Set<string>>(new Set());
   const [nextSet, setNextSet] = useState<Set<string>>(new Set());
   const [currentDirty, setCurrentDirty] = useState(false);
@@ -145,7 +145,7 @@ export default function AvailabilityGrid() {
     const prev = new Set(data.previous.slots);
     // Décaler vers la semaine courante (+7 jours)
     const shifted = shiftSlots(prev, 7);
-    // Merger avec les slots past déjà figés (slots dont la date < today) — on ne doit pas les écraser
+    // Merger avec les slots past déjà figés (slots dont la date < today), on ne doit pas les écraser
     // (l'API les réinjecte de toute façon, mais visuellement on veut voir la fusion)
     const next = new Set<string>();
     for (const s of currentSet) {
@@ -277,7 +277,7 @@ function WeekPanel({
   const [dragActive, setDragActive] = useState(false);
 
   // Mobile (< sm) : la grille passe en largeur fluide (colonnes réparties sur
-  // 100%) au lieu de 640px fixe + scroll horizontal — interdit sur le site.
+  // 100%) au lieu de 640px fixe + scroll horizontal, interdit sur le site.
   const [isNarrow, setIsNarrow] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 639px)');
@@ -302,7 +302,7 @@ function WeekPanel({
 
   const monday = new Date(weekGrid.mondayYmd + 'T12:00:00');
   const sunday = new Date(addDays(weekGrid.mondayYmd, 6) + 'T12:00:00');
-  const rangeLabel = `${monday.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} — ${sunday.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`;
+  const rangeLabel = `${monday.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}, ${sunday.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`;
 
   const countSelected = useMemo(() => {
     let c = 0;

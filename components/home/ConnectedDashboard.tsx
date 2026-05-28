@@ -324,7 +324,7 @@ export default function ConnectedDashboard({ user }: { user: SpringsUser }) {
         </WidgetCard>
       </section>
 
-      {/* Invitation Discord communautaire — accent blurple discret */}
+      {/* Invitation Discord communautaire, accent blurple discret */}
       <a
         href={AEDRAL_DISCORD_INVITE_URL}
         target="_blank"
@@ -364,7 +364,7 @@ function buildStatus(todoCount: number, nextEvent: MyEvent | null, structure: My
   const parts: string[] = [];
   if (nextEvent?.startsAt) parts.push(`prochain event ${formatRelative(nextEvent.startsAt)}`);
   if (todoCount > 0) parts.push(`${todoCount} exercice${todoCount > 1 ? 's' : ''} à faire`);
-  if (!structure) parts.push('aucune structure — crée la tienne');
+  if (!structure) parts.push('aucune structure, crée la tienne');
   if (parts.length === 0) return 'Tout est calme pour le moment.';
   return parts.join(' · ');
 }

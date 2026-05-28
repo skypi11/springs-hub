@@ -12,7 +12,7 @@ import { canJoinStructure, addStructureToGame, removeStructureFromGame, STRUCTUR
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
 import { pickValorantRiotId } from '@/lib/discord-connections';
 
-// POST /api/structures/join — rejoindre une structure (via lien ou demande)
+// POST /api/structures/join, rejoindre une structure (via lien ou demande)
 export async function POST(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);

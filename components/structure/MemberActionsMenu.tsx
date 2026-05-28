@@ -19,7 +19,7 @@ export interface MemberActionsMenuProps {
   busyKey: string | null;
   memberId: string;
   userId: string;
-  // Nom du membre cible — utilisé dans le modal de confirmation de promotion.
+  // Nom du membre cible, utilisé dans le modal de confirmation de promotion.
   targetName: string;
   onToggleCoach: () => void;
   onToggleManager: () => void;
@@ -28,7 +28,7 @@ export interface MemberActionsMenuProps {
   onTransferOwnership: () => void;
   onRemove: () => void;
   /** Callback ouverture modal de scope par jeu (visible si user est manager ou coach
-   *  et que canManageStaffRoles=true) — multi-jeux scope, 2026-05-27. */
+   *  et que canManageStaffRoles=true), multi-jeux scope, 2026-05-27. */
   onOpenStaffGamesScope?: () => void;
 }
 
@@ -101,7 +101,7 @@ export default function MemberActionsMenu(props: MemberActionsMenuProps) {
       onClick: isManager ? onToggleManager : () => setPromoteIntent('responsable'),
       busy: busyKey === `${userId}:manager`,
     });
-    // Configurer le scope par jeu — uniquement si déjà promu coach OU manager
+    // Configurer le scope par jeu, uniquement si déjà promu coach OU manager
     // ET si callback fourni par le parent (qui détient la structure pour modal).
     if (onOpenStaffGamesScope && (isCoach || isManager)) {
       items.push({
@@ -242,7 +242,7 @@ export default function MemberActionsMenu(props: MemberActionsMenuProps) {
       {/* Modal "À propos du rôle" qui apparait au moment de la promotion.
           Affiche tous les droits débloqués pour que le promoteur sache exactement
           ce qu'il donne (évite les promotions à l'aveugle).
-          PromoteRoleModal wrappe lui-même via Portal — pas de double wrap ici. */}
+          PromoteRoleModal wrappe lui-même via Portal, pas de double wrap ici. */}
       {promoteIntent && (
         <PromoteRoleModal
           role={promoteIntent}

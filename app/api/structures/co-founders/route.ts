@@ -11,8 +11,8 @@ import {
 } from '@/lib/structure-roles';
 import { addAuditLog } from '@/lib/audit-log';
 
-// POST — le fondateur promeut un membre en co-fondateur
-// DELETE — le fondateur rétrograde un co-fondateur en joueur
+// POST, le fondateur promeut un membre en co-fondateur
+// DELETE, le fondateur rétrograde un co-fondateur en joueur
 // Dans les deux cas : update atomique de `structures.coFounderIds` ET du `structure_members.role`
 // associé pour que l'affichage (qui s'appuie sur `role`) reste cohérent avec les permissions.
 
@@ -58,12 +58,12 @@ export async function POST(req: NextRequest) {
     }
     const structureData = structureSnap.data()!;
 
-    // Seul le fondateur peut promouvoir — pas de cascade
+    // Seul le fondateur peut promouvoir, pas de cascade
     if (structureData.founderId !== uid) {
       return NextResponse.json({ error: 'Seul le fondateur peut promouvoir des co-fondateurs.' }, { status: 403 });
     }
     if (structureData.status === 'suspended') {
-      return NextResponse.json({ error: 'Structure suspendue — action bloquée.' }, { status: 403 });
+      return NextResponse.json({ error: 'Structure suspendue, action bloquée.' }, { status: 403 });
     }
 
     const currentCoFounders: string[] = structureData.coFounderIds ?? [];
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // La cible doit déjà être membre — on ne peut pas promouvoir quelqu'un de l'extérieur
+    // La cible doit déjà être membre, on ne peut pas promouvoir quelqu'un de l'extérieur
     const memberSnap = await db.collection('structure_members')
       .where('structureId', '==', structureId)
       .where('userId', '==', targetUserId)
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Vérifier que la cible n'a pas déjà 2 sièges dirigeant ailleurs
-    // (la structure courante ne compte pas — on la filtre dans countDirigeantSeats)
+    // (la structure courante ne compte pas, on la filtre dans countDirigeantSeats)
     const refs = await fetchDirigeantRefs(db, targetUserId);
     if (countDirigeantSeats(refs, targetUserId, structureId) >= MAX_SEATS_PER_PERSON) {
       return NextResponse.json({

@@ -102,7 +102,7 @@ export default function MyCalendarPage() {
   const events = data?.events ?? [];
   const structures = data?.structures ?? {};
 
-  // Cache partagé avec MyTodosSection (même queryKey) — pas de double fetch.
+  // Cache partagé avec MyTodosSection (même queryKey), pas de double fetch.
   // On l'utilise pour enrichir le mini-mois avec les exos (échéances).
   const { data: todosData } = useQuery({
     queryKey: ['todos', 'me'] as const,
@@ -244,7 +244,7 @@ export default function MyCalendarPage() {
           onRequestConsumed={() => setRequestedTodoId(null)}
         />
 
-        {/* Mini calendrier mensuel — vue d'ensemble + navigation par jour.
+        {/* Mini calendrier mensuel, vue d'ensemble + navigation par jour.
             Clic sur un jour avec items → panel inline listant events + exos
             du jour, click sur un item → ouvre le drawer correspondant
             (PlayerEventDrawer pour event, TodoDetailDrawer via MyTodosSection
@@ -270,7 +270,7 @@ export default function MyCalendarPage() {
           </div>
         ) : (
           <>
-            {/* À venir — timeline groupée par jour */}
+            {/* À venir, timeline groupée par jour */}
             <section className="animate-fade-in-d1 space-y-4">
               <div className="section-label">
                 <span className="font-display text-sm tracking-wider">
@@ -353,7 +353,7 @@ export default function MyCalendarPage() {
         )}
       </div>
 
-      {/* Drawer détail event (vue joueur — lecture seule + boutons présence) */}
+      {/* Drawer détail event (vue joueur, lecture seule + boutons présence) */}
       {openEventId && (() => {
         const ev = events.find(e => e.id === openEventId);
         if (!ev) return null;

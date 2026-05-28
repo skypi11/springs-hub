@@ -1,4 +1,4 @@
-// Helpers pour les slugs utilisateur — utilisés dans les URLs publiques de profil.
+// Helpers pour les slugs utilisateur, utilisés dans les URLs publiques de profil.
 // On préfère exposer /profile/noxx-26 plutôt que /profile/discord_1432... pour 3 raisons :
 //   1. Sécurité : le Discord snowflake permet d'être mentionné en raw (<@id>)
 //      dans n'importe quel guild commun → facilite le ping ciblé.
@@ -8,13 +8,13 @@
 //
 // Le slug est généré 1 fois au signup à partir du displayName, puis figé.
 // L'user peut le changer plus tard dans ses settings (à coder dans un lot
-// dédié — pour l'instant le slug est read-only après création).
+// dédié, pour l'instant le slug est read-only après création).
 
 import type { Firestore } from 'firebase-admin/firestore';
 
-/** Longueur minimale d'un slug — évite les collisions avec d'autres routes courtes. */
+/** Longueur minimale d'un slug, évite les collisions avec d'autres routes courtes. */
 export const MIN_SLUG_LENGTH = 3;
-/** Longueur maximale — au-delà l'URL devient peu pratique. */
+/** Longueur maximale, au-delà l'URL devient peu pratique. */
 export const MAX_SLUG_LENGTH = 32;
 
 /** Slugs réservés qui ne peuvent JAMAIS être utilisés (collision avec d'autres routes ou mots-clés sensibles). */
@@ -35,7 +35,7 @@ const RESERVED_SLUGS = new Set([
  * - Remplace tout non-alphanumérique par un tiret
  * - Trim les tirets en début/fin, collapse les tirets multiples
  *
- * Le résultat n'est PAS garanti unique — voir generateUniqueSlug pour ça.
+ * Le résultat n'est PAS garanti unique, voir generateUniqueSlug pour ça.
  */
 export function generateBaseSlug(displayName: string): string {
   const normalized = (displayName || '')
@@ -54,7 +54,7 @@ export function generateBaseSlug(displayName: string): string {
   return normalized;
 }
 
-/** Validation côté serveur — true si le slug est valide pour être stocké/utilisé. */
+/** Validation côté serveur, true si le slug est valide pour être stocké/utilisé. */
 export function isValidSlug(slug: string): boolean {
   if (!slug || typeof slug !== 'string') return false;
   if (slug.length < MIN_SLUG_LENGTH || slug.length > MAX_SLUG_LENGTH) return false;
@@ -126,7 +126,7 @@ export async function generateUniqueSlug(
     if (await isFree(candidate)) return candidate;
   }
 
-  // Catastrophe — on ne devrait jamais arriver ici en pratique
+  // Catastrophe, on ne devrait jamais arriver ici en pratique
   throw new Error(`Impossible de générer un slug unique pour "${baseSlug}" après 100+ tentatives`);
 }
 
@@ -144,7 +144,7 @@ export function getProfileHref(user: { slug?: string | null; uid: string } | nul
 
 /**
  * Variante quand on n'a qu'un identifiant (uid OU slug) sous la main.
- * Pas idéal — préférer getProfileHref() avec l'objet user complet.
+ * Pas idéal, préférer getProfileHref() avec l'objet user complet.
  */
 export function getProfileHrefFromId(idOrSlug: string | null | undefined): string {
   if (!idOrSlug) return '#';

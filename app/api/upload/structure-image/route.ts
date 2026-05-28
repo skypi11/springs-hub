@@ -18,10 +18,10 @@ import { processSquareImage, processBanner, probeImage } from '@/lib/image-proce
 export const runtime = 'nodejs';
 export const maxDuration = 30;
 
-// POST /api/upload/structure-image — upload logo ou bannière d'une structure.
+// POST /api/upload/structure-image, upload logo ou bannière d'une structure.
 // Auth : fondateur ou co-fondateur uniquement.
 // Body : multipart/form-data avec champs `structureId`, `type` ('logo' | 'banner'), `file`.
-// Retour : { url } — URL publique du nouvel asset (clé versionnée, cache immutable).
+// Retour : { url }, URL publique du nouvel asset (clé versionnée, cache immutable).
 export async function POST(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     if (file.size > maxBytes) {
       const mb = Math.round(maxBytes / (1024 * 1024));
       return NextResponse.json(
-        { error: `Fichier trop lourd — max ${mb} MB` },
+        { error: `Fichier trop lourd, max ${mb} MB` },
         { status: 413 }
       );
     }
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
       ? await processSquareImage(inputBuf, 512)
       : await processBanner(inputBuf);
 
-    // Clé versionnée (timestamp) — évite tout souci de cache CDN
+    // Clé versionnée (timestamp), évite tout souci de cache CDN
     const version = Date.now();
     const key = type === 'logo'
       ? StorageKeys.structureLogo(structureId, version)
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
     await uploadBuffer(key, processedBuf, 'image/webp');
     const newUrl = getPublicUrl(key);
 
-    // Supprime l'ancien asset (best-effort) — seulement si c'est une clé R2 à nous
+    // Supprime l'ancien asset (best-effort), seulement si c'est une clé R2 à nous
     const oldField = type === 'logo' ? 'logoUrl' : 'coverUrl';
     const oldUrl = (data[oldField] as string | undefined) ?? '';
     const oldKey = extractR2Key(oldUrl);

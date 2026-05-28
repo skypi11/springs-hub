@@ -104,7 +104,7 @@ function buildRow(day: { gridYmd: string; slots: string[] }): UnifiedCell[] {
   return cells;
 }
 
-// Couleurs heatmap staff — palette 3 paliers alignée sur la heatmap équipe
+// Couleurs heatmap staff, palette 3 paliers alignée sur la heatmap équipe
 //   gris  : < minPlayers dispo (pas matchable)
 //   VERT  : ≥ minPlayers dispo (réunion staff possible)
 //   OR    : tout le staff dispo (créneau optimal)
@@ -283,7 +283,7 @@ export default function StaffAvailabilityView({
         </div>
         <div className="flex items-center gap-1.5">
           <span style={{ display: 'inline-block', width: 14, height: 14, background: '#2fc46b', border: '1px solid #5fe39a' }} />
-          <span>{minPlayers}+ dispo — réunion possible</span>
+          <span>{minPlayers}+ dispo, réunion possible</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span style={{ display: 'inline-block', width: 14, height: 14, background: '#ffb800', border: '1px solid #ffd24d' }} />
@@ -318,7 +318,7 @@ export default function StaffAvailabilityView({
                     const count = countsByIso[cell.iso] ?? 0;
                     const colors = cellColors(count, totalStaff, minPlayers);
                     const hhmm = `${pad2(cell.hour)}:${pad2(cell.minute)}`;
-                    const title = `${hhmm} — ${count}/${totalStaff} staff dispo`;
+                    const title = `${hhmm}, ${count}/${totalStaff} staff dispo`;
                     return (
                       <div key={cell.iso} title={title}
                         style={{ height: 22, background: colors.bg, border: `1px solid ${colors.border}` }} />

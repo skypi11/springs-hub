@@ -39,7 +39,7 @@ export async function processSquareImage(
 // Traite une bannière : conserve le ratio source (AUCUN recadrage imposé),
 // borne juste la largeur à 2000px et convertit en webp. Le cadrage final
 // (zone visible) est choisi par l'utilisateur via l'éditeur de cadrage et
-// appliqué à l'affichage en CSS — l'image stockée reste la bannière complète.
+// appliqué à l'affichage en CSS, l'image stockée reste la bannière complète.
 export async function processBanner(
   input: Buffer,
   maxWidth = 2000,

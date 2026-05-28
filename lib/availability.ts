@@ -1,5 +1,5 @@
 // Helpers purs pour le calendrier de disponibilités MVP2a.
-// Pas d'accès Firestore ici — toute la logique testable en isolation.
+// Pas d'accès Firestore ici, toute la logique testable en isolation.
 //
 // Conventions :
 // - Tous les slots sont des chaînes "YYYY-MM-DDTHH:MM" interprétées comme heure locale
@@ -40,7 +40,7 @@ export interface MatchBlock {
 // ─── Config des horaires par jour (1 = lundi … 7 = dimanche) ────────────
 
 // Horaires unifiés : tous les jours vont de 8h du matin à 2h du lendemain.
-// (Auparavant variables selon le jour — uniformisés pour simplifier la lecture
+// (Auparavant variables selon le jour, uniformisés pour simplifier la lecture
 // du planning et de la grille de dispos.)
 const UNIFIED_SCHEDULE: DaySchedule = { startHour: 8, endHourNextDay: 2 };
 
@@ -292,7 +292,7 @@ export function formatSlotTime(slot: string): string {
   return slot.slice(11, 16);
 }
 
-/** Fin (inclusive) d'un slot 30min — utile pour afficher "20:00-20:30". */
+/** Fin (inclusive) d'un slot 30min, utile pour afficher "20:00-20:30". */
 export function formatSlotRange(slot: string): string {
   const end = addMinutesToIso(slot, SLOT_DURATION_MINUTES);
   return `${formatSlotTime(slot)}-${formatSlotTime(end)}`;

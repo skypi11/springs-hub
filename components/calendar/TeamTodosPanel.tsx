@@ -48,9 +48,9 @@ export type TeamRef = {
   players: Member[];
   subs: Member[];
   staff: Member[];
-  /** Jeu de l'équipe — sert à filtrer les types d'exo proposés par la registry
+  /** Jeu de l'équipe, sert à filtrer les types d'exo proposés par la registry
    *  des jeux (RL → training_pack, Val → aim_trainer/lineups, etc.). Optionnel
-   *  pour rétrocompat — fallback sur tous les types si absent. */
+   *  pour rétrocompat, fallback sur tous les types si absent. */
   game?: string;
 };
 
@@ -207,7 +207,7 @@ export default function TeamTodosPanel({
     if (busyId) return;
     const ok = await confirm({
       title: 'Supprimer ce exercice ?',
-      message: `« ${todo.title} » — assigné à ${todo.assigneeName}. Cette action est irréversible.`,
+      message: `« ${todo.title} », assigné à ${todo.assigneeName}. Cette action est irréversible.`,
       confirmLabel: 'Supprimer',
       variant: 'danger',
     });
@@ -443,7 +443,7 @@ function TodoStaffRow({
 }
 
 // Exporté pour permettre l'embarquer dans EventDetailModal (CalendarSection)
-// avec un eventId verrouillé sur l'event courant — cf. lockedEventId.
+// avec un eventId verrouillé sur l'event courant, cf. lockedEventId.
 export function NewTodoForm({
   structureId,
   team,
@@ -488,7 +488,7 @@ export function NewTodoForm({
   const [lineup, setLineup] = useState<{ confirmed: string[]; rosterFallback: string[] } | null>(null);
   const [lineupLoading, setLineupLoading] = useState(false);
   // Replays disponibles pour le picker du type 'replay_review'. Fetch quand
-  // l'event est lié — sinon undefined → le picker n'apparaît pas dans
+  // l'event est lié, sinon undefined → le picker n'apparaît pas dans
   // TodoConfigFields.
   const [availableReplays, setAvailableReplays] = useState<Array<{ id: string; title: string }> | undefined>(undefined);
 
@@ -510,7 +510,7 @@ export function NewTodoForm({
 
     const tplWithSteps = tpl as TodoTemplateUi & { steps?: unknown };
     if (Array.isArray(tplWithSteps.steps) && tplWithSteps.steps.length > 0) {
-      // Template v3 multi-step — on régénère des ids locaux pour éviter les collisions
+      // Template v3 multi-step, on régénère des ids locaux pour éviter les collisions
       const tplSteps = (tplWithSteps.steps as Array<{ type?: unknown; label?: unknown; config?: unknown }>);
       const resolved: ExerciseStep[] = tplSteps.map(s => ({
         id: `step-${Math.random().toString(36).slice(2, 10)}`,
@@ -523,7 +523,7 @@ export function NewTodoForm({
         id: `step-${Math.random().toString(36).slice(2, 10)}`, type: 'free', config: {}, completed: false,
       }]);
     } else {
-      // Template legacy single-type — wrap en 1 step
+      // Template legacy single-type, wrap en 1 step
       let cfg = (tpl.config && typeof tpl.config === 'object' ? { ...tpl.config } : {}) as Record<string, unknown>;
       if (tpl.type === 'mental_checkin') {
         const prompts = Array.isArray((cfg as { prompts?: unknown }).prompts)
@@ -654,7 +654,7 @@ export function NewTodoForm({
     if (steps.length === 0) { toast.error('Au moins une étape requise'); return; }
     setCreating(true);
     try {
-      // v3 : envoi steps[] — l'API extrait type/config du 1er step pour le
+      // v3 : envoi steps[], l'API extrait type/config du 1er step pour le
       // proxy legacy au top-level (champ `type`/`config` du doc Firestore).
       const stepsPayload = steps.map(s => ({
         id: s.id,
@@ -689,7 +689,7 @@ export function NewTodoForm({
 
   return (
     <div className="p-3 space-y-3" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      {/* Picker template — visible uniquement s'il y en a au moins un */}
+      {/* Picker template, visible uniquement s'il y en a au moins un */}
       {templates.length > 0 && (
         <div>
           <button type="button"
@@ -791,7 +791,7 @@ export function NewTodoForm({
                 style={{ color: 'var(--s-gold)', cursor: 'pointer' }}
                 title={lineup.confirmed.length > 0
                   ? `${lineup.confirmed.length} joueur${lineup.confirmed.length > 1 ? 's' : ''} confirmé${lineup.confirmed.length > 1 ? 's' : ''} pour l'event`
-                  : 'Aucun présent confirmé — prefill depuis le roster complet'}>
+                  : 'Aucun présent confirmé, prefill depuis le roster complet'}>
                 <ClipboardList size={11} />
                 {lineup.confirmed.length > 0
                   ? `Feuille de match (${lineup.confirmed.length})`
@@ -881,7 +881,7 @@ export function NewTodoForm({
               // Si on retire l'event : repasse forcément en deadline absolue (sinon valeur orpheline).
               if (!v) setDeadlineMode('absolute');
             }}>
-            <option value="">— Aucun —</option>
+            <option value="">Aucun</option>
             {events.map(ev => (
               <option key={ev.id} value={ev.id}>
                 {ev.title}
@@ -1049,13 +1049,13 @@ export function NewTodoForm({
 
 function titlePlaceholderFor(type: TodoType): string {
   switch (type) {
-    case 'replay_review':  return 'Visionnage replay vs Alpha — samedi';
-    case 'training_pack':  return 'Training pack défensif — 30 min';
-    case 'workshop_map':   return 'Map Wall Reads — 10 séries';
-    case 'free_play':      return 'Free play wall dribbles — 20 min';
-    case 'vod_review':     return 'VOD G2 vs Karmine — rotations';
-    case 'scouting':       return 'Scouting Team Nova — BO5 de dimanche';
-    case 'watch_party':    return 'Watch party finale RLCS — 21h';
+    case 'replay_review':  return 'Visionnage replay vs Alpha, samedi';
+    case 'training_pack':  return 'Training pack défensif, 30 min';
+    case 'workshop_map':   return 'Map Wall Reads, 10 séries';
+    case 'free_play':      return 'Free play wall dribbles, 20 min';
+    case 'vod_review':     return 'VOD G2 vs Karmine, rotations';
+    case 'scouting':       return 'Scouting Team Nova, BO5 de dimanche';
+    case 'watch_party':    return 'Watch party finale RLCS, 21h';
     case 'mental_checkin': return "Check-in d'avant match";
     case 'free':           return 'Tâche à accomplir';
     default:               return 'Tâche à accomplir';
@@ -1063,7 +1063,7 @@ function titlePlaceholderFor(type: TodoType): string {
 }
 
 // Résumé compact de la config d'un exercice pending (visible côté staff ET joueur).
-// Les valeurs vides sont ignorées — affiche uniquement ce qui apporte de l'info.
+// Les valeurs vides sont ignorées, affiche uniquement ce qui apporte de l'info.
 export function TodoConfigSummary({ todo }: { todo: TodoRef }) {
   const c = todo.config as Record<string, unknown>;
   const rows: { label: string; value: string; mono?: boolean }[] = [];
@@ -1182,7 +1182,7 @@ export function TodoResponseSummary({ todo }: { todo: TodoRef }) {
                     </span>
                     <span className="font-mono truncate">{p.code}</span>
                     {p.objective && (
-                      <span className="truncate" style={{ color: 'var(--s-text-muted)' }}>— {p.objective}</span>
+                      <span className="truncate" style={{ color: 'var(--s-text-muted)' }}>, {p.objective}</span>
                     )}
                   </div>
                 );

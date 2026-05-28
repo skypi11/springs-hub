@@ -30,7 +30,7 @@ import { pickValorantRiotId } from '@/lib/discord-connections';
 import GameTag from '@/components/games/GameTag';
 import { getGame } from '@/lib/games-registry';
 
-// Priorité hiérarchique des rôles structure — utilisée pour identifier le rôle principal
+// Priorité hiérarchique des rôles structure, utilisée pour identifier le rôle principal
 // d'un joueur dans le hero (ex : un fondateur ARAN qui est aussi joueur dans TTC affiche "Fondateur ARAN").
 const ROLE_PRIORITY: Record<string, number> = {
   fondateur: 0, co_fondateur: 1, responsable: 2, coach_structure: 3,
@@ -100,7 +100,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         const queryKey = isLegacy ? 'uid' : 'slug';
         // Bearer token critique pour isOwner côté serveur : sans ça, on est
         // vu comme visiteur public et nos propres connections masquées
-        // (Riot Games, Twitch, etc.) sont filtrées de la réponse — ce qui
+        // (Riot Games, Twitch, etc.) sont filtrées de la réponse, ce qui
         // empêche l'affichage de la card Valorant + lien tracker.gg pour
         // un user qui a son Riot en "Masqué" (cas légitime de visibilité
         // privée mais qui doit quand même nous afficher nos propres infos).
@@ -136,7 +136,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         }
 
         // Historique Springs (Monthly Cup + League Series)
-        // L'API history attend un uid Discord — on utilise data.uid (résolu côté serveur),
+        // L'API history attend un uid Discord, on utilise data.uid (résolu côté serveur),
         // pas le param `id` qui peut être un slug.
         try {
           const hRes = await fetch(`/api/profile/history?uid=${encodeURIComponent(data.uid)}`);
@@ -217,7 +217,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const avatarSrc = profile.avatarUrl || profile.discordAvatar || '';
   const age = profile.age ?? null;
 
-  // Structures triées par hiérarchie de rôle — la première = rôle "principal" affiché dans le hero.
+  // Structures triées par hiérarchie de rôle, la première = rôle "principal" affiché dans le hero.
   const sortedStructures = [...(profile.structures ?? [])].sort(
     (a, b) => (ROLE_PRIORITY[a.role] ?? 99) - (ROLE_PRIORITY[b.role] ?? 99),
   );
@@ -237,7 +237,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const playsTM = profile.games?.includes('trackmania') ?? false;
   const gameCount = (playsRL ? 1 : 0) + (playsTM ? 1 : 0);
 
-  // Bannière auto pour le hero — image du jeu principal en fond fadé.
+  // Bannière auto pour le hero, image du jeu principal en fond fadé.
   // RL prioritaire si multi-jeux (couleur signature plus distinctive).
   const heroBanner = playsRL
     ? { image: '/rocket-league.webp', accent: 'rgba(0,129,255,0.5)' }
@@ -288,7 +288,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', minHeight: '320px' }}>
           <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 80%)' }} />
 
-          {/* Bannière auto par jeu — image en fond à droite, fadée à gauche pour préserver la lisibilité du contenu */}
+          {/* Bannière auto par jeu, image en fond à droite, fadée à gauche pour préserver la lisibilité du contenu */}
           {heroBanner && (
             <>
               <div
@@ -306,7 +306,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                   background: `linear-gradient(to right, var(--s-surface) 30%, rgba(10,10,10,0.5) 65%, transparent 100%)`,
                 }}
               />
-              {/* Accent gradient venant de la droite — couleur du jeu */}
+              {/* Accent gradient venant de la droite, couleur du jeu */}
               <div
                 className="absolute top-0 right-0 w-[60%] h-full pointer-events-none opacity-30"
                 style={{
@@ -322,7 +322,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
           <div className="relative z-[1] p-5 sm:p-6 lg:p-10 flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-6 lg:gap-10 min-h-[320px]">
             <div className="flex items-center gap-5 sm:gap-6 lg:gap-10 min-w-0 flex-1">
-              {/* Avatar — beaucoup plus grand pour donner de la présence (style trading card) */}
+              {/* Avatar, beaucoup plus grand pour donner de la présence (style trading card) */}
               <div className="flex-shrink-0 w-28 h-28 sm:w-40 sm:h-40 lg:w-52 lg:h-52 relative overflow-hidden bevel-sm"
                 style={{
                   background: 'var(--s-elevated)',
@@ -426,7 +426,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
         {/* ─── BODY : layout 2 colonnes (main 2/3 + sidebar 1/3 sticky) ──── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in-d1">
-          {/* MAIN COLUMN (2/3) — Bio + Stats jeux + Historique */}
+          {/* MAIN COLUMN (2/3), Bio + Stats jeux + Historique */}
           <div className="lg:col-span-2 space-y-6 min-w-0">
 
         {/* ─── BIO ───────────────────────────────────────────────────────── */}
@@ -454,7 +454,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
           {/* Stats RL */}
           {profile.games?.includes('rocket_league') && (() => {
-            // Champs calculés côté serveur par /api/profile (voir route.ts) —
+            // Champs calculés côté serveur par /api/profile (voir route.ts) ,
             // ils sont déjà résolus avec la bonne priorité Epic > Steam et
             // survivent au filtrage `visibleOnProfile` des connexions Discord
             // pour les visiteurs non-owners.
@@ -507,7 +507,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     )}
                   </div>
                   <div className="p-5 flex-1 flex flex-col gap-4">
-                    {/* Statut RL officiel — ✓ vérifié + lien tracker + signaler ou ⚠️ non lié */}
+                    {/* Statut RL officiel, ✓ vérifié + lien tracker + signaler ou ⚠️ non lié */}
                     <RLIdentityBadge
                       games={profile.games}
                       rlAccountVerified={rlAccountVerified}
@@ -558,7 +558,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     ) : rlStatsLoaded && !effective ? (
                       <RLEmptyState isOwner={isOwner} />
                     ) : rlStatsLoaded ? (
-                      /* Pas de stats auto live (tracker.gg API cassée) — rang déclaré + badge en gros watermark */
+                      /* Pas de stats auto live (tracker.gg API cassée), rang déclaré + badge en gros watermark */
                       <div className="space-y-4">
                         {profile.rlRank ? (() => {
                           const tierConfig = getRankTierConfig(profile.rlRank);
@@ -572,7 +572,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                                 minHeight: '180px',
                               }}
                             >
-                              {/* Badge rang en watermark — gigantesque, semi-transparent, à droite */}
+                              {/* Badge rang en watermark, gigantesque, semi-transparent, à droite */}
                               <div
                                 className="absolute pointer-events-none"
                                 style={{
@@ -646,7 +646,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       </div>
                     </div>
 
-                    {/* Boutons tracker.gg & Ballchasing — en pill buttons distincts (plus de présence) */}
+                    {/* Boutons tracker.gg & Ballchasing, en pill buttons distincts (plus de présence) */}
                     {effective && (trackerHref || ballchasingHref) && (
                       <div className="mt-auto pt-4">
                         <div className="flex flex-wrap gap-2">
@@ -852,7 +852,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
             </div>
           )}
 
-          {/* Valorant card — rang déclaratif + (à venir) stats agrégées via HenrikDev */}
+          {/* Valorant card, rang déclaratif + (à venir) stats agrégées via HenrikDev */}
           {profile.games?.includes('valorant') && (() => {
             const valTier = getValorantTierConfig(profile.valorantRank);
             const accent = valTier?.color ?? '#FF4655';
@@ -972,7 +972,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           </div>
           {/* ── FIN MAIN COLUMN ── */}
 
-          {/* SIDEBAR (1/3) — Recrutement + Structures + Comptes compacts */}
+          {/* SIDEBAR (1/3), Recrutement + Structures + Comptes compacts */}
           <aside className="space-y-6 min-w-0">
             <div className="lg:sticky lg:top-[88px] space-y-6">
 
@@ -1016,7 +1016,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                 </div>
               )}
 
-              {/* Structure(s) — utilise sortedStructures (triées par hiérarchie de rôle) */}
+              {/* Structure(s), utilise sortedStructures (triées par hiérarchie de rôle) */}
               {sortedStructures.length > 0 && (
                 <div className="pillar-card panel relative overflow-hidden">
                   <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.15), transparent 60%)' }} />
@@ -1087,7 +1087,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                 </div>
               )}
 
-              {/* Comptes & liens — version compacte (chips inline) */}
+              {/* Comptes & liens, version compacte (chips inline) */}
               {visibleConnections.length > 0 && (
                 <div className="pillar-card panel relative overflow-hidden">
                   <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />

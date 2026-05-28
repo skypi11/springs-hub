@@ -129,7 +129,7 @@ export type Team = {
   captainId?: string | null;
 };
 
-// Rôles structure — utilisés pour dériver l'audience staff côté client
+// Rôles structure, utilisés pour dériver l'audience staff côté client
 // (scope='staff' dans le formulaire). Source : structure doc.
 type StructureRoles = {
   founderId: string;
@@ -169,7 +169,7 @@ const PRESENCE_INFO: Record<PresenceStatus, { label: string; color: string }> = 
   pending: { label: 'En attente', color: 'var(--s-text-muted)' },
 };
 
-// Jetons spéciaux du filtre d'audience — distincts des IDs d'équipe (Firestore).
+// Jetons spéciaux du filtre d'audience, distincts des IDs d'équipe (Firestore).
 // Permettent de filtrer aussi les événements staff et structure-wide.
 const FILTER_STAFF = '__staff__';
 const FILTER_STRUCTURE = '__structure__';
@@ -295,7 +295,7 @@ export default function CalendarSection({
     return events.filter(e => eventMatchesAudienceFilter(e, teamFilter));
   }, [events, teamFilter]);
 
-  // Prochain événement (toutes équipes confondues) — sert au bandeau récap.
+  // Prochain événement (toutes équipes confondues), sert au bandeau récap.
   const nextEvent = useMemo(() => {
     return events
       .filter(e => e.startsAt && e.status !== 'cancelled'
@@ -370,7 +370,7 @@ export default function CalendarSection({
               { v: 'month' as const, label: 'Mois', icon: <LayoutGrid size={12} />, gated: false },
               { v: 'week' as const, label: 'Semaine', icon: <CalendarRange size={12} />, gated: false },
               { v: 'list' as const, label: 'Liste', icon: <List size={12} />, gated: false },
-              // Onglet STAFF : nouveau (Matt 2026-05-25) — affiche les dispos du
+              // Onglet STAFF : nouveau (Matt 2026-05-25), affiche les dispos du
               // pool staff (dirigeants + responsable + coach structure + staff
               // d'équipes + capitaines). Visible uniquement pour le responsable +
               // dirigeants (= ceux qui organisent des réunions staff).
@@ -398,7 +398,7 @@ export default function CalendarSection({
         </div>
       </div>
 
-      {/* Bandeau récap — accès direct au prochain événement */}
+      {/* Bandeau récap, accès direct au prochain événement */}
       {nextEvent && (
         <button type="button" onClick={() => setOpenEventId(nextEvent.id)}
           className="relative z-[1] w-full flex items-center gap-3 px-5 py-2.5 text-left transition-colors duration-150 hover:bg-[var(--s-hover)]"
@@ -421,7 +421,7 @@ export default function CalendarSection({
         </button>
       )}
 
-      {/* Filtres temporels — pertinents uniquement en vue Liste
+      {/* Filtres temporels, pertinents uniquement en vue Liste
           (en vue Mois, le périmètre est donné par la navigation des mois). */}
       {effectiveViewMode === 'list' && (
         <div className="relative z-[1] px-4 sm:px-5 pt-4 flex flex-wrap gap-2">
@@ -440,7 +440,7 @@ export default function CalendarSection({
         </div>
       )}
 
-      {/* Filtre d'audience — équipes + staff + structure, multi-select scalable */}
+      {/* Filtre d'audience, équipes + staff + structure, multi-select scalable */}
       <TeamFilterDropdown teams={teams} value={teamFilter} onChange={setTeamFilter} />
 
       {/* Body */}
@@ -574,7 +574,7 @@ function TeamFilterDropdown({
     return a.name.localeCompare(b.name);
   });
 
-  // Audiences spéciales — au-dessus de la liste des équipes.
+  // Audiences spéciales, au-dessus de la liste des équipes.
   const SPECIALS = [
     { id: FILTER_STRUCTURE, label: 'Toute la structure' },
     { id: FILTER_STAFF, label: 'Staff' },
@@ -869,7 +869,7 @@ function EventFormModal({
   members: Member[];
   userContext: UserContext;
   structureRoles: StructureRoles;
-  // Date/heure pré-remplies — passées quand on a cliqué sur une case du calendrier.
+  // Date/heure pré-remplies, passées quand on a cliqué sur une case du calendrier.
   // Format "YYYY-MM-DDTHH:mm" (heure locale), contrat de DateTimePicker.
   initialStartsAt?: string;
   initialEndsAt?: string;
@@ -899,7 +899,7 @@ function EventFormModal({
   const [markDone, setMarkDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Sélection fine des joueurs ("feuille de match") — seulement quand UNE équipe
+  // Sélection fine des joueurs ("feuille de match"), seulement quand UNE équipe
   // est ciblée. Clé = uid ; true = invité + pingé, false = exclu.
   const [playerSelection, setPlayerSelection] = useState<Record<string, boolean>>({});
 
@@ -957,7 +957,7 @@ function EventFormModal({
     };
   }
 
-  // Roster de l'équipe unique sélectionnée (si applicable) — titulaires + remplaçants + staff
+  // Roster de l'équipe unique sélectionnée (si applicable), titulaires + remplaçants + staff
   const singleTeamRoster = useMemo(() => {
     if (scope !== 'teams' || selectedTeamIds.length !== 1) return null;
     const team = teams.find(t => t.id === selectedTeamIds[0]);
@@ -1447,7 +1447,7 @@ function EventFormModal({
                   )}
 
                   <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                    Événement privé — seuls les invités cochés le voient et sont notifiés. Invisible pour les joueurs.
+                    Événement privé, seuls les invités cochés le voient et sont notifiés. Invisible pour les joueurs.
                   </p>
                 </div>
               );
@@ -1519,7 +1519,7 @@ function EventFormModal({
                   🏆 TOURNOI
                 </span>
                 <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                  Compétition externe ou interne — détails optionnels.
+                  Compétition externe ou interne, détails optionnels.
                 </span>
               </div>
               <div>
@@ -1733,7 +1733,7 @@ function EventDetailModal({
               </span>
             </div>
 
-            {/* Bannière VS pour les matchs officiels — logos + noms en grand */}
+            {/* Bannière VS pour les matchs officiels, logos + noms en grand */}
             {event.type === 'match' && event.adversaire && (() => {
               const firstTeam = event.target.scope === 'teams'
                 ? teams.find(t => (event.target.teamIds ?? []).includes(t.id))
@@ -1911,7 +1911,7 @@ function EventDetailModal({
               <label className="t-label">EXERCICES À TRAVAILLER</label>
               {canEdit && (() => {
                 // Le bouton "Assigner" n'a de sens que si l'event cible une
-                // ou plusieurs équipes précises — pour les scopes structure/
+                // ou plusieurs équipes précises, pour les scopes structure/
                 // game/staff, on ne peut pas savoir à quelle équipe rattacher
                 // le todo (sub_teams sont au niveau équipe, pas structure).
                 const teamIds = event.target.scope === 'teams' ? (event.target.teamIds ?? []) : [];
@@ -1940,7 +1940,7 @@ function EventDetailModal({
                 <select className="settings-input w-full text-sm"
                   value={todoTeamId}
                   onChange={e => setTodoTeamId(e.target.value)}>
-                  <option value="">— Choisis une équipe —</option>
+                  <option value="">Choisis une équipe</option>
                   {(event.target.teamIds ?? []).map(tid => {
                     const t = teams.find(x => x.id === tid);
                     return <option key={tid} value={tid}>{t?.name ?? tid}</option>;
@@ -1949,7 +1949,7 @@ function EventDetailModal({
               </div>
             )}
 
-            {/* Form embarqué — réutilise NewTodoForm de TeamTodosPanel avec
+            {/* Form embarqué, réutilise NewTodoForm de TeamTodosPanel avec
                 eventId verrouillé. Construit un TeamRef depuis Team + membersById. */}
             {showTodoForm && todoTeamId && (() => {
               const team = teams.find(t => t.id === todoTeamId);
@@ -2051,13 +2051,13 @@ function EventDetailModal({
               </div>
             )}
 
-            {/* Affichage legacy — uniquement si l'event a déjà un aTravailler
+            {/* Affichage legacy, uniquement si l'event a déjà un aTravailler
                 rempli (créé avant la refonte). En lecture seule. */}
             {aTravailler && (
               <div className="mt-3 p-3 bevel-sm space-y-1"
                 style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
                 <div className="t-label text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                  Note du coach (legacy — créée avant la migration vers les exercices)
+                  Note du coach (legacy, créée avant la migration vers les exercices)
                 </div>
                 <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--s-text-dim)' }}>
                   {aTravailler}
@@ -2074,7 +2074,7 @@ function EventDetailModal({
             )}
           </div>
 
-          {/* Replays — uniquement pour scrim/match ciblant une seule équipe */}
+          {/* Replays, uniquement pour scrim/match ciblant une seule équipe */}
           {(event.type === 'scrim' || event.type === 'match') && event.target.scope === 'teams' && (event.target.teamIds ?? []).length === 1 && (
             <div className="pt-2" style={{ borderTop: '1px solid var(--s-border)' }}>
               <div className="pt-3">

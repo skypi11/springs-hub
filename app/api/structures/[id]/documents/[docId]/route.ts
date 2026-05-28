@@ -42,7 +42,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Document hors structure' }, { status: 403 });
     }
 
-    // Mode finalize — vérifie que le fichier est bien présent sur R2
+    // Mode finalize, vérifie que le fichier est bien présent sur R2
     if (body.finalize === true) {
       if (current.status === 'ready') {
         return NextResponse.json({ ok: true });
@@ -59,7 +59,7 @@ export async function PATCH(
       if (current.sensitive === true && current.encrypted !== true) {
         if (!isEncryptionAvailable()) {
           return NextResponse.json(
-            { error: 'Chiffrement non configuré — contacter un admin' },
+            { error: 'Chiffrement non configuré, contacter un admin' },
             { status: 500 }
           );
         }
@@ -102,7 +102,7 @@ export async function PATCH(
       return NextResponse.json({ ok: true });
     }
 
-    // Mode metadata — titre, notes, déplacement
+    // Mode metadata, titre, notes, déplacement
     const update: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
     const changes: Record<string, unknown> = {};
 

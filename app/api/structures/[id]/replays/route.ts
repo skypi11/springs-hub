@@ -42,7 +42,7 @@ export async function GET(
     const db = getAdminDb();
     const resolved = await resolveUserContext(db, uid, structureId);
     if (!resolved) return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
-    // Pas de guard global ici — le filtre par allowedTeamIds ci-dessous fait
+    // Pas de guard global ici, le filtre par allowedTeamIds ci-dessous fait
     // l'autorisation effective (un user sans aucune team accessible recevra
     // un array vide, ce qui est le bon comportement).
 
@@ -73,7 +73,7 @@ export async function GET(
     let query = db.collection('replays').where('structureId', '==', structureId).where('status', '==', 'ready');
     if (teamId) query = query.where('teamId', '==', teamId);
     if (eventId) query = query.where('eventId', '==', eventId);
-    // Firestore limite les where à 30 éléments sur 'in' — on re-filtre en mémoire si pas staff
+    // Firestore limite les where à 30 éléments sur 'in', on re-filtre en mémoire si pas staff
     const snap = await query.get();
 
     const replaysFiltered = snap.docs
@@ -143,7 +143,7 @@ export async function POST(
     if (!filename) return NextResponse.json({ error: 'filename requis' }, { status: 400 });
     if (sizeBytes <= 0 || sizeBytes > UPLOAD_LIMITS.REPLAY_BYTES) {
       const mb = Math.round(UPLOAD_LIMITS.REPLAY_BYTES / (1024 * 1024));
-      return NextResponse.json({ error: `Taille invalide — max ${mb} MB` }, { status: 413 });
+      return NextResponse.json({ error: `Taille invalide, max ${mb} MB` }, { status: 413 });
     }
     // MIME : .replay n'a pas de MIME standard, on accepte octet-stream et vide
     if (!isAllowedMime(contentType, 'REPLAYS')) {

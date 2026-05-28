@@ -1,4 +1,4 @@
-// Agrégations de stats ballchasing — partagées entre :
+// Agrégations de stats ballchasing, partagées entre :
 // - le replay courant (ligne TEAM en bas de chaque table)
 // - la moyenne du match (N replays d'un même event)
 //
@@ -56,7 +56,7 @@ function reduce(values: number[], mode: AggregationMode): number {
   const total = values.reduce((s, v) => s + (Number.isFinite(v) ? v : 0), 0);
   return mode === 'sum' ? total : total / values.length;
 }
-// Toujours moyenne (pour les rates) — sum n'a pas de sens.
+// Toujours moyenne (pour les rates), sum n'a pas de sens.
 function meanOpt(values: (number | undefined)[]): number | undefined {
   const defined = values.filter((v): v is number => typeof v === 'number');
   if (defined.length === 0) return undefined;

@@ -3,7 +3,7 @@ import { Scale, Mail, Globe, Server } from 'lucide-react';
 import { LEGAL_INFO } from '@/lib/legal-info';
 
 export const metadata = {
-  title: 'Mentions légales — Aedral',
+  title: 'Mentions légales · Aedral',
   description: 'Mentions légales et informations sur l\'éditeur du site Aedral.',
 };
 
@@ -51,7 +51,7 @@ export default function MentionsLegalesPage() {
             {i.contactPhone && <LegalLine label="Téléphone" value={i.contactPhone} />}
           </dl>
           <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-            Pour toute demande RGPD (accès, rectification, suppression), contactez l&apos;éditeur à cette adresse — réponse sous 30 jours maximum.
+            Pour toute demande RGPD (accès, rectification, suppression), contactez l&apos;éditeur à cette adresse, réponse sous 30 jours maximum.
           </p>
         </section>
 
@@ -88,7 +88,7 @@ export default function MentionsLegalesPage() {
           <ul className="text-xs space-y-1 pl-4" style={{ color: 'var(--s-text-dim)', listStyle: 'disc' }}>
             {i.infraProviders.map(p => (
               <li key={p.name}>
-                <span style={{ color: 'var(--s-text)' }}>{p.name}</span> — {p.purpose} ({p.location}).
+                <span style={{ color: 'var(--s-text)' }}>{p.name}</span>, {p.purpose} ({p.location}).
               </li>
             ))}
           </ul>

@@ -10,7 +10,7 @@ import { fetchValorantMmr, fetchValorantAccountByPuuid } from '@/lib/valorant-he
 // (API key manquante/invalide) pour aider Matt à diagnostiquer la config env.
 function errorMessageForHenrikStatus(status: number, context: string): string {
   if (status === 401 || status === 403) {
-    return `Erreur HenrikDev (${status}) sur ${context} — l'API key est manquante ou invalide. Configurez HENRIKDEV_API_KEY en env Vercel (clé gratuite à demander sur le Discord HenrikDev).`;
+    return `Erreur HenrikDev (${status}) sur ${context}, l'API key est manquante ou invalide. Configurez HENRIKDEV_API_KEY en env Vercel (clé gratuite à demander sur le Discord HenrikDev).`;
   }
   if (status === 404) {
     return `Compte Riot introuvable sur HenrikDev (${context}). Joue au moins une game classée pour apparaître dans leur base.`;
@@ -30,7 +30,7 @@ function errorMessageForHenrikStatus(status: number, context: string): string {
 // Pas de body. Réponse : { ok, rank, rr, riotId } ou { error }.
 //
 // Le cron nocturne /api/cron/sync-valorant-ranks fait le boulot en batch,
-// mais le user veut son rang TOUT DE SUITE après avoir lié son compte —
+// mais le user veut son rang TOUT DE SUITE après avoir lié son compte ,
 // ce endpoint permet ça sans attendre la prochaine passe cron.
 //
 // Effets de bord :
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     const uid = await verifyAuth(req);
     if (!uid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
 
-    // Rate limit serré — empêcher un user de spammer HenrikDev via Aedral
+    // Rate limit serré, empêcher un user de spammer HenrikDev via Aedral
     const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
           updates.valorantPuuid = riotId.puuid;
           updates.valorantPuuidLinkedAt = FieldValue.serverTimestamp();
         } else if (oldPuuid !== riotId.puuid) {
-          // Changement de PUUID — flagger pour analyse (futur). Pour l'instant on
+          // Changement de PUUID, flagger pour analyse (futur). Pour l'instant on
           // accepte le changement mais on log côté serveur.
           console.warn(`[valorant-sync] PUUID change detected for user ${uid}: ${oldPuuid} → ${riotId.puuid}`);
           updates.valorantPuuid = riotId.puuid;
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
       }, { status: 502 });
     }
 
-    // Sync réussie — update + storage PUUID
+    // Sync réussie, update + storage PUUID
     const updates: Record<string, unknown> = {
       valorantRank: res.data.rank,
       valorantRR: res.data.rr,

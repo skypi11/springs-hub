@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       );
     }
     if (!ALLOWED_ROLES.has(role)) {
-      return NextResponse.json({ error: 'Rôle invalide — manager ou coach seulement.' }, { status: 400 });
+      return NextResponse.json({ error: 'Rôle invalide, manager ou coach seulement.' }, { status: 400 });
     }
 
     // Validation games : que des jeux connus de la registry + uniques
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     });
     if (!canPromoteStaff(ctx)) {
       if (data.status === 'suspended') {
-        return NextResponse.json({ error: 'Structure suspendue — action bloquée.' }, { status: 403 });
+        return NextResponse.json({ error: 'Structure suspendue, action bloquée.' }, { status: 403 });
       }
       return NextResponse.json(
         { error: 'Seuls les dirigeants peuvent configurer le scope des rôles staff.' },
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Validation : ne pas scoper sur des jeux que la structure ne pratique pas
-    // (avertissement non-bloquant — on filtre, c'est tout)
+    // (avertissement non-bloquant, on filtre, c'est tout)
     const structureGames = (data.games as string[] | undefined) ?? [];
     const validGames = cleanedGames.filter(g => structureGames.includes(g));
 

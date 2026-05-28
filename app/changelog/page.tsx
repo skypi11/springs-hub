@@ -327,7 +327,7 @@ function ChangelogCard({ item, delayMs }: { item: ParsedItem; delayMs: number })
           </div>
         </div>
 
-        {/* Sections — chacune avec son sous-tag de catégorie */}
+        {/* Sections, chacune avec son sous-tag de catégorie */}
         {item.sections.length === 0 ? (
           // Pas de sections détectées : fallback rendu markdown brut
           <div className="prose-springs text-sm max-w-none" style={{ color: 'var(--s-text-dim)' }}>

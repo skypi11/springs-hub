@@ -1,5 +1,5 @@
 // PATCH /api/admin/rl-link-changes/[id]
-// Décide d'une demande de changement de compte RL — Epic OU Steam.
+// Décide d'une demande de changement de compte RL, Epic OU Steam.
 // Body : { decision: 'approve' | 'reject', note?: string }
 // Si approve : met à jour le user (rlEpicId/rlSteamId selon platform)
 // atomiquement avec le statut de la demande.
@@ -96,7 +96,7 @@ export async function PATCH(
       adminUid,
       targetType: 'user',
       targetId: result.userUid,
-      targetLabel: `${result.userName} [${result.platform}] — ${result.currentName} → ${result.requestedName}${note ? ` (${note})` : ''}`,
+      targetLabel: `${result.userName} [${result.platform}], ${result.currentName} → ${result.requestedName}${note ? ` (${note})` : ''}`,
     });
 
     return NextResponse.json({ ok: true, decision: approve ? 'approved' : 'rejected', platform: result.platform });

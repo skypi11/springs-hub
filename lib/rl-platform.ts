@@ -95,7 +95,7 @@ export function buildBallchasingUrl(platform: RLPlatform, id: string): string {
   }
   // Epic / PSN / Xbox / Switch : recherche par nom (le profil direct
   // Ballchasing pour ces plateformes nécessite un identifiant interne UUID
-  // que la plupart des users ne connaissent pas — la search marche pour
+  // que la plupart des users ne connaissent pas, la search marche pour
   // tout le monde et retourne tous les replays du joueur).
   return `https://ballchasing.com/?player-name=${encodeURIComponent(trimmedId)}`;
 }
@@ -104,7 +104,7 @@ export function buildBallchasingUrl(platform: RLPlatform, id: string): string {
 // Lit la plateforme RL effective d'un user pour construire ses URLs externes
 // (tracker.gg, ballchasing). Priorité : Epic > tout le reste, parce que
 // depuis le passage free-to-play la progression RL vit sur le compte Epic
-// même quand le joueur lance le jeu via Steam — donc tracker.gg/steam/{id}
+// même quand le joueur lance le jeu via Steam, donc tracker.gg/steam/{id}
 // est souvent vide pour ces joueurs alors que tracker.gg/epic/{pseudo} est
 // peuplé. Voir docs/rl-rank-verification-plan.md.
 export function getEffectiveRLPlatform(user: {
@@ -116,24 +116,24 @@ export function getEffectiveRLPlatform(user: {
   discordConnections?: Array<{ type: string; name: string; verified?: boolean }>;
   steamLinked?: { steamId64?: string };
 }): { platform: RLPlatform; id: string } | null {
-  // 1. Snapshot Epic Lot 2 — la source officielle figée par l'user.
+  // 1. Snapshot Epic Lot 2, la source officielle figée par l'user.
   const epicSnapshot = user.rlEpicName?.trim();
   if (epicSnapshot) return { platform: 'epic', id: epicSnapshot };
 
-  // 2. Connexion Epic vérifiée sur Discord — proxy fiable post-F2P, marche
+  // 2. Connexion Epic vérifiée sur Discord, proxy fiable post-F2P, marche
   //    même quand l'user n'a pas encore confirmé son compte sur Aedral.
   const epicConn = (user.discordConnections ?? []).find(
     c => c.type === 'epicgames' && c.verified && c.name?.trim(),
   );
   if (epicConn) return { platform: 'epic', id: epicConn.name.trim() };
 
-  // 3. Choix manuel explicite (rlPlatform/rlPlatformId) — respecte la décision
+  // 3. Choix manuel explicite (rlPlatform/rlPlatformId), respecte la décision
   //    si l'user a explicitement sélectionné autre chose (PSN, Xbox, Switch).
   if (isValidRLPlatform(user.rlPlatform) && user.rlPlatformId?.trim()) {
     return { platform: user.rlPlatform, id: user.rlPlatformId.trim() };
   }
 
-  // 4. Steam OpenID lié — fallback pour les Steam-only sans aucune Epic.
+  // 4. Steam OpenID lié, fallback pour les Steam-only sans aucune Epic.
   const sid = user.steamLinked?.steamId64?.trim();
   if (sid) return { platform: 'steam', id: sid };
 

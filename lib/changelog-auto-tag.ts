@@ -58,7 +58,7 @@ function extractLeadingEmoji(title: string): { emoji: string; rest: string } {
   const trimmed = title.trim();
   if (!trimmed) return { emoji: '', rest: '' };
   // On utilise Intl.Segmenter pour découper proprement (grapheme cluster)
-  // — gère les emoji composés (🏗️, 🛠️, etc.) correctement.
+  //, gère les emoji composés (🏗️, 🛠️, etc.) correctement.
   try {
     const segmenter = new Intl.Segmenter('fr', { granularity: 'grapheme' });
     const segments = Array.from(segmenter.segment(trimmed));
@@ -159,7 +159,7 @@ export function categoriesInSections(sections: ChangelogSection[]): ChangelogCat
 }
 
 /**
- * Détecte la catégorie dominante (la plus fréquente) — utile pour la couleur
+ * Détecte la catégorie dominante (la plus fréquente), utile pour la couleur
  * principale de la card timeline.
  */
 export function dominantCategory(sections: ChangelogSection[]): ChangelogCategory {

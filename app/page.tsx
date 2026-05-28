@@ -137,7 +137,7 @@ export default function HomePage() {
 
         {user && <ConnectedDashboard user={user} />}
 
-        {/* Compétitions — visible pour tous */}
+        {/* Compétitions, visible pour tous */}
         <section className="animate-fade-in-d2">
           <div className="section-label">
             <span className="t-label">Compétitions actives</span>
@@ -194,7 +194,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Explorer l'écosystème — 3 piliers plus compacts en mode connecté */}
+        {/* Explorer l'écosystème, 3 piliers plus compacts en mode connecté */}
         <section className="animate-fade-in-d3">
           <div className="section-label">
             <span className="t-label">Explorer l&apos;écosystème</span>

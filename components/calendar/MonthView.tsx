@@ -1,6 +1,6 @@
 'use client';
 
-// Vue Mois du calendrier de structure — grille 6×7 façon calendrier classique.
+// Vue Mois du calendrier de structure, grille 6×7 façon calendrier classique.
 // Donne au fondateur la vision globale réclamée : tous les événements de toutes
 // les équipes d'un coup d'œil, sans ouvrir chaque équipe une par une.
 //
@@ -29,7 +29,7 @@ function timeOf(iso: string | null): string {
   return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
 
-// Couleur d'un événement par jeu — RL bleu, TM vert, structure/staff/multi-jeux → or.
+// Couleur d'un événement par jeu, RL bleu, TM vert, structure/staff/multi-jeux → or.
 // On colore par jeu (et pas par équipe) car une structure peut avoir 15+ équipes :
 // 15 couleurs distinctes seraient illisibles. Le nom de l'équipe reste sur la puce.
 export function eventGameColor(ev: CalendarEvent, teams: Team[]): string {
@@ -77,7 +77,7 @@ export default function MonthView({ events, teams, now, canCreate, onEventClick,
   const todayYmd = ymdOf(today);
   const [anchor, setAnchor] = useState(() => ({ y: today.getFullYear(), m: today.getMonth() }));
   const [dayPopover, setDayPopover] = useState<{ ymd: string; top: number; left: number } | null>(null);
-  // Mobile (< sm) : cases compactes — points colorés au lieu des puces texte,
+  // Mobile (< sm) : cases compactes, points colorés au lieu des puces texte,
   // illisibles dans une colonne de ~46px. Le tap sur la case ouvre le panneau du jour.
   const [isNarrow, setIsNarrow] = useState(false);
   useEffect(() => {
@@ -165,7 +165,7 @@ export default function MonthView({ events, teams, now, canCreate, onEventClick,
         ))}
       </div>
 
-      {/* Grille des jours — un clic sur une case ouvre le panneau du jour */}
+      {/* Grille des jours, un clic sur une case ouvre le panneau du jour */}
       <div className="grid grid-cols-7 gap-1">
         {cells.map(cell => {
           const dayEvents = eventsByDay.get(cell.ymd) ?? [];
@@ -222,14 +222,14 @@ export default function MonthView({ events, teams, now, canCreate, onEventClick,
                 )
               ) : (
                 <>
-                  {/* Puces événements — 2 lignes : titre + pour qui */}
+                  {/* Puces événements, 2 lignes : titre + pour qui */}
                   {visible.map(ev => {
                     const color = eventGameColor(ev, teams);
                     const cancelled = ev.status === 'cancelled';
                     return (
                       <button key={ev.id} type="button"
                         onClick={e => { e.stopPropagation(); onEventClick(ev.id); }}
-                        title={`${timeOf(ev.startsAt)} · ${ev.title} — ${eventTargetLabel(ev, teams)}`}
+                        title={`${timeOf(ev.startsAt)} · ${ev.title}, ${eventTargetLabel(ev, teams)}`}
                         className="block w-full text-left transition-colors hover:bg-[var(--s-hover)]"
                         style={{
                           padding: '2px 5px',
@@ -256,7 +256,7 @@ export default function MonthView({ events, teams, now, canCreate, onEventClick,
                     );
                   })}
 
-                  {/* Débordement — le clic sur la case ouvre le panneau complet */}
+                  {/* Débordement, le clic sur la case ouvre le panneau complet */}
                   {overflow > 0 && (
                     <span style={{ fontSize: 12, color: 'var(--s-text-muted)', padding: '0 5px' }}>
                       +{overflow} autre{overflow > 1 ? 's' : ''}
@@ -269,7 +269,7 @@ export default function MonthView({ events, teams, now, canCreate, onEventClick,
         })}
       </div>
 
-      {/* Panneau du jour — ouvert au clic sur n'importe quelle case */}
+      {/* Panneau du jour, ouvert au clic sur n'importe quelle case */}
       {dayPopover && (
         <Portal>
           <div className="fixed inset-0 z-[60]" onClick={() => setDayPopover(null)} />

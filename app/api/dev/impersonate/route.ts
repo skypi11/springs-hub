@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth } from '@/lib/firebase-admin';
 
-// POST /api/dev/impersonate — génère un custom token Firebase pour un uid dev.
+// POST /api/dev/impersonate, génère un custom token Firebase pour un uid dev.
 // Dev-only : bloqué en production. L'uid cible doit commencer par `discord_dev_`
 // pour éviter tout usage détourné (impossibilité de usurper un vrai user).
 
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   try {
     await auth.getUser(targetUid);
   } catch {
-    return NextResponse.json({ error: 'Compte dev introuvable — lance /api/dev/seed d\'abord' }, { status: 404 });
+    return NextResponse.json({ error: 'Compte dev introuvable, lance /api/dev/seed d\'abord' }, { status: 404 });
   }
 
   const token = await auth.createCustomToken(targetUid);

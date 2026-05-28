@@ -6,7 +6,7 @@ import { auth } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import { FlaskConical, ChevronDown, Database, Trash2, RefreshCw } from 'lucide-react';
 
-// Panneau dev-only — visible uniquement si NODE_ENV === 'development'.
+// Panneau dev-only, visible uniquement si NODE_ENV === 'development'.
 // Permet de se connecter rapidement en tant que faux utilisateur dev pour tester
 // les différents rôles (fondateur, co-fondateur, manager, coach, joueur, admin).
 // Les comptes dev sont créés via /api/dev/seed et supprimés via /api/dev/cleanup.
@@ -88,7 +88,7 @@ export default function DevSwitcher() {
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  // Cache l'outil en prod. NODE_ENV est inliné au build — safe.
+  // Cache l'outil en prod. NODE_ENV est inliné au build, safe.
   if (process.env.NODE_ENV !== 'development') return null;
 
   const currentDevUid = user?.uid?.startsWith('discord_dev_') ? user.uid : null;
@@ -125,7 +125,7 @@ export default function DevSwitcher() {
       const res = await fetch('/api/dev/seed', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) setMessage(data.error || 'Erreur seed');
-      else setMessage(`Seed OK — ${data.users} users + structure ${data.structure}`);
+      else setMessage(`Seed OK, ${data.users} users + structure ${data.structure}`);
     } catch (err) {
       setMessage((err as Error).message);
     }
@@ -142,7 +142,7 @@ export default function DevSwitcher() {
       if (!res.ok) setMessage(data.error || 'Erreur cleanup');
       else {
         const total = Object.values(data.deleted as Record<string, number>).reduce((a, b) => a + b, 0);
-        setMessage(`Cleanup OK — ${total} docs supprimés`);
+        setMessage(`Cleanup OK, ${total} docs supprimés`);
       }
     } catch (err) {
       setMessage((err as Error).message);

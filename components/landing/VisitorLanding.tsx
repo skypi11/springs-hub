@@ -361,7 +361,7 @@ function StructuresSection() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// SHOWCASE — captures du vrai produit, en grand, alternées L/R
+// SHOWCASE, captures du vrai produit, en grand, alternées L/R
 // ─────────────────────────────────────────────────────────────────────────
 const showcaseShots = [
   {
@@ -428,11 +428,11 @@ function ShowcaseSection() {
           {showcaseShots.map((shot, i) => (
             <ScrollReveal key={shot.src} delay={50}>
               <div className={`flex flex-col gap-10 lg:gap-16 items-center ${i % 2 === 1 ? 'lg:flex-row-reverse' : 'lg:flex-row'}`}>
-                {/* Image — 60% */}
+                {/* Image, 60% */}
                 <div className="w-full lg:w-[58%] flex-shrink-0">
                   <ShowcaseTilted src={shot.src} alt={shot.alt} flip={i % 2 === 1} />
                 </div>
-                {/* Texte — 40% */}
+                {/* Texte, 40% */}
                 <div className="w-full lg:w-[42%]">
                   <span className="tag tag-gold mb-4 inline-block" style={{ fontSize: 9 }}>{shot.tag}</span>
                   <h3 className="font-display mb-4" style={{ fontSize: 'clamp(1.5rem, 2.8vw, 2.25rem)', letterSpacing: '0.02em', lineHeight: 1.1, color: 'var(--s-text)' }}>

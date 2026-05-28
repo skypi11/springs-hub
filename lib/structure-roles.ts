@@ -1,5 +1,5 @@
 // Helpers purs autour des rôles dirigeants d'une structure.
-// Pas d'accès Firestore ici — toute la logique métier qui peut être testée en isolation.
+// Pas d'accès Firestore ici, toute la logique métier qui peut être testée en isolation.
 
 export const MAX_SEATS_PER_PERSON = 2;
 export const MAX_CO_FOUNDERS_PER_STRUCTURE = 2;
@@ -65,7 +65,7 @@ export function hasReachedSeatLimit(
 }
 
 // Convertit une valeur Firestore (Timestamp, Date, number, string ISO) en millisecondes epoch.
-// Renvoie null si la valeur est absente ou illisible — l'appelant doit gérer l'absence de préavis.
+// Renvoie null si la valeur est absente ou illisible, l'appelant doit gérer l'absence de préavis.
 export function noticeTimestampToMs(value: unknown): number | null {
   if (value == null) return null;
   // Firestore Timestamp a une méthode toMillis()

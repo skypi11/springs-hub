@@ -12,9 +12,9 @@ import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
 
-// Page Guide / Découvrir Aedral — validée Matt 2026-05-25.
+// Page Guide / Découvrir Aedral, validée Matt 2026-05-25.
 // Texte d'abord (screenshots V2 selon retour). Ton pro/clean style Linear/Notion.
-// Bénéfices user-facing — pas de mentions techno (ballchasing/R2/firestore).
+// Bénéfices user-facing, pas de mentions techno (ballchasing/R2/firestore).
 
 type Section = {
   id: string;
@@ -159,7 +159,7 @@ const SECTIONS: Section[] = [
   },
 ];
 
-// Section "Spécificités par jeu" — rendu custom (grid de cards), pas une liste
+// Section "Spécificités par jeu", rendu custom (grid de cards), pas une liste
 // d'items comme les autres sections. Métadonnées TOC séparées pour scroll spy.
 const GAMES_SECTION_META = {
   id: 'jeux',
@@ -170,7 +170,7 @@ const GAMES_SECTION_META = {
 // Entrées TOC complètes : sections classiques + section jeux custom à la fin.
 // Sert à la fois à la sidebar et au scroll spy. Le type d'icône suit celui
 // utilisé par Section.icon pour rester compatible avec les forward refs Lucide
-// (typeof Gamepad2, etc. — sinon ComponentType est trop large).
+// (typeof Gamepad2, etc., sinon ComponentType est trop large).
 type TocEntry = { id: string; icon: Section['icon']; title: string };
 const TOC_ENTRIES: TocEntry[] = [
   ...SECTIONS.map(s => ({ id: s.id, icon: s.icon, title: s.title })),

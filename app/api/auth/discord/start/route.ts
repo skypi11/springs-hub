@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${origin}/?auth_error=missing_client_id`);
   }
 
-  // Nonce CSRF — stocké en cookie httpOnly et renvoyé via le param `state`
+  // Nonce CSRF, stocké en cookie httpOnly et renvoyé via le param `state`
   const state = randomBytes(32).toString('hex');
 
   const redirectUri = `${origin}/api/auth/discord/callback`;

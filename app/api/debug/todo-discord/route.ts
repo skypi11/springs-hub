@@ -6,7 +6,7 @@ import { isStaffOfTeam } from '@/lib/event-permissions';
 
 // GET /api/debug/todo-discord?todoId=XXX
 // Route de diagnostic : prend un todoId, reproduit exactement la chaîne de décisions
-// que fait le fan-out Discord à la création, et renvoie un rapport détaillé —
+// que fait le fan-out Discord à la création, et renvoie un rapport détaillé ,
 // SANS poster (on vérifie juste la joignabilité via des GET).
 //
 // Utile quand un exercice créé n'a déclenché ni embed channel ni DM : on sait
@@ -72,7 +72,7 @@ async function checkDmOpenable(token: string, discordId: string): Promise<DiagSt
       const body = await res.text().catch(() => '');
       return { step: `dm_open_${discordId}`, ok: false, detail: `HTTP ${res.status}: ${body.slice(0, 150)}` };
     }
-    // L'endpoint renvoie un DM channel même si le user bloque les DMs —
+    // L'endpoint renvoie un DM channel même si le user bloque les DMs ,
     // le vrai blocage se produit au POST. On fait donc un 2e test : POST un message minimal… non,
     // ça enverrait réellement. On se contente du dm_open.
     return { step: `dm_open_${discordId}`, ok: true, detail: 'DM channel ouvrable (POST réel à tester via création de exercice)' };
@@ -114,7 +114,7 @@ export async function GET(req: NextRequest) {
     steps.push({
       step: 'env_DISCORD_BOT_TOKEN',
       ok: !!token,
-      detail: token ? `présent (${token.length} chars)` : 'MANQUANT — à ajouter dans Vercel env vars',
+      detail: token ? `présent (${token.length} chars)` : 'MANQUANT, à ajouter dans Vercel env vars',
     });
 
     steps.push({
@@ -126,7 +126,7 @@ export async function GET(req: NextRequest) {
     steps.push({
       step: 'team_discordChannelId',
       ok: !!teamChannelId,
-      detail: teamChannelId ? `channel ${teamChannelId}` : 'aucun channel Discord lié à cette équipe — va dans les réglages team',
+      detail: teamChannelId ? `channel ${teamChannelId}` : 'aucun channel Discord lié à cette équipe, va dans les réglages team',
     });
 
     steps.push({
@@ -155,14 +155,14 @@ export async function GET(req: NextRequest) {
 
     const expected: string[] = [];
     if (!hasToken) {
-      expected.push('❌ Aucun envoi possible — DISCORD_BOT_TOKEN absent.');
+      expected.push('❌ Aucun envoi possible, DISCORD_BOT_TOKEN absent.');
     } else {
       if (hasChannel && channelOk) expected.push('✅ Embed dans le channel team aurait été posté.');
       else if (hasChannel && !channelOk) expected.push('❌ Channel configuré mais injoignable par le bot (pas ajouté au serveur ? perms manquantes ?).');
-      else expected.push('⚠️ Pas de channel Discord sur l\'équipe — aucun embed posté (mais ce n\'est pas un bug, c\'est de la config).');
+      else expected.push('⚠️ Pas de channel Discord sur l\'équipe, aucun embed posté (mais ce n\'est pas un bug, c\'est de la config).');
 
       if (hasDid) expected.push('✅ DM tenté à l\'assigné (réel résultat dépend des prefs DMs du user).');
-      else expected.push('⚠️ Assignee sans discord_id — aucun DM.');
+      else expected.push('⚠️ Assignee sans discord_id, aucun DM.');
     }
 
     return NextResponse.json({

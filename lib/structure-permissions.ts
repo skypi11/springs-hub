@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════════════════╗
-// ║   STRUCTURE PERMISSIONS — Source de vérité unique pour TOUTES les        ║
+// ║   STRUCTURE PERMISSIONS, Source de vérité unique pour TOUTES les        ║
 // ║   autorisations structure-level (gestion équipes, membres, recrutement,  ║
 // ║   promotions, etc.).                                                     ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
@@ -13,11 +13,11 @@
 //   2. Lisibilité : la matrice de droits par rôle est visible en un fichier.
 //   3. Migration future facile : si un jour on passe à un système de
 //      permissions custom façon Discord, on remplace l'implémentation interne
-//      de ces fonctions — les 30 routes API qui les appellent ne bougent pas.
+//      de ces fonctions, les 30 routes API qui les appellent ne bougent pas.
 //
 // CONVENTIONS :
 //   - Toujours passer en input un `StructureContext` minimal (uid + champs
-//     pertinents de la struct). Pas de Firestore I/O ici — fonctions pures.
+//     pertinents de la struct). Pas de Firestore I/O ici, fonctions pures.
 //   - Préfixe `can*` pour les actions, `is*` pour les rôles bruts.
 //   - Pour les actions liées à une équipe spécifique, utiliser
 //     `lib/event-permissions.ts` (helpers team-level).
@@ -55,7 +55,7 @@ export interface StructureRoleData {
 }
 
 // Contexte minimal : uid de l'user + état des rôles structure.
-// On accepte aussi de passer la struct entière (StructureRoleData) — les
+// On accepte aussi de passer la struct entière (StructureRoleData), les
 // fonctions extraient ce qu'il leur faut. Ça évite de faire 2 helpers par
 // permission (un avec ctx, un avec struct).
 export interface StructureContext {
@@ -107,7 +107,7 @@ export function isCoach(ctx: StructureContext): boolean {
 //     vérifient en plus que le user a bien la permission sur ce jeu précis.
 //   - Pour les permissions `can*` team-level, préférer les variantes scopées
 //     qui prennent un gameId optionnel (à brancher progressivement aux call
-//     sites — voir TODO en fin de fichier).
+//     sites, voir TODO en fin de fichier).
 
 /** Liste des jeux où l'user est responsable. `null` = all-games (rétrocompat). `[]` = aucun. */
 export function getResponsableGames(ctx: StructureContext): string[] | null {
@@ -138,7 +138,7 @@ export function isCoachForGame(ctx: StructureContext, gameId: string): boolean {
 }
 
 /** True si l'user est admin structure pour `gameId` (dirigeant OR responsable du jeu).
- *  Les dirigeants ne sont jamais scopés — ils gèrent toujours toute la structure. */
+ *  Les dirigeants ne sont jamais scopés, ils gèrent toujours toute la structure. */
 export function isStructureAdminForGame(ctx: StructureContext, gameId: string): boolean {
   return isDirigeant(ctx) || isResponsableForGame(ctx, gameId);
 }
@@ -162,13 +162,13 @@ export function isStructureStaff(ctx: StructureContext): boolean {
 
 // ─── Helper transverse ────────────────────────────────────────────────────
 
-// Une structure suspendue bloque toutes les actions de write — sauf lecture.
+// Une structure suspendue bloque toutes les actions de write, sauf lecture.
 // À utiliser pour gater toutes les fonctions `can*` qui modifient l'état.
 function isWritable(ctx: StructureContext): boolean {
   return ctx.structure.status !== 'suspended';
 }
 
-// ─── PERMISSIONS — Actions sur la structure elle-même ──────────────────────
+// ─── PERMISSIONS, Actions sur la structure elle-même ──────────────────────
 
 // Modifier les settings structure (nom, logo, tag, description, bannière,
 // Discord config, recrutement on/off, message public de recrutement).
@@ -187,7 +187,7 @@ export function canTransferOwnership(ctx: StructureContext): boolean {
   return isWritable(ctx) && isFounder(ctx);
 }
 
-// ─── PERMISSIONS — Équipes (sub_teams) ────────────────────────────────────
+// ─── PERMISSIONS, Équipes (sub_teams) ────────────────────────────────────
 
 // Créer, modifier, archiver, reorder équipes. Le contenu d'une équipe
 // (joueurs, staff, capitaine, logo, label, salon Discord) est inclus.
@@ -208,7 +208,7 @@ export function canEditTeamLabel(ctx: StructureContext): boolean {
   return isWritable(ctx) && isDirigeant(ctx);
 }
 
-// ─── PERMISSIONS — Membres ────────────────────────────────────────────────
+// ─── PERMISSIONS, Membres ────────────────────────────────────────────────
 
 // Inviter joueurs (lien d'invitation, invitation directe), accepter/refuser
 // les candidatures join_request, retirer un membre de la structure.
@@ -223,7 +223,7 @@ export function canViewInvitations(ctx: StructureContext): boolean {
   return isStructureAdmin(ctx);
 }
 
-// ─── PERMISSIONS — Recrutement ────────────────────────────────────────────
+// ─── PERMISSIONS, Recrutement ────────────────────────────────────────────
 
 // Voir la shortlist, ajouter/retirer des joueurs prospectés, voir les
 // suggestions de recrutement.
@@ -238,7 +238,7 @@ export function canToggleRecruitment(ctx: StructureContext): boolean {
   return isWritable(ctx) && isDirigeant(ctx);
 }
 
-// ─── PERMISSIONS — Promotions / staff ────────────────────────────────────
+// ─── PERMISSIONS, Promotions / staff ────────────────────────────────────
 
 // Promouvoir/rétrograder un Responsable (managerIds) ou un Coach (coachIds).
 // → Dirigeants uniquement.
@@ -252,7 +252,7 @@ export function canPromoteCoFounder(ctx: StructureContext): boolean {
   return isWritable(ctx) && isFounder(ctx);
 }
 
-// ─── PERMISSIONS — Documents staff ────────────────────────────────────────
+// ─── PERMISSIONS, Documents staff ────────────────────────────────────────
 
 // Accès aux documents staff (contrats, docs sensibles).
 // → Dirigeants UNIQUEMENT (responsable exclu pour la confidentialité).
@@ -260,7 +260,7 @@ export function canAccessDocuments(ctx: StructureContext): boolean {
   return isDirigeant(ctx);
 }
 
-// ─── PERMISSIONS — Calendrier (vue) ──────────────────────────────────────
+// ─── PERMISSIONS, Calendrier (vue) ──────────────────────────────────────
 
 // Voir la section calendrier dans le dashboard de structure.
 // Les actions sur les événements eux-mêmes sont gérées par `lib/event-permissions.ts`
@@ -285,7 +285,7 @@ export function structureContext(uid: string, structure: StructureRoleData): Str
 // fourni, le check applique le scope `managerGames` / `coachGames`. Sans
 // gameId, comportement identique aux helpers historiques (rétrocompat).
 //
-// 🚧 PLAN DE MIGRATION (futur) — pour éviter la PR géante en une fois :
+// 🚧 PLAN DE MIGRATION (futur), pour éviter la PR géante en une fois :
 //
 //   Étape 1 (faite maintenant)  Poser le socle technique :
 //                               - Types managerGames / coachGames
@@ -304,7 +304,7 @@ export function structureContext(uid: string, structure: StructureRoleData): Str
 //                              comme dépréciation douce.
 //
 // Pendant l'étape 1-3 : les structures actuelles continuent à fonctionner
-// EXACTEMENT comme avant (aucune migration de data nécessaire — l'absence de
+// EXACTEMENT comme avant (aucune migration de data nécessaire, l'absence de
 // `managerGames`/`coachGames` est interprétée comme all-games).
 
 /** Variante scopée de canManageTeams. Si gameId non fourni → comportement legacy. */

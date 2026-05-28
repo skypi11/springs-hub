@@ -71,7 +71,7 @@ export async function GET(
         titleTemplate: (d.titleTemplate as string) ?? '',
         descriptionTemplate: (d.descriptionTemplate as string) ?? '',
         config: (d.config && typeof d.config === 'object') ? d.config : {},
-        // v3 — passé tel quel (le client utilise getSteps en lecture défensive
+        // v3, passé tel quel (le client utilise getSteps en lecture défensive
         // si steps absent, applyTemplate dans NewTodoForm wrap legacy en 1 step).
         ...(Array.isArray(d.steps) ? { steps: d.steps } : {}),
         createdAt: tsMs(d.createdAt) ?? 0,
@@ -161,7 +161,7 @@ export async function POST(
       titleTemplate,
       descriptionTemplate,
       config,
-      // v3 — source de vérité multi-step
+      // v3, source de vérité multi-step
       steps: steps.map(s => ({
         id: s.id,
         type: s.type,

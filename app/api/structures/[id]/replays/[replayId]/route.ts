@@ -67,7 +67,7 @@ export async function PATCH(
     if (body.finalize === true && data.status === 'pending') {
       const exists = await fileExists(data.r2Key as string);
       if (!exists) {
-        return NextResponse.json({ error: 'Fichier absent sur R2 — upload incomplet' }, { status: 409 });
+        return NextResponse.json({ error: 'Fichier absent sur R2, upload incomplet' }, { status: 409 });
       }
       updates.status = 'ready';
       // Marqueur ballchasing :

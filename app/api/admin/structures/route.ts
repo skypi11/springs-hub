@@ -13,7 +13,7 @@ import { isKnownGame } from '@/lib/games-registry';
 
 const MAX_STRUCTURES = 500;
 
-// GET /api/admin/structures — lister toutes les structures (admin only)
+// GET /api/admin/structures, lister toutes les structures (admin only)
 export async function GET(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/admin/structures — approuver / refuser / suspendre / supprimer
+// POST /api/admin/structures, approuver / refuser / suspendre / supprimer
 export async function POST(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
         });
         // Set structurePerGame.{game} = array contenant la structure, mergé
         // avec les structures déjà présentes pour ce jeu (max 2). En théorie le
-        // fondateur n'aura pas déjà 2 autres struct sur ce jeu — sinon la
+        // fondateur n'aura pas déjà 2 autres struct sur ce jeu, sinon la
         // création aurait été bloquée en amont. AddStructureToGame throw si cap.
         const userUpdates: Record<string, unknown> = { isFounderApproved: true };
         for (const g of founderGames) {
@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
       }
 
       case 'reject': {
-        // Retire la struct (pending) du structurePerGame du fondateur — sinon
+        // Retire la struct (pending) du structurePerGame du fondateur, sinon
         // elle reste comptée dans son cap "max N par jeu" alors qu'elle est
         // rejetée. À la création (request), on l'avait ajoutée pour le strict mode.
         const founderId = data.founderId as string | undefined;
@@ -206,7 +206,7 @@ export async function POST(req: NextRequest) {
         break;
 
       case 'schedule_deletion': {
-        // Marquer pour suppression dans 7 jours — le délai laisse la possibilité d'annuler
+        // Marquer pour suppression dans 7 jours, le délai laisse la possibilité d'annuler
         const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
         await ref.update({
           status: 'deletion_scheduled',
@@ -228,7 +228,7 @@ export async function POST(req: NextRequest) {
         break;
 
       case 'edit': {
-        // Édition directe des infos publiques de la structure (admin) — sans
+        // Édition directe des infos publiques de la structure (admin), sans
         // toucher au statut ni au cycle de validation.
         const name = clampString(body.name, LIMITS.structureName);
         const tag = clampString(body.tag, LIMITS.structureTag).toUpperCase();
@@ -252,7 +252,7 @@ export async function POST(req: NextRequest) {
       }
 
       case 'delete': {
-        // Suppression immédiate — atomique avec les memberships associés.
+        // Suppression immédiate, atomique avec les memberships associés.
         // Réservé aux cas où la suppression différée n'est pas adaptée
         // (rejet d'une demande, structure abandonnée).
         const members = await db.collection('structure_members')
@@ -268,7 +268,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Action invalide' }, { status: 400 });
     }
 
-    // Audit log — après succès de l'action, avant retour. Mapping action → AdminAuditAction.
+    // Audit log, après succès de l'action, avant retour. Mapping action → AdminAuditAction.
     const auditActionByAction: Record<string, AdminAuditAction | undefined> = {
       approve: 'structure_approved',
       reject: 'structure_rejected',

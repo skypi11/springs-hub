@@ -10,7 +10,7 @@ export interface DiscordConnection {
   id: string;                // identifiant côté plateforme (souvent immuable)
   name: string;              // pseudo/handle actuel affiché
   verified: boolean;         // Discord a vérifié que l'user possède bien ce compte
-  visibleOnProfile?: boolean; // toggle user — affiché sur profil Aedral public
+  visibleOnProfile?: boolean; // toggle user, affiché sur profil Aedral public
   fetchedAt?: string;        // ISO date dernière sync depuis Discord
 }
 
@@ -212,7 +212,7 @@ export function pickValorantRiotId(
       puuid: conn.id,
     };
   }
-  // Format partiel — pas de tag dans name. On retourne ce qu'on a, le caller
+  // Format partiel, pas de tag dans name. On retourne ce qu'on a, le caller
   // peut résoudre via HenrikDev fetchValorantAccountByPuuid si nécessaire.
   return { name: rawName, tag: '', puuid: conn.id };
 }

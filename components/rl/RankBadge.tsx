@@ -1,4 +1,4 @@
-// Badge officiel de rang Rocket League — utilise les icônes Psyonix haute
+// Badge officiel de rang Rocket League, utilise les icônes Psyonix haute
 // résolution (1280×1280 originaux, redimensionnés à 512 et convertis WebP)
 // hébergées dans public/rl-ranks/.
 //

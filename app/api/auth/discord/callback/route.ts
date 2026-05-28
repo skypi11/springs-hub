@@ -8,7 +8,7 @@ import { syncDiscordMember } from '@/lib/discord-role-sync';
 import { generateBaseSlug, generateUniqueSlug } from '@/lib/user-slug';
 
 export async function GET(req: NextRequest) {
-  // Rate limit OAuth par IP — protège contre le bruteforce de codes Discord
+  // Rate limit OAuth par IP, protège contre le bruteforce de codes Discord
   const blocked = await checkRateLimit(limiters.oauth, rateLimitKey(req));
   if (blocked) return blocked;
 
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${origin}/?auth_error=no_code`);
   }
 
-  // Vérification CSRF state — comparer au cookie posé avant la redirection vers Discord
+  // Vérification CSRF state, comparer au cookie posé avant la redirection vers Discord
   const stateCookie = req.cookies.get('discord_oauth_state')?.value;
   if (!stateFromUrl || !stateCookie || stateFromUrl !== stateCookie) {
     return NextResponse.redirect(`${origin}/?auth_error=invalid_state`);
@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
       // le tag (format "Skypi" au lieu de "Skypi#EUW"). On résout le RiotID
       // complet via HenrikDev à partir du PUUID, puis on écrit "Name#TAG"
       // dans le `name` de la connection pour que pickValorantRiotId fonctionne
-      // partout (profil, embed Discord, cron sync). Erreur silencieuse — on
+      // partout (profil, embed Discord, cron sync). Erreur silencieuse, on
       // garde le name partiel si HenrikDev down.
       const riotConn = mergedConnections?.find(c => c.type === 'riotgames');
       if (riotConn && riotConn.id && !riotConn.name.includes('#')) {
@@ -147,7 +147,7 @@ export async function GET(req: NextRequest) {
       discordUsername: discordUser.username,
     });
 
-    // Write user profile to Firestore (Admin SDK — bypass security rules)
+    // Write user profile to Firestore (Admin SDK, bypass security rules)
     if (!userSnap.exists) {
       // Génère un slug public unique à partir du username Discord. Utilisé
       // dans /profile/[slug] au lieu de l'uid (qui contient le snowflake

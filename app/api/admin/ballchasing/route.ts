@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
       .where('ballchasingUploadedAt', '>=', weekStartTs)
       .get();
 
-    // Tous les failed cette semaine — pour visibilité, on regarde updatedAt
+    // Tous les failed cette semaine, pour visibilité, on regarde updatedAt
     // ou createdAt si pas d'updatedAt. Filtrage approximatif côté serveur.
     const failedSnap = await db.collection('replays')
       .where('ballchasingStatus', '==', 'failed')

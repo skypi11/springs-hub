@@ -56,7 +56,7 @@ export default function InviteToStructureButton({
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Charge les structures où l'user est dirigeant dès qu'il est connecté — permet de cacher
+  // Charge les structures où l'user est dirigeant dès qu'il est connecté, permet de cacher
   // le bouton s'il n'a pas d'accès
   const { data: structuresData, isPending } = useQuery({
     queryKey: ['structures', 'my'] as const,

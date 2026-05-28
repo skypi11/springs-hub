@@ -4,7 +4,7 @@
 //
 // IMPORTANT : ce fichier décrit ce que les utilisateurs voient et comprennent.
 // Pour la logique d'autorisation effective, voir lib/structure-permissions.ts
-// (source de vérité côté code). Ces 2 fichiers doivent rester cohérents — si
+// (source de vérité côté code). Ces 2 fichiers doivent rester cohérents, si
 // tu changes une permission technique, mets aussi à jour le label ici.
 
 export type StructureRole =
@@ -49,7 +49,7 @@ export const ROLE_DEFINITIONS: Record<StructureRole, RoleDefinition> = {
     key: 'fondateur',
     name: 'Fondateur',
     shortName: 'Fonda',
-    tagline: 'Propriétaire de la structure — pouvoir total et irréversible.',
+    tagline: 'Propriétaire de la structure, pouvoir total et irréversible.',
     color: 'gold',
     scope: 'Structure entière',
     can: [
@@ -69,7 +69,7 @@ export const ROLE_DEFINITIONS: Record<StructureRole, RoleDefinition> = {
     key: 'co_fondateur',
     name: 'Co-fondateur',
     shortName: 'Co-fonda',
-    tagline: 'Bras droit du fondateur — tous les droits sauf ceux strictement réservés au propriétaire.',
+    tagline: 'Bras droit du fondateur, tous les droits sauf ceux strictement réservés au propriétaire.',
     color: 'gold',
     scope: 'Structure entière',
     can: [
@@ -91,7 +91,7 @@ export const ROLE_DEFINITIONS: Record<StructureRole, RoleDefinition> = {
     key: 'responsable',
     name: 'Responsable',
     shortName: 'Resp.',
-    tagline: 'Bras droit opérationnel — gère équipes, membres, recrutement et calendrier de toute la structure.',
+    tagline: 'Bras droit opérationnel, gère équipes, membres, recrutement et calendrier de toute la structure.',
     color: 'gold',
     scope: 'Structure entière',
     can: [
@@ -122,7 +122,7 @@ export const ROLE_DEFINITIONS: Record<StructureRole, RoleDefinition> = {
     key: 'coach_structure',
     name: 'Coach structure',
     shortName: 'Coach',
-    tagline: 'Staff mobile — anime les entraînements/scrims et assigne les exercices sur n\'importe quelle équipe.',
+    tagline: 'Staff mobile, anime les entraînements/scrims et assigne les exercices sur n\'importe quelle équipe.',
     color: 'blue',
     scope: 'Toutes les équipes (training/scrim + exercices + replays uniquement)',
     can: [
@@ -145,7 +145,7 @@ export const ROLE_DEFINITIONS: Record<StructureRole, RoleDefinition> = {
     key: 'manager_equipe',
     name: 'Manager d\'équipe',
     shortName: 'Mgr éq.',
-    tagline: 'Responsable d\'une équipe précise — gère sa composition et son agenda.',
+    tagline: 'Responsable d\'une équipe précise, gère sa composition et son agenda.',
     color: 'gold',
     scope: 'Son équipe uniquement',
     can: [
@@ -157,7 +157,7 @@ export const ROLE_DEFINITIONS: Record<StructureRole, RoleDefinition> = {
     ],
     cant: [
       { category: CAT.teams, label: 'Modifier ou supprimer son équipe (archiver, label réservé aux dirigeants)' },
-      { category: CAT.teams, label: 'Modifier le staff de son équipe (ajout/retrait coach/manager équipe — réservé aux dirigeants)' },
+      { category: CAT.teams, label: 'Modifier le staff de son équipe (ajout/retrait coach/manager équipe, réservé aux dirigeants)' },
       { category: CAT.teams, label: 'Toucher aux autres équipes de la structure' },
       { category: CAT.members, label: 'Inviter des joueurs à la structure' },
       { category: CAT.docs, label: 'Accéder aux documents staff' },
@@ -168,7 +168,7 @@ export const ROLE_DEFINITIONS: Record<StructureRole, RoleDefinition> = {
     key: 'coach_equipe',
     name: 'Coach d\'équipe',
     shortName: 'Coach éq.',
-    tagline: 'Coach attitré d\'une équipe — anime ses entraînements et upload ses replays.',
+    tagline: 'Coach attitré d\'une équipe, anime ses entraînements et upload ses replays.',
     color: 'blue',
     scope: 'Son équipe uniquement',
     can: [

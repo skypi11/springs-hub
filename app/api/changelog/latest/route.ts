@@ -7,7 +7,7 @@ import { captureApiError } from '@/lib/sentry';
 // Endpoint léger pour l'indicateur sidebar "Nouveau" (dot rouge).
 // Renvoie juste le publishedAt du dernier patch publié sur le site.
 // Le client compare avec user.lastChangelogSeenAt pour décider si afficher
-// le dot. Cache CDN 60s — la timeline change rarement.
+// le dot. Cache CDN 60s, la timeline change rarement.
 
 export async function GET(req: NextRequest) {
   const blocked = await checkRateLimit(limiters.read, rateLimitKey(req));

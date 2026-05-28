@@ -33,9 +33,9 @@ type StructureStats = {
   byType: Record<string, number>;
 };
 
-// GET /api/admin/exercices — vue cross-structures de tous les exercices.
+// GET /api/admin/exercices, vue cross-structures de tous les exercices.
 // Agrège structure_todos par structure + stats globales. Pas de détail par exercice
-// (c'est le rôle du panel structure) — ici on donne un bilan d'ensemble pour
+// (c'est le rôle du panel structure), ici on donne un bilan d'ensemble pour
 // identifier les structures en retard / sans activité.
 //
 // Avec ?structureId=X : retourne la liste détaillée des exercices de cette structure

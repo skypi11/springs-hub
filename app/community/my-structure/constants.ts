@@ -16,7 +16,7 @@ export const TAB_DEFS: { key: DashboardTab; label: string; color: string }[] = [
 export const DEPARTURE_NOTICE_DAYS = 7;
 export const DEPARTURE_NOTICE_MS = DEPARTURE_NOTICE_DAYS * 24 * 60 * 60 * 1000;
 
-// Ordre d'affichage des membres — basé sur le rôle dérivé (cf. lib/member-role).
+// Ordre d'affichage des membres, basé sur le rôle dérivé (cf. lib/member-role).
 export const PRIMARY_ROLE_ORDER: PrimaryRole[] = [
   'fondateur', 'co_fondateur', 'responsable', 'coach_structure',
   'manager_equipe', 'coach_equipe', 'capitaine', 'joueur', 'membre',

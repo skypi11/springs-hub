@@ -90,7 +90,7 @@ export async function POST(
       });
     }
 
-    // On traite max(MAX_PER_CALL, quota dispo) — on évite de spendre des
+    // On traite max(MAX_PER_CALL, quota dispo), on évite de spendre des
     // appels qui vont systématiquement échouer côté ballchasing.
     const maxThisCall = Math.min(MAX_PER_CALL, allowedByQuota);
     const toProcess = candidates.slice(0, maxThisCall);

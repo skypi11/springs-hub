@@ -29,7 +29,7 @@ type NewItem = {
   href: string;
 };
 
-// GET /api/admin/dashboard — nouveautés DÉTAILLÉES depuis la dernière visite
+// GET /api/admin/dashboard, nouveautés DÉTAILLÉES depuis la dernière visite
 // "marquée comme vue" (la liste exacte des joueurs/équipes/etc., pas juste un
 // compteur), cas à traiter, totaux. Ne met PAS à jour la dernière visite.
 export async function GET(req: NextRequest) {
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
       db.collection('users').orderBy('createdAt', 'desc').limit(SCAN_LIMIT).get(),
       db.collection('sub_teams').orderBy('createdAt', 'desc').limit(SCAN_LIMIT).get(),
       db.collection('structure_events').orderBy('createdAt', 'desc').limit(SCAN_LIMIT).get(),
-      // Signalements de rang & demandes de changement Epic (Lots 5+6) — counts pour les pastilles sidebar
+      // Signalements de rang & demandes de changement Epic (Lots 5+6), counts pour les pastilles sidebar
       db.collection('rank_reports').where('status', '==', 'pending').count().get(),
       db.collection('rl_link_change_requests').where('status', '==', 'pending').count().get(),
     ]);
@@ -186,7 +186,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/admin/dashboard { action: 'mark_seen' } — repositionne la "dernière
+// POST /api/admin/dashboard { action: 'mark_seen' }, repositionne la "dernière
 // visite" à maintenant. Volontairement manuel : ouvrir le panel pour un
 // dépannage urgent ne doit pas vider le radar à l'insu de l'admin.
 export async function POST(req: NextRequest) {

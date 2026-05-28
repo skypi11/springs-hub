@@ -1,4 +1,4 @@
-// Helpers purs pour les templates de exercices (v2 — étape 2).
+// Helpers purs pour les templates de exercices (v2, étape 2).
 // Un template = recette pré-remplie pour créer un exercice rapidement.
 // Portée : personnelle (perso coach) OU structure (partagée avec tout le staff).
 
@@ -22,14 +22,14 @@ export const TEMPLATE_SCOPES: readonly TemplateScope[] = ['personal', 'structure
 export interface TodoTemplate {
   id: string;
   structureId: string;
-  ownerId: string;        // créateur — reste propriétaire même après partage (scope=A)
+  ownerId: string;        // créateur, reste propriétaire même après partage (scope=A)
   scope: TemplateScope;
   name: string;           // ex : "Scouting 3v3", "Étirements pré-match"
   type: TodoType;          // legacy : type du 1er step (proxy pour rétrocompat)
   titleTemplate: string;
   descriptionTemplate: string;
   config: Record<string, unknown>; // legacy : config du 1er step (proxy)
-  steps?: ExerciseStep[];  // v3 — source de vérité multi-step (absent = template legacy 1-step)
+  steps?: ExerciseStep[];  // v3, source de vérité multi-step (absent = template legacy 1-step)
   createdAt: number;      // ms epoch
   updatedAt: number;      // ms epoch
 }
@@ -37,7 +37,7 @@ export interface TodoTemplate {
 export interface CreateTemplateInput {
   scope: unknown;
   name: unknown;
-  // v3 — nouvelle source de vérité (steps[]). Si fourni, prend le pas sur type+config.
+  // v3, nouvelle source de vérité (steps[]). Si fourni, prend le pas sur type+config.
   steps?: unknown;
   // legacy (rétrocompat clients pas encore migrés)
   type?: unknown;
@@ -63,7 +63,7 @@ function s(v: unknown, max: number): string {
   return v.trim().slice(0, max);
 }
 
-// Clean superficiel d'une config de template — pas de validation stricte des champs requis
+// Clean superficiel d'une config de template, pas de validation stricte des champs requis
 // (ex : un template scouting peut être sauvegardé sans adversaire ; il sera complété à l'instanciation).
 // On applique les mêmes caps textuels que validateTodoConfig.
 export function cleanTemplateConfig(type: TodoType, raw: unknown): Record<string, unknown> {
@@ -129,7 +129,7 @@ export function cleanTemplateConfig(type: TodoType, raw: unknown): Record<string
     case 'watch_party':
       // Deprecated mais on accepte encore en lecture/édition d'anciens templates
       return { location: s(r.location, 200) };
-    // FPS / Valorant — templates acceptent les champs avec valeurs optionnelles
+    // FPS / Valorant, templates acceptent les champs avec valeurs optionnelles
     // (utilisateur les remplit à l'instanciation s'ils sont vides).
     case 'aim_trainer': {
       const out: Record<string, unknown> = {

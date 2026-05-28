@@ -1,6 +1,6 @@
 'use client';
 
-// Modal "Bienvenue sur Aedral" — affiché UNE seule fois après que l'user a
+// Modal "Bienvenue sur Aedral", affiché UNE seule fois après que l'user a
 // finalisé son profil (onboarding wizard) au premier login. Validé Matt
 // 2026-05-25. Présente les piliers du site pour que l'user sache ce qu'il
 // peut faire.
@@ -118,7 +118,7 @@ export default function WelcomeModal() {
             </button>
           </div>
 
-          {/* Slide content — slide 0 (Bienvenue) affiche le logo Aedral
+          {/* Slide content, slide 0 (Bienvenue) affiche le logo Aedral
               à la place de l'icône Sparkles pour renforcer l'identité. */}
           <div className="flex-1 overflow-y-auto px-6 sm:px-8 py-8">
             {isFirst ? (

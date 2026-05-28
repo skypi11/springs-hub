@@ -12,7 +12,7 @@ import {
 import { addAuditLog } from '@/lib/audit-log';
 import { createNotification } from '@/lib/notifications';
 
-// POST /api/structures/transfer — transfert de propriété en 2 étapes avec fenêtre 24h.
+// POST /api/structures/transfer, transfert de propriété en 2 étapes avec fenêtre 24h.
 // `initiate` écrit `transferPending` sur la structure ; `cancel` le retire ;
 // `confirm` ne s'exécute que si 24h se sont écoulées depuis l'initiation.
 // Les invariants (siège dirigeant, membre de la structure…) sont re-vérifiés au moment
@@ -125,7 +125,7 @@ async function handleInitiate(args: HandlerCtx & {
     return NextResponse.json({ error: 'Seul le fondateur peut transférer la structure.' }, { status: 403 });
   }
   if (structureData.status === 'suspended') {
-    return NextResponse.json({ error: 'Structure suspendue — transfert bloqué.' }, { status: 403 });
+    return NextResponse.json({ error: 'Structure suspendue, transfert bloqué.' }, { status: 403 });
   }
   if (structureData.transferPending) {
     return NextResponse.json({
@@ -248,7 +248,7 @@ async function handleConfirm(args: HandlerCtx) {
     }, { status: 400 });
   }
   if (structureData.status === 'suspended') {
-    return NextResponse.json({ error: 'Structure suspendue — transfert bloqué.' }, { status: 403 });
+    return NextResponse.json({ error: 'Structure suspendue, transfert bloqué.' }, { status: 403 });
   }
 
   const oldFounderId: string = structureData.founderId;

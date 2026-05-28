@@ -21,7 +21,7 @@ export default function ProfileCompletionGate() {
     if (loading) return;
     if (!firebaseUser || !user) return;
     if (!profileEnriched) return;
-    // En dev on ne bloque pas — on teste souvent des comptes seedés sans profil complet
+    // En dev on ne bloque pas, on teste souvent des comptes seedés sans profil complet
     // (les uids `discord_dev_*` n'ont jamais de pays/date de naissance renseignés).
     if (process.env.NODE_ENV === 'development') return;
     const { complete } = checkProfileCompletion(user);

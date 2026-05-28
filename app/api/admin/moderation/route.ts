@@ -30,7 +30,7 @@ function ts(v: unknown): string | null {
   return null;
 }
 
-// GET /api/admin/moderation — tableau de bord modération.
+// GET /api/admin/moderation, tableau de bord modération.
 // Agrège : utilisateurs bannis, structures suspendues / orphaned / deletion_scheduled,
 // et les ~50 dernières actions de modération (audit logs).
 // Un vrai système de signalements (reports) viendra plus tard.

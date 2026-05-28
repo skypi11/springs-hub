@@ -114,7 +114,7 @@ export default function CreateStructurePage() {
         body: form,
       });
       // Upload du logo APRÈS création : /api/upload/structure-image exige un
-      // structureId existant. Échec non bloquant — la demande est envoyée, le
+      // structureId existant. Échec non bloquant, la demande est envoyée, le
       // logo pourra être ajouté ensuite via Ma structure → Général.
       if (logoFile && res?.id) {
         try {
@@ -124,7 +124,7 @@ export default function CreateStructurePage() {
           fd.append('type', 'logo');
           await apiForm('/api/upload/structure-image', fd);
         } catch {
-          // logo optionnel et éditable plus tard — on n'interrompt pas le flux
+          // logo optionnel et éditable plus tard, on n'interrompt pas le flux
         }
       }
       // Au lieu de rediriger silencieusement, on affiche une page de confirmation
@@ -163,7 +163,7 @@ export default function CreateStructurePage() {
   // Affichée en plein écran après que la demande a été envoyée. Met le
   // Discord Aedral en avant car c'est par là que Matt prendra contact pour
   // l'entretien de validation (sinon il a aucun moyen fiable de joindre
-  // le demandeur — Discord en ami est souvent refusé/ignoré).
+  // le demandeur, Discord en ami est souvent refusé/ignoré).
   if (submitted) {
     return (
       <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-6 lg:py-8 flex items-center justify-center">
@@ -184,7 +184,7 @@ export default function CreateStructurePage() {
             </p>
           </div>
 
-          {/* CTA Discord — en évidence avec accent or */}
+          {/* CTA Discord, en évidence avec accent or */}
           <div className="bevel-sm p-5 mb-5 relative overflow-hidden"
             style={{ background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.35)' }}>
             <div className="flex items-start gap-3 mb-4">
@@ -197,7 +197,7 @@ export default function CreateStructurePage() {
                   ÉTAPE OBLIGATOIRE : REJOINS LE DISCORD AEDRAL
                 </h2>
                 <p className="text-sm" style={{ color: 'var(--s-text)' }}>
-                  Un entretien vocal aura lieu avec l&apos;équipe Aedral avant validation. <strong>Sans Discord on ne peut pas te contacter</strong> — ta demande restera en attente.
+                  Un entretien vocal aura lieu avec l&apos;équipe Aedral avant validation. <strong>Sans Discord on ne peut pas te contacter</strong>, ta demande restera en attente.
                 </p>
               </div>
             </div>
@@ -262,7 +262,7 @@ export default function CreateStructurePage() {
         </div>
       </header>
 
-      {/* Bannière Discord — obligatoire pour que Matt puisse contacter le demandeur.
+      {/* Bannière Discord, obligatoire pour que Matt puisse contacter le demandeur.
           Mise en évidence forte (or + icône Discord) pour que personne ne loupe. */}
       <div className="bevel-sm p-4 flex items-start sm:items-center gap-3 flex-col sm:flex-row animate-fade-in"
         style={{ background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.35)' }}>
@@ -328,7 +328,7 @@ export default function CreateStructurePage() {
               onChange={setLogoFile}
               maxBytes={UPLOAD_LIMITS.STRUCTURE_LOGO_BYTES}
               label="Logo de la structure (optionnel)"
-              hint="JPEG, PNG, WebP, GIF — max 2 MB. Format carré, fond transparent recommandé."
+              hint="JPEG, PNG, WebP, GIF, max 2 MB. Format carré, fond transparent recommandé."
               aspect="square"
               disabled={saving}
             />

@@ -87,7 +87,7 @@ export async function POST(
     if (!dirigeant) {
       const hasAccess = overdue.some(o => isStaffOfTeam(resolved.context, o.subTeamId));
       if (!hasAccess) {
-        return NextResponse.json({ error: 'Permissions insuffisantes — tu n\'as pas accès à ces équipes.' }, { status: 403 });
+        return NextResponse.json({ error: 'Permissions insuffisantes, tu n\'as pas accès à ces équipes.' }, { status: 403 });
       }
     }
 
@@ -108,7 +108,7 @@ export async function POST(
     // Réutilise sendTodoDM avec un TodoEmbedInput "synthétique"
     const lines = overdue.slice(0, 10).map((o, i) => {
       const days = Math.max(1, Math.round((now - o.deadlineAt) / 86400000));
-      return `**${i + 1}.** ${o.title} — *en retard de ${days} j*`;
+      return `**${i + 1}.** ${o.title}, *en retard de ${days} j*`;
     });
     if (overdue.length > 10) {
       lines.push(`… et ${overdue.length - 10} autre${overdue.length - 10 > 1 ? 's' : ''}`);

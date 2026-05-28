@@ -44,7 +44,7 @@ type AdminTeam = {
   archivedAt: string | null;
 };
 
-// Dérivé de la registry pour rester scalable — un nouveau jeu apparaît auto.
+// Dérivé de la registry pour rester scalable, un nouveau jeu apparaît auto.
 // `tagClass` n'est plus utilisé (l'UI rend des styles inline depuis g.color/colorRgb).
 const GAME_META: Record<string, { label: string; color: string; tagClass: string }> = Object.fromEntries(
   ALL_GAME_DEFS.map(g => [g.id, { label: g.shortLabel, color: g.color, tagClass: '' }])
@@ -61,7 +61,7 @@ export default function AdminTeamsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('active');
   const [search, setSearch] = useState('');
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
-  // Édition directe d'une équipe — null = aucun formulaire ouvert.
+  // Édition directe d'une équipe, null = aucun formulaire ouvert.
   const [editTeam, setEditTeam] = useState<{ id: string; name: string; label: string } | null>(null);
   const [savingTeam, setSavingTeam] = useState(false);
 
@@ -148,7 +148,7 @@ export default function AdminTeamsPage() {
   const stats = useMemo(() => {
     const total = teams.length;
     const empty = teams.filter(t => t.totalRoster === 0).length;
-    // Compteur par jeu — dérivé de la registry pour rester scalable.
+    // Compteur par jeu, dérivé de la registry pour rester scalable.
     const byGame = ALL_GAME_DEFS.map(g => ({
       def: g,
       count: teams.filter(t => t.game === g.id).length,
@@ -216,7 +216,7 @@ export default function AdminTeamsPage() {
           ))}
         </div>
         <div className="divider" style={{ width: '1px', height: '20px' }} />
-        {/* Game — généré depuis la registry pour scaler à N jeux */}
+        {/* Game, généré depuis la registry pour scaler à N jeux */}
         <div className="flex gap-1 flex-wrap">
           {[{ value: '', shortLabel: 'Tous jeux', colorRgb: '255,255,255', color: 'var(--s-gold)' },
             ...ALL_GAME_DEFS.map(g => ({ value: g.id, shortLabel: g.shortLabel, colorRgb: g.colorRgb, color: g.colorLight })),
@@ -379,7 +379,7 @@ export default function AdminTeamsPage() {
                             </span>
                           )}
                         </div>
-                        {/* Modifier l'équipe — span (pas button) pour rester
+                        {/* Modifier l'équipe, span (pas button) pour rester
                             cliquable même si la ligne parente est disabled. */}
                         <span
                           role="button"

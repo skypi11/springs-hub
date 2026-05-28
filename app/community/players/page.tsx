@@ -79,7 +79,7 @@ function recommendedScore(p: PlayerCard): number {
 }
 
 // Hiérarchie pour choisir LA structure principale à afficher dans la card
-// (un joueur peut être fondateur d'une structure ET responsable d'une autre —
+// (un joueur peut être fondateur d'une structure ET responsable d'une autre ,
 // on doit toujours mettre en avant le rôle le plus important).
 const ROLE_PRIORITY: Record<PrimaryRole, number> = {
   fondateur: 0,
@@ -143,7 +143,7 @@ export default function PlayersPage() {
   // Tri (client)
   const [sortKey, setSortKey] = useState<SortKey>('recommended');
 
-  // Vue grille/liste — par défaut GRILLE (cards trading), persistant.
+  // Vue grille/liste, par défaut GRILLE (cards trading), persistant.
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   useEffect(() => {
     try {
@@ -431,7 +431,7 @@ export default function PlayersPage() {
             </button>
           </div>
 
-          {/* Panel filtres avancés — 3 groupes Identité / RL / TM */}
+          {/* Panel filtres avancés, 3 groupes Identité / RL / TM */}
           {showAdvanced && (
             <div className="relative z-[1] px-6 py-5 border-t animate-fade-in-d1"
               style={{ borderColor: 'var(--s-border)', background: 'rgba(255,184,0,0.02)' }}>
@@ -559,7 +559,7 @@ function FilterChip({ active, onClick, color, customColor, children }: {
   active: boolean;
   onClick: () => void;
   color: 'neutral' | 'green';
-  /** Couleur custom (depuis la registry des jeux) — override `color` si fourni */
+  /** Couleur custom (depuis la registry des jeux), override `color` si fourni */
   customColor?: { rgb: string; fg: string };
   children: React.ReactNode;
 }) {
@@ -605,7 +605,7 @@ function SortDropdown({ value, onChange, hasMatches }: { value: SortKey; onChang
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Le parent header a .bevel + overflow-hidden — un menu en absolute serait
+  // Le parent header a .bevel + overflow-hidden, un menu en absolute serait
   // clippé. On le rend via Portal en position: fixed, ancré sous le bouton.
   const updatePos = useCallback(() => {
     if (!btnRef.current) return;
@@ -861,7 +861,7 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
       onMouseLeave={e => { e.currentTarget.style.boxShadow = baseShadow; }}>
       <Link href={getProfileHref(p)} className="absolute inset-0 z-[2]" aria-label={p.displayName} />
 
-      {/* ────── ZONE AVATAR — 1:1 (format carré demandé par l'utilisateur) ────── */}
+      {/* ────── ZONE AVATAR, 1:1 (format carré demandé par l'utilisateur) ────── */}
       <div className="relative" style={{ aspectRatio: '1 / 1', background: headerTint }}>
         {/* Hex pattern subtil en fond de la zone avatar pour les leaders */}
         {isLeader && (
@@ -943,7 +943,7 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
         {/* Séparateur */}
         <div className="h-px" style={{ background: 'var(--s-border)' }} />
 
-        {/* Rang du joueur — priorité : RL vérifié > RL non vérifié > Val > TM > vide */}
+        {/* Rang du joueur, priorité : RL vérifié > RL non vérifié > Val > TM > vide */}
         <div className="flex items-center gap-2 min-h-[36px]">
           {(() => {
             const valTier = getValorantTierConfig(p.valorantRank);
@@ -989,14 +989,14 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
                 </div>
               );
             }
-            return <span className="text-[10px] italic" style={{ color: 'var(--s-text-muted)' }}>—</span>;
+            return <span className="text-[10px] italic" style={{ color: 'var(--s-text-muted)' }}>,</span>;
           })()}
         </div>
 
         {/* Séparateur */}
         <div className="h-px" style={{ background: 'var(--s-border)' }} />
 
-        {/* Affiliations — jusqu'à 3 structures, format détaillé (rôle + ↳ équipes) */}
+        {/* Affiliations, jusqu'à 3 structures, format détaillé (rôle + ↳ équipes) */}
         <div className="flex-1 flex flex-col gap-2">
           {visibleStructures.length > 0 ? (
             <>
@@ -1034,7 +1034,7 @@ function IconButton({ children, onClick, active, accent, title }: { children: Re
   );
 }
 
-// ─── Vue liste — 1 ligne par joueur ──────────────────────────────────────
+// ─── Vue liste, 1 ligne par joueur ──────────────────────────────────────
 function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist, linkCopied, onGenerateLink, isLast }: {
   p: PlayerCard; matches: OpenPosition[]; canShortlist: boolean; isShortlisted: boolean;
   onToggleShortlist: () => void; linkCopied: boolean; onGenerateLink: () => void; isLast: boolean;
@@ -1058,7 +1058,7 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
         borderBottom: isLast ? 'none' : '1px solid var(--s-border)',
         background: bgTint !== 'transparent' ? bgTint : undefined,
       }}>
-      {/* Accent bar gauche (2px) — or vif / or pâle / vert si match */}
+      {/* Accent bar gauche (2px), or vif / or pâle / vert si match */}
       {barColor !== 'transparent' && (
         <div className="absolute left-0 top-0 bottom-0 w-[2px]" style={{ background: barColor, zIndex: 1 }} />
       )}
@@ -1093,7 +1093,7 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
           ))}
         </div>
 
-        {/* Rang du joueur — icône 24px + label coloré. Priorité RL > Val > TM. */}
+        {/* Rang du joueur, icône 24px + label coloré. Priorité RL > Val > TM. */}
         <div className="hidden md:flex items-center gap-2 text-xs min-w-0" style={{ flex: '0 0 160px', color: 'var(--s-text-dim)' }}>
           {(() => {
             const valTier = getValorantTierConfig(p.valorantRank);

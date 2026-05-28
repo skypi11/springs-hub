@@ -12,7 +12,7 @@ interface PendingImagePickerProps {
   value: File | null;
   // Callback à chaque changement de sélection
   onChange: (file: File | null) => void;
-  // Taille max côté client (bytes) — affichée dans l'aide
+  // Taille max côté client (bytes), affichée dans l'aide
   maxBytes: number;
   // Libellé contextuel
   label: string;
@@ -25,7 +25,7 @@ interface PendingImagePickerProps {
 // Sélecteur d'image « différé » : ne déclenche AUCUN upload, il conserve juste le
 // fichier choisi en mémoire et en affiche un aperçu local. Conçu pour les
 // formulaires de création (équipe, structure) où la cible d'upload n'existe pas
-// encore — le parent uploade le fichier une fois l'entité créée et son ID connu.
+// encore, le parent uploade le fichier une fois l'entité créée et son ID connu.
 export default function PendingImagePicker({
   value, onChange, maxBytes, label, hint, aspect = 'square', disabled,
 }: PendingImagePickerProps) {
@@ -36,7 +36,7 @@ export default function PendingImagePicker({
 
   const maxMb = Math.round(maxBytes / (1024 * 1024));
 
-  // Aperçu local via objectURL — révoqué quand le fichier change ou au démontage.
+  // Aperçu local via objectURL, révoqué quand le fichier change ou au démontage.
   useEffect(() => {
     if (!value) { setPreviewUrl(null); return; }
     const url = URL.createObjectURL(value);
@@ -51,7 +51,7 @@ export default function PendingImagePicker({
       return;
     }
     if (file.size > maxBytes) {
-      toast.error(`Fichier trop lourd — max ${maxMb} MB`);
+      toast.error(`Fichier trop lourd, max ${maxMb} MB`);
       return;
     }
     onChange(file);
@@ -132,7 +132,7 @@ export default function PendingImagePicker({
 
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-          {hint ?? `JPEG, PNG, WebP, GIF — max ${maxMb} MB`}
+          {hint ?? `JPEG, PNG, WebP, GIF, max ${maxMb} MB`}
         </p>
         {value && !disabled && (
           <button

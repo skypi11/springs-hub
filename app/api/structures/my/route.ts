@@ -10,7 +10,7 @@ import { isKnownGame } from '@/lib/games-registry';
 
 // Lazy-process les préavis de départ de co-fondateurs expirés sur une structure.
 // Appelée au moment des lectures (pas de cron). Retire du coFounderIds, nettoie la map
-// coFounderDepartures et rétrograde le membre en 'joueur' — le tout en batch.
+// coFounderDepartures et rétrograde le membre en 'joueur', le tout en batch.
 // Retourne la data mise à jour (mergée localement) pour éviter un re-fetch.
 async function processExpiredDepartures(
   db: FirebaseFirestore.Firestore,
@@ -49,7 +49,7 @@ async function processExpiredDepartures(
   return { ...data, coFounderIds: nextCoFounderIds, coFounderDepartures: nextDepartures };
 }
 
-// GET /api/structures/my — récupère les structures où l'utilisateur a un accès dirigeant ou staff.
+// GET /api/structures/my, récupère les structures où l'utilisateur a un accès dirigeant ou staff.
 // - dirigeant : fondateur ou co-fondateur → accessLevel: 'dirigeant' (tout le dashboard)
 // - staff     : manager ou coach (via structure_members.role OU sub_teams.staffIds)
 //               → accessLevel: 'staff' (header + liste membres read-only + calendrier)
@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
       const structureId = t.data().structureId as string | undefined;
       if (structureId) staffStructureIds.add(structureId);
     }
-    // 4. Via sub_teams.captainId (capitaine d'équipe — accès limité aux onglets
+    // 4. Via sub_teams.captainId (capitaine d'équipe, accès limité aux onglets
     //    Équipes + Calendrier, dérivé côté UI via captainOnlyAccess).
     for (const t of teamCaptainSnap.docs) {
       const structureId = t.data().structureId as string | undefined;
@@ -154,7 +154,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Si l'utilisateur vient de perdre son siège de co-fondateur (préavis expiré),
-    // on retire la structure de sa liste "dirigeant" — mais si c'est aussi une structure
+    // on retire la structure de sa liste "dirigeant", mais si c'est aussi une structure
     // staff, on la garde avec accessLevel 'staff'.
     for (const [id, data] of structureDataById) {
       if (!dirigeantIds.has(id)) continue;
@@ -184,7 +184,7 @@ export async function GET(req: NextRequest) {
     const membersByStructure = new Map<string, FirebaseFirestore.QueryDocumentSnapshot[]>();
     const allUserIds: string[] = [];
 
-    // Firestore 'in' max 30 — paginer si beaucoup de structures (rare ici, max 2 par personne)
+    // Firestore 'in' max 30, paginer si beaucoup de structures (rare ici, max 2 par personne)
     for (let i = 0; i < structureIds.length; i += 30) {
       const chunk = structureIds.slice(i, i + 30);
       const snap = await db.collection('structure_members').where('structureId', 'in', chunk).get();
@@ -266,7 +266,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PUT /api/structures/my — mettre à jour une structure (fondateur/co-fondateur)
+// PUT /api/structures/my, mettre à jour une structure (fondateur/co-fondateur)
 export async function PUT(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -301,10 +301,10 @@ export async function PUT(req: NextRequest) {
 
     // Structure suspendue = pas de modification
     if (data.status === 'suspended') {
-      return NextResponse.json({ error: 'Structure suspendue — modifications bloquées.' }, { status: 403 });
+      return NextResponse.json({ error: 'Structure suspendue, modifications bloquées.' }, { status: 403 });
     }
 
-    // Champs modifiables par le fondateur — chaque champ est validé/sanitized
+    // Champs modifiables par le fondateur, chaque champ est validé/sanitized
     const safeUpdates: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
     if (updates.description !== undefined) {
       safeUpdates.description = clampString(updates.description, LIMITS.structureDescription);
@@ -389,7 +389,7 @@ export async function PUT(req: NextRequest) {
         if (blockingTeams.length > 0) {
           const sample = blockingTeams.slice(0, 3).map(d => d.data().name as string).join(', ');
           return NextResponse.json({
-            error: `Impossible de retirer ${removedGames.join(', ')} — équipes actives encore présentes (${sample}${blockingTeams.length > 3 ? '…' : ''}). Archive d'abord ces équipes.`,
+            error: `Impossible de retirer ${removedGames.join(', ')}, équipes actives encore présentes (${sample}${blockingTeams.length > 3 ? '…' : ''}). Archive d'abord ces équipes.`,
           }, { status: 400 });
         }
       }

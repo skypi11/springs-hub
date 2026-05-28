@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 // Chiffrement AES-256-GCM pour les documents sensibles (CNI, RIB, justificatifs,
 // statuts asso, contrats…). Clé unique stockée dans DOCUMENT_ENCRYPTION_KEY
 // (base64, 32 octets). À sauvegarder hors de Vercel (gestionnaire de mots de
-// passe + sauvegarde papier) — sans elle, les fichiers chiffrés sont perdus.
+// passe + sauvegarde papier), sans elle, les fichiers chiffrés sont perdus.
 //
 // Format du blob stocké sur R2 :
 //   [IV (12 o)][AUTH_TAG (16 o)][CIPHERTEXT…]
@@ -23,13 +23,13 @@ function loadKey(): Buffer {
   const b64 = process.env.DOCUMENT_ENCRYPTION_KEY;
   if (!b64) {
     throw new Error(
-      'DOCUMENT_ENCRYPTION_KEY manquante — configurer la variable sur Vercel (base64, 32 octets)'
+      'DOCUMENT_ENCRYPTION_KEY manquante, configurer la variable sur Vercel (base64, 32 octets)'
     );
   }
   const buf = Buffer.from(b64, 'base64');
   if (buf.length !== KEY_BYTES) {
     throw new Error(
-      `DOCUMENT_ENCRYPTION_KEY invalide — attend 32 octets (base64), reçu ${buf.length}`
+      `DOCUMENT_ENCRYPTION_KEY invalide, attend 32 octets (base64), reçu ${buf.length}`
     );
   }
   _cachedKey = buf;
@@ -57,7 +57,7 @@ export function encryptBuffer(plaintext: Buffer): Buffer {
 
 export function decryptBuffer(blob: Buffer): Buffer {
   if (blob.length < IV_BYTES + TAG_BYTES + 1) {
-    throw new Error('Blob chiffré invalide — trop court');
+    throw new Error('Blob chiffré invalide, trop court');
   }
   const key = loadKey();
   const iv = blob.subarray(0, IV_BYTES);

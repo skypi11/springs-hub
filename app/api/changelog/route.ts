@@ -7,7 +7,7 @@ import { captureApiError } from '@/lib/sentry';
 // Endpoint public (pas d'auth requise) qui sert la timeline pour la page
 // /changelog. Lit la collection `announce_templates` filtrée sur
 // publishOnSite === true, triée par publishedAt desc, limité à 100 dernières
-// (largement assez — on aura jamais 100 patches).
+// (largement assez, on aura jamais 100 patches).
 //
 // Pas de pagination pour l'instant (limite 100). Si on dépasse, ajouter
 // un cursor `?before=ISO`.
@@ -24,7 +24,7 @@ export interface ChangelogItem {
 const MAX_ITEMS = 100;
 
 export async function GET(req: NextRequest) {
-  // Rate limit lecture par IP — pas d'auth donc on protège un peu plus
+  // Rate limit lecture par IP, pas d'auth donc on protège un peu plus
   const blocked = await checkRateLimit(limiters.read, rateLimitKey(req));
   if (blocked) return blocked;
 
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     const items: ChangelogItem[] = snap.docs
       .map(d => {
         const data = d.data();
-        // publishedAt peut être null (toggled true mais jamais set) — on skip
+        // publishedAt peut être null (toggled true mais jamais set), on skip
         const publishedAt = data.publishedAt?.toDate?.()?.toISOString?.();
         if (!publishedAt) return null;
         return {

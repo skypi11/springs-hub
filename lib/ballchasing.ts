@@ -1,4 +1,4 @@
-// Client ballchasing.com — upload + fetch parsed replay data.
+// Client ballchasing.com, upload + fetch parsed replay data.
 //
 // Modèle : un seul compte Aedral (clé `BALLCHASING_API_KEY`) qui mutualise les
 // uploads de toutes les structures premium. Les replays sont uploadés en
@@ -9,7 +9,7 @@
 // - Free : 10 uploads/jour
 // - Diamond Patreon (€4.50/mois) : 1050 uploads/semaine ≈ 150/jour
 //
-// Le service est intentionnellement no-op si la clé est absente — on log un
+// Le service est intentionnellement no-op si la clé est absente, on log un
 // warning et on n'upload pas. Permet de continuer à shipper sans payer
 // l'abonnement Patreon avant d'avoir la traction qui le justifie.
 
@@ -74,7 +74,7 @@ export async function uploadReplay(
   if (!key) {
     throw new BallchasingApiError({
       status: 0,
-      message: 'BALLCHASING_API_KEY absente — upload désactivé',
+      message: 'BALLCHASING_API_KEY absente, upload désactivé',
     });
   }
 
@@ -85,7 +85,7 @@ export async function uploadReplay(
 
   // Multipart form-data (ballchasing attend le champ `file`).
   // `new Uint8Array(buffer)` recopie les bytes du Buffer Node dans un
-  // Uint8Array "pur" — nécessaire car TS refuse Buffer<ArrayBufferLike>
+  // Uint8Array "pur", nécessaire car TS refuse Buffer<ArrayBufferLike>
   // comme BlobPart (à cause du SharedArrayBuffer possible).
   const form = new FormData();
   const blob = new Blob([new Uint8Array(buffer)], { type: 'application/octet-stream' });
@@ -114,7 +114,7 @@ export async function uploadReplay(
     };
   }
 
-  // Erreur — on essaie de récupérer le message
+  // Erreur, on essaie de récupérer le message
   let message = `Ballchasing HTTP ${res.status}`;
   try {
     const json = await res.json();
@@ -127,7 +127,7 @@ export async function uploadReplay(
 }
 
 // Récupère les stats parsées d'un replay (joueurs, scores, durée, map…).
-// Peut prendre 5-30s après l'upload pour que ballchasing finisse le parsing —
+// Peut prendre 5-30s après l'upload pour que ballchasing finisse le parsing ,
 // le statut passe de "pending" à "ok". Le caller doit gérer le polling.
 //
 // On cache aussi 3 catégories de stats avancées (boost / mouvement / position)
@@ -150,7 +150,7 @@ export interface BallchasingPlayerStats {
   shotsAgainst?: number;
   goalsAgainst?: number;
   mmr?: number;
-  // Boost — clés du style de jeu (économie + agressivité)
+  // Boost, clés du style de jeu (économie + agressivité)
   boost?: {
     bpm: number;              // boost per minute (efficiency)
     bcpm: number;             // boost COLLECTED per min
@@ -165,7 +165,7 @@ export interface BallchasingPlayerStats {
     percentZeroBoost?: number;
     percentFullBoost?: number;
   };
-  // Mouvement — vitesse moyenne, % en supersonic = agressivité
+  // Mouvement, vitesse moyenne, % en supersonic = agressivité
   movement?: {
     avgSpeed: number;
     totalDistance: number;
@@ -180,7 +180,7 @@ export interface BallchasingPlayerStats {
     percentSupersonic?: number;
     percentGround?: number;
   };
-  // Positionnement — où est le joueur sur le terrain
+  // Positionnement, où est le joueur sur le terrain
   positioning?: {
     avgDistanceToBall: number;
     avgDistanceToBallPossession: number;
@@ -258,7 +258,7 @@ function mapPlayer(
   setIfDefined(player, 'shootingPct', num(core, 'shooting_percentage'));
   setIfDefined(player, 'shotsAgainst', num(core, 'shots_against'));
   setIfDefined(player, 'goalsAgainst', num(core, 'goals_against'));
-  // MMR optionnel — depuis F2P, ballchasing ne le renvoie quasi plus.
+  // MMR optionnel, depuis F2P, ballchasing ne le renvoie quasi plus.
   setIfDefined(player, 'mmr', num(core, 'mvp_mmr'));
 
   if (boost) {
@@ -328,7 +328,7 @@ export async function getReplay(replayId: string): Promise<BallchasingReplay> {
   if (!key) {
     throw new BallchasingApiError({
       status: 0,
-      message: 'BALLCHASING_API_KEY absente — fetch désactivé',
+      message: 'BALLCHASING_API_KEY absente, fetch désactivé',
     });
   }
 
@@ -375,7 +375,7 @@ export async function getReplay(replayId: string): Promise<BallchasingReplay> {
   };
 }
 
-// Supprime un replay (utilisé quand on delete localement). Best effort — on
+// Supprime un replay (utilisé quand on delete localement). Best effort, on
 // loggue mais on ne fait pas planter le delete si ballchasing rate.
 export async function deleteReplay(replayId: string): Promise<void> {
   const key = getApiKey();

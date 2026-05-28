@@ -39,7 +39,7 @@ type ReceivedInvite = {
   structure: StructureRef;
 };
 
-// Dérivé de la registry pour rester scalable. `cls` n'est plus utilisé —
+// Dérivé de la registry pour rester scalable. `cls` n'est plus utilisé ,
 // l'UI utilise <GameTag /> directement aux call sites.
 
 const ROLE_LABELS: Record<string, string> = {

@@ -11,14 +11,14 @@ import { canPromoteStaff, structureContext } from '@/lib/structure-permissions';
 // Ajoute ou retire un membre de structures.managerIds / structures.coachIds.
 // Ces deux champs sont des arrays indépendants : un même joueur peut être à la fois
 // coach ET manager (multi-rôle). Le champ structure_members.role (joueur / co_fondateur /
-// fondateur) reste inchangé — les rôles staff sont orthogonaux au rôle structurel.
+// fondateur) reste inchangé, les rôles staff sont orthogonaux au rôle structurel.
 //
 // Droits : fondateur ET co-fondateurs peuvent assigner / retirer les rôles staff.
 // Contrainte : la cible doit déjà être membre de la structure.
 
 const ALLOWED_ROLES = new Set(['manager', 'coach']);
 
-// Cap sécurité — empêche un array runaway qui ferait gonfler le doc structure
+// Cap sécurité, empêche un array runaway qui ferait gonfler le doc structure
 // au-delà de la limite Firestore (1 MB / doc) et casserait les queries dépendant
 // de array-contains. 100 = largement au-dessus du raisonnable (une grosse
 // structure aurait ~10-20 staff max).
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
       );
     }
     if (!ALLOWED_ROLES.has(role)) {
-      return NextResponse.json({ error: 'Rôle invalide — manager ou coach seulement.' }, { status: 400 });
+      return NextResponse.json({ error: 'Rôle invalide, manager ou coach seulement.' }, { status: 400 });
     }
 
     const db = getAdminDb();
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     });
     if (!canPromoteStaff(ctx)) {
       if (data.status === 'suspended') {
-        return NextResponse.json({ error: 'Structure suspendue — action bloquée.' }, { status: 403 });
+        return NextResponse.json({ error: 'Structure suspendue, action bloquée.' }, { status: 403 });
       }
       return NextResponse.json(
         { error: 'Seuls les dirigeants peuvent assigner les rôles coach/responsable.' },
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
 
     const field = role === 'manager' ? 'managerIds' : 'coachIds';
 
-    // Cap sécurité à l'ajout — pas au retrait (qui doit toujours marcher pour
+    // Cap sécurité à l'ajout, pas au retrait (qui doit toujours marcher pour
     // débloquer une situation anormale).
     if (enabled) {
       const currentIds = (data[field] as string[] | undefined) ?? [];

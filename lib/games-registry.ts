@@ -1,5 +1,5 @@
 /**
- * Game Registry — source de vérité unique pour tout ce qui est spécifique
+ * Game Registry, source de vérité unique pour tout ce qui est spécifique
  * à un jeu sur Aedral. Ajouter un nouveau jeu = ajouter une entrée ici
  * (+ ses assets dans /public) et le reste du code suit.
  *
@@ -43,13 +43,13 @@ export interface GameDef {
   label: string;
   /** Tag court 2-3 lettres, uppercase ("RL", "TM", "VAL") */
   shortLabel: string;
-  /** Slug URL court ("rl", "tm", "val") — utilisé dans /competitions/{slug}/[id] */
+  /** Slug URL court ("rl", "tm", "val"), utilisé dans /competitions/{slug}/[id] */
   slug: string;
   /** Couleur principale du jeu (HEX ou var CSS). Sert aux pills, accent bars, points calendrier */
   color: string;
   /** Variante claire (hover, glow) */
   colorLight: string;
-  /** Composants RGB de `color` sous forme "R,G,B" — sert aux `rgba(${colorRgb}, 0.1)` (glows, fond pills) */
+  /** Composants RGB de `color` sous forme "R,G,B", sert aux `rgba(${colorRgb}, 0.1)` (glows, fond pills) */
   colorRgb: string;
   /** Chemin asset logo carré (dans /public), commence par "/" */
   logoUrl: string;
@@ -159,7 +159,7 @@ export const ALL_GAME_DEFS: GameDef[] = Object.values(GAMES_REGISTRY);
 
 /**
  * Récupère la définition d'un jeu. Retourne `undefined` si l'id est inconnu
- * (jamais throw — l'appelant décide quoi faire des jeux dépréciés ou inconnus).
+ * (jamais throw, l'appelant décide quoi faire des jeux dépréciés ou inconnus).
  */
 export function getGame(id: string | null | undefined): GameDef | undefined {
   if (!id) return undefined;

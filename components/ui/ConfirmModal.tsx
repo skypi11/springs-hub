@@ -41,7 +41,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
     setVisible(false);
   }, [active]);
 
-  // ESC pour annuler — ergonomie standard des modals
+  // ESC pour annuler, ergonomie standard des modals
   useEffect(() => {
     if (!active) return;
     const handler = (e: KeyboardEvent) => {
@@ -57,7 +57,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
     const closing = active;
     closing.resolve(result);
     setVisible(false);
-    // Laisse l'animation jouer avant de retirer le DOM — mais seulement si
+    // Laisse l'animation jouer avant de retirer le DOM, mais seulement si
     // aucune nouvelle modale n'a été ouverte entre-temps. Sans ce garde, deux
     // confirm() enchaînés se cassent : la fermeture du 1er efface le 2e.
     setTimeout(() => {

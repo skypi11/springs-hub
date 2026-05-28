@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 
-// PWA manifest — Next.js auto-serve /manifest.webmanifest depuis ce fichier.
+// PWA manifest, Next.js auto-serve /manifest.webmanifest depuis ce fichier.
 // Icons générés par scripts/generate-png-derivatives.mjs.
 export default function manifest(): MetadataRoute.Manifest {
   return {

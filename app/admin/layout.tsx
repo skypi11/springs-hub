@@ -66,7 +66,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   if (!firebaseUser || !isAdmin) {
-    // Le useEffect redirige — on évite juste un flash de contenu
+    // Le useEffect redirige, on évite juste un flash de contenu
     return null;
   }
 

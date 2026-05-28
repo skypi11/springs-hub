@@ -1,6 +1,6 @@
 // PATCH /api/admin/rank-reports/[id]
 // Body : { resolution: 'resolved' | 'dismissed', note?: string }
-// Voir docs/rl-rank-verification-plan.md (Lot 5 v2 — système anti-mensonge).
+// Voir docs/rl-rank-verification-plan.md (Lot 5 v2, système anti-mensonge).
 //
 // Action selon le couple (resolution, motif) :
 //   resolved + rank_lie → efface user.rlRank, notif in-app, DM Discord bot.
@@ -57,7 +57,7 @@ export async function PATCH(
     // 2) Effets de bord côté target selon (resolution × motif)
     if (resolution === 'resolved' && targetUid) {
       if (motif === 'smurf') {
-        // Pose le flag smurf dans user_admin_flags (collection server-only) —
+        // Pose le flag smurf dans user_admin_flags (collection server-only) ,
         // pas sur le user doc qui est readable par tout user authentifié, ce
         // qui leakerait le flag via Firestore client direct.
         await db.collection('user_admin_flags').doc(targetUid).set({
@@ -92,7 +92,7 @@ export async function PATCH(
           console.error('[rank-reports PATCH] in-app notif failed:', err);
         }
 
-        // DM Discord du bot (best-effort — l'user a peut-être coupé les DMs)
+        // DM Discord du bot (best-effort, l'user a peut-être coupé les DMs)
         if (targetUid.startsWith('discord_')) {
           const discordId = targetUid.slice('discord_'.length);
           try {
@@ -111,7 +111,7 @@ export async function PATCH(
       adminUid,
       targetType: 'user',
       targetId: targetUid || id,
-      targetLabel: `Signalement ${resolution} (${motif}) — ${(report.targetName as string) || ''}${note ? ` — ${note}` : ''}`,
+      targetLabel: `Signalement ${resolution} (${motif}), ${(report.targetName as string) || ''}${note ? `, ${note}` : ''}`,
     });
 
     return NextResponse.json({ ok: true, ...extraInfo });

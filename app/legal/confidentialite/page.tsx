@@ -3,7 +3,7 @@ import { Shield, Database, Clock, UserCheck, Download, Trash2, Mail, Globe } fro
 import { LEGAL_INFO } from '@/lib/legal-info';
 
 export const metadata = {
-  title: 'Politique de confidentialité — Aedral',
+  title: 'Politique de confidentialité · Aedral',
   description: 'Politique de confidentialité d\'Aedral : données collectées, durées de conservation, droits RGPD.',
 };
 
@@ -78,7 +78,7 @@ export default function ConfidentialitePage() {
           <SubBlock title="Données techniques">
             <ul className="text-sm space-y-1 pl-4" style={{ color: 'var(--s-text-dim)', listStyle: 'disc' }}>
               <li>Adresse IP (utilisée uniquement pour le rate limiting anti-abus, jamais exposée publiquement)</li>
-              <li>Informations d&apos;erreurs techniques (via Sentry) : navigateur, stack trace — <strong>pas d&apos;IP ni de contenu personnel</strong></li>
+              <li>Informations d&apos;erreurs techniques (via Sentry) : navigateur, stack trace, <strong>pas d&apos;IP ni de contenu personnel</strong></li>
             </ul>
           </SubBlock>
 
@@ -128,11 +128,11 @@ export default function ConfidentialitePage() {
           <ul className="text-sm space-y-2 pl-4" style={{ color: 'var(--s-text-dim)', listStyle: 'disc' }}>
             {i.infraProviders.map(p => (
               <li key={p.name}>
-                <strong style={{ color: 'var(--s-text)' }}>{p.name}</strong> — {p.purpose}. ({p.location})
+                <strong style={{ color: 'var(--s-text)' }}>{p.name}</strong>, {p.purpose}. ({p.location})
               </li>
             ))}
             <li>
-              <strong style={{ color: 'var(--s-text)' }}>{i.hosterName}</strong> — hébergement du site. ({i.hosterAddress})
+              <strong style={{ color: 'var(--s-text)' }}>{i.hosterName}</strong>, hébergement du site. ({i.hosterAddress})
             </li>
           </ul>
         </Section>
@@ -143,11 +143,11 @@ export default function ConfidentialitePage() {
             Conformément au RGPD, vous disposez des droits suivants sur vos données :
           </p>
           <ul className="text-sm space-y-2 pl-4" style={{ color: 'var(--s-text-dim)', listStyle: 'disc' }}>
-            <li><strong style={{ color: 'var(--s-text)' }}>Droit d&apos;accès</strong> — consulter la totalité de vos données.</li>
-            <li><strong style={{ color: 'var(--s-text)' }}>Droit de rectification</strong> — modifier vos informations à tout moment depuis vos paramètres.</li>
-            <li><strong style={{ color: 'var(--s-text)' }}>Droit à la portabilité</strong> (art. 20) — exporter vos données au format JSON.</li>
-            <li><strong style={{ color: 'var(--s-text)' }}>Droit à l&apos;effacement</strong> (art. 17) — supprimer votre compte (exception : journaux d&apos;audit conservés 3 ans max au titre de l&apos;intérêt légitime).</li>
-            <li><strong style={{ color: 'var(--s-text)' }}>Droit d&apos;opposition et de limitation</strong> — sur demande à l&apos;adresse de contact.</li>
+            <li><strong style={{ color: 'var(--s-text)' }}>Droit d&apos;accès</strong>, consulter la totalité de vos données.</li>
+            <li><strong style={{ color: 'var(--s-text)' }}>Droit de rectification</strong>, modifier vos informations à tout moment depuis vos paramètres.</li>
+            <li><strong style={{ color: 'var(--s-text)' }}>Droit à la portabilité</strong> (art. 20), exporter vos données au format JSON.</li>
+            <li><strong style={{ color: 'var(--s-text)' }}>Droit à l&apos;effacement</strong> (art. 17), supprimer votre compte (exception : journaux d&apos;audit conservés 3 ans max au titre de l&apos;intérêt légitime).</li>
+            <li><strong style={{ color: 'var(--s-text)' }}>Droit d&apos;opposition et de limitation</strong>, sur demande à l&apos;adresse de contact.</li>
           </ul>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
@@ -181,10 +181,10 @@ export default function ConfidentialitePage() {
         <Section icon={<Shield size={14} />} title="Sécurité">
           <ul className="text-sm space-y-2 pl-4" style={{ color: 'var(--s-text-dim)', listStyle: 'disc' }}>
             <li>Communications chiffrées en HTTPS (certificats automatiques).</li>
-            <li>Authentification déléguée à Discord — aucun mot de passe stocké côté Aedral.</li>
+            <li>Authentification déléguée à Discord, aucun mot de passe stocké côté Aedral.</li>
             <li>Règles d&apos;accès Firestore strictes : un utilisateur ne peut accéder qu&apos;aux données qui le concernent ou qui sont explicitement publiques.</li>
             <li>Documents privés stockés en bucket Cloudflare R2 privé, téléchargés via URL signée éphémère (60 secondes).</li>
-            <li><strong style={{ color: 'var(--s-text)' }}>Documents marqués sensibles</strong> (pièces d&apos;identité, justificatifs, contrats, statuts…) : chiffrés avec l&apos;algorithme <strong style={{ color: 'var(--s-text)' }}>AES-256-GCM</strong> avant stockage. La clé de déchiffrement est conservée hors du stockage R2 — un accès non autorisé au bucket ne permet pas de lire ces fichiers.</li>
+            <li><strong style={{ color: 'var(--s-text)' }}>Documents marqués sensibles</strong> (pièces d&apos;identité, justificatifs, contrats, statuts…) : chiffrés avec l&apos;algorithme <strong style={{ color: 'var(--s-text)' }}>AES-256-GCM</strong> avant stockage. La clé de déchiffrement est conservée hors du stockage R2, un accès non autorisé au bucket ne permet pas de lire ces fichiers.</li>
             <li>Rate limiting applicatif sur les routes sensibles, audit logs et monitoring Sentry.</li>
           </ul>
         </Section>

@@ -11,7 +11,7 @@ export default function AvailabilityCollapsible() {
   const { firebaseUser } = useAuth();
   const [expanded, setExpanded] = useState(false);
 
-  // Query partagée avec AvailabilityGrid (même queryKey) — 1 seul fetch réseau
+  // Query partagée avec AvailabilityGrid (même queryKey), 1 seul fetch réseau
   // même si les 2 composants sont montés.
   const { data, isPending: loading } = useQuery({
     queryKey: AVAILABILITY_QUERY_KEY,

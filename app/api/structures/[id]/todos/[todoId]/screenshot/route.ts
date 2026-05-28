@@ -20,7 +20,7 @@ export const maxDuration = 30;
 // Le serveur compresse via sharp (max 1920px, webp q82) et stocke sur R2.
 // Renvoie l'URL publique à inclure dans `step.response.attachmentUrl`.
 //
-// Note : on N'UPDATE PAS Firestore ici — le client appelle ensuite toggleStep
+// Note : on N'UPDATE PAS Firestore ici, le client appelle ensuite toggleStep
 // avec attachmentUrl dans la response. Ça évite les states intermédiaires
 // (screenshot uploadé mais step pas validé). Si l'user upload puis annule,
 // le fichier R2 reste orphelin (acceptable, peu fréquent).
@@ -77,7 +77,7 @@ export async function POST(
     }
     if (file.type && !isAllowedMime(file.type, 'IMAGES')) {
       return NextResponse.json({
-        error: 'Format non supporté — utilise JPG, PNG, WebP ou GIF.',
+        error: 'Format non supporté, utilise JPG, PNG, WebP ou GIF.',
       }, { status: 400 });
     }
 
@@ -108,7 +108,7 @@ export async function POST(
         await deleteFileSilent(oldKey);
       }
     } catch {
-      // best-effort — l'orphelin reste mais ne casse pas l'upload
+      // best-effort, l'orphelin reste mais ne casse pas l'upload
     }
 
     return NextResponse.json({

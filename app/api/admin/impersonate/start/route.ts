@@ -4,10 +4,10 @@ import { captureApiError } from '@/lib/sentry';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
-// POST /api/admin/impersonate/start — admin se connecte "en tant que" un autre utilisateur.
+// POST /api/admin/impersonate/start, admin se connecte "en tant que" un autre utilisateur.
 //
 // Body : { targetUid: string }
-// Retour : { token: string } — custom token Firebase à utiliser avec signInWithCustomToken.
+// Retour : { token: string }, custom token Firebase à utiliser avec signInWithCustomToken.
 // Effet de bord : pose un cookie httpOnly `__springs_impersonation_origin` contenant
 // l'uid admin original, pour que /stop puisse redonner la main.
 //
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       ? (userDoc.data()?.displayName || userDoc.data()?.discordUsername || targetUid)
       : targetUid;
 
-    // Custom token avec claim impersonation — utilisé par la bannière et l'audit.
+    // Custom token avec claim impersonation, utilisé par la bannière et l'audit.
     const token = await auth.createCustomToken(targetUid, { impersonatedBy: adminUid });
 
     // Audit : qui impersonate qui

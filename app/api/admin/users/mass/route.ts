@@ -2,7 +2,7 @@
 // Actions admin qui touchent tous les utilisateurs en batch :
 //   - action='force_disconnect_all'  → revokeRefreshTokens Firebase pour tous
 //     (sauf l'admin qui clique, pour éviter le suicide de session). Sert à
-//     forcer une re-connexion Discord — typiquement pour la migration des
+//     forcer une re-connexion Discord, typiquement pour la migration des
 //     refresh_token (Lot 2 du rang RL).
 //   - action='sync_discord_all'      → syncDiscordMember pour tous (pseudo
 //     serveur + 7 rôles). Bonus : complète le cron nocturne à la demande.
@@ -10,10 +10,10 @@
 // SCALABILITÉ : pagination cursor + état persisté par action dans `_cron_state`.
 // Chaque appel traite MAX_PER_RUN users puis renvoie `partial: true` + le
 // cursor. L'admin (ou un script) relance l'appel jusqu'à `partial: false`.
-// Coût par run constant peu importe la taille de la base — scale infiniment.
+// Coût par run constant peu importe la taille de la base, scale infiniment.
 //
 // Confirmation server-side : `confirm: 'FORCER'` requis pour la déco (très
-// destructive — toutes les sessions tombent). 'sync_discord_all' n'a pas
+// destructive, toutes les sessions tombent). 'sync_discord_all' n'a pas
 // besoin de confirm car réversible et bénin.
 //
 // Voir docs/rl-rank-verification-plan.md.
@@ -119,21 +119,21 @@ export async function POST(req: NextRequest) {
         adminUid,
         targetType: 'user',
         targetId: 'mass',
-        targetLabel: `Mass force-déco run — ${revoked} déconnectés (${failed} échec) | ${cycleComplete ? 'cycle COMPLET' : 'à relancer'}`,
+        targetLabel: `Mass force-déco run, ${revoked} déconnectés (${failed} échec) | ${cycleComplete ? 'cycle COMPLET' : 'à relancer'}`,
       });
 
       return NextResponse.json({
         ok: true,
         partial: !cycleComplete,
         message: cycleComplete
-          ? `${revoked} session(s) révoquée(s) — cycle TERMINÉ.`
+          ? `${revoked} session(s) révoquée(s), cycle TERMINÉ.`
           : `${revoked} session(s) révoquée(s). Relance pour continuer (${docs.length} traités ce run).`,
         revoked,
         failed,
         failedIds: failed > 0 ? failedIds : undefined,
         processedThisRun: docs.length,
         cycleComplete,
-        note: 'Toi-même n\'a PAS été déconnecté(e) — pour ne pas casser ta session admin.',
+        note: 'Toi-même n\'a PAS été déconnecté(e), pour ne pas casser ta session admin.',
       });
     }
 
@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
       let lastProcessedIndex = -1;
       for (let i = 0; i < docs.length; i++) {
         if (Date.now() - startedAt > HARD_DEADLINE_MS) {
-          // Sortie anticipée — on persiste le cursor au dernier user traité
+          // Sortie anticipée, on persiste le cursor au dernier user traité
           // pour reprendre au bon endroit au prochain run.
           break;
         }
@@ -182,7 +182,7 @@ export async function POST(req: NextRequest) {
         ok: true,
         partial: !effectiveCycleComplete,
         message: effectiveCycleComplete
-          ? `${synced} joueur(s) synchronisé(s) sur Discord — cycle TERMINÉ.`
+          ? `${synced} joueur(s) synchronisé(s) sur Discord, cycle TERMINÉ.`
           : `${synced} joueur(s) synchronisé(s). Relance pour continuer (${processedDocs.length} traités ce run).`,
         synced,
         notOnServer,

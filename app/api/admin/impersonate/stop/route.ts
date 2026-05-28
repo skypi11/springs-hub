@@ -4,7 +4,7 @@ import { captureApiError } from '@/lib/sentry';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
-// POST /api/admin/impersonate/stop — l'admin reprend son identité d'origine.
+// POST /api/admin/impersonate/stop, l'admin reprend son identité d'origine.
 //
 // Lit le cookie __springs_impersonation_origin pour récupérer l'adminUid,
 // vérifie que c'est toujours un admin (défense en profondeur), génère un
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Aucune impersonation active' }, { status: 400 });
     }
     if (!(await isAdmin(adminUid))) {
-      // Le cookie contient un uid qui n'est plus admin — on clear et on refuse.
+      // Le cookie contient un uid qui n'est plus admin, on clear et on refuse.
       const res = NextResponse.json({ error: 'Compte admin d\'origine invalide' }, { status: 403 });
       res.cookies.delete(COOKIE_NAME);
       return res;
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET /api/admin/impersonate/stop — utilitaire : indique si une session est active
+// GET /api/admin/impersonate/stop, utilitaire : indique si une session est active
 // (permet à la bannière de savoir quoi afficher après un reload).
 export async function GET(req: NextRequest) {
   const adminUid = req.cookies.get(COOKIE_NAME)?.value;

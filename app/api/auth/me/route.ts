@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 
-// GET /api/auth/me — retourne le profil utilisateur + statut admin
+// GET /api/auth/me, retourne le profil utilisateur + statut admin
 // Note : on ne passe pas par verifyAuth() car celui-ci bloque les bannis,
 // or ici on veut pouvoir détecter le ban côté client pour afficher un message clair.
 export async function GET(req: NextRequest) {
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'banned' }, { status: 403 });
     }
 
-    // Rôle dirigeant le plus élevé — dérivé, non persisté. Sert à l'affichage
+    // Rôle dirigeant le plus élevé, dérivé, non persisté. Sert à l'affichage
     // du rôle dans la sidebar (un fondateur ne doit pas s'afficher « Joueur »).
     const structureRole: 'fondateur' | 'co_fondateur' | null =
       !founderSnap.empty ? 'fondateur'

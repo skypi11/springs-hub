@@ -20,7 +20,7 @@ export function getAdminAuth() {
   return getAuth();
 }
 
-// Vérifier le token Firebase et retourner l'uid — null si invalide
+// Vérifier le token Firebase et retourner l'uid, null si invalide
 // Bloque les utilisateurs bannis
 export async function verifyAuth(req: NextRequest): Promise<string | null> {
   const authHeader = req.headers.get('authorization');
@@ -39,7 +39,7 @@ export async function verifyAuth(req: NextRequest): Promise<string | null> {
 }
 
 // Vérifier que l'uid est admin Aedral (collection `aedral_admins`).
-// NB : collection DÉDIÉE à Aedral — distincte de `admins`, partagée avec le
+// NB : collection DÉDIÉE à Aedral, distincte de `admins`, partagée avec le
 // vieux site Springs (TM cup / RL). Un admin du vieux site n'est PAS admin
 // Aedral, et inversement. Voir scripts/migrate-aedral-admins.mjs.
 export async function isAdmin(uid: string): Promise<boolean> {

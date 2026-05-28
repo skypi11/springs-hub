@@ -42,7 +42,7 @@ export async function resolveUserContext(
   const membership = memberSnap.empty ? null : memberSnap.docs[0].data();
 
   // Toutes les équipes de la structure (sub_teams).
-  // Hard cap 500 — aligné avec /api/structures/teams (config invraisemblable au-delà).
+  // Hard cap 500, aligné avec /api/structures/teams (config invraisemblable au-delà).
   const teamsSnap = await db.collection('sub_teams')
     .where('structureId', '==', structureId)
     .limit(500)

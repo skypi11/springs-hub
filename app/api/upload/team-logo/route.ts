@@ -15,10 +15,10 @@ import { processSquareImage, probeImage } from '@/lib/image-processing';
 export const runtime = 'nodejs';
 export const maxDuration = 30;
 
-// POST /api/upload/team-logo — upload du logo d'une sous-équipe (collection sub_teams).
+// POST /api/upload/team-logo, upload du logo d'une sous-équipe (collection sub_teams).
 // Auth : dirigeant/responsable de la structure, OU manager de cette équipe précise.
 // Body : multipart/form-data avec champs `structureId`, `teamId`, `file`.
-// Retour : { url } — URL publique du logo (clé R2 versionnée, cache immutable).
+// Retour : { url }, URL publique du logo (clé R2 versionnée, cache immutable).
 //
 // La persistance du champ `logoUrl` ET la suppression de l'ancien fichier R2 sont
 // gérées par l'action `update` de /api/structures/teams, déclenchée juste après
@@ -51,10 +51,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validation taille — même limite que les logos de structure (2 MB)
+    // Validation taille, même limite que les logos de structure (2 MB)
     if (file.size > UploadLimits.STRUCTURE_LOGO_BYTES) {
       const mb = Math.round(UploadLimits.STRUCTURE_LOGO_BYTES / (1024 * 1024));
-      return NextResponse.json({ error: `Fichier trop lourd — max ${mb} MB` }, { status: 413 });
+      return NextResponse.json({ error: `Fichier trop lourd, max ${mb} MB` }, { status: 413 });
     }
 
     const db = getAdminDb();
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
     // Traitement sharp : carré 512×512 + conversion webp
     const processedBuf = await processSquareImage(inputBuf, 512);
 
-    // Clé versionnée (timestamp) — chaque upload change l'URL, contourne le cache CDN
+    // Clé versionnée (timestamp), chaque upload change l'URL, contourne le cache CDN
     const version = Date.now();
     const key = StorageKeys.teamLogo(structureId, teamId, version);
     await uploadBuffer(key, processedBuf, 'image/webp');

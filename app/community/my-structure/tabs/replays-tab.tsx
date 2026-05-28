@@ -1,10 +1,10 @@
 'use client';
 
-// Onglet REPLAYS structure (2026-05-26) — vue cross-équipes de tous les replays
+// Onglet REPLAYS structure (2026-05-26), vue cross-équipes de tous les replays
 // uploadés sur la structure, avec filtres équipe + event.
 //
 // Remplace l'ancien sous-panneau "Replays" du drawer équipe (vue 1-team only).
-// L'upload reste contextuel à un event (drawer event scrim/match) — cette vue
+// L'upload reste contextuel à un event (drawer event scrim/match), cette vue
 // est read-only + actions de gestion (delete/edit/stats).
 
 import { useMemo, useState } from 'react';
@@ -55,7 +55,7 @@ export function ReplaysTab({ structureId, teams, userContext, currentUid }: Prop
   const allReplays = data?.replays ?? [];
 
   // Set des eventIds présents (pour le dropdown event).
-  // Tri par date du replay le plus récent associé à chaque event (desc) — plus
+  // Tri par date du replay le plus récent associé à chaque event (desc), plus
   // utile que l'alphabétique pour scroller en mode "qu'est-ce qui s'est passé
   // récemment". Fallback "Event sans titre" si l'event a été supprimé.
   const eventOptions = useMemo(() => {
@@ -112,7 +112,7 @@ export function ReplaysTab({ structureId, teams, userContext, currentUid }: Prop
     const obj: Record<string, { name: string; game: string }> = {};
     for (const t of teams) {
       obj[t.id] = {
-        name: t.label ? `${t.name} — ${t.label}` : t.name,
+        name: t.label ? `${t.name}, ${t.label}` : t.name,
         game: t.game,
       };
     }
@@ -176,7 +176,7 @@ export function ReplaysTab({ structureId, teams, userContext, currentUid }: Prop
               return a.name.localeCompare(b.name);
             }).map(t => ({
               value: t.id,
-              label: `${t.name}${t.label ? ` — ${t.label}` : ''}`,
+              label: `${t.name}${t.label ? `, ${t.label}` : ''}`,
             })),
           ]}
         />
@@ -218,7 +218,7 @@ export function ReplaysTab({ structureId, teams, userContext, currentUid }: Prop
           currentUid={currentUid}
           canDeleteAny={canDeleteAny}
           // Fine-grained par replay : même règle que pour l'upload (staff struct,
-          // staff de l'équipe, capitaine de l'équipe) — cohérent avec le check API.
+          // staff de l'équipe, capitaine de l'équipe), cohérent avec le check API.
           canEdit={(item) => canUploadReplay(userContext, item.teamId)}
           onChanged={reload}
           showEventLink

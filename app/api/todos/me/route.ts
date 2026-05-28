@@ -14,7 +14,7 @@ function tsMs(v: unknown): number | null {
   return null;
 }
 
-// GET /api/todos/me — tous mes exercices, à travers toutes les structures.
+// GET /api/todos/me, tous mes exercices, à travers toutes les structures.
 // Enrichi avec le nom de la structure + nom de l'équipe + titre de l'event lié (si présent).
 export async function GET(req: NextRequest) {
   try {
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
         config: (d.config && typeof d.config === 'object') ? d.config : {},
         response: (d.response && typeof d.response === 'object') ? d.response : null,
         // v3 : on propage les steps[] s'ils existent (sinon getSteps() côté client wrap legacy en 1 step).
-        // Critique pour le drawer multi-step et toggleStep — sans ça stepId ne matche pas en base.
+        // Critique pour le drawer multi-step et toggleStep, sans ça stepId ne matche pas en base.
         ...(Array.isArray(d.steps) ? { steps: d.steps } : {}),
         eventId: (d.eventId as string | null) ?? null,
         deadline: (d.deadline as string | null) ?? null,
@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
         done: !!d.done,
         doneAt: tsMs(d.doneAt),
         doneBy: (d.doneBy as string | null) ?? null,
-        // v3 — verrouillage (lockedAt set = exo validé globalement, plus modifiable)
+        // v3, verrouillage (lockedAt set = exo validé globalement, plus modifiable)
         lockedAt: tsMs(d.lockedAt),
         lockedBy: (d.lockedBy as string | null) ?? null,
         createdBy: d.createdBy as string,

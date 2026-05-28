@@ -3,7 +3,7 @@ import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { checkRateLimit, limiters, rateLimitKey } from '@/lib/rate-limit';
 import { captureApiError } from '@/lib/sentry';
 
-// GET /api/account/export — RGPD art. 20 (droit à la portabilité).
+// GET /api/account/export, RGPD art. 20 (droit à la portabilité).
 // Renvoie un JSON complet des données personnelles de l'utilisateur authentifié.
 // Rate-limité pour éviter les scraping automatisés.
 export async function GET(req: NextRequest) {
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
     const db = getAdminDb();
 
-    // En parallèle — chaque requête cible un aspect du profil utilisateur.
+    // En parallèle, chaque requête cible un aspect du profil utilisateur.
     const [
       userSnap,
       memberships,
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
       db.collection('structures').where('founderId', '==', uid).get(),
       db.collection('structures').where('coFounderIds', 'array-contains', uid).get(),
       db.collection('structures').where('managerIds', 'array-contains', uid).get(),
-      // array-contains ne marche que sur un champ — on récupère tous les subteams
+      // array-contains ne marche que sur un champ, on récupère tous les subteams
       // dans lesquels on apparaît via playerIds (le champ le plus probable) puis
       // on filtre en mémoire pour captain/sub/staff.
       db.collection('sub_teams').where('playerIds', 'array-contains', uid).get(),
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     ]);
 
     // Les autres array-contains (subIds, staffIds, captainId) nécessiteraient
-    // des queries séparées — on les sort en mémoire à partir de la structure
+    // des queries séparées, on les sort en mémoire à partir de la structure
     // globale pour ne pas multiplier les lectures (coût Firestore).
     // Pour compléter on relance 3 queries sur les autres champs.
     const [subsMatches, staffMatches, captainMatches] = await Promise.all([

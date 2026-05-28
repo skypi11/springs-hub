@@ -1,4 +1,4 @@
-// Quota storage unifié par structure — partagé entre documents staff et replays.
+// Quota storage unifié par structure, partagé entre documents staff et replays.
 // Lit les tailles depuis Firestore (champ `sizeBytes` sur les docs ready), pas
 // depuis R2 (plus rapide, plus précis : un upload pending ne compte pas).
 //
@@ -14,7 +14,7 @@ export interface StructureStorageUsage {
   totalBytes: number;
   quotaBytes: number;
   plan: StructurePlan;
-  premium: boolean;             // @deprecated — alias rétrocompat de `plan === 'pro'`
+  premium: boolean;             // @deprecated, alias rétrocompat de `plan === 'pro'`
   remainingBytes: number;
 }
 
@@ -31,7 +31,7 @@ export async function getStructurePlanFromDb(
   }
 }
 
-// @deprecated — alias rétrocompat pour les call sites pas encore migrés.
+// @deprecated, alias rétrocompat pour les call sites pas encore migrés.
 // Préférer getStructurePlanFromDb() qui renvoie le plan typé directement.
 export async function isStructurePremium(
   db: Firestore,

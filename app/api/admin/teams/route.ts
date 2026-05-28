@@ -11,9 +11,9 @@ const MAX_TEAMS = 1000;
 const TEAM_NAME_MAX = 60;
 const TEAM_LABEL_MAX = 40;
 
-// GET /api/admin/teams — vue cross-structures de toutes les sous-équipes.
+// GET /api/admin/teams, vue cross-structures de toutes les sous-équipes.
 // Filtres optionnels : game, status, structureId.
-// Renvoie les champs nécessaires à l'affichage (pas le détail roster complet —
+// Renvoie les champs nécessaires à l'affichage (pas le détail roster complet ,
 // pour ça l'admin clique dessus et on renvoie vers /community/structure/[id]).
 export async function GET(req: NextRequest) {
   try {
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
       const subs = (data.subIds ?? []) as string[];
       const staff = (data.staffIds ?? []) as string[];
       // Fallback : les équipes créées avant le Lot 1 (17/04/2026) n'ont pas de
-      // champ `status` — on les considère `active` par défaut.
+      // champ `status`, on les considère `active` par défaut.
       const status: 'active' | 'archived' = data.status === 'archived' ? 'archived' : 'active';
       const toRef = (uid: string) => {
         const u = membersById.get(uid);
@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/admin/teams — éditer une équipe (nom, label). Admin only.
+// POST /api/admin/teams, éditer une équipe (nom, label). Admin only.
 export async function POST(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);

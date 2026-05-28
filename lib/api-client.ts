@@ -1,8 +1,8 @@
 import { auth } from './firebase';
 
-// Client API central — attache l'ID token Firebase à chaque requête et
+// Client API central, attache l'ID token Firebase à chaque requête et
 // parse la réponse JSON. Lève une ApiError si le serveur renvoie un statut
-// hors 2xx — ça remonte directement dans le `onError` de React Query.
+// hors 2xx, ça remonte directement dans le `onError` de React Query.
 //
 // À utiliser via `queryFn` / `mutationFn` dans les hooks useQuery / useMutation.
 
@@ -57,7 +57,7 @@ export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Pro
   return payload as T;
 }
 
-// POST multipart (upload de fichiers) — ne force pas Content-Type, le
+// POST multipart (upload de fichiers), ne force pas Content-Type, le
 // navigateur ajoute lui-même le boundary de la FormData.
 export async function apiForm<T = unknown>(
   path: string,

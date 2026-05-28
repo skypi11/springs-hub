@@ -3,7 +3,7 @@
 import { getGame } from '@/lib/games-registry';
 
 /**
- * Pill colorée représentant un jeu — bleue pour RL, verte pour TM, etc.
+ * Pill colorée représentant un jeu, bleue pour RL, verte pour TM, etc.
  * Consomme la registry des jeux : ajouter un nouveau jeu dans la registry
  * suffit à ce que tous les `<GameTag>` du site l'affichent correctement.
  *
@@ -21,7 +21,7 @@ export default function GameTag({
 }: {
   /** Id de jeu de la registry (rocket_league, trackmania, valorant…). Si inconnu, rend un tag neutre. */
   gameId: string | null | undefined;
-  /** "short" affiche "RL" / "TM" — "full" affiche "Rocket League" / "Trackmania" */
+  /** "short" affiche "RL" / "TM", "full" affiche "Rocket League" / "Trackmania" */
   variant?: 'short' | 'full';
   /** "sm" = 10px, "md" = défaut .tag (12px), "lg" = 14px */
   size?: 'sm' | 'md' | 'lg';

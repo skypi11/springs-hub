@@ -21,7 +21,7 @@ const TYPE_LABEL: Record<EventType, string> = {
   autre: 'Autre',
 };
 
-// Couleur dédiée pour les exercices (échéance) — distincte des 4 types d'event.
+// Couleur dédiée pour les exercices (échéance), distincte des 4 types d'event.
 const TODO_COLOR = '#E91E63';
 
 const DAY_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];

@@ -82,7 +82,7 @@ export default function AdminStructuresPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [commentMap, setCommentMap] = useState<Record<string, string>>({});
   const [backfilling, setBackfilling] = useState(false);
-  // Édition directe des infos d'une structure — null = aucun formulaire ouvert.
+  // Édition directe des infos d'une structure, null = aucun formulaire ouvert.
   const [editForm, setEditForm] = useState<
     { id: string; name: string; tag: string; description: string; games: string[] } | null
   >(null);
@@ -124,7 +124,7 @@ export default function AdminStructuresPage() {
   async function handleBackfill() {
     const ok = await confirm({
       title: 'Recalculer les compteurs',
-      message: 'Recalcule counters.teams / counters.members pour toutes les structures en lisant l\'état réel. Idempotent — à lancer une fois après déploiement, puis à la demande si un écart est suspect.',
+      message: 'Recalcule counters.teams / counters.members pour toutes les structures en lisant l\'état réel. Idempotent, à lancer une fois après déploiement, puis à la demande si un écart est suspect.',
       confirmLabel: 'Lancer',
     });
     if (!ok) return;
@@ -280,7 +280,7 @@ export default function AdminStructuresPage() {
                       <span className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>par {s.founderName || s.founderId}</span>
                       {s.requestedAt && (
                         <span className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                          — {new Date(s.requestedAt).toLocaleDateString('fr-FR')}
+                         , {new Date(s.requestedAt).toLocaleDateString('fr-FR')}
                         </span>
                       )}
                     </div>
@@ -312,7 +312,7 @@ export default function AdminStructuresPage() {
                     />
                   </div>
 
-                  {/* Section Membres — lazy-loaded à l'ouverture du panel.
+                  {/* Section Membres, lazy-loaded à l'ouverture du panel.
                       Utile pour l'admin qui veut savoir qui est dans une structure
                       sans avoir à impersonner le fondateur. */}
                   <div className="divider" />

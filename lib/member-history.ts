@@ -2,7 +2,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 
 // Journal d'appartenance (Phase 3 item N).
 // Une entrée = un passage d'un joueur dans une structure pour un jeu donné.
-// Écrit uniquement via Admin SDK — les rules interdisent l'écriture client.
+// Écrit uniquement via Admin SDK, les rules interdisent l'écriture client.
 
 export type MemberJoinReason =
   | 'founder'          // fondateur au moment de la création / validation
@@ -21,7 +21,7 @@ export type MemberLeftReason =
 type Db = FirebaseFirestore.Firestore;
 type BatchOrTx = FirebaseFirestore.WriteBatch | FirebaseFirestore.Transaction;
 // Interface structurelle minimale : WriteBatch + Transaction ont des overloads .set()/.update()
-// incompatibles côté typings, mais une structure identique à l'exécution — on cast à l'entrée.
+// incompatibles côté typings, mais une structure identique à l'exécution, on cast à l'entrée.
 interface Writer {
   set(ref: FirebaseFirestore.DocumentReference, data: unknown): unknown;
   update(ref: FirebaseFirestore.DocumentReference, data: Record<string, unknown>): unknown;

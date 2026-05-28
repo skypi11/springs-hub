@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { NextRequest } from 'next/server';
 import { rateLimitKey } from './rate-limit';
 
-// On fabrique un faux NextRequest minimal — seul `headers.get` est utilisé.
+// On fabrique un faux NextRequest minimal, seul `headers.get` est utilisé.
 function makeReq(headers: Record<string, string> = {}): NextRequest {
   return {
     headers: {
@@ -33,7 +33,7 @@ describe('rateLimitKey', () => {
   });
 
   it('trim les espaces autour de la première IP', () => {
-    const req = makeReq({ 'x-forwarded-for': '   1.2.3.4   , 9.9.9.9' });
+    const req = makeReq({ 'x-forwarded-for': '   1.2.3.4  , 9.9.9.9' });
     expect(rateLimitKey(req)).toBe('ip:1.2.3.4');
   });
 

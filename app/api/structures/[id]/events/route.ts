@@ -28,7 +28,7 @@ function ts(v: unknown): string | null {
   return null;
 }
 
-// GET /api/structures/[id]/events — liste des événements + présences
+// GET /api/structures/[id]/events, liste des événements + présences
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -60,7 +60,7 @@ export async function GET(
       .get();
 
     // Les events scope='staff' ne sont visibles que par les membres du staff
-    // (dirigeants + managers + coachs — structure ou équipe). Pour un capitaine
+    // (dirigeants + managers + coachs, structure ou équipe). Pour un capitaine
     // qui accède via canAccessCalendar mais n'est pas staff, on les filtre.
     const isStaffViewer = isStaff(resolved.context);
     const staffAudienceSet = new Set(
@@ -77,7 +77,7 @@ export async function GET(
 
     const eventIds = visibleDocs.map(d => d.id);
 
-    // Présences — chunks de 30 pour 'in'
+    // Présences, chunks de 30 pour 'in'
     const presencesByEvent = new Map<string, Array<Record<string, unknown>>>();
     for (let i = 0; i < eventIds.length; i += 30) {
       const chunk = eventIds.slice(i, i + 30);
@@ -149,7 +149,7 @@ const MAX_DESC = 2000;
 const MAX_LOCATION = 200;
 const MAX_EVENT_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours
 
-// POST /api/structures/[id]/events — créer un événement
+// POST /api/structures/[id]/events, créer un événement
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -374,7 +374,7 @@ export async function POST(
 
     await batch.commit();
 
-    // Notif Discord (best-effort) — ne bloque jamais la création d'event.
+    // Notif Discord (best-effort), ne bloque jamais la création d'event.
     // Les erreurs sont capturées pour Sentry mais n'affectent pas la réponse.
     // Fan-out :
     //   - scope=teams  → post dans chaque salon d'équipe configuré (Livraison A)
@@ -397,7 +397,7 @@ export async function POST(
 
         const siteEventUrl = `${req.nextUrl.origin}/community/my-structure?tab=calendar&event=${encodeURIComponent(eventRef.id)}`;
         // Bannière composite pour les matchs officiels (générée par /api/og/match).
-        // Seulement si on a un adversaire — sinon pas de sens.
+        // Seulement si on a un adversaire, sinon pas de sens.
         const isOfficialMatch = type === 'match' && !!(adversaire?.trim());
         const matchBannerUrl = isOfficialMatch
           ? `${req.nextUrl.origin}/api/og/match/${encodeURIComponent(eventRef.id)}`

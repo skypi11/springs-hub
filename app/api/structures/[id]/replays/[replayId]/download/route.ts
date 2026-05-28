@@ -16,7 +16,7 @@ import { generateDownloadUrl } from '@/lib/storage';
 // 2. Sinon : staff d'équipe, capitaine, OU player/sub de la team du replay
 // 3. Sinon : si l'user a un todo replay_review actif (non done) ciblant
 //    ce replayId, on autorise (cas où le coach assigne à un joueur d'une
-//    autre équipe — rare mais légitime).
+//    autre équipe, rare mais légitime).
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; replayId: string }> }

@@ -1,4 +1,4 @@
-// Badge officiel de rang Valorant — utilise les icônes Riot Games dans
+// Badge officiel de rang Valorant, utilise les icônes Riot Games dans
 // public/valorant-ranks/ (renommées en kebab-case : iron-1.png ... radiant.png).
 //
 // Le composant rend l'icône officielle + un cadre coloré au teint du tier
@@ -38,7 +38,7 @@ export default function ValorantRankBadge({ rank, size = 64 }: RankBadgeProps) {
     );
   }
 
-  // Cas "Unranked" : config présent mais pas d'icône — on rend un Trophy
+  // Cas "Unranked" : config présent mais pas d'icône, on rend un Trophy
   // teinté du tier (couleurs grises neutres) pour cohérence visuelle.
   if (!iconFile) {
     return (

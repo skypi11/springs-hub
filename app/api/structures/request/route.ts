@@ -10,7 +10,7 @@ import { canJoinStructure, addStructureToGame, STRUCTURE_MEMBERSHIP_CAP } from '
 
 const LEGAL_STATUSES = ['none', 'asso_1901', 'auto_entreprise', 'sas_sarl', 'other'];
 
-// POST /api/structures/request — soumettre une demande de création de structure
+// POST /api/structures/request, soumettre une demande de création de structure
 export async function POST(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     const userSnap = await db.collection('users').doc(uid).get();
     const userSpg = (userSnap.exists && (userSnap.data()!.structurePerGame || {})) || {};
     for (const g of body.games) {
-      // structureId pas encore connu — on passe une sentinelle qui ne matchera
+      // structureId pas encore connu, on passe une sentinelle qui ne matchera
       // aucune struct existante, donc seul le cap importe.
       const check = canJoinStructure(userSpg, g, '__new__');
       if (!check.ok && check.reason === 'cap_reached') {
@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
       await db.collection('users').doc(uid).update(updates);
     }
 
-    // Alerte admin sur le Discord Aedral — fire-and-forget (ne throw jamais).
+    // Alerte admin sur le Discord Aedral, fire-and-forget (ne throw jamais).
     const founderSnap = await db.collection('users').doc(uid).get();
     const founderName = (founderSnap.data()?.displayName as string)
       || (founderSnap.data()?.discordUsername as string)
@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET /api/structures/request — récupérer les demandes de l'utilisateur connecté
+// GET /api/structures/request, récupérer les demandes de l'utilisateur connecté
 export async function GET(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);

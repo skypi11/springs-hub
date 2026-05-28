@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const db = getAdminDb();
-    // Hard cap 200 templates — un admin n'aura jamais besoin de plus, et ça
+    // Hard cap 200 templates, un admin n'aura jamais besoin de plus, et ça
     // évite un scan runaway si quelqu'un spam la collection.
     const snap = await db.collection('announce_templates').orderBy('updatedAt', 'desc').limit(200).get();
     const templates: AnnounceTemplate[] = snap.docs.map(d => {
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
         updatedAt: data.updatedAt?.toDate?.()?.toISOString?.() ?? null,
         createdBy: data.createdBy ?? null,
         lastUsedAt: data.lastUsedAt?.toDate?.()?.toISOString?.() ?? null,
-        // Champs changelog public — defaults pour les vieux templates qui n'avaient pas ces champs
+        // Champs changelog public, defaults pour les vieux templates qui n'avaient pas ces champs
         publishOnSite: data.publishOnSite !== false, // default true (les anciens templates apparaissent)
         category: data.category ?? 'feature',
         publishedAt: data.publishedAt?.toDate?.()?.toISOString?.() ?? null,
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
     const db = getAdminDb();
     // Champs changelog public (timeline /changelog).
     // Default publishOnSite=true pour qu'un nouvel admin n'oublie pas de cocher
-    // — il peut désactiver explicitement pour les annonces Discord-only.
+    //, il peut désactiver explicitement pour les annonces Discord-only.
     const publishOnSite = body.publishOnSite !== false;
     const category = isValidChangelogCategory(body.category) ? body.category : 'feature';
 

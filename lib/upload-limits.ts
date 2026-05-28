@@ -1,4 +1,4 @@
-// Limites d'upload — fichier sans dépendance serveur pour pouvoir être importé
+// Limites d'upload, fichier sans dépendance serveur pour pouvoir être importé
 // côté client (FormData preview, validation avant envoi) et côté serveur (API routes).
 
 export const UPLOAD_LIMITS = {
@@ -12,7 +12,7 @@ export const UPLOAD_LIMITS = {
   // pour le rationale du modèle freemium par structure.
   STRUCTURE_STORAGE_QUOTA_BYTES: 500 * 1024 * 1024,         // 500 MB free
   STRUCTURE_STORAGE_QUOTA_BYTES_PREMIUM: 5 * 1024 * 1024 * 1024, // 5 GB premium
-  // Alias rétrocompat — anciennes routes lisaient ce nom. À retirer une fois
+  // Alias rétrocompat, anciennes routes lisaient ce nom. À retirer une fois
   // les imports migrés vers STRUCTURE_STORAGE_QUOTA_BYTES.
   STRUCTURE_DOCS_QUOTA_BYTES: 500 * 1024 * 1024,
 } as const;

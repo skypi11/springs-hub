@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Home, Compass } from 'lucide-react';
 
-// Page 404 globale — affichée par Next.js pour toute route non matchée.
+// Page 404 globale, affichée par Next.js pour toute route non matchée.
 // DA Aedral : panel biseauté, fond hex, accent or, Bebas Neue.
 export default function NotFound() {
   return (

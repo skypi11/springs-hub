@@ -97,12 +97,12 @@ async function fetchUserStructures(uid: string): Promise<ProfileStructure[]> {
   });
 }
 
-// Champs privés — jamais renvoyés aux autres utilisateurs.
+// Champs privés, jamais renvoyés aux autres utilisateurs.
 // `dateOfBirth` sert uniquement à calculer l'âge côté serveur.
 // Champs strippés pour les visiteurs tiers (non owner). Les champs Valorant
 // 'rank'/'rr'/'source'/'syncedAt' restent publics (affichés sur la fiche)
 // mais le PUUID Riot est filtré (identifiant immuable utilisé en interne pour
-// la vérif anti-mensonge — pas besoin d'être exposé même si non secret au sens
+// la vérif anti-mensonge, pas besoin d'être exposé même si non secret au sens
 // strict). La connection Discord riotgames porte le même PUUID et reste filtrée
 // par visibleOnProfile.
 const PRIVATE_FIELDS = [
@@ -110,7 +110,7 @@ const PRIVATE_FIELDS = [
   'valorantPuuid', 'valorantPuuidLinkedAt',
 ];
 
-// GET /api/profile?uid=discord_XXX OU /api/profile?slug=noxx-26 — lire un profil
+// GET /api/profile?uid=discord_XXX OU /api/profile?slug=noxx-26, lire un profil
 // On accepte les deux pour la transition slug : les liens internes utilisent le
 // slug, mais l'API publique reste compat avec l'uid pour les intégrations.
 // Si le requester est le propriétaire (token Firebase), renvoie le document complet.
@@ -122,7 +122,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'uid ou slug requis' }, { status: 400 });
   }
 
-  // Rate-limit : endpoint public + enrichi (fetch structures/sub_teams) — protège
+  // Rate-limit : endpoint public + enrichi (fetch structures/sub_teams), protège
   // contre le scraping en masse des profils.
   const blocked = await checkRateLimit(limiters.read, rateLimitKey(req));
   if (blocked) return blocked;
@@ -150,7 +150,7 @@ export async function GET(req: NextRequest) {
     const requesterUid = await verifyAuth(req);
     const isOwner = requesterUid === uid;
     const structures = await fetchUserStructures(uid);
-    // Flag smurf suspecté : admin-only — jamais visible par le joueur lui-même
+    // Flag smurf suspecté : admin-only, jamais visible par le joueur lui-même
     // (sinon il s'en va avant qu'on enquête) ni par les autres visiteurs (risque
     // diffamation). On le strippe partout sauf pour les admins consultant la
     // fiche d'un autre joueur.
@@ -160,7 +160,7 @@ export async function GET(req: NextRequest) {
     // Identité RL « officielle » : on ne considère VÉRIFIÉ que les snapshots
     // explicitement confirmés par le joueur (rlEpicId via Lot 2, rlSteamId via
     // le nouveau flow Steam). Avoir Steam OpenID lié à Aedral (steamLinked)
-    // ou Epic sur Discord ne suffit PAS — beaucoup de joueurs ont un Steam
+    // ou Epic sur Discord ne suffit PAS, beaucoup de joueurs ont un Steam
     // mais jouent RL sur Epic (et inversement). Voir docs/rl-rank-verification-plan.md.
     const hasOfficialEpic = !!data.rlEpicId;
     const hasOfficialSteam = !!data.rlSteamId;
@@ -225,7 +225,7 @@ export async function GET(req: NextRequest) {
     if (suspectedSmurfFlag) publicData.suspectedSmurfFlag = suspectedSmurfFlag;
 
     // Discord connections : filtrer côté serveur sur visibleOnProfile.
-    // Sécu critique — sans ça, le toggle "Masqué" dans Settings ne protège rien,
+    // Sécu critique, sans ça, le toggle "Masqué" dans Settings ne protège rien,
     // les connexions privées (Twitter/Spotify/Twitch/Epic IDs) seraient leakées
     // à n'importe quel visiteur qui appelle GET /api/profile?uid=X.
     if (Array.isArray(publicData.discordConnections)) {
@@ -240,7 +240,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/profile — sauvegarder son profil
+// POST /api/profile, sauvegarder son profil
 export async function POST(req: NextRequest) {
   try {
     // Vérifier le token Firebase de l'utilisateur
@@ -253,7 +253,7 @@ export async function POST(req: NextRequest) {
     const decoded = await getAdminAuth().verifyIdToken(idToken);
     const uid = decoded.uid;
 
-    // Rate limit après auth — on peut utiliser le uid comme clé
+    // Rate limit après auth, on peut utiliser le uid comme clé
     const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
@@ -302,9 +302,9 @@ export async function POST(req: NextRequest) {
     const existing = await userRef.get();
     const existingData = existing.data() ?? {};
 
-    // RL : on stocke (rlPlatform, rlPlatformId) — modèle cross-platform.
+    // RL : on stocke (rlPlatform, rlPlatformId), modèle cross-platform.
     // On mirror dans les champs legacy (epicAccountId/epicDisplayName/rlTrackerUrl)
-    // pour que le code qui lit encore ces champs fonctionne — sera nettoyé plus tard.
+    // pour que le code qui lit encore ces champs fonctionne, sera nettoyé plus tard.
     let rlPlatform: RLPlatform | '' = '';
     let rlPlatformId = '';
     let legacyEpicAccountId = existingData.epicAccountId ?? '';
@@ -323,7 +323,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Connexions Discord — on n'accepte du client QUE les changements de
+    // Connexions Discord, on n'accepte du client QUE les changements de
     // visibleOnProfile. Les autres champs (type, id, name, verified) sont
     // pilotés par le pull au login Discord et ne doivent pas être modifiables
     // par l'user (sinon il pourrait spoofer "j'ai un compte Twitch vérifié").
@@ -377,7 +377,7 @@ export async function POST(req: NextRequest) {
       updatedAt: FieldValue.serverTimestamp(),
     };
 
-    // Détection changement de rang RL — voir docs/rl-rank-verification-plan.md.
+    // Détection changement de rang RL, voir docs/rl-rank-verification-plan.md.
     // Si le joueur modifie son rang déclaré, on horodate (rlRankChangedAt) :
     //  - le cooldown anti-spam des signalements saute pour ce joueur
     //    (l'API /api/profile/[uid]/rank-report compare cette date),
@@ -395,7 +395,7 @@ export async function POST(req: NextRequest) {
 
     await userRef.set(profileData, { merge: true });
 
-    // Ping admin Discord post-écriture (fire-and-forget) — seulement si le rang
+    // Ping admin Discord post-écriture (fire-and-forget), seulement si le rang
     // a vraiment changé (pas à la création du profil).
     if (rankChanged) {
       try {

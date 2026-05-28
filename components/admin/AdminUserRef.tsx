@@ -14,7 +14,7 @@ type Props = {
   uid?: string | null;
   name?: string | null;
   kind?: 'user' | 'structure';
-  // Layout : "row" (nom à droite, UID dessous — dans une definition list),
+  // Layout : "row" (nom à droite, UID dessous, dans une definition list),
   //          "inline" (tout sur une ligne, nom + UID petit à côté).
   layout?: 'row' | 'inline';
   // Icône custom (fallback : user/building selon kind).
@@ -26,7 +26,7 @@ export default function AdminUserRef({
 }: Props) {
   const [copied, setCopied] = useState(false);
 
-  if (!uid) return <span className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>—</span>;
+  if (!uid) return <span className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>,</span>;
 
   const Icon = icon ?? (kind === 'structure' ? Building2 : UserIcon);
   const href = kind === 'structure' ? `/community/structure/${uid}` : `/profile/${uid}`;

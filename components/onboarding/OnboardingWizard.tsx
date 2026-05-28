@@ -22,7 +22,7 @@ const SKIPPED_KEY = 'aedral_onboarding_skipped';
 
 // L'utilisateur peut skip l'onboarding et passer directement à /settings.
 // On garde le flag en localStorage pour ne plus afficher le wizard à ses
-// prochaines visites — le gate ProfileCompletionGate continuera quand même
+// prochaines visites, le gate ProfileCompletionGate continuera quand même
 // à le rediriger vers /settings tant que son profil n'est pas complet.
 export function markOnboardingSkipped() {
   try { localStorage.setItem(SKIPPED_KEY, '1'); } catch { /* SSR / private mode */ }
@@ -142,7 +142,7 @@ export default function OnboardingWizard({ onClose }: { onClose: () => void }) {
         method: 'POST',
         body: {
           ...data,
-          // Le POST /api/profile attend ces 2 champs pour les autres jeux —
+          // Le POST /api/profile attend ces 2 champs pour les autres jeux ,
           // on les passe explicitement vides s'ils ne sont pas remplis.
           loginTM: '',
           bio: '',
@@ -205,7 +205,7 @@ export default function OnboardingWizard({ onClose }: { onClose: () => void }) {
             boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
           }}
         >
-          {/* Header — accent bar + titre + progression */}
+          {/* Header, accent bar + titre + progression */}
           <div className="h-[3px] flex-shrink-0" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
           <header className="px-6 pt-5 pb-4 flex-shrink-0">
             <div className="flex items-center justify-between gap-3 mb-3">
@@ -256,7 +256,7 @@ export default function OnboardingWizard({ onClose }: { onClose: () => void }) {
             {step === 4 && <StepRecruitment data={data} update={update} />}
           </div>
 
-          {/* Footer — erreur + nav */}
+          {/* Footer, erreur + nav */}
           <footer className="px-6 py-4 flex-shrink-0" style={{ borderTop: '1px solid var(--s-border)', background: 'var(--s-elevated)' }}>
             {stepError && (
               <div className="mb-3 px-3 py-2 text-xs"
@@ -316,7 +316,7 @@ function StepIdentity({ data, update }: { data: WizardData; update: (p: Partial<
           autoFocus
         />
         <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
-          Pré-rempli depuis ton compte Discord — change-le si tu veux.
+          Pré-rempli depuis ton compte Discord, change-le si tu veux.
         </p>
       </div>
       <div>
@@ -351,7 +351,7 @@ function StepCountry({ data, update }: { data: WizardData; update: (p: Partial<W
           className="settings-input w-full"
           autoFocus
         >
-          <option value="">— Choisis ton pays —</option>
+          <option value="">Choisis ton pays</option>
           {countries.map(c => (
             <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
           ))}
@@ -376,7 +376,7 @@ function StepGames({ data, update }: { data: WizardData; update: (p: Partial<Wiz
         Coche les jeux que tu pratiques. Les options de vérification détaillées
         (Epic, Steam, rang…) se configurent ensuite dans tes paramètres.
       </p>
-      {/* Choix jeux — boucle sur la registry pour scaler à N jeux */}
+      {/* Choix jeux, boucle sur la registry pour scaler à N jeux */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {ALL_GAME_DEFS.map(g => (
           <GamePicker
@@ -402,7 +402,7 @@ function StepGames({ data, update }: { data: WizardData; update: (p: Partial<Wiz
               onChange={e => update({ rlPlatform: e.target.value as RLPlatform | '' })}
               className="settings-input w-full"
             >
-              <option value="">— Choisis —</option>
+              <option value="">Choisis</option>
               {RL_PLATFORMS.map(p => (
                 <option key={p.value} value={p.value}>{p.label}</option>
               ))}
@@ -456,7 +456,7 @@ function StepGames({ data, update }: { data: WizardData; update: (p: Partial<Wiz
           </div>
         </div>
       )}
-      {/* Config Valorant minimale — rang optionnel (peut être laissé vide,
+      {/* Config Valorant minimale, rang optionnel (peut être laissé vide,
           tu pourras lier ton compte Riot dans Discord puis activer la sync
           auto plus tard, ou saisir manuellement dans Settings). */}
       {data.games.includes('valorant') && (
@@ -472,7 +472,7 @@ function StepGames({ data, update }: { data: WizardData; update: (p: Partial<Wiz
               onChange={e => update({ valorantRank: e.target.value })}
               className="settings-input w-full"
             >
-              <option value="">— Non renseigné —</option>
+              <option value="">Non renseigné</option>
               {VALORANT_RANKS.map(r => (
                 <option key={r} value={r}>{r}</option>
               ))}
@@ -492,7 +492,7 @@ function StepRecruitment({ data, update }: { data: WizardData; update: (p: Parti
     <div className="space-y-5">
       <p className="text-sm" style={{ color: 'var(--s-text-muted)' }}>
         Indique si tu cherches une équipe ou un rôle dans une structure. Cette
-        étape est <strong style={{ color: 'var(--s-text)' }}>optionnelle</strong> —
+        étape est <strong style={{ color: 'var(--s-text)' }}>optionnelle</strong> ,
         tu peux activer la dispo plus tard depuis tes paramètres.
       </p>
       <div className="flex items-center justify-between gap-4 p-4 bevel-sm"
@@ -537,7 +537,7 @@ function StepRecruitment({ data, update }: { data: WizardData; update: (p: Parti
             onChange={e => update({ recruitmentRole: e.target.value })}
             className="settings-input w-full"
           >
-            <option value="">— Choisis un rôle —</option>
+            <option value="">Choisis un rôle</option>
             <option value="joueur">Joueur</option>
             <option value="coach">Coach</option>
             <option value="manager">Manager</option>

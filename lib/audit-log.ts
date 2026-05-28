@@ -73,7 +73,7 @@ export interface AuditLogEntry {
   structureId: string;
   action: AuditAction;
   actorUid: string;
-  // Cible de l'action (uid d'un user, id d'une équipe, etc.) — optionnel.
+  // Cible de l'action (uid d'un user, id d'une équipe, etc.), optionnel.
   targetUid?: string | null;
   targetId?: string | null;
   // Métadonnées libres (game, role, reason, etc.). Doit rester sérialisable JSON.

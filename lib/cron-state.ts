@@ -1,7 +1,7 @@
 // État persistant entre runs de cron.
 //
 // Permet aux crons de traiter une collection en plusieurs runs (cursor-based
-// pagination) — essentiel à la scalabilité. Sans état : un cron qui scanne
+// pagination), essentiel à la scalabilité. Sans état : un cron qui scanne
 // 50k users d'un coup explose le timeout Vercel (60s Hobby, 300s Pro).
 //
 // Pattern d'usage typique dans un cron :

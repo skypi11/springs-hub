@@ -17,7 +17,7 @@ import type {
 import GameTag from '@/components/games/GameTag';
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
 
-// Tab Recrutement complet — extrait de page.tsx pour réduire la taille du fichier orchestrateur.
+// Tab Recrutement complet, extrait de page.tsx pour réduire la taille du fichier orchestrateur.
 // Regroupe : settings recrutement (annonce + postes), liens d'invitation, demandes reçues,
 // invitations envoyées, shortlist, candidats suggérés.
 export interface RecruitmentTabProps {
@@ -83,7 +83,7 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
 
   return (
     <>
-      {/* ═══ RECRUTEMENT — Settings (dirigeants only) ═══ */}
+      {/* ═══ RECRUTEMENT, Settings (dirigeants only) ═══ */}
       {isDirigeantOfActive && (
         <SectionPanel accent="#33ff66" icon={Search} title="RECRUTEMENT"
           collapsed={collapsed.recruit} onToggle={() => toggle('recruit')}>
@@ -187,7 +187,7 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
           <div className="space-y-3">
             <div className="flex items-end gap-2">
               <div className="flex-1">
-                <label className="t-label block mb-1">Jeu (optionnel — pré-rempli pour le joueur)</label>
+                <label className="t-label block mb-1">Jeu (optionnel, pré-rempli pour le joueur)</label>
                 <select className="settings-input w-full" value={newLinkGame} onChange={e => setNewLinkGame(e.target.value)}>
                   <option value="">Tous les jeux</option>
                   {ALL_GAME_DEFS.filter(g => s.games?.includes(g.id)).map(g => (
@@ -219,7 +219,7 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
                         setCopiedLink(link.token);
                         setTimeout(() => setCopiedLink(''), 2000);
                       } else {
-                        toast.error('Copie impossible — sélectionne le lien manuellement.');
+                        toast.error('Copie impossible, sélectionne le lien manuellement.');
                       }
                     }}
                       className="p-1" style={{ color: copiedLink === link.token ? '#33ff66' : 'var(--s-text-dim)' }}>

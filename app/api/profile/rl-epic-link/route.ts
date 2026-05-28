@@ -1,7 +1,7 @@
 // POST /api/profile/rl-epic-link
 // Snapshot l'ID Epic depuis la connexion Discord vérifiée du user dans
 // `rlEpicId` (la référence officielle figée). Premier lien : libre.
-// Changements ultérieurs : refusés ici — passeront par une demande admin
+// Changements ultérieurs : refusés ici, passeront par une demande admin
 // (Lot 6).
 //
 // Voir docs/rl-rank-verification-plan.md.

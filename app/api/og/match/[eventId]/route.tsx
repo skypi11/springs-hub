@@ -36,7 +36,7 @@ const GAME_META: Record<string, { label: string; color: string }> = {
 };
 
 // Génère une trame hexagonale (honeycomb) en SVG, taille exacte de la bannière.
-// Rendue en absolute <img> par-dessus le fond — signature DA Springs.
+// Rendue en absolute <img> par-dessus le fond, signature DA Springs.
 function hexTextureDataUri(width: number, height: number): string {
   const r = 38; // rayon hexagone
   const stepX = r * Math.sqrt(3);
@@ -70,7 +70,7 @@ function initials(name: string): string {
 }
 
 // Convertit n'importe quelle image (R2 webp ou URL externe png/jpg) en data URI PNG.
-// satori / @vercel/og gère mal le WebP — c'est la raison pour laquelle les logos
+// satori / @vercel/og gère mal le WebP, c'est la raison pour laquelle les logos
 // d'équipe (R2 webp) ne s'affichaient pas alors que les logos adversaires
 // (URLs externes png/jpg collées à la main) fonctionnaient. On force PNG pour
 // les deux côtés pour avoir un comportement uniforme et robuste.
@@ -81,7 +81,7 @@ async function loadLogoAsPngDataUri(url: string | null): Promise<string | null> 
     if (!res.ok) return null;
     const buf = Buffer.from(await res.arrayBuffer());
     // Sharp : décode WebP/PNG/JPG/etc. et re-encode en PNG. Limite la résolution
-    // à 512px (le LogoBox affiche en 220×220 — pas besoin de plus haute).
+    // à 512px (le LogoBox affiche en 220×220, pas besoin de plus haute).
     const png = await sharp(buf, { failOn: 'error' })
       .resize(512, 512, { fit: 'inside', withoutEnlargement: true })
       .png()
@@ -196,7 +196,7 @@ export async function GET(
     const adversaire = (ev.adversaire as string | undefined) || 'Adversaire';
     const adversaryLogoUrl = (ev.adversaireLogoUrl as string | undefined) || null;
 
-    // Décode les 2 logos en parallèle vers PNG dataURI (cf. helper ci-dessus —
+    // Décode les 2 logos en parallèle vers PNG dataURI (cf. helper ci-dessus ,
     // satori ne gère pas le WebP, donc on convertit systématiquement).
     const [teamLogoDataUri, adversaryLogoDataUri] = await Promise.all([
       loadLogoAsPngDataUri(teamLogoUrl),
@@ -235,7 +235,7 @@ export async function GET(
             position: 'relative',
           }}
         >
-          {/* Texture hexagonale — signature DA Springs */}
+          {/* Texture hexagonale, signature DA Springs */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={hexUri}
@@ -245,7 +245,7 @@ export async function GET(
             style={{ position: 'absolute', top: 0, left: 0 }}
           />
 
-          {/* Glow or derrière VS — profondeur visuelle. Resserré pour rester
+          {/* Glow or derrière VS, profondeur visuelle. Resserré pour rester
               concentré sur le VS sans déborder sur les logos. */}
           <div
             style={{
@@ -275,7 +275,7 @@ export async function GET(
             }}
           />
 
-          {/* Corner brackets façon HUD esport — coins or 40x40, trait 2px */}
+          {/* Corner brackets façon HUD esport, coins or 40x40, trait 2px */}
           <div style={{ position: 'absolute', top: 24, left: 24, width: 40, height: 40, borderTop: '2px solid rgba(255,184,0,0.65)', borderLeft: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
           <div style={{ position: 'absolute', top: 24, right: 24, width: 40, height: 40, borderTop: '2px solid rgba(255,184,0,0.65)', borderRight: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
           <div style={{ position: 'absolute', bottom: 24, left: 24, width: 40, height: 40, borderBottom: '2px solid rgba(255,184,0,0.65)', borderLeft: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
@@ -348,7 +348,7 @@ export async function GET(
             </div>
           )}
 
-          {/* Rangée : colonne (logo + nom) — VS — colonne (logo + nom). */}
+          {/* Rangée : colonne (logo + nom), VS, colonne (logo + nom). */}
           <div
             style={{
               display: 'flex',
@@ -463,7 +463,7 @@ export async function GET(
       },
     );
   } catch (err) {
-    // L'URL est intégrée dans un embed Discord — un 500 laisserait un trou visuel.
+    // L'URL est intégrée dans un embed Discord, un 500 laisserait un trou visuel.
     // On logue pour Sentry puis on renvoie une bannière dégradée mais valide
     // (aucune dépendance Firestore) pour que l'embed reste propre.
     captureApiError('API OG/match GET error', err);

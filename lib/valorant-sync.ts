@@ -9,7 +9,7 @@
 //   1 cron/jour seulement → on empile sur celui qui tourne déjà à 3h).
 //
 // Pagination par cursor avec état persisté dans `_cron_state/valorant_rank_sync`
-// (pattern identique aux autres passes cron — voir expire-invitations).
+// (pattern identique aux autres passes cron, voir expire-invitations).
 // Cycle complet sur quelques jours acceptable car le rang Val bouge lentement
 // et que le rang déclaratif (saisi par le user) est dispo en fallback immédiat.
 
@@ -21,7 +21,7 @@ import { loadCronState, saveCronState } from '@/lib/cron-state';
 
 const STATE_KEY = 'valorant_rank_sync';
 
-// Limites par run — respectent le timeout Vercel Hobby (60s) avec marge.
+// Limites par run, respectent le timeout Vercel Hobby (60s) avec marge.
 // HenrikDev tier Standard (30 req/min, sans review manuelle) = 1 req toutes
 // les 2 secondes pour rester safe. Sync à la demande (route POST dédiée)
 // consomme 1-2 req par user, donc on garde une marge.
@@ -71,7 +71,7 @@ export async function syncValorantRanksBatch(db: Firestore): Promise<SyncStats> 
 
   const snap = await query.get();
   if (snap.empty) {
-    // Fin de cycle — reset le cursor pour recommencer au prochain run.
+    // Fin de cycle, reset le cursor pour recommencer au prochain run.
     await saveCronState(db, STATE_KEY, {
       lastCursor: null,
       lastRunAt: Date.now(),

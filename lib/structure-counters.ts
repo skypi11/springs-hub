@@ -12,7 +12,7 @@
 //
 // Le staff (fondateur + co-fondateurs + managers + coachs) est dérivé à la
 // lecture directement depuis les champs coFounderIds/managerIds/coachIds du
-// doc structure — pas besoin de compteur.
+// doc structure, pas besoin de compteur.
 
 import type { Firestore, WriteBatch, Transaction, DocumentReference } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -26,7 +26,7 @@ export type BatchOrTx = WriteBatch | Transaction;
 
 export type StructureCounter = 'teams' | 'members';
 
-// Ajoute l'incrément dans un batch ou une transaction existante — zéro
+// Ajoute l'incrément dans un batch ou une transaction existante, zéro
 // round-trip supplémentaire. Préférer cette forme aux updates standalone
 // pour garantir l'atomicité avec l'action (sinon compteur et état divergent).
 export function bumpStructureCounter(
@@ -41,7 +41,7 @@ export function bumpStructureCounter(
   (writer as Writer).update(ref, { [`counters.${field}`]: FieldValue.increment(delta) });
 }
 
-// Fallback standalone (pas de batch/tx en cours). Évitez si possible — la
+// Fallback standalone (pas de batch/tx en cours). Évitez si possible, la
 // moindre erreur réseau peut désynchroniser le compteur.
 export async function bumpStructureCounterStandalone(
   db: Firestore,

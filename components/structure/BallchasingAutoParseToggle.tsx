@@ -7,7 +7,7 @@ import { api } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 
 // Toggle "Parser automatiquement les nouveaux replays sur ballchasing".
-// Default OFF — le user active explicitement quand il veut le parsing auto.
+// Default OFF, le user active explicitement quand il veut le parsing auto.
 // Quand OFF, les nouveaux uploads sont marqués bcStatus='manual' ; le parsing
 // reste déclenchable à la demande via le bouton stats d'un replay (lazy
 // forward) ou le bouton "Parser tous les replays" (batch).
@@ -38,8 +38,8 @@ export default function BallchasingAutoParseToggle({
       qc.setQueryData(['parse-prefs', structureId], data);
       setOptimistic(null);
       toast.success(data.ballchasingAutoParse
-        ? 'Parsing auto activé — les futurs replays seront analysés.'
-        : 'Parsing auto désactivé — les replays peuvent être analysés à la demande.');
+        ? 'Parsing auto activé, les futurs replays seront analysés.'
+        : 'Parsing auto désactivé, les replays peuvent être analysés à la demande.');
     },
     onError: (err) => {
       setOptimistic(null);

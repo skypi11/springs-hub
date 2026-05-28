@@ -96,7 +96,7 @@ function formatAgeSince(ms: number | null): string {
   return `${Math.floor(days / 365)} an${days >= 730 ? 's' : ''}`;
 }
 
-// Ordre d'affichage des membres — basé sur le rôle dérivé, pas le stocké.
+// Ordre d'affichage des membres, basé sur le rôle dérivé, pas le stocké.
 const PRIMARY_ROLE_ORDER: PrimaryRole[] = [
   'fondateur', 'co_fondateur', 'responsable', 'coach_structure',
   'manager_equipe', 'coach_equipe', 'capitaine', 'joueur', 'membre',
@@ -137,8 +137,8 @@ function PlayerRow({ player, color, isCaptain }: { player: TeamPlayer; color: st
   );
 }
 
-// Card compacte d'équipe — pensée pour scale jusqu'à 20+ équipes sans scroll infini.
-// Taille ~220px, affiche l'essentiel (nom, capitaine, cluster avatars, compteur) — le détail
+// Card compacte d'équipe, pensée pour scale jusqu'à 20+ équipes sans scroll infini.
+// Taille ~220px, affiche l'essentiel (nom, capitaine, cluster avatars, compteur), le détail
 // complet (rosters, staff) est dans le TeamDetailPanel qui slide depuis la droite.
 function TeamCardCompact({ team, onOpen }: { team: Team; onOpen: () => void }) {
   const gcRaw = getGameColorRgb(team.game);
@@ -267,7 +267,7 @@ function TeamCardCompact({ team, onOpen }: { team: Team; onOpen: () => void }) {
   );
 }
 
-// Panneau latéral slide-in à droite — DA Springs (biseau, hex, bordure neutre).
+// Panneau latéral slide-in à droite, DA Springs (biseau, hex, bordure neutre).
 // Ferme à l'ESC ou via le bouton X ou clic sur l'overlay.
 function TeamDetailPanel({ team, onClose }: { team: Team; onClose: () => void }) {
   useEffect(() => {
@@ -459,7 +459,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
   const mainGameDef = ALL_GAME_DEFS.find(g => structure.games?.includes(g.id));
   const mainColor = mainGameDef?.color ?? 'var(--s-gold)';
   const mainColorRaw = mainGameDef?.colorRgb ?? '255,184,0';
-  // Calcul du rôle dérivé pour chaque membre — vérité d'affichage unique,
+  // Calcul du rôle dérivé pour chaque membre, vérité d'affichage unique,
   // même source que le dashboard privé. On cache le résultat par userId pour ne pas recalculer.
   // L'API renvoie `players/subs/staff` enrichis ; computeMemberRole attend
   // playerIds/subIds/staffIds (strings). On reconstruit les IDs ici.
@@ -545,7 +545,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
 
   const panelTeam = panelTeamId ? teams.find(t => t.id === panelTeamId) ?? null : null;
 
-  // CTA principal — partagé entre l'overlay desktop et le bloc identité mobile.
+  // CTA principal, partagé entre l'overlay desktop et le bloc identité mobile.
   const ctaContent = isOwner ? (
     <Link href="/community/my-structure" className="btn-springs btn-secondary bevel-sm flex items-center justify-center gap-2">
       <Shield size={14} /> Gérer
@@ -568,7 +568,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
     <span className="tag tag-gold" style={{ fontSize: '12px', padding: '6px 14px' }}>Membre</span>
   ) : null;
 
-  // Tags d'identité (tag structure + jeux + recrute) — partagés desktop/mobile.
+  // Tags d'identité (tag structure + jeux + recrute), partagés desktop/mobile.
   const identityTags = (
     <div className="flex items-center gap-2 flex-wrap">
       <span className="tag tag-gold">{structure.tag}</span>
@@ -600,7 +600,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
         ]} />
 
         {/* ═══════════════════════════════════════════════════════════════════
-            HERO HEADER — cover vivante + stats
+            HERO HEADER, cover vivante + stats
         ═══════════════════════════════════════════════════════════════════ */}
         <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
           <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${mainColor}, rgba(${mainColorRaw},0.3), transparent 80%)` }} />
@@ -608,7 +608,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
           {/* ── Zone hero : bannière en fond, identité posée par-dessus ──
               Ratio 6:1 FIXE (sans max-height, qui rétrécirait la largeur) :
               la bannière est pleine largeur ET son rendu est identique sur tous
-              les écrans — c'est ce qui rend l'aperçu de l'éditeur fidèle.
+              les écrans, c'est ce qui rend l'aperçu de l'éditeur fidèle.
               L'éditeur (BannerFocusEditor) utilise le même ratio 6:1. */}
           <div className="relative overflow-hidden w-full"
             style={{
@@ -639,7 +639,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
             <div className="absolute inset-0 pointer-events-none"
               style={{ background: 'linear-gradient(to top, rgba(8,8,12,0.95) 0%, rgba(8,8,12,0.72) 32%, rgba(8,8,12,0.34) 68%, rgba(8,8,12,0.12) 100%)' }} />
 
-            {/* Identité desktop — calée en bas, posée sur la bannière */}
+            {/* Identité desktop, calée en bas, posée sur la bannière */}
             <div className="hidden lg:flex absolute inset-0 z-[1] items-end px-8 pt-8 pb-5">
               <div className="flex items-end gap-6 w-full">
                 {/* Logo */}
@@ -672,7 +672,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
           </div>
 
           {/* ── Identité mobile : empilée sous la bannière ──
-              La zone 6:1 fait ~55px de haut sur petit écran — trop fine pour
+              La zone 6:1 fait ~55px de haut sur petit écran, trop fine pour
               porter logo + nom + CTA en superposition. On la sort en flux normal. */}
           <div className="lg:hidden flex flex-col gap-4 px-4 sm:px-6 py-5" style={{ borderTop: '1px solid var(--s-border)' }}>
             <div className="flex items-start gap-4">
@@ -730,7 +730,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
               )}
             </div>
 
-            {/* Direction — fondateurs inline */}
+            {/* Direction, fondateurs inline */}
             {leaders.length > 0 && (
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>DIRECTION</span>
@@ -852,7 +852,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
         )}
 
         {/* ═══════════════════════════════════════════════════════════════════
-            CONTENU — GRID 2/3 + 1/3
+            CONTENU, GRID 2/3 + 1/3
         ═══════════════════════════════════════════════════════════════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -881,7 +881,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
               </div>
             )}
 
-            {/* 2. ÉQUIPES — onglets par jeu + grille de cards compactes (scale 20+ équipes).
+            {/* 2. ÉQUIPES, onglets par jeu + grille de cards compactes (scale 20+ équipes).
                 Le roster complet est dans un panneau latéral (TeamDetailPanel). */}
             {teams.length > 0 && (() => {
               // Onglets dynamiques : un par jeu de la registry qui a des équipes actives,
@@ -922,7 +922,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                 return allMembers.some(m => (m.displayName ?? '').toLowerCase().includes(q));
               });
 
-              // Tri : groupOrder puis label, puis order puis nom — cohérent avec le dashboard.
+              // Tri : groupOrder puis label, puis order puis nom, cohérent avec le dashboard.
               const sorted = [...filtered].sort((a, b) => {
                 const ga = a.groupOrder ?? 0;
                 const gb = b.groupOrder ?? 0;
@@ -969,7 +969,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                     })}
                   </div>
 
-                  {/* Recherche — uniquement si l'onglet actif a plus de 4 équipes */}
+                  {/* Recherche, uniquement si l'onglet actif a plus de 4 équipes */}
                   {showSearch && (
                     <div className="relative">
                       <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--s-text-muted)' }} />

@@ -7,7 +7,7 @@
 //
 // Sécurité :
 // - verifyAuth + check isAdmin (collection `admins`)
-// - Hardcoded sur le guild Aedral (1498052178143875153) — pas de risque
+// - Hardcoded sur le guild Aedral (1498052178143875153), pas de risque
 //   d'utiliser le bot pour broadcaster ailleurs
 // - Validation que le channelId fait bien partie de la liste des channels du
 //   guild (pas n'importe quel ID au pif)

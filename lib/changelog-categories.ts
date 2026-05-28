@@ -20,7 +20,7 @@ export interface ChangelogCategoryDef {
   label: string;
   /** Emoji affiché à côté du label (utilisé dans Discord embed + chips timeline) */
   emoji: string;
-  /** Couleur principale (HEX) — détermine l'accent bar et tag */
+  /** Couleur principale (HEX), détermine l'accent bar et tag */
   color: string;
   /** Variante RGB pour les rgba() (fonds, glows) */
   colorRgb: string;
@@ -51,7 +51,7 @@ export const CHANGELOG_CATEGORIES: Record<ChangelogCategory, ChangelogCategoryDe
     emoji: '⚙️',
     color: '#7a7a95', // gris
     colorRgb: '122,122,149',
-    hint: 'Refacto interne, perf, infra — peu user-facing mais bon à savoir',
+    hint: 'Refacto interne, perf, infra, peu user-facing mais bon à savoir',
   },
   fix: {
     id: 'fix',

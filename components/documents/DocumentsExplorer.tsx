@@ -58,7 +58,7 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [previewDoc, setPreviewDoc] = useState<Doc | null>(null);
 
-  // Queries — les données sont mises en cache par clé. Pendant un refetch après
+  // Queries, les données sont mises en cache par clé. Pendant un refetch après
   // mutation, React Query garde l'ancienne data visible (pas de "flash vide").
   const foldersQuery = useQuery({
     queryKey: ['documents', structureId, 'folders'],
@@ -245,7 +245,7 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
 
   const openPreview = (d: Doc) => {
     if (!isPreviewable(d.mime)) {
-      toast.info('Aperçu non supporté — téléchargement à la place');
+      toast.info('Aperçu non supporté, téléchargement à la place');
       void downloadDoc(d);
       return;
     }
@@ -258,7 +258,7 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
     mutationFn: async ({ file, sensitive }: { file: File; sensitive: boolean }) => {
       if (file.size > UPLOAD_LIMITS.STAFF_DOCUMENT_BYTES) {
         const mb = Math.round(UPLOAD_LIMITS.STAFF_DOCUMENT_BYTES / (1024 * 1024));
-        throw new Error(`Fichier trop lourd — max ${mb} MB`);
+        throw new Error(`Fichier trop lourd, max ${mb} MB`);
       }
       setProgress(0);
 
@@ -559,7 +559,7 @@ function SensitiveChoiceModal({ file, onCancel, onChoose }: {
                 }}>
                 <div className="flex items-center gap-2 mb-2">
                   <Lock size={14} style={{ color: 'var(--s-gold)' }} />
-                  <span className="font-display text-xs tracking-wider" style={{ color: 'var(--s-gold)' }}>OUI — SENSIBLE</span>
+                  <span className="font-display text-xs tracking-wider" style={{ color: 'var(--s-gold)' }}>OUI, SENSIBLE</span>
                 </div>
                 <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
                   Chiffré <strong>AES-256-GCM</strong> avant stockage. Lisible uniquement via le site après authentification.
@@ -580,7 +580,7 @@ function SensitiveChoiceModal({ file, onCancel, onChoose }: {
                 }}>
                 <div className="flex items-center gap-2 mb-2">
                   <ShieldCheck size={14} style={{ color: 'var(--s-text-dim)' }} />
-                  <span className="font-display text-xs tracking-wider" style={{ color: 'var(--s-text)' }}>NON — STANDARD</span>
+                  <span className="font-display text-xs tracking-wider" style={{ color: 'var(--s-text)' }}>NON, STANDARD</span>
                 </div>
                 <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
                   Logo, visuel, document interne non sensible. Stockage normal, accès restreint au staff.
@@ -589,7 +589,7 @@ function SensitiveChoiceModal({ file, onCancel, onChoose }: {
             </div>
 
             <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-              En cas de doute, choisis <strong>Sensible</strong> — le chiffrement est transparent à l&apos;usage.
+              En cas de doute, choisis <strong>Sensible</strong>, le chiffrement est transparent à l&apos;usage.
             </p>
           </div>
         </div>
@@ -722,7 +722,7 @@ function MoveModal({ folders, excludeFolderId, currentParent, onClose, onSelect 
   onClose: () => void;
   onSelect: (targetParentId: string | null) => void;
 }) {
-  // Calcule l'ensemble des dossiers interdits (le dossier déplacé + ses descendants — anti-cycle)
+  // Calcule l'ensemble des dossiers interdits (le dossier déplacé + ses descendants, anti-cycle)
   const forbidden = useMemo(() => {
     if (!excludeFolderId) return new Set<string>();
     const set = new Set<string>([excludeFolderId]);

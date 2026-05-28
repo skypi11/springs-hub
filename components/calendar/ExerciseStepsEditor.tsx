@@ -1,6 +1,6 @@
 'use client';
 
-// Éditeur de la liste de steps d'un exercice (v3 — 2026-05-26).
+// Éditeur de la liste de steps d'un exercice (v3, 2026-05-26).
 //
 // Permet de composer un exercice à partir de N blocs typés (replay_review,
 // training_pack, vod_review, etc.) avec drag&drop pour réorganiser, label
@@ -229,13 +229,13 @@ function SortableStepItem({
           id={labelId}
           type="text"
           className="settings-input flex-1 text-sm"
-          placeholder={`Étape ${index + 1} — libellé optionnel`}
+          placeholder={`Étape ${index + 1}, libellé optionnel`}
           maxLength={TODO_TITLE_MAX}
           value={step.label ?? ''}
           onChange={e => onChangeLabel(e.target.value)}
         />
 
-        {/* Flèches up/down — accessibles clavier sur mobile/desktop sans drag */}
+        {/* Flèches up/down, accessibles clavier sur mobile/desktop sans drag */}
         <div className="flex flex-col flex-shrink-0">
           <button
             type="button"
@@ -281,7 +281,7 @@ function SortableStepItem({
         )}
       </div>
 
-      {/* Sélecteur de type — chips horizontales compactes.
+      {/* Sélecteur de type, chips horizontales compactes.
           Filtré par jeu via availableTypes (registry des jeux). On garantit
           que le type actuel reste affiché même s'il n'est pas dans la liste
           filtrée (cas template d'un autre jeu ou exo importé). */}
@@ -312,7 +312,7 @@ function SortableStepItem({
         })}
       </div>
 
-      {/* Config spécifique au type — réutilise le composant existant */}
+      {/* Config spécifique au type, réutilise le composant existant */}
       <TodoConfigFields
         type={step.type}
         config={step.config}

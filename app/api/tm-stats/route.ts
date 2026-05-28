@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
-// Trackmania.io API — nécessite un User-Agent custom
+// Trackmania.io API, nécessite un User-Agent custom
 const TM_IO_API = 'https://trackmania.io/api';
 const USER_AGENT = 'aedral/1.0 (https://aedral.com)';
 
@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
           names.push(z.name ?? z.flag ?? '');
           z = z.parent;
         }
-        // names = [city, region, country, continent, world] — du plus spécifique au plus large
+        // names = [city, region, country, continent, world], du plus spécifique au plus large
         // zones = positions dans le même ordre
         for (let i = 0; i < Math.min(zones.length, names.length); i++) {
           if (zones[i] > 0 && names[i]) {
@@ -111,7 +111,7 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // Club tag — nettoyer les codes de formatage TM
+      // Club tag, nettoyer les codes de formatage TM
       const rawClubTag = player.clubtag ?? null;
       const clubTag = rawClubTag ? stripTmFormatting(rawClubTag) : null;
 
@@ -151,7 +151,7 @@ export async function GET(req: NextRequest) {
           }
         }
       } catch {
-        // COTD optionnel — pas grave si ça échoue
+        // COTD optionnel, pas grave si ça échoue
       }
 
       return NextResponse.json({
@@ -170,7 +170,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Pas d'account ID — retourner juste le pseudo
+    // Pas d'account ID, retourner juste le pseudo
     return NextResponse.json({
       displayName: pseudoTM ?? '',
       accountId: null,

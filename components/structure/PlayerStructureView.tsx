@@ -18,7 +18,7 @@ import { normalizeEventType } from '@/lib/event-permissions';
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
 
 // Layout dédié à un joueur qui est membre d'une structure (pas dirigeant, pas manager, pas coach).
-// Il ne voit ni la configuration, ni le recrutement, ni le palmarès — que ce qui le concerne directement :
+// Il ne voit ni la configuration, ni le recrutement, ni le palmarès, que ce qui le concerne directement :
 // son/ses équipes, ses coéquipiers, son éditeur de dispos, ses prochains événements (/api/calendar/me
 // filtré sur la structure), et les contacts de son encadrement.
 
@@ -79,7 +79,7 @@ type MyEvent = {
   myPresence: { id: string; status: PresenceStatus; respondedAt: string | null } | null;
 };
 
-// Dérivé de la registry des jeux pour rester scalable — un nouveau jeu
+// Dérivé de la registry des jeux pour rester scalable, un nouveau jeu
 // ajouté dans lib/games-registry.ts est immédiatement supporté ici.
 const GAME_INFO: Record<string, { label: string; color: string; short: string }> = Object.fromEntries(
   ALL_GAME_DEFS.map(g => [g.id, { label: g.label, color: g.color, short: g.shortLabel }])

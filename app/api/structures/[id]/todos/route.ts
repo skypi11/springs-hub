@@ -25,7 +25,7 @@ function tsMs(v: unknown): number | null {
   return null;
 }
 
-// POST /api/structures/[id]/todos — créer un exercice (batch : 1 doc par assignee)
+// POST /api/structures/[id]/todos, créer un exercice (batch : 1 doc par assignee)
 // Accessible : staff d'équipe (fondateur/co-fondateur/manager/coach de la sous-équipe cible).
 export async function POST(
   req: NextRequest,
@@ -66,7 +66,7 @@ export async function POST(
       return NextResponse.json({ error: 'Équipe introuvable dans cette structure.' }, { status: 404 });
     }
 
-    // Permission : staff de l'équipe cible OU coach structure (modèle A — coach
+    // Permission : staff de l'équipe cible OU coach structure (modèle A, coach
     // structure peut animer + assigner sur toute équipe, sans pouvoir modifier
     // l'équipe elle-même).
     if (!isStaffOfTeam(resolved.context, subTeamId) && !resolved.context.isCoach) {
@@ -84,7 +84,7 @@ export async function POST(
       return NextResponse.json({ error: 'Un ou plusieurs joueurs ne font pas partie de cette équipe.' }, { status: 400 });
     }
 
-    // Event lié (optionnel) — doit appartenir à la structure.
+    // Event lié (optionnel), doit appartenir à la structure.
     // Si deadlineMode='relative' on a aussi besoin de event.startsAt pour calculer la deadline concrète.
     let eventStartsAtMs: number | null = null;
     if (eventId) {
@@ -135,7 +135,7 @@ export async function POST(
         structureId,
         subTeamId,
         assigneeId,
-        // v3 — source de vérité
+        // v3, source de vérité
         steps: stepsForAssignee,
         // Champs legacy maintenus pour les lecteurs/cron pas encore migrés.
         // type/config = ceux du 1er step (juste un proxy).
@@ -146,7 +146,7 @@ export async function POST(
         response: null,
         eventId,
         deadline,                                    // "YYYY-MM-DD" ou null (calculée si relative)
-        deadlineAt,                                  // ms epoch ou null — source de vérité pour isOverdue/tri
+        deadlineAt,                                  // ms epoch ou null, source de vérité pour isOverdue/tri
         deadlineMode: deadlineMode ?? null,          // 'absolute' | 'relative' | null
         deadlineOffsetDays: deadlineOffsetDays ?? null,  // uniquement si mode='relative'
         postToChannel,                               // false = DM privé uniquement ; true = aussi embed dans le channel team
@@ -161,7 +161,7 @@ export async function POST(
     }
     await batch.commit();
 
-    // Notif in-app aux assignés (best-effort — on ne bloque pas la création si ça échoue).
+    // Notif in-app aux assignés (best-effort, on ne bloque pas la création si ça échoue).
     try {
       const typeLabel = TODO_TYPE_META[type]?.short ?? 'Exercice';
       const teamLabel = (team.name as string | undefined) ?? 'ton équipe';
@@ -170,7 +170,7 @@ export async function POST(
         userId: uidAssignee,
         type: 'todo_assigned',
         title: `Nouveau exercice : ${typeLabel}`,
-        message: `« ${title} » — ${teamLabel}${deadlineHint}`,
+        message: `« ${title} », ${teamLabel}${deadlineHint}`,
         link: '/calendar',
         metadata: { structureId, subTeamId, type, eventId, deadline },
       }));
@@ -180,7 +180,7 @@ export async function POST(
     }
 
     // Fan-out Discord (fire-and-forget) : embed dans le channel de l'équipe + DM aux assignés.
-    // On ne await pas pour ne pas ralentir la réponse UI — l'UI doit pouvoir fermer le form
+    // On ne await pas pour ne pas ralentir la réponse UI, l'UI doit pouvoir fermer le form
     // immédiatement après que le exercice soit créé en base.
     ;(async () => {
       try {
@@ -191,7 +191,7 @@ export async function POST(
         const channelId = (team as { discordChannelId?: string }).discordChannelId;
         const siteTodoUrl = `${req.nextUrl.origin}/calendar`;
 
-        // displayName du créateur pour le footer (best-effort — fallback silencieux).
+        // displayName du créateur pour le footer (best-effort, fallback silencieux).
         let createdByName: string | null = null;
         try {
           const userSnap = await db.collection('users').doc(uid).get();
@@ -214,12 +214,12 @@ export async function POST(
           .filter((v): v is string => !!v);
 
         // v3 : si exo multi-step, construit la liste des étapes pour l'embed.
-        // Format : "Type — Label" (ex: "REPLAY — Game 1 vs Alpha", "TRAINING — Air dribbles").
+        // Format : "Type, Label" (ex: "REPLAY, Game 1 vs Alpha", "TRAINING, Air dribbles").
         const stepsList: string[] = steps.length > 1
           ? steps.map(s => {
               const typeLabel = TODO_TYPE_META[s.type].short;
               const lbl = s.label?.trim();
-              return lbl ? `**${typeLabel}** — ${lbl}` : `**${typeLabel}**`;
+              return lbl ? `**${typeLabel}**, ${lbl}` : `**${typeLabel}**`;
             })
           : [];
 
@@ -240,7 +240,7 @@ export async function POST(
         };
 
         // 1) Embed dans le channel de l'équipe si configuré ET si le créateur a coché "aussi publier dans channel".
-        // Par défaut on reste en DM privé uniquement — un exercice est du feedback perso, pas un post public.
+        // Par défaut on reste en DM privé uniquement, un exercice est du feedback perso, pas un post public.
         if (channelId && postToChannel) {
           try {
             const messageId = await postTodoEmbed(channelId, embedInput);
@@ -256,7 +256,7 @@ export async function POST(
           }
         }
 
-        // 2) DM à chaque assigné (best-effort — 403 est normal si DMs désactivés).
+        // 2) DM à chaque assigné (best-effort, 403 est normal si DMs désactivés).
         // URL deep-link personnalisée par assignee → ouvre son exercice directement dans /calendar.
         await Promise.all(assigneeIds.map(async (assigneeId, i) => {
           const did = toDiscordId(assigneeId);
@@ -265,7 +265,7 @@ export async function POST(
           const personalUrl = `${req.nextUrl.origin}/calendar?todo=${encodeURIComponent(todoId)}`;
           const res = await sendTodoDM(did, { ...embedInput, siteTodoUrl: personalUrl });
           if (!res.ok) {
-            // Pas un vrai "error" — on ne spam pas Sentry pour des 403 attendus.
+            // Pas un vrai "error", on ne spam pas Sentry pour des 403 attendus.
             // On pourrait tracker par user en metadata pour faire un rapport "X ne reçoit pas les DMs".
           }
         }));

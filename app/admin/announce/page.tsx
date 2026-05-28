@@ -9,7 +9,7 @@
 // 4. Voir une preview live de l'embed
 // 5. Publier via le bot
 // 6. Sauvegarder le brouillon comme nouvelle template (ou mettre à jour
-//    l'existante, ou la supprimer) — sans deploy
+//    l'existante, ou la supprimer), sans deploy
 //
 // Backend :
 //   /api/admin/discord-broadcast        → liste channels (GET), publie (POST)
@@ -44,7 +44,7 @@ interface SendResponse {
 
 const AEDRAL_OR = 0xFFB800;
 
-// Template locale "Vide" — pas stockée en Firestore, juste un reset rapide
+// Template locale "Vide", pas stockée en Firestore, juste un reset rapide
 const BLANK_TEMPLATE: Pick<AnnounceTemplate, 'title' | 'description' | 'color' | 'defaultChannelHint'> & {
   category: string;
   publishOnSite: boolean;
@@ -153,7 +153,7 @@ export default function AdminAnnouncePage() {
 
   async function handleSaveNewTemplate() {
     const label = window.prompt(
-      'Nom de la nouvelle template (ex: "Patch notes — Juin 2026")',
+      'Nom de la nouvelle template (ex: "Patch notes, Juin 2026")',
       title.replace(/^📢\s*/, '').trim() || 'Sans titre',
     );
     if (!label?.trim()) return;
@@ -311,7 +311,7 @@ export default function AdminAnnouncePage() {
         <div>
           <h1 className="font-display text-2xl tracking-wider">ANNONCES DISCORD</h1>
           <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            Publie une annonce sur le serveur Discord communautaire officiel Aedral via le bot. Tes templates sont stockées en base — pas besoin de redéploy pour en ajouter.
+            Publie une annonce sur le serveur Discord communautaire officiel Aedral via le bot. Tes templates sont stockées en base, pas besoin de redéploy pour en ajouter.
           </p>
         </div>
       </header>
@@ -338,7 +338,7 @@ export default function AdminAnnouncePage() {
                 onChange={e => applyTemplate(e.target.value)}
                 className="settings-input w-full"
               >
-                <option value="">— Vide (rédiger from scratch) —</option>
+                <option value="">Vide (rédiger from scratch)</option>
                 {templates.map(t => (
                   <option key={t.id} value={t.id}>{t.label}</option>
                 ))}
@@ -410,7 +410,7 @@ export default function AdminAnnouncePage() {
                     onChange={e => setChannelId(e.target.value)}
                     className="settings-input w-full"
                   >
-                    <option value="">— Choisis un channel —</option>
+                    <option value="">Choisis un channel</option>
                     {Object.entries(channelsByCategory).map(([category, items]) => (
                       <optgroup key={category} label={category}>
                         {items.map(c => (
@@ -438,7 +438,7 @@ export default function AdminAnnouncePage() {
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 className="settings-input w-full"
-                placeholder="Ex: 📢 Nouveautés Aedral — Mai 2026"
+                placeholder="Ex: 📢 Nouveautés Aedral · Mai 2026"
                 maxLength={256}
               />
             </div>
@@ -446,7 +446,7 @@ export default function AdminAnnouncePage() {
             {/* Description */}
             <div>
               <label className="t-label block mb-2">
-                Description (markdown Discord supporté — **gras**, *italique*, [lien](url), \`code\`)
+                Description (markdown Discord supporté, **gras**, *italique*, [lien](url), \`code\`)
               </label>
               <textarea
                 value={description}
@@ -498,7 +498,7 @@ export default function AdminAnnouncePage() {
               </div>
             </div>
 
-            {/* Catégorie changelog — auto-détectée depuis les emojis du markdown,
+            {/* Catégorie changelog, auto-détectée depuis les emojis du markdown,
                 ce selector sert juste d'override "principal" (couleur de la card
                 + emoji avatar) si tu veux forcer manuellement. Vide ou 'feature' =
                 la dominante des sections est utilisée. */}

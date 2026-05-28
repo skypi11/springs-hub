@@ -4,7 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
-// GET /api/notifications — liste les notifs du user courant
+// GET /api/notifications, liste les notifs du user courant
 export async function GET(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/notifications — mark-read / mark-all-read / delete
+// POST /api/notifications, mark-read / mark-all-read / delete
 export async function POST(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);

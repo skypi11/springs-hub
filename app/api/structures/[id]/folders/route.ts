@@ -22,7 +22,7 @@ function normalizeFolderName(name: string): string {
 }
 
 // GET /api/structures/[id]/folders
-// Liste tous les dossiers de la structure (flat — le front construit l'arborescence).
+// Liste tous les dossiers de la structure (flat, le front construit l'arborescence).
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

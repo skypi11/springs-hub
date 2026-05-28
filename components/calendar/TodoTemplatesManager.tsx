@@ -30,7 +30,7 @@ export type TodoTemplateUi = {
   titleTemplate: string;
   descriptionTemplate: string;
   config: Record<string, unknown>;
-  // v3 — multi-step. Si absent, le template est legacy single-type (wrap en 1 step à l'usage).
+  // v3, multi-step. Si absent, le template est legacy single-type (wrap en 1 step à l'usage).
   steps?: Array<{
     id?: string;
     type: TodoType;
@@ -183,7 +183,7 @@ function TemplateCreateForm({
           titleTemplate,
           descriptionTemplate,
           config: steps[0].config,
-          // v3 — source de vérité
+          // v3, source de vérité
           steps: stepsPayload,
         },
       });
@@ -361,7 +361,7 @@ function TemplateRow({
     if (!firebaseUser || busy) return;
     const ok = await confirm({
       title: 'Supprimer ce template ?',
-      message: `« ${template.name} » — cette action est irréversible. Les exercices déjà créés à partir de ce template restent intacts.`,
+      message: `« ${template.name} », cette action est irréversible. Les exercices déjà créés à partir de ce template restent intacts.`,
       confirmLabel: 'Supprimer',
       variant: 'danger',
     });
@@ -530,14 +530,14 @@ function TemplateEditForm({
       <div className="flex items-center gap-2">
         <span className="t-label" style={{ fontSize: '12px', color: 'var(--s-gold)' }}>
           ÉDITION DU TEMPLATE
-          {!isMultiStep && ` — ${TODO_TYPE_META[steps[0].type].short.toUpperCase()}`}
+          {!isMultiStep && `, ${TODO_TYPE_META[steps[0].type].short.toUpperCase()}`}
         </span>
       </div>
 
       <div>
         <label className="t-label block mb-1" style={{ fontSize: '12px' }}>Nom du template *</label>
         <input type="text" className="settings-input w-full text-sm"
-          placeholder="Scouting 3v3 — BO5"
+          placeholder="Scouting 3v3, BO5"
           maxLength={TEMPLATE_NAME_MAX}
           value={name} onChange={e => setName(e.target.value)} />
       </div>

@@ -1,5 +1,5 @@
 // Helpers purs pour les permissions autour des événements du calendrier d'une structure.
-// Pas d'accès Firestore ici — toute la logique métier testable en isolation.
+// Pas d'accès Firestore ici, toute la logique métier testable en isolation.
 //
 // Vocabulaire :
 // - "dirigeant" = fondateur ou co-fondateur
@@ -14,7 +14,7 @@ export type PresenceStatus = 'present' | 'absent' | 'maybe' | 'pending';
 export const EVENT_TYPES: EventType[] = ['training', 'scrim', 'match', 'tournoi', 'autre'];
 
 // Rétrocompat : l'ancien type 'springs' (events Springs E-Sport) est devenu le
-// type générique 'tournoi'. On normalise à la lecture — aucune migration des
+// type générique 'tournoi'. On normalise à la lecture, aucune migration des
 // documents Firestore déjà créés n'est nécessaire.
 export function normalizeEventType(raw: unknown): EventType {
   if (raw === 'springs') return 'tournoi';
@@ -103,7 +103,7 @@ export function hasAnyStaffAccess(ctx: UserContext): boolean {
 // Modèle A (validé Matt 2026-05-24) : "Responsable = bras droit" → un user dans
 // structures.managerIds[] est considéré comme staff de TOUTES les équipes de la
 // structure, exactement comme un dirigeant. Ça lui ouvre create event tous types
-// sur toute équipe, todos, modif présence, etc. — cohérent avec le fait qu'il
+// sur toute équipe, todos, modif présence, etc., cohérent avec le fait qu'il
 // peut déjà créer/modifier les équipes elles-mêmes via checkStructureAccess.
 //
 // Le Coach structure (coachIds) reste géré séparément avec des règles plus
@@ -179,7 +179,7 @@ export function isCaptainOfAnyTeam(ctx: UserContext, teamIds: string[]): boolean
   return teamIds.some(id => caps.includes(id));
 }
 
-// Est-ce un "gestionnaire" d'une équipe (staff OU capitaine) — pour décider
+// Est-ce un "gestionnaire" d'une équipe (staff OU capitaine), pour décider
 // de l'accès aux actions calendrier uniquement.
 export function isTeamEventManager(ctx: UserContext, teamId: string): boolean {
   return isStaffOfTeam(ctx, teamId) || isCaptainOfTeam(ctx, teamId);
@@ -203,7 +203,7 @@ export function canAccessCalendar(ctx: UserContext): boolean {
 //              ils n'organisent pas de réunions de direction)
 // - teams     : dirigeants OU staff/capitaine de TOUTES les équipes ciblées
 //              OU coach structure (uniquement pour training/scrim sur n'importe
-//              quelle équipe — coach mobile rémunéré par la structure)
+//              quelle équipe, coach mobile rémunéré par la structure)
 export function canCreateEvent(ctx: UserContext, target: EventTarget, type?: EventType): boolean {
   if (target.scope === 'structure') return isDirigeant(ctx);
   if (target.scope === 'game') return isDirigeant(ctx);
@@ -217,7 +217,7 @@ export function canCreateEvent(ctx: UserContext, target: EventTarget, type?: Eve
       return true;
     }
     // Coach structure (coachIds) : intervient à la demande sur n'importe quelle
-    // équipe, mais uniquement pour des entraînements / scrims — pas de match officiel
+    // équipe, mais uniquement pour des entraînements / scrims, pas de match officiel
     // ni d'événement Springs (ceux-là restent dirigeants).
     // Multi-jeux : le coach scopé n'a accès qu'aux équipes des jeux listés
     // dans ctx.coachGames (null = all-games rétrocompat).
@@ -235,7 +235,7 @@ export function canCreateEvent(ctx: UserContext, target: EventTarget, type?: Eve
 
 // Éditer un événement (titre, dates, description, compte rendu, à travailler, adversaire, résultat).
 // Autorisé pour : créateur, dirigeants, staff ou capitaine d'au moins une équipe ciblée (si scope=teams),
-// ou manager (si scope=staff — mêmes droits que la création).
+// ou manager (si scope=staff, mêmes droits que la création).
 export function canEditEvent(ctx: UserContext, event: EventRef): boolean {
   if (!ctx.uid) return false;
   if (event.createdBy === ctx.uid) return true;
@@ -306,7 +306,7 @@ export interface StaffAudience {
   dirigeantIds: string[];   // founderId + coFounderIds
   managerIds: string[];     // structure.managerIds ∪ team staff role='manager'
   coachIds: string[];       // structure.coachIds ∪ team staff role='coach'
-  captainIds: string[];     // sub_teams.captainId — un joueur capitaine peut être
+  captainIds: string[];     // sub_teams.captainId, un joueur capitaine peut être
                             // invité à une réunion staff au cas par cas (ex: brief
                             // capitaines avant tournoi). Validé Matt 2026-05-25.
 }

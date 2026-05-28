@@ -18,7 +18,7 @@ const MAX_LOCATION = 200;
 const MAX_COMPTE_RENDU = 10000;
 const MAX_EVENT_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 
-// PATCH /api/structures/[id]/events/[eventId] — éditer un événement
+// PATCH /api/structures/[id]/events/[eventId], éditer un événement
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; eventId: string }> }
@@ -189,7 +189,7 @@ export async function PATCH(
             updatedAt: FieldValue.serverTimestamp(),
           });
           recalcedCount++;
-          // Notif seulement si le jour YMD change — évite de spammer pour un simple décalage d'heures.
+          // Notif seulement si le jour YMD change, évite de spammer pour un simple décalage d'heures.
           const assigneeId = data.assigneeId as string | undefined;
           if (assigneeId && oldDeadline !== newDeadline) {
             notifs.push({
@@ -207,7 +207,7 @@ export async function PATCH(
           await createNotifications(db, notifs);
         }
       } catch (recalcErr) {
-        // On ne bloque pas le PATCH event si la recalc échoue — log seulement.
+        // On ne bloque pas le PATCH event si la recalc échoue, log seulement.
         captureApiError('API Structures/events PATCH recalc todos error', recalcErr);
       }
     }
@@ -219,7 +219,7 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/structures/[id]/events/[eventId] — supprimer (dirigeants only)
+// DELETE /api/structures/[id]/events/[eventId], supprimer (dirigeants only)
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; eventId: string }> }

@@ -1,4 +1,4 @@
-// GET /api/admin/rl-link-changes — liste les demandes (pending d'abord).
+// GET /api/admin/rl-link-changes, liste les demandes (pending d'abord).
 // Multi-plateforme : Epic + Steam. Lit les champs génériques avec fallback
 // sur les anciens champs Epic-spécifiques.
 // Voir docs/rl-rank-verification-plan.md.

@@ -4,8 +4,8 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
-// POST — le co-fondateur dépose un préavis de départ (7 jours avant retrait effectif)
-// DELETE — le co-fondateur annule son préavis
+// POST, le co-fondateur dépose un préavis de départ (7 jours avant retrait effectif)
+// DELETE, le co-fondateur annule son préavis
 // Le retrait effectif est géré en lazy-process dans les GET de structures/my et structures/[id]
 // (le cron n'existe pas encore, donc on traite au moment de la lecture).
 

@@ -27,7 +27,7 @@ type AuditLog = {
   createdAt: string | null;
 };
 
-// Libellés humains des actions — clé = action, valeur = {label, icon, color}
+// Libellés humains des actions, clé = action, valeur = {label, icon, color}
 const ACTION_META: Record<string, { label: string; color: string }> = {
   // Admin actions
   structure_approved: { label: 'Structure validée', color: '#33ff66' },
@@ -49,7 +49,7 @@ const ACTION_META: Record<string, { label: string; color: string }> = {
   user_impersonation_stopped: { label: 'Impersonation arrêtée', color: '#7a7a95' },
   self_delete_account: { label: 'Auto-suppression (RGPD)', color: '#ff5555' },
   notification_broadcast: { label: 'Notification broadcast', color: '#0081FF' },
-  // Structure-internal (sample des plus visibles — la valeur fallback gère le reste)
+  // Structure-internal (sample des plus visibles, la valeur fallback gère le reste)
   transfer_initiated: { label: 'Transfert initié', color: '#FFB800' },
   transfer_confirmed: { label: 'Transfert confirmé', color: '#33ff66' },
   transfer_cancelled: { label: 'Transfert annulé', color: '#ff5555' },
@@ -141,7 +141,7 @@ export default function AdminAuditPage() {
   }, [logs]);
 
   function exportCsv() {
-    // Export du résultat filtré courant (pas toute la base) — l'admin voit ce qu'il
+    // Export du résultat filtré courant (pas toute la base), l'admin voit ce qu'il
     // télécharge. Métadata stringifié en JSON compact pour rester lisible dans Excel.
     const headers = ['createdAt', 'source', 'action', 'actorUid', 'actorLabel',
       'targetType', 'targetId', 'targetLabel', 'structureId', 'structureLabel', 'metadata'];
@@ -289,7 +289,7 @@ export default function AdminAuditPage() {
         {filtered.length === 0 && (
           <div className="panel p-8 text-center">
             <p className="t-body" style={{ color: 'var(--s-text-muted)' }}>
-              Aucune action enregistrée — le journal est vide pour ce filtre.
+              Aucune action enregistrée, le journal est vide pour ce filtre.
             </p>
           </div>
         )}

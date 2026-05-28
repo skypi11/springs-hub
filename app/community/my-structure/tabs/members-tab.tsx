@@ -17,7 +17,7 @@ import {
 import GameTag from '@/components/games/GameTag';
 import { isKnownGame } from '@/lib/games-registry';
 
-// Tab Membres complet — extrait de page.tsx pour réduire la taille du fichier orchestrateur.
+// Tab Membres complet, extrait de page.tsx pour réduire la taille du fichier orchestrateur.
 // Comprend : bannière "sans équipe" (dirigeants only), liste des membres avec actions,
 // historique d'appartenance (dirigeants/managers).
 export interface MembersTabProps {
@@ -421,7 +421,7 @@ export function MembersTab(props: MembersTabProps) {
           onSaved={() => {
             // Le parent (page my-structure) refetch via React Query
             // grâce à l'invalidation côté API (mutations utilisent invalidateQueries).
-            // Ici on ferme juste le modal — le state de la struct sera refresh
+            // Ici on ferme juste le modal, le state de la struct sera refresh
             // via la query au prochain tick.
             setScopeTarget(null);
           }}

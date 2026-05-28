@@ -157,7 +157,7 @@ export async function GET(
   }
 }
 
-// POST /api/structures/[id]/staff-availability — update minPlayersForStaffMatch
+// POST /api/structures/[id]/staff-availability, update minPlayersForStaffMatch
 // Réservé aux dirigeants.
 export async function POST(
   req: NextRequest,

@@ -136,7 +136,7 @@ export default function AdminLinkChangesPage() {
       {visible.length === 0 && (
         <div className="panel p-8 text-center">
           <p className="t-body" style={{ color: 'var(--s-text-muted)' }}>
-            {filter === 'pending' ? 'Aucune demande en attente — ✓ propre.' : 'Aucune demande.'}
+            {filter === 'pending' ? 'Aucune demande en attente, ✓ propre.' : 'Aucune demande.'}
           </p>
         </div>
       )}
@@ -150,7 +150,7 @@ export default function AdminLinkChangesPage() {
                 style={{ color: 'var(--s-text)' }}>
                 {r.userName || r.userUid}
               </Link>
-              {/* Badge plateforme — bleu pour Epic, gris-vert pour Steam */}
+              {/* Badge plateforme, bleu pour Epic, gris-vert pour Steam */}
               <span className="tag" style={{
                 background: r.platform === 'steam' ? 'rgba(102,192,244,0.10)' : 'rgba(0,129,255,0.10)',
                 color: r.platform === 'steam' ? '#66c0f4' : '#4fb3ff',

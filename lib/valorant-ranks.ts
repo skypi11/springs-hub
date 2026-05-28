@@ -32,7 +32,7 @@ export type ValorantTier =
   | 'radiant';
 
 interface TierConfig {
-  /** Couleur principale du tier (HEX) — sert au cadre + au texte */
+  /** Couleur principale du tier (HEX), sert au cadre + au texte */
   color: string;
   /** Variante avec alpha pour les fonds (rgba) */
   bgColor: string;

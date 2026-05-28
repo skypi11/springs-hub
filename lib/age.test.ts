@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { computeAge } from './age';
 
-// On fixe `now` pour que les tests soient déterministes — pas de dépendance à l'horloge réelle.
+// On fixe `now` pour que les tests soient déterministes, pas de dépendance à l'horloge réelle.
 const NOW = new Date('2026-04-12T12:00:00Z');
 
 describe('computeAge', () => {

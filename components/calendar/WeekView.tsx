@@ -1,11 +1,11 @@
 'use client';
 
-// Vue Semaine du calendrier de structure — grille jours × créneaux 30 min.
+// Vue Semaine du calendrier de structure, grille jours × créneaux 30 min.
 //
 // Deux couches superposées :
-//  1. Événements (toujours) — blocs colorés par jeu, positionnés à l'heure.
+//  1. Événements (toujours), blocs colorés par jeu, positionnés à l'heure.
 //     Clic sur un bloc → détail ; clic sur une case vide → création pré-remplie.
-//  2. Dispos + consensus (quand UNE équipe est sélectionnée dans le filtre) —
+//  2. Dispos + consensus (quand UNE équipe est sélectionnée dans le filtre) ,
 //     heatmap du nombre de joueurs dispo + blocs consensus encadrés + liste
 //     des joueurs avec isolation individuelle.
 //
@@ -126,7 +126,7 @@ export default function WeekView({
   // Sélecteur staff (refonte Matt 2026-05-25) : au lieu d'un toggle global
   // qui affichait tous les staff sans distinction, on coche staff par staff.
   // Chaque staff sélectionné se voit assigner une couleur cycliques (palette
-  // de 6) — pastille de cette couleur dans le coin haut-droit de chaque slot
+  // de 6), pastille de cette couleur dans le coin haut-droit de chaque slot
   // où il est dispo. Permet de voir IMMÉDIATEMENT qui est dispo (manager vs
   // coach, etc.) sans avoir à survoler.
   const [selectedStaffUids, setSelectedStaffUids] = useState<Set<string>>(() => new Set());
@@ -174,7 +174,7 @@ export default function WeekView({
     persistStaffSelection(new Set());
   };
 
-  // Palette cyclique de 6 couleurs distinctes pour les pastilles staff —
+  // Palette cyclique de 6 couleurs distinctes pour les pastilles staff ,
   // hors palette consensus (or = créneau optimal, vert = matchable).
   // L'ambre/jaune et le turquoise originaux clashaient visuellement avec
   // l'or et le vert de la heatmap → remplacés par cyan + magenta.
@@ -190,7 +190,7 @@ export default function WeekView({
   const grid = useMemo(() => generateWeekGrid(weekMonday, todayYmd), [weekMonday, todayYmd]);
 
   // Responsive : en mobile/tablette (<lg), la grille 7 colonnes est illisible.
-  // On bascule en "Vue Jour" — un seul jour à la fois, sélectionnable via une
+  // On bascule en "Vue Jour", un seul jour à la fois, sélectionnable via une
   // bande de 7 chips au-dessus de la grille. Le panneau latéral Dispos passe
   // sous la grille (au lieu de à droite).
   const [isWide, setIsWide] = useState(true);
@@ -213,8 +213,8 @@ export default function WeekView({
   const displayedDays = isWide ? grid.days : [grid.days[mobileDayIdx] ?? grid.days[0]];
 
   // Couche dispos : une seule équipe ciblée. Les jetons spéciaux du filtre
-  // (staff, structure — préfixés "__") ne sont pas des équipes et sont ignorés.
-  // Si la structure n'a qu'une équipe, pas de filtre à régler — on la prend d'office.
+  // (staff, structure, préfixés "__") ne sont pas des équipes et sont ignorés.
+  // Si la structure n'a qu'une équipe, pas de filtre à régler, on la prend d'office.
   const realTeamSelection = teamFilter.filter(id => !id.startsWith('__'));
   const selectedTeamId = realTeamSelection.length === 1
     ? realTeamSelection[0]
@@ -234,13 +234,13 @@ export default function WeekView({
   const availActive = !!selectedTeamId && !!availWeek;
 
   // Total titulaires de l'équipe (pour distinguer "matchable" vs "titulaires
-  // au complet" — palette 3 paliers validée Matt 2026-05-25).
+  // au complet", palette 3 paliers validée Matt 2026-05-25).
   const titularsTotal = useMemo(
     () => avail ? avail.members.filter(m => m.isTitulaire).length : 0,
     [avail],
   );
 
-  // Compte de titulaires dispos par slot — utilisé pour le palier "tous titulaires"
+  // Compte de titulaires dispos par slot, utilisé pour le palier "tous titulaires"
   // de la heatmap. Si des joueurs sont sélectionnés, on filtre dessus.
   const titularsBySlot = useMemo(() => {
     const map = new Map<string, number>();
@@ -257,8 +257,8 @@ export default function WeekView({
     return map;
   }, [avail, availWeek, weekMonday, selectedPlayerUids]);
 
-  // Dispos staff par slot (overlay bleu clair) — filtré sur Coach équipe +
-  // Manager équipe + Coach structure (validé Matt Q3 — pas les responsables
+  // Dispos staff par slot (overlay bleu clair), filtré sur Coach équipe +
+  // Manager équipe + Coach structure (validé Matt Q3, pas les responsables
   // ni dirigeants). Les responsables ont leur propre vue dédiée (onglet STAFF).
   const RELEVANT_STAFF_ROLES = new Set<StaffRoleKind>(['coach_team', 'manager_team', 'coach_structure']);
   const relevantStaff = useMemo(
@@ -277,7 +277,7 @@ export default function WeekView({
   }, [relevantStaff, STAFF_COLORS]);
 
   // Pour chaque slot, la liste des staff SÉLECTIONNÉS qui sont dispos
-  // (filtré sur selectedStaffUids — pas le pool complet).
+  // (filtré sur selectedStaffUids, pas le pool complet).
   const selectedStaffBySlot = useMemo(() => {
     const map = new Map<string, AvailStaff[]>();
     if (!avail || !availWeek || selectedStaffUids.size === 0) return map;
@@ -310,7 +310,7 @@ export default function WeekView({
     return map;
   }, [avail, availWeek, weekMonday, selectedPlayerUids]);
 
-  // Nombre effectif de titulaires considérés — pour le palier "tous dispos".
+  // Nombre effectif de titulaires considérés, pour le palier "tous dispos".
   // Si sélection active : compte des sélectionnés qui sont titulaires.
   // Sinon : compte total des titulaires de l'équipe.
   const titularsTotalEffective = useMemo(() => {
@@ -319,7 +319,7 @@ export default function WeekView({
     return avail.members.filter(m => m.isTitulaire && selectedPlayerUids.has(m.uid)).length;
   }, [avail, selectedPlayerUids, titularsTotal]);
 
-  // Blocs consensus EFFECTIFS — soit ceux pré-calculés serveur (toute l'équipe),
+  // Blocs consensus EFFECTIFS, soit ceux pré-calculés serveur (toute l'équipe),
   // soit recalculés en INTERSECTION quand des joueurs sont sélectionnés.
   // Intersection = tous les sélectionnés doivent être dispos sur le slot.
   const effectiveBlocks = useMemo<MatchBlock[]>(() => {
@@ -416,7 +416,7 @@ export default function WeekView({
 
   const monday = new Date(weekMonday + 'T12:00:00');
   const sunday = new Date(addDays(weekMonday, 6) + 'T12:00:00');
-  const rangeLabel = `${monday.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} — ${sunday.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`;
+  const rangeLabel = `${monday.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}, ${sunday.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`;
 
   return (
     <div className="space-y-3">
@@ -434,7 +434,7 @@ export default function WeekView({
         </button>
         <span className="font-display text-lg tracking-wider" style={{ color: 'var(--s-text)' }}>{rangeLabel}</span>
 
-        {/* Sélecteur staff (refonte Matt 2026-05-25) — dropdown multi-checkbox.
+        {/* Sélecteur staff (refonte Matt 2026-05-25), dropdown multi-checkbox.
             Style aligné sur le filtre équipe "Afficher : ..." pour cohérence UX.
             Visible quand une équipe est sélectionnée et qu'au moins 1 staff
             existe pour cette équipe. */}
@@ -498,7 +498,7 @@ export default function WeekView({
           </div>
         )}
 
-        {/* Toggle CONSENSUS — masque uniquement les blocs encadrés or (les créneaux
+        {/* Toggle CONSENSUS, masque uniquement les blocs encadrés or (les créneaux
             où ≥ minPlayers sont dispos en continu). La heatmap reste visible.
             Utile pour voir uniquement les dispos brutes sans validation. */}
         {availActive && (
@@ -528,7 +528,7 @@ export default function WeekView({
         </button>
       </div>
 
-      {/* Sélecteur de jour mobile — 7 chips (LUN..DIM) qui ciblent le jour
+      {/* Sélecteur de jour mobile, 7 chips (LUN..DIM) qui ciblent le jour
           affiché dans la grille. Inutile en desktop où les 7 jours sont visibles
           côte-à-côte. */}
       {!isWide && (
@@ -574,7 +574,7 @@ export default function WeekView({
       <div className="flex flex-col lg:flex-row gap-4 items-start">
         {/* Grille principale */}
         <div className="flex-1 min-w-0 w-full">
-          {/* En-têtes des jours — desktop uniquement (le strip mobile au-dessus
+          {/* En-têtes des jours, desktop uniquement (le strip mobile au-dessus
               fait office de header en <lg). */}
           {isWide && (
             <div className="grid" style={{ gridTemplateColumns: `46px repeat(${displayedDays.length}, 1fr)` }}>
@@ -641,7 +641,7 @@ export default function WeekView({
                     const minPlayers = avail?.team.minPlayersForMatch ?? 0;
                     const titularDispoCount = titularsBySlot.get(iso) ?? 0;
                     // Palette refondue 2026-05-26 : OR strictement réservé aux BLOCS CONSENSUS
-                    // (encadrés). La heatmap reste sur des paliers gris/vert clair/vert vif —
+                    // (encadrés). La heatmap reste sur des paliers gris/vert clair/vert vif ,
                     // jamais d'or → plus aucune confusion visuelle avec les blocs consensus.
                     // Si des joueurs sont sélectionnés : palier "tous dispos" = tous LES SÉLECTIONNÉS,
                     // pas toute l'équipe. Sinon (rien sélectionné) : tous les titulaires.
@@ -656,7 +656,7 @@ export default function WeekView({
                         // Tous les cibles dispos → VERT VIF (créneau optimal pour le set ciblé).
                         heatBg = 'rgba(47,196,107,0.55)';
                       } else if (!isSelectionMode && minPlayers > 0 && shown >= minPlayers) {
-                        // Matchable (≥ minPlayers) — uniquement en mode équipe entière.
+                        // Matchable (≥ minPlayers), uniquement en mode équipe entière.
                         heatBg = 'rgba(47,196,107,0.28)';
                       } else {
                         // Insuffisant mais ≥ 1 → neutre clair (qq'un est là).
@@ -673,7 +673,7 @@ export default function WeekView({
                       ? ` · Staff dispo : ${staffHere.map(s => `${s.displayName} (${STAFF_ROLE_LABELS[s.role]})`).join(', ')}`
                       : '';
                     const slotTitle = availActive && availUids.length > 0
-                      ? `${formatSlotTime(iso)} — Dispo ${availUids.length}/${total} (dont ${titularDispoCount}/${titularsTotal} titulaires) : ${availUids.map(u => memberName.get(u) ?? '?').join(', ')}${staffTitle}`
+                      ? `${formatSlotTime(iso)}, Dispo ${availUids.length}/${total} (dont ${titularDispoCount}/${titularsTotal} titulaires) : ${availUids.map(u => memberName.get(u) ?? '?').join(', ')}${staffTitle}`
                       : (hasStaff ? `${formatSlotTime(iso)}${staffTitle}` : (canCreate ? 'Cliquer pour créer un événement' : undefined));
                     // Pastilles : max 3 visibles + "+N" si plus
                     const visiblePastilles = staffHere.slice(0, 3);
@@ -692,7 +692,7 @@ export default function WeekView({
                           borderTop: `1px solid ${t.m === 0 ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.03)'}`,
                           cursor: canCreate ? 'pointer' : 'default',
                         }}>
-                        {/* Pastilles staff sélectionnés — coin haut-droit */}
+                        {/* Pastilles staff sélectionnés, coin haut-droit */}
                         {hasStaff && (
                           <div className="absolute top-0.5 right-0.5 flex items-center gap-[2px] pointer-events-none z-[2]">
                             {visiblePastilles.map(s => (
@@ -718,7 +718,7 @@ export default function WeekView({
                     );
                   })}
 
-                  {/* Blocs consensus (contour OR) — masqués quand toggle off.
+                  {/* Blocs consensus (contour OR), masqués quand toggle off.
                       Utilise effectiveBlocks : toute l'équipe par défaut, OU intersection
                       des joueurs sélectionnés. */}
                   {consensusVisible && availActive && effectiveBlocks.map((b, bi) => {
@@ -780,7 +780,7 @@ export default function WeekView({
           </div>
         </div>
 
-        {/* Panneau latéral dispos — visible seulement si une équipe est ciblée */}
+        {/* Panneau latéral dispos, visible seulement si une équipe est ciblée */}
         {selectedTeamId && (
           <aside className="w-full lg:w-[230px] lg:flex-shrink-0 bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
             <div className="px-3 py-2.5 flex items-center gap-2" style={{ borderBottom: '1px solid var(--s-border)' }}>
@@ -798,7 +798,7 @@ export default function WeekView({
               </p>
             ) : (
               <div className="p-2 space-y-3">
-                {/* Joueurs — checkbox pour multi-sélection.
+                {/* Joueurs, checkbox pour multi-sélection.
                     Heatmap + consensus se recalculent sur les joueurs cochés (intersection).
                     Aucun coché = toute l'équipe (comportement par défaut). */}
                 <div className="space-y-1">
@@ -849,7 +849,7 @@ export default function WeekView({
                   })}
                 </div>
 
-                {/* Consensus de la semaine — utilise effectiveBlocks
+                {/* Consensus de la semaine, utilise effectiveBlocks
                     (toute l'équipe par défaut, ou intersection si joueurs sélectionnés) */}
                 <div>
                   <div className="t-label mb-1.5" style={{ color: 'var(--s-text-muted)' }}>
@@ -882,7 +882,7 @@ export default function WeekView({
                   )}
                 </div>
 
-                {/* Configuration consensus — accessible aux admin structure
+                {/* Configuration consensus, accessible aux admin structure
                     + manager de cette équipe précise. Validé Matt 2026-05-25. */}
                 {(() => {
                   const selectedTeam = teams.find(t => t.id === selectedTeamId);
@@ -907,7 +907,7 @@ export default function WeekView({
         )}
       </div>
 
-      {/* Légende — palette refondue : or strictement réservé aux blocs consensus,
+      {/* Légende, palette refondue : or strictement réservé aux blocs consensus,
           heatmap en paliers de vert (pas d'or pour éviter la confusion visuelle) */}
       {availActive && (
         <div className="flex items-center gap-4 flex-wrap text-xs pt-1"
@@ -937,7 +937,7 @@ export default function WeekView({
   );
 }
 
-// Petit composant interne pour la légende — swatch coloré + label
+// Petit composant interne pour la légende, swatch coloré + label
 function LegendItem({ swatch, label }: {
   swatch: { background: string; border?: string };
   label: string;
@@ -1007,7 +1007,7 @@ function blockLabel(block: MatchBlock): string {
 
 // ─── Réglage consensus inline (panneau dispos) ──────────────────────────
 // Validé Matt 2026-05-25 : remplace le bouton "Configurer" séparé dans le
-// drawer équipe — accessible directement sous "Créneaux consensus".
+// drawer équipe, accessible directement sous "Créneaux consensus".
 // Gating de permission fait par le parent (admin structure OU manager équipe).
 function ConsensusConfigInline({
   structureId,

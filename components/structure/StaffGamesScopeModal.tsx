@@ -16,13 +16,13 @@ export interface StaffGamesScopeModalProps {
   targetUserId: string;
   /** Nom affiché du user dans le header */
   targetName: string;
-  /** Rôle concerné — la clé scope diffère (managerGames vs coachGames) */
+  /** Rôle concerné, la clé scope diffère (managerGames vs coachGames) */
   role: 'manager' | 'coach';
   /** Jeux que la structure pratique (filter les checkboxes) */
   structureGames: string[];
-  /** Scope actuel — null/undefined = all-games, [] = aucun, [gameId...] = liste explicite */
+  /** Scope actuel, null/undefined = all-games, [] = aucun, [gameId...] = liste explicite */
   currentScope: string[] | null | undefined;
-  /** Callback succès — le parent rafraîchit la struct */
+  /** Callback succès, le parent rafraîchit la struct */
   onSaved: () => void;
 }
 
@@ -92,7 +92,7 @@ export default function StaffGamesScopeModal({
         method: 'POST',
         body: { structureId, targetUserId, role, games },
       });
-      toast.success(games.length === 0 ? 'Scope vidé — plus aucun droit sur ce rôle' : 'Scope mis à jour');
+      toast.success(games.length === 0 ? 'Scope vidé, plus aucun droit sur ce rôle' : 'Scope mis à jour');
       onSaved();
       onClose();
     } catch (err) {
@@ -237,7 +237,7 @@ export default function StaffGamesScopeModal({
             {selected.size === 0 && !isAllGames && (
               <div className="p-3" style={{ background: 'rgba(255,85,85,0.06)', border: '1px solid rgba(255,85,85,0.25)' }}>
                 <p className="text-xs" style={{ color: '#ff8888' }}>
-                  ⚠️ Aucun jeu coché — sauvegarder ainsi retire tous les droits {roleLabel.toLowerCase()} de cet user. Pour rendre le rôle actif sur tous les jeux à venir, utilise le bouton "All-games".
+                  ⚠️ Aucun jeu coché, sauvegarder ainsi retire tous les droits {roleLabel.toLowerCase()} de cet user. Pour rendre le rôle actif sur tous les jeux à venir, utilise le bouton "All-games".
                 </p>
               </div>
             )}

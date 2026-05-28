@@ -7,7 +7,7 @@ import { loadCronState, saveCronState } from '@/lib/cron-state';
 // POST /api/admin/backfill-counters
 // Recalcule `counters.teams` et `counters.members` pour toutes les structures
 // en lisant l'état réel. À lancer pour réconcilier (ex: après un import ou
-// une suspicion de drift) — les writes incrémentent/décrémentent normalement
+// une suspicion de drift), les writes incrémentent/décrémentent normalement
 // en direct.
 //
 // SCALABILITÉ : pagination cursor + état persisté dans `_cron_state`. Chaque
@@ -16,7 +16,7 @@ import { loadCronState, saveCronState } from '@/lib/cron-state';
 // taille de la base.
 //
 // Pour chaque page de structures, on bat les sub_teams + structure_members
-// via `where structureId IN (chunk de 30)` — 1 query / 30 structures.
+// via `where structureId IN (chunk de 30)`, 1 query / 30 structures.
 //
 // Idempotent : peut être relancé sans risque (écrase avec la vraie valeur).
 // Option `{ reset: true }` pour relancer un cycle depuis le début.
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Écriture batchée — chunks de 400 (limite Firestore : 500 ops)
+    // Écriture batchée, chunks de 400 (limite Firestore : 500 ops)
     const CHUNK = 400;
     const updates = structuresSnap.docs.map(doc => ({
       id: doc.id,
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
       structuresUpdatedThisRun: updates.length,
       cycleComplete,
       message: cycleComplete
-        ? `${updates.length} structure(s) recalculée(s) — cycle TERMINÉ.`
+        ? `${updates.length} structure(s) recalculée(s), cycle TERMINÉ.`
         : `${updates.length} structure(s) recalculée(s). Relance pour continuer.`,
     });
   } catch (err) {

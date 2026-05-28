@@ -36,11 +36,11 @@ export type AdminAuditAction =
   | 'user_deleted'
   | 'user_impersonation_started'
   | 'user_impersonation_stopped'
-  // RGPD — actions initiées par l'utilisateur lui-même
+  // RGPD, actions initiées par l'utilisateur lui-même
   | 'self_delete_account'
   // Broadcasts / notifs
   | 'notification_broadcast'
-  // Signalements de rang (Lot 5 — anti-mensonge RL)
+  // Signalements de rang (Lot 5, anti-mensonge RL)
   | 'rank_report_resolved'
   // Demandes de changement de compte Epic (Lot 6)
   | 'rl_epic_link_change_approved'
@@ -54,7 +54,7 @@ export interface AdminAuditLogEntry {
   targetType: AdminAuditTargetType;
   targetId: string;
   // Snapshot du nom/label de la cible au moment de l'action (utile car la cible
-  // peut être supprimée ensuite — on garde le nom lisible dans le flux d'audit).
+  // peut être supprimée ensuite, on garde le nom lisible dans le flux d'audit).
   targetLabel?: string | null;
   // Métadonnées libres : raison, champs modifiés, structures impactées, etc.
   metadata?: Record<string, unknown>;
@@ -72,7 +72,7 @@ export async function writeAdminAuditLog(db: Firestore, entry: AdminAuditLogEntr
       createdAt: FieldValue.serverTimestamp(),
     });
   } catch (err) {
-    // L'audit ne doit JAMAIS faire échouer l'action elle-même — on log l'erreur
+    // L'audit ne doit JAMAIS faire échouer l'action elle-même, on log l'erreur
     // et on continue. Si un audit échoue c'est embêtant mais pas critique.
     console.error('[admin-audit-log] Failed to write entry:', entry.action, err);
   }

@@ -96,7 +96,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </ToastProvider>
           </AuthProvider>
         </QueryProvider>
-        {/* Vercel — fréquentation (Analytics) et perfs réelles (Speed Insights) */}
+        {/* Vercel, fréquentation (Analytics) et perfs réelles (Speed Insights) */}
         <Analytics />
         <SpeedInsights />
       </body>

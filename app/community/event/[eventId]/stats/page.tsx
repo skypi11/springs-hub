@@ -30,7 +30,7 @@ function formatDate(iso: string | null): string {
   } catch { return ''; }
 }
 
-// Page dédiée — stats complètes d'un match (event). Ouverte en target="_blank"
+// Page dédiée, stats complètes d'un match (event). Ouverte en target="_blank"
 // depuis la modal event pour que le coach puisse consulter les stats en
 // parallèle de la rédaction du compte-rendu.
 export default function EventStatsPage({ params }: { params: Promise<{ eventId: string }> }) {
@@ -120,7 +120,7 @@ export default function EventStatsPage({ params }: { params: Promise<{ eventId: 
       </div>
 
       <div className="max-w-[1400px] mx-auto px-6 py-6 space-y-6">
-        {/* Header match — bandeau scoreboard style esport */}
+        {/* Header match, bandeau scoreboard style esport */}
         <header className="bevel relative overflow-hidden"
           style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
           <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
@@ -179,7 +179,7 @@ export default function EventStatsPage({ params }: { params: Promise<{ eventId: 
           </div>
         </header>
 
-        {/* Body — stats */}
+        {/* Body, stats */}
         {statsQuery.isPending && (
           <div className="flex items-center gap-3 p-6 bevel-sm justify-center"
             style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', color: 'var(--s-text-muted)' }}>
@@ -204,18 +204,18 @@ export default function EventStatsPage({ params }: { params: Promise<{ eventId: 
               Les replays sont envoyés à <a href="https://ballchasing.com" target="_blank" rel="noopener noreferrer"
                 style={{ color: 'var(--s-blue)' }}>
                 ballchasing.com <ExternalLink size={10} className="inline" />
-              </a> pour le parsing — patiente quelques secondes après l&apos;upload.
+              </a> pour le parsing, patiente quelques secondes après l&apos;upload.
             </p>
           </div>
         )}
 
-        {/* Bandeau : replays encore en parsing chez ballchasing — recharge auto 10s */}
+        {/* Bandeau : replays encore en parsing chez ballchasing, recharge auto 10s */}
         {statsQuery.data && (statsQuery.data as AggResponse & { pendingParsingCount?: number }).pendingParsingCount! > 0 && (
           <div className="p-3 bevel-sm flex items-center gap-2"
             style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.30)', color: 'var(--s-gold)' }}>
             <Loader2 size={14} className="animate-spin flex-shrink-0" />
             <span className="text-sm">
-              {(statsQuery.data as AggResponse & { pendingParsingCount?: number }).pendingParsingCount} replay(s) en cours de parsing chez ballchasing — la page se recharge automatiquement.
+              {(statsQuery.data as AggResponse & { pendingParsingCount?: number }).pendingParsingCount} replay(s) en cours de parsing chez ballchasing, la page se recharge automatiquement.
             </span>
           </div>
         )}

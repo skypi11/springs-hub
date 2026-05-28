@@ -65,7 +65,7 @@ export async function GET(
 
     // Quota partagé docs + replays (voir lib/structure-storage.ts).
     // `usageBytes` reste exposé pour rétrocompat client (jauge), mais il vaut le total
-    // pool — pas juste les docs. La jauge reste donc cohérente avec le quota affiché.
+    // pool, pas juste les docs. La jauge reste donc cohérente avec le quota affiché.
     const usage = await computeStructureStorageUsage(db, structureId);
 
     return NextResponse.json({
@@ -120,7 +120,7 @@ export async function POST(
     if (!filename) return NextResponse.json({ error: 'filename requis' }, { status: 400 });
     if (sizeBytes <= 0 || sizeBytes > UPLOAD_LIMITS.STAFF_DOCUMENT_BYTES) {
       const mb = Math.round(UPLOAD_LIMITS.STAFF_DOCUMENT_BYTES / (1024 * 1024));
-      return NextResponse.json({ error: `Taille invalide — max ${mb} MB par fichier` }, { status: 413 });
+      return NextResponse.json({ error: `Taille invalide, max ${mb} MB par fichier` }, { status: 413 });
     }
     // On valide le VRAI mime (originalMime) pour les sensibles, car le `mime` envoyé
     // est 'application/octet-stream' pour contourner CORS sur l'étape PUT vers R2.
@@ -155,10 +155,10 @@ export async function POST(
 
     const ref = db.collection('structure_documents').doc();
     const docId = ref.id;
-    // Pour nommer la clé R2, on part du vrai mime (originalMime) — évite qu'un
+    // Pour nommer la clé R2, on part du vrai mime (originalMime), évite qu'un
     // fichier sensible soit stocké avec une extension .bin systématique.
     const ext = extensionForStorage(safeName, mimeForValidation);
-    // Clé R2 : structures/{sid}/documents/{docId}.{ext} — simple, unique, prévisible
+    // Clé R2 : structures/{sid}/documents/{docId}.{ext}, simple, unique, prévisible
     const r2Key = `structures/${structureId}/documents/${docId}.${ext}`;
 
     await ref.set({

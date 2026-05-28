@@ -2,7 +2,7 @@
 //
 // Système actuel : `structures.premium: boolean` (legacy, en place depuis le
 // chantier ballchasing replays). On le wrap maintenant en un type `StructurePlan`
-// extensible — toute la logique passe par `getStructurePlan(data)` qui normalise.
+// extensible, toute la logique passe par `getStructurePlan(data)` qui normalise.
 //
 // Cette indirection permet, le jour où on shippe le freemium :
 //   - d'ajouter d'autres plans ('team', 'enterprise') sans toucher 50 fichiers
@@ -10,7 +10,7 @@
 //   - de retrouver vite toutes les features pro via `// FUTURE_PRO_FEATURE` dans le code
 //
 // IMPORTANT : ne pas shipper de paywall sans demande explicite de Matt.
-// Cf. CLAUDE.md "Pas de monétisation immédiate" — l'objectif An 1 est l'adoption gratuite.
+// Cf. CLAUDE.md "Pas de monétisation immédiate", l'objectif An 1 est l'adoption gratuite.
 
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 
@@ -43,7 +43,7 @@ export function getStructurePlan(structureData: Record<string, unknown> | null |
   return 'free';
 }
 
-// Limites par plan — source de vérité unique pour TOUS les quotas/caps freemium.
+// Limites par plan, source de vérité unique pour TOUS les quotas/caps freemium.
 // Quand on shippe le pricing, on modifie UNIQUEMENT cet objet.
 export const PLAN_LIMITS = {
   free: {
@@ -53,7 +53,7 @@ export const PLAN_LIMITS = {
     weeklyParseQuota: 20,
     // Templates exercices partagés à la structure
     // (compat ascendante : les structures qui avaient plus de templates avant
-    // l'application de cette limite ne perdent rien — c'est l'AJOUT du 16e qui
+    // l'application de cette limite ne perdent rien, c'est l'AJOUT du 16e qui
     // est bloqué côté API check)
     maxSharedTemplates: 15,
     // Équipes max par structure (limite douce, jamais hard cap aujourd'hui)
@@ -68,7 +68,7 @@ export const PLAN_LIMITS = {
     interactiveDiscordButtons: false,
     // Dashboard staff agrégé : tendances 30j équipe, comparaisons joueurs, MVP,
     // win rate cross-events. ⚠️ NE COUVRE PAS les stats individuelles d'un joueur
-    // sur son propre profil — celles-ci restent gratuites (cf. placeholder profil).
+    // sur son propre profil, celles-ci restent gratuites (cf. placeholder profil).
     advancedAnalytics: false,
     // Hosting tournois white-label : organiser ses propres tournois avec
     // branding de la structure (vs branding Aedral). Phase 3+ feature.

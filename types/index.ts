@@ -4,16 +4,16 @@ export interface SpringsUser {
   discordUsername: string;
   discordAvatar?: string;
   displayName: string;
-  slug?: string;               // Slug public utilisé dans /profile/[slug] — généré au signup, unique. Voir lib/user-slug.ts.
+  slug?: string;               // Slug public utilisé dans /profile/[slug], généré au signup, unique. Voir lib/user-slug.ts.
   avatarUrl?: string;          // URL custom, sinon discordAvatar
   bio?: string;
   country?: string;
-  dateOfBirth?: string;        // ISO string "YYYY-MM-DD" — jamais affiché, sert à calculer l'âge
+  dateOfBirth?: string;        // ISO string "YYYY-MM-DD", jamais affiché, sert à calculer l'âge
   games?: string[];            // ['rocket_league', 'trackmania']
   isFan?: boolean;
   isAdmin?: boolean;
   isFounderApproved?: boolean;
-  // Rôle dirigeant le plus élevé, dérivé au login par GET /api/auth/me — non
+  // Rôle dirigeant le plus élevé, dérivé au login par GET /api/auth/me, non
   // persisté en base. Sert notamment à l'affichage du rôle dans la sidebar.
   structureRole?: 'fondateur' | 'co_fondateur' | null;
   // Schema 2026-05-25 : array (max 2 structures par jeu). Lecture défensive via
@@ -24,37 +24,37 @@ export interface SpringsUser {
   recruitmentRole?: string;    // 'joueur' | 'coach' | 'manager'
   recruitmentMessage?: string; // message libre
   // ── Rocket League ────────────────────────────────────────────────────────
-  // IDENTITÉ OFFICIELLE Epic (anti-mensonge / sticky) — voir
+  // IDENTITÉ OFFICIELLE Epic (anti-mensonge / sticky), voir
   // docs/rl-rank-verification-plan.md. rlEpicId est posé une fois (snapshot
   // de la connexion Epic Discord vérifiée) puis FIGÉ. Toute modification
   // ultérieure passe par une demande admin. rlEpicName se rafraîchit librement
-  // à chaque login / resync Discord (cosmétique — URL tracker, affichage).
-  rlEpicId?: string;             // ID Epic permanent (32-hex) — RÉFÉRENCE
-  rlEpicName?: string;           // pseudo Epic courant — affichage + URL tracker
+  // à chaque login / resync Discord (cosmétique, URL tracker, affichage).
+  rlEpicId?: string;             // ID Epic permanent (32-hex), RÉFÉRENCE
+  rlEpicName?: string;           // pseudo Epic courant, affichage + URL tracker
   rlEpicLinkedAt?: Date | string;
   rlEpicLinkSource?: 'discord' | 'admin';
 
   // Identité auto-dérivée pour la construction des URLs tracker.gg /
-  // Ballchasing (cross-platform — Steam / PSN / Xbox / Switch en plus d'Epic).
+  // Ballchasing (cross-platform, Steam / PSN / Xbox / Switch en plus d'Epic).
   // → on construit auto les URLs via lib/rl-platform.ts.
   rlPlatform?: 'epic' | 'steam' | 'psn' | 'xbox' | 'switch';
   rlPlatformId?: string;       // pseudo ou ID selon la plateforme
   // Legacy (à migrer / supprimer une fois la nouvelle voie déployée) :
-  epicAccountId?: string;      // ID Epic permanent (résolu via Tracker.gg) — sert aux lookups stats
-  epicDisplayName?: string;    // pseudo Epic actuel — affiché dans l'UI, peut changer
-  rlTrackerUrl?: string;       // lien RL Tracker manuel — déprécié, auto-généré désormais
+  epicAccountId?: string;      // ID Epic permanent (résolu via Tracker.gg), sert aux lookups stats
+  epicDisplayName?: string;    // pseudo Epic actuel, affiché dans l'UI, peut changer
+  rlTrackerUrl?: string;       // lien RL Tracker manuel, déprécié, auto-généré désormais
 
   // IDENTITÉ OFFICIELLE Steam (anti-mensonge / sticky, symétrique à Epic).
   // rlSteamId est figé à la confirmation : on prend le SteamID64 depuis
   // `steamLinked.steamId64` au moment où le joueur clique « Oui c'est mon
   // compte RL Steam ». Toute modification ultérieure = demande admin.
   // Distinct de `steamLinked` brut : avoir Steam lié ≠ jouer RL sur Steam.
-  rlSteamId?: string;            // SteamID64 figé — RÉFÉRENCE
-  rlSteamName?: string;          // persona Steam courant — affichage + URL tracker
+  rlSteamId?: string;            // SteamID64 figé, RÉFÉRENCE
+  rlSteamName?: string;          // persona Steam courant, affichage + URL tracker
   rlSteamLinkedAt?: Date | string;
   rlSteamLinkSource?: 'openid' | 'admin';
 
-  // Steam OpenID linkage — récupéré via /api/auth/steam/callback.
+  // Steam OpenID linkage, récupéré via /api/auth/steam/callback.
   // SteamID64 est IMMUABLE → fournit la matière première pour le snapshot
   // `rlSteamId` ci-dessus, mais NE compte PAS seul comme identité RL vérifiée
   // (un joueur peut avoir un compte Steam sans jouer RL dessus).
@@ -69,7 +69,7 @@ export interface SpringsUser {
   rlRank?: string;
   rlMmr?: number;
   rlStats?: RLStats;           // stats auto via API TRN (legacy, broken en prod)
-  // Horodatage du dernier changement de rang — sert (a) à réinitialiser le
+  // Horodatage du dernier changement de rang, sert (a) à réinitialiser le
   // cooldown anti-spam des signalements quand l'user change son rang
   // (n'importe qui peut re-signaler immédiatement), (b) à afficher éventuellement
   // l'ancienneté du rang sur la fiche. Maintenu par POST /api/profile.
@@ -79,7 +79,7 @@ export interface SpringsUser {
   loginTM?: string;            // identifiant Ubisoft/Nadeo
   tmIoUrl?: string;            // URL trackmania.io du joueur
   tmStats?: TMStats;           // stats auto via API
-  // Valorant — rang & stats agrégées. Source : déclaratif (saisie /settings) OU
+  // Valorant, rang & stats agrégées. Source : déclaratif (saisie /settings) OU
   // sync nocturne via HenrikDev API (déclenché par cron si Riot connection liée).
   // Format `valorantRank` : libellé Riot officiel ("Diamond 2", "Radiant", etc.).
   // Validation : lib/valorant-ranks.ts → isValidValorantRank().
@@ -87,7 +87,7 @@ export interface SpringsUser {
   valorantRR?: number;          // Rank Rating dans le tier actuel (0-100)
   valorantRankSyncedAt?: Date | string; // dernière sync HenrikDev (si auto)
   valorantRankSource?: 'declared' | 'henrikdev'; // source du rang affiché
-  // PUUID Riot encrypted — immuable côté Riot. Stocké au premier link via
+  // PUUID Riot encrypted, immuable côté Riot. Stocké au premier link via
   // Discord connection (pickValorantRiotId().puuid). Sert de "compte vérifié"
   // anti-mensonge style RL : si le user change de PUUID (= relié un autre
   // compte Riot dans Discord), on détecte et on peut alerter / flagger.
@@ -96,7 +96,7 @@ export interface SpringsUser {
   // Dernière fois que l'user a ouvert /changelog (sert au dot rouge sidebar).
   lastChangelogSeenAt?: Date | string;
   createdAt?: Date;
-  // Enrichissement renvoyé par GET /api/profile — structures où le joueur est impliqué
+  // Enrichissement renvoyé par GET /api/profile, structures où le joueur est impliqué
   structures?: ProfileStructure[];
   // Connexions tierces synchronisées depuis Discord (Epic, Steam, Twitch, YouTube, Spotify, etc.)
   // → enrichissent le profil + auto-update du pseudo Epic via le pull au login
@@ -170,13 +170,13 @@ export interface Structure {
   coFounderIds?: string[];
   managerIds?: string[];
   coachIds?: string[];
-  // Préavis de départ co-fondateur (7 jours) — clé = uid, valeur = timestamp du dépôt
+  // Préavis de départ co-fondateur (7 jours), clé = uid, valeur = timestamp du dépôt
   coFounderDepartures?: Record<string, Date | string | number>;
-  // Plan freemium (préparation backend — pas encore exposé UI / payant).
+  // Plan freemium (préparation backend, pas encore exposé UI / payant).
   // Source de vérité : lib/plan-limits.ts (getStructurePlan + getLimit).
   // Legacy : `premium: true` (boolean) maps vers `plan: 'pro'` via getStructurePlan.
   plan?: 'free' | 'pro';
-  premium?: boolean;            // @deprecated — utiliser `plan` à la place
+  premium?: boolean;            // @deprecated, utiliser `plan` à la place
   // Statut
   status: 'pending_validation' | 'active' | 'suspended' | 'deletion_scheduled' | 'orphaned';
   reviewComment?: string;       // commentaire admin (approbation/refus)
@@ -207,7 +207,7 @@ export interface SubTeam {
   subIds: string[];            // remplaçants
   staffIds: string[];          // managers/coachs rattachés à cette équipe
   captainId?: string;         // joueur capitaine (peut gérer calendrier de SON équipe, pas le roster)
-  label?: string;             // label de niveau (ex: "Elite", "Academy", "Amateur") — groupement + tri
+  label?: string;             // label de niveau (ex: "Elite", "Academy", "Amateur"), groupement + tri
   order?: number;             // ordre manuel au sein d'un label (drag&drop)
   groupOrder?: number;        // ordre du label lui-même dans la liste (drag&drop entre groupes)
   status?: SubTeamStatus;     // active (défaut) | archived
@@ -234,7 +234,7 @@ export interface Competition {
   createdAt?: Date;
 }
 
-// ── Bannière de structure — point focal ───────────────────────────────────
+// ── Bannière de structure, point focal ───────────────────────────────────
 // Point focal de la bannière (modèle YouTube/Twitch) : l'image s'affiche en
 // `background-size: cover` et `coverFocus` fournit le `background-position`.
 // Indépendant du ratio d'affichage de la bannière. null/absent = centré (50/50).
@@ -290,7 +290,7 @@ export interface StructureEvent {
   tournoiReglementUrl?: string | null;
 }
 
-// ── Annonces Discord — templates dynamiques (admin) ─────────────────────
+// ── Annonces Discord, templates dynamiques (admin) ─────────────────────
 // Stockées dans Firestore `announce_templates`, gérées via /admin/announce.
 // Permet d'ajouter de nouvelles templates sans redéploy.
 export interface AnnounceTemplate {
@@ -307,7 +307,7 @@ export interface AnnounceTemplate {
   lastUsedAt?: Date | string;  // pour tri "récemment utilisé"
   // Publication sur le site public /changelog (timeline). Quand true,
   // l'annonce apparaît dans la page changelog publique. Defaults to true
-  // pour les nouvelles annonces — mettre à false pour Discord-only.
+  // pour les nouvelles annonces, mettre à false pour Discord-only.
   publishOnSite?: boolean;
   /** Catégorie de la timeline (feature / ux / tech / fix / security).
    *  Défaut 'feature' si absent. Voir lib/changelog-categories.ts. */
@@ -326,7 +326,7 @@ export type ReplayResult = 'win' | 'loss' | 'draw';
 export interface Replay {
   id: string;
   structureId: string;
-  teamId: string;              // sub_team — obligatoire pour organiser la bibliothèque
+  teamId: string;              // sub_team, obligatoire pour organiser la bibliothèque
   eventId?: string | null;     // si rattaché à un scrim/match
   uploadedBy: string;
   // Fichier
@@ -390,7 +390,7 @@ export type GameType = 'rocket_league' | 'trackmania' | 'valorant';
 export type UserRole = 'visitor' | 'player' | 'fan' | 'coach' | 'manager' | 'founder' | 'admin';
 
 // Constantes utilisables côté serveur et client pour éviter les magic strings.
-// La source de vérité reste `lib/games-registry.ts` (ALL_GAME_DEFS) — ces
+// La source de vérité reste `lib/games-registry.ts` (ALL_GAME_DEFS), ces
 // constantes sont conservées pour la compat ascendante des call sites.
 export const GAMES = {
   RL: 'rocket_league' as const,

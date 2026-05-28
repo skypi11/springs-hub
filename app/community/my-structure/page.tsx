@@ -91,17 +91,17 @@ export default function MyStructurePage() {
   const [showArchived, setShowArchived] = useState(false);
   // Groupes d'équipes "dépliés" (au-delà du cap par groupe). Key = label du groupe.
   const [expandedTeamGroups, setExpandedTeamGroups] = useState<Set<string>>(new Set());
-  // Groupes d'équipes "repliés entièrement" — séparé du state ci-dessus pour
+  // Groupes d'équipes "repliés entièrement", séparé du state ci-dessus pour
   // ne pas mélanger pagination (>12 équipes) et collapse manuel global.
   // Persisté en localStorage par structureId pour rester en place entre sessions.
   const [collapsedTeamGroups, setCollapsedTeamGroups] = useState<Set<string>>(new Set());
   const [healthOpen, setHealthOpen] = useState<boolean | null>(null);
   const [teamMenuOpen, setTeamMenuOpen] = useState<string | null>(null);
-  // Coordonnées fixes du bouton kebab quand le menu est ouvert — permet au menu
+  // Coordonnées fixes du bouton kebab quand le menu est ouvert, permet au menu
   // d'être rendu via Portal hors du clip-path "bevel" de la SectionPanel parent.
   const [teamMenuRect, setTeamMenuRect] = useState<{ top: number; right: number } | null>(null);
   const [captainPickerOpen, setCaptainPickerOpen] = useState<string | null>(null);
-  // Drawer détail équipe (Dispos + Exercices) — ouvert via chips des cards équipe
+  // Drawer détail équipe (Dispos + Exercices), ouvert via chips des cards équipe
   const [drawerState, setDrawerState] = useState<{ team: DrawerTeam; tab: DrawerTab; canEditConfig: boolean } | null>(null);
   const [inviteLinks, setInviteLinks] = useState<InviteLink[]>([]);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
@@ -251,7 +251,7 @@ export default function MyStructurePage() {
       if (!activeStructure) {
         if (fresh.length > 0) selectStructure(fresh[0]);
       } else {
-        // Resynchronise la structure affichée avec les données fraîches —
+        // Resynchronise la structure affichée avec les données fraîches ,
         // sinon une action (transfert, promotion…) n'apparaît qu'après un
         // refresh complet. On met à jour l'objet sans toucher aux champs
         // d'édition en cours (donc setActiveStructure, pas selectStructure).
@@ -278,14 +278,14 @@ export default function MyStructurePage() {
     setTeamsLoading(false);
   }
 
-  // D&D — Sensors avec activation distance pour ne pas déclencher un drag
+  // D&D, Sensors avec activation distance pour ne pas déclencher un drag
   // au moindre clic dans une carte (qui contient kebab, chips, picker capitaine…).
   const dndSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
 
   // Réorganisation intra-groupe d'équipes : renumérote les `order` du groupe
-  // affecté (0..n-1) puis push un batch reorder à l'API. Optimistic — rollback
+  // affecté (0..n-1) puis push un batch reorder à l'API. Optimistic, rollback
   // via reload en cas d'erreur.
   function reorderTeamsInGroup(groupKey: string, fromTeamId: string, toTeamId: string) {
     if (!activeStructure?.id) return;
@@ -314,7 +314,7 @@ export default function MyStructurePage() {
 
   // Réorganisation des groupes (labels) entre eux : arrayMove la liste des groupes
   // par leur clé courante, puis push un `groupOrder` cohérent sur toutes les équipes
-  // de chaque groupe. Optimistic — rollback via reload en cas d'erreur API.
+  // de chaque groupe. Optimistic, rollback via reload en cas d'erreur API.
   function reorderGroups(fromGroupKey: string, toGroupKey: string) {
     if (!activeStructure?.id) return;
     if (fromGroupKey === toGroupKey) return;
@@ -470,7 +470,7 @@ export default function MyStructurePage() {
     setError('');
     setShowNewTeam(false);
     loadTeams(s.id);
-    // Invitations : API réservée aux dirigeant/manager — on évite le 403 côté coach.
+    // Invitations : API réservée aux dirigeant/manager, on évite le 403 côté coach.
     const uid = firebaseUser?.uid;
     const canLoadInvitations = !!uid && (
       s.founderId === uid ||
@@ -513,7 +513,7 @@ export default function MyStructurePage() {
         },
       });
       // Upload du logo APRÈS création : /api/upload/team-logo exige un teamId
-      // existant. Échec non bloquant — l'équipe reste créée, le logo pourra
+      // existant. Échec non bloquant, l'équipe reste créée, le logo pourra
       // être ajouté via « Gérer ».
       const newTeamId = res?.id;
       if (newTeamLogoFile && newTeamId) {
@@ -530,7 +530,7 @@ export default function MyStructurePage() {
             });
           }
         } catch {
-          toast.info('Équipe créée — le logo n\'a pas pu être ajouté, réessaie depuis « Gérer ».');
+          toast.info('Équipe créée, le logo n\'a pas pu être ajouté, réessaie depuis « Gérer ».');
         }
       }
       setNewTeamName('');
@@ -714,7 +714,7 @@ export default function MyStructurePage() {
         setDiscordLoading(false);
         return;
       }
-      // Navigation vers Discord — le retour se fait sur /api/discord/install/callback
+      // Navigation vers Discord, le retour se fait sur /api/discord/install/callback
       // qui redirige vers /community/my-structure?discord=connected.
       window.location.href = data.url;
     } catch (err) {
@@ -741,7 +741,7 @@ export default function MyStructurePage() {
   }, [teamMenuOpen]);
 
   // Invalide le cache des salons quand la structure active change ou que le bot
-  // est (dé)connecté — évite d'afficher les salons d'un autre serveur.
+  // est (dé)connecté, évite d'afficher les salons d'un autre serveur.
   useEffect(() => {
     setDiscordChannels(null);
     setDiscordChannelsError(null);
@@ -965,7 +965,7 @@ export default function MyStructurePage() {
 
   if (structures.length === 0) {
     // Vue dédiée joueur : l'user n'est dirigeant/staff nulle part, mais il est
-    // membre simple d'au moins une structure — on affiche le layout joueur.
+    // membre simple d'au moins une structure, on affiche le layout joueur.
     if (playerStructures.length > 0) {
       return (
         <div className="min-h-screen hex-bg px-4 md:px-8 py-8">
@@ -1007,13 +1007,13 @@ export default function MyStructurePage() {
   const isCoachOfActive = !!firebaseUser && !isDirigeantOfActive && !isManagerOfActive && (s.coachIds ?? []).includes(firebaseUser.uid);
   // D&D équipes : aligne sur le gate de l'API (`isAdminOfStructure` côté serveur).
   const canReorderTeams = isDirigeantOfActive || isManagerOfActive;
-  // Matrice de capacités par rôle — cf. visibleTabs ci-dessous pour la vue d'ensemble.
+  // Matrice de capacités par rôle, cf. visibleTabs ci-dessous pour la vue d'ensemble.
   // Les tabs filtrent déjà 95% des boutons write ; les quelques actions exposées sur des tabs
   // partagés (Membres = dirigeant+manager+coach) sont gatées à la volée via isDirigeantOfActive.
   // Onglets visibles selon le rôle. Les tabs cachés retirent à la fois le contenu
-  // et l'entrée de la barre — aucun faux positif possible côté UI.
+  // et l'entrée de la barre, aucun faux positif possible côté UI.
   // - Dirigeant : tout
-  // - Manager   : équipes + recrutement (liens/demandes/invites/shortlist/suggestions — toggle ON/OFF
+  // - Manager   : équipes + recrutement (liens/demandes/invites/shortlist/suggestions, toggle ON/OFF
   //               + message public = dirigeant-only via PUT API gate) + membres + calendrier
   // - Coach     : membres (readonly) + calendrier (avec dispos/todos par équipe)
   // La branding et le toggle recrutement restent dirigeant-only (PUT API gate).
@@ -1064,7 +1064,7 @@ export default function MyStructurePage() {
   // Vue scopée sur ÉQUIPES pour les rôles "limités" (coach + capitaine) :
   // n'affiche que les équipes où l'utilisateur est staff ou capitaine.
   // Modèle A : le RESPONSABLE (managerOfActive) voit TOUTES les équipes comme un
-  // dirigeant — il en est l'admin opérationnel.
+  // dirigeant, il en est l'admin opérationnel.
   const teamScopeActive = !isDirigeantOfActive && !isManagerOfActive && !!firebaseUser;
   const isTeamInScope = (team: TeamData) =>
     !teamScopeActive ||
@@ -1180,7 +1180,7 @@ export default function MyStructurePage() {
         setCopiedLink(data.token);
         setTimeout(() => setCopiedLink(''), 3000);
       } else {
-        toast.error('Lien créé — impossible de le copier, il est visible dans la liste.');
+        toast.error('Lien créé, impossible de le copier, il est visible dans la liste.');
       }
       await loadInvitations(activeStructure.id);
     } catch (err) {
@@ -1236,11 +1236,11 @@ export default function MyStructurePage() {
       });
       await loadInvitations(activeStructure.id);
       if (accept) await loadStructures();
-      if (accept) toast.success('Demande acceptée — le joueur a rejoint la structure.');
+      if (accept) toast.success('Demande acceptée, le joueur a rejoint la structure.');
     } catch (err) {
       console.error('[MyStructure] request action error:', err);
       // Cas typique : "Ce joueur a déjà une structure pour ce jeu." (joueur fondateur
-      // ailleurs sur le même jeu — invariant 1-struct/jeu). Message remonté tel quel.
+      // ailleurs sur le même jeu, invariant 1-struct/jeu). Message remonté tel quel.
       toast.error(err instanceof ApiError ? err.message : 'Impossible de traiter cette demande.');
     }
     setInvActionLoading(null);
@@ -1446,7 +1446,7 @@ export default function MyStructurePage() {
       msg += `\n\nIl sera aussi retiré de ${teamsImpacted.length} équipe${teamsImpacted.length > 1 ? 's' : ''} : ${teamsImpacted.map(t => t.name).slice(0, 5).join(', ')}${teamsImpacted.length > 5 ? '…' : ''}.`;
     }
     if (specialRoles.length > 0) {
-      msg += `\n\n⚠ Attention — ${memberName} est actuellement : ${specialRoles.join(' · ')}. Ce rôle sera perdu.`;
+      msg += `\n\n⚠ Attention, ${memberName} est actuellement : ${specialRoles.join(' · ')}. Ce rôle sera perdu.`;
     }
     msg += '\n\nCette action est irréversible : si tu veux le réintégrer, il devra refaire une demande.';
 
@@ -1472,7 +1472,7 @@ export default function MyStructurePage() {
   }
 
   // ─── Not active state ────────────────────────────────────────────────
-  // Structure en attente, suspendue ou refusée — vue minimale pour tous les rôles.
+  // Structure en attente, suspendue ou refusée, vue minimale pour tous les rôles.
   if (s.status !== 'active') {
     return (
       <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-8">
@@ -1519,7 +1519,7 @@ export default function MyStructurePage() {
     );
   }
 
-  // ─── Active structure — full dashboard ───────────────────────────────
+  // ─── Active structure, full dashboard ───────────────────────────────
 
   return (
     <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-8">
@@ -1641,7 +1641,7 @@ export default function MyStructurePage() {
                       : <>Tu as programmé le transfert à <strong style={{ color: 'var(--s-text)' }}>{transferTargetName}</strong>.</>}
                     {' '}
                     {transferReady
-                      ? 'La fenêtre de 24h est écoulée — le transfert peut être finalisé.'
+                      ? 'La fenêtre de 24h est écoulée, le transfert peut être finalisé.'
                       : transferRemainingMs != null
                       ? <>Il reste <strong style={{ color: 'var(--s-text)' }}>
                           {Math.max(1, Math.ceil(transferRemainingMs / (60 * 60 * 1000)))}h
@@ -1747,7 +1747,7 @@ export default function MyStructurePage() {
         {/* ═══ Onglets ═══ */}
         <TabBar active={tab} onChange={setTab} visible={visibleTabs} />
 
-        {/* ═══ Dashboard — layout dynamique par onglet ═══ */}
+        {/* ═══ Dashboard, layout dynamique par onglet ═══ */}
 
         {/* ═══ GÉNÉRAL ═══ */}
         {tab === 'general' && (
@@ -1924,7 +1924,7 @@ export default function MyStructurePage() {
         {tab === 'calendar' && (
         <div className="animate-fade-in-d3 space-y-6">
           {/* Note (2026-05-26) : l'ancien panneau "Dispos/Exercices/Replays par équipe"
-              a été retiré — doublon avec l'onglet Calendrier (heatmap dispos),
+              a été retiré, doublon avec l'onglet Calendrier (heatmap dispos),
               l'onglet Exercices (CrossTeamTodosPanel) et le nouvel onglet Replays. */}
           <CalendarSection
             structureId={s.id}

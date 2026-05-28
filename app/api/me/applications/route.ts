@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/me/applications — actions du joueur sur ses propres candidatures/invitations
+// POST /api/me/applications, actions du joueur sur ses propres candidatures/invitations
 export async function POST(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);

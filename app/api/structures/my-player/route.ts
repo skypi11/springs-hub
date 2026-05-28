@@ -5,7 +5,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 // GET /api/structures/my-player
-// Renvoie les structures où l'utilisateur est membre simple (joueur) — c.-à-d.
+// Renvoie les structures où l'utilisateur est membre simple (joueur), c.-à-d.
 // ni fondateur, ni co-fondateur, ni manager, ni coach.
 // Pour chaque structure : ses sous-équipes où il apparaît (titulaire / remplaçant),
 // ses coéquipiers, et la liste des contacts staff (fondateur, co-fondateurs, managers, coaches).
@@ -167,7 +167,7 @@ export async function GET(req: NextRequest) {
       const coaches = ((s.coachIds ?? []) as string[])
         .map(u => pickPublicUser(u, usersById.get(u)));
 
-      // Mon rôle membre brut (si assigné via structure_members.role — legacy)
+      // Mon rôle membre brut (si assigné via structure_members.role, legacy)
       const myMembership = (allMembers.get(sid) ?? []).find(m => m.data().userId === uid);
       const myMemberRole = (myMembership?.data().role as string | undefined) ?? 'joueur';
 

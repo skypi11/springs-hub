@@ -21,12 +21,12 @@ import {
 
 // PATCH /api/structures/[id]/todos/[todoId]
 // Actions :
-//  - toggle done       : { action: 'toggle' } — l'assignee ou un staff d'équipe (legacy single-step)
-//  - toggleStep        : { action: 'toggleStep', stepId, completed, response? } — multi-steps v3
-//  - editStepResponse  : { action: 'editStepResponse', stepId, response } — édite réponse step (avant verrouillage)
-//  - lock              : { action: 'lock' } — verrouille l'exo (tous steps doivent être done). Assignee ou staff.
-//  - unlock            : { action: 'unlock' } — déverrouille pour permettre modification. Staff uniquement.
-//  - edit              : { action: 'edit', title?, description?, deadline? } — staff d'équipe uniquement
+//  - toggle done       : { action: 'toggle' }, l'assignee ou un staff d'équipe (legacy single-step)
+//  - toggleStep        : { action: 'toggleStep', stepId, completed, response? }, multi-steps v3
+//  - editStepResponse  : { action: 'editStepResponse', stepId, response }, édite réponse step (avant verrouillage)
+//  - lock              : { action: 'lock' }, verrouille l'exo (tous steps doivent être done). Assignee ou staff.
+//  - unlock            : { action: 'unlock' }, déverrouille pour permettre modification. Staff uniquement.
+//  - edit              : { action: 'edit', title?, description?, deadline? }, staff d'équipe uniquement
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; todoId: string }> }
@@ -82,7 +82,7 @@ export async function PATCH(
 
       if (willBeDone && needsResponse) {
         // Type avec réponse : l'assignee doit fournir une réponse valide
-        // (le staff peut forcer la clôture sans réponse — utile pour annuler un exercice abandonné)
+        // (le staff peut forcer la clôture sans réponse, utile pour annuler un exercice abandonné)
         if (isAssignee && !isStaff) {
           const resp = validateTodoResponse(type, body.response);
           if (!resp.ok) {
@@ -140,7 +140,7 @@ export async function PATCH(
       const needsResp = TODO_TYPE_META[targetStep.type].needsResponse;
 
       // Validation réponse si on coche un step needsResponse
-      // (le staff peut forcer la clôture sans réponse — utile pour annulation)
+      // (le staff peut forcer la clôture sans réponse, utile pour annulation)
       let nextResponse: Record<string, unknown> | null = targetStep.response ?? null;
       if (willBeCompleted && needsResp) {
         const requireResp = isAssignee && !isStaff;
@@ -151,7 +151,7 @@ export async function PATCH(
           }
           nextResponse = resp.value;
           // attachmentUrl est un méta-champ orthogonal au type (capture d'écran preuve).
-          // Les validateurs strip les clés inconnues — on préserve l'URL ici en passe-plat.
+          // Les validateurs strip les clés inconnues, on préserve l'URL ici en passe-plat.
           // Pas de validation : c'est le serveur d'upload qui contrôle l'URL réelle (R2 public).
           const rawAttUrl = (body?.response as Record<string, unknown> | undefined)?.attachmentUrl;
           if (typeof rawAttUrl === 'string' && rawAttUrl) {
@@ -218,7 +218,7 @@ export async function PATCH(
       if (!resp.ok) {
         return NextResponse.json({ error: resp.error }, { status: 400 });
       }
-      // Préserve attachmentUrl en passe-plat (cf. toggleStep — méta orthogonal au type)
+      // Préserve attachmentUrl en passe-plat (cf. toggleStep, méta orthogonal au type)
       let nextResp: Record<string, unknown> | null = resp.value;
       const rawAttUrl = (body?.response as Record<string, unknown> | undefined)?.attachmentUrl;
       if (typeof rawAttUrl === 'string' && rawAttUrl) {
@@ -349,7 +349,7 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/structures/[id]/todos/[todoId] — staff d'équipe uniquement
+// DELETE /api/structures/[id]/todos/[todoId], staff d'équipe uniquement
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; todoId: string }> }

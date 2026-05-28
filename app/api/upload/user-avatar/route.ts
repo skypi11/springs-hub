@@ -17,10 +17,10 @@ import { processSquareImage, probeImage } from '@/lib/image-processing';
 export const runtime = 'nodejs';
 export const maxDuration = 30;
 
-// POST /api/upload/user-avatar — upload d'un avatar utilisateur (remplace l'avatar Discord).
+// POST /api/upload/user-avatar, upload d'un avatar utilisateur (remplace l'avatar Discord).
 // Auth : tout utilisateur connecté (met à jour son propre profil).
 // Body : multipart/form-data avec `file`.
-// Retour : { url } — URL publique, clé versionnée.
+// Retour : { url }, URL publique, clé versionnée.
 export async function POST(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     }
     if (file.size > UploadLimits.USER_AVATAR_BYTES) {
       const mb = Math.round(UploadLimits.USER_AVATAR_BYTES / (1024 * 1024));
-      return NextResponse.json({ error: `Fichier trop lourd — max ${mb} MB` }, { status: 413 });
+      return NextResponse.json({ error: `Fichier trop lourd, max ${mb} MB` }, { status: 413 });
     }
 
     const arrayBuf = await file.arrayBuffer();

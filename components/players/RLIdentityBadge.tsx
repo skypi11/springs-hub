@@ -1,4 +1,4 @@
-// Affiche le statut RL contextuel d'un joueur — pour les cartes / fiches.
+// Affiche le statut RL contextuel d'un joueur, pour les cartes / fiches.
 // Trois états (voir docs/rl-rank-verification-plan.md) :
 //   1. Compte RL lié (rlEpicId ou Steam OpenID)
 //      → badge ✓ doré + pseudo Epic/Steam + lien tracker cliquable + bouton
@@ -20,7 +20,7 @@ export interface RLIdentityBadgeProps {
   rlSteamId64?: string;
   rlRank?: string;
   /**
-   * UID du joueur — requis pour afficher le bouton signaler.
+   * UID du joueur, requis pour afficher le bouton signaler.
    */
   targetUid?: string;
   /**
@@ -33,8 +33,8 @@ export interface RLIdentityBadgeProps {
    */
   canReport?: boolean;
   /**
-   * Si on sait que le joueur est dans une équipe RL — alors il "joue à RL"
-   * même si `games` n'inclut pas 'rocket_league'. Optionnel — par défaut on
+   * Si on sait que le joueur est dans une équipe RL, alors il "joue à RL"
+   * même si `games` n'inclut pas 'rocket_league'. Optionnel, par défaut on
    * se base uniquement sur `games`.
    */
   inRLTeam?: boolean;
@@ -80,9 +80,9 @@ export default function RLIdentityBadge({
     return '';
   })();
 
-  // ── État 2 — RL sans compte lié ──────────────────────────────────────────
+  // ── État 2, RL sans compte lié ──────────────────────────────────────────
   // tone='warning' (fiche profil) : rouge dissuasif.
-  // tone='subtle' (annuaire) : gris neutre, on n'agresse pas — 90% des
+  // tone='subtle' (annuaire) : gris neutre, on n'agresse pas, 90% des
   // joueurs n'ont pas encore lié, c'est la norme.
   if (!rlAccountVerified) {
     if (size === 'sm') {
@@ -91,7 +91,7 @@ export default function RLIdentityBadge({
         <span
           className="inline-flex items-center gap-1 tag"
           title={subtle
-            ? "Compte de jeu non lié — le rang affiché n'est pas vérifié."
+            ? "Compte de jeu non lié, le rang affiché n'est pas vérifié."
             : "Ce joueur joue à Rocket League mais n'a pas lié son compte de jeu. Son rang n'est pas vérifiable."}
           style={{
             background: subtle ? 'transparent' : 'rgba(255,85,85,0.10)',
@@ -118,14 +118,14 @@ export default function RLIdentityBadge({
         <div className="text-xs" style={{ color: '#ff8a8a' }}>
           <strong>Compte Rocket League non lié.</strong>
           <br />
-          Ce joueur dit pratiquer RL mais n'a vérifié aucun compte de jeu — son rang n'est pas vérifiable. À considérer avec prudence pour le recrutement.
+          Ce joueur dit pratiquer RL mais n'a vérifié aucun compte de jeu, son rang n'est pas vérifiable. À considérer avec prudence pour le recrutement.
         </div>
       </div>
     );
   }
 
-  // ── État 1 — compte lié, ✓ vérifié ────────────────────────────────────────
-  // Le SteamID64 (17 chiffres) est un identifiant permanent sensible — on ne
+  // ── État 1, compte lié, ✓ vérifié ────────────────────────────────────────
+  // Le SteamID64 (17 chiffres) est un identifiant permanent sensible, on ne
   // l'affiche jamais publiquement. Si la Steam Web API key manquait au moment
   // du link, `rlAccountName` peut le contenir en fallback → on le détecte et
   // on bascule sur le label générique "Compte Steam".

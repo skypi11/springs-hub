@@ -1,6 +1,6 @@
-// Steam OpenID 2.0 — flow d'auth officiel Steam pour récupérer le SteamID64
+// Steam OpenID 2.0, flow d'auth officiel Steam pour récupérer le SteamID64
 // permanent d'un user. Une fois récupéré, il ne change JAMAIS même si le user
-// modifie son pseudo Steam — donc les URLs tracker.gg / Ballchasing basées
+// modifie son pseudo Steam, donc les URLs tracker.gg / Ballchasing basées
 // sur SteamID64 sont blindées contre les changements de pseudo.
 //
 // Doc Steam : https://partner.steamgames.com/doc/features/auth#website
@@ -79,7 +79,7 @@ export interface SteamProfile {
  * https://steamcommunity.com/dev/apikey).
  *
  * Si la clé n'est pas configurée ou que l'appel échoue, on retourne juste
- * le SteamID64 sans les champs optionnels — le système reste fonctionnel.
+ * le SteamID64 sans les champs optionnels, le système reste fonctionnel.
  */
 export async function fetchSteamProfile(steamId64: string): Promise<SteamProfile> {
   const apiKey = process.env.STEAM_WEB_API_KEY;

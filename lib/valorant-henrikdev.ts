@@ -2,7 +2,7 @@
 // Valorant d'un joueur via son RiotID (`Name#TAG`) ou son PUUID.
 //
 // HenrikDev est une API community-maintained qui scrape les data publiques
-// de Riot. Pas d'approval Riot Production API Key nécessaire — pratique pour
+// de Riot. Pas d'approval Riot Production API Key nécessaire, pratique pour
 // un site tiers comme Aedral. Risque accepté : si HenrikDev casse un jour,
 // fallback gracieux sur le rang déclaratif (saisi par le user dans /settings).
 //

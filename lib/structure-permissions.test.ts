@@ -24,7 +24,7 @@ function buildStructure(overrides: Partial<StructureRoleData> = {}): StructureRo
   };
 }
 
-describe('Rôles staff scopés par jeu — sémantique d\'absence (rétrocompat)', () => {
+describe('Rôles staff scopés par jeu, sémantique d\'absence (rétrocompat)', () => {
   it('Responsable sans managerGames → all-games (null)', () => {
     const ctx = structureContext(RESPONSABLE_UID, buildStructure());
     expect(getResponsableGames(ctx)).toBeNull();
@@ -48,7 +48,7 @@ describe('Rôles staff scopés par jeu — sémantique d\'absence (rétrocompat)
   });
 });
 
-describe('Rôles staff scopés — scope explicite', () => {
+describe('Rôles staff scopés, scope explicite', () => {
   it('Responsable scopé RL uniquement → bloqué sur Val', () => {
     const ctx = structureContext(RESPONSABLE_UID, buildStructure({
       managerGames: { [RESPONSABLE_UID]: ['rocket_league'] },

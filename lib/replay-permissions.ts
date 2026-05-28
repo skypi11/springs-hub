@@ -1,4 +1,4 @@
-// Permissions replays — alignées sur le modèle event-permissions / member-role.
+// Permissions replays, alignées sur le modèle event-permissions / member-role.
 // Règle (Matt, 2026-04-19) : staff + capitaine peuvent uploader. Les joueurs simples
 // ne poussent pas leurs replays eux-mêmes pour l'instant (itération future possible).
 //

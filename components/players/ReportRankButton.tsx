@@ -1,4 +1,4 @@
-// Bouton « Signaler le rang » sur la fiche d'un joueur — Lot 5 (v2).
+// Bouton « Signaler le rang » sur la fiche d'un joueur, Lot 5 (v2).
 // Caché si non-connecté, ou si on regarde son propre profil, ou si le joueur
 // cible n'a pas de rang affiché (rien à signaler).
 // Ouvre ReportRankDialog qui gère le motif + message + envoi.
@@ -12,7 +12,7 @@ import ReportRankDialog from '@/components/players/ReportRankDialog';
 export interface ReportRankButtonProps {
   targetUid: string;
   targetName?: string;
-  /** Désactive si false — typiquement quand le joueur n'a pas de rang à signaler */
+  /** Désactive si false, typiquement quand le joueur n'a pas de rang à signaler */
   enabled?: boolean;
   /** `sm` = pill compact pour les cartes ; `md` = bouton plus lisible pour les fiches */
   size?: 'sm' | 'md';

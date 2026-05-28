@@ -57,7 +57,7 @@ type FormData = {
   isAvailableForRecruitment: boolean;
   recruitmentRole: string;
   recruitmentMessage: string;
-  // Connexions Discord — affichage seul ici, mais la visibilité est éditable
+  // Connexions Discord, affichage seul ici, mais la visibilité est éditable
   connections: DiscordConnection[];
 };
 
@@ -93,7 +93,7 @@ export default function SettingsPage() {
   const [linkingSteam, setLinkingSteam] = useState(false);
   const [discordSyncing, setDiscordSyncing] = useState(false);
   const [discordSyncMsg, setDiscordSyncMsg] = useState('');
-  // Comptes RL officiels (anti-mensonge / sticky) — voir docs/rl-rank-verification-plan.md
+  // Comptes RL officiels (anti-mensonge / sticky), voir docs/rl-rank-verification-plan.md
   const [epicLinked, setEpicLinked] = useState<{ rlEpicId: string; rlEpicName: string } | null>(null);
   const [confirmingEpic, setConfirmingEpic] = useState(false);
   const [requestingChange, setRequestingChange] = useState(false);
@@ -241,7 +241,7 @@ export default function SettingsPage() {
     }
   }
 
-  // Demande de changement de compte Epic officiel — Lot 6.
+  // Demande de changement de compte Epic officiel, Lot 6.
   // Pré-requis : le joueur a déjà lié son nouveau compte Epic à son Discord
   // (et s'est reconnecté à Aedral). L'API vérifie et crée une demande pour
   // l'admin.
@@ -407,8 +407,8 @@ export default function SettingsPage() {
     if (profileQ.isPending) return;
     const data = (profileQ.data ?? {}) as Record<string, string | string[] | boolean | undefined>;
     // Pré-remplissage RL en cascade :
-    //  1. Valeur déjà saisie par l'user (rlPlatform + rlPlatformId) — priorité absolue
-    //  2. Champs legacy (epicAccountId/epicDisplayName) — migration douce
+    //  1. Valeur déjà saisie par l'user (rlPlatform + rlPlatformId), priorité absolue
+    //  2. Champs legacy (epicAccountId/epicDisplayName), migration douce
     //  3. Connexion Discord gaming (Steam > Epic > PSN > Xbox > Switch)
     //     → permet à l'user de bénéficier du sync auto sans rien faire
     const legacyEpicPseudo = (data.epicDisplayName as string) || (data.epicAccountId as string) || '';
@@ -447,7 +447,7 @@ export default function SettingsPage() {
   // À chaque update de profileQ.data (refetch au focus de l'onglet, après
   // confirmation Epic, après callback Steam OpenID…), on resynchronise ces 3
   // états READ-ONLY côté serveur. Sans ce useEffect, le sélecteur de rang RL
-  // restait disabled tant que l'user ne faisait pas un refresh complet — alors
+  // restait disabled tant que l'user ne faisait pas un refresh complet, alors
   // qu'il venait de vérifier son compte. Cause du bug : l'autre useEffect est
   // verrouillé par `loaded` pour ne pas écraser les édits user du form.
   useEffect(() => {
@@ -469,7 +469,7 @@ export default function SettingsPage() {
     //     vérifiées (déclenche le bouton "Confirme ton compte Epic").
     //   - Pour les connexions déjà présentes localement, on PRÉSERVE le toggle
     //     `visibleOnProfile` éventuellement modifié par l'user sans avoir
-    //     sauvegardé — sinon on écraserait son édit en cours.
+    //     sauvegardé, sinon on écraserait son édit en cours.
     const freshConnections = (data.discordConnections as DiscordConnection[] | undefined) ?? [];
     setForm(prev => {
       const localByKey = new Map(prev.connections.map(c => [`${c.type}:${c.id}`, c]));
@@ -597,7 +597,7 @@ export default function SettingsPage() {
   }
 
   // Auto-save : voir useEffect en haut du composant (avant les early returns
-  // pour respecter la règle des hooks — react n'autorise pas un nombre de
+  // pour respecter la règle des hooks, react n'autorise pas un nombre de
   // hooks variable entre les renders).
 
   const avatarSrc = form.avatarUrl || user?.discordAvatar || '';
@@ -711,7 +711,7 @@ export default function SettingsPage() {
         {/* 2-col layout : sous-nav gauche + contenu droite */}
         <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6 animate-fade-in-d1">
 
-          {/* Sous-nav mobile — onglets repliables (flex-wrap, zéro scroll horizontal) */}
+          {/* Sous-nav mobile, onglets repliables (flex-wrap, zéro scroll horizontal) */}
           <div
             className="lg:hidden bevel-sm"
             style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
@@ -818,7 +818,7 @@ export default function SettingsPage() {
                       </div>
                       <ImageUploader
                         label="Avatar"
-                        hint="Carré — max 2 MB. Vide = photo Discord."
+                        hint="Carré, max 2 MB. Vide = photo Discord."
                         aspect="square"
                         maxBytes={UPLOAD_LIMITS.USER_AVATAR_BYTES}
                         currentUrl={form.avatarUrl || null}
@@ -875,7 +875,7 @@ export default function SettingsPage() {
                     <span className="tag tag-neutral" style={{ fontSize: '8px' }}>MIN. 1</span>
                   </div>
                   <div className="p-5 space-y-4">
-                    {/* Pickers générés depuis la registry — ajouter un jeu dans
+                    {/* Pickers générés depuis la registry, ajouter un jeu dans
                         lib/games-registry.ts fera apparaître son picker automatiquement. */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {ALL_GAME_DEFS.map(g => {
@@ -950,14 +950,14 @@ export default function SettingsPage() {
                               onChange={e => updateForm({ rlPlatform: (e.target.value as RLPlatform | '') })}
                               className="settings-input w-full"
                             >
-                              <option value="">— Choisis ta plateforme —</option>
+                              <option value="">Choisis ta plateforme</option>
                               {RL_PLATFORMS.map(p => (
                                 <option key={p.value} value={p.value}>{p.label}</option>
                               ))}
                             </select>
                             {!form.rlPlatform && (
                               <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
-                                Choisis ta plateforme — les options de vérification adaptées
+                                Choisis ta plateforme, les options de vérification adaptées
                                 s&apos;afficheront en dessous.
                               </p>
                             )}
@@ -1143,7 +1143,7 @@ export default function SettingsPage() {
                                   <p className="text-xs mt-1" style={{ color: 'var(--s-text-dim)' }}>
                                     {form.rlPlatform === 'steam'
                                       ? 'Récupère ton SteamID64 permanent → le lien tracker.gg ne casse JAMAIS, même si tu changes ton pseudo Steam. 2 clics, gratuit.'
-                                      : 'Optionnel — utile uniquement si tu joues à Rocket League sur Steam (pas Epic). 2 clics, gratuit.'}
+                                      : 'Optionnel, utile uniquement si tu joues à Rocket League sur Steam (pas Epic). 2 clics, gratuit.'}
                                   </p>
                                 </div>
                                 <button
@@ -1171,7 +1171,7 @@ export default function SettingsPage() {
                               - si rlSteamLinked posé : confirme + bouton demande de changement
                               - sinon : prompt « C'est aussi ton compte RL ? »
                               Si l'Epic est déjà la voie officielle, on ne suggère rien (évite
-                              le bruit — l'Epic prime post-F2P). Conditionné aussi sur la
+                              le bruit, l'Epic prime post-F2P). Conditionné aussi sur la
                               plateforme déclarée pour ne pas spammer les joueurs non-Steam. */}
                           {steamLinked && !epicLinked && (form.rlPlatform === '' || form.rlPlatform === 'steam') && (() => {
                             if (rlSteamLinked) {
@@ -1234,13 +1234,13 @@ export default function SettingsPage() {
                                   </button>
                                 </div>
                                 <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                                  Pas mon RL ? Ne clique pas — tu peux laisser Steam lié pour d'autres usages, mais ton rang RL ne sera pas considéré comme vérifié via Steam.
+                                  Pas mon RL ? Ne clique pas, tu peux laisser Steam lié pour d'autres usages, mais ton rang RL ne sera pas considéré comme vérifié via Steam.
                                 </p>
                               </div>
                             );
                           })()}
 
-                          {/* Séparateur retiré — le sélecteur plateforme est maintenant
+                          {/* Séparateur retiré, le sélecteur plateforme est maintenant
                               en haut du bloc, plus de "ou saisir manuellement" en bas. */}
 
                           {/* ── Saisie ID / pseudo sur la plateforme ──
@@ -1267,7 +1267,7 @@ export default function SettingsPage() {
                             </div>
                           )}
                           {/* Note : l'ancien tip 'Comment faire apparaître mes stats sur
-                              Ballchasing' a été retiré — il datait de quand on essayait de
+                              Ballchasing' a été retiré, il datait de quand on essayait de
                               récupérer le rang RL via ballchasing (cassé par EAC depuis F2P).
                               Aujourd'hui ballchasing est utilisé uniquement pour les replays
                               uploadés depuis les structures (notre clé API, pas le profil
@@ -1303,7 +1303,7 @@ export default function SettingsPage() {
                               )}
                             </div>
                           )}
-                          {/* ── Rang RL — gateé sur la présence d'un compte vérifié ── */}
+                          {/* ── Rang RL, gateé sur la présence d'un compte vérifié ── */}
                           {(() => {
                             const hasLink = !!epicLinked || !!rlSteamLinked;
                             return (
@@ -1313,14 +1313,14 @@ export default function SettingsPage() {
                                   onChange={e => updateForm({ rlRank: e.target.value })}
                                   disabled={!hasLink}
                                   className="settings-input w-full disabled:opacity-50 disabled:cursor-not-allowed">
-                                  <option value="">— Non renseigné —</option>
+                                  <option value="">Non renseigné</option>
                                   {RL_RANKS.map(r => (
                                     <option key={r} value={r}>{r}</option>
                                   ))}
                                 </select>
                                 {hasLink ? (
                                   <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
-                                    Affiché à côté de ton lien tracker — n'importe qui peut vérifier en un clic. Modifier ton rang permet à nouveau aux autres de le signaler s'il leur paraît incorrect.
+                                    Affiché à côté de ton lien tracker, n'importe qui peut vérifier en un clic. Modifier ton rang permet à nouveau aux autres de le signaler s'il leur paraît incorrect.
                                   </p>
                                 ) : (
                                   <p className="text-xs mt-1.5" style={{ color: '#ff8a8a' }}>
@@ -1377,7 +1377,7 @@ export default function SettingsPage() {
                           <select value={form.valorantRank}
                             onChange={e => updateForm({ valorantRank: e.target.value })}
                             className="settings-input w-full">
-                            <option value="">— Non renseigné —</option>
+                            <option value="">Non renseigné</option>
                             {VALORANT_RANKS.map(r => (
                               <option key={r} value={r}>{r}</option>
                             ))}
@@ -1393,8 +1393,8 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* COMPTES LIÉS — connexions Discord (Twitch, YouTube, Spotify, Epic, Steam, etc.)
-                Rendu dans 'profile' (refonte 5→3 sections) — comptes liés = info publique */}
+            {/* COMPTES LIÉS, connexions Discord (Twitch, YouTube, Spotify, Epic, Steam, etc.)
+                Rendu dans 'profile' (refonte 5→3 sections), comptes liés = info publique */}
             {section === 'profile' && (
               <div className="pillar-card panel relative group transition-all duration-200 animate-fade-in">
                 <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
@@ -1551,7 +1551,7 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* RECRUTEMENT — rendu dans 'profile' (refonte 5→3 sections) */}
+            {/* RECRUTEMENT, rendu dans 'profile' (refonte 5→3 sections) */}
             {section === 'profile' && (
               <div className="pillar-card panel relative group transition-all duration-200 animate-fade-in">
                 <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${form.isAvailableForRecruitment ? 'var(--s-gold)' : 'rgba(255,255,255,0.15)'}, transparent 60%)` }} />
@@ -1685,7 +1685,7 @@ export default function SettingsPage() {
                       <p className="text-xs mb-2.5" style={{ color: 'var(--s-text-muted)' }}>
                         Si tu as rejoint le serveur communautaire Aedral, ton pseudo y devient
                         « [TAG] Pseudo » et tes rôles (structure, recrutement…) se mettent à jour.
-                        C&apos;est fait à chaque connexion — ce bouton force une resynchronisation.
+                        C&apos;est fait à chaque connexion, ce bouton force une resynchronisation.
                       </p>
                       <button
                         type="button"
@@ -2005,7 +2005,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Bouton Save bottom sticky — apparaît dès qu'on a des modifs non sauvées.
+      {/* Bouton Save bottom sticky, apparaît dès qu'on a des modifs non sauvées.
           L'auto-save couvre déjà 90% des cas (debounce 2s), mais ce bouton :
           - donne le contrôle immédiat à l'utilisateur (skip l'attente)
           - donne le feedback de validation si invalid (l'auto-save reste silencieux) */}
@@ -2064,7 +2064,7 @@ function ValorantSyncBlock({ currentRank }: { currentRank: string }) {
       );
       setLastResult({ rank: res.rank, rr: res.rr, riotId: res.riotId, notRanked: res.notRanked });
       toast.success(res.notRanked
-        ? `Compte ${res.riotId} sync — non classé`
+        ? `Compte ${res.riotId} sync, non classé`
         : `Rang sync : ${res.rank} (${res.rr} RR)`);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');

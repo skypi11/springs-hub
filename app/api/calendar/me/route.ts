@@ -14,7 +14,7 @@ function ts(v: unknown): string | null {
   return null;
 }
 
-// GET /api/calendar/me — tous les événements où l'user est invité, groupés par structure.
+// GET /api/calendar/me, tous les événements où l'user est invité, groupés par structure.
 export async function GET(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);

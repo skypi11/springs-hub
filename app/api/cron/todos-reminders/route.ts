@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
         userId: assigneeId,
         type: 'todo_reminder',
         title: `Rappel : exercice à rendre bientôt (${typeLabel})`,
-        message: `« ${title} » — deadline dans environ 24h${deadline ? ` (${deadline})` : ''}.`,
+        message: `« ${title} », deadline dans environ 24h${deadline ? ` (${deadline})` : ''}.`,
         link: '/calendar',
         metadata: { todoId: docId, deadline },
       });
@@ -155,7 +155,7 @@ export async function GET(req: NextRequest) {
         dmTasks.push(sendTodoDM(did, {
           title: `🔴 En retard : ${title}`,
           type,
-          description: 'La deadline est dépassée — merci de valider dès que possible.',
+          description: 'La deadline est dépassée, merci de valider dès que possible.',
           deadlineAtMs,
           deadlineYmd: deadline,
           siteTodoUrl: `${req.nextUrl.origin}/calendar?todo=${encodeURIComponent(docId)}`,
@@ -173,13 +173,13 @@ export async function GET(req: NextRequest) {
       overdueCount++;
     }
 
-    // Commit tout d'un coup — idempotent : si le cron re-tourne 2x à la même heure,
+    // Commit tout d'un coup, idempotent : si le cron re-tourne 2x à la même heure,
     // la 2e passe trouve reminder24hSentAt déjà set et skip.
     if (remindersCount + overdueCount > 0) {
       await batch.commit();
       await createNotifications(db, notifs);
     }
-    // Les DMs s'exécutent en parallèle — on les attend avant de renvoyer pour que Vercel
+    // Les DMs s'exécutent en parallèle, on les attend avant de renvoyer pour que Vercel
     // ne coupe pas la fonction trop tôt (Promise.all tolère les throws grâce au .catch).
     await Promise.all(dmTasks);
 

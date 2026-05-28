@@ -1,5 +1,5 @@
 // Helpers REST pour l'API Discord, côté serveur uniquement.
-// Le token du bot n'est JAMAIS exposé au client — ces fonctions sont appelées
+// Le token du bot n'est JAMAIS exposé au client, ces fonctions sont appelées
 // depuis les Route Handlers Next.js (runtime serveur).
 
 const DISCORD_API = 'https://discord.com/api/v10';
@@ -32,7 +32,7 @@ export interface DiscordGuildInfo {
 // réservés aux équipes ont presque toujours des permission overrides qui
 // bloquent @everyone (et donc le rôle du bot). Sans Administrator, le fondateur
 // devrait ajouter le bot manuellement comme override sur CHAQUE salon d'équipe
-// — c'est le cauchemar des bots de gestion esport. Administrator bypass tous
+//, c'est le cauchemar des bots de gestion esport. Administrator bypass tous
 // les overrides et permet de poster partout sans config manuelle, ce qui est
 // le standard pour les bots de ce type (MEE6, Carl-bot, Dyno…).
 export const BOT_INVITE_PERMISSIONS = '8';
@@ -99,14 +99,14 @@ export async function getGuildInfo(guildId: string): Promise<DiscordGuildInfo> {
   };
 }
 
-// Couleurs (decimal) utilisées dans les embeds selon le type d'event —
+// Couleurs (decimal) utilisées dans les embeds selon le type d'event ,
 // alignées sur la DA Aedral (palette mono noir + or, complétée par les
 // couleurs des jeux RL/TM et Discord pour les contextes spécifiques).
 const EVENT_COLORS: Record<string, number> = {
   training: 0x4da6ff, // bleu clair
   scrim: 0x7a8a82,    // gris neutre
   match: 0xffb800,    // or Aedral (rare/important)
-  tournoi: 0x00d9b5,  // teal — type tournoi générique
+  tournoi: 0x00d9b5,  // teal, type tournoi générique
   springs: 0x00d9b5,  // alias rétrocompat (anciens events 'springs')
   autre: 0x7a7a95,    // gris
 };
@@ -143,7 +143,7 @@ export interface EventEmbedInput {
   authorIconUrl?: string | null;
   // Bannière composite "TEAM VS ADVERSAIRE" générée côté serveur (route OG).
   // Si fournie pour un match officiel, elle devient l'`image` principale de
-  // l'embed (pleine largeur, ~500px de haut) — remplace le "gallery trick" qui
+  // l'embed (pleine largeur, ~500px de haut), remplace le "gallery trick" qui
   // collait les logos sans gutter ni centrage.
   matchBannerUrl?: string | null;
   // Pings : liste d'IDs Discord à mentionner en tête de message (et dans
@@ -231,7 +231,7 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
   };
   if (input.siteEventUrl) embed.url = input.siteEventUrl;
 
-  // Image principale ET thumbnail — deux conditions INDÉPENDANTES :
+  // Image principale ET thumbnail, deux conditions INDÉPENDANTES :
   //   - Match officiel avec bannière composite : on pose l'`image` de l'embed
   //     (pleine largeur, centrée) pour afficher une bannière "TEAM VS ADVERSAIRE"
   //     générée côté serveur. Propre, centré, avec vrai padding.
@@ -287,7 +287,7 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
 
 // ---------- Todos (exercices) ----------
 
-// Couleurs par type de exercice — DA Aedral (or, mono, complétée par les
+// Couleurs par type de exercice, DA Aedral (or, mono, complétée par les
 // couleurs spécifiques aux jeux RL/TM et la blurple Discord).
 const TODO_COLORS: Record<string, number> = {
   free:           0x7a7a95, // gris (tâche libre)
@@ -318,7 +318,7 @@ export interface TodoEmbedInput {
   title: string;
   type: string;
   description?: string | null;
-  deadlineAtMs?: number | null;       // ms epoch — si fourni, on utilise Discord timestamps pour localiser
+  deadlineAtMs?: number | null;       // ms epoch, si fourni, on utilise Discord timestamps pour localiser
   deadlineYmd?: string | null;        // fallback texte "YYYY-MM-DD" si pas de deadlineAtMs
   teamName?: string | null;
   structureName?: string | null;
@@ -326,7 +326,7 @@ export interface TodoEmbedInput {
   siteTodoUrl?: string | null;        // lien vers /calendar (ou page dédiée)
   thumbnailUrl?: string | null;       // logo équipe ou structure
   authorIconUrl?: string | null;
-  pingUserIds?: string[];             // snowflakes à ping — assignés
+  pingUserIds?: string[];             // snowflakes à ping, assignés
   // Résumé de config par type (ex: nombre de packs, URL VOD courte…). Si null, pas de field extra.
   configSummary?: string | null;
   // v3 : liste des steps pour les exos multi-step (1 ligne par step, avec type + label).
@@ -420,7 +420,7 @@ export async function postTodoEmbed(channelId: string, input: TodoEmbedInput): P
 }
 
 // Ouvre (ou récupère) un DM channel avec un user et y poste un embed todo.
-// Retourne { ok: true, messageId } ou { ok: false, reason } — 403 = le user a bloqué
+// Retourne { ok: true, messageId } ou { ok: false, reason }, 403 = le user a bloqué
 // les DMs du bot ou n'a aucun serveur mutual. On ne throw PAS car c'est un cas normal.
 export async function sendTodoDM(
   discordUserId: string,
@@ -460,8 +460,8 @@ export async function sendTodoDM(
 //   - join_request : teal/cyan (candidature reçue, action requise des dirigeants)
 //   - direct_invite : or Aedral (action sortante de la structure)
 const RECRUITMENT_COLORS = {
-  join_request: 0x00d9b5,   // teal — incoming
-  direct_invite: 0xffb800,  // or Aedral — outgoing
+  join_request: 0x00d9b5,   // teal, incoming
+  direct_invite: 0xffb800,  // or Aedral, outgoing
 } as const;
 
 // Note : GAME_LABELS local conservé pour compat ascendante (l'embed Discord
@@ -480,7 +480,7 @@ const RECRUITMENT_ROLE_LABELS: Record<string, string> = {
 };
 
 export interface RecruitmentEmbedInput {
-  // Type de notification — détermine les couleurs, le titre et le verbe utilisés.
+  // Type de notification, détermine les couleurs, le titre et le verbe utilisés.
   kind: 'join_request' | 'direct_invite';
   // Personne au cœur de la notification (candidat pour join_request, cible pour direct_invite).
   personName: string;
@@ -497,7 +497,7 @@ export interface RecruitmentEmbedInput {
   rlRank?: string | null;
   pseudoTM?: string | null;
   valorantRank?: string | null;
-  /** RiotID formaté "Name#TAG" si lié — affiché dans l'embed Val pour aider le staff à identifier. */
+  /** RiotID formaté "Name#TAG" si lié, affiché dans l'embed Val pour aider le staff à identifier. */
   riotId?: string | null;
   // Lien vers le Hub (rend le titre cliquable). Mène typiquement vers
   // /community/my-structure?tab=recruitment.
@@ -508,7 +508,7 @@ export interface RecruitmentEmbedInput {
 
 // Poste un embed "candidature reçue" ou "invitation envoyée" dans un salon
 // Discord. Même contrat que postEventEmbed/postTodoEmbed : appelé en
-// fire-and-forget côté route, throw si échec pour log Sentry — la candidature
+// fire-and-forget côté route, throw si échec pour log Sentry, la candidature
 // elle-même ne doit JAMAIS échouer si Discord est down.
 export async function postRecruitmentEmbed(channelId: string, input: RecruitmentEmbedInput): Promise<string> {
   const isJoin = input.kind === 'join_request';
@@ -516,7 +516,7 @@ export async function postRecruitmentEmbed(channelId: string, input: Recruitment
   const gameLabel = GAME_LABELS[input.game] ?? input.game;
   const roleLabel = input.role ? (RECRUITMENT_ROLE_LABELS[input.role] ?? input.role) : null;
 
-  // Mention en tête de message — staff role uniquement (allowed_mentions filtre).
+  // Mention en tête de message, staff role uniquement (allowed_mentions filtre).
   const mentionsLine = input.pingRoleId ? `<@&${input.pingRoleId}>` : '';
 
   const authorParts = [isJoin ? '📩 RECRUTEMENT · Candidature' : '📨 RECRUTEMENT · Invitation'];
@@ -528,7 +528,7 @@ export async function postRecruitmentEmbed(channelId: string, input: Recruitment
     : `Invitation envoyée à ${input.personName}`;
   const title = titleVerb.slice(0, 256);
 
-  // Champs meta inline — toujours présents pour donner le contexte rapide.
+  // Champs meta inline, toujours présents pour donner le contexte rapide.
   const fields: Array<{ name: string; value: string; inline?: boolean }> = [
     { name: '🎮 Jeu', value: gameLabel.slice(0, 256), inline: true },
   ];
@@ -539,7 +539,7 @@ export async function postRecruitmentEmbed(channelId: string, input: Recruitment
     fields.push({ name: '🌍 Pays', value: input.country.slice(0, 64), inline: true });
   }
 
-  // Niveau jeu — uniquement si pertinent pour le jeu visé. Mettre des champs
+  // Niveau jeu, uniquement si pertinent pour le jeu visé. Mettre des champs
   // vides pour des jeux non concernés rendrait l'embed bruyant.
   // TODO (phase 4) : déporter ces branches dans la registry sous forme d'une
   // callback formatProfileFields(input) par jeu, pour qu'ajouter un 4e jeu
@@ -578,7 +578,7 @@ export async function postRecruitmentEmbed(channelId: string, input: Recruitment
     timestamp: new Date().toISOString(),
   };
   if (input.siteUrl) embed.url = input.siteUrl;
-  // Thumbnail = avatar de la personne (candidat ou cible) — visage humain
+  // Thumbnail = avatar de la personne (candidat ou cible), visage humain
   // immédiatement reconnaissable par les dirigeants qui scannent leur Discord.
   if (input.personAvatarUrl && /^https:\/\//.test(input.personAvatarUrl)) {
     embed.thumbnail = { url: input.personAvatarUrl };
@@ -609,7 +609,7 @@ export async function postRecruitmentEmbed(channelId: string, input: Recruitment
   return data.id as string;
 }
 
-// ---------- Signalement de rang (Lot 5 — anti-mensonge) ----------
+// ---------- Signalement de rang (Lot 5, anti-mensonge) ----------
 
 // Envoie un DM au joueur dont le rang vient d'être contesté par un admin.
 // Mêmes garde-fous que sendTodoDM : retourne ok=false silencieusement si

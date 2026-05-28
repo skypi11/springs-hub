@@ -21,7 +21,7 @@ function ts(v: unknown): string | null {
   return null;
 }
 
-// GET /api/admin/calendar — vue cross-structures de tous les events.
+// GET /api/admin/calendar, vue cross-structures de tous les events.
 // Filtres : when (upcoming|past|all), type, status, structureId.
 // Admin voit tout, pas de filtrage visibilité staff/target.
 export async function GET(req: NextRequest) {
@@ -221,7 +221,7 @@ async function getEventDetail(db: FirebaseFirestore.Firestore, eventId: string) 
   });
 }
 
-// POST /api/admin/calendar — actions admin sur un événement :
+// POST /api/admin/calendar, actions admin sur un événement :
 // Body { eventId, action: 'cancel' | 'terminate' | 'reopen', reason? }
 // L'admin bypass les permissions de structure (canCancelEvent, etc.).
 export async function POST(req: NextRequest) {
@@ -250,7 +250,7 @@ export async function POST(req: NextRequest) {
     const event = eventSnap.data()!;
 
     if (action === 'edit') {
-      // Édition directe des infos d'un événement (admin) — sans toucher au
+      // Édition directe des infos d'un événement (admin), sans toucher au
       // statut ni au ciblage (target). title / type / description / lieu / dates.
       const title = clampString(body.title, 120);
       if (!title) {
@@ -277,7 +277,7 @@ export async function POST(req: NextRequest) {
         endsAt,
         updatedAt: FieldValue.serverTimestamp(),
       };
-      // adversaire / resultat : seulement si fournis (match/scrim) — on n'écrase
+      // adversaire / resultat : seulement si fournis (match/scrim), on n'écrase
       // pas un adversaire existant quand on édite un événement d'un autre type.
       if (body.adversaire !== undefined) update.adversaire = clampString(body.adversaire, 80);
       if (body.resultat !== undefined) update.resultat = clampString(body.resultat, 40);
@@ -341,7 +341,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE /api/admin/calendar?eventId=xxx — suppression dure d'un événement + ses présences.
+// DELETE /api/admin/calendar?eventId=xxx, suppression dure d'un événement + ses présences.
 export async function DELETE(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);

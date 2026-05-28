@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
     const teamId = req.nextUrl.searchParams.get('teamId');
     // includeStaffUids : liste d'uids de staff à AJOUTER au matching de créneaux
     // (CSV ex: 'uid1,uid2'). Utile pour le cas "manager veut planifier un
-    // training avec ses joueurs + coach structure" — le coach devient une
+    // training avec ses joueurs + coach structure", le coach devient une
     // contrainte dure (sa présence est requise pour qu'un slot soit suggéré).
     // Si vide, comportement historique : matching joueurs uniquement.
     const includeStaffUidsCsv = req.nextUrl.searchParams.get('includeStaffUids') || '';
@@ -99,12 +99,12 @@ export async function GET(req: NextRequest) {
       ...((teamData.subIds as string[]) || []),
     ])).filter(Boolean);
 
-    // Staff lié à cette équipe — pour l'AFFICHAGE des dispos uniquement (validé
+    // Staff lié à cette équipe, pour l'AFFICHAGE des dispos uniquement (validé
     // Matt 2026-05-25 : un manager veut savoir quand le coach est dispo pour
     // planifier un entraînement). 3 sources fusionnées (dédup) :
     //   - team.staffIds (manager / coach d'équipe, sub_teams.staffRoles)
-    //   - structure.coachIds (coach structure mobile — toutes équipes)
-    //   - structure.managerIds (responsable structure — toutes équipes)
+    //   - structure.coachIds (coach structure mobile, toutes équipes)
+    //   - structure.managerIds (responsable structure, toutes équipes)
     // Si l'inclusion dans le matching devient nécessaire plus tard, on ajoutera
     // un toggle ?includeStaff=true qui injectera ces uids dans playerSlots.
     const teamStaffIds = (teamData.staffIds as string[]) || [];
@@ -169,7 +169,7 @@ export async function GET(req: NextRequest) {
       playerSlotsByWeek[nextMonday][mid] = new Set();
     }
 
-    // Dispos du staff (séparé des joueurs — pas inclus dans le matching).
+    // Dispos du staff (séparé des joueurs, pas inclus dans le matching).
     // Init en parallèle pour minimiser les round-trips.
     const staffSlotsByWeek: Record<string, Record<string, Set<string>>> = {
       [currentMonday]: {},
@@ -203,7 +203,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Events de la structure — on lit tout (capé à 200 comme l'API events)
+    // Events de la structure, on lit tout (capé à 200 comme l'API events)
     // puis on filtre en mémoire sur la fenêtre (2 semaines). Cette approche évite
     // une requête range sur startsAt qui nécessiterait un autre index composite.
     const windowStartMs = Date.parse(`${currentMonday}T00:00:00Z`) - 3 * 24 * 3600 * 1000;
@@ -245,7 +245,7 @@ export async function GET(req: NextRequest) {
 
       // Filtrer en mémoire sur la fenêtre (semaine courante + suivante, avec buffer).
       // Defensive : quelques events legacy ont startsAt/endsAt en number ou string au lieu
-      // de Timestamp — on skip silencieusement les entrées illisibles.
+      // de Timestamp, on skip silencieusement les entrées illisibles.
       const startMs = coerceToMillis(ev.startsAt);
       const endMs = coerceToMillis(ev.endsAt);
       if (startMs == null || endMs == null) continue;
@@ -318,7 +318,7 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // Staff de l'équipe (et coach/responsable structure) — affichage uniquement,
+    // Staff de l'équipe (et coach/responsable structure), affichage uniquement,
     // pas dans le matching. Le frontend peut afficher ces dispos en parallèle
     // pour aider à planifier un entraînement avec le coach.
     const staff = staffIds.map(sid => {

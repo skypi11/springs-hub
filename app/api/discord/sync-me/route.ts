@@ -4,7 +4,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { syncDiscordMember } from '@/lib/discord-role-sync';
 import { captureApiError } from '@/lib/sentry';
 
-// POST /api/discord/sync-me — synchronise le pseudo serveur « [TAG] Pseudo »
+// POST /api/discord/sync-me, synchronise le pseudo serveur « [TAG] Pseudo »
 // et les rôles Discord de l'utilisateur courant sur le serveur Aedral.
 // Utilisé par le bouton « resynchroniser » des réglages.
 export async function POST(req: NextRequest) {

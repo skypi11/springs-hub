@@ -18,7 +18,7 @@ const baseTeam = (overrides: Partial<MemberRoleTeam> = {}): MemberRoleTeam => ({
   ...overrides,
 });
 
-describe('computeMemberRole — primary', () => {
+describe('computeMemberRole, primary', () => {
   it('fondateur gagne sur tout le reste', () => {
     const res = computeMemberRole({
       userId: 'u1',
@@ -180,7 +180,7 @@ describe('computeMemberRole — primary', () => {
   });
 });
 
-describe('computeMemberRole — affiliations', () => {
+describe('computeMemberRole, affiliations', () => {
   it('cumule joueur + capitaine sur la même équipe', () => {
     const res = computeMemberRole({
       userId: 'u1',

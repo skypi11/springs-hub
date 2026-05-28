@@ -1,6 +1,6 @@
 // POST /api/profile/rl-steam-link
 // Snapshot le SteamID64 depuis `steamLinked` (Steam OpenID) dans `rlSteamId`
-// — la référence officielle figée côté Steam. Symétrique à rl-epic-link.
+//, la référence officielle figée côté Steam. Symétrique à rl-epic-link.
 //
 // Premier lien : libre. Changements ultérieurs : refusés ici, passent par
 // /api/profile/rl-steam-link/change-request (demande admin).
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       // Si l'utilisateur n'a pas déjà choisi Epic, on mirror vers les champs
       // legacy pour le constructeur d'URL tracker (lib/rl-platform.ts).
       // Sinon on ne touche pas (Epic reste prioritaire pour l'URL tracker
-      // post-F2P — voir /api/profile pour la sélection finale).
+      // post-F2P, voir /api/profile pour la sélection finale).
       ...((!user.rlEpicId) ? { rlPlatform: 'steam', rlPlatformId: steamId } : {}),
     });
 

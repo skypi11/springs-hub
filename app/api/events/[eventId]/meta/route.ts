@@ -10,7 +10,7 @@ import { canDownloadReplay } from '@/lib/replay-permissions';
 // pour la page dédiée /community/event/[id]/stats. Résout structureId depuis
 // l'event puis vérifie via resolveUserContext que l'user y a bien accès.
 //
-// Endpoint léger — ne renvoie pas les replays ni les présences, juste de quoi
+// Endpoint léger, ne renvoie pas les replays ni les présences, juste de quoi
 // afficher le header de la page stats. Pour les stats elles-mêmes, le client
 // appellera /api/structures/[id]/events/[eventId]/replay-stats-agg.
 export async function GET(

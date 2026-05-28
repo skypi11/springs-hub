@@ -118,7 +118,7 @@ export function RoleInfoCard({ role, compact = false }: { role: RoleDefinition; 
   );
 }
 
-// Liste complète de tous les rôles — pour la page d'aide.
+// Liste complète de tous les rôles, pour la page d'aide.
 export function AllRolesPanel() {
   return (
     <div className="space-y-4">

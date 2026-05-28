@@ -27,7 +27,7 @@ async function main() {
 
     const testKey = `_test/connection-check-${Date.now()}.txt`;
     const testContent = Buffer.from(
-      `R2 connection test — ${new Date().toISOString()}`,
+      `R2 connection test, ${new Date().toISOString()}`,
       'utf-8'
     );
 

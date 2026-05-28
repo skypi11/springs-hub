@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     const profile = await fetchSteamProfile(steamId64);
 
     // Vérifier que cet SteamID64 n'est pas déjà lié à un AUTRE compte Aedral
-    // (sinon deux users pourraient prétendre au même Steam — exploit identitaire)
+    // (sinon deux users pourraient prétendre au même Steam, exploit identitaire)
     const db = getAdminDb();
     const dupeQuery = await db.collection('users')
       .where('steamLinked.steamId64', '==', steamId64)

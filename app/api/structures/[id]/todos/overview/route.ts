@@ -109,7 +109,7 @@ export async function GET(
         done: !!d.done,
         doneAt: tsMs(d.doneAt),
         doneBy: (d.doneBy as string | null) ?? null,
-        // v3 — verrouillage
+        // v3, verrouillage
         lockedAt: tsMs(d.lockedAt),
         lockedBy: (d.lockedBy as string | null) ?? null,
         createdBy: d.createdBy as string,
@@ -117,7 +117,7 @@ export async function GET(
       };
     });
 
-    // Enrichissement users (assignees uniquement — le UI peut requêter d'autres users à la demande).
+    // Enrichissement users (assignees uniquement, le UI peut requêter d'autres users à la demande).
     const usersMap = await fetchDocsByIds(db, 'users', Array.from(assigneeIds));
     const users = Array.from(assigneeIds).map(uid => {
       const u = usersMap.get(uid);

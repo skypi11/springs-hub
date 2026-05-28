@@ -7,7 +7,7 @@ const competitions = [
     tag: 'RL',
     tagClass: 'tag-blue',
     name: 'SPRINGS LEAGUE SERIES',
-    edition: 'Saison 2 — 2026',
+    edition: 'Saison 2, 2026',
     status: 'En cours',
     format: 'Ligue · 2 Poules · Round Robin · BO7',
     teams: '32 équipes',
@@ -160,13 +160,13 @@ export default function CompetitionsPage() {
           </a>
         ))}
 
-        {/* Coming soon — Phase 3 native */}
+        {/* Coming soon, Phase 3 native */}
         <div className="panel p-12 text-center">
           <div className="p-3 w-fit mx-auto mb-4" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
             <Trophy size={22} style={{ color: 'var(--s-gold)' }} />
           </div>
           <p className="t-sub mb-1.5" style={{ color: 'var(--s-text)' }}>
-            Compétitions natives Aedral — bientôt
+            Compétitions natives Aedral, bientôt
           </p>
           <p className="t-body max-w-md mx-auto">
             Inscription d&apos;équipe en 2 clics, classements live, brackets RL, calendrier intégré aux structures.

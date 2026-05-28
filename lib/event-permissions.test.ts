@@ -179,7 +179,7 @@ describe('canAccessCalendar', () => {
 
 // ---------- Création ----------
 
-describe('canCreateEvent — scope=structure', () => {
+describe('canCreateEvent, scope=structure', () => {
   const target: EventTarget = { scope: 'structure' };
   it('dirigeant OK', () => expect(canCreateEvent(founder(), target)).toBe(true));
   it('manager KO', () => expect(canCreateEvent(managerOfTeams('u1', ['t1']), target)).toBe(false));
@@ -187,14 +187,14 @@ describe('canCreateEvent — scope=structure', () => {
   it('joueur KO', () => expect(canCreateEvent(player(), target)).toBe(false));
 });
 
-describe('canCreateEvent — scope=game', () => {
+describe('canCreateEvent, scope=game', () => {
   const target: EventTarget = { scope: 'game', game: 'rocket_league' };
   it('dirigeant OK', () => expect(canCreateEvent(founder(), target)).toBe(true));
   it('manager KO', () => expect(canCreateEvent(managerOfTeams('u1', ['t1']), target)).toBe(false));
   it('coach KO', () => expect(canCreateEvent(coachOfTeams('u1', ['t1']), target)).toBe(false));
 });
 
-describe('canCreateEvent — scope=teams', () => {
+describe('canCreateEvent, scope=teams', () => {
   it('dirigeant OK', () => {
     const target: EventTarget = { scope: 'teams', teamIds: ['t1', 't2'] };
     expect(canCreateEvent(founder(), target)).toBe(true);
@@ -234,7 +234,7 @@ describe('canCreateEvent — scope=teams', () => {
     expect(canCreateEvent(captainOfTeams('u1', ['t1']), { scope: 'game', game: 'rocket_league' })).toBe(false);
   });
 
-  // Coach structure — intervenant mobile (coachIds) : training/scrim sur n'importe quelle équipe
+  // Coach structure, intervenant mobile (coachIds) : training/scrim sur n'importe quelle équipe
   it('coach structure → OK training sur équipe quelconque', () => {
     const target: EventTarget = { scope: 'teams', teamIds: ['t7'] };
     expect(canCreateEvent(coachStructure(), target, 'training')).toBe(true);
@@ -259,7 +259,7 @@ describe('canCreateEvent — scope=teams', () => {
   });
 });
 
-describe('canAccessCalendar — capitaine', () => {
+describe('canAccessCalendar, capitaine', () => {
   it('capitaine seul → OK (pour gérer le calendrier de son équipe)', () => {
     expect(canAccessCalendar(captainOfTeams('u1', ['t1']))).toBe(true);
   });
@@ -268,7 +268,7 @@ describe('canAccessCalendar — capitaine', () => {
   });
 });
 
-describe('canEditEvent — capitaine', () => {
+describe('canEditEvent, capitaine', () => {
   it('capitaine peut éditer un event de son équipe', () => {
     const e = event({ target: { scope: 'teams', teamIds: ['t1'] } });
     expect(canEditEvent(captainOfTeams('u1', ['t1']), e)).toBe(true);
@@ -283,7 +283,7 @@ describe('canEditEvent — capitaine', () => {
   });
 });
 
-describe('canModifyOthersPresence — capitaine', () => {
+describe('canModifyOthersPresence, capitaine', () => {
   it('capitaine peut corriger la présence sur un event teams de son équipe', () => {
     const e = event({ target: { scope: 'teams', teamIds: ['t1'] } });
     expect(canModifyOthersPresence(captainOfTeams('u1', ['t1']), e)).toBe(true);
@@ -488,7 +488,7 @@ describe('validateEventTarget', () => {
 });
 
 
-// ─── Multi-jeux (2026-05-27) — scope par jeu pour managers/coachs structure ──
+// ─── Multi-jeux (2026-05-27), scope par jeu pour managers/coachs structure ──
 
 describe('Multi-jeux : isStaffOfTeam scopé par jeu', () => {
   const t1Game = { t1: 'rocket_league', t2: 'valorant' };

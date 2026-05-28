@@ -100,7 +100,7 @@ export function DiscordConfigBlockRenderer(props: {
               <select className="settings-input w-full text-sm"
                 value={draftChannelId}
                 onChange={e => setDraftChannelId(e.target.value)}>
-                <option value="">— Aucun salon (pas de post) —</option>
+                <option value="">Aucun salon (pas de post)</option>
                 {Array.from(channelsByCategory.entries()).map(([cat, chans]) => (
                   <optgroup key={cat} label={cat}>
                     {chans!.map(c => (
@@ -130,7 +130,7 @@ export function DiscordConfigBlockRenderer(props: {
                   value={draftRoleId}
                   onChange={e => setDraftRoleId(e.target.value)}
                   disabled={!draftChannelId}>
-                  <option value="">— Pas de ping —</option>
+                  <option value="">Pas de ping</option>
                   {(props.roles ?? []).map(r => (
                     <option key={r.id} value={r.id}>
                       @{r.name}

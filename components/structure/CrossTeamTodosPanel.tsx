@@ -1,6 +1,6 @@
 'use client';
 
-// Refonte 2026-05-26 — Onglet "Exercices" structure repensé pour un coach pro :
+// Refonte 2026-05-26, Onglet "Exercices" structure repensé pour un coach pro :
 //   - Header avec bouton "+ Nouvel exercice" (modal avec sélecteur d'équipe + NewTodoForm)
 //   - 3 compteurs (en retard / cette semaine / faits 7j)
 //   - Section "À RELANCER" : exos en retard groupés PAR JOUEUR avec bouton copier mention Discord
@@ -157,7 +157,7 @@ export default function CrossTeamTodosPanel({
   });
   const error = queryError ? (queryError instanceof ApiError ? queryError.message : queryError.message || 'Erreur de chargement') : null;
 
-  // Ping Discord d'un assignee — envoie un DM via le bot avec la liste de ses exos en retard
+  // Ping Discord d'un assignee, envoie un DM via le bot avec la liste de ses exos en retard
   const pingMutation = useMutation({
     mutationFn: ({ assigneeId }: { assigneeId: string }) =>
       api<{ overdueCount: number }>(`/api/structures/${structureId}/todos/ping-assignee`, {
@@ -165,13 +165,13 @@ export default function CrossTeamTodosPanel({
         body: { assigneeId },
       }),
     onSuccess: (res) => {
-      toast.success(`DM envoyé — ${res.overdueCount} exo${res.overdueCount > 1 ? 's' : ''} listé${res.overdueCount > 1 ? 's' : ''}`);
+      toast.success(`DM envoyé, ${res.overdueCount} exo${res.overdueCount > 1 ? 's' : ''} listé${res.overdueCount > 1 ? 's' : ''}`);
     },
     onError: (err: Error) => toast.error(err.message || 'Erreur'),
   });
   const pingingUid = pingMutation.isPending ? pingMutation.variables?.assigneeId ?? null : null;
 
-  // Suppression d'un exercice (staff uniquement — API contrôle déjà la permission)
+  // Suppression d'un exercice (staff uniquement, API contrôle déjà la permission)
   const deleteMutation = useMutation({
     mutationFn: ({ todoId }: { todoId: string }) =>
       api(`/api/structures/${structureId}/todos/${todoId}`, { method: 'DELETE' }).then(() => ({ todoId })),
@@ -336,7 +336,7 @@ export default function CrossTeamTodosPanel({
           </h2>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Gérer les templates — modal complète (création/édition/suppression/partage) */}
+          {/* Gérer les templates, modal complète (création/édition/suppression/partage) */}
           <button
             type="button"
             onClick={() => setShowTemplatesManager(true)}
@@ -469,7 +469,7 @@ export default function CrossTeamTodosPanel({
                 if (oa !== ob) return oa - ob;
                 return a.name.localeCompare(b.name);
               })
-              .map(t => ({ value: t.id, label: `${t.name}${t.label ? ` — ${t.label}` : ''}` })),
+              .map(t => ({ value: t.id, label: `${t.name}${t.label ? `, ${t.label}` : ''}` })),
           ]}
         />
         <SelectChip
@@ -521,7 +521,7 @@ export default function CrossTeamTodosPanel({
         </ul>
       )}
 
-      {/* Drawer détail — vue staff : read-only sur les steps, mais bouton supprimer dispo */}
+      {/* Drawer détail, vue staff : read-only sur les steps, mais bouton supprimer dispo */}
       {(() => {
         if (!openTodoId || !data) return null;
         const ot = data.todos.find(t => t.id === openTodoId);
@@ -529,7 +529,7 @@ export default function CrossTeamTodosPanel({
         const team = teamMap.get(ot.subTeamId);
         const drawerTodo: DrawerTodo = {
           ...(ot as OverviewTodo as unknown as TodoRef),
-          teamName: team ? (team.label ? `${team.name} — ${team.label}` : team.name) : undefined,
+          teamName: team ? (team.label ? `${team.name}, ${team.label}` : team.name) : undefined,
         };
         return (
           <TodoDetailDrawer
@@ -556,7 +556,7 @@ export default function CrossTeamTodosPanel({
         />
       )}
 
-      {/* Modal Gestion templates — permet de créer/éditer/partager des templates
+      {/* Modal Gestion templates, permet de créer/éditer/partager des templates
           d'exercices sans devoir passer par le panel d'une équipe spécifique. */}
       {showTemplatesManager && firebaseUser && (
         <TodoTemplatesManager
@@ -857,7 +857,7 @@ function TodoRow({
                 <span>·</span>
                 <span className="inline-flex items-center gap-1">
                   <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: gameColor }} />
-                  {team.name}{team.label ? ` — ${team.label}` : ''}
+                  {team.name}{team.label ? `, ${team.label}` : ''}
                 </span>
               </>
             )}
@@ -928,7 +928,7 @@ function CreateTodoModal({
     ? visibleTeams.find(t => t.id === selectedTeamId)
     : null;
 
-  // Events vides — la création depuis l'onglet exercices ne propose pas de lier un event
+  // Events vides, la création depuis l'onglet exercices ne propose pas de lier un event
   // (l'utilisateur peut toujours le faire depuis l'onglet calendrier de l'équipe).
   const events: EventOpt[] = [];
 
@@ -982,16 +982,16 @@ function CreateTodoModal({
                     value={selectedTeamId ?? ''}
                     onChange={e => setSelectedTeamId(e.target.value || null)}
                   >
-                    <option value="">— Choisir une équipe —</option>
+                    <option value="">Choisir une équipe</option>
                     {visibleTeams.map(t => (
                       <option key={t.id} value={t.id}>
-                        {t.name}{t.label ? ` — ${t.label}` : ''} ({getGameShortLabel(t.game)})
+                        {t.name}{t.label ? `, ${t.label}` : ''} ({getGameShortLabel(t.game)})
                       </option>
                     ))}
                   </select>
                 </div>
 
-                {/* Form de création — instancié seulement si équipe choisie */}
+                {/* Form de création, instancié seulement si équipe choisie */}
                 {selectedTeam && (
                   <NewTodoForm
                     key={selectedTeam.id /* reset le form si on change d'équipe */}

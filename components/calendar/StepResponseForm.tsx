@@ -29,7 +29,7 @@ export function StepResponseForm({
   onCancel,
   onSubmit,
   submitLabel = 'Valider & terminer',
-  // v3 — props pour permettre l'upload de capture d'écran (optionnel).
+  // v3, props pour permettre l'upload de capture d'écran (optionnel).
   // Si non fourni, le bloc upload n'apparaît pas.
   uploadUrl,
   stepId,
@@ -48,7 +48,7 @@ export function StepResponseForm({
 }) {
   const toast = useToast();
 
-  // Init analysis/notes depuis initialResponse si fourni — permet l'édition.
+  // Init analysis/notes depuis initialResponse si fourni, permet l'édition.
   const init = (initialResponse ?? {}) as Record<string, unknown>;
   const [analysis, setAnalysis] = useState<string>(
     typeof init.analysis === 'string' ? init.analysis : '',
@@ -56,7 +56,7 @@ export function StepResponseForm({
   const [notes, setNotes] = useState<string>(
     typeof init.notes === 'string' ? init.notes : '',
   );
-  // v3 — nouveaux types
+  // v3, nouveaux types
   const [workshopResult, setWorkshopResult] = useState<string>(
     typeof init.result === 'string' ? init.result : '',
   );
@@ -81,12 +81,12 @@ export function StepResponseForm({
       return;
     }
     if (file.type && !file.type.startsWith('image/')) {
-      toast.error('Format non supporté — utilise une image.');
+      toast.error('Format non supporté, utilise une image.');
       return;
     }
     setUploading(true);
     try {
-      // Le projet n'utilise PAS les cookies pour l'auth — il faut injecter
+      // Le projet n'utilise PAS les cookies pour l'auth, il faut injecter
       // Authorization: Bearer <firebase_id_token> manuellement (cf. lib/api-client.ts).
       const token = await auth.currentUser?.getIdToken();
       if (!token) {
@@ -341,7 +341,7 @@ export function StepResponseForm({
         </div>
       )}
 
-      {/* Capture d'écran — visible uniquement si l'upload est branché (uploadUrl + stepId) */}
+      {/* Capture d'écran, visible uniquement si l'upload est branché (uploadUrl + stepId) */}
       {uploadUrl && stepId && (
         <div>
           <label className="t-label block mb-1.5" style={{ fontSize: '12px' }}>

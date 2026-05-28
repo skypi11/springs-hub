@@ -1,4 +1,4 @@
-// Modale de signalement de rang — Lot v2 (anti-mensonge + anti-smurf).
+// Modale de signalement de rang, Lot v2 (anti-mensonge + anti-smurf).
 // Remplace l'enchaînement confirm() + window.prompt() précédent par un vrai
 // formulaire intégré DA Aedral. Le joueur choisit le motif (faux rang / smurf)
 // + éventuellement un message libre.
@@ -77,7 +77,7 @@ export default function ReportRankDialog({ open, onClose, targetUid, targetName,
     {
       value: 'smurf',
       label: 'Soupçon de smurf',
-      help: 'Il joue clairement bien au-dessus du rang qu\'il affiche — compte secondaire suspecté.',
+      help: 'Il joue clairement bien au-dessus du rang qu\'il affiche, compte secondaire suspecté.',
       icon: ShieldAlert,
       color: '#ef4444',
     },
@@ -130,7 +130,7 @@ export default function ReportRankDialog({ open, onClose, targetUid, targetName,
             Tu signales le rang de <strong>{targetName ?? 'ce joueur'}</strong>. L'admin sera notifié et vérifiera via le lien tracker.
           </p>
 
-          {/* Motifs — radio cards */}
+          {/* Motifs, radio cards */}
           <div className="space-y-2 mb-4">
             <label className="t-label block mb-1">Motif</label>
             {MOTIFS.map(m => {
@@ -182,7 +182,7 @@ export default function ReportRankDialog({ open, onClose, targetUid, targetName,
               placeholder="Précise ce qui te paraît anormal (lien vers une preuve, comportement observé…)"
             />
             <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
-              {message.length}/500 — les signalements abusifs sont visibles par l'admin et peuvent te bloquer.
+              {message.length}/500, les signalements abusifs sont visibles par l'admin et peuvent te bloquer.
             </p>
           </div>
 

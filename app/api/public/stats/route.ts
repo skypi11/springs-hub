@@ -3,7 +3,7 @@ import { getAdminDb } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
-// GET /api/public/stats — compteurs globaux pour la page d'accueil.
+// GET /api/public/stats, compteurs globaux pour la page d'accueil.
 //
 // Utilise les `count()` aggregates Firestore : ~6 reads totales par appel,
 // peu importe la taille des collections. Avec le cache CDN Vercel

@@ -13,7 +13,7 @@ import { loadCronState, saveCronState } from '@/lib/cron-state';
 import { syncValorantRanksBatch } from '@/lib/valorant-sync';
 
 // GET /api/cron/expire-invitations
-// Vercel Cron quotidien (3h) — trois tâches refondues pour SCALER :
+// Vercel Cron quotidien (3h), trois tâches refondues pour SCALER :
 //
 //  1. Expire les join_request / direct_invite pending > EXPIRY_DAYS.
 //     AVANT : full scan structure_invitations sans limit (bombe à 10k+).
@@ -23,7 +23,7 @@ import { syncValorantRanksBatch } from '@/lib/valorant-sync';
 //     AVANT : full scan structures + N+1 query sub_teams.
 //     APRÈS : pagination cursor avec état persisté (_cron_state/cofounder_departures),
 //     limit 500/run, cycle complet en quelques jours (acceptable car
-//     départs co-fondateurs rares — 15-20/mois max même à 5k structures).
+//     départs co-fondateurs rares, 15-20/mois max même à 5k structures).
 //
 //  3. Passe nocturne Discord (sync rôles + refresh connexions).
 //     AVANT : full scan users + sleep 100ms par user (= 100s pour 1000 users).
@@ -46,7 +46,7 @@ const DISCORD_SYNC_LIMIT_PER_RUN = 200;
 // Délai entre 2 calls Discord pour rester en dessous du rate-limit (~30/s safe)
 const DISCORD_USER_DELAY_MS = 100;
 
-// ── Tâche 1 — Expire les invitations pending dépassées ───────────────────
+// ── Tâche 1, Expire les invitations pending dépassées ───────────────────
 // Query indexée (status + createdAt) → ne lit QUE les docs concernés.
 // Limit par run : 500. Si plus à traiter, ça passera au prochain run.
 async function expireInvitations(db: Firestore): Promise<number> {
@@ -104,10 +104,10 @@ async function expireInvitations(db: Firestore): Promise<number> {
   return expiredCount;
 }
 
-// ── Tâche 2 — Préavis de départ de co-fondateurs expirés ────────────────
+// ── Tâche 2, Préavis de départ de co-fondateurs expirés ────────────────
 // Pagination cursor : on traite DEPARTURES_LIMIT_PER_RUN structures par run,
 // on persiste le cursor dans _cron_state. Cycle complet en quelques jours
-// pour les grosses bases — acceptable car les départs sont rares et le
+// pour les grosses bases, acceptable car les départs sont rares et le
 // préavis 7j tolère bien un délai de quelques jours sur le traitement.
 async function processExpiredDepartures(db: Firestore): Promise<{ processed: number; cycleReset: boolean }> {
   const stateKey = 'cofounder_departures';
@@ -168,10 +168,10 @@ async function processExpiredDepartures(db: Firestore): Promise<{ processed: num
   return { processed, cycleReset: cycleComplete };
 }
 
-// ── Tâche 3 — Passe nocturne Discord ─────────────────────────────────────
+// ── Tâche 3, Passe nocturne Discord ─────────────────────────────────────
 // Pagination cursor : DISCORD_SYNC_LIMIT_PER_RUN users par run. Délai 100ms
 // entre users pour le rate-limit Discord = ~20s pour 200 users (sous 60s).
-// Cycle complet en quelques jours sur grosse base — acceptable car la sync
+// Cycle complet en quelques jours sur grosse base, acceptable car la sync
 // est cosmétique (pseudo Discord + rafraîchissement rôles).
 async function processNightlyDiscordSync(
   db: Firestore,

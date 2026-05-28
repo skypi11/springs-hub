@@ -42,11 +42,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         ? clampString(body.defaultChannelHint, 60).trim()
         : null;
     }
-    // Marqueur d'utilisation — utile pour tri "récent"
+    // Marqueur d'utilisation, utile pour tri "récent"
     if (body.markUsed === true) {
       updates.lastUsedAt = FieldValue.serverTimestamp();
     }
-    // Catégorie changelog — fallback 'feature' si valeur invalide.
+    // Catégorie changelog, fallback 'feature' si valeur invalide.
     if (body.category !== undefined) {
       updates.category = isValidChangelogCategory(body.category) ? body.category : 'feature';
     }

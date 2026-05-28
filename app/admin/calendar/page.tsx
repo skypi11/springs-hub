@@ -126,7 +126,7 @@ export default function AdminCalendarPage() {
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
   const [detailById, setDetailById] = useState<Record<string, EventDetail>>({});
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
-  // Édition directe d'un événement — null = aucun formulaire ouvert.
+  // Édition directe d'un événement, null = aucun formulaire ouvert.
   const [editEvent, setEditEvent] = useState<EventEditState | null>(null);
 
   async function toggleDetail(eventId: string) {

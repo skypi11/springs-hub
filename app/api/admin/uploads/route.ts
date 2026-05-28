@@ -25,8 +25,8 @@ type StructureUsage = {
   premium: boolean;
 };
 
-// GET /api/admin/uploads — vue globale du stockage R2 via les métadonnées Firestore.
-// On n'appelle pas R2 listObjectsV2 (coût latence + trafic) — on se base sur les
+// GET /api/admin/uploads, vue globale du stockage R2 via les métadonnées Firestore.
+// On n'appelle pas R2 listObjectsV2 (coût latence + trafic), on se base sur les
 // sizeBytes stockés dans structure_documents / structure_replays au moment de l'upload.
 // L'écart possible avec R2 réel (orphelins) est signalé comme item à auditer ailleurs.
 export async function GET(req: NextRequest) {

@@ -91,7 +91,7 @@ export function GeneralTab(props: GeneralTabProps) {
 
   const statusInfo = STATUS_INFO[s.status] ?? STATUS_INFO.pending_validation;
 
-  // Modal d'aide "Rôles & permissions" — déclenchable depuis le bouton bas de
+  // Modal d'aide "Rôles & permissions", déclenchable depuis le bouton bas de
   // la sidebar droite. Permet aux dirigeants de consulter la matrice complète
   // sans devoir quitter la page.
   const [rolesHelpOpen, setRolesHelpOpen] = useState(false);
@@ -191,7 +191,7 @@ export function GeneralTab(props: GeneralTabProps) {
           </div>
         </SectionPanel>
 
-        {/* JEUX PRATIQUÉS — act structural, save dédié.
+        {/* JEUX PRATIQUÉS, act structural, save dédié.
             Visible et éditable par les dirigeants uniquement.
             Affiché en 2e position (après DESCRIPTION) car c'est ce qui
             détermine ce que la structure peut faire (équipes, recrutement…). */}
@@ -301,7 +301,7 @@ export function GeneralTab(props: GeneralTabProps) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <ImageUploader
                 label="Logo de la structure"
-                hint="Carré — idéalement fond transparent. Max 2 MB."
+                hint="Carré, idéalement fond transparent. Max 2 MB."
                 aspect="square"
                 maxBytes={UPLOAD_LIMITS.STRUCTURE_LOGO_BYTES}
                 currentUrl={activeStructure?.logoUrl || editLogoUrl || null}
@@ -387,7 +387,7 @@ export function GeneralTab(props: GeneralTabProps) {
                   currentRoleId: activeStructure.discordIntegration.structureRoleId ?? null,
                   currentRoleName: activeStructure.discordIntegration.structureRoleName ?? null,
                 })}
-                {/* Bloc Discord config par jeu — généré depuis la registry pour
+                {/* Bloc Discord config par jeu, généré depuis la registry pour
                     chaque jeu pratiqué par la structure. Ajouter un jeu dans
                     la registry fait apparaître son bloc Discord auto. */}
                 {ALL_GAME_DEFS.filter(g => activeStructure.games.includes(g.id)).map(g => {
@@ -440,7 +440,7 @@ export function GeneralTab(props: GeneralTabProps) {
                 <p>
                   C&apos;est nécessaire pour poster dans les salons privés des équipes
                   sans que tu doives ajouter le bot manuellement sur chaque salon. Le bot
-                  ne fait rien d&apos;autre que poster des embeds d&apos;événements —
+                  ne fait rien d&apos;autre que poster des embeds d&apos;événements ,
                   tu peux révoquer son accès à tout moment en le retirant du serveur.
                 </p>
               </div>
@@ -619,7 +619,7 @@ export function GeneralTab(props: GeneralTabProps) {
           </div>
         </div>
 
-        {/* Quick stats — un compteur par jeu de la structure, depuis la registry.
+        {/* Quick stats, un compteur par jeu de la structure, depuis la registry.
             Grille adaptée au nombre de jeux (max 4 par ligne pour rester lisible). */}
         {(() => {
           const cards = ALL_GAME_DEFS
@@ -652,7 +652,7 @@ export function GeneralTab(props: GeneralTabProps) {
           <StorageQuotaCard structureId={activeStructure.id} />
         )}
 
-        {/* Aide rôles & permissions — accessible aux dirigeants pour comprendre
+        {/* Aide rôles & permissions, accessible aux dirigeants pour comprendre
             ce qu'ils donnent quand ils promeuvent un membre. */}
         {isDirigeantOfActive && (
           <button type="button" onClick={() => setRolesHelpOpen(true)}

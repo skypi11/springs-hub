@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   const returnTo = `${origin}/api/auth/steam/callback`;
   const steamUrl = buildSteamLoginUrl(returnTo, origin);
 
-  // Cookies CSRF/state — le callback les lira pour retrouver à quel user
+  // Cookies CSRF/state, le callback les lira pour retrouver à quel user
   // attacher le SteamID retourné par Steam.
   const state = randomBytes(16).toString('hex');
   const res = NextResponse.json({ redirectUrl: steamUrl });
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
   return res;
 }
 
-// Endpoint pour délier Steam — supprime le linkage dans Firestore
+// Endpoint pour délier Steam, supprime le linkage dans Firestore
 export async function DELETE(req: NextRequest) {
   const blocked = await checkRateLimit(limiters.write, rateLimitKey(req));
   if (blocked) return blocked;

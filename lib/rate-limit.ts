@@ -13,7 +13,7 @@ const redis = hasUpstash
     })
   : null;
 
-// Sliding window — plus juste qu'un fixed window pour les rafales en bord de fenêtre.
+// Sliding window, plus juste qu'un fixed window pour les rafales en bord de fenêtre.
 // Préfixes distincts pour ne pas mélanger les compteurs entre profils.
 function makeLimiter(prefix: string, requests: number, window: `${number} ${'s' | 'm' | 'h' | 'd'}`) {
   if (!redis) return null;
@@ -25,7 +25,7 @@ function makeLimiter(prefix: string, requests: number, window: `${number} ${'s' 
   });
 }
 
-// Profils — chacun cible un type d'usage différent
+// Profils, chacun cible un type d'usage différent
 export const limiters = {
   // OAuth callback : très strict (anti-bruteforce + anti-flood comptes)
   oauth: makeLimiter('oauth', 10, '1 m'),
@@ -37,7 +37,7 @@ export const limiters = {
   read: makeLimiter('read', 60, '1 m'),
 };
 
-// Récupère l'IP du client — Vercel met x-forwarded-for, fallback sur x-real-ip
+// Récupère l'IP du client, Vercel met x-forwarded-for, fallback sur x-real-ip
 function getClientIp(req: NextRequest): string {
   const fwd = req.headers.get('x-forwarded-for');
   if (fwd) return fwd.split(',')[0]!.trim();

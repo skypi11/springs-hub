@@ -49,7 +49,7 @@ type DashboardData = {
   totals?: { activeStructures?: number; totalUsers?: number };
 };
 
-// Temps relatif court et lisible — "il y a 3 j", "à l'instant"…
+// Temps relatif court et lisible, "il y a 3 j", "à l'instant"…
 function timeAgo(ms: number): string {
   const diff = Date.now() - ms;
   if (diff < 60_000) return "à l'instant";
@@ -79,7 +79,7 @@ const TYPE_COLOR: Record<NewItem['type'], string> = {
   event: 'var(--s-text-dim)',
 };
 
-// Catégories du radar — ordre = priorité d'attention.
+// Catégories du radar, ordre = priorité d'attention.
 const GROUPS: { key: keyof DashboardGroups; label: string }[] = [
   { key: 'structureRequests', label: 'Demandes de structure' },
   { key: 'users', label: 'Nouveaux inscrits' },
@@ -109,7 +109,7 @@ export default function AdminDashboardPage() {
     );
   }
 
-  // Normalisation défensive — l'API peut renvoyer une réponse partielle.
+  // Normalisation défensive, l'API peut renvoyer une réponse partielle.
   const groups = {
     structureRequests: data.groups?.structureRequests ?? [],
     users: data.groups?.users ?? [],
@@ -141,7 +141,7 @@ export default function AdminDashboardPage() {
 
   return (
     <>
-      {/* ═══ RADAR — depuis la dernière visite ═══ */}
+      {/* ═══ RADAR, depuis la dernière visite ═══ */}
       <section
         className="bevel animate-fade-in relative overflow-hidden"
         style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
@@ -156,7 +156,7 @@ export default function AdminDashboardPage() {
               <p className="text-xs mt-0.5" style={{ color: 'var(--s-text-muted)' }}>
                 {data.lastSeenAt
                   ? `Marqué comme vu ${timeAgo(Date.parse(data.lastSeenAt))}`
-                  : 'Première visite — radar des 7 derniers jours'}
+                  : 'Première visite, radar des 7 derniers jours'}
               </p>
             </div>
             {totalNew > 0 && (

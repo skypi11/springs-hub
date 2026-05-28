@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { Globe } from 'lucide-react';
 
-// Drapeau pays via flagcdn.com — vraie image PNG, rend identiquement sur
+// Drapeau pays via flagcdn.com, vraie image PNG, rend identiquement sur
 // Windows / macOS / Linux / Android (les emojis drapeaux ne sont pas
 // supportés par Segoe UI Emoji sur Windows = affichage "FR" textuel moche).
 //

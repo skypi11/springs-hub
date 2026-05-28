@@ -39,7 +39,7 @@ export default function AdminDiscordPage() {
   const [loading, setLoading] = useState(true);
 
   const [webhookUrl, setWebhookUrl] = useState('');
-  const [message, setMessage] = useState('Test depuis Aedral — si tu vois ce message, le webhook marche.');
+  const [message, setMessage] = useState('Test depuis Aedral, si tu vois ce message, le webhook marche.');
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -181,7 +181,7 @@ export default function AdminDiscordPage() {
       {data.signupsByMonth.length > 0 && (
         <div className="panel p-4">
           <div className="flex items-center gap-2 mb-3">
-            <span className="t-label">Inscriptions — 12 derniers mois</span>
+            <span className="t-label">Inscriptions, 12 derniers mois</span>
           </div>
           <div className="flex items-end gap-1 h-24">
             {data.signupsByMonth.map(m => (
@@ -211,7 +211,7 @@ export default function AdminDiscordPage() {
           <span className="t-label">Canal d&apos;alertes admin</span>
         </div>
         <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-          Le bot poste une alerte — et te ping — dans ce salon du serveur Aedral
+          Le bot poste une alerte, et te ping, dans ce salon du serveur Aedral
           à chaque événement à traiter. Pour l&apos;instant : nouvelle demande de structure.
         </p>
         {data.channels.length === 0 ? (
@@ -230,7 +230,7 @@ export default function AdminDiscordPage() {
               className="settings-input"
               style={{ fontSize: '12px', minWidth: '240px' }}
             >
-              <option value="">— Aucun (alertes désactivées) —</option>
+              <option value="">Aucun (alertes désactivées)</option>
               {data.channels.map(c => (
                 <option key={c.id} value={c.id}>#{c.name} · {c.category}</option>
               ))}
@@ -269,7 +269,7 @@ export default function AdminDiscordPage() {
           <AlertCircle size={14} style={{ color: '#7289da', flexShrink: 0, marginTop: '2px' }} />
           <p className="text-xs" style={{ color: '#7289da' }}>
             L&apos;URL doit être un webhook Discord officiel (<span className="t-mono">discord.com/api/webhooks/…</span>).
-            Rien n&apos;est stocké — c&apos;est juste un test d&apos;envoi ponctuel.
+            Rien n&apos;est stocké, c&apos;est juste un test d&apos;envoi ponctuel.
           </p>
         </div>
 

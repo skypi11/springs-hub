@@ -29,7 +29,7 @@ interface Props {
   items: ReplayListItem[];
   currentUid: string;
   canDeleteAny: boolean;   // dirigeant → peut supprimer les replays de tous
-  // Droits d'édition (titre/notes/score) — soit un boolean global (vue 1-équipe),
+  // Droits d'édition (titre/notes/score), soit un boolean global (vue 1-équipe),
   // soit une fonction par replay (vue bibliothèque cross-équipes : on vérifie
   // l'autorisation par teamId du replay via canUploadReplay).
   canEdit: boolean | ((item: ReplayListItem) => boolean);
@@ -38,7 +38,7 @@ interface Props {
   showEventLink?: boolean; // affiche pill "Event" dans la liste bibliothèque
   eventTitlesById?: Record<string, string>;
   // Map teamId → { name, game } pour afficher une pill équipe en évidence
-  // (bibliothèque cross-équipes — non utilisé en mode event où l'équipe est implicite).
+  // (bibliothèque cross-équipes, non utilisé en mode event où l'équipe est implicite).
   teamLabelById?: Record<string, { name: string; game: string }>;
 }
 
@@ -108,7 +108,7 @@ export default function ReplayList({
         toast.success(
           res.truncated
             ? `${res.succeeded} replays envoyés. Reste ${res.remaining}, reclique pour continuer.`
-            : `${res.succeeded} replay(s) envoyés à ballchasing — parsing en cours.`
+            : `${res.succeeded} replay(s) envoyés à ballchasing, parsing en cours.`
         );
       }
       onChanged();
@@ -160,7 +160,7 @@ export default function ReplayList({
 
   return (
     <>
-    {/* Bouton "activer pour tous" — visible si au moins 1 replay à processer
+    {/* Bouton "activer pour tous", visible si au moins 1 replay à processer
         et si le caller a le droit de upload (proxy raisonnable pour le batch). */}
     {canEditAny && batchCandidates.length > 0 && (
       <div className="flex justify-end mb-2">
@@ -451,7 +451,7 @@ function ReplayEditForm({
           <label className="t-label block mb-1">Résultat</label>
           <select value={result} onChange={e => setResult(e.target.value as 'win' | 'loss' | 'draw' | '')}
             className="settings-input w-full text-sm">
-            <option value="">—</option>
+            <option value="">,</option>
             <option value="win">Victoire</option>
             <option value="loss">Défaite</option>
             <option value="draw">Égalité</option>

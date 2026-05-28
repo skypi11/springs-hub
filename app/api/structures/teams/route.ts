@@ -28,7 +28,7 @@ async function checkStructureAccess(uid: string, structureId: string) {
   return data;
 }
 
-// GET /api/structures/teams?structureId=xxx — lister les équipes d'une structure
+// GET /api/structures/teams?structureId=xxx, lister les équipes d'une structure
 export async function GET(req: NextRequest) {
   try {
     const structureId = req.nextUrl.searchParams.get('structureId');
@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/structures/teams — créer, modifier, supprimer une équipe
+// POST /api/structures/teams, créer, modifier, supprimer une équipe
 export async function POST(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'structureId et action requis' }, { status: 400 });
     }
 
-    // Cap absolu sécurité sur les arrays de membres — au-delà = bug client ou
+    // Cap absolu sécurité sur les arrays de membres, au-delà = bug client ou
     // attaque. Les caps métier (RL 3+2) restent imposés plus bas par jeu.
     // Bloque aussi la croissance illimitée d'un doc Firestore (limite 1 MB).
     const MAX_PLAYERS_PER_TEAM = 50;
@@ -210,7 +210,7 @@ export async function POST(req: NextRequest) {
       if (candidates.length === 0) return { ok: true };
 
       // 2 queries cross-structure via array-contains-any (max 30 valeurs).
-      // Pour RL on a max 3 titulaires + 2 remplaçants = 5 candidats — bien sous 30.
+      // Pour RL on a max 3 titulaires + 2 remplaçants = 5 candidats, bien sous 30.
       const [playerSnap, subSnap] = await Promise.all([
         db.collection('sub_teams')
           .where('game', '==', teamGame)
@@ -322,7 +322,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Calculer l'ordre par défaut : dernier dans son label.
-        // Hard cap 500 — aligné avec le GET, évite scan runaway.
+        // Hard cap 500, aligné avec le GET, évite scan runaway.
         const existingSnap = await db.collection('sub_teams')
           .where('structureId', '==', structureId)
           .limit(500)
@@ -651,7 +651,7 @@ export async function POST(req: NextRequest) {
 
       case 'updateMatchConfig': {
         // Autorisé : admin structure (dirigeant + responsable) OU manager
-        // d'équipe de CETTE équipe précise (validé Matt 2026-05-25 — un manager
+        // d'équipe de CETTE équipe précise (validé Matt 2026-05-25, un manager
         // d'équipe doit pouvoir ajuster son propre consensus).
         if (!teamId) {
           return NextResponse.json({ error: 'teamId requis' }, { status: 400 });

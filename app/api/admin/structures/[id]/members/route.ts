@@ -6,9 +6,9 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
 // GET /api/admin/structures/[id]/members
 // Renvoie la liste complète des membres d'une structure avec leur(s) rôle(s)
-// dérivé(s) — utilisé par l'admin pour avoir un overview rapide.
+// dérivé(s), utilisé par l'admin pour avoir un overview rapide.
 //
-// Marche pour TOUTES les structures (active, suspended, pending, rejected) —
+// Marche pour TOUTES les structures (active, suspended, pending, rejected) ,
 // l'endpoint public /api/structures/[id] bloque pending/suspended donc l'admin
 // n'a pas d'autre moyen de voir les membres d'une structure non active.
 export async function GET(

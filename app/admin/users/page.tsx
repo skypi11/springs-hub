@@ -42,7 +42,7 @@ type UserEntry = {
   isBanned: boolean;
   banReason: string;
   isAdmin: boolean;
-  // RL — anti-mensonge & contexte recrutement
+  // RL, anti-mensonge & contexte recrutement
   rlPlatform?: string;
   rlPlatformId?: string;
   rlRank?: string;
@@ -91,12 +91,12 @@ export default function AdminUsersPage() {
   const [confirmAction, setConfirmAction] = useState<{ userId: string; action: string; label: string } | null>(null);
   const [massLoading, setMassLoading] = useState<null | 'force_disconnect' | 'sync_discord'>(null);
 
-  // ─── Actions de masse — toutes les sessions / sync de tout le serveur ───
+  // ─── Actions de masse, toutes les sessions / sync de tout le serveur ───
   // Cf. docs/rl-rank-verification-plan.md (migration des refresh_token).
   async function handleMassForceDisconnect() {
     const ok = await confirm({
       title: 'Forcer la déconnexion de TOUS les joueurs',
-      message: 'Toutes les sessions Firebase actives vont être révoquées (sauf la tienne). Chaque joueur devra recliquer « Connecter avec Discord » à sa prochaine visite — aucune donnée perdue, juste un re-login. Cette action est journalisée.\n\nUtile pour la migration du refresh_token Discord (sync auto du pseudo Epic).',
+      message: 'Toutes les sessions Firebase actives vont être révoquées (sauf la tienne). Chaque joueur devra recliquer « Connecter avec Discord » à sa prochaine visite, aucune donnée perdue, juste un re-login. Cette action est journalisée.\n\nUtile pour la migration du refresh_token Discord (sync auto du pseudo Epic).',
       variant: 'danger',
       confirmLabel: 'Continuer',
     });
@@ -234,7 +234,7 @@ export default function AdminUsersPage() {
         )}
       </div>
 
-      {/* Actions de masse — boutons admin globaux */}
+      {/* Actions de masse, boutons admin globaux */}
       <div className="panel p-3 flex flex-wrap items-center gap-3"
         style={{ borderColor: 'rgba(255,184,0,0.18)', background: 'rgba(255,184,0,0.03)' }}>
         <Zap size={14} style={{ color: 'var(--s-gold)' }} />
@@ -362,7 +362,7 @@ export default function AdminUsersPage() {
                     <span className="t-mono text-xs truncate" style={{ color: 'var(--s-text-muted)' }}>
                       @{u.discordUsername}
                     </span>
-                    {/* Méta RL — compte vérifié (anti-mensonge) + rang.
+                    {/* Méta RL, compte vérifié (anti-mensonge) + rang.
                         Si pas de rang ni de vérif : on n'affiche rien (silencieux). */}
                     {(u.rlEpicId || u.rlSteamId) && (
                       <span
@@ -380,7 +380,7 @@ export default function AdminUsersPage() {
                         title={
                           (u.rlEpicId || u.rlSteamId)
                             ? `Rang déclaré (compte vérifié)`
-                            : `Rang auto-déclaré sans compte vérifié — à prendre avec précaution`
+                            : `Rang auto-déclaré sans compte vérifié, à prendre avec précaution`
                         }
                         className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5"
                         style={{
@@ -456,7 +456,7 @@ export default function AdminUsersPage() {
                         <div className="flex gap-1">
                           {u.games?.length > 0 ? u.games.map(g => (
                             <GameTag key={g} gameId={g} variant="full" style={{ padding: '1px 6px' }} />
-                          )) : <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>—</span>}
+                          )) : <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>,</span>}
                         </div>
                       </div>
                       <div>
@@ -513,7 +513,7 @@ export default function AdminUsersPage() {
                     </div>
                   </div>
 
-                  {/* Section Rocket League — affichée si l'user a déclaré jouer
+                  {/* Section Rocket League, affichée si l'user a déclaré jouer
                       à RL OU a un compte vérifié (cas legacy : Epic lié avant
                       qu'on coche RL dans games). Permet à l'admin de voir d'un
                       coup l'état de vérification anti-mensonge. */}
@@ -527,7 +527,7 @@ export default function AdminUsersPage() {
                         <div>
                           <span className="t-label block mb-0.5" style={{ color: 'var(--s-text-muted)' }}>Plateforme déclarée</span>
                           <span style={{ color: 'var(--s-text)' }}>
-                            {u.rlPlatform ? u.rlPlatform.toUpperCase() : <em style={{ color: 'var(--s-text-muted)' }}>—</em>}
+                            {u.rlPlatform ? u.rlPlatform.toUpperCase() : <em style={{ color: 'var(--s-text-muted)' }}>,</em>}
                           </span>
                           {u.rlPlatformId && (
                             <span className="block t-mono mt-0.5" style={{ color: 'var(--s-text-dim)' }}>
@@ -542,12 +542,12 @@ export default function AdminUsersPage() {
                               <Trophy size={10} style={{ color: 'var(--s-blue)' }} />
                               {u.rlRank}
                               {!u.rlEpicId && !u.rlSteamId && (
-                                <span title="Rang déclaré sans compte vérifié — méfiance">
+                                <span title="Rang déclaré sans compte vérifié, méfiance">
                                   <AlertTriangle size={10} style={{ color: 'var(--s-gold)' }} />
                                 </span>
                               )}
                             </span>
-                          ) : <em style={{ color: 'var(--s-text-muted)' }}>—</em>}
+                          ) : <em style={{ color: 'var(--s-text-muted)' }}>,</em>}
                         </div>
                         <div>
                           <span className="t-label block mb-0.5" style={{ color: 'var(--s-text-muted)' }}>Epic vérifié</span>
@@ -555,7 +555,7 @@ export default function AdminUsersPage() {
                             <span className="inline-flex items-center gap-1" style={{ color: 'var(--s-gold)' }}>
                               <ShieldCheck size={10} /> {u.rlEpicName || u.rlEpicId.slice(0, 10)}…
                             </span>
-                          ) : <em style={{ color: 'var(--s-text-muted)' }}>—</em>}
+                          ) : <em style={{ color: 'var(--s-text-muted)' }}>,</em>}
                         </div>
                         <div>
                           <span className="t-label block mb-0.5" style={{ color: 'var(--s-text-muted)' }}>Steam vérifié</span>
@@ -563,7 +563,7 @@ export default function AdminUsersPage() {
                             <span className="inline-flex items-center gap-1" style={{ color: 'var(--s-gold)' }}>
                               <ShieldCheck size={10} /> {u.rlSteamName || u.rlSteamId}
                             </span>
-                          ) : <em style={{ color: 'var(--s-text-muted)' }}>—</em>}
+                          ) : <em style={{ color: 'var(--s-text-muted)' }}>,</em>}
                         </div>
                       </div>
                       {u.rlTrackerUrl && (
@@ -588,11 +588,11 @@ export default function AdminUsersPage() {
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                         <div>
                           <span className="t-label block mb-0.5" style={{ color: 'var(--s-text-muted)' }}>Pseudo</span>
-                          <span style={{ color: 'var(--s-text)' }}>{u.pseudoTM || <em style={{ color: 'var(--s-text-muted)' }}>—</em>}</span>
+                          <span style={{ color: 'var(--s-text)' }}>{u.pseudoTM || <em style={{ color: 'var(--s-text-muted)' }}>,</em>}</span>
                         </div>
                         <div>
                           <span className="t-label block mb-0.5" style={{ color: 'var(--s-text-muted)' }}>Login</span>
-                          <span className="t-mono" style={{ color: 'var(--s-text)' }}>{u.loginTM || <em style={{ color: 'var(--s-text-muted)' }}>—</em>}</span>
+                          <span className="t-mono" style={{ color: 'var(--s-text)' }}>{u.loginTM || <em style={{ color: 'var(--s-text-muted)' }}>,</em>}</span>
                         </div>
                         <div>
                           <span className="t-label block mb-0.5" style={{ color: 'var(--s-text-muted)' }}>tm.io</span>
@@ -601,7 +601,7 @@ export default function AdminUsersPage() {
                               className="hover:underline" style={{ color: 'var(--s-green)' }}>
                               Profil →
                             </a>
-                          ) : <em style={{ color: 'var(--s-text-muted)' }}>—</em>}
+                          ) : <em style={{ color: 'var(--s-text-muted)' }}>,</em>}
                         </div>
                       </div>
                     </div>
@@ -635,7 +635,7 @@ export default function AdminUsersPage() {
                             <label className="t-label block mb-1">Pays</label>
                             <select className="settings-input w-full" value={editForm.country}
                               onChange={e => setEditForm(p => ({ ...p, country: e.target.value }))}>
-                              <option value="">—</option>
+                              <option value="">,</option>
                               {countries.map(c => (
                                 <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
                               ))}

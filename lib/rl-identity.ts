@@ -1,15 +1,15 @@
-// Identité Rocket League OFFICIELLE d'un joueur — la source de vérité pour le
+// Identité Rocket League OFFICIELLE d'un joueur, la source de vérité pour le
 // rang vérifié et l'anti-mensonge. Voir docs/rl-rank-verification-plan.md.
 //
 // Deux voies symétriques peuvent fournir l'identité officielle :
-//   1. Epic — `rlEpicId` (snapshot 32-hex de la connexion Epic Discord vérifiée).
+//   1. Epic, `rlEpicId` (snapshot 32-hex de la connexion Epic Discord vérifiée).
 //      C'est la voie principale post-F2P : la progression RL vit sur Epic.
-//   2. Steam — `rlSteamId` (snapshot SteamID64 de la liaison Steam OpenID
+//   2. Steam, `rlSteamId` (snapshot SteamID64 de la liaison Steam OpenID
 //      Aedral, confirmée par le joueur comme étant son compte RL).
 //      Distinct de `steamLinked.steamId64` brut qui ne prouve pas que le
-//      joueur joue RL sur Steam — la confirmation est requise.
+//      joueur joue RL sur Steam, la confirmation est requise.
 //
-// Les deux sont "sticky" — figés une fois posés, modifiables seulement sur
+// Les deux sont "sticky", figés une fois posés, modifiables seulement sur
 // demande admin (voir /admin/rl-link-changes). Le pseudo (`rlEpicName` côté
 // Epic, `rlSteamName` côté Steam) peut, lui, se rafraîchir librement.
 
@@ -57,7 +57,7 @@ export type RlOfficialIdentity =
 
 // True si le user a *au moins une* identité RL officielle (Epic ou Steam).
 // Sert à savoir si on peut afficher son rang ("non renseigné" sinon).
-// Steam pur (steamLinked sans rlSteamId) NE compte pas — il faut une
+// Steam pur (steamLinked sans rlSteamId) NE compte pas, il faut une
 // confirmation explicite que le compte Steam est bien le compte RL.
 export function hasOfficialRlIdentity(
   user: Pick<SpringsUser, 'rlEpicId' | 'rlSteamId'>,

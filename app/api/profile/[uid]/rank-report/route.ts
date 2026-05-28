@@ -1,5 +1,5 @@
 // POST /api/profile/[uid]/rank-report
-// Signaler le rang RL d'un joueur — n'importe quel user connecté peut le faire.
+// Signaler le rang RL d'un joueur, n'importe quel user connecté peut le faire.
 // Voir docs/rl-rank-verification-plan.md (Lot 5 v2).
 //
 // Body : { motif: 'rank_lie' | 'smurf', message?: string }
@@ -96,7 +96,7 @@ export async function POST(
       }, { status: 429 });
     }
 
-    // ── Cooldown 24h par (reporter, target) — réinitialisé par tout changement
+    // ── Cooldown 24h par (reporter, target), réinitialisé par tout changement
     //    de rang du target depuis le dernier signalement ────────────────────
     const cooldownCutoffMs = Date.now() - DAY_MS;
     const rankChangedAtMs = toMillis(target.rlRankChangedAt);

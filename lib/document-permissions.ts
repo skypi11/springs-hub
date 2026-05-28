@@ -1,4 +1,4 @@
-// Permissions documents staff — accès STRICTEMENT réservé au fondateur et cofondateurs.
+// Permissions documents staff, accès STRICTEMENT réservé au fondateur et cofondateurs.
 // Les responsables/coachs/joueurs n'y ont pas accès (contrats, docs sensibles).
 //
 // Garde une signature UserContext (event-permissions) pour compat avec

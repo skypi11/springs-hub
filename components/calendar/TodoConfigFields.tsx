@@ -190,7 +190,7 @@ export function TodoConfigFields({
     );
   }
 
-  // Deprecated 2026-05-26 — gardé pour édition d'anciens exos/templates uniquement.
+  // Deprecated 2026-05-26, gardé pour édition d'anciens exos/templates uniquement.
   // Plus créable via le picker (TODO_TYPES n'inclut plus scouting).
   if (type === 'scouting') {
     return (
@@ -237,7 +237,7 @@ export function TodoConfigFields({
       <div className="space-y-2">
         <div>
           <label className="t-label block mb-1" style={{ fontSize: '12px' }}>
-            Durée cible (minutes) — {FREEPLAY_MIN_MINUTES} à {FREEPLAY_MAX_MINUTES}
+            Durée cible (minutes), {FREEPLAY_MIN_MINUTES} à {FREEPLAY_MAX_MINUTES}
           </label>
           <div className="flex items-center gap-2">
             <input type="number" min={FREEPLAY_MIN_MINUTES} max={FREEPLAY_MAX_MINUTES}
@@ -420,7 +420,7 @@ export function TodoConfigFields({
         </div>
         <div>
           <label className="t-label block mb-1" style={{ fontSize: '12px' }}>
-            Nombre de lineups à apprendre — {LINEUPS_MIN_COUNT} à {LINEUPS_MAX_COUNT}
+            Nombre de lineups à apprendre, {LINEUPS_MIN_COUNT} à {LINEUPS_MAX_COUNT}
           </label>
           <input type="number" min={LINEUPS_MIN_COUNT} max={LINEUPS_MAX_COUNT}
             className="settings-input text-sm" style={{ width: '90px' }}
@@ -460,7 +460,7 @@ export function TodoConfigFields({
         </div>
         <div>
           <label className="t-label block mb-1" style={{ fontSize: '12px' }}>
-            Durée (minutes) — {FREEPLAY_MIN_MINUTES} à {FREEPLAY_MAX_MINUTES}
+            Durée (minutes), {FREEPLAY_MIN_MINUTES} à {FREEPLAY_MAX_MINUTES}
           </label>
           <input type="number" min={FREEPLAY_MIN_MINUTES} max={FREEPLAY_MAX_MINUTES}
             className="settings-input text-sm" style={{ width: '90px' }}
@@ -507,7 +507,7 @@ export function TodoConfigFields({
       <div className="space-y-2">
         <div>
           <label className="t-label block mb-1" style={{ fontSize: '12px' }}>
-            Durée totale (minutes) — {WARMUP_MIN_MINUTES} à {WARMUP_MAX_MINUTES}
+            Durée totale (minutes), {WARMUP_MIN_MINUTES} à {WARMUP_MAX_MINUTES}
           </label>
           <input type="number" min={WARMUP_MIN_MINUTES} max={WARMUP_MAX_MINUTES}
             className="settings-input text-sm" style={{ width: '90px' }}

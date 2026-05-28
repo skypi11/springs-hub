@@ -45,7 +45,7 @@ export default function StorageQuotaCard({ structureId }: { structureId: string 
     staleTime: 30_000,
   });
 
-  // Quota stats ballchasing (hebdo) — fetch indépendant, non bloquant pour le rendu.
+  // Quota stats ballchasing (hebdo), fetch indépendant, non bloquant pour le rendu.
   const bcQuotaQuery = useQuery({
     queryKey: ['structure-bc-quota', structureId],
     queryFn: () => api<BcQuota>(`/api/structures/${structureId}/ballchasing-quota`),

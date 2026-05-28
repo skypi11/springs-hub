@@ -1,5 +1,5 @@
-// Helpers purs pour les exercices (v2 — types structurés).
-// Pas d'accès Firestore ici — toute la logique testable en isolation.
+// Helpers purs pour les exercices (v2, types structurés).
+// Pas d'accès Firestore ici, toute la logique testable en isolation.
 
 export const TODO_TITLE_MAX = 120;
 export const TODO_DESCRIPTION_MAX = 2000;
@@ -19,24 +19,24 @@ export const TODO_RESPONSE_MAX = 4000;
 //   - leurs labels/metas restent dans TODO_TYPE_META
 
 export type TodoType =
-  | 'free'            // Tâche libre (fallback historique) — CROSS-JEUX
-  | 'replay_review'   // Visionnage replay RL avec analyse — RL only
-  | 'training_pack'   // Training pack RL avec code + objectif — RL only
-  | 'workshop_map'    // Map Steam Workshop (passing, dribbles, etc.) — RL/CS principalement
-  | 'free_play'       // Pratique libre chronométrée avec focus — RL surtout
-  | 'vod_review'      // Visionnage VOD externe (YouTube/Twitch) + analyse — CROSS-JEUX
-  | 'mental_checkin'  // Auto-évaluation rapide mental/fitness — CROSS-JEUX
+  | 'free'            // Tâche libre (fallback historique), CROSS-JEUX
+  | 'replay_review'   // Visionnage replay RL avec analyse, RL only
+  | 'training_pack'   // Training pack RL avec code + objectif, RL only
+  | 'workshop_map'    // Map Steam Workshop (passing, dribbles, etc.), RL/CS principalement
+  | 'free_play'       // Pratique libre chronométrée avec focus, RL surtout
+  | 'vod_review'      // Visionnage VOD externe (YouTube/Twitch) + analyse, CROSS-JEUX
+  | 'mental_checkin'  // Auto-évaluation rapide mental/fitness, CROSS-JEUX
   // FPS / Valorant (ajoutés 2026-05-27)
   | 'aim_trainer'     // Session Aimlabs/Kovaak's/Range Val avec scénario + score cible
   | 'lineups'         // Apprendre des lineups smokes/flashs par agent par map
   | 'custom_game'     // Custom 1v1 aim duels, 5v5 scrim custom
-  | 'warmup_routine'  // Routine warm-up structurée avant scrim/match — CROSS-JEUX
-  // Deprecated 2026-05-26 — gardés pour rétrocompat lecture, plus créables
+  | 'warmup_routine'  // Routine warm-up structurée avant scrim/match, CROSS-JEUX
+  // Deprecated 2026-05-26, gardés pour rétrocompat lecture, plus créables
   | 'scouting'
   | 'watch_party';
 
 /** Types canonical exposés dans le picker UI (création nouveaux exos/templates).
- * Filtré par jeu via GameDef.availableTodoTypes côté NewTodoForm — la liste
+ * Filtré par jeu via GameDef.availableTodoTypes côté NewTodoForm, la liste
  * complète ici sert de référence pour la validation server-side (qui accepte
  * tous les types canoniques, peu importe le jeu). */
 export const TODO_TYPES: readonly TodoType[] = [
@@ -54,10 +54,10 @@ export const TODO_TYPES: readonly TodoType[] = [
   'warmup_routine',
 ];
 
-/** Types deprecated — acceptés en lecture pour les anciens docs, pas en création. */
+/** Types deprecated, acceptés en lecture pour les anciens docs, pas en création. */
 export const DEPRECATED_TODO_TYPES: readonly TodoType[] = ['scouting', 'watch_party'];
 
-/** Union complète (canonical + deprecated) — utilisé par les validateurs. */
+/** Union complète (canonical + deprecated), utilisé par les validateurs. */
 export const TODO_TYPES_ALL: readonly TodoType[] = [...TODO_TYPES, ...DEPRECATED_TODO_TYPES];
 
 // Métadonnées affichage par type (source de vérité unique, UI + éventuels rapports).
@@ -74,7 +74,7 @@ export const TODO_TYPE_META: Record<TodoType, { label: string; short: string; ne
   lineups:        { label: 'Lineups',              short: 'Lineups',   needsResponse: true  },
   custom_game:    { label: 'Custom game',          short: 'Custom',    needsResponse: true  },
   warmup_routine: { label: 'Routine warm-up',      short: 'Warm-up',   needsResponse: false },
-  // Deprecated — affichage maintenu pour les anciens docs uniquement
+  // Deprecated, affichage maintenu pour les anciens docs uniquement
   scouting:       { label: 'Analyse adversaire',   short: 'Scouting',  needsResponse: true  },
   watch_party:    { label: 'Watch party',          short: 'Watch',     needsResponse: false },
 };
@@ -84,15 +84,15 @@ export const TODO_TYPE_META: Record<TodoType, { label: string; short: string; ne
 
 export interface ReplayReviewConfig {
   // Multi-replays (BO5 = plusieurs games à regarder). On garde aussi
-  // l'ancien `replayId` pour rétrocompat des vieux todos en base — au runtime,
+  // l'ancien `replayId` pour rétrocompat des vieux todos en base, au runtime,
   // on lit replayIds en priorité, fallback sur [replayId] si présent.
   replayIds: string[];       // refs vers structure_replays
-  replayId?: string | null;  // @deprecated — vieux format mono-replay
+  replayId?: string | null;  // @deprecated, vieux format mono-replay
   replayNote: string;        // "Regarde à 2:15, notre rotation défensive"
 }
 export interface TrainingPackItem {
   code: string;              // ex "A503-264B-9D4C-E4F7"
-  objective: string;         // "80% sans rater de reset" — optionnel, spécifique à ce pack
+  objective: string;         // "80% sans rater de reset", optionnel, spécifique à ce pack
 }
 export interface TrainingPackConfig {
   packs: TrainingPackItem[]; // au moins 1 pack à la création, max TRAINING_PACKS_MAX
@@ -200,7 +200,7 @@ export type TodoResponse =
   | ({ type: 'lineups' } & LineupsResponse)
   | ({ type: 'custom_game' } & CustomGameResponse);
 
-// ---------- EXERCICES MULTI-STEPS (v3 — 2026-05-26) ----------
+// ---------- EXERCICES MULTI-STEPS (v3, 2026-05-26) ----------
 //
 // Un exercice n'est plus un type+config unique mais une LISTE de steps,
 // chaque step ayant son propre type/config/réponse/état completed.
@@ -347,18 +347,18 @@ export interface TodoRef {
   type: TodoType;
   title: string;
   description: string;
-  config: Record<string, unknown>; // sérialisé tel quel depuis Firestore (legacy — vide pour les exos multi-step)
+  config: Record<string, unknown>; // sérialisé tel quel depuis Firestore (legacy, vide pour les exos multi-step)
   response: Record<string, unknown> | null;
   // Nouveau format multi-steps (2026-05-26). Si absent, l'exo est un legacy
   // single-type wrap automatiquement en 1 step via getSteps().
   steps?: ExerciseStep[];
   eventId: string | null;
-  deadline: string | null;  // "YYYY-MM-DD" ou null — jour de la deadline en heure Paris (pour affichage + tri secondaire)
-  deadlineAt: number | null; // ms epoch — moment exact où la deadline tombe (source de vérité pour isOverdue/tri)
+  deadline: string | null;  // "YYYY-MM-DD" ou null, jour de la deadline en heure Paris (pour affichage + tri secondaire)
+  deadlineAt: number | null; // ms epoch, moment exact où la deadline tombe (source de vérité pour isOverdue/tri)
   deadlineMode: DeadlineMode | null;  // null = pas de deadline ; 'absolute' = fixée ; 'relative' = calée sur event.startsAt
-  deadlineOffsetDays: number | null;  // uniquement si mode='relative' — N jours autour de event.startsAt (0 = au début de l'event)
+  deadlineOffsetDays: number | null;  // uniquement si mode='relative', N jours autour de event.startsAt (0 = au début de l'event)
   done: boolean;            // calculé = tous les steps completed (maintenu top-level pour le tri/count rapide)
-  doneAt: number | null;    // ms epoch — instant où le dernier step a été coché
+  doneAt: number | null;    // ms epoch, instant où le dernier step a été coché
   doneBy: string | null;
   // Verrouillage v3 : une fois lockedAt set, le joueur ne peut plus modifier ses
   // réponses ni décocher de steps. Action explicite via "Verrouiller l'exercice"
@@ -401,8 +401,8 @@ export interface ValidatedTodoInput {
   description: string;
   config: Record<string, unknown>;
   eventId: string | null;
-  deadline: string | null;   // YMD Paris — pour absolute, calculé côté API pour relative
-  deadlineAt: number | null; // ms epoch — idem : null pour relative (API calcule depuis event.startsAt)
+  deadline: string | null;   // YMD Paris, pour absolute, calculé côté API pour relative
+  deadlineAt: number | null; // ms epoch, idem : null pour relative (API calcule depuis event.startsAt)
   deadlineMode: DeadlineMode | null;
   deadlineOffsetDays: number | null;
   postToChannel: boolean;    // true = publier aussi dans le channel Discord de l'équipe (visible par tous).
@@ -841,7 +841,7 @@ export function validateCreateTodo(
   // Deadline : deux modes.
   //  - 'absolute' : YYYY-MM-DD fournie directement → deadlineAt = fin de journée Paris de cette date.
   //  - 'relative' : offset en jours appliqué à event.startsAt → nécessite eventId. La valeur concrète
-  //    est calculée côté API (accès DB pour lire startsAt), pas ici — donc deadline/deadlineAt null.
+  //    est calculée côté API (accès DB pour lire startsAt), pas ici, donc deadline/deadlineAt null.
   let deadlineMode: DeadlineMode | null = null;
   let deadlineOffsetDays: number | null = null;
   let deadline: string | null = null;
@@ -862,7 +862,7 @@ export function validateCreateTodo(
     }
     deadlineMode = 'relative';
     deadlineOffsetDays = off;
-    // deadline / deadlineAt restent null ici — l'API les calcule via computeRelativeDeadlineAt().
+    // deadline / deadlineAt restent null ici, l'API les calcule via computeRelativeDeadlineAt().
   } else if (input.deadline !== undefined && input.deadline !== null && input.deadline !== '') {
     if (!isValidYmd(input.deadline)) {
       return { ok: false, error: 'Deadline invalide (format attendu YYYY-MM-DD).' };

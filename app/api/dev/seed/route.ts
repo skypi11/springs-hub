@@ -3,14 +3,14 @@ import { getAdminDb, getAdminAuth } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp, type WriteBatch } from 'firebase-admin/firestore';
 import { DEV_UIDS, DEV_STRUCTURE_ID } from '@/lib/dev-seed-constants';
 
-// POST /api/dev/seed — peuple Firestore avec une structure de démo "Phoenix Esports"
+// POST /api/dev/seed, peuple Firestore avec une structure de démo "Phoenix Esports"
 // (RL only, ~15 équipes actives + 2 archivées, staff complet, calendrier riche,
 // exercices variés, join requests, historique membre). Pensé pour impressionner lors
 // d'une présentation sans avoir à naviguer une structure vide.
 // Dev-only : bloqué en production. Tous les documents créés portent `isDev: true`
 // pour permettre un cleanup en un appel via /api/dev/cleanup.
 
-// ---------- IDs d'équipes — stables pour faciliter le debug en console Firestore ----------
+// ---------- IDs d'équipes, stables pour faciliter le debug en console Firestore ----------
 const TEAM_MAIN = 'dev_team_rl_main';
 const TEAM_ACADEMY = 'dev_team_rl_academy';
 const TEAM_BTEAM = 'dev_team_rl_bteam';
@@ -38,8 +38,8 @@ type UserSeed = {
   rlMmr?: number;
 };
 
-// Staff — strictement les 6 rôles reconnus par le site.
-// Pas de "analyste", "head coach", "manager Féminine" etc. — ces titres n'existent pas.
+// Staff, strictement les 6 rôles reconnus par le site.
+// Pas de "analyste", "head coach", "manager Féminine" etc., ces titres n'existent pas.
 const STAFF: UserSeed[] = [
   { uid: DEV_UIDS.founder,         displayName: 'Matt Phoenix',   username: 'matt_phx' },
   { uid: DEV_UIDS.cofounder,       displayName: 'Luca Bernard',   username: 'luca_phx' },
@@ -49,7 +49,7 @@ const STAFF: UserSeed[] = [
   { uid: DEV_UIDS.teamCoach,       displayName: 'Thomas Leclerc', username: 'thomas_phx' },
 ];
 
-// Joueurs — alias gamer crédibles. rlRank varie par tier d'équipe.
+// Joueurs, alias gamer crédibles. rlRank varie par tier d'équipe.
 const PLAYERS: UserSeed[] = [
   // Main (GC / SSL)
   { uid: DEV_UIDS.rlEliteCaptain,   displayName: 'Zephyr',     username: 'zephyr',     rlRank: 'Super Sonic Legend', rlMmr: 1680 },
@@ -132,7 +132,7 @@ const PLAYERS: UserSeed[] = [
   { uid: DEV_UIDS.admin,            displayName: 'Admin Springs', username: 'admin_springs' },
 ];
 
-// Recrues libres — pas membres de la structure, visibles dans l'annuaire.
+// Recrues libres, pas membres de la structure, visibles dans l'annuaire.
 const RECRUITS: UserSeed[] = [
   { uid: DEV_UIDS.recruit1, displayName: 'Tempest', username: 'tempest_rl', rlRank: 'Grand Champion I',  rlMmr: 1400 },
   { uid: DEV_UIDS.recruit2, displayName: 'Hollow',  username: 'hollow_rl',  rlRank: 'Champion III',      rlMmr: 1310 },
@@ -157,7 +157,7 @@ type TeamSeed = {
 };
 
 const TEAMS: TeamSeed[] = [
-  // Groupe 0 — Senior compétitif
+  // Groupe 0, Senior compétitif
   {
     id: TEAM_MAIN, name: 'Main', label: 'Senior compétitif', order: 0, groupOrder: 0, status: 'active',
     playerIds: [DEV_UIDS.rlEliteCaptain, DEV_UIDS.rlEliteP1, DEV_UIDS.rlEliteP2],
@@ -186,7 +186,7 @@ const TEAMS: TeamSeed[] = [
     staffIds: [DEV_UIDS.teamCoach],
     staffRoles: { [DEV_UIDS.teamCoach]: 'coach' },
   },
-  // Groupe 1 — Féminin
+  // Groupe 1, Féminin
   {
     id: TEAM_FEM_MAIN, name: 'Féminine Main', label: 'Féminin', order: 0, groupOrder: 1, status: 'active',
     playerIds: [DEV_UIDS.rlFemMainCaptain, DEV_UIDS.rlFemMainP1, DEV_UIDS.rlFemMainP2],
@@ -206,7 +206,7 @@ const TEAMS: TeamSeed[] = [
     staffIds: [DEV_UIDS.coachStructure],
     staffRoles: { [DEV_UIDS.coachStructure]: 'coach' },
   },
-  // Groupe 2 — Relève jeunes
+  // Groupe 2, Relève jeunes
   {
     id: TEAM_JUNIOR, name: 'Junior', label: 'Relève jeunes', order: 0, groupOrder: 2, status: 'active',
     playerIds: [DEV_UIDS.rlJuniorCaptain, DEV_UIDS.rlJuniorP1, DEV_UIDS.rlJuniorP2],
@@ -234,7 +234,7 @@ const TEAMS: TeamSeed[] = [
     staffIds: [DEV_UIDS.coachStructure],
     staffRoles: { [DEV_UIDS.coachStructure]: 'coach' },
   },
-  // Groupe 3 — Divisions régionales
+  // Groupe 3, Divisions régionales
   {
     id: TEAM_NORTH, name: 'North Division', label: 'Divisions régionales', order: 0, groupOrder: 3, status: 'active',
     playerIds: [DEV_UIDS.rlNorthCaptain, DEV_UIDS.rlNorthP1, DEV_UIDS.rlNorthP2],
@@ -259,7 +259,7 @@ const TEAMS: TeamSeed[] = [
     staffIds: [DEV_UIDS.coachStructure],
     staffRoles: { [DEV_UIDS.coachStructure]: 'coach' },
   },
-  // Groupe 4 — Amateur & spécialisé
+  // Groupe 4, Amateur & spécialisé
   {
     id: TEAM_AMATEUR, name: 'Amateurs', label: 'Amateur & spécialisé', order: 0, groupOrder: 4, status: 'active',
     playerIds: [DEV_UIDS.rlAmateurCaptain, DEV_UIDS.rlAmateurP1, DEV_UIDS.rlAmateurP2],
@@ -329,7 +329,7 @@ function allStructureMemberUids(): string[] {
   return Array.from(ids);
 }
 
-// Commit batch et repartir — évite la limite de 500 ops par batch.
+// Commit batch et repartir, évite la limite de 500 ops par batch.
 async function flush(batchRef: { current: WriteBatch; count: number }, db: FirebaseFirestore.Firestore) {
   if (batchRef.count === 0) return;
   await batchRef.current.commit();
@@ -361,7 +361,7 @@ export async function POST() {
   const adminAuth = getAdminAuth();
   const batchRef = { current: db.batch(), count: 0 };
 
-  // 1) Firebase Auth — crée les comptes manquants (séquentiel, tolère 'auth/uid-already-exists').
+  // 1) Firebase Auth, crée les comptes manquants (séquentiel, tolère 'auth/uid-already-exists').
   const allSeeds: UserSeed[] = [...STAFF, ...PLAYERS, ...RECRUITS];
   for (const u of allSeeds) {
     try {
@@ -370,7 +370,7 @@ export async function POST() {
       try {
         await adminAuth.createUser({ uid: u.uid, displayName: u.displayName });
       } catch {
-        // ignore — probablement créé en parallèle
+        // ignore, probablement créé en parallèle
       }
     }
   }
@@ -427,13 +427,13 @@ export async function POST() {
     addedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
 
-  // 5) Structure "Phoenix Esports" — RL only
+  // 5) Structure "Phoenix Esports", RL only
   await write(batchRef, db, db.collection('structures').doc(DEV_STRUCTURE_ID), {
     name: 'Phoenix Esports',
     tag: 'PHX',
     logoUrl: '',
     coverUrl: '',
-    description: "Structure esport française, créée en 2022. Spécialisée Rocket League, avec 15+ équipes réparties du niveau amateur au GC/SSL. Formation, scouting, content — tout sous le même toit.",
+    description: "Structure esport française, créée en 2022. Spécialisée Rocket League, avec 15+ équipes réparties du niveau amateur au GC/SSL. Formation, scouting, content, tout sous le même toit.",
     games: ['rocket_league'],
     founderId: DEV_UIDS.founder,
     coFounderIds: [DEV_UIDS.cofounder],
@@ -457,7 +457,7 @@ export async function POST() {
     updatedAt: FieldValue.serverTimestamp(),
   });
 
-  // 6) structure_members + historique — 1 membre par UID structure
+  // 6) structure_members + historique, 1 membre par UID structure
   const memberUids = allStructureMemberUids();
   for (const uid of memberUids) {
     const role = uid === DEV_UIDS.founder ? 'fondateur'
@@ -485,7 +485,7 @@ export async function POST() {
     });
   }
 
-  // 6bis) Historique de membres partis — montre que la structure a un passé
+  // 6bis) Historique de membres partis, montre que la structure a un passé
   const D_MS = 86_400 * 1000;
   const nowMs = Date.now();
   const pastLeavers: { uid: string; displayName: string; joinedOffsetDays: number; leftOffsetDays: number; reason: string }[] = [
@@ -528,7 +528,7 @@ export async function POST() {
     });
   }
 
-  // 8) Événements — mix passé/futur, variés par type
+  // 8) Événements, mix passé/futur, variés par type
   const H = 3600 * 1000;
   const ts = (offsetMs: number) => Timestamp.fromMillis(nowMs + offsetMs);
 
@@ -547,7 +547,7 @@ export async function POST() {
   };
 
   const events: EventSeed[] = [
-    // Passé terminé — Main
+    // Passé terminé, Main
     {
       id: 'dev_ev_main_scrim_past',
       title: 'Scrim vs Ombre Nine',
@@ -561,7 +561,7 @@ export async function POST() {
       compteRendu: '8W / 4L sur 12 maps. Bonne session, rotations propres en 2e mi-temps. MVP : Zephyr.',
       aTravailler: 'Reset 3e homme sur dégagements offensifs, communication d\'engagement.',
     },
-    // Passé terminé — Academy
+    // Passé terminé, Academy
     {
       id: 'dev_ev_acad_training_past',
       title: 'Training rotations',
@@ -574,7 +574,7 @@ export async function POST() {
       compteRendu: 'Focus sur les rotations défensives 2e homme. Echo a bien progressé, Drift encore en retard sur les timings.',
       aTravailler: 'Timings de rotation post-kickoff.',
     },
-    // Passé terminé — Féminine Main
+    // Passé terminé, Féminine Main
     {
       id: 'dev_ev_fem_match_past',
       title: 'Match Ligue Féminine J4',
@@ -588,7 +588,7 @@ export async function POST() {
       compteRendu: 'Victoire 4-2. Aria énorme en défense. Le résultat nous qualifie pour les playoffs.',
       aTravailler: 'Préparation playoffs : BO7 à anticiper.',
     },
-    // Futur — Main
+    // Futur, Main
     {
       id: 'dev_ev_main_training',
       title: 'Training mécaniques + kickoffs',
@@ -612,7 +612,7 @@ export async function POST() {
     },
     {
       id: 'dev_ev_main_match',
-      title: 'Match qualif — RLCS Tier 1',
+      title: 'Match qualif, RLCS Tier 1',
       type: 'match',
       teamId: TEAM_MAIN,
       createdBy: DEV_UIDS.teamManager,
@@ -621,7 +621,7 @@ export async function POST() {
       adversaire: 'Karmic Legion',
       status: 'scheduled',
     },
-    // Futur — Academy
+    // Futur, Academy
     {
       id: 'dev_ev_acad_training',
       title: 'Training défense 2v3',
@@ -643,7 +643,7 @@ export async function POST() {
       adversaire: 'Lumina Academy',
       status: 'scheduled',
     },
-    // Futur — B-Team
+    // Futur, B-Team
     {
       id: 'dev_ev_bteam_training',
       title: 'Training aérien + flips',
@@ -654,7 +654,7 @@ export async function POST() {
       endsAt: ts(24 * H + 4 * H + 90 * 60 * 1000),
       status: 'scheduled',
     },
-    // Futur — Féminine
+    // Futur, Féminine
     {
       id: 'dev_ev_fem_training',
       title: 'Training pré-playoffs',
@@ -667,7 +667,7 @@ export async function POST() {
     },
     {
       id: 'dev_ev_fem_match',
-      title: 'Match Ligue Féminine — Playoffs',
+      title: 'Match Ligue Féminine, Playoffs',
       type: 'match',
       teamId: TEAM_FEM_MAIN,
       createdBy: DEV_UIDS.teamManager,
@@ -686,10 +686,10 @@ export async function POST() {
       endsAt: ts(24 * H + 8 * H),
       status: 'scheduled',
     },
-    // Futur — Jeunes
+    // Futur, Jeunes
     {
       id: 'dev_ev_junior_training',
-      title: 'Training Junior — rotations',
+      title: 'Training Junior, rotations',
       type: 'training',
       teamId: TEAM_JUNIOR,
       createdBy: DEV_UIDS.coachStructure,
@@ -717,7 +717,7 @@ export async function POST() {
       endsAt: ts(4 * 24 * H + 3 * H + 30 * 60 * 1000),
       status: 'scheduled',
     },
-    // Futur — Régional
+    // Futur, Régional
     {
       id: 'dev_ev_north_training',
       title: 'Training North Division',
@@ -739,10 +739,10 @@ export async function POST() {
       adversaire: 'Team Crescent',
       status: 'scheduled',
     },
-    // Futur — Amateur/Content
+    // Futur, Amateur/Content
     {
       id: 'dev_ev_content_session',
-      title: 'Session content — Freestyle stream',
+      title: 'Session content, Freestyle stream',
       type: 'autre',
       teamId: TEAM_CONTENT,
       createdBy: DEV_UIDS.rlContentCaptain,
@@ -750,10 +750,10 @@ export async function POST() {
       endsAt: ts(24 * H + 10 * H),
       status: 'scheduled',
     },
-    // Futur — Scouting watch party
+    // Futur, Scouting watch party
     {
       id: 'dev_ev_scouting_watch',
-      title: 'Watch party — RLCS EU finale',
+      title: 'Watch party, RLCS EU finale',
       type: 'autre',
       teamId: TEAM_SCOUTING,
       createdBy: DEV_UIDS.coachStructure,
@@ -807,7 +807,7 @@ export async function POST() {
     }
   }
 
-  // 9) Exercices — mix de types + statuts
+  // 9) Exercices, mix de types + statuts
   type TodoSeed = {
     id: string;
     teamId: string;
@@ -827,9 +827,9 @@ export async function POST() {
       id: 'dev_todo_main_replay', teamId: TEAM_MAIN,
       assigneeId: DEV_UIDS.rlEliteCaptain,
       type: 'replay_review',
-      title: 'Replay scrim vs Ombre Nine — Map 7',
+      title: 'Replay scrim vs Ombre Nine, Map 7',
       description: 'Regarde la map 7, focus sur nos rotations défensives en 2e mi-temps (minutes 3:40 → 4:20).',
-      config: { replayId: null, replayNote: 'Map 7 — zoom sur les rotations 3e homme.' },
+      config: { replayId: null, replayNote: 'Map 7, zoom sur les rotations 3e homme.' },
       deadlineOffsetDays: 1,
       createdBy: DEV_UIDS.teamCoach,
     },
@@ -837,7 +837,7 @@ export async function POST() {
       id: 'dev_todo_main_training', teamId: TEAM_MAIN,
       assigneeId: DEV_UIDS.rlEliteP1,
       type: 'training_pack',
-      title: 'Training pack — Air dribbles niveau 2',
+      title: 'Training pack, Air dribbles niveau 2',
       description: 'Trois passes minimum sur chaque pack, objectif 70% de réussite.',
       config: {
         packs: [
@@ -852,7 +852,7 @@ export async function POST() {
       id: 'dev_todo_main_vod_done', teamId: TEAM_MAIN,
       assigneeId: DEV_UIDS.rlEliteP2,
       type: 'vod_review',
-      title: 'VOD pros — Karmine Corp vs BDS',
+      title: 'VOD pros, Karmine Corp vs BDS',
       description: 'Focus sur le positionnement en challenge. Noter 3 situations intéressantes.',
       config: { url: 'https://www.youtube.com/watch?v=demo', focus: 'Positionnement 2e homme en challenge.' },
       deadlineOffsetDays: -1,
@@ -864,7 +864,7 @@ export async function POST() {
       id: 'dev_todo_acad_mental_done', teamId: TEAM_ACADEMY,
       assigneeId: DEV_UIDS.rlAcademyCaptain,
       type: 'mental_checkin',
-      title: 'Check-in mental — avant scrim',
+      title: 'Check-in mental, avant scrim',
       description: 'Prends 2 min pour noter ton état avant la session.',
       config: { prompts: ['Humeur', 'Énergie', 'Motivation'] },
       deadlineOffsetDays: -1,
@@ -878,7 +878,7 @@ export async function POST() {
       type: 'replay_review',
       title: 'Replay training rotations',
       description: 'Noter où tu as eu 3 joueurs côté droit. Focus sur la Map 3.',
-      config: { replayId: null, replayNote: 'Map 3 — minutes 1:30 à 2:30.' },
+      config: { replayId: null, replayNote: 'Map 3, minutes 1:30 à 2:30.' },
       deadlineOffsetDays: 2,
       createdBy: DEV_UIDS.teamCoach,
     },
@@ -886,7 +886,7 @@ export async function POST() {
       id: 'dev_todo_fem_scouting', teamId: TEAM_FEM_MAIN,
       assigneeId: DEV_UIDS.rlFemMainCaptain,
       type: 'scouting',
-      title: 'Scouting Nyx Féminine — playoffs',
+      title: 'Scouting Nyx Féminine, playoffs',
       description: 'Regarder leurs 3 derniers matchs. Identifier faiblesses en défense et leur kickoff préféré.',
       config: { opponent: 'Nyx Féminine' },
       deadlineOffsetDays: 3,
@@ -906,7 +906,7 @@ export async function POST() {
       id: 'dev_todo_junior_training', teamId: TEAM_JUNIOR,
       assigneeId: DEV_UIDS.rlJuniorP1,
       type: 'training_pack',
-      title: 'Training pack — Fundamentals',
+      title: 'Training pack, Fundamentals',
       description: 'Pack rotations de base, 30 min par jour pendant 3 jours.',
       config: {
         packs: [{ code: 'C782-1234-5678-ABCD', objective: 'Rotations fluides sans temps mort' }],
@@ -918,7 +918,7 @@ export async function POST() {
       id: 'dev_todo_u16_mental', teamId: TEAM_U16,
       assigneeId: DEV_UIDS.rlU16Captain,
       type: 'mental_checkin',
-      title: 'Check-in — gestion frustration',
+      title: 'Check-in, gestion frustration',
       description: 'On fait le point sur les dernières sessions. Prends le temps de répondre honnêtement.',
       config: { prompts: ['Humeur', 'Confiance', 'Envie de jouer'] },
       deadlineOffsetDays: 1,
@@ -978,7 +978,7 @@ export async function POST() {
     });
   }
 
-  // 10) Join requests — recrues candidates vers différentes équipes
+  // 10) Join requests, recrues candidates vers différentes équipes
   const joinRequests: { id: string; uid: string; message: string }[] = [
     { id: 'dev_jr_recruit1', uid: DEV_UIDS.recruit1, message: 'Bonjour, GC1 dispo tous les soirs + weekends. J\'aimerais postuler à la Main/Academy.' },
     { id: 'dev_jr_recruit2', uid: DEV_UIDS.recruit2, message: 'C3 stable, 2 ans d\'expérience scrim, je cherche une structure sérieuse.' },

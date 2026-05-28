@@ -1,7 +1,7 @@
 // POST /api/profile/rl-epic-link/change-request
 // Le joueur demande à changer le compte Epic officiel lié à son profil.
 // Pré-requis : il a déjà mis à jour SA connexion Discord pour pointer vers le
-// nouveau compte Epic — on capture cette nouvelle connexion comme "requested".
+// nouveau compte Epic, on capture cette nouvelle connexion comme "requested".
 // L'admin valide/refuse via /admin/rl-link-changes.
 // Voir docs/rl-rank-verification-plan.md (Lot 6).
 
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     const currentEpicId = user.rlEpicId as string | undefined;
     if (!isValidEpicId(currentEpicId)) {
       return NextResponse.json({
-        error: "Tu n'as pas de compte Epic officiel lié — il n'y a rien à changer.",
+        error: "Tu n'as pas de compte Epic officiel lié, il n'y a rien à changer.",
       }, { status: 400 });
     }
 
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
       .limit(5).get();
     if (pending.docs.some(d => (d.data().platform || 'epic') === 'epic')) {
       return NextResponse.json({
-        error: 'Tu as déjà une demande de changement Epic en attente. Patiente — l\'admin va la traiter.',
+        error: 'Tu as déjà une demande de changement Epic en attente. Patiente, l\'admin va la traiter.',
       }, { status: 409 });
     }
 

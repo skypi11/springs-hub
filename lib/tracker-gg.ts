@@ -1,4 +1,4 @@
-// Tracker.gg — résolution Epic Games
+// Tracker.gg, résolution Epic Games
 // L'API publique accepte aussi bien un display name qu'un Epic Account ID.
 // On l'appelle avec ce que l'utilisateur a tapé pour récupérer le `platformUserId`
 // (l'ID Epic permanent qui ne change jamais), puis on le stocke en base.
@@ -24,7 +24,7 @@ export async function resolveEpicAccount(input: string): Promise<EpicResolved | 
   try {
     const res = await fetch(`${TRN_BASE}/epic/${encodeURIComponent(trimmed)}`, {
       headers: { 'TRN-Api-Key': apiKey },
-      // Pas de cache — on veut une résolution fraîche au moment de la sauvegarde
+      // Pas de cache, on veut une résolution fraîche au moment de la sauvegarde
       cache: 'no-store',
     });
     if (!res.ok) return null;

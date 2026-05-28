@@ -1,4 +1,4 @@
-// Alertes admin Discord — poste dans un salon configuré du serveur Aedral
+// Alertes admin Discord, poste dans un salon configuré du serveur Aedral
 // quand un événement réclame l'attention d'un admin (nouvelle demande de
 // structure, etc.). Fire-and-forget : ne fait JAMAIS échouer le flux appelant.
 
@@ -6,7 +6,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 
 const DISCORD_API = 'https://discord.com/api/v10';
-// Serveur Discord communautaire officiel Aedral — le bot y est présent.
+// Serveur Discord communautaire officiel Aedral, le bot y est présent.
 export const AEDRAL_GUILD_ID = '1498052178143875153';
 // Doc Firestore portant la config des alertes (channel choisi par l'admin).
 const CONFIG_DOC_PATH = 'app_config/discord_alerts';
@@ -26,7 +26,7 @@ export async function setAdminAlertChannelId(db: Firestore, channelId: string | 
   await db.doc(CONFIG_DOC_PATH).set({ adminAlertChannelId: channelId ?? null }, { merge: true });
 }
 
-// Snowflakes Discord des admins — UID au format `discord_SNOWFLAKE`. Les admins
+// Snowflakes Discord des admins, UID au format `discord_SNOWFLAKE`. Les admins
 // ajoutés via le panel sont des comptes Discord, donc on peut les mentionner.
 async function adminDiscordIds(db: Firestore): Promise<string[]> {
   try {
@@ -48,7 +48,7 @@ export type AdminAlertInput = {
 };
 
 // Poste une alerte dans le salon admin configuré, en mentionnant les admins.
-// Silencieux si aucun salon n'est configuré. Ne throw jamais — l'appelant peut
+// Silencieux si aucun salon n'est configuré. Ne throw jamais, l'appelant peut
 // l'await sans try/catch.
 export async function sendAdminAlert(db: Firestore, input: AdminAlertInput): Promise<void> {
   try {

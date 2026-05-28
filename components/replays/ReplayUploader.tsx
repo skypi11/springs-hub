@@ -10,7 +10,7 @@ interface Props {
   structureId: string;
   teamId: string;
   eventId?: string | null;
-  onUploaded: () => void;   // invoqué après finalisation — le parent recharge la liste
+  onUploaded: () => void;   // invoqué après finalisation, le parent recharge la liste
   disabled?: boolean;
   compact?: boolean;        // rendu compact pour intégration dans EventDetailModal
 }
@@ -143,7 +143,7 @@ export default function ReplayUploader({ structureId, teamId, eventId, onUploade
     } else if (succeeded === 0) {
       toast.error(`${failed} échec${failed > 1 ? 's' : ''} d'upload`);
     } else {
-      toast.error(`${succeeded} sur ${succeeded + failed} uploadés — ${failed} échec${failed > 1 ? 's' : ''}`);
+      toast.error(`${succeeded} sur ${succeeded + failed} uploadés, ${failed} échec${failed > 1 ? 's' : ''}`);
     }
 
     // Auto-clear la liste après 4s si tout est OK (sinon on laisse pour debug)

@@ -23,7 +23,7 @@ const INVITE_LINK_TTL_MS = INVITE_LINK_TTL_DAYS * 24 * 60 * 60 * 1000;
 
 // Lit la structure + vérifie que l'user a le droit de gérer les invitations
 // (canManageMembers = dirigeant ou responsable). Reste strict sur status='active'
-// (pas juste 'non suspended' — exclut aussi pending_validation, deletion_scheduled).
+// (pas juste 'non suspended', exclut aussi pending_validation, deletion_scheduled).
 async function checkManageAccess(uid: string, structureId: string) {
   const db = getAdminDb();
   const snap = await db.collection('structures').doc(structureId).get();
@@ -41,11 +41,11 @@ async function checkManageAccess(uid: string, structureId: string) {
   return data;
 }
 
-// Cap — nombre max d'invitations directes pending qu'une structure peut avoir en cours.
+// Cap, nombre max d'invitations directes pending qu'une structure peut avoir en cours.
 // Empêche le spam à l'inverse du cap côté joueur.
 const MAX_PENDING_DIRECT_INVITES_PER_STRUCTURE = 10;
 
-// GET /api/structures/invitations?structureId=xxx — lister les invitations, demandes et invites directes
+// GET /api/structures/invitations?structureId=xxx, lister les invitations, demandes et invites directes
 export async function GET(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
 
     const db = getAdminDb();
 
-    // Tout d'un coup — un seul where par type.
+    // Tout d'un coup, un seul where par type.
     // Hard cap 1000 par type : au-delà = config anormale (les invitations
     // expirent via cron à 30j, donc en régime nominal max quelques dizaines).
     const [linksSnap, requestsSnap, directInvitesSnap] = await Promise.all([
@@ -103,11 +103,11 @@ export async function GET(req: NextRequest) {
         };
       });
 
-    // Demandes en attente (joueur → structure) — enrichies avec le profil
+    // Demandes en attente (joueur → structure), enrichies avec le profil
     const pendingRequestDocs = requestsSnap.docs.filter(d => d.data().status === 'pending');
     const applicantIds = pendingRequestDocs.map(d => d.data().applicantId).filter(Boolean);
 
-    // Invites directes envoyées — on ne retourne que ce qui est encore pending ou cancelled récent
+    // Invites directes envoyées, on ne retourne que ce qui est encore pending ou cancelled récent
     const pendingInviteDocs = directInvitesSnap.docs.filter(d => d.data().status === 'pending');
     const targetIds = pendingInviteDocs.map(d => d.data().targetUserId).filter(Boolean);
 
@@ -163,7 +163,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/structures/invitations — actions sur invitations
+// POST /api/structures/invitations, actions sur invitations
 export async function POST(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
     switch (action) {
       // ── Créer un lien d'invitation ──
       // Variante 1 : lien générique (réutilisable)
-      // Variante 2 : lien ciblé single-use (si targetUserId fourni) — Phase 3 item M
+      // Variante 2 : lien ciblé single-use (si targetUserId fourni), Phase 3 item M
       case 'create_link': {
         // Jeu optionnel mais pré-rempli côté joueur quand fourni → évite le double choix.
         const linkGame = game && typeof game === 'string' ? game : null;
@@ -286,7 +286,7 @@ export async function POST(req: NextRequest) {
         const invRef = db.collection('structure_invitations').doc(invitationId);
 
         // Transaction atomique. Invariant "1 structure par jeu" : on lit `users.structurePerGame`
-        // en tx — deux acceptations concurrentes sur deux structures différentes pour le même jeu
+        // en tx, deux acceptations concurrentes sur deux structures différentes pour le même jeu
         // seront sérialisées par Firestore (l'une retry et verra la valeur écrite par l'autre).
         let applicantId: string = '';
         let joinGame: string = '';
@@ -429,7 +429,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'Impossible de retirer le fondateur' }, { status: 400 });
         }
 
-        // Préparer le nettoyage : profil joueur + équipes — tout en un seul batch atomique
+        // Préparer le nettoyage : profil joueur + équipes, tout en un seul batch atomique
         const userRef = db.collection('users').doc(memberData.userId);
         const [userSnap, teamsSnap] = await Promise.all([
           userRef.get(),

@@ -1,11 +1,11 @@
-// UIDs centralisés pour le seed dev — partagés entre /api/dev/seed, /api/dev/cleanup
+// UIDs centralisés pour le seed dev, partagés entre /api/dev/seed, /api/dev/cleanup
 // et le DevSwitcher pour garantir la cohérence (création ↔ impersonate ↔ cleanup Auth).
 
 export const DEV_STRUCTURE_ID = 'dev_test_structure';
 
 // Seuls rôles reconnus par le site : fondateur, co-fondateur, responsable (managerIds),
 // coach structure (coachIds), manager d'équipe + coach d'équipe (staffIds + staffRoles),
-// capitaine, joueur, remplaçant, membre. Aucun autre rôle stocké — cf. lib/member-role.ts.
+// capitaine, joueur, remplaçant, membre. Aucun autre rôle stocké, cf. lib/member-role.ts.
 export const DEV_UIDS = {
   // Rôles structure
   founder: 'discord_dev_founder',
@@ -82,12 +82,12 @@ export const DEV_UIDS = {
   rlScoutingP1: 'discord_dev_rl_scouting_p1',
   rlScoutingP2: 'discord_dev_rl_scouting_p2',
 
-  // Archivés — Saison 2023
+  // Archivés, Saison 2023
   rlArchS23P1: 'discord_dev_rl_arch_s23_p1',
   rlArchS23P2: 'discord_dev_rl_arch_s23_p2',
   rlArchS23P3: 'discord_dev_rl_arch_s23_p3',
   rlArchS23Sub1: 'discord_dev_rl_arch_s23_sub1',
-  // Archivés — Founders squad
+  // Archivés, Founders squad
   rlArchFoundP1: 'discord_dev_rl_arch_found_p1',
   rlArchFoundP2: 'discord_dev_rl_arch_found_p2',
   rlArchFoundP3: 'discord_dev_rl_arch_found_p3',

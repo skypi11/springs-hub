@@ -4,7 +4,7 @@ import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 
-// GET /api/structures/[id] — page publique d'une structure
+// GET /api/structures/[id], page publique d'une structure
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -34,7 +34,7 @@ export async function GET(
     }
 
     // Note : le traitement des préavis de départ de co-fondateurs expirés est
-    // fait par le cron quotidien /api/cron/expire-invitations — plus de write
+    // fait par le cron quotidien /api/cron/expire-invitations, plus de write
     // dans ce GET public (anti-pattern + race condition supprimés).
 
     // Récupérer les membres puis tous les profils en un seul batch

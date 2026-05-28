@@ -26,7 +26,7 @@ async function wouldCreateCycle(
   const seen = new Set<string>();
   while (current) {
     if (current === folderId) return true;
-    if (seen.has(current)) return true;      // cycle existant — paranoïa
+    if (seen.has(current)) return true;      // cycle existant, paranoïa
     seen.add(current);
     const snap = await db.collection('structure_folders').doc(current).get();
     if (!snap.exists || snap.data()?.structureId !== structureId) return false;
@@ -128,7 +128,7 @@ export async function PATCH(
 }
 
 // DELETE /api/structures/[id]/folders/[folderId]
-// Supprime un dossier — uniquement s'il est vide (pas de sous-dossier, pas de document).
+// Supprime un dossier, uniquement s'il est vide (pas de sous-dossier, pas de document).
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; folderId: string }> }

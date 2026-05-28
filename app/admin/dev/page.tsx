@@ -25,8 +25,8 @@ type DevData = {
 
 const EXTERNAL_LINKS = [
   { label: 'Firebase Console (monthly-cup)', url: 'https://console.firebase.google.com/project/monthly-cup' },
-  { label: 'Vercel — springs-hub',            url: 'https://vercel.com/dashboard' },
-  { label: 'GitHub — skypi11/springs-hub',    url: 'https://github.com/skypi11/springs-hub' },
+  { label: 'Vercel · springs-hub',            url: 'https://vercel.com/dashboard' },
+  { label: 'GitHub · skypi11/springs-hub',    url: 'https://github.com/skypi11/springs-hub' },
   { label: 'Cloudflare R2 dashboard',         url: 'https://dash.cloudflare.com/' },
   { label: 'Upstash Redis',                   url: 'https://console.upstash.com/' },
   { label: 'Sentry',                          url: 'https://sentry.io/' },
@@ -187,7 +187,7 @@ export default function AdminDevPage() {
             <AlertCircle size={14} style={{ color: '#FFB800', flexShrink: 0, marginTop: '2px' }} />
             <p className="text-xs" style={{ color: '#FFB800' }}>
               Ces endpoints sont bloqués en production (NODE_ENV !== &apos;development&apos;). Ils partagent pourtant
-              le même projet Firebase que la prod — utiliser avec précaution.
+              le même projet Firebase que la prod, utiliser avec précaution.
             </p>
           </div>
           <div className="space-y-2 text-xs">

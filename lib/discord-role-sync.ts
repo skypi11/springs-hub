@@ -67,7 +67,7 @@ async function ensureManagedRoles(db: Firestore): Promise<Partial<Record<RoleKey
       result[role.key] = known;
       continue;
     }
-    // Rôle déjà présent par son nom (config perdue) — on le réutilise.
+    // Rôle déjà présent par son nom (config perdue), on le réutilise.
     const byName = guildRoles.find(r => r.name === role.name);
     if (byName) {
       result[role.key] = byName.id;
@@ -108,7 +108,7 @@ async function computeUserProfile(db: Firestore, userId: string): Promise<UserPr
 
   if (u.isAvailableForRecruitment === true) roleKeys.add('joueur_libre');
 
-  // Structures du joueur via `structure_members` — source fiable qui couvre
+  // Structures du joueur via `structure_members`, source fiable qui couvre
   // TOUT le monde (fondateurs inclus). `structurePerGame` ne se remplit qu'à
   // l'adhésion à une structure, pas à sa création → un fondateur y serait absent.
   const membersSnap = await db.collection('structure_members')
@@ -127,7 +127,7 @@ async function computeUserProfile(db: Firestore, userId: string): Promise<UserPr
       if (!s.exists) continue;
       const sd = s.data()!;
       // On ne saute que les structures refusées : une structure en attente de
-      // validation a quand même un vrai fondateur — il doit avoir son rôle.
+      // validation a quand même un vrai fondateur, il doit avoir son rôle.
       if (sd.status === 'rejected') continue;
       if (sd.tag) tags.push(String(sd.tag));
       if (sd.founderId === userId || (sd.coFounderIds ?? []).includes(userId)) roleKeys.add('fondateur');
@@ -199,7 +199,7 @@ export async function syncDiscordMember(db: Firestore, userId: string): Promise<
       });
     }
 
-    // Pseudo serveur — appel séparé : échoue (sans bloquer les rôles) si le
+    // Pseudo serveur, appel séparé : échoue (sans bloquer les rôles) si le
     // membre est plus haut que le bot dans la hiérarchie (ex : propriétaire).
     const nick = buildNick(profile.pseudo, profile.tags);
     if ((member.nick ?? '') !== nick) {

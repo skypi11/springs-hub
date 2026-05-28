@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════════════════╗
-// ║   STRUCTURE MEMBERSHIP — Gestion de l'invariant "max 2 structures par   ║
+// ║   STRUCTURE MEMBERSHIP, Gestion de l'invariant "max 2 structures par   ║
 // ║   jeu" (validé Matt 2026-05-25).                                         ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
 //
@@ -16,7 +16,7 @@
 //
 // Migration : les anciens docs ont `structurePerGame[game]: string` (single).
 // Les helpers `getStructuresForGame` et `normalizeStructurePerGame` font une
-// lecture défensive — toute valeur string est wrappée en array [string]. Au
+// lecture défensive, toute valeur string est wrappée en array [string]. Au
 // premier write, le champ devient un array proprement. Pas besoin de migration
 // dump-and-restore.
 
@@ -24,10 +24,10 @@ const MAX_STRUCTURES_PER_GAME = 2;
 
 export const STRUCTURE_MEMBERSHIP_CAP = MAX_STRUCTURES_PER_GAME;
 
-// Type accepté en entrée — peut être string (legacy) ou string[] (nouveau)
+// Type accepté en entrée, peut être string (legacy) ou string[] (nouveau)
 type StructureValue = string | string[] | undefined;
 
-// Renvoie toujours un array — wrappe les strings legacy, défensif sur undefined
+// Renvoie toujours un array, wrappe les strings legacy, défensif sur undefined
 export function getStructuresForGame(
   structurePerGame: Record<string, StructureValue> | undefined | null,
   game: string,

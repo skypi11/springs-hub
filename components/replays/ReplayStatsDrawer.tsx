@@ -115,7 +115,7 @@ export default function ReplayStatsDrawer({
   }, [structureId, replayId]);
 
   // Fetch des stats agrégées sur l'event (si on a un eventId). Indépendant
-  // du state du replay courant — la section "Moyenne du match" peut s'afficher
+  // du state du replay courant, la section "Moyenne du match" peut s'afficher
   // même si le replay courant n'est pas encore parsé (cas edge).
   useEffect(() => {
     if (!eventId) return;
@@ -145,7 +145,7 @@ export default function ReplayStatsDrawer({
           zIndex: 9600,
         }}
       />
-      {/* Drawer — quasi plein écran sur grand moniteur (1400px) pour pouvoir
+      {/* Drawer, quasi plein écran sur grand moniteur (1400px) pour pouvoir
           déplier les stats détaillées et la vue match complet sans serrer.
           Reste drawer sur écran <1500px (95vw). z-index au-dessus de
           TeamDetailDrawer/TodoDetailDrawer (9500). */}
@@ -240,7 +240,7 @@ function DrawerBody({
 
   return (
     <div className="space-y-8">
-      {/* Toggle de vue — visible uniquement si event a ≥2 replays parsés */}
+      {/* Toggle de vue, visible uniquement si event a ≥2 replays parsés */}
       {hasMultipleParsed && (
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="t-label" style={{ color: 'var(--s-text-muted)' }}>
@@ -281,7 +281,7 @@ function DrawerBody({
   );
 }
 
-// Carte d'un replay dans la vue "match complet" — wrap StatsBlock + highlight
+// Carte d'un replay dans la vue "match complet", wrap StatsBlock + highlight
 // pour le replay focused + sticky title pour repérer où on est en scrollant.
 // Exportée pour réutilisation dans la page dédiée /community/event/[id]/stats.
 export function ReplayCard({
@@ -350,7 +350,7 @@ function ViewToggle({ view, onChange }: { view: 'single' | 'all'; onChange: (v: 
   );
 }
 
-// Bloc de stats — utilisé à la fois pour le replay courant et pour la section
+// Bloc de stats, utilisé à la fois pour le replay courant et pour la section
 // agrégée du match. Le `mode` ne contrôle que la ligne TEAM ici, mais
 // AggregatedSection le passe à ses propres aggregateByPlayer.
 // Clés des 5 sections collapsibles d'un StatsBlock.
@@ -387,7 +387,7 @@ function StatsBlock({
   const expandAll = () => setOpen({ core: true, boost: true, movement: true, positioning: true, demos: true });
   const collapseAll = () => setOpen({ core: false, boost: false, movement: false, positioning: false, demos: false });
 
-  // Résumés en mode replié — formulés courts, sur 1 ligne, pour qu'on capte
+  // Résumés en mode replié, formulés courts, sur 1 ligne, pour qu'on capte
   // l'essentiel sans déplier. Tous calculés depuis les agrégats équipe.
   const mvp = stats.players.find(p => p.mvp);
   const summaries: Record<SectionKey, string> = {
@@ -533,7 +533,7 @@ export function AggregatedSection({ aggregated }: { aggregated: AggResponse }) {
 
   // Synthétise un CachedStats "virtuel" pour réutiliser le rendu existant.
   // Le score du bandeau est en NOMBRE DE GAMES gagnées par équipe (pas la
-  // somme des buts) — c'est le résultat du match, plus parlant.
+  // somme des buts), c'est le résultat du match, plus parlant.
   // Les buts cumulés sont affichés en sous-ligne via le subtitle.
   const synth: CachedStats = useMemo(() => {
     const first = aggregated.replays[0]?.stats;
@@ -729,7 +729,7 @@ function TeamSubTable({
   showName?: boolean;
 }) {
   // Pour chaque colonne, on calcule l'index du meilleur joueur (selon better:
-  // 'high'/'low') au sein de CETTE équipe — l'étoile signale le standout local.
+  // 'high'/'low') au sein de CETTE équipe, l'étoile signale le standout local.
   const bestIndexByCol: Record<number, number | null> = useMemo(() => {
     const out: Record<number, number | null> = {};
     columns.forEach((col, ci) => {
@@ -747,7 +747,7 @@ function TeamSubTable({
     return out;
   }, [players, columns]);
 
-  // Bg subtil par équipe sur les lignes joueur — renforce l'identité visuelle
+  // Bg subtil par équipe sur les lignes joueur, renforce l'identité visuelle
   // sans nuire à la lisibilité (alpha 04).
   const rowBg = accent + '08';
 

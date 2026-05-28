@@ -47,7 +47,7 @@ export default function Sidebar() {
     // - Date instance (rare)
     // - Firestore Timestamp objet avec .toDate() (cas client SDK)
     // - Plain object { _seconds, _nanoseconds } (sérialisation JSON d'un
-    //   Admin SDK Timestamp — c'est CE format qui sort de /api/auth/me, car
+    //   Admin SDK Timestamp, c'est CE format qui sort de /api/auth/me, car
     //   JSON.stringify n'expose que les props enumerable own, qui sont les
     //   underscore-prefixed sur l'Admin SDK)
     // - Plain object { seconds, nanoseconds } (autres sérialisations)
@@ -96,7 +96,7 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile hamburger — visible <lg */}
+      {/* Mobile hamburger, visible <lg */}
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
@@ -134,7 +134,7 @@ export default function Sidebar() {
       <div className="px-5 py-5 flex items-center justify-between">
         <Link
           href="/"
-          aria-label="Aedral — accueil"
+          aria-label="Aedral, accueil"
           className="flex-1 min-w-0 flex items-center justify-center lg:justify-center"
         >
           <AedralLogo variant="horizontal" theme="dark" height={48} />
@@ -195,7 +195,7 @@ export default function Sidebar() {
         </div>
 
         {navItems.map(({ href, icon: Icon, label }) => {
-          // /community/my-structure a sa propre entrée — ne pas l'inclure dans "Communauté"
+          // /community/my-structure a sa propre entrée, ne pas l'inclure dans "Communauté"
           const active = href === '/'
             ? pathname === '/'
             : href === '/community'
@@ -257,7 +257,7 @@ export default function Sidebar() {
           </Link>
         )}
 
-        {/* Guide — placé sous "Mon calendrier" (validé Matt 2026-05-25) */}
+        {/* Guide, placé sous "Mon calendrier" (validé Matt 2026-05-25) */}
         <Link href="/guide"
           className="flex items-center gap-3 px-3 py-2.5 transition-all duration-150"
           style={{
@@ -269,7 +269,7 @@ export default function Sidebar() {
           <span className="font-medium text-sm">Guide</span>
         </Link>
 
-        {/* Nouveautés — timeline /changelog, dot rouge si patch non vu */}
+        {/* Nouveautés, timeline /changelog, dot rouge si patch non vu */}
         <Link href="/changelog"
           className="flex items-center gap-3 px-3 py-2.5 transition-all duration-150 relative"
           style={{
@@ -319,7 +319,7 @@ export default function Sidebar() {
       <div className="p-4">
         <div className="divider mb-3" />
 
-        {/* Lien Discord communautaire — visible quel que soit l'état d'auth.
+        {/* Lien Discord communautaire, visible quel que soit l'état d'auth.
             Style discret, blurple subtil au hover (pas dominant comme un bouton). */}
         <a
           href={AEDRAL_DISCORD_INVITE_URL}

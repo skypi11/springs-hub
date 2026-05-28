@@ -11,7 +11,7 @@ import ReplayUploader from './ReplayUploader';
 import ReplayList, { type ReplayListItem } from './ReplayList';
 
 /**
- * Panneau complet Replays — réutilisable pour :
+ * Panneau complet Replays, réutilisable pour :
  *  - la modale d'un event scrim/match (mode="event")   → liste filtrée par eventId
  *  - l'onglet REPLAYS du drawer équipe (mode="library") → liste filtrée par teamId,
  *    tous les replays de l'équipe (avec ou sans event lié)
@@ -71,7 +71,7 @@ export default function ReplaysPanel({
           </span>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Bouton page dédiée — ouvre dans un nouvel onglet pour que le coach
+          {/* Bouton page dédiée, ouvre dans un nouvel onglet pour que le coach
               puisse consulter les stats en parallèle de la rédaction du compte-rendu */}
           {mode === 'event' && eventId && hasAnyParsed && (
             <Link

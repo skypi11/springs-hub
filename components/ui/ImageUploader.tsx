@@ -15,7 +15,7 @@ interface ImageUploaderProps {
   extraFields?: Record<string, string>;
   // Aspect ratio de la prévisualisation (square pour logo/avatar, banner pour cover)
   aspect: 'square' | 'banner';
-  // Taille max côté client (bytes) — affichée dans l'aide
+  // Taille max côté client (bytes), affichée dans l'aide
   maxBytes: number;
   // Libellé contextuel
   label: string;
@@ -57,7 +57,7 @@ export default function ImageUploader({
       return;
     }
     if (file.size > maxBytes) {
-      toast.error(`Fichier trop lourd — max ${maxMb} MB`);
+      toast.error(`Fichier trop lourd, max ${maxMb} MB`);
       return;
     }
 
@@ -175,7 +175,7 @@ export default function ImageUploader({
 
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-          {hint ?? `JPEG, PNG, WebP, GIF — max ${maxMb} MB`}
+          {hint ?? `JPEG, PNG, WebP, GIF, max ${maxMb} MB`}
         </p>
         {currentUrl && onRemove && !uploading && (
           <button

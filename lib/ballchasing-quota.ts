@@ -1,15 +1,15 @@
-// Quota ballchasing — limite hebdomadaire par structure + plafond global Aedral.
+// Quota ballchasing, limite hebdomadaire par structure + plafond global Aedral.
 //
 // Modèle : 1 abonnement Patreon ballchasing partagé pour toute la plateforme.
 // Tier Gold ($2/mois) au 2026-05 : 350 uploads/semaine, max 350/jour.
 //
 // Stratégie :
-// - Quota par structure : 20/semaine — laisse une équipe RL active scrim 3-4×
+// - Quota par structure : 20/semaine, laisse une équipe RL active scrim 3-4×
 //   par semaine sans saturer, et permet ~14 structures actives en parallèle.
-// - Quota global Aedral : 320/semaine — marge 30 sous le plafond ballchasing
+// - Quota global Aedral : 320/semaine, marge 30 sous le plafond ballchasing
 //   pour absorber les retries / edge cases sans risquer de fail tier.
 // - Reset hebdo aligné sur lundi 00:00 Europe/Paris (on tolère un décalage de
-//   1-2h selon DST en stockant le lundi 00:00 UTC le plus proche — pas critique
+//   1-2h selon DST en stockant le lundi 00:00 UTC le plus proche, pas critique
 //   pour un compteur hebdomadaire).
 // - On compte uniquement les uploads RÉUSSIS (ballchasingStatus === 'uploaded'
 //   avec ballchasingUploadedAt dans la semaine courante). Les failed / pending
@@ -22,7 +22,7 @@ export const STRUCTURE_WEEKLY_QUOTA = 20;
 export const GLOBAL_WEEKLY_QUOTA = 320;
 
 // Lundi 00:00 UTC le plus proche dans le passé. Approximation acceptable de
-// "lundi 00:00 Europe/Paris" — le décalage est de 1h (hiver) ou 2h (été), ce
+// "lundi 00:00 Europe/Paris", le décalage est de 1h (hiver) ou 2h (été), ce
 // qui ne change rien pour un compteur hebdomadaire.
 export function getWeekStartDate(): Date {
   const now = new Date();

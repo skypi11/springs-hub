@@ -1,7 +1,7 @@
 // POST /api/profile/rl-steam-link/change-request
 // Le joueur demande à changer le compte Steam RL officiel lié à son profil.
 // Pré-requis : il a déjà re-lié SA Steam OpenID Aedral vers le nouveau compte
-// (Settings → Lier mon Steam) — on capture cette nouvelle liaison comme
+// (Settings → Lier mon Steam), on capture cette nouvelle liaison comme
 // "requested" et on l'envoie en validation admin.
 // Voir docs/rl-rank-verification-plan.md.
 
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     const currentSteamId = user.rlSteamId as string | undefined;
     if (!isValidSteamId64(currentSteamId)) {
       return NextResponse.json({
-        error: "Tu n'as pas de compte Steam RL officiel lié — il n'y a rien à changer.",
+        error: "Tu n'as pas de compte Steam RL officiel lié, il n'y a rien à changer.",
       }, { status: 400 });
     }
 
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
       .limit(5).get();
     if (pending.docs.some(d => (d.data().platform || 'epic') === 'steam')) {
       return NextResponse.json({
-        error: 'Tu as déjà une demande de changement Steam en attente. Patiente — l\'admin va la traiter.',
+        error: 'Tu as déjà une demande de changement Steam en attente. Patiente, l\'admin va la traiter.',
       }, { status: 409 });
     }
 

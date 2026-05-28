@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth, isAdmin } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 
-// Cap dur pour éviter les pulls massifs — si on a besoin de plus, on paginera.
+// Cap dur pour éviter les pulls massifs, si on a besoin de plus, on paginera.
 const MAX_LOGS = 200;
 
 type Source = 'admin' | 'structure';
@@ -20,7 +20,7 @@ type MergedLog = {
   createdAt: string | null;
 };
 
-// GET /api/admin/audit — flux fusionné admin_audit_logs + structure_audit_logs
+// GET /api/admin/audit, flux fusionné admin_audit_logs + structure_audit_logs
 // Query params :
 //   ?limit=N (max 200)
 //   ?source=admin|structure (optionnel, filtre source)
@@ -149,7 +149,7 @@ async function fetchDocsMap(
 ): Promise<Map<string, Record<string, unknown>>> {
   const map = new Map<string, Record<string, unknown>>();
   if (ids.length === 0) return map;
-  // Firestore 'in' max 30 — batcher
+  // Firestore 'in' max 30, batcher
   for (let i = 0; i < ids.length; i += 30) {
     const batch = ids.slice(i, i + 30);
     const snap = await db.collection(collection).where('__name__', 'in', batch).get();

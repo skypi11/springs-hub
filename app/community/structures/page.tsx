@@ -215,7 +215,7 @@ function FilterChip({
 }: {
   active: boolean;
   onClick: () => void;
-  /** Couleur custom (depuis la registry des jeux) — si absent → palette neutre */
+  /** Couleur custom (depuis la registry des jeux), si absent → palette neutre */
   customColor?: { rgb: string; fg: string };
   children: React.ReactNode;
 }) {

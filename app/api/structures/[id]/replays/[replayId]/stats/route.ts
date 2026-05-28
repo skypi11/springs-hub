@@ -171,7 +171,7 @@ export async function GET(
       if (replay.status !== 'ok') {
         return NextResponse.json({ state: 'pending', bcStatus: replay.status });
       }
-      // Stats prêtes — on cache (sans le `raw` qui peut être lourd) et on renvoie.
+      // Stats prêtes, on cache (sans le `raw` qui peut être lourd) et on renvoie.
       // statsVersion bumpé quand le shape de `players` change pour invalider le cache.
       const cached = {
         status: replay.status,

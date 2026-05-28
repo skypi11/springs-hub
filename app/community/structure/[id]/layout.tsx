@@ -62,7 +62,7 @@ export async function generateMetadata(
       description: shortDesc,
       url,
       type: 'profile',
-      // Si la structure a un logo custom, on l'utilise en OG image — sinon
+      // Si la structure a un logo custom, on l'utilise en OG image, sinon
       // fallback sur l'image OG racine d'Aedral (auto via Next.js).
       ...(logoUrl ? { images: [{ url: logoUrl, alt: `Logo ${name}` }] } : {}),
     },

@@ -117,7 +117,7 @@ export default function MyTodosSection({
     return { pending: p, done: d };
   }, [todos]);
 
-  // Toggle générique — utilisé pour rouvrir un exercice done, OU pour valider un exercice free/watch_party
+  // Toggle générique, utilisé pour rouvrir un exercice done, OU pour valider un exercice free/watch_party
   const toggleMutation = useMutation({
     mutationFn: ({ todo, response }: { todo: MyTodo; response?: Record<string, unknown> }) =>
       api(`/api/structures/${todo.structureId}/todos/${todo.id}`, {
@@ -209,7 +209,7 @@ export default function MyTodosSection({
     onError: (err: Error) => toast.error(err.message || 'Erreur'),
   });
 
-  // v3 — Verrouillage de l'exercice (validation globale). Une fois cliqué,
+  // v3, Verrouillage de l'exercice (validation globale). Une fois cliqué,
   // plus aucune modification possible (sauf si un staff fait unlock).
   const lockMutation = useMutation({
     mutationFn: ({ todo }: { todo: MyTodo }) =>
@@ -264,7 +264,7 @@ export default function MyTodosSection({
             <h2 className="font-display text-2xl" style={{ letterSpacing: '0.04em' }}>MES EXERCICES</h2>
             <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
               {pending.length > 0
-                ? `${pending.length} à faire${done.length > 0 ? ` — ${done.length} terminé${done.length > 1 ? 's' : ''}` : ''}`
+                ? `${pending.length} à faire${done.length > 0 ? `, ${done.length} terminé${done.length > 1 ? 's' : ''}` : ''}`
                 : done.length > 0
                 ? `Tout est fait ! ${done.length} exercice${done.length > 1 ? 's' : ''} terminé${done.length > 1 ? 's' : ''}.`
                 : 'Aucun exercice.'}
@@ -283,7 +283,7 @@ export default function MyTodosSection({
                 onOpen={() => handleOpen(t)}
                 onToggleCheckbox={() => {
                   // v3 : pour les exos multi-step, le checkbox de la ligne ouvre forcément
-                  // le drawer (on ne peut pas tout cocher d'un clic — il y a N étapes).
+                  // le drawer (on ne peut pas tout cocher d'un clic, il y a N étapes).
                   // Pour les single-step avec needsResponse : pareil, drawer.
                   // Pour les single-step simples (free/watch_party) : toggle direct.
                   const steps = getSteps(t);
@@ -327,7 +327,7 @@ export default function MyTodosSection({
         )}
       </div>
 
-      {/* Drawer de détail — affiche la checklist multi-step + callbacks step-level.
+      {/* Drawer de détail, affiche la checklist multi-step + callbacks step-level.
           Pour les exos legacy single-type, getSteps() les wrap en 1 step automatiquement. */}
       {(() => {
         const openTodo = openTodoId ? todos.find(t => t.id === openTodoId) ?? null : null;
@@ -372,7 +372,7 @@ function TodoRow({
   const overdue = isOverdue(todo, Date.now());
   const deadlineInfo = todo.deadline ? formatDeadline(todo.deadline, today) : null;
   const meta = TODO_TYPE_META[todo.type];
-  // v3 : compteur d'étapes pour les exos multi-step (X/N) — affiché à côté du titre
+  // v3 : compteur d'étapes pour les exos multi-step (X/N), affiché à côté du titre
   const stepProgress = getStepProgress(todo);
   const isMultiStep = stepProgress.total > 1;
 
@@ -417,7 +417,7 @@ function TodoRow({
           }}>
             {todo.title}
           </p>
-          {/* Compteur d'étapes (v3) — visible uniquement si multi-step */}
+          {/* Compteur d'étapes (v3), visible uniquement si multi-step */}
           {isMultiStep && (
             <span className="px-1.5 py-0.5 font-bold tracking-wider"
               style={{
@@ -451,7 +451,7 @@ function TodoRow({
         {todo.done && todo.response && <TodoResponseSummary todo={todo} />}
 
         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-          {/* Le lien structure navigue directement — stopPropagation empêche aussi d'ouvrir le drawer. */}
+          {/* Le lien structure navigue directement, stopPropagation empêche aussi d'ouvrir le drawer. */}
           <Link href={`/community/structure/${todo.structureId}`}
             onClick={(e) => e.stopPropagation()}
             className="flex items-center gap-1.5 group transition-colors"

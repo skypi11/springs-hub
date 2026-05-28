@@ -48,7 +48,7 @@ type MyTodo = TodoRef & {
   eventTitle: string | null;
 };
 
-// Replay listé par /api/structures/[id]/replays — vue minimale pour
+// Replay listé par /api/structures/[id]/replays, vue minimale pour
 // l'affichage dans le drawer joueur + déclenchement du download.
 type ReplayItem = {
   id: string;
@@ -77,7 +77,7 @@ const PRESENCE_BTN: { key: PresenceStatus; label: string; icon: React.ReactNode;
   { key: 'absent', label: 'Absent', icon: <XCircle size={13} />, color: '#ff5555' },
 ];
 
-// Drawer détail d'un événement vu côté joueur invité — lecture seule sur
+// Drawer détail d'un événement vu côté joueur invité, lecture seule sur
 // l'event (édition réservée au staff), avec :
 // - infos du match + bouton de présence (si scheduled)
 // - compte rendu post-match
@@ -85,7 +85,7 @@ const PRESENCE_BTN: { key: PresenceStatus; label: string; icon: React.ReactNode;
 //   pour les nouveaux events, le staff utilise désormais les exercices
 //   assignés à la place)
 // - liste des exercices (structure_todos) liés à ce scrim, filtrés par
-//   eventId — cliquables pour ouvrir le détail (cf. MyTodosSection).
+//   eventId, cliquables pour ouvrir le détail (cf. MyTodosSection).
 export default function PlayerEventDrawer({
   event,
   structure,
@@ -146,7 +146,7 @@ export default function PlayerEventDrawer({
   const statusInfo = STATUS_INFO[event.status];
   const my = event.myPresence;
   // Un event est "à venir et modifiable" uniquement s'il est scheduled ET
-  // que sa date n'est pas dépassée — sans ça, un scrim oublié resterait
+  // que sa date n'est pas dépassée, sans ça, un scrim oublié resterait
   // modifiable indéfiniment en présence ce qui n'a pas de sens.
   const canChangePresence = event.status === 'scheduled'
     && (!event.startsAt || new Date(event.startsAt).getTime() > Date.now());
@@ -260,7 +260,7 @@ export default function PlayerEventDrawer({
             </section>
           )}
 
-          {/* Ma présence — boutons de réponse si event scheduled ET pas passé */}
+          {/* Ma présence, boutons de réponse si event scheduled ET pas passé */}
           {my && (
             <section>
               <div className="t-label mb-2" style={{ color: 'var(--s-text)' }}>
@@ -316,7 +316,7 @@ export default function PlayerEventDrawer({
             </section>
           )}
 
-          {/* "À travailler" legacy — affiché uniquement si non vide.
+          {/* "À travailler" legacy, affiché uniquement si non vide.
               Les nouveaux events utilisent les exercices assignés ci-dessous. */}
           {event.aTravailler && (
             <section>
@@ -330,7 +330,7 @@ export default function PlayerEventDrawer({
             </section>
           )}
 
-          {/* Replays de cet event — téléchargeables (permissions élargies aux
+          {/* Replays de cet event, téléchargeables (permissions élargies aux
               membres de l'équipe). Section affichée uniquement si l'event a
               une équipe associée (les replays sont scopés par équipe). */}
           {teamIdForReplays && (

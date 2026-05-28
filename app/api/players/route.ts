@@ -6,7 +6,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { computeMemberRole, type MemberRoleTeam, type PrimaryRole, type TeamAffiliation } from '@/lib/member-role';
 
-// GET /api/players — annuaire public paginé.
+// GET /api/players, annuaire public paginé.
 //
 // Architecture scalable : pagination cursor + enrichissement par batch.
 // Coût par PAGE (50 users), pas par TOTAL. Scale infiniment.
@@ -42,7 +42,7 @@ export type EnrichedStructure = {
   name: string;
   tag: string;
   logoUrl: string;
-  games: string[];               // ['rocket_league', 'trackmania'] — agrégés si l'user est dans cette struct sur plusieurs jeux
+  games: string[];               // ['rocket_league', 'trackmania'], agrégés si l'user est dans cette struct sur plusieurs jeux
   primaryRole: PrimaryRole;      // dérivé via computeMemberRole (même rôle quel que soit le jeu)
   affiliations: TeamAffiliation[]; // équipes de cette structure où l'user est actif (tous jeux confondus)
 };
@@ -127,12 +127,12 @@ export async function GET(req: NextRequest) {
 
     // ── Enrichissement structures / équipes / rôles ────────────────────────
     // 3 sources combinées pour ne rater AUCUN lien user ↔ structure :
-    //   1. `structure_members` (where userId IN chunks de 30) — joueurs + cas standards
-    //   2. `structures where founderId IN chunks de 30` — fondateurs anciens sans
+    //   1. `structure_members` (where userId IN chunks de 30), joueurs + cas standards
+    //   2. `structures where founderId IN chunks de 30`, fondateurs anciens sans
     //      doc structure_members écrit (avant le fix admin/structures approve)
     //   3. `structures where coFounderIds/managerIds/coachIds array-contains-any
-    //      chunks de 10` — staff structure ajoutés sans structure_members
-    //      (ex: cat_aran fondatrice ARAN + Responsable TTC sur le même jeu — sans
+    //      chunks de 10`, staff structure ajoutés sans structure_members
+    //      (ex: cat_aran fondatrice ARAN + Responsable TTC sur le même jeu, sans
     //      cette 3e source on ne voyait pas TTC car structurePerGame ne contenait
     //      qu'1 struct par jeu).
     //
@@ -175,7 +175,7 @@ export async function GET(req: NextRequest) {
     const structuresById = await fetchDocsByIds(db, 'structures', [...uniqueStructureIds]);
 
     // Batch fetch sub_teams pour ces structures
-    // (where structureId IN [...]) — chunks de 30
+    // (where structureId IN [...]), chunks de 30
     const teamsByStructureId = await fetchTeamsForStructures(db, [...uniqueStructureIds]);
 
     const players: PlayerCard[] = userDocs.map(doc => {
@@ -191,7 +191,7 @@ export async function GET(req: NextRequest) {
         if (!s) continue;
         if (s.status && s.status !== 'active') continue;
 
-        // Toutes les équipes de la struct (tous jeux confondus — on agrège pour
+        // Toutes les équipes de la struct (tous jeux confondus, on agrège pour
         // que le rôle calculé reflète l'ensemble des affiliations équipes).
         const allTeams = teamsByStructureId.get(sid) ?? [];
 
@@ -301,7 +301,7 @@ async function fetchFoundedStructuresForUsers(
 }
 
 // Récupère les structures où un user est dans `coFounderIds`/`managerIds`/`coachIds`
-// (3 queries par chunk de 10 — limite Firestore `array-contains-any`).
+// (3 queries par chunk de 10, limite Firestore `array-contains-any`).
 // Indispensable car certains staff sont juste référencés dans ces arrays sans
 // avoir de doc `structure_members` (cas typique : cat_aran Responsable TTC
 // sans membership doc → invisible avec les 2 premières sources).

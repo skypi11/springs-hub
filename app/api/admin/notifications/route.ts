@@ -22,7 +22,7 @@ function ts(v: unknown): string | null {
   return null;
 }
 
-// GET /api/admin/notifications — stats + dernières notifs envoyées (toutes destinataires confondues).
+// GET /api/admin/notifications, stats + dernières notifs envoyées (toutes destinataires confondues).
 export async function GET(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/admin/notifications — envoyer une notif en broadcast.
+// POST /api/admin/notifications, envoyer une notif en broadcast.
 // Body : { title, message, link?, audience: 'all' | 'user' | 'structure', targetId? }
 export async function POST(req: NextRequest) {
   try {

@@ -5,14 +5,14 @@ import { checkRateLimit, limiters, rateLimitKey } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { captureApiError } from '@/lib/sentry';
 
-// POST /api/account/delete — RGPD art. 17 (droit à l'effacement).
+// POST /api/account/delete, RGPD art. 17 (droit à l'effacement).
 // Règles :
 //   - Bloqué si l'utilisateur est fondateur d'une ou plusieurs structures :
 //     il doit d'abord transférer ou demander la suppression de sa structure.
 //   - L'utilisateur est retiré de tous les rosters, memberships, invitations,
 //     notifications, puis le profil users/{uid} est supprimé et le compte
 //     Firebase Auth est révoqué.
-//   - Les audit logs contenant son UID sont conservés (obligation légale —
+//   - Les audit logs contenant son UID sont conservés (obligation légale ,
 //     intégrité de la plateforme, durée 3 ans).
 export async function POST(req: NextRequest) {
   try {
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       for (const d of snap.docs) teamsToUpdate.set(d.id, d.data());
     }
 
-    // 3) Batch writes — Firestore cap 500 ops/batch, on chunke par sécurité.
+    // 3) Batch writes, Firestore cap 500 ops/batch, on chunke par sécurité.
     const BATCH_CAP = 400;
     let batch = db.batch();
     let opsInBatch = 0;
@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
     // Flush final
     if (opsInBatch > 0) await batch.commit();
 
-    // 4) Audit log AVANT la suppression Firebase Auth — on garde la trace.
+    // 4) Audit log AVANT la suppression Firebase Auth, on garde la trace.
     // Note : adminUid = uid car ici l'acteur est l'utilisateur lui-même (RGPD
     // self-service). Le champ est historiquement nommé "admin" mais représente
     // l'acteur de l'action.
@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
     try {
       await getAdminAuth().deleteUser(uid);
     } catch {
-      // Peut déjà avoir été supprimé — on ignore pour l'idempotence.
+      // Peut déjà avoir été supprimé, on ignore pour l'idempotence.
     }
 
     return NextResponse.json({ ok: true });

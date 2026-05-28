@@ -19,7 +19,7 @@ const COUNT_COLLECTIONS = [
   'structure_audit_logs',
 ];
 
-// Variables d'env sensibles à vérifier (on ne renvoie jamais les valeurs — juste
+// Variables d'env sensibles à vérifier (on ne renvoie jamais les valeurs, juste
 // la présence, pour diagnostiquer les "ça marche pas en prod" d'un coup d'œil).
 const ENV_KEYS = [
   'FIREBASE_SERVICE_ACCOUNT',
@@ -39,7 +39,7 @@ const ENV_KEYS = [
   'TRN_API_KEY',
 ];
 
-// GET /api/admin/dev — diagnostics pour outils dev.
+// GET /api/admin/dev, diagnostics pour outils dev.
 // Retourne : counts par collection, env vars présentes, infos runtime.
 export async function GET(req: NextRequest) {
   try {
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
 
     const db = getAdminDb();
 
-    // count() est un aggregation query — 1 lecture par requête peu importe la taille.
+    // count() est un aggregation query, 1 lecture par requête peu importe la taille.
     const counts = await Promise.all(
       COUNT_COLLECTIONS.map(async name => {
         try {

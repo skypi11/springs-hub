@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-// Metadata SEO pour la page Guide (rendu client). Le layout reste passif —
+// Metadata SEO pour la page Guide (rendu client). Le layout reste passif ,
 // il ne fait que poser les balises et laisser passer les children.
 export const metadata: Metadata = {
   title: 'Guide : découvrir Aedral',

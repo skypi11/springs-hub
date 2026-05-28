@@ -24,7 +24,7 @@ export async function GET(
     const db = getAdminDb();
     const resolved = await resolveUserContext(db, uid, structureId);
     if (!resolved) return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
-    // Tout le staff peut voir le quota — pas seulement les dirigeants — pour
+    // Tout le staff peut voir le quota, pas seulement les dirigeants, pour
     // que les staffs d'équipe sachent où ils en sont avant un upload.
     if (!canAccessDocuments(resolved.context)) {
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });

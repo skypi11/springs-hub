@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAdminDb, getAdminAuth } from '@/lib/firebase-admin';
 import { DEV_UIDS, DEV_STRUCTURE_ID } from '@/lib/dev-seed-constants';
 
-// POST /api/dev/cleanup — supprime toutes les données de seed dev.
+// POST /api/dev/cleanup, supprime toutes les données de seed dev.
 // Filtre tout ce qui a le flag `isDev: true` dans les collections concernées,
 // plus les comptes Firebase Auth associés et l'admin dev.
 
@@ -36,7 +36,7 @@ export async function POST() {
     report[col] = snap.size;
   }
 
-  // Nettoyer les structure_members orphelins rattachés à la structure dev —
+  // Nettoyer les structure_members orphelins rattachés à la structure dev ,
   // les accept/auto-join créent ces docs sans hériter du flag isDev du seed.
   const orphanMembersSnap = await db.collection('structure_members')
     .where('structureId', '==', DEV_STRUCTURE_ID)
@@ -71,7 +71,7 @@ export async function POST() {
   }
   report.orphanHistory = orphanHistorySnap.size;
 
-  // Équipes créées à la main via l'UI "Nouvelle équipe" — pas de flag isDev, on cible par structureId
+  // Équipes créées à la main via l'UI "Nouvelle équipe", pas de flag isDev, on cible par structureId
   const orphanTeamsSnap = await db.collection('sub_teams')
     .where('structureId', '==', DEV_STRUCTURE_ID)
     .get();
@@ -82,7 +82,7 @@ export async function POST() {
   }
   report.orphanTeams = orphanTeamsSnap.size;
 
-  // Événements calendrier créés en runtime — idem
+  // Événements calendrier créés en runtime, idem
   const orphanEventsSnap = await db.collection('structure_events')
     .where('structureId', '==', DEV_STRUCTURE_ID)
     .get();
@@ -93,7 +93,7 @@ export async function POST() {
   }
   report.orphanEvents = orphanEventsSnap.size;
 
-  // Exercices créés via l'UI en runtime — pas de flag isDev
+  // Exercices créés via l'UI en runtime, pas de flag isDev
   const orphanTodosSnap = await db.collection('structure_todos')
     .where('structureId', '==', DEV_STRUCTURE_ID)
     .get();
@@ -104,11 +104,11 @@ export async function POST() {
   }
   report.orphanTodos = orphanTodosSnap.size;
 
-  // Supprimer les comptes Firebase Auth dev — source de vérité : DEV_UIDS du seed.
+  // Supprimer les comptes Firebase Auth dev, source de vérité : DEV_UIDS du seed.
   // + anciens UIDs des seeds précédents (au cas où il traine des comptes Auth en local).
   const devUids = [
     ...Object.values(DEV_UIDS),
-    // Legacy seeds — supprimés si encore présents dans Auth
+    // Legacy seeds, supprimés si encore présents dans Auth
     'discord_dev_manager',
     'discord_dev_coach',
     'discord_dev_player1',
@@ -122,7 +122,7 @@ export async function POST() {
       await adminAuth.deleteUser(uid);
       authDeleted++;
     } catch {
-      // user déjà absent — on ignore
+      // user déjà absent, on ignore
     }
   }
   report.firebaseAuth = authDeleted;

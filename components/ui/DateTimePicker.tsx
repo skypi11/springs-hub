@@ -1,6 +1,6 @@
 'use client';
 
-// Picker date + heure custom — remplace <input type="datetime-local">.
+// Picker date + heure custom, remplace <input type="datetime-local">.
 // Le natif est moche, dépend du navigateur, et ne permet pas de raccourcis.
 // Ce composant garde le même contrat I/O (value/onChange en "YYYY-MM-DDTHH:mm"
 // local) pour brancher sans toucher au reste du code.
@@ -66,7 +66,7 @@ export default function DateTimePicker({
     `${initial.getFullYear()}-${pad(initial.getMonth() + 1)}-${pad(initial.getDate())}`
   );
 
-  // Re-sync l'état interne sur chaque ouverture — sinon on garde l'état d'avant.
+  // Re-sync l'état interne sur chaque ouverture, sinon on garde l'état d'avant.
   useEffect(() => {
     if (!open) return;
     const d = fromLocalString(value) ?? new Date();
@@ -78,7 +78,7 @@ export default function DateTimePicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Positionnement du popup — recalcule sur resize/scroll pour rester ancré.
+  // Positionnement du popup, recalcule sur resize/scroll pour rester ancré.
   useEffect(() => {
     if (!open || !btnRef.current) return;
     const update = () => {
@@ -140,7 +140,7 @@ export default function DateTimePicker({
     tmr21.setHours(21, 0, 0, 0);
     out.push({ label: 'Demain 21h', date: tmr21 });
 
-    // "Samedi 20h" — prochain samedi ; si on est samedi, samedi prochain.
+    // "Samedi 20h", prochain samedi ; si on est samedi, samedi prochain.
     const sat = new Date(now);
     const dayIdx = sat.getDay(); // 0 = dim, 6 = sam
     const daysUntilSat = ((6 - dayIdx + 7) % 7) || 7;

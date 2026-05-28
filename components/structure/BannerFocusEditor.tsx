@@ -15,7 +15,7 @@ const clamp = (v: number) => Math.min(100, Math.max(0, v));
 // Éditeur de point focal de bannière (modèle YouTube/Twitch). L'image entière
 // est affichée ; l'utilisateur place/déplace un point = « le centre de ce qui
 // doit rester visible ». Le point est stocké en % et appliqué tel quel en
-// `background-position` — donc indépendant du ratio d'affichage de la bannière.
+// `background-position`, donc indépendant du ratio d'affichage de la bannière.
 export default function BannerFocusEditor({ imageUrl, value, onChange, disabled }: BannerFocusEditorProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
@@ -114,7 +114,7 @@ export default function BannerFocusEditor({ imageUrl, value, onChange, disabled 
       </div>
 
       <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-        Clique ou fais glisser le point sur la zone à garder visible — l&apos;aperçu montre le rendu réel. Pense à sauvegarder.
+        Clique ou fais glisser le point sur la zone à garder visible, l&apos;aperçu montre le rendu réel. Pense à sauvegarder.
       </p>
     </div>
   );

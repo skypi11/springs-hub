@@ -135,7 +135,7 @@ export function computeMemberRole(input: MemberRoleInput): MemberRoleResult {
   return { primary, affiliations };
 }
 
-// Utilitaires de présentation — gardés ici pour qu'ils soient testables et
+// Utilitaires de présentation, gardés ici pour qu'ils soient testables et
 // partagés entre les pages privée (my-structure) et publique (structure/[id]).
 
 export interface AffiliationBadge {

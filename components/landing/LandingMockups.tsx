@@ -156,7 +156,7 @@ export function CalendarMockup() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// 4. RECRUTEMENT — POSTES OUVERTS
+// 4. RECRUTEMENT, POSTES OUVERTS
 // ─────────────────────────────────────────────────────────────────────────
 export function RecruitmentMockup() {
   const positions = [
@@ -187,7 +187,7 @@ export function RecruitmentMockup() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// 5. ROSTER — SOUS-ÉQUIPES
+// 5. ROSTER, SOUS-ÉQUIPES
 // ─────────────────────────────────────────────────────────────────────────
 export function RosterMockup() {
   const teams = [

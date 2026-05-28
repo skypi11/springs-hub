@@ -1,4 +1,4 @@
-// GET /api/admin/rank-reports — liste les signalements (pending d'abord) +
+// GET /api/admin/rank-reports, liste les signalements (pending d'abord) +
 // stats par reporter pour repérer les abusifs.
 // Voir docs/rl-rank-verification-plan.md (Lot 5 v2).
 
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       statsByReporter.set(rid, s);
     }
 
-    // On ne renvoie que les 200 reports les plus récents — mais les stats
+    // On ne renvoie que les 200 reports les plus récents, mais les stats
     // utilisent les 500 (plus de précision sur l'historique du reporter).
     const reports = snap.docs.slice(0, 200).map(d => {
       const data = d.data();

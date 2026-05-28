@@ -2,11 +2,11 @@
 // stocké server-side dans `user_secrets/{uid}`. Sert au cron nocturne pour
 // re-fetcher ses connexions sans qu'il ait à se reconnecter.
 //
-// Ne throw jamais — renvoie `null` en cas d'échec (token révoqué, app
+// Ne throw jamais, renvoie `null` en cas d'échec (token révoqué, app
 // désautorisée, réseau, etc.). L'appelant doit traiter null comme « pas
 // rafraîchissable cette fois », sans planter le reste de sa boucle.
 //
-// Discord OAuth — refresh token grant :
+// Discord OAuth, refresh token grant :
 // https://discord.com/developers/docs/topics/oauth2#authorization-code-grant-refresh-token-exchange-example
 
 import type { Firestore } from 'firebase-admin/firestore';
@@ -16,7 +16,7 @@ const DISCORD_TOKEN_URL = 'https://discord.com/api/oauth2/token';
 
 export interface RefreshResult {
   accessToken: string;
-  // Discord PEUT (mais pas toujours) faire tourner le refresh_token — quand
+  // Discord PEUT (mais pas toujours) faire tourner le refresh_token, quand
   // il le fait, on persiste le nouveau pour les passes suivantes.
   rotatedRefreshToken?: string;
 }

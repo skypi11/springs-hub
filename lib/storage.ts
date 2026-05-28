@@ -11,11 +11,11 @@ import { UPLOAD_LIMITS } from './upload-limits';
 
 // Configuration Cloudflare R2 (API compatible S3)
 // Variables d'env requises :
-//   R2_ENDPOINT              — https://<account_id>.r2.cloudflarestorage.com
-//   R2_ACCESS_KEY_ID         — depuis le token API R2
-//   R2_SECRET_ACCESS_KEY     — depuis le token API R2
-//   R2_BUCKET_NAME           — nom du bucket (ex: springs-hub)
-//   R2_PUBLIC_URL (optionnel)— domaine public r2.dev ou custom (ex: https://pub-xxx.r2.dev)
+//   R2_ENDPOINT             , https://<account_id>.r2.cloudflarestorage.com
+//   R2_ACCESS_KEY_ID        , depuis le token API R2
+//   R2_SECRET_ACCESS_KEY    , depuis le token API R2
+//   R2_BUCKET_NAME          , nom du bucket (ex: springs-hub)
+//   R2_PUBLIC_URL (optionnel), domaine public r2.dev ou custom (ex: https://pub-xxx.r2.dev)
 
 let _client: S3Client | null = null;
 
@@ -26,7 +26,7 @@ export function getR2Client(): S3Client {
   const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
   if (!endpoint || !accessKeyId || !secretAccessKey) {
     throw new Error(
-      'R2 credentials manquantes — configurer R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY'
+      'R2 credentials manquantes, configurer R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY'
     );
   }
   _client = new S3Client({
@@ -54,7 +54,7 @@ export function getPublicUrl(key: string): string {
   const publicUrl = process.env.R2_PUBLIC_URL;
   if (!publicUrl) {
     throw new Error(
-      'R2_PUBLIC_URL non configuré — activer r2.dev public access ou un custom domain sur le bucket'
+      'R2_PUBLIC_URL non configuré, activer r2.dev public access ou un custom domain sur le bucket'
     );
   }
   return `${publicUrl.replace(/\/$/, '')}/${key}`;
@@ -107,7 +107,7 @@ export async function generateUploadUrl(
   return await getSignedUrl(getR2Client(), cmd, { expiresIn: expiresSeconds });
 }
 
-// URL signée pour DOWNLOAD privé (documents staff — jamais publique)
+// URL signée pour DOWNLOAD privé (documents staff, jamais publique)
 // disposition = 'attachment' (force download) ou 'inline' (preview dans l'iframe/img)
 export async function generateDownloadUrl(
   key: string,
@@ -235,10 +235,10 @@ export function sanitizeFilename(name: string): string {
 }
 
 // ============================================================
-// Limites par type (sources de vérité — à utiliser partout)
+// Limites par type (sources de vérité, à utiliser partout)
 // ============================================================
 
-// Re-export pour compat — la vraie source est lib/upload-limits.ts (safe côté client)
+// Re-export pour compat, la vraie source est lib/upload-limits.ts (safe côté client)
 export const UploadLimits = UPLOAD_LIMITS;
 
 export const AllowedMimeTypes = {
@@ -284,7 +284,7 @@ export function isImageMime(mime: string): boolean {
   return mime.startsWith('image/');
 }
 
-// Détermine l'extension pour le stockage R2 — garde l'extension d'origine sauf
+// Détermine l'extension pour le stockage R2, garde l'extension d'origine sauf
 // pour les images qui sont systématiquement converties en webp.
 export function extensionForStorage(filename: string, mime: string): string {
   if (isImageMime(mime)) return 'webp';

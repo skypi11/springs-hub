@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
 
   // Handle Discord OAuth callback. Le callback ne met plus le custom token
-  // dans l'URL — il le pose dans un cookie httpOnly. On le consomme via
+  // dans l'URL, il le pose dans un cookie httpOnly. On le consomme via
   // GET /api/auth/discord/session. signInWithCustomToken déclenche onAuthStateChanged.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -109,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Affichage immédiat depuis Firebase Auth — fonctionne même sans Firestore
+      // Affichage immédiat depuis Firebase Auth, fonctionne même sans Firestore
       setUser({
         uid: fbUser.uid,
         discordId: fbUser.uid.replace('discord_', ''),

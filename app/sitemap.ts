@@ -1,17 +1,17 @@
 import type { MetadataRoute } from 'next';
 import { getAdminDb } from '@/lib/firebase-admin';
 
-// Sitemap dynamique d'Aedral — listé dans robots.ts. Sert à Google/Bing pour
+// Sitemap dynamique d'Aedral, listé dans robots.ts. Sert à Google/Bing pour
 // découvrir les pages indexables sans avoir à crawler tout le site.
 //
 // Composition :
 //   - Pages statiques publiques (racine, guide, changelog, annuaires)
 //   - Structures actives (1 URL par structure)
 //   - Profils joueurs avec slug (les uid legacy `discord_SNOWFLAKE` sont exclus
-//     pour ne pas exposer les snowflakes Discord à Google — voir mémoire
+//     pour ne pas exposer les snowflakes Discord à Google, voir mémoire
 //     project_profile_slugs)
 //
-// Revalidate : 1 heure. Le sitemap n'a pas besoin d'être en temps réel —
+// Revalidate : 1 heure. Le sitemap n'a pas besoin d'être en temps réel ,
 // Google le recrawle tous les jours en pratique. 1h est un bon compromis
 // fraicheur / coût Firestore.
 export const revalidate = 3600;
@@ -48,7 +48,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     dynamicEntries = await loadDynamicEntries();
   } catch (err) {
-    console.warn('[sitemap] Erreur fetch dynamic entries — sitemap statique uniquement', err);
+    console.warn('[sitemap] Erreur fetch dynamic entries, sitemap statique uniquement', err);
   }
 
   return [...staticEntries, ...dynamicEntries];
@@ -64,7 +64,7 @@ async function loadDynamicEntries(): Promise<SitemapEntry[]> {
       .where('status', '==', 'active')
       .limit(MAX_STRUCTURES)
       .get(),
-    // Tous les profils — on filtre côté code (pas de slug, banni, dev) car
+    // Tous les profils, on filtre côté code (pas de slug, banni, dev) car
     // Firestore ne sait pas combiner where('isBanned', '!=', true) + where('slug', '!=', null).
     db.collection('users').limit(MAX_PROFILES).get(),
   ]);
@@ -84,7 +84,7 @@ async function loadDynamicEntries(): Promise<SitemapEntry[]> {
     });
   }
 
-  // Profils avec slug uniquement — les uid `discord_SNOWFLAKE` ne doivent pas
+  // Profils avec slug uniquement, les uid `discord_SNOWFLAKE` ne doivent pas
   // être indexés (privacy : on n'expose pas les snowflakes Discord à Google).
   for (const doc of usersSnap.docs) {
     const data = doc.data();

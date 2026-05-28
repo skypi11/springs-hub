@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     const uid = await verifyAuth(req);
     if (!uid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
 
-    // Rate limit léger — l'user peut spammer le bouton mais c'est juste un update.
+    // Rate limit léger, l'user peut spammer le bouton mais c'est juste un update.
     const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
     if (blocked) return blocked;
 

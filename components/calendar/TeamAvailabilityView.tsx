@@ -161,7 +161,7 @@ export default function TeamAvailabilityView({
 
   // Note 2026-05-25 : le panel "STAFF DISPONIBLE" + l'inclusion staff dans
   // le matching ont été déplacés vers la vue semaine du calendrier de structure
-  // (CalendarSection/WeekView) avec une couche overlay dédiée — évite le
+  // (CalendarSection/WeekView) avec une couche overlay dédiée, évite le
   // doublon UI et centralise sur 1 seul endroit le contexte planification.
   const queryKey = ['team-availability', structureId, teamId] as const;
   const { data, isPending: loading } = useQuery({
@@ -224,7 +224,7 @@ export default function TeamAvailabilityView({
       }
     }
 
-    // Agrégation des slots déjà pris par un event (tous membres confondus — si au moins
+    // Agrégation des slots déjà pris par un event (tous membres confondus, si au moins
     // un joueur a un conflit ici, il y a un event en cours → on affiche un hachuré).
     // On ne garde que les slots qui tombent dans les jours visibles de la semaine.
     const eventSet = new Set<string>();
@@ -248,7 +248,7 @@ export default function TeamAvailabilityView({
     return { rows, slotCountsByIso: counts, titularCountsByIso: titularCounts, eventSlotsByIso: eventSet };
   }, [data, weekIdx]);
 
-  // Total des titulaires de l'équipe (constant pour cette équipe — sert au calcul
+  // Total des titulaires de l'équipe (constant pour cette équipe, sert au calcul
   // du palier OR : "équipe titulaire au complet").
   const titularsTotal = useMemo(() =>
     data ? data.members.filter(m => m.isTitulaire).length : 0,
@@ -352,7 +352,7 @@ export default function TeamAvailabilityView({
             </div>
             {allBlocks.length === 0 ? (
               <p className="text-sm italic" style={{ color: 'var(--s-text-muted)' }}>
-                Aucun créneau commun pour le moment — regarde la heatmap ci-dessous.
+                Aucun créneau commun pour le moment, regarde la heatmap ci-dessous.
               </p>
             ) : (
               <div className="space-y-2">
@@ -520,7 +520,7 @@ function ConsensusHeatmap({
   }
 
   // Mobile (< sm) : 7 jours × 36 créneaux est illisible en lignes. On transpose
-  // — jours en colonnes, créneaux en lignes — comme la grille de saisie des dispos.
+  //, jours en colonnes, créneaux en lignes, comme la grille de saisie des dispos.
   const [isNarrow, setIsNarrow] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 639px)');
@@ -544,7 +544,7 @@ function ConsensusHeatmap({
 
       <div style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', padding: '10px 12px' }}>
         {isNarrow ? (
-          /* Mobile : heatmap transposée — jours en colonnes, créneaux en lignes */
+          /* Mobile : heatmap transposée, jours en colonnes, créneaux en lignes */
           <ConsensusHeatmapTransposed
             rows={rows}
             slotCountsByIso={slotCountsByIso}
@@ -599,7 +599,7 @@ function ConsensusHeatmap({
           </>
         )}
 
-        {/* Legend — 3 paliers nets (validé Matt 2026-05-25) */}
+        {/* Legend, 3 paliers nets (validé Matt 2026-05-25) */}
         <div className="flex items-center gap-3 mt-3 pt-3 flex-wrap" style={{ borderTop: '1px solid var(--s-border)' }}>
           <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>CHAQUE CASE = 30 MIN</span>
           <div className="flex items-center gap-1.5">
@@ -608,7 +608,7 @@ function ConsensusHeatmap({
           </div>
           <div className="flex items-center gap-1.5">
             <LegendSwatch color="#2fc46b" border="#5fe39a" />
-            <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>{minPlayers}+ dispo — matcher possible</span>
+            <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>{minPlayers}+ dispo, matcher possible</span>
           </div>
           <div className="flex items-center gap-1.5">
             <LegendSwatch color="#ffb800" border="#ffd24d" />
@@ -711,7 +711,7 @@ function DayHeatmapRow({
 }
 
 // Variante mobile de la heatmap consensus : matrice transposée (jours en
-// colonnes, créneaux de 30 min en lignes) — tient dans la largeur d'un écran
+// colonnes, créneaux de 30 min en lignes), tient dans la largeur d'un écran
 // étroit là où la version 7 lignes × 36 colonnes donnait des cases de ~8 px.
 function ConsensusHeatmapTransposed({
   rows,
@@ -800,7 +800,7 @@ function ConsensusHeatmapTransposed({
   );
 }
 
-// Couleurs d'une case de heatmap — 3 paliers nets seulement (validé Matt 2026-05-25).
+// Couleurs d'une case de heatmap, 3 paliers nets seulement (validé Matt 2026-05-25).
 // Avant : 6 paliers dont 3 nuances d'or quasi-indiscernables (myrtille).
 // Maintenant :
 //   ○ Vide        : 0 dispo                                → gris très pâle
@@ -883,7 +883,7 @@ function HeatmapCell({
   const hhmm = `${pad2(cell.hour)}:${pad2(cell.minute)}`;
   const eventSuffix = hasEvent ? ' · event planifié' : '';
   const titularSuffix = titularsTotal > 0 ? ` (dont ${titularCount}/${titularsTotal} titulaires)` : '';
-  const title = `${hhmm} — ${count}/${totalMembers} dispo${titularSuffix}${eventSuffix}`;
+  const title = `${hhmm}, ${count}/${totalMembers} dispo${titularSuffix}${eventSuffix}`;
 
   return (
     <button
@@ -1135,7 +1135,7 @@ function PlayerHeatmapCard({
                 return (
                   <div
                     key={cell.iso}
-                    title={`${hhmm} — ${avail ? 'dispo' : 'pas dispo'}${conflict ? ' · event en cours' : ''}`}
+                    title={`${hhmm}, ${avail ? 'dispo' : 'pas dispo'}${conflict ? ' · event en cours' : ''}`}
                     style={{
                       height: 14,
                       background: bg,

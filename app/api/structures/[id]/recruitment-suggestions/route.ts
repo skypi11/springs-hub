@@ -4,7 +4,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { canAccessRecruitment, structureContext } from '@/lib/structure-permissions';
 
-// Cap sur la taille du résultat — on renvoie les meilleurs candidats triés
+// Cap sur la taille du résultat, on renvoie les meilleurs candidats triés
 const MAX_SUGGESTIONS = 30;
 
 // GET /api/structures/[id]/recruitment-suggestions
@@ -60,13 +60,13 @@ export async function GET(
       .limit(200)
       .get();
 
-    // Joueurs déjà membres de cette structure — à exclure
+    // Joueurs déjà membres de cette structure, à exclure
     const membersSnap = await db.collection('structure_members')
       .where('structureId', '==', structureId)
       .get();
     const memberIds = new Set(membersSnap.docs.map(d => d.data().userId));
 
-    // Joueurs déjà invités en direct par cette structure — à exclure
+    // Joueurs déjà invités en direct par cette structure, à exclure
     const invitedSnap = await db.collection('structure_invitations')
       .where('structureId', '==', structureId)
       .where('type', '==', 'direct_invite')

@@ -71,7 +71,7 @@ export default function AdminBallchasingPage() {
       <div>
         <div className="flex items-center gap-2 mb-2">
           <BarChart3 size={16} style={{ color: 'var(--s-gold)' }} />
-          <h1 className="font-display text-2xl">BALLCHASING — QUOTA HEBDO</h1>
+          <h1 className="font-display text-2xl">BALLCHASING, QUOTA HEBDO</h1>
         </div>
         <p className="text-sm" style={{ color: 'var(--s-text-muted)' }}>
           Suivi du compteur d&apos;uploads ballchasing pour la semaine en cours.
@@ -87,7 +87,7 @@ export default function AdminBallchasingPage() {
           <div className="mt-3 flex items-start gap-2 p-3 bevel-sm"
             style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.30)', color: '#ef4444' }}>
             <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
-            <span className="text-sm">BALLCHASING_API_KEY n&apos;est pas configurée — les uploads sont désactivés.</span>
+            <span className="text-sm">BALLCHASING_API_KEY n&apos;est pas configurée, les uploads sont désactivés.</span>
           </div>
         )}
       </div>

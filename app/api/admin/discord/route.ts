@@ -9,8 +9,8 @@ const MAX_USERS_SCAN = 2000;
 
 type MonthBucket = { ym: string; count: number };
 
-// GET /api/admin/discord — stats sur les utilisateurs connectés via Discord OAuth
-// (tous les users du Hub sont Discord — l'auth Google est réservée aux admins Springs).
+// GET /api/admin/discord, stats sur les utilisateurs connectés via Discord OAuth
+// (tous les users du Hub sont Discord, l'auth Google est réservée aux admins Springs).
 export async function GET(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
       .slice(-12);  // 12 derniers mois
 
     // Salons du serveur Aedral + salon d'alertes admin configuré. Discord peut
-    // être indispo — on dégrade sans casser la page de stats.
+    // être indispo, on dégrade sans casser la page de stats.
     let channels: { id: string; name: string; category: string }[] = [];
     let alertChannelId: string | null = null;
     try {
@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/admin/discord — test d'envoi sur un webhook Discord.
+// POST /api/admin/discord, test d'envoi sur un webhook Discord.
 // Body : { webhookUrl, message }
 export async function POST(req: NextRequest) {
   try {

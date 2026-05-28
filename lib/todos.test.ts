@@ -111,7 +111,7 @@ describe('validateCreateTodo', () => {
     if (r.ok) expect(r.value.description).toBe('');
   });
 
-  it('eventId optionnel — null par défaut', () => {
+  it('eventId optionnel, null par défaut', () => {
     const r = validateCreateTodo({ subTeamId: 'team1', assigneeIds: ['u1'], title: 'x' });
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.value.eventId).toBeNull();
@@ -681,7 +681,7 @@ describe('endOfDayParisMs', () => {
 
 // ---------- validateCreateTodo : deadlineAt pour mode absolute ----------
 
-describe('validateCreateTodo — deadlineAt', () => {
+describe('validateCreateTodo, deadlineAt', () => {
   it('mode absolute : deadlineAt = fin de journée Paris du YMD', () => {
     const r = validateCreateTodo({
       subTeamId: 'team1', assigneeIds: ['u1'], title: 'x',

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 
-// Footer minimal — liens légaux discrets en bas de chaque page.
+// Footer minimal, liens légaux discrets en bas de chaque page.
 // Volontairement sobre pour ne pas concurrencer le contenu.
 export default function LegalFooter() {
   return (

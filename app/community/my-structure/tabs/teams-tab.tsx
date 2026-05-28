@@ -35,14 +35,14 @@ const partitionedCollision: CollisionDetection = (args) => {
   });
 };
 
-// Tab Équipes complet — extrait de page.tsx pour réduire la taille du fichier orchestrateur.
+// Tab Équipes complet, extrait de page.tsx pour réduire la taille du fichier orchestrateur.
 // Chaque dépendance (état, handler, computed) est passée en prop pour rester React-friendly.
 // Le tab gère :
 //  - création / archivage / suppression d'équipes
 //  - rosters (titulaires, remplaçants, staff) avec verrous "1 joueur = 1 équipe par jeu"
 //  - capitaine (picker dropdown)
 //  - menu kebab par équipe (logo, label, discord, archive, suppression)
-//  - dashboard santé (no captain, no staff, RL incomplet) — dirigeant only
+//  - dashboard santé (no captain, no staff, RL incomplet), dirigeant only
 //  - groupement par label avec collapse + pagination + D&D inter/intra-groupes
 export interface TeamsTabProps {
   s: MyStructure;
@@ -154,7 +154,7 @@ export function TeamsTab(props: TeamsTabProps) {
     const allMembers = [...t.players, ...t.subs, ...t.staff];
     return allMembers.some(m => (m.displayName ?? '').toLowerCase().includes(q));
   };
-  // Filtre par jeu — '' = tous. Géré localement (ne traverse pas le parent
+  // Filtre par jeu, '' = tous. Géré localement (ne traverse pas le parent
   // pour éviter de polluer le state global de page.tsx avec un état transient).
   const [gameFilter, setGameFilter] = useState<string>('');
   const matchGame = (t: TeamData) => !gameFilter || t.game === gameFilter;
@@ -475,12 +475,12 @@ export function TeamsTab(props: TeamsTabProps) {
                         handleUpdateTeamDiscordChannel(team.id, id, ch?.name ?? null);
                       }
                     }}>
-                    <option value="">— Aucun salon —</option>
+                    <option value="">Aucun salon</option>
                     {(() => {
                       // discordChannels est déjà trié selon l'ordre réel du
                       // serveur Discord (cf. getGuildChannels). On regroupe par
-                      // parentId — pas par nom : deux catégories homonymes ne
-                      // doivent pas fusionner — en conservant l'ordre d'apparition.
+                      // parentId, pas par nom : deux catégories homonymes ne
+                      // doivent pas fusionner, en conservant l'ordre d'apparition.
                       const channelGroups = new Map<string, { name: string; list: DiscordChannel[] }>();
                       for (const c of (discordChannels ?? [])) {
                         const key = c.parentId ?? '__none__';
@@ -563,7 +563,7 @@ export function TeamsTab(props: TeamsTabProps) {
                   <span className="t-label">Logo de l&apos;équipe</span>
                 </div>
 
-                {/* Méthode 1 — import direct d'un fichier (uploadé sur R2, converti en webp) */}
+                {/* Méthode 1, import direct d'un fichier (uploadé sur R2, converti en webp) */}
                 <ImageUploader
                   currentUrl={teamLogoEdit.value.trim() || team.logoUrl || null}
                   endpoint="/api/upload/team-logo"
@@ -571,7 +571,7 @@ export function TeamsTab(props: TeamsTabProps) {
                   aspect="square"
                   maxBytes={UPLOAD_LIMITS.STRUCTURE_LOGO_BYTES}
                   label="Importer une image"
-                  hint="JPEG, PNG, WebP, GIF — max 2 MB. Format carré recommandé."
+                  hint="JPEG, PNG, WebP, GIF, max 2 MB. Format carré recommandé."
                   disabled={logoBusy}
                   onUploaded={(url) => handleUpdateTeamLogo(team.id, url)}
                 />
@@ -582,7 +582,7 @@ export function TeamsTab(props: TeamsTabProps) {
                   <div className="flex-1 h-px" style={{ background: 'var(--s-border)' }} />
                 </div>
 
-                {/* Méthode 2 — lien externe direct */}
+                {/* Méthode 2, lien externe direct */}
                 <div className="flex items-center gap-2">
                   {teamLogoEdit.value.trim() ? (
                     <span className="relative w-10 h-10 flex-shrink-0 bevel-sm overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
@@ -709,7 +709,7 @@ export function TeamsTab(props: TeamsTabProps) {
         </div>
       )}
 
-      {/* Dashboard santé équipes — dirigeant + responsable */}
+      {/* Dashboard santé équipes, dirigeant + responsable */}
       {isAdminOfActive && !teamsLoading && (() => {
         const activeAll = teams.filter(t => (t.status ?? 'active') === 'active');
         if (activeAll.length === 0) return null;
@@ -791,7 +791,7 @@ export function TeamsTab(props: TeamsTabProps) {
             placeholder="Rechercher une équipe, un label, un joueur..."
             className="settings-input has-icon-sm w-full text-sm" />
         </div>
-        {/* Chips de filtre par jeu — visibles uniquement si > 1 jeu pratiqué
+        {/* Chips de filtre par jeu, visibles uniquement si > 1 jeu pratiqué
             (sinon le filtre n'apporte rien). Compteur par chip. */}
         {teamsByGameCount.length > 1 && (
           <div className="flex items-center gap-1 flex-wrap">
@@ -835,7 +835,7 @@ export function TeamsTab(props: TeamsTabProps) {
         )}
       </div>
 
-      {/* Formulaire nouvelle équipe — dirigeant + responsable */}
+      {/* Formulaire nouvelle équipe, dirigeant + responsable */}
       {showNewTeam && isAdminOfActive && (
         <div className="mb-4 bevel-sm relative overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid rgba(0,129,255,0.25)' }}>
           <div className="h-[2px]" style={{ background: 'linear-gradient(90deg, var(--s-blue), transparent 70%)' }} />
@@ -877,7 +877,7 @@ export function TeamsTab(props: TeamsTabProps) {
             onChange={setNewTeamLogoFile}
             maxBytes={UPLOAD_LIMITS.STRUCTURE_LOGO_BYTES}
             label="Logo de l'équipe (optionnel)"
-            hint="JPEG, PNG, WebP, GIF — max 2 MB. Format carré recommandé. Si vide, une icône générique est utilisée."
+            hint="JPEG, PNG, WebP, GIF, max 2 MB. Format carré recommandé. Si vide, une icône générique est utilisée."
             aspect="square"
             disabled={teamActionLoading === 'create'}
           />
