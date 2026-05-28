@@ -455,7 +455,7 @@ export default function WeekView({
             </button>
             {selectedStaffUids.size > 0 && (
               <button type="button" onClick={clearStaffPick}
-                className="absolute -right-1 translate-x-full top-1/2 -translate-y-1/2 text-xs transition-colors duration-150"
+                className="static lg:absolute lg:-right-1 lg:translate-x-full lg:top-1/2 lg:-translate-y-1/2 ml-2 lg:ml-0 text-xs transition-colors duration-150"
                 style={{ color: 'var(--s-text-muted)', padding: '2px 6px' }}>
                 Réinitialiser
               </button>
