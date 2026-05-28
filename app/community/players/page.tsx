@@ -246,7 +246,7 @@ export default function PlayersPage() {
       if (!data.token) { alert('Impossible de générer le lien'); return; }
       const url = `${window.location.origin}/community/join/${data.token}`;
       try { await navigator.clipboard.writeText(url); }
-      catch { window.prompt('Lien copié impossible — copie manuellement :', url); }
+      catch { window.prompt('Lien copié impossible. Copie manuellement :', url); }
       setCopiedLinkFor(targetUid);
       setTimeout(() => setCopiedLinkFor(prev => (prev === targetUid ? null : prev)), 2000);
     } catch { alert('Erreur réseau'); }
@@ -475,7 +475,7 @@ export default function PlayersPage() {
                 <FilterGroup icon={<Gamepad2 size={11} />} title="TRACKMANIA" accent="var(--s-green)">
                   <div className="space-y-3">
                     <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                      Aucun filtre TM disponible — utilise &laquo; Jeux : TM &raquo; en haut pour ne voir que les joueurs Trackmania.
+                      Aucun filtre TM disponible. Utilise &laquo; Jeux : TM &raquo; en haut pour ne voir que les joueurs Trackmania.
                     </p>
                   </div>
                 </FilterGroup>
@@ -1209,7 +1209,7 @@ function EmptyState({ hasFilters, totalCount, onReset }: { hasFilters: boolean; 
         </h3>
         <p className="t-body mb-6 max-w-md mx-auto" style={{ color: 'var(--s-text-dim)' }}>
           {totalCount === 0
-            ? 'Sois le premier joueur Aedral — crée ton profil et rejoins la communauté.'
+            ? 'Sois le premier joueur Aedral, crée ton profil et rejoins la communauté.'
             : "Personne n'est marqué comme disponible au recrutement pour l'instant."}
         </p>
         <Link href="/settings" className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2">

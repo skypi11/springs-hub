@@ -29,13 +29,13 @@ const bebasNeue = Bebas_Neue({
 export const metadata: Metadata = {
   metadataBase: new URL('https://aedral.com'),
   title: {
-    default: 'Aedral — Plateforme Communautaire Esport',
+    default: 'Aedral, plateforme communautaire esport',
     // Template appliqué quand une page enfant définit son propre `title`.
     // Ex: "Mon Équipe" devient "Mon Équipe · Aedral" dans l'onglet du navigateur.
     template: '%s · Aedral',
   },
   description:
-    "La plateforme tout-en-un pour structures esport amateur : gestion d'équipes, calendrier collaboratif avec consensus auto des dispos, recrutement, suivi des exercices, replays. Rocket League, Trackmania et Valorant supportés.",
+    "La plateforme tout-en-un pour structures esport amateur : gestion d'équipes, calendrier collaboratif avec consensus automatique des dispos, recrutement, suivi des exercices, replays. Rocket League, Trackmania et Valorant supportés.",
   applicationName: 'Aedral',
   keywords: [
     'esport amateur', 'structure esport', 'gestion équipe esport',
@@ -56,14 +56,14 @@ export const metadata: Metadata = {
     locale: 'fr_FR',
     url: 'https://aedral.com/',
     siteName: 'Aedral',
-    title: 'Aedral — Plateforme Communautaire Esport',
+    title: 'Aedral, plateforme communautaire esport',
     description:
       "La plateforme tout-en-un pour structures esport amateur : gestion d'équipes, calendrier collaboratif, recrutement, suivi des exercices, replays.",
     // L'image OG est auto-récupérée depuis app/opengraph-image.png (1200×630).
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Aedral — Plateforme Communautaire Esport',
+    title: 'Aedral, plateforme communautaire esport',
     description:
       "La plateforme tout-en-un pour structures esport amateur : gestion d'équipes, calendrier collaboratif, recrutement, suivi des exercices.",
     // L'image Twitter est aussi auto-récupérée depuis app/opengraph-image.png.

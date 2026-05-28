@@ -7,14 +7,14 @@ export const metadata: Metadata = {
     "Annuaire des joueurs esport amateur sur Aedral. Filtre par jeu, pays, rang, statut de recrutement. Trouve tes prochains coéquipiers ou repère des talents pour ta structure.",
   alternates: { canonical: '/community/players' },
   openGraph: {
-    title: 'Annuaire joueurs — Aedral',
+    title: 'Annuaire joueurs · Aedral',
     description:
       "Annuaire des joueurs esport amateur. Filtre par jeu, pays, rang, statut recrutement.",
     url: '/community/players',
     type: 'website',
   },
   twitter: {
-    title: 'Annuaire joueurs — Aedral',
+    title: 'Annuaire joueurs · Aedral',
     description: "Annuaire des joueurs esport amateur.",
   },
 };

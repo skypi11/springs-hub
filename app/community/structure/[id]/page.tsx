@@ -805,7 +805,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                         <option value="">Choisir un poste ouvert...</option>
                         {positions.map((p, i) => (
                           <option key={i} value={i}>
-                            {gameLabel(p.game)} — {roleLabel(p.role)}
+                            {gameLabel(p.game)} · {roleLabel(p.role)}
                           </option>
                         ))}
                       </select>

@@ -7,14 +7,14 @@ export const metadata: Metadata = {
     "Annuaire public des structures esport amateur sur Aedral. Filtre par jeu (Rocket League, Trackmania, Valorant), découvre les organisations qui recrutent et postule directement.",
   alternates: { canonical: '/community/structures' },
   openGraph: {
-    title: 'Structures esport — Aedral',
+    title: 'Structures esport · Aedral',
     description:
       "Annuaire public des structures esport amateur. Filtre par jeu, découvre celles qui recrutent.",
     url: '/community/structures',
     type: 'website',
   },
   twitter: {
-    title: 'Structures esport — Aedral',
+    title: 'Structures esport · Aedral',
     description: "Annuaire public des structures esport amateur.",
   },
 };

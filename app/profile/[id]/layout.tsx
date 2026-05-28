@@ -64,21 +64,21 @@ export async function generateMetadata(
   const cleanBio = bio.replace(/\s+/g, ' ').trim();
   const shortDesc = cleanBio.length > 0
     ? (cleanBio.length > 150 ? cleanBio.slice(0, 147) + '…' : cleanBio)
-    : `Profil de ${displayName} sur Aedral — plateforme communautaire esport amateur.`;
+    : `Profil de ${displayName} sur Aedral, plateforme communautaire esport amateur.`;
 
   return {
     title: displayName,
     description: shortDesc,
     alternates: { canonical },
     openGraph: {
-      title: `${displayName} — Aedral`,
+      title: `${displayName} · Aedral`,
       description: shortDesc,
       url: canonical,
       type: 'profile',
       ...(avatarUrl ? { images: [{ url: avatarUrl, alt: `Avatar de ${displayName}` }] } : {}),
     },
     twitter: {
-      title: `${displayName} — Aedral`,
+      title: `${displayName} · Aedral`,
       description: shortDesc,
       ...(avatarUrl ? { images: [avatarUrl] } : {}),
     },

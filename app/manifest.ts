@@ -4,7 +4,7 @@ import type { MetadataRoute } from 'next';
 // Icons générés par scripts/generate-png-derivatives.mjs.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Aedral — Plateforme Communautaire Esport',
+    name: 'Aedral, plateforme communautaire esport',
     short_name: 'Aedral',
     description:
       'La plateforme communautaire esport pour structures et joueurs. Gère ta structure, suis les compétitions, rejoins la communauté.',

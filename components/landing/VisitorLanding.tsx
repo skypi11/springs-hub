@@ -120,8 +120,8 @@ function HeroSection({ stats }: { stats: PublicStats | null }) {
 
           <p className="t-body mb-8 max-w-2xl" style={{ fontSize: '17px', lineHeight: 1.6, color: 'var(--s-text-dim)' }}>
             Aedral réunit structures, joueurs et compétitions de l&apos;écosystème
-            amateur en un seul endroit. Recrutement, gestion d&apos;équipe, calendrier,
-            tournois — tout ce qu&apos;il faut pour faire vivre ta passion.
+            amateur en un seul endroit : recrutement, gestion d&apos;équipe, calendrier,
+            tournois. Tout ce qu&apos;il faut pour faire vivre ta passion.
           </p>
 
           <SupportedGamesStrip />
@@ -269,7 +269,7 @@ function PlayersSection() {
               JOUE, PROGRESSE, REJOINS.
             </h2>
             <p className="t-body max-w-2xl mx-auto" style={{ fontSize: '15px', color: 'var(--s-text-dim)' }}>
-              Que tu cherches une structure, que tu veuilles afficher ton niveau ou suivre les compétitions —
+              Que tu cherches une structure, que tu veuilles afficher ton niveau ou suivre les compétitions,
               Aedral te donne les outils.
             </p>
           </div>
@@ -333,7 +333,7 @@ function StructuresSection() {
               <span style={{ color: 'var(--s-gold)' }}>SANS T&apos;ARRACHER LES CHEVEUX.</span>
             </h2>
             <p className="t-body max-w-2xl mx-auto" style={{ fontSize: '15px', color: 'var(--s-text-dim)' }}>
-              Recrutement, organisation interne, planning, communication Discord —
+              Recrutement, organisation interne, planning, communication Discord :
               tous les outils pour faire vivre une structure professionnelle.
             </p>
           </div>
@@ -491,7 +491,7 @@ function HowItWorksSection() {
       num: '03',
       icon: Zap,
       title: 'Rejoins ou crée',
-      desc: 'Cherche une structure qui recrute, candidate, ou demande à créer la tienne — l\'équipe Aedral valide les fondateurs.',
+      desc: 'Cherche une structure qui recrute, candidate, ou demande à créer la tienne. L\'équipe Aedral valide les fondateurs.',
     },
   ];
 
@@ -627,7 +627,7 @@ const faq = [
   },
   {
     q: 'Quels jeux sont supportés ?',
-    a: `Aujourd'hui : ${ALL_GAME_DEFS.map(g => g.label).join(', ')}. La plateforme est conçue pour s'étendre à d'autres titres en fonction des demandes communautaires — chaque ajout passe par une seule entrée de configuration côté code, le reste suit (équipes, calendrier, recrutement, exercices).`,
+    a: `Aujourd'hui : ${ALL_GAME_DEFS.map(g => g.label).join(', ')}. La plateforme est conçue pour s'étendre à d'autres titres en fonction des demandes communautaires. Chaque ajout passe par une seule entrée de configuration côté code, le reste suit (équipes, calendrier, recrutement, exercices).`,
   },
 ];
 

@@ -274,7 +274,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
               style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.4)' }}>
               <ShieldAlert size={16} style={{ color: '#ef4444', flexShrink: 0, marginTop: 2 }} />
               <div className="text-xs flex-1 min-w-0" style={{ color: '#ff8a8a' }}>
-                <strong>Compte suspecté smurf</strong> — flaggé le {dateStr}
+                <strong>Compte suspecté smurf</strong> · flaggé le {dateStr}
                 {flag.note && <span> · *{flag.note}*</span>}
                 <span className="block mt-0.5" style={{ color: 'var(--s-text-muted)' }}>
                   Visible uniquement par les admins. Sert d'historique pour la modération et les futures inscriptions en compétition.
@@ -638,7 +638,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                           <Trophy size={16} style={{ color: 'var(--s-blue)' }} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="t-label mb-0.5" style={{ color: 'var(--s-blue)' }}>STATS AGRÉGÉES — À VENIR</p>
+                          <p className="t-label mb-0.5" style={{ color: 'var(--s-blue)' }}>STATS AGRÉGÉES · À VENIR</p>
                           <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
                             Moyennes buts / saves / assists / possession dès que ses replays seront analysés sur Aedral.
                           </p>
@@ -771,7 +771,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                                   key={t.tier}
                                   className="text-center px-3 py-2"
                                   style={{ background: td.bg, border: `1px solid ${td.border}`, minWidth: '64px' }}
-                                  title={`Tier ${t.tier} (${tierLabel}) — ${t.count} trophée${t.count > 1 ? 's' : ''}`}
+                                  title={`Tier ${t.tier} (${tierLabel}) · ${t.count} trophée${t.count > 1 ? 's' : ''}`}
                                 >
                                   <p className="font-display text-base" style={{ color: td.color, lineHeight: 1 }}>
                                     {new Intl.NumberFormat('fr-FR').format(t.count)}
@@ -798,7 +798,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                               <div
                                 className="text-center px-3 py-2"
                                 style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', minWidth: '78px' }}
-                                title={`Meilleur classement en COTD${tmStats.cotdBestDiv ? ` — Division ${tmStats.cotdBestDiv}` : ''}`}
+                                title={`Meilleur classement en COTD${tmStats.cotdBestDiv ? ` · Division ${tmStats.cotdBestDiv}` : ''}`}
                               >
                                 <p className="font-display text-lg" style={{ color: '#33ff66', lineHeight: 1 }}>#{tmStats.cotdBestRank}</p>
                                 <p className="t-label mt-0.5">
@@ -928,7 +928,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                           >
                             <Link2 size={11} style={{ color: 'var(--s-text-muted)' }} />
                             <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                              Compte Riot lié — RiotID en cours de résolution…
+                              Compte Riot lié. RiotID en cours de résolution…
                             </span>
                           </div>
                         );
@@ -1252,7 +1252,7 @@ function SpringsHistoryPanel({
                     <p className="text-sm" style={{ color: 'var(--s-text-muted)' }}>
                       {hasTmIdentity
                         ? 'Aucune participation enregistrée pour le pseudo TM actuel.'
-                        : 'Pseudo Trackmania non renseigné — impossible de croiser les résultats.'}
+                        : 'Pseudo Trackmania non renseigné. Impossible de croiser les résultats.'}
                     </p>
                   )}
                 </HistoryBlock>

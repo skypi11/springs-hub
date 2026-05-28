@@ -29,11 +29,11 @@ const SECTIONS: Section[] = [
     id: 'profil',
     icon: UserCircle,
     title: 'Profil & comptes liés',
-    intro: "Ton profil Aedral te suit partout — pseudo, drapeau, jeux pratiqués, comptes vérifiés.",
+    intro: "Ton profil Aedral te suit partout : pseudo, drapeau, jeux pratiqués, comptes vérifiés.",
     items: [
       "Connexion en 1 clic avec ton compte Discord",
       "Lier tes comptes de jeu officiels (Epic, Steam, Riot selon le jeu) pour authentifier ton identité et bloquer les usurpations",
-      "Lien tracker public sur ton profil quand ton compte de jeu est vérifié — n'importe qui peut contrôler ton rang en 1 clic",
+      "Lien tracker public sur ton profil quand ton compte de jeu est vérifié : n'importe qui peut contrôler ton rang en 1 clic",
       "Rang auto-déclaré, mais comme ton compte est vérifié, les autres peuvent te signaler si tu mens",
       "Badge ✓ Vérifié visible publiquement quand un compte de jeu est confirmé",
       "Connexions Discord (Twitch, YouTube, Instagram, etc.) sync automatique avec toggle visibilité par compte",
@@ -52,7 +52,7 @@ const SECTIONS: Section[] = [
       "Maximum 2 structures par jeu (un joueur peut être fondateur d'une et responsable d'une autre)",
       "Identité personnalisable : nom, tag, logo, bannière, description",
       "Multi-jeux : une seule structure peut gérer plusieurs jeux en parallèle, chaque équipe étant attachée à un jeu précis",
-      "Liaison Discord — installe le bot Aedral sur ton serveur Discord pour les notifs",
+      "Liaison Discord : installe le bot Aedral sur ton serveur Discord pour les notifs",
     ],
   },
   {
@@ -61,7 +61,7 @@ const SECTIONS: Section[] = [
     title: 'Équipes & roster',
     intro: "Organise tes équipes compétitives au sein de ta structure.",
     items: [
-      "Créer des équipes par jeu — le format roster (titulaires + remplaçants) suit le standard du jeu (voir Spécificités par jeu plus bas)",
+      "Créer des équipes par jeu, le format roster (titulaires + remplaçants) suit le standard du jeu (voir Spécificités par jeu plus bas)",
       "Désigner un capitaine (joueur qui gère le calendrier de son équipe)",
       "Ajouter du staff par équipe (manager ou coach) avec droits spécifiques",
       "Logo et identité par équipe + groupe d'équipes (ex: « Académie », « Sénior »)",
@@ -120,14 +120,14 @@ const SECTIONS: Section[] = [
     id: 'exercices',
     icon: ClipboardList,
     title: 'Exercices & feedback',
-    intro: "Le coaching dans la durée — assigne des exercices et points à travailler à tes joueurs.",
+    intro: "Le coaching dans la durée : assigne des exercices et points à travailler à tes joueurs.",
     items: [
       "Templates d'exercices réutilisables (personnels ou partagés structure)",
       "5 types : entraînement libre, replay à analyser, lecture, défi, autre",
       "Assigner un exercice à un joueur précis lié à un événement (ex: post-debrief de scrim)",
       "Replay review : assigner un replay précis à analyser, avec questions/objectifs",
       "Suivi par joueur : exercices à faire, terminés, en retard",
-      "Compte rendu commun (event) + points à travailler perso (exercices) — séparation propre",
+      "Compte rendu commun (event) + points à travailler perso (exercices) : séparation propre",
     ],
   },
   {
@@ -148,7 +148,7 @@ const SECTIONS: Section[] = [
     id: 'roles',
     icon: Lock,
     title: 'Rôles & permissions',
-    intro: "Chaque rôle a son périmètre — du fondateur tout-puissant au capitaine d'équipe.",
+    intro: "Chaque rôle a son périmètre, du fondateur tout-puissant au capitaine d'équipe.",
     items: [
       "7 rôles distincts : Fondateur, Co-fondateur, Responsable, Coach structure, Manager d'équipe, Coach d'équipe, Capitaine",
       "Hiérarchie claire : qui peut promouvoir qui, qui voit quoi",
@@ -308,7 +308,7 @@ export default function GuidePage() {
               <div className="px-5 sm:px-7 py-5 text-center">
                 <h3 className="font-display text-lg tracking-wider mb-2">PRÊT À COMMENCER ?</h3>
                 <p className="text-sm mb-4" style={{ color: 'var(--s-text-dim)' }}>
-                  Crée ou rejoins une structure, complète ton profil, déclare tes dispos — et tout l&apos;écosystème s&apos;active.
+                  Crée ou rejoins une structure, complète ton profil, déclare tes dispos, et tout l&apos;écosystème s&apos;active.
                 </p>
                 <div className="flex flex-wrap gap-2 justify-center">
                   <Link href="/settings" className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2"
