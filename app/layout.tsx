@@ -23,10 +23,62 @@ const bebasNeue = Bebas_Neue({
   weight: '400',
 });
 
+// `metadataBase` est utilisé par Next.js pour résoudre les URLs relatives des
+// images OG/twitter et générer les balises canoniques sur chaque page. Sans ça,
+// les partages sur Discord/Twitter/Facebook tombent sur des URLs cassées.
 export const metadata: Metadata = {
-  title: 'Aedral — Plateforme Communautaire Esport',
-  description: 'La plateforme communautaire esport pour structures et joueurs. Gère ta structure, suis les compétitions, rejoins la communauté. Springs E-Sport est partenaire privilégié.',
-  // Le favicon est auto-géré par Next.js via app/icon.svg
+  metadataBase: new URL('https://aedral.com'),
+  title: {
+    default: 'Aedral — Plateforme Communautaire Esport',
+    // Template appliqué quand une page enfant définit son propre `title`.
+    // Ex: "Mon Équipe" devient "Mon Équipe · Aedral" dans l'onglet du navigateur.
+    template: '%s · Aedral',
+  },
+  description:
+    "La plateforme tout-en-un pour structures esport amateur : gestion d'équipes, calendrier collaboratif avec consensus auto des dispos, recrutement, suivi des exercices, replays. Rocket League, Trackmania et Valorant supportés.",
+  applicationName: 'Aedral',
+  keywords: [
+    'esport amateur', 'structure esport', 'gestion équipe esport',
+    'recrutement esport', 'plateforme esport', 'calendrier esport',
+    'rocket league', 'trackmania', 'valorant',
+    'aedral',
+  ],
+  authors: [{ name: 'Matt Molines' }],
+  creator: 'Matt Molines',
+  publisher: 'Matt Molines',
+  // Le favicon est auto-géré par Next.js via app/icon.svg, l'icône Apple via
+  // app/apple-icon.png, l'image OG via app/opengraph-image.png.
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'fr_FR',
+    url: 'https://aedral.com/',
+    siteName: 'Aedral',
+    title: 'Aedral — Plateforme Communautaire Esport',
+    description:
+      "La plateforme tout-en-un pour structures esport amateur : gestion d'équipes, calendrier collaboratif, recrutement, suivi des exercices, replays.",
+    // L'image OG est auto-récupérée depuis app/opengraph-image.png (1200×630).
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Aedral — Plateforme Communautaire Esport',
+    description:
+      "La plateforme tout-en-un pour structures esport amateur : gestion d'équipes, calendrier collaboratif, recrutement, suivi des exercices.",
+    // L'image Twitter est aussi auto-récupérée depuis app/opengraph-image.png.
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+      'max-video-preview': -1,
+    },
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
