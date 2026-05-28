@@ -142,8 +142,8 @@ export default function AdminBallchasingPage() {
             Aucun upload ballchasing cette semaine.
           </p>
         ) : (
-          <div className="bevel-sm overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-            <table className="w-full text-sm">
+          <div className="bevel-sm overflow-x-auto" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+            <table className="w-full text-sm" style={{ minWidth: 640 }}>
               <thead>
                 <tr style={{ color: 'var(--s-text-muted)', borderBottom: '1px solid var(--s-border)' }}>
                   <th className="text-left px-4 py-3 font-normal">Structure</th>

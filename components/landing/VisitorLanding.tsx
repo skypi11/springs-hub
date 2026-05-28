@@ -138,7 +138,7 @@ function HeroSection({ stats }: { stats: PublicStats | null }) {
             </a>
           </div>
 
-          <div className="grid grid-cols-3 gap-6 lg:gap-12 w-full max-w-2xl">
+          <div className="grid grid-cols-3 gap-3 sm:gap-6 lg:gap-12 w-full max-w-2xl">
             <StatBlock value={stats?.structures ?? null} label="Structures" />
             <StatBlock value={stats?.players ?? null} label="Joueurs" />
             <StatBlock value={competitions.length} label="Compétitions" />

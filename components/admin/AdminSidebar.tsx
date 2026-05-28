@@ -1,11 +1,12 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Building2, Users, Users2, CalendarDays, ClipboardList,
   ShieldAlert, Bell, MessagesSquare, Megaphone, UploadCloud, History, Wrench,
-  Flag, RefreshCw, BarChart3,
+  Flag, RefreshCw, BarChart3, ChevronDown,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -44,6 +45,22 @@ const ITEMS: NavItem[] = [
 
 export default function AdminSidebar({ badges = {} }: Props) {
   const pathname = usePathname();
+  // Collapse mobile : sidebar pliée par défaut en <lg pour ne pas occuper 16
+  // lignes verticales au-dessus du contenu. Toggle via le header "Panel admin".
+  // En lg+, la sidebar reste toujours déployée (le toggle est invisible).
+  const [openMobile, setOpenMobile] = useState(false);
+
+  // Ferme automatiquement le menu mobile à chaque navigation pour ne pas le
+  // laisser ouvert sur la page suivante (et masquer le contenu).
+  useEffect(() => {
+    setOpenMobile(false);
+  }, [pathname]);
+
+  // Label de la page courante affiché à côté du bouton "Panel admin" en mobile,
+  // pour donner du contexte ("Panel admin · Utilisateurs") sans déployer.
+  const currentItem = ITEMS.find(it => it.href === '/admin'
+    ? pathname === '/admin'
+    : pathname === it.href || pathname.startsWith(it.href + '/'));
 
   return (
     <aside>
@@ -56,9 +73,33 @@ export default function AdminSidebar({ badges = {} }: Props) {
           style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }}
         />
         <div className="p-2">
-          <div className="px-3 py-2">
-            <span className="t-label">Panel admin</span>
-          </div>
+          {/* Header : visible toujours. En mobile c'est un bouton pour ouvrir
+              le menu. En lg, c'est juste le label (le bouton est désactivé). */}
+          <button
+            type="button"
+            onClick={() => setOpenMobile(o => !o)}
+            className="w-full flex items-center justify-between px-3 py-2 lg:cursor-default"
+            style={{ cursor: 'pointer' }}
+          >
+            <span className="t-label flex items-center gap-2">
+              Panel admin
+              {currentItem && (
+                <span className="lg:hidden" style={{ color: 'var(--s-text-dim)' }}>
+                  · {currentItem.label}
+                </span>
+              )}
+            </span>
+            <ChevronDown
+              size={14}
+              className="lg:hidden transition-transform"
+              style={{
+                color: 'var(--s-text-muted)',
+                transform: openMobile ? 'rotate(180deg)' : 'none',
+              }}
+            />
+          </button>
+          {/* Items : toujours visibles en lg, conditionnels en mobile selon openMobile */}
+          <div className={openMobile ? 'block' : 'hidden lg:block'}>
           {ITEMS.map((item) => {
             const Icon = item.icon;
             const active = item.href === '/admin'
@@ -117,6 +158,7 @@ export default function AdminSidebar({ badges = {} }: Props) {
               </Link>
             );
           })}
+          </div>
         </div>
       </div>
     </aside>

@@ -260,7 +260,7 @@ export default function AdminUsersPage() {
 
       {/* Barre de recherche + filtres */}
       <div className="flex gap-4 items-start flex-wrap">
-        <div className="relative flex-1 min-w-[260px]">
+        <div className="relative flex-1 min-w-0 sm:min-w-[260px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--s-text-muted)' }} />
           <input type="text" className="settings-input has-icon w-full"
             placeholder="Rechercher par pseudo, Discord ou UID..."
@@ -425,7 +425,7 @@ export default function AdminUsersPage() {
                 <div className="px-5 pb-5 space-y-4">
                   <div className="divider" />
 
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <div>
                         <span className="t-label block mb-0.5">UID</span>
@@ -625,7 +625,7 @@ export default function AdminUsersPage() {
                           </button>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="t-label block mb-1">Pseudo</label>
                             <input type="text" className="settings-input w-full" value={editForm.displayName}
@@ -684,7 +684,7 @@ export default function AdminUsersPage() {
                         {editForm.games.includes('rocket_league') && (
                           <div className="p-3 space-y-3" style={{ background: 'rgba(0,129,255,0.04)', border: '1px solid rgba(0,129,255,0.15)' }}>
                             <span className="t-label" style={{ color: 'var(--s-blue)' }}>COMPTES ROCKET LEAGUE</span>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div>
                                 <label className="t-label block mb-1">Epic Account ID</label>
                                 <input type="text" className="settings-input w-full" value={editForm.epicAccountId}
@@ -704,7 +704,7 @@ export default function AdminUsersPage() {
                         {editForm.games.includes('trackmania') && (
                           <div className="p-3 space-y-3" style={{ background: 'rgba(0,217,54,0.04)', border: '1px solid rgba(0,217,54,0.15)' }}>
                             <span className="t-label" style={{ color: 'var(--s-green)' }}>COMPTES TRACKMANIA</span>
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                               <div>
                                 <label className="t-label block mb-1">Pseudo TM</label>
                                 <input type="text" className="settings-input w-full" value={editForm.pseudoTM}

@@ -246,7 +246,7 @@ export default function AdminDashboardPage() {
       )}
 
       {/* ═══ Stats globales ═══ */}
-      <div className="grid grid-cols-3 gap-3 animate-fade-in-d1">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 animate-fade-in-d1">
         <StatPill icon={Building2} label="Structures actives" value={totals.activeStructures} />
         <StatPill icon={Users} label="Utilisateurs" value={totals.totalUsers} />
         <StatPill icon={AlertCircle} label="En attente" value={toHandle.pendingStructures} emphasis={toHandle.pendingStructures > 0} />

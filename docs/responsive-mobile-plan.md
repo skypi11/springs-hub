@@ -86,7 +86,27 @@ Fait :
   démesurément haute.
 
 Reste :
-- **`app/admin/*`** — basse priorité (admins sur desktop). `grid-cols-3` figés.
+- ~~**`app/admin/*`** — basse priorité (admins sur desktop). `grid-cols-3` figés.~~ → FAIT au Lot 5.
+
+### ✅ Lot 5 — Admin pratiquable sur mobile — TERMINÉ
+Fait :
+- **`components/admin/AdminSidebar.tsx`** — sidebar collapsable en mobile (toggle
+  "Panel admin · [page courante]" qui ouvre/ferme la liste). En lg+, toujours
+  déployée. Auto-close à chaque navigation pour ne pas masquer le contenu.
+  Évite les 16 lignes verticales qui poussaient le contenu hors écran.
+- **`app/admin/page.tsx`** — `grid-cols-3` stats → `grid-cols-1 sm:grid-cols-3`.
+- **`app/admin/users/page.tsx`** — détails utilisateur `grid-cols-3` → `md:grid-cols-3`,
+  form édition `grid-cols-2/3` → `sm:grid-cols-2/3`. Search input `min-w-[260px]`
+  → `min-w-0 sm:min-w-[260px]` pour éviter overflow à 320px.
+- **`app/admin/structures/page.tsx`** — bloc description `grid-cols-2` →
+  `md:grid-cols-2` (le bloc devient empilé en mobile, lisible).
+- **`app/admin/ballchasing/page.tsx`** — table HTML wrappée dans
+  `overflow-x-auto` + `minWidth: 640` pour scroll horizontal (exception
+  validée Matt : standard pour les tableaux admin de données).
+- Autres pages admin (announce, audit, calendar, dev, discord, exercices,
+  moderation, notifications, rank-reports, rl-link-changes, teams, uploads)
+  → déjà responsive (variants `sm:`/`md:`/`lg:` partout, toolbars en
+  `flex-wrap`, pas de tableaux figés).
 
 ## Méthode de validation
 Après chaque lot : `npx tsc --noEmit` + `npm run build`, commit, push. Tester sur
