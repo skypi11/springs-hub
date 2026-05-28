@@ -40,6 +40,9 @@ type StructureStats = {
 //
 // Avec ?structureId=X : retourne la liste détaillée des exercices de cette structure
 // (utilisé pour le déroulement inline dans le panel admin).
+//
+// Avec ?todoId=X : retourne UN exercice complet (description, steps, response, etc.)
+// sérialisé en format TodoRef pour alimenter le drawer admin readonly.
 export async function GET(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -47,6 +50,11 @@ export async function GET(req: NextRequest) {
     if (!(await isAdmin(uid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
 
     const db = getAdminDb();
+
+    const todoIdParam = req.nextUrl.searchParams.get('todoId');
+    if (todoIdParam) {
+      return await getTodoDetail(db, todoIdParam);
+    }
 
     const structureIdParam = req.nextUrl.searchParams.get('structureId');
     if (structureIdParam) {
@@ -263,4 +271,77 @@ async function getStructureDetail(db: FirebaseFirestore.Firestore, structureId: 
     todos,
     truncated: snap.size >= STRUCTURE_DETAIL_CAP,
   });
+}
+
+// Détail complet d'UN exercice, formaté en TodoRef pour alimenter le drawer admin
+// readonly (description, multi-steps, réponses, screenshots, deadline complète,
+// lockedAt). Inclut aussi les noms enrichis (assignee, structure, équipe, event)
+// pour l'affichage contextuel du drawer.
+async function getTodoDetail(db: FirebaseFirestore.Firestore, todoId: string) {
+  const snap = await db.collection('structure_todos').doc(todoId).get();
+  if (!snap.exists) {
+    return NextResponse.json({ error: 'Exercice introuvable' }, { status: 404 });
+  }
+  const d = snap.data()!;
+
+  const structureId = (d.structureId as string | undefined) ?? '';
+  const subTeamId = (d.subTeamId as string | undefined) ?? '';
+  const assigneeId = (d.assigneeId as string | undefined) ?? '';
+  const eventId = (d.eventId as string | undefined) ?? null;
+
+  // Enrichissement noms pour affichage drawer (structure, team, event, assignee).
+  // Fait en parallèle pour minimiser la latence.
+  const [structSnap, teamSnap, eventSnap, assigneeSnap] = await Promise.all([
+    structureId ? db.collection('structures').doc(structureId).get() : Promise.resolve(null),
+    subTeamId ? db.collection('sub_teams').doc(subTeamId).get() : Promise.resolve(null),
+    eventId ? db.collection('structure_events').doc(eventId).get() : Promise.resolve(null),
+    assigneeId ? db.collection('users').doc(assigneeId).get() : Promise.resolve(null),
+  ]);
+
+  const structName = structSnap?.exists ? (structSnap.data()?.name as string | undefined) ?? '' : '';
+  const structTag = structSnap?.exists ? (structSnap.data()?.tag as string | undefined) ?? '' : '';
+  const teamName = teamSnap?.exists ? (teamSnap.data()?.name as string | undefined) ?? '' : '';
+  const eventTitle = eventSnap?.exists ? (eventSnap.data()?.title as string | undefined) ?? null : null;
+  const assigneeName = assigneeSnap?.exists
+    ? ((assigneeSnap.data()?.displayName as string | undefined)
+       || (assigneeSnap.data()?.discordUsername as string | undefined)
+       || assigneeId)
+    : assigneeId;
+
+  const todo = {
+    id: snap.id,
+    structureId,
+    subTeamId,
+    assigneeId,
+    type: (typeof d.type === 'string' && d.type) ? d.type : 'free',
+    title: (d.title as string | undefined) ?? '',
+    description: (d.description as string | undefined) ?? '',
+    config: (d.config && typeof d.config === 'object') ? d.config : {},
+    response: (d.response && typeof d.response === 'object') ? d.response : null,
+    steps: Array.isArray(d.steps) ? d.steps : undefined,
+    eventId,
+    deadline: (d.deadline as string | null) ?? null,
+    deadlineAt: typeof d.deadlineAt === 'number'
+      ? d.deadlineAt
+      : (d.deadline ? endOfDayParisMs(d.deadline as string) : null),
+    deadlineMode: (d.deadlineMode === 'relative' || d.deadlineMode === 'absolute')
+      ? d.deadlineMode
+      : (d.deadline ? 'absolute' : null),
+    deadlineOffsetDays: typeof d.deadlineOffsetDays === 'number' ? d.deadlineOffsetDays : null,
+    done: !!d.done,
+    doneAt: tsMs(d.doneAt),
+    doneBy: (d.doneBy as string | null) ?? null,
+    lockedAt: tsMs(d.lockedAt),
+    lockedBy: (d.lockedBy as string | null) ?? null,
+    createdBy: (d.createdBy as string | undefined) ?? '',
+    createdAt: tsMs(d.createdAt) ?? 0,
+    // Contexte enrichi pour l'affichage drawer (props extra de DrawerTodo).
+    structureName: structName,
+    structureTag: structTag,
+    teamName,
+    eventTitle,
+    assigneeName,
+  };
+
+  return NextResponse.json({ todo });
 }

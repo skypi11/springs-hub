@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
 import ImpersonateButton from '@/components/admin/ImpersonateButton';
 import AdminUserRef from '@/components/admin/AdminUserRef';
+import TodoDetailDrawer, { type DrawerTodo } from '@/components/calendar/TodoDetailDrawer';
 import {
   ClipboardList, Loader2, AlertTriangle, Clock, CheckCircle2,
   CalendarDays, ExternalLink, Building2, ChevronDown, ChevronUp,
@@ -81,6 +82,22 @@ export default function AdminExercicesPage() {
   const [expandedStructureId, setExpandedStructureId] = useState<string | null>(null);
   const [detailById, setDetailById] = useState<Record<string, StructureDetail>>({});
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
+  // Drawer admin readonly d'un exercice : on fetch le détail complet à l'ouverture,
+  // puis on alimente TodoDetailDrawer sans handler d'écriture (canEdit=false par
+  // défaut, aucun onToggleStep/onLock/onDelete → drawer 100 % consultatif).
+  const [openTodo, setOpenTodo] = useState<DrawerTodo | null>(null);
+  const [openTodoLoading, setOpenTodoLoading] = useState(false);
+
+  async function loadTodoDetail(todoId: string) {
+    setOpenTodoLoading(true);
+    try {
+      const res = await api<{ todo: DrawerTodo }>(`/api/admin/exercices?todoId=${encodeURIComponent(todoId)}`);
+      setOpenTodo(res.todo);
+    } catch (err) {
+      console.error('[Admin/Exercices] todo detail error:', err);
+    }
+    setOpenTodoLoading(false);
+  }
 
   async function toggleDetail(structureId: string) {
     if (expandedStructureId === structureId) {
@@ -339,7 +356,7 @@ export default function AdminExercicesPage() {
                 )}
               </div>
 
-              {s.founderId && s.pending > 0 && (
+              {s.founderId && (
                 <div className="flex-shrink-0" onClick={e => e.stopPropagation()}>
                   <ImpersonateButton
                     targetUid={s.founderId}
@@ -368,7 +385,7 @@ export default function AdminExercicesPage() {
                     {detail.todos.length === 0 ? (
                       <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucun exercice.</p>
                     ) : detail.todos.map(t => (
-                      <TodoRow key={t.id} todo={t} />
+                      <TodoRow key={t.id} todo={t} onOpen={() => loadTodoDetail(t.id)} />
                     ))}
                     {detail.truncated && (
                       <p className="text-xs pt-1" style={{ color: 'var(--s-text-muted)' }}>
@@ -383,6 +400,16 @@ export default function AdminExercicesPage() {
           );
         })}
       </div>
+
+      {/* Drawer admin readonly : aucune action d'écriture exposée (canEdit=false
+          par défaut, pas de onToggleStep/onLock/onDelete). L'admin voit la fiche
+          complète (description, multi-steps avec réponses, screenshots, deadline,
+          assignee, structure, équipe, event lié) sans pouvoir modifier. */}
+      <TodoDetailDrawer
+        open={openTodo !== null || openTodoLoading}
+        onClose={() => setOpenTodo(null)}
+        todo={openTodo}
+      />
     </>
   );
 }
@@ -410,7 +437,7 @@ function MiniStat({ label, value, color }: { label: string; value: number | stri
   );
 }
 
-function TodoRow({ todo }: { todo: TodoDetail }) {
+function TodoRow({ todo, onOpen }: { todo: TodoDetail; onOpen: () => void }) {
   const urgencyColor =
     todo.urgency === 'overdue' ? '#ff5555' :
     todo.urgency === 'today'   ? '#FFB800' :
@@ -422,11 +449,18 @@ function TodoRow({ todo }: { todo: TodoDetail }) {
     todo.urgency === 'future'  ? 'à venir' :
                                  null;
   return (
+    // Wrapper div + role="button" (pas <button>) parce que AdminUserRef contient
+    // déjà des <Link>/<button> imbriqués, ce qui serait HTML invalide.
     <div
-      className="flex items-start gap-2 px-2 py-1.5"
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
+      className="flex items-start gap-2 px-2 py-1.5 transition-colors hover:bg-[var(--s-hover)]"
       style={{
         background: 'var(--s-elevated)',
         borderLeft: `2px solid ${todo.done ? '#33ff66' : urgencyColor}`,
+        cursor: 'pointer',
       }}
     >
       <div className="flex-shrink-0 mt-0.5">
@@ -463,7 +497,11 @@ function TodoRow({ todo }: { todo: TodoDetail }) {
         </div>
         <div className="flex items-center gap-3 mt-0.5 text-xs flex-wrap" style={{ color: 'var(--s-text-muted)' }}>
           {todo.assigneeId ? (
-            <AdminUserRef uid={todo.assigneeId} name={todo.assigneeName} />
+            // stopPropagation pour ne pas ouvrir le drawer quand l'admin clique
+            // sur le nom (qui navigue vers le profil) ou sur l'UID (qui copie).
+            <span onClick={e => e.stopPropagation()}>
+              <AdminUserRef uid={todo.assigneeId} name={todo.assigneeName} />
+            </span>
           ) : (
             <span>non assigné</span>
           )}
