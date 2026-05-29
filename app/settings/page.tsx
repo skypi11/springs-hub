@@ -11,8 +11,9 @@ import { countries } from '@/lib/countries';
 import {
   Save, User, Gamepad2, Search, ExternalLink,
   AlertCircle, CheckCircle, Loader2, UserCircle, LogOut, Star,
-  Download, Trash2, Link2, RefreshCw,
+  Download, Trash2, Link2, RefreshCw, Share2,
 } from 'lucide-react';
+import SharingSection from '@/components/settings/SharingSection';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import { checkProfileCompletion } from '@/lib/profile-completion';
 import PublicPreviewFrame from '@/components/ui/PublicPreviewFrame';
@@ -32,10 +33,11 @@ const RECRUIT_ROLE_LABEL: Record<string, string> = {
   manager: 'Manager',
 };
 
-type Section = 'profile' | 'games' | 'account';
+type Section = 'profile' | 'sharing' | 'games' | 'account';
 
 const SECTIONS: { key: Section; label: string; icon: typeof User; description: string }[] = [
   { key: 'profile', label: 'Profil public', icon: User, description: 'Ce que les autres voient' },
+  { key: 'sharing', label: 'Carte de partage', icon: Share2, description: 'Personnalise ta story et ta bannière' },
   { key: 'games', label: 'Mes jeux', icon: Gamepad2, description: 'Tes jeux pratiqués + comptes' },
   { key: 'account', label: 'Mon compte', icon: UserCircle, description: 'Discord et session' },
 ];
@@ -793,6 +795,11 @@ export default function SettingsPage() {
 
           {/* ─── CONTENU SECTION ACTIVE ────────────────────────────── */}
           <div className="space-y-6 min-w-0">
+
+            {/* CARTE DE PARTAGE — customisation OG (rangs, struct, équipe) */}
+            {section === 'sharing' && user && (
+              <SharingSection user={user} onSaved={refreshProfile} />
+            )}
 
             {/* PROFIL */}
             {section === 'profile' && (
