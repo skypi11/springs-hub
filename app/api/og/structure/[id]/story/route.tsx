@@ -597,7 +597,9 @@ export async function GET(
           ? [{ name: 'Rajdhani', data: font, style: 'normal', weight: 700 }]
           : undefined,
         headers: {
-          'Cache-Control': 'public, max-age=3600, s-maxage=3600, immutable, no-transform',
+          // PAS de cache : story = download manuel ponctuel par le propriétaire,
+          // toujours version fraîche (cf. doc dans le endpoint profile story).
+          'Cache-Control': 'private, no-store, no-cache, must-revalidate',
           // Force le téléchargement plutôt que l'affichage inline.
           'Content-Disposition': `attachment; filename="aedral-structure-${id}.png"`,
         },

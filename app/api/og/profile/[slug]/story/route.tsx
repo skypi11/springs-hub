@@ -545,7 +545,13 @@ export async function GET(
           ? [{ name: 'Rajdhani', data: font, style: 'normal', weight: 700 }]
           : undefined,
         headers: {
-          'Cache-Control': 'public, max-age=3600, s-maxage=3600, immutable, no-transform',
+          // PAS de cache pour les stories : c'est un download manuel ponctuel
+          // déclenché par le propriétaire qui veut toujours la version la plus
+          // fraîche (rang à jour, nouvel avatar, etc.). Pas de bots Discord/
+          // Twitter qui crawlent cette URL (eux utilisent l'OG horizontal).
+          // Le coût de re-générer une image story (~500ms-1s) est acceptable
+          // pour un download ponctuel — pas besoin d'optimiser via CDN.
+          'Cache-Control': 'private, no-store, no-cache, must-revalidate',
           // Force le download navigateur au lieu de l'affichage inline.
           // Le fichier arrive avec un nom propre dans le dossier Téléchargements.
           'Content-Disposition': `attachment; filename="aedral-profil-${slug}.png"`,

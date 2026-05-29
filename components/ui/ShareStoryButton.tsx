@@ -70,7 +70,22 @@ export default function ShareStoryButton({
       // Fetch l'endpoint OG vertical. Le serveur renvoie un PNG avec
       // Content-Disposition: attachment ; on le récupère en blob pour pouvoir
       // déclencher un download nommé proprement côté client.
-      const res = await fetch(storyUrl, { cache: 'force-cache' });
+      //
+      // IMPORTANT : on bypass TOUS les caches (browser + CDN Vercel) pour 2 raisons :
+      //   1. Un user qui re-clique "Partager en Story" veut toujours la version
+      //      la plus fraîche (rang à jour, nouveaux jeux, etc.) — pas la story
+      //      qu'il avait téléchargée la semaine dernière.
+      //   2. Quand on shippe un correctif visuel sur le rendu de la story (logo
+      //      qui change, avatar fixé, etc.), le user doit le voir IMMÉDIATEMENT
+      //      sans attendre que le cache CDN expire (1h).
+      //
+      // Cache-bust dynamique via `?_=<timestamp>` : URL différente à chaque
+      // click → bypass cache CDN Vercel + cache navigateur sans casser le
+      // cache CDN pour les vieilles URLs (qui n'ont pas le query param).
+      const cacheBust = Date.now();
+      const sep = storyUrl.includes('?') ? '&' : '?';
+      const freshUrl = `${storyUrl}${sep}_=${cacheBust}`;
+      const res = await fetch(freshUrl, { cache: 'no-store' });
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
