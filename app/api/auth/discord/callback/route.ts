@@ -6,6 +6,17 @@ import { fetchDiscordConnections, mergeConnections, type DiscordConnection } fro
 import { fetchValorantAccountByPuuid } from '@/lib/valorant-henrikdev';
 import { syncDiscordMember } from '@/lib/discord-role-sync';
 import { generateBaseSlug, generateUniqueSlug } from '@/lib/user-slug';
+import { sanitizeNext } from '@/lib/return-to';
+
+// Cas d'erreur OAuth : on redirige TOUJOURS vers "/" (jamais vers `next`),
+// pour éviter qu'une page profonde affiche un état bizarre. On nettoie
+// systématiquement les cookies temporaires du flow.
+function errorRedirect(origin: string, code: string): NextResponse {
+  const res = NextResponse.redirect(`${origin}/?auth_error=${code}`);
+  res.cookies.delete('discord_oauth_state');
+  res.cookies.delete('discord_oauth_next');
+  return res;
+}
 
 export async function GET(req: NextRequest) {
   // Rate limit OAuth par IP, protège contre le bruteforce de codes Discord
@@ -18,13 +29,13 @@ export async function GET(req: NextRequest) {
   const origin = req.nextUrl.origin;
 
   if (!code) {
-    return NextResponse.redirect(`${origin}/?auth_error=no_code`);
+    return errorRedirect(origin, 'no_code');
   }
 
   // Vérification CSRF state, comparer au cookie posé avant la redirection vers Discord
   const stateCookie = req.cookies.get('discord_oauth_state')?.value;
   if (!stateFromUrl || !stateCookie || stateFromUrl !== stateCookie) {
-    return NextResponse.redirect(`${origin}/?auth_error=invalid_state`);
+    return errorRedirect(origin, 'invalid_state');
   }
 
   try {
@@ -43,7 +54,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (!tokenRes.ok) {
-      return NextResponse.redirect(`${origin}/?auth_error=token_failed`);
+      return errorRedirect(origin, 'token_failed');
     }
 
     const tokenData = await tokenRes.json();
@@ -62,7 +73,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (!userRes.ok) {
-      return NextResponse.redirect(`${origin}/?auth_error=user_failed`);
+      return errorRedirect(origin, 'user_failed');
     }
 
     const discordUser = await userRes.json();
@@ -76,9 +87,7 @@ export async function GET(req: NextRequest) {
     const userRef = db.collection('users').doc(uid);
     const userSnap = await userRef.get();
     if (userSnap.exists && userSnap.data()?.isBanned === true) {
-      const res = NextResponse.redirect(`${origin}/?auth_error=banned`);
-      res.cookies.delete('discord_oauth_state');
-      return res;
+      return errorRedirect(origin, 'banned');
     }
 
     // Pull les connexions Discord de l'user (Epic, Steam, Twitch, YouTube, etc.)
@@ -217,8 +226,19 @@ export async function GET(req: NextRequest) {
       du: discordUser.username,
       da: avatarUrl,
     });
-    const res = NextResponse.redirect(`${origin}/?auth=1`);
+
+    // returnTo : re-lit le cookie posé par /start, re-valide (defense in depth :
+    // si jamais le cookie a été altéré côté navigateur ou pendant le transport,
+    // la validation stricte rejette). On préserve la query string existante
+    // du `next` en ajoutant `auth=1` avec le bon séparateur.
+    const nextCookie = req.cookies.get('discord_oauth_next')?.value;
+    const nextPath = sanitizeNext(nextCookie); // '/' si invalide ou absent
+    const sep = nextPath.includes('?') ? '&' : '?';
+    const finalUrl = `${origin}${nextPath}${sep}auth=1`;
+
+    const res = NextResponse.redirect(finalUrl);
     res.cookies.delete('discord_oauth_state');
+    res.cookies.delete('discord_oauth_next');
     res.cookies.set('aedral_auth', authPayload, {
       httpOnly: true,
       sameSite: 'lax',
@@ -229,6 +249,6 @@ export async function GET(req: NextRequest) {
     return res;
   } catch (err) {
     console.error('Discord auth error:', err);
-    return NextResponse.redirect(`${origin}/?auth_error=server_error`);
+    return errorRedirect(origin, 'server_error');
   }
 }

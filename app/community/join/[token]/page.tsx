@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Shield, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Shield, Loader2, CheckCircle, AlertCircle, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
@@ -18,8 +18,8 @@ type LinkInfo = {
 
 export default function JoinPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
-  const { firebaseUser, loading: authLoading } = useAuth();
-  const [status, setStatus] = useState<'loading' | 'choosing' | 'joining' | 'success' | 'error'>('loading');
+  const { firebaseUser, loading: authLoading, signInWithDiscord } = useAuth();
+  const [status, setStatus] = useState<'loading' | 'need_auth' | 'choosing' | 'joining' | 'success' | 'error'>('loading');
   const [error, setError] = useState('');
   const [result, setResult] = useState<{ structureId: string; structureName: string } | null>(null);
   const [linkInfo, setLinkInfo] = useState<LinkInfo | null>(null);
@@ -46,8 +46,11 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
   useEffect(() => {
     if (authLoading) return;
     if (!firebaseUser) {
-      setStatus('error');
-      setError('Tu dois être connecté pour rejoindre une structure.');
+      // Visiteur non connecté : on affiche un état dédié avec bouton login
+      // qui préserve le token dans le returnTo (signInWithDiscord capture
+      // l'URL courante par défaut). Après login Discord, il atterrit pile
+      // sur cette page et le useEffect re-trigger l'auto-join.
+      setStatus('need_auth');
       return;
     }
     (async () => {
@@ -75,6 +78,27 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
       <div className="relative z-[1] bevel p-10 text-center max-w-md w-full" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
         {status === 'loading' && (
           <Loader2 size={32} className="animate-spin mx-auto" style={{ color: 'var(--s-text-dim)' }} />
+        )}
+
+        {status === 'need_auth' && (
+          <>
+            <div className="w-14 h-14 mx-auto mb-5 flex items-center justify-center" style={{ background: 'rgba(0,129,255,0.08)', border: '1px solid rgba(0,129,255,0.2)' }}>
+              <Shield size={24} style={{ color: 'var(--s-blue)' }} />
+            </div>
+            <h2 className="font-display text-2xl mb-2">REJOINDRE UNE STRUCTURE</h2>
+            <p className="t-body mb-6" style={{ color: 'var(--s-text-dim)' }}>
+              Tu dois être connecté avec Discord pour rejoindre. On te ramène ici juste après.
+            </p>
+            <button
+              type="button"
+              onClick={() => signInWithDiscord(window.location.pathname)}
+              className="btn-springs bevel-sm w-full justify-center"
+              style={{ background: '#5865F2', color: '#fff', borderColor: '#5865F2' }}
+            >
+              <MessageSquare size={15} />
+              Se connecter avec Discord
+            </button>
+          </>
         )}
 
         {status === 'choosing' && linkInfo && (

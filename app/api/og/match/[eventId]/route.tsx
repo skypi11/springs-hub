@@ -1,98 +1,35 @@
 import { ImageResponse } from 'next/og';
 import { NextRequest } from 'next/server';
-import fs from 'node:fs';
-import path from 'node:path';
-import sharp from 'sharp';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
+import {
+  AEDRAL_PALETTE,
+  OG_HEIGHT,
+  OG_WIDTH,
+  hexTextureDataUri,
+  initials,
+  loadLogoAsPngDataUri,
+  loadRajdhani,
+  nameFontSize,
+} from '@/lib/og-helpers';
 
 // Route publique : l'URL est intégrée dans les messages Discord, donc accessible
 // par Discord pour générer sa preview. Pas d'info sensible, juste nom équipe/
 // adversaire + logos (déjà publics). Cache long pour limiter les appels Firestore.
 export const runtime = 'nodejs';
 
-const WIDTH = 1200;
-const HEIGHT = 630;
-
-// Rajdhani 700 : police esport/gaming angulaire qui rime avec les biseaux de la
-// DA Springs. TTF bundlée dans /public/fonts (fetch Google Fonts au runtime était
-// fragile). Lue une seule fois puis cachée module-level.
-let RAJDHANI_CACHE: Buffer | null = null;
-function loadRajdhani(): Buffer | null {
-  if (RAJDHANI_CACHE) return RAJDHANI_CACHE;
-  try {
-    const p = path.join(process.cwd(), 'public', 'fonts', 'Rajdhani-Bold.ttf');
-    RAJDHANI_CACHE = fs.readFileSync(p);
-    return RAJDHANI_CACHE;
-  } catch {
-    return null;
-  }
-}
+// Alias locaux pour minimiser le diff vs version précédente.
+const WIDTH = OG_WIDTH;
+const HEIGHT = OG_HEIGHT;
 
 // Couleurs par jeu (alignées sur la DA Springs : bleu RL, vert TM).
+// NOTE : on garde ce mapping local plutôt que de passer par la registry parce
+// que le match OG n'a qu'à connaître 2 jeux historiques (RL, TM). La registry
+// évolue (ajout Valorant) sans qu'on veuille casser le rendu match existant.
 const GAME_META: Record<string, { label: string; color: string }> = {
   rocket_league: { label: 'ROCKET LEAGUE', color: '#0081FF' },
   trackmania: { label: 'TRACKMANIA', color: '#00D936' },
 };
-
-// Génère une trame hexagonale (honeycomb) en SVG, taille exacte de la bannière.
-// Rendue en absolute <img> par-dessus le fond, signature DA Springs.
-function hexTextureDataUri(width: number, height: number): string {
-  const r = 38; // rayon hexagone
-  const stepX = r * Math.sqrt(3);
-  const stepY = r * 1.5;
-  const paths: string[] = [];
-  for (let row = -1; row * stepY < height + r; row++) {
-    const offsetX = row % 2 === 0 ? 0 : stepX / 2;
-    for (let col = -1; col * stepX < width + stepX; col++) {
-      const cx = col * stepX + offsetX;
-      const cy = row * stepY;
-      const w2 = stepX / 2;
-      const r2 = r / 2;
-      paths.push(
-        `M${cx},${cy - r} L${cx + w2},${cy - r2} L${cx + w2},${cy + r2} L${cx},${cy + r} L${cx - w2},${cy + r2} L${cx - w2},${cy - r2}Z`,
-      );
-    }
-  }
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><g fill="none" stroke="rgba(255,255,255,0.055)" stroke-width="1">${paths.map(p => `<path d="${p}"/>`).join('')}</g></svg>`;
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-}
-
-function nameFontSize(maxLen: number): number {
-  if (maxLen <= 9) return 64;
-  if (maxLen <= 13) return 52;
-  if (maxLen <= 18) return 40;
-  return 32;
-}
-
-function initials(name: string): string {
-  return name.trim().slice(0, 3).toUpperCase() || '?';
-}
-
-// Convertit n'importe quelle image (R2 webp ou URL externe png/jpg) en data URI PNG.
-// satori / @vercel/og gère mal le WebP, c'est la raison pour laquelle les logos
-// d'équipe (R2 webp) ne s'affichaient pas alors que les logos adversaires
-// (URLs externes png/jpg collées à la main) fonctionnaient. On force PNG pour
-// les deux côtés pour avoir un comportement uniforme et robuste.
-async function loadLogoAsPngDataUri(url: string | null): Promise<string | null> {
-  if (!url) return null;
-  try {
-    const res = await fetch(url, { cache: 'force-cache' });
-    if (!res.ok) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
-    // Sharp : décode WebP/PNG/JPG/etc. et re-encode en PNG. Limite la résolution
-    // à 512px (le LogoBox affiche en 220×220, pas besoin de plus haute).
-    const png = await sharp(buf, { failOn: 'error' })
-      .resize(512, 512, { fit: 'inside', withoutEnlargement: true })
-      .png()
-      .toBuffer();
-    return `data:image/png;base64,${png.toString('base64')}`;
-  } catch {
-    // Fail silencieux : si on n'arrive pas à fetch/décoder, le LogoBox tombera
-    // sur le fallback "initiales" et l'image reste propre.
-    return null;
-  }
-}
 
 // IMPORTANT : le runtime Vercel tourne en UTC. Sans timeZone explicite, une
 // heure stockée en UTC s'affiche décalée de -2h (Paris en été) ou -1h (hiver).
@@ -230,8 +167,7 @@ export async function GET(
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            background:
-              'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #111111 100%)',
+            background: AEDRAL_PALETTE.backgroundGradient,
             position: 'relative',
           }}
         >
@@ -269,8 +205,7 @@ export async function GET(
               left: 0,
               right: 0,
               height: 6,
-              background:
-                'linear-gradient(90deg, #FFB800 0%, #ff8800 50%, #FFB800 100%)',
+              background: AEDRAL_PALETTE.goldBarGradient,
               display: 'flex',
             }}
           />

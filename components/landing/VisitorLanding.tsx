@@ -97,7 +97,7 @@ function HeroSection({ stats }: { stats: PublicStats | null }) {
           >
             <DiscordIcon size={14} />
           </a>
-          <button onClick={signInWithDiscord} type="button"
+          <button onClick={() => signInWithDiscord()} type="button"
             className="btn-springs btn-secondary bevel-sm flex items-center gap-2"
             style={{ padding: '8px 16px', fontSize: '12px' }}>
             <MessageSquare size={13} /> Se connecter avec Discord
@@ -127,7 +127,7 @@ function HeroSection({ stats }: { stats: PublicStats | null }) {
           <SupportedGamesStrip />
 
           <div className="flex items-center gap-3 flex-wrap justify-center mb-16">
-            <button onClick={signInWithDiscord} type="button"
+            <button onClick={() => signInWithDiscord()} type="button"
               className="btn-springs btn-primary bevel-sm flex items-center gap-2"
               style={{ padding: '14px 28px', fontSize: '14px' }}>
               <MessageSquare size={15} /> Rejoindre avec Discord
@@ -687,7 +687,7 @@ function FaqCtaSection() {
               pas d&apos;engagement, juste l&apos;esport.
             </p>
             <div className="flex items-center gap-3 flex-wrap justify-center">
-              <button onClick={signInWithDiscord} type="button"
+              <button onClick={() => signInWithDiscord()} type="button"
                 className="btn-springs btn-primary bevel-sm flex items-center gap-2"
                 style={{ padding: '14px 28px', fontSize: '14px' }}>
                 <MessageSquare size={15} /> Connexion Discord <ArrowRight size={14} />

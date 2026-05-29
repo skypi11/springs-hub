@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { isValidNext } from '@/lib/return-to';
 
 export async function GET(req: NextRequest) {
   const blocked = await checkRateLimit(limiters.oauth, rateLimitKey(req));
@@ -30,5 +31,22 @@ export async function GET(req: NextRequest) {
     path: '/',
     maxAge: 600, // 10 minutes pour compléter le flow OAuth
   });
+
+  // Préserve la page d'origine pendant le flow OAuth (sinon le user atterrit
+  // sur "/" après login, on perd ~100% du trafic entrant via lien partagé).
+  // Validation STRICTE via isValidNext : whitelist chemin relatif sûr, rejet
+  // de tout schéma/host/encoding caché (open redirect = critique).
+  // Si invalide ou absent : pas de cookie posé → fallback "/" côté callback.
+  const next = req.nextUrl.searchParams.get('next');
+  if (isValidNext(next)) {
+    res.cookies.set('discord_oauth_next', next, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 600, // même TTL que le state CSRF
+    });
+  }
+
   return res;
 }

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
+import ShareButton from '@/components/ui/ShareButton';
 import { SkeletonPageHeader, SkeletonCard } from '@/components/ui/Skeleton';
 import { computeMemberRole, groupAffiliations, PRIMARY_ROLE_LABELS, type MemberRoleTeam, type PrimaryRole } from '@/lib/member-role';
 import DiscordIcon from '@/components/icons/DiscordIcon';
@@ -545,6 +546,20 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
 
   const panelTeam = panelTeamId ? teams.find(t => t.id === panelTeamId) ?? null : null;
 
+  // Bouton Partager : URL absolue (pour Discord/embed externes) + texte court.
+  // Affiché à côté du CTA principal, dans le hero desktop ET le bloc mobile.
+  const shareUrl = `https://aedral.com/community/structure/${structure.id}`;
+  const shareTitle = structure.tag ? `${structure.name} [${structure.tag}]` : structure.name;
+  const shareButton = (
+    <ShareButton
+      url={shareUrl}
+      title={shareTitle}
+      text={`Découvre ${structure.name} sur Aedral`}
+      size="md"
+      variant="ghost"
+    />
+  );
+
   // CTA principal, partagé entre l'overlay desktop et le bloc identité mobile.
   const ctaContent = isOwner ? (
     <Link href="/community/my-structure" className="btn-springs btn-secondary bevel-sm flex items-center justify-center gap-2">
@@ -663,9 +678,12 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                   </h1>
                 </div>
 
-                {/* CTA principal */}
-                <div className="flex-shrink-0 flex flex-col items-end gap-2">
+                {/* CTA principal + Partager.
+                    flex-wrap pour que les boutons passent à la ligne plutôt que
+                    déborder du hero sur écrans étroits. */}
+                <div className="flex-shrink-0 flex flex-row items-center justify-end gap-2 flex-wrap">
                   {ctaContent}
+                  {shareButton}
                 </div>
               </div>
             </div>
@@ -694,8 +712,9 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                 </h1>
               </div>
             </div>
-            <div className="flex flex-col items-start gap-2">
+            <div className="flex flex-row items-center gap-2 flex-wrap">
               {ctaContent}
+              {shareButton}
             </div>
           </div>
 

@@ -1,6 +1,68 @@
 import type { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { isLegacyUid } from '@/lib/user-slug';
+import JsonLd from '@/components/seo/JsonLd';
+import { personSchema, breadcrumbSchema } from '@/lib/jsonld';
+import { getGameLabel } from '@/lib/games-registry';
+
+// Données publiques sur le profil, partagées entre `generateMetadata` et le
+// render server du layout. Si `isBanned` ou pas de `displayName`, on émet zéro
+// JSON-LD et la metadata bascule sur noindex (déjà géré).
+interface ProfilePublicData {
+  displayName: string;
+  bio: string;
+  avatarUrl: string;
+  slug: string;
+  country: string;
+  games: string[];
+  isBanned: boolean;
+  found: boolean;
+}
+
+const EMPTY: ProfilePublicData = {
+  displayName: '',
+  bio: '',
+  avatarUrl: '',
+  slug: '',
+  country: '',
+  games: [],
+  isBanned: false,
+  found: false,
+};
+
+async function loadProfile(id: string): Promise<ProfilePublicData> {
+  try {
+    const db = getAdminDb();
+    let userData: FirebaseFirestore.DocumentData | null = null;
+
+    if (isLegacyUid(id)) {
+      const snap = await db.collection('users').doc(id).get();
+      if (snap.exists) userData = snap.data() ?? null;
+    } else {
+      const snap = await db.collection('users')
+        .where('slug', '==', id)
+        .limit(1)
+        .get();
+      if (!snap.empty) userData = snap.docs[0].data();
+    }
+
+    if (!userData) return EMPTY;
+
+    return {
+      displayName: typeof userData.displayName === 'string' ? userData.displayName : '',
+      bio: typeof userData.bio === 'string' ? userData.bio : '',
+      avatarUrl: typeof userData.discordAvatar === 'string' ? userData.discordAvatar : '',
+      slug: typeof userData.slug === 'string' ? userData.slug : '',
+      country: typeof userData.country === 'string' ? userData.country : '',
+      games: Array.isArray(userData.games) ? userData.games : [],
+      isBanned: userData.isBanned === true,
+      found: true,
+    };
+  } catch (err) {
+    console.warn('[profile metadata] fetch error', err);
+    return EMPTY;
+  }
+}
 
 // Metadata SEO dynamique pour les pages publiques de profil joueur.
 // Le param [id] peut être :
@@ -13,42 +75,10 @@ export async function generateMetadata(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Metadata> {
   const { id } = await params;
-
-  let displayName = '';
-  let bio = '';
-  let avatarUrl = '';
-  let isBanned = false;
-  let resolvedSlug = '';
-
-  try {
-    const db = getAdminDb();
-    let userData: FirebaseFirestore.DocumentData | null = null;
-
-    if (isLegacyUid(id)) {
-      const snap = await db.collection('users').doc(id).get();
-      if (snap.exists) userData = snap.data() ?? null;
-    } else {
-      // Lookup par slug
-      const snap = await db.collection('users')
-        .where('slug', '==', id)
-        .limit(1)
-        .get();
-      if (!snap.empty) userData = snap.docs[0].data();
-    }
-
-    if (userData) {
-      isBanned = userData.isBanned === true;
-      displayName = typeof userData.displayName === 'string' ? userData.displayName : '';
-      bio = typeof userData.bio === 'string' ? userData.bio : '';
-      avatarUrl = typeof userData.discordAvatar === 'string' ? userData.discordAvatar : '';
-      resolvedSlug = typeof userData.slug === 'string' ? userData.slug : '';
-    }
-  } catch (err) {
-    console.warn('[profile metadata] fetch error', err);
-  }
+  const p = await loadProfile(id);
 
   // Banni ou introuvable → metadata minimale + noindex pour ne pas polluer Google
-  if (isBanned || !displayName) {
+  if (p.isBanned || !p.displayName) {
     return {
       title: 'Profil joueur',
       description: 'Profil joueur sur Aedral.',
@@ -59,32 +89,97 @@ export async function generateMetadata(
   // Canonical : si on a un slug, c'est la version canonique de l'URL.
   // Si on est arrivé via l'uid legacy, on pointe vers la version slug pour
   // éviter le duplicate content (Google dédupliquera).
-  const canonical = resolvedSlug ? `/profile/${resolvedSlug}` : `/profile/${id}`;
+  const canonical = p.slug ? `/profile/${p.slug}` : `/profile/${id}`;
 
-  const cleanBio = bio.replace(/\s+/g, ' ').trim();
+  const cleanBio = p.bio.replace(/\s+/g, ' ').trim();
   const shortDesc = cleanBio.length > 0
     ? (cleanBio.length > 150 ? cleanBio.slice(0, 147) + '…' : cleanBio)
-    : `Profil de ${displayName} sur Aedral, plateforme communautaire esport amateur.`;
+    : `Profil de ${p.displayName} sur Aedral, plateforme communautaire esport amateur.`;
+
+  // OG image dynamique via /api/og/profile/[slug]. On NE génère la bannière
+  // riche QUE si on a un slug — pour ne PAS exposer le snowflake Discord dans
+  // une URL publique d'embed (cf. mémoire `project_profile_slugs`). Sans slug,
+  // fallback sur l'avatar Discord ou l'image OG racine.
+  const ogImages: { url: string; alt: string }[] = [];
+  if (p.slug) {
+    ogImages.push({
+      url: `https://aedral.com/api/og/profile/${p.slug}`,
+      alt: `${p.displayName} sur Aedral`,
+    });
+  }
+  if (p.avatarUrl) {
+    ogImages.push({ url: p.avatarUrl, alt: `Avatar de ${p.displayName}` });
+  }
 
   return {
-    title: displayName,
+    title: p.displayName,
     description: shortDesc,
     alternates: { canonical },
     openGraph: {
-      title: `${displayName} · Aedral`,
+      title: `${p.displayName} · Aedral`,
       description: shortDesc,
       url: canonical,
       type: 'profile',
-      ...(avatarUrl ? { images: [{ url: avatarUrl, alt: `Avatar de ${displayName}` }] } : {}),
+      ...(ogImages.length > 0 ? { images: ogImages } : {}),
     },
     twitter: {
-      title: `${displayName} · Aedral`,
+      title: `${p.displayName} · Aedral`,
       description: shortDesc,
-      ...(avatarUrl ? { images: [avatarUrl] } : {}),
+      ...(ogImages.length > 0 ? { images: ogImages.map((img) => img.url) } : {}),
     },
   };
 }
 
-export default function ProfileLayout({ children }: { children: React.ReactNode }) {
-  return children;
+export default async function ProfileLayout({
+  children,
+  params,
+}: {
+  children: React.ReactNode;
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const p = await loadProfile(id);
+
+  // Banni / introuvable → noindex déjà géré par metadata + zéro JSON-LD pour
+  // ne surtout pas exposer une entité Person à Google sur un profil masqué.
+  if (p.isBanned || !p.displayName) {
+    return <>{children}</>;
+  }
+
+  // URL canonique pour le JSON-LD : on utilise TOUJOURS le slug si dispo, jamais
+  // l'uid legacy `discord_SNOWFLAKE` (privacy — l'uid ne doit jamais apparaître
+  // en clair dans un embed Google). Si pas de slug, on omet le JSON-LD.
+  if (!p.slug) {
+    return <>{children}</>;
+  }
+
+  const publicUrl = `https://aedral.com/profile/${p.slug}`;
+  // knowsAbout = jeux pratiqués, traduits via la registry pour avoir des labels
+  // propres et localisés (Rocket League, Trackmania, Valorant…).
+  const knowsAbout = p.games
+    .map((g) => getGameLabel(g))
+    .filter((label): label is string => typeof label === 'string' && label.length > 0);
+
+  const schemas = [
+    personSchema({
+      url: publicUrl,
+      name: p.displayName,
+      image: p.avatarUrl || undefined,
+      nationality: p.country || undefined,
+      knowsAbout: knowsAbout.length > 0 ? knowsAbout : undefined,
+    }),
+    breadcrumbSchema([
+      { name: 'Aedral', url: 'https://aedral.com' },
+      { name: 'Communauté', url: 'https://aedral.com/community' },
+      { name: 'Joueurs', url: 'https://aedral.com/community/players' },
+      { name: p.displayName, url: publicUrl },
+    ]),
+  ];
+
+  return (
+    <>
+      <JsonLd schemas={schemas} />
+      {children}
+    </>
+  );
 }

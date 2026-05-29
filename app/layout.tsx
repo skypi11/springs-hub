@@ -10,6 +10,9 @@ import CommandPalette from '@/components/ui/CommandPalette';
 import ProfileCompletionGate from '@/components/auth/ProfileCompletionGate';
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
+import JsonLd from '@/components/seo/JsonLd';
+import { websiteSchema, organizationSchema } from '@/lib/jsonld';
+import { AEDRAL_DISCORD_INVITE_URL } from '@/components/icons/DiscordIcon';
 
 const outfit = Outfit({
   variable: '--font-outfit',
@@ -82,9 +85,31 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // JSON-LD racine — émis le plus haut possible dans le <body> pour que Google
+  // l'indexe en priorité. WebSite + Organization identifient le site et son
+  // éditeur (Aedral). sameAs liste les profils sociaux officiels.
+  const rootSchemas = [
+    websiteSchema({
+      url: 'https://aedral.com',
+      name: 'Aedral',
+      description:
+        "La plateforme tout-en-un pour structures esport amateur : gestion d'équipes, calendrier collaboratif, recrutement, suivi des exercices, replays.",
+    }),
+    organizationSchema({
+      url: 'https://aedral.com',
+      name: 'Aedral',
+      logo: 'https://aedral.com/aedral/mark-light.webp',
+      sameAs: [
+        AEDRAL_DISCORD_INVITE_URL,
+        'https://github.com/skypi11/springs-hub',
+      ],
+    }),
+  ];
+
   return (
     <html lang="fr" className={`${outfit.variable} ${bebasNeue.variable} h-full`}>
       <body className="h-full flex" style={{ background: '#080808', color: '#f0f0f8' }}>
+        <JsonLd schemas={rootSchemas} />
         <QueryProvider>
           <AuthProvider>
             <ToastProvider>

@@ -397,7 +397,7 @@ export default function Sidebar() {
             </div>
           </div>
         ) : (
-          <button onClick={signInWithDiscord}
+          <button onClick={() => signInWithDiscord()}
             className="btn-springs bevel-sm w-full justify-center"
             style={{ background: '#5865F2', color: '#fff', borderColor: '#5865F2' }}>
             <DiscordIcon size={16} />

@@ -11,7 +11,7 @@ interface AuthContextType {
   loading: boolean;
   profileEnriched: boolean;
   isAdmin: boolean;
-  signInWithDiscord: () => void;
+  signInWithDiscord: (next?: string) => void;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -124,9 +124,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  function signInWithDiscord() {
-    // Le serveur génère le state CSRF et pose le cookie httpOnly avant la redirection vers Discord
-    window.location.href = '/api/auth/discord/start';
+  function signInWithDiscord(next?: string) {
+    // Le serveur génère le state CSRF et pose le cookie httpOnly avant la
+    // redirection vers Discord. Le param `next` (optionnel) sert à préserver
+    // la page d'origine : par défaut on capture l'URL courante (pathname +
+    // search), nettoyée des query params d'auth pour éviter qu'on retombe
+    // sur "?auth_error=..." après login.
+    let target: string;
+    if (typeof next === 'string') {
+      target = next;
+    } else if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      ['auth', 'auth_error'].forEach(p => url.searchParams.delete(p));
+      target = url.pathname + url.search + url.hash;
+    } else {
+      target = '/';
+    }
+    const qs = `?next=${encodeURIComponent(target)}`;
+    window.location.href = `/api/auth/discord/start${qs}`;
   }
 
   async function signOut() {

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
+import ShareButton from '@/components/ui/ShareButton';
 import { SkeletonPageHeader, SkeletonCard } from '@/components/ui/Skeleton';
 import InviteToStructureButton from '@/components/community/InviteToStructureButton';
 import DiscordIcon from '@/components/icons/DiscordIcon';
@@ -415,12 +416,26 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
               </div>
             </div>
 
-            {/* Actions */}
-            {isOwner && (
-              <Link href="/settings" className="btn-springs btn-secondary bevel-sm flex-shrink-0 flex items-center justify-center gap-2">
-                <Settings size={13} /> Modifier
-              </Link>
-            )}
+            {/* Actions : Modifier (owner) + Partager (tout le monde).
+                URL absolue (Discord/embeds externes) construite à partir du slug
+                si dispo, sinon de l'uid Discord en fallback. Le slug protège le
+                snowflake d'apparaître en clair dans une URL partagée publiquement.
+                flex-wrap : sur mobile étroit, les boutons passent à la ligne
+                plutôt que déborder du hero. */}
+            <div className="flex-shrink-0 flex flex-row items-center gap-2 flex-wrap">
+              {isOwner && (
+                <Link href="/settings" className="btn-springs btn-secondary bevel-sm flex items-center justify-center gap-2">
+                  <Settings size={13} /> Modifier
+                </Link>
+              )}
+              <ShareButton
+                url={`https://aedral.com/profile/${profile.slug || profile.uid}`}
+                title={profile.displayName || 'Joueur'}
+                text={`Découvre ${profile.displayName || 'ce joueur'} sur Aedral`}
+                size="md"
+                variant="ghost"
+              />
+            </div>
           </div>
         </header>
 
