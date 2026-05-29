@@ -271,11 +271,11 @@ export async function GET(
             }}
           />
 
-          {/* Corner brackets HUD esport (or 40×40, trait 2px) */}
+          {/* Corner brackets HUD esport top uniquement (or 40×40, trait 2px).
+              Les brackets bottom ont été retirés pour laisser place au footer
+              horizontal "REJOINS-NOUS SUR · AEDRAL.COM" en bas centré. */}
           <div style={{ position: 'absolute', top: 24, left: 24, width: 40, height: 40, borderTop: '2px solid rgba(255,184,0,0.65)', borderLeft: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
           <div style={{ position: 'absolute', top: 24, right: 24, width: 40, height: 40, borderTop: '2px solid rgba(255,184,0,0.65)', borderRight: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
-          <div style={{ position: 'absolute', bottom: 24, left: 24, width: 40, height: 40, borderBottom: '2px solid rgba(255,184,0,0.65)', borderLeft: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
-          <div style={{ position: 'absolute', bottom: 24, right: 24, width: 40, height: 40, borderBottom: '2px solid rgba(255,184,0,0.65)', borderRight: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
 
           {/* Glow doré centré gauche, derrière le logo. Atténué pour ne pas
               cannibaliser l'identité visuelle de chaque structure. */}
@@ -556,36 +556,61 @@ export async function GET(
               </div>
             )}
 
-            {/* Slogan acquisition : "REJOINS-NOUS SUR AEDRAL.COM" en bas de
-                la colonne droite. Cohérent avec le watermark des stories
-                verticales. Remplace l'ancien footer "AEDRAL" pour éviter
-                le doublon et donner un vrai CTA. */}
+          </div>
+
+          {/* Footer horizontal : fine séparatrice or dégradée + slogan inline
+              "REJOINS-NOUS SUR · AEDRAL.COM" centré en bas. Sorti volontairement
+              du flow de la colonne droite (vs ancien layout où le bloc paraissait
+              "en plein milieu" — retour Matt 28/05) pour rééquilibrer la
+              composition et libérer la colonne droite pour les compteurs et la
+              direction. Cohérent cross-OG (horizontaux structure + profile). */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              fontFamily: ff,
+            }}
+          >
+            <div
+              style={{
+                width: '100%',
+                height: 1,
+                background:
+                  'linear-gradient(90deg, transparent 0%, rgba(255,184,0,0.32) 30%, rgba(255,184,0,0.42) 50%, rgba(255,184,0,0.32) 70%, transparent 100%)',
+                display: 'flex',
+              }}
+            />
             <div
               style={{
                 display: 'flex',
-                flexDirection: 'column',
-                marginTop: 12,
-                fontFamily: ff,
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 18,
+                padding: '14px 0 22px 0',
               }}
             >
               <div
                 style={{
                   fontSize: 14,
-                  letterSpacing: '5px',
-                  color: 'rgba(255,255,255,0.45)',
+                  letterSpacing: '6px',
+                  color: 'rgba(255,255,255,0.5)',
                   display: 'flex',
                 }}
               >
                 REJOINS-NOUS SUR
               </div>
+              <div style={{ color: 'rgba(255,184,0,0.55)', fontSize: 16, display: 'flex' }}>·</div>
               <div
                 style={{
-                  marginTop: 6,
-                  fontSize: 30,
-                  letterSpacing: '6px',
+                  fontSize: 24,
+                  letterSpacing: '8px',
                   color: AEDRAL_PALETTE.gold,
                   display: 'flex',
-                  textShadow: '0 0 24px rgba(255,184,0,0.35)',
+                  textShadow: '0 0 20px rgba(255,184,0,0.4)',
                 }}
               >
                 AEDRAL.COM

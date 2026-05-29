@@ -276,11 +276,11 @@ export async function GET(
             }}
           />
 
-          {/* Corner brackets HUD esport (cohérents avec OG structure) */}
+          {/* Corner brackets HUD esport top uniquement — les bottom sont
+              retirés pour laisser place au footer horizontal "REJOINS-NOUS SUR
+              · AEDRAL.COM" en bas centré. Cohérent avec OG structure horizontal. */}
           <div style={{ position: 'absolute', top: 24, left: 24, width: 40, height: 40, borderTop: '2px solid rgba(255,184,0,0.65)', borderLeft: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
           <div style={{ position: 'absolute', top: 24, right: 24, width: 40, height: 40, borderTop: '2px solid rgba(255,184,0,0.65)', borderRight: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
-          <div style={{ position: 'absolute', bottom: 24, left: 24, width: 40, height: 40, borderBottom: '2px solid rgba(255,184,0,0.65)', borderLeft: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
-          <div style={{ position: 'absolute', bottom: 24, right: 24, width: 40, height: 40, borderBottom: '2px solid rgba(255,184,0,0.65)', borderRight: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
 
           {/* Glow doré derrière l'avatar */}
           <div
@@ -506,41 +506,61 @@ export async function GET(
             )}
           </div>
 
-          {/* Slogan CTA en bas-droite : cohérent avec story + OG structure,
-              format acquisition principal. Positionné absolute pour ne pas
-              déséquilibrer le centrage vertical de la colonne droite. */}
+          {/* Footer horizontal : fine séparatrice or dégradée + slogan inline
+              "REJOINS-NOUS SUR · AEDRAL.COM" centré en bas. Aligné sur le
+              footer de l'OG structure horizontal pour cohérence cross-OG
+              (signature Aedral identitaire en bas, pleine largeur). */}
           <div
             style={{
               position: 'absolute',
-              bottom: 38,
-              right: 80,
+              bottom: 0,
+              left: 0,
+              right: 0,
               display: 'flex',
               flexDirection: 'column',
-              alignItems: 'flex-end',
               fontFamily: ff,
             }}
           >
             <div
               style={{
-                fontSize: 12,
-                letterSpacing: '6px',
-                color: 'rgba(255,255,255,0.45)',
+                width: '100%',
+                height: 1,
+                background:
+                  'linear-gradient(90deg, transparent 0%, rgba(255,184,0,0.32) 30%, rgba(255,184,0,0.42) 50%, rgba(255,184,0,0.32) 70%, transparent 100%)',
                 display: 'flex',
               }}
-            >
-              REJOINS-NOUS SUR
-            </div>
+            />
             <div
               style={{
-                marginTop: 4,
-                fontSize: 28,
-                letterSpacing: '8px',
-                color: AEDRAL_PALETTE.gold,
                 display: 'flex',
-                textShadow: '0 0 16px rgba(255,184,0,0.35)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 18,
+                padding: '14px 0 22px 0',
               }}
             >
-              AEDRAL.COM
+              <div
+                style={{
+                  fontSize: 14,
+                  letterSpacing: '6px',
+                  color: 'rgba(255,255,255,0.5)',
+                  display: 'flex',
+                }}
+              >
+                REJOINS-NOUS SUR
+              </div>
+              <div style={{ color: 'rgba(255,184,0,0.55)', fontSize: 16, display: 'flex' }}>·</div>
+              <div
+                style={{
+                  fontSize: 24,
+                  letterSpacing: '8px',
+                  color: AEDRAL_PALETTE.gold,
+                  display: 'flex',
+                  textShadow: '0 0 20px rgba(255,184,0,0.4)',
+                }}
+              >
+                AEDRAL.COM
+              </div>
             </div>
           </div>
         </div>

@@ -500,7 +500,9 @@ export async function GET(
           )}
 
           {/* WATERMARK AEDRAL.COM — moyen d'acquisition principal de la story.
-              Bien visible, encadré entre les corner brackets bas. */}
+              Bien visible, encadré entre les corner brackets bas. Fine
+              séparatrice or dégradée au-dessus pour cohérence visuelle avec
+              le footer des OG horizontaux (signature Aedral identitaire). */}
           <div
             style={{
               position: 'absolute',
@@ -513,6 +515,16 @@ export async function GET(
               fontFamily: ff,
             }}
           >
+            <div
+              style={{
+                width: 520,
+                height: 1.5,
+                background:
+                  'linear-gradient(90deg, transparent 0%, rgba(255,184,0,0.4) 50%, transparent 100%)',
+                display: 'flex',
+                marginBottom: 26,
+              }}
+            />
             <div
               style={{
                 fontSize: 18,
