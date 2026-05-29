@@ -237,6 +237,16 @@ export async function GET(req: NextRequest) {
     for (const uid of matchingUids) conflictSlotsByPlayer[uid] = new Set();
 
     const memberSet = new Set(matchingUids);
+
+    // 1ère passe : filtrer les events qui tombent dans la fenêtre + invitations.
+    // On garde le résultat pour réutiliser après le fetch des présences.
+    type EventWindow = {
+      eventId: string;
+      invited: string[];           // uids invités présents dans memberSet
+      startParis: string;
+      endParis: string;
+    };
+    const eventsInWindow: EventWindow[] = [];
     for (const doc of evSnap.docs) {
       const ev = doc.data();
       if (ev.status === 'cancelled') continue;
@@ -256,14 +266,46 @@ export async function GET(req: NextRequest) {
       const relevant = invited.filter(mid => memberSet.has(mid));
       if (relevant.length === 0) continue;
 
-      const startDate = new Date(startMs);
-      const endDate = new Date(endMs);
-      const startParis = parisIsoMinute(startDate);
-      const endParis = parisIsoMinute(endDate);
+      eventsInWindow.push({
+        eventId: doc.id,
+        invited: relevant,
+        startParis: parisIsoMinute(new Date(startMs)),
+        endParis: parisIsoMinute(new Date(endMs)),
+      });
+    }
 
+    // Fetch des présences pour ces events. Si un user a répondu "absent",
+    // il n'est PAS bloqué sur les créneaux de l'event (sa dispo originelle est
+    // restaurée). Toute autre réponse (present/maybe) ou l'absence de réponse
+    // continue de bloquer — c'est la sécurité par défaut : un user qui ne dit
+    // rien est considéré comme potentiellement pris.
+    const absentByEvent: Map<string, Set<string>> = new Map();
+    const eventIds = eventsInWindow.map(e => e.eventId);
+    for (let i = 0; i < eventIds.length; i += 30) {
+      const chunk = eventIds.slice(i, i + 30);
+      if (chunk.length === 0) break;
+      const pSnap = await db.collection('event_presences')
+        .where('eventId', 'in', chunk)
+        .where('status', '==', 'absent')
+        .get();
+      for (const pDoc of pSnap.docs) {
+        const p = pDoc.data();
+        const eid = p.eventId as string;
+        const uid = p.userId as string;
+        let set = absentByEvent.get(eid);
+        if (!set) { set = new Set(); absentByEvent.set(eid, set); }
+        set.add(uid);
+      }
+    }
+
+    // 2ème passe : appliquer les conflits, en filtrant les "absent".
+    for (const ev of eventsInWindow) {
+      const absentSet = absentByEvent.get(ev.eventId);
+      const effective = absentSet ? ev.invited.filter(uid => !absentSet.has(uid)) : ev.invited;
+      if (effective.length === 0) continue;
       for (const slot of allSlots) {
-        if (eventCoversSlot(startParis, endParis, slot)) {
-          for (const mid of relevant) conflictSlotsByPlayer[mid].add(slot);
+        if (eventCoversSlot(ev.startParis, ev.endParis, slot)) {
+          for (const mid of effective) conflictSlotsByPlayer[mid].add(slot);
         }
       }
     }

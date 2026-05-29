@@ -18,6 +18,7 @@ import {
   Trash2,
   Check,
   Users,
+  User,
   LayoutGrid,
   List,
   CalendarRange,
@@ -1793,6 +1794,19 @@ function EventDetailModal({
                   <MapPin size={11} /> {event.location}
                 </span>
               )}
+              {/* Créé par : utile pour savoir qui a posé l'event (qui contacter
+                  en cas de question, qui a l'historique de la demande). Fallback
+                  sur l'uid court si le créateur n'est plus membre de la structure. */}
+              {event.createdBy && (() => {
+                const creator = membersById.get(event.createdBy);
+                const name = creator?.displayName?.trim()
+                  || `${event.createdBy.replace(/^discord_/, '').slice(0, 8)}…`;
+                return (
+                  <span className="t-mono text-xs flex items-center gap-1" style={{ color: 'var(--s-text-dim)' }}>
+                    <User size={11} /> Créé par {name}
+                  </span>
+                );
+              })()}
             </div>
           </div>
 
