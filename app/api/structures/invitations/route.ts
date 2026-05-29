@@ -364,12 +364,16 @@ export async function POST(req: NextRequest) {
         }
 
         // Notifier le joueur que sa demande a été acceptée (hors tx, best-effort)
+        // On préfère pointer la notif sur l'URL slug si la structure a déjà été
+        // backfillée — sinon fallback docId (la route accepte les deux et 301
+        // redirige vers la version slug si elle existe).
+        const structureSlug = typeof structureData.slug === 'string' ? structureData.slug.trim() : '';
         await createNotification(db, {
           userId: applicantId,
           type: 'join_request_accepted',
           title: 'Demande acceptée',
           message: `Bienvenue dans ${structureData.name} !`,
-          link: `/community/structure/${structureId}`,
+          link: `/community/structure/${structureSlug || structureId}`,
           metadata: { structureId },
         });
 

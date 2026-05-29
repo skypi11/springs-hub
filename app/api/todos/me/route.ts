@@ -88,6 +88,8 @@ export async function GET(req: NextRequest) {
         ...t,
         structureName: (structure?.name as string) ?? '',
         structureTag: (structure?.tag as string) ?? '',
+        // Slug propre pour construire l'URL publique côté client.
+        structureSlug: (structure?.slug as string | undefined) ?? null,
         teamName: (team?.name as string) ?? '',
         eventTitle: event ? ((event.title as string) ?? '') : null,
       };

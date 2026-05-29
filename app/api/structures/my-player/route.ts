@@ -176,6 +176,8 @@ export async function GET(req: NextRequest) {
 
       return {
         id: sid,
+        // Slug propre pour construire l'URL publique côté client.
+        slug: (s.slug as string | undefined) ?? null,
         name: s.name as string,
         tag: s.tag as string,
         logoUrl: (s.logoUrl as string) || '',

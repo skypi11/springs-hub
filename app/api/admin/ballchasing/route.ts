@@ -12,6 +12,8 @@ import { isBallchasingConfigured } from '@/lib/ballchasing';
 
 type PerStructure = {
   structureId: string;
+  /** Slug propre pour construire l'URL publique (peut être null si non backfillé). */
+  structureSlug: string | null;
   structureName: string;
   structureTag: string;
   used: number;
@@ -66,6 +68,7 @@ export async function GET(req: NextRequest) {
       if (!s) {
         s = {
           structureId,
+          structureSlug: null,
           structureName: '',
           structureTag: '',
           used: 0,
@@ -99,6 +102,7 @@ export async function GET(req: NextRequest) {
     const structures = await fetchDocsByIds(db, 'structures', Array.from(structureIds));
     for (const s of byStructure.values()) {
       const struct = structures.get(s.structureId);
+      s.structureSlug = (struct?.slug as string | undefined) ?? null;
       s.structureName = (struct?.name as string | undefined) ?? '';
       s.structureTag = (struct?.tag as string | undefined) ?? '';
       s.pctOfQuota = s.quota > 0 ? Math.round((s.used / s.quota) * 100) : 0;

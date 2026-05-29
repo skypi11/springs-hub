@@ -7,6 +7,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { countDirigeantSeats, MAX_SEATS_PER_PERSON, type DirigeantRef } from '@/lib/structure-roles';
 import { sendAdminAlert } from '@/lib/admin-discord-alert';
 import { canJoinStructure, addStructureToGame, STRUCTURE_MEMBERSHIP_CAP } from '@/lib/structure-membership';
+import { generateBaseStructureSlug, generateUniqueStructureSlug } from '@/lib/structure-slug';
 
 const LEGAL_STATUSES = ['none', 'asso_1901', 'auto_entreprise', 'sas_sarl', 'other'];
 
@@ -101,10 +102,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Ce tag est déjà pris.' }, { status: 400 });
     }
 
+    // Génère le slug public (figé dès la création, même en pending_validation).
+    // On le génère AVANT l'add() pour qu'il fasse partie du payload initial et
+    // qu'on n'ait pas à faire un update() de suivi. Pas de transaction Firestore :
+    // la fenêtre de race condition (2 structures avec exactement le même nom
+    // créées dans la même seconde) est négligeable en pratique — les admins
+    // valident manuellement les demandes et bloquent déjà les noms identiques
+    // via `nameLower` plus haut, donc une collision concurrente sur le slug
+    // impliquerait deux noms quasi-identiques en parallèle, déjà rejetés.
+    const clampedName = clampString(body.name, LIMITS.structureName);
+    const baseSlug = generateBaseStructureSlug(clampedName);
+    const slug = await generateUniqueStructureSlug(baseSlug, db);
+
     // Créer la demande
     const structureData = {
-      name: clampString(body.name, LIMITS.structureName),
+      name: clampedName,
       nameLower,
+      slug,
       tag: tagUpper,
       logoUrl: safeUrl(body.logoUrl),
       description: clampString(body.description, LIMITS.structureDescription),

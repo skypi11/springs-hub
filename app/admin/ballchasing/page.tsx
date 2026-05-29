@@ -4,10 +4,12 @@ import AdminContentSkeleton from '@/components/admin/AdminContentSkeleton';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
+import { getStructureHref } from '@/lib/structure-slug';
 import { BarChart3, AlertTriangle, Lock, CheckCircle2, XCircle, ExternalLink } from 'lucide-react';
 
 type PerStructure = {
   structureId: string;
+  structureSlug: string | null;
   structureName: string;
   structureTag: string;
   used: number;
@@ -179,7 +181,7 @@ export default function AdminBallchasingPage() {
                         {s.quotaExceeded}
                       </td>
                       <td className="text-right px-4 py-3">
-                        <a href={`/community/structure/${s.structureId}`} target="_blank" rel="noopener noreferrer"
+                        <a href={getStructureHref({ id: s.structureId, slug: s.structureSlug })} target="_blank" rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-xs"
                           style={{ color: 'var(--s-blue)' }}>
                           Voir <ExternalLink size={10} />

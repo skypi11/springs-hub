@@ -8,12 +8,14 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
 import ImpersonateButton from '@/components/admin/ImpersonateButton';
+import { getStructureHref } from '@/lib/structure-slug';
 import {
   UploadCloud, Loader2, FileText, Film, Building2, ExternalLink, Database,
 } from 'lucide-react';
 
 type StructureUsage = {
   structureId: string;
+  structureSlug: string | null;
   structureName: string;
   structureTag: string;
   structureLogoUrl: string;
@@ -206,7 +208,7 @@ export default function AdminUploadsPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <Link
-                      href={`/community/structure/${s.structureId}`}
+                      href={getStructureHref({ id: s.structureId, slug: s.structureSlug })}
                       className="flex items-center gap-1 text-sm font-semibold hover:underline"
                       style={{ color: 'var(--s-text)' }}
                     >

@@ -71,13 +71,17 @@ async function loadDynamicEntries(): Promise<SitemapEntry[]> {
 
   const entries: SitemapEntry[] = [];
 
-  // Structures
+  // Structures — préfère le slug propre (`/community/structure/timetoshine`)
+  // quand il est disponible. Les structures pas encore backfillées tombent
+  // sur le docId Firestore (la route gère un redirect 301 dès qu'un slug
+  // existe, donc Google finira par migrer tout seul).
   for (const doc of structuresSnap.docs) {
     const data = doc.data();
     if (data.isDev === true) continue;
+    const slug = typeof data.slug === 'string' ? data.slug.trim() : '';
     const updatedAt = data.updatedAt?.toDate?.() ?? data.createdAt?.toDate?.() ?? new Date();
     entries.push({
-      url: `${SITE_URL}/community/structure/${doc.id}`,
+      url: `${SITE_URL}/community/structure/${slug || doc.id}`,
       lastModified: updatedAt,
       changeFrequency: 'weekly',
       priority: 0.7,

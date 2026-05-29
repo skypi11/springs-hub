@@ -118,6 +118,10 @@ export async function GET(req: NextRequest) {
       return {
         id: doc.id,
         structureId: d.structureId ?? '',
+        // Slug pour construire l'URL publique propre côté client. Peut être null
+        // si la structure n'est pas encore backfillée (le client utilisera l'id
+        // en fallback via getStructureHref()).
+        structureSlug: (structure?.slug as string | undefined) ?? null,
         structureName: structure?.name ?? '',
         structureTag: structure?.tag ?? '',
         structureLogoUrl: structure?.logoUrl ?? '',

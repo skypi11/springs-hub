@@ -9,6 +9,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { User as UserIcon, Building2, ExternalLink, type LucideIcon } from 'lucide-react';
+import { getStructureHrefFromId } from '@/lib/structure-slug';
 
 type Props = {
   uid?: string | null;
@@ -29,7 +30,10 @@ export default function AdminUserRef({
   if (!uid) return <span className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>,</span>;
 
   const Icon = icon ?? (kind === 'structure' ? Building2 : UserIcon);
-  const href = kind === 'structure' ? `/community/structure/${uid}` : `/profile/${uid}`;
+  // Pour les structures on n'a que l'UID/docId ici (composant admin générique) —
+  // getStructureHrefFromId() peut consommer un id ou un slug indifféremment et
+  // la route /community/structure/[id] redirige 301 vers la version slug.
+  const href = kind === 'structure' ? getStructureHrefFromId(uid) : `/profile/${uid}`;
   const displayName = name?.trim() || '';
 
   async function copyUid() {

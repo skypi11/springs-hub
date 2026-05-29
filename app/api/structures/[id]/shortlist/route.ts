@@ -4,6 +4,7 @@ import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { canAccessRecruitment, structureContext } from '@/lib/structure-permissions';
+import { resolveStructureId } from '@/lib/resolve-structure-id';
 
 // Shortlist = favoris de joueurs suivis par une structure (Phase 3 item L).
 // Stockage : subcollection `structures/{id}/shortlist/{userId}`.
@@ -42,8 +43,12 @@ export async function GET(
     const blocked = await checkRateLimit(limiters.read, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
-    const { id: structureId } = await context.params;
+    const { id: slugOrId } = await context.params;
     const db = getAdminDb();
+    const structureId = await resolveStructureId(slugOrId, db);
+    if (!structureId) {
+      return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
+    }
 
     const access = await assertDirigeant(db, structureId, uid);
     if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
@@ -135,7 +140,7 @@ export async function POST(
     const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
-    const { id: structureId } = await context.params;
+    const { id: slugOrId } = await context.params;
     const body = await req.json().catch(() => ({}));
     const targetUserId = typeof body.userId === 'string' ? body.userId.trim() : '';
     const note = typeof body.note === 'string' ? body.note.trim().slice(0, MAX_NOTE_LENGTH) : '';
@@ -144,6 +149,10 @@ export async function POST(
     }
 
     const db = getAdminDb();
+    const structureId = await resolveStructureId(slugOrId, db);
+    if (!structureId) {
+      return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
+    }
     const access = await assertDirigeant(db, structureId, uid);
     if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
 
@@ -199,7 +208,7 @@ export async function DELETE(
     const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
-    const { id: structureId } = await context.params;
+    const { id: slugOrId } = await context.params;
     const { searchParams } = new URL(req.url);
     const targetUserId = (searchParams.get('userId') || '').trim();
     if (!targetUserId) {
@@ -207,6 +216,10 @@ export async function DELETE(
     }
 
     const db = getAdminDb();
+    const structureId = await resolveStructureId(slugOrId, db);
+    if (!structureId) {
+      return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
+    }
     const access = await assertDirigeant(db, structureId, uid);
     if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
 

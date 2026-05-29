@@ -33,6 +33,10 @@ export async function GET(req: NextRequest) {
 
       structures.push({
         id: doc.id,
+        // Slug propre pour construire l'URL publique côté client via
+        // getStructureHref(). Null si la structure n'est pas backfillée — le
+        // helper fallback automatiquement sur l'id.
+        slug: typeof data.slug === 'string' ? data.slug : null,
         name: data.name,
         tag: data.tag,
         logoUrl: data.logoUrl || '',

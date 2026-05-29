@@ -92,6 +92,10 @@ export async function GET(req: NextRequest) {
       }
       const valMs = toMillis(d.validatedAt);
       if (valMs && valMs >= sinceMs && status === 'active') {
+        // Préfère le slug si dispo (URL propre /community/structure/timetoshine)
+        // sinon fallback sur le docId Firestore — la route accepte les deux via
+        // resolveStructureId() et redirige 301 vers la version slug.
+        const slug = typeof d.slug === 'string' ? d.slug.trim() : '';
         validatedStructures.push({
           type: 'structure_validated',
           id: doc.id,
@@ -99,7 +103,7 @@ export async function GET(req: NextRequest) {
           sublabel: d.tag ? `[${d.tag}] · validée` : 'Structure validée',
           avatar: logo,
           ts: valMs,
-          href: `/community/structure/${doc.id}`,
+          href: `/community/structure/${slug || doc.id}`,
         });
       }
     }

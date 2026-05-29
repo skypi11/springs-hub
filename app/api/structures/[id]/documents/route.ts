@@ -4,6 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
+import { resolveStructureId } from '@/lib/resolve-structure-id';
 import { canAccessDocuments } from '@/lib/document-permissions';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import { checkStructureStorageQuota, computeStructureStorageUsage } from '@/lib/structure-storage';
@@ -35,12 +36,16 @@ export async function GET(
     const blocked = await checkRateLimit(limiters.read, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
-    const { id: structureId } = await params;
+    const { id: slugOrId } = await params;
     const url = new URL(req.url);
     const folderParam = url.searchParams.get('folderId');
     const folderId: string | null = folderParam || null;
 
     const db = getAdminDb();
+    const structureId = await resolveStructureId(slugOrId, db);
+    if (!structureId) {
+      return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
+    }
     const resolved = await resolveUserContext(db, uid, structureId);
     if (!resolved) return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
     if (!canAccessDocuments(resolved.context)) {
@@ -101,7 +106,12 @@ export async function POST(
     const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
-    const { id: structureId } = await params;
+    const { id: slugOrId } = await params;
+    const db = getAdminDb();
+    const structureId = await resolveStructureId(slugOrId, db);
+    if (!structureId) {
+      return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
+    }
     const body = await req.json().catch(() => ({}));
     const folderParam = body.folderId;
     const folderId: string | null = typeof folderParam === 'string' && folderParam ? folderParam : null;
@@ -129,7 +139,6 @@ export async function POST(
       return NextResponse.json({ error: 'Type de fichier non supporté' }, { status: 415 });
     }
 
-    const db = getAdminDb();
     const resolved = await resolveUserContext(db, uid, structureId);
     if (!resolved) return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
     if (!canAccessDocuments(resolved.context)) {

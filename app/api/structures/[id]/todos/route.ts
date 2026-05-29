@@ -4,6 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
+import { resolveStructureId } from '@/lib/resolve-structure-id';
 import { isStaffOfTeam, isDirigeant } from '@/lib/event-permissions';
 import {
   validateCreateTodo,
@@ -38,8 +39,12 @@ export async function POST(
     const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
-    const { id: structureId } = await params;
+    const { id: slugOrId } = await params;
     const db = getAdminDb();
+    const structureId = await resolveStructureId(slugOrId, db);
+    if (!structureId) {
+      return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
+    }
 
     const resolved = await resolveUserContext(db, uid, structureId);
     if (!resolved) {
@@ -296,7 +301,7 @@ export async function GET(
     const blocked = await checkRateLimit(limiters.read, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
-    const { id: structureId } = await params;
+    const { id: slugOrId } = await params;
     const subTeamId = req.nextUrl.searchParams.get('subTeamId');
     const statusFilter = (req.nextUrl.searchParams.get('status') ?? 'all') as 'pending' | 'done' | 'all';
     if (!subTeamId) {
@@ -304,6 +309,10 @@ export async function GET(
     }
 
     const db = getAdminDb();
+    const structureId = await resolveStructureId(slugOrId, db);
+    if (!structureId) {
+      return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
+    }
     const resolved = await resolveUserContext(db, uid, structureId);
     if (!resolved) {
       return NextResponse.json({ error: 'Structure introuvable ou inaccessible' }, { status: 404 });

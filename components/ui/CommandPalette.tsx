@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import Portal from './Portal';
+import { getStructureHref } from '@/lib/structure-slug';
 
 type StaticItem = {
   kind: 'page';
@@ -128,13 +129,13 @@ export default function CommandPalette() {
         ]);
         setStructures(
           (sRes.structures || []).slice(0, 50).map((s: {
-            id: string; name: string; tag: string; logoUrl: string; memberCount: number;
+            id: string; slug?: string | null; name: string; tag: string; logoUrl: string; memberCount: number;
           }) => ({
             kind: 'structure' as const,
             id: s.id,
             title: s.name,
             subtitle: `${s.tag ? `[${s.tag}] · ` : ''}${s.memberCount} membre${s.memberCount > 1 ? 's' : ''}`,
-            href: `/community/structure/${s.id}`,
+            href: getStructureHref(s),
             logoUrl: s.logoUrl,
             tag: s.tag,
             memberCount: s.memberCount,

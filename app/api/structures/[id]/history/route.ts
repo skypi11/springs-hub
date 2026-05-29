@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { resolveStructureId } from '@/lib/resolve-structure-id';
 
 // GET /api/structures/[id]/history
 // Journal d'appartenance : qui est passé par la structure, quand, pour combien de temps.
@@ -34,8 +35,12 @@ export async function GET(
     const blocked = await checkRateLimit(limiters.read, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
-    const { id: structureId } = await context.params;
+    const { id: slugOrId } = await context.params;
     const db = getAdminDb();
+    const structureId = await resolveStructureId(slugOrId, db);
+    if (!structureId) {
+      return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
+    }
 
     const access = await assertDirigeant(db, structureId, uid);
     if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });

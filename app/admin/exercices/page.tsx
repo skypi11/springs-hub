@@ -10,6 +10,7 @@ import { api } from '@/lib/api-client';
 import ImpersonateButton from '@/components/admin/ImpersonateButton';
 import AdminUserRef from '@/components/admin/AdminUserRef';
 import TodoDetailDrawer, { type DrawerTodo } from '@/components/calendar/TodoDetailDrawer';
+import { getStructureHref } from '@/lib/structure-slug';
 import {
   ClipboardList, Loader2, AlertTriangle, Clock, CheckCircle2,
   CalendarDays, ExternalLink, Building2, ChevronDown, ChevronUp,
@@ -17,6 +18,7 @@ import {
 
 type StructureStats = {
   structureId: string;
+  structureSlug: string | null;
   structureName: string;
   structureTag: string;
   structureLogoUrl: string;
@@ -303,7 +305,7 @@ export default function AdminExercicesPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <Link
-                    href={`/community/structure/${s.structureId}`}
+                    href={getStructureHref({ id: s.structureId, slug: s.structureSlug })}
                     onClick={e => e.stopPropagation()}
                     className="flex items-center gap-1 text-sm font-semibold hover:underline"
                     style={{ color: 'var(--s-text)' }}

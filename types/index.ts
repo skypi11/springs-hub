@@ -105,6 +105,8 @@ export interface SpringsUser {
 
 export interface ProfileStructure {
   id: string;
+  /** Slug propre pour construire l'URL publique via getStructureHref(). Null si non backfillé. */
+  slug?: string | null;
   name: string;
   tag: string;
   logoUrl: string;

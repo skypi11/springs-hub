@@ -14,6 +14,7 @@ import {
   type ExerciseStep,
 } from '@/lib/todos';
 import { StepResponseForm } from './StepResponseForm';
+import { getStructureHref } from '@/lib/structure-slug';
 
 // Formatte un ms epoch en string lisible Paris ("jeu. 15 janv. 2026 · 18:30").
 function formatDeadlineFull(ms: number | null): string | null {
@@ -48,6 +49,8 @@ function formatRelative(ms: number | null, now: number): string | null {
 export type DrawerTodo = TodoRef & {
   structureName?: string;
   structureTag?: string;
+  /** Slug propre pour construire l'URL publique (null si non backfillé). */
+  structureSlug?: string | null;
   teamName?: string;
   eventTitle?: string | null;
 };
@@ -321,7 +324,7 @@ export default function TodoDetailDrawer({
                 </h3>
                 <div className="space-y-2">
                   {(todo.structureName || todo.structureTag || todo.teamName) && (
-                    <Link href={`/community/structure/${todo.structureId}`}
+                    <Link href={getStructureHref({ id: todo.structureId, slug: todo.structureSlug })}
                       className="flex items-center gap-2 p-2.5 group transition-colors bevel-sm"
                       style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                       <Shield size={14} style={{ color: 'var(--s-text-dim)' }} />

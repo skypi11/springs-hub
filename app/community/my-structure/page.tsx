@@ -25,6 +25,7 @@ import PlayerStructureView, { type PlayerStructure } from '@/components/structur
 import DocumentsExplorer from '@/components/documents/DocumentsExplorer';
 import GameTag from '@/components/games/GameTag';
 import { gameHasFeature, ALL_GAME_DEFS, getGameColor } from '@/lib/games-registry';
+import { getStructureHref } from '@/lib/structure-slug';
 import CrossTeamTodosPanel from '@/components/structure/CrossTeamTodosPanel';
 import { safeCopy } from '@/lib/clipboard';
 import type {
@@ -1592,7 +1593,7 @@ export default function MyStructurePage() {
               </div>
             </div>
             <div className="flex flex-col gap-2 md:flex-shrink-0">
-              <Link href={`/community/structure/${s.id}`} className="btn-springs btn-secondary bevel-sm-border">
+              <Link href={getStructureHref(s)} className="btn-springs btn-secondary bevel-sm-border">
                 <span><Eye size={14} /></span> <span>Page publique</span>
               </Link>
               {isCoFounderOfActive && !myDepartureIso && (
@@ -1676,7 +1677,7 @@ export default function MyStructurePage() {
         {/* ═══ Aperçu public (onglet général uniquement) ═══ */}
         {tab === 'general' && s.status === 'active' && (
           <PublicPreviewFrame
-            href={`/community/structure/${s.id}`}
+            href={getStructureHref(s)}
             helper="Ta carte telle qu'elle apparaît dans l'annuaire des structures et les feeds communauté."
           >
             <div

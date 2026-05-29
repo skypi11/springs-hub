@@ -3,6 +3,7 @@ import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
+import { resolveStructureId } from '@/lib/resolve-structure-id';
 import { isStaff } from '@/lib/event-permissions';
 import { generateDownloadUrl } from '@/lib/storage';
 
@@ -28,8 +29,12 @@ export async function GET(
     const blocked = await checkRateLimit(limiters.read, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
-    const { id: structureId, replayId } = await params;
+    const { id: slugOrId, replayId } = await params;
     const db = getAdminDb();
+    const structureId = await resolveStructureId(slugOrId, db);
+    if (!structureId) {
+      return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
+    }
     const ref = db.collection('replays').doc(replayId);
     const snap = await ref.get();
     if (!snap.exists) return NextResponse.json({ error: 'Replay introuvable' }, { status: 404 });

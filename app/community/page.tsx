@@ -15,9 +15,11 @@ import {
 import { SkeletonGrid } from '@/components/ui/Skeleton';
 import GameTag from '@/components/games/GameTag';
 import { ALL_GAME_DEFS, getGameColor, getGameShortLabel } from '@/lib/games-registry';
+import { getStructureHref } from '@/lib/structure-slug';
 
 type StructureSummary = {
   id: string;
+  slug: string | null;
   name: string;
   tag: string;
   logoUrl: string;
@@ -256,7 +258,7 @@ function StructureFeedCard({ s }: { s: StructureSummary }) {
   const accentColor = getGameColor(primaryGame);
 
   return (
-    <Link href={`/community/structure/${s.id}`}
+    <Link href={getStructureHref(s)}
       className="pillar-card panel bevel-sm relative overflow-hidden group transition-all duration-200"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
       <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${accentColor}, transparent 70%)` }} />
@@ -335,7 +337,7 @@ function PlayerFeedCard({ p }: { p: PlayerSummary }) {
 function RecruitingStructureCard({ s }: { s: StructureSummary }) {
   const positions = s.recruiting?.positions ?? [];
   return (
-    <Link href={`/community/structure/${s.id}`}
+    <Link href={getStructureHref(s)}
       className="pillar-card panel bevel-sm relative overflow-hidden group transition-all duration-200"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
       <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-green), transparent 70%)' }} />

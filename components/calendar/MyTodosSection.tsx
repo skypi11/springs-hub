@@ -23,10 +23,13 @@ import {
 } from '@/lib/todos';
 import { TodoConfigSummary, TodoResponseSummary } from './TeamTodosPanel';
 import TodoDetailDrawer from './TodoDetailDrawer';
+import { getStructureHref } from '@/lib/structure-slug';
 
 type MyTodo = TodoRef & {
   structureName: string;
   structureTag: string;
+  /** Slug propre pour construire l'URL publique (null si non backfillé). */
+  structureSlug?: string | null;
   teamName: string;
   eventTitle: string | null;
 };
@@ -452,7 +455,7 @@ function TodoRow({
 
         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
           {/* Le lien structure navigue directement, stopPropagation empêche aussi d'ouvrir le drawer. */}
-          <Link href={`/community/structure/${todo.structureId}`}
+          <Link href={getStructureHref({ id: todo.structureId, slug: todo.structureSlug })}
             onClick={(e) => e.stopPropagation()}
             className="flex items-center gap-1.5 group transition-colors"
             style={{ color: 'var(--s-text-muted)' }}>

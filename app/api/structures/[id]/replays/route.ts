@@ -4,6 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
+import { resolveStructureId } from '@/lib/resolve-structure-id';
 import { canUploadReplay } from '@/lib/replay-permissions';
 import { isStaff } from '@/lib/event-permissions';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
@@ -34,12 +35,16 @@ export async function GET(
     const blocked = await checkRateLimit(limiters.read, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
-    const { id: structureId } = await params;
+    const { id: slugOrId } = await params;
     const url = new URL(req.url);
     const teamId = url.searchParams.get('teamId');
     const eventId = url.searchParams.get('eventId');
 
     const db = getAdminDb();
+    const structureId = await resolveStructureId(slugOrId, db);
+    if (!structureId) {
+      return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
+    }
     const resolved = await resolveUserContext(db, uid, structureId);
     if (!resolved) return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
     // Pas de guard global ici, le filtre par allowedTeamIds ci-dessous fait
@@ -131,7 +136,12 @@ export async function POST(
     const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
-    const { id: structureId } = await params;
+    const { id: slugOrId } = await params;
+    const db = getAdminDb();
+    const structureId = await resolveStructureId(slugOrId, db);
+    if (!structureId) {
+      return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
+    }
     const body = await req.json().catch(() => ({}));
     const teamId = typeof body.teamId === 'string' ? body.teamId : '';
     const eventId = typeof body.eventId === 'string' && body.eventId ? body.eventId : null;
@@ -150,7 +160,6 @@ export async function POST(
       return NextResponse.json({ error: 'Type de fichier non supporté' }, { status: 415 });
     }
 
-    const db = getAdminDb();
     const resolved = await resolveUserContext(db, uid, structureId);
     if (!resolved) return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
 

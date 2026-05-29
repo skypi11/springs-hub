@@ -75,6 +75,10 @@ export async function GET(req: NextRequest) {
         const data = d.data();
         return {
           id: d.id,
+          // Slug propre exposé au client pour construire l'URL via
+          // getStructureHref(). Null si la structure n'est pas backfillée —
+          // fallback sur l'id automatique côté frontend.
+          slug: (data.slug as string | undefined) ?? null,
           name: (data.name as string) ?? '',
           tag: (data.tag as string) ?? '',
           logoUrl: (data.logoUrl as string) ?? '',

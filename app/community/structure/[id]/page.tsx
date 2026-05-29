@@ -65,6 +65,8 @@ type Team = {
 
 type StructureData = {
   id: string;
+  /** Slug propre pour construire l'URL canonique (peut être null pour les vieilles structures non backfillées). */
+  slug?: string | null;
   name: string;
   tag: string;
   logoUrl: string;
@@ -548,7 +550,11 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
 
   // Bouton Partager : URL absolue (pour Discord/embed externes) + texte court.
   // Affiché à côté du CTA principal, dans le hero desktop ET le bloc mobile.
-  const shareUrl = `https://aedral.com/community/structure/${structure.id}`;
+  // Préfère le slug propre quand il est disponible (URL plus partageable, mieux
+  // pour le SEO et la mémoire des gens).
+  const shareUrl = `https://aedral.com${structure.slug
+    ? `/community/structure/${structure.slug}`
+    : `/community/structure/${structure.id}`}`;
   const shareTitle = structure.tag ? `${structure.name} [${structure.tag}]` : structure.name;
   const shareButton = (
     <ShareButton

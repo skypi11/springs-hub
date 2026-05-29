@@ -43,6 +43,8 @@ export async function GET(req: NextRequest) {
       const s = structuresById.get(sid);
       return {
         id: sid,
+        // Slug pour construire l'URL publique côté client via getStructureHref().
+        slug: (s?.slug as string | undefined) ?? null,
         name: s?.name || '',
         tag: s?.tag || '',
         logoUrl: s?.logoUrl || '',

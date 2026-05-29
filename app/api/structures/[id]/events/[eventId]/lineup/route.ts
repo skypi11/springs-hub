@@ -3,6 +3,7 @@ import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
+import { resolveStructureId } from '@/lib/resolve-structure-id';
 import { isStaffOfTeam } from '@/lib/event-permissions';
 
 // GET /api/structures/[id]/events/[eventId]/lineup?subTeamId=X
@@ -21,13 +22,17 @@ export async function GET(
     const blocked = await checkRateLimit(limiters.read, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
-    const { id: structureId, eventId } = await params;
+    const { id: slugOrId, eventId } = await params;
     const subTeamId = req.nextUrl.searchParams.get('subTeamId');
     if (!subTeamId) {
       return NextResponse.json({ error: 'subTeamId requis.' }, { status: 400 });
     }
 
     const db = getAdminDb();
+    const structureId = await resolveStructureId(slugOrId, db);
+    if (!structureId) {
+      return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
+    }
     const resolved = await resolveUserContext(db, uid, structureId);
     if (!resolved) {
       return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });

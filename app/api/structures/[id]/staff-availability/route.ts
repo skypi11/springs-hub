@@ -4,6 +4,7 @@ import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
+import { resolveStructureId } from '@/lib/resolve-structure-id';
 import { isDirigeant } from '@/lib/event-permissions';
 import {
   addDays,
@@ -53,8 +54,12 @@ export async function GET(
     const blocked = await checkRateLimit(limiters.read, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
-    const { id: structureId } = await params;
+    const { id: slugOrId } = await params;
     const db = getAdminDb();
+    const structureId = await resolveStructureId(slugOrId, db);
+    if (!structureId) {
+      return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
+    }
 
     const resolved = await resolveUserContext(db, uid, structureId);
     if (!resolved) {
@@ -170,8 +175,12 @@ export async function POST(
     const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
-    const { id: structureId } = await params;
+    const { id: slugOrId } = await params;
     const db = getAdminDb();
+    const structureId = await resolveStructureId(slugOrId, db);
+    if (!structureId) {
+      return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
+    }
 
     const resolved = await resolveUserContext(db, uid, structureId);
     if (!resolved) {

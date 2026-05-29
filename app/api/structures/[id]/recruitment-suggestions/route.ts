@@ -3,6 +3,7 @@ import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { canAccessRecruitment, structureContext } from '@/lib/structure-permissions';
+import { resolveStructureId } from '@/lib/resolve-structure-id';
 
 // Cap sur la taille du résultat, on renvoie les meilleurs candidats triés
 const MAX_SUGGESTIONS = 30;
@@ -21,9 +22,13 @@ export async function GET(
     const blocked = await checkRateLimit(limiters.read, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
-    const { id: structureId } = await context.params;
+    const { id: slugOrId } = await context.params;
 
     const db = getAdminDb();
+    const structureId = await resolveStructureId(slugOrId, db);
+    if (!structureId) {
+      return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
+    }
 
     // Vérifier accès admin structure (dirigeant ou responsable)
     const structSnap = await db.collection('structures').doc(structureId).get();

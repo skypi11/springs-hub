@@ -92,6 +92,11 @@ export async function GET(req: NextRequest) {
         game: data.game ?? '',
         status,
         structureId: data.structureId ?? '',
+        // Slug propre pour construire l'URL publique côté client via
+        // getStructureHref(). Peut être null si la structure n'a pas encore
+        // été backfillée (les anciens liens /structure/{docId} continuent à
+        // fonctionner via le fallback de getStructureHref()).
+        structureSlug: (structure?.slug as string | undefined) ?? null,
         structureName: structure?.name ?? '',
         structureTag: structure?.tag ?? '',
         structureLogoUrl: structure?.logoUrl ?? '',

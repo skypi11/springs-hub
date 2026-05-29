@@ -16,6 +16,7 @@ import AvailabilityCollapsible from '@/components/calendar/AvailabilityCollapsib
 import type { EventType, EventStatus, PresenceStatus } from '@/lib/event-permissions';
 import { normalizeEventType } from '@/lib/event-permissions';
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
+import { getStructureHref } from '@/lib/structure-slug';
 
 // Layout dédié à un joueur qui est membre d'une structure (pas dirigeant, pas manager, pas coach).
 // Il ne voit ni la configuration, ni le recrutement, ni le palmarès, que ce qui le concerne directement :
@@ -44,6 +45,8 @@ type MyTeam = {
 
 export type PlayerStructure = {
   id: string;
+  /** Slug propre pour construire l'URL publique. Null si non backfillé. */
+  slug?: string | null;
   name: string;
   tag: string;
   logoUrl: string;
@@ -268,7 +271,7 @@ export default function PlayerStructureView({ structure }: { structure: PlayerSt
 
           <div className="flex items-center gap-2 flex-wrap">
             <Link
-              href={`/community/structure/${structure.id}`}
+              href={getStructureHref(structure)}
               className="btn-springs btn-secondary bevel-sm inline-flex items-center gap-2"
             >
               <ExternalLink size={14} />

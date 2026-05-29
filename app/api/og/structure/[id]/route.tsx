@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og';
 import { NextRequest } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
+import { isLegacyStructureId } from '@/lib/structure-slug';
 import { captureApiError } from '@/lib/sentry';
 import { getGameColor, getGameShortLabel } from '@/lib/games-registry';
 import {
@@ -65,12 +66,34 @@ export async function GET(
     const { id } = await params;
     const db = getAdminDb();
 
-    const snap = await db.collection('structures').doc(id).get();
+    // Accepte slug ("timetoshine") OU docId Firestore legacy ("fjUNrMQfPwiEisZcVixX").
+    // Discrimination via `isLegacyStructureId` (majuscule OU longueur 20 alphanum
+    // → docId direct ; sinon → lookup `where('slug', '==', id)`).
+    // Le `docId` résolu sert à compter les `structure_members` qui sont indexés
+    // par docId, jamais par slug.
+    let docId = '';
+    let data: FirebaseFirestore.DocumentData | null = null;
+    if (isLegacyStructureId(id)) {
+      const snap = await db.collection('structures').doc(id).get();
+      if (snap.exists) {
+        docId = snap.id;
+        data = snap.data() ?? null;
+      }
+    } else {
+      const snap = await db.collection('structures')
+        .where('slug', '==', id)
+        .limit(1)
+        .get();
+      if (!snap.empty) {
+        docId = snap.docs[0].id;
+        data = snap.docs[0].data();
+      }
+    }
+
     // 404 propre si structure inconnue / pending / suspendue : on évite de
     // générer une bannière pour une structure non publique. Discord ignorera
     // l'og:image et tombera sur le fallback racine d'Aedral.
-    if (!snap.exists) return new Response('Not found', { status: 404 });
-    const data = snap.data()!;
+    if (!data) return new Response('Not found', { status: 404 });
     if (data.status !== 'active') return new Response('Not found', { status: 404 });
 
     const name = (typeof data.name === 'string' ? data.name : '').trim() || 'Structure';
@@ -89,8 +112,11 @@ export async function GET(
       members = counters.members;
     } else {
       try {
+        // IMPORTANT : on compte sur `docId` résolu, jamais sur le param
+        // d'entrée (qui peut être un slug et ne matcherait aucun
+        // `structure_members.structureId`).
         const aggSnap = await db.collection('structure_members')
-          .where('structureId', '==', id)
+          .where('structureId', '==', docId)
           .count()
           .get();
         members = aggSnap.data().count ?? 0;

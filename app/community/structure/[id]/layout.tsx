@@ -1,12 +1,23 @@
 import type { Metadata } from 'next';
+import { permanentRedirect } from 'next/navigation';
 import { getAdminDb } from '@/lib/firebase-admin';
+import { isLegacyStructureId } from '@/lib/structure-slug';
 import JsonLd from '@/components/seo/JsonLd';
 import { sportsOrganizationSchema, breadcrumbSchema } from '@/lib/jsonld';
 
 // Données minimales sur la structure utilisées à la fois par la metadata et par
 // le JSON-LD rendu côté server. On les fetche une fois dans `loadStructure`,
 // puis le layout les ré-utilise dans `generateMetadata` ET dans le render.
+//
+// On enrichit le résultat avec `id` (vrai Firestore docId) et `slug` pour
+// permettre au layout de :
+//   - bâtir la version canonique de l'URL (toujours via le slug si dispo)
+//   - faire un redirect 308 si on est arrivé via l'ID legacy alors qu'un slug existe
 interface StructurePublicData {
+  /** Firestore docId résolu (utile quand le param d'entrée était un slug). */
+  id: string;
+  /** Slug stocké en base, vide si la structure n'a pas encore été backfillée. */
+  slug: string;
   name: string;
   tag: string;
   description: string;
@@ -18,6 +29,8 @@ interface StructurePublicData {
 }
 
 const EMPTY: StructurePublicData = {
+  id: '',
+  slug: '',
   name: '',
   tag: '',
   description: '',
@@ -27,12 +40,38 @@ const EMPTY: StructurePublicData = {
   active: false,
 };
 
-async function loadStructure(id: string): Promise<StructurePublicData> {
+// Résout l'identifiant entrant (slug OU docId Firestore legacy) vers le doc
+// de la structure. On utilise `isLegacyStructureId` pour discriminer :
+//   - majuscule présente OU longueur exactement 20 alphanum → docId direct
+//   - sinon → lookup via `where('slug', '==', id)`
+//
+// Si la structure n'est pas active (pending / suspended / rejected / deletion_scheduled),
+// on retombe sur EMPTY pour ne pas exposer de metadata SEO publique.
+async function loadStructure(idOrSlug: string): Promise<StructurePublicData> {
   try {
     const db = getAdminDb();
-    const snap = await db.collection('structures').doc(id).get();
-    if (!snap.exists) return EMPTY;
-    const data = snap.data()!;
+    let docId = '';
+    let data: FirebaseFirestore.DocumentData | null = null;
+
+    if (isLegacyStructureId(idOrSlug)) {
+      const snap = await db.collection('structures').doc(idOrSlug).get();
+      if (snap.exists) {
+        docId = snap.id;
+        data = snap.data() ?? null;
+      }
+    } else {
+      const snap = await db.collection('structures')
+        .where('slug', '==', idOrSlug)
+        .limit(1)
+        .get();
+      if (!snap.empty) {
+        docId = snap.docs[0].id;
+        data = snap.docs[0].data();
+      }
+    }
+
+    if (!data) return EMPTY;
+
     // On ne traite comme "publique active" que les structures status === 'active'.
     // Les pending/suspended retombent sur le fallback (pas de JSON-LD, metadata minimale).
     if (data.status !== 'active') return EMPTY;
@@ -52,6 +91,8 @@ async function loadStructure(id: string): Promise<StructurePublicData> {
     }
 
     return {
+      id: docId,
+      slug: typeof data.slug === 'string' ? data.slug : '',
       name: typeof data.name === 'string' ? data.name : '',
       tag: typeof data.tag === 'string' ? data.tag : '',
       description: typeof data.description === 'string' ? data.description : '',
@@ -64,6 +105,15 @@ async function loadStructure(id: string): Promise<StructurePublicData> {
     console.warn('[structure metadata] fetch error', err);
     return EMPTY;
   }
+}
+
+// Helper interne : construit le chemin canonique d'une structure.
+// Préfère le slug s'il existe (forme propre, stable, SEO-friendly).
+// Sinon retombe sur l'identifiant entrant (peut être le docId legacy ou
+// — en attendant le backfill — un slug pas encore en base).
+function canonicalPath(s: StructurePublicData, fallbackId: string): string {
+  const canonId = s.slug || fallbackId;
+  return `/community/structure/${canonId}`;
 }
 
 // Metadata SEO dynamique pour les pages publiques de structure.
@@ -92,27 +142,33 @@ export async function generateMetadata(
     : `${s.name}, structure esport amateur sur Aedral${s.games.length > 0 ? ` (${s.games.length} jeu${s.games.length > 1 ? 'x' : ''})` : ''}.`;
 
   const title = s.tag ? `${s.name} [${s.tag}]` : s.name;
-  const url = `/community/structure/${id}`;
+  // Canonical TOUJOURS vers la version slug si disponible — même quand on est
+  // arrivé via l'ID legacy (en cas de race : si le `Layout` n'a pas encore fait
+  // le redirect 308, Google verra quand même la bonne URL canonique).
+  const canonical = canonicalPath(s, id);
 
   // OG image dynamique générée par /api/og/structure/[id] (bannière 1200×630
   // riche : nom, tag, logo, jeux). On utilise l'URL absolue car Discord/Twitter
   // refusent les paths relatifs même avec metadataBase configuré.
+  // On l'adresse via le slug si dispo (cohérent avec l'URL canonique), sinon
+  // via l'identifiant entrant — la route OG accepte les deux.
   //
   // IMPORTANT — UNE SEULE og:image : si on en passe plusieurs (genre une
   // bannière + le logo en fallback), Discord choisit l'une comme thumbnail
   // (petite, à gauche) et l'autre comme image principale (à droite) → embed
   // moche. Le fallback en cas d'échec est géré DANS l'endpoint OG lui-même
   // (rendu "AEDRAL" générique), pas via une 2e og:image.
-  const ogImageUrl = `https://aedral.com/api/og/structure/${id}`;
+  const ogIdent = s.slug || id;
+  const ogImageUrl = `https://aedral.com/api/og/structure/${ogIdent}`;
 
   return {
     title,
     description: shortDesc,
-    alternates: { canonical: url },
+    alternates: { canonical },
     openGraph: {
       title: `${title} · Aedral`,
       description: shortDesc,
-      url,
+      url: canonical,
       type: 'profile',
       images: [{ url: ogImageUrl, width: 1200, height: 630, alt: `${s.name} sur Aedral` }],
     },
@@ -135,6 +191,24 @@ export default async function StructureLayout({
   const { id } = await params;
   const s = await loadStructure(id);
 
+  // Redirect 308 permanent si on est arrivé via l'ID Firestore legacy alors
+  // que la structure a un slug : SEO propre (une seule URL canonique) et
+  // cohérence des liens partagés. Le 308 préserve la méthode HTTP (GET) et
+  // dit explicitement aux crawlers que le contenu a déménagé pour de bon.
+  //
+  // Gating strict : on ne redirige QUE si
+  //   1. l'identifiant entrant ressemble à un docId legacy (sinon on est déjà sur le slug),
+  //   2. la structure existe ET est active (loadStructure a renvoyé `active: true`),
+  //   3. un slug est effectivement présent en base (avant backfill, on reste sur l'ID).
+  // Tant que ces trois conditions ne sont pas réunies, on ne touche pas à l'URL.
+  if (s.active && s.slug && isLegacyStructureId(id) && s.slug !== id) {
+    // `permanentRedirect` jette une exception interne (NEXT_REDIRECT) qui est
+    // catchée par le framework et transformée en réponse 308 — c'est le bon
+    // pattern App Router pour un redirect permanent. Ne PAS l'envelopper dans
+    // un try/catch, sinon Next ne saura plus quoi faire.
+    permanentRedirect(`/community/structure/${s.slug}`);
+  }
+
   // Pas de JSON-LD si la structure n'est pas active : on n'a aucune raison de
   // proposer une entité publique à Google pour une structure introuvable, en
   // attente de validation, ou suspendue.
@@ -142,7 +216,9 @@ export default async function StructureLayout({
     return <>{children}</>;
   }
 
-  const url = `https://aedral.com/community/structure/${id}`;
+  // URL absolue pour le JSON-LD : on prend TOUJOURS la version slug si dispo
+  // (URL canonique stable côté Google), sinon fallback ID legacy.
+  const url = `https://aedral.com${canonicalPath(s, id)}`;
   const cleanDesc = s.description.replace(/\s+/g, ' ').trim();
 
   const schemas = [

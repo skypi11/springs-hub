@@ -10,6 +10,8 @@ const MAX_REPLAYS = 5000;
 
 type StructureUsage = {
   structureId: string;
+  /** Slug propre pour construire l'URL publique (peut être null si non backfillé). */
+  structureSlug: string | null;
   structureName: string;
   structureTag: string;
   structureLogoUrl: string;
@@ -53,6 +55,7 @@ export async function GET(req: NextRequest) {
       if (!s) {
         s = {
           structureId,
+          structureSlug: null,
           structureName: '',
           structureTag: '',
           structureLogoUrl: '',
@@ -112,6 +115,7 @@ export async function GET(req: NextRequest) {
     const founderIds = new Set<string>();
     for (const s of byStructure.values()) {
       const struct = structuresById.get(s.structureId);
+      s.structureSlug = (struct?.slug as string | undefined) ?? null;
       s.structureName = (struct?.name as string | undefined) ?? '';
       s.structureTag = (struct?.tag as string | undefined) ?? '';
       s.structureLogoUrl = (struct?.logoUrl as string | undefined) ?? '';

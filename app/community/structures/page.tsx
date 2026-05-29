@@ -10,9 +10,11 @@ import { SkeletonGrid } from '@/components/ui/Skeleton';
 import { useAuth } from '@/context/AuthContext';
 import GameTag from '@/components/games/GameTag';
 import { ALL_GAME_DEFS, getGameColor, getGameColorRgb } from '@/lib/games-registry';
+import { getStructureHref } from '@/lib/structure-slug';
 
 type StructureCard = {
   id: string;
+  slug: string | null;
   name: string;
   tag: string;
   logoUrl: string;
@@ -253,7 +255,7 @@ function StructureItem({ s, match }: { s: StructureCard; match: boolean }) {
   const glowColor = `rgba(${getGameColorRgb(primaryGame)}, 0.1)`;
 
   return (
-    <Link href={`/community/structure/${s.id}`}
+    <Link href={getStructureHref(s)}
       className="pillar-card panel bevel relative overflow-hidden group transition-all duration-200"
       style={{
         background: 'var(--s-surface)',

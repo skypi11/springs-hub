@@ -10,6 +10,7 @@ import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import AdminUserRef from '@/components/admin/AdminUserRef';
+import { getStructureHref } from '@/lib/structure-slug';
 import {
   ShieldAlert, Loader2, Ban, Building2, ExternalLink, History, UserX, AlertTriangle,
   RotateCcw, CheckCircle, Edit3,
@@ -28,6 +29,7 @@ type BannedUser = {
 
 type CriticalStructure = {
   id: string;
+  slug: string | null;
   name: string;
   tag: string;
   logoUrl: string;
@@ -324,7 +326,7 @@ export default function AdminModerationPage() {
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <Link href={`/community/structure/${s.id}`} className="text-sm font-semibold hover:underline flex items-center gap-1" style={{ color: 'var(--s-text)' }}>
+                      <Link href={getStructureHref(s)} className="text-sm font-semibold hover:underline flex items-center gap-1" style={{ color: 'var(--s-text)' }}>
                         {s.name || '(sans nom)'}
                         {s.tag && <span style={{ color: 'var(--s-text-muted)' }}>[{s.tag}]</span>}
                         <ExternalLink size={9} />

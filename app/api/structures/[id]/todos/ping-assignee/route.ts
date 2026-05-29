@@ -3,6 +3,7 @@ import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
+import { resolveStructureId } from '@/lib/resolve-structure-id';
 import { isStaffOfTeam, isDirigeant } from '@/lib/event-permissions';
 import { endOfDayParisMs } from '@/lib/todos';
 import { sendTodoDM } from '@/lib/discord-bot';
@@ -26,8 +27,12 @@ export async function POST(
     const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
-    const { id: structureId } = await params;
+    const { id: slugOrId } = await params;
     const db = getAdminDb();
+    const structureId = await resolveStructureId(slugOrId, db);
+    if (!structureId) {
+      return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
+    }
 
     const resolved = await resolveUserContext(db, uid, structureId);
     if (!resolved) {

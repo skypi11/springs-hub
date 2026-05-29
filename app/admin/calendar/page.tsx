@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import AdminUserRef from '@/components/admin/AdminUserRef';
 import { normalizeEventType } from '@/lib/event-permissions';
+import { getStructureHref } from '@/lib/structure-slug';
 import {
   CalendarDays, Loader2, MapPin, Clock, Search, ExternalLink,
   CheckCircle2, XCircle, Calendar as CalendarIcon, Ban, RotateCcw, Trash2,
@@ -20,6 +21,7 @@ import {
 type AdminEvent = {
   id: string;
   structureId: string;
+  structureSlug: string | null;
   structureName: string;
   structureTag: string;
   structureLogoUrl: string;
@@ -444,7 +446,7 @@ export default function AdminCalendarPage() {
                   </div>
 
                   <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                    <Link href={`/community/structure/${event.structureId}`}
+                    <Link href={getStructureHref({ id: event.structureId, slug: event.structureSlug })}
                       className="flex items-center gap-1 text-xs hover:underline"
                       style={{ color: 'var(--s-gold)' }}>
                       <span>{event.structureName}</span>

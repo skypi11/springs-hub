@@ -5,6 +5,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
+import { resolveStructureId } from '@/lib/resolve-structure-id';
 import { clampString } from '@/lib/validation';
 import { canDeleteReplay, canUploadReplay } from '@/lib/replay-permissions';
 import { fileExists, deleteFileSilent, downloadBuffer } from '@/lib/storage';
@@ -38,10 +39,14 @@ export async function PATCH(
     const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
-    const { id: structureId, replayId } = await params;
+    const { id: slugOrId, replayId } = await params;
     const body = await req.json().catch(() => ({}));
 
     const db = getAdminDb();
+    const structureId = await resolveStructureId(slugOrId, db);
+    if (!structureId) {
+      return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
+    }
     const ref = db.collection('replays').doc(replayId);
     const snap = await ref.get();
     if (!snap.exists) return NextResponse.json({ error: 'Replay introuvable' }, { status: 404 });
@@ -165,8 +170,12 @@ export async function DELETE(
     const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
-    const { id: structureId, replayId } = await params;
+    const { id: slugOrId, replayId } = await params;
     const db = getAdminDb();
+    const structureId = await resolveStructureId(slugOrId, db);
+    if (!structureId) {
+      return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
+    }
     const ref = db.collection('replays').doc(replayId);
     const snap = await ref.get();
     if (!snap.exists) return NextResponse.json({ error: 'Replay introuvable' }, { status: 404 });

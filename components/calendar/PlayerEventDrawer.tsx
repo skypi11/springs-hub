@@ -13,6 +13,7 @@ import Portal from '@/components/ui/Portal';
 import { api } from '@/lib/api-client';
 import type { EventType, EventStatus, PresenceStatus } from '@/lib/event-permissions';
 import { normalizeEventType } from '@/lib/event-permissions';
+import { getStructureHref } from '@/lib/structure-slug';
 import type { TodoRef } from '@/lib/todos';
 
 type MyPresence = {
@@ -39,7 +40,7 @@ export type PlayerEvent = {
   myPresence: MyPresence | null;
 };
 
-type StructureInfo = { name: string; tag: string; logoUrl: string };
+type StructureInfo = { name: string; tag: string; logoUrl: string; slug?: string | null };
 
 type MyTodo = TodoRef & {
   structureName: string;
@@ -199,7 +200,7 @@ export default function PlayerEventDrawer({
               <h2 className="font-display text-xl sm:text-2xl mb-1" style={{ color: 'var(--s-text)' }}>
                 {event.title}
               </h2>
-              <Link href={`/community/structure/${event.structureId}`}
+              <Link href={getStructureHref({ id: event.structureId, slug: structure?.slug ?? null })}
                 className="inline-flex items-center gap-1.5 text-xs hover:text-white transition-colors"
                 style={{ color: 'var(--s-text-dim)' }}>
                 {structure?.logoUrl ? (

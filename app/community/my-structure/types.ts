@@ -75,6 +75,8 @@ export type Member = {
 
 export type MyStructure = {
   id: string;
+  /** Slug propre pour les URLs publiques (peut être null si non backfillé). */
+  slug?: string | null;
   name: string;
   tag: string;
   logoUrl: string;

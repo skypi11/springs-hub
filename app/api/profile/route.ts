@@ -14,6 +14,8 @@ import { sendAdminAlert } from '@/lib/admin-discord-alert';
 
 type ProfileStructure = {
   id: string;
+  /** Slug propre pour construire l'URL publique côté client via getStructureHref(). */
+  slug: string | null;
   name: string;
   tag: string;
   logoUrl: string;
@@ -88,6 +90,7 @@ async function fetchUserStructures(uid: string): Promise<ProfileStructure[]> {
 
     return {
       id: sid,
+      slug: (s.slug as string | undefined) ?? null,
       name: (s.name as string) || '',
       tag: (s.tag as string) || '',
       logoUrl: (s.logoUrl as string) || '',

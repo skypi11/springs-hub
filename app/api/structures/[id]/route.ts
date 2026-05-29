@@ -3,6 +3,7 @@ import { getAdminDb } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { resolveStructureId } from '@/lib/resolve-structure-id';
 
 // GET /api/structures/[id], page publique d'une structure
 export async function GET(
@@ -13,8 +14,12 @@ export async function GET(
     const blocked = await checkRateLimit(limiters.read, rateLimitKey(req));
     if (blocked) return blocked;
 
-    const { id } = await params;
+    const { id: slugOrId } = await params;
     const db = getAdminDb();
+    const id = await resolveStructureId(slugOrId, db);
+    if (!id) {
+      return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
+    }
     const snap = await db.collection('structures').doc(id).get();
 
     if (!snap.exists) {
@@ -78,6 +83,9 @@ export async function GET(
     // Données publiques
     const structure = {
       id: snap.id,
+      // Slug propre — utilisé par le client pour construire l'URL canonique
+      // de partage (shareUrl) et garder la cohérence avec /community/structure/[slug].
+      slug: (data.slug as string | undefined) ?? null,
       name: data.name,
       tag: data.tag,
       logoUrl: data.logoUrl || '',

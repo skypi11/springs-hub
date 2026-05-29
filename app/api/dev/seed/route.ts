@@ -430,6 +430,7 @@ export async function POST() {
   // 5) Structure "Phoenix Esports", RL only
   await write(batchRef, db, db.collection('structures').doc(DEV_STRUCTURE_ID), {
     name: 'Phoenix Esports',
+    slug: 'phoenix-esports',
     tag: 'PHX',
     logoUrl: '',
     coverUrl: '',

@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/Toast';
 import AdminUserRef from '@/components/admin/AdminUserRef';
 import ImpersonateButton from '@/components/admin/ImpersonateButton';
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
+import { getStructureHref } from '@/lib/structure-slug';
 import GameTag from '@/components/games/GameTag';
 import {
   Users2, Archive, Loader2, ExternalLink, Search, AlertTriangle,
@@ -26,6 +27,7 @@ type AdminTeam = {
   game: string;
   status: 'active' | 'archived';
   structureId: string;
+  structureSlug: string | null;
   structureName: string;
   structureTag: string;
   structureLogoUrl: string;
@@ -122,7 +124,7 @@ export default function AdminTeamsPage() {
 
   // Groupe par structure pour un rendu plus lisible quand il y en a beaucoup
   const groupedByStructure = useMemo(() => {
-    const map = new Map<string, { structure: { id: string; name: string; tag: string; logoUrl: string; status: string | null; founderId: string; founderName: string }; teams: AdminTeam[] }>();
+    const map = new Map<string, { structure: { id: string; slug: string | null; name: string; tag: string; logoUrl: string; status: string | null; founderId: string; founderName: string }; teams: AdminTeam[] }>();
     for (const t of filtered) {
       const existing = map.get(t.structureId);
       if (existing) {
@@ -131,6 +133,7 @@ export default function AdminTeamsPage() {
         map.set(t.structureId, {
           structure: {
             id: t.structureId,
+            slug: t.structureSlug,
             name: t.structureName,
             tag: t.structureTag,
             logoUrl: t.structureLogoUrl,
@@ -277,7 +280,7 @@ export default function AdminTeamsPage() {
                 )}
                 <div>
                   <div className="flex items-center gap-2">
-                    <Link href={`/community/structure/${structure.id}`}
+                    <Link href={getStructureHref(structure)}
                       className="font-display text-base hover:underline"
                       style={{ color: 'var(--s-gold)' }}>
                       {structure.name}
@@ -398,7 +401,7 @@ export default function AdminTeamsPage() {
                         </span>
                         {/* Lien vers la structure pour voir le détail */}
                         <Link
-                          href={`/community/structure/${team.structureId}`}
+                          href={getStructureHref({ id: team.structureId, slug: team.structureSlug })}
                           onClick={(e) => e.stopPropagation()}
                           className="flex items-center gap-1 text-xs hover:underline"
                           style={{ color: 'var(--s-gold)' }}

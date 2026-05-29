@@ -6,6 +6,7 @@ import { Shield, Loader2, CheckCircle, AlertCircle, MessageSquare } from 'lucide
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
+import { getStructureHref } from '@/lib/structure-slug';
 
 type LinkInfo = {
   structureId: string;
@@ -21,7 +22,7 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
   const { firebaseUser, loading: authLoading, signInWithDiscord } = useAuth();
   const [status, setStatus] = useState<'loading' | 'need_auth' | 'choosing' | 'joining' | 'success' | 'error'>('loading');
   const [error, setError] = useState('');
-  const [result, setResult] = useState<{ structureId: string; structureName: string } | null>(null);
+  const [result, setResult] = useState<{ structureId: string; structureSlug?: string | null; structureName: string } | null>(null);
   const [linkInfo, setLinkInfo] = useState<LinkInfo | null>(null);
   const [game, setGame] = useState('');
 
@@ -29,7 +30,7 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
     if (!firebaseUser) return;
     setStatus('joining');
     try {
-      const data = await api<{ structureId: string; structureName: string }>('/api/structures/join', {
+      const data = await api<{ structureId: string; structureSlug?: string | null; structureName: string }>('/api/structures/join', {
         method: 'POST',
         body: { action: 'join_via_link', token, game: joinGame },
       });
@@ -141,7 +142,7 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
             <p className="t-body mb-6" style={{ color: 'var(--s-text-dim)' }}>
               Tu as rejoint <strong style={{ color: 'var(--s-text)' }}>{result.structureName}</strong>.
             </p>
-            <Link href={`/community/structure/${result.structureId}`}
+            <Link href={getStructureHref({ id: result.structureId, slug: result.structureSlug })}
               className="btn-springs btn-primary bevel-sm w-full justify-center">
               Voir la structure
             </Link>

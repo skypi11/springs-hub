@@ -10,9 +10,11 @@ import { useToast } from '@/components/ui/Toast';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import GameTag from '@/components/games/GameTag';
+import { getStructureHref } from '@/lib/structure-slug';
 
 type StructureRef = {
   id: string;
+  slug?: string | null;
   name: string;
   tag: string;
   logoUrl: string;
@@ -159,7 +161,7 @@ export default function MyApplicationsPage() {
                   <div key={inv.id} className="panel bevel p-5 relative overflow-hidden">
                     <div className="h-[3px] -mt-5 -mx-5 mb-4" style={{ background: 'linear-gradient(90deg, var(--s-gold), transparent 70%)' }} />
                     <div className="flex items-start gap-4">
-                      <Link href={`/community/structure/${inv.structure.id}`} className="flex-shrink-0 w-14 h-14 relative overflow-hidden bevel-sm"
+                      <Link href={getStructureHref(inv.structure)} className="flex-shrink-0 w-14 h-14 relative overflow-hidden bevel-sm"
                         style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                         {inv.structure.logoUrl ? (
                           <Image src={inv.structure.logoUrl} alt={inv.structure.name} fill className="object-contain p-1" unoptimized />
@@ -171,7 +173,7 @@ export default function MyApplicationsPage() {
                       </Link>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <Link href={`/community/structure/${inv.structure.id}`}
+                          <Link href={getStructureHref(inv.structure)}
                             className="font-display text-xl tracking-wider hover:underline" style={{ color: 'var(--s-text)' }}>
                             {inv.structure.name}
                           </Link>
@@ -244,7 +246,7 @@ export default function MyApplicationsPage() {
                   <div key={req.id} className="panel bevel p-5 relative overflow-hidden">
                     <div className="h-[3px] -mt-5 -mx-5 mb-4" style={{ background: 'linear-gradient(90deg, var(--s-gold), transparent 70%)' }} />
                     <div className="flex items-start gap-4">
-                      <Link href={`/community/structure/${req.structure.id}`} className="flex-shrink-0 w-14 h-14 relative overflow-hidden bevel-sm"
+                      <Link href={getStructureHref(req.structure)} className="flex-shrink-0 w-14 h-14 relative overflow-hidden bevel-sm"
                         style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                         {req.structure.logoUrl ? (
                           <Image src={req.structure.logoUrl} alt={req.structure.name} fill className="object-contain p-1" unoptimized />
@@ -256,7 +258,7 @@ export default function MyApplicationsPage() {
                       </Link>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <Link href={`/community/structure/${req.structure.id}`}
+                          <Link href={getStructureHref(req.structure)}
                             className="font-display text-xl tracking-wider hover:underline" style={{ color: 'var(--s-text)' }}>
                             {req.structure.name}
                           </Link>

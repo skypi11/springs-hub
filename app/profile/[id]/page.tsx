@@ -30,6 +30,7 @@ import { getValorantTierConfig } from '@/lib/valorant-ranks';
 import { pickValorantRiotId } from '@/lib/discord-connections';
 import GameTag from '@/components/games/GameTag';
 import { getGame } from '@/lib/games-registry';
+import { getStructureHref } from '@/lib/structure-slug';
 
 // Priorité hiérarchique des rôles structure, utilisée pour identifier le rôle principal
 // d'un joueur dans le hero (ex : un fondateur ARAN qui est aussi joueur dans TTC affiche "Fondateur ARAN").
@@ -361,7 +362,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                 {/* Rôle principal (calculé sur la structure de plus haut rang) */}
                 {topStructure && (
                   <Link
-                    href={`/community/structure/${topStructure.id}`}
+                    href={getStructureHref(topStructure)}
                     className="inline-flex items-center gap-2 mb-2.5 transition-opacity hover:opacity-80"
                   >
                     {topStructure.logoUrl ? (
@@ -1046,7 +1047,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       {sortedStructures.map(ps => {
                         const psIsLeader = ps.role === 'fondateur' || ps.role === 'co_fondateur';
                         return (
-                          <Link key={ps.id} href={`/community/structure/${ps.id}`}
+                          <Link key={ps.id} href={getStructureHref(ps)}
                             className="block p-3 bevel-sm transition-colors duration-150"
                             style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                             <div className="flex items-center gap-3">

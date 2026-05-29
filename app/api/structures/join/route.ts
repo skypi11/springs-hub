@@ -135,10 +135,20 @@ export async function POST(req: NextRequest) {
             });
             bumpStructureCounter(db, tx, sid, 'members', +1);
 
-            return { sid, structureName: structData.name };
+            return {
+              sid,
+              structureName: structData.name,
+              // Slug propre pour redirection vers l'URL publique côté client.
+              structureSlug: (structData.slug as string | undefined) ?? null,
+            };
           });
 
-          return NextResponse.json({ success: true, structureId: result.sid, structureName: result.structureName });
+          return NextResponse.json({
+            success: true,
+            structureId: result.sid,
+            structureSlug: result.structureSlug,
+            structureName: result.structureName,
+          });
         } catch (err) {
           const code = (err as Error).message;
           const map: Record<string, { msg: string; status: number }> = {
