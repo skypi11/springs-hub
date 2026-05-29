@@ -99,17 +99,20 @@ export async function generateMetadata(
   // OG image dynamique via /api/og/profile/[slug]. On NE génère la bannière
   // riche QUE si on a un slug — pour ne PAS exposer le snowflake Discord dans
   // une URL publique d'embed (cf. mémoire `project_profile_slugs`). Sans slug,
-  // fallback sur l'avatar Discord ou l'image OG racine.
-  const ogImages: { url: string; alt: string }[] = [];
-  if (p.slug) {
-    ogImages.push({
-      url: `https://aedral.com/api/og/profile/${p.slug}`,
-      alt: `${p.displayName} sur Aedral`,
-    });
-  }
-  if (p.avatarUrl) {
-    ogImages.push({ url: p.avatarUrl, alt: `Avatar de ${p.displayName}` });
-  }
+  // fallback sur l'avatar Discord seul.
+  //
+  // IMPORTANT — UNE SEULE og:image : si on en passe plusieurs (bannière +
+  // avatar), Discord choisit l'une comme thumbnail (petite, à gauche) et
+  // l'autre comme image principale (à droite) → embed moche. On choisit la
+  // bannière en priorité, sinon l'avatar seul.
+  const ogImageUrl = p.slug
+    ? `https://aedral.com/api/og/profile/${p.slug}`
+    : (p.avatarUrl || null);
+  const ogImage = ogImageUrl
+    ? (p.slug
+        ? { url: ogImageUrl, width: 1200, height: 630, alt: `${p.displayName} sur Aedral` }
+        : { url: ogImageUrl, alt: `Avatar de ${p.displayName}` })
+    : null;
 
   return {
     title: p.displayName,
@@ -120,12 +123,13 @@ export async function generateMetadata(
       description: shortDesc,
       url: canonical,
       type: 'profile',
-      ...(ogImages.length > 0 ? { images: ogImages } : {}),
+      ...(ogImage ? { images: [ogImage] } : {}),
     },
     twitter: {
+      card: 'summary_large_image',
       title: `${p.displayName} · Aedral`,
       description: shortDesc,
-      ...(ogImages.length > 0 ? { images: ogImages.map((img) => img.url) } : {}),
+      ...(ogImage ? { images: [ogImage.url] } : {}),
     },
   };
 }

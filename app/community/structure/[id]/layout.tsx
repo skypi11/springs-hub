@@ -97,14 +97,13 @@ export async function generateMetadata(
   // OG image dynamique générée par /api/og/structure/[id] (bannière 1200×630
   // riche : nom, tag, logo, jeux). On utilise l'URL absolue car Discord/Twitter
   // refusent les paths relatifs même avec metadataBase configuré.
+  //
+  // IMPORTANT — UNE SEULE og:image : si on en passe plusieurs (genre une
+  // bannière + le logo en fallback), Discord choisit l'une comme thumbnail
+  // (petite, à gauche) et l'autre comme image principale (à droite) → embed
+  // moche. Le fallback en cas d'échec est géré DANS l'endpoint OG lui-même
+  // (rendu "AEDRAL" générique), pas via une 2e og:image.
   const ogImageUrl = `https://aedral.com/api/og/structure/${id}`;
-  const ogImages: { url: string; alt: string }[] = [
-    { url: ogImageUrl, alt: `${s.name} sur Aedral` },
-  ];
-  // Logo direct en fallback secondaire (utilisé si la bannière OG plante).
-  if (s.logoUrl) {
-    ogImages.push({ url: s.logoUrl, alt: `Logo ${s.name}` });
-  }
 
   return {
     title,
@@ -115,12 +114,13 @@ export async function generateMetadata(
       description: shortDesc,
       url,
       type: 'profile',
-      images: ogImages,
+      images: [{ url: ogImageUrl, width: 1200, height: 630, alt: `${s.name} sur Aedral` }],
     },
     twitter: {
+      card: 'summary_large_image',
       title: `${title} · Aedral`,
       description: shortDesc,
-      images: ogImages.map((img) => img.url),
+      images: [ogImageUrl],
     },
   };
 }
