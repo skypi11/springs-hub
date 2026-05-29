@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { isLegacyStructureId } from '@/lib/structure-slug';
 import { captureApiError } from '@/lib/sentry';
-import { getGameColor, getGameLogoUrl, getGameShortLabel } from '@/lib/games-registry';
+import { getGameColor, getGameLogoUrl, getGameShortLabel, isGameLogoTransparent } from '@/lib/games-registry';
 import {
   AEDRAL_PALETTE,
   OG_HEIGHT,
@@ -32,14 +32,15 @@ export const runtime = 'nodejs';
 const WIDTH = OG_WIDTH;
 const HEIGHT = OG_HEIGHT;
 
-// Chip jeu remplie + icône officielle + label court. Cohérent avec les pills
-// `<GameTag>` côté site, version OG (background plein pour ressortir sur la
-// bannière sombre, contrastée pour rester lisible quelle que soit la couleur
-// du jeu).
+// Chip jeu — 2 variants selon `logoIsTransparent` du jeu :
+//  - Transparent (RL, Valorant) → variant "logo seul" : icône XL 56px + label
+//    texte 28px, pas de fond plein (le logo se découpe sur le hex Aedral),
+//    juste une fine bordure couleur du jeu pour structurer.
+//  - Opaque (TM) → variant "chip rempli" : icône 40px posée sur un rectangle
+//    de la couleur du jeu pour cacher le carré opaque du PNG. Texte
+//    auto-contrasté (noir/blanc selon la luminance du fond).
 //
-// Refonte 28/05 : chips GROSSES (icône 40px, label 26px, padding généreux)
-// pour ressortir visuellement sur la colonne droite, avec les vrais logos
-// officiels de jeux désormais haute résolution dans /public/games/.
+// Le flag `logoIsTransparent` est dans lib/games-registry.ts par jeu.
 function GameChip({
   gameId,
   ff,
@@ -51,6 +52,41 @@ function GameChip({
 }) {
   const color = getGameColor(gameId);
   const short = getGameShortLabel(gameId);
+  const transparent = isGameLogoTransparent(gameId);
+
+  if (transparent) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+          padding: '10px 22px 10px 16px',
+          fontSize: 28,
+          letterSpacing: '5px',
+          color: 'rgba(255,255,255,0.92)',
+          fontFamily: ff,
+          backgroundColor: 'rgba(255,255,255,0.04)',
+          border: `1px solid ${color}55`,
+          clipPath:
+            'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)',
+        }}
+      >
+        {iconDataUri && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={iconDataUri}
+            width={56}
+            height={56}
+            alt=""
+            style={{ objectFit: 'contain', display: 'flex' }}
+          />
+        )}
+        <div style={{ display: 'flex' }}>{short}</div>
+      </div>
+    );
+  }
+
   const textColor = bestTextColor(color);
   return (
     <div
@@ -62,7 +98,6 @@ function GameChip({
         fontSize: 26,
         letterSpacing: '4px',
         color: textColor,
-        // Fond PLEIN à la couleur officielle du jeu (vs ancien fond `${color}1A`).
         backgroundColor: color,
         fontFamily: ff,
         clipPath:

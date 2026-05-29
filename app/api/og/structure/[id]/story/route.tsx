@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { isLegacyStructureId } from '@/lib/structure-slug';
 import { captureApiError } from '@/lib/sentry';
-import { getGameColor, getGameLogoUrl, getGameShortLabel } from '@/lib/games-registry';
+import { getGameColor, getGameLogoUrl, getGameShortLabel, isGameLogoTransparent } from '@/lib/games-registry';
 import {
   AEDRAL_PALETTE,
   bestTextColor,
@@ -41,10 +41,12 @@ function storyNameFontSize(len: number): number {
   return 46;
 }
 
-/** Chip jeu remplie + icône officielle, version story.
- *
- * Refonte 28/05 : chips XL (icône 56px, label 38px) pour matcher l'échelle
- * 1080×1920 + nouveaux logos officiels haute résolution dans /public/games/. */
+/** Chip jeu version story — 2 variants selon `logoIsTransparent` :
+ *  - Transparent (RL, Valorant) → variant "logo seul" : icône XL 88px + label
+ *    40px, pas de fond plein, juste bordure couleur du jeu. Le logo se
+ *    découpe sur le hex Aedral.
+ *  - Opaque (TM) → variant "chip rempli" historique : icône 56px sur fond
+ *    plein couleur du jeu pour cacher le carré opaque du PNG. */
 function GameChip({
   gameId,
   ff,
@@ -56,6 +58,41 @@ function GameChip({
 }) {
   const color = getGameColor(gameId);
   const short = getGameShortLabel(gameId);
+  const transparent = isGameLogoTransparent(gameId);
+
+  if (transparent) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 18,
+          padding: '14px 30px 14px 22px',
+          fontSize: 40,
+          letterSpacing: '6px',
+          color: 'rgba(255,255,255,0.92)',
+          fontFamily: ff,
+          backgroundColor: 'rgba(255,255,255,0.04)',
+          border: `1px solid ${color}55`,
+          clipPath:
+            'polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px)',
+        }}
+      >
+        {iconDataUri && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={iconDataUri}
+            width={88}
+            height={88}
+            alt=""
+            style={{ objectFit: 'contain', display: 'flex' }}
+          />
+        )}
+        <div style={{ display: 'flex' }}>{short}</div>
+      </div>
+    );
+  }
+
   const textColor = bestTextColor(color);
   return (
     <div

@@ -71,6 +71,14 @@ export interface GameDef {
    *  Ex: "Epic (via tracker.gg) ou Steam", "Riot (via Discord connection)".
    *  Absent = pas de vérification disponible pour ce jeu (déclaratif uniquement). */
   accountSourceLabel?: string;
+  /** True si `logoUrl` pointe vers un PNG/SVG avec canal alpha propre (fond
+   *  transparent). Détermine le rendu des chips de jeu dans les OG images :
+   *  - transparent → variant "logo seul" : icône XL + label texte à côté,
+   *    pas de fond plein (le logo se découpe directement sur le hex Aedral).
+   *  - opaque → variant "chip rempli" : icône posée sur un rectangle de la
+   *    couleur du jeu pour cacher le carré opaque du PNG.
+   *  Si tu changes le PNG de logo, pense à mettre ce flag à jour. */
+  logoIsTransparent: boolean;
 }
 
 /**
@@ -101,6 +109,8 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
       'vod_review', 'mental_checkin', 'warmup_routine',
     ],
     accountSourceLabel: 'Compte Epic (via tracker.gg) ou Steam',
+    // PNG converti en RGBA via floodfill bord (commit 7ea8fc4, 58% transparent).
+    logoIsTransparent: true,
   },
   trackmania: {
     id: 'trackmania',
@@ -122,6 +132,10 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
     availableTodoTypes: [
       'free', 'vod_review', 'mental_checkin',
     ],
+    // Logo TM actuel = PNG opaque (color type 2 truecolor, fond cyan plein).
+    // Matt veut le garder tel quel (29/05) → on continue à le rendre dans un
+    // chip rempli pour cacher le fond opaque.
+    logoIsTransparent: false,
   },
   valorant: {
     id: 'valorant',
@@ -151,6 +165,8 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
       'vod_review', 'mental_checkin', 'warmup_routine',
     ],
     accountSourceLabel: 'Compte Riot (capturé via ta connexion Discord)',
+    // PNG Valorant a déjà un canal alpha propre (channels=4 hasAlpha=true).
+    logoIsTransparent: true,
   },
 };
 
@@ -220,6 +236,13 @@ export function getGameBySlug(slug: string | null | undefined): GameDef | undefi
 /** Vérifie si un jeu supporte une feature donnée (rankVerification, replayParsing, etc.) */
 export function gameHasFeature(id: string | null | undefined, feature: keyof GameFeatureFlags): boolean {
   return getGame(id)?.features[feature] ?? false;
+}
+
+/** True si le logo du jeu est sur fond transparent. Utilisé par les OG routes
+ *  pour choisir entre variant "logo seul" (transparent) ou "chip rempli"
+ *  (opaque, fond couleur du jeu pour cacher le carré opaque). */
+export function isGameLogoTransparent(id: string | null | undefined): boolean {
+  return getGame(id)?.logoIsTransparent ?? false;
 }
 
 /** Vérifie si un id est un jeu connu de la registry */

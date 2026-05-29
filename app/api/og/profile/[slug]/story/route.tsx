@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { isLegacyUid } from '@/lib/user-slug';
-import { getGameColor, getGameLogoUrl, getGameShortLabel } from '@/lib/games-registry';
+import { getGameColor, getGameLogoUrl, getGameShortLabel, isGameLogoTransparent } from '@/lib/games-registry';
 import {
   AEDRAL_PALETTE,
   bestTextColor,
@@ -44,9 +44,14 @@ function storyNameFontSize(len: number): number {
   return 52;
 }
 
-/** Chip jeu remplie + icône officielle, version story (encore plus grande
- *  que l'horizontal pour rester lisible sur la story 1080×1920 — vue
- *  généralement de loin sur un téléphone vertical). */
+/** Chip jeu version story.
+ *
+ *  Deux variants selon `logoIsTransparent` du jeu :
+ *  - Transparent (RL, Valorant) → variant "logo seul" : icône XL 96px + label
+ *    texte à droite, pas de fond plein (le logo se découpe directement sur le
+ *    hex Aedral). Bordure or subtile pour structurer.
+ *  - Opaque (TM) → variant "chip rempli" : icône posée sur un rectangle de
+ *    la couleur du jeu pour cacher le carré opaque du PNG. */
 function GameChip({
   gameId,
   ff,
@@ -58,6 +63,41 @@ function GameChip({
 }) {
   const color = getGameColor(gameId);
   const short = getGameShortLabel(gameId);
+  const transparent = isGameLogoTransparent(gameId);
+
+  if (transparent) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 18,
+          padding: '14px 28px 14px 20px',
+          fontSize: 40,
+          letterSpacing: '6px',
+          color: 'rgba(255,255,255,0.92)',
+          fontFamily: ff,
+          backgroundColor: 'rgba(255,255,255,0.04)',
+          border: `1px solid ${color}55`,
+          clipPath:
+            'polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px)',
+        }}
+      >
+        {iconDataUri && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={iconDataUri}
+            width={88}
+            height={88}
+            alt=""
+            style={{ objectFit: 'contain', display: 'flex' }}
+          />
+        )}
+        <div style={{ display: 'flex' }}>{short}</div>
+      </div>
+    );
+  }
+
   const textColor = bestTextColor(color);
   return (
     <div
@@ -86,6 +126,35 @@ function GameChip({
         />
       )}
       <div style={{ display: 'flex' }}>{short}</div>
+    </div>
+  );
+}
+
+/** Drapeau dessiné en pur CSS (3 bandes verticales). Limité aux pays
+ *  Aedral-courants pour l'instant : FR, BE, LU. Pour les autres (CH avec
+ *  croix, US étoiles, UK union jack…), on retombe sur le code seul.
+ *  Retourne null si le pays n'a pas de drapeau dispo. */
+function CountryFlag({ code, width = 56 }: { code: string; width?: number }) {
+  const c = code.toUpperCase().slice(0, 2);
+  const height = Math.round(width * 0.66);
+  const bandWidth = Math.round(width / 3);
+  const bands: { stripes: [string, string, string] } | null =
+    c === 'FR' ? { stripes: ['#002395', '#FFFFFF', '#ED2939'] }
+    : c === 'BE' ? { stripes: ['#000000', '#FAE042', '#ED2939'] }
+    : null;
+  if (!bands) return null;
+  return (
+    <div
+      style={{
+        display: 'flex',
+        width,
+        height,
+        border: '1px solid rgba(255,255,255,0.18)',
+      }}
+    >
+      <div style={{ width: bandWidth, height: '100%', backgroundColor: bands.stripes[0] }} />
+      <div style={{ width: bandWidth, height: '100%', backgroundColor: bands.stripes[1] }} />
+      <div style={{ width: width - bandWidth * 2, height: '100%', backgroundColor: bands.stripes[2] }} />
     </div>
   );
 }
@@ -366,30 +435,31 @@ export async function GET(
             {nameUpper}
           </div>
 
-          {/* Country (si défini) */}
+          {/* Country (si défini) : drapeau CSS pur (FR, BE) + code 2 lettres,
+              SANS fond ni bordure. Retour Matt 29/05 : l'ancien chip à fond
+              gris-blanc semi-transparent rendait mal sur l'image story.
+              Pour les pays sans drapeau dispo (CH croix, UK union jack, …),
+              on retombe sur le code seul. */}
           {country && (
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
+                gap: 18,
                 fontFamily: ff,
-                marginBottom: 24,
+                marginBottom: 30,
               }}
             >
+              <CountryFlag code={country} width={56} />
               <div
                 style={{
-                  padding: '10px 24px',
-                  fontSize: 28,
-                  letterSpacing: '5px',
-                  color: 'rgba(255,255,255,0.75)',
-                  backgroundColor: 'rgba(255,255,255,0.06)',
-                  border: '1px solid rgba(255,255,255,0.18)',
-                  clipPath:
-                    'polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px)',
+                  fontSize: 32,
+                  letterSpacing: '8px',
+                  color: 'rgba(255,255,255,0.9)',
                   display: 'flex',
                 }}
               >
-                {country.toUpperCase().slice(0, 24)}
+                {country.toUpperCase().slice(0, 2)}
               </div>
             </div>
           )}
@@ -431,8 +501,10 @@ export async function GET(
             </div>
           )}
 
-          {/* Bloc rang hero — icône + label + nom du rang en couleur officielle.
-              Centré, gros, c'est le "trophée" de la story. */}
+          {/* Bloc rang hero — stacked vertical (retour Matt 29/05) :
+              label en haut, icône XL au milieu (180×180 + glow couleur tier),
+              nom du rang en gros en bas. Plus de layout horizontal côte à
+              côte (jugé moins lisible sur format story portrait). */}
           {heroRank && (
             <div
               style={{
@@ -449,52 +521,46 @@ export async function GET(
                   letterSpacing: '10px',
                   color: 'rgba(255,255,255,0.55)',
                   display: 'flex',
-                  marginBottom: 16,
+                  marginBottom: 24,
                 }}
               >
                 {heroRank.label}
               </div>
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 26,
-                }}
-              >
-                {rankIconDataUri && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 130,
-                      height: 130,
-                      backgroundImage: `radial-gradient(circle, ${heroRank.color}40 0%, transparent 70%)`,
-                    }}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={rankIconDataUri}
-                      width={130}
-                      height={130}
-                      alt=""
-                      style={{ objectFit: 'contain' }}
-                    />
-                  </div>
-                )}
+              {rankIconDataUri && (
                 <div
                   style={{
-                    fontSize: 64,
-                    letterSpacing: '4px',
-                    color: heroRank.color,
-                    lineHeight: 1,
                     display: 'flex',
-                    maxWidth: 700,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 200,
+                    height: 200,
+                    backgroundImage: `radial-gradient(circle, ${heroRank.color}40 0%, transparent 70%)`,
+                    marginBottom: 22,
                   }}
                 >
-                  {heroRank.value.toUpperCase()}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={rankIconDataUri}
+                    width={180}
+                    height={180}
+                    alt=""
+                    style={{ objectFit: 'contain' }}
+                  />
                 </div>
+              )}
+              <div
+                style={{
+                  fontSize: 68,
+                  letterSpacing: '5px',
+                  color: heroRank.color,
+                  lineHeight: 1.1,
+                  display: 'flex',
+                  textAlign: 'center',
+                  maxWidth: 960,
+                  textShadow: `0 0 24px ${heroRank.color}55`,
+                }}
+              >
+                {heroRank.value.toUpperCase()}
               </div>
             </div>
           )}

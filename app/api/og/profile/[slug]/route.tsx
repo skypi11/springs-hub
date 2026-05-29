@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { isLegacyUid } from '@/lib/user-slug';
-import { getGameColor, getGameLogoUrl, getGameShortLabel } from '@/lib/games-registry';
+import { getGameColor, getGameLogoUrl, getGameShortLabel, isGameLogoTransparent } from '@/lib/games-registry';
 import {
   AEDRAL_PALETTE,
   OG_HEIGHT,
@@ -36,9 +36,11 @@ export const runtime = 'nodejs';
 const WIDTH = OG_WIDTH;
 const HEIGHT = OG_HEIGHT;
 
-/** Chip jeu remplie + icône officielle, alignée sur la version structure pour
- *  cohérence cross-OG (fond plein couleur jeu, label auto-contrasté, icône
- *  bitmap 40×40 lisible). */
+/** Chip jeu — 2 variants selon `logoIsTransparent` du jeu :
+ *  - Transparent (RL, Valorant) → variant "logo seul" : icône XL + label texte,
+ *    pas de fond plein (le logo se découpe directement sur le hex Aedral).
+ *  - Opaque (TM) → variant "chip rempli" : icône posée sur un rectangle de
+ *    la couleur du jeu pour cacher le carré opaque du PNG. */
 function GameChip({
   gameId,
   ff,
@@ -50,6 +52,41 @@ function GameChip({
 }) {
   const color = getGameColor(gameId);
   const short = getGameShortLabel(gameId);
+  const transparent = isGameLogoTransparent(gameId);
+
+  if (transparent) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '8px 20px 8px 14px',
+          fontSize: 28,
+          letterSpacing: '5px',
+          color: 'rgba(255,255,255,0.92)',
+          fontFamily: ff,
+          backgroundColor: 'rgba(255,255,255,0.04)',
+          border: `1px solid ${color}55`,
+          clipPath:
+            'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)',
+        }}
+      >
+        {iconDataUri && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={iconDataUri}
+            width={56}
+            height={56}
+            alt=""
+            style={{ objectFit: 'contain', display: 'flex' }}
+          />
+        )}
+        <div style={{ display: 'flex' }}>{short}</div>
+      </div>
+    );
+  }
+
   const textColor = bestTextColor(color);
   return (
     <div
