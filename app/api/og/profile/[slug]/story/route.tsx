@@ -12,9 +12,10 @@ import {
   loadLocalIconAsPngDataUri,
   loadLogoAsPngDataUri,
   loadRajdhani,
+  pickHeroRanks,
+  type HeroRank,
 } from '@/lib/og-helpers';
-import { getRankIconFile, getRankTierConfig } from '@/lib/rl-ranks';
-import { getValorantRankIconFile, getValorantTierConfig } from '@/lib/valorant-ranks';
+import { canUserCustomizeOgDisplay } from '@/lib/plan-limits';
 
 // GET /api/og/profile/[slug]/story
 // Variante 1080×1920 (vertical) de la bannière OG profile. Téléchargée à la
@@ -179,51 +180,9 @@ function buildAvatarUrl(data: FirebaseFirestore.DocumentData): string | null {
   return null;
 }
 
-interface HeroRank {
-  label: string;
-  value: string;
-  color: string;
-  iconFile: string | null;
-  iconBasePath: 'rl-ranks' | 'valorant-ranks';
-}
-
-function pickHeroRank(data: FirebaseFirestore.DocumentData): HeroRank | null {
-  const rlVerified = typeof data.rlEpicId === 'string' || typeof data.rlSteamId === 'string';
-  if (rlVerified && typeof data.rlRank === 'string' && data.rlRank.trim()) {
-    const value = data.rlRank.trim();
-    const tierConfig = getRankTierConfig(value);
-    return {
-      label: 'RANG RL',
-      value,
-      color: tierConfig?.color ?? getGameColor('rocket_league'),
-      iconFile: getRankIconFile(value),
-      iconBasePath: 'rl-ranks',
-    };
-  }
-  if (typeof data.valorantRank === 'string' && data.valorantRank.trim()) {
-    const value = data.valorantRank.trim();
-    const tierConfig = getValorantTierConfig(value);
-    return {
-      label: 'RANG VAL',
-      value,
-      color: tierConfig?.color ?? getGameColor('valorant'),
-      iconFile: getValorantRankIconFile(value),
-      iconBasePath: 'valorant-ranks',
-    };
-  }
-  if (typeof data.rlRank === 'string' && data.rlRank.trim()) {
-    const value = data.rlRank.trim();
-    const tierConfig = getRankTierConfig(value);
-    return {
-      label: 'RANG RL',
-      value,
-      color: tierConfig?.color ?? getGameColor('rocket_league'),
-      iconFile: getRankIconFile(value),
-      iconBasePath: 'rl-ranks',
-    };
-  }
-  return null;
-}
+// Logique pickHeroRank centralisée dans lib/og-helpers.ts (pickHeroRanks)
+// Returns 0/1/2 rangs selon les préférences user (ogDisplay.ranks) ou fallback
+// auto-detect si pas de préférences. Cf. mémoire project_og_customization.
 
 export async function GET(
   _req: NextRequest,
@@ -256,14 +215,17 @@ export async function GET(
       ? userData.games.filter((g): g is string => typeof g === 'string')
       : [];
     const avatarUrl = buildAvatarUrl(userData);
-    const heroRank = pickHeroRank(userData);
+    // Préférences user (cap 2 rangs). Gate-friendly : si l'user n'a pas droit
+    // de customiser (gate premium futur), retombe sur l'auto-detect historique.
+    const canCustomize = canUserCustomizeOgDisplay(userData as { uid?: string });
+    const heroRanks: HeroRank[] = pickHeroRanks(userData, { canCustomize });
 
-    // Tous les chargements en parallèle (avatar + icônes jeux + icône rang).
+    // Tous les chargements en parallèle (avatar + icônes jeux + icônes rangs N).
     const VISIBLE_GAMES = 3;
     const visibleGames = games.slice(0, VISIBLE_GAMES);
     const extraGames = Math.max(0, games.length - VISIBLE_GAMES);
 
-    const [avatarDataUri, gameIconDataUris, rankIconDataUri] = await Promise.all([
+    const [avatarDataUri, gameIconDataUris, rankIconDataUris] = await Promise.all([
       (async () => {
         try {
           return await loadLogoAsPngDataUri(avatarUrl);
@@ -274,9 +236,12 @@ export async function GET(
       Promise.all(
         visibleGames.map(g => loadLocalIconAsPngDataUri(getGameLogoUrl(g))),
       ),
-      heroRank?.iconFile
-        ? loadLocalIconAsPngDataUri(`${heroRank.iconBasePath}/${heroRank.iconFile}.png`)
-        : Promise.resolve(null),
+      Promise.all(
+        heroRanks.map(r => r.iconFile
+          ? loadLocalIconAsPngDataUri(`${r.iconBasePath}/${r.iconFile}.png`)
+          : Promise.resolve(null),
+        ),
+      ),
     ]);
 
     const font = loadRajdhani();
@@ -501,11 +466,12 @@ export async function GET(
             </div>
           )}
 
-          {/* Bloc rang hero — stacked vertical (retour Matt 29/05) :
-              label en haut, icône XL au milieu (180×180 + glow couleur tier),
-              nom du rang en gros en bas. Plus de layout horizontal côte à
-              côte (jugé moins lisible sur format story portrait). */}
-          {heroRank && (
+          {/* Bloc rang(s) hero — 2 layouts :
+              - 1 rang : stacked vertical centré (label, icône 180×180, nom 68px)
+              - 2 rangs : 2 mini-blocs côte à côte (label, icône 130×130, nom 44px)
+              Customisable via Settings → Affichage public (cap 2). Fallback
+              auto-detect si pas de préférences. */}
+          {heroRanks.length === 1 && (
             <div
               style={{
                 display: 'flex',
@@ -524,9 +490,9 @@ export async function GET(
                   marginBottom: 24,
                 }}
               >
-                {heroRank.label}
+                {heroRanks[0].label}
               </div>
-              {rankIconDataUri && (
+              {rankIconDataUris[0] && (
                 <div
                   style={{
                     display: 'flex',
@@ -534,13 +500,13 @@ export async function GET(
                     justifyContent: 'center',
                     width: 200,
                     height: 200,
-                    backgroundImage: `radial-gradient(circle, ${heroRank.color}40 0%, transparent 70%)`,
+                    backgroundImage: `radial-gradient(circle, ${heroRanks[0].color}40 0%, transparent 70%)`,
                     marginBottom: 22,
                   }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={rankIconDataUri}
+                    src={rankIconDataUris[0]}
                     width={180}
                     height={180}
                     alt=""
@@ -552,16 +518,89 @@ export async function GET(
                 style={{
                   fontSize: 68,
                   letterSpacing: '5px',
-                  color: heroRank.color,
+                  color: heroRanks[0].color,
                   lineHeight: 1.1,
                   display: 'flex',
                   textAlign: 'center',
                   maxWidth: 960,
-                  textShadow: `0 0 24px ${heroRank.color}55`,
+                  textShadow: `0 0 24px ${heroRanks[0].color}55`,
                 }}
               >
-                {heroRank.value.toUpperCase()}
+                {heroRanks[0].value.toUpperCase()}
               </div>
+            </div>
+          )}
+          {heroRanks.length === 2 && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                justifyContent: 'center',
+                gap: 60,
+                fontFamily: ff,
+                marginTop: 8,
+                maxWidth: 960,
+              }}
+            >
+              {heroRanks.map((rank, idx) => (
+                <div
+                  key={`${rank.gameId}-${idx}`}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    maxWidth: 430,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 18,
+                      letterSpacing: '8px',
+                      color: 'rgba(255,255,255,0.55)',
+                      display: 'flex',
+                      marginBottom: 18,
+                    }}
+                  >
+                    {rank.label}
+                  </div>
+                  {rankIconDataUris[idx] && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 150,
+                        height: 150,
+                        backgroundImage: `radial-gradient(circle, ${rank.color}40 0%, transparent 70%)`,
+                        marginBottom: 16,
+                      }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={rankIconDataUris[idx]!}
+                        width={130}
+                        height={130}
+                        alt=""
+                        style={{ objectFit: 'contain' }}
+                      />
+                    </div>
+                  )}
+                  <div
+                    style={{
+                      fontSize: 44,
+                      letterSpacing: '3px',
+                      color: rank.color,
+                      lineHeight: 1.1,
+                      display: 'flex',
+                      textAlign: 'center',
+                      textShadow: `0 0 18px ${rank.color}55`,
+                    }}
+                  >
+                    {rank.value.toUpperCase()}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
