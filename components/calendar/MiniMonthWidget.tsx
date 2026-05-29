@@ -211,16 +211,12 @@ export default function MiniMonthWidget({
           const hasEvents = cell.events.length > 0;
           const canClick = hasEvents;
           const isSelected = selectedYmd === cell.ymd;
-          const colors: string[] = [];
-          const seen = new Set<string>();
-          for (const e of cell.events) {
-            const c = colorFor(e);
-            if (!seen.has(c)) {
-              seen.add(c);
-              colors.push(c);
-              if (colors.length === 3) break;
-            }
-          }
+          // 1 pastille par event (max 5, +N si plus) — pas par couleur unique,
+          // sinon 2 events de même type partagent 1 seule pastille et donnent
+          // l'impression visuelle qu'il n'y a qu'1 event sur le jour.
+          const MAX_DOTS = 5;
+          const visibleColors = cell.events.slice(0, MAX_DOTS).map(colorFor);
+          const extraCount = Math.max(0, cell.events.length - MAX_DOTS);
 
           // Background / border priorité : sélectionné > aujourd'hui > avec events > vide
           const bg = isSelected
@@ -272,10 +268,18 @@ export default function MiniMonthWidget({
               }}
             >
               <span>{cell.date.getDate()}</span>
-              <div className="flex gap-0.5 mt-1.5" style={{ minHeight: '5px' }}>
-                {colors.map((c, j) => (
+              <div className="flex items-center gap-0.5 mt-1.5" style={{ minHeight: '5px' }}>
+                {visibleColors.map((c, j) => (
                   <span key={j} className="block" style={{ width: '5px', height: '5px', borderRadius: '50%', background: c }} />
                 ))}
+                {extraCount > 0 && (
+                  <span
+                    className="t-mono"
+                    style={{ fontSize: '8px', lineHeight: 1, color: 'var(--s-text-muted)', marginLeft: '1px' }}
+                  >
+                    +{extraCount}
+                  </span>
+                )}
               </div>
             </button>
           );

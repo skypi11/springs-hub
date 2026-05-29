@@ -188,10 +188,18 @@ export function isTeamEventManager(ctx: UserContext, teamId: string): boolean {
 // ---------- Accès au calendrier ----------
 
 // Qui voit la section CALENDRIER dans le dashboard de structure : tout le staff
+// + le staff d'équipe (managers/coachs assignés via sub_teams.staffRoles)
 // + les capitaines (pour gérer le calendrier de leur équipe).
 // Les joueurs simples ne gèrent pas d'événements ; ils voient leurs invitations via /calendar.
+//
+// Pourquoi le check explicite sur staffedTeamIds : un manager d'équipe pure (rôle
+// donné via sub_teams.staffRoles sans figurer dans structure.managerIds ni
+// structure_members.role='manager') a isStaff(ctx) = false. Sans ce check, il
+// était bloqué avec 403 sur l'API alors qu'il doit pouvoir voir/gérer le
+// calendrier de SON équipe — c'est exactement pour ça qu'on l'a nommé staff.
 export function canAccessCalendar(ctx: UserContext): boolean {
   if (isStaff(ctx)) return true;
+  if (ctx.staffedTeamIds.length > 0) return true;
   return (ctx.captainOfTeamIds ?? []).length > 0;
 }
 
