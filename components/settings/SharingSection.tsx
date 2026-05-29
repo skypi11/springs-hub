@@ -77,7 +77,11 @@ export default function SharingSection({ user, onSaved }: Props) {
       try {
         await api('/api/profile/og-display', {
           method: 'POST',
-          body: newPrefs,
+          // Cast vers Record<string,unknown> requis par la signature de api().
+          // OgDisplayPreferences est une interface stricte sans index signature,
+          // incompatible avec JsonBody = Record<string, unknown>. Le spread
+          // dans un object literal serait aussi possible mais le cast est plus clair.
+          body: newPrefs as unknown as Record<string, unknown>,
         });
         lastSavedRef.current = payload;
         // Cache-bust pour forcer le navigateur à re-fetch la preview story
