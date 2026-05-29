@@ -147,7 +147,7 @@ describe('getters avec fallback', () => {
 
   it('getGameLogoUrl null si jeu inconnu', () => {
     expect(getGameLogoUrl('lol')).toBeNull();
-    expect(getGameLogoUrl('rocket_league')).toBe('/rocket-league.webp');
+    expect(getGameLogoUrl('rocket_league')).toBe('/games/rocket-league.png');
   });
 
   it('getGameBannerUrl null si jeu inconnu', () => {

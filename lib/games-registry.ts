@@ -86,7 +86,7 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
     color: '#0081FF',
     colorLight: '#3FA0FF',
     colorRgb: '0,129,255',
-    logoUrl: '/rocket-league.webp',
+    logoUrl: '/games/rocket-league.png',
     bannerUrl: '/rocket-league.webp',
     roster: { titulaires: 3, remplacants: 2, allowSolo: false },
     features: {
@@ -110,7 +110,7 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
     color: '#00D936',
     colorLight: '#3FF06A',
     colorRgb: '0,217,54',
-    logoUrl: '/tm.webp',
+    logoUrl: '/games/trackmania.png',
     bannerUrl: '/tm.webp',
     roster: { titulaires: 1, remplacants: 0, allowSolo: true },
     features: {
@@ -133,7 +133,7 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
     color: '#FF4655',
     colorLight: '#FF6B78',
     colorRgb: '255,70,85',
-    logoUrl: '/valorant.jpg',
+    logoUrl: '/games/valorant.png',
     bannerUrl: '/valorant-banner.jpg',
     roster: { titulaires: 5, remplacants: 2, allowSolo: false },
     features: {

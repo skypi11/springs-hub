@@ -41,7 +41,10 @@ function storyNameFontSize(len: number): number {
   return 46;
 }
 
-/** Chip jeu remplie + icône officielle, version story. */
+/** Chip jeu remplie + icône officielle, version story.
+ *
+ * Refonte 28/05 : chips XL (icône 56px, label 38px) pour matcher l'échelle
+ * 1080×1920 + nouveaux logos officiels haute résolution dans /public/games/. */
 function GameChip({
   gameId,
   ff,
@@ -59,23 +62,23 @@ function GameChip({
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 14,
-        padding: '14px 26px 14px 20px',
-        fontSize: 32,
+        gap: 18,
+        padding: '18px 32px 18px 24px',
+        fontSize: 38,
         letterSpacing: '5px',
         color: textColor,
         backgroundColor: color,
         fontFamily: ff,
         clipPath:
-          'polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px)',
+          'polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px)',
       }}
     >
       {iconDataUri && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={iconDataUri}
-          width={36}
-          height={36}
+          width={56}
+          height={56}
           alt=""
           style={{ objectFit: 'contain', display: 'flex' }}
         />
@@ -410,20 +413,22 @@ export async function GET(
             </div>
           )}
 
-          {/* Compteurs membres + équipes — bloc gros centré */}
+          {/* Compteurs membres + équipes : chiffre or 88px + label 28px en
+              colonne par stat, séparateur ligne verticale or au milieu.
+              Cohérent avec la version horizontale (plus de middot flottant). */}
           {(members > 0 || teams > 0) && (
             <div
               style={{
                 display: 'flex',
-                alignItems: 'baseline',
+                alignItems: 'center',
                 justifyContent: 'center',
-                gap: 28,
+                gap: 48,
                 fontFamily: ff,
-                marginBottom: direction.visible.length > 0 ? 28 : 0,
+                marginBottom: direction.visible.length > 0 ? 36 : 0,
               }}
             >
               {members > 0 && (
-                <>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <div
                     style={{
                       fontSize: 88,
@@ -437,6 +442,7 @@ export async function GET(
                   </div>
                   <div
                     style={{
+                      marginTop: 10,
                       fontSize: 28,
                       color: 'rgba(255,255,255,0.6)',
                       letterSpacing: '6px',
@@ -445,22 +451,20 @@ export async function GET(
                   >
                     MEMBRE{members > 1 ? 'S' : ''}
                   </div>
-                </>
+                </div>
               )}
               {members > 0 && teams > 0 && (
                 <div
                   style={{
-                    fontSize: 48,
-                    color: 'rgba(255,184,0,0.55)',
-                    lineHeight: 1,
+                    width: 2,
+                    height: 100,
+                    backgroundColor: 'rgba(255,184,0,0.4)',
                     display: 'flex',
                   }}
-                >
-                  ·
-                </div>
+                />
               )}
               {teams > 0 && (
-                <>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <div
                     style={{
                       fontSize: 88,
@@ -474,6 +478,7 @@ export async function GET(
                   </div>
                   <div
                     style={{
+                      marginTop: 10,
                       fontSize: 28,
                       color: 'rgba(255,255,255,0.6)',
                       letterSpacing: '6px',
@@ -482,7 +487,7 @@ export async function GET(
                   >
                     ÉQUIPE{teams > 1 ? 'S' : ''}
                   </div>
-                </>
+                </div>
               )}
             </div>
           )}

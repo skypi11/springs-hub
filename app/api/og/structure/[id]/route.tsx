@@ -36,6 +36,10 @@ const HEIGHT = OG_HEIGHT;
 // `<GameTag>` côté site, version OG (background plein pour ressortir sur la
 // bannière sombre, contrastée pour rester lisible quelle que soit la couleur
 // du jeu).
+//
+// Refonte 28/05 : chips GROSSES (icône 40px, label 26px, padding généreux)
+// pour ressortir visuellement sur la colonne droite, avec les vrais logos
+// officiels de jeux désormais haute résolution dans /public/games/.
 function GameChip({
   gameId,
   ff,
@@ -53,24 +57,24 @@ function GameChip({
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
-        padding: '8px 18px 8px 14px',
-        fontSize: 22,
+        gap: 14,
+        padding: '12px 22px 12px 16px',
+        fontSize: 26,
         letterSpacing: '4px',
         color: textColor,
         // Fond PLEIN à la couleur officielle du jeu (vs ancien fond `${color}1A`).
         backgroundColor: color,
         fontFamily: ff,
         clipPath:
-          'polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px)',
+          'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)',
       }}
     >
       {iconDataUri && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={iconDataUri}
-          width={26}
-          height={26}
+          width={40}
+          height={40}
           alt=""
           style={{ objectFit: 'contain', display: 'flex' }}
         />
@@ -331,7 +335,9 @@ export async function GET(
             )}
           </div>
 
-          {/* Colonne droite : meta + nom + chips jeux + counts + dirigeants */}
+          {/* Colonne droite : meta + nom + chips jeux + counts + dirigeants
+              + slogan acquisition. Centrée verticalement pour équilibrer
+              la composition (vs avant : tassée en bas). */}
           <div
             style={{
               display: 'flex',
@@ -339,7 +345,9 @@ export async function GET(
               justifyContent: 'center',
               flex: 1,
               paddingRight: 80,
-              gap: 16,
+              paddingTop: 40,
+              paddingBottom: 40,
+              gap: 22,
             }}
           >
             {/* Label STRUCTURE */}
@@ -385,9 +393,9 @@ export async function GET(
               )}
             </div>
 
-            {/* Chips jeux (fond plein + icône officielle) */}
+            {/* Chips jeux (fond plein + icône officielle 40px + label 26px) */}
             {visibleGames.length > 0 && (
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
                 {visibleGames.map((g, idx) => (
                   <GameChip
                     key={g}
@@ -399,9 +407,9 @@ export async function GET(
                 {extraGames > 0 && (
                   <div
                     style={{
-                      fontSize: 22,
+                      fontSize: 24,
                       letterSpacing: '3px',
-                      color: 'rgba(255,255,255,0.5)',
+                      color: 'rgba(255,255,255,0.55)',
                       fontFamily: ff,
                       display: 'flex',
                     }}
@@ -412,23 +420,24 @@ export async function GET(
               </div>
             )}
 
-            {/* Compteurs membres + équipes sur la même ligne. Séparateur
-                middot or pour rester aligné avec la palette Aedral. */}
+            {/* Compteurs membres + équipes : chiffre or 56px + label 18px en
+                colonne par stat, séparateur ligne verticale or au milieu.
+                Plus de middot mal aligné. */}
             {(members > 0 || teams > 0) && (
               <div
                 style={{
                   display: 'flex',
-                  alignItems: 'baseline',
-                  gap: 16,
+                  alignItems: 'center',
+                  gap: 28,
                   fontFamily: ff,
-                  marginTop: 4,
+                  marginTop: 6,
                 }}
               >
                 {members > 0 && (
-                  <>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                     <div
                       style={{
-                        fontSize: 48,
+                        fontSize: 56,
                         color: AEDRAL_PALETTE.gold,
                         letterSpacing: '2px',
                         lineHeight: 1,
@@ -439,7 +448,8 @@ export async function GET(
                     </div>
                     <div
                       style={{
-                        fontSize: 20,
+                        marginTop: 6,
+                        fontSize: 18,
                         color: 'rgba(255,255,255,0.6)',
                         letterSpacing: '5px',
                         display: 'flex',
@@ -447,27 +457,23 @@ export async function GET(
                     >
                       MEMBRE{members > 1 ? 'S' : ''}
                     </div>
-                  </>
+                  </div>
                 )}
                 {members > 0 && teams > 0 && (
                   <div
                     style={{
-                      fontSize: 32,
-                      color: 'rgba(255,184,0,0.55)',
-                      lineHeight: 1,
+                      width: 1.5,
+                      height: 64,
+                      backgroundColor: 'rgba(255,184,0,0.4)',
                       display: 'flex',
-                      marginLeft: 4,
-                      marginRight: 4,
                     }}
-                  >
-                    ·
-                  </div>
+                  />
                 )}
                 {teams > 0 && (
-                  <>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                     <div
                       style={{
-                        fontSize: 48,
+                        fontSize: 56,
                         color: AEDRAL_PALETTE.gold,
                         letterSpacing: '2px',
                         lineHeight: 1,
@@ -478,7 +484,8 @@ export async function GET(
                     </div>
                     <div
                       style={{
-                        fontSize: 20,
+                        marginTop: 6,
+                        fontSize: 18,
                         color: 'rgba(255,255,255,0.6)',
                         letterSpacing: '5px',
                         display: 'flex',
@@ -486,7 +493,7 @@ export async function GET(
                     >
                       ÉQUIPE{teams > 1 ? 'S' : ''}
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
             )}
@@ -514,7 +521,7 @@ export async function GET(
                 </div>
                 <div
                   style={{
-                    marginTop: 4,
+                    marginTop: 6,
                     fontSize: 24,
                     letterSpacing: '2px',
                     color: AEDRAL_PALETTE.text,
@@ -548,22 +555,42 @@ export async function GET(
                 </div>
               </div>
             )}
-          </div>
 
-          {/* Footer AEDRAL */}
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 24,
-              right: 80,
-              fontSize: 18,
-              color: 'rgba(255,255,255,0.4)',
-              letterSpacing: '4px',
-              display: 'flex',
-              fontFamily: ff,
-            }}
-          >
-            AEDRAL
+            {/* Slogan acquisition : "REJOINS-NOUS SUR AEDRAL.COM" en bas de
+                la colonne droite. Cohérent avec le watermark des stories
+                verticales. Remplace l'ancien footer "AEDRAL" pour éviter
+                le doublon et donner un vrai CTA. */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                marginTop: 12,
+                fontFamily: ff,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 14,
+                  letterSpacing: '5px',
+                  color: 'rgba(255,255,255,0.45)',
+                  display: 'flex',
+                }}
+              >
+                REJOINS-NOUS SUR
+              </div>
+              <div
+                style={{
+                  marginTop: 6,
+                  fontSize: 30,
+                  letterSpacing: '6px',
+                  color: AEDRAL_PALETTE.gold,
+                  display: 'flex',
+                  textShadow: '0 0 24px rgba(255,184,0,0.35)',
+                }}
+              >
+                AEDRAL.COM
+              </div>
+            </div>
           </div>
         </div>
       ),

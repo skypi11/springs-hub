@@ -3,11 +3,12 @@ import { NextRequest } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { isLegacyUid } from '@/lib/user-slug';
-import { getGameColor, getGameShortLabel } from '@/lib/games-registry';
+import { getGameColor, getGameLogoUrl, getGameShortLabel } from '@/lib/games-registry';
 import {
   AEDRAL_PALETTE,
   OG_HEIGHT,
   OG_WIDTH,
+  bestTextColor,
   heroNameFontSize,
   hexTextureDataUri,
   initials,
@@ -35,27 +36,48 @@ export const runtime = 'nodejs';
 const WIDTH = OG_WIDTH;
 const HEIGHT = OG_HEIGHT;
 
-/** Petite chip jeu, alignée visuellement sur la version de l'endpoint structure. */
-function GameChip({ gameId, ff }: { gameId: string; ff: string }) {
+/** Chip jeu remplie + icône officielle, alignée sur la version structure pour
+ *  cohérence cross-OG (fond plein couleur jeu, label auto-contrasté, icône
+ *  bitmap 40×40 lisible). */
+function GameChip({
+  gameId,
+  ff,
+  iconDataUri,
+}: {
+  gameId: string;
+  ff: string;
+  iconDataUri: string | null;
+}) {
   const color = getGameColor(gameId);
   const short = getGameShortLabel(gameId);
+  const textColor = bestTextColor(color);
   return (
     <div
       style={{
         display: 'flex',
         alignItems: 'center',
-        padding: '8px 18px',
-        fontSize: 20,
+        gap: 12,
+        padding: '10px 22px 10px 14px',
+        fontSize: 26,
         letterSpacing: '4px',
-        color,
-        backgroundColor: `${color}1A`,
-        border: `1px solid ${color}55`,
+        color: textColor,
+        backgroundColor: color,
         fontFamily: ff,
         clipPath:
-          'polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px)',
+          'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)',
       }}
     >
-      {short}
+      {iconDataUri && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={iconDataUri}
+          width={32}
+          height={32}
+          alt=""
+          style={{ objectFit: 'contain', display: 'flex' }}
+        />
+      )}
+      <div style={{ display: 'flex' }}>{short}</div>
     </div>
   );
 }
@@ -182,22 +204,33 @@ export async function GET(
     const avatarUrl = buildAvatarUrl(userData);
     const heroRank = pickHeroRank(userData);
 
-    // Avatar Discord — si fetch/decode échoue, on tombe sur initiales
-    let avatarDataUri: string | null = null;
-    try {
-      avatarDataUri = await loadLogoAsPngDataUri(avatarUrl);
-      if (avatarUrl && !avatarDataUri) {
-        console.warn('[OG/profile] avatar decode failed for', avatarUrl);
-      }
-    } catch (e) {
-      console.warn('[OG/profile] avatar load threw', e);
-      avatarDataUri = null;
-    }
+    const VISIBLE_GAMES = 3;
+    const visibleGames = games.slice(0, VISIBLE_GAMES);
+    const extraGames = Math.max(0, games.length - VISIBLE_GAMES);
 
-    // Icône de rang (RL ou Val) — lue depuis /public, dégradation gracieuse
-    const rankIconDataUri = heroRank?.iconFile
-      ? await loadLocalIconAsPngDataUri(`${heroRank.iconBasePath}/${heroRank.iconFile}.png`)
-      : null;
+    // Tous les chargements lourds en parallèle (avatar Discord + icônes jeux
+    // officielles + icône rang). Raccourcit le TTFB de la route de ~3x quand
+    // toutes les requêtes sont indépendantes.
+    const [avatarDataUri, gameIconDataUris, rankIconDataUri] = await Promise.all([
+      (async () => {
+        try {
+          const dataUri = await loadLogoAsPngDataUri(avatarUrl);
+          if (avatarUrl && !dataUri) {
+            console.warn('[OG/profile] avatar decode failed for', avatarUrl);
+          }
+          return dataUri;
+        } catch (e) {
+          console.warn('[OG/profile] avatar load threw', e);
+          return null;
+        }
+      })(),
+      Promise.all(
+        visibleGames.map(g => loadLocalIconAsPngDataUri(getGameLogoUrl(g))),
+      ),
+      heroRank?.iconFile
+        ? loadLocalIconAsPngDataUri(`${heroRank.iconBasePath}/${heroRank.iconFile}.png`)
+        : Promise.resolve(null),
+    ]);
 
     const font = loadRajdhani();
     const hasFont = !!font;
@@ -206,10 +239,6 @@ export async function GET(
 
     const nameUpper = displayName.toUpperCase();
     const nameSize = heroNameFontSize(nameUpper.length);
-
-    const VISIBLE_GAMES = 3;
-    const visibleGames = games.slice(0, VISIBLE_GAMES);
-    const extraGames = Math.max(0, games.length - VISIBLE_GAMES);
 
     return new ImageResponse(
       (
@@ -247,7 +276,7 @@ export async function GET(
             }}
           />
 
-          {/* Corner brackets HUD esport */}
+          {/* Corner brackets HUD esport (cohérents avec OG structure) */}
           <div style={{ position: 'absolute', top: 24, left: 24, width: 40, height: 40, borderTop: '2px solid rgba(255,184,0,0.65)', borderLeft: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
           <div style={{ position: 'absolute', top: 24, right: 24, width: 40, height: 40, borderTop: '2px solid rgba(255,184,0,0.65)', borderRight: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
           <div style={{ position: 'absolute', bottom: 24, left: 24, width: 40, height: 40, borderBottom: '2px solid rgba(255,184,0,0.65)', borderLeft: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
@@ -312,7 +341,12 @@ export async function GET(
             )}
           </div>
 
-          {/* Colonne droite : label JOUEUR + nom + country + chips + rang */}
+          {/* Colonne droite : meta + nom + country + chips + rang + slogan
+              CTA.
+              `justifyContent: 'center'` centre verticalement TOUT le bloc
+              (vs `flex-start` qui tassait au top). Le slogan en bas-droite
+              est positionné en absolute, donc il n'entre pas dans le calcul
+              du centrage de la colonne droite. */}
           <div
             style={{
               display: 'flex',
@@ -320,7 +354,7 @@ export async function GET(
               justifyContent: 'center',
               flex: 1,
               paddingRight: 80,
-              gap: 18,
+              gap: 22,
             }}
           >
             {/* Label JOUEUR */}
@@ -336,58 +370,67 @@ export async function GET(
               JOUEUR
             </div>
 
-            {/* Nom */}
-            <div
-              style={{
-                fontSize: nameSize,
-                letterSpacing: '4px',
-                color: AEDRAL_PALETTE.text,
-                fontFamily: ff,
-                lineHeight: 1,
-                display: 'flex',
-              }}
-            >
-              {nameUpper}
-            </div>
-
-            {/* Country (si défini) — chip neutre sobre */}
-            {country && (
+            {/* Nom + country (sur la même ligne logique pour cohérence avec
+                le bloc nom+tag de l'OG structure). */}
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
               <div
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
+                  fontSize: nameSize,
+                  letterSpacing: '4px',
+                  color: AEDRAL_PALETTE.text,
                   fontFamily: ff,
+                  lineHeight: 1,
+                  display: 'flex',
                 }}
               >
+                {nameUpper}
+              </div>
+
+              {/* Country (si défini) — chip plus présente, fond or atténué
+                  pour ressortir cohérent avec la palette Aedral. */}
+              {country && (
                 <div
                   style={{
-                    padding: '6px 16px',
-                    fontSize: 20,
-                    letterSpacing: '3px',
-                    color: 'rgba(255,255,255,0.75)',
-                    backgroundColor: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(255,255,255,0.15)',
-                    clipPath:
-                      'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)',
                     display: 'flex',
+                    alignItems: 'center',
+                    marginTop: 12,
+                    fontFamily: ff,
                   }}
                 >
-                  {country.toUpperCase().slice(0, 24)}
+                  <div
+                    style={{
+                      padding: '8px 20px',
+                      fontSize: 24,
+                      letterSpacing: '6px',
+                      color: 'rgba(255,184,0,0.95)',
+                      backgroundColor: 'rgba(255,184,0,0.10)',
+                      border: '1px solid rgba(255,184,0,0.35)',
+                      clipPath:
+                        'polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px)',
+                      display: 'flex',
+                    }}
+                  >
+                    {country.toUpperCase().slice(0, 24)}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
-            {/* Chips jeux */}
+            {/* Chips jeux (fond plein + icône officielle, alignées avec OG structure) */}
             {visibleGames.length > 0 && (
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                {visibleGames.map(g => (
-                  <GameChip key={g} gameId={g} ff={ff} />
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                {visibleGames.map((g, idx) => (
+                  <GameChip
+                    key={g}
+                    gameId={g}
+                    ff={ff}
+                    iconDataUri={gameIconDataUris[idx] ?? null}
+                  />
                 ))}
                 {extraGames > 0 && (
                   <div
                     style={{
-                      fontSize: 20,
+                      fontSize: 22,
                       letterSpacing: '3px',
                       color: 'rgba(255,255,255,0.5)',
                       fontFamily: ff,
@@ -404,31 +447,31 @@ export async function GET(
             {heroRank && (
               <div
                 style={{
-                  marginTop: 8,
                   display: 'flex',
                   flexDirection: 'row',
                   alignItems: 'center',
-                  gap: 18,
+                  gap: 20,
                   fontFamily: ff,
                 }}
               >
-                {/* Icône du rang (si dispo) — 80×80, glow subtil de la couleur du tier */}
+                {/* Icône du rang (si dispo) — 96×96 pour visibilité,
+                    glow subtil de la couleur du tier */}
                 {rankIconDataUri && (
                   <div
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      width: 80,
-                      height: 80,
+                      width: 96,
+                      height: 96,
                       backgroundImage: `radial-gradient(circle, ${heroRank.color}33 0%, transparent 70%)`,
                     }}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={rankIconDataUri}
-                      width={80}
-                      height={80}
+                      width={96}
+                      height={96}
                       alt=""
                       style={{ objectFit: 'contain' }}
                     />
@@ -448,8 +491,8 @@ export async function GET(
                   </div>
                   <div
                     style={{
-                      marginTop: 4,
-                      fontSize: 44,
+                      marginTop: 6,
+                      fontSize: 48,
                       letterSpacing: '3px',
                       color: heroRank.color,
                       lineHeight: 1,
@@ -463,20 +506,42 @@ export async function GET(
             )}
           </div>
 
-          {/* Footer AEDRAL */}
+          {/* Slogan CTA en bas-droite : cohérent avec story + OG structure,
+              format acquisition principal. Positionné absolute pour ne pas
+              déséquilibrer le centrage vertical de la colonne droite. */}
           <div
             style={{
               position: 'absolute',
-              bottom: 24,
+              bottom: 38,
               right: 80,
-              fontSize: 18,
-              color: 'rgba(255,255,255,0.4)',
-              letterSpacing: '4px',
               display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-end',
               fontFamily: ff,
             }}
           >
-            AEDRAL
+            <div
+              style={{
+                fontSize: 12,
+                letterSpacing: '6px',
+                color: 'rgba(255,255,255,0.45)',
+                display: 'flex',
+              }}
+            >
+              REJOINS-NOUS SUR
+            </div>
+            <div
+              style={{
+                marginTop: 4,
+                fontSize: 28,
+                letterSpacing: '8px',
+                color: AEDRAL_PALETTE.gold,
+                display: 'flex',
+                textShadow: '0 0 16px rgba(255,184,0,0.35)',
+              }}
+            >
+              AEDRAL.COM
+            </div>
           </div>
         </div>
       ),

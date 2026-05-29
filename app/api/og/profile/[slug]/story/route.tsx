@@ -44,7 +44,9 @@ function storyNameFontSize(len: number): number {
   return 52;
 }
 
-/** Chip jeu remplie + icône officielle, version story (plus grande). */
+/** Chip jeu remplie + icône officielle, version story (encore plus grande
+ *  que l'horizontal pour rester lisible sur la story 1080×1920 — vue
+ *  généralement de loin sur un téléphone vertical). */
 function GameChip({
   gameId,
   ff,
@@ -62,23 +64,23 @@ function GameChip({
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 14,
-        padding: '14px 26px 14px 20px',
-        fontSize: 32,
+        gap: 16,
+        padding: '16px 30px 16px 22px',
+        fontSize: 36,
         letterSpacing: '5px',
         color: textColor,
         backgroundColor: color,
         fontFamily: ff,
         clipPath:
-          'polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px)',
+          'polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px)',
       }}
     >
       {iconDataUri && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={iconDataUri}
-          width={36}
-          height={36}
+          width={48}
+          height={48}
           alt=""
           style={{ objectFit: 'contain', display: 'flex' }}
         />

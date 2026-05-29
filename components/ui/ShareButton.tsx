@@ -3,12 +3,21 @@
 /**
  * ShareButton — composant universel de partage d'URL.
  *
- * Comportement :
- * - Mobile (navigator.share dispo) → menu natif OS, fallback popover si erreur (hors AbortError).
- * - Desktop → popover Portal avec :
- *     1. Copier le lien (clipboard)
- *     2. Discord (message formaté copié dans le clipboard)
- *     3. Twitter/X, WhatsApp, Reddit (intent URLs ouvertes dans un nouvel onglet)
+ * Comportement hybride mobile / desktop :
+ * - Mobile (UA tablet/phone + navigator.share) → menu natif OS direct au clic.
+ *   Le sheet natif iOS/Android est meilleur que notre popover (partage direct
+ *   vers les apps installées : Discord, WhatsApp, Messages, etc.). Fallback
+ *   popover Aedral si navigator.share absent ou erreur non-AbortError.
+ * - Desktop → popover Aedral d'abord (UX cohérente avec la DA), avec un bouton
+ *   "Plus d'options…" en bas qui déclenche navigator.share() pour ceux qui
+ *   préfèrent partager via leur Discord/Teams/etc. desktop installé.
+ *
+ * Popover :
+ *   1. Copier le lien (clipboard)
+ *   2. Copier pour Discord (message formaté copié, label + icône info pour
+ *      expliquer pourquoi on copie au lieu de partager direct)
+ *   3. Twitter/X, WhatsApp, Reddit (intent URLs ouvertes dans un nouvel onglet)
+ *   4. (Desktop uniquement, si navigator.share dispo) "Plus d'options…"
  *
  * Accessibilité :
  * - aria-haspopup, aria-expanded sur le trigger
@@ -20,7 +29,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Share2, Copy, Check, ExternalLink, X } from 'lucide-react';
+import { Share2, Copy, Check, ExternalLink, X, MoreHorizontal, Info } from 'lucide-react';
 import Portal from '@/components/ui/Portal';
 import { useToast } from '@/components/ui/Toast';
 
@@ -50,6 +59,14 @@ const SIZE_TOKENS: Record<ShareSize, SizeTokens> = {
   lg: { paddingY: 12, paddingX: 22, fontSize: 14, iconSize: 16, gap: 10 },
 };
 
+/** Navigator.userAgentData (Client Hints API moderne, Chromium uniquement). */
+interface UserAgentData {
+  mobile: boolean;
+}
+interface NavigatorWithUAData extends Navigator {
+  userAgentData?: UserAgentData;
+}
+
 /** Détection runtime côté client uniquement — évite mismatch SSR. */
 function hasNativeShare(): boolean {
   if (typeof navigator === 'undefined') return false;
@@ -60,6 +77,20 @@ function hasNativeShare(): boolean {
 function hasClipboard(): boolean {
   if (typeof navigator === 'undefined') return false;
   return !!navigator.clipboard && typeof navigator.clipboard.writeText === 'function';
+}
+
+/**
+ * Détecte si on est sur un device mobile (phone/tablet).
+ * Priorité à userAgentData.mobile (Client Hints, plus fiable), fallback regex UA.
+ * À appeler uniquement côté client (dans useEffect) pour éviter mismatch SSR.
+ */
+function detectIsMobile(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const nav = navigator as NavigatorWithUAData;
+  if (nav.userAgentData && typeof nav.userAgentData.mobile === 'boolean') {
+    return nav.userAgentData.mobile;
+  }
+  return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 
 export default function ShareButton({
@@ -75,17 +106,28 @@ export default function ShareButton({
   const [rect, setRect] = useState<{ top: number; right: number } | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Détection device : false par défaut (SSR-safe), recalculé après mount.
+  // On dérive aussi la dispo native share côté client.
+  const [isMobile, setIsMobile] = useState(false);
+  const [nativeShareAvailable, setNativeShareAvailable] = useState(false);
+
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const tokens = SIZE_TOKENS[size];
+
+  useEffect(() => {
+    setIsMobile(detectIsMobile());
+    setNativeShareAvailable(hasNativeShare());
+  }, []);
 
   /** Tente le partage natif. Retourne true si succès OU annulé silencieusement. */
   const tryNativeShare = useCallback(async (): Promise<boolean> => {
     if (!hasNativeShare()) return false;
     try {
       await navigator.share({ title, text, url });
-      toast.success('Partagé');
+      // Pas de toast "Partagé" : le sheet natif a déjà donné le feedback visuel,
+      // et un toast au-dessus du sheet est redondant + parfois invisible.
       return true;
     } catch (err) {
       // AbortError = user a fermé le sheet natif → silent, ne pas fallback.
@@ -93,7 +135,7 @@ export default function ShareButton({
       // Autres erreurs (NotAllowedError, etc.) → on bascule sur le popover.
       return false;
     }
-  }, [title, text, url, toast]);
+  }, [title, text, url]);
 
   /** Ouverture du popover positionné sous le trigger. */
   const openPopover = useCallback(() => {
@@ -117,9 +159,22 @@ export default function ShareButton({
       closePopover();
       return;
     }
-    const handled = await tryNativeShare();
-    if (!handled) openPopover();
-  }, [open, tryNativeShare, openPopover, closePopover]);
+    // Mobile : on tente le sheet natif directement. Si échec (hors abort) → popover.
+    if (isMobile) {
+      const handled = await tryNativeShare();
+      if (!handled) openPopover();
+      return;
+    }
+    // Desktop : popover Aedral d'abord (DA cohérente), navigator.share réservé
+    // au bouton "Plus d'options…" en bas du popover pour ceux qui le veulent.
+    openPopover();
+  }, [open, isMobile, tryNativeShare, openPopover, closePopover]);
+
+  /** Bouton "Plus d'options…" desktop → ferme le popover et ouvre le sheet OS natif. */
+  const handleMoreOptions = useCallback(async () => {
+    closePopover();
+    await tryNativeShare();
+  }, [closePopover, tryNativeShare]);
 
   /** Copie une chaîne dans le presse-papier avec fallback execCommand. */
   const writeToClipboard = useCallback(async (value: string): Promise<boolean> => {
@@ -340,7 +395,7 @@ export default function ShareButton({
               top: rect.top,
               right: rect.right,
               zIndex: 71,
-              minWidth: 240,
+              minWidth: 260,
               maxWidth: 'calc(100vw - 2rem)',
               background: 'var(--s-surface)',
               border: '1px solid var(--s-border)',
@@ -396,8 +451,9 @@ export default function ShareButton({
             />
             <ShareItem
               icon={<DiscordGlyph />}
-              label="Discord"
-              hint="Message copié"
+              label="Copier pour Discord"
+              sublabel="Discord n'a pas de partage direct — colle le message dans ton serveur"
+              infoTooltip
               onClick={handleCopyDiscord}
             />
 
@@ -427,6 +483,26 @@ export default function ShareButton({
               external
               onClick={() => openInNewTab(intentUrls.reddit)}
             />
+
+            {/* "Plus d'options…" desktop uniquement (mobile a déjà ouvert le sheet natif).
+                Affiché si navigator.share est dispo (Chromium desktop récent, Safari, Edge). */}
+            {!isMobile && nativeShareAvailable && (
+              <>
+                <div
+                  style={{
+                    height: 1,
+                    background: 'var(--s-border)',
+                    margin: '6px 0',
+                  }}
+                />
+                <ShareItem
+                  icon={<MoreHorizontal size={14} />}
+                  label="Plus d'options…"
+                  sublabel="Ouvrir le partage système (Discord installé, Teams…)"
+                  onClick={handleMoreOptions}
+                />
+              </>
+            )}
           </div>
         </Portal>
       )}
@@ -443,16 +519,19 @@ interface ShareItemProps {
   label: string;
   onClick: () => void;
   hint?: string;
+  sublabel?: string;
   accent?: boolean;
   external?: boolean;
+  infoTooltip?: boolean;
 }
 
-function ShareItem({ icon, label, onClick, hint, accent, external }: ShareItemProps) {
+function ShareItem({ icon, label, onClick, hint, sublabel, accent, external, infoTooltip }: ShareItemProps) {
   return (
     <button
       type="button"
       data-share-item
       onClick={onClick}
+      title={sublabel}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -493,7 +572,16 @@ function ShareItem({ icon, label, onClick, hint, accent, external }: ShareItemPr
       >
         {icon}
       </span>
-      <span style={{ flex: 1, fontWeight: 500 }}>{label}</span>
+      <span style={{ flex: 1, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        {label}
+        {infoTooltip && (
+          <Info
+            size={12}
+            aria-hidden="true"
+            style={{ color: 'var(--s-text-muted)', flexShrink: 0 }}
+          />
+        )}
+      </span>
       {hint && (
         <span style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>{hint}</span>
       )}
