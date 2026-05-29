@@ -78,8 +78,8 @@ function GameChip({
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={iconDataUri}
-        width={72}
-        height={72}
+        width={90}
+        height={90}
         alt={short}
         style={{ objectFit: 'contain', display: 'flex' }}
       />
@@ -152,6 +152,35 @@ function buildAvatarUrl(data: FirebaseFirestore.DocumentData): string | null {
 // Logique pickHeroRank centralisée dans lib/og-helpers.ts (pickHeroRanks).
 // Returns 0/1/2 rangs selon les préférences user (ogDisplay.ranks) ou fallback
 // auto-detect si pas de préférences.
+
+/** Drapeau dessiné en pur CSS (3 bandes verticales). Dupliqué de la route
+ *  story pour cohérence visuelle cross-OG. Limité aux pays Aedral courants
+ *  (FR, BE) pour l'instant. Retour null si pays sans drapeau dispo
+ *  (CH croix, UK union jack, US étoiles, etc.). */
+function CountryFlag({ code, width = 40 }: { code: string; width?: number }) {
+  const c = code.toUpperCase().slice(0, 2);
+  const height = Math.round(width * 0.66);
+  const bandWidth = Math.round(width / 3);
+  const bands: { stripes: [string, string, string] } | null =
+    c === 'FR' ? { stripes: ['#002395', '#FFFFFF', '#ED2939'] }
+    : c === 'BE' ? { stripes: ['#000000', '#FAE042', '#ED2939'] }
+    : null;
+  if (!bands) return null;
+  return (
+    <div
+      style={{
+        display: 'flex',
+        width,
+        height,
+        border: '1px solid rgba(255,255,255,0.18)',
+      }}
+    >
+      <div style={{ width: bandWidth, height: '100%', backgroundColor: bands.stripes[0] }} />
+      <div style={{ width: bandWidth, height: '100%', backgroundColor: bands.stripes[1] }} />
+      <div style={{ width: width - bandWidth * 2, height: '100%', backgroundColor: bands.stripes[2] }} />
+    </div>
+  );
+}
 
 export async function GET(
   _req: NextRequest,
@@ -381,9 +410,10 @@ export async function GET(
               JOUEUR
             </div>
 
-            {/* Nom + country (sur la même ligne logique pour cohérence avec
-                le bloc nom+tag de l'OG structure). */}
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {/* Nom + country sur la MÊME ligne (retour Matt 30/05 : "à côté
+                du pseudo plutôt qu'en dessous"). Drapeau dessiné en CSS pur
+                (FR, BE) + code 2 lettres, sans chip à fond moche. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
               <div
                 style={{
                   fontSize: nameSize,
@@ -396,32 +426,25 @@ export async function GET(
               >
                 {nameUpper}
               </div>
-
-              {/* Country (si défini) — chip plus présente, fond or atténué
-                  pour ressortir cohérent avec la palette Aedral. */}
               {country && (
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    marginTop: 12,
+                    gap: 12,
                     fontFamily: ff,
                   }}
                 >
+                  <CountryFlag code={country} width={40} />
                   <div
                     style={{
-                      padding: '8px 20px',
-                      fontSize: 24,
-                      letterSpacing: '6px',
-                      color: 'rgba(255,184,0,0.95)',
-                      backgroundColor: 'rgba(255,184,0,0.10)',
-                      border: '1px solid rgba(255,184,0,0.35)',
-                      clipPath:
-                        'polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px)',
+                      fontSize: 22,
+                      letterSpacing: '5px',
+                      color: 'rgba(255,255,255,0.85)',
                       display: 'flex',
                     }}
                   >
-                    {country.toUpperCase().slice(0, 24)}
+                    {country.toUpperCase().slice(0, 2)}
                   </div>
                 </div>
               )}
@@ -454,16 +477,20 @@ export async function GET(
               </div>
             )}
 
-            {/* Rang(s) hero — 2 layouts :
-                - 1 rang : layout horizontal actuel (icône 96 + label + nom 48px)
-                - 2 rangs : 2 mini-blocs côte à côte avec icônes 72px + nom 32px
-                Customisable via Settings → Affichage public. */}
+            {/* Rang(s) hero — nouveau layout (fix Matt 30/05) :
+                LABEL au-dessus en pleine largeur, puis [icône] + VALUE en row
+                inline alignés au centre vertical. Comme ça l'icône est
+                visuellement alignée avec le nom du rang (pas avec label+nom),
+                ce qui rend l'alignement vertical correct.
+                - 1 rang : icône 96 + nom 48px
+                - 2 rangs : 2 colonnes, icône 72 + nom 32px chaque
+                Cap 2 customisable via Settings → Carte de partage. */}
             {heroRanks.length > 0 && (
               <div
                 style={{
                   display: 'flex',
                   flexDirection: 'row',
-                  alignItems: 'center',
+                  alignItems: 'flex-start',
                   gap: heroRanks.length === 2 ? 36 : 20,
                   fontFamily: ff,
                   flexWrap: 'wrap',
@@ -479,51 +506,56 @@ export async function GET(
                       key={`${rank.gameId}-${idx}`}
                       style={{
                         display: 'flex',
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: isSingle ? 20 : 14,
+                        flexDirection: 'column',
+                        gap: 8,
                       }}
                     >
-                      {/* Toujours réserver la box icône (placeholder vide si
-                          UNRANKED ou tier sans png) pour aligner l'icône+label
-                          entre les 2 rangs côte à côte. */}
+                      {/* Label "RANG RL" en pleine largeur, puis row icône+nom */}
+                      <div
+                        style={{
+                          fontSize: labelSize,
+                          letterSpacing: '6px',
+                          color: 'rgba(255,255,255,0.55)',
+                          display: 'flex',
+                        }}
+                      >
+                        {rank.label}
+                      </div>
                       <div
                         style={{
                           display: 'flex',
+                          flexDirection: 'row',
                           alignItems: 'center',
-                          justifyContent: 'center',
-                          width: iconSize,
-                          height: iconSize,
-                          backgroundImage: rankIconDataUris[idx]
-                            ? `radial-gradient(circle, ${rank.color}33 0%, transparent 70%)`
-                            : undefined,
+                          gap: isSingle ? 20 : 14,
                         }}
                       >
-                        {rankIconDataUris[idx] && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={rankIconDataUris[idx]!}
-                            width={iconSize}
-                            height={iconSize}
-                            alt=""
-                            style={{ objectFit: 'contain' }}
-                          />
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        {/* Box icône avec placeholder pour les tiers sans PNG
+                            (genre UNRANKED) → garde l'alignement entre 2 rangs. */}
                         <div
                           style={{
-                            fontSize: labelSize,
-                            letterSpacing: '6px',
-                            color: 'rgba(255,255,255,0.55)',
                             display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: iconSize,
+                            height: iconSize,
+                            backgroundImage: rankIconDataUris[idx]
+                              ? `radial-gradient(circle, ${rank.color}33 0%, transparent 70%)`
+                              : undefined,
                           }}
                         >
-                          {rank.label}
+                          {rankIconDataUris[idx] && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={rankIconDataUris[idx]!}
+                              width={iconSize}
+                              height={iconSize}
+                              alt=""
+                              style={{ objectFit: 'contain' }}
+                            />
+                          )}
                         </div>
                         <div
                           style={{
-                            marginTop: 6,
                             fontSize: nameSize,
                             letterSpacing: isSingle ? '3px' : '2px',
                             color: rank.color,
