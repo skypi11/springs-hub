@@ -359,7 +359,13 @@ export async function GET(
               justifyContent: 'center',
               flex: 1,
               paddingRight: 80,
-              gap: 22,
+              // paddingBottom 80 réserve la place pour le footer absolute
+              // bottom (~60px slogan + ligne séparatrice). Sans ce padding,
+              // le bloc struct/team se chevauche avec le footer slogan quand
+              // l'user affiche 2 rangs + struct + équipe. Retour Matt 30/05 :
+              // "quand je coche 2 jeux ca casse l'aperçu".
+              paddingBottom: 80,
+              gap: 18,
             }}
           >
             {/* Label JOUEUR */}
@@ -558,32 +564,20 @@ export async function GET(
                 >
                   MEMBRE DE
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   {structLogoDataUri && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={structLogoDataUri}
-                      width={40}
-                      height={40}
+                      width={32}
+                      height={32}
                       alt=""
                       style={{ objectFit: 'contain', display: 'flex' }}
                     />
                   )}
-                  {userStruct.structure.tag && (
-                    <div
-                      style={{
-                        fontSize: 14,
-                        letterSpacing: '4px',
-                        color: 'rgba(255,184,0,0.85)',
-                        display: 'flex',
-                      }}
-                    >
-                      [{userStruct.structure.tag.toUpperCase()}]
-                    </div>
-                  )}
                   <div
                     style={{
-                      fontSize: 26,
+                      fontSize: 22,
                       letterSpacing: '2px',
                       color: AEDRAL_PALETTE.text,
                       display: 'flex',

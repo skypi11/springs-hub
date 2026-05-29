@@ -136,8 +136,11 @@ export default function SharingSection({ user, onSaved }: Props) {
   const ranksSelected = prefs.ranks ?? [];
   // URLs de preview : story (1080×1920) + bannière (1200×630). Slug si dispo,
   // sinon uid legacy. Cache-bust query param forcé à chaque save → re-fetch.
+  // `preview=1` sur la story → bypass le Content-Disposition: attachment
+  // côté server pour permettre l'affichage inline dans le navigateur (sinon
+  // le clic "Voir en grand" déclenche un download au lieu d'ouvrir l'image).
   const previewSlug = user.slug || user.uid;
-  const previewStoryUrl = `/api/og/profile/${previewSlug}/story?_=${previewCacheBust}`;
+  const previewStoryUrl = `/api/og/profile/${previewSlug}/story?preview=1&_=${previewCacheBust}`;
   const previewBannerUrl = `/api/og/profile/${previewSlug}?_=${previewCacheBust}`;
 
   return (

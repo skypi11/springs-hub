@@ -189,9 +189,15 @@ function buildAvatarUrl(data: FirebaseFirestore.DocumentData): string | null {
 // auto-detect si pas de préférences. Cf. mémoire project_og_customization.
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
+  // Query param `?preview=1` (ou `?preview=true`) → sert l'image inline (sans
+  // Content-Disposition: attachment) pour permettre l'affichage dans un onglet
+  // navigateur. Utilisé par la live preview Settings + lien "Voir en grand →".
+  // Sans ce param : comportement default = download (cas usage primaire).
+  const isPreview = req.nextUrl.searchParams.get('preview') === '1'
+    || req.nextUrl.searchParams.get('preview') === 'true';
   try {
     const { slug } = await params;
     const db = getAdminDb();
@@ -666,30 +672,16 @@ export async function GET(
                     style={{ objectFit: 'contain', display: 'flex' }}
                   />
                 )}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                  {userStruct.structure.tag && (
-                    <div
-                      style={{
-                        fontSize: 18,
-                        letterSpacing: '6px',
-                        color: 'rgba(255,184,0,0.85)',
-                        display: 'flex',
-                      }}
-                    >
-                      [{userStruct.structure.tag.toUpperCase()}]
-                    </div>
-                  )}
-                  <div
-                    style={{
-                      fontSize: 42,
-                      letterSpacing: '3px',
-                      color: AEDRAL_PALETTE.text,
-                      lineHeight: 1.05,
-                      display: 'flex',
-                    }}
-                  >
-                    {userStruct.structure.name.toUpperCase()}
-                  </div>
+                <div
+                  style={{
+                    fontSize: 42,
+                    letterSpacing: '3px',
+                    color: AEDRAL_PALETTE.text,
+                    lineHeight: 1.05,
+                    display: 'flex',
+                  }}
+                >
+                  {userStruct.structure.name.toUpperCase()}
                 </div>
               </div>
               {showTeam && userStruct.team && (
@@ -778,9 +770,11 @@ export async function GET(
           // Le coût de re-générer une image story (~500ms-1s) est acceptable
           // pour un download ponctuel — pas besoin d'optimiser via CDN.
           'Cache-Control': 'private, no-store, no-cache, must-revalidate',
-          // Force le download navigateur au lieu de l'affichage inline.
-          // Le fichier arrive avec un nom propre dans le dossier Téléchargements.
-          'Content-Disposition': `attachment; filename="aedral-profil-${slug}.png"`,
+          // Mode preview (`?preview=1`) → inline display (Settings live preview,
+          // "Voir en grand" lien). Mode default → download avec nom propre.
+          ...(isPreview ? {} : {
+            'Content-Disposition': `attachment; filename="aedral-profil-${slug}.png"`,
+          }),
         },
       },
     );
