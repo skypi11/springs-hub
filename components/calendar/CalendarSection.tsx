@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import Image from 'next/image';
 import { api } from '@/lib/api-client';
 import {
@@ -51,6 +51,7 @@ import EventDetailModal from './EventDetailModal';
 import TeamFilterDropdown from './TeamFilterDropdown';
 import EventCard from './EventCard';
 import { useEventFilters } from './useEventFilters';
+import { useCalendarEvents } from './useCalendarEvents';
 import { ALL_GAME_DEFS, getGameColor, getGameColorRgb, getGameLabel, getGameShortLabel } from '@/lib/games-registry';
 import StaffAvailabilityView from './StaffAvailabilityView';
 import { NewTodoForm, type TeamRef } from './TeamTodosPanel';
@@ -217,15 +218,9 @@ export default function CalendarSection({
   const toast = useToast();
   const confirm = useConfirm();
 
-  const qc = useQueryClient();
-  const eventsQueryKey = ['structure', structureId, 'events'] as const;
-  const { data: eventsData, isPending: loading } = useQuery({
-    queryKey: eventsQueryKey,
-    queryFn: () => api<{ events: CalendarEvent[] }>(`/api/structures/${structureId}/events`),
-    enabled: !!firebaseUser,
-  });
-  const events = eventsData?.events ?? [];
-  const invalidateEvents = () => qc.invalidateQueries({ queryKey: eventsQueryKey });
+  // Events fetch + now tick extraits dans useCalendarEvents (Phase 3.2).
+  // Le hook gère useQuery, invalidate helper, et le tick now 60s.
+  const { events, loading, now, invalidateEvents } = useCalendarEvents(structureId, !!firebaseUser);
 
   // Filtres UI extraits dans useEventFilters (Phase 3.1) : filter (période),
   // teamFilter (équipes/audiences), viewMode (mois/semaine/liste/staff +
@@ -237,11 +232,6 @@ export default function CalendarSection({
   // avec une date quand on a cliqué sur une case du calendrier).
   const [formPrefill, setFormPrefill] = useState<{ startsAt?: string; endsAt?: string } | null>(null);
   const [openEventId, setOpenEventId] = useState<string | null>(null);
-  const [now, setNow] = useState<number>(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(t);
-  }, []);
 
   const loadEvents = invalidateEvents;
 
