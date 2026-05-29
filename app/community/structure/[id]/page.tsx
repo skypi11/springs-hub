@@ -16,6 +16,7 @@ import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import ShareButton from '@/components/ui/ShareButton';
 import ShareStoryButton from '@/components/ui/ShareStoryButton';
+import ShareBannerButton from '@/components/ui/ShareBannerButton';
 import { SkeletonPageHeader, SkeletonCard } from '@/components/ui/Skeleton';
 import { computeMemberRole, groupAffiliations, PRIMARY_ROLE_LABELS, type MemberRoleTeam, type PrimaryRole } from '@/lib/member-role';
 import DiscordIcon from '@/components/icons/DiscordIcon';
@@ -579,6 +580,17 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
       variant="ghost"
     />
   );
+  // Bouton "Bannière" : télécharge un PNG horizontal 1200×630, pour Twitter/X,
+  // Facebook, Discord serveur, signature email — bannière "carte de visite"
+  // de la structure pour les communications hors Aedral.
+  const shareBannerButton = (
+    <ShareBannerButton
+      bannerUrl={`/api/og/structure/${shareIdent}/banner`}
+      filename={`aedral-structure-banniere-${shareIdent}.png`}
+      size="md"
+      variant="ghost"
+    />
+  );
 
   // CTA principal, partagé entre l'overlay desktop et le bloc identité mobile.
   const ctaContent = isOwner ? (
@@ -705,6 +717,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                   {ctaContent}
                   {shareButton}
                   {shareStoryButton}
+                  {shareBannerButton}
                 </div>
               </div>
             </div>
@@ -737,6 +750,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
               {ctaContent}
               {shareButton}
               {shareStoryButton}
+              {shareBannerButton}
             </div>
           </div>
 

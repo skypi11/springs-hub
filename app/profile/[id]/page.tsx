@@ -17,6 +17,7 @@ import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import ShareButton from '@/components/ui/ShareButton';
 import ShareStoryButton from '@/components/ui/ShareStoryButton';
+import ShareBannerButton from '@/components/ui/ShareBannerButton';
 import { SkeletonPageHeader, SkeletonCard } from '@/components/ui/Skeleton';
 import InviteToStructureButton from '@/components/community/InviteToStructureButton';
 import DiscordIcon from '@/components/icons/DiscordIcon';
@@ -443,6 +444,15 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
               <ShareStoryButton
                 storyUrl={`/api/og/profile/${profile.slug || profile.uid}/story`}
                 filename={`aedral-profil-${profile.slug || profile.uid}.png`}
+                size="md"
+                variant="ghost"
+              />
+              {/* Bouton "Bannière" : télécharge un PNG horizontal 1200×630, idéal
+                  pour Twitter/X, Facebook, thumbnail YouTube, signature email,
+                  etc. Customisable via Settings → Carte de partage. */}
+              <ShareBannerButton
+                bannerUrl={`/api/og/profile/${profile.slug || profile.uid}/banner`}
+                filename={`aedral-profil-banniere-${profile.slug || profile.uid}.png`}
                 size="md"
                 variant="ghost"
               />
