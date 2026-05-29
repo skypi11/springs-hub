@@ -1,9 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useMutation } from '@tanstack/react-query';
 import Image from 'next/image';
-import { api } from '@/lib/api-client';
 import {
   Calendar as CalendarIcon,
   Plus,
@@ -24,8 +22,6 @@ import {
   CalendarRange,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { useToast } from '@/components/ui/Toast';
-import { useConfirm } from '@/components/ui/ConfirmModal';
 import Portal from '@/components/ui/Portal';
 import DateTimePicker from '@/components/ui/DateTimePicker';
 import type {
@@ -52,6 +48,7 @@ import TeamFilterDropdown from './TeamFilterDropdown';
 import EventCard from './EventCard';
 import { useEventFilters } from './useEventFilters';
 import { useCalendarEvents } from './useCalendarEvents';
+import { useEventMutations } from './useEventMutations';
 import { ALL_GAME_DEFS, getGameColor, getGameColorRgb, getGameLabel, getGameShortLabel } from '@/lib/games-registry';
 import StaffAvailabilityView from './StaffAvailabilityView';
 import { NewTodoForm, type TeamRef } from './TeamTodosPanel';
@@ -215,8 +212,6 @@ export default function CalendarSection({
   structureRoles,
 }: Props) {
   const { firebaseUser } = useAuth();
-  const toast = useToast();
-  const confirm = useConfirm();
 
   // Events fetch + now tick extraits dans useCalendarEvents (Phase 3.2).
   // Le hook gère useQuery, invalidate helper, et le tick now 60s.
@@ -286,44 +281,14 @@ export default function CalendarSection({
       .sort((a, b) => (a.startsAt ?? '').localeCompare(b.startsAt ?? ''))[0] ?? null;
   }, [events, now]);
 
-  const respondMutation = useMutation({
-    mutationFn: ({ eventId, status }: { eventId: string; status: PresenceStatus }) =>
-      api(`/api/structures/${structureId}/events/${eventId}/presence`, {
-        method: 'POST', body: { status },
-      }),
-    onSuccess: () => { toast.success('Réponse enregistrée'); invalidateEvents(); },
-    onError: (err: Error) => toast.error(err.message || 'Erreur'),
+  // Mutations events (respond/status/delete) extraites dans useEventMutations
+  // (Phase 3.3). Toast success/error + confirm dialog pour DELETE gérés dedans.
+  // onDeleted ferme la modal de détail si l'event affiché vient d'être supprimé.
+  const { handleRespond, handleStatusAction, handleDelete } = useEventMutations({
+    structureId,
+    invalidateEvents,
+    onDeleted: () => setOpenEventId(null),
   });
-  const handleRespond = (eventId: string, status: PresenceStatus) =>
-    respondMutation.mutate({ eventId, status });
-
-  const statusMutation = useMutation({
-    mutationFn: ({ eventId, action }: { eventId: string; action: 'terminate' | 'reopen' | 'cancel' }) =>
-      api(`/api/structures/${structureId}/events/${eventId}/status`, {
-        method: 'POST', body: { action },
-      }),
-    onSuccess: () => { toast.success('OK'); invalidateEvents(); },
-    onError: (err: Error) => toast.error(err.message || 'Erreur'),
-  });
-  const handleStatusAction = (eventId: string, action: 'terminate' | 'reopen' | 'cancel') =>
-    statusMutation.mutate({ eventId, action });
-
-  const deleteMutation = useMutation({
-    mutationFn: (eventId: string) =>
-      api(`/api/structures/${structureId}/events/${eventId}`, { method: 'DELETE' }),
-    onSuccess: () => { toast.success('Événement supprimé'); setOpenEventId(null); invalidateEvents(); },
-    onError: (err: Error) => toast.error(err.message || 'Erreur'),
-  });
-  async function handleDelete(eventId: string, title: string) {
-    const ok = await confirm({
-      title: 'Supprimer cet événement ?',
-      message: `"${title}" sera supprimé avec toutes les présences. Cette action est irréversible.`,
-      confirmLabel: 'Supprimer',
-      variant: 'danger',
-    });
-    if (!ok) return;
-    deleteMutation.mutate(eventId);
-  }
 
   const canCreateAnything = isDirigeant(userContext)
     || userContext.staffedTeamIds.length > 0
