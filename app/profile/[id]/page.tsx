@@ -16,6 +16,7 @@ import {
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import ShareButton from '@/components/ui/ShareButton';
+import ShareStoryButton from '@/components/ui/ShareStoryButton';
 import { SkeletonPageHeader, SkeletonCard } from '@/components/ui/Skeleton';
 import InviteToStructureButton from '@/components/community/InviteToStructureButton';
 import DiscordIcon from '@/components/icons/DiscordIcon';
@@ -433,6 +434,15 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                 url={`https://aedral.com/profile/${profile.slug || profile.uid}`}
                 title={profile.displayName || 'Joueur'}
                 text={`Découvre ${profile.displayName || 'ce joueur'} sur Aedral`}
+                size="md"
+                variant="ghost"
+              />
+              {/* Bouton "Story" : télécharge un PNG vertical 1080×1920 prêt à
+                  uploader en story IG/TikTok/Snap. Watermark AEDRAL.COM intégré
+                  pour servir de canal d'acquisition. */}
+              <ShareStoryButton
+                storyUrl={`/api/og/profile/${profile.slug || profile.uid}/story`}
+                filename={`aedral-profil-${profile.slug || profile.uid}.png`}
                 size="md"
                 variant="ghost"
               />

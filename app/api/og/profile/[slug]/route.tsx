@@ -11,9 +11,12 @@ import {
   heroNameFontSize,
   hexTextureDataUri,
   initials,
+  loadLocalIconAsPngDataUri,
   loadLogoAsPngDataUri,
   loadRajdhani,
 } from '@/lib/og-helpers';
+import { getRankIconFile, getRankTierConfig } from '@/lib/rl-ranks';
+import { getValorantRankIconFile, getValorantTierConfig } from '@/lib/valorant-ranks';
 
 // GET /api/og/profile/[slug]
 // Génère la bannière Open Graph (1200×630) pour la page publique d'un profil
@@ -61,33 +64,75 @@ function GameChip({ gameId, ff }: { gameId: string; ff: string }) {
 // `discordAvatar` peut être stocké soit comme URL complète (cas habituel,
 // défini par le callback OAuth), soit comme hash brut (legacy / certains
 // chemins). On gère les deux pour rester défensif.
+//
+// Note avatars animés Discord : les hash commencent par `a_` (ex `a_abc123`)
+// et le CDN les sert en .gif. On les accepte mais on force `.png` à la fin —
+// Discord CDN sert le PNG d'un avatar animé sans souci (perte de l'anim mais
+// OK pour un OG image statique).
 function buildAvatarUrl(data: FirebaseFirestore.DocumentData): string | null {
   const raw = data.avatarUrl ?? data.discordAvatar;
   if (!raw || typeof raw !== 'string') return null;
   if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
   // Hash brut → essayer de reconstruire l'URL Discord CDN
   const discordId = typeof data.discordId === 'string' ? data.discordId : null;
-  if (discordId && /^[a-f0-9]+$/i.test(raw)) {
+  // Accepte hash statique (hex pur) ET hash animé (préfixe `a_`).
+  if (discordId && /^a?_?[a-f0-9]+$/i.test(raw)) {
     return `https://cdn.discordapp.com/avatars/${discordId}/${raw}.png?size=512`;
   }
   return null;
+}
+
+interface HeroRank {
+  label: string;
+  value: string;
+  color: string;
+  iconFile: string | null;
+  iconBasePath: 'rl-ranks' | 'valorant-ranks';
 }
 
 /**
  * Choisit un rang à afficher en hero. Priorité au rang vérifié RL (via Epic
  * ou Steam), sinon premier rang déclaré dispo. Retourne `null` si aucun rang
  * exploitable.
+ *
+ * Couleur : on utilise la couleur OFFICIELLE du tier (Grand Champion = rouge,
+ * Champion = violet, Diamant = bleu, etc.) via `getRankTierConfig`. Si le
+ * rang n'est pas reconnu (legacy, typo), fallback sur la couleur du jeu.
  */
-function pickHeroRank(data: FirebaseFirestore.DocumentData): { label: string; value: string; color: string } | null {
+function pickHeroRank(data: FirebaseFirestore.DocumentData): HeroRank | null {
   const rlVerified = typeof data.rlEpicId === 'string' || typeof data.rlSteamId === 'string';
   if (rlVerified && typeof data.rlRank === 'string' && data.rlRank.trim()) {
-    return { label: 'RANG RL', value: data.rlRank.trim(), color: getGameColor('rocket_league') };
+    const value = data.rlRank.trim();
+    const tierConfig = getRankTierConfig(value);
+    return {
+      label: 'RANG RL',
+      value,
+      color: tierConfig?.color ?? getGameColor('rocket_league'),
+      iconFile: getRankIconFile(value),
+      iconBasePath: 'rl-ranks',
+    };
   }
   if (typeof data.valorantRank === 'string' && data.valorantRank.trim()) {
-    return { label: 'RANG VAL', value: data.valorantRank.trim(), color: getGameColor('valorant') };
+    const value = data.valorantRank.trim();
+    const tierConfig = getValorantTierConfig(value);
+    return {
+      label: 'RANG VAL',
+      value,
+      color: tierConfig?.color ?? getGameColor('valorant'),
+      iconFile: getValorantRankIconFile(value),
+      iconBasePath: 'valorant-ranks',
+    };
   }
   if (typeof data.rlRank === 'string' && data.rlRank.trim()) {
-    return { label: 'RANG RL', value: data.rlRank.trim(), color: getGameColor('rocket_league') };
+    const value = data.rlRank.trim();
+    const tierConfig = getRankTierConfig(value);
+    return {
+      label: 'RANG RL',
+      value,
+      color: tierConfig?.color ?? getGameColor('rocket_league'),
+      iconFile: getRankIconFile(value),
+      iconBasePath: 'rl-ranks',
+    };
   }
   return null;
 }
@@ -128,7 +173,22 @@ export async function GET(
     const avatarUrl = buildAvatarUrl(userData);
     const heroRank = pickHeroRank(userData);
 
-    const avatarDataUri = await loadLogoAsPngDataUri(avatarUrl);
+    // Avatar Discord — si fetch/decode échoue, on tombe sur initiales
+    let avatarDataUri: string | null = null;
+    try {
+      avatarDataUri = await loadLogoAsPngDataUri(avatarUrl);
+      if (avatarUrl && !avatarDataUri) {
+        console.warn('[OG/profile] avatar decode failed for', avatarUrl);
+      }
+    } catch (e) {
+      console.warn('[OG/profile] avatar load threw', e);
+      avatarDataUri = null;
+    }
+
+    // Icône de rang (RL ou Val) — lue depuis /public, dégradation gracieuse
+    const rankIconDataUri = heroRank?.iconFile
+      ? await loadLocalIconAsPngDataUri(`${heroRank.iconBasePath}/${heroRank.iconFile}.png`)
+      : null;
 
     const font = loadRajdhani();
     const hasFont = !!font;
@@ -331,37 +391,64 @@ export async function GET(
               </div>
             )}
 
-            {/* Rang hero (en gros, or si RL vérifié, sinon couleur du jeu) */}
+            {/* Rang hero (en gros, couleur officielle du tier si reconnu) */}
             {heroRank && (
               <div
                 style={{
                   marginTop: 8,
                   display: 'flex',
-                  flexDirection: 'column',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 18,
                   fontFamily: ff,
                 }}
               >
-                <div
-                  style={{
-                    fontSize: 16,
-                    letterSpacing: '6px',
-                    color: 'rgba(255,255,255,0.55)',
-                    display: 'flex',
-                  }}
-                >
-                  {heroRank.label}
-                </div>
-                <div
-                  style={{
-                    marginTop: 4,
-                    fontSize: 44,
-                    letterSpacing: '3px',
-                    color: heroRank.color,
-                    lineHeight: 1,
-                    display: 'flex',
-                  }}
-                >
-                  {heroRank.value.toUpperCase()}
+                {/* Icône du rang (si dispo) — 80×80, glow subtil de la couleur du tier */}
+                {rankIconDataUri && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 80,
+                      height: 80,
+                      backgroundImage: `radial-gradient(circle, ${heroRank.color}33 0%, transparent 70%)`,
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={rankIconDataUri}
+                      width={80}
+                      height={80}
+                      alt=""
+                      style={{ objectFit: 'contain' }}
+                    />
+                  </div>
+                )}
+                {/* Label + nom du rang */}
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <div
+                    style={{
+                      fontSize: 16,
+                      letterSpacing: '6px',
+                      color: 'rgba(255,255,255,0.55)',
+                      display: 'flex',
+                    }}
+                  >
+                    {heroRank.label}
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 4,
+                      fontSize: 44,
+                      letterSpacing: '3px',
+                      color: heroRank.color,
+                      lineHeight: 1,
+                      display: 'flex',
+                    }}
+                  >
+                    {heroRank.value.toUpperCase()}
+                  </div>
                 </div>
               </div>
             )}

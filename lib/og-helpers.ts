@@ -124,6 +124,37 @@ export async function loadLogoAsPngDataUri(url: string | null | undefined): Prom
   }
 }
 
+// ─── Conversion fichier local → PNG dataURI ────────────────────────────────
+/**
+ * Variante de `loadLogoAsPngDataUri` qui lit une image depuis le disque local
+ * (relative à `process.cwd()`, typiquement dans `/public`) au lieu d'aller la
+ * chercher via HTTP. Utile pour les icônes de rang RL/Valorant, les logos
+ * Aedral statiques, etc. — pas de latence réseau, pas de risque DNS.
+ *
+ * Le chemin est résolu via `path.join(process.cwd(), 'public', relPath)`
+ * (donc passer `'rl-ranks/grand-champion-iii.png'`, pas `'/rl-ranks/...'`).
+ *
+ * Sécurité : on refuse les `..` pour éviter la traversée hors `public/`. Si
+ * le fichier est introuvable ou illisible → retourne `null` (l'appelant
+ * tombe sur son fallback sans 500).
+ */
+export async function loadLocalIconAsPngDataUri(relPath: string | null | undefined): Promise<string | null> {
+  if (!relPath) return null;
+  if (relPath.includes('..')) return null; // anti path-traversal défensif
+  try {
+    const clean = relPath.replace(/^[\\/]+/, ''); // strip leading slash si présent
+    const absPath = path.join(process.cwd(), 'public', clean);
+    const buf = fs.readFileSync(absPath);
+    const png = await sharp(buf, { failOn: 'error' })
+      .resize(256, 256, { fit: 'inside', withoutEnlargement: true })
+      .png()
+      .toBuffer();
+    return `data:image/png;base64,${png.toString('base64')}`;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Typo utilitaires ───────────────────────────────────────────────────────
 /**
  * Retourne une taille de police adaptative pour les noms (équipes, joueurs,
@@ -157,4 +188,34 @@ export function heroNameFontSize(len: number): number {
  */
 export function initials(name: string): string {
   return (name || '').trim().slice(0, 3).toUpperCase() || '?';
+}
+
+// ─── Contraste texte selon couleur de fond ──────────────────────────────────
+/**
+ * Choisit le texte (noir ou blanc) le plus lisible sur un fond donné via la
+ * formule de luminance perçue (W3C). Pratique quand on rend une chip avec une
+ * couleur de fond dynamique (ex: chip jeu remplie de la couleur officielle).
+ *
+ * @param hexBg couleur hex `#RRGGBB` ou `#RGB` (avec ou sans `#`)
+ * @returns `#000000` si le bg est clair (luminance > 128), `#ffffff` sinon
+ */
+export function bestTextColor(hexBg: string): string {
+  const m = (hexBg || '').replace('#', '').trim();
+  let r = 0, g = 0, b = 0;
+  if (m.length === 6) {
+    r = parseInt(m.slice(0, 2), 16);
+    g = parseInt(m.slice(2, 4), 16);
+    b = parseInt(m.slice(4, 6), 16);
+  } else if (m.length === 3) {
+    r = parseInt(m[0] + m[0], 16);
+    g = parseInt(m[1] + m[1], 16);
+    b = parseInt(m[2] + m[2], 16);
+  } else {
+    // Format inconnu (ex: `var(--s-...)`) → on suppose un bg foncé (majorité
+    // des couleurs jeu) et on renvoie texte blanc.
+    return '#ffffff';
+  }
+  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) return '#ffffff';
+  const luminance = (r * 299 + g * 587 + b * 114) / 1000;
+  return luminance > 128 ? '#000000' : '#ffffff';
 }

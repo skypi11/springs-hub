@@ -3,14 +3,16 @@ import { NextRequest } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { isLegacyStructureId } from '@/lib/structure-slug';
 import { captureApiError } from '@/lib/sentry';
-import { getGameColor, getGameShortLabel } from '@/lib/games-registry';
+import { getGameColor, getGameLogoUrl, getGameShortLabel } from '@/lib/games-registry';
 import {
   AEDRAL_PALETTE,
   OG_HEIGHT,
   OG_WIDTH,
+  bestTextColor,
   heroNameFontSize,
   hexTextureDataUri,
   initials,
+  loadLocalIconAsPngDataUri,
   loadLogoAsPngDataUri,
   loadRajdhani,
 } from '@/lib/og-helpers';
@@ -21,7 +23,8 @@ import {
 // `og:image` injectée dans `app/community/structure/[id]/layout.tsx`.
 //
 // Route publique : les structures sont déjà publiques côté UI ; la bannière
-// n'expose ni founderId ni infos sensibles, juste nom/tag/logo/jeux/membres.
+// n'expose ni founderId ni infos sensibles, juste nom/tag/logo/jeux/membres
+// + dirigeants visibles publiquement (déjà listés sur la page structure).
 // Cache long (1h) pour limiter les appels Firestore quand un message Discord
 // est ouvert par plusieurs personnes en rafale.
 export const runtime = 'nodejs';
@@ -29,33 +32,90 @@ export const runtime = 'nodejs';
 const WIDTH = OG_WIDTH;
 const HEIGHT = OG_HEIGHT;
 
-// Carte de jeu (chip colorée) pour la liste des jeux pratiqués par la structure.
-// Couleur consommée depuis la registry (lib/games-registry.ts) → cohérent avec
-// les pills `<GameTag>` du site.
-function GameChip({ gameId, ff }: { gameId: string; ff: string }) {
+// Chip jeu remplie + icône officielle + label court. Cohérent avec les pills
+// `<GameTag>` côté site, version OG (background plein pour ressortir sur la
+// bannière sombre, contrastée pour rester lisible quelle que soit la couleur
+// du jeu).
+function GameChip({
+  gameId,
+  ff,
+  iconDataUri,
+}: {
+  gameId: string;
+  ff: string;
+  iconDataUri: string | null;
+}) {
   const color = getGameColor(gameId);
   const short = getGameShortLabel(gameId);
+  const textColor = bestTextColor(color);
   return (
     <div
       style={{
         display: 'flex',
         alignItems: 'center',
-        padding: '10px 22px',
+        gap: 10,
+        padding: '8px 18px 8px 14px',
         fontSize: 22,
         letterSpacing: '4px',
-        color,
-        // Background teinté ~10% opacité + border ~35% : même recette visuelle
-        // que les `.tag-*` du design system côté site.
-        backgroundColor: `${color}1A`,
-        border: `1px solid ${color}55`,
+        color: textColor,
+        // Fond PLEIN à la couleur officielle du jeu (vs ancien fond `${color}1A`).
+        backgroundColor: color,
         fontFamily: ff,
         clipPath:
           'polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px)',
       }}
     >
-      {short}
+      {iconDataUri && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={iconDataUri}
+          width={26}
+          height={26}
+          alt=""
+          style={{ objectFit: 'contain', display: 'flex' }}
+        />
+      )}
+      <div style={{ display: 'flex' }}>{short}</div>
     </div>
   );
+}
+
+/**
+ * Récupère les displayName des dirigeants (founder + co-founders) pour les
+ * afficher sous la ligne membres/équipes. Limite à 3 noms visibles, le reste
+ * compté en `+N`. Tous les lookups sont parallélisés et résilients : un user
+ * supprimé est simplement omis (pas de `?` affiché à sa place).
+ */
+async function loadDirectionNames(
+  db: FirebaseFirestore.Firestore,
+  founderId: string | null,
+  coFounderIds: string[],
+): Promise<{ visible: string[]; extra: number }> {
+  // Ordre = founder en premier, puis cofounders dans leur ordre stocké (dédup).
+  const orderedIds: string[] = [];
+  if (founderId) orderedIds.push(founderId);
+  for (const id of coFounderIds) {
+    if (id && !orderedIds.includes(id)) orderedIds.push(id);
+  }
+  if (orderedIds.length === 0) return { visible: [], extra: 0 };
+
+  // Lookups parallèles. Toute erreur sur 1 user → on l'omet silencieusement.
+  const snaps = await Promise.all(
+    orderedIds.map(uid =>
+      db.collection('users').doc(uid).get().catch(() => null),
+    ),
+  );
+
+  const names: string[] = [];
+  for (let i = 0; i < snaps.length; i++) {
+    const snap = snaps[i];
+    if (!snap || !snap.exists) continue;
+    const data = snap.data();
+    const raw = typeof data?.displayName === 'string' ? data.displayName.trim() : '';
+    if (raw) names.push(raw);
+  }
+  const VISIBLE = 3;
+  return { visible: names.slice(0, VISIBLE), extra: Math.max(0, names.length - VISIBLE) };
 }
 
 export async function GET(
@@ -69,8 +129,8 @@ export async function GET(
     // Accepte slug ("timetoshine") OU docId Firestore legacy ("fjUNrMQfPwiEisZcVixX").
     // Discrimination via `isLegacyStructureId` (majuscule OU longueur 20 alphanum
     // → docId direct ; sinon → lookup `where('slug', '==', id)`).
-    // Le `docId` résolu sert à compter les `structure_members` qui sont indexés
-    // par docId, jamais par slug.
+    // Le `docId` résolu sert à compter les `structure_members` et `sub_teams`
+    // qui sont indexés par docId, jamais par slug.
     let docId = '';
     let data: FirebaseFirestore.DocumentData | null = null;
     if (isLegacyStructureId(id)) {
@@ -102,19 +162,24 @@ export async function GET(
     const games: string[] = Array.isArray(data.games)
       ? data.games.filter((g): g is string => typeof g === 'string')
       : [];
+    const founderId = typeof data.founderId === 'string' ? data.founderId : null;
+    const coFounderIds: string[] = Array.isArray(data.coFounderIds)
+      ? data.coFounderIds.filter((u): u is string => typeof u === 'string')
+      : [];
 
-    // Compteur de membres : préfère le counter dénormalisé (mis à jour par le
-    // cron `backfill-counters`), sinon compte les `structure_members` à la volée.
-    // Le compte à la volée n'est exécuté que comme fallback rare.
-    let members: number = 0;
-    const counters = data.counters && typeof data.counters === 'object' ? data.counters as Record<string, unknown> : null;
+    // Compteurs membres + équipes : préfère le counter dénormalisé (mis à jour
+    // par chaque write critique via `bumpStructureCounter`), sinon compte les
+    // collections à la volée en fallback. Les COUNT queries sont rares et
+    // ne coûtent qu'un read par doc compté (cf. quotas Firestore).
+    const counters = data.counters && typeof data.counters === 'object'
+      ? data.counters as Record<string, unknown>
+      : null;
+
+    let members = 0;
     if (counters && typeof counters.members === 'number') {
       members = counters.members;
     } else {
       try {
-        // IMPORTANT : on compte sur `docId` résolu, jamais sur le param
-        // d'entrée (qui peut être un slug et ne matcherait aucun
-        // `structure_members.structureId`).
         const aggSnap = await db.collection('structure_members')
           .where('structureId', '==', docId)
           .count()
@@ -125,7 +190,38 @@ export async function GET(
       }
     }
 
-    const logoDataUri = await loadLogoAsPngDataUri(logoUrl);
+    let teams = 0;
+    if (counters && typeof counters.teams === 'number') {
+      teams = counters.teams;
+    } else {
+      try {
+        // Compte uniquement les équipes ACTIVES (les archivées ne sont pas
+        // visibles côté UI public, donc ne doivent pas grossir le compteur).
+        const aggSnap = await db.collection('sub_teams')
+          .where('structureId', '==', docId)
+          .where('status', '==', 'active')
+          .count()
+          .get();
+        teams = aggSnap.data().count ?? 0;
+      } catch {
+        teams = 0;
+      }
+    }
+
+    // Tous les chargements lourds en parallèle : logo + icônes jeu + lookup
+    // dirigeants. Le `Promise.all` raccourcit le TTFB de la route de ~3x
+    // quand toutes les requêtes sont indépendantes.
+    const VISIBLE_GAMES = 3;
+    const visibleGames = games.slice(0, VISIBLE_GAMES);
+    const extraGames = Math.max(0, games.length - VISIBLE_GAMES);
+
+    const [logoDataUri, gameIconDataUris, direction] = await Promise.all([
+      loadLogoAsPngDataUri(logoUrl),
+      Promise.all(
+        visibleGames.map(g => loadLocalIconAsPngDataUri(getGameLogoUrl(g))),
+      ),
+      loadDirectionNames(db, founderId, coFounderIds),
+    ]);
 
     const font = loadRajdhani();
     const hasFont = !!font;
@@ -134,12 +230,6 @@ export async function GET(
 
     const displayName = name.toUpperCase();
     const nameSize = heroNameFontSize(displayName.length);
-
-    // On limite à 3 jeux dans la bannière pour éviter un retour à la ligne
-    // disgracieux. Au-delà, on ajoute un "+N" discret.
-    const VISIBLE_GAMES = 3;
-    const visibleGames = games.slice(0, VISIBLE_GAMES);
-    const extraGames = Math.max(0, games.length - VISIBLE_GAMES);
 
     return new ImageResponse(
       (
@@ -205,10 +295,10 @@ export async function GET(
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: 360,
-              height: 360,
-              marginLeft: 100,
-              marginRight: 60,
+              width: 340,
+              height: 340,
+              marginLeft: 90,
+              marginRight: 50,
               backgroundColor: '#0c0c18',
               backgroundImage:
                 'radial-gradient(ellipse at center, rgba(255,184,0,0.08) 0%, transparent 70%)',
@@ -221,15 +311,15 @@ export async function GET(
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={logoDataUri}
-                width={280}
-                height={280}
+                width={260}
+                height={260}
                 style={{ objectFit: 'contain' }}
                 alt=""
               />
             ) : (
               <div
                 style={{
-                  fontSize: 140,
+                  fontSize: 130,
                   color: 'rgba(255,255,255,0.85)',
                   letterSpacing: '6px',
                   display: 'flex',
@@ -241,7 +331,7 @@ export async function GET(
             )}
           </div>
 
-          {/* Colonne droite : meta + nom + chips jeux + compteur membres */}
+          {/* Colonne droite : meta + nom + chips jeux + counts + dirigeants */}
           <div
             style={{
               display: 'flex',
@@ -249,13 +339,13 @@ export async function GET(
               justifyContent: 'center',
               flex: 1,
               paddingRight: 80,
-              gap: 20,
+              gap: 16,
             }}
           >
             {/* Label STRUCTURE */}
             <div
               style={{
-                fontSize: 22,
+                fontSize: 20,
                 letterSpacing: '10px',
                 color: AEDRAL_PALETTE.gold,
                 fontFamily: ff,
@@ -266,12 +356,7 @@ export async function GET(
             </div>
 
             {/* Nom + tag */}
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-            >
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
               <div
                 style={{
                   fontSize: nameSize,
@@ -287,8 +372,8 @@ export async function GET(
               {tag && (
                 <div
                   style={{
-                    marginTop: 12,
-                    fontSize: 26,
+                    marginTop: 10,
+                    fontSize: 24,
                     letterSpacing: '6px',
                     color: 'rgba(255,184,0,0.85)',
                     fontFamily: ff,
@@ -300,11 +385,16 @@ export async function GET(
               )}
             </div>
 
-            {/* Chips jeux */}
+            {/* Chips jeux (fond plein + icône officielle) */}
             {visibleGames.length > 0 && (
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                {visibleGames.map(g => (
-                  <GameChip key={g} gameId={g} ff={ff} />
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                {visibleGames.map((g, idx) => (
+                  <GameChip
+                    key={g}
+                    gameId={g}
+                    ff={ff}
+                    iconDataUri={gameIconDataUris[idx] ?? null}
+                  />
                 ))}
                 {extraGames > 0 && (
                   <div
@@ -322,37 +412,139 @@ export async function GET(
               </div>
             )}
 
-            {/* Compteur de membres */}
-            {members > 0 && (
+            {/* Compteurs membres + équipes sur la même ligne. Séparateur
+                middot or pour rester aligné avec la palette Aedral. */}
+            {(members > 0 || teams > 0) && (
               <div
                 style={{
-                  marginTop: 8,
                   display: 'flex',
                   alignItems: 'baseline',
-                  gap: 14,
+                  gap: 16,
+                  fontFamily: ff,
+                  marginTop: 4,
+                }}
+              >
+                {members > 0 && (
+                  <>
+                    <div
+                      style={{
+                        fontSize: 48,
+                        color: AEDRAL_PALETTE.gold,
+                        letterSpacing: '2px',
+                        lineHeight: 1,
+                        display: 'flex',
+                      }}
+                    >
+                      {members}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 20,
+                        color: 'rgba(255,255,255,0.6)',
+                        letterSpacing: '5px',
+                        display: 'flex',
+                      }}
+                    >
+                      MEMBRE{members > 1 ? 'S' : ''}
+                    </div>
+                  </>
+                )}
+                {members > 0 && teams > 0 && (
+                  <div
+                    style={{
+                      fontSize: 32,
+                      color: 'rgba(255,184,0,0.55)',
+                      lineHeight: 1,
+                      display: 'flex',
+                      marginLeft: 4,
+                      marginRight: 4,
+                    }}
+                  >
+                    ·
+                  </div>
+                )}
+                {teams > 0 && (
+                  <>
+                    <div
+                      style={{
+                        fontSize: 48,
+                        color: AEDRAL_PALETTE.gold,
+                        letterSpacing: '2px',
+                        lineHeight: 1,
+                        display: 'flex',
+                      }}
+                    >
+                      {teams}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 20,
+                        color: 'rgba(255,255,255,0.6)',
+                        letterSpacing: '5px',
+                        display: 'flex',
+                      }}
+                    >
+                      ÉQUIPE{teams > 1 ? 'S' : ''}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Bloc DIRECTION : liste fondateur + co-fondateurs. Skippé entièrement
+                si aucun nom récupérable (founder supprimé + pas de co-founders). */}
+            {direction.visible.length > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  marginTop: 4,
                   fontFamily: ff,
                 }}
               >
                 <div
                   style={{
-                    fontSize: 56,
-                    color: AEDRAL_PALETTE.gold,
-                    letterSpacing: '2px',
-                    lineHeight: 1,
+                    fontSize: 14,
+                    letterSpacing: '6px',
+                    color: 'rgba(255,255,255,0.5)',
                     display: 'flex',
                   }}
                 >
-                  {members}
+                  DIRECTION
                 </div>
                 <div
                   style={{
-                    fontSize: 22,
-                    color: 'rgba(255,255,255,0.6)',
-                    letterSpacing: '6px',
+                    marginTop: 4,
+                    fontSize: 24,
+                    letterSpacing: '2px',
+                    color: AEDRAL_PALETTE.text,
+                    lineHeight: 1.2,
                     display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 10,
+                    alignItems: 'baseline',
                   }}
                 >
-                  MEMBRE{members > 1 ? 'S' : ''}
+                  {direction.visible.map((n, idx) => (
+                    <div key={`dir-${idx}`} style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                      <div style={{ display: 'flex' }}>{n}</div>
+                      {idx < direction.visible.length - 1 && (
+                        <div style={{ color: 'rgba(255,184,0,0.55)', display: 'flex' }}>·</div>
+                      )}
+                    </div>
+                  ))}
+                  {direction.extra > 0 && (
+                    <div
+                      style={{
+                        fontSize: 20,
+                        color: 'rgba(255,255,255,0.5)',
+                        display: 'flex',
+                        letterSpacing: '2px',
+                      }}
+                    >
+                      +{direction.extra}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

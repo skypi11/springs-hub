@@ -15,6 +15,7 @@ import {
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import ShareButton from '@/components/ui/ShareButton';
+import ShareStoryButton from '@/components/ui/ShareStoryButton';
 import { SkeletonPageHeader, SkeletonCard } from '@/components/ui/Skeleton';
 import { computeMemberRole, groupAffiliations, PRIMARY_ROLE_LABELS, type MemberRoleTeam, type PrimaryRole } from '@/lib/member-role';
 import DiscordIcon from '@/components/icons/DiscordIcon';
@@ -556,11 +557,24 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
     ? `/community/structure/${structure.slug}`
     : `/community/structure/${structure.id}`}`;
   const shareTitle = structure.tag ? `${structure.name} [${structure.tag}]` : structure.name;
+  // Identifiant utilisé pour l'endpoint OG story (préfère le slug pour des
+  // URLs propres + cache CDN partagé, fallback sur l'id Firestore legacy).
+  const shareIdent = structure.slug || structure.id;
   const shareButton = (
     <ShareButton
       url={shareUrl}
       title={shareTitle}
       text={`Découvre ${structure.name} sur Aedral`}
+      size="md"
+      variant="ghost"
+    />
+  );
+  // Bouton "Story" : télécharge un PNG vertical 1080×1920 prêt à uploader en
+  // story IG/TikTok/Snap. Le watermark AEDRAL.COM dans l'image sert d'acquisition.
+  const shareStoryButton = (
+    <ShareStoryButton
+      storyUrl={`/api/og/structure/${shareIdent}/story`}
+      filename={`aedral-structure-${shareIdent}.png`}
       size="md"
       variant="ghost"
     />
@@ -690,6 +704,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                 <div className="flex-shrink-0 flex flex-row items-center justify-end gap-2 flex-wrap">
                   {ctaContent}
                   {shareButton}
+                  {shareStoryButton}
                 </div>
               </div>
             </div>
@@ -721,6 +736,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
             <div className="flex flex-row items-center gap-2 flex-wrap">
               {ctaContent}
               {shareButton}
+              {shareStoryButton}
             </div>
           </div>
 
