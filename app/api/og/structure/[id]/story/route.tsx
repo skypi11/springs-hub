@@ -61,35 +61,30 @@ function GameChip({
   const transparent = isGameLogoTransparent(gameId);
 
   if (transparent) {
+    if (!iconDataUri) {
+      return (
+        <div
+          style={{
+            display: 'flex',
+            fontSize: 36,
+            letterSpacing: '6px',
+            color: 'rgba(255,255,255,0.85)',
+            fontFamily: ff,
+          }}
+        >
+          {short}
+        </div>
+      );
+    }
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 18,
-          padding: '14px 30px 14px 22px',
-          fontSize: 40,
-          letterSpacing: '6px',
-          color: 'rgba(255,255,255,0.92)',
-          fontFamily: ff,
-          backgroundColor: 'rgba(255,255,255,0.04)',
-          border: `1px solid ${color}55`,
-          clipPath:
-            'polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px)',
-        }}
-      >
-        {iconDataUri && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={iconDataUri}
-            width={88}
-            height={88}
-            alt=""
-            style={{ objectFit: 'contain', display: 'flex' }}
-          />
-        )}
-        <div style={{ display: 'flex' }}>{short}</div>
-      </div>
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={iconDataUri}
+        width={110}
+        height={110}
+        alt={short}
+        style={{ objectFit: 'contain', display: 'flex' }}
+      />
     );
   }
 

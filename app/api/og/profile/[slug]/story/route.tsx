@@ -66,35 +66,34 @@ function GameChip({
   const transparent = isGameLogoTransparent(gameId);
 
   if (transparent) {
+    // Variant "logo nu" : juste l'image, pas de chip, pas de bordure, pas de
+    // label texte. Le logo officiel est self-descriptif (gamers reconnaissent
+    // RL/Valorant au premier coup d'œil). Retour Matt 29/05 : "juste le logo".
+    // Fallback texte si l'image n'a pas pu être chargée.
+    if (!iconDataUri) {
+      return (
+        <div
+          style={{
+            display: 'flex',
+            fontSize: 36,
+            letterSpacing: '6px',
+            color: 'rgba(255,255,255,0.85)',
+            fontFamily: ff,
+          }}
+        >
+          {short}
+        </div>
+      );
+    }
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 18,
-          padding: '14px 28px 14px 20px',
-          fontSize: 40,
-          letterSpacing: '6px',
-          color: 'rgba(255,255,255,0.92)',
-          fontFamily: ff,
-          backgroundColor: 'rgba(255,255,255,0.04)',
-          border: `1px solid ${color}55`,
-          clipPath:
-            'polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px)',
-        }}
-      >
-        {iconDataUri && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={iconDataUri}
-            width={88}
-            height={88}
-            alt=""
-            style={{ objectFit: 'contain', display: 'flex' }}
-          />
-        )}
-        <div style={{ display: 'flex' }}>{short}</div>
-      </div>
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={iconDataUri}
+        width={110}
+        height={110}
+        alt={short}
+        style={{ objectFit: 'contain', display: 'flex' }}
+      />
     );
   }
 
