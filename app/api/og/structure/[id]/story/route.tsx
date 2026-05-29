@@ -408,12 +408,13 @@ export async function GET(
             </div>
           )}
 
-          {/* Chips jeux centrées */}
+          {/* Chips jeux centrées — gap large (40px) pour aérer la rangée de
+              logos (retour Matt 29/05). */}
           {visibleGames.length > 0 && (
             <div
               style={{
                 display: 'flex',
-                gap: 14,
+                gap: 40,
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexWrap: 'wrap',

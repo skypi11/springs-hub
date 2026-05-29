@@ -132,9 +132,9 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
     availableTodoTypes: [
       'free', 'vod_review', 'mental_checkin',
     ],
-    // Logo TM actuel = PNG opaque (color type 2 truecolor, fond cyan plein).
-    // Matt veut le garder tel quel (29/05) → on continue à le rendre dans un
-    // chip rempli pour cacher le fond opaque.
+    // PNG TM laissé tel quel (PNG opaque, fond dégradé cyan→vert), Matt veut
+    // le garder ainsi (29/05 : "ne touche pas au logo TM"). On le rend donc
+    // dans un chip rempli vert pour cacher le fond opaque.
     logoIsTransparent: false,
   },
   valorant: {

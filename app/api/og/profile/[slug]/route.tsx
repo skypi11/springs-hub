@@ -448,9 +448,9 @@ export async function GET(
               )}
             </div>
 
-            {/* Chips jeux (fond plein + icône officielle, alignées avec OG structure) */}
+            {/* Chips jeux — gap large (28px) pour aérer la rangée (retour Matt 29/05). */}
             {visibleGames.length > 0 && (
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap' }}>
                 {visibleGames.map((g, idx) => (
                   <GameChip
                     key={g}
