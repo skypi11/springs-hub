@@ -315,6 +315,45 @@ export function pickHeroRanks(
   return auto ? [auto] : [];
 }
 
+/**
+ * Sélectionne quels logos de jeux afficher dans les chips de l'OG profile.
+ *
+ * Cohérent avec pickHeroRanks : si l'user a choisi des ranks à afficher
+ * (ogDisplay.ranks non vide), on n'affiche QUE les logos correspondants
+ * (un user qui customise sa carte ne veut voir que les jeux qu'il met en
+ * avant — retour Matt 30/05 : "il faut enlever les logos qu'on sélectionne pas").
+ *
+ * Sinon (preferences vides ou user sans droit de customisation) → fallback
+ * historique : tous les jeux pratiqués, cap à `capWhenAuto` (3 par défaut).
+ */
+export function pickVisibleGames(
+  data: Record<string, unknown>,
+  options: { canCustomize?: boolean; capWhenAuto?: number } = {},
+): { games: string[]; extra: number } {
+  const { canCustomize = true, capWhenAuto = 3 } = options;
+  const ogDisplay = (canCustomize && data.ogDisplay && typeof data.ogDisplay === 'object'
+    ? data.ogDisplay
+    : null) as OgDisplayPreferences | null;
+  const requestedRanks = Array.isArray(ogDisplay?.ranks)
+    ? (ogDisplay.ranks.filter((g): g is string => typeof g === 'string'))
+    : [];
+
+  if (requestedRanks.length > 0) {
+    // L'user a explicitement choisi → afficher uniquement ces logos.
+    // Pas de "+N" car la sélection est délibérée (pas une troncature).
+    return { games: requestedRanks, extra: 0 };
+  }
+
+  // Fallback auto : tous les jeux pratiqués (cap visuel).
+  const userGames = Array.isArray(data.games)
+    ? (data.games.filter((g): g is string => typeof g === 'string'))
+    : [];
+  return {
+    games: userGames.slice(0, capWhenAuto),
+    extra: Math.max(0, userGames.length - capWhenAuto),
+  };
+}
+
 // ─── Contraste texte selon couleur de fond ──────────────────────────────────
 /**
  * Choisit le texte (noir ou blanc) le plus lisible sur un fond donné via la

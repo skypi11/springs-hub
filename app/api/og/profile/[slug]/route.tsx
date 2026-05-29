@@ -16,6 +16,7 @@ import {
   loadLogoAsPngDataUri,
   loadRajdhani,
   pickHeroRanks,
+  pickVisibleGames,
   type HeroRank,
 } from '@/lib/og-helpers';
 import { canUserCustomizeOgDisplay } from '@/lib/plan-limits';
@@ -180,17 +181,17 @@ export async function GET(
 
     const displayName = (typeof userData.displayName === 'string' ? userData.displayName : '').trim() || 'Joueur';
     const country = typeof userData.country === 'string' ? userData.country.trim() : '';
-    const games: string[] = Array.isArray(userData.games)
-      ? userData.games.filter((g): g is string => typeof g === 'string')
-      : [];
     const avatarUrl = buildAvatarUrl(userData);
     // Préférences user (cap 2 rangs). Gate-friendly via canUserCustomizeOgDisplay.
     const canCustomize = canUserCustomizeOgDisplay(userData as { uid?: string });
     const heroRanks: HeroRank[] = pickHeroRanks(userData, { canCustomize });
 
-    const VISIBLE_GAMES = 3;
-    const visibleGames = games.slice(0, VISIBLE_GAMES);
-    const extraGames = Math.max(0, games.length - VISIBLE_GAMES);
+    // Chips jeux : si ranks customs sélectionnés, n'afficher QUE ces logos
+    // (retour Matt 30/05). Sinon : tous les jeux pratiqués (cap 3).
+    const { games: visibleGames, extra: extraGames } = pickVisibleGames(userData, {
+      canCustomize,
+      capWhenAuto: 3,
+    });
 
     // Tous les chargements lourds en parallèle (avatar Discord + icônes jeux
     // officielles + icônes rangs N). Raccourcit le TTFB de la route de ~3x quand
@@ -460,18 +461,23 @@ export async function GET(
                         gap: isSingle ? 20 : 14,
                       }}
                     >
-                      {rankIconDataUris[idx] && (
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: iconSize,
-                            height: iconSize,
-                            backgroundImage: `radial-gradient(circle, ${rank.color}33 0%, transparent 70%)`,
-                          }}
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                      {/* Toujours réserver la box icône (placeholder vide si
+                          UNRANKED ou tier sans png) pour aligner l'icône+label
+                          entre les 2 rangs côte à côte. */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: iconSize,
+                          height: iconSize,
+                          backgroundImage: rankIconDataUris[idx]
+                            ? `radial-gradient(circle, ${rank.color}33 0%, transparent 70%)`
+                            : undefined,
+                        }}
+                      >
+                        {rankIconDataUris[idx] && (
+                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={rankIconDataUris[idx]!}
                             width={iconSize}
@@ -479,8 +485,8 @@ export async function GET(
                             alt=""
                             style={{ objectFit: 'contain' }}
                           />
-                        </div>
-                      )}
+                        )}
+                      </div>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <div
                           style={{

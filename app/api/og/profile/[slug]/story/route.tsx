@@ -13,6 +13,7 @@ import {
   loadLogoAsPngDataUri,
   loadRajdhani,
   pickHeroRanks,
+  pickVisibleGames,
   type HeroRank,
 } from '@/lib/og-helpers';
 import { canUserCustomizeOgDisplay } from '@/lib/plan-limits';
@@ -211,19 +212,21 @@ export async function GET(
 
     const displayName = (typeof userData.displayName === 'string' ? userData.displayName : '').trim() || 'Joueur';
     const country = typeof userData.country === 'string' ? userData.country.trim() : '';
-    const games: string[] = Array.isArray(userData.games)
-      ? userData.games.filter((g): g is string => typeof g === 'string')
-      : [];
     const avatarUrl = buildAvatarUrl(userData);
     // Préférences user (cap 2 rangs). Gate-friendly : si l'user n'a pas droit
     // de customiser (gate premium futur), retombe sur l'auto-detect historique.
     const canCustomize = canUserCustomizeOgDisplay(userData as { uid?: string });
     const heroRanks: HeroRank[] = pickHeroRanks(userData, { canCustomize });
 
+    // Chips jeux : si l'user a choisi des rangs à afficher, on ne montre QUE
+    // les logos correspondants (retour Matt 30/05). Sinon, tous les jeux
+    // pratiqués (cap 3).
+    const { games: visibleGames, extra: extraGames } = pickVisibleGames(userData, {
+      canCustomize,
+      capWhenAuto: 3,
+    });
+
     // Tous les chargements en parallèle (avatar + icônes jeux + icônes rangs N).
-    const VISIBLE_GAMES = 3;
-    const visibleGames = games.slice(0, VISIBLE_GAMES);
-    const extraGames = Math.max(0, games.length - VISIBLE_GAMES);
 
     const [avatarDataUri, gameIconDataUris, rankIconDataUris] = await Promise.all([
       (async () => {
@@ -564,19 +567,25 @@ export async function GET(
                   >
                     {rank.label}
                   </div>
-                  {rankIconDataUris[idx] && (
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: 150,
-                        height: 150,
-                        backgroundImage: `radial-gradient(circle, ${rank.color}40 0%, transparent 70%)`,
-                        marginBottom: 16,
-                      }}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {/* Toujours réserver l'espace icône (placeholder vide si rang
+                      sans icon, ex. UNRANKED) pour aligner les noms des 2 rangs
+                      à la même hauteur. Retour Matt 30/05 : "le rank est pas
+                      à la meme hauteur". */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 150,
+                      height: 150,
+                      backgroundImage: rankIconDataUris[idx]
+                        ? `radial-gradient(circle, ${rank.color}40 0%, transparent 70%)`
+                        : undefined,
+                      marginBottom: 16,
+                    }}
+                  >
+                    {rankIconDataUris[idx] && (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={rankIconDataUris[idx]!}
                         width={130}
@@ -584,8 +593,8 @@ export async function GET(
                         alt=""
                         style={{ objectFit: 'contain' }}
                       />
-                    </div>
-                  )}
+                    )}
+                  </div>
                   <div
                     style={{
                       fontSize: 44,

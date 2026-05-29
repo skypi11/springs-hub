@@ -114,10 +114,11 @@ export default function SharingSection({ user, onSaved }: Props) {
   }
 
   const ranksSelected = prefs.ranks ?? [];
-  // URL de la preview story : utilise le slug si dispo, sinon uid legacy.
-  // Cache-bust query param forcé à chaque save → le navigateur re-fetch.
+  // URLs de preview : story (1080×1920) + bannière (1200×630). Slug si dispo,
+  // sinon uid legacy. Cache-bust query param forcé à chaque save → re-fetch.
   const previewSlug = user.slug || user.uid;
-  const previewUrl = `/api/og/profile/${previewSlug}/story?_=${previewCacheBust}`;
+  const previewStoryUrl = `/api/og/profile/${previewSlug}/story?_=${previewCacheBust}`;
+  const previewBannerUrl = `/api/og/profile/${previewSlug}?_=${previewCacheBust}`;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -240,57 +241,107 @@ export default function SharingSection({ user, onSaved }: Props) {
           )}
         </div>
 
-        {/* Colonne preview */}
-        <aside style={{ position: 'sticky', top: 80, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div className="t-label text-[var(--s-text-dim)]">Aperçu story</div>
-          <div
-            className="bevel-sm"
-            style={{
-              width: 240,
-              aspectRatio: '9/16',
-              background: 'var(--s-elevated)',
-              border: '1px solid var(--s-border)',
-              overflow: 'hidden',
-              position: 'relative',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={previewUrl}
-              alt="Aperçu de la carte de partage story"
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-              onLoad={() => {
-                // l'img est chargée, on pourrait masquer un skeleton ici
+        {/* Colonne preview — 2 formats : story portrait + bannière paysage.
+            Les 2 reflètent les mêmes préférences (rangs choisis appliqués
+            aux 2 formats côté server). */}
+        <aside style={{ position: 'sticky', top: 80, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Preview story 1080×1920 (9:16) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className="t-label text-[var(--s-text-dim)]">Aperçu story (9:16)</div>
+            <div
+              className="bevel-sm"
+              style={{
+                width: 220,
+                aspectRatio: '9/16',
+                background: 'var(--s-elevated)',
+                border: '1px solid var(--s-border)',
+                overflow: 'hidden',
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
-            />
-            {saving && (
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  background: 'rgba(10,10,15,0.55)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--s-text)',
-                }}
-              >
-                <Loader2 size={24} className="animate-spin" />
-              </div>
-            )}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={previewStoryUrl}
+                alt="Aperçu de la carte de partage story"
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              />
+              {saving && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(10,10,15,0.55)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Loader2 size={22} className="animate-spin text-[var(--s-text)]" />
+                </div>
+              )}
+            </div>
+            <a
+              href={previewStoryUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--s-text-dim)] hover:text-[var(--s-gold)] transition-colors"
+              style={{ fontSize: 11 }}
+            >
+              Voir en grand →
+            </a>
           </div>
-          <a
-            href={previewUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="t-body text-[var(--s-text-dim)] hover:text-[var(--s-gold)] transition-colors"
-            style={{ fontSize: 12 }}
-          >
-            Voir en grand →
-          </a>
+
+          {/* Preview bannière 1200×630 (~1.9:1) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className="t-label text-[var(--s-text-dim)]">Aperçu bannière (1200×630)</div>
+            <div
+              className="bevel-sm"
+              style={{
+                width: 240,
+                aspectRatio: '1200/630',
+                background: 'var(--s-elevated)',
+                border: '1px solid var(--s-border)',
+                overflow: 'hidden',
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={previewBannerUrl}
+                alt="Aperçu de la bannière paysage"
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              />
+              {saving && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(10,10,15,0.55)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Loader2 size={20} className="animate-spin text-[var(--s-text)]" />
+                </div>
+              )}
+            </div>
+            <a
+              href={previewBannerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--s-text-dim)] hover:text-[var(--s-gold)] transition-colors"
+              style={{ fontSize: 11 }}
+            >
+              Voir en grand →
+            </a>
+          </div>
         </aside>
       </div>
 
