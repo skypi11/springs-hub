@@ -111,3 +111,32 @@ export function hasFeature(
 ): boolean {
   return PLAN_LIMITS[plan][feature] === true;
 }
+
+// ─── Features joueur (user-level) ─────────────────────────────────────────────
+// Distinct des features structure : ces helpers gardent les fonctionnalités
+// activables côté profil joueur (vs côté structure ci-dessus).
+// Aujourd'hui tout retourne true (gratuit pour tous). Le jour où on shippe un
+// Pro Joueur (à ~2€/mois, non écarté mais pas avant 2k+ users actifs cf.
+// project_ownership_and_business_model), on flippe le return ici sans toucher
+// l'UI ni les écritures Firestore qui sont déjà gate-friendly.
+//
+// Cf. mémoire feedback_freemium_reserve pour la règle d'architecture.
+
+/**
+ * True si l'user peut personnaliser le contenu de ses OG images (rangs
+ * affichés, structure/équipe à montrer ou cacher, jeu principal). Aujourd'hui
+ * gratuit pour tous → toujours true. Candidate Pro Joueur future.
+ *
+ * Si l'user ne peut PAS customiser :
+ * - les routes OG ignorent `user.ogDisplay` et retombent sur la logique auto
+ * - l'UI Settings tab "Affichage public" affiche les inputs grisés avec un
+ *   tooltip "Disponible avec Aedral Pro" (UX teasing premium)
+ *
+ * @param _user user concerné — paramètre conservé pour la future logique
+ *   premium ; aujourd'hui non utilisé (préfixe `_` pour ESLint).
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function canUserCustomizeOgDisplay(_user: { uid?: string } | null | undefined): boolean {
+  // FUTURE_PRO_FEATURE : return _user?.plan === 'pro' || _user?.discoveryCredits > 0
+  return true;
+}

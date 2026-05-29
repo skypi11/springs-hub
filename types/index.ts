@@ -101,6 +101,51 @@ export interface SpringsUser {
   // Connexions tierces synchronisées depuis Discord (Epic, Steam, Twitch, YouTube, Spotify, etc.)
   // → enrichissent le profil + auto-update du pseudo Epic via le pull au login
   discordConnections?: import('@/lib/discord-connections').DiscordConnection[];
+  // Préférences d'affichage des OG images (story + bannière horizontale) — voir OgDisplayPreferences.
+  // Si absent ou ranks=[], les routes OG retombent sur leur logique automatique
+  // (pickHeroRank historique : RL vérifié → Valorant → RL non vérifié).
+  ogDisplay?: OgDisplayPreferences;
+}
+
+/**
+ * Préférences user-éditables qui pilotent le contenu des OG images publiques
+ * (story 1080×1920 + bannière 1200×630 + embeds Discord/Twitter).
+ *
+ * Stocké sur le user dès aujourd'hui (gratuit pour tous). L'accès en écriture
+ * est gardé par `canUserCustomizeOgDisplay()` dans lib/plan-limits.ts — qui
+ * retourne `true` aujourd'hui mais peut basculer à un check premium plus tard
+ * sans casser le data déjà stocké. Cf. memoire `feedback_freemium_reserve`.
+ *
+ * Le rendu OG lit ces préférences server-side dans les routes /api/og/* et
+ * fait un fallback raisonnable (auto-detect des rangs dispos, structure
+ * principale par défaut) si les preferences sont absentes ou vides.
+ */
+export interface OgDisplayPreferences {
+  /**
+   * Liste ordonnée des IDs de jeux dont afficher le rang sur les OG images.
+   * Max 2 par contrainte visuelle (cf. retour Matt 29/05).
+   * - `[]` ou absent → fallback auto sur la logique pickHeroRank historique
+   *   (1 seul rang choisi par priorité).
+   * - `['rocket_league']` → affiche que RL en bloc unique stacked.
+   * - `['rocket_league', 'valorant']` → affiche les 2 côte à côte en mini-blocs.
+   * Les IDs doivent être des jeux valides de games-registry (sinon ignorés).
+   */
+  ranks?: string[];
+  /**
+   * Afficher le tag "Membre de [STRUCTURE]" + logo sur les OG. Default true.
+   * Ignoré si l'user n'a pas de structure.
+   */
+  showStructure?: boolean;
+  /**
+   * Afficher l'équipe ("Joueur de [TEAM]") + son tag/jeu sur les OG. Default true.
+   * Ignoré si l'user n'a pas d'équipe.
+   */
+  showTeam?: boolean;
+  /**
+   * Si l'user est dans 2+ structures, quel game ID choisir pour afficher
+   * structure+équipe. Default = premier jeu pratiqué.
+   */
+  primaryGameForStructure?: string | null;
 }
 
 export interface ProfileStructure {

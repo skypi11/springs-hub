@@ -18,6 +18,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
 
+import { getGameColor } from '@/lib/games-registry';
+import { getRankIconFile, getRankTierConfig } from '@/lib/rl-ranks';
+import { getValorantRankIconFile, getValorantTierConfig } from '@/lib/valorant-ranks';
+import type { OgDisplayPreferences } from '@/types';
+
 // ─── Dimensions OG standard ──────────────────────────────────────────────────
 // 1200×630 = format recommandé par Facebook/Twitter/Discord. Tout endpoint OG
 // devrait utiliser ces dimensions sauf cas exceptionnel.
@@ -188,6 +193,126 @@ export function heroNameFontSize(len: number): number {
  */
 export function initials(name: string): string {
   return (name || '').trim().slice(0, 3).toUpperCase() || '?';
+}
+
+// ─── Hero rank picking pour les routes OG profil ────────────────────────────
+/**
+ * Représente un rang à afficher en hero sur une OG image. Centralisé ici
+ * pour rester DRY entre les 4 routes OG profile (horizontal + story) + 2
+ * banner routes.
+ *
+ * `gameId` identifie le jeu (utile pour les tags type "RANG RL" et le
+ * routing d'icône). `iconBasePath` indique le sous-dossier de `/public`
+ * (rl-ranks ou valorant-ranks) où trouver l'icône PNG du tier.
+ */
+export interface HeroRank {
+  gameId: string;
+  label: string;          // "RANG RL", "RANG VAL"
+  value: string;          // "Super Sonic Legend", "Diamond II"
+  color: string;          // couleur officielle du tier (red Grand Champ, blue Diamond, etc.)
+  iconFile: string | null;
+  iconBasePath: 'rl-ranks' | 'valorant-ranks';
+}
+
+/**
+ * Construit le HeroRank pour un jeu donné à partir des données user, OU null
+ * si l'user n'a pas de rang exploitable pour ce jeu.
+ *
+ * Couleur : prend la couleur OFFICIELLE du tier reconnu (Grand Champ = rouge,
+ * Diamond = bleu, etc.). Fallback sur la couleur du jeu si tier non reconnu.
+ */
+function buildHeroRankForGame(
+  gameId: string,
+  data: Record<string, unknown>,
+): HeroRank | null {
+  if (gameId === 'rocket_league') {
+    const rlRank = typeof data.rlRank === 'string' ? data.rlRank.trim() : '';
+    if (!rlRank) return null;
+    const tierConfig = getRankTierConfig(rlRank);
+    return {
+      gameId: 'rocket_league',
+      label: 'RANG RL',
+      value: rlRank,
+      color: tierConfig?.color ?? getGameColor('rocket_league'),
+      iconFile: getRankIconFile(rlRank),
+      iconBasePath: 'rl-ranks',
+    };
+  }
+  if (gameId === 'valorant') {
+    const valRank = typeof data.valorantRank === 'string' ? data.valorantRank.trim() : '';
+    if (!valRank) return null;
+    const tierConfig = getValorantTierConfig(valRank);
+    return {
+      gameId: 'valorant',
+      label: 'RANG VAL',
+      value: valRank,
+      color: tierConfig?.color ?? getGameColor('valorant'),
+      iconFile: getValorantRankIconFile(valRank),
+      iconBasePath: 'valorant-ranks',
+    };
+  }
+  // TM pas de tier system structuré → pas de rang affichable
+  return null;
+}
+
+/**
+ * Logique auto-detect (legacy) quand l'user n'a pas de préférences OG :
+ * priorité RL vérifié → Valorant → RL non vérifié. Retourne UN seul rang
+ * (le plus prestigieux selon priorité) ou null.
+ */
+function pickHeroRankAuto(data: Record<string, unknown>): HeroRank | null {
+  const rlVerified = typeof data.rlEpicId === 'string' || typeof data.rlSteamId === 'string';
+  if (rlVerified) {
+    const r = buildHeroRankForGame('rocket_league', data);
+    if (r) return r;
+  }
+  const v = buildHeroRankForGame('valorant', data);
+  if (v) return v;
+  // Dernier fallback : RL non vérifié
+  return buildHeroRankForGame('rocket_league', data);
+}
+
+/**
+ * Sélectionne 0, 1 ou 2 rangs à afficher en hero sur les OG images du profil
+ * du joueur. Utilisé par les 4 routes OG profile (horizontal+story) + les 2
+ * routes banner download.
+ *
+ * Stratégie :
+ * 1. Si l'user a customisé ses préférences (`ogDisplay.ranks` non vide) ET
+ *    qu'il a le droit (canCustomize true) → respecte sa sélection (max 2).
+ *    Les game IDs invalides ou sans rang dispo sont silencieusement ignorés.
+ * 2. Sinon fallback auto-detect : 1 seul rang choisi par priorité
+ *    (RL vérifié > Valorant > RL non vérifié).
+ *
+ * `canCustomize` doit être passé par l'appelant via `canUserCustomizeOgDisplay(user)`
+ * de lib/plan-limits.ts → permet de désactiver les preferences quand on flippera
+ * le gate premium plus tard sans toucher au data en base.
+ */
+export function pickHeroRanks(
+  data: Record<string, unknown>,
+  options: { canCustomize?: boolean } = {},
+): HeroRank[] {
+  const { canCustomize = true } = options;
+  const ogDisplay = (canCustomize && data.ogDisplay && typeof data.ogDisplay === 'object'
+    ? data.ogDisplay
+    : null) as OgDisplayPreferences | null;
+  const requestedIds = Array.isArray(ogDisplay?.ranks) ? ogDisplay.ranks : [];
+
+  if (requestedIds.length > 0) {
+    const ranks: HeroRank[] = [];
+    // Respecte l'ordre de l'user, cap à 2, ignore les game IDs invalides ou sans rang
+    for (const gid of requestedIds) {
+      if (ranks.length >= 2) break;
+      if (typeof gid !== 'string') continue;
+      const r = buildHeroRankForGame(gid, data);
+      if (r) ranks.push(r);
+    }
+    return ranks;
+  }
+
+  // Fallback auto : 1 seul rang choisi par priorité
+  const auto = pickHeroRankAuto(data);
+  return auto ? [auto] : [];
 }
 
 // ─── Contraste texte selon couleur de fond ──────────────────────────────────
