@@ -1,0 +1,10 @@
+{
+  "key": "patch-notes-2026-05-29-events-fix",
+  "label": "Patch notes — 29 mai 2026 (events visibles + dispos)",
+  "title": "🐛 Calendrier · events visibles pour tout le staff",
+  "description": "**🐛 Managers et coachs d'équipe : les events apparaissent à nouveau dans le calendrier de structure**\nUn manager ou coach assigné uniquement à une équipe précise (sans rôle au niveau de la structure entière) ne voyait plus aucun event dans le calendrier de sa structure depuis l'onglet \"Calendrier\". Le calendrier s'affichait vide même quand des events existaient. C'est corrigé : tous les events de la structure sont à nouveau visibles, comme pour les dirigeants.\n\n**🆕 Voir qui a créé un event**\nLa fiche détaillée d'un event affiche maintenant la personne qui l'a créé, à côté de la date et de la cible. Pratique pour savoir qui contacter en cas de question.\n\n**🎯 Répondre \"absent\" libère ton créneau**\nQuand quelqu'un t'invite à un event, ton créneau est automatiquement marqué occupé pour les autres équipes (pour éviter qu'elles te re-réservent dessus). Maintenant : si tu réponds explicitement \"absent\", ton créneau redevient libre pour les autres équipes qui veulent te caler sur ce moment. Les réponses \"présent\" et \"peut-être\" continuent de bloquer.\n\n**🐛 Mini-calendrier perso : pastilles par event**\nDans le widget calendrier de ta page perso /calendar, chaque event a maintenant sa propre pastille colorée. Avant deux events du même type partageaient une seule pastille, ce qui donnait l'impression qu'il n'y en avait qu'un sur le jour.",
+  "color": 65331,
+  "defaultChannelHint": "annonces",
+  "publishOnSite": true,
+  "category": "fix"
+}
