@@ -70,9 +70,18 @@ function GameChip({ gameId, ff }: { gameId: string; ff: string }) {
 // Discord CDN sert le PNG d'un avatar animé sans souci (perte de l'anim mais
 // OK pour un OG image statique).
 function buildAvatarUrl(data: FirebaseFirestore.DocumentData): string | null {
-  const raw = data.avatarUrl ?? data.discordAvatar;
-  if (!raw || typeof raw !== 'string') return null;
+  // ATTENTION : `??` (nullish coalescing) garde une string vide ("") au lieu
+  // de tomber sur le fallback. Or on a vu en prod des users avec
+  // `avatarUrl: ""` (chaîne vide) ET `discordAvatar: "https://..."` (URL valide).
+  // Donc on filtre EXPLICITEMENT les strings vides avant de fallback.
+  const candidates = [data.avatarUrl, data.discordAvatar];
+  const raw = candidates.find(
+    (v): v is string => typeof v === 'string' && v.trim().length > 0,
+  );
+  if (!raw) return null;
+
   if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+
   // Hash brut → essayer de reconstruire l'URL Discord CDN
   const discordId = typeof data.discordId === 'string' ? data.discordId : null;
   // Accepte hash statique (hex pur) ET hash animé (préfixe `a_`).

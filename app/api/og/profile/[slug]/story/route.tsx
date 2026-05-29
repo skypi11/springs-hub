@@ -90,9 +90,17 @@ function GameChip({
 
 // Cf. doc dans l'endpoint horizontal — gère URL complète OU hash brut Discord
 // (statique ou animé `a_…`, on force PNG côté CDN).
+//
+// IMPORTANT : on filtre EXPLICITEMENT les strings vides (`avatarUrl: ""`)
+// car `??` ne tomberait pas sur le fallback `discordAvatar`. Cas observé en
+// prod où avatarUrl est "" mais discordAvatar est une URL Discord valide.
 function buildAvatarUrl(data: FirebaseFirestore.DocumentData): string | null {
-  const raw = data.avatarUrl ?? data.discordAvatar;
-  if (!raw || typeof raw !== 'string') return null;
+  const candidates = [data.avatarUrl, data.discordAvatar];
+  const raw = candidates.find(
+    (v): v is string => typeof v === 'string' && v.trim().length > 0,
+  );
+  if (!raw) return null;
+
   if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
   const discordId = typeof data.discordId === 'string' ? data.discordId : null;
   if (discordId && /^a?_?[a-f0-9]+$/i.test(raw)) {
