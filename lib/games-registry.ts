@@ -71,13 +71,19 @@ export interface GameDef {
    *  Ex: "Epic (via tracker.gg) ou Steam", "Riot (via Discord connection)".
    *  Absent = pas de vérification disponible pour ce jeu (déclaratif uniquement). */
   accountSourceLabel?: string;
-  /** True si `logoUrl` pointe vers un PNG/SVG avec canal alpha propre (fond
-   *  transparent). Détermine le rendu des chips de jeu dans les OG images :
-   *  - transparent → variant "logo seul" : icône XL + label texte à côté,
-   *    pas de fond plein (le logo se découpe directement sur le hex Aedral).
-   *  - opaque → variant "chip rempli" : icône posée sur un rectangle de la
-   *    couleur du jeu pour cacher le carré opaque du PNG.
-   *  Si tu changes le PNG de logo, pense à mettre ce flag à jour. */
+  /** True si le logo s'affiche bien tel quel sur le hex Aedral, SANS chip
+   *  frame ajouté autour. Soit parce que le PNG est vraiment transparent (RL,
+   *  Valorant), soit parce que le PNG est opaque mais avec un design coloré
+   *  assumé comme partie de l'identité visuelle (TM = carré cyan/vert avec
+   *  "TM" blanc officiel, on affiche le logo officiel tel quel).
+   *
+   *  False uniquement si le PNG est opaque AVEC un fond moche qu'on veut
+   *  cacher derrière un chip rempli couleur du jeu (genre PNG screenshot
+   *  avec fond blanc parasite). Cas rare, à éviter — préférer fournir un
+   *  logo dont le design est self-sufficient.
+   *
+   *  Le nom historique "isTransparent" est conservé pour minimiser le diff,
+   *  mais la sémantique réelle = "logo se suffit à lui-même". */
   logoIsTransparent: boolean;
 }
 
@@ -132,10 +138,11 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
     availableTodoTypes: [
       'free', 'vod_review', 'mental_checkin',
     ],
-    // PNG TM laissé tel quel (PNG opaque, fond dégradé cyan→vert), Matt veut
-    // le garder ainsi (29/05 : "ne touche pas au logo TM"). On le rend donc
-    // dans un chip rempli vert pour cacher le fond opaque.
-    logoIsTransparent: false,
+    // Le logo TM officiel = carré coloré cyan/vert avec "TM" blanc. Le fond
+    // coloré N'EST PAS un fond parasite à enlever, c'est l'identité visuelle
+    // de la marque (cf. retour Matt 29/05 : "c'est ca qui fait le logo").
+    // → afficher le PNG tel quel, sans chip frame extra autour.
+    logoIsTransparent: true,
   },
   valorant: {
     id: 'valorant',
