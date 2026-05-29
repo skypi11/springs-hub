@@ -15,10 +15,12 @@ import {
   loadLocalIconAsPngDataUri,
   loadLogoAsPngDataUri,
   loadRajdhani,
+  loadUserStructureForOg,
   pickHeroRanks,
   pickVisibleGames,
   type HeroRank,
 } from '@/lib/og-helpers';
+import type { OgDisplayPreferences } from '@/types';
 import { canUserCustomizeOgDisplay } from '@/lib/plan-limits';
 
 // GET /api/og/profile/[slug]
@@ -193,10 +195,19 @@ export async function GET(
       capWhenAuto: 3,
     });
 
+    // Préférences struct/team (default true si non défini). Gate par canCustomize.
+    const ogPrefs: OgDisplayPreferences | null = canCustomize
+      ? ((userData.ogDisplay && typeof userData.ogDisplay === 'object')
+        ? userData.ogDisplay as OgDisplayPreferences
+        : null)
+      : null;
+    const showStructure = ogPrefs?.showStructure !== false;
+    const showTeam = ogPrefs?.showTeam !== false;
+
     // Tous les chargements lourds en parallèle (avatar Discord + icônes jeux
-    // officielles + icônes rangs N). Raccourcit le TTFB de la route de ~3x quand
-    // toutes les requêtes sont indépendantes.
-    const [avatarDataUri, gameIconDataUris, rankIconDataUris] = await Promise.all([
+    // officielles + icônes rangs N + structure du user). Raccourcit le TTFB
+    // de la route de ~3x quand toutes les requêtes sont indépendantes.
+    const [avatarDataUri, gameIconDataUris, rankIconDataUris, userStruct] = await Promise.all([
       (async () => {
         try {
           const dataUri = await loadLogoAsPngDataUri(avatarUrl);
@@ -218,7 +229,13 @@ export async function GET(
           : Promise.resolve(null),
         ),
       ),
+      showStructure ? loadUserStructureForOg(userData, db, ogPrefs) : Promise.resolve(null),
     ]);
+
+    // Logo struct chargé séparément (URL externe → fetch async).
+    const structLogoDataUri: string | null = userStruct?.structure.logoUrl
+      ? await loadLogoAsPngDataUri(userStruct.structure.logoUrl)
+      : null;
 
     const font = loadRajdhani();
     const hasFont = !!font;
@@ -514,6 +531,84 @@ export async function GET(
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Bloc structure + équipe (horizontal compact). Affiché si l'user
+                a une structure ET showStructure !== false. Logo + tag + nom
+                inline, équipe en dessous (plus petit) si showTeam true et team
+                trouvée pour ce game. */}
+            {userStruct && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  fontFamily: ff,
+                  gap: 6,
+                  marginTop: 4,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 12,
+                    letterSpacing: '6px',
+                    color: 'rgba(255,255,255,0.45)',
+                    display: 'flex',
+                  }}
+                >
+                  MEMBRE DE
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {structLogoDataUri && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={structLogoDataUri}
+                      width={40}
+                      height={40}
+                      alt=""
+                      style={{ objectFit: 'contain', display: 'flex' }}
+                    />
+                  )}
+                  {userStruct.structure.tag && (
+                    <div
+                      style={{
+                        fontSize: 14,
+                        letterSpacing: '4px',
+                        color: 'rgba(255,184,0,0.85)',
+                        display: 'flex',
+                      }}
+                    >
+                      [{userStruct.structure.tag.toUpperCase()}]
+                    </div>
+                  )}
+                  <div
+                    style={{
+                      fontSize: 26,
+                      letterSpacing: '2px',
+                      color: AEDRAL_PALETTE.text,
+                      display: 'flex',
+                    }}
+                  >
+                    {userStruct.structure.name.toUpperCase()}
+                  </div>
+                </div>
+                {showTeam && userStruct.team && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontSize: 14,
+                      letterSpacing: '3px',
+                      marginTop: 2,
+                    }}
+                  >
+                    <span style={{ color: 'rgba(255,255,255,0.45)', display: 'flex' }}>ÉQUIPE</span>
+                    <span style={{ display: 'flex', color: getGameColor(userStruct.team.game) }}>
+                      {userStruct.team.name.toUpperCase()}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>

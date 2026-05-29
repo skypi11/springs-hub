@@ -21,10 +21,10 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import Image from 'next/image';
-import { CheckCircle2, Loader2, Share2, Lock } from 'lucide-react';
+import { CheckCircle2, Loader2, Share2, Shield, Users as UsersIcon } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
-import { ALL_GAME_DEFS, gameHasFeature } from '@/lib/games-registry';
+import { ALL_GAME_DEFS, gameHasFeature, getGame, getGameLabel } from '@/lib/games-registry';
 import type { OgDisplayPreferences, SpringsUser } from '@/types';
 
 const MAX_RANKS = 2;
@@ -112,6 +112,26 @@ export default function SharingSection({ user, onSaved }: Props) {
     setPrefs(newPrefs);
     scheduleSave(newPrefs);
   }
+
+  function updatePref<K extends keyof OgDisplayPreferences>(key: K, value: OgDisplayPreferences[K]) {
+    const newPrefs = { ...prefs, [key]: value };
+    setPrefs(newPrefs);
+    scheduleSave(newPrefs);
+  }
+
+  // Liste des jeux où l'user a une structure (pour le picker primaryGameForStructure).
+  // Lit `structurePerGame` (format mixte string | string[]) et filtre les entrées vides.
+  const gameIdsWithStructure = useMemo(() => {
+    const struct = user.structurePerGame ?? {};
+    return Object.keys(struct).filter(g => {
+      const v = struct[g as keyof typeof struct];
+      return Array.isArray(v) ? v.length > 0 : !!v;
+    });
+  }, [user.structurePerGame]);
+
+  // Defaults pour les toggles : true si non défini (cohérent avec server-side).
+  const showStructure = prefs.showStructure !== false;
+  const showTeam = prefs.showTeam !== false;
 
   const ranksSelected = prefs.ranks ?? [];
   // URLs de preview : story (1080×1920) + bannière (1200×630). Slug si dispo,
@@ -211,19 +231,111 @@ export default function SharingSection({ user, onSaved }: Props) {
             </div>
           </section>
 
-          <section
-            className="panel bevel"
-            style={{ opacity: 0.5, pointerEvents: 'none' }}
-            title="Bientôt disponible"
-          >
+          {/* Section Structure + Équipe (shippée 30/05). Affichée seulement
+              si l'user a au moins une structure. Sinon, on affiche un message
+              d'explication (pas de structure → rien à toggler). */}
+          <section className="panel bevel">
             <div className="panel-header">
-              <div className="t-sub" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Lock size={14} className="text-[var(--s-text-dim)]" />
-                <span>Structure et équipe (bientôt)</span>
-              </div>
+              <div className="t-sub">Structure et équipe</div>
               <div className="t-body text-[var(--s-text-dim)]" style={{ marginTop: 4 }}>
-                Bientôt tu pourras choisir d'afficher ta structure et ton équipe sur ta carte de partage.
+                Affiche ta structure et ton équipe (selon le jeu choisi) sur ta carte de partage.
               </div>
+            </div>
+            <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {gameIdsWithStructure.length === 0 ? (
+                <div className="t-body text-[var(--s-text-dim)]">
+                  Tu n&apos;es membre d&apos;aucune structure pour l&apos;instant — rien à afficher sur la carte.
+                </div>
+              ) : (
+                <>
+                  {/* Toggle structure */}
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 14,
+                      padding: '10px 14px',
+                      background: showStructure ? 'rgba(255,184,0,0.06)' : 'var(--s-elevated)',
+                      border: `1px solid ${showStructure ? 'rgba(255,184,0,0.35)' : 'var(--s-border)'}`,
+                      cursor: 'pointer',
+                      transition: 'background .15s, border-color .15s',
+                    }}
+                    className="bevel-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={showStructure}
+                      onChange={e => updatePref('showStructure', e.target.checked)}
+                      style={{ accentColor: 'var(--s-gold)', width: 16, height: 16 }}
+                    />
+                    <Shield size={18} className="text-[var(--s-gold)]" />
+                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                      <div className="t-body" style={{ fontWeight: 600 }}>Afficher ma structure</div>
+                      <div className="t-body text-[var(--s-text-dim)]" style={{ fontSize: 12 }}>
+                        Logo + tag + nom de la structure sur la carte
+                      </div>
+                    </div>
+                  </label>
+
+                  {/* Toggle équipe */}
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 14,
+                      padding: '10px 14px',
+                      background: showTeam ? 'rgba(255,184,0,0.06)' : 'var(--s-elevated)',
+                      border: `1px solid ${showTeam ? 'rgba(255,184,0,0.35)' : 'var(--s-border)'}`,
+                      cursor: showStructure ? 'pointer' : 'not-allowed',
+                      opacity: showStructure ? 1 : 0.5,
+                      transition: 'background .15s, border-color .15s, opacity .15s',
+                    }}
+                    className="bevel-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={showTeam}
+                      disabled={!showStructure}
+                      onChange={e => updatePref('showTeam', e.target.checked)}
+                      style={{ accentColor: 'var(--s-gold)', width: 16, height: 16 }}
+                    />
+                    <UsersIcon size={18} className="text-[var(--s-gold)]" />
+                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                      <div className="t-body" style={{ fontWeight: 600 }}>Afficher mon équipe</div>
+                      <div className="t-body text-[var(--s-text-dim)]" style={{ fontSize: 12 }}>
+                        Nom de ton équipe dans la structure (si tu es titulaire/remplaçant/staff)
+                      </div>
+                    </div>
+                  </label>
+
+                  {/* Picker jeu si l'user a des structures dans 2+ jeux différents.
+                      Permet de choisir QUELLE structure afficher (sinon prend la première). */}
+                  {gameIdsWithStructure.length >= 2 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <label className="t-label">Jeu principal (quelle structure afficher)</label>
+                      <select
+                        className="settings-input w-full"
+                        value={prefs.primaryGameForStructure ?? ''}
+                        onChange={e => updatePref(
+                          'primaryGameForStructure',
+                          e.target.value === '' ? null : e.target.value,
+                        )}
+                        style={{ fontSize: 13 }}
+                      >
+                        <option value="">Auto (premier jeu pratiqué)</option>
+                        {gameIdsWithStructure.map(gid => (
+                          <option key={gid} value={gid}>
+                            {getGame(gid)?.label ?? getGameLabel(gid)}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="t-body text-[var(--s-text-dim)]" style={{ fontSize: 12 }}>
+                        Tu es dans plusieurs structures (1 par jeu max). Choisis laquelle apparait sur la carte.
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </section>
 

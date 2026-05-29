@@ -12,10 +12,13 @@ import {
   loadLocalIconAsPngDataUri,
   loadLogoAsPngDataUri,
   loadRajdhani,
+  loadUserStructureForOg,
   pickHeroRanks,
   pickVisibleGames,
   type HeroRank,
+  type UserOgStructureBlock,
 } from '@/lib/og-helpers';
+import type { OgDisplayPreferences } from '@/types';
 import { canUserCustomizeOgDisplay } from '@/lib/plan-limits';
 
 // GET /api/og/profile/[slug]/story
@@ -226,9 +229,18 @@ export async function GET(
       capWhenAuto: 3,
     });
 
-    // Tous les chargements en parallèle (avatar + icônes jeux + icônes rangs N).
+    // Préférences struct/team (default true si non défini). Gate par canCustomize.
+    const ogPrefs: OgDisplayPreferences | null = canCustomize
+      ? ((userData.ogDisplay && typeof userData.ogDisplay === 'object')
+        ? userData.ogDisplay as OgDisplayPreferences
+        : null)
+      : null;
+    const showStructure = ogPrefs?.showStructure !== false; // default true
+    const showTeam = ogPrefs?.showTeam !== false; // default true
 
-    const [avatarDataUri, gameIconDataUris, rankIconDataUris] = await Promise.all([
+    // Tous les chargements en parallèle : avatar, icônes jeux, icônes rangs,
+    // structure du user (struct + team via 2 reads Firestore).
+    const [avatarDataUri, gameIconDataUris, rankIconDataUris, userStruct] = await Promise.all([
       (async () => {
         try {
           return await loadLogoAsPngDataUri(avatarUrl);
@@ -245,7 +257,13 @@ export async function GET(
           : Promise.resolve(null),
         ),
       ),
+      showStructure ? loadUserStructureForOg(userData, db, ogPrefs) : Promise.resolve(null),
     ]);
+
+    // Charge le logo de structure si on en a une à afficher.
+    const structLogoDataUri: string | null = userStruct?.structure.logoUrl
+      ? await loadLogoAsPngDataUri(userStruct.structure.logoUrl)
+      : null;
 
     const font = loadRajdhani();
     const hasFont = !!font;
@@ -610,6 +628,88 @@ export async function GET(
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Bloc structure + équipe (toggle ogDisplay.showStructure/showTeam,
+              default true si non défini). Affiché si le user a une structure
+              active. Pas affiché si ogPrefs.showStructure === false. */}
+          {userStruct && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                fontFamily: ff,
+                marginTop: 36,
+                gap: 14,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 16,
+                  letterSpacing: '8px',
+                  color: 'rgba(255,255,255,0.5)',
+                  display: 'flex',
+                }}
+              >
+                MEMBRE DE
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                {structLogoDataUri && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={structLogoDataUri}
+                    width={64}
+                    height={64}
+                    alt=""
+                    style={{ objectFit: 'contain', display: 'flex' }}
+                  />
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                  {userStruct.structure.tag && (
+                    <div
+                      style={{
+                        fontSize: 18,
+                        letterSpacing: '6px',
+                        color: 'rgba(255,184,0,0.85)',
+                        display: 'flex',
+                      }}
+                    >
+                      [{userStruct.structure.tag.toUpperCase()}]
+                    </div>
+                  )}
+                  <div
+                    style={{
+                      fontSize: 42,
+                      letterSpacing: '3px',
+                      color: AEDRAL_PALETTE.text,
+                      lineHeight: 1.05,
+                      display: 'flex',
+                    }}
+                  >
+                    {userStruct.structure.name.toUpperCase()}
+                  </div>
+                </div>
+              </div>
+              {showTeam && userStruct.team && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    marginTop: 4,
+                    fontSize: 22,
+                    letterSpacing: '4px',
+                    color: 'rgba(255,255,255,0.75)',
+                  }}
+                >
+                  <span style={{ color: 'rgba(255,255,255,0.5)', display: 'flex' }}>ÉQUIPE</span>
+                  <span style={{ display: 'flex', color: getGameColor(userStruct.team.game) }}>
+                    {userStruct.team.name.toUpperCase()}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 

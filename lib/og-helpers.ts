@@ -354,6 +354,125 @@ export function pickVisibleGames(
   };
 }
 
+/**
+ * Bloc structure+équipe d'un user pour affichage sur l'OG profile.
+ * Le team est optionnel (un user peut être membre d'une structure sans équipe
+ * fixée). La structure est requise si le bloc est retourné.
+ */
+export interface UserOgStructureBlock {
+  structure: {
+    name: string;
+    tag: string;
+    logoUrl: string;
+    /** Slug propre pour URLs futures (pas utilisé dans le rendu, mais on le
+     *  remonte au cas où on voudrait afficher l'URL "aedral.com/.../slug"). */
+    slug: string | null;
+  };
+  /** Première équipe trouvée dans la structure pour le jeu choisi où le user
+   *  est titulaire/remplaçant/staff. Null si pas d'équipe (ex. simple membre). */
+  team: {
+    name: string;
+    /** Game ID (rocket_league, trackmania, valorant…) — sert à colorer le tag jeu. */
+    game: string;
+  } | null;
+}
+
+/**
+ * Charge la structure principale + équipe d'un user pour l'affichage sur l'OG.
+ *
+ * Logique :
+ * 1. Lit `user.structurePerGame` (format mixte : string OU string[] par game).
+ * 2. Choisit le game cible :
+ *    - Si `ogPrefs.primaryGameForStructure` défini ET l'user y a une struct → ce game
+ *    - Sinon → premier game où l'user a une structure (ordre de l'objet)
+ * 3. Fetch le doc structures/{structId} — skippe si !exists ou status !== 'active'.
+ * 4. Cherche dans sub_teams (where structureId, game) une équipe non-archivée
+ *    où l'user est player/sub/staff. Retourne la première trouvée.
+ *
+ * Retourne null si :
+ * - L'user n'a aucune structurePerGame
+ * - La structure choisie est inactive / supprimée
+ *
+ * Performance : 2 reads Firestore au plus (structure doc + sub_teams query
+ * filtrée). Pas de fan-out coûteux. Compatible avec le budget de génération
+ * d'OG image (typiquement < 1s).
+ *
+ * @param data le doc user Firestore (raw)
+ * @param db instance Admin Firestore
+ * @param ogPrefs préférences user (lit primaryGameForStructure)
+ */
+export async function loadUserStructureForOg(
+  data: Record<string, unknown>,
+  db: import('firebase-admin').firestore.Firestore,
+  ogPrefs: OgDisplayPreferences | null,
+): Promise<UserOgStructureBlock | null> {
+  const uid = typeof data.uid === 'string' ? data.uid : null;
+  if (!uid) return null;
+
+  const struct = (data.structurePerGame ?? {}) as Record<string, string | string[]>;
+  const gameIdsWithStruct = Object.keys(struct).filter(g => {
+    const v = struct[g];
+    return Array.isArray(v) ? v.length > 0 : !!v;
+  });
+  if (gameIdsWithStruct.length === 0) return null;
+
+  // Game cible : préférence user si valide, sinon premier disponible.
+  const preferred = ogPrefs?.primaryGameForStructure;
+  const targetGame = (preferred && gameIdsWithStruct.includes(preferred))
+    ? preferred
+    : gameIdsWithStruct[0];
+
+  // Structure ID (premier si array — format multi-structures par jeu).
+  const structRaw = struct[targetGame];
+  const structId = Array.isArray(structRaw) ? structRaw[0] : structRaw;
+  if (!structId || typeof structId !== 'string') return null;
+
+  // Fetch structure (skippe si inactive / supprimée).
+  let sSnap;
+  try {
+    sSnap = await db.collection('structures').doc(structId).get();
+  } catch {
+    return null;
+  }
+  if (!sSnap.exists) return null;
+  const sData = sSnap.data() ?? {};
+  if (sData.status !== 'active') return null;
+  const structure = {
+    name: (typeof sData.name === 'string' ? sData.name : '') || '',
+    tag: (typeof sData.tag === 'string' ? sData.tag : '') || '',
+    logoUrl: (typeof sData.logoUrl === 'string' ? sData.logoUrl : '') || '',
+    slug: typeof sData.slug === 'string' ? sData.slug : null,
+  };
+
+  // Cherche l'équipe du user dans cette structure pour ce jeu.
+  let team: UserOgStructureBlock['team'] = null;
+  try {
+    const teamSnap = await db.collection('sub_teams')
+      .where('structureId', '==', structId)
+      .where('game', '==', targetGame)
+      .get();
+    for (const t of teamSnap.docs) {
+      const td = t.data() ?? {};
+      if ((td.status ?? 'active') === 'archived') continue;
+      const playerIds = Array.isArray(td.playerIds) ? td.playerIds as string[] : [];
+      const subIds = Array.isArray(td.subIds) ? td.subIds as string[] : [];
+      const staffIds = Array.isArray(td.staffIds) ? td.staffIds as string[] : [];
+      const captainId = typeof td.captainId === 'string' ? td.captainId : null;
+      if (playerIds.includes(uid) || subIds.includes(uid) || staffIds.includes(uid) || captainId === uid) {
+        team = {
+          name: (typeof td.name === 'string' ? td.name : '') || '',
+          game: targetGame,
+        };
+        break;
+      }
+    }
+  } catch {
+    /* index manquant ou erreur réseau → on continue sans équipe */
+  }
+
+  return { structure, team };
+}
+
 // ─── Contraste texte selon couleur de fond ──────────────────────────────────
 /**
  * Choisit le texte (noir ou blanc) le plus lisible sur un fond donné via la
