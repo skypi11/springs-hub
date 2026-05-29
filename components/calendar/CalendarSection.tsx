@@ -50,6 +50,7 @@ import EventFormModal from './EventFormModal';
 import EventDetailModal from './EventDetailModal';
 import TeamFilterDropdown from './TeamFilterDropdown';
 import EventCard from './EventCard';
+import { useEventFilters } from './useEventFilters';
 import { ALL_GAME_DEFS, getGameColor, getGameColorRgb, getGameLabel, getGameShortLabel } from '@/lib/games-registry';
 import StaffAvailabilityView from './StaffAvailabilityView';
 import { NewTodoForm, type TeamRef } from './TeamTodosPanel';
@@ -226,25 +227,11 @@ export default function CalendarSection({
   const events = eventsData?.events ?? [];
   const invalidateEvents = () => qc.invalidateQueries({ queryKey: eventsQueryKey });
 
-  const [filter, setFilter] = useState<'upcoming' | 'past' | 'all'>('upcoming');
-  // Filtre équipe : si vide → toutes ; sinon → seulement les events avec au moins
-  // une équipe ciblée dans la sélection. Les events scope=structure/game sont
-  // exclus dès qu'un filtre équipe est actif, pour coller à l'intention utilisateur.
-  const [teamFilter, setTeamFilter] = useState<string[]>([]);
-  // Mode d'affichage : grille mois (vision globale), semaine (créneaux + dispos)
-  // ou liste chronologique. Persisté en localStorage entre les sessions.
-  const [viewMode, setViewMode] = useState<'month' | 'week' | 'list' | 'staff'>('month');
-  useEffect(() => {
-    const saved = localStorage.getItem('aedral_calendar_view');
-    if (saved === 'month' || saved === 'week' || saved === 'list' || saved === 'staff') setViewMode(saved);
-}, []);
-  const changeView = (v: 'month' | 'week' | 'list' | 'staff') => {
-    setViewMode(v);
-    try { localStorage.setItem('aedral_calendar_view', v); } catch { /* quota / mode privé */ }
-  };
-  // Vue Semaine : la grille 7 colonnes × créneaux 30 min est inexploitable en
-  // <lg, mais la WeekView a maintenant un mode mobile (1 jour à la fois avec
-  // strip de sélection des 7 jours). On laisse donc le bouton accessible partout.
+  // Filtres UI extraits dans useEventFilters (Phase 3.1) : filter (période),
+  // teamFilter (équipes/audiences), viewMode (mois/semaine/liste/staff +
+  // localStorage). Cf. useEventFilters.ts pour la sémantique.
+  const { filter, setFilter, teamFilter, setTeamFilter, viewMode, changeView } = useEventFilters();
+  // Alias historique conservé pour minimiser les changements dans le rendu JSX.
   const effectiveViewMode = viewMode;
   // formPrefill : null = modale fermée ; objet = ouverte (éventuellement pré-remplie
   // avec une date quand on a cliqué sur une case du calendrier).
