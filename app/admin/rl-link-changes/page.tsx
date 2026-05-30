@@ -155,22 +155,22 @@ export default function AdminLinkChangesPage() {
                 background: r.platform === 'steam' ? 'rgba(102,192,244,0.10)' : 'rgba(0,129,255,0.10)',
                 color: r.platform === 'steam' ? '#66c0f4' : '#4fb3ff',
                 borderColor: r.platform === 'steam' ? 'rgba(102,192,244,0.4)' : 'rgba(0,129,255,0.4)',
-                fontSize: '10px',
+                fontSize: '12px',
               }}>
                 {r.platform === 'steam' ? 'STEAM' : 'EPIC'}
               </span>
               {r.status === 'pending' && (
-                <span className="tag" style={{ background: 'rgba(255,184,0,0.15)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.4)', fontSize: '10px' }}>
+                <span className="tag" style={{ background: 'rgba(255,184,0,0.15)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.4)', fontSize: '12px' }}>
                   EN ATTENTE
                 </span>
               )}
               {r.status === 'approved' && (
-                <span className="tag" style={{ background: 'rgba(0,217,54,0.1)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.3)', fontSize: '10px' }}>
+                <span className="tag" style={{ background: 'rgba(0,217,54,0.1)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.3)', fontSize: '12px' }}>
                   ✓ APPROUVÉ
                 </span>
               )}
               {r.status === 'rejected' && (
-                <span className="tag" style={{ background: 'rgba(255,85,85,0.08)', color: '#ff8a8a', borderColor: 'rgba(255,85,85,0.3)', fontSize: '10px' }}>
+                <span className="tag" style={{ background: 'rgba(255,85,85,0.08)', color: '#ff8a8a', borderColor: 'rgba(255,85,85,0.3)', fontSize: '12px' }}>
                   ✗ REFUSÉ
                 </span>
               )}

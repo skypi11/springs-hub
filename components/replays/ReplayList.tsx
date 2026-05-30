@@ -237,15 +237,15 @@ export default function ReplayList({
                             className="tag"
                             style={teamGame
                               ? {
-                                  fontSize: '11px',
-                                  padding: '2px 7px',
+                                  fontSize: '12px',
+                                  padding: '2px 8px',
                                   background: `rgba(${teamGame.colorRgb}, 0.1)`,
                                   color: teamGame.colorLight,
                                   borderColor: `rgba(${teamGame.colorRgb}, 0.25)`,
                                 }
                               : {
-                                  fontSize: '11px',
-                                  padding: '2px 7px',
+                                  fontSize: '12px',
+                                  padding: '2px 8px',
                                   background: 'rgba(255,255,255,0.04)',
                                   color: 'var(--s-text-dim)',
                                   borderColor: 'var(--s-border)',
@@ -258,7 +258,7 @@ export default function ReplayList({
                       {item.eventId && eventTitlesById?.[item.eventId] && (
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5"
                           style={{
-                            fontSize: '11px',
+                            fontSize: '12px',
                             background: 'rgba(255,184,0,0.08)',
                             border: '1px solid rgba(255,184,0,0.30)',
                             color: 'var(--s-gold)',
@@ -329,7 +329,7 @@ function ParsingBadge({ status }: { status?: ReplayListItem['ballchasingStatus']
   if (!status || status === 'disabled') return null;
   if (status === 'pending') {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5"
+      <span className="inline-flex items-center gap-1 text-[12px] font-bold uppercase tracking-wider px-2 py-0.5"
         style={{ background: 'rgba(255,184,0,0.12)', color: 'var(--s-gold)', border: '1px solid rgba(255,184,0,0.35)' }}>
         <Loader2 size={9} className="animate-spin" />
         Parsing
@@ -338,7 +338,7 @@ function ParsingBadge({ status }: { status?: ReplayListItem['ballchasingStatus']
   }
   if (status === 'uploaded') {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5"
+      <span className="inline-flex items-center gap-1 text-[12px] font-bold uppercase tracking-wider px-2 py-0.5"
         style={{ background: 'rgba(0,217,54,0.10)', color: 'var(--s-green)', border: '1px solid rgba(0,217,54,0.30)' }}>
         <Check size={9} />
         Stats
@@ -347,7 +347,7 @@ function ParsingBadge({ status }: { status?: ReplayListItem['ballchasingStatus']
   }
   if (status === 'failed') {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5"
+      <span className="inline-flex items-center gap-1 text-[12px] font-bold uppercase tracking-wider px-2 py-0.5"
         style={{ background: 'rgba(239,68,68,0.10)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.30)' }}>
         Échec
       </span>
@@ -357,7 +357,7 @@ function ParsingBadge({ status }: { status?: ReplayListItem['ballchasingStatus']
     return (
       <span
         title="Quota stats hebdo atteint pour cette structure. Reset lundi."
-        className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5"
+        className="inline-flex items-center gap-1 text-[12px] font-bold uppercase tracking-wider px-2 py-0.5"
         style={{ background: 'rgba(255,184,0,0.10)', color: 'var(--s-gold)', border: '1px solid rgba(255,184,0,0.30)' }}>
         <Lock size={9} />
         Quota
@@ -368,7 +368,7 @@ function ParsingBadge({ status }: { status?: ReplayListItem['ballchasingStatus']
     return (
       <span
         title="Parsing auto désactivé pour cette structure. Clique sur le bouton stats pour lancer le parsing à la demande."
-        className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5"
+        className="inline-flex items-center gap-1 text-[12px] font-bold uppercase tracking-wider px-2 py-0.5"
         style={{ background: 'var(--s-elevated)', color: 'var(--s-text-muted)', border: '1px solid var(--s-border)' }}>
         Non parsé
       </span>

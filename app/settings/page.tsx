@@ -813,7 +813,7 @@ export default function SettingsPage() {
                       <User size={13} style={{ color: 'var(--s-gold)' }} />
                       <span className="t-label" style={{ color: 'var(--s-text)' }}>IDENTITÉ</span>
                     </div>
-                    <span className="tag tag-gold" style={{ fontSize: '8px' }}>OBLIGATOIRE</span>
+                    <span className="tag tag-gold" style={{ fontSize: '12px' }}>OBLIGATOIRE</span>
                   </div>
                   <div className="p-5 space-y-5">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -879,7 +879,7 @@ export default function SettingsPage() {
                       <Gamepad2 size={13} style={{ color: 'var(--s-text-dim)' }} />
                       <span className="t-label" style={{ color: 'var(--s-text)' }}>JEUX PRATIQUÉS</span>
                     </div>
-                    <span className="tag tag-neutral" style={{ fontSize: '8px' }}>MIN. 1</span>
+                    <span className="tag tag-neutral" style={{ fontSize: '12px' }}>MIN. 1</span>
                   </div>
                   <div className="p-5 space-y-4">
                     {/* Pickers générés depuis la registry, ajouter un jeu dans
@@ -988,13 +988,13 @@ export default function SettingsPage() {
                                     <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
                                       Compte Rocket League vérifié
                                     </span>
-                                    <span className="tag tag-gold" style={{ fontSize: '9px', padding: '1px 5px' }}>✓ FIGÉ</span>
+                                    <span className="tag tag-gold" style={{ fontSize: '12px', padding: '2px 6px' }}>✓ FIGÉ</span>
                                   </div>
                                   <div className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
                                     <span className="font-semibold" style={{ color: 'var(--s-text)' }}>
                                       {epicLinked.rlEpicName || `${epicLinked.rlEpicId.slice(0, 10)}…`}
                                     </span>
-                                    <span className="t-mono ml-2" style={{ color: 'var(--s-text-muted)', fontSize: '10px' }}>
+                                    <span className="t-mono ml-2" style={{ color: 'var(--s-text-muted)', fontSize: '12px' }}>
                                       {epicLinked.rlEpicId}
                                     </span>
                                   </div>
@@ -1013,7 +1013,7 @@ export default function SettingsPage() {
                                       onClick={handleRequestEpicChange}
                                       disabled={requestingChange}
                                       className="btn-springs btn-secondary bevel-sm inline-flex items-center gap-2 disabled:opacity-50"
-                                      style={{ fontSize: '11px', padding: '6px 12px' }}>
+                                      style={{ fontSize: '12px', padding: '6px 12px' }}>
                                       {requestingChange ? <Loader2 size={11} className="animate-spin" /> : null}
                                       Demander un changement
                                     </button>
@@ -1142,7 +1142,7 @@ export default function SettingsPage() {
                                   <p className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
                                     Lier ton compte Steam
                                     {form.rlPlatform === 'steam' && (
-                                      <span className="ml-2" style={{ color: 'var(--s-gold)', fontSize: '11px', fontWeight: 600 }}>
+                                      <span className="ml-2" style={{ color: 'var(--s-gold)', fontSize: '12px', fontWeight: 600 }}>
                                         (recommandé)
                                       </span>
                                     )}
@@ -1190,13 +1190,13 @@ export default function SettingsPage() {
                                     <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
                                       Compte Steam Rocket League vérifié
                                     </span>
-                                    <span className="tag tag-gold" style={{ fontSize: '9px', padding: '1px 5px' }}>✓ FIGÉ</span>
+                                    <span className="tag tag-gold" style={{ fontSize: '12px', padding: '2px 6px' }}>✓ FIGÉ</span>
                                   </div>
                                   <div className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
                                     <span className="font-semibold" style={{ color: 'var(--s-text)' }}>
                                       {rlSteamLinked.rlSteamName || rlSteamLinked.rlSteamId}
                                     </span>
-                                    <span className="t-mono ml-2" style={{ color: 'var(--s-text-muted)', fontSize: '10px' }}>
+                                    <span className="t-mono ml-2" style={{ color: 'var(--s-text-muted)', fontSize: '12px' }}>
                                       {rlSteamLinked.rlSteamId}
                                     </span>
                                   </div>
@@ -1208,7 +1208,7 @@ export default function SettingsPage() {
                                       onClick={handleRequestSteamChange}
                                       disabled={requestingSteamChange}
                                       className="btn-springs btn-secondary bevel-sm inline-flex items-center gap-2 disabled:opacity-50"
-                                      style={{ fontSize: '11px', padding: '6px 12px' }}>
+                                      style={{ fontSize: '12px', padding: '6px 12px' }}>
                                       {requestingSteamChange ? <Loader2 size={11} className="animate-spin" /> : null}
                                       Demander un changement
                                     </button>
@@ -1651,7 +1651,7 @@ export default function SettingsPage() {
                       <UserCircle size={13} style={{ color: 'var(--s-gold)' }} />
                       <span className="t-label" style={{ color: 'var(--s-text)' }}>COMPTE SPRINGS</span>
                     </div>
-                    {isAdmin && <span className="tag tag-gold" style={{ fontSize: '8px' }}>ADMIN</span>}
+                    {isAdmin && <span className="tag tag-gold" style={{ fontSize: '12px' }}>ADMIN</span>}
                   </div>
                   <div className="p-5 space-y-5">
                     <div>
@@ -2042,7 +2042,7 @@ export default function SettingsPage() {
               <>
                 <Save size={14} />
                 <span>Sauvegarder maintenant</span>
-                <span className="text-[10px] opacity-70 ml-1">· auto dans 2s</span>
+                <span className="text-[12px] opacity-70 ml-1">· auto dans 2s</span>
               </>
             )}
           </button>

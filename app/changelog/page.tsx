@@ -302,11 +302,11 @@ function ChangelogCard({ item, delayMs }: { item: ParsedItem; delayMs: number })
                     key={catId}
                     className="tag"
                     style={{
-                      fontSize: '10px',
+                      fontSize: '12px',
                       background: `rgba(${cat.colorRgb}, 0.12)`,
                       color: cat.color,
                       borderColor: `rgba(${cat.colorRgb}, 0.30)`,
-                      padding: '2px 6px',
+                      padding: '2px 8px',
                     }}
                     title={cat.hint}
                   >
@@ -371,11 +371,11 @@ function ChangelogSectionBlock({ section }: { section: ChangelogSection }) {
           <span
             className="tag"
             style={{
-              fontSize: '9px',
+              fontSize: '12px',
               background: `rgba(${cat.colorRgb}, 0.10)`,
               color: cat.color,
               borderColor: `rgba(${cat.colorRgb}, 0.25)`,
-              padding: '1px 5px',
+              padding: '2px 6px',
             }}
           >
             {cat.label.toUpperCase()}

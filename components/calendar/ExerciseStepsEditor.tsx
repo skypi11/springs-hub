@@ -298,7 +298,7 @@ function SortableStepItem({
               onClick={() => onChangeType(t)}
               className="px-2 py-0.5 transition-all duration-150"
               style={{
-                fontSize: '11px',
+                fontSize: '12px',
                 fontWeight: 700,
                 background: active ? 'var(--s-surface)' : 'transparent',
                 border: `1px solid ${active ? 'var(--s-gold)' : 'var(--s-border)'}`,

@@ -358,7 +358,7 @@ export default function StaffAvailabilityView({
                     <div className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>
                       {m.displayName}
                     </div>
-                    <div className="text-[11px]" style={{ color: 'var(--s-text-dim)' }}>
+                    <div className="text-[12px]" style={{ color: 'var(--s-text-dim)' }}>
                       {m.roles.map(r => ROLE_LABEL[r]).join(' · ')}
                       {main === 'fondateur' && <span className="ml-1" style={{ color: 'var(--s-gold)' }}>★</span>}
                     </div>

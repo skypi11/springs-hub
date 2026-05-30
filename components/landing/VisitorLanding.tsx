@@ -434,7 +434,7 @@ function ShowcaseSection() {
                 </div>
                 {/* Texte, 40% */}
                 <div className="w-full lg:w-[42%]">
-                  <span className="tag tag-gold mb-4 inline-block" style={{ fontSize: 9 }}>{shot.tag}</span>
+                  <span className="tag tag-gold mb-4 inline-block" style={{ fontSize: 12 }}>{shot.tag}</span>
                   <h3 className="font-display mb-4" style={{ fontSize: 'clamp(1.5rem, 2.8vw, 2.25rem)', letterSpacing: '0.02em', lineHeight: 1.1, color: 'var(--s-text)' }}>
                     {shot.title}
                   </h3>

@@ -178,7 +178,7 @@ export default function MiniMonthWidget({
               onClick={goToday}
               className="t-mono px-2 py-0.5 flex-shrink-0"
               style={{
-                fontSize: '11px',
+                fontSize: '12px',
                 color: 'var(--s-text-dim)',
                 background: 'var(--s-elevated)',
                 border: '1px solid var(--s-border)',
@@ -203,7 +203,7 @@ export default function MiniMonthWidget({
       {/* Grille */}
       <div className="grid grid-cols-7 gap-1">
         {DAY_LABELS.map((d, i) => (
-          <div key={i} className="t-label text-center pb-1" style={{ fontSize: '11px', color: 'var(--s-text-muted)' }}>
+          <div key={i} className="t-label text-center pb-1" style={{ fontSize: '12px', color: 'var(--s-text-muted)' }}>
             {d}
           </div>
         ))}
@@ -275,7 +275,7 @@ export default function MiniMonthWidget({
                 {extraCount > 0 && (
                   <span
                     className="t-mono"
-                    style={{ fontSize: '8px', lineHeight: 1, color: 'var(--s-text-muted)', marginLeft: '1px' }}
+                    style={{ fontSize: '11px', lineHeight: 1, color: 'var(--s-text-muted)', marginLeft: '2px' }}
                   >
                     +{extraCount}
                   </span>
@@ -289,7 +289,7 @@ export default function MiniMonthWidget({
       {/* Légende */}
       <div
         className="mt-3 pt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5"
-        style={{ borderTop: '1px solid var(--s-border)', fontSize: '11px', color: 'var(--s-text-muted)' }}
+        style={{ borderTop: '1px solid var(--s-border)', fontSize: '12px', color: 'var(--s-text-muted)' }}
       >
         <Legend color="var(--s-gold)" label="Match" />
         <Legend color="var(--s-blue)" label="Scrim" />
@@ -362,11 +362,11 @@ export default function MiniMonthWidget({
                         <span
                           className="t-label"
                           style={{
-                            fontSize: '10px',
+                            fontSize: '12px',
                             color,
                             background: `${color}15`,
                             border: `1px solid ${color}35`,
-                            padding: '1px 5px',
+                            padding: '2px 6px',
                           }}
                         >
                           {label}
@@ -376,7 +376,7 @@ export default function MiniMonthWidget({
                         </span>
                       </div>
                       {ev.structureLabel && (
-                        <p className="t-mono mt-0.5 truncate" style={{ fontSize: '11px', color: 'var(--s-text-muted)' }}>
+                        <p className="t-mono mt-0.5 truncate" style={{ fontSize: '12px', color: 'var(--s-text-muted)' }}>
                           {ev.structureLabel}
                         </p>
                       )}

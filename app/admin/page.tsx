@@ -194,7 +194,7 @@ export default function AdminDashboardPage() {
                   <div key={key}>
                     <div className="flex items-center gap-2 mb-2">
                       <span className="t-label" style={{ color: 'var(--s-text-dim)' }}>{label}</span>
-                      <span className="tag tag-gold" style={{ fontSize: '9px', padding: '1px 6px' }}>
+                      <span className="tag tag-gold" style={{ fontSize: '12px', padding: '2px 8px' }}>
                         {items.length >= cappedAt ? `${cappedAt}+` : items.length}
                       </span>
                     </div>

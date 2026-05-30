@@ -427,7 +427,7 @@ export default function AdminAuditPage() {
       </div>
 
       {logs.length >= 200 && (
-        <p className="t-body text-center" style={{ color: 'var(--s-text-muted)', fontSize: 11 }}>
+        <p className="t-body text-center" style={{ color: 'var(--s-text-muted)', fontSize: 12 }}>
           Affichage limité aux 200 entrées les plus récentes. Les plus anciennes existent toujours mais ne sont pas chargées ici.
         </p>
       )}

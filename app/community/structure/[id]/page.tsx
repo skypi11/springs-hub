@@ -195,7 +195,7 @@ function TeamCardCompact({ team, onOpen }: { team: Team; onOpen: () => void }) {
           </div>
           <div className="flex flex-col items-end gap-1 flex-shrink-0">
             <GameTag gameId={team.game} />
-            {isArchived && <span className="tag tag-neutral" style={{ fontSize: '8px', padding: '1px 5px' }}>ARCHIVÉE</span>}
+            {isArchived && <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '2px 6px' }}>ARCHIVÉE</span>}
           </div>
         </div>
 
@@ -1284,7 +1284,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-semibold truncate" style={{ color: 'var(--s-text)' }}>{a.competition}</p>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <GameTag gameId={a.game} style={{ fontSize: '8px', padding: '0px 4px' }} />
+                              <GameTag gameId={a.game} style={{ fontSize: '12px', padding: '2px 6px' }} />
                               {a.date && (
                                 <span className="t-mono" style={{ color: 'var(--s-text-muted)', fontSize: '12px' }}>
                                   {new Date(a.date + '-01').toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}

@@ -249,7 +249,7 @@ function CountCard({ label, value, color, pulse }: {
           <span className="inline-block w-2 h-2 rounded-full animate-pulse"
             style={{ background: color }} />
         )}
-        <span className="text-xs uppercase tracking-wider" style={{ color: 'var(--s-text-muted)', fontSize: '11px', letterSpacing: '0.1em' }}>
+        <span className="text-xs uppercase tracking-wider" style={{ color: 'var(--s-text-muted)', fontSize: '12px', letterSpacing: '0.1em' }}>
           {label}
         </span>
       </div>

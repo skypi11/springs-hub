@@ -214,7 +214,7 @@ export default function MonthView({ events, teams, now, canCreate, onEventClick,
                       }} />
                     ))}
                     {dayEvents.length > 10 && (
-                      <span style={{ fontSize: 9, lineHeight: '5px', color: 'var(--s-text-muted)' }}>
+                      <span style={{ fontSize: 11, lineHeight: 1, color: 'var(--s-text-muted)' }}>
                         +{dayEvents.length - 10}
                       </span>
                     )}

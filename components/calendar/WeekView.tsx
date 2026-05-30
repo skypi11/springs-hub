@@ -486,7 +486,7 @@ export default function WeekView({
                           }} />
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{s.displayName}</div>
-                            <div className="text-[10px]" style={{ color: 'var(--s-text-dim)' }}>{STAFF_ROLE_LABELS[s.role]}</div>
+                            <div className="text-[12px]" style={{ color: 'var(--s-text-dim)' }}>{STAFF_ROLE_LABELS[s.role]}</div>
                           </div>
                         </label>
                       );
@@ -553,7 +553,7 @@ export default function WeekView({
                   cursor: 'pointer',
                 }}>
                 <span className="t-label" style={{
-                  fontSize: 9,
+                  fontSize: 11,
                   color: isSelected ? 'var(--s-gold)' : (isToday ? 'var(--s-gold)' : 'var(--s-text-muted)'),
                 }}>
                   {DAY_LABELS[i]}
@@ -705,11 +705,11 @@ export default function WeekView({
                             ))}
                             {extraPastilles > 0 && (
                               <span style={{
-                                fontSize: 8,
+                                fontSize: 11,
                                 color: 'var(--s-text-dim)',
                                 background: 'rgba(0,0,0,0.5)',
-                                padding: '0 2px',
-                                lineHeight: '8px',
+                                padding: '0 3px',
+                                lineHeight: '11px',
                               }}>+{extraPastilles}</span>
                             )}
                           </div>
@@ -733,7 +733,7 @@ export default function WeekView({
                           border: '1.5px solid var(--s-gold)',
                           background: 'rgba(255,184,0,0.06)',
                         }}>
-                        <span className="t-label absolute top-0.5 left-1" style={{ color: 'var(--s-gold)', fontSize: 10 }}>
+                        <span className="t-label absolute top-0.5 left-1" style={{ color: 'var(--s-gold)', fontSize: 12 }}>
                           ✓ {b.playerIds.length}
                         </span>
                       </div>
@@ -1063,17 +1063,17 @@ function ConsensusConfigInline({
           color: open ? 'var(--s-gold)' : 'var(--s-text-dim)',
           border: '1px solid var(--s-border)',
         }}>
-        <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        <span style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
           ⚙ Régler le consensus
         </span>
-        <span style={{ fontSize: 10, color: 'var(--s-text-muted)' }}>
+        <span style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>
           {open ? '×' : '+'}
         </span>
       </button>
       {open && (
         <div className="mt-2 space-y-2 p-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
           <div>
-            <label className="block mb-1" style={{ fontSize: 10, color: 'var(--s-text-muted)', textTransform: 'uppercase' }}>
+            <label className="block mb-1" style={{ fontSize: 12, color: 'var(--s-text-muted)', textTransform: 'uppercase' }}>
               Min joueurs pour matcher
             </label>
             <input type="number" min={1} max={10}
@@ -1083,7 +1083,7 @@ function ConsensusConfigInline({
               style={{ fontSize: 12, padding: '4px 8px' }} />
           </div>
           <div>
-            <label className="block mb-1" style={{ fontSize: 10, color: 'var(--s-text-muted)', textTransform: 'uppercase' }}>
+            <label className="block mb-1" style={{ fontSize: 12, color: 'var(--s-text-muted)', textTransform: 'uppercase' }}>
               Durée min du match (heures)
             </label>
             <input type="number" min={0.5} max={8} step={0.5}
@@ -1096,7 +1096,7 @@ function ConsensusConfigInline({
             <button type="button" onClick={() => save.mutate()}
               disabled={save.isPending}
               className="btn-springs btn-primary bevel-sm flex items-center justify-center gap-1.5 w-full"
-              style={{ fontSize: 11, padding: '6px 10px' }}>
+              style={{ fontSize: 12, padding: '6px 10px' }}>
               {save.isPending ? <Loader2 size={11} className="animate-spin" /> : null}
               Enregistrer
             </button>

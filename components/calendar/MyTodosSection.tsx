@@ -424,7 +424,7 @@ function TodoRow({
           {isMultiStep && (
             <span className="px-1.5 py-0.5 font-bold tracking-wider"
               style={{
-                fontSize: '11px',
+                fontSize: '12px',
                 background: stepProgress.done === stepProgress.total ? 'rgba(255,184,0,0.12)' : 'var(--s-surface)',
                 border: `1px solid ${stepProgress.done === stepProgress.total ? 'rgba(255,184,0,0.35)' : 'var(--s-border)'}`,
                 color: stepProgress.done === stepProgress.total ? 'var(--s-gold)' : 'var(--s-text-dim)',

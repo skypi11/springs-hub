@@ -114,7 +114,7 @@ export default function EventStatsPage({ params }: { params: Promise<{ eventId: 
           <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--s-text-muted)' }}>
             {meta.structureName && <span>{meta.structureName}</span>}
             <span style={{ opacity: 0.5 }}>·</span>
-            <span className="tag tag-gold" style={{ fontSize: '10px', padding: '1px 6px' }}>{typeLabel}</span>
+            <span className="tag tag-gold" style={{ fontSize: '12px', padding: '2px 8px' }}>{typeLabel}</span>
           </div>
         </div>
       </div>

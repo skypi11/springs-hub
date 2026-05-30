@@ -387,7 +387,7 @@ function TodoStaffRow({
               return (
                 <span className="px-1.5 py-0.5 font-bold tracking-wider"
                   style={{
-                    fontSize: '11px',
+                    fontSize: '12px',
                     background: doneCount === total ? 'rgba(255,184,0,0.12)' : 'var(--s-elevated)',
                     border: `1px solid ${doneCount === total ? 'rgba(255,184,0,0.35)' : 'var(--s-border)'}`,
                     color: doneCount === total ? 'var(--s-gold)' : 'var(--s-text-dim)',

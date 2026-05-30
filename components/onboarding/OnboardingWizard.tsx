@@ -392,7 +392,7 @@ function StepGames({ data, update }: { data: WizardData; update: (p: Partial<Wiz
       {data.games.includes('rocket_league') && (
         <div className="p-4 space-y-3" style={{ background: 'rgba(0,129,255,0.04)', border: '1px solid rgba(0,129,255,0.15)' }}>
           <div className="flex items-center gap-2">
-            <span className="tag tag-blue" style={{ fontSize: '11px' }}>RL</span>
+            <span className="tag tag-blue" style={{ fontSize: '12px' }}>RL</span>
             <span className="t-label" style={{ color: 'var(--s-blue)' }}>Configuration minimale</span>
           </div>
           <div>
@@ -431,7 +431,7 @@ function StepGames({ data, update }: { data: WizardData; update: (p: Partial<Wiz
       {data.games.includes('trackmania') && (
         <div className="p-4 space-y-3" style={{ background: 'rgba(0,217,54,0.04)', border: '1px solid rgba(0,217,54,0.15)' }}>
           <div className="flex items-center gap-2">
-            <span className="tag tag-green" style={{ fontSize: '11px' }}>TM</span>
+            <span className="tag tag-green" style={{ fontSize: '12px' }}>TM</span>
             <span className="t-label" style={{ color: 'var(--s-green)' }}>Configuration minimale</span>
           </div>
           <div>
@@ -462,7 +462,7 @@ function StepGames({ data, update }: { data: WizardData; update: (p: Partial<Wiz
       {data.games.includes('valorant') && (
         <div className="p-4 space-y-3" style={{ background: 'rgba(255,70,85,0.04)', border: '1px solid rgba(255,70,85,0.15)' }}>
           <div className="flex items-center gap-2">
-            <span className="tag" style={{ fontSize: '11px', background: 'rgba(255,70,85,0.10)', color: '#FF6B78', borderColor: 'rgba(255,70,85,0.25)' }}>VAL</span>
+            <span className="tag" style={{ fontSize: '12px', background: 'rgba(255,70,85,0.10)', color: '#FF6B78', borderColor: 'rgba(255,70,85,0.25)' }}>VAL</span>
             <span className="t-label" style={{ color: '#FF6B78' }}>Configuration minimale</span>
           </div>
           <div>

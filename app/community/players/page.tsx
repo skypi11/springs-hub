@@ -709,7 +709,7 @@ function FilterGroup({ icon, title, accent, children }: { icon: React.ReactNode;
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="t-label block mb-1" style={{ color: 'var(--s-text-dim)', fontSize: '11px' }}>{label}</label>
+      <label className="t-label block mb-1" style={{ color: 'var(--s-text-dim)', fontSize: '12px' }}>{label}</label>
       {children}
     </div>
   );
@@ -736,13 +736,13 @@ function StructureBlock({ s }: { s: EnrichedStructure }) {
         </div>
       )}
       <div className="flex flex-col min-w-0 flex-1 leading-tight">
-        <div className="text-[11px] font-semibold truncate">
+        <div className="text-[12px] font-semibold truncate">
           <span style={{ color: isLeader ? 'var(--s-gold)' : 'var(--s-text)' }}>{PRIMARY_ROLE_LABELS[s.primaryRole]}</span>
           <span style={{ color: 'var(--s-text-muted)' }}> · </span>
           <span style={{ color: 'var(--s-text)' }}>{s.name || s.tag}</span>
         </div>
         {showTeams && s.affiliations.slice(0, 2).map(a => (
-          <div key={a.teamId} className="text-[10px] truncate" style={{ color: 'var(--s-text-dim)' }}>
+          <div key={a.teamId} className="text-[11px] truncate" style={{ color: 'var(--s-text-dim)' }}>
             ↳ {TEAM_ROLE_LABEL[a.role] || 'Joueur'} · {a.teamName}
           </div>
         ))}
@@ -884,7 +884,7 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
         {hasMatch && (
           <div className="absolute top-2 left-2 z-[3]">
             <span className="tag inline-flex items-center gap-1"
-              style={{ fontSize: '9px', padding: '2px 6px', background: 'rgba(0,217,54,0.85)', color: '#000', borderColor: 'transparent', fontWeight: 700, letterSpacing: '0.5px' }}>
+              style={{ fontSize: '12px', padding: '2px 8px', background: 'rgba(0,217,54,0.85)', color: '#000', borderColor: 'transparent', fontWeight: 700, letterSpacing: '0.5px' }}>
               <Target size={9} /> MATCH
             </span>
           </div>
@@ -894,7 +894,7 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
         {p.isAvailableForRecruitment && (
           <div className="absolute bottom-2 left-2 z-[3]">
             <span className="tag inline-flex items-center gap-1"
-              style={{ fontSize: '9px', padding: '2px 6px', background: 'rgba(0,217,54,0.20)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.50)', fontWeight: 700, letterSpacing: '0.5px' }}>
+              style={{ fontSize: '12px', padding: '2px 8px', background: 'rgba(0,217,54,0.20)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.50)', fontWeight: 700, letterSpacing: '0.5px' }}>
               <Star size={9} style={{ fill: '#33ff66' }} />
               {(ROLE_LABELS[p.recruitmentRole] || 'CHERCHE').toUpperCase()}
             </span>
@@ -952,7 +952,7 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
                 <>
                   <RankBadge rank={p.rlRank} size={36} />
                   <div className="flex flex-col min-w-0">
-                    <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--s-text-muted)' }}>Rang RL</span>
+                    <span className="text-[12px] uppercase tracking-wider" style={{ color: 'var(--s-text-muted)' }}>Rang RL</span>
                     <span className="text-xs font-semibold truncate" style={{ color: rankTier.color }}>{p.rlRank}</span>
                   </div>
                 </>
@@ -975,7 +975,7 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
                 <>
                   <ValorantRankBadge rank={p.valorantRank} size={36} />
                   <div className="flex flex-col min-w-0">
-                    <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--s-text-muted)' }}>Rang Val</span>
+                    <span className="text-[12px] uppercase tracking-wider" style={{ color: 'var(--s-text-muted)' }}>Rang Val</span>
                     <span className="text-xs font-semibold truncate" style={{ color: valTier.color }}>{p.valorantRank}</span>
                   </div>
                 </>
@@ -989,7 +989,7 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
                 </div>
               );
             }
-            return <span className="text-[10px] italic" style={{ color: 'var(--s-text-muted)' }}>,</span>;
+            return <span className="text-[12px] italic" style={{ color: 'var(--s-text-muted)' }}>,</span>;
           })()}
         </div>
 
@@ -1004,13 +1004,13 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
                 <StructureBlock key={s.id} s={s} />
               ))}
               {extraCount > 0 && (
-                <div className="text-[10px] italic pl-7" style={{ color: 'var(--s-text-muted)' }}>
+                <div className="text-[12px] italic pl-7" style={{ color: 'var(--s-text-muted)' }}>
                   + {extraCount} autre{extraCount > 1 ? 's' : ''}
                 </div>
               )}
             </>
           ) : (
-            <div className="text-[11px] italic" style={{ color: 'var(--s-text-muted)' }}>Sans structure</div>
+            <div className="text-[12px] italic" style={{ color: 'var(--s-text-muted)' }}>Sans structure</div>
           )}
         </div>
       </div>
@@ -1089,7 +1089,7 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
 
         <div className="flex gap-1" style={{ flex: '0 0 60px' }}>
           {p.games.map(g => (
-            <GameTag key={g} gameId={g} style={{ fontSize: '11px', padding: '1px 5px' }} />
+            <GameTag key={g} gameId={g} style={{ fontSize: '12px', padding: '2px 6px' }} />
           ))}
         </div>
 
@@ -1154,7 +1154,7 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
         <div className="hidden lg:block" style={{ flex: '0 0 130px' }}>
           {p.isAvailableForRecruitment && (
             <span className="tag inline-flex items-center gap-1"
-              style={{ background: 'rgba(0,217,54,0.10)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.30)', fontSize: '11px', padding: '2px 6px' }}>
+              style={{ background: 'rgba(0,217,54,0.10)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.30)', fontSize: '12px', padding: '2px 7px' }}>
               <Star size={10} style={{ fill: '#33ff66' }} />
               {ROLE_LABELS[p.recruitmentRole] || 'Cherche équipe'}
             </span>
@@ -1163,7 +1163,7 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
 
         {hasMatch && (
           <span className="hidden xl:inline-flex tag items-center gap-1 flex-shrink-0"
-            style={{ fontSize: '11px', padding: '2px 7px', background: 'rgba(0,217,54,0.15)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.45)', fontWeight: 600 }}>
+            style={{ fontSize: '12px', padding: '2px 8px', background: 'rgba(0,217,54,0.15)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.45)', fontWeight: 600 }}>
             <Target size={10} /> Match
           </span>
         )}

@@ -97,8 +97,8 @@ export default function RLIdentityBadge({
             background: subtle ? 'transparent' : 'rgba(255,85,85,0.10)',
             color: subtle ? 'var(--s-text-muted)' : '#ff8a8a',
             borderColor: subtle ? 'var(--s-border)' : 'rgba(255,85,85,0.35)',
-            fontSize: '10px',
-            padding: '2px 6px',
+            fontSize: '12px',
+            padding: '2px 7px',
           }}
         >
           <ShieldAlert size={10} />
@@ -146,8 +146,8 @@ export default function RLIdentityBadge({
             background: 'rgba(255,184,0,0.10)',
             color: 'var(--s-gold)',
             borderColor: 'rgba(255,184,0,0.35)',
-            fontSize: '10px',
-            padding: '2px 6px',
+            fontSize: '12px',
+            padding: '2px 7px',
           }}
         >
           <ShieldCheck size={10} />
@@ -165,8 +165,8 @@ export default function RLIdentityBadge({
               background: 'transparent',
               color: 'var(--s-blue)',
               borderColor: 'rgba(0,129,255,0.35)',
-              fontSize: '10px',
-              padding: '2px 6px',
+              fontSize: '12px',
+              padding: '2px 7px',
               textDecoration: 'none',
             }}
           >

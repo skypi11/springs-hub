@@ -74,7 +74,7 @@ export function RoleInfoCard({ role, compact = false }: { role: RoleDefinition; 
             <div className="space-y-2 pl-4">
               {canGroups.map(([cat, labels]) => (
                 <div key={cat}>
-                  <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--s-text-muted)' }}>{cat}</p>
+                  <p className="text-[12px] uppercase tracking-wider mb-1" style={{ color: 'var(--s-text-muted)' }}>{cat}</p>
                   <ul className="space-y-0.5">
                     {labels.map((label, i) => (
                       <li key={i} className="text-xs flex items-start gap-1.5" style={{ color: 'var(--s-text)' }}>
@@ -99,7 +99,7 @@ export function RoleInfoCard({ role, compact = false }: { role: RoleDefinition; 
             <div className="space-y-2 pl-4">
               {cantGroups.map(([cat, labels]) => (
                 <div key={cat}>
-                  <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--s-text-muted)' }}>{cat}</p>
+                  <p className="text-[12px] uppercase tracking-wider mb-1" style={{ color: 'var(--s-text-muted)' }}>{cat}</p>
                   <ul className="space-y-0.5">
                     {labels.map((label, i) => (
                       <li key={i} className="text-xs flex items-start gap-1.5" style={{ color: 'var(--s-text-dim)' }}>

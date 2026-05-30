@@ -363,7 +363,7 @@ export function StepResponseForm({
                 disabled={uploading}
                 className="flex items-center gap-1 px-2 py-1 transition-colors"
                 style={{
-                  fontSize: '11px', fontWeight: 700,
+                  fontSize: '12px', fontWeight: 700,
                   background: 'transparent',
                   border: '1px solid rgba(255,85,85,0.35)',
                   color: '#ff8a8a',

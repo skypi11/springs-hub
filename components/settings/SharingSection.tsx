@@ -219,7 +219,7 @@ export default function SharingSection({ user, onSaved }: Props) {
                       <div className="t-body" style={{ fontWeight: 600 }}>{game.label}</div>
                       {disabled && (
                         <div className="t-body text-[var(--s-text-dim)]" style={{ fontSize: 12 }}>
-                          Pas de rang renseigné — va dans <strong>Mes jeux</strong> pour l'ajouter.
+                          Pas de rang renseigné. Va dans <strong>Mes jeux</strong> pour l'ajouter.
                         </div>
                       )}
                       {!disabled && checked && (
@@ -247,7 +247,7 @@ export default function SharingSection({ user, onSaved }: Props) {
             <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {gameIdsWithStructure.length === 0 ? (
                 <div className="t-body text-[var(--s-text-dim)]">
-                  Tu n&apos;es membre d&apos;aucune structure pour l&apos;instant — rien à afficher sur la carte.
+                  Tu n&apos;es membre d&apos;aucune structure pour l&apos;instant. Rien à afficher sur la carte.
                 </div>
               ) : (
                 <>
@@ -403,7 +403,7 @@ export default function SharingSection({ user, onSaved }: Props) {
               target="_blank"
               rel="noopener noreferrer"
               className="text-[var(--s-text-dim)] hover:text-[var(--s-gold)] transition-colors"
-              style={{ fontSize: 11 }}
+              style={{ fontSize: 12 }}
             >
               Voir en grand →
             </a>
@@ -452,7 +452,7 @@ export default function SharingSection({ user, onSaved }: Props) {
               target="_blank"
               rel="noopener noreferrer"
               className="text-[var(--s-text-dim)] hover:text-[var(--s-gold)] transition-colors"
-              style={{ fontSize: 11 }}
+              style={{ fontSize: 12 }}
             >
               Voir en grand →
             </a>

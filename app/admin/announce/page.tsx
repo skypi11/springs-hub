@@ -524,8 +524,8 @@ export default function AdminAnnouncePage() {
                           color: active ? cat.color : 'var(--s-text-muted)',
                           borderColor: active ? `rgba(${cat.colorRgb}, 0.4)` : 'var(--s-border)',
                           cursor: 'pointer',
-                          padding: '4px 8px',
-                          fontSize: '11px',
+                          padding: '4px 10px',
+                          fontSize: '12px',
                         }}
                         title={cat.hint}
                       >

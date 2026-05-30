@@ -393,7 +393,7 @@ function GameSpecCard({ game: g }: { game: typeof ALL_GAME_DEFS[number] }) {
             }}>
               {g.label.toUpperCase()}
             </h3>
-            <span className="t-mono" style={{ fontSize: 11, color: 'var(--s-text-muted)' }}>
+            <span className="t-mono" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>
               {g.shortLabel} · /{g.slug}
             </span>
           </div>

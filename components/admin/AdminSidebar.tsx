@@ -137,7 +137,7 @@ export default function AdminSidebar({ badges = {} }: Props) {
                     {item.soon && (
                       <span
                         className="tag tag-neutral"
-                        style={{ fontSize: '8px', padding: '0px 5px' }}
+                        style={{ fontSize: '12px', padding: '2px 6px' }}
                       >
                         BIENTÔT
                       </span>
@@ -145,7 +145,7 @@ export default function AdminSidebar({ badges = {} }: Props) {
                     {!item.soon && badge > 0 ? (
                       <span
                         className="tag tag-gold ml-auto"
-                        style={{ fontSize: '9px', padding: '1px 6px' }}
+                        style={{ fontSize: '12px', padding: '2px 8px' }}
                       >
                         {badge}
                       </span>

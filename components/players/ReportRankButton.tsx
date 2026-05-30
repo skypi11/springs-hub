@@ -43,13 +43,13 @@ export default function ReportRankButton({
         background: 'transparent',
         color: '#ff8a8a',
         borderColor: 'rgba(255,85,85,0.35)',
-        fontSize: '10px',
-        padding: '2px 6px',
+        fontSize: '12px',
+        padding: '2px 7px',
         cursor: 'pointer',
       }}
       title="Signaler le rang à l'admin"
     >
-      <Flag size={9} />
+      <Flag size={10} />
       signaler
     </button>
   ) : (
@@ -61,7 +61,7 @@ export default function ReportRankButton({
         background: 'rgba(255,85,85,0.08)',
         color: '#ff8a8a',
         borderColor: 'rgba(255,85,85,0.35)',
-        fontSize: '11px',
+        fontSize: '12px',
         padding: '6px 12px',
       }}
       title="Signaler ce rang à l'admin"

@@ -583,7 +583,7 @@ function ModeToggle({ mode, onChange }: { mode: AggregationMode; onChange: (m: A
 function ToggleBtn({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
   return (
     <button type="button" onClick={onClick}
-      className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors"
+      className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] font-bold uppercase tracking-wider transition-colors"
       style={{
         background: active ? 'var(--s-gold)' : 'transparent',
         color: active ? '#000' : 'var(--s-text-dim)',
@@ -811,7 +811,7 @@ function StatCell({ value, col, isBest, accent }: { value: number | undefined; c
     <td className="text-right py-2 px-2 t-mono whitespace-nowrap" style={{ color: col.muted && !isBest ? 'var(--s-text-muted)' : undefined }}>
       <div className="flex items-center justify-end gap-1">
         {isBest && (
-          <span title="Top du joueur dans cette équipe" style={{ color: 'var(--s-gold)', fontSize: 10, lineHeight: 1 }}>★</span>
+          <span title="Top du joueur dans cette équipe" style={{ color: 'var(--s-gold)', fontSize: 12, lineHeight: 1 }}>★</span>
         )}
         <span style={isBest ? { color: 'var(--s-gold)', fontWeight: 600 } : undefined}>{display}</span>
       </div>

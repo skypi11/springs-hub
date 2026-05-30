@@ -219,8 +219,8 @@ export default function StaffGamesScopeModal({
                       <span
                         className="tag flex-shrink-0"
                         style={{
-                          fontSize: '10px',
-                          padding: '1px 5px',
+                          fontSize: '12px',
+                          padding: '2px 6px',
                           background: `rgba(${g.colorRgb}, 0.1)`,
                           color: g.colorLight,
                           borderColor: `rgba(${g.colorRgb}, 0.25)`,

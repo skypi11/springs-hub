@@ -151,7 +151,7 @@ export default function AdminRankReportsPage() {
                     style={{ color: 'var(--s-text)' }}>
                     {r.targetName || r.targetUid}
                   </Link>
-                  <span className="tag tag-blue" style={{ fontSize: '10px' }}>
+                  <span className="tag tag-blue" style={{ fontSize: '12px' }}>
                     {r.targetRlRank || '—'}
                   </span>
                   {/* Motif du signalement */}
@@ -159,24 +159,24 @@ export default function AdminRankReportsPage() {
                     const meta = MOTIF_META[r.motif] ?? MOTIF_META.rank_lie;
                     return (
                       <span className="tag" style={{
-                        background: meta.bg, color: meta.color, borderColor: meta.border, fontSize: '10px',
+                        background: meta.bg, color: meta.color, borderColor: meta.border, fontSize: '12px',
                       }}>
                         {meta.label}
                       </span>
                     );
                   })()}
                   {r.status === 'pending' && (
-                    <span className="tag" style={{ background: 'rgba(255,184,0,0.15)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.4)', fontSize: '10px' }}>
+                    <span className="tag" style={{ background: 'rgba(255,184,0,0.15)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.4)', fontSize: '12px' }}>
                       EN ATTENTE
                     </span>
                   )}
                   {r.status === 'resolved' && (
-                    <span className="tag" style={{ background: 'rgba(0,217,54,0.1)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.3)', fontSize: '10px' }}>
+                    <span className="tag" style={{ background: 'rgba(0,217,54,0.1)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.3)', fontSize: '12px' }}>
                       ✓ RÉSOLU
                     </span>
                   )}
                   {r.status === 'dismissed' && (
-                    <span className="tag" style={{ background: 'rgba(255,85,85,0.08)', color: '#ff8a8a', borderColor: 'rgba(255,85,85,0.3)', fontSize: '10px' }}>
+                    <span className="tag" style={{ background: 'rgba(255,85,85,0.08)', color: '#ff8a8a', borderColor: 'rgba(255,85,85,0.3)', fontSize: '12px' }}>
                       ✗ REJETÉ
                     </span>
                   )}

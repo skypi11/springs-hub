@@ -172,7 +172,7 @@ function BallchasingQuotaSubBlock({ data }: { data: BcQuota }) {
       <div style={{ height: 6, background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
         <div style={{ height: '100%', width: `${pct}%`, background: barColor }} />
       </div>
-      <div className="text-[11px] mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
+      <div className="text-[12px] mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
         {data.remaining > 0
           ? <>Reste {data.remaining} replay{data.remaining > 1 ? 's' : ''} parsable{data.remaining > 1 ? 's' : ''} cette semaine{resetLabel ? <> · reset {resetLabel}</> : null}</>
           : <>Quota atteint{resetLabel ? <> · reset {resetLabel}</> : null}</>}

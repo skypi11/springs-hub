@@ -533,7 +533,7 @@ function StepCard({
               </span>
             )}
             <span className="px-1.5 py-0.5" style={{
-              fontSize: '11px',
+              fontSize: '12px',
               fontWeight: 700,
               background: 'var(--s-surface)',
               border: '1px solid var(--s-border)',
@@ -559,7 +559,7 @@ function StepCard({
             onClick={onOpenEdit}
             className="flex-shrink-0 flex items-center gap-1.5 px-2 py-1 transition-colors"
             style={{
-              fontSize: '11px',
+              fontSize: '12px',
               fontWeight: 700,
               background: 'transparent',
               border: '1px solid var(--s-border)',

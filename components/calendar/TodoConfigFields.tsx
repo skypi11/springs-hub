@@ -256,7 +256,7 @@ export function TodoConfigFields({
                   onClick={() => onChange({ durationMinutes: n })}
                   className="px-2 py-0.5 transition-all"
                   style={{
-                    fontSize: '11px',
+                    fontSize: '12px',
                     fontWeight: 700,
                     background: duration === n ? 'var(--s-elevated)' : 'var(--s-surface)',
                     border: `1px solid ${duration === n ? 'var(--s-gold)' : 'var(--s-border)'}`,

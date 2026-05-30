@@ -172,7 +172,7 @@ export default function AdminBallchasingPage() {
                         <div style={{ height: 6, background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                           <div style={{ height: '100%', width: `${Math.min(100, s.pctOfQuota)}%`, background: barColor }} />
                         </div>
-                        <div className="text-[10px] mt-1" style={{ color: 'var(--s-text-muted)' }}>{s.pctOfQuota}%</div>
+                        <div className="text-[12px] mt-1" style={{ color: 'var(--s-text-muted)' }}>{s.pctOfQuota}%</div>
                       </td>
                       <td className="text-right px-4 py-3 t-mono" style={{ color: s.failed > 0 ? '#ef4444' : 'var(--s-text-muted)' }}>
                         {s.failed}

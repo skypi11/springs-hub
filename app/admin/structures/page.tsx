@@ -745,7 +745,7 @@ function MembersSection({ structureId }: { structureId: string }) {
                 {m.avatarUrl ? (
                   <Image src={m.avatarUrl} alt={m.displayName} fill className="object-cover" unoptimized sizes="28px" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-[10px] font-bold" style={{ color: 'var(--s-text-muted)' }}>
+                  <div className="w-full h-full flex items-center justify-center text-[12px] font-bold" style={{ color: 'var(--s-text-muted)' }}>
                     {m.displayName.slice(0, 2).toUpperCase()}
                   </div>
                 )}
@@ -756,16 +756,16 @@ function MembersSection({ structureId }: { structureId: string }) {
               </span>
               {/* Game tag si rôle équipe */}
               {m.game && (
-                <GameTag gameId={m.game} className="flex-shrink-0" style={{ fontSize: '10px', padding: '1px 5px' }} />
+                <GameTag gameId={m.game} className="flex-shrink-0" style={{ fontSize: '12px', padding: '2px 6px' }} />
               )}
               {/* Tous les rôles (chips) */}
               <div className="flex items-center gap-1 flex-shrink-0">
                 {m.roles.map(role => {
                   const style = ROLE_COLORS[role] ?? roleStyle;
                   return (
-                    <span key={role} className="px-1.5 py-0.5"
+                    <span key={role} className="px-2 py-0.5"
                       style={{
-                        fontSize: '10px', fontWeight: 700,
+                        fontSize: '12px', fontWeight: 700,
                         background: style.bg,
                         border: `1px solid ${style.border}`,
                         color: style.color,

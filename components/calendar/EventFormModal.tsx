@@ -381,7 +381,7 @@ export default function EventFormModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="t-label block mb-1.5">
-                Type {isEditMode && <span style={{ color: 'var(--s-text-muted)', fontSize: 10 }}>(verrouillé)</span>}
+                Type {isEditMode && <span style={{ color: 'var(--s-text-muted)', fontSize: 12 }}>(verrouillé)</span>}
               </label>
               <select
                 className="settings-input w-full"
@@ -432,7 +432,7 @@ export default function EventFormModal({
           {isEditMode ? (
             <div>
               <label className="t-label block mb-1.5">
-                Cible <span style={{ color: 'var(--s-text-muted)', fontSize: 10 }}>(verrouillée)</span>
+                Cible <span style={{ color: 'var(--s-text-muted)', fontSize: 12 }}>(verrouillée)</span>
               </label>
               <div
                 className="bevel-sm p-3"

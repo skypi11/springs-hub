@@ -343,16 +343,16 @@ export default function AdminUsersPage() {
                       {u.displayName}
                     </span>
                     {u.isAdmin && (
-                      <span className="tag tag-gold" style={{ fontSize: '10px', padding: '1px 6px' }}>ADMIN</span>
+                      <span className="tag tag-gold" style={{ fontSize: '12px', padding: '2px 8px' }}>ADMIN</span>
                     )}
                     {u.isBanned && (
-                      <span className="tag" style={{ background: 'rgba(255,50,50,0.1)', color: '#ff5555', borderColor: 'rgba(255,50,50,0.3)', fontSize: '10px', padding: '1px 6px' }}>BANNI</span>
+                      <span className="tag" style={{ background: 'rgba(255,50,50,0.1)', color: '#ff5555', borderColor: 'rgba(255,50,50,0.3)', fontSize: '12px', padding: '2px 8px' }}>BANNI</span>
                     )}
                     {u.isAvailableForRecruitment && (
                       <span
                         title={u.recruitmentRole ? `Disponible : ${u.recruitmentRole}` : 'Disponible au recrutement'}
                         className="tag flex items-center gap-1"
-                        style={{ background: 'rgba(0,217,54,0.10)', color: '#00D936', borderColor: 'rgba(0,217,54,0.30)', fontSize: '10px', padding: '1px 6px' }}>
+                        style={{ background: 'rgba(0,217,54,0.10)', color: '#00D936', borderColor: 'rgba(0,217,54,0.30)', fontSize: '12px', padding: '2px 8px' }}>
                         <Search size={9} />
                         Recrute{u.recruitmentRole ? ` · ${u.recruitmentRole}` : ''}
                       </span>
@@ -369,7 +369,7 @@ export default function AdminUsersPage() {
                         title={u.rlEpicId
                           ? `Compte Epic vérifié : ${u.rlEpicName || u.rlEpicId}`
                           : `Compte Steam vérifié : ${u.rlSteamName || u.rlSteamId}`}
-                        className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5"
+                        className="inline-flex items-center gap-1 text-[12px] font-bold uppercase tracking-wider px-2 py-0.5"
                         style={{ background: 'rgba(255,184,0,0.10)', color: 'var(--s-gold)', border: '1px solid rgba(255,184,0,0.30)' }}>
                         <ShieldCheck size={9} />
                         {u.rlEpicId ? 'Epic' : 'Steam'} vérifié
@@ -382,7 +382,7 @@ export default function AdminUsersPage() {
                             ? `Rang déclaré (compte vérifié)`
                             : `Rang auto-déclaré sans compte vérifié, à prendre avec précaution`
                         }
-                        className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5"
+                        className="inline-flex items-center gap-1 text-[12px] font-bold uppercase tracking-wider px-2 py-0.5"
                         style={{
                           background: 'rgba(0,129,255,0.08)',
                           color: 'var(--s-blue)',
@@ -407,7 +407,7 @@ export default function AdminUsersPage() {
                 </div>
 
                 {u.memberships.length > 0 && (
-                  <span className="tag tag-gold" style={{ fontSize: '10px', padding: '1px 6px' }}>
+                  <span className="tag tag-gold" style={{ fontSize: '12px', padding: '2px 8px' }}>
                     {u.memberships.length} struct.
                   </span>
                 )}
@@ -486,7 +486,7 @@ export default function AdminUsersPage() {
                                 <p className="text-xs font-semibold truncate" style={{ color: 'var(--s-text)' }}>{m.structureName}</p>
                                 <div className="flex items-center gap-2 mt-0.5">
                                   <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>{m.role}</span>
-                                  <GameTag gameId={m.game} style={{ fontSize: '8px', padding: '0px 4px' }} />
+                                  <GameTag gameId={m.game} style={{ fontSize: '12px', padding: '2px 6px' }} />
                                 </div>
                               </div>
                               <button
@@ -520,7 +520,7 @@ export default function AdminUsersPage() {
                   {(u.games?.includes('rocket_league') || u.rlEpicId || u.rlSteamId || u.epicAccountId) && (
                     <div className="px-3 py-3" style={{ background: 'rgba(0,129,255,0.04)', border: '1px solid rgba(0,129,255,0.15)' }}>
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="tag tag-blue" style={{ fontSize: '11px', padding: '1px 6px' }}>RL</span>
+                        <span className="tag tag-blue" style={{ fontSize: '12px', padding: '2px 8px' }}>RL</span>
                         <span className="t-label" style={{ color: 'var(--s-blue)' }}>Rocket League</span>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
@@ -582,7 +582,7 @@ export default function AdminUsersPage() {
                   {u.games?.includes('trackmania') && (u.pseudoTM || u.loginTM || u.tmIoUrl) && (
                     <div className="px-3 py-3" style={{ background: 'rgba(0,217,54,0.04)', border: '1px solid rgba(0,217,54,0.15)' }}>
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="tag tag-green" style={{ fontSize: '11px', padding: '1px 6px' }}>TM</span>
+                        <span className="tag tag-green" style={{ fontSize: '12px', padding: '2px 8px' }}>TM</span>
                         <span className="t-label" style={{ color: 'var(--s-green)' }}>Trackmania</span>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">

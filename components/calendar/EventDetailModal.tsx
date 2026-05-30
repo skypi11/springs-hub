@@ -375,7 +375,7 @@ export default function EventDetailModal({
                           )}
                           <span className="text-xs truncate" style={{ color: m ? 'var(--s-text)' : 'var(--s-text-muted)' }}>
                             {displayName}
-                            {!p.wasStructureMember && <span className="ml-1" style={{ fontSize: '8px', color: 'var(--s-text-muted)' }}>(ancien)</span>}
+                            {!p.wasStructureMember && <span className="ml-1" style={{ fontSize: '11px', color: 'var(--s-text-muted)', fontStyle: 'italic' }}>(ancien)</span>}
                           </span>
                         </div>
                       );
@@ -548,11 +548,11 @@ export default function EventDetailModal({
                               <span className="text-sm font-medium truncate" style={{ color: 'var(--s-text)' }}>
                                 {todo.title}
                               </span>
-                              <span className="tag tag-neutral" style={{ fontSize: '10px', padding: '1px 5px' }}>
+                              <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '2px 6px' }}>
                                 {todo.type}
                               </span>
                               {todo.done && (
-                                <span className="tag" style={{ background: 'rgba(51,255,102,0.10)', color: '#33ff66', borderColor: 'rgba(51,255,102,0.30)', fontSize: '10px', padding: '1px 5px' }}>
+                                <span className="tag" style={{ background: 'rgba(51,255,102,0.10)', color: '#33ff66', borderColor: 'rgba(51,255,102,0.30)', fontSize: '12px', padding: '2px 6px' }}>
                                   Fait
                                 </span>
                               )}

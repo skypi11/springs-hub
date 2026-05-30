@@ -269,12 +269,12 @@ function UploadList({ items }: { items: UploadItem[] }) {
             {icon}
             <span className="truncate flex-1 min-w-0" title={it.filename}>{it.filename}</span>
             {it.status === 'uploading' && (
-              <span className="t-mono text-[11px] flex-shrink-0" style={{ color: 'var(--s-text-muted)' }}>
+              <span className="t-mono text-[12px] flex-shrink-0" style={{ color: 'var(--s-text-muted)' }}>
                 {it.progress}%
               </span>
             )}
             {it.status === 'failed' && it.error && (
-              <span className="text-[11px] truncate max-w-[200px] flex-shrink-0" style={{ color: '#ef4444' }} title={it.error}>
+              <span className="text-[12px] truncate max-w-[200px] flex-shrink-0" style={{ color: '#ef4444' }} title={it.error}>
                 {it.error}
               </span>
             )}

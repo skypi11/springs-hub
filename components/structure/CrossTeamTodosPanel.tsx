@@ -668,9 +668,9 @@ function RelanceRow({
           <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
             {user?.displayName ?? uid}
           </span>
-          <span className="px-1.5 py-0.5 text-xs font-bold"
+          <span className="px-2 py-0.5 text-xs font-bold"
             style={{
-              fontSize: '11px',
+              fontSize: '12px',
               background: 'rgba(255,85,85,0.12)',
               border: '1px solid rgba(255,85,85,0.35)',
               color: '#ff9999',
@@ -690,9 +690,9 @@ function RelanceRow({
                 <button type="button" onClick={() => onOpenTodo(t.id)}
                   className="w-full text-left flex items-center gap-2 px-2 py-1 transition-colors hover:bg-[var(--s-elevated)]"
                   style={{ borderRadius: 2 }}>
-                  <span className="px-1.5 py-0.5"
+                  <span className="px-2 py-0.5"
                     style={{
-                      fontSize: '10px', fontWeight: 700,
+                      fontSize: '12px', fontWeight: 700,
                       background: 'var(--s-elevated)',
                       border: '1px solid var(--s-border)',
                       color: 'var(--s-text-dim)',
@@ -720,7 +720,7 @@ function RelanceRow({
         disabled={pinging}
         className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 bevel-sm transition-colors hover:brightness-110"
         style={{
-          fontSize: '11px',
+          fontSize: '12px',
           fontWeight: 700,
           background: pinging ? 'var(--s-elevated)' : 'rgba(255,184,0,0.12)',
           border: `1px solid ${pinging ? 'var(--s-border)' : 'rgba(255,184,0,0.35)'}`,
@@ -751,7 +751,7 @@ function PerformanceRow({ row }: { row: { uid: string; user: OverviewUser | unde
         {row.user?.avatarUrl ? (
           <Image src={row.user.avatarUrl} alt={row.user.displayName} fill className="object-cover" unoptimized />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-[10px] font-bold" style={{ color: 'var(--s-text-muted)' }}>
+          <div className="w-full h-full flex items-center justify-center text-[12px] font-bold" style={{ color: 'var(--s-text-muted)' }}>
             {(row.user?.displayName ?? '?').slice(0, 2).toUpperCase()}
           </div>
         )}
@@ -814,9 +814,9 @@ function TodoRow({
         <div className="flex-1 min-w-0">
           {/* Row 1 : tag + titre + lock */}
           <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-            <span className="px-1.5 py-0.5 font-bold uppercase tracking-wider"
+            <span className="px-2 py-0.5 font-bold uppercase tracking-wider"
               style={{
-                fontSize: '11px',
+                fontSize: '12px',
                 background: isMulti ? 'rgba(255,184,0,0.10)' : 'var(--s-elevated)',
                 border: `1px solid ${isMulti ? 'rgba(255,184,0,0.30)' : 'var(--s-border)'}`,
                 color: isMulti ? 'var(--s-gold)' : 'var(--s-text-dim)',
@@ -830,9 +830,9 @@ function TodoRow({
               {todo.title}
             </span>
             {todo.lockedAt && (
-              <span className="text-xs px-1 py-0.5"
+              <span className="text-xs px-1.5 py-0.5"
                 style={{
-                  fontSize: '10px',
+                  fontSize: '12px',
                   background: 'rgba(255,184,0,0.10)',
                   border: '1px solid rgba(255,184,0,0.30)',
                   color: 'var(--s-gold)',
@@ -878,7 +878,7 @@ function TodoRow({
             <button
               type="button"
               onClick={e => { e.stopPropagation(); onOpenTeam(); }}
-              className="text-[10px] uppercase tracking-wider cursor-pointer hover:text-white transition-colors"
+              className="text-[12px] uppercase tracking-wider cursor-pointer hover:text-white transition-colors"
               style={{ color: 'var(--s-text-muted)', background: 'transparent', border: 'none', padding: 0 }}>
               Voir équipe →
             </button>

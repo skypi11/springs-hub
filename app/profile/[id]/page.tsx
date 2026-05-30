@@ -533,7 +533,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       <span className="t-label" style={{ color: 'var(--s-text)' }}>ROCKET LEAGUE</span>
                     </div>
                     {effective && (
-                      <span className="tag tag-blue" style={{ fontSize: '8px' }}>
+                      <span className="tag tag-blue" style={{ fontSize: '12px' }}>
                         {/* Pour Epic : pseudo = public et visible sur tracker → OK d'afficher.
                             Pour Steam : SteamID64 = identifiant permanent sensible → masquer (juste "STEAM"). */}
                         {effective.platform === 'steam'
@@ -732,11 +732,11 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                   </div>
                   <div className="flex items-center gap-2">
                     {tmStats?.clubTag && (
-                      <span className="tag" style={{ background: 'rgba(0,217,54,0.1)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.25)', fontSize: '8px' }}>
+                      <span className="tag" style={{ background: 'rgba(0,217,54,0.1)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.25)', fontSize: '12px' }}>
                         {tmStats.clubTag}
                       </span>
                     )}
-                    <span className="tag tag-green" style={{ fontSize: '8px' }}>
+                    <span className="tag tag-green" style={{ fontSize: '12px' }}>
                       {tmStats?.displayName || profile.pseudoTM}
                     </span>
                   </div>
@@ -1024,7 +1024,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                         <Search size={13} style={{ color: 'var(--s-gold)' }} />
                         <span className="t-label" style={{ color: 'var(--s-text)' }}>RECRUTEMENT</span>
                       </div>
-                      <span className="tag tag-gold" style={{ fontSize: '11px' }}>OUVERT</span>
+                      <span className="tag tag-gold" style={{ fontSize: '12px' }}>OUVERT</span>
                     </div>
                     <div className="p-5 space-y-3">
                       {profile.recruitmentRole && (

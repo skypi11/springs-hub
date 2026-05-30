@@ -91,7 +91,7 @@ export default function ImpersonationBanner() {
       <Shield size={16} />
       <span style={{ flex: 1 }}>
         MODE IMPERSONATION, tu es connecté en tant que <strong>{displayName}</strong>. Toutes les actions
-        sont enregistrées avec ton identité admin (<code style={{ fontSize: 11, background: 'rgba(0,0,0,0.12)', padding: '2px 6px', borderRadius: 2 }}>{impersonatedBy}</code>).
+        sont enregistrées avec ton identité admin (<code className="bevel-sm" style={{ fontSize: 12, background: 'rgba(0,0,0,0.12)', padding: '2px 8px' }}>{impersonatedBy}</code>).
       </span>
       <button
         type="button"
