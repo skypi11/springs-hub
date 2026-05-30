@@ -353,7 +353,13 @@ async function write(
 // ---------- Seed ----------
 
 export async function POST() {
-  if (process.env.NODE_ENV !== 'development') {
+  // Double gate (audit 30/05 🟡 2) : NODE_ENV=development ne suffit pas car
+  // un déploiement Vercel preview pourrait théoriquement être lancé avec
+  // NODE_ENV=development par accident → on exige aussi VERCEL_ENV undefined
+  // (= machine locale), garantit que cette route ne tourne JAMAIS sur Vercel.
+  // Le seed crée un admin permanent dans aedral_admins, donc une exécution
+  // accidentelle en prod aurait un impact sécurité réel.
+  if (process.env.NODE_ENV !== 'development' || process.env.VERCEL_ENV !== undefined) {
     return NextResponse.json({ error: 'Dev only' }, { status: 403 });
   }
 

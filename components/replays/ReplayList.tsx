@@ -332,7 +332,7 @@ function ParsingBadge({ status }: { status?: ReplayListItem['ballchasingStatus']
       <span className="inline-flex items-center gap-1 text-[12px] font-bold uppercase tracking-wider px-2 py-0.5"
         style={{ background: 'rgba(255,184,0,0.12)', color: 'var(--s-gold)', border: '1px solid rgba(255,184,0,0.35)' }}>
         <Loader2 size={9} className="animate-spin" />
-        Parsing
+        PARSING
       </span>
     );
   }
@@ -341,7 +341,7 @@ function ParsingBadge({ status }: { status?: ReplayListItem['ballchasingStatus']
       <span className="inline-flex items-center gap-1 text-[12px] font-bold uppercase tracking-wider px-2 py-0.5"
         style={{ background: 'rgba(0,217,54,0.10)', color: 'var(--s-green)', border: '1px solid rgba(0,217,54,0.30)' }}>
         <Check size={9} />
-        Stats
+        STATS
       </span>
     );
   }
@@ -349,7 +349,7 @@ function ParsingBadge({ status }: { status?: ReplayListItem['ballchasingStatus']
     return (
       <span className="inline-flex items-center gap-1 text-[12px] font-bold uppercase tracking-wider px-2 py-0.5"
         style={{ background: 'rgba(239,68,68,0.10)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.30)' }}>
-        Échec
+        ÉCHEC
       </span>
     );
   }
@@ -360,7 +360,7 @@ function ParsingBadge({ status }: { status?: ReplayListItem['ballchasingStatus']
         className="inline-flex items-center gap-1 text-[12px] font-bold uppercase tracking-wider px-2 py-0.5"
         style={{ background: 'rgba(255,184,0,0.10)', color: 'var(--s-gold)', border: '1px solid rgba(255,184,0,0.30)' }}>
         <Lock size={9} />
-        Quota
+        QUOTA
       </span>
     );
   }
@@ -370,7 +370,7 @@ function ParsingBadge({ status }: { status?: ReplayListItem['ballchasingStatus']
         title="Parsing auto désactivé pour cette structure. Clique sur le bouton stats pour lancer le parsing à la demande."
         className="inline-flex items-center gap-1 text-[12px] font-bold uppercase tracking-wider px-2 py-0.5"
         style={{ background: 'var(--s-elevated)', color: 'var(--s-text-muted)', border: '1px solid var(--s-border)' }}>
-        Non parsé
+        NON PARSÉ
       </span>
     );
   }

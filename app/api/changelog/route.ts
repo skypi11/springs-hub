@@ -24,8 +24,12 @@ export interface ChangelogItem {
 const MAX_ITEMS = 100;
 
 export async function GET(req: NextRequest) {
-  // Rate limit lecture par IP, pas d'auth donc on protège un peu plus
-  const blocked = await checkRateLimit(limiters.read, rateLimitKey(req));
+  // Rate-limit serré (limiters.write au lieu de read) keyé par IP, car la
+  // route est publique sans auth. Le contenu est public mais on évite
+  // qu'un script puisse scraper la timeline en boucle (le bénéfice du CDN
+  // cache 5 min ci-dessous limite déjà l'impact concret côté Firestore).
+  // Audit 30/05 (🟡 1).
+  const blocked = await checkRateLimit(limiters.write, rateLimitKey(req));
   if (blocked) return blocked;
 
   try {
@@ -54,11 +58,14 @@ export async function GET(req: NextRequest) {
       })
       .filter((x): x is ChangelogItem => x !== null);
 
-    // Headers cache : la timeline change rarement, on permet un cache CDN court
-    // (60s) pour absorber les pics. Mutations admin invalidatent via revalidate.
+    // Headers cache : la timeline change rarement (1-3 entrées par semaine
+    // grand max). Cache CDN de 5 min + stale-while-revalidate 1h absorbe la
+    // quasi-totalité du trafic sans toucher Firestore. Trade-off : un patch
+    // publié peut mettre jusqu'à 5 min à apparaître pour les visiteurs (OK,
+    // c'est de la timeline pas du critique).
     return NextResponse.json(
       { items },
-      { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' } }
+      { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600' } }
     );
   } catch (err) {
     // Index Firestore en cours de construction (juste après un deploy) →

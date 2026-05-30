@@ -37,15 +37,20 @@ function extractAccountId(url: string): string | null {
 }
 
 export async function GET(req: NextRequest) {
-  const blocked = await checkRateLimit(limiters.read, rateLimitKey(req));
-  if (blocked) return blocked;
-
   const tmIoUrl = req.nextUrl.searchParams.get('url');
   const pseudoTM = req.nextUrl.searchParams.get('pseudo');
 
   if (!tmIoUrl && !pseudoTM) {
     return NextResponse.json({ error: 'url ou pseudo requis' }, { status: 400 });
   }
+
+  // Rate-limit serré (limiters.write au lieu de read) keyé par (IP + cible).
+  // Idem rl-stats : empêche scraping massif d'historique TM par account ID.
+  // Le cache Next 1h limite déjà le coût mais le rate-limit ferme la porte.
+  // Audit 30/05 (🟡 4).
+  const target = tmIoUrl || pseudoTM || '';
+  const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, target));
+  if (blocked) return blocked;
 
   try {
     let accountId: string | null = null;

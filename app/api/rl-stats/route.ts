@@ -5,14 +5,19 @@ const TRN_API_KEY = process.env.TRN_API_KEY;
 const TRN_BASE = 'https://public-api.tracker.gg/v2/rocket-league/standard/profile';
 
 export async function GET(req: NextRequest) {
-  const blocked = await checkRateLimit(limiters.read, rateLimitKey(req));
-  if (blocked) return blocked;
-
   const epicId = req.nextUrl.searchParams.get('epicId');
 
   if (!epicId) {
     return NextResponse.json({ error: 'epicId requis' }, { status: 400 });
   }
+
+  // Rate-limit serré (limiters.write au lieu de read) keyé par (IP + epicId).
+  // Sans ça, un scraper pourrait indexer le rang RL de tous les Epic IDs
+  // publics, ce qui rend la clé TRN_API_KEY vulnérable au burn de quota.
+  // Audit 30/05 (🟡 4). Le cache Next 1h ci-dessous protège déjà côté coût
+  // Firestore/TRN, le rate-limit ferme la dernière porte.
+  const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, epicId));
+  if (blocked) return blocked;
 
   if (!TRN_API_KEY) {
     // En dev on renvoie un mock réaliste pour débloquer le travail local sans clé Tracker.gg.

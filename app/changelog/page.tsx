@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 import { api } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -196,10 +197,15 @@ export default function ChangelogPage() {
           </div>
         )}
 
-        {/* Loading */}
+        {/* Loading : skeletons cohérents avec la card timeline plutôt qu'un
+            spinner brut (audit 30/05 polish #10). 3 cards = approximation
+            visuelle de ce qui s'affiche à hover, pas trop long pour la 1ère
+            paint. */}
         {isPending && (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 size={20} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
+          <div className="space-y-4">
+            <SkeletonCard height={140} />
+            <SkeletonCard height={140} />
+            <SkeletonCard height={140} />
           </div>
         )}
 

@@ -6,11 +6,13 @@
 //
 // Le signalement crée un doc dans `rank_reports` + ping Discord les admins.
 //
-// Garde-fous :
-//  - Cooldown 24h par couple reporter+target, mais RÉINITIALISÉ par tout
-//    changement de rang du target (target.rlRankChangedAt) : si le joueur
-//    re-change son rang, on peut le re-signaler immédiatement, même s'il a
-//    déjà été signalé < 24h plus tôt.
+// Garde-fous (anti-harassement, audit 30/05 🟡 5) :
+//  - Auth requise + check target.exists (impossible de signaler un fantôme).
+//  - Rate-limit global Upstash keyé par reporterUid (burst protection).
+//  - Cooldown 24h par couple (reporter, target) via lookup Firestore,
+//    RÉINITIALISÉ par tout changement de rang du target (target.rlRankChangedAt) :
+//    si le joueur re-change son rang, on peut le re-signaler immédiatement,
+//    même s'il a déjà été signalé < 24h plus tôt.
 //  - Anti-abus : un reporter qui cumule 3 signalements `dismissed` (rejetés
 //    par l'admin) en 30 jours est auto-bloqué de nouveaux signalements
 //    pendant 30 jours (le compteur tourne en rolling window). Les résolus

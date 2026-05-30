@@ -553,7 +553,7 @@ export default function EventDetailModal({
                               </span>
                               {todo.done && (
                                 <span className="tag" style={{ background: 'rgba(51,255,102,0.10)', color: '#33ff66', borderColor: 'rgba(51,255,102,0.30)', fontSize: '12px', padding: '2px 6px' }}>
-                                  Fait
+                                  FAIT
                                 </span>
                               )}
                             </div>

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Send, Inbox, Shield, CheckCircle, XCircle, Trash2, AlertCircle, MessageSquare } from 'lucide-react';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
@@ -91,8 +92,10 @@ export default function MyApplicationsPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 flex items-center justify-center">
-        <Loader2 size={28} className="animate-spin" style={{ color: 'var(--s-gold)' }} />
+      <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 max-w-4xl mx-auto space-y-4">
+        <SkeletonCard height={120} />
+        <SkeletonCard height={180} />
+        <SkeletonCard height={180} />
       </div>
     );
   }

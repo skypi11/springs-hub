@@ -254,13 +254,36 @@ export async function GET(req: NextRequest) {
 
     const db = getAdminDb();
 
-    const expired = await expireInvitations(db);
-    const departures = await processExpiredDepartures(db);
-    const discordSync = await processNightlyDiscordSync(db);
+    // 4 passes en série, chacune wrappée pour ne pas faire échouer les
+    // suivantes si une plante (audit 30/05 🟡 6). Avant : un throw dans
+    // expireInvitations empêchait departures/discordSync/valorant de
+    // tourner → on perdait toute la nuit. Maintenant : on log via Sentry
+    // la passe qui plante mais on continue.
+    const runPass = async <T>(name: string, fn: () => Promise<T>): Promise<T | { error: string }> => {
+      const startedAt = Date.now();
+      try {
+        const result = await fn();
+        // Breadcrumb durée pour Sentry : si une passe dépasse ~20s sur Hobby
+        // (maxDuration=60), c'est qu'on approche du timeout et il faudra
+        // splitter en plusieurs crons.
+        const ms = Date.now() - startedAt;
+        if (ms > 20_000) {
+          captureApiError(`Cron expire-invitations: pass ${name} slow (${ms}ms)`, new Error(`slow_pass_${name}`));
+        }
+        return result;
+      } catch (err) {
+        captureApiError(`Cron expire-invitations: pass ${name} failed`, err);
+        return { error: err instanceof Error ? err.message : 'unknown' };
+      }
+    };
+
+    const expired = await runPass('expireInvitations', () => expireInvitations(db));
+    const departures = await runPass('processExpiredDepartures', () => processExpiredDepartures(db));
+    const discordSync = await runPass('processNightlyDiscordSync', () => processNightlyDiscordSync(db));
     // Passe 4 (2026-05-27) : sync rang Valorant via HenrikDev pour les users
     // avec 'valorant' in games + Riot Discord connection. Cursor-paginé,
     // 50 users/run (rate limit HenrikDev). Voir lib/valorant-sync.ts.
-    const valorantRankSync = await syncValorantRanksBatch(db);
+    const valorantRankSync = await runPass('syncValorantRanksBatch', () => syncValorantRanksBatch(db));
 
     return NextResponse.json({
       ok: true,

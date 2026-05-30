@@ -409,11 +409,11 @@ export default function PlayerEventDrawer({
                     </div>
                     {todo.done ? (
                       <span className="tag" style={{ background: 'rgba(51,255,102,0.10)', color: '#33ff66', borderColor: 'rgba(51,255,102,0.30)', fontSize: '12px', padding: '2px 7px' }}>
-                        Fait
+                        FAIT
                       </span>
                     ) : (
                       <span className="tag tag-gold" style={{ fontSize: '12px', padding: '2px 7px' }}>
-                        À faire
+                        À FAIRE
                       </span>
                     )}
                   </li>

@@ -6,7 +6,10 @@ import { getAdminAuth } from '@/lib/firebase-admin';
 // pour éviter tout usage détourné (impossibilité de usurper un vrai user).
 
 export async function POST(req: NextRequest) {
-  if (process.env.NODE_ENV !== 'development') {
+  // Double gate (audit 30/05 🟡 2) : machine locale uniquement (VERCEL_ENV
+  // undefined). L'impersonate génère un custom token Firebase utilisable
+  // pour signer comme l'uid cible, donc fuite en preview/prod = critique.
+  if (process.env.NODE_ENV !== 'development' || process.env.VERCEL_ENV !== undefined) {
     return NextResponse.json({ error: 'Dev only' }, { status: 403 });
   }
 

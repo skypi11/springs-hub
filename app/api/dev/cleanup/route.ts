@@ -20,7 +20,10 @@ const COLLECTIONS_WITH_ISDEV = [
 ];
 
 export async function POST() {
-  if (process.env.NODE_ENV !== 'development') {
+  // Double gate (audit 30/05 🟡 2) : machine locale uniquement (VERCEL_ENV
+  // undefined). Le cleanup supprime tous les docs isDev=true en masse — accident
+  // en prod = effacement potentiel si le flag a été mal appliqué.
+  if (process.env.NODE_ENV !== 'development' || process.env.VERCEL_ENV !== undefined) {
     return NextResponse.json({ error: 'Dev only' }, { status: 403 });
   }
 

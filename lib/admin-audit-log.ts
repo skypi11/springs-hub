@@ -8,6 +8,7 @@
 
 import type { Firestore } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
+import { sanitizeMetadata } from './audit-log';
 
 export type AdminAuditAction =
   // Actions sur structures
@@ -67,8 +68,10 @@ export async function writeAdminAuditLog(db: Firestore, entry: AdminAuditLogEntr
       adminUid: entry.adminUid,
       targetType: entry.targetType,
       targetId: entry.targetId,
-      targetLabel: entry.targetLabel ?? null,
-      metadata: entry.metadata ?? {},
+      // targetLabel snapshot tronqué pour cohérence avec sanitizeMetadata
+      // (cap 500 chars, suffit pour un nom de structure/user/equipe).
+      targetLabel: typeof entry.targetLabel === 'string' ? entry.targetLabel.slice(0, 500) : null,
+      metadata: sanitizeMetadata(entry.metadata),
       createdAt: FieldValue.serverTimestamp(),
     });
   } catch (err) {

@@ -612,7 +612,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
       <CheckCircle size={15} /> Demande envoyée
     </span>
   ) : isMember ? (
-    <span className="tag tag-gold" style={{ fontSize: '12px', padding: '6px 14px' }}>Membre</span>
+    <span className="tag tag-gold" style={{ fontSize: '12px', padding: '6px 14px' }}>MEMBRE</span>
   ) : null;
 
   // Tags d'identité (tag structure + jeux + recrute), partagés desktop/mobile.

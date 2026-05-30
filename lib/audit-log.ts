@@ -80,6 +80,64 @@ export interface AuditLogEntry {
   metadata?: Record<string, unknown>;
 }
 
+// Limite individuelle d'une string dans metadata (caractères).
+// Couvre les champs user-fournis : cancelReason, note, message, etc.
+const METADATA_STRING_MAX = 500;
+// Cap nombre de clés top-level pour éviter blow-up Firestore (1 MiB doc max).
+const METADATA_KEYS_MAX = 30;
+
+/**
+ * Sanitize un objet metadata avant écriture Firestore : tronque les strings
+ * longues, cap le nombre de clés, refuse les objets profondément imbriqués.
+ *
+ * Pourquoi (audit 30/05 🟡 3) : certains call sites passent du body user-fourni
+ * dans metadata (cancelReason, note…). Sans cap, un attaquant pourrait stuff
+ * un audit avec ~1 MiB de texte → blow-up Firestore (limit 1 MiB par doc).
+ * Exporté pour réutilisation dans admin-audit-log.
+ */
+export function sanitizeMetadata(input: unknown): Record<string, unknown> {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
+  const out: Record<string, unknown> = {};
+  let count = 0;
+  for (const [key, val] of Object.entries(input)) {
+    if (count >= METADATA_KEYS_MAX) break;
+    if (typeof key !== 'string' || key.length > 64) continue;
+    out[key] = sanitizeMetadataValue(val);
+    count++;
+  }
+  return out;
+}
+
+function sanitizeMetadataValue(val: unknown): unknown {
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'string') return val.slice(0, METADATA_STRING_MAX);
+  if (typeof val === 'number' || typeof val === 'boolean') return val;
+  if (Array.isArray(val)) {
+    // Cap les arrays à 20 éléments, chaque élément capé aux types primitifs.
+    return val.slice(0, 20).map(v => {
+      if (typeof v === 'string') return v.slice(0, METADATA_STRING_MAX);
+      if (typeof v === 'number' || typeof v === 'boolean') return v;
+      return null; // refuse les sous-objets imbriqués
+    });
+  }
+  if (typeof val === 'object') {
+    // 1 niveau d'imbrication accepté, tronqué via récursion contrôlée.
+    const sub: Record<string, unknown> = {};
+    let count = 0;
+    for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
+      if (count >= 10) break;
+      if (typeof k !== 'string' || k.length > 64) continue;
+      if (v === null || v === undefined) sub[k] = null;
+      else if (typeof v === 'string') sub[k] = v.slice(0, METADATA_STRING_MAX);
+      else if (typeof v === 'number' || typeof v === 'boolean') sub[k] = v;
+      else sub[k] = null; // pas de récursion profonde
+      count++;
+    }
+    return sub;
+  }
+  return null;
+}
+
 // Ajoute une entrée d'audit au batch OU à la transaction. L'appelant est
 // responsable du commit. On préfère cette forme pour garantir l'atomicité avec
 // l'action elle-même (si l'action échoue, l'audit n'est pas écrit).
@@ -91,7 +149,7 @@ export function addAuditLog(db: Firestore, writer: BatchOrTx, entry: AuditLogEnt
     actorUid: entry.actorUid,
     targetUid: entry.targetUid ?? null,
     targetId: entry.targetId ?? null,
-    metadata: entry.metadata ?? {},
+    metadata: sanitizeMetadata(entry.metadata),
     createdAt: FieldValue.serverTimestamp(),
   };
   (writer as Writer).set(ref, payload);
@@ -106,7 +164,7 @@ export async function writeAuditLog(db: Firestore, entry: AuditLogEntry): Promis
     actorUid: entry.actorUid,
     targetUid: entry.targetUid ?? null,
     targetId: entry.targetId ?? null,
-    metadata: entry.metadata ?? {},
+    metadata: sanitizeMetadata(entry.metadata),
     createdAt: FieldValue.serverTimestamp(),
   });
 }
