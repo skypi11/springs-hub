@@ -37,7 +37,21 @@ export default function ImpersonationBanner() {
   async function stop() {
     setStopping(true);
     try {
-      const res = await fetch('/api/admin/impersonate/stop', { method: 'POST' });
+      // Envoie le token Firebase courant (= session impersonated) pour permettre
+      // au server de tomber en mode "recovery" si le cookie a disparu : il lira
+      // alors le claim `impersonatedBy` du token pour identifier l'admin d'origine.
+      // Cf. /api/admin/impersonate/stop (path POST).
+      const headers: Record<string, string> = {};
+      if (firebaseUser) {
+        try {
+          const idToken = await firebaseUser.getIdToken();
+          headers.Authorization = `Bearer ${idToken}`;
+        } catch {
+          /* Si on n'arrive pas à récupérer le token, le server tombera sur 400
+             si le cookie est aussi absent. C'est le cas dégénéré attendu. */
+        }
+      }
+      const res = await fetch('/api/admin/impersonate/stop', { method: 'POST', headers });
       const data = await res.json();
       if (!res.ok) {
         alert(data.error || 'Erreur');
