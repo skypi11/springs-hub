@@ -4,7 +4,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { resolveStructureId } from '@/lib/resolve-structure-id';
-import { isDirigeant } from '@/lib/event-permissions';
+import { isDirigeant, isStaffOfTeam, isCoachForTeam } from '@/lib/event-permissions';
 import { endOfDayParisMs, parisYmd } from '@/lib/todos';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 
@@ -47,9 +47,16 @@ export async function GET(
     }
 
     const dirigeant = isDirigeant(resolved.context);
+    // Multi-jeux (2026-05-30) : visibilité scopée par jeu.
+    // - Dirigeant → toutes les équipes (jamais scopé)
+    // - Responsable scopé → équipes du/des jeu(x) listé(s) dans managerGames (couvert par isStaffOfTeam)
+    // - Coach scopé → équipes du/des jeu(x) listé(s) dans coachGames (couvert par isCoachForTeam)
+    // - Staff explicite d'une sub_team → cette équipe (couvert par isStaffOfTeam via staffedTeamIds)
     const visibleTeamIds = dirigeant
       ? resolved.teams.map(t => t.id)
-      : resolved.context.staffedTeamIds;
+      : resolved.teams
+          .filter(t => isStaffOfTeam(resolved.context, t.id) || isCoachForTeam(resolved.context, t.id))
+          .map(t => t.id);
 
     if (visibleTeamIds.length === 0) {
       return NextResponse.json({

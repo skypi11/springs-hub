@@ -6,7 +6,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { resolveStructureId } from '@/lib/resolve-structure-id';
 import { canUploadReplay } from '@/lib/replay-permissions';
-import { isStaff } from '@/lib/event-permissions';
+import { isDirigeant, isStaffOfTeam, isCoachForTeam } from '@/lib/event-permissions';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import { checkStructureStorageQuota } from '@/lib/structure-storage';
 import { StorageKeys, generateUploadUrl, isAllowedMime, sanitizeFilename } from '@/lib/storage';
@@ -51,20 +51,27 @@ export async function GET(
     // l'autorisation effective (un user sans aucune team accessible recevra
     // un array vide, ce qui est le bon comportement).
 
-    // Détermine le périmètre visible.
-    // - Staff structure : voit tout
-    // - Sinon : équipes où l'user est staff/capitaine, MAIS AUSSI player ou
-    //   sub. Un joueur doit pouvoir voir et télécharger les replays de sa
-    //   propre équipe (typiquement pour revoir un scrim avec son coach).
+    // Détermine le périmètre visible. Multi-jeux (2026-05-30) : un coach ou
+    // responsable scopé sur RL ne voit pas les replays Valorant. Le scope est
+    // géré par isStaffOfTeam (couvre dirigeant + manager scopé) et isCoachForTeam.
+    // - Dirigeant : voit tout (isStaffOfTeam(ctx, t.id) renvoie true pour lui)
+    // - Sinon : équipes où l'user est staff/coach scopé/capitaine, OU player/sub
+    //   (un joueur doit pouvoir voir les replays de sa propre équipe).
     const ctx = resolved.context;
     const allowedTeamIds = new Set<string>();
-    if (isStaff(ctx)) {
+    if (isDirigeant(ctx)) {
       for (const t of resolved.teams) allowedTeamIds.add(t.id);
     } else {
-      for (const id of ctx.staffedTeamIds) allowedTeamIds.add(id);
-      for (const id of ctx.captainOfTeamIds ?? []) allowedTeamIds.add(id);
-      // Player ou sub d'une équipe → accès aux replays de cette équipe
+      const captainTeams = new Set(ctx.captainOfTeamIds ?? []);
       for (const t of resolved.teams) {
+        if (
+          isStaffOfTeam(ctx, t.id) ||
+          isCoachForTeam(ctx, t.id) ||
+          captainTeams.has(t.id)
+        ) {
+          allowedTeamIds.add(t.id);
+          continue;
+        }
         const playerIds = Array.isArray(t.playerIds) ? (t.playerIds as string[]) : [];
         const subIds = Array.isArray(t.subIds) ? (t.subIds as string[]) : [];
         if (playerIds.includes(uid) || subIds.includes(uid)) allowedTeamIds.add(t.id);

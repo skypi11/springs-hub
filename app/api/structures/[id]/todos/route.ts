@@ -5,7 +5,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { resolveStructureId } from '@/lib/resolve-structure-id';
-import { isStaffOfTeam, isDirigeant } from '@/lib/event-permissions';
+import { isStaffOfTeam, isDirigeant, isCoachForTeam } from '@/lib/event-permissions';
 import {
   validateCreateTodo,
   computeRelativeDeadlineAt,
@@ -71,10 +71,12 @@ export async function POST(
       return NextResponse.json({ error: 'Équipe introuvable dans cette structure.' }, { status: 404 });
     }
 
-    // Permission : staff de l'équipe cible OU coach structure (modèle A, coach
-    // structure peut animer + assigner sur toute équipe, sans pouvoir modifier
-    // l'équipe elle-même).
-    if (!isStaffOfTeam(resolved.context, subTeamId) && !resolved.context.isCoach) {
+    // Permission : staff de l'équipe cible OU coach structure scopé sur le jeu
+    // de cette équipe (modèle A, coach structure peut animer + assigner sur
+    // toute équipe de ses jeux, sans pouvoir modifier l'équipe elle-même).
+    // Multi-jeux (2026-05-30) : un coach RL ne peut pas créer un exo sur une
+    // équipe Valorant si son scope coachGames ne l'inclut pas.
+    if (!isStaffOfTeam(resolved.context, subTeamId) && !isCoachForTeam(resolved.context, subTeamId)) {
       return NextResponse.json({ error: 'Permissions insuffisantes pour cette équipe.' }, { status: 403 });
     }
 
@@ -372,7 +374,7 @@ export async function GET(
 
     return NextResponse.json({
       todos,
-      canCreate: isStaffOfTeam(resolved.context, subTeamId) || resolved.context.isCoach,
+      canCreate: isStaffOfTeam(resolved.context, subTeamId) || isCoachForTeam(resolved.context, subTeamId),
       isDirigeant: isDirigeant(resolved.context),
     });
   } catch (err) {

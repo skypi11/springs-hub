@@ -5,7 +5,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { resolveStructureId } from '@/lib/resolve-structure-id';
-import { isStaff } from '@/lib/event-permissions';
+import { isDirigeant } from '@/lib/event-permissions';
 import { downloadBuffer } from '@/lib/storage';
 import {
   uploadReplay as bcUploadReplay,
@@ -50,8 +50,9 @@ export async function POST(
     }
     const resolved = await resolveUserContext(db, uid, structureId);
     if (!resolved) return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
-    // Action de masse → réservée aux dirigeants (staff structure).
-    if (!isStaff(resolved.context)) {
+    // Action de masse coûteuse en quota → réservée aux dirigeants (fondateur / co-fondateur).
+    // Multi-jeux : un responsable scopé n'a aucun sens ici, le batch est cross-équipes.
+    if (!isDirigeant(resolved.context)) {
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
     }
 

@@ -4,7 +4,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { resolveStructureId } from '@/lib/resolve-structure-id';
-import { isStaffOfTeam, isDirigeant } from '@/lib/event-permissions';
+import { isStaffOfTeam, isDirigeant, isCoachForTeam } from '@/lib/event-permissions';
 import { endOfDayParisMs } from '@/lib/todos';
 import { sendTodoDM } from '@/lib/discord-bot';
 
@@ -87,10 +87,15 @@ export async function POST(
       return NextResponse.json({ error: 'Ce joueur n\'a aucun exercice en retard.' }, { status: 400 });
     }
 
-    // Permission : dirigeant OU staff d'au moins une équipe concernée
+    // Permission : dirigeant OU staff d'au moins une équipe concernée (scopé par
+    // jeu via isStaffOfTeam pour manager scopé et isCoachForTeam pour coach scopé).
+    // Cohérent avec la création d'exo dans /todos POST.
     const dirigeant = isDirigeant(resolved.context);
     if (!dirigeant) {
-      const hasAccess = overdue.some(o => isStaffOfTeam(resolved.context, o.subTeamId));
+      const hasAccess = overdue.some(o =>
+        isStaffOfTeam(resolved.context, o.subTeamId) ||
+        isCoachForTeam(resolved.context, o.subTeamId)
+      );
       if (!hasAccess) {
         return NextResponse.json({ error: 'Permissions insuffisantes, tu n\'as pas accès à ces équipes.' }, { status: 403 });
       }

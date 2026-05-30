@@ -4,7 +4,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { resolveStructureId } from '@/lib/resolve-structure-id';
-import { isStaffOfTeam } from '@/lib/event-permissions';
+import { isStaffOfTeam, isCoachForTeam } from '@/lib/event-permissions';
 import { uploadBuffer, getPublicUrl, StorageKeys, deleteFileSilent, extractR2Key, isAllowedMime } from '@/lib/storage';
 import { processScreenshot, probeImage } from '@/lib/image-processing';
 
@@ -58,7 +58,10 @@ export async function POST(
       return NextResponse.json({ error: 'Exercice hors de cette structure.' }, { status: 400 });
     }
 
-    const isStaff = isStaffOfTeam(resolved.context, data.subTeamId as string);
+    // Staff = staff d'équipe (dirigeant + manager scopé + staff explicite) OU
+    // coach structure scopé sur le jeu de la team. Cohérent avec /todos POST.
+    const subTeamId = data.subTeamId as string;
+    const isStaff = isStaffOfTeam(resolved.context, subTeamId) || isCoachForTeam(resolved.context, subTeamId);
     const isAssignee = data.assigneeId === uid;
     if (!isAssignee && !isStaff) {
       return NextResponse.json({ error: 'Permissions insuffisantes.' }, { status: 403 });

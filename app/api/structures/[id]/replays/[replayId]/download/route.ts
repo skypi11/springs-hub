@@ -4,7 +4,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { resolveStructureId } from '@/lib/resolve-structure-id';
-import { isStaff } from '@/lib/event-permissions';
+import { isDirigeant, isStaffOfTeam, isCoachForTeam } from '@/lib/event-permissions';
 import { generateDownloadUrl } from '@/lib/storage';
 
 // GET /api/structures/[id]/replays/[replayId]/download
@@ -52,10 +52,13 @@ export async function GET(
     const teamId = data.teamId as string;
     const ctx = resolved.context;
 
-    // Périmètre par équipe : on autorise staff struct, staff/capitaine de
-    // l'équipe, ou player/sub de l'équipe.
+    // Périmètre par équipe (scopé par jeu, 2026-05-30) : dirigeant OK pour tout ;
+    // sinon staff/coach scopé sur le jeu de la team, capitaine de l'équipe, ou
+    // player/sub de l'équipe.
     let allowed = false;
-    if (isStaff(ctx)) {
+    if (isDirigeant(ctx)) {
+      allowed = true;
+    } else if (isStaffOfTeam(ctx, teamId) || isCoachForTeam(ctx, teamId)) {
       allowed = true;
     } else {
       const targetTeam = resolved.teams.find(t => t.id === teamId);
@@ -63,7 +66,6 @@ export async function GET(
         const playerIds = Array.isArray(targetTeam.playerIds) ? (targetTeam.playerIds as string[]) : [];
         const subIds = Array.isArray(targetTeam.subIds) ? (targetTeam.subIds as string[]) : [];
         if (
-          ctx.staffedTeamIds.includes(teamId) ||
           (ctx.captainOfTeamIds ?? []).includes(teamId) ||
           playerIds.includes(uid) ||
           subIds.includes(uid)

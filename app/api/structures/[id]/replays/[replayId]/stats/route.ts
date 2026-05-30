@@ -6,7 +6,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { resolveStructureId } from '@/lib/resolve-structure-id';
 import { canDownloadReplay } from '@/lib/replay-permissions';
-import { isStaff } from '@/lib/event-permissions';
+import { isDirigeant, isStaffOfTeam, isCoachForTeam } from '@/lib/event-permissions';
 import { downloadBuffer } from '@/lib/storage';
 import {
   getReplay,
@@ -64,12 +64,18 @@ export async function GET(
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
     }
 
-    // Périmètre : staff voit tout, sinon doit avoir accès à l'équipe.
+    // Périmètre scopé par jeu (2026-05-30) : dirigeant voit tout, sinon il faut
+    // un rôle qui couvre cette équipe-là (manager/coach scopé sur le jeu de la
+    // team, staff explicite, ou capitaine).
     const teamId = data.teamId as string;
     const ctx = resolved.context;
-    if (!isStaff(ctx)) {
-      const allowed = new Set([...(ctx.staffedTeamIds ?? []), ...(ctx.captainOfTeamIds ?? [])]);
-      if (!allowed.has(teamId)) {
+    if (!isDirigeant(ctx)) {
+      const captainTeams = new Set(ctx.captainOfTeamIds ?? []);
+      const hasTeamAccess =
+        isStaffOfTeam(ctx, teamId) ||
+        isCoachForTeam(ctx, teamId) ||
+        captainTeams.has(teamId);
+      if (!hasTeamAccess) {
         return NextResponse.json({ error: 'Équipe hors périmètre' }, { status: 403 });
       }
     }
