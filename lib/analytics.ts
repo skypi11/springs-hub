@@ -109,3 +109,65 @@ export function capturePageview(url?: string): void {
     // silencieux
   }
 }
+
+// ─── Consent management (RGPD, niveau 3 "transparence + opt-out") ──────────
+//
+// État stocké en localStorage :
+//   - 'accepted'  : user a explicitement cliqué OK sur le bandeau
+//   - 'opted-out' : user a explicitement désactivé (bandeau ou Settings)
+//   - absent      : user n'a pas encore choisi (bandeau visible, tracking actif
+//                   par défaut = trust-by-default cohérent avec page privacy
+//                   transparente + opt-out facile)
+//
+// Le PostHogProvider lit cet état au mount et appelle opt_out_capturing()
+// si nécessaire AVANT le premier capture. Le bandeau ne s'affiche que si
+// l'état est absent (= premier visit, pas encore de choix).
+
+const CONSENT_KEY = 'aedral_analytics_consent';
+export type ConsentState = 'accepted' | 'opted-out' | null;
+
+/** Lit le consent depuis localStorage. Retourne null si jamais choisi. */
+export function getConsent(): ConsentState {
+  if (typeof window === 'undefined') return null;
+  try {
+    const v = localStorage.getItem(CONSENT_KEY);
+    if (v === 'accepted' || v === 'opted-out') return v;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** True si l'user a explicitement désactivé l'analytics (Settings ou bandeau). */
+export function hasOptedOut(): boolean {
+  return getConsent() === 'opted-out';
+}
+
+/**
+ * Active l'analytics (consent explicite). Appelé depuis le bandeau "OK" ou
+ * Settings toggle ON. Persiste le choix en localStorage, re-active PostHog
+ * si désactivé précédemment.
+ */
+export function optIn(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(CONSENT_KEY, 'accepted');
+    if (posthog.__loaded) posthog.opt_in_capturing();
+  } catch {
+    // silencieux
+  }
+}
+
+/**
+ * Désactive l'analytics. Appelé depuis le bandeau "Désactiver" ou Settings
+ * toggle OFF. PostHog ne capture plus rien jusqu'à un optIn() futur.
+ */
+export function optOut(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(CONSENT_KEY, 'opted-out');
+    if (posthog.__loaded) posthog.opt_out_capturing();
+  } catch {
+    // silencieux
+  }
+}

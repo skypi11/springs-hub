@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api, apiDownload, ApiError } from '@/lib/api-client';
-import { track } from '@/lib/analytics';
+import { track, getConsent, optIn, optOut } from '@/lib/analytics';
 import { useToast } from '@/components/ui/Toast';
 import { countries } from '@/lib/countries';
 import {
@@ -156,6 +157,21 @@ export default function SettingsPage() {
   const [dirty, setDirty] = useState(false);
   const bioRef = useRef<HTMLTextAreaElement | null>(null);
   const recruitRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Analytics consent (RGPD niveau 3, opt-out user). State local pour le toggle,
+  // synchro initiale au mount via getConsent() (lit le localStorage).
+  // Default true = on tracke par défaut (trust-by-default + page privacy claire),
+  // false uniquement si l'user a explicitement opt-out (bandeau ou ce toggle).
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(true);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setAnalyticsEnabled(getConsent() !== 'opted-out');
+  }, []);
+  function toggleAnalytics(next: boolean) {
+    setAnalyticsEnabled(next);
+    if (next) optIn();
+    else optOut();
+  }
 
   // Actions RGPD (export / suppression)
   const [exporting, setExporting] = useState(false);
@@ -1845,6 +1861,57 @@ export default function SettingsPage() {
                         </div>
                       </div>
                     </PublicPreviewFrame>
+
+                    <div className="divider" />
+
+                    {/* Vie privée — toggle analytics PostHog (RGPD niveau 3).
+                        Le user peut désactiver à tout moment, le choix est
+                        persisté en localStorage et respecté au prochain reload. */}
+                    <div>
+                      <label className="t-label block mb-2">Vie privée</label>
+                      <div
+                        className="flex items-start gap-3 p-3"
+                        style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold mb-1" style={{ color: 'var(--s-text)' }}>
+                            Mesure d&apos;usage (PostHog)
+                          </p>
+                          <p className="text-xs leading-relaxed" style={{ color: 'var(--s-text-muted)' }}>
+                            Nous aide à comprendre comment tu utilises Aedral pour l&apos;améliorer.
+                            Pas de pub, pas de cookies, hébergé en Europe.{' '}
+                            <Link href="/legal/confidentialite" className="hover:underline" style={{ color: 'var(--s-gold)' }}>
+                              Détails
+                            </Link>
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={analyticsEnabled}
+                          aria-label="Activer ou désactiver la mesure d'usage"
+                          onClick={() => toggleAnalytics(!analyticsEnabled)}
+                          className="flex-shrink-0 relative transition-all"
+                          style={{
+                            width: 38,
+                            height: 22,
+                            background: analyticsEnabled ? 'var(--s-gold)' : 'var(--s-surface)',
+                            border: `1px solid ${analyticsEnabled ? 'var(--s-gold)' : 'var(--s-border)'}`,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <span
+                            className="absolute top-1/2 -translate-y-1/2 transition-all"
+                            style={{
+                              left: analyticsEnabled ? 20 : 2,
+                              width: 14,
+                              height: 14,
+                              background: analyticsEnabled ? '#000' : 'var(--s-text-dim)',
+                            }}
+                          />
+                        </button>
+                      </div>
+                    </div>
 
                     <div className="divider" />
 

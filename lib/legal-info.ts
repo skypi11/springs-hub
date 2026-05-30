@@ -68,8 +68,20 @@ export const LEGAL_INFO = {
       url: 'https://sentry.io',
       location: 'États-Unis',
     },
+    {
+      name: 'PostHog',
+      purpose: 'Mesure d\'usage produit (analytics anonymisé, désactivable depuis les paramètres)',
+      url: 'https://posthog.com',
+      location: 'EU Cloud (Frankfurt, Allemagne)',
+    },
+    {
+      name: 'Vercel Analytics & Speed Insights',
+      purpose: 'Mesure d\'audience anonyme et performance technique du site',
+      url: 'https://vercel.com/analytics',
+      location: 'Vercel (infrastructure distribuée)',
+    },
   ],
 
   // Dernière mise à jour du document (format YYYY-MM-DD)
-  lastUpdated: '2026-04-25',
+  lastUpdated: '2026-05-31',
 } as const;

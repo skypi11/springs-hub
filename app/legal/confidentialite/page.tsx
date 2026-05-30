@@ -82,8 +82,25 @@ export default function ConfidentialitePage() {
             </ul>
           </SubBlock>
 
+          <SubBlock title="Mesure d'usage (PostHog)">
+            <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+              Pour comprendre comment vous utilisez Aedral et l&apos;améliorer, nous collectons des événements anonymisés via <strong style={{ color: 'var(--s-text)' }}>PostHog</strong> (hébergé en Allemagne, Frankfurt) :
+            </p>
+            <ul className="text-sm space-y-1 pl-4" style={{ color: 'var(--s-text-dim)', listStyle: 'disc' }}>
+              <li>Pages visitées (pageviews)</li>
+              <li>Actions clés : signup, rejoindre une structure, créer un événement, valider un exercice, partager une carte</li>
+              <li>Une fois connecté, vos events sont rattachés à votre identifiant Discord (uid Aedral)</li>
+              <li><strong>Aucun cookie</strong> côté PostHog (configuration <code className="t-mono">persistence: memory</code>) — seul un marqueur localStorage <code className="t-mono">aedral_analytics_consent</code> mémorise votre choix d&apos;opt-out</li>
+              <li>IP anonymisée côté serveur PostHog</li>
+              <li><strong>Aucune publicité, aucune vente de données, aucun croisement avec d&apos;autres bases</strong></li>
+            </ul>
+            <p className="text-xs mt-2" style={{ color: 'var(--s-text-muted)' }}>
+              Vous pouvez désactiver cette mesure à tout moment depuis <Link href="/settings" className="hover:underline" style={{ color: 'var(--s-gold)' }}>Paramètres → Compte → Vie privée</Link>, ou via le bandeau affiché à votre première visite.
+            </p>
+          </SubBlock>
+
           <div className="p-3 text-xs" style={{ background: 'rgba(0,217,54,0.06)', border: '1px solid rgba(0,217,54,0.25)' }}>
-            <strong style={{ color: '#33ff66' }}>Pas de cookies publicitaires.</strong> Aucun tracker Google Analytics, Meta Pixel, ou équivalent. Seul un cookie de session strictement technique est utilisé pour maintenir votre connexion.
+            <strong style={{ color: '#33ff66' }}>Pas de publicité, pas de cookies publicitaires.</strong> Aucun tracker Google Analytics, Meta Pixel, AdSense ou équivalent. Les seuls outils tiers utilisés sont des outils de mesure produit (Vercel Analytics, PostHog) et de monitoring d&apos;erreurs (Sentry), tous configurés en mode privacy-first et désactivables.
           </div>
         </Section>
 
@@ -116,6 +133,7 @@ export default function ConfidentialitePage() {
             <DurationLine label="Après suppression de compte" value="Profil effacé immédiatement ; retrait de toutes les équipes et structures." />
             <DurationLine label="Journaux d'audit" value="3 ans maximum (obligation légale d'intégrité + lutte contre la fraude)." />
             <DurationLine label="Logs techniques Sentry" value="90 jours maximum." />
+            <DurationLine label="Événements PostHog (mesure d'usage)" value="1 an maximum. Désactivable à tout moment depuis Paramètres → Compte → Vie privée." />
             <DurationLine label="Sauvegardes Firestore" value="Rotations automatiques gérées par Google, durée maximale 30 jours." />
           </dl>
         </Section>
@@ -148,6 +166,7 @@ export default function ConfidentialitePage() {
             <li><strong style={{ color: 'var(--s-text)' }}>Droit à la portabilité</strong> (art. 20), exporter vos données au format JSON.</li>
             <li><strong style={{ color: 'var(--s-text)' }}>Droit à l&apos;effacement</strong> (art. 17), supprimer votre compte (exception : journaux d&apos;audit conservés 3 ans max au titre de l&apos;intérêt légitime).</li>
             <li><strong style={{ color: 'var(--s-text)' }}>Droit d&apos;opposition et de limitation</strong>, sur demande à l&apos;adresse de contact.</li>
+            <li><strong style={{ color: 'var(--s-text)' }}>Désactivation de la mesure d&apos;usage (PostHog)</strong>, à tout moment depuis <Link href="/settings" className="hover:underline" style={{ color: 'var(--s-gold)' }}>Paramètres → Compte → Vie privée</Link>, ou via le bandeau affiché à votre première visite.</li>
           </ul>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">

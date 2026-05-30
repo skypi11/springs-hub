@@ -21,7 +21,8 @@ import { useEffect } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import posthog from 'posthog-js';
 import { useAuth } from '@/context/AuthContext';
-import { identify, reset, capturePageview } from '@/lib/analytics';
+import { identify, reset, capturePageview, hasOptedOut } from '@/lib/analytics';
+import { AnalyticsConsentBanner } from './AnalyticsConsentBanner';
 
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
 const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://eu.i.posthog.com';
@@ -45,7 +46,8 @@ function initPostHog() {
     // Aucun profil pour les visiteurs anonymes → reste dans le free tier
     // + minimise la PII stockée. Profil créé uniquement à identify() (login).
     person_profiles: 'identified_only',
-    // Pas de cookie ni localStorage → pas de bandeau RGPD à afficher.
+    // Pas de cookie côté PostHog (le seul localStorage qu'on touche est
+    // notre `aedral_analytics_consent` pour persister le choix RGPD).
     // L'identité user vient de Firebase Auth, PostHog re-identify à chaque login.
     persistence: 'memory',
     // On capture les pageviews manuellement depuis le provider (App Router).
@@ -54,10 +56,16 @@ function initPostHog() {
     capture_pageleave: true,
     // RGPD : anonymise les IPs côté serveur PostHog
     ip: false,
-    // Désactive le debug en prod
-    loaded: () => {
+    loaded: (ph) => {
+      // Respect du consent stocké en localStorage : si l'user a opt-out
+      // précédemment (Settings ou bandeau), on désactive le capture AVANT
+      // que le premier pageview/event ne parte. Important : faire ça dans
+      // `loaded` garantit que posthog est prêt.
+      if (hasOptedOut()) {
+        ph.opt_out_capturing();
+      }
       if (process.env.NODE_ENV === 'development') {
-        posthog.debug(false); // mettre true si tu veux voir tous les calls en console
+        ph.debug(false); // mettre true si tu veux voir tous les calls en console
       }
     },
   });
@@ -109,5 +117,10 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     capturePageview(`${window.location.origin}${url}`);
   }, [pathname, searchParams]);
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <AnalyticsConsentBanner />
+    </>
+  );
 }
