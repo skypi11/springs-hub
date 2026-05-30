@@ -53,21 +53,33 @@ describe('processSquareImage', () => {
 });
 
 describe('processBanner', () => {
-  it('sort un webp au ratio 4:1 par défaut', async () => {
-    const src = await makeTestPng(3000, 1500);
+  // Signature actuelle (refactor 2026) : (input, maxWidth=2000, quality=82).
+  // Le ratio source est CONSERVÉ (plus d'aspect ratio imposé) — le cadrage
+  // final est géré côté affichage via coverFocus CSS, l'image stockée reste
+  // la bannière complète. Voir lib/image-processing.ts + project_banner_system.
+  it('sort un webp en conservant le ratio source, borné à 2000px de large par défaut', async () => {
+    const src = await makeTestPng(3000, 1500);  // ratio 2:1
     const out = await processBanner(src);
     const meta = await sharp(out).metadata();
     expect(meta.format).toBe('webp');
-    expect(meta.width).toBe(1920);
-    expect(meta.height).toBe(480);
+    expect(meta.width).toBe(2000);
+    expect(meta.height).toBe(1000);  // ratio 2:1 conservé
   });
 
-  it('accepte des dimensions custom', async () => {
-    const src = await makeTestPng(1000, 1000);
-    const out = await processBanner(src, 800, 200);
+  it('accepte un maxWidth custom', async () => {
+    const src = await makeTestPng(1600, 800);  // ratio 2:1
+    const out = await processBanner(src, 800);
     const meta = await sharp(out).metadata();
     expect(meta.width).toBe(800);
-    expect(meta.height).toBe(200);
+    expect(meta.height).toBe(400);  // ratio 2:1 conservé
+  });
+
+  it('n\'upscale pas une image plus petite que maxWidth', async () => {
+    const src = await makeTestPng(500, 250);
+    const out = await processBanner(src, 2000);
+    const meta = await sharp(out).metadata();
+    expect(meta.width).toBe(500);  // withoutEnlargement: true
+    expect(meta.height).toBe(250);
   });
 });
 
