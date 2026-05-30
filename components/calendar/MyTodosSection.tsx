@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api-client';
+import { track } from '@/lib/analytics';
 import {
   compareTodosPending,
   compareTodosDone,
@@ -229,6 +230,7 @@ export default function MyTodosSection({
           ),
         };
       });
+      track('todo_completed', { type: todo.type ?? 'unknown' });
       toast.success('Exercice verrouillé');
     },
     onError: (err: Error) => toast.error(err.message || 'Erreur'),

@@ -8,6 +8,7 @@ import { SkeletonCard } from '@/components/ui/Skeleton';
 import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
+import { track } from '@/lib/analytics';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import GameTag from '@/components/games/GameTag';
@@ -79,6 +80,12 @@ export default function MyApplicationsPage() {
       api('/api/me/applications', { method: 'POST', body: { action, invitationId } }),
     onSuccess: (_data, vars) => {
       toast.success(vars.successMsg);
+      // Analytics : on track UNIQUEMENT accept_invite (= structure rejointe).
+      // decline/cancel ne sont pas trackés (signal négatif moins exploitable
+      // pour le moment, ajoutable si on veut analyser le churn d'invitations).
+      if (vars.action === 'accept_invite') {
+        track('structure_joined', { via: 'invite' });
+      }
       qc.invalidateQueries({ queryKey });
     },
     onError: (err) => {

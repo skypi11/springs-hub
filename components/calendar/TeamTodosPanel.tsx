@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import { api } from '@/lib/api-client';
+import { track } from '@/lib/analytics';
 import {
   compareTodosPending,
   compareTodosDone,
@@ -678,6 +679,11 @@ export function NewTodoForm({
         },
       });
       toast.success(`${data.count} exercice${data.count > 1 ? 's' : ''} créé${data.count > 1 ? 's' : ''}`);
+      track('todo_created', {
+        stepsCount: stepsPayload.length,
+        assigneesCount: assigneeIds.length,
+        hasDeadline: !!deadline || !!eventId,
+      });
       onCreated();
     } catch (err) {
       toast.error((err as Error).message || 'Erreur création');

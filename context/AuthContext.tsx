@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, signInWithCustomToken, signOut as firebaseSignOut, User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import type { SpringsUser } from '@/types';
+import { track } from '@/lib/analytics';
 
 interface AuthContextType {
   user: SpringsUser | null;
@@ -119,6 +120,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       setProfileEnriched(false);
       setLoading(false);
+
+      // Analytics : signup vs signin différenciés via metadata Firebase Auth.
+      // creationTime === lastSignInTime au premier login (compte créé instant).
+      // L'event onAuthStateChanged se déclenche aussi au refresh page (token
+      // restauré), donc on garde la condition stricte sur l'égalité de date.
+      try {
+        const created = fbUser.metadata.creationTime;
+        const lastSeen = fbUser.metadata.lastSignInTime;
+        const isFirstLogin = !!created && created === lastSeen;
+        track(isFirstLogin ? 'user_signed_up' : 'user_signed_in', {
+          provider: 'discord',
+        });
+      } catch { /* analytics ne casse jamais */ }
 
       await enrichFromApi(fbUser);
     });

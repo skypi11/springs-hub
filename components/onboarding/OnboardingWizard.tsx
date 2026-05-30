@@ -10,6 +10,7 @@ import Portal from '@/components/ui/Portal';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { api, ApiError } from '@/lib/api-client';
+import { track } from '@/lib/analytics';
 import { countries } from '@/lib/countries';
 import { RL_PLATFORMS, getRLPlatformMeta, type RLPlatform } from '@/lib/rl-platform';
 import { VALORANT_RANKS } from '@/lib/valorant-ranks';
@@ -153,6 +154,12 @@ export default function OnboardingWizard({ onClose }: { onClose: () => void }) {
         },
       });
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* noop */ }
+      track('onboarding_completed', {
+        gamesCount: data.games?.length ?? 0,
+        games: data.games?.join(',') ?? '',
+        country: data.country ?? '',
+        recruitmentOpen: !!data.isAvailableForRecruitment,
+      });
       await refreshProfile();
       toast.success('Bienvenue sur Aedral !');
       onClose();

@@ -23,6 +23,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Loader2, Plus, Users, Save } from 'lucide-react';
 import { api } from '@/lib/api-client';
+import { track } from '@/lib/analytics';
 import { useToast } from '@/components/ui/Toast';
 import Portal from '@/components/ui/Portal';
 import DateTimePicker from '@/components/ui/DateTimePicker';
@@ -353,6 +354,11 @@ export default function EventFormModal({
         },
       });
       toast.success('Événement créé');
+      track('event_created', {
+        type,
+        scope,
+        teamsCount: scope === 'teams' ? selectedTeamIds.length : 0,
+      });
       onCreated();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erreur réseau');

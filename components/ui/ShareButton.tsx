@@ -32,6 +32,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Share2, Copy, Check, ExternalLink, X, MoreHorizontal, Info } from 'lucide-react';
 import Portal from '@/components/ui/Portal';
 import { useToast } from '@/components/ui/Toast';
+import { track } from '@/lib/analytics';
 
 type ShareSize = 'sm' | 'md' | 'lg';
 type ShareVariant = 'primary' | 'ghost';
@@ -206,6 +207,7 @@ export default function ShareButton({
   const handleCopyLink = useCallback(async () => {
     const ok = await writeToClipboard(url);
     if (ok) {
+      track('og_share_clicked', { channel: 'copy_link' });
       setCopied(true);
       toast.success('Lien copié');
       setTimeout(() => setCopied(false), 1500);
@@ -220,6 +222,7 @@ export default function ShareButton({
     const msg = `${title}\n${url}`;
     const ok = await writeToClipboard(msg);
     if (ok) {
+      track('og_share_clicked', { channel: 'copy_discord' });
       toast.success('Message Discord copié, colle-le dans ton serveur');
       setTimeout(closePopover, 600);
     } else {

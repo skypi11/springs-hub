@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api, apiDownload, ApiError } from '@/lib/api-client';
+import { track } from '@/lib/analytics';
 import { useToast } from '@/components/ui/Toast';
 import { countries } from '@/lib/countries';
 import {
@@ -578,7 +579,15 @@ export default function SettingsPage() {
       }));
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { connections: _connections, ...rest } = form;
+      // Snapshot pré-save pour détecter la transition recrutement off → on
+      // (= signal "user vient d'ouvrir son recrutement", high-value pour analytics).
+      // On track UNIQUEMENT la transition, pas chaque sauvegarde où c'est ON.
+      const wasRecruiting = !!user?.isAvailableForRecruitment;
+      const willRecruit = !!form.isAvailableForRecruitment;
       await api('/api/profile', { method: 'POST', body: { ...rest, connectionVisibility } });
+      if (!wasRecruiting && willRecruit) {
+        track('recruitment_opened', { role: form.recruitmentRole ?? '' });
+      }
       setSaved(true);
       setDirty(false);
       toast.success('Profil sauvegardé');

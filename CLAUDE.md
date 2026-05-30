@@ -470,7 +470,22 @@ Quand une card n'a pas d'image de fond, elle doit quand même avoir de la prése
 - **Phase 3** — Compétitions natives Aedral : liste, pages individuelles `/competitions/{rl,tm}/[id]`, rebuild TM Monthly Cup, classements RL/TM, inscription équipe/solo, panel admin comps. **Pas démarrée** — la page `/competitions` actuelle pointe sur le vieux site `springs-esport.vercel.app`.
 - **Phase 4** — Finitions : notifications in-app, Discord webhooks, fan zone, mobile, migration liens
 
-Durcissement déjà en place : Sentry, rate limiting Upstash, Toast/Modal DA Aedral, suite Vitest, sécurité (CSRF OAuth, validation, rules, batch writes, hard caps).
+Durcissement déjà en place : Sentry, rate limiting Upstash, Toast/Modal DA Aedral, suite Vitest, sécurité (CSRF OAuth, validation, rules, batch writes, hard caps), PostHog analytics (EU Cloud, cookieless, identified-only).
+
+### Analytics PostHog (Cloud EU, cookieless)
+- **Lib centrale** : [lib/analytics.ts](lib/analytics.ts) expose `track(eventName, props?)`, `identify()`, `reset()`. **Tous les events sont déclarés dans le type `EventName`** — typecheck empêche les fautes de frappe. Ajouter ici AVANT le call site.
+- **Provider** : [components/analytics/PostHogProvider.tsx](components/analytics/PostHogProvider.tsx) monté dans `app/layout.tsx` (DANS AuthProvider pour pouvoir `useAuth()`). Config : `person_profiles='identified_only'`, `persistence='memory'` (pas de cookie, pas de bandeau RGPD), `api_host=eu.i.posthog.com`.
+- **Identify** : automatique sur login Discord (`onAuthStateChanged`), traits = `displayName`, `isAdmin`, `games`, `hasStructure`. Reset sur logout.
+- **Events trackés** :
+  - Auth : `user_signed_up` (premier login), `user_signed_in` (returning)
+  - Structure : `structure_requested`, `structure_joined`, `structure_created`
+  - Calendar : `event_created`, `event_presence_updated`
+  - Exercices : `todo_created`, `todo_completed`
+  - Recrutement : `recruitment_opened` (transition off→on uniquement)
+  - Partage social : `og_share_clicked` (canal copy_link / copy_discord / etc.)
+  - Onboarding : `onboarding_completed`, `onboarding_reminder_sent` (cron)
+- **Env vars** : `NEXT_PUBLIC_POSTHOG_KEY` (Project API Key `phc_...`) + `NEXT_PUBLIC_POSTHOG_HOST` (default `https://eu.i.posthog.com`). À configurer dans Vercel pour prod.
+- **Pas de tracking serveur** : l'audit-log Firestore couvre l'audit critique côté serveur. PostHog = data produit comportementale uniquement.
 
 ### Reviews régulières
 - **Slash command `/review`** (défini dans `.claude/commands/review.md`) : lance 3 agents parallèles (sécu/code, UX/DA, features/roadmap) et sauvegarde le rapport dans `docs/audits/YYYY-MM-DD-review.md` pour comparaison historique.

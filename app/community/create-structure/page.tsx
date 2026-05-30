@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { api, apiForm, ApiError } from '@/lib/api-client';
+import { track } from '@/lib/analytics';
 import {
   Save, Shield, Gamepad2, Users, MessageSquare,
   AlertCircle, CheckCircle, Loader2, ExternalLink, Hash, Building2,
@@ -130,6 +131,10 @@ export default function CreateStructurePage() {
       // Au lieu de rediriger silencieusement, on affiche une page de confirmation
       // qui pousse fortement à rejoindre le Discord Aedral (étape nécessaire
       // pour l'entretien de validation par Matt).
+      track('structure_requested', {
+        gamesCount: form.games?.length ?? 0,
+        games: form.games?.join(',') ?? '',
+      });
       setSubmitted(true);
       setSaving(false);
     } catch (err) {

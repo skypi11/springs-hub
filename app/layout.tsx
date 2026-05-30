@@ -10,6 +10,8 @@ import CommandPalette from '@/components/ui/CommandPalette';
 import ProfileCompletionGate from '@/components/auth/ProfileCompletionGate';
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
+import { Suspense } from 'react';
+import { PostHogProvider } from '@/components/analytics/PostHogProvider';
 import JsonLd from '@/components/seo/JsonLd';
 import { websiteSchema, organizationSchema } from '@/lib/jsonld';
 import { AEDRAL_DISCORD_INVITE_URL } from '@/components/icons/DiscordIcon';
@@ -112,13 +114,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <JsonLd schemas={rootSchemas} />
         <QueryProvider>
           <AuthProvider>
-            <ToastProvider>
-              <ConfirmProvider>
-                <ProfileCompletionGate />
-                <LayoutShell>{children}</LayoutShell>
-                <CommandPalette />
-              </ConfirmProvider>
-            </ToastProvider>
+            {/* PostHog : DOIT être DANS AuthProvider (useAuth pour identify),
+                wrappé en Suspense car PostHogProvider utilise useSearchParams
+                qui force le bailout statique sinon. */}
+            <Suspense fallback={null}>
+              <PostHogProvider>
+                <ToastProvider>
+                  <ConfirmProvider>
+                    <ProfileCompletionGate />
+                    <LayoutShell>{children}</LayoutShell>
+                    <CommandPalette />
+                  </ConfirmProvider>
+                </ToastProvider>
+              </PostHogProvider>
+            </Suspense>
           </AuthProvider>
         </QueryProvider>
         {/* Vercel, fréquentation (Analytics) et perfs réelles (Speed Insights) */}
