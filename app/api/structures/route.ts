@@ -12,26 +12,39 @@ export async function GET(req: NextRequest) {
     const db = getAdminDb();
     const game = req.nextUrl.searchParams.get('game');
 
-    // Charger structures + tous les memberships en parallèle (1 read pour tous les memberships)
-    const [structuresSnap, allMembersSnap] = await Promise.all([
-      db.collection('structures').where('status', '==', 'active').get(),
-      db.collection('structure_members').get(),
-    ]);
+    // Charge les structures actives, puis les memberCount via aggregate count()
+    // par structure en parallèle. Avant : full-scan de TOUTE la collection
+    // structure_members pour compter (= N reads où N = total membres). Avec
+    // l'aggregate, Firestore facture ~1 read / 1000 docs scannés par requête →
+    // gain ~1000× à grosse échelle (audit 30/05 — scalabilité 2-5k users visée).
+    const structuresSnap = await db.collection('structures').where('status', '==', 'active').get();
 
-    // Compter les membres par structure une seule fois
-    const memberCountByStructure = new Map<string, number>();
-    for (const doc of allMembersSnap.docs) {
-      const sid = doc.data().structureId;
-      if (sid) memberCountByStructure.set(sid, (memberCountByStructure.get(sid) ?? 0) + 1);
-    }
+    // Filtre pré-comptage (isDev, game) pour ne pas faire d'aggregate sur des
+    // structures qu'on va de toute façon dropper de la réponse.
+    const visibleDocs = structuresSnap.docs.filter(doc => {
+      const d = doc.data();
+      if (d.isDev === true) return false;
+      if (game && !(d.games || []).includes(game)) return false;
+      return true;
+    });
 
-    const structures = [];
-    for (const doc of structuresSnap.docs) {
+    const counts = await Promise.all(
+      visibleDocs.map(async doc => {
+        try {
+          const agg = await db.collection('structure_members')
+            .where('structureId', '==', doc.id)
+            .count()
+            .get();
+          return agg.data().count || 0;
+        } catch {
+          return 0;
+        }
+      }),
+    );
+
+    const structures = visibleDocs.map((doc, i) => {
       const data = doc.data();
-      if (data.isDev === true) continue;
-      if (game && !(data.games || []).includes(game)) continue;
-
-      structures.push({
+      return {
         id: doc.id,
         // Slug propre pour construire l'URL publique côté client via
         // getStructureHref(). Null si la structure n'est pas backfillée — le
@@ -42,10 +55,10 @@ export async function GET(req: NextRequest) {
         logoUrl: data.logoUrl || '',
         games: data.games || [],
         recruiting: data.recruiting || { active: false, positions: [] },
-        memberCount: memberCountByStructure.get(doc.id) ?? 0,
+        memberCount: counts[i],
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
-      });
-    }
+      };
+    });
 
     // Trier par nombre de membres décroissant
     structures.sort((a, b) => b.memberCount - a.memberCount);

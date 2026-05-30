@@ -14,6 +14,7 @@ import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import { getProfileHref } from '@/lib/user-slug';
 import Portal from '@/components/ui/Portal';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
+import { Switch } from '@/components/ui/Switch';
 import InviteToStructureButton from '@/components/community/InviteToStructureButton';
 import RLIdentityBadge from '@/components/players/RLIdentityBadge';
 import CountryFlag from '@/components/ui/CountryFlag';
@@ -782,27 +783,6 @@ const TEAM_ROLE_LABEL: Record<string, string> = {
   manager: 'Manager',
   coach: 'Coach',
 };
-
-function Switch({ label, value, onChange, accent = '#33ff66' }: { label: string; value: boolean; onChange: (v: boolean) => void; accent?: string }) {
-  return (
-    <button type="button" onClick={() => onChange(!value)} aria-pressed={value}
-      className="flex items-center justify-between w-full gap-3 text-left transition-colors px-2 py-1.5 hover:bg-[var(--s-elevated)]"
-      style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}>
-      <span className="text-sm" style={{ color: value ? 'var(--s-text)' : 'var(--s-text-dim)' }}>{label}</span>
-      <span className="flex-shrink-0 relative transition-all" style={{
-        width: 34, height: 18,
-        background: value ? accent : 'var(--s-elevated)',
-        border: `1px solid ${value ? accent : 'var(--s-border)'}`,
-      }}>
-        <span className="absolute top-1/2 -translate-y-1/2 transition-all" style={{
-          left: value ? 18 : 2,
-          width: 12, height: 12,
-          background: value ? '#000' : 'var(--s-text-dim)',
-        }} />
-      </span>
-    </button>
-  );
-}
 
 // ─── Card grille (hauteur fixe propre ~180px) ─────────────────────────────
 function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist, linkCopied, onGenerateLink }: {

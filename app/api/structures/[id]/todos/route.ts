@@ -1,5 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
+
+// Permet au fan-out Discord (after()) de finir proprement APRÈS la response.
+// Sans ça, le runtime Vercel peut couper la fonction avant que les DMs partent.
+export const maxDuration = 30;
 import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
@@ -186,17 +190,20 @@ export async function POST(
       captureApiError('API Structures/todos POST notif error', notifErr);
     }
 
-    // Fan-out Discord (fire-and-forget) : embed dans le channel de l'équipe + DM aux assignés.
-    // On ne await pas pour ne pas ralentir la réponse UI, l'UI doit pouvoir fermer le form
-    // immédiatement après que le exercice soit créé en base.
-    ;(async () => {
+    // Fan-out Discord post-response : embed dans le channel de l'équipe + DM aux assignés.
+    // Géré via `after()` (Next.js / Vercel) : la fonction continue de tourner après
+    // l'envoi de la response, mais le runtime garantit l'exécution complète (pas
+    // de freeze prématuré comme avec une IIFE non-awaitée). Audit 30/05 (#7).
+    // On capture `origin` AVANT after() car req peut être disposed après la response.
+    const origin = req.nextUrl.origin;
+    after(async () => {
       try {
         const structureName = (resolved.structure as { name?: string }).name ?? null;
         const structureLogoUrl = (resolved.structure as { logoUrl?: string }).logoUrl ?? null;
         const teamName = (team as { name?: string }).name ?? null;
         const teamLogoUrl = (team as { logoUrl?: string }).logoUrl ?? null;
         const channelId = (team as { discordChannelId?: string }).discordChannelId;
-        const siteTodoUrl = `${req.nextUrl.origin}/calendar`;
+        const siteTodoUrl = `${origin}/calendar`;
 
         // displayName du créateur pour le footer (best-effort, fallback silencieux).
         let createdByName: string | null = null;
@@ -269,7 +276,7 @@ export async function POST(
           const did = toDiscordId(assigneeId);
           if (!did) return;
           const todoId = createdIds[i];
-          const personalUrl = `${req.nextUrl.origin}/calendar?todo=${encodeURIComponent(todoId)}`;
+          const personalUrl = `${origin}/calendar?todo=${encodeURIComponent(todoId)}`;
           const res = await sendTodoDM(did, { ...embedInput, siteTodoUrl: personalUrl });
           if (!res.ok) {
             // Pas un vrai "error", on ne spam pas Sentry pour des 403 attendus.
@@ -279,7 +286,7 @@ export async function POST(
       } catch (e) {
         captureApiError('Discord fan-out todo failed', e);
       }
-    })();
+    });
 
     return NextResponse.json({ success: true, ids: createdIds, count: createdIds.length });
   } catch (err) {

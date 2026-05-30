@@ -14,14 +14,23 @@ type RLHistory = {
   competitions: { id: string; name: string; status: string }[];
 };
 
+// Route PUBLIQUE intentionnelle : tout le contenu retourné (stats TM + liste
+// compétitions RL) est déjà publique sur les pages /community/competitions et
+// /participants. On expose ici une vue agrégée par user pour les badges du
+// profil. Pas d'auth requise pour ne pas casser l'affichage des profils
+// visiteurs non-loggés.
+//
+// Sécurité (audit 30/05) :
+// - Rate-limit serré (`limiters.write` au lieu de `read`) keyé par IP +
+//   uid demandé pour atténuer le scraping massif "indexer l'activité de N
+//   comptes" sans dépendre de l'auth.
 export async function GET(req: NextRequest) {
-  const blocked = await checkRateLimit(limiters.read, rateLimitKey(req));
-  if (blocked) return blocked;
-
   const uid = req.nextUrl.searchParams.get('uid');
   if (!uid) {
     return NextResponse.json({ error: 'uid requis' }, { status: 400 });
   }
+  const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
+  if (blocked) return blocked;
 
   try {
     const db = getAdminDb();

@@ -18,10 +18,17 @@ export async function GET(req: NextRequest) {
   const origin = req.nextUrl.origin;
   const settingsUrl = `${origin}/settings?section=games`;
 
-  // Vérif des cookies CSRF + UID
+  // Vérif des cookies CSRF + UID + comparaison du state URL ↔ cookie.
+  // Le state vient signé par Steam via openid.return_to (donc l'attaquant ne
+  // peut pas le modifier sans invalider la signature) et le cookie est posé
+  // au moment du `start`, scope sameSite=lax httpOnly. Si un attaquant force
+  // la victime à charger le callback avec son propre payload Steam, le state
+  // URL (= ATTACKER_STATE signé par Steam) ne matchera pas le cookie de la
+  // victime → reject. Alignement defense-in-depth avec Discord OAuth.
   const stateCookie = req.cookies.get('steam_oauth_state')?.value;
   const uidCookie = req.cookies.get('steam_oauth_uid')?.value;
-  if (!stateCookie || !uidCookie) {
+  const stateFromUrl = req.nextUrl.searchParams.get('state');
+  if (!stateCookie || !uidCookie || !stateFromUrl || stateFromUrl !== stateCookie) {
     return clearedRedirect(`${settingsUrl}&steam_error=invalid_state`);
   }
 

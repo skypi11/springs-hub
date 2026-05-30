@@ -22,12 +22,16 @@ export async function POST(req: NextRequest) {
   }
 
   const origin = req.nextUrl.origin;
-  const returnTo = `${origin}/api/auth/steam/callback`;
+  // State CSRF inclus dans return_to (= signé par Steam) et reposté par le
+  // browser via la redirection callback. Le callback compare à stateCookie
+  // pour fermer la CSRF "attaquant relaye son propre payload Steam sur la
+  // session victime" (cf. defense in depth, alignement avec Discord OAuth).
+  const state = randomBytes(16).toString('hex');
+  const returnTo = `${origin}/api/auth/steam/callback?state=${state}`;
   const steamUrl = buildSteamLoginUrl(returnTo, origin);
 
   // Cookies CSRF/state, le callback les lira pour retrouver à quel user
   // attacher le SteamID retourné par Steam.
-  const state = randomBytes(16).toString('hex');
   const res = NextResponse.json({ redirectUrl: steamUrl });
   res.cookies.set('steam_oauth_state', state, {
     httpOnly: true,

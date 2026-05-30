@@ -38,6 +38,13 @@ export async function GET(
       return NextResponse.json({ error: 'Structure non validée' }, { status: 403 });
     }
 
+    // Structures de seed dev = jamais visibles publiquement (cohérence avec
+    // /api/structures qui les filtre dans la liste). Évite la fuite par URL
+    // directe si un seed dev a tourné en prod par accident.
+    if (data.isDev === true) {
+      return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
+    }
+
     // Note : le traitement des préavis de départ de co-fondateurs expirés est
     // fait par le cron quotidien /api/cron/expire-invitations, plus de write
     // dans ce GET public (anti-pattern + race condition supprimés).
