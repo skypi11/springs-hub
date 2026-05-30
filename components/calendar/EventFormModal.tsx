@@ -1,19 +1,27 @@
 'use client';
 
 /**
- * EventFormModal — Modal "Nouvel événement".
+ * EventFormModal — Modal "Nouvel événement" OU "Modifier l'événement".
  *
- * Extraite de CalendarSection.tsx (chantier dette technique 29/05) pour
- * réduire le poids du fichier parent et permettre de raisonner sur la modal
- * indépendamment. Aucun changement de comportement vs version inline.
+ * Extraite de CalendarSection.tsx (chantier dette technique 29/05).
+ *
+ * 2 modes :
+ * - CRÉATION (default, `existingEvent` non fourni) : tous les champs sont
+ *   éditables (titre, type, cible, dates, contenu spécifique). Submit POST.
+ * - ÉDITION (`existingEvent` fourni) : champs préremplis. La CIBLE et le
+ *   TYPE sont VERROUILLÉS (modifier la cible casserait les présences déjà
+ *   répondues ; changer le type casserait les champs spécifiques scrim/
+ *   match/tournoi). Submit PATCH. Le créateur OU tout staff autorisé via
+ *   canEditEvent peut éditer (check effectué par le caller). L'édition
+ *   n'est proposée que si l'event est 'scheduled' (cohérent avec la
+ *   restriction backend dans la route PATCH).
  *
  * Props volontairement self-contained : la modal ne lit pas le state global,
- * elle reçoit tout via props (structureId, teams, members, userContext,
- * structureRoles) + 2 callbacks (onClose, onCreated).
+ * elle reçoit tout via props.
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, Plus, Users } from 'lucide-react';
+import { Loader2, Plus, Users, Save } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import Portal from '@/components/ui/Portal';
@@ -26,7 +34,7 @@ import type {
 } from '@/lib/event-permissions';
 import { isDirigeant } from '@/lib/event-permissions';
 import { ALL_GAME_DEFS, getGameColor, getGameColorRgb, getGameShortLabel } from '@/lib/games-registry';
-import type { Team, Member, StructureRoles } from './CalendarSection';
+import type { Team, Member, StructureRoles, CalendarEvent } from './CalendarSection';
 
 interface Props {
   structureId: string;
@@ -37,10 +45,28 @@ interface Props {
   structureRoles: StructureRoles;
   // Date/heure pré-remplies, passées quand on a cliqué sur une case du calendrier.
   // Format "YYYY-MM-DDTHH:mm" (heure locale), contrat de DateTimePicker.
+  // Ignorées en mode édition (les dates de l'existingEvent gagnent).
   initialStartsAt?: string;
   initialEndsAt?: string;
+  /**
+   * Mode édition : si fourni, la modal s'ouvre avec les champs préremplis
+   * et soumet via PATCH au lieu de POST. La cible (target) et le type sont
+   * verrouillés pour éviter de casser les présences / champs spécifiques.
+   */
+  existingEvent?: CalendarEvent;
   onClose: () => void;
+  /** Callback unique pour création OU édition réussie (le caller raffraîchit). */
   onCreated: () => void;
+}
+
+/** Format "YYYY-MM-DDTHH:mm" en heure locale pour les inputs DateTimePicker.
+ *  Les ISO strings de Firestore sont en UTC ; on les convertit en local. */
+function isoToLocalInput(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export default function EventFormModal({
@@ -52,29 +78,43 @@ export default function EventFormModal({
   structureRoles,
   initialStartsAt,
   initialEndsAt,
+  existingEvent,
   onClose,
   onCreated,
 }: Props) {
   const toast = useToast();
-  const [title, setTitle] = useState('');
-  const [type, setType] = useState<EventType>('training');
-  const [description, setDescription] = useState('');
-  const [location, setLocation] = useState('');
-  const [startsAt, setStartsAt] = useState(initialStartsAt ?? '');
-  const [endsAt, setEndsAt] = useState(initialEndsAt ?? '');
-  const [scope, setScope] = useState<EventScope>(
-    isDirigeant(userContext) ? 'structure' : 'teams'
+  const isEditMode = !!existingEvent;
+
+  // Pré-remplissage en mode édition : on lit l'event existant. En mode création,
+  // valeurs vides (sauf initialStartsAt/EndsAt si click sur case calendrier).
+  const [title, setTitle] = useState(existingEvent?.title ?? '');
+  const [type, setType] = useState<EventType>(existingEvent?.type ?? 'training');
+  const [description, setDescription] = useState(existingEvent?.description ?? '');
+  const [location, setLocation] = useState(existingEvent?.location ?? '');
+  const [startsAt, setStartsAt] = useState(
+    existingEvent ? isoToLocalInput(existingEvent.startsAt) : (initialStartsAt ?? '')
   );
-  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
-  const [game, setGame] = useState<string>('');
-  const [adversaire, setAdversaire] = useState('');
-  const [adversaireLogoUrl, setAdversaireLogoUrl] = useState('');
-  const [resultat, setResultat] = useState('');
-  const [tournoiNom, setTournoiNom] = useState('');
-  const [tournoiFormat, setTournoiFormat] = useState('');
-  const [tournoiUrl, setTournoiUrl] = useState('');
-  const [tournoiInscriptionUrl, setTournoiInscriptionUrl] = useState('');
-  const [tournoiReglementUrl, setTournoiReglementUrl] = useState('');
+  const [endsAt, setEndsAt] = useState(
+    existingEvent ? isoToLocalInput(existingEvent.endsAt) : (initialEndsAt ?? '')
+  );
+  // Scope/cible : pré-remplis depuis l'event en édition (mais le UI les verrouillera).
+  const [scope, setScope] = useState<EventScope>(
+    existingEvent?.target.scope ?? (isDirigeant(userContext) ? 'structure' : 'teams')
+  );
+  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>(
+    existingEvent?.target.scope === 'teams' ? (existingEvent.target.teamIds ?? []) : []
+  );
+  const [game, setGame] = useState<string>(
+    existingEvent?.target.scope === 'game' ? (existingEvent.target.game ?? '') : ''
+  );
+  const [adversaire, setAdversaire] = useState(existingEvent?.adversaire ?? '');
+  const [adversaireLogoUrl, setAdversaireLogoUrl] = useState(existingEvent?.adversaireLogoUrl ?? '');
+  const [resultat, setResultat] = useState(existingEvent?.resultat ?? '');
+  const [tournoiNom, setTournoiNom] = useState(existingEvent?.tournoiNom ?? '');
+  const [tournoiFormat, setTournoiFormat] = useState(existingEvent?.tournoiFormat ?? '');
+  const [tournoiUrl, setTournoiUrl] = useState(existingEvent?.tournoiUrl ?? '');
+  const [tournoiInscriptionUrl, setTournoiInscriptionUrl] = useState(existingEvent?.tournoiInscriptionUrl ?? '');
+  const [tournoiReglementUrl, setTournoiReglementUrl] = useState(existingEvent?.tournoiReglementUrl ?? '');
   const [markDone, setMarkDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -195,6 +235,54 @@ export default function EventFormModal({
     if (!title.trim()) return toast.error('Titre obligatoire');
     if (!startsAt || !endsAt) return toast.error('Dates obligatoires');
 
+    const startIso = new Date(startsAt).toISOString();
+    const endIso = new Date(endsAt).toISOString();
+
+    // ─── MODE ÉDITION : PATCH sans toucher à la cible ni au type ──────────
+    // La cible/type sont figés (cf. doc en haut). On envoie uniquement les
+    // champs éditables. Le back filtre déjà selon event.type pour les champs
+    // spécifiques (adversaire pour match/scrim, tournoi* pour tournoi).
+    if (isEditMode && existingEvent) {
+      setSubmitting(true);
+      try {
+        await api(`/api/structures/${structureId}/events/${existingEvent.id}`, {
+          method: 'PATCH',
+          body: {
+            title: title.trim(),
+            description,
+            location,
+            startsAt: startIso,
+            endsAt: endIso,
+            // Champs spécifiques : envoyés uniquement si pertinents pour le type
+            // existant. Le back filtre, mais on évite d'envoyer du bruit.
+            ...(type === 'match' || type === 'scrim'
+              ? { adversaire: adversaire || '', resultat: resultat || '' }
+              : {}),
+            ...(type === 'match'
+              ? { adversaireLogoUrl: adversaireLogoUrl || '' }
+              : {}),
+            ...(type === 'tournoi'
+              ? {
+                tournoiNom: tournoiNom || '',
+                tournoiFormat: tournoiFormat || '',
+                tournoiUrl: tournoiUrl || '',
+                tournoiInscriptionUrl: tournoiInscriptionUrl || '',
+                tournoiReglementUrl: tournoiReglementUrl || '',
+              }
+              : {}),
+          },
+        });
+        toast.success('Événement modifié');
+        onCreated();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Erreur réseau');
+      }
+      setSubmitting(false);
+      return;
+    }
+
+    // ─── MODE CRÉATION : POST avec target complète + validation feuille de match ──
+
     // Si feuille de match active (1 équipe) : si certains joueurs sont décochés,
     // on envoie userIds avec la sous-sélection. Si tout est coché, on omet le
     // champ pour garder le comportement par défaut côté back.
@@ -241,9 +329,6 @@ export default function EventFormModal({
       return toast.error('Choisis un jeu');
     }
 
-    const startIso = new Date(startsAt).toISOString();
-    const endIso = new Date(endsAt).toISOString();
-
     setSubmitting(true);
     try {
       await api(`/api/structures/${structureId}/events`, {
@@ -284,7 +369,9 @@ export default function EventFormModal({
         onClick={e => e.stopPropagation()}>
         <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), var(--s-gold)50, transparent 70%)' }} />
         <div className="p-6 space-y-4">
-          <h2 className="font-display text-2xl">NOUVEL ÉVÉNEMENT</h2>
+          <h2 className="font-display text-2xl">
+            {isEditMode ? "MODIFIER L'ÉVÉNEMENT" : 'NOUVEL ÉVÉNEMENT'}
+          </h2>
 
           <div>
             <label className="t-label block mb-1.5">Titre *</label>
@@ -293,8 +380,16 @@ export default function EventFormModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="t-label block mb-1.5">Type</label>
-              <select className="settings-input w-full" value={type} onChange={e => setType(e.target.value as EventType)}>
+              <label className="t-label block mb-1.5">
+                Type {isEditMode && <span style={{ color: 'var(--s-text-muted)', fontSize: 10 }}>(verrouillé)</span>}
+              </label>
+              <select
+                className="settings-input w-full"
+                value={type}
+                onChange={e => setType(e.target.value as EventType)}
+                disabled={isEditMode}
+                style={isEditMode ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
+              >
                 <option value="training">Entraînement</option>
                 <option value="scrim">Scrim</option>
                 <option value="match">Match</option>
@@ -331,7 +426,42 @@ export default function EventFormModal({
             </div>
           </div>
 
-          {/* Cible */}
+          {/* Cible : verrouillée en mode édition (changer la cible casserait
+              les présences déjà répondues). Affiche un résumé read-only à la
+              place du picker. Sinon : picker complet (création). */}
+          {isEditMode ? (
+            <div>
+              <label className="t-label block mb-1.5">
+                Cible <span style={{ color: 'var(--s-text-muted)', fontSize: 10 }}>(verrouillée)</span>
+              </label>
+              <div
+                className="bevel-sm p-3"
+                style={{
+                  background: 'var(--s-elevated)',
+                  border: '1px solid var(--s-border)',
+                  fontSize: 12,
+                  color: 'var(--s-text-dim)',
+                }}
+              >
+                {(() => {
+                  const t = existingEvent!.target;
+                  if (t.scope === 'structure') return 'Toute la structure';
+                  if (t.scope === 'staff') return `Staff (${(t.userIds ?? []).length} membres)`;
+                  if (t.scope === 'game') return `Tous les joueurs ${getGameShortLabel(t.game ?? '')}`;
+                  if (t.scope === 'teams') {
+                    const names = (t.teamIds ?? [])
+                      .map(id => teams.find(team => team.id === id)?.name ?? id)
+                      .join(' · ');
+                    return `Équipe(s) : ${names || '?'}`;
+                  }
+                  return '?';
+                })()}
+              </div>
+              <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
+                Pour changer la cible, supprime cet événement et recrée-en un nouveau.
+              </p>
+            </div>
+          ) : (
           <div>
             <label className="t-label block mb-1.5">Cible *</label>
             <div className="flex gap-2 mb-2">
@@ -632,6 +762,7 @@ export default function EventFormModal({
               );
             })()}
           </div>
+          )}
 
           <div>
             <label className="t-label block mb-1.5">Description (optionnel)</label>
@@ -736,12 +867,16 @@ export default function EventFormModal({
             </div>
           )}
 
-          <div className="flex items-center gap-2">
-            <input type="checkbox" id="markDone" checked={markDone} onChange={e => setMarkDone(e.target.checked)} />
-            <label htmlFor="markDone" className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-              Créer directement comme terminé (rétroactif)
-            </label>
-          </div>
+          {/* "Créer directement comme terminé" : uniquement en création
+              (rétroactif), pas en édition d'un event existant. */}
+          {!isEditMode && (
+            <div className="flex items-center gap-2">
+              <input type="checkbox" id="markDone" checked={markDone} onChange={e => setMarkDone(e.target.checked)} />
+              <label htmlFor="markDone" className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                Créer directement comme terminé (rétroactif)
+              </label>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="btn-springs btn-secondary bevel-sm">
@@ -749,8 +884,14 @@ export default function EventFormModal({
             </button>
             <button type="button" onClick={handleSubmit} disabled={submitting}
               className="btn-springs btn-primary bevel-sm">
-              {submitting ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
-              <span>Créer</span>
+              {submitting ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : isEditMode ? (
+                <Save size={12} />
+              ) : (
+                <Plus size={12} />
+              )}
+              <span>{isEditMode ? 'Enregistrer' : 'Créer'}</span>
             </button>
           </div>
         </div>

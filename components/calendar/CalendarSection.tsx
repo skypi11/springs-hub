@@ -474,7 +474,10 @@ export default function CalendarSection({
           currentUid={firebaseUser?.uid ?? ''}
           userContext={userContext}
           structureId={structureId}
+          structureGames={structureGames}
           teams={teams}
+          members={members}
+          structureRoles={structureRoles}
           structureLogoUrl={structureLogoUrl}
           membersById={membersById}
           onClose={() => setOpenEventId(null)}

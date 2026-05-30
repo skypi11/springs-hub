@@ -22,7 +22,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
 import {
   Loader2, Clock, CheckCircle, XCircle, MapPin, Target,
-  Trash2, User, ListTodo,
+  Trash2, User, ListTodo, Pencil,
 } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
@@ -41,6 +41,7 @@ import { getGameLabel } from '@/lib/games-registry';
 import ReplaysPanel from '@/components/replays/ReplaysPanel';
 import { NewTodoForm, type TeamRef } from './TeamTodosPanel';
 import { useTodoTemplates } from './TodoTemplatesManager';
+import EventFormModal from './EventFormModal';
 import {
   TYPE_INFO,
   STATUS_INFO,
@@ -51,6 +52,7 @@ import {
   type Member,
   type CalendarEvent,
   type AssignedTodoItem,
+  type StructureRoles,
 } from './CalendarSection';
 
 interface Props {
@@ -58,7 +60,16 @@ interface Props {
   currentUid: string;
   userContext: UserContext;
   structureId: string;
+  /** Liste des jeux pratiqués par la structure (transmis à EventFormModal en
+   *  mode édition pour pré-remplir cohérent). */
+  structureGames: string[];
   teams: Team[];
+  /** Liste complète des members (transmise à EventFormModal en mode édition
+   *  pour les sélecteurs de joueurs/staff). */
+  members: Member[];
+  /** Rôles structure-level (founder/coFounderIds/managerIds/coachIds), idem
+   *  transmis à EventFormModal pour la cible staff. */
+  structureRoles: StructureRoles;
   structureLogoUrl?: string;
   membersById: Map<string, Member>;
   onClose: () => void;
@@ -73,7 +84,10 @@ export default function EventDetailModal({
   currentUid,
   userContext,
   structureId,
+  structureGames,
   teams,
+  members,
+  structureRoles,
   structureLogoUrl,
   membersById,
   onClose,
@@ -86,6 +100,14 @@ export default function EventDetailModal({
   const typeInfo = TYPE_INFO[normalizeEventType(event.type)] ?? TYPE_INFO.autre;
   const statusInfo = STATUS_INFO[event.status] ?? STATUS_INFO.scheduled;
   const myPresence = event.presences.find(p => p.userId === currentUid);
+
+  // Mode édition : remplace temporairement le rendu de la modal détail par
+  // EventFormModal en mode édition (existingEvent). Au close → revient à la
+  // modal détail. Au save → reload events + revient à la modal détail.
+  // Bouton "Modifier" disponible seulement si canEdit && event.status === 'scheduled'
+  // (cohérent avec la restriction backend qui bloque les modifications de
+  // titre/dates sur un event done/cancelled).
+  const [editing, setEditing] = useState(false);
 
   const permEvent = {
     createdBy: event.createdBy,
@@ -177,6 +199,25 @@ export default function EventDetailModal({
     absent: event.presences.filter(p => p.status === 'absent'),
     pending: event.presences.filter(p => p.status === 'pending'),
   };
+
+  // Mode édition : on remplace temporairement le rendu de la detail modal
+  // par EventFormModal préremplie. Annuler → revient à la detail modal.
+  // Save → reload events + revient à la detail modal (l'user voit le résultat).
+  if (editing) {
+    return (
+      <EventFormModal
+        structureId={structureId}
+        structureGames={structureGames}
+        teams={teams}
+        members={members}
+        userContext={userContext}
+        structureRoles={structureRoles}
+        existingEvent={event}
+        onClose={() => setEditing(false)}
+        onCreated={() => { setEditing(false); onReload(); }}
+      />
+    );
+  }
 
   return (
     <Portal>
@@ -582,6 +623,18 @@ export default function EventDetailModal({
                   className="btn-springs btn-primary bevel-sm text-xs">
                   {saving ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle size={11} />}
                   <span>Enregistrer</span>
+                </button>
+              )}
+              {/* Bouton "Modifier" : ouvre EventFormModal en mode édition pour
+                  changer titre/dates/lieu/description (+ champs spécifiques type).
+                  Visible uniquement si l'event est encore 'scheduled' — la route
+                  PATCH backend bloque les modifications de ces champs sur les
+                  events done/cancelled (seul le compte rendu reste éditable). */}
+              {canEdit && event.status === 'scheduled' && (
+                <button type="button" onClick={() => setEditing(true)}
+                  className="btn-springs btn-secondary bevel-sm text-xs">
+                  <Pencil size={11} />
+                  <span>Modifier</span>
                 </button>
               )}
               {canTerminate && event.status === 'scheduled' && (
