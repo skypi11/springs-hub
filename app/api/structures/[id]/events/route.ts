@@ -107,6 +107,13 @@ export async function GET(
 
     const events = visibleDocs.map(doc => {
       const d = doc.data();
+      // Masquage du gamePassword (Matt 2026-05-31) : l'info ne doit fuiter
+      // qu'aux invités de l'event. Le requester est invité si une présence
+      // existe avec son uid. Le staff (dirigeants/managers/coachs) voit
+      // toujours tout (utile pour debug et coordination).
+      const presences = presencesByEvent.get(doc.id) ?? [];
+      const isRequesterInvited = presences.some(p => p.userId === uid);
+      const canSeePassword = isRequesterInvited || isStaffViewer;
       return {
         id: doc.id,
         structureId: d.structureId,
@@ -138,7 +145,12 @@ export async function GET(
         tournoiUrl: d.tournoiUrl ?? null,
         tournoiInscriptionUrl: d.tournoiInscriptionUrl ?? null,
         tournoiReglementUrl: d.tournoiReglementUrl ?? null,
-        presences: presencesByEvent.get(doc.id) ?? [],
+        // Configuration de partie (scrim/match uniquement, sinon null)
+        gameHostedBy: d.gameHostedBy ?? null,
+        gameName: d.gameName ?? null,
+        gamePassword: canSeePassword ? (d.gamePassword ?? null) : null,
+        gameFormat: d.gameFormat ?? null,
+        presences,
       };
     });
 
@@ -195,6 +207,10 @@ export async function POST(
       tournoiUrl,
       tournoiInscriptionUrl,
       tournoiReglementUrl,
+      gameHostedBy,
+      gameName,
+      gamePassword,
+      gameFormat,
       markDoneImmediately,
     } = body as {
       title?: string;
@@ -212,6 +228,10 @@ export async function POST(
       tournoiUrl?: string;
       tournoiInscriptionUrl?: string;
       tournoiReglementUrl?: string;
+      gameHostedBy?: string;
+      gameName?: string;
+      gamePassword?: string;
+      gameFormat?: string;
       markDoneImmediately?: boolean;
     };
 
@@ -337,6 +357,32 @@ export async function POST(
     const tournoiInscriptionUrlValue = isTournoi ? cleanHttpsUrl(tournoiInscriptionUrl) : null;
     const tournoiReglementUrlValue = isTournoi ? cleanHttpsUrl(tournoiReglementUrl) : null;
 
+    // Configuration de partie (Matt 2026-05-31) : uniquement scrim et match.
+    // - gameHostedBy : enum 'us' | 'opponent' (qui héberge la lobby)
+    // - gameName/gamePassword : strings courtes, clamp 60 chars
+    // - gameFormat : enum bo3/bo5/bo7/free_1h, free_1h refusé pour match
+    const GAME_FORMAT_SCRIM = new Set(['bo3', 'bo5', 'bo7', 'free_1h']);
+    const GAME_FORMAT_MATCH = new Set(['bo3', 'bo5', 'bo7']);
+    const allowedFormats = type === 'match' ? GAME_FORMAT_MATCH : GAME_FORMAT_SCRIM;
+    const cleanShortStr = (v: unknown): string | null => {
+      const s = String(v ?? '').trim();
+      return s.length > 0 ? s.slice(0, 60) : null;
+    };
+    const gameHostedByValue = isMatch && (gameHostedBy === 'us' || gameHostedBy === 'opponent')
+      ? gameHostedBy
+      : null;
+    const gameNameValue = isMatch ? cleanShortStr(gameName) : null;
+    const gamePasswordValue = isMatch ? cleanShortStr(gamePassword) : null;
+    const gameFormatRaw = typeof gameFormat === 'string' ? gameFormat.trim() : '';
+    if (isMatch && gameFormatRaw && !allowedFormats.has(gameFormatRaw)) {
+      return NextResponse.json({
+        error: type === 'match'
+          ? 'Format invalide pour un match (bo3, bo5 ou bo7).'
+          : 'Format invalide pour un scrim (bo3, bo5, bo7 ou free_1h).',
+      }, { status: 400 });
+    }
+    const gameFormatValue = isMatch && allowedFormats.has(gameFormatRaw) ? gameFormatRaw : null;
+
     batch.set(eventRef, {
       structureId,
       createdBy: uid,
@@ -365,6 +411,10 @@ export async function POST(
       tournoiUrl: tournoiUrlValue,
       tournoiInscriptionUrl: tournoiInscriptionUrlValue,
       tournoiReglementUrl: tournoiReglementUrlValue,
+      gameHostedBy: gameHostedByValue,
+      gameName: gameNameValue,
+      gamePassword: gamePasswordValue,
+      gameFormat: gameFormatValue,
     });
 
     for (const userId of invitedUserIds) {

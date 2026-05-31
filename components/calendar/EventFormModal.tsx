@@ -124,6 +124,16 @@ export default function EventFormModal({
   const [adversaire, setAdversaire] = useState(existingEvent?.adversaire ?? '');
   const [adversaireLogoUrl, setAdversaireLogoUrl] = useState(existingEvent?.adversaireLogoUrl ?? '');
   const [resultat, setResultat] = useState(existingEvent?.resultat ?? '');
+  // Configuration de partie (scrim/match uniquement, Matt 2026-05-31).
+  // '' (string vide) = non renseigné côté UI → null côté serveur au submit.
+  const [gameHostedBy, setGameHostedBy] = useState<'us' | 'opponent' | ''>(
+    existingEvent?.gameHostedBy ?? ''
+  );
+  const [gameName, setGameName] = useState(existingEvent?.gameName ?? '');
+  const [gamePassword, setGamePassword] = useState(existingEvent?.gamePassword ?? '');
+  const [gameFormat, setGameFormat] = useState<'bo3' | 'bo5' | 'bo7' | 'free_1h' | ''>(
+    existingEvent?.gameFormat ?? ''
+  );
   const [tournoiNom, setTournoiNom] = useState(existingEvent?.tournoiNom ?? '');
   const [tournoiFormat, setTournoiFormat] = useState(existingEvent?.tournoiFormat ?? '');
   const [tournoiUrl, setTournoiUrl] = useState(existingEvent?.tournoiUrl ?? '');
@@ -279,7 +289,16 @@ export default function EventFormModal({
             // Champs spécifiques : envoyés uniquement si pertinents pour le type
             // existant. Le back filtre, mais on évite d'envoyer du bruit.
             ...(type === 'match' || type === 'scrim'
-              ? { adversaire: adversaire || '', resultat: resultat || '' }
+              ? {
+                  adversaire: adversaire || '',
+                  resultat: resultat || '',
+                  // Configuration de partie (Matt 2026-05-31) : envoyer en édition aussi.
+                  // String vide = clear (back interprète "" comme null).
+                  gameHostedBy: gameHostedBy || '',
+                  gameName: gameName || '',
+                  gamePassword: gamePassword || '',
+                  gameFormat: gameFormat || '',
+                }
               : {}),
             ...(type === 'match'
               ? { adversaireLogoUrl: adversaireLogoUrl || '' }
@@ -367,6 +386,11 @@ export default function EventFormModal({
           adversaire: adversaire || undefined,
           adversaireLogoUrl: type === 'match' && adversaireLogoUrl ? adversaireLogoUrl : undefined,
           resultat: resultat || undefined,
+          // Configuration de partie : envoyée uniquement pour scrim/match (serveur ignore sinon)
+          gameHostedBy: (type === 'scrim' || type === 'match') ? (gameHostedBy || undefined) : undefined,
+          gameName: (type === 'scrim' || type === 'match') ? (gameName || undefined) : undefined,
+          gamePassword: (type === 'scrim' || type === 'match') ? (gamePassword || undefined) : undefined,
+          gameFormat: (type === 'scrim' || type === 'match') ? (gameFormat || undefined) : undefined,
           tournoiNom: type === 'tournoi' ? (tournoiNom || undefined) : undefined,
           tournoiFormat: type === 'tournoi' ? (tournoiFormat || undefined) : undefined,
           tournoiUrl: type === 'tournoi' ? (tournoiUrl || undefined) : undefined,
@@ -844,6 +868,110 @@ export default function EventFormModal({
                 <label className="t-label block mb-1.5">Résultat (optionnel)</label>
                 <input type="text" className="settings-input w-full" value={resultat}
                   onChange={e => setResultat(e.target.value)} placeholder="3-2, WIN..." />
+              </div>
+            </div>
+          )}
+
+          {/* Configuration de partie (Matt 2026-05-31) : qui héberge la lobby,
+              nom + mdp partie, format. Visible pour scrim ET match. Format
+              free_1h disponible uniquement pour scrim. Le mot de passe est
+              servi UNIQUEMENT aux invités côté API (filtré serveur). */}
+          {(type === 'scrim' || type === 'match') && (
+            <div className="bevel-sm p-3 space-y-3"
+              style={{ background: 'rgba(0,129,255,0.04)', border: '1px solid rgba(0,129,255,0.25)' }}>
+              <div className="flex items-center gap-2">
+                <span className="tag"
+                  style={{ background: 'rgba(0,129,255,0.15)', color: 'var(--s-blue)', borderColor: 'rgba(0,129,255,0.4)', fontSize: '12px', padding: '2px 8px' }}>
+                  🎮 PARTIE
+                </span>
+                <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                  Infos d&apos;accès à la lobby (visibles uniquement aux invités).
+                </span>
+              </div>
+
+              {/* Qui héberge la lobby */}
+              <div>
+                <label className="t-label block mb-1.5">Qui héberge la partie ?</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button"
+                    onClick={() => setGameHostedBy(gameHostedBy === 'us' ? '' : 'us')}
+                    className="bevel-sm text-xs font-semibold transition-colors"
+                    style={{
+                      padding: '8px 12px',
+                      background: gameHostedBy === 'us' ? 'rgba(0,129,255,0.15)' : 'var(--s-elevated)',
+                      border: `1px solid ${gameHostedBy === 'us' ? 'rgba(0,129,255,0.5)' : 'var(--s-border)'}`,
+                      color: gameHostedBy === 'us' ? 'var(--s-blue)' : 'var(--s-text-dim)',
+                      cursor: 'pointer',
+                    }}>
+                    On héberge
+                  </button>
+                  <button type="button"
+                    onClick={() => setGameHostedBy(gameHostedBy === 'opponent' ? '' : 'opponent')}
+                    className="bevel-sm text-xs font-semibold transition-colors"
+                    style={{
+                      padding: '8px 12px',
+                      background: gameHostedBy === 'opponent' ? 'rgba(0,129,255,0.15)' : 'var(--s-elevated)',
+                      border: `1px solid ${gameHostedBy === 'opponent' ? 'rgba(0,129,255,0.5)' : 'var(--s-border)'}`,
+                      color: gameHostedBy === 'opponent' ? 'var(--s-blue)' : 'var(--s-text-dim)',
+                      cursor: 'pointer',
+                    }}>
+                    L&apos;adversaire héberge
+                  </button>
+                </div>
+              </div>
+
+              {/* Nom de la game + mot de passe */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="t-label block mb-1.5">Nom de la partie</label>
+                  <input type="text" className="settings-input w-full" value={gameName}
+                    onChange={e => setGameName(e.target.value)}
+                    placeholder={gameHostedBy === 'opponent' ? "Donné par l'adversaire" : 'ex: Aedral vs ...'}
+                    maxLength={60} />
+                </div>
+                <div>
+                  <label className="t-label block mb-1.5">Mot de passe (optionnel)</label>
+                  <input type="text" className="settings-input w-full" value={gamePassword}
+                    onChange={e => setGamePassword(e.target.value)}
+                    placeholder={gameHostedBy === 'opponent' ? "Donné par l'adversaire" : 'Mot de passe lobby'}
+                    maxLength={60} />
+                </div>
+              </div>
+
+              {/* Format : BO3/BO5/BO7 + free_1h pour scrim uniquement */}
+              <div>
+                <label className="t-label block mb-1.5">Format</label>
+                <div className="flex flex-wrap gap-2">
+                  {(['bo3', 'bo5', 'bo7'] as const).map(f => (
+                    <button key={f} type="button"
+                      onClick={() => setGameFormat(gameFormat === f ? '' : f)}
+                      className="bevel-sm text-xs font-semibold transition-colors"
+                      style={{
+                        padding: '6px 14px',
+                        background: gameFormat === f ? 'rgba(0,129,255,0.15)' : 'var(--s-elevated)',
+                        border: `1px solid ${gameFormat === f ? 'rgba(0,129,255,0.5)' : 'var(--s-border)'}`,
+                        color: gameFormat === f ? 'var(--s-blue)' : 'var(--s-text-dim)',
+                        cursor: 'pointer',
+                        textTransform: 'uppercase',
+                      }}>
+                      {f.toUpperCase()}
+                    </button>
+                  ))}
+                  {type === 'scrim' && (
+                    <button type="button"
+                      onClick={() => setGameFormat(gameFormat === 'free_1h' ? '' : 'free_1h')}
+                      className="bevel-sm text-xs font-semibold transition-colors"
+                      style={{
+                        padding: '6px 14px',
+                        background: gameFormat === 'free_1h' ? 'rgba(0,129,255,0.15)' : 'var(--s-elevated)',
+                        border: `1px solid ${gameFormat === 'free_1h' ? 'rgba(0,129,255,0.5)' : 'var(--s-border)'}`,
+                        color: gameFormat === 'free_1h' ? 'var(--s-blue)' : 'var(--s-text-dim)',
+                        cursor: 'pointer',
+                      }}>
+                      1h libre
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )}

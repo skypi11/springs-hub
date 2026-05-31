@@ -92,6 +92,14 @@ export type CalendarEvent = {
   tournoiUrl: string | null;
   tournoiInscriptionUrl: string | null;
   tournoiReglementUrl: string | null;
+  // ─── Configuration de partie (Matt 2026-05-31) ────────────────────
+  // Pour les events scrim et match : qui héberge la lobby + nom + mdp + format.
+  // gamePassword est masqué côté serveur pour les non-invités à l'event.
+  // gameFormat='free_1h' est valide uniquement pour scrim (rejeté serveur sur match).
+  gameHostedBy: 'us' | 'opponent' | null;
+  gameName: string | null;
+  gamePassword: string | null; // null si non-invité (masqué serveur)
+  gameFormat: 'bo3' | 'bo5' | 'bo7' | 'free_1h' | null;
   presences: Presence[];
 };
 

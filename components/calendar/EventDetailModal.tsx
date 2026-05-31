@@ -329,6 +329,63 @@ export default function EventDetailModal({
             </div>
           )}
 
+          {/* Configuration de partie (Matt 2026-05-31) : visible pour scrim/match
+              si au moins une info est renseignée. Le mot de passe est masqué
+              côté serveur pour les non-invités, donc s'affiche uniquement pour
+              les bons users. */}
+          {(event.type === 'scrim' || event.type === 'match')
+            && (event.gameHostedBy || event.gameName || event.gamePassword || event.gameFormat) && (() => {
+              const formatLabel: Record<string, string> = {
+                bo3: 'BO3', bo5: 'BO5', bo7: 'BO7', free_1h: '1h libre',
+              };
+              const hostLabel = event.gameHostedBy === 'us'
+                ? 'On héberge'
+                : event.gameHostedBy === 'opponent'
+                  ? "L'adversaire héberge"
+                  : null;
+              return (
+                <div className="bevel-sm p-3 space-y-2"
+                  style={{ background: 'rgba(0,129,255,0.05)', border: '1px solid rgba(0,129,255,0.3)' }}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="tag"
+                      style={{ background: 'rgba(0,129,255,0.15)', color: 'var(--s-blue)', borderColor: 'rgba(0,129,255,0.4)', fontSize: '12px', padding: '2px 8px' }}>
+                      🎮 PARTIE
+                    </span>
+                    {hostLabel && (
+                      <span className="text-xs font-semibold" style={{ color: 'var(--s-text)' }}>
+                        {hostLabel}
+                      </span>
+                    )}
+                    {event.gameFormat && formatLabel[event.gameFormat] && (
+                      <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '2px 8px' }}>
+                        {formatLabel[event.gameFormat]}
+                      </span>
+                    )}
+                  </div>
+                  {(event.gameName || event.gamePassword) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {event.gameName && (
+                        <div>
+                          <p className="t-label mb-1" style={{ color: 'var(--s-text-muted)' }}>NOM DE LA PARTIE</p>
+                          <p className="t-mono text-sm break-all" style={{ color: 'var(--s-text)' }}>
+                            {event.gameName}
+                          </p>
+                        </div>
+                      )}
+                      {event.gamePassword && (
+                        <div>
+                          <p className="t-label mb-1" style={{ color: 'var(--s-text-muted)' }}>MOT DE PASSE</p>
+                          <p className="t-mono text-sm break-all" style={{ color: 'var(--s-gold)' }}>
+                            {event.gamePassword}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
           {/* Ma réponse */}
           {myPresence && event.status === 'scheduled' && (
             <div>

@@ -125,6 +125,38 @@ export async function PATCH(
       if (body.resultat !== undefined) {
         updates.resultat = String(body.resultat).trim() || null;
       }
+      // Configuration de partie (Matt 2026-05-31) : éditables pour scrim/match.
+      // Mêmes règles que POST : enums, clamp 60 chars, free_1h refusé sur match.
+      if (body.gameHostedBy !== undefined) {
+        const v = String(body.gameHostedBy).trim();
+        if (v === '' || v === 'us' || v === 'opponent') {
+          updates.gameHostedBy = (v === 'us' || v === 'opponent') ? v : null;
+        } else {
+          return NextResponse.json({ error: 'gameHostedBy invalide (us ou opponent).' }, { status: 400 });
+        }
+      }
+      if (body.gameName !== undefined) {
+        const s = String(body.gameName).trim();
+        updates.gameName = s.length > 0 ? s.slice(0, 60) : null;
+      }
+      if (body.gamePassword !== undefined) {
+        const s = String(body.gamePassword).trim();
+        updates.gamePassword = s.length > 0 ? s.slice(0, 60) : null;
+      }
+      if (body.gameFormat !== undefined) {
+        const v = String(body.gameFormat).trim();
+        const allowed = event.type === 'match'
+          ? new Set(['', 'bo3', 'bo5', 'bo7'])
+          : new Set(['', 'bo3', 'bo5', 'bo7', 'free_1h']);
+        if (!allowed.has(v)) {
+          return NextResponse.json({
+            error: event.type === 'match'
+              ? 'Format invalide pour un match (bo3, bo5 ou bo7).'
+              : 'Format invalide pour un scrim (bo3, bo5, bo7 ou free_1h).',
+          }, { status: 400 });
+        }
+        updates.gameFormat = v === '' ? null : v;
+      }
     }
     // Logo adversaire : match uniquement, HTTPS, ≤500 chars. Vide → null.
     if (event.type === 'match' && body.adversaireLogoUrl !== undefined) {
