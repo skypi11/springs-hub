@@ -50,6 +50,15 @@ interface Props {
   initialStartsAt?: string;
   initialEndsAt?: string;
   /**
+   * Pré-remplissage scope/type/audience staff utilisé par le click-to-create
+   * depuis l'onglet STAFF de la heatmap dispos (Matt 2026-05-31).
+   * Permet d'ouvrir la modal direct sur "réunion staff" avec les staff dispos
+   * pré-cochés. Ignorés en mode édition.
+   */
+  initialScope?: EventScope;
+  initialType?: EventType;
+  initialStaffUserIds?: string[];
+  /**
    * Mode édition : si fourni, la modal s'ouvre avec les champs préremplis
    * et soumet via PATCH au lieu de POST. La cible (target) et le type sont
    * verrouillés pour éviter de casser les présences / champs spécifiques.
@@ -79,6 +88,9 @@ export default function EventFormModal({
   structureRoles,
   initialStartsAt,
   initialEndsAt,
+  initialScope,
+  initialType,
+  initialStaffUserIds,
   existingEvent,
   onClose,
   onCreated,
@@ -89,7 +101,7 @@ export default function EventFormModal({
   // Pré-remplissage en mode édition : on lit l'event existant. En mode création,
   // valeurs vides (sauf initialStartsAt/EndsAt si click sur case calendrier).
   const [title, setTitle] = useState(existingEvent?.title ?? '');
-  const [type, setType] = useState<EventType>(existingEvent?.type ?? 'training');
+  const [type, setType] = useState<EventType>(existingEvent?.type ?? initialType ?? 'training');
   const [description, setDescription] = useState(existingEvent?.description ?? '');
   const [location, setLocation] = useState(existingEvent?.location ?? '');
   const [startsAt, setStartsAt] = useState(
@@ -99,8 +111,9 @@ export default function EventFormModal({
     existingEvent ? isoToLocalInput(existingEvent.endsAt) : (initialEndsAt ?? '')
   );
   // Scope/cible : pré-remplis depuis l'event en édition (mais le UI les verrouillera).
+  // initialScope est utilisé pour le click-to-create depuis l'onglet STAFF (= 'staff').
   const [scope, setScope] = useState<EventScope>(
-    existingEvent?.target.scope ?? (isDirigeant(userContext) ? 'structure' : 'teams')
+    existingEvent?.target.scope ?? initialScope ?? (isDirigeant(userContext) ? 'structure' : 'teams')
   );
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>(
     existingEvent?.target.scope === 'teams' ? (existingEvent.target.teamIds ?? []) : []
@@ -124,7 +137,16 @@ export default function EventFormModal({
   const [playerSelection, setPlayerSelection] = useState<Record<string, boolean>>({});
 
   // Sélection fine du staff (scope='staff'). Clé = uid ; obligatoire au moins un coché.
-  const [staffSelection, setStaffSelection] = useState<Record<string, boolean>>({});
+  // Pré-coché depuis initialStaffUserIds (click-to-create depuis heatmap STAFF) :
+  // tous les staff dispos sur le créneau cliqué sont auto-cochés, l'user peut décocher.
+  const [staffSelection, setStaffSelection] = useState<Record<string, boolean>>(() => {
+    if (initialStaffUserIds && initialStaffUserIds.length > 0) {
+      const init: Record<string, boolean> = {};
+      for (const uid of initialStaffUserIds) init[uid] = true;
+      return init;
+    }
+    return {};
+  });
 
   // Qui peut créer un événement scope='staff' : dirigeants + managers (pas les coachs).
   const canCreateStaffEvent = isDirigeant(userContext) || userContext.isManager;

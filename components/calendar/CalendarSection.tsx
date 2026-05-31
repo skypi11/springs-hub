@@ -224,8 +224,15 @@ export default function CalendarSection({
   // Alias historique conservé pour minimiser les changements dans le rendu JSX.
   const effectiveViewMode = viewMode;
   // formPrefill : null = modale fermée ; objet = ouverte (éventuellement pré-remplie
-  // avec une date quand on a cliqué sur une case du calendrier).
-  const [formPrefill, setFormPrefill] = useState<{ startsAt?: string; endsAt?: string } | null>(null);
+  // avec une date quand on a cliqué sur une case du calendrier, ou avec scope/type/
+  // staffUserIds pré-cochés quand on a cliqué sur la heatmap STAFF).
+  const [formPrefill, setFormPrefill] = useState<{
+    startsAt?: string;
+    endsAt?: string;
+    scope?: EventScope;
+    type?: EventType;
+    staffUserIds?: string[];
+  } | null>(null);
   const [openEventId, setOpenEventId] = useState<string | null>(null);
 
   const loadEvents = invalidateEvents;
@@ -425,6 +432,15 @@ export default function CalendarSection({
             teams={teams}
             structureRoles={structureRoles}
             canEditConfig={isDirigeant(userContext)}
+            onCreateStaffEvent={canCreateAnything ? ({ startsAt, endsAt, availableStaffUids }) => {
+              setFormPrefill({
+                startsAt,
+                endsAt,
+                scope: 'staff',
+                type: 'autre',
+                staffUserIds: availableStaffUids,
+              });
+            } : undefined}
           />
         ) : filteredEvents.length === 0 ? (
           <div className="text-center py-10">
@@ -460,6 +476,9 @@ export default function CalendarSection({
           structureRoles={structureRoles}
           initialStartsAt={formPrefill.startsAt}
           initialEndsAt={formPrefill.endsAt}
+          initialScope={formPrefill.scope}
+          initialType={formPrefill.type}
+          initialStaffUserIds={formPrefill.staffUserIds}
           onClose={() => setFormPrefill(null)}
           onCreated={() => {
             setFormPrefill(null);

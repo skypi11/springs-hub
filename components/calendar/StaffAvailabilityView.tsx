@@ -124,12 +124,26 @@ function cellColors(count: number, total: number, minPlayers: number): { bg: str
 export default function StaffAvailabilityView({
   structureId,
   canEditConfig = false,
+  onCreateStaffEvent,
 }: {
   structureId: string;
   members: unknown[];  // accepté pour compat de signature parent (non utilisé)
   teams: unknown[];    // idem
   structureRoles: unknown; // idem
   canEditConfig?: boolean;
+  /**
+   * Click-to-create depuis la heatmap (Matt 2026-05-31) : appelé quand l'user
+   * clique sur une cellule matchable (count >= minPlayers, future). Ouvre la
+   * modal de création d'event scope='staff' pré-remplie avec :
+   *  - startsAt = ISO du créneau cliqué
+   *  - endsAt   = startsAt + 1h (durée standard réunion staff, éditable ensuite)
+   *  - availableStaffUids = uids dispos sur le créneau (auto-cochés dans le picker)
+   */
+  onCreateStaffEvent?: (params: {
+    startsAt: string;
+    endsAt: string;
+    availableStaffUids: string[];
+  }) => void;
 }) {
   const { firebaseUser } = useAuth();
   const toast = useToast();
@@ -165,19 +179,30 @@ export default function StaffAvailabilityView({
     onError: (err: Error) => toast.error(err instanceof ApiError ? err.message : 'Erreur'),
   });
 
-  // Grille pour la semaine sélectionnée
-  const { rows, countsByIso } = useMemo(() => {
-    if (!data || data.weekMondays.length === 0) return { rows: [] as { day: { gridYmd: string; isPast: boolean; slots: string[] }; cells: UnifiedCell[] }[], countsByIso: {} as Record<string, number> };
+  // Grille pour la semaine sélectionnée + map iso → liste des uids dispos
+  // (utilisée pour pré-cocher le picker staff au click-to-create).
+  const { rows, countsByIso, uidsByIso } = useMemo(() => {
+    const emptyRet = {
+      rows: [] as { day: { gridYmd: string; isPast: boolean; slots: string[] }; cells: UnifiedCell[] }[],
+      countsByIso: {} as Record<string, number>,
+      uidsByIso: {} as Record<string, string[]>,
+    };
+    if (!data || data.weekMondays.length === 0) return emptyRet;
     const monday = data.weekMondays[weekIdx];
-    if (!monday) return { rows: [], countsByIso: {} };
+    if (!monday) return emptyRet;
     const grid = generateWeekGrid(monday, data.today);
     const counts: Record<string, number> = {};
+    const uids: Record<string, string[]> = {};
     for (const m of data.members) {
       const slots = m.slotsByWeek[monday] ?? [];
-      for (const s of slots) counts[s] = (counts[s] ?? 0) + 1;
+      for (const s of slots) {
+        counts[s] = (counts[s] ?? 0) + 1;
+        if (!uids[s]) uids[s] = [];
+        uids[s].push(m.uid);
+      }
     }
     const rows = grid.days.map(day => ({ day, cells: buildRow(day) }));
-    return { rows, countsByIso: counts };
+    return { rows, countsByIso: counts, uidsByIso: uids };
   }, [data, weekIdx]);
 
   if (loading) {
@@ -318,10 +343,53 @@ export default function StaffAvailabilityView({
                     const count = countsByIso[cell.iso] ?? 0;
                     const colors = cellColors(count, totalStaff, minPlayers);
                     const hhmm = `${pad2(cell.hour)}:${pad2(cell.minute)}`;
-                    const title = `${hhmm}, ${count}/${totalStaff} staff dispo`;
+                    // Cell cliquable (= "matchable") : count >= minPlayers, jour pas passé,
+                    // créneau pas dans le passé (cellIso > today), et callback dispo.
+                    // Au clic → ouvre la modal event scope='staff' pré-remplie.
+                    const isClickable = !!onCreateStaffEvent
+                      && !row.day.isPast
+                      && count >= minPlayers
+                      && minPlayers > 0;
+                    const title = isClickable
+                      ? `${hhmm}, ${count}/${totalStaff} staff dispo — clique pour planifier une réunion`
+                      : `${hhmm}, ${count}/${totalStaff} staff dispo`;
+
+                    if (!isClickable) {
+                      return (
+                        <div key={cell.iso} title={title}
+                          style={{ height: 22, background: colors.bg, border: `1px solid ${colors.border}` }} />
+                      );
+                    }
+
+                    // Cell matchable cliquable : durée 1h par défaut.
+                    // startsAt = HH:00 ou HH:30 du créneau cliqué.
+                    // endsAt   = +60 min (donc même mm, hour +1) avec passage minuit géré.
+                    const startsAt = cell.iso;
+                    const endHour = cell.hour + 1;
+                    const endMinute = cell.minute;
+                    const endIsoDate = endHour >= 24
+                      ? `${addDaysYmd(cell.iso.slice(0, 10), 1)}T${pad2(endHour - 24)}:${pad2(endMinute)}`
+                      : `${cell.iso.slice(0, 10)}T${pad2(endHour)}:${pad2(endMinute)}`;
+
                     return (
-                      <div key={cell.iso} title={title}
-                        style={{ height: 22, background: colors.bg, border: `1px solid ${colors.border}` }} />
+                      <button
+                        key={cell.iso}
+                        type="button"
+                        title={title}
+                        onClick={() => onCreateStaffEvent!({
+                          startsAt,
+                          endsAt: endIsoDate,
+                          availableStaffUids: uidsByIso[cell.iso] ?? [],
+                        })}
+                        className="transition-all hover:brightness-125"
+                        style={{
+                          height: 22,
+                          background: colors.bg,
+                          border: `1px solid ${colors.border}`,
+                          cursor: 'pointer',
+                          padding: 0,
+                        }}
+                      />
                     );
                   })}
                 </div>
