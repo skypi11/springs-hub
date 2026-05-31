@@ -11,6 +11,7 @@ import { refreshDiscordAccessToken } from '@/lib/discord-refresh';
 import { isValidEpicId } from '@/lib/rl-identity';
 import { loadCronState, saveCronState } from '@/lib/cron-state';
 import { syncValorantRanksBatch } from '@/lib/valorant-sync';
+import { syncTrackmaniaTrophiesBatch } from '@/lib/trackmania-sync';
 
 // GET /api/cron/expire-invitations
 // Vercel Cron quotidien (3h), trois tâches refondues pour SCALER :
@@ -284,6 +285,10 @@ export async function GET(req: NextRequest) {
     // avec 'valorant' in games + Riot Discord connection. Cursor-paginé,
     // 50 users/run (rate limit HenrikDev). Voir lib/valorant-sync.ts.
     const valorantRankSync = await runPass('syncValorantRanksBatch', () => syncValorantRanksBatch(db));
+    // Passe 5 (2026-05-31) : sync trophées Trackmania via tm.io pour les users
+    // avec 'trackmania' in games + tmIoUrl renseigné. Cursor-paginé,
+    // 25 users/run (rate-limit soft tm.io community). Voir lib/trackmania-sync.ts.
+    const trackmaniaTrophiesSync = await runPass('syncTrackmaniaTrophiesBatch', () => syncTrackmaniaTrophiesBatch(db));
 
     return NextResponse.json({
       ok: true,
@@ -292,6 +297,7 @@ export async function GET(req: NextRequest) {
       coFounderDepartures: departures,
       discordSync,
       valorantRankSync,
+      trackmaniaTrophiesSync,
     });
   } catch (err) {
     captureApiError('API cron expire-invitations error', err);

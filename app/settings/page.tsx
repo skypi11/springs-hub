@@ -1393,6 +1393,7 @@ export default function SettingsPage() {
                             onChange={e => updateForm({ tmIoUrl: e.target.value })}
                             className="settings-input w-full" placeholder="https://trackmania.io/#/player/..." />
                         </div>
+                        <TrackmaniaSyncBlock hasUrl={!!form.tmIoUrl.trim()} />
                       </div>
                     )}
 
@@ -2188,6 +2189,66 @@ function ValorantSyncBlock({ currentRank }: { currentRank: string }) {
         {currentRank && (
           <span> Rang actuel stocké : <strong style={{ color: 'var(--s-text-dim)' }}>{currentRank}</strong>.</span>
         )}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Bloc "Sync trophées Trackmania via tm.io" affiché dans la section Config TM.
+ * Appelle POST /api/profile/sync-tm-trophies et affiche le résultat
+ * (trophées récupérés, ou erreur si pas de URL tm.io / 404 / etc.).
+ */
+function TrackmaniaSyncBlock({ hasUrl }: { hasUrl: boolean }) {
+  const toast = useToast();
+  const [syncing, setSyncing] = useState(false);
+  const [synced, setSynced] = useState(false);
+
+  async function handleSync() {
+    setSyncing(true);
+    try {
+      await api<{ ok: true }>('/api/profile/sync-tm-trophies', { method: 'POST' });
+      setSynced(true);
+      toast.success('Trophées Trackmania synchronisés');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  return (
+    <div>
+      <label className="t-label block mb-2">Sync auto via Trackmania.io</label>
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          type="button"
+          onClick={handleSync}
+          disabled={syncing || !hasUrl}
+          className="btn-springs bevel-sm flex items-center gap-2 px-4 py-2"
+          style={{
+            fontSize: '13px',
+            background: hasUrl ? 'var(--s-green)' : 'var(--s-elevated)',
+            border: `1px solid ${hasUrl ? 'var(--s-green)' : 'var(--s-border)'}`,
+            color: hasUrl ? '#000' : 'var(--s-text-muted)',
+            cursor: syncing ? 'wait' : (hasUrl ? 'pointer' : 'not-allowed'),
+            fontWeight: 600,
+            opacity: hasUrl ? 1 : 0.6,
+          }}
+        >
+          {syncing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+          {syncing ? 'Synchronisation…' : 'Sync mes trophées maintenant'}
+        </button>
+        {synced && (
+          <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+            ✓ Trophées + COTD à jour
+          </span>
+        )}
+      </div>
+      <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
+        Récupère tes trophées, échelon et meilleur rang COTD via trackmania.io.
+        Aussi synchronisé automatiquement chaque nuit en arrière-plan.
+        {!hasUrl && <span> Renseigne d&apos;abord ton URL Trackmania.io ci-dessus.</span>}
       </p>
     </div>
   );

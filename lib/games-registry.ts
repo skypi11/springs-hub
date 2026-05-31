@@ -139,7 +139,11 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
     features: {
       rankVerification: false,
       replayParsing: false,
-      rankAutoSync: false,
+      // Sync auto nocturne via tm.io (cron syncTrackmaniaTrophiesBatch,
+      // 25 users/run, greffé sur /api/cron/expire-invitations) + bouton
+      // "Sync mes trophées maintenant" dans Settings. Stocke trophées,
+      // échelon, club tag, COTD best rank.
+      rankAutoSync: true,
       // Lien profil trackmania.io public, fetch à la demande via /api/tm-stats
       // (trophées, COTD, classements zone) quand on affiche un profil joueur.
       trackerProfile: true,

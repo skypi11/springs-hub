@@ -77,13 +77,15 @@ describe('GAMES_REGISTRY invariants', () => {
     expect(rl.features.trackerProfile).toBe(true);
   });
 
-  it('TM : pas de vérification anti-mensonge mais lien public trackmania.io', () => {
+  it('TM : pas de vérification anti-mensonge, sync auto trophées via tm.io + lien public', () => {
     const tm = GAMES_REGISTRY.trackmania;
     expect(tm.features.rankVerification).toBe(false);
     expect(tm.features.replayParsing).toBe(false);
-    expect(tm.features.rankAutoSync).toBe(false);
-    // Fix Matt 2026-05-31 : trackmania.io est public + on fetch trophées/COTD
-    // à la demande via /api/tm-stats. Le lien tracker existe et a une valeur.
+    // Sync auto nocturne shippée Matt 2026-05-31 : cron syncTrackmaniaTrophiesBatch
+    // via tm.io (community-driven, gratuit).
+    expect(tm.features.rankAutoSync).toBe(true);
+    // trackmania.io est public + on fetch trophées/COTD on-demand via /api/tm-stats
+    // ET en cron nocturne.
     expect(tm.features.trackerProfile).toBe(true);
     expect(tm.trackerUrlTemplate).toContain('trackmania.io');
   });
