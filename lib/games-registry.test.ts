@@ -66,18 +66,26 @@ describe('GAMES_REGISTRY invariants', () => {
     expect(tm.roster.allowSolo).toBe(true);
   });
 
-  it('RL active rankVerification + replayParsing + rankAutoSync (système anti-mensonge)', () => {
+  it('RL : rankVerification (Discord Epic/Steam ou OpenID) + replayParsing (ballchasing), PAS de cron rang', () => {
     const rl = GAMES_REGISTRY.rocket_league;
     expect(rl.features.rankVerification).toBe(true);
     expect(rl.features.replayParsing).toBe(true);
-    expect(rl.features.rankAutoSync).toBe(true);
+    // Fix Matt 2026-05-31 : pas de cron RL rang. Le rang est fetch on-demand
+    // via /api/rl-stats (Tracker.gg) à l'affichage du profil. La passe
+    // nocturne discord-sync ne touche que au lien Epic/Steam, pas au rang.
+    expect(rl.features.rankAutoSync).toBe(false);
+    expect(rl.features.trackerProfile).toBe(true);
   });
 
-  it('TM n\'a aucune feature anti-mensonge (legacy)', () => {
+  it('TM : pas de vérification anti-mensonge mais lien public trackmania.io', () => {
     const tm = GAMES_REGISTRY.trackmania;
     expect(tm.features.rankVerification).toBe(false);
     expect(tm.features.replayParsing).toBe(false);
     expect(tm.features.rankAutoSync).toBe(false);
+    // Fix Matt 2026-05-31 : trackmania.io est public + on fetch trophées/COTD
+    // à la demande via /api/tm-stats. Le lien tracker existe et a une valeur.
+    expect(tm.features.trackerProfile).toBe(true);
+    expect(tm.trackerUrlTemplate).toContain('trackmania.io');
   });
 
   it('Valorant : 5 titulaires + 2 remplaçants, pas de solo', () => {

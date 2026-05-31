@@ -104,9 +104,16 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
     bannerUrl: '/rocket-league.webp',
     roster: { titulaires: 3, remplacants: 2, allowSolo: false },
     features: {
+      // Vérification anti-mensonge : ID Epic capturé via Discord connection
+      // epicgames OU SteamID64 capturé via Steam OpenID (login direct Steam).
+      // Stocké comme rlEpicId / rlSteamId (immuables).
       rankVerification: true,
+      // Parsing replays via ballchasing.com (cf. project_ballchasing_replays_system).
       replayParsing: true,
-      rankAutoSync: true,
+      // PAS de cron de sync auto du rang RL : le rang est fetch à la demande
+      // via /api/rl-stats (Tracker.gg) quand on affiche un profil. La passe
+      // nocturne discord-sync ne fait QUE refresh le lien Epic/Steam, pas le rang.
+      rankAutoSync: false,
       trackerProfile: true,
     },
     trackerUrlTemplate: 'https://rocketleague.tracker.network/rocket-league/profile/epic/{id}/overview',
@@ -114,7 +121,7 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
       'free', 'replay_review', 'training_pack', 'workshop_map', 'free_play',
       'vod_review', 'mental_checkin', 'warmup_routine',
     ],
-    accountSourceLabel: 'Compte Epic (via tracker.gg) ou Steam',
+    accountSourceLabel: 'Compte Epic ou Steam (via Discord connection, ou Steam OpenID direct)',
     // PNG converti en RGBA via floodfill bord (commit 7ea8fc4, 58% transparent).
     logoIsTransparent: true,
   },
@@ -133,8 +140,11 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
       rankVerification: false,
       replayParsing: false,
       rankAutoSync: false,
-      trackerProfile: false,
+      // Lien profil trackmania.io public, fetch à la demande via /api/tm-stats
+      // (trophées, COTD, classements zone) quand on affiche un profil joueur.
+      trackerProfile: true,
     },
+    trackerUrlTemplate: 'https://trackmania.io/#/player/{id}',
     availableTodoTypes: [
       'free', 'vod_review', 'mental_checkin',
     ],
