@@ -2,28 +2,29 @@
 
 // Vue dédiée onglet "STAFF" du calendrier de structure.
 //
-// REFONTE Matt 2026-05-31 (v3) : reprise du pattern WeekView "joueurs" :
-//   - Grille jour/heure (axe horaire vertical à gauche, jours en colonnes)
-//   - Panel LATÉRAL À DROITE avec checkboxes staff (cocher pour filtrer)
-//   - La heatmap d'intensité se filtre sur les staff sélectionnés
-//     (rien coché = pool complet ; cocher 3 staff = heatmap intersection
-//     de ces 3 staff)
-//   - Click sur un slot matchable → crée une réunion staff pré-remplie
-//     avec audience = staff dispos sur ce créneau (selon filtre actif)
-//   - Bouton "Configurer" pour régler le minPlayersForStaffMatch
+// REFONTE Matt 2026-05-31 (v4) :
+//   - Grille jour/heure (pattern WeekView semaine)
+//   - Panel staff latéral DROITE avec checkboxes — affichage rôles précis
+//     (Coach équipe X, Manager équipe Y, capitaine équipe Z) + filtres par rôle
+//   - Chips "Tous les fondateurs / responsables / coachs structure / coachs
+//     équipe / managers équipe / capitaines" pour cocher en masse
+//   - Heatmap SANS palier "tous le staff dispo" hors sélection (ça n'avait
+//     pas de sens : on ne réunit jamais TOUT le staff). Au lieu de ça :
+//     intensité progressive douce. Avec sélection : 2 paliers clairs
+//     (gris si pas tous dispos / vert si TOUS les sélectionnés dispos).
+//   - Click sur slot cliquable → crée une réunion staff pré-remplie
 //
-// Pool affiché = LARGE (fondateur + co-fonda + responsable + coach
-// structure + staff d'équipes + capitaines). Source : /api/structures/[id]/staff-availability.
-// Cette vue est visible UNIQUEMENT pour dirigeants + responsables (gating dans
-// CalendarSection).
+// Pool affiché = LARGE (fondateur + co-fonda + responsable + coach structure
+// + staff d'équipes + capitaines). Source : /api/structures/[id]/staff-availability.
+// Cette vue est visible UNIQUEMENT pour dirigeants + responsables (gating
+// dans CalendarSection).
 
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Settings, Save, Users, Check } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Loader2, Users, Check } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { useToast } from '@/components/ui/Toast';
-import { api, ApiError } from '@/lib/api-client';
+import { api } from '@/lib/api-client';
 import {
   addDays,
   parisYmd,
@@ -31,34 +32,37 @@ import {
   formatSlotTime,
   addMinutesToIso,
 } from '@/lib/availability';
+import { getGameColor, getGameShortLabel } from '@/lib/games-registry';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 type StaffRole = 'fondateur' | 'co_fondateur' | 'responsable' | 'coach_structure' | 'staff_team' | 'capitaine';
+
+type TeamMembership = {
+  teamId: string;
+  teamName: string;
+  teamLabel: string | null;
+  teamGame: string;
+  role: 'manager' | 'coach' | 'captain';
+};
+
 type StaffMember = {
   uid: string;
   displayName: string;
   discordAvatar: string;
   avatarUrl: string;
   roles: StaffRole[];
+  teamMemberships: TeamMembership[];
   slotsByWeek: Record<string, string[]>;
 };
+
 type StaffApiResponse = {
   today: string;
   weekMondays: string[];
   members: StaffMember[];
-  minPlayersForStaffMatch: number;
+  minPlayersForStaffMatch: number; // conservé en data, ignoré côté UI v4
 };
 
-const ROLE_LABEL: Record<StaffRole, string> = {
-  fondateur: 'Fondateur',
-  co_fondateur: 'Co-fondateur',
-  responsable: 'Responsable',
-  coach_structure: 'Coach structure',
-  staff_team: "Staff d'équipe",
-  capitaine: 'Capitaine',
-};
-
-// Hiérarchie pour afficher le rôle "principal" du staff (le plus élevé).
+// ─── Hiérarchie & catégories de filtre ──────────────────────────────────
 const ROLE_PRIORITY: Record<StaffRole, number> = {
   fondateur: 0,
   co_fondateur: 1,
@@ -67,16 +71,34 @@ const ROLE_PRIORITY: Record<StaffRole, number> = {
   staff_team: 4,
   capitaine: 5,
 };
+
 function topRole(roles: StaffRole[]): StaffRole {
   return [...roles].sort((a, b) => ROLE_PRIORITY[a] - ROLE_PRIORITY[b])[0];
 }
+
+// Catégories utilisées par les chips de filtre. Chaque catégorie a un
+// prédicat qui dit si un staff member en fait partie.
+type RoleCategory = {
+  key: string;
+  label: string;
+  /** Renvoie true si ce member appartient à cette catégorie. */
+  match: (m: StaffMember) => boolean;
+};
+
+const ROLE_CATEGORIES: RoleCategory[] = [
+  { key: 'fondateurs', label: 'Fondateurs', match: m => m.roles.includes('fondateur') || m.roles.includes('co_fondateur') },
+  { key: 'responsables', label: 'Responsables', match: m => m.roles.includes('responsable') },
+  { key: 'coach_structure', label: 'Coachs structure', match: m => m.roles.includes('coach_structure') },
+  { key: 'manager_team', label: "Managers d'équipe", match: m => m.teamMemberships.some(tm => tm.role === 'manager') },
+  { key: 'coach_team', label: "Coachs d'équipe", match: m => m.teamMemberships.some(tm => tm.role === 'coach') },
+  { key: 'capitaines', label: "Capitaines d'équipe", match: m => m.teamMemberships.some(tm => tm.role === 'captain') },
+];
 
 // ─── Layout ─────────────────────────────────────────────────────────────
 const DAY_LABELS = ['LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM', 'DIM'];
 const SLOT_HEIGHT = 22;
 const SLOT_COUNT = 36; // 8h → 2h le lendemain = 36 créneaux de 30 min
 
-// Axe horaire identique à WeekView : 8:00 → 23:30 puis 00:00 → 01:30.
 const TIME_AXIS = (() => {
   const out: { h: number; m: number }[] = [];
   for (let h = 8; h < 24; h++) { out.push({ h, m: 0 }); out.push({ h, m: 30 }); }
@@ -88,16 +110,32 @@ function pad2(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
 }
 
+/** Formate les rôles d'un staff pour affichage compact dans le panel.
+ *  Ex: "Fondateur · Coach Aedral RL · Manager Phoenix TM" */
+function formatRolesLabel(m: StaffMember): string {
+  const parts: string[] = [];
+  if (m.roles.includes('fondateur')) parts.push('Fondateur');
+  if (m.roles.includes('co_fondateur')) parts.push('Co-fondateur');
+  if (m.roles.includes('responsable')) parts.push('Responsable');
+  if (m.roles.includes('coach_structure')) parts.push('Coach structure');
+  for (const tm of m.teamMemberships) {
+    const game = tm.teamGame ? ` (${getGameShortLabel(tm.teamGame)})` : '';
+    const teamLbl = tm.teamLabel ? `${tm.teamName} ${tm.teamLabel}` : tm.teamName;
+    const roleLbl = tm.role === 'manager' ? 'Manager' : tm.role === 'coach' ? 'Coach' : 'Capitaine';
+    parts.push(`${roleLbl} ${teamLbl}${game}`);
+  }
+  return parts.join(' · ');
+}
+
 export default function StaffAvailabilityView({
   structureId,
-  canEditConfig = false,
   onCreateStaffEvent,
 }: {
   structureId: string;
   members: unknown[];  // accepté pour compat de signature parent (non utilisé)
   teams: unknown[];    // idem
   structureRoles: unknown; // idem
-  canEditConfig?: boolean;
+  canEditConfig?: boolean; // ignoré en v4 (plus de minPlayersForStaffMatch en UI)
   /**
    * Click-to-create : appelé quand l'user clique sur un créneau matchable.
    * Le caller ouvre EventFormModal avec target.scope='staff' + audience
@@ -110,8 +148,6 @@ export default function StaffAvailabilityView({
   }) => void;
 }) {
   const { firebaseUser } = useAuth();
-  const toast = useToast();
-  const qc = useQueryClient();
 
   const queryKey = ['staff-availability', structureId] as const;
   const { data, isPending: loading, error } = useQuery({
@@ -124,11 +160,7 @@ export default function StaffAvailabilityView({
   // Sélecteur de semaine (limité aux 2 semaines couvertes par la data).
   const [weekIdx, setWeekIdx] = useState<0 | 1>(0);
 
-  // Sélection staff (filtre la heatmap, pattern WeekView "joueurs").
-  // Vide = pool complet, rempli = intersection (= heatmap montre uniquement
-  // les créneaux où TOUS les sélectionnés sont dispos... non, plus exactement :
-  // on COMPTE seulement les staff sélectionnés, le palier "tous dispos" devient
-  // = "tous les sélectionnés dispos"). Cohérent avec WeekView joueurs.
+  // Sélection staff (vide = pool complet, sinon heatmap se filtre dessus).
   const [selectedStaffUids, setSelectedStaffUids] = useState<Set<string>>(() => new Set());
   const staffPickerKey = `aedral_staff_view_selection_${structureId}`;
   useEffect(() => {
@@ -156,27 +188,23 @@ export default function StaffAvailabilityView({
     persistStaffSelection(new Set());
   };
 
-  // Panneau de config (minPlayersForStaffMatch).
-  const [configOpen, setConfigOpen] = useState(false);
-  const [minPlayersEdit, setMinPlayersEdit] = useState(2);
-  const [configDirty, setConfigDirty] = useState(false);
-  useEffect(() => {
-    if (data && !configDirty) setMinPlayersEdit(data.minPlayersForStaffMatch);
-  }, [data, configDirty]);
-  const saveConfig = useMutation({
-    mutationFn: () => api(`/api/structures/${structureId}/staff-availability`, {
-      method: 'POST',
-      body: { minPlayersForStaffMatch: minPlayersEdit },
-    }),
-    onSuccess: () => {
-      toast.success('Configuration enregistrée');
-      setConfigDirty(false);
-      qc.invalidateQueries({ queryKey });
-    },
-    onError: (err: Error) => toast.error(err instanceof ApiError ? err.message : 'Erreur'),
-  });
+  // Toggle d'une catégorie : si TOUS les membres de la cat sont déjà cochés
+  // → on les décoche tous ; sinon → on les coche tous (additif).
+  const toggleCategoryPick = (categoryUids: string[]) => {
+    setSelectedStaffUids(prev => {
+      const next = new Set(prev);
+      const allIn = categoryUids.length > 0 && categoryUids.every(u => next.has(u));
+      if (allIn) {
+        for (const u of categoryUids) next.delete(u);
+      } else {
+        for (const u of categoryUids) next.add(u);
+      }
+      persistStaffSelection(next);
+      return next;
+    });
+  };
 
-  // Responsive : mobile passe en vue 1 jour (comme WeekView).
+  // Responsive : mobile passe en vue 1 jour.
   const [isWide, setIsWide] = useState(true);
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1024px)');
@@ -195,25 +223,34 @@ export default function StaffAvailabilityView({
     return generateWeekGrid(weekMonday, todayYmd);
   }, [weekMonday, todayYmd]);
 
-  // Reset le jour sélectionné mobile à chaque changement de semaine
-  // (sinon on tombe sur un jour passé ou hors-grille).
   useEffect(() => {
     if (!grid) return;
     const todayIdx = grid.days.findIndex(d => d.gridYmd === todayYmd);
     setMobileDayIdx(todayIdx >= 0 ? todayIdx : 0);
   }, [grid, todayYmd]);
 
-  // Sort les membres une fois (par rôle hiérarchique) — utilisé pour le panel
-  // latéral et pour assurer un ordre stable.
+  // Sort les membres par rôle (hiérarchique) puis par nom.
   const sortedMembers = useMemo(() => {
     if (!data) return [] as StaffMember[];
-    return [...data.members].sort((a, b) => ROLE_PRIORITY[topRole(a.roles)] - ROLE_PRIORITY[topRole(b.roles)]);
+    return [...data.members].sort((a, b) => {
+      const ra = ROLE_PRIORITY[topRole(a.roles)];
+      const rb = ROLE_PRIORITY[topRole(b.roles)];
+      if (ra !== rb) return ra - rb;
+      return a.displayName.localeCompare(b.displayName);
+    });
   }, [data]);
 
+  // Catégories enrichies avec la liste des UIDs qui en font partie.
+  const categoriesWithUids = useMemo(() => {
+    return ROLE_CATEGORIES.map(cat => {
+      const uids = sortedMembers.filter(cat.match).map(m => m.uid);
+      const allSelected = uids.length > 0 && uids.every(u => selectedStaffUids.has(u));
+      return { ...cat, uids, count: uids.length, allSelected };
+    });
+  }, [sortedMembers, selectedStaffUids]);
+
   // Comptage + uids dispos par slot iso pour la semaine sélectionnée.
-  // Si selectedStaffUids vide → on compte tout le pool.
-  // Sinon → on compte uniquement les staff sélectionnés (= la heatmap se
-  // filtre sur eux, et le palier "tous dispos" devient "tous les sélectionnés").
+  // Filtré sur sélection si présente.
   const { countsByIso, uidsByIso } = useMemo(() => {
     const counts: Record<string, number> = {};
     const uids: Record<string, string[]> = {};
@@ -258,13 +295,9 @@ export default function StaffAvailabilityView({
     );
   }
 
-  // Le "total" qui sert au palier "tous dispos" :
-  //   - sélection vide → total du pool complet
-  //   - sélection active → taille de la sélection (= "tous les sélectionnés dispos")
   const poolSize = data.members.length;
-  const effectiveTotal = selectedStaffUids.size > 0 ? selectedStaffUids.size : poolSize;
-  const minPlayers = data.minPlayersForStaffMatch;
-  const isSelectionMode = selectedStaffUids.size > 0;
+  const selectionSize = selectedStaffUids.size;
+  const isSelectionMode = selectionSize > 0;
 
   if (!grid || !weekMonday) {
     return (
@@ -281,7 +314,7 @@ export default function StaffAvailabilityView({
 
   return (
     <div className="space-y-3">
-      {/* Header : sélecteur semaine + config */}
+      {/* Header : sélecteur semaine + récap sélection */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex bevel-sm overflow-hidden" style={{ border: '1px solid var(--s-border)' }}>
           {data.weekMondays.map((m, i) => {
@@ -304,63 +337,67 @@ export default function StaffAvailabilityView({
 
         <span className="text-xs ml-auto" style={{ color: 'var(--s-text-muted)' }}>
           {isSelectionMode
-            ? `${selectedStaffUids.size} staff sélectionné${selectedStaffUids.size > 1 ? 's' : ''} sur ${poolSize}`
+            ? `${selectionSize} staff sélectionné${selectionSize > 1 ? 's' : ''} sur ${poolSize}`
             : `${poolSize} membre${poolSize > 1 ? 's' : ''} staff`}
         </span>
+      </div>
 
-        {canEditConfig && (
-          <button type="button" onClick={() => setConfigOpen(o => !o)}
-            className="bevel-sm text-xs font-semibold transition-colors flex items-center gap-1.5"
-            style={{
-              padding: '5px 10px',
-              background: configOpen ? 'rgba(255,184,0,0.12)' : 'var(--s-elevated)',
-              border: `1px solid ${configOpen ? 'rgba(255,184,0,0.35)' : 'var(--s-border)'}`,
-              color: configOpen ? 'var(--s-gold)' : 'var(--s-text-dim)',
-            }}>
-            <Settings size={11} />
-            Configurer
+      {/* Chips de filtre par rôle — coche/décoche en masse */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="t-label flex-shrink-0" style={{ color: 'var(--s-text-muted)' }}>Filtres rapides :</span>
+        {categoriesWithUids.filter(c => c.count > 0).map(cat => {
+          return (
+            <button key={cat.key} type="button"
+              onClick={() => toggleCategoryPick(cat.uids)}
+              className="bevel-sm text-xs font-semibold transition-colors flex items-center gap-1.5"
+              style={{
+                padding: '4px 10px',
+                background: cat.allSelected ? 'rgba(135,206,250,0.15)' : 'var(--s-elevated)',
+                border: `1px solid ${cat.allSelected ? 'rgba(135,206,250,0.45)' : 'var(--s-border)'}`,
+                color: cat.allSelected ? 'rgb(135,206,250)' : 'var(--s-text-dim)',
+                cursor: 'pointer',
+              }}>
+              {cat.allSelected && <Check size={11} />}
+              {cat.label}
+              <span className="t-mono" style={{ opacity: 0.7 }}>({cat.count})</span>
+            </button>
+          );
+        })}
+        {isSelectionMode && (
+          <button type="button" onClick={clearStaffPick}
+            className="text-xs transition-colors duration-150 ml-1"
+            style={{ color: 'var(--s-text-muted)', padding: '4px 8px' }}>
+            Tout décocher
           </button>
         )}
       </div>
 
-      {/* Panneau de config */}
-      {configOpen && canEditConfig && (
-        <div className="bevel-sm p-3 space-y-2"
-          style={{ background: 'var(--s-elevated)', border: '1px solid rgba(255,184,0,0.25)' }}>
-          <label className="text-xs flex items-center gap-2" style={{ color: 'var(--s-text-dim)' }}>
-            Nombre minimum de staff pour considérer un créneau « matchable » :
-            <input type="number" min={1} max={20}
-              value={minPlayersEdit}
-              onChange={e => { setMinPlayersEdit(parseInt(e.target.value, 10) || 1); setConfigDirty(true); }}
-              className="settings-input"
-              style={{ width: 70, fontSize: 12, padding: '4px 8px' }} />
-          </label>
-          {configDirty && (
-            <button type="button" onClick={() => saveConfig.mutate()}
-              disabled={saveConfig.isPending}
-              className="btn-springs btn-primary bevel-sm flex items-center gap-1.5 text-xs">
-              {saveConfig.isPending ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
-              Enregistrer
-            </button>
-          )}
-        </div>
-      )}
-
       {/* Légende */}
       <div className="flex items-center gap-3 text-xs flex-wrap" style={{ color: 'var(--s-text-muted)' }}>
         <span className="t-label">Lecture :</span>
-        <div className="flex items-center gap-1.5">
-          <span style={{ display: 'inline-block', width: 14, height: 14, background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }} />
-          <span>moins de {minPlayers} dispo</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(47,196,107,0.28)', border: '1px solid rgba(47,196,107,0.5)' }} />
-          <span>{minPlayers}+ dispo</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(47,196,107,0.55)', border: '1px solid rgba(47,196,107,0.8)' }} />
-          <span>{isSelectionMode ? 'tous les sélectionnés dispos' : `tout le staff dispo (${poolSize}/${poolSize})`}</span>
-        </div>
+        {isSelectionMode ? (
+          <>
+            <div className="flex items-center gap-1.5">
+              <span style={{ display: 'inline-block', width: 14, height: 14, background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }} />
+              <span>pas tous dispos</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(47,196,107,0.55)', border: '1px solid rgba(47,196,107,0.8)' }} />
+              <span>{selectionSize} sélectionné{selectionSize > 1 ? 's' : ''} tous dispos</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-1.5">
+              <span style={{ display: 'inline-block', width: 14, height: 14, background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }} />
+              <span>0 dispo</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(47,196,107,0.15)', border: '1px solid rgba(47,196,107,0.3)' }} />
+              <span>1+ dispo (intensité = nombre)</span>
+            </div>
+          </>
+        )}
         {onCreateStaffEvent && (
           <span className="ml-auto t-mono" style={{ color: 'var(--s-text-dim)' }}>
             Clique un créneau vert pour planifier une réunion staff
@@ -368,7 +405,7 @@ export default function StaffAvailabilityView({
         )}
       </div>
 
-      {/* Sélecteur de jour mobile (chips 7 jours, comme WeekView). */}
+      {/* Sélecteur de jour mobile */}
       {!isWide && (
         <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(7, 1fr)' }}>
           {grid.days.map((d, i) => {
@@ -409,11 +446,11 @@ export default function StaffAvailabilityView({
         </div>
       )}
 
-      {/* Body : grille à gauche, panel staff à droite (lg+) ou en dessous (mobile) */}
+      {/* Body : grille à gauche, panel staff à droite */}
       <div className="flex flex-col lg:flex-row gap-4 items-start">
         {/* Grille jour/heure principale */}
         <div className="flex-1 min-w-0 w-full">
-          {/* En-têtes jours (desktop uniquement) */}
+          {/* En-têtes jours (desktop) */}
           {isWide && (
             <div className="grid" style={{ gridTemplateColumns: `46px repeat(${displayedDays.length}, 1fr)` }}>
               <div />
@@ -444,7 +481,7 @@ export default function StaffAvailabilityView({
 
           {/* Corps de grille */}
           <div className="grid" style={{ gridTemplateColumns: `46px repeat(${displayedDays.length}, 1fr)` }}>
-            {/* Axe horaire vertical (heures pleines uniquement) */}
+            {/* Axe horaire */}
             <div className="relative" style={{ height: SLOT_COUNT * SLOT_HEIGHT }}>
               {TIME_AXIS.map((t, idx) => (
                 t.m === 0 ? (
@@ -464,26 +501,38 @@ export default function StaffAvailabilityView({
                   {TIME_AXIS.map((t, idx) => {
                     const iso = day.slots[idx];
                     const count = countsByIso[iso] ?? 0;
-                    // Palette 3 paliers identique heatmap WeekView (gris/vert clair/vert vif).
-                    // OR strictement réservé aux BLOCS CONSENSUS dans WeekView, donc ici on n'utilise
-                    // QUE du vert (pas d'or) pour rester cohérent.
+
+                    // Palette v4 : 2 modes distincts
+                    //   - SÉLECTION ACTIVE : gris si pas TOUS dispos, vert vif si tous
+                    //     dispos. Pas de palier intermédiaire (n'a pas de sens : on
+                    //     veut savoir si on peut réunir CES staff précis).
+                    //   - PAS DE SÉLECTION : intensité progressive douce, plus il y a
+                    //     de staff, plus c'est vert. Pas de palier "tout le staff" qui
+                    //     n'a pas de sens (on ne réunit jamais TOUS les staff).
                     let heatBg: string | undefined;
-                    if (count > 0 && effectiveTotal > 0 && count >= effectiveTotal) {
-                      heatBg = 'rgba(47,196,107,0.55)'; // tous dispos
-                    } else if (count > 0 && minPlayers > 0 && count >= minPlayers) {
-                      heatBg = 'rgba(47,196,107,0.28)'; // matchable
+                    if (isSelectionMode) {
+                      if (count >= selectionSize && selectionSize > 0) {
+                        heatBg = 'rgba(47,196,107,0.55)'; // tous les sélectionnés dispos
+                      }
+                      // sinon : pas de fond (gris elevated par défaut)
                     } else if (count > 0) {
-                      heatBg = 'rgba(255,255,255,0.08)'; // ≥ 1 mais sous seuil
+                      // Intensité progressive : 1 staff = 0.10, 2 = 0.18, 3+ = 0.28
+                      const intensity = Math.min(0.10 + (count - 1) * 0.06, 0.32);
+                      heatBg = `rgba(47,196,107,${intensity})`;
                     }
 
-                    // Cell cliquable si : >= minPlayers dispo, jour pas passé, callback dispo
+                    // Cell cliquable si :
+                    //   - mode sélection : TOUS les sélectionnés dispos (vert vif)
+                    //   - mode pool : ≥ 1 staff dispo
+                    //   ET jour pas passé ET callback dispo
                     const isClickable = !!onCreateStaffEvent
                       && !day.isPast
-                      && count >= minPlayers
-                      && minPlayers > 0;
+                      && (isSelectionMode
+                          ? (count >= selectionSize && selectionSize > 0)
+                          : count > 0);
 
                     const slotTitle = count > 0
-                      ? `${formatSlotTime(iso)}, ${count}/${effectiveTotal} ${isSelectionMode ? 'sélectionné' + (selectedStaffUids.size > 1 ? 's' : '') : 'staff'} dispo${isClickable ? ' (clique pour planifier)' : ''}`
+                      ? `${formatSlotTime(iso)}, ${count}${isSelectionMode ? `/${selectionSize}` : ''} ${isSelectionMode ? 'sélectionné' + (selectionSize > 1 ? 's' : '') : 'staff'} dispo${isClickable ? ' (clique pour planifier)' : ''}`
                       : formatSlotTime(iso);
 
                     const handleClick = () => {
@@ -517,58 +566,71 @@ export default function StaffAvailabilityView({
           </div>
         </div>
 
-        {/* Panel staff (droite en desktop, dessous en mobile).
-            Pattern identique à la liste joueurs de la WeekView : checkbox +
-            avatar + nom + rôle + count. Cocher filtre la heatmap. */}
-        <div className="w-full lg:w-[280px] flex-shrink-0 bevel-sm overflow-hidden"
+        {/* Panel staff (droite desktop / dessous mobile).
+            Pattern WeekView joueurs : checkbox + avatar + nom + rôles détaillés. */}
+        <div className="w-full lg:w-[320px] flex-shrink-0 bevel-sm overflow-hidden"
           style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
           <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: 'var(--s-border)', background: 'var(--s-elevated)' }}>
             <Users size={13} style={{ color: 'var(--s-text-dim)' }} />
             <div className="font-display text-sm tracking-wider flex-1">
               POOL STAFF · {poolSize}
             </div>
-            {isSelectionMode && (
-              <button type="button" onClick={clearStaffPick}
-                className="text-xs transition-colors duration-150"
-                style={{ color: 'var(--s-text-muted)', padding: '2px 6px' }}>
-                Tout décocher
-              </button>
-            )}
           </div>
           {isSelectionMode && (
             <div className="px-3 py-2 text-[12px]"
               style={{ background: 'rgba(135,206,250,0.06)', color: 'rgb(135,206,250)', borderBottom: '1px solid var(--s-border)' }}>
-              La heatmap se filtre sur tes {selectedStaffUids.size} sélectionné{selectedStaffUids.size > 1 ? 's' : ''}.
+              La heatmap se filtre sur tes {selectionSize} sélectionné{selectionSize > 1 ? 's' : ''}.
             </div>
           )}
-          <div className="divide-y" style={{ borderColor: 'var(--s-border)' }}>
+          <div className="divide-y max-h-[680px] overflow-y-auto" style={{ borderColor: 'var(--s-border)' }}>
             {sortedMembers.map(m => {
               const count = (m.slotsByWeek[weekMonday] ?? []).length;
               const avatar = m.avatarUrl || m.discordAvatar;
-              const main = topRole(m.roles);
               const checked = selectedStaffUids.has(m.uid);
+              const isFounder = m.roles.includes('fondateur');
               return (
                 <label key={m.uid}
-                  className="px-3 py-2.5 flex items-center gap-3 cursor-pointer transition-colors hover:bg-[var(--s-elevated)]">
+                  className="px-3 py-2.5 flex items-start gap-3 cursor-pointer transition-colors hover:bg-[var(--s-elevated)]">
                   <input type="checkbox" checked={checked}
                     onChange={() => toggleStaffPick(m.uid)}
-                    className="w-4 h-4 cursor-pointer flex-shrink-0"
+                    className="w-4 h-4 cursor-pointer flex-shrink-0 mt-1"
                     style={{ accentColor: 'var(--s-gold)' }} />
                   {avatar ? (
-                    <Image src={avatar} alt={m.displayName} width={28} height={28} unoptimized
+                    <Image src={avatar} alt={m.displayName} width={32} height={32} unoptimized
                       className="flex-shrink-0 bevel-sm"
                       style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }} />
                   ) : (
-                    <div className="w-7 h-7 flex-shrink-0 bevel-sm"
+                    <div className="w-8 h-8 flex-shrink-0 bevel-sm"
                       style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }} />
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>
+                    <div className="text-sm font-semibold truncate flex items-center gap-1" style={{ color: 'var(--s-text)' }}>
                       {m.displayName}
+                      {isFounder && <span style={{ color: 'var(--s-gold)' }}>★</span>}
                     </div>
-                    <div className="text-[12px] truncate" style={{ color: 'var(--s-text-dim)' }}>
-                      {ROLE_LABEL[main]}
-                      {main === 'fondateur' && <span className="ml-1" style={{ color: 'var(--s-gold)' }}>★</span>}
+                    {/* Rôles : structure-level en clair, puis chaque team membership
+                        avec son rôle précis et son jeu (badge couleur du jeu). */}
+                    <div className="text-[12px] mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1" style={{ color: 'var(--s-text-dim)' }}>
+                      {m.roles.includes('fondateur') && <span>Fondateur</span>}
+                      {m.roles.includes('co_fondateur') && <span>Co-fondateur</span>}
+                      {m.roles.includes('responsable') && <span>Responsable</span>}
+                      {m.roles.includes('coach_structure') && <span>Coach structure</span>}
+                      {m.teamMemberships.map((tm, i) => {
+                        const roleLbl = tm.role === 'manager' ? 'Manager' : tm.role === 'coach' ? 'Coach' : 'Capitaine';
+                        const teamLbl = tm.teamLabel ? `${tm.teamName} ${tm.teamLabel}` : tm.teamName;
+                        const gameColor = getGameColor(tm.teamGame);
+                        return (
+                          <span key={`${tm.teamId}-${i}`} className="inline-flex items-center gap-1">
+                            <span style={{
+                              display: 'inline-block',
+                              width: 6, height: 6, borderRadius: '50%',
+                              background: gameColor,
+                              flexShrink: 0,
+                            }} />
+                            <span>{roleLbl} {teamLbl}</span>
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
                   <div className="text-xs flex-shrink-0 flex items-center gap-1" style={{ color: count === 0 ? 'var(--s-text-muted)' : 'var(--s-text-dim)' }}>

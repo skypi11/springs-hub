@@ -25,12 +25,25 @@ import {
 
 export type StaffMemberRole = 'fondateur' | 'co_fondateur' | 'responsable' | 'coach_structure' | 'staff_team' | 'capitaine';
 
+// Détail d'un rôle au niveau équipe (manager équipe / coach équipe / capitaine).
+// Ajouté Matt 2026-05-31 v4 : avant on avait juste 'staff_team' global, du coup
+// on ne distinguait pas Coach Aedral RL vs Manager Phoenix TM. Permet aussi
+// les filtres "Tous les coachs", "Tous les managers" côté UI.
+export interface StaffTeamMembership {
+  teamId: string;
+  teamName: string;
+  teamLabel: string | null;
+  teamGame: string;
+  role: 'manager' | 'coach' | 'captain';
+}
+
 export interface StaffMemberEntry {
   uid: string;
   displayName: string;
   discordAvatar: string;
   avatarUrl: string;
-  roles: StaffMemberRole[]; // un user peut cumuler plusieurs rôles
+  roles: StaffMemberRole[]; // un user peut cumuler plusieurs rôles globaux
+  teamMemberships: StaffTeamMembership[]; // rôles team-level détaillés
   slotsByWeek: Record<string, string[]>;
 }
 
@@ -77,22 +90,57 @@ export async function GET(
       coachIds?: string[];
     };
 
-    // Construction du pool staff (multi-rôles possibles)
+    // Construction du pool staff (multi-rôles possibles).
+    // roleByUid : rôles globaux (fondateur, co-fondateur, responsable, coach structure,
+    //             staff_team, capitaine — agrégé pour compatibilité)
+    // teamMembershipsByUid : détail team-level avec teamId/teamName/teamGame/role précis
     const roleByUid = new Map<string, Set<StaffMemberRole>>();
+    const teamMembershipsByUid = new Map<string, StaffTeamMembership[]>();
     const addRole = (id: string, role: StaffMemberRole) => {
       if (!id) return;
       const s = roleByUid.get(id) ?? new Set<StaffMemberRole>();
       s.add(role);
       roleByUid.set(id, s);
     };
+    const addTeamMembership = (id: string, m: StaffTeamMembership) => {
+      if (!id) return;
+      const list = teamMembershipsByUid.get(id) ?? [];
+      list.push(m);
+      teamMembershipsByUid.set(id, list);
+    };
     if (struct.founderId) addRole(struct.founderId, 'fondateur');
     for (const u of struct.coFounderIds ?? []) addRole(u, 'co_fondateur');
     for (const u of struct.managerIds ?? []) addRole(u, 'responsable');
     for (const u of struct.coachIds ?? []) addRole(u, 'coach_structure');
     for (const t of resolved.teams) {
-      for (const sId of (t.staffIds as string[] | undefined) ?? []) addRole(sId, 'staff_team');
+      const staffIds = (t.staffIds as string[] | undefined) ?? [];
+      const staffRoles = (t.staffRoles as Record<string, string> | undefined) ?? {};
+      const teamName = (t.name as string | undefined) ?? '(sans nom)';
+      const teamLabel = (t.label as string | undefined) ?? null;
+      const teamGame = (t.game as string | undefined) ?? '';
+      for (const sId of staffIds) {
+        if (!sId) continue;
+        addRole(sId, 'staff_team');
+        const isManager = staffRoles[sId] === 'manager';
+        addTeamMembership(sId, {
+          teamId: t.id,
+          teamName,
+          teamLabel,
+          teamGame,
+          role: isManager ? 'manager' : 'coach',
+        });
+      }
       const captainId = t.captainId as string | undefined;
-      if (captainId) addRole(captainId, 'capitaine');
+      if (captainId) {
+        addRole(captainId, 'capitaine');
+        addTeamMembership(captainId, {
+          teamId: t.id,
+          teamName,
+          teamLabel,
+          teamGame,
+          role: 'captain',
+        });
+      }
     }
 
     const memberIds = Array.from(roleByUid.keys());
@@ -144,6 +192,7 @@ export async function GET(
         discordAvatar: u?.discordAvatar || '',
         avatarUrl: u?.avatarUrl || '',
         roles: Array.from(roleByUid.get(id) ?? []),
+        teamMemberships: teamMembershipsByUid.get(id) ?? [],
         slotsByWeek: slotsByUidAndWeek[id],
       };
     });
