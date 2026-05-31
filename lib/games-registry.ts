@@ -158,12 +158,17 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
     bannerUrl: '/valorant-banner.jpg',
     roster: { titulaires: 5, remplacants: 2, allowSolo: false },
     features: {
-      // MVP : pas de vérification de rang ni de parsing automatique pour l'instant.
-      // Possible plus tard via Discord connection Riot (capture RiotID au login)
-      // + HenrikDev API en cron nocturne pour agréger rang + hs%/body%/leg%.
-      rankVerification: false,
+      // Vérification anti-mensonge : PUUID Riot immuable stocké (valorantPuuid),
+      // capturé via Discord connection riotgames au login, identique au pattern
+      // Epic pour RL (cf. memory project_valorant_added).
+      rankVerification: true,
+      // Pas de parsing de replays Valorant pour l'instant (pas d'équivalent
+      // ballchasing pour Val à ce jour).
       replayParsing: false,
-      rankAutoSync: false,
+      // Cron nocturne /api/cron/sync-valorant-ranks via HenrikDev API
+      // (25 users/run tier Standard 30 req/min) + bouton "Sync mon rang
+      // maintenant" à la demande dans Settings.
+      rankAutoSync: true,
       trackerProfile: true,
     },
     trackerUrlTemplate: 'https://tracker.gg/valorant/profile/riot/{id}/overview',
@@ -171,7 +176,7 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
       'free', 'aim_trainer', 'lineups', 'custom_game',
       'vod_review', 'mental_checkin', 'warmup_routine',
     ],
-    accountSourceLabel: 'Compte Riot (capturé via ta connexion Discord)',
+    accountSourceLabel: 'Compte Riot (capturé via ta connexion Discord, PUUID vérifié)',
     // PNG Valorant a déjà un canal alpha propre (channels=4 hasAlpha=true).
     logoIsTransparent: true,
   },

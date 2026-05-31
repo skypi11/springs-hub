@@ -87,11 +87,14 @@ describe('GAMES_REGISTRY invariants', () => {
     expect(val.roster.allowSolo).toBe(false);
   });
 
-  it('Valorant : MVP sans rankVerification/replayParsing mais avec tracker.gg', () => {
+  it('Valorant : rankVerification + rankAutoSync (PUUID Riot + cron HenrikDev) + tracker.gg, pas de replayParsing', () => {
     const val = GAMES_REGISTRY.valorant;
-    expect(val.features.rankVerification).toBe(false);
+    // PUUID Riot immuable stocké au capture via Discord connection riotgames.
+    expect(val.features.rankVerification).toBe(true);
+    // Pas d'équivalent ballchasing pour Val.
     expect(val.features.replayParsing).toBe(false);
-    expect(val.features.rankAutoSync).toBe(false);
+    // Cron nocturne /api/cron/sync-valorant-ranks via HenrikDev.
+    expect(val.features.rankAutoSync).toBe(true);
     expect(val.features.trackerProfile).toBe(true);
   });
 });
