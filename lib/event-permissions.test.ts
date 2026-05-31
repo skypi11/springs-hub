@@ -45,6 +45,12 @@ const coachOfTeams = (uid: string, teams: string[]) =>
   ctx({ uid, isCoach: true, staffedTeamIds: teams });
 // Coach structure = coachIds sans être rattaché à une équipe précise (staffedTeamIds vide).
 const coachStructure = (uid = 'u1') => ctx({ uid, isCoach: true, staffedTeamIds: [] });
+// Manager d'équipe EXPLICITE (sub_teams.staffRoles[uid]='manager') — peut tout sur SON équipe.
+const managerOfTeamExplicit = (uid: string, teams: string[]) =>
+  ctx({ uid, staffedTeamIds: teams, managedTeamIds: teams });
+// Coach d'équipe EXPLICITE (sub_teams.staffRoles[uid]='coach') — training/scrim only sur SON équipe.
+const coachOfTeamExplicit = (uid: string, teams: string[]) =>
+  ctx({ uid, staffedTeamIds: teams, coachedTeamIds: teams });
 const captainOfTeams = (uid: string, teams: string[]) =>
   ctx({ uid, captainOfTeamIds: teams });
 const player = (uid = 'u1') => ctx({ uid });
@@ -207,9 +213,63 @@ describe('canCreateEvent, scope=teams', () => {
     const target: EventTarget = { scope: 'teams', teamIds: ['t1', 't2'] };
     expect(canCreateEvent(managerOfTeams('u1', ['t1']), target)).toBe(true);
   });
-  it('coach staff de toutes → OK', () => {
+  // Coach (qu'il soit explicit staff d'équipe OU coach structure) : training/scrim
+  // uniquement, jamais match/tournoi/autre. Fix Matt 2026-05-31 du bug où un coach
+  // d'équipe passait par le check isStaffOfTeam et créait des matchs.
+  it('coach d\'équipe explicite → training OK', () => {
     const target: EventTarget = { scope: 'teams', teamIds: ['t1'] };
-    expect(canCreateEvent(coachOfTeams('u1', ['t1']), target)).toBe(true);
+    expect(canCreateEvent(coachOfTeamExplicit('u1', ['t1']), target, 'training')).toBe(true);
+  });
+  it('coach d\'équipe explicite → scrim OK', () => {
+    const target: EventTarget = { scope: 'teams', teamIds: ['t1'] };
+    expect(canCreateEvent(coachOfTeamExplicit('u1', ['t1']), target, 'scrim')).toBe(true);
+  });
+  it('coach d\'équipe explicite → match KO (fix bug 31/05)', () => {
+    const target: EventTarget = { scope: 'teams', teamIds: ['t1'] };
+    expect(canCreateEvent(coachOfTeamExplicit('u1', ['t1']), target, 'match')).toBe(false);
+  });
+  it('coach d\'équipe explicite → tournoi KO', () => {
+    const target: EventTarget = { scope: 'teams', teamIds: ['t1'] };
+    expect(canCreateEvent(coachOfTeamExplicit('u1', ['t1']), target, 'tournoi')).toBe(false);
+  });
+  it('coach d\'équipe explicite → autre KO', () => {
+    const target: EventTarget = { scope: 'teams', teamIds: ['t1'] };
+    expect(canCreateEvent(coachOfTeamExplicit('u1', ['t1']), target, 'autre')).toBe(false);
+  });
+  it('coach d\'équipe explicite → sans type KO (défaut sécurisé)', () => {
+    const target: EventTarget = { scope: 'teams', teamIds: ['t1'] };
+    expect(canCreateEvent(coachOfTeamExplicit('u1', ['t1']), target)).toBe(false);
+  });
+
+  // Manager d'équipe EXPLICITE : tout type sur son équipe (bras droit équipe).
+  it('manager d\'équipe explicite → match OK', () => {
+    const target: EventTarget = { scope: 'teams', teamIds: ['t1'] };
+    expect(canCreateEvent(managerOfTeamExplicit('u1', ['t1']), target, 'match')).toBe(true);
+  });
+  it('manager d\'équipe explicite → tournoi OK', () => {
+    const target: EventTarget = { scope: 'teams', teamIds: ['t1'] };
+    expect(canCreateEvent(managerOfTeamExplicit('u1', ['t1']), target, 'tournoi')).toBe(true);
+  });
+  it('manager d\'équipe explicite → KO sur une équipe pas la sienne', () => {
+    const target: EventTarget = { scope: 'teams', teamIds: ['t1', 't2'] };
+    expect(canCreateEvent(managerOfTeamExplicit('u1', ['t1']), target, 'match')).toBe(false);
+  });
+  // Cas mixte : user manager d'équipe X + coach d'équipe Y. Tente de créer match
+  // sur (X, Y). Doit échouer car coach sur Y ne peut pas créer de match.
+  it('manager X + coach Y → match sur (X, Y) KO', () => {
+    const mixed = ctx({ uid: 'u1', staffedTeamIds: ['x', 'y'], managedTeamIds: ['x'], coachedTeamIds: ['y'] });
+    const target: EventTarget = { scope: 'teams', teamIds: ['x', 'y'] };
+    expect(canCreateEvent(mixed, target, 'match')).toBe(false);
+  });
+  it('manager X + coach Y → match sur X seul OK', () => {
+    const mixed = ctx({ uid: 'u1', staffedTeamIds: ['x', 'y'], managedTeamIds: ['x'], coachedTeamIds: ['y'] });
+    const target: EventTarget = { scope: 'teams', teamIds: ['x'] };
+    expect(canCreateEvent(mixed, target, 'match')).toBe(true);
+  });
+  it('manager X + coach Y → training sur (X, Y) OK', () => {
+    const mixed = ctx({ uid: 'u1', staffedTeamIds: ['x', 'y'], managedTeamIds: ['x'], coachedTeamIds: ['y'] });
+    const target: EventTarget = { scope: 'teams', teamIds: ['x', 'y'] };
+    expect(canCreateEvent(mixed, target, 'training')).toBe(true);
   });
   it('teamIds vide → KO', () => {
     const target: EventTarget = { scope: 'teams', teamIds: [] };

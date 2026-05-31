@@ -63,11 +63,23 @@ export async function resolveUserContext(
   const inStructureCoachIds = Array.isArray(structure.coachIds) && structure.coachIds.includes(uid);
   const memberRole = membership?.role as string | undefined;
 
+  // staffedTeamIds = union de managed + coached (rétrocompat call sites historiques).
+  // managedTeamIds / coachedTeamIds = distinction explicite via sub_teams.staffRoles
+  // (Matt 2026-05-31, fix bug "coach d'équipe créait des matchs"). Fallback 'coach'
+  // si pas de rôle renseigné (équipes créées avant l'ajout du sous-rôle, conservateur).
   const staffedTeamIds: string[] = [];
+  const managedTeamIds: string[] = [];
+  const coachedTeamIds: string[] = [];
   const captainOfTeamIds: string[] = [];
   for (const t of teams) {
-    const staffIds = Array.isArray(t.staffIds) ? t.staffIds : [];
-    if (staffIds.includes(uid)) staffedTeamIds.push(t.id);
+    const staffIds = Array.isArray(t.staffIds) ? (t.staffIds as string[]) : [];
+    const staffRoles = (t.staffRoles ?? {}) as Record<string, 'coach' | 'manager'>;
+    if (staffIds.includes(uid)) {
+      staffedTeamIds.push(t.id);
+      const role = staffRoles[uid] ?? 'coach';
+      if (role === 'manager') managedTeamIds.push(t.id);
+      else coachedTeamIds.push(t.id);
+    }
     if (t.captainId && t.captainId === uid) captainOfTeamIds.push(t.id);
   }
 
@@ -103,6 +115,8 @@ export async function resolveUserContext(
     isManager,
     isCoach,
     staffedTeamIds,
+    managedTeamIds,
+    coachedTeamIds,
     captainOfTeamIds,
     managerGames,
     coachGames,

@@ -43,9 +43,11 @@ export interface EventRef {
 
 // Contexte de l'utilisateur courant, dérivé de la structure + structure_members + sub_teams.
 // Les booléens dirigeant/manager/coach couvrent la structure entière ;
-// staffedTeamIds liste les sub_teams où l'user figure dans staffIds ;
-// captainOfTeamIds liste les sub_teams dont il est captainId (une seule normalement,
-// mais typé en array par précaution).
+// staffedTeamIds liste les sub_teams où l'user figure dans staffIds (= union de
+// managedTeamIds + coachedTeamIds, conservé pour rétrocompat) ;
+// managedTeamIds : sub_teams où l'user est explicitement MANAGER (peut tout faire)
+// coachedTeamIds : sub_teams où l'user est explicitement COACH (training/scrim only)
+// captainOfTeamIds liste les sub_teams dont il est captainId.
 export interface UserContext {
   uid: string;
   isFounder: boolean;
@@ -53,6 +55,13 @@ export interface UserContext {
   isManager: boolean;
   isCoach: boolean;
   staffedTeamIds: string[];
+  /** Subset de staffedTeamIds où l'user est MANAGER de l'équipe (= bras droit
+   *  de l'équipe, peut créer n'importe quel type d'event). Ajouté 2026-05-31
+   *  pour fixer le bug "coach d'équipe pouvait créer un match officiel". */
+  managedTeamIds?: string[];
+  /** Subset de staffedTeamIds où l'user est COACH de l'équipe (= staff sportif,
+   *  peut créer uniquement training/scrim, pas match/tournoi/autre). */
+  coachedTeamIds?: string[];
   captainOfTeamIds?: string[];
   /**
    * Scope par jeu pour les rôles structure-wide (multi-jeux, 2026-05-27).
@@ -209,9 +218,47 @@ export function canAccessCalendar(ctx: UserContext): boolean {
 // - game      : dirigeants only (affecte toute la structure)
 // - staff     : dirigeants + managers (les coachs sont prestataires,
 //              ils n'organisent pas de réunions de direction)
-// - teams     : dirigeants OU staff/capitaine de TOUTES les équipes ciblées
-//              OU coach structure (uniquement pour training/scrim sur n'importe
-//              quelle équipe, coach mobile rémunéré par la structure)
+// - teams     : pour CHAQUE équipe ciblée, l'user doit pouvoir y créer un event
+//              de ce type (voir canCreateEventForTeam ci-dessous).
+
+/** True si l'user est manager EXPLICITE de cette équipe (sub_teams.staffRoles[uid]='manager'). */
+function isManagedTeam(ctx: UserContext, teamId: string): boolean {
+  if (!teamId) return false;
+  return (ctx.managedTeamIds ?? []).includes(teamId);
+}
+
+/** True si l'user est coach EXPLICITE de cette équipe (sub_teams.staffRoles[uid]='coach'). */
+function isCoachedTeam(ctx: UserContext, teamId: string): boolean {
+  if (!teamId) return false;
+  return (ctx.coachedTeamIds ?? []).includes(teamId);
+}
+
+// Exports pour les call sites qui veulent vérifier le rôle équipe-précis.
+export { isManagedTeam, isCoachedTeam };
+
+/**
+ * Permission de créer un event de ce type sur cette équipe précise.
+ * Sémantique (Matt 2026-05-31, fix bug coach équipe pouvait créer match) :
+ *  - Dirigeant : tout type
+ *  - Responsable structure scopé sur le jeu : tout type (= bras droit structure)
+ *  - Manager d'équipe (rôle EXPLICITE dans sub_teams.staffRoles) : tout type
+ *  - Coach d'équipe OU coach structure scopé : training/scrim UNIQUEMENT
+ *  - Capitaine d'équipe : tout type (élu pour gérer le calendrier de SON équipe)
+ *  - Sinon : refusé
+ */
+function canCreateEventForTeam(ctx: UserContext, teamId: string, type?: EventType): boolean {
+  if (isDirigeant(ctx)) return true;
+  if (isManagerForTeam(ctx, teamId)) return true; // responsable structure scopé
+  if (isManagedTeam(ctx, teamId)) return true;    // manager d'équipe explicite
+  if (isCaptainOfTeam(ctx, teamId)) return true;
+  // Coachs (équipe ou structure) : training/scrim uniquement.
+  const isAnyCoach = isCoachedTeam(ctx, teamId) || isCoachForTeam(ctx, teamId);
+  if (isAnyCoach && type && (type === 'training' || type === 'scrim')) {
+    return true;
+  }
+  return false;
+}
+
 export function canCreateEvent(ctx: UserContext, target: EventTarget, type?: EventType): boolean {
   if (target.scope === 'structure') return isDirigeant(ctx);
   if (target.scope === 'game') return isDirigeant(ctx);
@@ -219,22 +266,9 @@ export function canCreateEvent(ctx: UserContext, target: EventTarget, type?: Eve
   if (target.scope === 'teams') {
     const teamIds = target.teamIds ?? [];
     if (teamIds.length === 0) return false;
-    if (isDirigeant(ctx)) return true;
-    // Staff / capitaine de TOUTES les équipes ciblées → OK pour tout type
-    if (teamIds.every(id => isStaffOfTeam(ctx, id) || isCaptainOfTeam(ctx, id))) {
-      return true;
-    }
-    // Coach structure (coachIds) : intervient à la demande sur n'importe quelle
-    // équipe, mais uniquement pour des entraînements / scrims, pas de match officiel
-    // ni d'événement Springs (ceux-là restent dirigeants).
-    // Multi-jeux : le coach scopé n'a accès qu'aux équipes des jeux listés
-    // dans ctx.coachGames (null = all-games rétrocompat).
-    if (ctx.isCoach && type && (type === 'training' || type === 'scrim')) {
-      if (teamIds.every(id => isCoachForTeam(ctx, id))) {
-        return true;
-      }
-    }
-    return false;
+    // Pour CHAQUE équipe ciblée, vérifier que l'user a la permission de créer
+    // un event de ce type SUR cette équipe précisément.
+    return teamIds.every(id => canCreateEventForTeam(ctx, id, type));
   }
   return false;
 }
