@@ -12,6 +12,7 @@ import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import { Suspense } from 'react';
 import { PostHogProvider } from '@/components/analytics/PostHogProvider';
+import AuthErrorBanner from '@/components/auth/AuthErrorBanner';
 import JsonLd from '@/components/seo/JsonLd';
 import { websiteSchema, organizationSchema } from '@/lib/jsonld';
 import { AEDRAL_DISCORD_INVITE_URL } from '@/components/icons/DiscordIcon';
@@ -114,6 +115,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <JsonLd schemas={rootSchemas} />
         <QueryProvider>
           <AuthProvider>
+            {/* Banner d'erreur d'auth (cookie bloqué par Brave Shield / adblock).
+                DOIT être DANS AuthProvider (useAuth) mais HORS du Suspense pour
+                rester visible même si PostHog plante / suspense ne résout pas.
+                Position fixed top-0 → ne perturbe pas le flex flow du body. */}
+            <AuthErrorBanner />
             {/* PostHog : DOIT être DANS AuthProvider (useAuth pour identify),
                 wrappé en Suspense car PostHogProvider utilise useSearchParams
                 qui force le bailout statique sinon. */}

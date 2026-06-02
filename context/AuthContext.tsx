@@ -6,12 +6,20 @@ import { auth } from '@/lib/firebase';
 import type { SpringsUser } from '@/types';
 import { track } from '@/lib/analytics';
 
+// Codes d'erreur que l'UI peut afficher au user après un flow Discord raté.
+// 'cookie_blocked' : la session route a renvoyé 404/data invalide après ?auth=1
+//   alors que le callback Discord a forcément posé un cookie httpOnly. Signal
+//   très probable d'un bloqueur de cookies tiers (Brave Shield, adblock).
+export type AuthError = 'cookie_blocked' | null;
+
 interface AuthContextType {
   user: SpringsUser | null;
   firebaseUser: User | null;
   loading: boolean;
   profileEnriched: boolean;
   isAdmin: boolean;
+  authError: AuthError;
+  dismissAuthError: () => void;
   signInWithDiscord: (next?: string) => void;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -23,6 +31,8 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   profileEnriched: false,
   isAdmin: false,
+  authError: null,
+  dismissAuthError: () => {},
   signInWithDiscord: () => {},
   signOut: async () => {},
   refreshProfile: async () => {},
@@ -34,6 +44,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [profileEnriched, setProfileEnriched] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [authError, setAuthError] = useState<AuthError>(null);
+  const dismissAuthError = () => setAuthError(null);
 
   // Handle Discord OAuth callback. Le callback ne met plus le custom token
   // dans l'URL, il le pose dans un cookie httpOnly. On le consomme via
@@ -52,6 +64,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .then(r => (r.ok ? r.json() : null))
       .then((data: { ft?: string; did?: string; du?: string; da?: string } | null) => {
         if (!data?.ft) {
+          // Le callback Discord a forcément posé le cookie aedral_auth (sinon
+          // on serait redirigé vers /?auth_error=...). Si la session route
+          // ne le retrouve pas, c'est un bloqueur de cookies tiers côté
+          // navigateur (Brave Shield, adblock agressif). On affiche un
+          // message explicite via AuthErrorBanner.
+          console.warn('[Auth] session route returned no token, cookie likely blocked by browser');
+          setAuthError('cookie_blocked');
           cleanUrl();
           return;
         }
@@ -165,7 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, firebaseUser, loading, profileEnriched, isAdmin, signInWithDiscord, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, firebaseUser, loading, profileEnriched, isAdmin, authError, dismissAuthError, signInWithDiscord, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
