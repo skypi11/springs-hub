@@ -924,7 +924,10 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       canReport={!isOwner && !!firebaseUser}
                       size="md"
                     />
-                    {profile.valorantRank && valTier ? (
+                    {/* Le rang Valorant ne s'affiche QUE s'il vient du sync auto
+                        HenrikDev (source 'henrikdev'). Plus de rang déclaré manuel :
+                        un rang vient forcément du compte Riot lié → impossible de mentir. */}
+                    {profile.valorantRank && valTier && profile.valorantRankSource === 'henrikdev' ? (
                       <div
                         className="relative overflow-hidden p-5"
                         style={{
@@ -947,14 +950,14 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                           <ValorantRankBadge rank={profile.valorantRank} size={64} />
                           <div className="min-w-0">
                             <p className="t-label mb-1" style={{ color: 'var(--s-text-muted)' }}>
-                              Rang {profile.valorantRankSource === 'henrikdev' ? 'auto (HenrikDev)' : 'déclaré'}
+                              Rang vérifié (HenrikDev)
                             </p>
                             <p
                               className="font-display tracking-wider"
                               style={{ color: accent, fontSize: 'clamp(20px, 2.5vw, 28px)', lineHeight: 1 }}
                             >
                               {profile.valorantRank}
-                              {profile.valorantRR != null && profile.valorantRankSource === 'henrikdev' && (
+                              {profile.valorantRR != null && (
                                 <span className="ml-2 text-xs" style={{ color: 'var(--s-text-muted)' }}>
                                   · {profile.valorantRR} RR
                                 </span>
@@ -965,7 +968,9 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       </div>
                     ) : (
                       <div className="text-xs p-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', color: 'var(--s-text-muted)' }}>
-                        Aucun rang renseigné.{isOwner ? ' Ajoute ton rang dans tes paramètres.' : ''}
+                        {isOwner
+                          ? 'Rang non synchronisé. Lie ton compte Riot dans Discord puis synchronise depuis Paramètres → Jeux.'
+                          : 'Rang non synchronisé.'}
                       </div>
                     )}
                     {/* Le lien tracker.gg vérifié est désormais porté par le

@@ -239,7 +239,11 @@ function buildHeroRankForGame(
     };
   }
   if (gameId === 'valorant') {
-    const valRank = typeof data.valorantRank === 'string' ? data.valorantRank.trim() : '';
+    // Rang Valorant exposé sur l'OG UNIQUEMENT s'il vient du sync auto HenrikDev
+    // (un rang déclaré legacy ne doit pas se retrouver sur un asset partageable).
+    const valRank = data.valorantRankSource === 'henrikdev' && typeof data.valorantRank === 'string'
+      ? data.valorantRank.trim()
+      : '';
     if (!valRank) return null;
     const tierConfig = getValorantTierConfig(valRank);
     return {

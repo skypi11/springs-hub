@@ -41,6 +41,10 @@ type ReportableGame = 'rocket_league' | 'valorant';
 // (sert à réinitialiser le cooldown anti-spam quand le joueur re-change son rang).
 const GAME_RANK_FIELD: Record<ReportableGame, { rank: string; changedAt: string }> = {
   rocket_league: { rank: 'rlRank', changedAt: 'rlRankChangedAt' },
+  // `valorantRankChangedAt` n'est volontairement écrit par AUCUN chemin : le rang
+  // Valorant est auto-synchronisé (un changement n'est pas un mensonge), donc on
+  // ne réinitialise jamais le cooldown anti-spam de signalement → toMillis(undefined)
+  // = 0 = simple fenêtre 24h. Champ conservé pour la symétrie du mapping.
   valorant: { rank: 'valorantRank', changedAt: 'valorantRankChangedAt' },
 };
 
@@ -96,6 +100,15 @@ export async function POST(
     }
     const game = gameRaw as ReportableGame;
 
+    // Valorant : le rang vient du sync auto (impossible de mentir sur le rang
+    // lui-même), donc seul le motif 'smurf' a du sens. On rejette 'rank_lie'
+    // côté serveur pour aligner le contrat sur l'UI (ReportRankDialog).
+    if (game === 'valorant' && motif === 'rank_lie') {
+      return NextResponse.json({
+        error: 'Pour Valorant, seul un soupçon de smurf est signalable (le rang est auto-vérifié).',
+      }, { status: 400 });
+    }
+
     const db = getAdminDb();
     const targetSnap = await db.collection('users').doc(targetUid).get();
     if (!targetSnap.exists) {
@@ -140,7 +153,11 @@ export async function POST(
     const reporterSnap = await db.collection('users').doc(reporterUid).get();
     const reporterName = (reporterSnap.data()?.displayName as string) || 'Anonyme';
 
-    const targetRank = (target[GAME_RANK_FIELD[game].rank] as string) || '';
+    // Rang affiché de la cible pour le jeu signalé. Pour Valorant, on ne retient
+    // que le rang vérifié (sync HenrikDev) — un rang déclaré legacy ne doit pas
+    // remonter dans le report ni l'alerte admin (cohérent avec l'affichage).
+    let targetRank = (target[GAME_RANK_FIELD[game].rank] as string) || '';
+    if (game === 'valorant' && target.valorantRankSource !== 'henrikdev') targetRank = '';
     const reportRef = db.collection('rank_reports').doc();
     await reportRef.set({
       targetUid,

@@ -76,6 +76,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── Demandes de changement de compte Riot / Valorant ─────────────────────
+    // Compte Valorant verrouillé sur le PUUID (anti-smurf). Création par joueur
+    // + validation admin via les API routes (Admin SDK). Jamais d'accès client.
+    match /valorant_link_change_requests/{id} {
+      allow read, write: if false;
+    }
+
     // ── Springs Hub — Profils joueurs globaux ────────────────────────────────
     // Toutes les écritures passent par les API routes (Admin SDK).
     // Le client ne fait que lire pour les profils publics.

@@ -41,6 +41,7 @@ interface SyncStats {
   synced: number;
   errors: number;
   notRanked: number; // 404 HenrikDev = joueur non classé / inconnu
+  lockedMismatch: number; // connection Riot ≠ compte verrouillé → skip (anti-changement furtif)
 }
 
 /**
@@ -56,7 +57,7 @@ interface SyncStats {
  * déclaratif dispo immédiatement.
  */
 export async function syncValorantRanksBatch(db: Firestore): Promise<SyncStats> {
-  const stats: SyncStats = { scanned: 0, synced: 0, errors: 0, notRanked: 0 };
+  const stats: SyncStats = { scanned: 0, synced: 0, errors: 0, notRanked: 0, lockedMismatch: 0 };
   const state = await loadCronState(db, STATE_KEY);
   const cursor = state?.lastCursor ?? null;
 
@@ -88,7 +89,19 @@ export async function syncValorantRanksBatch(db: Firestore): Promise<SyncStats> 
     const data = doc.data();
     const connections = data.discordConnections as DiscordConnection[] | undefined;
     const riotId = pickValorantRiotId(connections);
-    if (!riotId) continue; // pas de Riot lié → on respecte la saisie déclarative
+    if (!riotId) continue; // pas de Riot lié → rien à sync
+
+    // Verrouillage anti-changement furtif : si un compte Riot est déjà verrouillé
+    // (valorantPuuid posé au 1er sync) et que la connection Discord pointe désormais
+    // vers un AUTRE compte, on NE bascule PAS. Le rang reste figé sur le compte
+    // verrouillé (dernier sync connu) jusqu'à ce qu'un changement légitime soit
+    // validé par un admin (/admin/valorant-link-changes). Sans ce garde-fou, un
+    // joueur pourrait relier un compte smurf/booster et gonfler/baisser son rang.
+    const lockedPuuid = (data.valorantPuuid as string) || '';
+    if (lockedPuuid && riotId.puuid !== lockedPuuid) {
+      stats.lockedMismatch++;
+      continue;
+    }
 
     // Si on n'a pas de tag (Discord renvoie parfois juste le name sans #TAG),
     // on résout d'abord via le PUUID. Cas typique : user fraîchement loggé
@@ -144,12 +157,9 @@ export async function syncValorantRanksBatch(db: Firestore): Promise<SyncStats> 
       valorantRiotName: resolvedName,
       valorantRiotTag: resolvedTag,
     };
-    const oldPuuid = (data.valorantPuuid as string) || '';
-    if (!oldPuuid) {
-      updates.valorantPuuid = riotId.puuid;
-      updates.valorantPuuidLinkedAt = FieldValue.serverTimestamp();
-    } else if (oldPuuid !== riotId.puuid) {
-      console.warn(`[valorant-sync] PUUID change detected for user ${doc.id}: ${oldPuuid} → ${riotId.puuid}`);
+    // 1er sync = verrouillage initial du compte (le mismatch est déjà filtré plus
+    // haut, donc ici on a forcément lockedPuuid absent OU égal à riotId.puuid).
+    if (!lockedPuuid) {
       updates.valorantPuuid = riotId.puuid;
       updates.valorantPuuidLinkedAt = FieldValue.serverTimestamp();
     }

@@ -9,7 +9,6 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { computeAge } from '@/lib/age';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { isValidRLRank } from '@/lib/rl-ranks';
-import { isValidValorantRank } from '@/lib/valorant-ranks';
 import { sendAdminAlert } from '@/lib/admin-discord-alert';
 
 type ProfileStructure = {
@@ -220,6 +219,13 @@ export async function GET(req: NextRequest) {
     const riotConnVisible = (valorantConnections ?? []).some(
       c => c.type === 'riotgames' && c.visibleOnProfile === true,
     );
+    // Rang Valorant : exposé UNIQUEMENT s'il vient du sync auto HenrikDev. Les
+    // rangs déclarés legacy (source 'declared', saisie manuelle supprimée) ne
+    // doivent plus fuiter — un rang affiché = forcément vérifié. Tous les
+    // consommateurs du profil (badge, settings owner) héritent de ce gate.
+    const valorantRankVerified = data.valorantRankSource === 'henrikdev'
+      ? ((data.valorantRank as string) || '')
+      : '';
 
     // Flag smurf : récupéré uniquement quand un admin (non-owner) consulte la
     // fiche. Stocké dans user_admin_flags/{uid} (collection server-only) pour
@@ -254,6 +260,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         uid, ...data, ...rlAccountFields,
         valorantAccountVerified, valorantRiotId: valorantRiotIdFull,
+        valorantRank: valorantRankVerified,
         structures,
       });
     }
@@ -268,6 +275,7 @@ export async function GET(req: NextRequest) {
       // « vérifié » reste affiché via le booléen ; seul le lien tracker dépend
       // de ce champ, donc un RiotID masqué = badge vérifié sans lien pour le tiers.
       valorantRiotId: riotConnVisible ? valorantRiotIdFull : '',
+      valorantRank: valorantRankVerified,
       age: computeAge(data.dateOfBirth),
       structures,
     };
@@ -414,13 +422,10 @@ export async function POST(req: NextRequest) {
       pseudoTM: body.games.includes('trackmania') ? body.pseudoTM?.trim() || '' : '',
       loginTM: body.games.includes('trackmania') ? body.loginTM?.trim() || '' : '',
       tmIoUrl: body.games.includes('trackmania') ? safeUrl(body.tmIoUrl) : '',
-      // Rang Valorant déclaratif (saisi via /settings). Le cron HenrikDev
-      // pourra plus tard override avec rangSource='henrikdev' si Riot Discord
-      // connection liée. Saisie manuelle = source 'declared'.
-      valorantRank: body.games.includes('valorant') && isValidValorantRank(body.valorantRank) ? body.valorantRank : '',
-      ...(body.games.includes('valorant') && isValidValorantRank(body.valorantRank)
-        ? { valorantRankSource: 'declared' as const }
-        : {}),
+      // PAS de rang Valorant déclaratif : le rang Valorant provient UNIQUEMENT du
+      // sync auto HenrikDev (compte Riot lié, source 'henrikdev'), donc impossible
+      // de mentir. La saisie manuelle a été retirée. On ne touche pas ici aux
+      // champs valorantRank/valorantRankSource (gérés par le sync, merge:true).
       isAvailableForRecruitment: body.isAvailableForRecruitment || false,
       recruitmentRole: body.isAvailableForRecruitment ? body.recruitmentRole || '' : '',
       recruitmentMessage: body.isAvailableForRecruitment ? clampString(body.recruitmentMessage, LIMITS.recruitmentMessage) : '',
@@ -438,17 +443,6 @@ export async function POST(req: NextRequest) {
     const rankChanged = existing.exists && newRank !== oldRank;
     if (rankChanged) {
       profileData.rlRankChangedAt = FieldValue.serverTimestamp();
-    }
-
-    // Idem pour le rang Valorant déclaré (miroir RL anti-mensonge). On compare le
-    // rang qu'on s'apprête à écrire avec l'ancien. Note : le sync HenrikDev passe
-    // par un autre endpoint et ne pose pas ce flag (un changement automatique
-    // n'est pas un mensonge → inutile de rouvrir la fenêtre de signalement).
-    const newValRank = profileData.valorantRank as string;
-    const oldValRank = (existingData.valorantRank as string) || '';
-    const valorantRankChanged = existing.exists && newValRank !== oldValRank;
-    if (valorantRankChanged) {
-      profileData.valorantRankChangedAt = FieldValue.serverTimestamp();
     }
 
     if (!existing.exists) {
@@ -470,21 +464,6 @@ export async function POST(req: NextRequest) {
         });
       } catch (err) {
         console.error('[Profile POST] rank change admin alert failed:', err);
-      }
-    }
-
-    // Idem rang Valorant déclaré modifié (miroir RL).
-    if (valorantRankChanged) {
-      try {
-        const fromLabel = oldValRank || '(vide)';
-        const toLabel = newValRank || '(retiré)';
-        await sendAdminAlert(db, {
-          title: '🔁 Rang Valorant modifié',
-          description: `**${(profileData.displayName as string) || uid}** a changé son rang Valorant : \`${fromLabel}\` → \`${toLabel}\`\n\n`
-            + `[Voir le profil](https://aedral.com/profile/${uid})`,
-        });
-      } catch (err) {
-        console.error('[Profile POST] valorant rank change admin alert failed:', err);
       }
     }
 

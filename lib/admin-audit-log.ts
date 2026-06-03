@@ -45,7 +45,10 @@ export type AdminAuditAction =
   | 'rank_report_resolved'
   // Demandes de changement de compte Epic (Lot 6)
   | 'rl_epic_link_change_approved'
-  | 'rl_epic_link_change_rejected';
+  | 'rl_epic_link_change_rejected'
+  // Demandes de changement de compte Riot (Valorant)
+  | 'valorant_link_change_approved'
+  | 'valorant_link_change_rejected';
 
 export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event';
 

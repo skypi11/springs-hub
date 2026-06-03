@@ -25,8 +25,13 @@ interface Props {
 
 export default function ReportRankDialog({ open, onClose, targetUid, targetName, game = 'rocket_league', onSent }: Props) {
   const toast = useToast();
+  // Valorant : le rang vient du sync auto (impossible de mentir), donc seul le
+  // motif « smurf » a du sens (compte secondaire bas-elo lié au Discord). RL :
+  // les deux motifs (rang déclaré faux + smurf).
+  const valorantOnly = game === 'valorant';
+  const defaultMotif: RankReportMotif = valorantOnly ? 'smurf' : 'rank_lie';
   const [visible, setVisible] = useState(false);
-  const [motif, setMotif] = useState<RankReportMotif>('rank_lie');
+  const [motif, setMotif] = useState<RankReportMotif>(defaultMotif);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -37,9 +42,9 @@ export default function ReportRankDialog({ open, onClose, targetUid, targetName,
     }
     setVisible(false);
     // Reset à la fermeture pour ne pas pré-remplir au prochain ouvert
-    const t = setTimeout(() => { setMotif('rank_lie'); setMessage(''); }, 220);
+    const t = setTimeout(() => { setMotif(defaultMotif); setMessage(''); }, 220);
     return () => clearTimeout(t);
-  }, [open]);
+  }, [open, defaultMotif]);
 
   useEffect(() => {
     if (!open) return;
@@ -68,7 +73,7 @@ export default function ReportRankDialog({ open, onClose, targetUid, targetName,
     }
   }
 
-  const MOTIFS: Array<{ value: RankReportMotif; label: string; help: string; icon: typeof Flag; color: string }> = [
+  const ALL_MOTIFS: Array<{ value: RankReportMotif; label: string; help: string; icon: typeof Flag; color: string }> = [
     {
       value: 'rank_lie',
       label: 'Rang déclaré faux',
@@ -84,6 +89,8 @@ export default function ReportRankDialog({ open, onClose, targetUid, targetName,
       color: '#ef4444',
     },
   ];
+  // Valorant : seul le motif smurf est proposé (rang auto-vérifié, pas de mensonge possible).
+  const MOTIFS = valorantOnly ? ALL_MOTIFS.filter(m => m.value === 'smurf') : ALL_MOTIFS;
 
   return (
     <Portal>
@@ -125,11 +132,15 @@ export default function ReportRankDialog({ open, onClose, targetUid, targetName,
                 color: 'var(--s-text)', margin: 0, lineHeight: 1.1,
               }}
             >
-              Signaler le rang
+              {valorantOnly ? 'Signaler un smurf' : 'Signaler le rang'}
             </h2>
           </div>
           <p className="text-sm mb-4" style={{ color: 'var(--s-text-dim)' }}>
-            Tu signales le rang de <strong>{targetName ?? 'ce joueur'}</strong>. L'admin sera notifié et vérifiera via le lien tracker.
+            {valorantOnly ? (
+              <>Tu signales un <strong>soupçon de smurf</strong> sur <strong>{targetName ?? 'ce joueur'}</strong> : son compte Riot vérifié affiche un rang qui ne reflète pas son vrai niveau. L'admin vérifiera via le tracker.</>
+            ) : (
+              <>Tu signales le rang de <strong>{targetName ?? 'ce joueur'}</strong>. L'admin sera notifié et vérifiera via le lien tracker.</>
+            )}
           </p>
 
           {/* Motifs, radio cards */}

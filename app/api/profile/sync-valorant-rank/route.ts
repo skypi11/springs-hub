@@ -62,6 +62,17 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
+    // Verrouillage anti-changement furtif : si un compte est déjà verrouillé et que
+    // la connection Discord pointe vers un AUTRE compte, on refuse le sync. Le
+    // changement légitime passe par une demande validée par un admin.
+    const lockedPuuid = (data.valorantPuuid as string) || '';
+    if (lockedPuuid && riotId.puuid !== lockedPuuid) {
+      return NextResponse.json({
+        error: 'Ta connexion Riot sur Discord pointe vers un autre compte que celui vérifié sur ton profil. Pour changer de compte vérifié, fais une demande de changement (validée par un admin) depuis tes paramètres.',
+        needsChangeRequest: true,
+      }, { status: 409 });
+    }
+
     // Résolution name+tag via PUUID si Discord ne nous a pas donné le tag
     let resolvedName = riotId.name;
     let resolvedTag = riotId.tag;
@@ -90,15 +101,8 @@ export async function POST(req: NextRequest) {
           valorantRiotName: resolvedName,
           valorantRiotTag: resolvedTag,
         };
-        // Anti-mensonge : store PUUID au premier link / détecte changement
-        const oldPuuid = (data.valorantPuuid as string) || '';
-        if (!oldPuuid) {
-          updates.valorantPuuid = riotId.puuid;
-          updates.valorantPuuidLinkedAt = FieldValue.serverTimestamp();
-        } else if (oldPuuid !== riotId.puuid) {
-          // Changement de PUUID, flagger pour analyse (futur). Pour l'instant on
-          // accepte le changement mais on log côté serveur.
-          console.warn(`[valorant-sync] PUUID change detected for user ${uid}: ${oldPuuid} → ${riotId.puuid}`);
+        // 1er sync = verrouillage initial (le mismatch est déjà bloqué plus haut).
+        if (!lockedPuuid) {
           updates.valorantPuuid = riotId.puuid;
           updates.valorantPuuidLinkedAt = FieldValue.serverTimestamp();
         }
@@ -125,12 +129,8 @@ export async function POST(req: NextRequest) {
       valorantRiotName: resolvedName,
       valorantRiotTag: resolvedTag,
     };
-    const oldPuuid = (data.valorantPuuid as string) || '';
-    if (!oldPuuid) {
-      updates.valorantPuuid = riotId.puuid;
-      updates.valorantPuuidLinkedAt = FieldValue.serverTimestamp();
-    } else if (oldPuuid !== riotId.puuid) {
-      console.warn(`[valorant-sync] PUUID change detected for user ${uid}: ${oldPuuid} → ${riotId.puuid}`);
+    // 1er sync = verrouillage initial (le mismatch est déjà bloqué plus haut).
+    if (!lockedPuuid) {
       updates.valorantPuuid = riotId.puuid;
       updates.valorantPuuidLinkedAt = FieldValue.serverTimestamp();
     }

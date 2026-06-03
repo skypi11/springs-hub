@@ -41,7 +41,9 @@ interface Props {
  *  un rang vide qui n'apparaîtrait pas sur l'OG). */
 function hasRankForGame(user: SpringsUser, gameId: string): boolean {
   if (gameId === 'rocket_league') return !!user.rlRank?.trim();
-  if (gameId === 'valorant') return !!user.valorantRank?.trim();
+  // Valorant : seul un rang vérifié (sync auto HenrikDev) compte, pas un rang
+  // déclaré legacy — cohérent avec l'affichage OG (buildHeroRankForGame).
+  if (gameId === 'valorant') return user.valorantRankSource === 'henrikdev' && !!user.valorantRank?.trim();
   return false;
 }
 

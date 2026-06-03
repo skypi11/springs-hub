@@ -20,6 +20,7 @@ type DashboardBadges = {
     orphanedStructures?: number;
     pendingRankReports?: number;
     pendingLinkChanges?: number;
+    pendingValorantLinkChanges?: number;
   };
 };
 
@@ -54,6 +55,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           + (data.toHandle?.orphanedStructures ?? 0),
         '/admin/rank-reports': data.toHandle?.pendingRankReports ?? 0,
         '/admin/rl-link-changes': data.toHandle?.pendingLinkChanges ?? 0,
+        '/admin/valorant-link-changes': data.toHandle?.pendingValorantLinkChanges ?? 0,
       }
     : {};
 

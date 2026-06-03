@@ -249,7 +249,9 @@ export async function GET(req: NextRequest) {
         rlAccountPlatform: (data.rlEpicId ? 'epic' : data.rlSteamId ? 'steam' : '') as 'epic' | 'steam' | '',
         rlSteamId64: !data.rlEpicId && data.rlSteamId ? (data.rlSteamId as string) : '',
         pseudoTM: (data.pseudoTM as string) || '',
-        valorantRank: (data.valorantRank as string) || '',
+        // Rang Valorant affiché UNIQUEMENT s'il vient du sync auto HenrikDev
+        // (plus de rang déclaré manuel) → un rang affiché = forcément vérifié.
+        valorantRank: data.valorantRankSource === 'henrikdev' ? ((data.valorantRank as string) || '') : '',
         valorantAccountVerified: !!data.valorantPuuid
           || !!pickValorantRiotId(data.discordConnections as DiscordConnection[] | undefined),
         structures: enrichedStructures,

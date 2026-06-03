@@ -591,8 +591,8 @@ export async function POST(req: NextRequest) {
               message: typeof message === 'string' ? message.trim() || null : null,
               rlRank: targetData.rlStats?.rank || targetData.rlRank || null,
               pseudoTM: targetData.pseudoTM || null,
-              valorantRank: targetData.valorantRank || null,
-              valorantVerified: !!targetData.valorantPuuid || !!pickValorantRiotId(targetData.discordConnections),
+              // Rang Valorant : uniquement s'il vient du sync auto (vérifié).
+              valorantRank: targetData.valorantRankSource === 'henrikdev' ? (targetData.valorantRank || null) : null,
               riotId: (() => {
                 // Préfère le RiotID résolu et stocké par le sync (tag garanti),
                 // cohérent avec l'affichage du profil. Fallback : la connection.

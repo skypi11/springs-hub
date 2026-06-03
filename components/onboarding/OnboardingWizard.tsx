@@ -13,7 +13,6 @@ import { api, ApiError } from '@/lib/api-client';
 import { track } from '@/lib/analytics';
 import { countries } from '@/lib/countries';
 import { RL_PLATFORMS, getRLPlatformMeta, type RLPlatform } from '@/lib/rl-platform';
-import { VALORANT_RANKS } from '@/lib/valorant-ranks';
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
 import type { SpringsUser } from '@/types';
 
@@ -45,7 +44,6 @@ interface WizardData {
   rlPlatformId: string;
   pseudoTM: string;
   tmIoUrl: string;
-  valorantRank: string;
   isAvailableForRecruitment: boolean;
   recruitmentRole: string;
 }
@@ -67,7 +65,6 @@ function initialData(user: SpringsUser | null): WizardData {
     rlPlatformId: draft.rlPlatformId ?? user?.rlPlatformId ?? '',
     pseudoTM: draft.pseudoTM ?? user?.pseudoTM ?? '',
     tmIoUrl: draft.tmIoUrl ?? user?.tmIoUrl ?? '',
-    valorantRank: draft.valorantRank ?? user?.valorantRank ?? '',
     isAvailableForRecruitment: draft.isAvailableForRecruitment ?? user?.isAvailableForRecruitment ?? false,
     recruitmentRole: draft.recruitmentRole ?? user?.recruitmentRole ?? '',
   };
@@ -470,24 +467,11 @@ function StepGames({ data, update }: { data: WizardData; update: (p: Partial<Wiz
         <div className="p-4 space-y-3" style={{ background: 'rgba(255,70,85,0.04)', border: '1px solid rgba(255,70,85,0.15)' }}>
           <div className="flex items-center gap-2">
             <span className="tag" style={{ fontSize: '12px', background: 'rgba(255,70,85,0.10)', color: '#FF6B78', borderColor: 'rgba(255,70,85,0.25)' }}>VAL</span>
-            <span className="t-label" style={{ color: '#FF6B78' }}>Configuration minimale</span>
+            <span className="t-label" style={{ color: '#FF6B78' }}>Rang synchronisé automatiquement</span>
           </div>
-          <div>
-            <label className="t-label block mb-2">Ton rang Valorant (optionnel)</label>
-            <select
-              value={data.valorantRank}
-              onChange={e => update({ valorantRank: e.target.value })}
-              className="settings-input w-full"
-            >
-              <option value="">Non renseigné</option>
-              {VALORANT_RANKS.map(r => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-            <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
-              Tu peux le laisser vide et le saisir plus tard dans Settings. Si tu lies ton compte Riot dans ton Discord (Connexions → Riot Games), ton RiotID sera capturé automatiquement au prochain login.
-            </p>
-          </div>
+          <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+            Ton rang Valorant est récupéré automatiquement depuis ton compte Riot — pas de saisie manuelle, donc impossible de mentir. Lie ton compte Riot dans ton Discord (Connexions → Riot Games), reconnecte-toi sur Aedral, puis synchronise depuis Paramètres → Jeux.
+          </p>
         </div>
       )}
     </div>

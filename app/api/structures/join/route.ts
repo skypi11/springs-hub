@@ -264,8 +264,8 @@ export async function POST(req: NextRequest) {
               message: message?.trim() || null,
               rlRank: applicantData?.rlStats?.rank || applicantData?.rlRank || null,
               pseudoTM: applicantData?.pseudoTM || null,
-              valorantRank: applicantData?.valorantRank || null,
-              valorantVerified: !!applicantData?.valorantPuuid || !!pickValorantRiotId(applicantData?.discordConnections),
+              // Rang Valorant : uniquement s'il vient du sync auto (vérifié).
+              valorantRank: applicantData?.valorantRankSource === 'henrikdev' ? (applicantData?.valorantRank || null) : null,
               riotId: (() => {
                 // Préfère le RiotID résolu et stocké par le sync (tag garanti),
                 // cohérent avec l'affichage du profil. Fallback : la connection.

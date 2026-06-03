@@ -34,7 +34,7 @@ const SECTIONS: Section[] = [
       "Connexion en 1 clic avec ton compte Discord",
       "Lier tes comptes de jeu officiels (Epic, Steam, Riot selon le jeu) pour authentifier ton identité et bloquer les usurpations",
       "Lien tracker public sur ton profil quand ton compte de jeu est vérifié : n'importe qui peut contrôler ton rang en 1 clic",
-      "Rang auto-déclaré, mais comme ton compte est vérifié, les autres peuvent te signaler si tu mens",
+      "Rang selon le jeu : déclaré avec compte vérifié et signalable si tu mens (Rocket League), ou synchronisé automatiquement depuis ton compte officiel donc infalsifiable (Valorant) — voir Spécificités par jeu",
       "Badge ✓ Vérifié visible publiquement quand un compte de jeu est confirmé",
       "Connexions Discord (Twitch, YouTube, Instagram, etc.) sync automatique avec toggle visibilité par compte",
       "Choix d'être disponible au recrutement avec rôle visé (joueur / coach / manager)",
