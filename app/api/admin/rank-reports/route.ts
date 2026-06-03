@@ -49,10 +49,16 @@ export async function GET(req: NextRequest) {
       const data = d.data();
       const rid = data.reporterUid as string;
       const reporterStats = statsByReporter.get(rid) ?? { total: 1, resolved: 0, dismissed: 0, pending: 0 };
+      // `game` + `targetRank` génériques (Lot Valorant). Fallback legacy : les
+      // docs créés avant n'ont que `targetRlRank` et pas de `game` → RL.
+      const game = (data.game as string) || 'rocket_league';
+      const targetRank = (data.targetRank as string) || (data.targetRlRank as string) || '';
       return {
         id: d.id,
         targetUid: data.targetUid,
         targetName: data.targetName || '',
+        game,
+        targetRank,
         targetRlRank: data.targetRlRank || '',
         reporterUid: rid,
         reporterName: data.reporterName || '',

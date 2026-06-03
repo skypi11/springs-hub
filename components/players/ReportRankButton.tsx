@@ -16,6 +16,8 @@ export interface ReportRankButtonProps {
   enabled?: boolean;
   /** `sm` = pill compact pour les cartes ; `md` = bouton plus lisible pour les fiches */
   size?: 'sm' | 'md';
+  /** Jeu dont on signale le rang ('rocket_league' | 'valorant'). Default RL. */
+  game?: string;
 }
 
 export default function ReportRankButton({
@@ -23,6 +25,7 @@ export default function ReportRankButton({
   targetName,
   enabled = true,
   size = 'md',
+  game = 'rocket_league',
 }: ReportRankButtonProps) {
   const [open, setOpen] = useState(false);
 
@@ -79,6 +82,7 @@ export default function ReportRankButton({
         onClose={() => setOpen(false)}
         targetUid={targetUid}
         targetName={targetName}
+        game={game}
       />
     </>
   );

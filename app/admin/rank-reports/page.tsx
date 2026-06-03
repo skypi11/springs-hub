@@ -8,11 +8,17 @@ import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { Flag, Loader2, ExternalLink, CheckCircle, XCircle } from 'lucide-react';
+import GameTag from '@/components/games/GameTag';
+import { getGameColor, getGameColorRgb } from '@/lib/games-registry';
 
 type RankReport = {
   id: string;
   targetUid: string;
   targetName: string;
+  /** Jeu signalé ('rocket_league' | 'valorant' | …). Default RL pour docs legacy. */
+  game: string;
+  /** Rang affiché par la cible pour le jeu signalé (générique). */
+  targetRank: string;
   targetRlRank: string;
   reporterUid: string;
   reporterName: string;
@@ -151,8 +157,14 @@ export default function AdminRankReportsPage() {
                     style={{ color: 'var(--s-text)' }}>
                     {r.targetName || r.targetUid}
                   </Link>
-                  <span className="tag tag-blue" style={{ fontSize: '12px' }}>
-                    {r.targetRlRank || '—'}
+                  <GameTag gameId={r.game} size="sm" />
+                  <span className="tag" style={{
+                    fontSize: '12px',
+                    background: `rgba(${getGameColorRgb(r.game)},0.1)`,
+                    color: getGameColor(r.game),
+                    borderColor: `rgba(${getGameColorRgb(r.game)},0.4)`,
+                  }}>
+                    {r.targetRank || '—'}
                   </span>
                   {/* Motif du signalement */}
                   {(() => {

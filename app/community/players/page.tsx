@@ -17,6 +17,7 @@ import { SkeletonGrid } from '@/components/ui/Skeleton';
 import { Switch } from '@/components/ui/Switch';
 import InviteToStructureButton from '@/components/community/InviteToStructureButton';
 import RLIdentityBadge from '@/components/players/RLIdentityBadge';
+import ValorantIdentityBadge from '@/components/players/ValorantIdentityBadge';
 import CountryFlag from '@/components/ui/CountryFlag';
 import RankBadge, { getRankTierConfig } from '@/components/rl/RankBadge';
 import ValorantRankBadge from '@/components/valorant/RankBadge';
@@ -56,6 +57,7 @@ type PlayerCard = {
   rlSteamId64: string;
   pseudoTM: string;
   valorantRank: string;
+  valorantAccountVerified: boolean;
   structures: EnrichedStructure[];
   createdAt: string | null;
 };
@@ -73,7 +75,9 @@ const ROLE_LABELS: Record<string, string> = {
 // Score "Recommandé" : vérifié + dispo recrutement > vérifié > dispo > reste
 function recommendedScore(p: PlayerCard): number {
   let s = 0;
-  if (p.rlAccountVerified) s += 10;
+  // Vérifié sur au moins un jeu (RL ou Valorant) → +10. On ne cumule pas par
+  // jeu pour ne pas qu'un multi-jeux écrase un mono-jeu vérifié sur le nombre.
+  if (p.rlAccountVerified || p.valorantAccountVerified) s += 10;
   if (p.isAvailableForRecruitment) s += 5;
   if (p.structures.length > 0) s += 1;
   return s;
@@ -904,8 +908,13 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
         <div>
           <div className="flex items-center gap-1.5 min-w-0">
             <p className="text-sm font-bold truncate" style={{ color: 'var(--s-text)' }}>{p.displayName}</p>
-            {p.rlAccountVerified && (
-              <span title="Compte RL vérifié" style={{ color: 'var(--s-gold)', display: 'inline-flex', flexShrink: 0 }}>
+            {(p.rlAccountVerified || p.valorantAccountVerified) && (
+              <span
+                title={p.rlAccountVerified && p.valorantAccountVerified
+                  ? 'Comptes RL et Valorant vérifiés'
+                  : p.rlAccountVerified ? 'Compte RL vérifié' : 'Compte Valorant vérifié'}
+                style={{ color: 'var(--s-gold)', display: 'inline-flex', flexShrink: 0 }}
+              >
                 <ShieldCheck size={12} />
               </span>
             )}
@@ -923,7 +932,7 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
         {/* Séparateur */}
         <div className="h-px" style={{ background: 'var(--s-border)' }} />
 
-        {/* Rang du joueur, priorité : RL vérifié > RL non vérifié > Val > TM > vide */}
+        {/* Rang du joueur, priorité : RL vérifié > Val vérifié > RL non vérifié > Val non vérifié > TM > vide */}
         <div className="flex items-center gap-2 min-h-[36px]">
           {(() => {
             const valTier = getValorantTierConfig(p.valorantRank);
@@ -934,6 +943,21 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
                   <div className="flex flex-col min-w-0">
                     <span className="text-[12px] uppercase tracking-wider" style={{ color: 'var(--s-text-muted)' }}>Rang RL</span>
                     <span className="text-xs font-semibold truncate" style={{ color: rankTier.color }}>{p.rlRank}</span>
+                  </div>
+                </>
+              );
+            }
+            // Valorant vérifié avec rang → affiche le rang (le ✓ doré est déjà près du nom).
+            // Les états VÉRIFIÉS (RL puis Val) priment sur les warnings non-vérifiés :
+            // sinon un joueur RL-non-lié + Val-vérifié afficherait « Non vérifié » alors
+            // que le ✓ doré près du nom dit « Compte Valorant vérifié » → contradiction.
+            if (p.valorantRank && valTier && p.valorantAccountVerified) {
+              return (
+                <>
+                  <ValorantRankBadge rank={p.valorantRank} size={36} />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[12px] uppercase tracking-wider" style={{ color: 'var(--s-text-muted)' }}>Rang Val</span>
+                    <span className="text-xs font-semibold truncate" style={{ color: valTier.color }}>{p.valorantRank}</span>
                   </div>
                 </>
               );
@@ -950,6 +974,18 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
                 </div>
               );
             }
+            // Valorant non vérifié → badge dissuasif neutre (miroir RL).
+            if (p.games.includes('valorant') && !p.valorantAccountVerified) {
+              return (
+                <div style={{ pointerEvents: 'auto' }}>
+                  <ValorantIdentityBadge games={p.games} valorantAccountVerified={p.valorantAccountVerified}
+                    valorantRank={p.valorantRank} targetUid={p.uid} targetName={p.displayName}
+                    canReport={!!firebaseUser && firebaseUser.uid !== p.uid}
+                    size="sm" tone="subtle" />
+                </div>
+              );
+            }
+            // Fallback : un rang Valorant existe sans que 'valorant' soit dans games (edge).
             if (p.valorantRank && valTier) {
               return (
                 <>
@@ -1058,8 +1094,13 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
 
         <div className="flex items-center gap-1.5 min-w-0" style={{ flex: '0 0 180px' }}>
           <span className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
-          {p.rlAccountVerified && (
-            <span title="Compte RL vérifié" style={{ color: 'var(--s-gold)', flexShrink: 0, display: 'inline-flex' }}>
+          {(p.rlAccountVerified || p.valorantAccountVerified) && (
+            <span
+              title={p.rlAccountVerified && p.valorantAccountVerified
+                ? 'Comptes RL et Valorant vérifiés'
+                : p.rlAccountVerified ? 'Compte RL vérifié' : 'Compte Valorant vérifié'}
+              style={{ color: 'var(--s-gold)', flexShrink: 0, display: 'inline-flex' }}
+            >
               <ShieldCheck size={12} />
             </span>
           )}
@@ -1073,7 +1114,8 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
           ))}
         </div>
 
-        {/* Rang du joueur, icône 24px + label coloré. Priorité RL > Val > TM. */}
+        {/* Rang du joueur, icône 24px + label coloré.
+            Priorité : RL vérifié > Val vérifié > RL non vérifié > Val non vérifié > TM. */}
         <div className="hidden md:flex items-center gap-2 text-xs min-w-0" style={{ flex: '0 0 160px', color: 'var(--s-text-dim)' }}>
           {(() => {
             const valTier = getValorantTierConfig(p.valorantRank);
@@ -1085,7 +1127,24 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
                 </>
               );
             }
+            // Vérifiés (RL puis Val) avant les warnings non-vérifiés, pour ne pas
+            // contredire le ✓ doré près du nom (cf. card view).
+            if (p.valorantRank && valTier && p.valorantAccountVerified) {
+              return (
+                <>
+                  <ValorantRankBadge rank={p.valorantRank} size={24} />
+                  <span className="truncate font-medium" style={{ color: valTier.color }}>{p.valorantRank}</span>
+                </>
+              );
+            }
             if (p.games.includes('rocket_league') && !p.rlAccountVerified) {
+              return (
+                <span className="inline-flex items-center gap-1" style={{ color: 'var(--s-text-muted)' }}>
+                  <ShieldAlert size={11} /> Non vérifié
+                </span>
+              );
+            }
+            if (p.games.includes('valorant') && !p.valorantAccountVerified) {
               return (
                 <span className="inline-flex items-center gap-1" style={{ color: 'var(--s-text-muted)' }}>
                   <ShieldAlert size={11} /> Non vérifié

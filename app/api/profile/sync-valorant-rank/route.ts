@@ -87,6 +87,8 @@ export async function POST(req: NextRequest) {
           valorantRR: 0,
           valorantRankSource: 'henrikdev',
           valorantRankSyncedAt: FieldValue.serverTimestamp(),
+          valorantRiotName: resolvedName,
+          valorantRiotTag: resolvedTag,
         };
         // Anti-mensonge : store PUUID au premier link / détecte changement
         const oldPuuid = (data.valorantPuuid as string) || '';
@@ -120,6 +122,8 @@ export async function POST(req: NextRequest) {
       valorantRR: res.data.rr,
       valorantRankSource: 'henrikdev',
       valorantRankSyncedAt: FieldValue.serverTimestamp(),
+      valorantRiotName: resolvedName,
+      valorantRiotTag: resolvedTag,
     };
     const oldPuuid = (data.valorantPuuid as string) || '';
     if (!oldPuuid) {

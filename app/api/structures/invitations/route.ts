@@ -592,7 +592,13 @@ export async function POST(req: NextRequest) {
               rlRank: targetData.rlStats?.rank || targetData.rlRank || null,
               pseudoTM: targetData.pseudoTM || null,
               valorantRank: targetData.valorantRank || null,
+              valorantVerified: !!targetData.valorantPuuid || !!pickValorantRiotId(targetData.discordConnections),
               riotId: (() => {
+                // Préfère le RiotID résolu et stocké par le sync (tag garanti),
+                // cohérent avec l'affichage du profil. Fallback : la connection.
+                const sn = (targetData.valorantRiotName as string | undefined)?.trim();
+                const st = (targetData.valorantRiotTag as string | undefined)?.trim();
+                if (sn && st) return `${sn}#${st}`;
                 const r = pickValorantRiotId(targetData.discordConnections);
                 if (!r) return null;
                 return r.tag ? `${r.name}#${r.tag}` : (r.name || null);

@@ -497,6 +497,10 @@ export interface RecruitmentEmbedInput {
   rlRank?: string | null;
   pseudoTM?: string | null;
   valorantRank?: string | null;
+  /** True si le compte Riot est vérifié (PUUID stocké ou connection Discord
+   *  riotgames liée). Si false, le rang Valorant est marqué « non vérifié »
+   *  dans l'embed pour que le staff le considère avec prudence (miroir RL). */
+  valorantVerified?: boolean | null;
   /** RiotID formaté "Name#TAG" si lié, affiché dans l'embed Val pour aider le staff à identifier. */
   riotId?: string | null;
   // Lien vers le Hub (rend le titre cliquable). Mène typiquement vers
@@ -552,7 +556,10 @@ export async function postRecruitmentEmbed(channelId: string, input: Recruitment
   }
   if (input.game === 'valorant') {
     if (input.valorantRank) {
-      fields.push({ name: '🎯 Rang Val', value: input.valorantRank.slice(0, 64), inline: true });
+      // Marque le rang « non vérifié » quand aucun compte Riot n'est prouvé,
+      // pour que le staff sache que ce rang est purement déclaratif (miroir RL).
+      const suffix = input.valorantVerified ? '' : ' ⚠️ non vérifié';
+      fields.push({ name: '🎯 Rang Val', value: `${input.valorantRank.slice(0, 64)}${suffix}`, inline: true });
     }
     if (input.riotId) {
       fields.push({ name: '🆔 RiotID', value: input.riotId.slice(0, 64), inline: true });

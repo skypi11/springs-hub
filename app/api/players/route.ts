@@ -5,6 +5,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { computeMemberRole, type MemberRoleTeam, type PrimaryRole, type TeamAffiliation } from '@/lib/member-role';
+import { pickValorantRiotId, type DiscordConnection } from '@/lib/discord-connections';
 
 // GET /api/players, annuaire public paginé.
 //
@@ -66,6 +67,8 @@ export type PlayerCard = {
   rlSteamId64: string;
   pseudoTM: string;
   valorantRank: string;
+  /** Vérifié = PUUID Riot stocké OU connection Discord riotgames liée (miroir RL). */
+  valorantAccountVerified: boolean;
   structures: EnrichedStructure[];
   createdAt: string | null;
 };
@@ -247,6 +250,8 @@ export async function GET(req: NextRequest) {
         rlSteamId64: !data.rlEpicId && data.rlSteamId ? (data.rlSteamId as string) : '',
         pseudoTM: (data.pseudoTM as string) || '',
         valorantRank: (data.valorantRank as string) || '',
+        valorantAccountVerified: !!data.valorantPuuid
+          || !!pickValorantRiotId(data.discordConnections as DiscordConnection[] | undefined),
         structures: enrichedStructures,
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
       };

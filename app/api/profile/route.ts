@@ -3,7 +3,7 @@ import { getAdminAuth, getAdminDb, verifyAuth, isAdmin as isAdminUid } from '@/l
 import { FieldValue } from 'firebase-admin/firestore';
 import { safeUrl, clampString, LIMITS } from '@/lib/validation';
 import { isValidRLPlatform, buildTrackerGgUrl, type RLPlatform } from '@/lib/rl-platform';
-import type { DiscordConnection } from '@/lib/discord-connections';
+import { pickValorantRiotId, type DiscordConnection } from '@/lib/discord-connections';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { computeAge } from '@/lib/age';
@@ -111,6 +111,11 @@ async function fetchUserStructures(uid: string): Promise<ProfileStructure[]> {
 const PRIVATE_FIELDS = [
   'dateOfBirth', 'discordId', 'isBanned', 'banReason', 'bannedAt', 'bannedBy',
   'valorantPuuid', 'valorantPuuidLinkedAt',
+  // RiotID brut résolu par le sync : strippé pour les tiers. Le RiotID exposé
+  // aux tiers passe UNIQUEMENT par le champ dérivé `valorantRiotId`, lui-même
+  // gaté sur la visibilité de la connection (voir plus bas), pour que le toggle
+  // « Masqué » de Settings → Comptes liés protège réellement l'identité Riot.
+  'valorantRiotName', 'valorantRiotTag',
 ];
 
 // GET /api/profile?uid=discord_XXX OU /api/profile?slug=noxx-26, lire un profil
@@ -182,6 +187,40 @@ export async function GET(req: NextRequest) {
       rlSteamId64: useSteam ? (data.rlSteamId as string) : '',
     };
 
+    // Identité Valorant « vérifiée » — miroir du système RL ci-dessus.
+    // Contrairement à RL (où Epic/Steam peut différer du compte de JEU réel,
+    // d'où l'exigence d'un link explicite), Valorant n'a qu'UN compte Riot :
+    // la connection Discord `riotgames` EST le compte de jeu, attestée par
+    // l'OAuth Discord (preuve de possession non déclarative). On considère donc
+    // VÉRIFIÉ dès qu'on a un PUUID stocké (posé au 1er sync HenrikDev) OU une
+    // connection riotgames liée. Voir memory project_valorant_verification_plan.
+    const valorantConnections = data.discordConnections as DiscordConnection[] | undefined;
+    const valorantRiot = pickValorantRiotId(valorantConnections);
+    // VÉRIFIÉ = preuve de possession d'un compte Riot : PUUID stocké (posé au
+    // 1er sync) OU connection Discord riotgames liée (OAuth). Ce booléen ne
+    // révèle pas l'identité → il est exposé à tous (owner + tiers).
+    const valorantAccountVerified = !!data.valorantPuuid || !!valorantRiot;
+    // RiotID "Name#TAG" pour le lien tracker.gg. On le résout en préférant le
+    // RiotID stocké au sync (valorantRiotName/Tag) — fiable, tag garanti — et on
+    // tombe sur la connection Discord seulement si elle a déjà le tag (sinon URL
+    // tracker.gg cassée). Tant qu'il manque, le badge reste « vérifié » sans lien.
+    const valorantRiotIdFull = (() => {
+      const storedName = (data.valorantRiotName as string | undefined)?.trim();
+      const storedTag = (data.valorantRiotTag as string | undefined)?.trim();
+      if (storedName && storedTag) return `${storedName}#${storedTag}`;
+      if (valorantRiot && valorantRiot.tag) return `${valorantRiot.name}#${valorantRiot.tag}`;
+      return '';
+    })();
+    // Le RiotID est l'identité de jeu publiquement résolvable (lien direct vers
+    // l'historique tracker.gg). Contrairement à RL (compte lié par action dédiée
+    // = consentement explicite à l'exposition), Valorant capte le compte via la
+    // connection Discord, masquée par défaut. On respecte donc le toggle
+    // `visibleOnProfile` : un tiers ne voit le RiotID (et le lien tracker) que si
+    // l'user a rendu sa connection Riot visible. L'owner voit toujours le sien.
+    const riotConnVisible = (valorantConnections ?? []).some(
+      c => c.type === 'riotgames' && c.visibleOnProfile === true,
+    );
+
     // Flag smurf : récupéré uniquement quand un admin (non-owner) consulte la
     // fiche. Stocké dans user_admin_flags/{uid} (collection server-only) pour
     // ne pas leaker via Firestore client.
@@ -212,7 +251,11 @@ export async function GET(req: NextRequest) {
       // L'owner ne voit JAMAIS son propre flag (sinon il fuit avant enquête).
       // Le filtrage est garanti par construction : on n'a pas fetché le flag
       // ci-dessus pour les owners.
-      return NextResponse.json({ uid, ...data, ...rlAccountFields, structures });
+      return NextResponse.json({
+        uid, ...data, ...rlAccountFields,
+        valorantAccountVerified, valorantRiotId: valorantRiotIdFull,
+        structures,
+      });
     }
 
     // Vue publique : on calcule l'âge et on retire les champs privés
@@ -220,6 +263,11 @@ export async function GET(req: NextRequest) {
       uid,
       ...data,
       ...rlAccountFields,
+      valorantAccountVerified,
+      // Gaté sur la visibilité de la connection Riot (cf. plus haut). Le badge
+      // « vérifié » reste affiché via le booléen ; seul le lien tracker dépend
+      // de ce champ, donc un RiotID masqué = badge vérifié sans lien pour le tiers.
+      valorantRiotId: riotConnVisible ? valorantRiotIdFull : '',
       age: computeAge(data.dateOfBirth),
       structures,
     };
@@ -392,6 +440,17 @@ export async function POST(req: NextRequest) {
       profileData.rlRankChangedAt = FieldValue.serverTimestamp();
     }
 
+    // Idem pour le rang Valorant déclaré (miroir RL anti-mensonge). On compare le
+    // rang qu'on s'apprête à écrire avec l'ancien. Note : le sync HenrikDev passe
+    // par un autre endpoint et ne pose pas ce flag (un changement automatique
+    // n'est pas un mensonge → inutile de rouvrir la fenêtre de signalement).
+    const newValRank = profileData.valorantRank as string;
+    const oldValRank = (existingData.valorantRank as string) || '';
+    const valorantRankChanged = existing.exists && newValRank !== oldValRank;
+    if (valorantRankChanged) {
+      profileData.valorantRankChangedAt = FieldValue.serverTimestamp();
+    }
+
     if (!existing.exists) {
       profileData.createdAt = FieldValue.serverTimestamp();
     }
@@ -411,6 +470,21 @@ export async function POST(req: NextRequest) {
         });
       } catch (err) {
         console.error('[Profile POST] rank change admin alert failed:', err);
+      }
+    }
+
+    // Idem rang Valorant déclaré modifié (miroir RL).
+    if (valorantRankChanged) {
+      try {
+        const fromLabel = oldValRank || '(vide)';
+        const toLabel = newValRank || '(retiré)';
+        await sendAdminAlert(db, {
+          title: '🔁 Rang Valorant modifié',
+          description: `**${(profileData.displayName as string) || uid}** a changé son rang Valorant : \`${fromLabel}\` → \`${toLabel}\`\n\n`
+            + `[Voir le profil](https://aedral.com/profile/${uid})`,
+        });
+      } catch (err) {
+        console.error('[Profile POST] valorant rank change admin alert failed:', err);
       }
     }
 

@@ -18,10 +18,12 @@ interface Props {
   onClose: () => void;
   targetUid: string;
   targetName?: string;
+  /** Jeu dont on signale le rang ('rocket_league' | 'valorant'). Default RL. */
+  game?: string;
   onSent?: () => void;
 }
 
-export default function ReportRankDialog({ open, onClose, targetUid, targetName, onSent }: Props) {
+export default function ReportRankDialog({ open, onClose, targetUid, targetName, game = 'rocket_league', onSent }: Props) {
   const toast = useToast();
   const [visible, setVisible] = useState(false);
   const [motif, setMotif] = useState<RankReportMotif>('rank_lie');
@@ -54,7 +56,7 @@ export default function ReportRankDialog({ open, onClose, targetUid, targetName,
     try {
       await api(`/api/profile/${targetUid}/rank-report`, {
         method: 'POST',
-        body: { motif, message: message.trim() },
+        body: { motif, message: message.trim(), game },
       });
       toast.success('Signalement envoyé. Merci.');
       onSent?.();

@@ -23,6 +23,7 @@ import InviteToStructureButton from '@/components/community/InviteToStructureBut
 import DiscordIcon from '@/components/icons/DiscordIcon';
 import { getEffectiveRLPlatform, buildTrackerGgUrl, buildBallchasingUrl, getRLPlatformMeta } from '@/lib/rl-platform';
 import RLIdentityBadge from '@/components/players/RLIdentityBadge';
+import ValorantIdentityBadge from '@/components/players/ValorantIdentityBadge';
 // ReportRankButton est désormais embarqué dans RLIdentityBadge (via canReport)
 import { getConnectionMeta, buildConnectionUrl } from '@/lib/discord-connections';
 import { Link2 } from 'lucide-react';
@@ -892,6 +893,12 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           {profile.games?.includes('valorant') && (() => {
             const valTier = getValorantTierConfig(profile.valorantRank);
             const accent = valTier?.color ?? '#FF4655';
+            // Champs dérivés serveur par /api/profile (miroir RL), survivent au
+            // filtrage `visibleOnProfile` des connexions Discord pour les visiteurs.
+            const pv = profile as typeof profile & {
+              valorantAccountVerified?: boolean;
+              valorantRiotId?: string;
+            };
             return (
               <div className="pillar-card panel relative overflow-hidden group transition-all duration-200 h-full flex flex-col">
                 <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, #FF4655, rgba(255,70,85,0.3), transparent 70%)' }} />
@@ -905,6 +912,18 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     </div>
                   </div>
                   <div className="p-5 space-y-4 flex-1 flex flex-col">
+                    {/* Statut Riot officiel, ✓ vérifié + lien tracker + signaler
+                        ou ⚠️ non lié (miroir du badge RL). */}
+                    <ValorantIdentityBadge
+                      games={profile.games}
+                      valorantAccountVerified={!!pv.valorantAccountVerified}
+                      valorantRiotId={pv.valorantRiotId}
+                      valorantRank={profile.valorantRank}
+                      targetUid={profileUid}
+                      targetName={profile.displayName}
+                      canReport={!isOwner && !!firebaseUser}
+                      size="md"
+                    />
                     {profile.valorantRank && valTier ? (
                       <div
                         className="relative overflow-hidden p-5"
@@ -949,41 +968,24 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                         Aucun rang renseigné.{isOwner ? ' Ajoute ton rang dans tes paramètres.' : ''}
                       </div>
                     )}
-                    {/* Lien tracker.gg Valorant si RiotID Discord lié (avec tag).
-                        Si le tag manque encore (Discord renvoie parfois juste le name),
-                        on affiche un état "en cours d'enrichissement" car le callback
-                        ou le cron HenrikDev va le résoudre via le PUUID. */}
-                    {(() => {
+                    {/* Le lien tracker.gg vérifié est désormais porté par le
+                        ValorantIdentityBadge md ci-dessus. On garde uniquement,
+                        pour l'owner, le hint « résolution en cours » quand sa
+                        connection Riot est liée mais que le tag n'est pas encore
+                        résolu (le cron HenrikDev le complétera). */}
+                    {isOwner && !pv.valorantRiotId && (() => {
                       const riotId = pickValorantRiotId(profile.discordConnections);
-                      if (!riotId) return null;
-                      if (!riotId.tag) {
-                        return (
-                          <div
-                            className="flex items-center gap-2 px-3 py-2"
-                            style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}
-                          >
-                            <Link2 size={11} style={{ color: 'var(--s-text-muted)' }} />
-                            <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                              Compte Riot lié. RiotID en cours de résolution…
-                            </span>
-                          </div>
-                        );
-                      }
-                      const tracker = `https://tracker.gg/valorant/profile/riot/${encodeURIComponent(`${riotId.name}#${riotId.tag}`)}/overview`;
+                      if (!riotId || riotId.tag) return null;
                       return (
-                        <a
-                          href={tracker}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-between gap-2 px-3 py-2 transition-colors duration-150 hover:bg-[var(--s-hover)]"
+                        <div
+                          className="flex items-center gap-2 px-3 py-2"
                           style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}
                         >
+                          <Link2 size={11} style={{ color: 'var(--s-text-muted)' }} />
                           <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                            <Link2 size={11} className="inline mr-1.5" style={{ verticalAlign: '-2px' }} />
-                            tracker.gg/{riotId.name}#{riotId.tag}
+                            Compte Riot lié. RiotID en cours de résolution…
                           </span>
-                          <span className="t-mono text-xs" style={{ color: '#FF6B78' }}>↗</span>
-                        </a>
+                        </div>
                       );
                     })()}
                   </div>

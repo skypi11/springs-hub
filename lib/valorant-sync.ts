@@ -120,11 +120,15 @@ export async function syncValorantRanksBatch(db: Firestore): Promise<SyncStats> 
       continue;
     }
 
-    // Update silencieux si le rang n'a pas changé (évite les writes Firestore inutiles)
+    // Update silencieux si le rang n'a pas changé (évite les writes Firestore
+    // inutiles). On force quand même un write si le RiotID résolu (name#tag)
+    // n'est pas encore stocké, pour fiabiliser le lien tracker.gg côté profil
+    // (backfill progressif au fil des cycles).
     const oldRank = (data.valorantRank as string) || '';
     const oldRR = typeof data.valorantRR === 'number' ? data.valorantRR : null;
     const oldSource = (data.valorantRankSource as string) || '';
-    if (oldRank === res.data.rank && oldRR === res.data.rr && oldSource === 'henrikdev') {
+    const hasStoredRiotId = !!data.valorantRiotName && !!data.valorantRiotTag;
+    if (oldRank === res.data.rank && oldRR === res.data.rr && oldSource === 'henrikdev' && hasStoredRiotId) {
       continue;
     }
 
@@ -136,6 +140,9 @@ export async function syncValorantRanksBatch(db: Firestore): Promise<SyncStats> 
       valorantRR: res.data.rr,
       valorantRankSource: 'henrikdev',
       valorantRankSyncedAt: FieldValue.serverTimestamp(),
+      // RiotID résolu, stocké pour fiabiliser le lien tracker.gg public.
+      valorantRiotName: resolvedName,
+      valorantRiotTag: resolvedTag,
     };
     const oldPuuid = (data.valorantPuuid as string) || '';
     if (!oldPuuid) {

@@ -25,11 +25,23 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { clampString } from '@/lib/validation';
 import { sendAdminAlert } from '@/lib/admin-discord-alert';
+import { getGameLabel, isKnownGame } from '@/lib/games-registry';
 
 type RankReportMotif = 'rank_lie' | 'smurf';
 const MOTIF_LABELS: Record<RankReportMotif, string> = {
   rank_lie: '🎯 Rang déclaré faux',
   smurf: '🥷 Soupçon de smurf',
+};
+
+// Jeux supportant le signalement de rang (= ceux qui ont rankVerification dans
+// la registry). Le rang signalé est lu sur le champ adéquat du profil cible.
+// `GAME_RANK_FIELD` est la source de vérité de la liste des jeux signalables.
+type ReportableGame = 'rocket_league' | 'valorant';
+// Champ profil portant le rang affiché + champ horodatant son dernier changement
+// (sert à réinitialiser le cooldown anti-spam quand le joueur re-change son rang).
+const GAME_RANK_FIELD: Record<ReportableGame, { rank: string; changedAt: string }> = {
+  rocket_league: { rank: 'rlRank', changedAt: 'rlRankChangedAt' },
+  valorant: { rank: 'valorantRank', changedAt: 'valorantRankChangedAt' },
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -75,6 +87,15 @@ export async function POST(
     const motif: RankReportMotif = motifRaw;
     const message = clampString(typeof body?.message === 'string' ? body.message : '', 500);
 
+    // Jeu signalé. Rétrocompat : les anciens clients n'envoient rien → RL.
+    const gameRaw = typeof body?.game === 'string' ? body.game : 'rocket_league';
+    if (!isKnownGame(gameRaw) || !(gameRaw in GAME_RANK_FIELD)) {
+      return NextResponse.json({
+        error: 'Jeu invalide pour un signalement de rang.',
+      }, { status: 400 });
+    }
+    const game = gameRaw as ReportableGame;
+
     const db = getAdminDb();
     const targetSnap = await db.collection('users').doc(targetUid).get();
     if (!targetSnap.exists) {
@@ -101,7 +122,7 @@ export async function POST(
     // ── Cooldown 24h par (reporter, target), réinitialisé par tout changement
     //    de rang du target depuis le dernier signalement ────────────────────
     const cooldownCutoffMs = Date.now() - DAY_MS;
-    const rankChangedAtMs = toMillis(target.rlRankChangedAt);
+    const rankChangedAtMs = toMillis(target[GAME_RANK_FIELD[game].changedAt]);
     const effectiveCutoff = Math.max(cooldownCutoffMs, rankChangedAtMs);
     const recent = await db.collection('rank_reports')
       .where('targetUid', '==', targetUid)
@@ -119,11 +140,16 @@ export async function POST(
     const reporterSnap = await db.collection('users').doc(reporterUid).get();
     const reporterName = (reporterSnap.data()?.displayName as string) || 'Anonyme';
 
+    const targetRank = (target[GAME_RANK_FIELD[game].rank] as string) || '';
     const reportRef = db.collection('rank_reports').doc();
     await reportRef.set({
       targetUid,
       targetName: (target.displayName as string) || (target.discordUsername as string) || '',
-      targetRlRank: (target.rlRank as string) || '',
+      game,
+      // `targetRank` = champ générique lu par l'admin (tous jeux). On garde
+      // `targetRlRank` rempli en RL pour rétrocompat des docs historiques.
+      targetRank,
+      targetRlRank: game === 'rocket_league' ? targetRank : '',
       reporterUid,
       reporterName,
       motif,
@@ -134,9 +160,9 @@ export async function POST(
 
     // Ping admin Discord (fire-and-forget)
     await sendAdminAlert(db, {
-      title: `🚩 ${MOTIF_LABELS[motif]}`,
+      title: `🚩 ${MOTIF_LABELS[motif]} · ${getGameLabel(game)}`,
       description: `**${reporterName}** signale **${(target.displayName as string) || targetUid}**\n`
-        + `Rang affiché : \`${(target.rlRank as string) || '—'}\`\n`
+        + `Rang ${getGameLabel(game)} affiché : \`${targetRank || '—'}\`\n`
         + (message ? `\nMessage : ${message}\n` : '')
         + `\n[Voir le profil](https://aedral.com/profile/${targetUid}) · [Admin → signalements](https://aedral.com/admin/rank-reports)`,
     });
