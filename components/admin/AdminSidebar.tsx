@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Building2, Users, Users2, CalendarDays, ClipboardList,
   ShieldAlert, Bell, MessagesSquare, Megaphone, UploadCloud, History, Wrench,
-  Flag, RefreshCw, BarChart3, ChevronDown,
+  Flag, RefreshCw, BarChart3, ChevronDown, Send,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -38,6 +38,7 @@ const ITEMS: NavItem[] = [
   { href: '/admin/notifications', icon: Bell, label: 'Notifications', description: 'Envoyer, historique' },
   { href: '/admin/discord', icon: MessagesSquare, label: 'Discord', description: 'Stats, alertes, tests' },
   { href: '/admin/announce', icon: Megaphone, label: 'Annonces Discord', description: 'Patch notes, diffusion' },
+  { href: '/admin/messages', icon: Send, label: 'Messages ciblés', description: 'Relances par segment (DM + in-app)' },
   { href: '/admin/uploads', icon: UploadCloud, label: 'Uploads', description: 'Stockage R2' },
   { href: '/admin/ballchasing', icon: BarChart3, label: 'Ballchasing', description: 'Quota hebdo stats RL' },
   { href: '/admin/audit', icon: History, label: 'Audit log', description: 'Actions admin' },

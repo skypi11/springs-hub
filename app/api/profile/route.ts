@@ -429,6 +429,10 @@ export async function POST(req: NextRequest) {
       isAvailableForRecruitment: body.isAvailableForRecruitment || false,
       recruitmentRole: body.isAvailableForRecruitment ? body.recruitmentRole || '' : '',
       recruitmentMessage: body.isAvailableForRecruitment ? clampString(body.recruitmentMessage, LIMITS.recruitmentMessage) : '',
+      // Opt-out DM d'annonces : on ne met à jour que si le champ est explicitement
+      // fourni (le toggle Settings), pour ne pas le réinitialiser depuis l'onboarding
+      // ou tout autre save qui ne porte pas ce champ.
+      ...(typeof body.dmAnnouncementsOptOut === 'boolean' ? { dmAnnouncementsOptOut: body.dmAnnouncementsOptOut } : {}),
       ...(updatedConnections ? { discordConnections: updatedConnections } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     };

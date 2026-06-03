@@ -114,7 +114,11 @@ export default function NotificationsBell() {
       toast.error(err instanceof ApiError ? err.message : 'Impossible de marquer comme lue');
     }
     setOpen(false);
-    if (n.link) router.push(n.link);
+    // Défense en profondeur : ne suivre qu'un path interne strict (un seul '/'
+    // en tête), jamais une URL protocol-relative '//host' / '/\\host' (la
+    // collection notifications a plusieurs producteurs → on ne fait pas confiance
+    // au lien stocké pour une navigation cross-origin).
+    if (n.link && /^\/(?![/\\])/.test(n.link)) router.push(n.link);
     // reload sera déclenché par onSnapshot
   }
 

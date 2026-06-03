@@ -13,7 +13,7 @@ import { countries } from '@/lib/countries';
 import {
   Save, User, Gamepad2, Search, ExternalLink,
   AlertCircle, CheckCircle, Loader2, UserCircle, LogOut, Star,
-  Download, Trash2, Link2, RefreshCw, Share2,
+  Download, Trash2, Link2, RefreshCw, Share2, Bell,
 } from 'lucide-react';
 import SharingSection from '@/components/settings/SharingSection';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
@@ -60,6 +60,9 @@ type FormData = {
   isAvailableForRecruitment: boolean;
   recruitmentRole: string;
   recruitmentMessage: string;
+  // Préférence : refuser les DM Discord d'annonces/relances Aedral (n'affecte pas
+  // les DM fonctionnels : exercices, rang contesté, invitations).
+  dmAnnouncementsOptOut: boolean;
   // Connexions Discord, affichage seul ici, mais la visibilité est éditable
   connections: DiscordConnection[];
 };
@@ -81,6 +84,7 @@ const defaultForm: FormData = {
   isAvailableForRecruitment: false,
   recruitmentRole: '',
   recruitmentMessage: '',
+  dmAnnouncementsOptOut: false,
   connections: [],
 };
 
@@ -485,6 +489,7 @@ export default function SettingsPage() {
       isAvailableForRecruitment: (data.isAvailableForRecruitment as boolean) ?? false,
       recruitmentRole: (data.recruitmentRole as string) ?? '',
       recruitmentMessage: (data.recruitmentMessage as string) ?? '',
+      dmAnnouncementsOptOut: (data.dmAnnouncementsOptOut as boolean) ?? false,
       connections: (data.discordConnections as DiscordConnection[] | undefined) ?? [],
     });
     setLoaded(true);
@@ -1688,6 +1693,56 @@ export default function SettingsPage() {
                         />
                       </>
                     )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* NOTIFICATIONS, rendu dans 'profile' */}
+            {section === 'profile' && (
+              <div className="pillar-card panel relative group transition-all duration-200 animate-fade-in">
+                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
+                <div className="relative z-[1]">
+                  <div className="panel-header">
+                    <div className="flex items-center gap-2">
+                      <Bell size={13} style={{ color: 'var(--s-gold)' }} />
+                      <span className="t-label" style={{ color: 'var(--s-text)' }}>NOTIFICATIONS</span>
+                    </div>
+                  </div>
+                  <div className="p-5 space-y-4">
+                    <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                      Aedral peut t&apos;envoyer des annonces et relances par message privé Discord (ex : « lie ton compte de jeu pour vérifier ton rang »). Les messages liés à ton activité (exercices assignés, invitations) ne sont jamais concernés.
+                    </p>
+                    {(() => {
+                      const receives = !form.dmAnnouncementsOptOut;
+                      return (
+                        <button type="button"
+                          role="switch"
+                          aria-checked={receives}
+                          aria-label="Recevoir les annonces et relances par DM"
+                          onClick={() => updateForm({ dmAnnouncementsOptOut: receives })}
+                          className="w-full p-3.5 flex items-center justify-between transition-all duration-150"
+                          style={{
+                            background: receives ? 'rgba(255,184,0,0.08)' : 'var(--s-elevated)',
+                            border: receives ? '1px solid rgba(255,184,0,0.25)' : '1px solid var(--s-border)',
+                            cursor: 'pointer',
+                          }}>
+                          <span className="text-sm font-semibold" style={{ color: receives ? 'var(--s-gold)' : 'var(--s-text-dim)' }}>
+                            Recevoir les annonces et relances par DM
+                          </span>
+                          <div className="w-10 h-[20px] relative" style={{
+                            background: receives ? 'var(--s-gold)' : 'var(--s-elevated)',
+                            border: `1px solid ${receives ? 'var(--s-gold)' : 'var(--s-border)'}`,
+                          }}>
+                            <div className="absolute top-[2px] w-3.5 h-[14px] transition-all duration-200"
+                              style={{
+                                background: receives ? '#000' : 'var(--s-text-muted)',
+                                left: receives ? '20px' : '2px',
+                              }} />
+                          </div>
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>

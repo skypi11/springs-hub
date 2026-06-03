@@ -458,5 +458,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── Springs Hub — Journal des messages ciblés (annonces / relances) ─────────
+    // Envoi via /api/admin/messages/send (Admin SDK). Trace qui/quand/segment/stats.
+    // Aucun accès client.
+    match /admin_messages/{id} {
+      allow read, write: if false;
+    }
+
   }
 }

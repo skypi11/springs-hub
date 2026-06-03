@@ -23,6 +23,12 @@ export interface SpringsUser {
   isAvailableForRecruitment?: boolean;
   recruitmentRole?: string;    // 'joueur' | 'coach' | 'manager'
   recruitmentMessage?: string; // message libre
+  // Préférences de notification.
+  // Opt-out des DM Discord d'ANNONCES/RELANCES envoyés par les admins Aedral
+  // (via /admin/messages). N'affecte PAS les DM fonctionnels (exercices assignés,
+  // rang contesté, invitations) qui restent liés à l'activité de l'utilisateur.
+  // Absent / false = reçoit (défaut) ; true = a refusé les DM d'annonces.
+  dmAnnouncementsOptOut?: boolean;
   // ── Rocket League ────────────────────────────────────────────────────────
   // IDENTITÉ OFFICIELLE Epic (anti-mensonge / sticky), voir
   // docs/rl-rank-verification-plan.md. rlEpicId est posé une fois (snapshot

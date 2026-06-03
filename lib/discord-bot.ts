@@ -673,6 +673,59 @@ export async function sendRankContestedDM(
   return { ok: true, messageId: data.id as string };
 }
 
+// ---------- Annonces / relances ciblées (admin → /admin/messages) ----------
+
+// Envoie un DM d'ANNONCE générique (titre + message markdown + lien optionnel)
+// à un joueur. Réservé aux campagnes admin ciblées, distinct des DM fonctionnels
+// (exercices, rang contesté). L'appelant DOIT avoir vérifié l'opt-out de l'user
+// AVANT d'appeler (ce helper ne le connaît pas). Mêmes garde-fous : ok=false
+// silencieux si DMs bloqués / pas de serveur mutual (403), on ne throw jamais.
+export async function sendAnnouncementDM(
+  discordUserId: string,
+  input: { title: string; message: string; link?: string | null },
+): Promise<{ ok: true; messageId: string } | { ok: false; reason: string }> {
+  // POST avec UN retry sur 429 (respecte retry_after, cappé) : l'ouverture de DM
+  // channel est un endpoint rate-limit-sensible ; sans ça une rafale d'envois
+  // cascade en échecs. On ne retry qu'une fois pour borner le temps.
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bot ${botToken()}` };
+  const post = async (url: string, body: unknown): Promise<Response> => {
+    let res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+    if (res.status === 429) {
+      const ra = await res.clone().json().catch(() => ({} as { retry_after?: number }));
+      const waitMs = Math.min(5000, Math.max(250, Math.round((ra.retry_after ?? 1) * 1000)));
+      await new Promise(r => setTimeout(r, waitMs));
+      res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+    }
+    return res;
+  };
+
+  const dmRes = await post(`${DISCORD_API}/users/@me/channels`, { recipient_id: discordUserId });
+  if (!dmRes.ok) {
+    const body = await dmRes.text().catch(() => '');
+    return { ok: false, reason: `dm_open_${dmRes.status}: ${body.slice(0, 150)}` };
+  }
+  const dm = await dmRes.json();
+  const channelId = dm.id as string;
+
+  const description = input.message.slice(0, 3800)
+    + (input.link ? `\n\n[Ouvrir sur Aedral →](${input.link})` : '');
+  const embed: Record<string, unknown> = {
+    color: 0xffb800,
+    title: input.title.slice(0, 256),
+    description,
+    footer: { text: 'Aedral · tu peux désactiver ces DM dans Paramètres' },
+    timestamp: new Date().toISOString(),
+  };
+
+  const res = await post(`${DISCORD_API}/channels/${channelId}/messages`, { embeds: [embed] });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    return { ok: false, reason: `post_${res.status}: ${body.slice(0, 150)}` };
+  }
+  const data = await res.json();
+  return { ok: true, messageId: data.id as string };
+}
+
 // URL CDN de l'icône d'un serveur (ou null si pas d'icône custom).
 export function guildIconUrl(guildId: string, iconHash: string | null, size = 128): string | null {
   if (!iconHash) return null;
