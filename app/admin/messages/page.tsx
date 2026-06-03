@@ -15,11 +15,12 @@ import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
-import { MessageSquare, Loader2, Send, Users, Bell, Hash, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { MessageSquare, Loader2, Send, Users, Bell, Hash, AlertCircle, CheckCircle2, ChevronDown, ShieldOff } from 'lucide-react';
 import { SEGMENTS, DM_CAP, type SegmentId } from '@/lib/admin-segments';
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
 
-type Preview = { count: number; dmReachable: number; optedOut: number };
+type Recipient = { uid: string; name: string; dmReachable: boolean; optedOut: boolean };
+type Preview = { count: number; dmReachable: number; optedOut: number; recipients: Recipient[]; listTruncated: boolean };
 type SendResult = {
   ok: boolean; total: number; inAppSent: number; dmSent: number;
   dmFailed: number; dmSkippedOptOut: number; dmCapped: number;
@@ -39,6 +40,7 @@ export default function AdminMessagesPage() {
   const [dm, setDm] = useState(true);
 
   const [preview, setPreview] = useState<Preview | null>(null);
+  const [showRecipients, setShowRecipients] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<SendResult | null>(null);
@@ -161,6 +163,44 @@ export default function AdminMessagesPage() {
               <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>—</span>
             )}
           </div>
+
+          {/* Liste dépliable des destinataires */}
+          {preview && preview.count > 0 && (
+            <div>
+              <button type="button" onClick={() => setShowRecipients(v => !v)}
+                className="inline-flex items-center gap-1.5 text-xs transition-colors"
+                style={{ color: 'var(--s-text-dim)', cursor: 'pointer' }}>
+                <ChevronDown size={13} style={{ transform: showRecipients ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 150ms' }} />
+                {showRecipients ? 'Masquer' : 'Voir'} les destinataires ({preview.count})
+              </button>
+              {showRecipients && (
+                <div className="mt-2 max-h-64 overflow-y-auto" style={{ border: '1px solid var(--s-border)', background: 'var(--s-bg)' }}>
+                  {preview.recipients.map(r => (
+                    <div key={r.uid} className="flex items-center justify-between gap-2 px-2.5 py-1.5"
+                      style={{ borderBottom: '1px solid var(--s-border)' }}>
+                      <span className="text-xs truncate" style={{ color: 'var(--s-text)' }}>{r.name}</span>
+                      {r.optedOut ? (
+                        <span className="inline-flex items-center gap-1 text-xs flex-shrink-0" style={{ color: 'var(--s-text-muted)' }}>
+                          <ShieldOff size={11} /> DM refusé
+                        </span>
+                      ) : !r.dmReachable ? (
+                        <span className="text-xs flex-shrink-0" style={{ color: 'var(--s-text-muted)' }}>in-app seul</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs flex-shrink-0" style={{ color: '#5865f2' }}>
+                          <Hash size={11} /> DM
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                  {preview.listTruncated && (
+                    <div className="px-2.5 py-1.5 text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                      … liste limitée aux 500 premiers (le total reste {preview.count}).
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Canaux */}
           <div className="space-y-2">

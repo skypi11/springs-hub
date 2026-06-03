@@ -26,11 +26,26 @@ export async function GET(req: NextRequest) {
 
     const users = await querySegmentUsers(getAdminDb(), segment, game || null);
     const optedOut = users.filter(u => u.optedOutDM).length;
+    // dmReachable aligné sur la logique du /send : hors opt-out ET avec une
+    // snowflake Discord valide (un discordId vide n'est pas joignable en DM).
+    const dmReachable = users.filter(u => !u.optedOutDM && u.discordId).length;
+
+    // Liste dépliable des destinataires (cappée pour ne pas exploser la réponse).
+    // `count` reste exact même si la liste est tronquée.
+    const PREVIEW_LIST_CAP = 500;
+    const recipients = users.slice(0, PREVIEW_LIST_CAP).map(u => ({
+      uid: u.uid,
+      name: u.displayName,
+      dmReachable: !u.optedOutDM && !!u.discordId,
+      optedOut: u.optedOutDM,
+    }));
 
     return NextResponse.json({
       count: users.length,
-      dmReachable: users.length - optedOut, // destinataires DM potentiels (hors opt-out)
+      dmReachable,
       optedOut,
+      recipients,
+      listTruncated: users.length > PREVIEW_LIST_CAP,
     });
   } catch (err) {
     captureApiError('API admin/messages/preview GET error', err);
