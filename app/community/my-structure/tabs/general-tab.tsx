@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, type RefObject, type ReactNode, type Dispatch, type SetStateAction } from 'react';
-import ReactMarkdown from 'react-markdown';
+import Image from 'next/image';
 import {
   Shield, Trophy, Loader2, AlertCircle,
   Save, Plus, Trash2, CheckCircle,
-  Link2, MessageSquare, Settings, Check, X, BookOpen, Gamepad2,
+  Link2, MessageSquare, Settings, Check, X, BookOpen, Gamepad2, Users,
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
@@ -19,7 +19,10 @@ import type { BannerFocus } from '@/types';
 import { SOCIAL_LABELS, STATUS_INFO } from '../constants';
 import { SectionPanel } from '../components';
 import GameTag from '@/components/games/GameTag';
-import { ALL_GAME_DEFS } from '@/lib/games-registry';
+import { ALL_GAME_DEFS, getGameColor } from '@/lib/games-registry';
+import PublicPreviewFrame from '@/components/ui/PublicPreviewFrame';
+import MarkdownEditor from '@/components/ui/MarkdownEditor';
+import { getStructureHref } from '@/lib/structure-slug';
 
 type Achievement = { placement: string; competition: string; game: string; date: string };
 
@@ -47,8 +50,6 @@ type GeneralTabProps = {
   editDesc: string;
   setEditDesc: Dispatch<SetStateAction<string>>;
   descRef: RefObject<HTMLTextAreaElement | null>;
-  showEmojis: boolean;
-  setShowEmojis: Dispatch<SetStateAction<boolean>>;
   editLogoUrl: string;
   setEditLogoUrl: Dispatch<SetStateAction<string>>;
   editCoverFocus: BannerFocus | null;
@@ -80,7 +81,7 @@ type GeneralTabProps = {
 export function GeneralTab(props: GeneralTabProps) {
   const {
     s, activeStructure, setActiveStructure, loadStructures,
-    editDesc, setEditDesc, descRef, showEmojis, setShowEmojis,
+    editDesc, setEditDesc, descRef,
     editLogoUrl, setEditLogoUrl, editCoverFocus, setEditCoverFocus,
     editDiscordUrl, setEditDiscordUrl,
     editSocials, setEditSocials, editAchievements, setEditAchievements,
@@ -136,59 +137,17 @@ export function GeneralTab(props: GeneralTabProps) {
         {/* DESCRIPTION */}
         <SectionPanel accent="var(--s-gold)" icon={MessageSquare} title="DESCRIPTION"
           collapsed={collapsed.desc} onToggle={() => toggle('desc')}>
-          <div className="space-y-3">
-            <div className="relative">
-              <textarea ref={descRef} className="settings-input w-full" rows={5}
-                value={editDesc} onChange={e => setEditDesc(e.target.value)}
-                placeholder="Présente ta structure..." />
-              <div className="relative inline-block">
-                <button type="button" onClick={() => setShowEmojis(!showEmojis)}
-                  className="mt-1.5 text-xs flex items-center gap-1.5 px-2 py-1 transition-colors duration-150"
-                  style={{ color: showEmojis ? 'var(--s-gold)' : 'var(--s-text-muted)', background: showEmojis ? 'rgba(255,184,0,0.08)' : 'transparent', border: `1px solid ${showEmojis ? 'rgba(255,184,0,0.2)' : 'var(--s-border)'}` }}>
-                  <span style={{ fontSize: '14px' }}>😀</span> Emojis
-                </button>
-                {showEmojis && (
-                  <div className="absolute left-0 top-full mt-1 p-2 z-50 flex flex-wrap" style={{ width: 'min(320px, calc(100vw - 3rem))', background: 'var(--s-surface)', border: '1px solid var(--s-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
-                    {['🏆', '🥇', '🥈', '🥉', '⭐', '🔥', '💪', '🎮', '🎯', '🚀', '⚽', '🏎️', '🏁', '👑', '💎', '🛡️', '⚔️', '🎉', '📢', '💬', '✅', '❌', '🔵', '🟢', '🟡', '🔴', '⚡', '💥', '🌟', '🏅', '👊', '🤝', '📊', '📈', '🗓️', '🎪', '🏟️', '🎖️', '🧩', '🕹️'].map(emoji => (
-                      <button key={emoji} type="button"
-                        className="hover:bg-[var(--s-hover)] transition-colors duration-100"
-                        style={{ width: '30px', height: '30px', fontSize: '16px', lineHeight: '30px', textAlign: 'center', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif' }}
-                        onClick={() => {
-                          const ta = descRef.current;
-                          if (ta) {
-                            const start = ta.selectionStart;
-                            const end = ta.selectionEnd;
-                            const newVal = editDesc.slice(0, start) + emoji + editDesc.slice(end);
-                            setEditDesc(newVal);
-                            setTimeout(() => { ta.focus(); ta.selectionStart = ta.selectionEnd = start + emoji.length; }, 0);
-                          } else {
-                            setEditDesc(editDesc + emoji);
-                          }
-                        }}>
-                        {emoji}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 px-1" style={{ color: 'var(--s-text-muted)', fontSize: '12px' }}>
-              <span><strong style={{ color: 'var(--s-text-dim)' }}>**gras**</strong></span>
-              <span><em>*italique*</em></span>
-              <span># Titre</span>
-              <span>- liste</span>
-              <span>[lien](url)</span>
-              <span>&gt; citation</span>
-            </div>
-            {editDesc.trim() && (
-              <div>
-                <p className="t-label mb-2" style={{ color: 'var(--s-text-muted)' }}>APERÇU</p>
-                <div className="p-3 prose-springs text-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                  <ReactMarkdown>{editDesc}</ReactMarkdown>
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Éditeur partagé (toggle Écrire | Aperçu) — remplace l'ancienne copie
+              inline dont l'aperçu permanent doublait la hauteur du panneau.
+              maxLength aligné sur LIMITS.structureDescription (serveur). */}
+          <MarkdownEditor
+            value={editDesc}
+            onChange={setEditDesc}
+            placeholder="Présente ta structure..."
+            maxLength={5000}
+            rows={5}
+            taRef={descRef}
+          />
         </SectionPanel>
 
         {/* JEUX PRATIQUÉS, act structural, save dédié.
@@ -575,6 +534,80 @@ export function GeneralTab(props: GeneralTabProps) {
 
       {/* ─── Colonne droite ──────── */}
       <div className="space-y-6 animate-fade-in-d2">
+        {/* APERÇU PUBLIC — carte annuaire telle que les visiteurs la voient.
+            Placée ICI (et plus au-dessus de la TabBar) pour ne pas faire sauter
+            la nav entre les onglets ; elle reflète en direct les réglages
+            édités dans cet onglet (logo, jeux, recrutement). */}
+        {s.status === 'active' && (
+          <PublicPreviewFrame
+            href={getStructureHref(s)}
+            helper="Ta carte telle qu'elle apparaît dans l'annuaire des structures et les feeds communauté."
+          >
+            <div
+              className="panel bevel relative overflow-hidden"
+              style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
+            >
+              <div
+                className="h-[3px]"
+                style={(() => {
+                  // Couleur principale = 1er jeu de la registry présent dans la structure
+                  const mainGame = ALL_GAME_DEFS.find(g => s.games.includes(g.id))?.id ?? s.games[0];
+                  const color = getGameColor(mainGame);
+                  return { background: `linear-gradient(90deg, ${color}, transparent 70%)` };
+                })()}
+              />
+              <div className="p-5">
+                <div className="flex items-center gap-4 mb-4">
+                  <div
+                    className="w-14 h-14 flex-shrink-0 relative overflow-hidden"
+                    style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}
+                  >
+                    {s.logoUrl ? (
+                      <Image src={s.logoUrl} alt={s.name} fill className="object-contain p-1" unoptimized />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Shield size={20} style={{ color: 'var(--s-text-muted)' }} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-display text-lg tracking-wider truncate">{s.name}</h3>
+                      <span
+                        className="tag tag-neutral"
+                        style={{ fontSize: '12px', padding: '1px 5px', flexShrink: 0 }}
+                      >
+                        {s.tag}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {s.games.map((g) => (
+                        <GameTag key={g} gameId={g} style={{ padding: '1px 6px' }} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div
+                  className="flex items-center justify-between pt-3"
+                  style={{ borderTop: '1px dashed var(--s-border)' }}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Users size={12} style={{ color: 'var(--s-text-muted)' }} />
+                    <span className="t-mono text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                      {s.members.length} membre{s.members.length > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  {s.recruiting?.active && (
+                    <span className="tag tag-green" style={{ fontSize: '12px', padding: '2px 7px' }}>
+                      RECRUTE
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </PublicPreviewFrame>
+        )}
+
         {/* INFORMATIONS */}
         <div className="bevel relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
           <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />

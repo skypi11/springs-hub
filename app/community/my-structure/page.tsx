@@ -17,14 +17,13 @@ import CalendarSection from '@/components/calendar/CalendarSection';
 import TeamDetailDrawer, { type DrawerTab, type DrawerTeam } from '@/components/calendar/TeamDetailDrawer';
 import { CalendarClock, ClipboardList, Film, ChevronDown, ChevronUp } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
-import PublicPreviewFrame from '@/components/ui/PublicPreviewFrame';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import type { UserContext } from '@/lib/event-permissions';
 import type { BannerFocus } from '@/types';
 import PlayerStructureView, { type PlayerStructure } from '@/components/structure/PlayerStructureView';
 import DocumentsExplorer from '@/components/documents/DocumentsExplorer';
 import GameTag from '@/components/games/GameTag';
-import { gameHasFeature, ALL_GAME_DEFS, getGameColor } from '@/lib/games-registry';
+import { gameHasFeature, ALL_GAME_DEFS } from '@/lib/games-registry';
 import { getStructureHref } from '@/lib/structure-slug';
 import CrossTeamTodosPanel from '@/components/structure/CrossTeamTodosPanel';
 import { safeCopy } from '@/lib/clipboard';
@@ -122,7 +121,6 @@ export default function MyStructurePage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [showEmojis, setShowEmojis] = useState(false);
   const [tab, setTab] = useState<DashboardTab>('general');
   // Deep-link pending consommé par CrossTeamTodosPanel pour ouvrir son drawer détail.
   const [pendingTodoId, setPendingTodoId] = useState<string | null>(null);
@@ -1674,78 +1672,10 @@ export default function MyStructurePage() {
           </div>
         )}
 
-        {/* ═══ Aperçu public (onglet général uniquement) ═══ */}
-        {tab === 'general' && s.status === 'active' && (
-          <PublicPreviewFrame
-            href={getStructureHref(s)}
-            helper="Ta carte telle qu'elle apparaît dans l'annuaire des structures et les feeds communauté."
-          >
-            <div
-              className="panel bevel relative overflow-hidden"
-              style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
-            >
-              <div
-                className="h-[3px]"
-                style={(() => {
-                  // Couleur principale = 1er jeu de la registry présent dans la structure
-                  const mainGame = ALL_GAME_DEFS.find(g => s.games.includes(g.id))?.id ?? s.games[0];
-                  const color = getGameColor(mainGame);
-                  return { background: `linear-gradient(90deg, ${color}, transparent 70%)` };
-                })()}
-              />
-              <div className="p-5">
-                <div className="flex items-center gap-4 mb-4">
-                  <div
-                    className="w-14 h-14 flex-shrink-0 relative overflow-hidden"
-                    style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}
-                  >
-                    {s.logoUrl ? (
-                      <Image src={s.logoUrl} alt={s.name} fill className="object-contain p-1" unoptimized />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Shield size={20} style={{ color: 'var(--s-text-muted)' }} />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-display text-lg tracking-wider truncate">{s.name}</h3>
-                      <span
-                        className="tag tag-neutral"
-                        style={{ fontSize: '12px', padding: '1px 5px', flexShrink: 0 }}
-                      >
-                        {s.tag}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {s.games.map((g) => (
-                        <GameTag key={g} gameId={g} style={{ padding: '1px 6px' }} />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <div
-                  className="flex items-center justify-between pt-3"
-                  style={{ borderTop: '1px dashed var(--s-border)' }}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <Users size={12} style={{ color: 'var(--s-text-muted)' }} />
-                    <span className="t-mono text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                      {s.members.length} membre{s.members.length > 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  {s.recruiting?.active && (
-                    <span className="tag tag-green" style={{ fontSize: '12px', padding: '2px 7px' }}>
-                      RECRUTE
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </PublicPreviewFrame>
-        )}
-
         {/* ═══ Onglets ═══ */}
+        {/* L'aperçu public (carte annuaire) vit désormais DANS l'onglet Général
+            (colonne droite, general-tab.tsx) : affiché ici au-dessus de la TabBar,
+            il faisait sauter la nav à chaque changement d'onglet. */}
         <TabBar active={tab} onChange={setTab} visible={visibleTabs} />
 
         {/* ═══ Dashboard, layout dynamique par onglet ═══ */}
@@ -1760,8 +1690,6 @@ export default function MyStructurePage() {
             editDesc={editDesc}
             setEditDesc={setEditDesc}
             descRef={descRef}
-            showEmojis={showEmojis}
-            setShowEmojis={setShowEmojis}
             editLogoUrl={editLogoUrl}
             setEditLogoUrl={setEditLogoUrl}
             editCoverFocus={editCoverFocus}
