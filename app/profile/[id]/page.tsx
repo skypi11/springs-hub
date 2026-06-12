@@ -337,9 +337,12 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                   {profile.games?.map(g => (
                     <GameTag key={g} gameId={g} variant="full" />
                   ))}
+                  {/* Vert = sémantique recrutement partout (RECRUTE structures,
+                      badge LFT annuaire) ; l'or reste réservé au CTA/précieux. */}
                   {profile.isAvailableForRecruitment && (
-                    <span className="tag tag-gold">
-                      <Search size={9} /> LFT
+                    <span className="tag tag-green"
+                      title={`Cherche une équipe${profile.recruitmentRole ? ` — rôle : ${profile.recruitmentRole}` : ''}`}>
+                      <Search size={9} /> LFT{profile.recruitmentRole ? ` ${profile.recruitmentRole.toUpperCase()}` : ''}
                     </span>
                   )}
                 </div>

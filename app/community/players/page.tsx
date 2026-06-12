@@ -874,13 +874,16 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
           </div>
         )}
 
-        {/* Badge "Cherche [rôle]" en bas si dispo au recrutement */}
+        {/* Badge LFT (Looking For Team) si dispo au recrutement. « LFT JOUEUR »
+            et pas « JOUEUR » nu : sans le préfixe, le badge se confondait avec
+            un rôle d'appartenance (retour Matt 13/06). */}
         {p.isAvailableForRecruitment && (
           <div className="absolute bottom-2 left-2 z-[3]">
             <span className="tag inline-flex items-center gap-1"
+              title={`Cherche une équipe${p.recruitmentRole ? ` — rôle : ${(ROLE_LABELS[p.recruitmentRole] || p.recruitmentRole).toLowerCase()}` : ''}`}
               style={{ fontSize: '12px', padding: '2px 8px', background: 'rgba(0,217,54,0.20)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.50)', fontWeight: 700, letterSpacing: '0.5px' }}>
               <Star size={9} style={{ fill: '#33ff66' }} />
-              {(ROLE_LABELS[p.recruitmentRole] || 'CHERCHE').toUpperCase()}
+              {p.recruitmentRole ? `LFT ${(ROLE_LABELS[p.recruitmentRole] || p.recruitmentRole).toUpperCase()}` : 'LFT'}
             </span>
           </div>
         )}
@@ -1193,9 +1196,10 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
         <div className="hidden lg:block" style={{ flex: '0 0 130px' }}>
           {p.isAvailableForRecruitment && (
             <span className="tag inline-flex items-center gap-1"
+              title={`Cherche une équipe${p.recruitmentRole ? ` — rôle : ${(ROLE_LABELS[p.recruitmentRole] || p.recruitmentRole).toLowerCase()}` : ''}`}
               style={{ background: 'rgba(0,217,54,0.10)', color: '#33ff66', borderColor: 'rgba(0,217,54,0.30)', fontSize: '12px', padding: '2px 7px' }}>
               <Star size={10} style={{ fill: '#33ff66' }} />
-              {ROLE_LABELS[p.recruitmentRole] || 'Cherche équipe'}
+              {p.recruitmentRole ? `LFT ${ROLE_LABELS[p.recruitmentRole] || p.recruitmentRole}` : 'LFT'}
             </span>
           )}
         </div>
