@@ -8,4 +8,9 @@ Sentry.init({
   tracesSampleRate: 1.0,
 
   environment: process.env.NODE_ENV,
+
+  // Dev local coupé : les sessions de debug sur localhost polluaient le
+  // dashboard (faux « nouvelles erreurs » constatés le 12-13/06) et brûlent
+  // le quota free tier pour rien.
+  enabled: process.env.NODE_ENV === 'production',
 });

@@ -20,4 +20,7 @@ Sentry.init({
   ],
 
   environment: process.env.NODE_ENV,
+
+  // Dev local coupé (cf. sentry.server.config.ts).
+  enabled: process.env.NODE_ENV === 'production',
 });
