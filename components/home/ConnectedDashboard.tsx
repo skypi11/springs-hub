@@ -153,34 +153,19 @@ export default function ConnectedDashboard({ user }: { user: SpringsUser }) {
         <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
         <div className="absolute top-0 right-0 w-[500px] h-[300px] pointer-events-none opacity-[0.05]"
           style={{ background: 'radial-gradient(ellipse at top right, var(--s-gold), transparent 70%)' }} />
-        <div className="relative z-[1] px-8 py-6 flex items-center gap-5 flex-wrap">
+        {/* Banner réduit à l'identité (audit anti-slop 12/06) : la phrase de
+            statut paraphrasait les 3 widgets dessous et les 2 CTA doublonnaient
+            leurs liens — une info = un seul endroit. */}
+        <div className="relative z-[1] px-8 py-5 flex items-center gap-5">
           {avatar && (
-            <div className="w-16 h-16 relative flex-shrink-0 overflow-hidden bevel-sm"
+            <div className="w-14 h-14 relative flex-shrink-0 overflow-hidden bevel-sm"
               style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
               <Image src={avatar} alt={firstName} fill className="object-cover" unoptimized />
             </div>
           )}
-          <div className="flex-1 min-w-0">
-            <p className="t-label mb-1" style={{ color: 'var(--s-text-muted)' }}>AEDRAL</p>
-            <h1 className="font-display text-3xl tracking-wider leading-none">
-              SALUT <span style={{ color: 'var(--s-gold)' }}>{firstName.toUpperCase()}</span>
-            </h1>
-            <p className="text-sm mt-2" style={{ color: 'var(--s-text-dim)' }}>
-              {loading
-                ? 'Chargement de ton dashboard…'
-                : buildStatus(todoCount, nextEvent, primaryStructure)}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto sm:flex-shrink-0">
-            <Link href="/calendar" className="btn-springs btn-secondary bevel-sm flex-1 justify-center sm:flex-none">
-              <Calendar size={14} />
-              Calendrier
-            </Link>
-            <Link href="/community/my-structure" className="btn-springs btn-primary bevel-sm flex-1 justify-center sm:flex-none">
-              <Shield size={14} />
-              Ma structure
-            </Link>
-          </div>
+          <h1 className="font-display text-3xl tracking-wider leading-none min-w-0 truncate">
+            SALUT <span style={{ color: 'var(--s-gold)' }}>{firstName.toUpperCase()}</span>
+          </h1>
         </div>
       </header>
 
@@ -358,15 +343,6 @@ export default function ConnectedDashboard({ user }: { user: SpringsUser }) {
       </a>
     </div>
   );
-}
-
-function buildStatus(todoCount: number, nextEvent: MyEvent | null, structure: MyStructure | null): string {
-  const parts: string[] = [];
-  if (nextEvent?.startsAt) parts.push(`prochain event ${formatRelative(nextEvent.startsAt)}`);
-  if (todoCount > 0) parts.push(`${todoCount} exercice${todoCount > 1 ? 's' : ''} à faire`);
-  if (!structure) parts.push('aucune structure, crée la tienne');
-  if (parts.length === 0) return 'Tout est calme pour le moment.';
-  return parts.join(' · ');
 }
 
 function WidgetCard({

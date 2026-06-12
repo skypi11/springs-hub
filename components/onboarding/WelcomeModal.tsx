@@ -31,11 +31,10 @@ const SLIDES: Slide[] = [
   {
     icon: Sparkles,
     title: 'BIENVENUE SUR AEDRAL',
-    intro: "La plateforme communautaire esport pour structurer ton équipe, planifier tes matchs et progresser ensemble.",
+    intro: "Roster, calendrier, scrims, recrutement : au même endroit.",
     bullets: [
-      "Profil vérifié avec ton compte Discord + ton compte de jeu (Epic / Steam)",
+      "Profil vérifié avec ton compte Discord + ton compte de jeu (Epic / Steam / Riot)",
       "Rejoins une structure existante ou crée la tienne",
-      "Tout en un seul endroit : roster, calendrier, recrutement, replays, coaching",
     ],
   },
   {
@@ -43,7 +42,7 @@ const SLIDES: Slide[] = [
     title: 'TON ESPACE STRUCTURE',
     intro: "Gère ton équipe, ton roster et tes événements depuis un dashboard dédié.",
     bullets: [
-      "Équipes par jeu (RL, TM) avec titulaires, remplaçants, staff, capitaine",
+      "Équipes par jeu (RL, TM, Valorant) avec titulaires, remplaçants, staff, capitaine",
       "Calendrier collaboratif avec dispos partagées et matching automatique",
       "Bot Discord intégré pour les notifications dans ton serveur",
       "Recrutement actif : shortlist, suggestions, invitations",

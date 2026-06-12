@@ -1,4 +1,4 @@
-import { Trophy, Calendar, ExternalLink, Gamepad2, Users, Award } from 'lucide-react';
+import { Calendar, ExternalLink, Gamepad2, Users, Award } from 'lucide-react';
 
 const competitions = [
   {
@@ -57,36 +57,14 @@ export default function CompetitionsPage() {
           </h1>
 
           <p className="t-body max-w-xl" style={{ fontSize: '15px' }}>
-            En attendant l&apos;hébergement natif des compétitions sur Aedral (en cours de construction),
-            les comps actives sont sur le site historique Springs E-Sport. Les liens ci-dessous
-            t&apos;y redirigent.
+            Les compétitions actives sont hébergées sur le site Springs E-Sport,
+            partenaire d&apos;Aedral. Les cards ci-dessous t&apos;y redirigent.
           </p>
         </div>
       </header>
 
-      {/* ─── FILTRES ──────────────────────────────────────────────────────── */}
-      <section className="animate-fade-in-d1">
-        <div className="flex items-center gap-2">
-          {[
-            { label: 'Tous', active: true },
-            { label: 'Rocket League', active: false },
-            { label: 'Trackmania', active: false },
-          ].map(({ label, active }) => (
-            <button key={label}
-              className="tag transition-all duration-150"
-              style={{
-                background: active ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)',
-                color: active ? 'var(--s-text)' : 'var(--s-text-dim)',
-                borderColor: active ? 'rgba(255,255,255,0.15)' : 'var(--s-border)',
-                padding: '6px 14px',
-                fontSize: '12px',
-                cursor: 'pointer',
-              }}>
-              {label}
-            </button>
-          ))}
-        </div>
-      </section>
+      {/* Les pseudo-filtres Tous/RL/TM ont été supprimés (audit 12/06) : ils
+          ne filtraient rien (état hardcodé) — du chrome mort pour 2 cards. */}
 
       {/* ─── LISTE ────────────────────────────────────────────────────────── */}
       <section className="animate-fade-in-d2 space-y-6">
@@ -160,19 +138,8 @@ export default function CompetitionsPage() {
           </a>
         ))}
 
-        {/* Coming soon, Phase 3 native */}
-        <div className="panel p-12 text-center">
-          <div className="p-3 w-fit mx-auto mb-4" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-            <Trophy size={22} style={{ color: 'var(--s-gold)' }} />
-          </div>
-          <p className="t-sub mb-1.5" style={{ color: 'var(--s-text)' }}>
-            Compétitions natives Aedral, bientôt
-          </p>
-          <p className="t-body max-w-md mx-auto">
-            Inscription d&apos;équipe en 2 clics, classements live, brackets RL, calendrier intégré aux structures.
-            Migration des compétitions actuelles vers Aedral en cours.
-          </p>
-        </div>
+        {/* Le panel « bientôt » a été supprimé (audit 12/06, règle zéro
+            vaporware) : on n'annonce pas de features non shippées. */}
       </section>
 
     </div>

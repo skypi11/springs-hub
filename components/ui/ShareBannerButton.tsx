@@ -12,7 +12,7 @@
  *    (`?_=<timestamp>`) pour bypass cache navigateur + CDN, et `cache: 'no-store'`.
  * 2. Réponse → Blob → URL.createObjectURL → invisible <a download> cliqué
  *    programmatiquement pour afficher un état loading et gérer les erreurs.
- * 3. Toast feedback "Image prête, partage-la !" ou "Impossible de générer".
+ * 3. Toast feedback "Bannière prête" ou "Impossible de générer".
  *
  * Fallback : navigation directe vers l'endpoint si fetch+blob échoue (le
  * serveur retourne Content-Disposition: attachment, le navigateur télécharge).
@@ -89,7 +89,7 @@ export default function ShareBannerButton({
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        toast.success('Bannière prête, partage-la !');
+        toast.success('Bannière prête');
       } finally {
         setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
       }

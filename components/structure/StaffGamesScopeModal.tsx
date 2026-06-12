@@ -237,7 +237,7 @@ export default function StaffGamesScopeModal({
             {selected.size === 0 && !isAllGames && (
               <div className="p-3" style={{ background: 'rgba(255,85,85,0.06)', border: '1px solid rgba(255,85,85,0.25)' }}>
                 <p className="text-xs" style={{ color: '#ff8888' }}>
-                  ⚠️ Aucun jeu coché, sauvegarder ainsi retire tous les droits {roleLabel.toLowerCase()} de cet user. Pour rendre le rôle actif sur tous les jeux à venir, utilise le bouton "All-games".
+                  Aucun jeu coché, sauvegarder ainsi retire tous les droits {roleLabel.toLowerCase()} de cet user. Pour rendre le rôle actif sur tous les jeux à venir, utilise le bouton "All-games".
                 </p>
               </div>
             )}

@@ -309,7 +309,7 @@ export default function PlayerStructureView({ structure }: { structure: PlayerSt
             <Users size={32} className="mx-auto mb-3" style={{ color: 'var(--s-text-muted)' }} />
             <h3 className="font-display text-xl mb-2" style={{ color: 'var(--s-text)' }}>AUCUNE ÉQUIPE ASSIGNÉE</h3>
             <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-              Tu fais partie de la structure mais tu n&apos;es rattaché à aucune sous-équipe pour le moment.
+              Tu fais partie de la structure mais tu n&apos;es rattaché à aucune équipe pour le moment.
               Contacte ton fondateur ou ton manager pour être intégré à un roster.
             </p>
           </div>

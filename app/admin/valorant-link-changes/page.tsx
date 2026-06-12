@@ -134,7 +134,7 @@ export default function AdminValorantLinkChangesPage() {
       {visible.length === 0 && (
         <div className="panel p-8 text-center">
           <p className="t-body" style={{ color: 'var(--s-text-muted)' }}>
-            {filter === 'pending' ? 'Aucune demande en attente, ✓ propre.' : 'Aucune demande.'}
+            {filter === 'pending' ? 'Aucune demande en attente.' : 'Aucune demande.'}
           </p>
         </div>
       )}

@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     template: '%s · Aedral',
   },
   description:
-    "La plateforme tout-en-un pour structures esport amateur : gestion d'équipes, calendrier collaboratif avec consensus automatique des dispos, recrutement, suivi des exercices, replays. Rocket League, Trackmania et Valorant supportés.",
+    "Gestion de structure esport amateur : roster, scrims, dispos, recrutement, replays. Rocket League, Trackmania, Valorant.",
   applicationName: 'Aedral',
   keywords: [
     'esport amateur', 'structure esport', 'gestion équipe esport',
@@ -64,14 +64,14 @@ export const metadata: Metadata = {
     siteName: 'Aedral',
     title: 'Aedral, plateforme communautaire esport',
     description:
-      "La plateforme tout-en-un pour structures esport amateur : gestion d'équipes, calendrier collaboratif, recrutement, suivi des exercices, replays.",
+      "Gestion de structure esport amateur : roster, scrims, dispos, recrutement, replays. Rocket League, Trackmania, Valorant.",
     // L'image OG est auto-récupérée depuis app/opengraph-image.png (1200×630).
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Aedral, plateforme communautaire esport',
     description:
-      "La plateforme tout-en-un pour structures esport amateur : gestion d'équipes, calendrier collaboratif, recrutement, suivi des exercices.",
+      "Gestion de structure esport amateur : roster, scrims, dispos, recrutement, replays. Rocket League, Trackmania, Valorant.",
     // L'image Twitter est aussi auto-récupérée depuis app/opengraph-image.png.
   },
   robots: {
@@ -96,7 +96,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       url: 'https://aedral.com',
       name: 'Aedral',
       description:
-        "La plateforme tout-en-un pour structures esport amateur : gestion d'équipes, calendrier collaboratif, recrutement, suivi des exercices, replays.",
+        "Gestion de structure esport amateur : roster, scrims, dispos, recrutement, replays. Rocket League, Trackmania, Valorant.",
     }),
     organizationSchema({
       url: 'https://aedral.com',

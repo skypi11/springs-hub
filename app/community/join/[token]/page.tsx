@@ -138,7 +138,7 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
         {status === 'success' && result && (
           <>
             <CheckCircle size={32} className="mx-auto mb-4" style={{ color: '#33ff66' }} />
-            <h2 className="font-display text-2xl mb-2">BIENVENUE !</h2>
+            <h2 className="font-display text-2xl mb-2">BIENVENUE</h2>
             <p className="t-body mb-6" style={{ color: 'var(--s-text-dim)' }}>
               Tu as rejoint <strong style={{ color: 'var(--s-text)' }}>{result.structureName}</strong>.
             </p>

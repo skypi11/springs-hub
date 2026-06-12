@@ -15,7 +15,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { isDirigeant, type UserContext } from '@/lib/event-permissions';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Loader2, Users, Check, CalendarClock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Users, Check, CalendarClock, SlidersHorizontal } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
@@ -1063,8 +1063,8 @@ function ConsensusConfigInline({
           color: open ? 'var(--s-gold)' : 'var(--s-text-dim)',
           border: '1px solid var(--s-border)',
         }}>
-        <span style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-          ⚙ Régler le consensus
+        <span style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          <SlidersHorizontal size={11} /> Régler le consensus
         </span>
         <span style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>
           {open ? '×' : '+'}

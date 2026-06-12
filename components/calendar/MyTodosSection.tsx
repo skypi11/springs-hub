@@ -271,7 +271,7 @@ export default function MyTodosSection({
               {pending.length > 0
                 ? `${pending.length} à faire${done.length > 0 ? `, ${done.length} terminé${done.length > 1 ? 's' : ''}` : ''}`
                 : done.length > 0
-                ? `Tout est fait ! ${done.length} exercice${done.length > 1 ? 's' : ''} terminé${done.length > 1 ? 's' : ''}.`
+                ? `Tout est fait. ${done.length} exercice${done.length > 1 ? 's' : ''} terminé${done.length > 1 ? 's' : ''}.`
                 : 'Aucun exercice.'}
             </p>
           </div>

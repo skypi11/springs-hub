@@ -167,9 +167,9 @@ export default function CommunityPage() {
               )}
             </Section>
 
-            {/* Section joueurs dispo au recrutement */}
+            {/* Section joueurs LFT (mercato) */}
             <Section
-              label="Joueurs disponibles au recrutement"
+              label="Mercato — joueurs LFT"
               accent="var(--s-blue)"
               href="/community/players?recruiting=1"
               linkLabel="Voir tous"

@@ -120,7 +120,14 @@ export default function MyStructurePage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  // Panels secondaires de l'onglet Général repliés par défaut (audit 12/06 :
+  // l'onglet passait 11 blocs ouverts — la config ponctuelle n'a pas à occuper
+  // l'écran en permanence). DESCRIPTION et JEUX restent ouverts.
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
+    discordBot: true,
+    socials: true,
+    palmares: true,
+  });
   const [tab, setTab] = useState<DashboardTab>('general');
   // Deep-link pending consommé par CrossTeamTodosPanel pour ouvrir son drawer détail.
   const [pendingTodoId, setPendingTodoId] = useState<string | null>(null);
@@ -1445,7 +1452,7 @@ export default function MyStructurePage() {
       msg += `\n\nIl sera aussi retiré de ${teamsImpacted.length} équipe${teamsImpacted.length > 1 ? 's' : ''} : ${teamsImpacted.map(t => t.name).slice(0, 5).join(', ')}${teamsImpacted.length > 5 ? '…' : ''}.`;
     }
     if (specialRoles.length > 0) {
-      msg += `\n\n⚠ Attention, ${memberName} est actuellement : ${specialRoles.join(' · ')}. Ce rôle sera perdu.`;
+      msg += `\n\nAttention, ${memberName} est actuellement : ${specialRoles.join(' · ')}. Ce rôle sera perdu.`;
     }
     msg += '\n\nCette action est irréversible : si tu veux le réintégrer, il devra refaire une demande.';
 
@@ -1578,6 +1585,12 @@ export default function MyStructurePage() {
                   <div className="flex items-center gap-1.5">
                     <StatusIcon size={12} style={{ color: statusInfo.color }} />
                     <span className="t-mono text-xs" style={{ color: statusInfo.color }}>{statusInfo.label}</span>
+                    {/* Date de validation relogée ici depuis l'ex-panel INFORMATIONS */}
+                    {s.validatedAt && (
+                      <span className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                        · validée le {new Date(s.validatedAt).toLocaleDateString('fr-FR')}
+                      </span>
+                    )}
                   </div>
                   <span style={{ color: 'var(--s-text-muted)' }}>·</span>
                   <div className="flex gap-1.5">

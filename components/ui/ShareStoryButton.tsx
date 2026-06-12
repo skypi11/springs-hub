@@ -10,7 +10,7 @@
  * 2. Réponse → Blob → URL.createObjectURL → invisible <a download> cliqué
  *    programmatiquement. Permet d'afficher un état loading pendant le fetch
  *    et de gérer les erreurs proprement (toast).
- * 3. Toast feedback : "Téléchargement…" → "Image prête, upload-la en story !"
+ * 3. Toast feedback : "Téléchargement…" → "Image prête à poster en story"
  *    ou "Impossible de générer l'image" en cas d'erreur.
  *
  * Fallback si fetch+blob échoue (CORS, navigateur ancien) :
@@ -99,7 +99,7 @@ export default function ShareStoryButton({
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        toast.success('Image prête, upload-la en story !');
+        toast.success('Image prête à poster en story');
       } finally {
         // Laisse un court délai pour que le navigateur ait amorcé le download
         // avant de révoquer l'URL (sinon Firefox annule parfois).

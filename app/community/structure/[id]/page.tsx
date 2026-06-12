@@ -565,7 +565,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
     <ShareButton
       url={shareUrl}
       title={shareTitle}
-      text={`Découvre ${structure.name} sur Aedral`}
+      text={`${structure.name} sur Aedral`}
       size="md"
       variant="ghost"
     />

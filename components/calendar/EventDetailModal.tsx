@@ -22,7 +22,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
 import {
   Loader2, Clock, CheckCircle, XCircle, MapPin, Target,
-  Trash2, User, ListTodo, Pencil,
+  Trash2, User, ListTodo, Pencil, Swords, Gamepad2,
 } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
@@ -235,7 +235,7 @@ export default function EventDetailModal({
               {event.type === 'match' && event.adversaire && (
                 <span className="tag"
                   style={{ background: 'rgba(255,184,0,0.18)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.5)', fontSize: '12px', padding: '2px 8px' }}>
-                  ⚔ MATCH OFFICIEL
+                  <Swords size={11} /> MATCH OFFICIEL
                 </span>
               )}
               <span className="tag" style={{ background: `${typeInfo.color}15`, color: typeInfo.color, borderColor: `${typeInfo.color}35`, fontSize: '12px', padding: '2px 8px' }}>
@@ -349,7 +349,7 @@ export default function EventDetailModal({
                   <div className="flex items-center gap-2 mb-1">
                     <span className="tag"
                       style={{ background: 'rgba(0,129,255,0.15)', color: 'var(--s-blue)', borderColor: 'rgba(0,129,255,0.4)', fontSize: '12px', padding: '2px 8px' }}>
-                      🎮 PARTIE
+                      <Gamepad2 size={11} /> PARTIE
                     </span>
                     {hostLabel && (
                       <span className="text-xs font-semibold" style={{ color: 'var(--s-text)' }}>

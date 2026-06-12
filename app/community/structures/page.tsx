@@ -256,7 +256,7 @@ function StructureItem({ s, match }: { s: StructureCard; match: boolean }) {
 
   return (
     <Link href={getStructureHref(s)}
-      className="pillar-card panel bevel relative overflow-hidden group transition-all duration-200"
+      className="pillar-card panel bevel relative overflow-hidden group transition-all duration-200 flex flex-col"
       style={{
         background: 'var(--s-surface)',
         border: match ? '1px solid rgba(0,217,54,0.55)' : '1px solid var(--s-border)',
@@ -265,30 +265,27 @@ function StructureItem({ s, match }: { s: StructureCard; match: boolean }) {
       <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${accentColor}, transparent 70%)` }} />
       <div className="absolute top-0 right-0 w-40 h-40 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200"
         style={{ background: `radial-gradient(circle at 100% 0%, ${glowColor}, transparent 70%)` }} />
-      <div className="relative z-[1] p-5">
+      {/* flex-col + footer mt-auto : les footers des cards d'une même rangée
+          restent alignés en bas même quand un nom wrap sur 2 lignes. */}
+      <div className="relative z-[1] p-5 flex flex-col flex-1">
         <div className="flex items-center gap-4 mb-4">
-          <div className="w-14 h-14 flex-shrink-0 relative overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-            {s.logoUrl ? (
-              <Image src={s.logoUrl} alt={s.name} fill className="object-contain p-1" unoptimized />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <Shield size={20} style={{ color: 'var(--s-text-muted)' }} />
-              </div>
-            )}
-          </div>
+          <CardLogo logoUrl={s.logoUrl} name={s.name} />
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="font-display text-lg tracking-wider truncate">{s.name}</h3>
-              <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 5px', flexShrink: 0 }}>{s.tag}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
+            {/* Nom en pleine largeur (audit 12/06 : 6 cards sur 11 tronquaient
+                « ARAN ESPO… » alors que la ligne était à moitié vide) ; le tag
+                rejoint la ligne des jeux. */}
+            {/* break-words + clamp 2 lignes : pleine largeur sans clip brutal
+                (nom 50 chars sans espace) ni cards de hauteurs anarchiques. */}
+            <h3 className="font-display text-lg tracking-wider leading-tight mb-1 break-words line-clamp-2">{s.name}</h3>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 5px' }}>{s.tag}</span>
               {s.games.map(g => (
                 <GameTag key={g} gameId={g} style={{ padding: '1px 6px' }} />
               ))}
             </div>
           </div>
         </div>
-        <div className="flex items-center justify-between pt-3" style={{ borderTop: '1px dashed var(--s-border)' }}>
+        <div className="flex items-center justify-between pt-3 mt-auto" style={{ borderTop: '1px dashed var(--s-border)' }}>
           <div className="flex items-center gap-1.5">
             <Users size={12} style={{ color: 'var(--s-text-muted)' }} />
             <span className="t-mono text-xs" style={{ color: 'var(--s-text-dim)' }}>
@@ -317,6 +314,26 @@ function StructureItem({ s, match }: { s: StructureCard; match: boolean }) {
         </div>
       </div>
     </Link>
+  );
+}
+
+/** Logo de card avec fallback : si l'URL est morte (hotlink expiré type
+ *  i.postimg.cc), on affiche le monogramme Shield au lieu de l'alt text brut
+ *  qui faisait négligé dans l'annuaire (audit 12/06). */
+function CardLogo({ logoUrl, name }: { logoUrl: string | null | undefined; name: string }) {
+  const [broken, setBroken] = useState(false);
+  const showImage = !!logoUrl && !broken;
+  return (
+    <div className="w-14 h-14 flex-shrink-0 relative overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+      {showImage ? (
+        <Image src={logoUrl} alt={name} fill className="object-contain p-1" unoptimized
+          onError={() => setBroken(true)} />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center">
+          <Shield size={20} style={{ color: 'var(--s-text-muted)' }} />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -351,7 +368,7 @@ function EmptyState({
         </h3>
         <p className="t-body mb-6 max-w-md mx-auto" style={{ color: 'var(--s-text-dim)' }}>
           {totalCount === 0
-            ? 'Sois le premier à créer une structure sur Aedral et donne vie à la scène !'
+            ? 'Aucune structure validée pour l\u2019instant.'
             : 'Aucune structure ne correspond au filtre actuel.'}
         </p>
         <Link href="/community/create-structure" className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2">

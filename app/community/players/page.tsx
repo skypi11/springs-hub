@@ -366,9 +366,9 @@ export default function PlayersPage() {
 
   return (
     <div className="min-h-screen hex-bg px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-6">
-      <CompactStickyHeader icon={User} title="Joueurs" accent="var(--s-gold)" />
+      <CompactStickyHeader icon={User} title="Mercato" accent="var(--s-gold)" />
       <div className="relative z-[1] space-y-6">
-        <Breadcrumbs items={[{ label: 'Communauté', href: '/community' }, { label: 'Joueurs' }]} />
+        <Breadcrumbs items={[{ label: 'Communauté', href: '/community' }, { label: 'Mercato' }]} />
 
         {/* Header compact */}
         <header className="bevel relative overflow-hidden animate-fade-in"
@@ -380,7 +380,7 @@ export default function PlayersPage() {
                 <User size={18} style={{ color: 'var(--s-gold)' }} />
               </div>
               <div>
-                <h1 className="font-display text-xl tracking-wider leading-none">JOUEURS</h1>
+                <h1 className="font-display text-xl tracking-wider leading-none">MERCATO</h1>
                 <p className="t-mono text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
                   {loading ? 'Chargement…' : `${allPlayers.length}${playersQ.hasNextPage ? '+' : ''} joueur${allPlayers.length > 1 ? 's' : ''} chargé${allPlayers.length > 1 ? 's' : ''}`}
                 </p>
@@ -411,7 +411,7 @@ export default function PlayersPage() {
 
             <FilterChip active={recruitingFilter} onClick={() => setRecruitingFilter(!recruitingFilter)} color="green">
               <Star size={10} style={{ marginRight: '4px' }} />
-              Dispo au recrutement
+              LFT
             </FilterChip>
 
             <SortDropdown value={sortKey} onChange={setSortKey} hasMatches={viewerOpenPositions.length > 0} />
@@ -894,7 +894,7 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
             </IconButton>
             {showInvite && (
               <IconButton onClick={onGenerateLink} active={linkCopied} accent="#33ff66"
-                title={linkCopied ? 'Lien copié !' : "Générer un lien d'invitation"}>
+                title={linkCopied ? 'Lien copié' : "Générer un lien d'invitation"}>
                 {linkCopied ? <Check size={13} /> : <Link2 size={13} />}
               </IconButton>
             )}
@@ -1216,7 +1216,7 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
             </IconButton>
             {showInvite && (
               <IconButton onClick={onGenerateLink} active={linkCopied} accent="#33ff66"
-                title={linkCopied ? 'Lien copié !' : "Générer un lien d'invitation"}>
+                title={linkCopied ? 'Lien copié' : "Générer un lien d'invitation"}>
                 {linkCopied ? <Check size={13} /> : <Link2 size={13} />}
               </IconButton>
             )}
@@ -1248,7 +1248,7 @@ function EmptyState({ hasFilters, totalCount, onReset }: { hasFilters: boolean; 
         </h3>
         <p className="t-body mb-6 max-w-md mx-auto" style={{ color: 'var(--s-text-dim)' }}>
           {totalCount === 0
-            ? 'Sois le premier joueur Aedral, crée ton profil et rejoins la communauté.'
+            ? 'Aucun joueur inscrit pour l\u2019instant.'
             : "Personne n'est marqué comme disponible au recrutement pour l'instant."}
         </p>
         <Link href="/settings" className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2">

@@ -21,7 +21,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, Plus, Users, Save } from 'lucide-react';
+import { Loader2, Plus, Users, Save, Swords, Gamepad2, Trophy } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { track } from '@/lib/analytics';
 import { useToast } from '@/components/ui/Toast';
@@ -827,7 +827,7 @@ export default function EventFormModal({
               <div className="flex items-center gap-2">
                 <span className="tag"
                   style={{ background: 'rgba(255,184,0,0.15)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.4)', fontSize: '12px', padding: '2px 8px' }}>
-                  ⚔ MATCH OFFICIEL
+                  <Swords size={11} /> MATCH OFFICIEL
                 </span>
                 <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
                   Affiché avec mise en avant côté site et Discord.
@@ -882,7 +882,7 @@ export default function EventFormModal({
               <div className="flex items-center gap-2">
                 <span className="tag"
                   style={{ background: 'rgba(0,129,255,0.15)', color: 'var(--s-blue)', borderColor: 'rgba(0,129,255,0.4)', fontSize: '12px', padding: '2px 8px' }}>
-                  🎮 PARTIE
+                  <Gamepad2 size={11} /> PARTIE
                 </span>
                 <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
                   Infos d&apos;accès à la lobby (visibles uniquement aux invités).
@@ -982,7 +982,7 @@ export default function EventFormModal({
               <div className="flex items-center gap-2">
                 <span className="tag"
                   style={{ background: 'rgba(0,217,181,0.15)', color: '#00D9B5', borderColor: 'rgba(0,217,181,0.4)', fontSize: '12px', padding: '2px 8px' }}>
-                  🏆 TOURNOI
+                  <Trophy size={11} /> TOURNOI
                 </span>
                 <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
                   Compétition externe ou interne, détails optionnels.

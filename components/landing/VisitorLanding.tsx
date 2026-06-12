@@ -73,7 +73,10 @@ export default function VisitorLanding({ stats }: { stats: PublicStats | null })
 // ─────────────────────────────────────────────────────────────────────────
 // HERO
 // ─────────────────────────────────────────────────────────────────────────
-function HeroSection({ stats }: { stats: PublicStats | null }) {
+// `stats` n'est plus rendu depuis le retrait de la bande de compteurs (audit
+// 12/06) — la prop est conservée pour la future bande de logos de structures.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function HeroSection({ stats: _stats }: { stats: PublicStats | null }) {
   const { signInWithDiscord } = useAuth();
 
   return (
@@ -121,7 +124,7 @@ function HeroSection({ stats }: { stats: PublicStats | null }) {
           <p className="t-body mb-8 max-w-2xl" style={{ fontSize: '17px', lineHeight: 1.6, color: 'var(--s-text-dim)' }}>
             Aedral réunit structures, joueurs et compétitions de l&apos;écosystème
             amateur en un seul endroit : recrutement, gestion d&apos;équipe, calendrier,
-            tournois. Tout ce qu&apos;il faut pour faire vivre ta passion.
+            tournois.
           </p>
 
           <SupportedGamesStrip />
@@ -138,11 +141,9 @@ function HeroSection({ stats }: { stats: PublicStats | null }) {
             </a>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 sm:gap-6 lg:gap-12 w-full max-w-2xl">
-            <StatBlock value={stats?.structures ?? null} label="Structures" />
-            <StatBlock value={stats?.players ?? null} label="Joueurs" />
-            <StatBlock value={competitions.length} label="Compétitions" />
-          </div>
+          {/* La bande de compteurs a été retirée (audit 12/06) : les « — » de
+              chargement et les petits chiffres desservaient la crédibilité.
+              À remplacer plus tard par les logos des structures actives. */}
         </div>
       </div>
     </section>
@@ -177,18 +178,6 @@ function SupportedGamesStrip() {
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function StatBlock({ value, label }: { value: number | null; label: string }) {
-  return (
-    <div className="text-center">
-      <div className={`font-display mb-1 ${value !== null ? 'stat-value' : ''}`}
-        style={{ fontSize: 'clamp(2rem, 4vw, 2.75rem)', color: 'var(--s-gold)', letterSpacing: '0.02em' }}>
-        {value === null ? '—' : value}
-      </div>
-      <div className="t-label" style={{ color: 'var(--s-text-muted)' }}>{label}</div>
     </div>
   );
 }
@@ -301,7 +290,7 @@ function StructuresSection() {
     },
     {
       icon: Shield,
-      title: 'Roster + sous-équipes',
+      title: 'Roster + équipes',
       desc: 'Plusieurs équipes par jeu, titulaires/remplaçants, rôles coach et manager attribués finement.',
       accent: '#FFB800',
       mockup: <RosterMockup />,
@@ -374,8 +363,8 @@ const showcaseShots = [
   {
     src: '/landing/joueurs.webp',
     alt: 'Annuaire des joueurs',
-    tag: 'Vivier joueurs',
-    title: 'Tout le vivier en un coup d\'œil',
+    tag: 'Mercato',
+    title: 'Tout le mercato en un coup d\'œil',
     desc: 'Cards des joueurs avec rang, jeux, dispo recrutement. Filtres par jeu, par tag. Recrute sans avoir à passer 3h sur Discord.',
   },
   {
@@ -403,8 +392,8 @@ const showcaseShots = [
     src: '/landing/stockage.webp',
     alt: 'Tab documents d\'une structure',
     tag: 'Documents',
-    title: 'Stockage R2 par structure',
-    desc: 'Stratégies, replays, contrats, charte interne. Organisés en dossiers, accessibles à toute l\'équipe. Hosted sur Cloudflare R2, jamais perdu.',
+    title: 'Stockage d\'équipe',
+    desc: 'Stratégies, replays, contrats, charte interne. Organisés en dossiers, accessibles à toute l\'équipe.',
   },
 ];
 
@@ -680,11 +669,10 @@ function FaqCtaSection() {
 
           <div className="relative z-[1]">
             <h2 className="t-display mb-4" style={{ fontSize: 'clamp(1.75rem, 4vw, 2.5rem)' }}>
-              REJOINS L&apos;ÉCOSYSTÈME.
+              TROUVE TON ÉQUIPE OU MONTE LA TIENNE.
             </h2>
             <p className="t-body mb-8 max-w-lg mx-auto" style={{ fontSize: '15px', color: 'var(--s-text-dim)' }}>
-              Crée ton profil en 30 secondes avec Discord. Pas de carte bancaire,
-              pas d&apos;engagement, juste l&apos;esport.
+              Connexion Discord en 30 secondes. Gratuit.
             </p>
             <div className="flex items-center gap-3 flex-wrap justify-center">
               <button onClick={() => signInWithDiscord()} type="button"

@@ -141,7 +141,7 @@ export default function AdminRankReportsPage() {
       {visible.length === 0 && (
         <div className="panel p-8 text-center">
           <p className="t-body" style={{ color: 'var(--s-text-muted)' }}>
-            {filter === 'pending' ? 'Aucun signalement à traiter, ✓ propre.' : 'Aucun signalement.'}
+            {filter === 'pending' ? 'Aucun signalement à traiter.' : 'Aucun signalement.'}
           </p>
         </div>
       )}
@@ -207,7 +207,7 @@ export default function AdminRankReportsPage() {
                       style={{ color: abuseRisk ? '#ff8a8a' : 'var(--s-text-muted)' }}
                       title="Historique des signalements de ce reporter (résolus = légitimes, rejetés = abusifs)"
                     >
-                      {abuseRisk && '⚠️ '}Reporter : {s.total} signalements, {s.resolved} résolu{s.resolved > 1 ? 's' : ''}, {s.dismissed} rejeté{s.dismissed > 1 ? 's' : ''}
+                      Reporter : {s.total} signalements, {s.resolved} résolu{s.resolved > 1 ? 's' : ''}, {s.dismissed} rejeté{s.dismissed > 1 ? 's' : ''}
                       {s.pending > 0 ? `, ${s.pending} en attente` : ''}
                       {abuseRisk && ' (potentiel signalement abusif)'}
                     </p>

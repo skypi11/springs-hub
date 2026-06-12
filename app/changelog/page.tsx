@@ -146,7 +146,7 @@ export default function ChangelogPage() {
             <div className="min-w-0">
               <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl" style={{ letterSpacing: '0.04em' }}>NOUVEAUTÉS</h1>
               <p className="t-body mt-1" style={{ color: 'var(--s-text-dim)' }}>
-                Tout ce qui a changé sur Aedral, dans l'ordre du plus récent. Filtre par catégorie pour zoomer sur un type de changement.
+                Tout ce qui a changé sur Aedral, du plus récent au plus ancien.
               </p>
             </div>
           </div>

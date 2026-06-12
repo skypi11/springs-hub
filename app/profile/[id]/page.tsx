@@ -14,6 +14,7 @@ import {
   Trophy, History, Sparkles, ShieldAlert,
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
+import CountryFlag from '@/components/ui/CountryFlag';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import ShareButton from '@/components/ui/ShareButton';
 import ShareStoryButton from '@/components/ui/ShareStoryButton';
@@ -52,19 +53,6 @@ const ROLE_LABELS: Record<string, string> = {
 const TEAM_ROLE_LABELS: Record<string, string> = {
   joueur: 'Joueur', remplacant: 'Remplaçant', coach: 'Coach', manager: 'Manager', capitaine: 'Capitaine',
 };
-
-function CountryFlag({ code, size = 16 }: { code: string; size?: number }) {
-  if (!code || code === 'OTHER') return <span>🌍</span>;
-  return (
-    <img
-      src={`https://flagcdn.com/w40/${code.toLowerCase()}.png`}
-      alt={code}
-      width={size}
-      height={Math.round(size * 0.75)}
-      style={{ display: 'inline-block', verticalAlign: 'middle' }}
-    />
-  );
-}
 
 export default function ProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -351,7 +339,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                   ))}
                   {profile.isAvailableForRecruitment && (
                     <span className="tag tag-gold">
-                      <Search size={9} /> Disponible
+                      <Search size={9} /> LFT
                     </span>
                   )}
                 </div>
@@ -435,7 +423,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
               <ShareButton
                 url={`https://aedral.com/profile/${profile.slug || profile.uid}`}
                 title={profile.displayName || 'Joueur'}
-                text={`Découvre ${profile.displayName || 'ce joueur'} sur Aedral`}
+                text={`${profile.displayName || 'Joueur'} sur Aedral`}
                 size="md"
                 variant="ghost"
               />
@@ -468,7 +456,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
         {/* ─── BIO ───────────────────────────────────────────────────────── */}
         {profile.bio && (
-          <div className="pillar-card panel relative overflow-hidden">
+          <div className="panel relative overflow-hidden">
             <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.15), transparent 60%)' }} />
             <div className="relative z-[1]">
               <div className="panel-header">
@@ -656,32 +644,9 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       </div>
                     )}
 
-                    {/* ─── STATS AGRÉGÉES (placeholder) ─────────────────────
-                        Prévu pour quand un joueur aura assez de replays parsés
-                        via ballchasing. Pour l'instant on affiche un teaser
-                        "à venir" pour montrer le slot futur. */}
-                    <div
-                      className="relative overflow-hidden p-4"
-                      style={{
-                        background: 'var(--s-elevated)',
-                        border: '1px dashed rgba(0,129,255,0.25)',
-                      }}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-10 h-10 flex items-center justify-center bevel-sm flex-shrink-0"
-                          style={{ background: 'rgba(0,129,255,0.08)', border: '1px solid rgba(0,129,255,0.2)' }}
-                        >
-                          <Trophy size={16} style={{ color: 'var(--s-blue)' }} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="t-label mb-0.5" style={{ color: 'var(--s-blue)' }}>STATS AGRÉGÉES · À VENIR</p>
-                          <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                            Moyennes buts / saves / assists / possession dès que ses replays seront analysés sur Aedral.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+                    {/* Stats agrégées (moyennes buts/saves/assists via ballchasing) :
+                        le slot apparaîtra ici au ship réel — règle « zéro vaporware »
+                        (audit 12/06), pas de bloc « à venir » dans l'UI produit. */}
 
                     {/* Boutons tracker.gg & Ballchasing, en pill buttons distincts (plus de présence) */}
                     {effective && (trackerHref || ballchasingHref) && (
@@ -1021,7 +986,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
               {/* Recrutement (uniquement si dispo) */}
               {profile.isAvailableForRecruitment && (
-                <div className="pillar-card panel relative overflow-hidden">
+                <div className="panel relative overflow-hidden">
                   <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
                   <div className="absolute top-0 right-0 w-[150px] h-[150px] pointer-events-none opacity-[0.06]"
                     style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
@@ -1061,7 +1026,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
               {/* Structure(s), utilise sortedStructures (triées par hiérarchie de rôle) */}
               {sortedStructures.length > 0 && (
-                <div className="pillar-card panel relative overflow-hidden">
+                <div className="panel relative overflow-hidden">
                   <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.15), transparent 60%)' }} />
                   <div className="relative z-[1]">
                     <div className="panel-header">
@@ -1132,7 +1097,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
               {/* Comptes & liens, version compacte (chips inline) */}
               {visibleConnections.length > 0 && (
-                <div className="pillar-card panel relative overflow-hidden">
+                <div className="panel relative overflow-hidden">
                   <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
                   <div className="relative z-[1]">
                     <div className="panel-header">
@@ -1235,7 +1200,7 @@ function SpringsHistoryPanel({
   const loading = history === null;
 
   return (
-    <div className="pillar-card panel bevel-sm relative overflow-hidden animate-fade-in-d2"
+    <div className="panel bevel-sm relative overflow-hidden animate-fade-in-d2"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
       <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), var(--s-gold), transparent 80%)' }} />
       <div className="absolute top-0 right-0 w-[200px] h-[200px] pointer-events-none opacity-[0.05]"

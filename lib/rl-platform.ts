@@ -22,7 +22,7 @@ export const RL_PLATFORMS: RLPlatformMeta[] = [
     label: 'Epic Games (PC)',
     idLabel: 'Pseudo Epic',
     idPlaceholder: 'TonPseudoEpic',
-    idHelp: '⚠️ Si tu changes ton pseudo Epic en jeu, pense à le mettre à jour ici (sinon le lien tracker.gg ne fonctionnera plus).',
+    idHelp: 'Si tu changes ton pseudo Epic en jeu, pense à le mettre à jour ici (sinon le lien tracker.gg ne fonctionnera plus).',
   },
   {
     value: 'steam',
@@ -36,21 +36,21 @@ export const RL_PLATFORMS: RLPlatformMeta[] = [
     label: 'PlayStation',
     idLabel: 'PSN ID',
     idPlaceholder: 'TonPsnId',
-    idHelp: '⚠️ Si tu changes ton PSN ID, pense à le mettre à jour ici.',
+    idHelp: 'Si tu changes ton PSN ID, pense à le mettre à jour ici.',
   },
   {
     value: 'xbox',
     label: 'Xbox',
     idLabel: 'Gamertag',
     idPlaceholder: 'Ton Gamertag',
-    idHelp: '⚠️ Si tu changes ton Gamertag Xbox, pense à le mettre à jour ici.',
+    idHelp: 'Si tu changes ton Gamertag Xbox, pense à le mettre à jour ici.',
   },
   {
     value: 'switch',
     label: 'Nintendo Switch',
     idLabel: 'Switch ID',
     idPlaceholder: 'Ton ID Switch',
-    idHelp: '⚠️ Note : la couverture Switch sur tracker.gg et Ballchasing est plus limitée que sur les autres plateformes.',
+    idHelp: 'Note : la couverture Switch sur tracker.gg et Ballchasing est plus limitée que sur les autres plateformes.',
   },
 ];
 

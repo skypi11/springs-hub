@@ -16,7 +16,7 @@ import { RolesHelpModal } from '@/components/structure/RoleInfoPanel';
 import { UPLOAD_LIMITS } from '@/lib/upload-limits';
 import type { MyStructure, TeamData } from '../types';
 import type { BannerFocus } from '@/types';
-import { SOCIAL_LABELS, STATUS_INFO } from '../constants';
+import { SOCIAL_LABELS } from '../constants';
 import { SectionPanel } from '../components';
 import GameTag from '@/components/games/GameTag';
 import { ALL_GAME_DEFS, getGameColor } from '@/lib/games-registry';
@@ -89,8 +89,6 @@ export function GeneralTab(props: GeneralTabProps) {
     handleSave, saving, saved, error,
     isDirigeantOfActive, collapsed, toggle, teams,
   } = props;
-
-  const statusInfo = STATUS_INFO[s.status] ?? STATUS_INFO.pending_validation;
 
   // Modal d'aide "Rôles & permissions", déclenchable depuis le bouton bas de
   // la sidebar droite. Permet aux dirigeants de consulter la matrice complète
@@ -235,7 +233,7 @@ export function GeneralTab(props: GeneralTabProps) {
                 </button>
                 {gamesDirty && (
                   <span className="text-xs" style={{ color: 'var(--s-gold)' }}>
-                    ⚠ Changement non enregistré
+                    Changement non enregistré
                   </span>
                 )}
                 {editGames.length === 0 && (
@@ -526,7 +524,7 @@ export function GeneralTab(props: GeneralTabProps) {
             className="btn-springs btn-primary bevel-sm flex items-center gap-2 px-6 py-3">
             {saving ? <Loader2 size={15} className="animate-spin" /> : saved ? <CheckCircle size={15} /> : <Save size={15} />}
             <span className="font-display text-sm tracking-wider">
-              {saving ? 'SAUVEGARDE...' : saved ? 'SAUVEGARDÉ !' : 'SAUVEGARDER'}
+              {saving ? 'SAUVEGARDE…' : saved ? 'SAUVEGARDÉ' : 'SAUVEGARDER'}
             </span>
           </button>
         </>)}
@@ -608,49 +606,10 @@ export function GeneralTab(props: GeneralTabProps) {
           </PublicPreviewFrame>
         )}
 
-        {/* INFORMATIONS */}
-        <div className="bevel relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
-          <div className="relative z-[1] px-5 py-3.5" style={{ borderBottom: '1px solid var(--s-border)' }}>
-            <div className="flex items-center gap-3">
-              <div className="w-7 h-7 flex items-center justify-center" style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.2)' }}>
-                <Shield size={13} style={{ color: 'var(--s-gold)' }} />
-              </div>
-              <span className="font-display text-sm tracking-wider">INFORMATIONS</span>
-            </div>
-          </div>
-          <div className="relative z-[1] p-5 space-y-3.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>Statut</span>
-              <span className="tag" style={{ background: `${statusInfo.color}12`, color: statusInfo.color, borderColor: `${statusInfo.color}35`, fontSize: '12px', padding: '2px 8px' }}>
-                {statusInfo.label}
-              </span>
-            </div>
-            <div className="divider" />
-            <div className="flex items-center justify-between">
-              <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>Jeux</span>
-              <div className="flex gap-1.5">
-                {s.games?.map(g => (
-                  <GameTag key={g} gameId={g} style={{ padding: '2px 6px' }} />
-                ))}
-              </div>
-            </div>
-            <div className="divider" />
-            <div className="flex items-center justify-between">
-              <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>Équipes</span>
-              <span className="font-display text-sm">{teams.length}</span>
-            </div>
-            {s.validatedAt && (
-              <>
-                <div className="divider" />
-                <div className="flex items-center justify-between">
-                  <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>Validée le</span>
-                  <span className="t-mono text-xs">{new Date(s.validatedAt).toLocaleDateString('fr-FR')}</span>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+        {/* Le panel INFORMATIONS a été supprimé (audit 12/06) : statut, jeux et
+            nombre d'équipes étaient déjà affichés dans le header de page, la
+            carte aperçu ci-dessus et les quick-stats ci-dessous — les jeux
+            apparaissaient 3 fois sur le même écran. Une info = un seul endroit. */}
 
         {/* Quick stats, un compteur par jeu de la structure, depuis la registry.
             Grille adaptée au nombre de jeux (max 4 par ligne pour rester lisible). */}

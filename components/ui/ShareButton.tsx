@@ -448,7 +448,7 @@ export default function ShareButton({
             {/* Items */}
             <ShareItem
               icon={copied ? <Check size={14} style={{ color: 'var(--s-gold)' }} /> : <Copy size={14} />}
-              label={copied ? 'Copié !' : 'Copier le lien'}
+              label={copied ? 'Copié' : 'Copier le lien'}
               onClick={handleCopyLink}
               accent={copied}
             />

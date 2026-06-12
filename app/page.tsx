@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Trophy, ExternalLink, Calendar, Gamepad2, UserPlus, Shield, ChevronRight, Users } from 'lucide-react';
+import { Trophy, ExternalLink, Calendar, Gamepad2, UserPlus, Shield, Users } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
@@ -53,16 +53,11 @@ type Pillar = {
   id: PillarId;
   icon: typeof Shield;
   title: string;
-  tag: string;
-  tagClass: string;
   accent: string;
   iconColor: string;
   desc: string;
-  features: string[];
   href: string;
   statLabel: string;
-  /** Optional partner attribution displayed at bottom-left of the card. Defaults to "Aedral". */
-  partnerLabel?: string;
 };
 
 const pillars: Pillar[] = [
@@ -70,25 +65,19 @@ const pillars: Pillar[] = [
     id: 'structures',
     icon: Shield,
     title: 'STRUCTURES',
-    tag: 'Gestion',
-    tagClass: 'tag-gold',
     accent: '#FFB800',
     iconColor: 'var(--s-gold)',
-    desc: 'Crée ta structure, gère ton roster et tes équipes. Inscris-toi aux compétitions.',
-    features: ['Roster', 'Équipes', 'Planning', 'Inscriptions'],
+    desc: 'Crée ta structure, gère ton roster et tes équipes.',
     href: '/community/structures',
     statLabel: 'Structures',
   },
   {
     id: 'players',
     icon: UserPlus,
-    title: 'VIVIER JOUEURS',
-    tag: 'Recrutement',
-    tagClass: 'tag-neutral',
+    title: 'MERCATO',
     accent: '#EAEAF0',
     iconColor: 'var(--s-text)',
-    desc: 'Annuaire des joueurs de l\'écosystème. Profils, rangs, disponibilité pour le recrutement.',
-    features: ['Profils', 'Rangs', 'Recrutement', 'Disponibilité'],
+    desc: 'Annuaire des joueurs : profils, rangs, LFT.',
     href: '/community/players',
     statLabel: 'Joueurs',
   },
@@ -96,15 +85,11 @@ const pillars: Pillar[] = [
     id: 'competitions',
     icon: Trophy,
     title: 'COMPÉTITIONS',
-    tag: 'Événements',
-    tagClass: 'tag-violet',
     accent: '#7B2FBE',
     iconColor: 'var(--s-violet-light)',
-    desc: 'Saisons, cups, tournois Springs E-Sport. Classements, résultats, inscriptions connectées aux structures.',
-    features: ['Rocket League', 'Trackmania'],
+    desc: 'Saisons, cups et tournois Springs E-Sport. Inscriptions connectées aux structures.',
     href: '/competitions',
     statLabel: 'Actives',
-    partnerLabel: 'Springs E-Sport',
   },
 ];
 
@@ -178,11 +163,7 @@ export default function HomePage() {
                       </span>
                     )}
                   </div>
-                  <div className="divider mb-4 mt-6" style={{ background: 'rgba(255,255,255,0.1)' }} />
-                  <div className="flex items-center justify-between">
-                    <span className="t-label flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                      <ExternalLink size={10} /> springs-esport.vercel.app
-                    </span>
+                  <div className="flex items-center justify-end mt-6">
                     <span className="btn-springs btn-secondary bevel-sm transition-all group-hover:border-[rgba(255,255,255,0.4)]"
                       style={{ padding: '7px 16px', fontSize: '12px', borderColor: 'rgba(255,255,255,0.2)' }}>
                       Ouvrir <ExternalLink size={11} />
@@ -200,59 +181,37 @@ export default function HomePage() {
             <span className="t-label">Explorer l&apos;écosystème</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {pillars.map(({ id, icon: Icon, title, tag, tagClass, accent, iconColor, desc, features, href, statLabel, partnerLabel }) => {
+          {/* Cards niveau 2 (audit anti-slop 12/06) : titre dit UNE fois, ni
+              tag catégorie, ni chips marketing, ni footer attribution. Le hover
+              .pillar-card reste : ce sont de vrais liens. */}
+          {/* md:2 colonnes, xl:3 — en 3 colonnes dès md, le titre Bebas insécable
+              + le bloc stat débordaient sur iPad/laptops 1024-1200px (review 12/06). */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {pillars.map(({ id, icon: Icon, title, accent, iconColor, desc, href, statLabel }) => {
               const stat = statsByPillar[id];
               return (
               <Link key={title} href={href}
                 className="pillar-card panel group block relative overflow-hidden transition-all duration-200"
                 style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-                <div className="h-[3px]"
-                  style={{ background: `linear-gradient(90deg, ${accent}, ${accent}50, transparent 70%)` }} />
-                <div className="absolute top-0 right-0 w-[200px] h-[200px] pointer-events-none opacity-[0.07] transition-opacity duration-300 group-hover:opacity-[0.12]"
-                  style={{ background: `radial-gradient(circle at top right, ${accent}, transparent 70%)` }} />
-                <div className="relative z-[1]">
-                  <div className="panel-header">
-                    <div className="flex items-center gap-2">
-                      <Icon size={13} style={{ color: iconColor }} />
-                      <span className="t-label" style={{ color: 'var(--s-text)' }}>{title}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {partnerLabel && <span className="tag tag-violet">{partnerLabel}</span>}
-                      <span className={`tag ${tagClass}`}>{tag}</span>
-                    </div>
+                <div className="p-5 flex items-start gap-4">
+                  <div className="p-3 flex-shrink-0" style={{ background: `${accent}10`, border: `1px solid ${accent}25` }}>
+                    <Icon size={22} style={{ color: iconColor }} />
                   </div>
-                  <div className="p-5">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="p-3" style={{ background: `${accent}10`, border: `1px solid ${accent}25` }}>
-                        <Icon size={22} style={{ color: iconColor }} />
-                      </div>
-                      <div className="text-right">
+                  <div className="flex-1 min-w-0">
+                    {/* items-start (pas baseline) : le skeleton sans baseline faisait
+                        sauter le titre de ~15px au chargement de la stat. */}
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <h3 className="font-display text-xl" style={{ letterSpacing: '0.03em', color: 'var(--s-text)' }}>{title}</h3>
+                      <div className="text-right flex-shrink-0">
                         {stat === null ? (
-                          <div className="ml-auto" style={{ width: 48, height: 30 }}>
-                            <SkeletonText width={48} height={30} />
-                          </div>
+                          <SkeletonText width={40} height={24} />
                         ) : (
-                          <span className="font-display text-3xl block" style={{ color: accent, letterSpacing: '0.02em', lineHeight: 1 }}>{stat}</span>
+                          <span className="font-display text-2xl" style={{ color: accent, letterSpacing: '0.02em', lineHeight: 1 }}>{stat}</span>
                         )}
-                        <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>{statLabel}</span>
+                        <span className="t-label block" style={{ color: 'var(--s-text-muted)' }}>{statLabel}</span>
                       </div>
                     </div>
-                    <h3 className="font-display text-xl mb-2" style={{ letterSpacing: '0.03em', color: 'var(--s-text)' }}>{title}</h3>
-                    <p className="text-sm mb-4" style={{ color: 'var(--s-text-dim)' }}>{desc}</p>
-                    <div className="flex items-center gap-2 flex-wrap mb-4">
-                      {features.map(f => (
-                        <span key={f} className="tag tag-neutral">{f}</span>
-                      ))}
-                    </div>
-                    <div className="divider mb-3" />
-                    <div className="flex items-center justify-between">
-                      <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>{partnerLabel ?? 'Aedral'}</span>
-                      <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors group-hover:text-white"
-                        style={{ color: iconColor }}>
-                        Explorer <ChevronRight size={13} className="transition-transform group-hover:translate-x-0.5" />
-                      </span>
-                    </div>
+                    <p className="text-sm mt-1.5" style={{ color: 'var(--s-text-dim)' }}>{desc}</p>
                   </div>
                 </div>
               </Link>

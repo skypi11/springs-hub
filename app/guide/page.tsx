@@ -206,7 +206,8 @@ export default function GuidePage() {
     <div className="hex-bg min-h-screen">
       <CompactStickyHeader icon={BookOpen} title="Guide" accent="var(--s-gold)" />
       <div className="px-4 sm:px-8 py-6 space-y-8">
-        <Breadcrumbs items={[{ label: 'Accueil', href: '/' }, { label: 'Guide' }]} />
+        {/* Breadcrumbs préfixe déjà « Accueil » tout seul — ne pas le repasser */}
+        <Breadcrumbs items={[{ label: 'Guide' }]} />
 
         {/* Hero */}
         <header className="bevel relative overflow-hidden animate-fade-in"

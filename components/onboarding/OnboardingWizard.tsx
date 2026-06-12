@@ -158,7 +158,7 @@ export default function OnboardingWizard({ onClose }: { onClose: () => void }) {
         recruitmentOpen: !!data.isAvailableForRecruitment,
       });
       await refreshProfile();
-      toast.success('Bienvenue sur Aedral !');
+      toast.success('Bienvenue sur Aedral');
       onClose();
       router.push('/');
     } catch (err) {

@@ -867,19 +867,16 @@ export default function SettingsPage() {
               <SharingSection user={user} onSaved={refreshProfile} />
             )}
 
-            {/* PROFIL */}
+            {/* PROFIL — panel nu (audit 12/06) : formulaire statique, pas de
+                hover-lift ni chrome décoratif ; l'astérisque dit déjà « obligatoire ». */}
             {section === 'profile' && (
-              <div className="pillar-card panel relative group transition-all duration-200 animate-fade-in">
-                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
-                <div className="absolute top-0 right-0 w-[180px] h-[180px] pointer-events-none opacity-[0.05]"
-                  style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
+              <div className="panel relative animate-fade-in">
                 <div className="relative z-[1]">
                   <div className="panel-header">
                     <div className="flex items-center gap-2">
                       <User size={13} style={{ color: 'var(--s-gold)' }} />
                       <span className="t-label" style={{ color: 'var(--s-text)' }}>IDENTITÉ</span>
                     </div>
-                    <span className="tag tag-gold" style={{ fontSize: '12px' }}>OBLIGATOIRE</span>
                   </div>
                   <div className="p-5 space-y-5">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -935,17 +932,15 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* JEUX */}
+            {/* JEUX — panel nu, la validation dit déjà « min. 1 » si besoin */}
             {section === 'games' && (
-              <div className="pillar-card panel relative overflow-hidden group transition-all duration-200 animate-fade-in">
-                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.2), transparent 60%)' }} />
+              <div className="panel relative overflow-hidden animate-fade-in">
                 <div className="relative z-[1]">
                   <div className="panel-header">
                     <div className="flex items-center gap-2">
                       <Gamepad2 size={13} style={{ color: 'var(--s-text-dim)' }} />
                       <span className="t-label" style={{ color: 'var(--s-text)' }}>JEUX PRATIQUÉS</span>
                     </div>
-                    <span className="tag tag-neutral" style={{ fontSize: '12px' }}>MIN. 1</span>
                   </div>
                   <div className="p-5 space-y-4">
                     {/* Pickers générés depuis la registry, ajouter un jeu dans
@@ -1054,7 +1049,6 @@ export default function SettingsPage() {
                                     <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
                                       Compte Rocket League vérifié
                                     </span>
-                                    <span className="tag tag-gold" style={{ fontSize: '12px', padding: '2px 6px' }}>✓ FIGÉ</span>
                                   </div>
                                   <div className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
                                     <span className="font-semibold" style={{ color: 'var(--s-text)' }}>
@@ -1067,7 +1061,7 @@ export default function SettingsPage() {
                                   {epicMissingFromDiscord && (
                                     <div className="p-2" style={{ background: 'rgba(255,85,85,0.08)', border: '1px solid rgba(255,85,85,0.25)' }}>
                                       <p className="text-xs" style={{ color: '#ff8a8a' }}>
-                                        ⚠️ On ne retrouve plus ce compte Epic sur ton Discord. Relie-le à nouveau (Paramètres Discord → Connexions → Epic Games) pour qu'on puisse rafraîchir ton pseudo automatiquement.
+                                        On ne retrouve plus ce compte Epic sur ton Discord. Relie-le à nouveau (Paramètres Discord → Connexions → Epic Games) pour qu'on puisse rafraîchir ton pseudo automatiquement.
                                       </p>
                                     </div>
                                   )}
@@ -1256,7 +1250,6 @@ export default function SettingsPage() {
                                     <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
                                       Compte Steam Rocket League vérifié
                                     </span>
-                                    <span className="tag tag-gold" style={{ fontSize: '12px', padding: '2px 6px' }}>✓ FIGÉ</span>
                                   </div>
                                   <div className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
                                     <span className="font-semibold" style={{ color: 'var(--s-text)' }}>
@@ -1397,7 +1390,7 @@ export default function SettingsPage() {
                                   </p>
                                 ) : (
                                   <p className="text-xs mt-1.5" style={{ color: '#ff8a8a' }}>
-                                    ⚠️ Lie d'abord ton compte Rocket League (Epic ou Steam ci-dessus) pour que ton rang soit affichable. Un rang sans preuve ne vaut rien et ne sera pas montré sur ta fiche publique.
+                                    Lie d'abord ton compte Rocket League (Epic ou Steam ci-dessus) pour que ton rang soit affichable. Un rang sans preuve ne vaut rien et ne sera pas montré sur ta fiche publique.
                                   </p>
                                 )}
                               </div>
@@ -1462,8 +1455,7 @@ export default function SettingsPage() {
             {/* COMPTES LIÉS, connexions Discord (Twitch, YouTube, Spotify, Epic, Steam, etc.)
                 Rendu dans 'profile' (refonte 5→3 sections), comptes liés = info publique */}
             {section === 'profile' && (
-              <div className="pillar-card panel relative group transition-all duration-200 animate-fade-in">
-                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
+              <div className="panel relative animate-fade-in">
                 <div className="relative z-[1]">
                   <div className="panel-header">
                     <div className="flex items-center gap-2">
@@ -1619,8 +1611,7 @@ export default function SettingsPage() {
 
             {/* RECRUTEMENT, rendu dans 'profile' (refonte 5→3 sections) */}
             {section === 'profile' && (
-              <div className="pillar-card panel relative group transition-all duration-200 animate-fade-in">
-                <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${form.isAvailableForRecruitment ? 'var(--s-gold)' : 'rgba(255,255,255,0.15)'}, transparent 60%)` }} />
+              <div className="panel relative animate-fade-in">
                 {form.isAvailableForRecruitment && (
                   <div className="absolute top-0 right-0 w-[150px] h-[150px] pointer-events-none opacity-[0.06]"
                     style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
@@ -1700,8 +1691,7 @@ export default function SettingsPage() {
 
             {/* NOTIFICATIONS, rendu dans 'profile' */}
             {section === 'profile' && (
-              <div className="pillar-card panel relative group transition-all duration-200 animate-fade-in">
-                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
+              <div className="panel relative animate-fade-in">
                 <div className="relative z-[1]">
                   <div className="panel-header">
                     <div className="flex items-center gap-2">
@@ -1750,8 +1740,7 @@ export default function SettingsPage() {
 
             {/* COMPTE */}
             {section === 'account' && (
-              <div className="pillar-card panel relative group transition-all duration-200 animate-fade-in">
-                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
+              <div className="panel relative animate-fade-in">
                 <div className="absolute top-0 right-0 w-[180px] h-[180px] pointer-events-none opacity-[0.05]"
                   style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
                 <div className="relative z-[1]">
@@ -2172,42 +2161,9 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Bouton Save bottom sticky, apparaît dès qu'on a des modifs non sauvées.
-          L'auto-save couvre déjà 90% des cas (debounce 2s), mais ce bouton :
-          - donne le contrôle immédiat à l'utilisateur (skip l'attente)
-          - donne le feedback de validation si invalid (l'auto-save reste silencieux) */}
-      {(dirty || saving) && (
-        <div
-          className="fixed bottom-4 right-4 z-50 animate-fade-in"
-          style={{ pointerEvents: 'none' }}
-        >
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="btn-springs btn-primary bevel-sm flex items-center gap-2"
-            style={{
-              padding: '12px 20px',
-              fontSize: '13px',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-              pointerEvents: 'auto',
-            }}
-          >
-            {saving ? (
-              <>
-                <Loader2 size={14} className="animate-spin" />
-                <span>Sauvegarde…</span>
-              </>
-            ) : (
-              <>
-                <Save size={14} />
-                <span>Sauvegarder maintenant</span>
-                <span className="text-[12px] opacity-70 ml-1">· auto dans 2s</span>
-              </>
-            )}
-          </button>
-        </div>
-      )}
+      {/* Le bouton save flottant a été retiré (audit 12/06) : la top bar
+          sticky est le seul point de vérité du save — l'auto-save 2s n'a pas
+          à s'expliquer et deux indicateurs simultanés se contredisaient. */}
     </div>
   );
 }
@@ -2274,7 +2230,6 @@ function ValorantSyncBlock({
             <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
               Compte Riot vérifié
             </span>
-            <span className="tag tag-gold" style={{ fontSize: '12px', padding: '2px 6px' }}>✓ FIGÉ</span>
           </div>
           {valorantLinked.riotId && (
             <div className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
@@ -2284,14 +2239,14 @@ function ValorantSyncBlock({
           {connectionDiffers && (
             <div className="p-2" style={{ background: 'rgba(255,85,85,0.08)', border: '1px solid rgba(255,85,85,0.25)' }}>
               <p className="text-xs" style={{ color: '#ff8a8a' }}>
-                ⚠️ La connexion Riot sur ton Discord pointe vers un autre compte que celui vérifié. Tant que ce n'est pas résolu, ton rang n'est plus synchronisé. Pour lier ce nouveau compte, fais une demande de changement (validée par un admin).
+                La connexion Riot sur ton Discord pointe vers un autre compte que celui vérifié. Tant que ce n'est pas résolu, ton rang n'est plus synchronisé. Pour lier ce nouveau compte, fais une demande de changement (validée par un admin).
               </p>
             </div>
           )}
           {connectionAbsent && (
             <div className="p-2" style={{ background: 'rgba(255,85,85,0.08)', border: '1px solid rgba(255,85,85,0.25)' }}>
               <p className="text-xs" style={{ color: '#ff8a8a' }}>
-                ⚠️ Ta connexion Riot a été retirée de ton Discord. Ton rang n'est plus synchronisé. Re-lie ton compte Riot (Discord → Connexions → Riot Games) et reconnecte-toi pour reprendre la sync.
+                Ta connexion Riot a été retirée de ton Discord. Ton rang n'est plus synchronisé. Re-lie ton compte Riot (Discord → Connexions → Riot Games) et reconnecte-toi pour reprendre la sync.
               </p>
             </div>
           )}
