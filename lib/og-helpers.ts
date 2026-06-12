@@ -160,6 +160,22 @@ export async function loadLocalIconAsPngDataUri(relPath: string | null | undefin
   }
 }
 
+/**
+ * Matérialise une ImageResponse en Response bufferisée.
+ *
+ * Par défaut, next/og rend l'image PENDANT le streaming de la réponse HTTP :
+ * un crash satori survient donc APRÈS le `return` de la route et échappe au
+ * try/catch (→ 500 « failed to pipe response » côté client au lieu du
+ * fallback). Vu en prod le 2026-06-12 (bannière profil avec rang Unranked).
+ * Bufferiser force le rendu À L'INTÉRIEUR du try : tout crash de rendu tombe
+ * dans le catch de la route, qui peut servir sa bannière de fallback.
+ * Coût : ~300-500 KB en mémoire le temps de la réponse, négligeable.
+ */
+export async function materializeOgResponse(img: Response): Promise<Response> {
+  const buf = await img.arrayBuffer();
+  return new Response(buf, { status: img.status, headers: img.headers });
+}
+
 // ─── Typo utilitaires ───────────────────────────────────────────────────────
 /**
  * Retourne une taille de police adaptative pour les noms (équipes, joueurs,

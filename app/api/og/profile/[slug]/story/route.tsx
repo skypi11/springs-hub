@@ -13,6 +13,7 @@ import {
   loadLogoAsPngDataUri,
   loadRajdhani,
   loadUserStructureForOg,
+  materializeOgResponse,
   pickHeroRanks,
   pickVisibleGames,
   type HeroRank,
@@ -279,7 +280,9 @@ export async function GET(
     const nameUpper = displayName.toUpperCase();
     const nameSize = storyNameFontSize(nameUpper.length);
 
-    return new ImageResponse(
+    // materializeOgResponse : force le rendu satori DANS le try (sinon un
+    // crash de rendu s'échappe pendant le streaming → « failed to pipe »).
+    return await materializeOgResponse(new ImageResponse(
       (
         <div
           style={{
@@ -602,9 +605,11 @@ export async function GET(
                       justifyContent: 'center',
                       width: 150,
                       height: 150,
-                      backgroundImage: rankIconDataUris[idx]
-                        ? `radial-gradient(circle, ${rank.color}40 0%, transparent 70%)`
-                        : undefined,
+                      // Satori crashe sur une clé style `undefined` → spread
+                      // conditionnel obligatoire (cf. route bannière, même fix).
+                      ...(rankIconDataUris[idx]
+                        ? { backgroundImage: `radial-gradient(circle, ${rank.color}40 0%, transparent 70%)` }
+                        : {}),
                       marginBottom: 16,
                     }}
                   >
@@ -777,7 +782,7 @@ export async function GET(
           }),
         },
       },
-    );
+    ));
   } catch (err) {
     captureApiError('API OG/profile/story GET error', err);
     return new Response('Error', { status: 500 });

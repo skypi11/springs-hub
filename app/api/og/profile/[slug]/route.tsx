@@ -16,6 +16,7 @@ import {
   loadLogoAsPngDataUri,
   loadRajdhani,
   loadUserStructureForOg,
+  materializeOgResponse,
   pickHeroRanks,
   pickVisibleGames,
   type HeroRank,
@@ -274,7 +275,9 @@ export async function GET(
     const nameUpper = displayName.toUpperCase();
     const nameSize = heroNameFontSize(nameUpper.length);
 
-    return new ImageResponse(
+    // materializeOgResponse : force le rendu satori DANS le try (sinon un
+    // crash de rendu s'échappe pendant le streaming → 500 au lieu du fallback).
+    return await materializeOgResponse(new ImageResponse(
       (
         <div
           style={{
@@ -530,7 +533,12 @@ export async function GET(
                         }}
                       >
                         {/* Box icône avec placeholder pour les tiers sans PNG
-                            (genre UNRANKED) → garde l'alignement entre 2 rangs. */}
+                            (genre UNRANKED) → garde l'alignement entre 2 rangs.
+                            ATTENTION satori : une clé style à `undefined` fait
+                            crasher le rendu (`undefined.trim()` dans le parseur
+                            CSS) → spread conditionnel, jamais `: undefined`.
+                            C'était LE crash prod « failed to pipe response »
+                            (profil avec rang Unranked = pas d'icône). */}
                         <div
                           style={{
                             display: 'flex',
@@ -538,9 +546,9 @@ export async function GET(
                             justifyContent: 'center',
                             width: iconSize,
                             height: iconSize,
-                            backgroundImage: rankIconDataUris[idx]
-                              ? `radial-gradient(circle, ${rank.color}33 0%, transparent 70%)`
-                              : undefined,
+                            ...(rankIconDataUris[idx]
+                              ? { backgroundImage: `radial-gradient(circle, ${rank.color}33 0%, transparent 70%)` }
+                              : {}),
                           }}
                         >
                           {rankIconDataUris[idx] && (
@@ -708,7 +716,7 @@ export async function GET(
           'Cache-Control': 'public, max-age=3600, s-maxage=3600, immutable, no-transform',
         },
       },
-    );
+    ));
   } catch (err) {
     captureApiError('API OG/profile GET error', err);
     return renderFallback();
@@ -721,12 +729,12 @@ export async function GET(
  * crashe. Volontairement minimaliste pour ne JAMAIS retourner 500 (Discord
  * ne réessaie pas une URL og:image qui répond 5xx).
  */
-function renderFallback(): Response {
+async function renderFallback(): Promise<Response> {
   try {
     const font = loadRajdhani();
     const ff = font ? 'Rajdhani' : 'sans-serif';
     const hexUri = hexTextureDataUri(WIDTH, HEIGHT);
-    return new ImageResponse(
+    return await materializeOgResponse(new ImageResponse(
       (
         <div
           style={{
@@ -792,7 +800,7 @@ function renderFallback(): Response {
           : undefined,
         headers: { 'Cache-Control': 'public, max-age=60' },
       },
-    );
+    ));
   } catch (fallbackErr) {
     captureApiError('API OG/profile fallback render error', fallbackErr);
     return new Response('Error', { status: 500 });
