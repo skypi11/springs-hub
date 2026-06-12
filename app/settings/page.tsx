@@ -731,7 +731,7 @@ export default function SettingsPage() {
                   ) : saved ? (
                     <span style={{ color: '#00D936' }}>✓ Profil sauvegardé</span>
                   ) : (
-                    'Paramètres du compte Springs'
+                    'Paramètres du compte Aedral'
                   )}
                 </p>
               </div>
@@ -887,7 +887,7 @@ export default function SettingsPage() {
                         <label className="t-label block mb-2">Pseudo affiché *</label>
                         <input type="text" value={form.displayName}
                           onChange={e => updateForm({ displayName: e.target.value })}
-                          className="settings-input w-full" placeholder="Ton pseudo Springs" maxLength={32} />
+                          className="settings-input w-full" placeholder="Ton pseudo Aedral" maxLength={32} />
                       </div>
                       <ImageUploader
                         label="Avatar"
@@ -1758,7 +1758,7 @@ export default function SettingsPage() {
                   <div className="panel-header">
                     <div className="flex items-center gap-2">
                       <UserCircle size={13} style={{ color: 'var(--s-gold)' }} />
-                      <span className="t-label" style={{ color: 'var(--s-text)' }}>COMPTE SPRINGS</span>
+                      <span className="t-label" style={{ color: 'var(--s-text)' }}>COMPTE AEDRAL</span>
                     </div>
                     {isAdmin && <span className="tag tag-gold" style={{ fontSize: '12px' }}>ADMIN</span>}
                   </div>
@@ -1789,7 +1789,7 @@ export default function SettingsPage() {
                         </div>
                       </div>
                       <p className="text-xs mt-2" style={{ color: 'var(--s-text-muted)' }}>
-                        Ton compte Springs est lié à Discord. Pour changer d&apos;identifiant Discord, déconnecte-toi et reconnecte-toi avec un autre compte.
+                        Ton compte Aedral est lié à Discord. Pour changer d&apos;identifiant Discord, déconnecte-toi et reconnecte-toi avec un autre compte.
                       </p>
                     </div>
 
