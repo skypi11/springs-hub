@@ -31,13 +31,16 @@ import { syncTrackmaniaTrophiesBatch } from '@/lib/trackmania-sync';
 //     APRÈS : pagination cursor avec état persisté, limit 200/run.
 //     Cycle complet en quelques jours acceptable car cosmetic (pseudo Epic).
 //
-// Limites par run respectent le timeout Vercel Hobby (60s) avec marge.
-// maxDuration=60 pour autoriser jusqu'à la limite Hobby.
+// Budget temps : la route enchaîne 5 passes en série (expirations, départs,
+// sync Discord, sync Valorant ~25 users × 2.1s, sync TM) — la somme dépasse
+// les 60s historiques → 504 constaté le 2026-06-12. Depuis Fluid Compute,
+// maxDuration peut monter à 300s sur tous les plans Vercel : on prend la
+// marge. Chaque passe garde ses caps internes (cursor-paginé).
 //
 // Sécurisation : Vercel Cron envoie `Authorization: Bearer <CRON_SECRET>`
 // quand la variable d'env est définie. En dev, on autorise sans secret.
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const EXPIRY_DAYS = 30;
 // Limites par run (scalent indépendamment du nombre total de docs en base)

@@ -38,20 +38,36 @@ pas comme un SaaS généré. Chaque texte et chaque écran passent ce filtre.
 
 ## Règles design anti-template
 
-1. **Pas de nouvelle « card riche » par défaut.** Avant de créer un panel avec
-   accent bar + glow + icône encadrée, se demander : est-ce un élément MAJEUR de
-   la page ? Sinon → ligne de liste, ou texte nu. La déco se mérite.
-2. **Hiérarchie à 3 niveaux max par vue** : 1 zone dominante, des zones
-   secondaires sobres, du détail replié (accordéon, lien, onglet). Si tout a un
-   accent bar, rien n'est accentué.
-3. **Une nouvelle section = une suppression.** Avant d'ajouter un bloc à une page
-   déjà dense, identifier ce qu'on replie ou supprime en échange.
-4. **L'or est un budget** : 1-2 éléments dorés par vue (CTA principal, donnée
-   précieuse). Pareil pour les glows.
-5. **Préférer la donnée brute à la déco** : un tableau dense et lisible (style
-   Faceit/Linear) fait plus « pro » qu'une grille de cards décorées.
-6. **L'aération est une feature** : marges généreuses entre sections, pas de
-   remplissage de colonne « parce qu'il reste de la place ».
+Issues de l'audit du 2026-06-12 ([docs/audits/2026-06-12-design-audit.md](../../docs/audits/2026-06-12-design-audit.md)) :
+
+1. **Hiérarchie 3 niveaux, non négociable.**
+   - Niveau 1 « héros » (chrome complet : accent bar, glow, image) : **1-2 éléments
+     MAX par écran**.
+   - Niveau 2 « card » : `.panel` nu (surface + border neutre + bevel), identité
+     couleur portée par UN seul élément (GameTag, dot statut, chiffre coloré).
+   - Niveau 3 « ligne » : toute donnée répétitive (membres, demandes, annuaire)
+     = rangée avec divider 1px, **pas de card**.
+   La card plate est le DÉFAUT, la décoration est l'exception qui signale l'importance.
+2. **Accent bar 3px = 1 par écran max**, sur le héros uniquement. Jamais sur un
+   formulaire, une nav, une save bar, une modale, un bloc sidebar. Idem glow
+   radial et icône-dans-un-carré-teinté.
+3. **Or = 1 occurrence décorative par écran** (CTA principal ou récompense).
+   Tout accent « par défaut » passe en neutre. Si tu hésites sur la couleur d'un
+   accent, c'est qu'il ne doit pas exister.
+4. **Une info = un seul endroit.** Jamais un titre, une stat ou un statut répété
+   dans le même viewport (pas de titre en t-label + h3, pas de banner qui
+   paraphrase les widgets, pas de panel qui ré-affiche le header).
+5. **Uppercase rationné** : Bebas pour les titres + 1 eyebrow `t-label` max par
+   bloc. Les autres labels de données en sentence case, poids 500, sans tracking.
+6. **Hover = affordance** : `.pillar-card` et tout effet de survol réservés aux
+   éléments réellement cliquables. Un formulaire qui s'allume au hover est un bug.
+7. **Zéro vaporware** : aucun bloc « à venir », aucune feature annoncée non
+   shippée, aucun screenshot montrant des zéros. Un empty state = phrase factuelle
+   + bouton d'action.
+8. **Une nouvelle section = une suppression.** Avant d'ajouter un bloc à une page
+   dense, identifier ce qu'on replie ou supprime en échange.
+9. **Préférer la donnée brute à la déco** : un tableau/liste dense et lisible
+   (style Faceit/Linear) fait plus « pro » qu'une grille de cards décorées.
 
 ## Rappels DA (détail complet dans CLAUDE.md)
 

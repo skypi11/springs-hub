@@ -160,13 +160,21 @@ Pattern validé — structure obligatoire :
 5. `.comp-card-content` : contenu par-dessus (z-index 1)
 - **Les images de jeux sont dans `/public/`** (rocket-league.webp, tm.webp)
 
-#### Cards pilier/section (sans image)
-Quand une card n'a pas d'image de fond, elle doit quand même avoir de la présence :
-- **Accent bar colorée** en haut (3px, gradient de la couleur du pilier)
-- **Glow subtil** dans un coin (radial-gradient de la couleur, opacity 0.07 → 0.12 au hover)
-- **Icône encadrée** avec fond teinté de la couleur (`${accent}10` bg, `${accent}25` border)
-- **Stat counter** en Bebas Neue si pertinent
-- **Hover** : border passe à `rgba(255,255,255,0.18)`, bg passe à `--s-elevated`
+#### Grammaire des conteneurs — 3 niveaux (révisée 2026-06-12, audit anti-AI-slop)
+L'ancienne règle « chaque card doit avoir accent bar + glow + icône encadrée »
+a produit 97 cards identiques dans 42 fichiers — c'est elle qui faisait « site
+généré ». La déco signale désormais l'IMPORTANCE, elle n'est plus un défaut :
+- **Niveau 1 « héros »** (1-2 par écran MAX) : chrome complet — accent bar 3px,
+  glow subtil (opacity 0.07-0.12), icône encadrée teintée, stat Bebas. Réservé à
+  L'élément principal de la page (hero, card de mise en avant).
+- **Niveau 2 « card »** (le défaut) : `.panel` nu — surface + border neutre +
+  bevel. L'identité couleur passe par UN seul élément interne (GameTag, dot de
+  statut, chiffre coloré). Pas d'accent bar, pas de glow, pas d'icon-box.
+- **Niveau 3 « ligne »** : toute donnée répétitive (membres, demandes, résultats,
+  annuaires) = rangée avec divider 1px, pas de card du tout.
+- **Hover** (`border rgba(255,255,255,0.18)` + bg `--s-elevated`) : uniquement
+  sur les éléments cliquables — jamais sur un formulaire ou un bloc statique.
+Voir `.claude/skills/aedral-style/SKILL.md` pour les règles complètes (copy incluse).
 
 #### Tags
 `.tag` + variantes : `.tag-violet`, `.tag-gold`, `.tag-blue`, `.tag-green`, `.tag-neutral`
@@ -185,7 +193,7 @@ Quand une card n'a pas d'image de fond, elle doit quand même avoir de la prése
 - **Coins arrondis** (`rounded-lg`, `rounded-xl`) → utiliser les biseaux clip-path
 - **Hexagones flottants / néons / formes décoratives** → la texture hex suffit, pas de déco
 - **Fond trop uni sans texture** → toujours la texture hex via `.hex-bg`
-- **Cards plates sans aucun accent** → chaque card doit avoir une identité couleur
+- **Chrome décoratif systématique** → la card plate `.panel` est le DÉFAUT ; accent bar/glow/icon-box réservés au niveau « héros » (1-2 par écran). Voir « Grammaire des conteneurs » ci-dessus
 - **Inline border + Tailwind hover** → Tailwind ne peut pas override un inline style, utiliser une classe CSS dédiée avec `!important`
 - **Images en hotlink** depuis des sites de jeux (ils bloquent) → toujours `/public/`
 - **Doublons d'information** → ne pas afficher la même stat à deux endroits
