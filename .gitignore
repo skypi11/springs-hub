@@ -50,8 +50,11 @@ next-env.d.ts
 /structure-snapshot.md
 /snap-*.md
 
-# Claude Code local settings (personnelles par machine)
-.claude/
+# Claude Code : settings perso ignorés, mais skills & commands versionnés
+# (style-guide aedral-style, commande /review — partagés avec le projet)
+.claude/*
+!.claude/skills/
+!.claude/commands/
 .mcp.json
 
 .env*.local
