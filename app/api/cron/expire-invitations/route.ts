@@ -257,8 +257,9 @@ export async function GET(req: NextRequest) {
     }
 
     const db = getAdminDb();
+    const cronStartedAt = Date.now();
 
-    // 4 passes en série, chacune wrappée pour ne pas faire échouer les
+    // 5 passes en série, chacune wrappée pour ne pas faire échouer les
     // suivantes si une plante (audit 30/05 🟡 6). Avant : un throw dans
     // expireInvitations empêchait departures/discordSync/valorant de
     // tourner → on perdait toute la nuit. Maintenant : on log via Sentry
@@ -267,11 +268,13 @@ export async function GET(req: NextRequest) {
       const startedAt = Date.now();
       try {
         const result = await fn();
-        // Breadcrumb durée pour Sentry : si une passe dépasse ~20s sur Hobby
-        // (maxDuration=60), c'est qu'on approche du timeout et il faudra
-        // splitter en plusieurs crons.
+        // Alarme par-passe : seuil calibré sur le budget réel (maxDuration=300
+        // depuis Fluid Compute — plus le 60s historique). Une passe seule au-delà
+        // de 120s (40% du budget) est anormale et mérite un split. La sync Discord
+        // tourne normalement à ~90s pour 200 users (4 appels réseau/user), donc
+        // SOUS le seuil — le vrai risque (cumul des passes) est surveillé plus bas.
         const ms = Date.now() - startedAt;
-        if (ms > 20_000) {
+        if (ms > 120_000) {
           captureApiError(`Cron expire-invitations: pass ${name} slow (${ms}ms)`, new Error(`slow_pass_${name}`));
         }
         return result;
@@ -292,6 +295,15 @@ export async function GET(req: NextRequest) {
     // avec 'trackmania' in games + tmIoUrl renseigné. Cursor-paginé,
     // 25 users/run (rate-limit soft tm.io community). Voir lib/trackmania-sync.ts.
     const trackmaniaTrophiesSync = await runPass('syncTrackmaniaTrophiesBatch', () => syncTrackmaniaTrophiesBatch(db));
+
+    // Garde-fou anti-timeout : le vrai risque c'est le CUMUL des 5 passes en
+    // série vs maxDuration=300, pas une passe isolée. Au-delà de 240s (80% du
+    // budget) on alerte pour splitter la route AVANT de reprendre un 504
+    // (incident vécu le 12/06).
+    const totalMs = Date.now() - cronStartedAt;
+    if (totalMs > 240_000) {
+      captureApiError(`Cron expire-invitations: total slow (${totalMs}ms)`, new Error('slow_cron_total'));
+    }
 
     return NextResponse.json({
       ok: true,
