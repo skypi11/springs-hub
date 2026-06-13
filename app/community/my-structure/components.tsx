@@ -44,10 +44,16 @@ export function TabBar({
   );
 }
 
-// ─── Panel pliable avec accent + glow Springs ──────────────────────────
+// ─── Panel pliable — « niveau 2 » par défaut (grammaire 3 niveaux) ──────
+// Par défaut : carte nue (surface + border neutre + bevel), icône NEUTRE,
+// pas d'accent bar ni de glow ni d'icône encadrée. L'identité couleur vit À
+// L'INTÉRIEUR du panneau (tags, dots, chiffres), pas dans le chrome — sinon
+// 13 sections au chrome identique = « site généré » (audit anti-AI-slop 12/06).
+// `emphasis` (opt-in, 1-2 par écran MAX) restaure le chrome « niveau héros ».
 export function SectionPanel({
-  accent, icon: Icon, title, action, children, collapsed, onToggle,
+  accent, icon: Icon, title, action, children, collapsed, onToggle, emphasis = false,
 }: {
+  /** Couleur d'accent — utilisée UNIQUEMENT quand `emphasis` est vrai. */
   accent: string;
   icon: LucideIcon;
   title: string;
@@ -55,20 +61,29 @@ export function SectionPanel({
   children: React.ReactNode;
   collapsed?: boolean;
   onToggle?: () => void;
+  emphasis?: boolean;
 }) {
   return (
     <div className="bevel relative transition-all duration-200"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${accent}, ${accent}50, transparent 70%)` }} />
-      <div className="absolute top-0 right-0 w-48 h-48 pointer-events-none"
-        style={{ background: `radial-gradient(circle at 100% 0%, ${accent}08, transparent 70%)` }} />
+      {emphasis && (
+        <>
+          <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${accent}, ${accent}50, transparent 70%)` }} />
+          <div className="absolute top-0 right-0 w-48 h-48 pointer-events-none"
+            style={{ background: `radial-gradient(circle at 100% 0%, ${accent}08, transparent 70%)` }} />
+        </>
+      )}
       <div className="relative z-[1] px-5 py-3.5 flex items-center justify-between cursor-pointer select-none"
         style={{ borderBottom: collapsed ? 'none' : '1px solid var(--s-border)' }}
         onClick={onToggle}>
         <div className="flex items-center gap-3">
-          <div className="w-7 h-7 flex items-center justify-center" style={{ background: `${accent}10`, border: `1px solid ${accent}25` }}>
-            <Icon size={13} style={{ color: accent }} />
-          </div>
+          {emphasis ? (
+            <div className="w-7 h-7 flex items-center justify-center" style={{ background: `${accent}10`, border: `1px solid ${accent}25` }}>
+              <Icon size={13} style={{ color: accent }} />
+            </div>
+          ) : (
+            <Icon size={15} style={{ color: 'var(--s-text-dim)' }} />
+          )}
           <span className="font-display text-sm tracking-wider">{title}</span>
         </div>
         <div className="flex items-center gap-2">
