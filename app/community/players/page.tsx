@@ -27,7 +27,7 @@ import GameTag from '@/components/games/GameTag';
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
 import { RL_RANKS } from '@/lib/rl-ranks';
 import { useAuth } from '@/context/AuthContext';
-import { api } from '@/lib/api-client';
+import { api, apiPublic } from '@/lib/api-client';
 
 type EnrichedStructure = {
   id: string;
@@ -177,7 +177,9 @@ export default function PlayersPage() {
       if (verifiedOnlyFilter) params.set('verifiedOnly', 'true');
       if (countryFilter) params.set('country', countryFilter);
       if (pageParam) params.set('cursor', pageParam);
-      return api<PlayersPage>(`/api/players?${params.toString()}`);
+      // apiPublic : l'annuaire est public, un visiteur déconnecté doit voir les
+      // joueurs (la route serveur /api/players sert déjà sans auth).
+      return apiPublic<PlayersPage>(`/api/players?${params.toString()}`);
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
   });

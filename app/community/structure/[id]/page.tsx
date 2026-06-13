@@ -6,7 +6,7 @@ import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
-import { api, ApiError } from '@/lib/api-client';
+import { api, apiPublic, ApiError } from '@/lib/api-client';
 import {
   Shield, Users, Gamepad2, ExternalLink, Trophy, Loader2, AlertCircle,
   User, Globe, Search, MessageSquare, UserPlus, CheckCircle, Calendar,
@@ -408,7 +408,8 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
 
   const structureQ = useQuery({
     queryKey: ['structure', id] as const,
-    queryFn: () => api<StructureData>(`/api/structures/${id}`),
+    // apiPublic : page structure publique, doit s'afficher en déconnecté.
+    queryFn: () => apiPublic<StructureData>(`/api/structures/${id}`),
     enabled: !authLoading,
     retry: (failureCount, err) => {
       if (err instanceof ApiError && err.status === 404) return false;
@@ -417,7 +418,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
   });
   const teamsQ = useQuery({
     queryKey: ['structure', id, 'teams'] as const,
-    queryFn: () => api<{ teams: Team[] }>(`/api/structures/teams?structureId=${id}`),
+    queryFn: () => apiPublic<{ teams: Team[] }>(`/api/structures/teams?structureId=${id}`),
     enabled: !authLoading && !!structureQ.data,
   });
   const structure = structureQ.data ?? null;

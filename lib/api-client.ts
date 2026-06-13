@@ -16,10 +16,23 @@ export class ApiError extends Error {
   }
 }
 
+// Headers d'une route PROTÉGÉE : exige un user connecté, sinon court-circuite
+// avant même le réseau (la plupart des queries authentifiées sont déjà gardées
+// par `enabled: !!firebaseUser`, ceci est la ceinture de sécurité).
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const token = await auth.currentUser?.getIdToken();
   if (!token) throw new ApiError('Non authentifié', 401, null);
   return { Authorization: `Bearer ${token}` };
+}
+
+// Headers d'une route PUBLIQUE : attache le token SI l'user est connecté (pour
+// d'éventuelles données personnalisées), mais ne bloque PAS un visiteur
+// déconnecté. Indispensable pour l'annuaire / les pages structure publiques,
+// dont les routes serveur servent déjà les données sans auth — sinon le wrapper
+// throw 401 avant la requête et la page paraît vide alors qu'il y a du contenu.
+async function getOptionalAuthHeaders(): Promise<Record<string, string>> {
+  const token = await auth.currentUser?.getIdToken().catch(() => null);
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 type JsonBody = Record<string, unknown> | unknown[] | null;
@@ -31,10 +44,16 @@ type ApiOptions = {
   signal?: AbortSignal;
 };
 
-// Requête JSON classique (tout le trafic API de l'app passe par là)
-export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Promise<T> {
+// Cœur partagé : fetch JSON + parsing + ApiError sur statut hors 2xx. Les
+// variantes `api` (auth requise) et `apiPublic` (auth optionnelle) ne diffèrent
+// que par la stratégie de headers.
+async function requestJson<T>(
+  path: string,
+  opts: ApiOptions,
+  authHeaders: Record<string, string>,
+): Promise<T> {
   const { method = 'GET', body, signal } = opts;
-  const headers: Record<string, string> = await getAuthHeaders();
+  const headers: Record<string, string> = { ...authHeaders };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
   const res = await fetch(path, {
@@ -55,6 +74,17 @@ export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Pro
     throw new ApiError(message, res.status, payload);
   }
   return payload as T;
+}
+
+// Requête JSON authentifiée (tout le trafic API protégé de l'app passe par là)
+export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Promise<T> {
+  return requestJson<T>(path, opts, await getAuthHeaders());
+}
+
+// Requête JSON publique : marche connecté OU déconnecté. À utiliser sur les
+// lectures publiques (annuaire joueurs, page structure publique…).
+export async function apiPublic<T = unknown>(path: string, opts: ApiOptions = {}): Promise<T> {
+  return requestJson<T>(path, opts, await getOptionalAuthHeaders());
 }
 
 // POST multipart (upload de fichiers), ne force pas Content-Type, le
