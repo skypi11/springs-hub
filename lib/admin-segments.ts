@@ -23,11 +23,13 @@ export interface SegmentDef {
 
 // Plafond de DM par envoi (anti-spam Discord + budget timeout de la route).
 // Source de vérité unique, consommée par l'API send ET l'UI /admin/messages.
-// Dimensionné pour tenir sous maxDuration=300s (Fluid) : ~120 DM × (~0,6s
-// open+post+throttle 250ms) ≈ 75s, bien sous le HARD_DEADLINE (270s). Le
-// throttle entre chaque DM reste la vraie protection anti-rate-limit Discord
-// (on n'envoie jamais en rafale), pas le cap.
-export const DM_CAP = 120;
+// GARDÉ BAS À DESSEIN (40) : un bot ne peut DM que les users partageant un
+// serveur avec lui (serveur Aedral OU Discord d'une structure où le bot est
+// installé). Beaucoup de joueurs ne sont dans aucun → un DM de masse échouerait
+// pour eux, ET une rafale de tentatives échouées (403) est un signal de spam
+// qui peut faire flagger/désactiver le bot par Discord. Pour un segment large,
+// privilégier la notif in-app (garantie, sans risque). DM = petits lots ciblés.
+export const DM_CAP = 40;
 
 export const SEGMENTS: SegmentDef[] = [
   { id: 'all', label: 'Tous les joueurs', description: 'Toute la base (hors comptes de test et bannis).' },
