@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import Link from 'next/link';
-import { ShieldAlert, Check, Loader2, X, ArrowRight } from 'lucide-react';
+import { ShieldAlert, Check, Loader2, X, ChevronDown, RefreshCw } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
@@ -19,15 +18,21 @@ type VerifyResponse = {
   rlEpicId?: string; rlSteamId?: string;
 };
 
-// Bandeau de vérification de compte de jeu. Surfacé sur le dashboard pour
-// déterrer le bouton « 1 clic » enterré dans Settings : la connection Discord
-// est déjà capturée pour beaucoup d'users, il manque juste le clic.
-// Disparaît tout seul une fois tous les comptes vérifiés.
+type RefreshResponse = { ok?: boolean; changed?: boolean; connectionTypes?: string[]; needsRelogin?: boolean };
+
+// Bandeau de vérification de compte de jeu. Surfacé sur le dashboard + own
+// profile pour déterrer le « 1 clic » enterré dans Settings (la connection
+// Discord est déjà capturée pour beaucoup d'users). Pour ceux qui n'ont pas
+// encore lié leur compte à Discord (palier C), un tuto inline + un bouton
+// « J'ai lié » qui re-fetch les connexions à la demande. Se masque tout seul
+// une fois tout vérifié.
 export default function VerifyAccountNudge() {
-  const { user, firebaseUser, refreshProfile } = useAuth();
+  const { user, firebaseUser, refreshProfile, signInWithDiscord } = useAuth();
   const toast = useToast();
   const qc = useQueryClient();
   const [busy, setBusy] = useState<VerifyGame | null>(null);
+  const [refreshing, setRefreshing] = useState<VerifyGame | null>(null);
+  const [expanded, setExpanded] = useState<VerifyGame | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const shownRef = useRef(false);
 
@@ -86,6 +91,34 @@ export default function VerifyAccountNudge() {
     }
   }
 
+  // Palier C : re-fetch les connexions Discord à la demande (le user vient de
+  // lier son compte) pour débloquer le 1-clic sans relogin ni attendre le cron.
+  async function handleRefresh(item: VerifyItem) {
+    setRefreshing(item.game);
+    track('account_verify_clicked', { game: item.game, method: 'refresh' });
+    try {
+      const res = await api<RefreshResponse>('/api/profile/refresh-discord-connections', { method: 'POST', body: {} });
+      const types = res.connectionTypes ?? [];
+      const found = item.game === 'valorant'
+        ? types.includes('riotgames')
+        : (types.includes('epicgames') || types.includes('steam'));
+      await Promise.all([
+        refreshProfile?.(),
+        qc.invalidateQueries({ queryKey: ['profile', firebaseUser?.uid ?? null] }),
+      ]);
+      if (found) {
+        toast.success('Connexion détectée — clique « Vérifier en 1 clic ».');
+        setExpanded(null);
+      } else {
+        toast.error("On ne voit pas encore ta connexion. Vérifie qu'elle est bien ajoutée dans Discord, ou reconnecte-toi.");
+      }
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau.');
+    } finally {
+      setRefreshing(null);
+    }
+  }
+
   return (
     <div className="bevel relative overflow-hidden animate-fade-in"
       style={{ background: 'var(--s-surface)', border: '1px solid rgba(255,184,0,0.28)' }}>
@@ -117,20 +150,45 @@ export default function VerifyAccountNudge() {
             const isBusy = busy === item.game;
 
             if (action.kind === 'linkInDiscord') {
+              const isOpen = expanded === item.game;
+              const isRefreshing = refreshing === item.game;
               return (
-                <div key={item.game}
-                  className="flex items-center justify-between gap-3 flex-wrap px-3 py-2.5"
-                  style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <GameTag gameId={item.game} size="sm" />
-                    <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-                      Lie ton compte <strong style={{ color: 'var(--s-text)' }}>{action.what}</strong> à ton Discord, reconnecte-toi, et la vérif passe en 1 clic.
-                    </span>
+                <div key={item.game} style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                  <div className="flex items-center justify-between gap-3 flex-wrap px-3 py-2.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <GameTag gameId={item.game} size="sm" />
+                      <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                        Lie ton compte <strong style={{ color: 'var(--s-text)' }}>{action.what}</strong> à ton Discord pour vérifier.
+                      </span>
+                    </div>
+                    <button type="button" onClick={() => setExpanded(isOpen ? null : item.game)}
+                      className="text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1 flex-shrink-0"
+                      style={{ color: 'var(--s-gold)', cursor: 'pointer' }}>
+                      Comment faire
+                      <ChevronDown size={12} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
+                    </button>
                   </div>
-                  <Link href="/guide" className="text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1 flex-shrink-0"
-                    style={{ color: 'var(--s-gold)' }}>
-                    Voir comment <ArrowRight size={11} />
-                  </Link>
+                  {isOpen && (
+                    <div className="px-3 pb-3 pt-2 space-y-3 border-t" style={{ borderColor: 'var(--s-border)' }}>
+                      <ol className="text-sm space-y-1.5" style={{ color: 'var(--s-text-dim)' }}>
+                        <li><span style={{ color: 'var(--s-gold)' }}>1.</span> Dans Discord : <strong style={{ color: 'var(--s-text)' }}>Paramètres → Connexions</strong>.</li>
+                        <li><span style={{ color: 'var(--s-gold)' }}>2.</span> Ajoute <strong style={{ color: 'var(--s-text)' }}>{action.what}</strong> et autorise l&apos;affichage.</li>
+                        <li><span style={{ color: 'var(--s-gold)' }}>3.</span> Reviens ici et clique <strong style={{ color: 'var(--s-text)' }}>J&apos;ai lié mon compte</strong>.</li>
+                      </ol>
+                      <div className="flex items-center gap-4 flex-wrap">
+                        <button type="button" onClick={() => handleRefresh(item)} disabled={isRefreshing}
+                          className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2"
+                          style={{ opacity: isRefreshing ? 0.7 : 1, cursor: isRefreshing ? 'wait' : 'pointer' }}>
+                          {isRefreshing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                          J&apos;ai lié mon compte
+                        </button>
+                        <button type="button" onClick={() => signInWithDiscord?.()}
+                          className="text-xs inline-flex items-center" style={{ color: 'var(--s-text-muted)', cursor: 'pointer' }}>
+                          Ça ne marche pas ? Reconnecte-toi avec Discord
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             }
