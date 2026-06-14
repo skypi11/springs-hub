@@ -21,15 +21,15 @@ export interface SegmentDef {
   description: string;
 }
 
-// Plafond de DM par envoi (anti-spam Discord + budget timeout de la route).
-// Source de vérité unique, consommée par l'API send ET l'UI /admin/messages.
-// GARDÉ BAS À DESSEIN (40) : un bot ne peut DM que les users partageant un
-// serveur avec lui (serveur Aedral OU Discord d'une structure où le bot est
-// installé). Beaucoup de joueurs ne sont dans aucun → un DM de masse échouerait
-// pour eux, ET une rafale de tentatives échouées (403) est un signal de spam
-// qui peut faire flagger/désactiver le bot par Discord. Pour un segment large,
-// privilégier la notif in-app (garantie, sans risque). DM = petits lots ciblés.
-export const DM_CAP = 40;
+// Plafond de DM par envoi. Source de vérité unique (API send + UI /admin/messages).
+// Relevé à 120 (14/06) : le bot partage un serveur avec la plupart des joueurs
+// via le Discord de LEUR STRUCTURE (events/todos/recrutement), donc il peut
+// légitimement les DM — membres de guilde mutuelle = comportement bot normal,
+// pas du spam. Garde-fous CONSERVÉS : throttle 250ms entre chaque (jamais de
+// rafale) + backoff 429. À rester OCCASIONNEL et pertinent (le vrai risque de
+// flag = taux de signalements/blocages). Les joueurs sans serveur partagé
+// échouent gracieusement (403) et gardent la notif in-app.
+export const DM_CAP = 120;
 
 export const SEGMENTS: SegmentDef[] = [
   { id: 'all', label: 'Tous les joueurs', description: 'Toute la base (hors comptes de test et bannis).' },
