@@ -390,7 +390,7 @@ export default function Sidebar() {
               </div>
               <NotificationsBell />
               <button onClick={signOut}
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5"
+                className="opacity-50 hover:opacity-100 transition-opacity p-1.5"
                 style={{ color: '#ef4444' }} title="Déconnexion">
                 <LogOut size={14} />
               </button>

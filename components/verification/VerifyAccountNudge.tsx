@@ -11,6 +11,7 @@ import { track } from '@/lib/analytics';
 import { getVerificationItems, type VerifyGame, type VerifyItem } from '@/lib/account-verification';
 
 const DISMISS_KEY = 'aedral_verify_nudge_dismissed';
+const AUTO_REFRESH_KEY = 'aedral_verify_autorefresh_done';
 
 type VerifyResponse = {
   ok?: boolean; message?: string;
@@ -35,9 +36,11 @@ export default function VerifyAccountNudge() {
   const [expanded, setExpanded] = useState<VerifyGame | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const shownRef = useRef(false);
+  const autoRefreshedRef = useRef(false);
 
   const items = getVerificationItems(user);
   const unverified = items.filter(i => i.action);
+  const hasLinkInDiscord = unverified.some(i => i.action?.kind === 'linkInDiscord');
   const visible = unverified.length > 0 && !dismissed;
 
   const gamesKey = unverified.map(i => i.game).join(',');
@@ -53,6 +56,26 @@ export default function VerifyAccountNudge() {
       track('account_verify_prompt_shown', { games: gamesKey, oneClickReady });
     }
   }, [visible, gamesKey, oneClickReady]);
+
+  // Auto-détection au retour : si un compte reste à lier dans Discord, on tente
+  // UN refresh silencieux par session — le user vient peut-être de lier son
+  // compte et de revenir. Si une connexion apparaît, le nudge passe tout seul en
+  // « 1 clic », sans aucune action ni déconnexion/reconnexion. Le tuto + le
+  // bouton « J'ai lié » restent en fallback si ça n'a rien trouvé.
+  useEffect(() => {
+    if (!visible || !hasLinkInDiscord || autoRefreshedRef.current) return;
+    autoRefreshedRef.current = true;
+    let already = false;
+    try { already = sessionStorage.getItem(AUTO_REFRESH_KEY) === '1'; } catch { /* SSR */ }
+    if (already) return;
+    try { sessionStorage.setItem(AUTO_REFRESH_KEY, '1'); } catch { /* noop */ }
+    void (async () => {
+      try {
+        const res = await api<RefreshResponse>('/api/profile/refresh-discord-connections', { method: 'POST', body: {} });
+        if (res.ok && res.changed) await refreshProfile?.();
+      } catch { /* silencieux : le tuto + le bouton restent en fallback */ }
+    })();
+  }, [visible, hasLinkInDiscord, refreshProfile]);
 
   if (!visible) return null;
 
