@@ -429,6 +429,9 @@ function StepGames({ data, update }: { data: WizardData; update: (p: Partial<Wiz
               )}
             </div>
           )}
+          <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+            L&apos;identifiant ci-dessus suffit pour ton tracker. Pour le <strong style={{ color: 'var(--s-text)' }}>badge vérifié</strong> (et mieux ressortir auprès des recruteurs), tu lieras ton compte Epic ou Steam — on te le propose en 1 clic juste après.
+          </p>
         </div>
       )}
       {/* Config TM minimale */}
@@ -470,7 +473,7 @@ function StepGames({ data, update }: { data: WizardData; update: (p: Partial<Wiz
             <span className="t-label" style={{ color: '#FF6B78' }}>Rang synchronisé automatiquement</span>
           </div>
           <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-            Ton rang Valorant est récupéré automatiquement depuis ton compte Riot — pas de saisie manuelle, donc impossible de mentir. Lie ton compte Riot dans ton Discord (Connexions → Riot Games), reconnecte-toi sur Aedral, puis synchronise depuis Paramètres → Jeux.
+            Ton rang Valorant est récupéré automatiquement depuis ton compte Riot — pas de saisie manuelle, donc impossible de mentir. Lie ton compte Riot dans ton Discord (Connexions → Riot Games), reconnecte-toi sur Aedral, et on te proposera de le vérifier en 1 clic juste après.
           </p>
         </div>
       )}

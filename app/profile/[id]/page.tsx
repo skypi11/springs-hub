@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '@/context/AuthContext';
+import VerifyAccountNudge from '@/components/verification/VerifyAccountNudge';
 import { countries } from '@/lib/countries';
 import type { SpringsUser, RLStats } from '@/types';
 import {
@@ -252,6 +253,11 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           { label: 'Joueurs', href: '/community/players' },
           { label: profile.displayName || 'Joueur' },
         ]} />
+
+        {/* Nudge de vérif sur SON PROPRE profil (le badge « non vérifié » y est
+            visible mais ne proposait aucune action — audit). Se masque seul une
+            fois vérifié, dismiss partagé avec le dashboard. */}
+        {isOwner && <VerifyAccountNudge />}
 
         {/* ─── BANDEAU ADMIN-ONLY : compte suspecté smurf ──────────────────── */}
         {isAdmin && (() => {
