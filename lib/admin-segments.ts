@@ -23,9 +23,11 @@ export interface SegmentDef {
 
 // Plafond de DM par envoi (anti-spam Discord + budget timeout de la route).
 // Source de vérité unique, consommée par l'API send ET l'UI /admin/messages.
-// Dimensionné pour tenir sous maxDuration=60s : DM_CAP × (~1s open+post+throttle)
-// reste sous le HARD_DEADLINE de la route, avec marge.
-export const DM_CAP = 40;
+// Dimensionné pour tenir sous maxDuration=300s (Fluid) : ~120 DM × (~0,6s
+// open+post+throttle 250ms) ≈ 75s, bien sous le HARD_DEADLINE (270s). Le
+// throttle entre chaque DM reste la vraie protection anti-rate-limit Discord
+// (on n'envoie jamais en rafale), pas le cap.
+export const DM_CAP = 120;
 
 export const SEGMENTS: SegmentDef[] = [
   { id: 'all', label: 'Tous les joueurs', description: 'Toute la base (hors comptes de test et bannis).' },

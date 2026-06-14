@@ -22,7 +22,7 @@ import { querySegmentUsers } from '@/lib/admin-segment-query';
 import { createNotifications, type NotificationPayload } from '@/lib/notifications';
 import { sendAnnouncementDM } from '@/lib/discord-bot';
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 // Garde-fous anti-spam Discord : on plafonne le nombre de DM par envoi (DM_CAP,
 // importé de admin-segments) et on throttle entre chaque (ouverture de DM channel
@@ -30,7 +30,9 @@ export const maxDuration = 60;
 // boucle DM pour ne JAMAIS dépasser maxDuration : on sort proprement et on
 // comptabilise le reste dans dmCapped (pattern repris de admin/users/mass).
 const DM_THROTTLE_MS = 250;
-const HARD_DEADLINE_MS = 45_000;
+// maxDuration=300 (Fluid) → on borne la boucle à 270s (90% du budget). Le
+// throttle 250ms reste la protection anti-rate-limit (jamais d'envoi en rafale).
+const HARD_DEADLINE_MS = 270_000;
 const NOTIF_BATCH = 400; // < limite 500 writes/batch Firestore
 
 export async function POST(req: NextRequest) {
