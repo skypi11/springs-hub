@@ -17,6 +17,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
 import { normalizeEventType } from '@/lib/event-permissions';
 import DiscordIcon, { AEDRAL_DISCORD_INVITE_URL } from '@/components/icons/DiscordIcon';
+import VerifyAccountNudge from '@/components/verification/VerifyAccountNudge';
 import type { SpringsUser } from '@/types';
 
 type MyEvent = {
@@ -168,6 +169,9 @@ export default function ConnectedDashboard({ user }: { user: SpringsUser }) {
           </h1>
         </div>
       </header>
+
+      {/* Nudge de vérification de compte (se masque seul si tout est vérifié) */}
+      <VerifyAccountNudge />
 
       {/* 3 widgets */}
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 animate-fade-in-d1">

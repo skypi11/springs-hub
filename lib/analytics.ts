@@ -42,7 +42,11 @@ export type EventName =
   | 'og_share_clicked'            // user clique sur ShareButton / ShareBannerButton
   // ─── Onboarding ─────────────────────────────────────────────────────
   | 'onboarding_completed'        // OnboardingWizard finalisé
-  | 'onboarding_reminder_sent';   // DM J+3 envoyé par le cron (serveur)
+  | 'onboarding_reminder_sent'    // DM J+3 envoyé par le cron (serveur)
+  // ─── Vérification compte de jeu (funnel anti-friction, palier A 14/06) ─
+  | 'account_verify_prompt_shown' // le nudge de vérif s'affiche (≥1 action dispo)
+  | 'account_verify_clicked'      // user clique un bouton de vérif (props: game, method)
+  | 'account_verified';           // vérification réussie (props: game, method)
 
 // Propriétés communes recommandées par event (non strict, juste pour guider).
 // PostHog accepte n'importe quel JSON, le typage ici est documentaire.
