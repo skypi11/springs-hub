@@ -48,14 +48,10 @@ export default function CompactStickyHeader({
         boxShadow: visible ? '0 8px 24px rgba(0,0,0,0.35)' : 'none',
       }}
     >
-      <div
-        className="h-[2px]"
-        style={{ background: `linear-gradient(90deg, ${accent}, ${accent}66, transparent 70%)` }}
-      />
       <div className="flex items-center gap-3 px-8 py-3">
         <div
           className="w-9 h-9 flex items-center justify-center bevel-sm flex-shrink-0"
-          style={{ background: 'var(--s-elevated)', border: `1px solid ${accent}40` }}
+          style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}
         >
           <Icon size={16} style={{ color: accent }} />
         </div>
