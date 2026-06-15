@@ -466,7 +466,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         {/* ─── BIO ───────────────────────────────────────────────────────── */}
         {profile.bio && (
           <div className="panel relative overflow-hidden">
-            <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.15), transparent 60%)' }} />
             <div className="relative z-[1]">
               <div className="panel-header">
                 <div className="flex items-center gap-2">
@@ -521,7 +520,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
               : getEffectiveRLPlatform(profile);
             return (
               <div className="pillar-card panel relative overflow-hidden group transition-all duration-200 h-full flex flex-col">
-                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-blue), rgba(0,129,255,0.3), transparent 70%)' }} />
                 <div className="absolute top-0 right-0 w-[200px] h-[200px] pointer-events-none opacity-[0.06]"
                   style={{ background: 'radial-gradient(circle at top right, var(--s-blue), transparent 70%)' }} />
                 <div className="relative z-[1] flex-1 flex flex-col">
@@ -696,7 +694,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           {/* Stats TM */}
           {profile.games?.includes('trackmania') && (
             <div className="pillar-card panel relative overflow-hidden group transition-all duration-200 h-full flex flex-col">
-              <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-green), rgba(0,217,54,0.3), transparent 70%)' }} />
               <div className="absolute top-0 right-0 w-[200px] h-[200px] pointer-events-none opacity-[0.06]"
                 style={{ background: 'radial-gradient(circle at top right, var(--s-green), transparent 70%)' }} />
               <div className="relative z-[1] flex-1 flex flex-col">
@@ -745,7 +742,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                         <div>
                           <span className="t-label block mb-2">CLASSEMENT PAR ZONE</span>
                           <div className="space-y-1">
-                            {tmStats.zoneRankings.map((zr) => (
+                            {tmStats.zoneRankings.slice(0, 3).map((zr) => (
                               <div key={zr.zone} className="flex items-center justify-between px-3 py-2"
                                 style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                                 <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{zr.zone}</span>
@@ -754,43 +751,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                                 </span>
                               </div>
                             ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Trophées par tier */}
-                      {tmStats.trophyTiers && tmStats.trophyTiers.length > 0 && (
-                        <div>
-                          <span
-                            className="t-label block mb-2"
-                            title="Les trophées sont classés en 9 tiers : T1-T3 bronze, T4-T6 argent, T7-T9 or"
-                          >
-                            TROPHÉES PAR TIER
-                          </span>
-                          <div className="flex gap-1.5 flex-wrap">
-                            {tmStats.trophyTiers.sort((a, b) => b.tier - a.tier).map((t) => {
-                              const tierGroup = t.tier <= 3 ? 'bronze' : t.tier <= 6 ? 'argent' : 'or';
-                              const tierStyles = {
-                                bronze: { color: '#cd7f32', bg: 'rgba(205,127,50,0.12)', border: 'rgba(205,127,50,0.3)' },
-                                argent: { color: '#c0c0c0', bg: 'rgba(192,192,192,0.08)', border: 'rgba(192,192,192,0.25)' },
-                                or:     { color: '#ffd700', bg: 'rgba(255,215,0,0.1)', border: 'rgba(255,215,0,0.3)' },
-                              };
-                              const td = tierStyles[tierGroup];
-                              const tierLabel = tierGroup === 'bronze' ? 'Bronze' : tierGroup === 'argent' ? 'Argent' : 'Or';
-                              return (
-                                <div
-                                  key={t.tier}
-                                  className="text-center px-3 py-2"
-                                  style={{ background: td.bg, border: `1px solid ${td.border}`, minWidth: '64px' }}
-                                  title={`Tier ${t.tier} (${tierLabel}) · ${t.count} trophée${t.count > 1 ? 's' : ''}`}
-                                >
-                                  <p className="font-display text-base" style={{ color: td.color, lineHeight: 1 }}>
-                                    {new Intl.NumberFormat('fr-FR').format(t.count)}
-                                  </p>
-                                  <p className="t-label mt-0.5" style={{ color: td.color, opacity: 0.85 }}>T{t.tier}</p>
-                                </div>
-                              );
-                            })}
                           </div>
                         </div>
                       )}
@@ -875,7 +835,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
             };
             return (
               <div className="pillar-card panel relative overflow-hidden group transition-all duration-200 h-full flex flex-col">
-                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, #FF4655, rgba(255,70,85,0.3), transparent 70%)' }} />
                 <div className="absolute top-0 right-0 w-[200px] h-[200px] pointer-events-none opacity-[0.06]"
                   style={{ background: 'radial-gradient(circle at top right, #FF4655, transparent 70%)' }} />
                 <div className="relative z-[1] flex-1 flex flex-col">
@@ -996,7 +955,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
               {/* Recrutement (uniquement si dispo) */}
               {profile.isAvailableForRecruitment && (
                 <div className="panel relative overflow-hidden">
-                  <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
                   <div className="absolute top-0 right-0 w-[150px] h-[150px] pointer-events-none opacity-[0.06]"
                     style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
                   <div className="relative z-[1]">
@@ -1036,7 +994,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
               {/* Structure(s), utilise sortedStructures (triées par hiérarchie de rôle) */}
               {sortedStructures.length > 0 && (
                 <div className="panel relative overflow-hidden">
-                  <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.15), transparent 60%)' }} />
                   <div className="relative z-[1]">
                     <div className="panel-header">
                       <div className="flex items-center gap-2">
@@ -1107,7 +1064,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
               {/* Comptes & liens, version compacte (chips inline) */}
               {visibleConnections.length > 0 && (
                 <div className="panel relative overflow-hidden">
-                  <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
                   <div className="relative z-[1]">
                     <div className="panel-header">
                       <div className="flex items-center gap-2">
@@ -1211,7 +1167,6 @@ function SpringsHistoryPanel({
   return (
     <div className="panel bevel-sm relative overflow-hidden animate-fade-in-d2"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), var(--s-gold), transparent 80%)' }} />
       <div className="absolute top-0 right-0 w-[200px] h-[200px] pointer-events-none opacity-[0.05]"
         style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
       <div className="relative z-[1]">
@@ -1318,7 +1273,6 @@ function HistoryBlock({
   return (
     <div className="p-4 relative overflow-hidden"
       style={{ background: 'var(--s-elevated)', border: `1px solid ${accent}25` }}>
-      <div className="h-[2px] -mx-4 -mt-4 mb-3" style={{ background: `linear-gradient(90deg, ${accent}, ${accent}40, transparent 80%)` }} />
       <div className="flex items-center gap-2.5 mb-3">
         {icon}
         <div>
