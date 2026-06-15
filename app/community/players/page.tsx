@@ -375,10 +375,9 @@ export default function PlayersPage() {
         {/* Header compact */}
         <header className="bevel relative overflow-hidden animate-fade-in"
           style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
           <div className="relative z-[1] px-6 py-4 flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-3 flex-shrink-0">
-              <div className="w-10 h-10 flex items-center justify-center" style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.2)' }}>
+              <div className="w-10 h-10 flex items-center justify-center" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                 <User size={18} style={{ color: 'var(--s-gold)' }} />
               </div>
               <div>
