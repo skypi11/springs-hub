@@ -461,6 +461,10 @@ export default function SettingsPage() {
     enabled: !!firebaseUser && !authLoading,
   });
 
+  // Lot B : un titulaire/remplaçant d'une équipe ne peut pas être LFT. Le serveur
+  // l'impose (GET /api/profile renvoie isRostered) ; ici on grise le toggle.
+  const isRostered = (profileQ.data as { isRostered?: boolean } | undefined)?.isRostered === true;
+
   useEffect(() => {
     if (loaded || !firebaseUser) return;
     if (profileQ.isPending) return;
@@ -1511,15 +1515,18 @@ export default function SettingsPage() {
                   </div>
                   <div className="p-5 space-y-4">
                     <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                      Tu apparais alors dans le Mercato et peux recevoir des propositions d&apos;équipes.
+                      {isRostered
+                        ? 'Tu es titulaire ou remplaçant d\'une équipe — tu n\'es donc pas LFT. Quitte ton équipe pour redevenir disponible.'
+                        : 'Tu apparais alors dans le Mercato et peux recevoir des propositions d\'équipes.'}
                     </p>
                     <button type="button"
-                      onClick={() => updateForm({ isAvailableForRecruitment: !form.isAvailableForRecruitment })}
-                      className="w-full p-3.5 flex items-center justify-between transition-all duration-150"
+                      disabled={isRostered}
+                      onClick={() => { if (!isRostered) updateForm({ isAvailableForRecruitment: !form.isAvailableForRecruitment }); }}
+                      className="w-full p-3.5 flex items-center justify-between transition-all duration-150 disabled:opacity-50"
                       style={{
                         background: form.isAvailableForRecruitment ? 'rgba(255,184,0,0.08)' : 'var(--s-elevated)',
                         border: form.isAvailableForRecruitment ? '1px solid rgba(255,184,0,0.25)' : '1px solid var(--s-border)',
-                        cursor: 'pointer',
+                        cursor: isRostered ? 'not-allowed' : 'pointer',
                       }}>
                       <span className="text-sm font-semibold" style={{ color: form.isAvailableForRecruitment ? 'var(--s-gold)' : 'var(--s-text-dim)' }}>
                         Je suis disponible pour une équipe

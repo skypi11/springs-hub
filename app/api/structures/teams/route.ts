@@ -28,6 +28,23 @@ async function checkStructureAccess(uid: string, structureId: string) {
   return data;
 }
 
+// Lot B : un joueur titulaire/remplaçant d'une équipe n'est plus « LFT » (looking
+// for team) — il a une équipe. Quand on ajoute des joueurs à un roster, on coupe
+// leur disponibilité au recrutement. Idempotent (false sur false = no-op).
+async function clearLftForRostered(db: FirebaseFirestore.Firestore, userIds: string[]) {
+  const ids = Array.from(new Set(userIds.filter(Boolean)));
+  if (ids.length === 0) return;
+  const batch = db.batch();
+  for (const id of ids) {
+    batch.set(
+      db.collection('users').doc(id),
+      { isAvailableForRecruitment: false, recruitmentRole: '', recruitmentMessage: '' },
+      { merge: true },
+    );
+  }
+  await batch.commit();
+}
+
 // GET /api/structures/teams?structureId=xxx, lister les équipes d'une structure
 export async function GET(req: NextRequest) {
   try {
@@ -364,6 +381,8 @@ export async function POST(req: NextRequest) {
           createdAt: FieldValue.serverTimestamp(),
         });
         await bumpStructureCounterStandalone(db, structureId, 'teams', +1);
+        // Lot B : les joueurs ajoutés au roster ne sont plus LFT.
+        await clearLftForRostered(db, [...(playerIds || []), ...(subIds || [])]);
 
         return NextResponse.json({ success: true, id: docRef.id });
       }
@@ -513,6 +532,13 @@ export async function POST(req: NextRequest) {
         }
 
         await ref.update(updates);
+
+        // Lot B : les titulaires/remplaçants finaux ne sont plus LFT.
+        if (playerIds !== undefined || subIds !== undefined) {
+          const finalP = (playerIds !== undefined ? playerIds : (teamData.playerIds ?? [])) as string[];
+          const finalS = (subIds !== undefined ? subIds : (teamData.subIds ?? [])) as string[];
+          await clearLftForRostered(db, [...finalP, ...finalS]);
+        }
 
         // Nettoyage R2 : si le logo a changé et que l'ancien était un asset hébergé
         // chez nous (clé R2 versionnée d'un upload direct), on supprime le fichier

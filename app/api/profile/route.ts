@@ -254,6 +254,14 @@ export async function GET(req: NextRequest) {
     }
 
     if (isOwner) {
+      // Lot B : l'owner est-il titulaire/remplaçant d'une équipe ? Sert à griser
+      // le toggle LFT dans Settings (un joueur rostered n'est pas « looking for team »).
+      const rdb = getAdminDb();
+      const [rostP, rostS] = await Promise.all([
+        rdb.collection('sub_teams').where('playerIds', 'array-contains', uid).limit(1).get(),
+        rdb.collection('sub_teams').where('subIds', 'array-contains', uid).limit(1).get(),
+      ]);
+      const isRostered = !rostP.empty || !rostS.empty;
       // L'owner ne voit JAMAIS son propre flag (sinon il fuit avant enquête).
       // Le filtrage est garanti par construction : on n'a pas fetché le flag
       // ci-dessus pour les owners.
@@ -262,6 +270,7 @@ export async function GET(req: NextRequest) {
         valorantAccountVerified, valorantRiotId: valorantRiotIdFull,
         valorantRank: valorantRankVerified,
         structures,
+        isRostered,
       });
     }
 
@@ -335,7 +344,11 @@ export async function POST(req: NextRequest) {
       if (!isValidRLPlatform(body.rlPlatform)) {
         return NextResponse.json({ error: 'Sélectionne ta plateforme pour Rocket League.' }, { status: 400 });
       }
-      if (!body.rlPlatformId?.trim()) {
+      // Epic & Steam passent par la liaison vérifiée (pas de saisie d'ID manuelle) :
+      // on n'exige l'ID que pour les plateformes à saisie libre (PSN/Xbox/Switch…).
+      // Miroir exact du validate() client (settings) — sans ça, un joueur epic/steam
+      // non encore vérifié est rejeté ici alors que son ID arrive via la liaison.
+      if (body.rlPlatform !== 'epic' && body.rlPlatform !== 'steam' && !body.rlPlatformId?.trim()) {
         return NextResponse.json({ error: 'Ton identifiant sur cette plateforme est obligatoire pour RL.' }, { status: 400 });
       }
     }
@@ -404,6 +417,20 @@ export async function POST(req: NextRequest) {
       }));
     }
 
+    // Lot B : garde-fou LFT — un titulaire/remplaçant d'une équipe ne peut pas être
+    // « disponible au recrutement » (LFT = looking for team, ≠ déjà dans une équipe).
+    // Si l'user tente d'activer le LFT alors qu'il est rostered, on coerce à false :
+    // la règle prime sur la requête (le toggle est aussi grisé côté UI).
+    let wantsLft = body.isAvailableForRecruitment === true;
+    if (wantsLft) {
+      const rdb = getAdminDb();
+      const [rostP, rostS] = await Promise.all([
+        rdb.collection('sub_teams').where('playerIds', 'array-contains', uid).limit(1).get(),
+        rdb.collection('sub_teams').where('subIds', 'array-contains', uid).limit(1).get(),
+      ]);
+      if (!rostP.empty || !rostS.empty) wantsLft = false;
+    }
+
     const profileData: Record<string, unknown> = {
       uid,
       displayName: clampString(body.displayName, LIMITS.displayName),
@@ -426,9 +453,9 @@ export async function POST(req: NextRequest) {
       // sync auto HenrikDev (compte Riot lié, source 'henrikdev'), donc impossible
       // de mentir. La saisie manuelle a été retirée. On ne touche pas ici aux
       // champs valorantRank/valorantRankSource (gérés par le sync, merge:true).
-      isAvailableForRecruitment: body.isAvailableForRecruitment || false,
-      recruitmentRole: body.isAvailableForRecruitment ? body.recruitmentRole || '' : '',
-      recruitmentMessage: body.isAvailableForRecruitment ? clampString(body.recruitmentMessage, LIMITS.recruitmentMessage) : '',
+      isAvailableForRecruitment: wantsLft,
+      recruitmentRole: wantsLft ? body.recruitmentRole || '' : '',
+      recruitmentMessage: wantsLft ? clampString(body.recruitmentMessage, LIMITS.recruitmentMessage) : '',
       // Opt-out DM d'annonces : on ne met à jour que si le champ est explicitement
       // fourni (le toggle Settings), pour ne pas le réinitialiser depuis l'onboarding
       // ou tout autre save qui ne porte pas ce champ.
