@@ -173,245 +173,174 @@ export default function ConnectedDashboard({ user }: { user: SpringsUser }) {
       {/* Nudge de vérification de compte (se masque seul si tout est vérifié) */}
       <VerifyAccountNudge />
 
-      {/* 3 widgets */}
-      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 animate-fade-in-d1">
-        {/* Widget prochain event */}
-        <WidgetCard
-          accent="var(--s-gold)"
-          icon={<Calendar size={16} style={{ color: 'var(--s-gold)' }} />}
-          title="PROCHAIN EVENT"
+      {/* Layout asymétrique 2/3-1/3 : le prochain event domine (info n°1 du
+          joueur), exercices + structure en colonne compacte à droite. Le chrome
+          complet (accent bar + glow) reste réservé au welcome banner. Audit #7. */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-5 animate-fade-in-d1">
+        {/* Bloc dominant : prochain event */}
+        <Link
           href="/calendar"
-          loading={loading}
-          empty={!nextEvent}
-          emptyLabel="Aucun event programmé"
-          emptyCTA={primaryStructure ? 'Planifier un event' : null}
-          emptyHref={primaryStructure ? '/community/my-structure' : null}
+          className="lg:col-span-2 pillar-card panel bevel-sm group transition-all duration-200 block"
+          style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
         >
-          {nextEvent && (
-            <div className="space-y-3">
+          <div className="p-6 h-full flex flex-col" style={{ minHeight: '200px' }}>
+            <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-2">
-                <span
-                  className="tag"
-                  style={{
-                    fontSize: '12px',
-                    padding: '2px 6px',
-                    color: TYPE_COLOR[normalizeEventType(nextEvent.type)] ?? 'var(--s-text)',
-                    border: `1px solid ${TYPE_COLOR[normalizeEventType(nextEvent.type)] ?? 'var(--s-border)'}40`,
-                    background: 'transparent',
-                  }}
-                >
-                  {TYPE_LABEL[normalizeEventType(nextEvent.type)] ?? nextEvent.type}
-                </span>
-                {nextEventStructure && (
-                  <span className="t-mono text-xs truncate" style={{ color: 'var(--s-text-muted)' }}>
-                    {nextEventStructure.tag || nextEventStructure.name}
+                <Calendar size={15} style={{ color: 'var(--s-gold)' }} />
+                <span className="t-label" style={{ color: 'var(--s-text)' }}>Prochain event</span>
+              </div>
+              <ChevronRight size={15} className="transition-transform group-hover:translate-x-0.5" style={{ color: 'var(--s-text-muted)' }} />
+            </div>
+            {loading ? (
+              <div className="flex items-center justify-center flex-1">
+                <Loader2 size={20} className="animate-spin" style={{ color: 'var(--s-text-muted)' }} />
+              </div>
+            ) : nextEvent ? (
+              <div className="flex-1 flex flex-col">
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
+                  <span
+                    className="tag"
+                    style={{
+                      fontSize: '12px',
+                      padding: '2px 8px',
+                      color: TYPE_COLOR[normalizeEventType(nextEvent.type)] ?? 'var(--s-text)',
+                      border: `1px solid ${TYPE_COLOR[normalizeEventType(nextEvent.type)] ?? 'var(--s-border)'}40`,
+                      background: 'transparent',
+                    }}
+                  >
+                    {TYPE_LABEL[normalizeEventType(nextEvent.type)] ?? nextEvent.type}
+                  </span>
+                  {nextEventStructure && (
+                    <span className="t-mono text-xs truncate" style={{ color: 'var(--s-text-muted)' }}>
+                      {nextEventStructure.tag || nextEventStructure.name}
+                    </span>
+                  )}
+                </div>
+                <h2 className="font-display tracking-wider leading-tight line-clamp-2 mb-4" style={{ fontSize: '2rem', color: 'var(--s-text)' }}>
+                  {nextEvent.title}
+                </h2>
+                <div className="mt-auto flex items-end justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                    <Clock size={14} />
+                    <span>{formatDateTime(nextEvent.startsAt)}</span>
+                  </div>
+                  <span className="font-display text-2xl" style={{ color: 'var(--s-gold)', letterSpacing: '0.02em', lineHeight: 1 }}>
+                    {formatRelative(nextEvent.startsAt)}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col justify-center">
+                <p className="text-sm mb-3" style={{ color: 'var(--s-text-dim)' }}>Aucun event programmé.</p>
+                {primaryStructure && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--s-gold)' }}>
+                    Planifier un event <ArrowRight size={11} />
                   </span>
                 )}
               </div>
-              <h3 className="font-display text-lg tracking-wider leading-tight line-clamp-2" style={{ color: 'var(--s-text)' }}>
-                {nextEvent.title}
-              </h3>
-              <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                <Clock size={12} />
-                <span>{formatDateTime(nextEvent.startsAt)}</span>
-              </div>
-              <div className="t-label" style={{ color: 'var(--s-gold)' }}>
-                {formatRelative(nextEvent.startsAt)}
-              </div>
-            </div>
-          )}
-        </WidgetCard>
+            )}
+          </div>
+        </Link>
 
-        {/* Widget exercices */}
-        <WidgetCard
-          accent="var(--s-blue)"
-          icon={<ClipboardList size={16} style={{ color: 'var(--s-blue)' }} />}
-          title="MES EXERCICES"
-          href="/calendar"
-          loading={loading}
-          empty={todoCount === 0}
-          emptyLabel="Aucun exercice en cours"
-          emptyCTA={null}
-          emptyHref={null}
-        >
-          {todoCount > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-baseline gap-2">
-                <span className="font-display text-4xl" style={{ color: 'var(--s-blue)', letterSpacing: '0.02em', lineHeight: 1 }}>
-                  {todoCount}
-                </span>
-                <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>
-                  à faire
-                </span>
+        {/* Colonne compacte : exercices + structure en rangées */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-5">
+          {/* Exercices */}
+          <Link
+            href="/calendar"
+            className="pillar-card panel bevel-sm group transition-all duration-200 block"
+            style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
+          >
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <ClipboardList size={14} style={{ color: 'var(--s-blue)' }} />
+                  <span className="t-label" style={{ color: 'var(--s-text)' }}>Mes exercices</span>
+                </div>
+                <ChevronRight size={14} className="transition-transform group-hover:translate-x-0.5" style={{ color: 'var(--s-text-muted)' }} />
               </div>
-              {firstTodo && (
-                <div className="pt-2" style={{ borderTop: '1px dashed var(--s-border)' }}>
-                  <p className="text-sm font-semibold line-clamp-1" style={{ color: 'var(--s-text)' }}>
-                    {firstTodo.title}
-                  </p>
-                  {firstTodo.deadline && (
-                    <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
-                      Deadline · {formatRelative(firstTodo.deadline)}
+              {loading ? (
+                <Loader2 size={16} className="animate-spin" style={{ color: 'var(--s-text-muted)' }} />
+              ) : todoCount > 0 ? (
+                <div className="flex items-baseline gap-2">
+                  <span className="font-display text-3xl" style={{ color: 'var(--s-blue)', lineHeight: 1 }}>{todoCount}</span>
+                  <span className="text-sm truncate" style={{ color: 'var(--s-text-dim)' }}>
+                    {firstTodo ? firstTodo.title : 'à faire'}
+                  </span>
+                </div>
+              ) : (
+                <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>Aucun exercice en cours</p>
+              )}
+            </div>
+          </Link>
+
+          {/* Structure */}
+          <Link
+            href={primaryStructure ? '/community/my-structure' : '/community/create-structure'}
+            className="pillar-card panel bevel-sm group transition-all duration-200 block"
+            style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
+          >
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Shield size={14} style={{ color: 'var(--s-gold)' }} />
+                  <span className="t-label" style={{ color: 'var(--s-text)' }}>Ma structure</span>
+                </div>
+                <ChevronRight size={14} className="transition-transform group-hover:translate-x-0.5" style={{ color: 'var(--s-text-muted)' }} />
+              </div>
+              {loading ? (
+                <Loader2 size={16} className="animate-spin" style={{ color: 'var(--s-text-muted)' }} />
+              ) : primaryStructure ? (
+                <div className="flex items-center gap-3">
+                  {primaryStructure.logoUrl ? (
+                    <div className="w-10 h-10 flex-shrink-0 relative overflow-hidden bevel-sm"
+                      style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                      <Image src={primaryStructure.logoUrl} alt={primaryStructure.name} fill className="object-contain p-1" unoptimized />
+                    </div>
+                  ) : (
+                    <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center bevel-sm"
+                      style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                      <Shield size={16} style={{ color: 'var(--s-text-muted)' }} />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="font-display tracking-wider leading-tight truncate" style={{ fontSize: '15px', color: 'var(--s-text)' }}>
+                      {primaryStructure.name}
                     </p>
+                    <p className="t-mono text-xs mt-0.5 truncate" style={{ color: 'var(--s-text-muted)' }}>
+                      [{primaryStructure.tag}] · {primaryStructure.members?.length ?? 0} membre{(primaryStructure.members?.length ?? 0) > 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  {primaryStructure.status === 'pending_validation' && (
+                    <span className="tag tag-gold flex-shrink-0" style={{ fontSize: '12px', padding: '1px 5px' }}>EN ATTENTE</span>
                   )}
                 </div>
-              )}
-              {todoCount > 1 && (
-                <p className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                  +{todoCount - 1} autre{todoCount - 1 > 1 ? 's' : ''}
-                </p>
-              )}
-            </div>
-          )}
-        </WidgetCard>
-
-        {/* Widget structure */}
-        <WidgetCard
-          accent="var(--s-gold)"
-          icon={<Shield size={16} style={{ color: 'var(--s-gold)' }} />}
-          title="MA STRUCTURE"
-          href={primaryStructure ? '/community/my-structure' : '/community/create-structure'}
-          loading={loading}
-          empty={!primaryStructure}
-          emptyLabel="Tu n'as pas encore de structure"
-          emptyCTA="Créer une structure"
-          emptyHref="/community/create-structure"
-        >
-          {primaryStructure && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                {primaryStructure.logoUrl ? (
-                  <div className="w-12 h-12 flex-shrink-0 relative overflow-hidden bevel-sm"
-                    style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                    <Image src={primaryStructure.logoUrl} alt={primaryStructure.name} fill className="object-contain p-1" unoptimized />
-                  </div>
-                ) : (
-                  <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center bevel-sm"
-                    style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                    <Shield size={18} style={{ color: 'var(--s-text-muted)' }} />
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="font-display text-lg tracking-wider leading-tight truncate" style={{ color: 'var(--s-text)' }}>
-                    {primaryStructure.name}
-                  </p>
-                  <p className="t-mono text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
-                    [{primaryStructure.tag}] · {primaryStructure.accessLevel === 'dirigeant' ? 'Dirigeant' : 'Staff'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 text-xs pt-2" style={{ borderTop: '1px dashed var(--s-border)', color: 'var(--s-text-dim)' }}>
-                <span>
-                  {primaryStructure.members?.length ?? 0} membre{(primaryStructure.members?.length ?? 0) > 1 ? 's' : ''}
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                  Créer une structure <ArrowRight size={12} style={{ color: 'var(--s-gold)' }} />
                 </span>
-                {primaryStructure.status === 'pending_validation' && (
-                  <span className="tag tag-gold" style={{ fontSize: '12px', padding: '1px 5px' }}>EN ATTENTE</span>
-                )}
-              </div>
+              )}
             </div>
-          )}
-        </WidgetCard>
+          </Link>
+        </div>
       </section>
 
-      {/* Invitation Discord communautaire, accent blurple discret */}
+      {/* Discord communautaire — ligne fine, l'élément le plus discret de l'écran
+          (pub interne). Plus d'accent bar ni de glow ni d'icon-box. Audit #7. */}
       <a
         href={AEDRAL_DISCORD_INVITE_URL}
         target="_blank"
         rel="noopener noreferrer"
-        className="bevel-sm relative overflow-hidden block group transition-all duration-200 animate-fade-in-d2"
+        className="bevel-sm flex items-center gap-3 px-5 py-3 group transition-colors duration-200 animate-fade-in-d2"
         style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
       >
-        <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, #5865f2, rgba(88,101,242,0.3), transparent 70%)' }} />
-        <div className="absolute top-0 right-0 w-40 h-40 pointer-events-none opacity-[0.06] group-hover:opacity-[0.12] transition-opacity"
-          style={{ background: 'radial-gradient(circle at top right, #5865f2, transparent 70%)' }} />
-        <div className="relative z-[1] p-5 flex items-center gap-4 flex-wrap">
-          <div className="w-11 h-11 flex-shrink-0 flex items-center justify-center bevel-sm"
-            style={{ background: 'rgba(88,101,242,0.12)', border: '1px solid rgba(88,101,242,0.3)' }}>
-            <DiscordIcon size={20} />
-          </div>
-          <div className="flex-1 min-w-0" style={{ minWidth: '200px' }}>
-            <p className="font-display tracking-wider" style={{ fontSize: '17px', color: 'var(--s-text)' }}>
-              REJOINS LA COMMUNAUTÉ SUR DISCORD
-            </p>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--s-text-dim)' }}>
-              Entraide, annonces, support et tous les autres joueurs &amp; structures Aedral.
-            </p>
-          </div>
-          <span
-            className="btn-springs btn-secondary bevel-sm flex items-center gap-2 flex-shrink-0"
-            style={{ borderColor: 'rgba(88,101,242,0.4)', color: '#a9b2ff' }}
-          >
-            Rejoindre <ArrowRight size={13} />
-          </span>
-        </div>
+        <DiscordIcon size={16} />
+        <span className="text-sm flex-1 min-w-0 truncate" style={{ color: 'var(--s-text-dim)' }}>
+          Rejoins la communauté Aedral sur Discord — entraide, annonces, support.
+        </span>
+        <span className="inline-flex items-center gap-1 text-xs flex-shrink-0 transition-all group-hover:gap-1.5" style={{ color: '#a9b2ff' }}>
+          Rejoindre <ArrowRight size={12} />
+        </span>
       </a>
     </div>
-  );
-}
-
-function WidgetCard({
-  accent,
-  icon,
-  title,
-  href,
-  loading,
-  empty,
-  emptyLabel,
-  emptyCTA,
-  emptyHref,
-  children,
-}: {
-  accent: string;
-  icon: React.ReactNode;
-  title: string;
-  href: string;
-  loading: boolean;
-  empty: boolean;
-  emptyLabel: string;
-  emptyCTA: string | null;
-  emptyHref: string | null;
-  children: React.ReactNode;
-}) {
-  const body = (
-    <div className="pillar-card panel bevel-sm relative overflow-hidden group transition-all duration-200 block h-full"
-      style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${accent}, transparent 70%)` }} />
-      <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-        style={{ background: `radial-gradient(circle at 100% 0%, ${accent}15, transparent 70%)` }} />
-      <div className="relative z-[1] p-5 h-full flex flex-col">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            {icon}
-            <span className="t-label" style={{ color: 'var(--s-text)' }}>{title}</span>
-          </div>
-          <ChevronRight size={14} className="transition-transform group-hover:translate-x-0.5"
-            style={{ color: 'var(--s-text-muted)' }} />
-        </div>
-        <div className="flex-1 flex flex-col justify-center">
-          {loading ? (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 size={18} className="animate-spin" style={{ color: 'var(--s-text-muted)' }} />
-            </div>
-          ) : empty ? (
-            <div className="py-4">
-              <p className="text-sm mb-3" style={{ color: 'var(--s-text-dim)' }}>{emptyLabel}</p>
-              {emptyCTA && emptyHref && (
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider"
-                  style={{ color: accent }}>
-                  {emptyCTA} <ArrowRight size={11} />
-                </span>
-              )}
-            </div>
-          ) : (
-            children
-          )}
-        </div>
-      </div>
-    </div>
-  );
-  return (
-    <Link href={href} className="block h-full">
-      {body}
-    </Link>
   );
 }
