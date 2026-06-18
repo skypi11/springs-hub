@@ -11,7 +11,7 @@ import { addAuditLog, writeAuditLog } from '@/lib/audit-log';
 import { bumpStructureCounter } from '@/lib/structure-counters';
 import { postRecruitmentEmbed } from '@/lib/discord-bot';
 import { canManageMembers, structureContext } from '@/lib/structure-permissions';
-import { canJoinStructure, addStructureToGame, STRUCTURE_MEMBERSHIP_CAP } from '@/lib/structure-membership';
+import { canJoinStructure, addStructureToGame, removeStructureFromGame, STRUCTURE_MEMBERSHIP_CAP } from '@/lib/structure-membership';
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
 import { pickValorantRiotId } from '@/lib/discord-connections';
 
@@ -444,10 +444,16 @@ export async function POST(req: NextRequest) {
         batch.delete(ref);
 
         if (userSnap.exists) {
+          // FIX : structurePerGame[game] est un ARRAY depuis le cap-2. L'ancienne
+          // comparaison `=== structureId` (string) était toujours fausse → la
+          // structure restait en orphelin. On retire proprement via le helper,
+          // miroir exact du chemin `leave` (join/route.ts).
           const spg = userSnap.data()!.structurePerGame || {};
-          if (spg[memberData.game] === structureId) {
-            delete spg[memberData.game];
-            batch.update(userRef, { structurePerGame: spg });
+          const newArray = removeStructureFromGame(spg, memberData.game, structureId);
+          if (newArray.length === 0) {
+            batch.update(userRef, { [`structurePerGame.${memberData.game}`]: FieldValue.delete() });
+          } else {
+            batch.update(userRef, { [`structurePerGame.${memberData.game}`]: newArray });
           }
         }
 

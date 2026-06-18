@@ -276,7 +276,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                 <strong>Compte suspecté smurf</strong> · flaggé le {dateStr}
                 {flag.note && <span> · *{flag.note}*</span>}
                 <span className="block mt-0.5" style={{ color: 'var(--s-text-muted)' }}>
-                  Visible uniquement par les admins. Sert d'historique pour la modération et les futures inscriptions en compétition.
+                  Visible uniquement par les admins. Sert d&apos;historique pour la modération et les futures inscriptions en compétition.
                 </span>
               </div>
             </div>
@@ -956,14 +956,14 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
               {profile.isAvailableForRecruitment && (
                 <div className="panel relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-[150px] h-[150px] pointer-events-none opacity-[0.06]"
-                    style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
+                    style={{ background: 'radial-gradient(circle at top right, var(--s-green), transparent 70%)' }} />
                   <div className="relative z-[1]">
                     <div className="panel-header">
                       <div className="flex items-center gap-2">
-                        <Search size={13} style={{ color: 'var(--s-gold)' }} />
-                        <span className="t-label" style={{ color: 'var(--s-text)' }}>RECRUTEMENT</span>
+                        <Search size={13} style={{ color: 'var(--s-green)' }} />
+                        <span className="t-label" style={{ color: 'var(--s-text)' }}>LFT</span>
                       </div>
-                      <span className="tag tag-gold" style={{ fontSize: '12px' }}>OUVERT</span>
+                      <span className="tag tag-green" style={{ fontSize: '12px' }}>OUVERT</span>
                     </div>
                     <div className="p-5 space-y-3">
                       {profile.recruitmentRole && (
