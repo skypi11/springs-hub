@@ -13,7 +13,7 @@ import { countries } from '@/lib/countries';
 import {
   Save, User, Gamepad2, Search, ExternalLink,
   AlertCircle, CheckCircle, Loader2, UserCircle, LogOut, Star,
-  Download, Trash2, Link2, RefreshCw, Share2, Bell,
+  Download, Trash2, Link2, RefreshCw, Share2, Bell, ChevronRight,
 } from 'lucide-react';
 import SharingSection from '@/components/settings/SharingSection';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
@@ -248,6 +248,11 @@ export default function SettingsPage() {
       );
       if (r.ok && r.rlEpicId) {
         setEpicLinked({ rlEpicId: r.rlEpicId, rlEpicName: r.rlEpicName ?? '' });
+        // Miroir local du rlPlatform/rlPlatformId persistés serveur (rl-epic-link
+        // pose rlPlatformId = nom Epic) : sans ça, le lien tracker.gg du badge
+        // vérifié n'apparaît qu'au prochain reload. setForm direct (pas updateForm)
+        // → on ne marque pas dirty, le serveur a déjà persisté.
+        setForm(prev => ({ ...prev, rlPlatform: 'epic', rlPlatformId: r.rlEpicName ?? prev.rlPlatformId }));
         toast.success(r.message ?? 'Compte Epic lié.');
         // Recharge le profil pour propager rlPlatform/rlPlatformId (miroir)
         // + invalide profileQ pour que le 2e useEffect resync les états serveur.
@@ -305,6 +310,9 @@ export default function SettingsPage() {
       );
       if (r.ok && r.rlSteamId) {
         setRlSteamLinked({ rlSteamId: r.rlSteamId, rlSteamName: r.rlSteamName ?? '' });
+        // Miroir local : rl-steam-link pose rlPlatformId = SteamID64 → le lien
+        // tracker.gg du badge apparaît immédiatement (cf. handleConfirmEpicLink).
+        setForm(prev => ({ ...prev, rlPlatform: 'steam', rlPlatformId: r.rlSteamId ?? prev.rlPlatformId }));
         toast.success(r.message ?? 'Compte Steam RL lié.');
         await Promise.all([
           refreshProfile?.(),
@@ -467,11 +475,22 @@ export default function SettingsPage() {
     const savedPlatformId = (data.rlPlatformId as string) || '';
     const connections = (data.discordConnections as DiscordConnection[] | undefined) ?? [];
     const fromDiscord = pickBestRLConnection(connections);
+    // Post-F2P, Epic est l'identité RL canonique (ancre du rang vérifié). Si une
+    // connexion Epic Discord vérifiée existe, on la propose par défaut même quand
+    // pickBestRLConnection privilégierait Steam — c'est le 1-clic de vérification
+    // qu'on veut surfacer en priorité (cf. mémoire project_rl_rank_strategy).
+    // id laissé vide pré-confirmation : c'est handleConfirmEpicLink qui posera le
+    // rlPlatformId canonique (nom Epic) — éviter un lien tracker.gg erroné/un 4e
+    // bloc « liens auto-générés » pour un compte Epic pas encore vérifié.
+    const epicDiscordConn = connections.find(c => c.type === 'epicgames' && c.verified);
+    const preferredFromDiscord = epicDiscordConn
+      ? { platform: 'epic' as RLPlatform, id: '' }
+      : fromDiscord;
 
     const initialPlatform: RLPlatform | '' = isValidRLPlatform(savedPlatform)
       ? savedPlatform
-      : (legacyEpicPseudo ? 'epic' : (fromDiscord?.platform ?? ''));
-    const initialPlatformId = savedPlatformId || legacyEpicPseudo || fromDiscord?.id || '';
+      : (legacyEpicPseudo ? 'epic' : (preferredFromDiscord?.platform ?? ''));
+    const initialPlatformId = savedPlatformId || legacyEpicPseudo || preferredFromDiscord?.id || '';
     setForm({
       displayName: (data.displayName as string) ?? firebaseUser.displayName ?? '',
       avatarUrl: (data.avatarUrl as string) ?? '',
@@ -600,7 +619,11 @@ export default function SettingsPage() {
       if (!form.rlPlatform) {
         return 'Sélectionne ta plateforme principale pour Rocket League.';
       }
-      if (!form.rlPlatformId.trim()) {
+      // Epic & Steam passent par la liaison vérifiée (pas de saisie d'ID manuelle),
+      // donc on n'exige l'ID que pour les plateformes à saisie libre (PSN/Xbox/Switch…).
+      // Sans ce garde, un joueur Epic/Steam non encore vérifié aurait rlPlatformId=''
+      // → save bloqué en boucle sur un champ qui n'existe plus dans l'UI.
+      if (form.rlPlatform !== 'epic' && form.rlPlatform !== 'steam' && !form.rlPlatformId.trim()) {
         return `Ton ${getRLPlatformMeta(form.rlPlatform).idLabel} est obligatoire pour Rocket League.`;
       }
     }
@@ -997,6 +1020,18 @@ export default function SettingsPage() {
                       const ballchasingPreview = form.rlPlatform && form.rlPlatformId.trim()
                         ? buildBallchasingUrl(form.rlPlatform, form.rlPlatformId)
                         : '';
+                      // Compte RL officiel vérifié (Epic prime, sinon Steam). C'est l'ancre
+                      // anti-mensonge : tant qu'il existe, on n'affiche QUE le badge + le rang,
+                      // tout le flow de liaison se masque (« un seul état visible à la fois »).
+                      const epicConn = (form.connections ?? []).find(c => c.type === 'epicgames' && c.verified);
+                      const epicMissingFromDiscord = !!epicLinked && (!epicConn || epicConn.id !== epicLinked.rlEpicId);
+                      const verified = epicLinked
+                        ? { kind: 'epic' as const, name: epicLinked.rlEpicName || `${epicLinked.rlEpicId.slice(0, 10)}…` }
+                        : rlSteamLinked
+                        ? { kind: 'steam' as const, name: rlSteamLinked.rlSteamName || rlSteamLinked.rlSteamId }
+                        : null;
+                      const hasLink = !!verified;
+                      const requestingVerifiedChange = verified?.kind === 'epic' ? requestingChange : requestingSteamChange;
                       return (
                         <div className="p-4 space-y-4 relative overflow-hidden" style={{ background: 'rgba(0,129,255,0.04)', border: '1px solid rgba(0,129,255,0.15)' }}>
                           <div className="h-[2px] -mt-4 -mx-4 mb-4" style={{ background: 'linear-gradient(90deg, var(--s-blue), transparent 60%)' }} />
@@ -1005,315 +1040,175 @@ export default function SettingsPage() {
                             <span className="t-label" style={{ color: 'var(--s-blue)' }}>Config Rocket League</span>
                           </div>
 
-                          {/* ── Question 1 : SUR QUELLE PLATEFORME ? ──
-                              Mis en avant en haut pour que l'utilisateur choisisse d'abord,
-                              et que les blocs de vérification suivants soient adaptés à sa
-                              réponse (Epic / Steam / autres). */}
-                          <div className="p-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                            <label className="t-label block mb-2" style={{ color: 'var(--s-text)' }}>
-                              Sur quelle plateforme joues-tu à Rocket League ?
-                            </label>
-                            <select
-                              value={form.rlPlatform}
-                              onChange={e => updateForm({ rlPlatform: (e.target.value as RLPlatform | '') })}
-                              className="settings-input w-full"
-                            >
-                              <option value="">Choisis ta plateforme</option>
-                              {RL_PLATFORMS.map(p => (
-                                <option key={p.value} value={p.value}>{p.label}</option>
-                              ))}
-                            </select>
-                            {!form.rlPlatform && (
-                              <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
-                                Choisis ta plateforme, les options de vérification adaptées
-                                s&apos;afficheront en dessous.
-                              </p>
-                            )}
-                          </div>
-
-                          {/* ── Compte Epic officiel (anti-mensonge / sticky) ──
-                              Les SUGGESTIONS (état non confirmé) ne s'affichent que si la
-                              plateforme déclarée est Epic, ou pas encore choisie. L'affichage
-                              du compte confirmé (epicLinked truthy) reste toujours visible. */}
-                          {(() => {
-                            const epicConn = (form.connections ?? []).find(c => c.type === 'epicgames' && c.verified);
-                            const epicMissingFromDiscord = !!epicLinked && (!epicConn || epicConn.id !== epicLinked.rlEpicId);
-                            const epicContext = form.rlPlatform === '' || form.rlPlatform === 'epic';
-
-                            if (epicLinked) {
-                              return (
-                                <div className="p-3 space-y-2"
-                                  style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.3)' }}>
-                                  <div className="flex items-center gap-2">
-                                    <CheckCircle size={14} style={{ color: 'var(--s-gold)' }} />
-                                    <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
-                                      Compte Rocket League vérifié
-                                    </span>
-                                  </div>
-                                  <div className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                                    <span className="font-semibold" style={{ color: 'var(--s-text)' }}>
-                                      {epicLinked.rlEpicName || `${epicLinked.rlEpicId.slice(0, 10)}…`}
-                                    </span>
-                                    <span className="t-mono ml-2" style={{ color: 'var(--s-text-muted)', fontSize: '12px' }}>
-                                      {epicLinked.rlEpicId}
-                                    </span>
-                                  </div>
-                                  {epicMissingFromDiscord && (
-                                    <div className="p-2" style={{ background: 'rgba(255,85,85,0.08)', border: '1px solid rgba(255,85,85,0.25)' }}>
-                                      <p className="text-xs" style={{ color: '#ff8a8a' }}>
-                                        On ne retrouve plus ce compte Epic sur ton Discord. Relie-le à nouveau (Paramètres Discord → Connexions → Epic Games) pour qu'on puisse rafraîchir ton pseudo automatiquement.
-                                      </p>
-                                    </div>
+                          {/* ── ÉTAT VÉRIFIÉ : un seul bloc compact (badge + tracker + disclosure changement) ── */}
+                          {hasLink && verified && (
+                            <div className="flex items-start gap-3 p-3" style={{ background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.25)' }}>
+                              <CheckCircle size={16} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--s-gold)' }} />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>{verified.name}</span>
+                                  <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                                    {verified.kind === 'epic' ? 'Epic' : 'Steam'} vérifié
+                                  </span>
+                                  {trackerPreview && (
+                                    <a href={trackerPreview} target="_blank" rel="noopener noreferrer"
+                                      className="text-xs inline-flex items-center gap-1 hover:underline" style={{ color: 'var(--s-blue)' }}>
+                                      <ExternalLink size={11} /> tracker.gg
+                                    </a>
                                   )}
-                                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                                    <p className="text-xs flex-1" style={{ color: 'var(--s-text-muted)' }}>
-                                      Pour changer le compte lié, d'abord modifie ta connexion Epic sur Discord, reconnecte-toi à Aedral, puis fais une demande.
+                                </div>
+                                {epicMissingFromDiscord && (
+                                  <p className="text-xs mt-1.5" style={{ color: '#ff8a8a' }}>
+                                    On ne retrouve plus ce compte Epic sur ton Discord. Relie-le (Paramètres Discord → Connexions → Epic Games) pour rafraîchir ton pseudo.
+                                  </p>
+                                )}
+                                <details className="group/rlchg mt-2">
+                                  <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden text-xs inline-flex items-center gap-1" style={{ color: 'var(--s-text-muted)' }}>
+                                    <ChevronRight size={12} aria-hidden="true" className="transition-transform group-open/rlchg:rotate-90" /> Changer de compte ?
+                                  </summary>
+                                  <div className="mt-2 space-y-2">
+                                    <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                                      {verified.kind === 'epic'
+                                        ? 'Mets à jour ta connexion Epic sur Discord, reconnecte-toi à Aedral, puis fais une demande à valider par un admin.'
+                                        : 'Re-lie ton compte Steam vers le bon profil, puis fais une demande à valider par un admin.'}
                                     </p>
                                     <button type="button"
-                                      onClick={handleRequestEpicChange}
-                                      disabled={requestingChange}
+                                      onClick={verified.kind === 'epic' ? handleRequestEpicChange : handleRequestSteamChange}
+                                      disabled={requestingVerifiedChange}
                                       className="btn-springs btn-secondary bevel-sm inline-flex items-center gap-2 disabled:opacity-50"
                                       style={{ fontSize: '12px', padding: '6px 12px' }}>
-                                      {requestingChange ? <Loader2 size={11} className="animate-spin" /> : null}
+                                      {requestingVerifiedChange ? <Loader2 size={11} className="animate-spin" /> : null}
                                       Demander un changement
                                     </button>
                                   </div>
-                                </div>
-                              );
-                            }
-
-                            // Suggestion confirmation Epic : uniquement si plateforme Epic ou vide
-                            if (epicConn && epicContext) {
-                              return (
-                                <div className="p-3 space-y-2"
-                                  style={{ background: 'rgba(255,184,0,0.04)', border: '1px solid rgba(255,184,0,0.2)' }}>
-                                  <div className="flex items-center gap-2">
-                                    <AlertCircle size={14} style={{ color: 'var(--s-gold)' }} />
-                                    <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
-                                      Confirme ton compte Rocket League
-                                    </span>
-                                  </div>
-                                  <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                                    On voit ce compte Epic sur ton Discord :{' '}
-                                    <span className="font-semibold" style={{ color: 'var(--s-text)' }}>{epicConn.name}</span>.
-                                    <br />
-                                    C'est bien ton compte Rocket League <strong>principal</strong> ? Une fois lié, il est <strong>figé</strong> sur ton profil (changement futur = demande admin).
-                                  </p>
-                                  <div className="flex gap-2 flex-wrap">
-                                    <button type="button"
-                                      onClick={handleConfirmEpicLink}
-                                      disabled={confirmingEpic}
-                                      className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2 disabled:opacity-50"
-                                      style={{ fontSize: '12px', padding: '8px 14px' }}>
-                                      {confirmingEpic ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
-                                      Oui, c'est mon compte principal
-                                    </button>
-                                  </div>
-                                  <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                                    Pas mon compte principal ? Sur Discord → Paramètres → Connexions → retire cette connexion Epic et ajoute la bonne, puis reconnecte-toi à Aedral.
-                                  </p>
-                                </div>
-                              );
-                            }
-
-                            // "Aucun compte vérifié" : message d'invitation à lier Epic.
-                            // Ne s'affiche qu'en contexte Epic (ou plateforme non choisie).
-                            if (epicContext) {
-                              return (
-                                <div className="p-3 space-y-1"
-                                  style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--s-border)' }}>
-                                  <div className="flex items-center gap-2">
-                                    <AlertCircle size={14} style={{ color: 'var(--s-text-muted)' }} />
-                                    <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
-                                      Aucun compte Rocket League vérifié
-                                    </span>
-                                  </div>
-                                  <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                                    Pour qu'on puisse afficher un rang vérifiable, lie ton compte Epic à ton Discord (Paramètres Discord → Connexions → Epic Games), puis reconnecte-toi à Aedral.
-                                  </p>
-                                </div>
-                              );
-                            }
-                            return null;
-                          })()}
-
-                          {/* ── Liaison Steam ──
-                              Si Steam déjà lié : on affiche l'état (info utile dans tous les cas).
-                              Sinon : suggestion uniquement si plateforme déclarée = Steam ou pas
-                              encore choisie. La mention "(recommandé)" est conditionnée au
-                              contexte Steam pour ne pas tromper les joueurs Epic.  */}
-                          {(form.rlPlatform === '' || form.rlPlatform === 'steam' || steamLinked) && (
-                            steamLinked ? (
-                            <div
-                              className="p-3 flex items-center gap-3"
-                              style={{
-                                background: 'rgba(34, 173, 67, 0.06)',
-                                border: '1px solid rgba(34, 173, 67, 0.25)',
-                              }}
-                            >
-                              {steamLinked.avatarUrl ? (
-                                <Image
-                                  src={steamLinked.avatarUrl}
-                                  alt="Avatar Steam"
-                                  width={40}
-                                  height={40}
-                                  className="flex-shrink-0"
-                                  unoptimized
-                                />
-                              ) : (
-                                <div
-                                  className="w-10 h-10 flex-shrink-0 flex items-center justify-center font-display"
-                                  style={{ background: 'rgba(34,173,67,0.15)', color: 'var(--s-green)', fontSize: 16 }}
-                                >
-                                  S
-                                </div>
-                              )}
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <CheckCircle size={12} style={{ color: 'var(--s-green)' }} />
-                                  <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
-                                    Steam lié
-                                  </span>
-                                </div>
-                                <div className="text-xs truncate" style={{ color: 'var(--s-text-dim)' }}>
-                                  {steamLinked.personaName ? `${steamLinked.personaName} · ` : ''}
-                                  <span className="t-mono">{steamLinked.steamId64}</span>
-                                </div>
+                                </details>
                               </div>
-                              <button
-                                type="button"
-                                onClick={handleUnlinkSteam}
-                                disabled={linkingSteam}
-                                className="btn-springs btn-secondary bevel-sm text-xs disabled:opacity-50"
-                              >
-                                Délier
-                              </button>
                             </div>
-                          ) : (
-                            <div
-                              className="p-4 space-y-2"
-                              style={{
-                                background: 'rgba(27, 40, 56, 0.4)',
-                                border: '1px solid rgba(102, 192, 244, 0.25)',
-                              }}
-                            >
-                              <div className="flex items-center justify-between gap-3 flex-wrap">
-                                <div className="flex-1 min-w-[200px]">
-                                  <p className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
-                                    Lier ton compte Steam
-                                    {form.rlPlatform === 'steam' && (
-                                      <span className="ml-2" style={{ color: 'var(--s-gold)', fontSize: '12px', fontWeight: 600 }}>
-                                        (recommandé)
-                                      </span>
-                                    )}
+                          )}
+
+                          {/* ── ÉTAT NON VÉRIFIÉ : sélecteur plateforme → 1 CTA contextuel en dessous ── */}
+                          {!hasLink && (
+                            <div className="p-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                              <label className="t-label block mb-2" style={{ color: 'var(--s-text)' }}>
+                                Sur quelle plateforme joues-tu à Rocket League ?
+                              </label>
+                              <select
+                                value={form.rlPlatform}
+                                onChange={e => updateForm({ rlPlatform: (e.target.value as RLPlatform | '') })}
+                                className="settings-input w-full"
+                              >
+                                <option value="">Choisis ta plateforme</option>
+                                {RL_PLATFORMS.map(p => (
+                                  <option key={p.value} value={p.value}>{p.label}</option>
+                                ))}
+                              </select>
+                              {!form.rlPlatform && (
+                                <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
+                                  Le rang n&apos;est affichable qu&apos;après liaison d&apos;un compte vérifié.
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          {/* ── Liaison Epic (anti-mensonge) : confirmation via la connexion Discord vérifiée ── */}
+                          {!hasLink && form.rlPlatform === 'epic' && (
+                            epicConn ? (
+                              <div className="p-3 space-y-2" style={{ background: 'rgba(255,184,0,0.04)', border: '1px solid rgba(255,184,0,0.2)' }}>
+                                <p className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>Confirme ton compte Rocket League</p>
+                                <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                                  Compte Epic vu sur ton Discord : <span className="font-semibold" style={{ color: 'var(--s-text)' }}>{epicConn.name}</span>. Une fois lié, il est figé (changement futur = demande admin).
+                                </p>
+                                <button type="button"
+                                  onClick={handleConfirmEpicLink}
+                                  disabled={confirmingEpic}
+                                  className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2 disabled:opacity-50"
+                                  style={{ fontSize: '12px', padding: '8px 14px' }}>
+                                  {confirmingEpic ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
+                                  Oui, c&apos;est mon compte principal
+                                </button>
+                                <details className="group/rlepic">
+                                  <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden text-xs inline-flex items-center gap-1" style={{ color: 'var(--s-text-muted)' }}>
+                                    <ChevronRight size={12} aria-hidden="true" className="transition-transform group-open/rlepic:rotate-90" /> Ce n&apos;est pas mon compte ?
+                                  </summary>
+                                  <p className="text-xs mt-2" style={{ color: 'var(--s-text-muted)' }}>
+                                    Sur Discord → Paramètres → Connexions → retire cette connexion Epic, ajoute la bonne, puis reconnecte-toi à Aedral.
                                   </p>
+                                </details>
+                              </div>
+                            ) : (
+                              <div className="p-3" style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--s-border)' }}>
+                                <p className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>Lie ton compte Epic</p>
+                                <p className="text-xs mt-1" style={{ color: 'var(--s-text-dim)' }}>
+                                  Ajoute Epic Games dans tes connexions Discord (Paramètres → Connexions), puis reconnecte-toi à Aedral : on pourra le confirmer ici.
+                                </p>
+                                <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
+                                  Tu joues sur une autre plateforme ? Change ta sélection ci-dessus.
+                                </p>
+                              </div>
+                            )
+                          )}
+
+                          {/* ── Liaison Steam (OpenID) — uniquement si plateforme Steam ── */}
+                          {!hasLink && form.rlPlatform === 'steam' && (
+                            steamLinked ? (
+                              <div className="p-3 flex items-center gap-3" style={{ background: 'rgba(34, 173, 67, 0.06)', border: '1px solid rgba(34, 173, 67, 0.25)' }}>
+                                {steamLinked.avatarUrl ? (
+                                  <Image src={steamLinked.avatarUrl} alt="Avatar Steam" width={40} height={40} className="flex-shrink-0" unoptimized />
+                                ) : (
+                                  <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center font-display" style={{ background: 'rgba(34,173,67,0.15)', color: 'var(--s-green)', fontSize: 16 }}>S</div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <CheckCircle size={12} style={{ color: 'var(--s-green)' }} />
+                                    <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>Steam lié</span>
+                                  </div>
+                                  <div className="text-xs truncate" style={{ color: 'var(--s-text-dim)' }}>
+                                    {steamLinked.personaName ? `${steamLinked.personaName} · ` : ''}
+                                    <span className="t-mono">{steamLinked.steamId64}</span>
+                                  </div>
+                                </div>
+                                <button type="button" onClick={handleUnlinkSteam} disabled={linkingSteam} className="btn-springs btn-secondary bevel-sm text-xs disabled:opacity-50">Délier</button>
+                              </div>
+                            ) : (
+                              <div className="p-4 flex items-center justify-between gap-3 flex-wrap" style={{ background: 'rgba(27, 40, 56, 0.4)', border: '1px solid rgba(102, 192, 244, 0.25)' }}>
+                                <div className="flex-1 min-w-[200px]">
+                                  <p className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>Lier ton compte Steam</p>
                                   <p className="text-xs mt-1" style={{ color: 'var(--s-text-dim)' }}>
-                                    {form.rlPlatform === 'steam'
-                                      ? 'Récupère ton SteamID64 permanent → le lien tracker.gg ne casse JAMAIS, même si tu changes ton pseudo Steam. 2 clics, gratuit.'
-                                      : 'Optionnel, utile uniquement si tu joues à Rocket League sur Steam (pas Epic). 2 clics, gratuit.'}
+                                    Récupère ton SteamID64 permanent : le lien tracker.gg ne casse jamais, même si tu changes de pseudo.
                                   </p>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={handleLinkSteam}
-                                  disabled={linkingSteam}
-                                  className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2 flex-shrink-0 disabled:opacity-50"
-                                >
-                                  {linkingSteam ? (
-                                    <>
-                                      <Loader2 size={12} className="animate-spin" /> En cours…
-                                    </>
-                                  ) : (
-                                    <>
-                                      <ExternalLink size={12} /> Lier mon Steam
-                                    </>
-                                  )}
+                                <button type="button" onClick={handleLinkSteam} disabled={linkingSteam} className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2 flex-shrink-0 disabled:opacity-50">
+                                  {linkingSteam ? (<><Loader2 size={12} className="animate-spin" /> En cours…</>) : (<><ExternalLink size={12} /> Lier mon Steam</>)}
                                 </button>
                               </div>
+                            )
+                          )}
+
+                          {/* ── Confirme que le Steam lié est bien le compte RL ──
+                              N'apparaît qu'après liaison Steam, plateforme Steam, sans compte
+                              vérifié. Une fois confirmé, hasLink passe true → on bascule sur le
+                              badge compact ci-dessus. */}
+                          {!hasLink && form.rlPlatform === 'steam' && steamLinked && (
+                            <div className="p-3 space-y-2" style={{ background: 'rgba(255,184,0,0.04)', border: '1px solid rgba(255,184,0,0.2)' }}>
+                              <p className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>Confirme que c&apos;est ton compte Rocket League</p>
+                              <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                                <span className="font-semibold" style={{ color: 'var(--s-text)' }}>{steamLinked.personaName || steamLinked.steamId64}</span> — c&apos;est bien le compte sur lequel tu joues à RL ? Une fois confirmé, il est figé (changement futur = demande admin).
+                              </p>
+                              <button type="button"
+                                onClick={handleConfirmSteamLink}
+                                disabled={confirmingSteam}
+                                className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2 disabled:opacity-50"
+                                style={{ fontSize: '12px', padding: '8px 14px' }}>
+                                {confirmingSteam ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
+                                Oui, mon RL est sur Steam
+                              </button>
                             </div>
-                          ))}
+                          )}
 
-                          {/* ── Compte Steam RL officiel (anti-mensonge / sticky) ── */}
-                          {/* S'affiche dès qu'un Steam est lié via OpenID :
-                              - si rlSteamLinked posé : confirme + bouton demande de changement
-                              - sinon : prompt « C'est aussi ton compte RL ? »
-                              Si l'Epic est déjà la voie officielle, on ne suggère rien (évite
-                              le bruit, l'Epic prime post-F2P). Conditionné aussi sur la
-                              plateforme déclarée pour ne pas spammer les joueurs non-Steam. */}
-                          {steamLinked && !epicLinked && (form.rlPlatform === '' || form.rlPlatform === 'steam') && (() => {
-                            if (rlSteamLinked) {
-                              return (
-                                <div className="p-3 space-y-2"
-                                  style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.3)' }}>
-                                  <div className="flex items-center gap-2">
-                                    <CheckCircle size={14} style={{ color: 'var(--s-gold)' }} />
-                                    <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
-                                      Compte Steam Rocket League vérifié
-                                    </span>
-                                  </div>
-                                  <div className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                                    <span className="font-semibold" style={{ color: 'var(--s-text)' }}>
-                                      {rlSteamLinked.rlSteamName || rlSteamLinked.rlSteamId}
-                                    </span>
-                                    <span className="t-mono ml-2" style={{ color: 'var(--s-text-muted)', fontSize: '12px' }}>
-                                      {rlSteamLinked.rlSteamId}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                                    <p className="text-xs flex-1" style={{ color: 'var(--s-text-muted)' }}>
-                                      Pour changer le compte Steam lié, d'abord délie puis re-lie Steam ci-dessus, puis fais une demande.
-                                    </p>
-                                    <button type="button"
-                                      onClick={handleRequestSteamChange}
-                                      disabled={requestingSteamChange}
-                                      className="btn-springs btn-secondary bevel-sm inline-flex items-center gap-2 disabled:opacity-50"
-                                      style={{ fontSize: '12px', padding: '6px 12px' }}>
-                                      {requestingSteamChange ? <Loader2 size={11} className="animate-spin" /> : null}
-                                      Demander un changement
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            }
-                            return (
-                              <div className="p-3 space-y-2"
-                                style={{ background: 'rgba(255,184,0,0.04)', border: '1px solid rgba(255,184,0,0.2)' }}>
-                                <div className="flex items-center gap-2">
-                                  <AlertCircle size={14} style={{ color: 'var(--s-gold)' }} />
-                                  <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
-                                    Confirme que ton Steam est ton compte Rocket League
-                                  </span>
-                                </div>
-                                <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                                  Tu as lié <span className="font-semibold" style={{ color: 'var(--s-text)' }}>{steamLinked.personaName || steamLinked.steamId64}</span> à Aedral via Steam.
-                                  <br />
-                                  C'est aussi ton compte sur lequel tu joues à Rocket League ? Une fois confirmé, il est <strong>figé</strong> (changement futur = demande admin).
-                                </p>
-                                <div className="flex gap-2 flex-wrap">
-                                  <button type="button"
-                                    onClick={handleConfirmSteamLink}
-                                    disabled={confirmingSteam}
-                                    className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2 disabled:opacity-50"
-                                    style={{ fontSize: '12px', padding: '8px 14px' }}>
-                                    {confirmingSteam ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
-                                    Oui, mon RL est sur Steam
-                                  </button>
-                                </div>
-                                <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                                  Pas mon RL ? Ne clique pas, tu peux laisser Steam lié pour d'autres usages, mais ton rang RL ne sera pas considéré comme vérifié via Steam.
-                                </p>
-                              </div>
-                            );
-                          })()}
-
-                          {/* Séparateur retiré, le sélecteur plateforme est maintenant
-                              en haut du bloc, plus de "ou saisir manuellement" en bas. */}
-
-                          {/* ── Saisie ID / pseudo sur la plateforme ──
-                              Le label s'adapte (Pseudo Epic, SteamID64, etc.) selon la
-                              plateforme choisie en haut. Le sélecteur Plateforme a été
-                              déplacé en tête du bloc pour suivre la logique question→réponse. */}
-                          {form.rlPlatform && (
+                          {/* ── Saisie ID / pseudo : plateformes sans vérification (PSN, Xbox, Switch…) ──
+                              Epic & Steam passent par la liaison vérifiée ci-dessus, pas de
+                              saisie libre (un ID tapé à la main ne prouve rien). */}
+                          {!hasLink && form.rlPlatform && form.rlPlatform !== 'epic' && form.rlPlatform !== 'steam' && (
                             <div>
                               <label className="t-label block mb-2">
                                 {platformMeta?.idLabel ?? 'ID sur la plateforme'} *
@@ -1332,13 +1227,9 @@ export default function SettingsPage() {
                               )}
                             </div>
                           )}
-                          {/* Note : l'ancien tip 'Comment faire apparaître mes stats sur
-                              Ballchasing' a été retiré, il datait de quand on essayait de
-                              récupérer le rang RL via ballchasing (cassé par EAC depuis F2P).
-                              Aujourd'hui ballchasing est utilisé uniquement pour les replays
-                              uploadés depuis les structures (notre clé API, pas le profil
-                              public du joueur). */}
-                          {(trackerPreview || ballchasingPreview) && (
+                          {/* Liens auto-générés depuis la saisie manuelle (plateformes non
+                              vérifiables). En compte vérifié, le lien tracker vit dans le badge. */}
+                          {!hasLink && (trackerPreview || ballchasingPreview) && (
                             <div
                               className="p-3 space-y-2"
                               style={{
@@ -1370,32 +1261,27 @@ export default function SettingsPage() {
                             </div>
                           )}
                           {/* ── Rang RL, gateé sur la présence d'un compte vérifié ── */}
-                          {(() => {
-                            const hasLink = !!epicLinked || !!rlSteamLinked;
-                            return (
-                              <div>
-                                <label className="t-label block mb-2">Rang RL (auto-déclaré)</label>
-                                <select value={form.rlRank}
-                                  onChange={e => updateForm({ rlRank: e.target.value })}
-                                  disabled={!hasLink}
-                                  className="settings-input w-full disabled:opacity-50 disabled:cursor-not-allowed">
-                                  <option value="">Non renseigné</option>
-                                  {RL_RANKS.map(r => (
-                                    <option key={r} value={r}>{r}</option>
-                                  ))}
-                                </select>
-                                {hasLink ? (
-                                  <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
-                                    Affiché à côté de ton lien tracker, n'importe qui peut vérifier en un clic. Modifier ton rang permet à nouveau aux autres de le signaler s'il leur paraît incorrect.
-                                  </p>
-                                ) : (
-                                  <p className="text-xs mt-1.5" style={{ color: '#ff8a8a' }}>
-                                    Lie d'abord ton compte Rocket League (Epic ou Steam ci-dessus) pour que ton rang soit affichable. Un rang sans preuve ne vaut rien et ne sera pas montré sur ta fiche publique.
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })()}
+                          <div>
+                            <label className="t-label block mb-2">Rang RL (auto-déclaré)</label>
+                            <select value={form.rlRank}
+                              onChange={e => updateForm({ rlRank: e.target.value })}
+                              disabled={!hasLink}
+                              className="settings-input w-full disabled:opacity-50 disabled:cursor-not-allowed">
+                              <option value="">Non renseigné</option>
+                              {RL_RANKS.map(r => (
+                                <option key={r} value={r}>{r}</option>
+                              ))}
+                            </select>
+                            {hasLink ? (
+                              <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
+                                Le modifier rend ton rang à nouveau signalable.
+                              </p>
+                            ) : (
+                              <p className="text-xs mt-1.5" style={{ color: '#ff8a8a' }}>
+                                Lie d&apos;abord ton compte Rocket League ci-dessus pour qu&apos;un rang soit affichable.
+                              </p>
+                            )}
+                          </div>
                         </div>
                       );
                     })()}
@@ -2239,14 +2125,14 @@ function ValorantSyncBlock({
           {connectionDiffers && (
             <div className="p-2" style={{ background: 'rgba(255,85,85,0.08)', border: '1px solid rgba(255,85,85,0.25)' }}>
               <p className="text-xs" style={{ color: '#ff8a8a' }}>
-                La connexion Riot sur ton Discord pointe vers un autre compte que celui vérifié. Tant que ce n'est pas résolu, ton rang n'est plus synchronisé. Pour lier ce nouveau compte, fais une demande de changement (validée par un admin).
+                La connexion Riot sur ton Discord pointe vers un autre compte que celui vérifié. Tant que ce n&apos;est pas résolu, ton rang n&apos;est plus synchronisé. Pour lier ce nouveau compte, fais une demande de changement (validée par un admin).
               </p>
             </div>
           )}
           {connectionAbsent && (
             <div className="p-2" style={{ background: 'rgba(255,85,85,0.08)', border: '1px solid rgba(255,85,85,0.25)' }}>
               <p className="text-xs" style={{ color: '#ff8a8a' }}>
-                Ta connexion Riot a été retirée de ton Discord. Ton rang n'est plus synchronisé. Re-lie ton compte Riot (Discord → Connexions → Riot Games) et reconnecte-toi pour reprendre la sync.
+                Ta connexion Riot a été retirée de ton Discord. Ton rang n&apos;est plus synchronisé. Re-lie ton compte Riot (Discord → Connexions → Riot Games) et reconnecte-toi pour reprendre la sync.
               </p>
             </div>
           )}
@@ -2256,7 +2142,7 @@ function ValorantSyncBlock({
           {!connectionAbsent && (
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <p className="text-xs flex-1" style={{ color: 'var(--s-text-muted)' }}>
-                Pour changer le compte vérifié, modifie d'abord ta connexion Riot sur Discord, reconnecte-toi à Aedral, puis fais une demande.
+                Pour changer le compte vérifié, modifie d&apos;abord ta connexion Riot sur Discord, reconnecte-toi à Aedral, puis fais une demande.
               </p>
               <button type="button"
                 onClick={onRequestChange}
@@ -2301,7 +2187,7 @@ function ValorantSyncBlock({
           )}
         </div>
         <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
-          Ton rang Valorant est récupéré automatiquement depuis ton compte Riot lié dans Discord (via HenrikDev), au clic et chaque nuit en arrière-plan. C'est la seule façon d'afficher un rang : pas de saisie manuelle, donc impossible de mentir.
+          Ton rang Valorant est récupéré automatiquement depuis ton compte Riot lié dans Discord (via HenrikDev), au clic et chaque nuit en arrière-plan. C&apos;est la seule façon d&apos;afficher un rang : pas de saisie manuelle, donc impossible de mentir.
           {!valorantLinked && (
             <span> Lie ton compte Riot dans Discord (Connexions → Riot Games), reconnecte-toi sur Aedral, puis clique ci-dessus.</span>
           )}
