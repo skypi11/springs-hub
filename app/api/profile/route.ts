@@ -10,6 +10,7 @@ import { computeAge } from '@/lib/age';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { isValidRLRank } from '@/lib/rl-ranks';
 import { sendAdminAlert } from '@/lib/admin-discord-alert';
+import { isUserRostered } from '@/lib/recruitment';
 
 type ProfileStructure = {
   id: string;
@@ -254,14 +255,10 @@ export async function GET(req: NextRequest) {
     }
 
     if (isOwner) {
-      // Lot B : l'owner est-il titulaire/remplaçant d'une équipe ? Sert à griser
-      // le toggle LFT dans Settings (un joueur rostered n'est pas « looking for team »).
-      const rdb = getAdminDb();
-      const [rostP, rostS] = await Promise.all([
-        rdb.collection('sub_teams').where('playerIds', 'array-contains', uid).limit(1).get(),
-        rdb.collection('sub_teams').where('subIds', 'array-contains', uid).limit(1).get(),
-      ]);
-      const isRostered = !rostP.empty || !rostS.empty;
+      // Lot B : l'owner est-il titulaire/remplaçant d'une équipe (non archivée) ?
+      // Sert à griser le toggle LFT dans Settings (un joueur rostered n'est pas
+      // « looking for team »). Définition centralisée dans lib/recruitment.
+      const isRostered = await isUserRostered(getAdminDb(), uid);
       // L'owner ne voit JAMAIS son propre flag (sinon il fuit avant enquête).
       // Le filtrage est garanti par construction : on n'a pas fetché le flag
       // ci-dessus pour les owners.
@@ -422,13 +419,8 @@ export async function POST(req: NextRequest) {
     // Si l'user tente d'activer le LFT alors qu'il est rostered, on coerce à false :
     // la règle prime sur la requête (le toggle est aussi grisé côté UI).
     let wantsLft = body.isAvailableForRecruitment === true;
-    if (wantsLft) {
-      const rdb = getAdminDb();
-      const [rostP, rostS] = await Promise.all([
-        rdb.collection('sub_teams').where('playerIds', 'array-contains', uid).limit(1).get(),
-        rdb.collection('sub_teams').where('subIds', 'array-contains', uid).limit(1).get(),
-      ]);
-      if (!rostP.empty || !rostS.empty) wantsLft = false;
+    if (wantsLft && await isUserRostered(getAdminDb(), uid)) {
+      wantsLft = false;
     }
 
     const profileData: Record<string, unknown> = {

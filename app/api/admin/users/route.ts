@@ -9,6 +9,7 @@ import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { bumpStructureCounter } from '@/lib/structure-counters';
 import { syncDiscordMember } from '@/lib/discord-role-sync';
 import { isKnownGame } from '@/lib/games-registry';
+import { isUserRostered } from '@/lib/recruitment';
 
 // Quand un fondateur est banni/supprimé, on essaie de promouvoir son premier co-fondateur
 // pour ne pas laisser une structure sans tête. Si pas de co-fondateur, on passe la
@@ -424,6 +425,14 @@ export async function POST(req: NextRequest) {
             updates.epicAccountId = '';
             updates.epicDisplayName = '';
           }
+        }
+
+        // Garde-fou LFT (cohérent avec /api/profile) : un titulaire/remplaçant ne
+        // peut pas être LFT, même via une édition admin → on coerce à false.
+        if (updates.isAvailableForRecruitment === true && await isUserRostered(db, userRef.id)) {
+          updates.isAvailableForRecruitment = false;
+          updates.recruitmentRole = '';
+          updates.recruitmentMessage = '';
         }
 
         await userRef.update(updates);

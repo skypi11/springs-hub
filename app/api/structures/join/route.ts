@@ -411,13 +411,16 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'Tu ne fais pas partie de cette équipe.' }, { status: 400 });
         }
 
+        // arrayRemove / delete dotté plutôt qu'un overwrite du tableau complet :
+        // l'opération devient commutative avec une édition de roster concurrente
+        // (un manager qui PATCH la même équipe) → pas de lost-update.
         const updates: Record<string, unknown> = {};
-        if (inPlayers) updates.playerIds = (td.playerIds as string[]).filter(id => id !== uid);
-        if (inSubs) updates.subIds = (td.subIds as string[]).filter(id => id !== uid);
+        if (inPlayers) updates.playerIds = FieldValue.arrayRemove(uid);
+        if (inSubs) updates.subIds = FieldValue.arrayRemove(uid);
         if (inStaff) {
-          updates.staffIds = (td.staffIds as string[]).filter(id => id !== uid);
+          updates.staffIds = FieldValue.arrayRemove(uid);
           if (td.staffRoles && td.staffRoles[uid]) {
-            const sr = { ...td.staffRoles }; delete sr[uid]; updates.staffRoles = sr;
+            updates[`staffRoles.${uid}`] = FieldValue.delete();
           }
         }
         // Capitaine qui quitte : l'équipe se retrouve sans capitaine, pas de
