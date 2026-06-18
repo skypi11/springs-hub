@@ -22,6 +22,10 @@ type Section = {
   title: string;
   intro: string;
   items: string[];
+  // Capture réelle de la feature (optionnel). Sections sans image = texte seul,
+  // on complète au fil de l'eau (captures fournies par Matt pour les écrans
+  // derrière login). Fichiers dans public/guide/<id>.webp.
+  image?: string;
 };
 
 const SECTIONS: Section[] = [
@@ -30,6 +34,7 @@ const SECTIONS: Section[] = [
     icon: UserCircle,
     title: 'Profil & comptes liés',
     intro: "Ton profil Aedral te suit partout : pseudo, drapeau, jeux pratiqués, comptes vérifiés.",
+    image: '/guide/profil.webp',
     items: [
       "Connexion en 1 clic avec ton compte Discord",
       "Comptes de jeu officiels vérifiés (Epic, Steam, Riot) : badge « Vérifié » public, identité authentifiée, anti-usurpation",
@@ -42,6 +47,7 @@ const SECTIONS: Section[] = [
     icon: Shield,
     title: 'Structures',
     intro: "Une structure regroupe joueurs, staff et équipes autour d'une identité commune.",
+    image: '/guide/structures.webp',
     items: [
       "Créer ta structure (validée par un admin Aedral) ou rejoindre une structure existante via invitation",
       "Maximum 2 structures par jeu",
@@ -78,6 +84,7 @@ const SECTIONS: Section[] = [
     icon: Search,
     title: 'Recrutement',
     intro: "Trouve tes prochains coéquipiers ou ta prochaine structure.",
+    image: '/guide/recrutement.webp',
     items: [
       "Annuaire public des joueurs (filtrable par jeu, pays, rang, statut)",
       "Annuaire public des structures (filtrable par jeu, statut)",
@@ -270,6 +277,12 @@ export default function GuidePage() {
                         </li>
                       ))}
                     </ul>
+                    {s.image && (
+                      <div className="mt-5 bevel-sm overflow-hidden" style={{ border: '1px solid var(--s-border)' }}>
+                        <Image src={s.image} alt={`Aperçu : ${s.title}`} width={1600} height={1000}
+                          className="w-full h-auto block" />
+                      </div>
+                    )}
                   </div>
                 </section>
               );
