@@ -128,16 +128,11 @@ export default function StructuresPage() {
         >
           <div className="relative z-[1] px-6 py-4 flex items-center gap-5 flex-wrap">
             {/* Titre + compteur */}
-            <div className="flex items-center gap-3 flex-shrink-0">
-              <div className="w-10 h-10 flex items-center justify-center" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                <Shield size={18} style={{ color: 'var(--s-gold)' }} />
-              </div>
-              <div>
-                <h1 className="font-display text-xl tracking-wider leading-none">STRUCTURES</h1>
-                <p className="t-mono text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
-                  {loading ? 'Chargement…' : `${structures.length} active${structures.length > 1 ? 's' : ''}${recruitingCount > 0 ? ` · ${recruitingCount} recrute${recruitingCount > 1 ? 'nt' : ''}` : ''}`}
-                </p>
-              </div>
+            <div className="flex-shrink-0">
+              <h1 className="font-display text-xl tracking-wider leading-none">STRUCTURES</h1>
+              <p className="t-mono text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
+                {loading ? 'Chargement…' : `${structures.length} active${structures.length > 1 ? 's' : ''}${recruitingCount > 0 ? ` · ${recruitingCount} recrute${recruitingCount > 1 ? 'nt' : ''}` : ''}`}
+              </p>
             </div>
 
             {/* Recherche */}

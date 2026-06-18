@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Trophy, ExternalLink, Calendar, Gamepad2, UserPlus, Shield, Users } from 'lucide-react';
+import { Trophy, ExternalLink, UserPlus, Shield } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
@@ -147,16 +147,10 @@ export default function HomePage() {
                   <h3 className="font-display mb-5" style={{ fontSize: '2rem', letterSpacing: '0.03em', color: '#fff' }}>
                     {comp.name}
                   </h3>
-                  <div className="flex items-center gap-5 mb-auto flex-wrap">
-                    <span className="t-mono flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                      <Gamepad2 size={11} /> {comp.format}
-                    </span>
-                    <span className="t-mono flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                      <Users size={11} /> {comp.teams}
-                    </span>
-                    <span className="t-mono flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                      <Calendar size={11} /> {comp.date}
-                    </span>
+                  <div className="flex items-center gap-x-5 gap-y-1.5 mb-auto flex-wrap">
+                    <span className="t-mono" style={{ color: 'rgba(255,255,255,0.5)' }}>{comp.format}</span>
+                    <span className="t-mono" style={{ color: 'rgba(255,255,255,0.5)' }}>{comp.teams}</span>
+                    <span className="t-mono" style={{ color: 'rgba(255,255,255,0.5)' }}>{comp.date}</span>
                     {comp.prize && (
                       <span className="t-mono flex items-center gap-1.5 font-bold" style={{ color: 'var(--s-gold)' }}>
                         <Trophy size={11} /> {comp.prize}
