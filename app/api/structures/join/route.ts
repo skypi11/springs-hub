@@ -3,9 +3,46 @@ import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
-import { createNotifications } from '@/lib/notifications';
+import { createNotifications, type NotificationPayload } from '@/lib/notifications';
 import { addJoinHistory, closeOpenHistory } from '@/lib/member-history';
 import { addAuditLog } from '@/lib/audit-log';
+
+// Notifie le staff de la structure (fondateur + co-fondateurs + managers + coachs)
+// qu'un membre a quitté une équipe ou la structure. « Tout départ doit être
+// signalé au staff » (décision Matt). Fire-and-forget : n'échoue jamais le départ.
+async function notifyStaffOfDeparture(
+  db: FirebaseFirestore.Firestore,
+  structureId: string,
+  leaverUid: string,
+  leaverName: string,
+  kind: 'team' | 'structure',
+  teamName?: string,
+) {
+  try {
+    const sSnap = await db.collection('structures').doc(structureId).get();
+    if (!sSnap.exists) return;
+    const s = sSnap.data()!;
+    const recipients = new Set<string>(
+      [s.founderId, ...(s.coFounderIds ?? []), ...(s.managerIds ?? []), ...(s.coachIds ?? [])].filter(Boolean),
+    );
+    recipients.delete(leaverUid);
+    if (recipients.size === 0) return;
+    const isTeam = kind === 'team';
+    const payloads: NotificationPayload[] = Array.from(recipients).map(userId => ({
+      userId,
+      type: isTeam ? 'member_left_team' : 'member_left_structure',
+      title: isTeam ? 'Départ d\'équipe' : 'Départ de structure',
+      message: isTeam
+        ? `${leaverName} a quitté l'équipe ${teamName ?? ''}.`.trim()
+        : `${leaverName} a quitté la structure.`,
+      link: '/community/my-structure',
+      metadata: { structureId, leaverUid, ...(isTeam ? { teamName: teamName ?? null } : {}) },
+    }));
+    await createNotifications(db, payloads);
+  } catch (e) {
+    captureApiError('notifyStaffOfDeparture', e);
+  }
+}
 import { bumpStructureCounter } from '@/lib/structure-counters';
 import { postRecruitmentEmbed } from '@/lib/discord-bot';
 import { canJoinStructure, addStructureToGame, removeStructureFromGame, STRUCTURE_MEMBERSHIP_CAP } from '@/lib/structure-membership';
@@ -22,7 +59,7 @@ export async function POST(req: NextRequest) {
     if (blocked) return blocked;
 
     const body = await req.json();
-    const { action, structureId, token, game, role, message } = body;
+    const { action, structureId, token, game, role, message, teamId } = body;
 
     if (!action) return NextResponse.json({ error: 'action requis' }, { status: 400 });
 
@@ -355,6 +392,51 @@ export async function POST(req: NextRequest) {
         bumpStructureCounter(db, batch, structureId, 'members', -1);
 
         await batch.commit();
+        // Tout départ doit être signalé au staff (décision Matt).
+        await notifyStaffOfDeparture(db, structureId, uid, userSnap.data()?.displayName || 'Un membre', 'structure');
+        return NextResponse.json({ success: true });
+      }
+
+      // ── Quitter une équipe (sans quitter la structure) ──
+      case 'leave_team': {
+        if (!teamId) return NextResponse.json({ error: 'teamId requis' }, { status: 400 });
+        const teamRef = db.collection('sub_teams').doc(teamId);
+        const teamSnap = await teamRef.get();
+        if (!teamSnap.exists) return NextResponse.json({ error: 'Équipe introuvable.' }, { status: 404 });
+        const td = teamSnap.data()!;
+        const inPlayers = (td.playerIds ?? []).includes(uid);
+        const inSubs = (td.subIds ?? []).includes(uid);
+        const inStaff = (td.staffIds ?? []).includes(uid);
+        if (!inPlayers && !inSubs && !inStaff) {
+          return NextResponse.json({ error: 'Tu ne fais pas partie de cette équipe.' }, { status: 400 });
+        }
+
+        const updates: Record<string, unknown> = {};
+        if (inPlayers) updates.playerIds = (td.playerIds as string[]).filter(id => id !== uid);
+        if (inSubs) updates.subIds = (td.subIds as string[]).filter(id => id !== uid);
+        if (inStaff) {
+          updates.staffIds = (td.staffIds as string[]).filter(id => id !== uid);
+          if (td.staffRoles && td.staffRoles[uid]) {
+            const sr = { ...td.staffRoles }; delete sr[uid]; updates.staffRoles = sr;
+          }
+        }
+        // Capitaine qui quitte : l'équipe se retrouve sans capitaine, pas de
+        // transfert requis (décision Matt).
+        if (td.captainId === uid) updates.captainId = null;
+
+        const batch = db.batch();
+        batch.update(teamRef, updates);
+        addAuditLog(db, batch, {
+          structureId: td.structureId,
+          action: 'member_left_team',
+          actorUid: uid,
+          targetUid: uid,
+          metadata: { teamId, teamName: td.name ?? null, wasCaptain: td.captainId === uid },
+        });
+        await batch.commit();
+
+        const leaverSnap = await db.collection('users').doc(uid).get();
+        await notifyStaffOfDeparture(db, td.structureId, uid, leaverSnap.data()?.displayName || 'Un joueur', 'team', td.name || 'une équipe');
         return NextResponse.json({ success: true });
       }
 

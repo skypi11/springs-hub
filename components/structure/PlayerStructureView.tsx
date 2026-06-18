@@ -7,10 +7,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Shield, Users, ExternalLink, MessageSquare, Loader2, CheckCircle,
   Clock, MapPin, Target, Star, UserCheck, UserX, HelpCircle, Crown,
-  Headphones, BookOpen, Calendar as CalendarIcon, ChevronRight,
+  Headphones, BookOpen, Calendar as CalendarIcon, ChevronRight, LogOut,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/ui/ConfirmModal';
 import { api } from '@/lib/api-client';
 import AvailabilityCollapsible from '@/components/calendar/AvailabilityCollapsible';
 import type { EventType, EventStatus, PresenceStatus } from '@/lib/event-permissions';
@@ -142,10 +143,47 @@ function Avatar({ user, size = 44 }: { user: PublicUser; size?: number }) {
   );
 }
 
-export default function PlayerStructureView({ structure }: { structure: PlayerStructure }) {
+export default function PlayerStructureView({ structure, onChanged }: { structure: PlayerStructure; onChanged?: () => void }) {
   const { firebaseUser } = useAuth();
   const toast = useToast();
+  const confirm = useConfirm();
   const qc = useQueryClient();
+
+  // ── Quitter une équipe / la structure (self-service joueur) ──
+  // Tout départ notifie le staff (côté serveur). Le fondateur ne peut pas
+  // quitter sa structure (mais cette vue ne s'affiche pas pour un fondateur).
+  const leaveTeamMut = useMutation({
+    mutationFn: (teamId: string) =>
+      api('/api/structures/join', { method: 'POST', body: { action: 'leave_team', teamId } }),
+    onSuccess: () => { toast.success('Tu as quitté l\'équipe.'); onChanged?.(); },
+    onError: (err: Error) => toast.error(err.message || 'Erreur'),
+  });
+  const leaveStructureMut = useMutation({
+    mutationFn: () =>
+      api('/api/structures/join', { method: 'POST', body: { action: 'leave', structureId: structure.id } }),
+    onSuccess: () => { toast.success('Tu as quitté la structure.'); onChanged?.(); },
+    onError: (err: Error) => toast.error(err.message || 'Erreur'),
+  });
+  const leaving = leaveTeamMut.isPending || leaveStructureMut.isPending;
+
+  async function handleLeaveTeam(team: MyTeam) {
+    const ok = await confirm({
+      title: `Quitter ${team.name} ?`,
+      message: 'Tu seras retiré du roster de cette équipe. Le staff en sera notifié. Tu restes membre de la structure.',
+      confirmLabel: 'Quitter l\'équipe',
+      variant: 'danger',
+    });
+    if (ok) leaveTeamMut.mutate(team.id);
+  }
+  async function handleLeaveStructure() {
+    const ok = await confirm({
+      title: `Quitter ${structure.name} ?`,
+      message: 'Tu quittes la structure et tous ses rosters. Le staff en sera notifié. Cette action est définitive (il faudra une nouvelle invitation pour revenir).',
+      confirmLabel: 'Quitter la structure',
+      variant: 'danger',
+    });
+    if (ok) leaveStructureMut.mutate();
+  }
 
   const calendarQueryKey = ['calendar', 'me'] as const;
   const { data: eventsData, isPending: eventsLoading } = useQuery({
@@ -289,13 +327,33 @@ export default function PlayerStructureView({ structure }: { structure: PlayerSt
                 Discord
               </a>
             )}
+            {structure.myMemberRole !== 'fondateur' && (
+              <button
+                type="button"
+                onClick={handleLeaveStructure}
+                disabled={leaving}
+                className="btn-springs btn-secondary bevel-sm inline-flex items-center gap-2 disabled:opacity-50"
+                style={{ borderColor: 'rgba(239,68,68,0.4)', color: '#ff8a8a' }}
+              >
+                {leaveStructureMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />}
+                Quitter
+              </button>
+            )}
           </div>
         </div>
       </section>
 
       {/* ─── MON ÉQUIPE ─── */}
       {hasTeam ? (
-        structure.myTeams.map(team => <TeamCard key={team.id} team={team} currentUid={firebaseUser?.uid} />)
+        structure.myTeams.map(team => (
+          <TeamCard
+            key={team.id}
+            team={team}
+            currentUid={firebaseUser?.uid}
+            onLeave={() => handleLeaveTeam(team)}
+            leaving={leaving}
+          />
+        ))
       ) : (
         <section
           className="bevel relative overflow-hidden"
@@ -392,7 +450,7 @@ export default function PlayerStructureView({ structure }: { structure: PlayerSt
 
 // ─── Sous-composants ───
 
-function TeamCard({ team, currentUid }: { team: MyTeam; currentUid: string | undefined }) {
+function TeamCard({ team, currentUid, onLeave, leaving }: { team: MyTeam; currentUid: string | undefined; onLeave: () => void; leaving: boolean }) {
   const gameInfo = GAME_INFO[team.game] ?? { label: team.game, color: 'var(--s-gold)', short: team.game.toUpperCase() };
   const myBadge = team.isTitulaire ? 'TITULAIRE' : team.isSub ? 'REMPLAÇANT' : null;
 
@@ -422,20 +480,31 @@ function TeamCard({ team, currentUid }: { team: MyTeam; currentUid: string | und
             <p className="text-sm mt-0.5" style={{ color: 'var(--s-text-dim)' }}>{gameInfo.label}</p>
           </div>
         </div>
-        {myBadge && (
-          <span
-            className="font-display text-xs px-2 py-1"
-            style={{
-              background: team.isTitulaire ? 'rgba(255,184,0,0.12)' : 'rgba(255,184,0,0.12)',
-              border: `1px solid ${team.isTitulaire ? 'rgba(255,184,0,0.35)' : 'rgba(255,184,0,0.35)'}`,
-              color: team.isTitulaire ? 'var(--s-gold)' : 'var(--s-gold)',
-              letterSpacing: '0.08em',
-            }}
+        <div className="flex items-center gap-2 flex-wrap">
+          {myBadge && (
+            <span
+              className="font-display text-xs px-2 py-1"
+              style={{
+                background: 'rgba(255,184,0,0.12)',
+                border: '1px solid rgba(255,184,0,0.35)',
+                color: 'var(--s-gold)',
+                letterSpacing: '0.08em',
+              }}
+            >
+              <Star size={11} className="inline mr-1" style={{ verticalAlign: '-1px' }} />
+              {myBadge}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={onLeave}
+            disabled={leaving}
+            className="btn-springs btn-secondary bevel-sm inline-flex items-center gap-1.5 disabled:opacity-50"
+            style={{ borderColor: 'rgba(239,68,68,0.4)', color: '#ff8a8a', fontSize: '12px', padding: '5px 10px' }}
           >
-            <Star size={11} className="inline mr-1" style={{ verticalAlign: '-1px' }} />
-            {myBadge}
-          </span>
-        )}
+            <LogOut size={12} /> Quitter
+          </button>
+        </div>
       </div>
 
       <div className="relative z-[1] p-5 space-y-5">

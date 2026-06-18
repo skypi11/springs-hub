@@ -39,6 +39,7 @@ export type AuditAction =
   | 'member_joined'
   | 'member_removed'
   | 'member_left'
+  | 'member_left_team'
   // Invitations
   | 'invite_link_created'
   | 'invite_link_revoked'

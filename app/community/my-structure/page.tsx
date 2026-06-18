@@ -978,7 +978,7 @@ export default function MyStructurePage() {
           <div className="relative z-[1] max-w-6xl mx-auto space-y-10">
             <Breadcrumbs items={[{ label: 'Communauté', href: '/community' }, { label: 'Ma structure' }]} />
             {playerStructures.map(ps => (
-              <PlayerStructureView key={ps.id} structure={ps} />
+              <PlayerStructureView key={ps.id} structure={ps} onChanged={loadStructures} />
             ))}
           </div>
         </div>
