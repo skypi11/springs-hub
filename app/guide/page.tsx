@@ -261,28 +261,35 @@ export default function GuidePage() {
                 <section key={s.id} id={s.id} className="scroll-mt-24 bevel relative overflow-hidden animate-fade-in"
                   style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
                   <div className="px-5 sm:px-7 py-5">
-                    <div className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center gap-3 mb-3">
                       <div className="w-9 h-9 flex items-center justify-center bevel-sm flex-shrink-0"
                         style={{ background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.2)' }}>
                         <Icon size={16} style={{ color: 'var(--s-gold)' }} />
                       </div>
                       <h2 className="font-display text-xl sm:text-2xl tracking-wider">{s.title.toUpperCase()}</h2>
                     </div>
-                    <p className="text-sm mb-4" style={{ color: 'var(--s-text-dim)' }}>{s.intro}</p>
-                    <ul className="space-y-2">
-                      {s.items.map((item, i) => (
-                        <li key={i} className="flex items-start gap-2.5 text-sm" style={{ color: 'var(--s-text)' }}>
-                          <span style={{ color: 'var(--s-gold)', marginTop: 2, flexShrink: 0 }}>▸</span>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    {s.image && (
-                      <div className="mt-5 bevel-sm overflow-hidden max-w-xl" style={{ border: '1px solid var(--s-border)' }}>
-                        <Image src={s.image} alt={`Aperçu : ${s.title}`} width={1600} height={1000}
-                          sizes="(max-width: 640px) 100vw, 576px" className="w-full h-auto block" />
+                    {/* Texte à gauche, capture à droite (side-by-side dès lg, empilé en
+                        dessous). Sans image, le texte prend toute la largeur. */}
+                    <div className="flex flex-col lg:flex-row lg:items-start gap-5 lg:gap-8">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm mb-4" style={{ color: 'var(--s-text-dim)' }}>{s.intro}</p>
+                        <ul className="space-y-2">
+                          {s.items.map((item, i) => (
+                            <li key={i} className="flex items-start gap-2.5 text-sm" style={{ color: 'var(--s-text)' }}>
+                              <span style={{ color: 'var(--s-gold)', marginTop: 2, flexShrink: 0 }}>▸</span>
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                    )}
+                      {s.image && (
+                        <div className="w-full max-w-xl lg:w-[460px] lg:flex-shrink-0 self-start bevel-sm overflow-hidden"
+                          style={{ border: '1px solid var(--s-border)' }}>
+                          <Image src={s.image} alt={`Aperçu : ${s.title}`} width={1600} height={1000}
+                            sizes="(max-width: 1024px) 100vw, 460px" className="w-full h-auto block" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </section>
               );
