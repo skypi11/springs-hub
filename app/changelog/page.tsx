@@ -7,7 +7,7 @@ import { Sparkles } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import { SkeletonCard } from '@/components/ui/Skeleton';
-import { api } from '@/lib/api-client';
+import { api, apiPublic } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
 import {
   ALL_CHANGELOG_CATEGORIES,
@@ -53,7 +53,10 @@ export default function ChangelogPage() {
 
   const { data, isPending } = useQuery({
     queryKey: ['changelog'] as const,
-    queryFn: () => api<{ items: ChangelogItem[] }>('/api/changelog'),
+    // apiPublic (pas api) : /changelog est une page PUBLIQUE. api() levait une 401
+    // sans token Firebase → changelog vide pour les visiteurs déconnectés (même
+    // bug que les pages publiques du palier 2 #1). L'endpoint serveur est public.
+    queryFn: () => apiPublic<{ items: ChangelogItem[] }>('/api/changelog'),
     staleTime: 60_000,
   });
 
@@ -213,7 +216,7 @@ export default function ChangelogPage() {
         {!isPending && parsed.length === 0 && (
           <div className="bevel p-10 text-center animate-fade-in" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
             <Sparkles size={32} className="mx-auto mb-4" style={{ color: 'var(--s-text-muted)' }} />
-            <h2 className="font-display text-xl mb-2">Aucune nouveauté pour l'instant</h2>
+            <h2 className="font-display text-xl mb-2">Aucune nouveauté pour l&apos;instant</h2>
             <p className="t-body" style={{ color: 'var(--s-text-dim)' }}>
               Reviens plus tard pour voir les évolutions du site.
             </p>
