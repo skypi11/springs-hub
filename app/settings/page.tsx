@@ -1510,8 +1510,8 @@ export default function SettingsPage() {
                     </div>
                   </div>
                   <div className="p-5 space-y-4">
-                    <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-                      Active ce mode pour apparaître dans l&apos;annuaire des joueurs disponibles et recevoir des propositions d&apos;équipes.
+                    <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                      Tu apparais alors dans le Mercato et peux recevoir des propositions d&apos;équipes.
                     </p>
                     <button type="button"
                       onClick={() => updateForm({ isAvailableForRecruitment: !form.isAvailableForRecruitment })}
@@ -1586,8 +1586,8 @@ export default function SettingsPage() {
                     </div>
                   </div>
                   <div className="p-5 space-y-4">
-                    <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-                      Aedral peut t&apos;envoyer des annonces et relances par message privé Discord (ex : « lie ton compte de jeu pour vérifier ton rang »). Les messages liés à ton activité (exercices assignés, invitations) ne sont jamais concernés.
+                    <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                      Annonces et relances par DM Discord. Tes DM fonctionnels (exercices, invitations) ne sont jamais concernés.
                     </p>
                     {(() => {
                       const receives = !form.dmAnnouncementsOptOut;

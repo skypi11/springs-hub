@@ -155,11 +155,8 @@ export function GeneralTab(props: GeneralTabProps) {
         <SectionPanel accent="var(--s-gold)" icon={Gamepad2} title="JEUX PRATIQUÉS"
           collapsed={collapsed.games} onToggle={() => toggle('games')}>
           <div className="space-y-4">
-            <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-              Active les jeux où ta structure est active. Cocher un jeu débloque
-              la création d&apos;équipes pour ce jeu, le recrutement et le calendrier
-              dédié. Décocher un jeu est bloqué tant qu&apos;il reste des équipes
-              actives sur ce jeu.
+            <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+              Décocher un jeu est bloqué tant qu&apos;il reste des équipes actives dessus.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {ALL_GAME_DEFS.map(g => {
@@ -329,10 +326,7 @@ export function GeneralTab(props: GeneralTabProps) {
                   Salons & rôles par scope
                 </div>
                 <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                  Pour les events qui ciblent toute la structure, un jeu entier,
-                  ou le staff : choisis le salon où poster et le rôle à ping.
-                  Les salons par équipe se configurent directement sur la card
-                  de chaque équipe.
+                  Salon et rôle à ping par scope. Les salons d&apos;équipe se règlent sur la card de chaque équipe.
                 </p>
                 {renderDiscordConfigBlock({
                   key: 'structure',
@@ -384,9 +378,7 @@ export function GeneralTab(props: GeneralTabProps) {
           ) : (
             <div className="space-y-4">
               <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-                Connecte le bot Aedral à ton serveur Discord pour recevoir
-                automatiquement les notifications d&apos;événements dans le salon
-                de chaque équipe. Tu pourras choisir le salon par équipe après la connexion.
+                Connecte le bot pour poster les notifs d&apos;événements dans tes salons Discord.
               </p>
               <div className="p-3 bevel-sm text-xs space-y-1"
                 style={{ background: 'rgba(255,184,0,0.05)', border: '1px solid rgba(255,184,0,0.2)', color: 'var(--s-text-dim)' }}>
@@ -395,10 +387,7 @@ export function GeneralTab(props: GeneralTabProps) {
                   Le bot demande la permission Administrator
                 </div>
                 <p>
-                  C&apos;est nécessaire pour poster dans les salons privés des équipes
-                  sans que tu doives ajouter le bot manuellement sur chaque salon. Le bot
-                  ne fait rien d&apos;autre que poster des embeds d&apos;événements ,
-                  tu peux révoquer son accès à tout moment en le retirant du serveur.
+                  Nécessaire pour poster dans les salons privés des équipes. Tu peux révoquer à tout moment en retirant le bot du serveur.
                 </p>
               </div>
               <button type="button"
