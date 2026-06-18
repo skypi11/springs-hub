@@ -278,9 +278,9 @@ export default function GuidePage() {
                       ))}
                     </ul>
                     {s.image && (
-                      <div className="mt-5 bevel-sm overflow-hidden" style={{ border: '1px solid var(--s-border)' }}>
+                      <div className="mt-5 bevel-sm overflow-hidden max-w-xl" style={{ border: '1px solid var(--s-border)' }}>
                         <Image src={s.image} alt={`Aperçu : ${s.title}`} width={1600} height={1000}
-                          className="w-full h-auto block" />
+                          sizes="(max-width: 640px) 100vw, 576px" className="w-full h-auto block" />
                       </div>
                     )}
                   </div>
