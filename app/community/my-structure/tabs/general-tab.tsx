@@ -157,8 +157,8 @@ export function GeneralTab(props: GeneralTabProps) {
           <div className="space-y-4">
             <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
               Active les jeux où ta structure est active. Cocher un jeu débloque
-              la création d'équipes pour ce jeu, le recrutement et le calendrier
-              dédié. Décocher un jeu est bloqué tant qu'il reste des équipes
+              la création d&apos;équipes pour ce jeu, le recrutement et le calendrier
+              dédié. Décocher un jeu est bloqué tant qu&apos;il reste des équipes
               actives sur ce jeu.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -632,7 +632,7 @@ export function GeneralTab(props: GeneralTabProps) {
                     style={{ background: `radial-gradient(circle at 50% 0%, rgba(${def.colorRgb}, 0.06), transparent 70%)` }}
                   />
                   <p className="font-display text-2xl relative z-[1]" style={{ color: def.color }}>{count}</p>
-                  <p className="t-label mt-1 relative z-[1]">ÉQUIPES {def.shortLabel}</p>
+                  <p className="t-label-soft mt-1 relative z-[1]">Équipes {def.shortLabel}</p>
                 </div>
               ))}
             </div>

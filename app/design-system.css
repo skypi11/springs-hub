@@ -101,6 +101,16 @@
   letter-spacing: 0.12em;
   color: var(--s-text-dim);
 }
+/* Variante "douce" pour les LABELS DE DONNÉES (compteurs, footers, méta) :
+   sentence case, sans tracking, poids normal. Le .t-label uppercase tracké
+   reste réservé à 1 eyebrow par bloc — baisse le volume typographique global
+   (audit anti-slop #8). */
+.t-label-soft {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--s-text-muted);
+}
 .t-mono {
   font-size: 12px;
   font-weight: 500;

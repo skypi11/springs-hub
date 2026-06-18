@@ -208,7 +208,7 @@ export default function HomePage() {
                         ) : (
                           <span className="font-display text-2xl" style={{ color: accent, letterSpacing: '0.02em', lineHeight: 1 }}>{stat}</span>
                         )}
-                        <span className="t-label block" style={{ color: 'var(--s-text-muted)' }}>{statLabel}</span>
+                        <span className="t-label-soft block" style={{ color: 'var(--s-text-muted)' }}>{statLabel}</span>
                       </div>
                     </div>
                     <p className="text-sm mt-1.5" style={{ color: 'var(--s-text-dim)' }}>{desc}</p>
