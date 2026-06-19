@@ -10,6 +10,11 @@ export interface DiscordConnection {
   id: string;                // identifiant côté plateforme (souvent immuable)
   name: string;              // pseudo/handle actuel affiché
   verified: boolean;         // Discord a vérifié que l'user possède bien ce compte
+  // revoked : autorisation tierce coupée/expirée côté Discord. two_way_link : la
+  // connexion a un token OAuth2 tiers (= les liaisons bidirectionnelles comme Riot
+  // depuis 2026). Capturés pour diagnostiquer/expliquer un compte non détecté.
+  revoked?: boolean;
+  twoWayLink?: boolean;
   visibleOnProfile?: boolean; // toggle user, affiché sur profil Aedral public
   fetchedAt?: string;        // ISO date dernière sync depuis Discord
 }
@@ -136,12 +141,16 @@ export async function fetchDiscordConnections(accessToken: string): Promise<Disc
     id: string;
     name: string;
     verified?: boolean;
+    revoked?: boolean;
+    two_way_link?: boolean;
   }>;
   return raw.map(c => ({
     type: c.type,
     id: c.id,
     name: c.name,
     verified: !!c.verified,
+    revoked: !!c.revoked,
+    twoWayLink: !!c.two_way_link,
   }));
 }
 
