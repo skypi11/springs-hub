@@ -34,6 +34,10 @@ export default function VerifyAccountNudge() {
   const [busy, setBusy] = useState<VerifyGame | null>(null);
   const [refreshing, setRefreshing] = useState<VerifyGame | null>(null);
   const [expanded, setExpanded] = useState<VerifyGame | null>(null);
+  // Quand le refresh à la demande ne suffit pas (token Discord périmé / connexion
+  // toujours absente), on escalade vers un relogin complet bien visible — le seul
+  // remède (nouveau token + re-fetch des connexions au login).
+  const [reloginGame, setReloginGame] = useState<VerifyGame | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const shownRef = useRef(false);
   const autoRefreshedRef = useRef(false);
@@ -132,10 +136,17 @@ export default function VerifyAccountNudge() {
       if (found) {
         toast.success('Connexion détectée — clique « Vérifier en 1 clic ».');
         setExpanded(null);
+        setReloginGame(null);
       } else {
-        toast.error("On ne voit pas encore ta connexion. Vérifie qu'elle est bien ajoutée dans Discord, ou reconnecte-toi.");
+        // Refresh OK mais connexion toujours absente : seul un relogin complet
+        // (nouveau token + re-fetch des connexions au login) peut la récupérer.
+        setReloginGame(item.game);
+        toast.error('On ne voit pas ta connexion. Reconnecte-toi avec Discord pour tout resynchroniser.');
       }
     } catch (err) {
+      // Échec du refresh (token Discord périmé → invalid_grant/needsRelogin, ou
+      // réseau). Le remède est le relogin complet : on l'escalade dans l'UI.
+      setReloginGame(item.game);
       toast.error(err instanceof ApiError ? err.message : 'Erreur réseau.');
     } finally {
       setRefreshing(null);
@@ -198,18 +209,33 @@ export default function VerifyAccountNudge() {
                         <li><span style={{ color: 'var(--s-gold)' }}>2.</span> Ajoute <strong style={{ color: 'var(--s-text)' }}>{action.what}</strong> et autorise l&apos;affichage.</li>
                         <li><span style={{ color: 'var(--s-gold)' }}>3.</span> Reviens ici et clique <strong style={{ color: 'var(--s-text)' }}>J&apos;ai lié mon compte</strong>.</li>
                       </ol>
-                      <div className="flex items-center gap-4 flex-wrap">
-                        <button type="button" onClick={() => handleRefresh(item)} disabled={isRefreshing}
-                          className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2"
-                          style={{ opacity: isRefreshing ? 0.7 : 1, cursor: isRefreshing ? 'wait' : 'pointer' }}>
-                          {isRefreshing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-                          J&apos;ai lié mon compte
-                        </button>
-                        <button type="button" onClick={() => signInWithDiscord?.()}
-                          className="text-xs inline-flex items-center" style={{ color: 'var(--s-text-muted)', cursor: 'pointer' }}>
-                          Ça ne marche pas ? Reconnecte-toi avec Discord
-                        </button>
-                      </div>
+                      {reloginGame === item.game ? (
+                        // Le refresh n'a pas suffi (session Discord expirée / connexion
+                        // toujours absente) → relogin complet, bien visible.
+                        <div className="space-y-2">
+                          <p className="text-sm" style={{ color: '#ff8a8a' }}>
+                            Ta session Discord a expiré, on ne peut pas resynchroniser automatiquement. Reconnecte-toi : ça récupère toutes tes connexions (dont {action.what}).
+                          </p>
+                          <button type="button" onClick={() => signInWithDiscord?.()}
+                            className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2">
+                            <RefreshCw size={13} />
+                            Se reconnecter avec Discord
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-4 flex-wrap">
+                          <button type="button" onClick={() => handleRefresh(item)} disabled={isRefreshing}
+                            className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2"
+                            style={{ opacity: isRefreshing ? 0.7 : 1, cursor: isRefreshing ? 'wait' : 'pointer' }}>
+                            {isRefreshing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                            J&apos;ai lié mon compte
+                          </button>
+                          <button type="button" onClick={() => signInWithDiscord?.()}
+                            className="text-xs inline-flex items-center" style={{ color: 'var(--s-text-muted)', cursor: 'pointer' }}>
+                            Ça ne marche pas ? Reconnecte-toi avec Discord
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
