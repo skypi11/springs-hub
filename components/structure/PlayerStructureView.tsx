@@ -359,10 +359,6 @@ export default function PlayerStructureView({ structure, onChanged }: { structur
           className="bevel relative overflow-hidden"
           style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
         >
-          <div
-            className="h-[3px]"
-            style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.35), transparent 70%)' }}
-          />
           <div className="p-8 text-center">
             <Users size={32} className="mx-auto mb-3" style={{ color: 'var(--s-text-muted)' }} />
             <h3 className="font-display text-xl mb-2" style={{ color: 'var(--s-text)' }}>AUCUNE ÉQUIPE ASSIGNÉE</h3>
@@ -382,22 +378,9 @@ export default function PlayerStructureView({ structure, onChanged }: { structur
         className="bevel relative overflow-hidden"
         style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
       >
-        <div
-          className="h-[3px]"
-          style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.35), transparent 70%)' }}
-        />
-        <div
-          className="absolute top-0 right-0 w-64 h-64 pointer-events-none"
-          style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,184,0,0.06), transparent 60%)' }}
-        />
         <div className="relative z-[1] p-5 flex items-center justify-between" style={{ borderBottom: '1px solid var(--s-border)' }}>
           <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 flex items-center justify-center bevel-sm"
-              style={{ background: 'rgba(255,184,0,0.10)', border: '1px solid rgba(255,184,0,0.30)' }}
-            >
-              <CalendarIcon size={16} style={{ color: 'var(--s-gold)' }} />
-            </div>
+            <CalendarIcon size={16} style={{ color: 'var(--s-gold)' }} />
             <div>
               <h2 className="font-display text-xl" style={{ letterSpacing: '0.04em' }}>MES PROCHAINS ÉVÉNEMENTS</h2>
               <p className="text-sm mt-0.5" style={{ color: 'var(--s-text-dim)' }}>
@@ -459,22 +442,9 @@ function TeamCard({ team, currentUid, onLeave, leaving }: { team: MyTeam; curren
       className="bevel relative overflow-hidden"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
     >
-      <div
-        className="h-[3px]"
-        style={{ background: `linear-gradient(90deg, ${gameInfo.color}, ${gameInfo.color}50, transparent 70%)` }}
-      />
-      <div
-        className="absolute top-0 right-0 w-64 h-64 pointer-events-none"
-        style={{ background: `radial-gradient(circle at 100% 0%, ${gameInfo.color}10, transparent 60%)` }}
-      />
       <div className="relative z-[1] p-5 flex items-center justify-between flex-wrap gap-3" style={{ borderBottom: '1px solid var(--s-border)' }}>
         <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 flex items-center justify-center bevel-sm"
-            style={{ background: `${gameInfo.color}15`, border: `1px solid ${gameInfo.color}35` }}
-          >
-            <Users size={16} style={{ color: gameInfo.color }} />
-          </div>
+          <Users size={16} style={{ color: gameInfo.color }} />
           <div>
             <h2 className="font-display text-xl" style={{ letterSpacing: '0.04em' }}>{team.name.toUpperCase()}</h2>
             <p className="text-sm mt-0.5" style={{ color: 'var(--s-text-dim)' }}>{gameInfo.label}</p>
@@ -678,22 +648,9 @@ function StaffContactsSection({ structure }: { structure: PlayerStructure }) {
       className="bevel relative overflow-hidden"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
     >
-      <div
-        className="h-[3px]"
-        style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.35), transparent 70%)' }}
-      />
-      <div
-        className="absolute top-0 right-0 w-64 h-64 pointer-events-none"
-        style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,184,0,0.06), transparent 60%)' }}
-      />
       <div className="relative z-[1] p-5" style={{ borderBottom: '1px solid var(--s-border)' }}>
         <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 flex items-center justify-center bevel-sm"
-            style={{ background: 'rgba(255,184,0,0.10)', border: '1px solid rgba(255,184,0,0.30)' }}
-          >
-            <Shield size={16} style={{ color: 'var(--s-gold)' }} />
-          </div>
+          <Shield size={16} style={{ color: 'var(--s-gold)' }} />
           <div>
             <h2 className="font-display text-xl" style={{ letterSpacing: '0.04em' }}>ENCADREMENT</h2>
             <p className="text-sm mt-0.5" style={{ color: 'var(--s-text-dim)' }}>

@@ -395,7 +395,6 @@ export default function CrossTeamTodosPanel({
       {/* ── Section À RELANCER ──────────────────────────────────────────── */}
       {relancer.length > 0 && (
         <section className="bevel-sm overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid rgba(255,85,85,0.30)' }}>
-          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, #ff5555, rgba(255,85,85,0.4), transparent 70%)' }} />
           <div className="px-4 py-2.5 flex items-center justify-between"
             style={{ background: 'rgba(255,85,85,0.06)', borderBottom: '1px solid rgba(255,85,85,0.20)' }}>
             <div className="flex items-center gap-2">
@@ -428,7 +427,6 @@ export default function CrossTeamTodosPanel({
       {/* ── Section PERFORMANCE 7j ──────────────────────────────────────── */}
       {performance.length > 0 && (
         <section className="bevel-sm overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
           <div className="px-4 py-2.5 flex items-center gap-2"
             style={{ borderBottom: '1px solid var(--s-border)' }}>
             <CheckCircle2 size={13} style={{ color: 'var(--s-gold)' }} />
@@ -944,7 +942,6 @@ function CreateTodoModal({
           style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
           onClick={e => e.stopPropagation()}
         >
-          <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
           <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid var(--s-border)' }}>
             <div className="flex items-center gap-2">
               <Plus size={14} style={{ color: 'var(--s-gold)' }} />
