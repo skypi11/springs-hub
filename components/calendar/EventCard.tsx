@@ -68,8 +68,6 @@ export default function EventCard({
       onClick={onClick}
       className="bevel-sm relative overflow-hidden cursor-pointer transition-all duration-150 hover:border-white/20"
       style={{ background: 'var(--s-elevated)', border: `1px solid var(--s-border)` }}>
-      <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${typeInfo.color}, ${typeInfo.color}50, transparent 70%)` }} />
-
       <div className="p-4 flex gap-4">
         {/* Date block */}
         <div className="flex-shrink-0 text-center" style={{ minWidth: '56px' }}>

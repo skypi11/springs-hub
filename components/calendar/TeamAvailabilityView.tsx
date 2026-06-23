@@ -339,8 +339,6 @@ export default function TeamAvailabilityView({
               background: 'rgba(255,184,0,0.04)',
               border: '1px solid rgba(255,184,0,0.20)',
             }}>
-            <div className="absolute top-0 left-0 right-0 h-[3px]"
-              style={{ background: 'linear-gradient(90deg, var(--s-gold), transparent 80%)' }} />
             <div className="flex items-center gap-2 mb-3 flex-wrap">
               <Zap size={14} style={{ color: 'var(--s-gold)' }} />
               <p className="t-label" style={{ fontSize: '12px', color: 'var(--s-gold)' }}>

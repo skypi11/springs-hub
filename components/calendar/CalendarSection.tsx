@@ -314,16 +314,10 @@ export default function CalendarSection({
   return (
     <div className="bevel relative transition-all duration-200"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), var(--s-gold)50, transparent 70%)' }} />
-      <div className="absolute top-0 right-0 w-48 h-48 pointer-events-none"
-        style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,184,0,0.08), transparent 70%)' }} />
-
       {/* Header */}
       <div className="relative z-[1] px-4 sm:px-5 py-3.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2.5" style={{ borderBottom: '1px solid var(--s-border)' }}>
         <div className="flex items-center gap-3">
-          <div className="w-7 h-7 flex items-center justify-center" style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.2)' }}>
-            <CalendarIcon size={13} style={{ color: 'var(--s-gold)' }} />
-          </div>
+          <CalendarIcon size={13} style={{ color: 'var(--s-gold)' }} />
           <span className="font-display text-sm tracking-wider">CALENDRIER</span>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">

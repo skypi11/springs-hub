@@ -44,14 +44,6 @@ export default function AvailabilityCollapsible() {
       className="bevel animate-fade-in relative overflow-hidden"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
     >
-      <div
-        className="h-[3px]"
-        style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.35), transparent 70%)' }}
-      />
-      <div
-        className="absolute top-0 right-0 w-64 h-64 pointer-events-none"
-        style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,184,0,0.06), transparent 60%)' }}
-      />
       <div className="relative z-[1]">
         <button
           type="button"
@@ -61,16 +53,11 @@ export default function AvailabilityCollapsible() {
           onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,184,0,0.05)'; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
         >
-          <div
-            className="w-10 h-10 flex items-center justify-center bevel-sm flex-shrink-0"
-            style={{ background: 'rgba(255,184,0,0.10)', border: '1px solid rgba(255,184,0,0.30)' }}
-          >
-            {loading ? (
-              <Loader2 size={16} className="animate-spin" style={{ color: 'var(--s-gold)' }} />
-            ) : (
-              <Clock size={16} style={{ color: 'var(--s-gold)' }} />
-            )}
-          </div>
+          {loading ? (
+            <Loader2 size={16} className="animate-spin flex-shrink-0" style={{ color: 'var(--s-gold)' }} />
+          ) : (
+            <Clock size={16} className="flex-shrink-0" style={{ color: 'var(--s-gold)' }} />
+          )}
           <div className="flex-1 min-w-0">
             <h2 className="font-display text-xl" style={{ letterSpacing: '0.04em' }}>MES DISPOS</h2>
             <p className="text-sm mt-0.5" style={{ color: 'var(--s-text-dim)' }}>

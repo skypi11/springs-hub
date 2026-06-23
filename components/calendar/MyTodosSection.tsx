@@ -257,14 +257,9 @@ export default function MyTodosSection({
 
   return (
     <section id="my-todos" className="bevel animate-fade-in relative overflow-hidden scroll-mt-20" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), var(--s-gold)50, transparent 70%)' }} />
-      <div className="absolute top-0 right-0 w-64 h-64 pointer-events-none"
-        style={{ background: 'radial-gradient(circle at 100% 0%, rgba(255,184,0,0.07), transparent 60%)' }} />
       <div className="relative z-[1] p-6 space-y-4">
         <header className="flex items-center gap-3">
-          <div className="w-10 h-10 flex items-center justify-center bevel-sm" style={{ background: 'rgba(255,184,0,0.10)', border: '1px solid rgba(255,184,0,0.30)' }}>
-            <ClipboardList size={18} style={{ color: 'var(--s-gold)' }} />
-          </div>
+          <ClipboardList size={18} style={{ color: 'var(--s-gold)' }} />
           <div>
             <h2 className="font-display text-2xl" style={{ letterSpacing: '0.04em' }}>MES EXERCICES</h2>
             <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
