@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Send, Inbox, Shield, CheckCircle, XCircle, Trash2, AlertCircle, MessageSquare } from 'lucide-react';
+import { Loader2, Send, Inbox, Shield, CheckCircle, XCircle, Trash2, AlertCircle } from 'lucide-react';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
@@ -163,62 +163,56 @@ export default function MyApplicationsPage() {
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {receivedInvites.map(inv => {
+            <div className="panel bevel overflow-hidden">
+              {receivedInvites.map((inv, idx) => {
                 const roleLabel = ROLE_LABELS[inv.role] || inv.role;
                 const isBusy = actionId === inv.id;
                 return (
-                  <div key={inv.id} className="panel bevel p-5 relative overflow-hidden">
-                    <div className="flex items-start gap-4">
-                      <Link href={getStructureHref(inv.structure)} className="flex-shrink-0 w-14 h-14 relative overflow-hidden bevel-sm"
-                        style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                        {inv.structure.logoUrl ? (
-                          <Image src={inv.structure.logoUrl} alt={inv.structure.name} fill className="object-contain p-1" unoptimized />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Shield size={20} style={{ color: 'var(--s-text-muted)' }} />
-                          </div>
-                        )}
-                      </Link>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <Link href={getStructureHref(inv.structure)}
-                            className="font-display text-xl tracking-wider hover:underline" style={{ color: 'var(--s-text)' }}>
-                            {inv.structure.name}
-                          </Link>
-                          {inv.structure.tag && <span className="tag tag-gold" style={{ fontSize: '12px' }}>{inv.structure.tag}</span>}
+                  <div key={inv.id} className="flex items-center gap-3 px-4 py-3 flex-wrap"
+                    style={idx > 0 ? { borderTop: '1px solid var(--s-border)' } : undefined}>
+                    <Link href={getStructureHref(inv.structure)} className="flex-shrink-0 w-10 h-10 relative overflow-hidden bevel-sm"
+                      style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                      {inv.structure.logoUrl ? (
+                        <Image src={inv.structure.logoUrl} alt={inv.structure.name} fill className="object-contain p-1" unoptimized />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Shield size={16} style={{ color: 'var(--s-text-muted)' }} />
                         </div>
-                        <div className="flex items-center gap-2 flex-wrap mb-2">
-                          <GameTag gameId={inv.game} variant="full" />
-                          <span className="tag tag-neutral" style={{ fontSize: '12px' }}>{roleLabel}</span>
-                          {inv.createdAt && (
-                            <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>{formatDate(inv.createdAt)}</span>
-                          )}
-                        </div>
-                        {inv.message && (
-                          <div className="flex items-start gap-2 mt-3 p-3 bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                            <MessageSquare size={12} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--s-text-muted)' }} />
-                            <p className="text-sm italic" style={{ color: 'var(--s-text-dim)' }}>{inv.message}</p>
-                          </div>
+                      )}
+                    </Link>
+                    <div className="flex-1 min-w-0" style={{ minWidth: '180px' }}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Link href={getStructureHref(inv.structure)}
+                          className="font-display tracking-wider hover:underline truncate" style={{ color: 'var(--s-text)', fontSize: '15px' }}>
+                          {inv.structure.name}
+                        </Link>
+                        {inv.structure.tag && <span className="tag tag-gold" style={{ fontSize: '11px' }}>{inv.structure.tag}</span>}
+                        <GameTag gameId={inv.game} />
+                        <span className="tag tag-neutral" style={{ fontSize: '11px' }}>{roleLabel}</span>
+                        {inv.createdAt && (
+                          <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>{formatDate(inv.createdAt)}</span>
                         )}
                       </div>
-                      <div className="flex flex-col gap-2 flex-shrink-0">
-                        <button
-                          onClick={() => doAction('accept_invite', inv.id, `Bienvenue dans ${inv.structure.name} !`)}
-                          disabled={isBusy}
-                          className="btn-springs btn-primary bevel-sm flex items-center gap-2 text-xs"
-                        >
-                          {isBusy ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
-                          Accepter
-                        </button>
-                        <button
-                          onClick={() => doAction('decline_invite', inv.id, 'Invitation refusée')}
-                          disabled={isBusy}
-                          className="btn-springs btn-ghost flex items-center gap-2 text-xs"
-                        >
-                          <XCircle size={12} /> Refuser
-                        </button>
-                      </div>
+                      {inv.message && (
+                        <p className="text-sm italic mt-1 truncate" style={{ color: 'var(--s-text-dim)' }}>« {inv.message} »</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => doAction('accept_invite', inv.id, `Bienvenue dans ${inv.structure.name} !`)}
+                        disabled={isBusy}
+                        className="btn-springs btn-primary bevel-sm flex items-center gap-1.5 text-xs"
+                      >
+                        {isBusy ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
+                        Accepter
+                      </button>
+                      <button
+                        onClick={() => doAction('decline_invite', inv.id, 'Invitation refusée')}
+                        disabled={isBusy}
+                        className="btn-springs btn-ghost flex items-center gap-1.5 text-xs"
+                      >
+                        <XCircle size={12} /> Refuser
+                      </button>
                     </div>
                   </div>
                 );
@@ -247,58 +241,52 @@ export default function MyApplicationsPage() {
               </Link>
             </div>
           ) : (
-            <div className="space-y-3">
-              {sentRequests.map(req => {
+            <div className="panel bevel overflow-hidden">
+              {sentRequests.map((req, idx) => {
                 const roleLabel = ROLE_LABELS[req.role] || req.role;
                 const isBusy = actionId === req.id;
                 return (
-                  <div key={req.id} className="panel bevel p-5 relative overflow-hidden">
-                    <div className="flex items-start gap-4">
-                      <Link href={getStructureHref(req.structure)} className="flex-shrink-0 w-14 h-14 relative overflow-hidden bevel-sm"
-                        style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                        {req.structure.logoUrl ? (
-                          <Image src={req.structure.logoUrl} alt={req.structure.name} fill className="object-contain p-1" unoptimized />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Shield size={20} style={{ color: 'var(--s-text-muted)' }} />
-                          </div>
-                        )}
-                      </Link>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <Link href={getStructureHref(req.structure)}
-                            className="font-display text-xl tracking-wider hover:underline" style={{ color: 'var(--s-text)' }}>
-                            {req.structure.name}
-                          </Link>
-                          {req.structure.tag && <span className="tag tag-gold" style={{ fontSize: '12px' }}>{req.structure.tag}</span>}
-                          <span className="tag" style={{ fontSize: '12px', background: 'rgba(255,184,0,0.1)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.25)' }}>
-                            En attente
-                          </span>
+                  <div key={req.id} className="flex items-center gap-3 px-4 py-3 flex-wrap"
+                    style={idx > 0 ? { borderTop: '1px solid var(--s-border)' } : undefined}>
+                    <Link href={getStructureHref(req.structure)} className="flex-shrink-0 w-10 h-10 relative overflow-hidden bevel-sm"
+                      style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                      {req.structure.logoUrl ? (
+                        <Image src={req.structure.logoUrl} alt={req.structure.name} fill className="object-contain p-1" unoptimized />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Shield size={16} style={{ color: 'var(--s-text-muted)' }} />
                         </div>
-                        <div className="flex items-center gap-2 flex-wrap mb-2">
-                          <GameTag gameId={req.game} variant="full" />
-                          <span className="tag tag-neutral" style={{ fontSize: '12px' }}>{roleLabel}</span>
-                          {req.createdAt && (
-                            <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>{formatDate(req.createdAt)}</span>
-                          )}
-                        </div>
-                        {req.message && (
-                          <div className="flex items-start gap-2 mt-3 p-3 bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                            <MessageSquare size={12} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--s-text-muted)' }} />
-                            <p className="text-sm italic" style={{ color: 'var(--s-text-dim)' }}>{req.message}</p>
-                          </div>
+                      )}
+                    </Link>
+                    <div className="flex-1 min-w-0" style={{ minWidth: '180px' }}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Link href={getStructureHref(req.structure)}
+                          className="font-display tracking-wider hover:underline truncate" style={{ color: 'var(--s-text)', fontSize: '15px' }}>
+                          {req.structure.name}
+                        </Link>
+                        {req.structure.tag && <span className="tag tag-gold" style={{ fontSize: '11px' }}>{req.structure.tag}</span>}
+                        <span className="tag" style={{ fontSize: '11px', background: 'rgba(255,184,0,0.1)', color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.25)' }}>
+                          En attente
+                        </span>
+                        <GameTag gameId={req.game} />
+                        <span className="tag tag-neutral" style={{ fontSize: '11px' }}>{roleLabel}</span>
+                        {req.createdAt && (
+                          <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>{formatDate(req.createdAt)}</span>
                         )}
                       </div>
-                      <div className="flex-shrink-0">
-                        <button
-                          onClick={() => doAction('cancel_request', req.id, 'Demande annulée')}
-                          disabled={isBusy}
-                          className="btn-springs btn-ghost flex items-center gap-2 text-xs"
-                        >
-                          {isBusy ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                          Annuler
-                        </button>
-                      </div>
+                      {req.message && (
+                        <p className="text-sm italic mt-1 truncate" style={{ color: 'var(--s-text-dim)' }}>« {req.message} »</p>
+                      )}
+                    </div>
+                    <div className="flex-shrink-0">
+                      <button
+                        onClick={() => doAction('cancel_request', req.id, 'Demande annulée')}
+                        disabled={isBusy}
+                        className="btn-springs btn-ghost flex items-center gap-1.5 text-xs"
+                      >
+                        {isBusy ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                        Annuler
+                      </button>
                     </div>
                   </div>
                 );
