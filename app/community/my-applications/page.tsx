@@ -169,7 +169,6 @@ export default function MyApplicationsPage() {
                 const isBusy = actionId === inv.id;
                 return (
                   <div key={inv.id} className="panel bevel p-5 relative overflow-hidden">
-                    <div className="h-[3px] -mt-5 -mx-5 mb-4" style={{ background: 'linear-gradient(90deg, var(--s-gold), transparent 70%)' }} />
                     <div className="flex items-start gap-4">
                       <Link href={getStructureHref(inv.structure)} className="flex-shrink-0 w-14 h-14 relative overflow-hidden bevel-sm"
                         style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
@@ -254,7 +253,6 @@ export default function MyApplicationsPage() {
                 const isBusy = actionId === req.id;
                 return (
                   <div key={req.id} className="panel bevel p-5 relative overflow-hidden">
-                    <div className="h-[3px] -mt-5 -mx-5 mb-4" style={{ background: 'linear-gradient(90deg, var(--s-gold), transparent 70%)' }} />
                     <div className="flex items-start gap-4">
                       <Link href={getStructureHref(req.structure)} className="flex-shrink-0 w-14 h-14 relative overflow-hidden bevel-sm"
                         style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>

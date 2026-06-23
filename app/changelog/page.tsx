@@ -278,14 +278,6 @@ function ChangelogCard({ item, delayMs }: { item: ParsedItem; delayMs: number })
       className="bevel relative overflow-hidden"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)', animationDelay: `${delayMs}ms` }}
     >
-      <div
-        className="h-[3px]"
-        style={{ background: `linear-gradient(90deg, ${mainCat.color}, ${mainCat.color}50, transparent 70%)` }}
-      />
-      <div
-        className="absolute top-0 right-0 w-48 h-48 pointer-events-none opacity-[0.08]"
-        style={{ background: `radial-gradient(circle at top right, ${mainCat.color}, transparent 70%)` }}
-      />
       <div className="relative z-[1] p-5 sm:p-6 space-y-4">
         {/* Header card */}
         <div className="flex items-start gap-3 flex-wrap">
@@ -294,8 +286,8 @@ function ChangelogCard({ item, delayMs }: { item: ParsedItem; delayMs: number })
             style={{
               width: 44,
               height: 44,
-              background: `rgba(${mainCat.colorRgb}, 0.10)`,
-              border: `1px solid rgba(${mainCat.colorRgb}, 0.25)`,
+              background: 'var(--s-elevated)',
+              border: '1px solid var(--s-border)',
               fontSize: 22,
             }}
           >

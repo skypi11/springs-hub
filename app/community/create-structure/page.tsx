@@ -272,7 +272,7 @@ export default function CreateStructurePage() {
       <div className="bevel-sm p-4 flex items-start sm:items-center gap-3 flex-col sm:flex-row animate-fade-in"
         style={{ background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.35)' }}>
         <div className="flex-shrink-0 w-10 h-10 bevel-sm flex items-center justify-center"
-          style={{ background: 'rgba(88,101,242,0.15)', border: '1px solid rgba(88,101,242,0.35)' }}>
+          style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
           <DiscordIcon size={16} />
         </div>
         <div className="flex-1 min-w-0">

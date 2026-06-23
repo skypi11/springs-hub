@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
 import GameTag from '@/components/games/GameTag';
-import { ALL_GAME_DEFS, getGameColor, getGameShortLabel } from '@/lib/games-registry';
+import { getGameShortLabel } from '@/lib/games-registry';
 import { getStructureHref } from '@/lib/structure-slug';
 
 type StructureSummary = {
@@ -254,14 +254,10 @@ function Section({
 }
 
 function StructureFeedCard({ s }: { s: StructureSummary }) {
-  const primaryGame = ALL_GAME_DEFS.find(g => s.games.includes(g.id))?.id ?? s.games[0];
-  const accentColor = getGameColor(primaryGame);
-
   return (
     <Link href={getStructureHref(s)}
       className="pillar-card panel bevel-sm relative overflow-hidden group transition-all duration-200"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${accentColor}, transparent 70%)` }} />
       <div className="relative z-[1] p-4">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 flex-shrink-0 relative overflow-hidden"
@@ -300,7 +296,6 @@ function PlayerFeedCard({ p }: { p: PlayerSummary }) {
     <Link href={`/profile/${p.uid}`}
       className="pillar-card panel bevel-sm relative overflow-hidden group transition-all duration-200"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-blue), transparent 70%)' }} />
       <div className="relative z-[1] p-4">
         <div className="flex items-center gap-3 mb-3">
           {avatar ? (
@@ -340,7 +335,6 @@ function RecruitingStructureCard({ s }: { s: StructureSummary }) {
     <Link href={getStructureHref(s)}
       className="pillar-card panel bevel-sm relative overflow-hidden group transition-all duration-200"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-green), transparent 70%)' }} />
       <div className="relative z-[1] p-4">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-11 h-11 flex-shrink-0 relative overflow-hidden"
@@ -402,7 +396,6 @@ function CommunityEmpty({
   return (
     <div className="bevel p-8 text-center relative overflow-hidden"
       style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(255,255,255,0.02), transparent 60%)' }} />
       <div className="relative z-[1]">
         <div className="mx-auto mb-3 w-12 h-12 flex items-center justify-center">
           {icon}

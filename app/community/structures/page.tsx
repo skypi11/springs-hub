@@ -9,7 +9,7 @@ import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
 import { useAuth } from '@/context/AuthContext';
 import GameTag from '@/components/games/GameTag';
-import { ALL_GAME_DEFS, getGameColor, getGameColorRgb } from '@/lib/games-registry';
+import { ALL_GAME_DEFS } from '@/lib/games-registry';
 import { getStructureHref } from '@/lib/structure-slug';
 
 type StructureCard = {
@@ -242,10 +242,6 @@ function StructureItem({ s, match }: { s: StructureCard; match: boolean }) {
   // Jeu primaire = 1er jeu de la registry présent dans la structure, sinon 1er
   // déclaré sur la structure (fallback). Permet d'ajouter de nouveaux jeux
   // sans toucher à cette logique.
-  const primaryGame = ALL_GAME_DEFS.find(g => s.games.includes(g.id))?.id ?? s.games[0];
-  const accentColor = getGameColor(primaryGame);
-  const glowColor = `rgba(${getGameColorRgb(primaryGame)}, 0.1)`;
-
   return (
     <Link href={getStructureHref(s)}
       className="pillar-card panel bevel relative overflow-hidden group transition-all duration-200 flex flex-col"
@@ -254,9 +250,6 @@ function StructureItem({ s, match }: { s: StructureCard; match: boolean }) {
         border: match ? '1px solid rgba(0,217,54,0.55)' : '1px solid var(--s-border)',
         boxShadow: match ? 'inset 0 0 0 1px rgba(0,217,54,0.2)' : undefined,
       }}>
-      <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${accentColor}, transparent 70%)` }} />
-      <div className="absolute top-0 right-0 w-40 h-40 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-        style={{ background: `radial-gradient(circle at 100% 0%, ${glowColor}, transparent 70%)` }} />
       {/* flex-col + footer mt-auto : les footers des cards d'une même rangée
           restent alignés en bas même quand un nom wrap sur 2 lignes. */}
       <div className="relative z-[1] p-5 flex flex-col flex-1">
@@ -352,7 +345,6 @@ function EmptyState({
   }
   return (
     <div className="bevel p-12 text-center animate-fade-in-d2 relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(255,184,0,0.07), transparent 60%)' }} />
       <div className="relative z-[1]">
         <Sparkles size={32} className="mx-auto mb-4" style={{ color: 'var(--s-gold)' }} />
         <h3 className="font-display text-xl tracking-wider mb-2">
