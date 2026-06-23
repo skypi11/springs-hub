@@ -811,7 +811,6 @@ export default function SettingsPage() {
             className="lg:hidden bevel-sm"
             style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
           >
-            <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
             <div className="p-2 flex flex-wrap gap-1.5">
               {SECTIONS.map(({ key, label, icon: Icon }) => {
                 const active = section === key;
@@ -842,7 +841,6 @@ export default function SettingsPage() {
               className="bevel-sm sticky top-[120px]"
               style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
             >
-              <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
               <div className="p-2">
                 <div className="px-3 py-2">
                   <span className="t-label">Sections</span>
@@ -987,22 +985,8 @@ export default function SettingsPage() {
                               cursor: 'pointer',
                             }}
                           >
-                            {active && (
-                              <div
-                                className="absolute top-0 right-0 w-24 h-24 pointer-events-none opacity-[0.08]"
-                                style={{ background: `radial-gradient(circle at top right, ${g.color}, transparent 70%)` }}
-                              />
-                            )}
                             <div className="relative z-[1] flex items-center gap-3">
-                              <div
-                                className="w-8 h-8 flex items-center justify-center"
-                                style={{
-                                  background: `rgba(${g.colorRgb}, 0.1)`,
-                                  border: `1px solid rgba(${g.colorRgb}, 0.2)`,
-                                }}
-                              >
-                                <Gamepad2 size={14} style={{ color: g.color }} />
-                              </div>
+                              <Gamepad2 size={14} className="flex-shrink-0" style={{ color: g.color }} />
                               <span
                                 className="text-sm font-semibold"
                                 style={{ color: active ? g.colorLight : 'var(--s-text)' }}
@@ -1038,7 +1022,6 @@ export default function SettingsPage() {
                       const requestingVerifiedChange = verified?.kind === 'epic' ? requestingChange : requestingSteamChange;
                       return (
                         <div className="p-4 space-y-4 relative overflow-hidden" style={{ background: 'rgba(0,129,255,0.04)', border: '1px solid rgba(0,129,255,0.15)' }}>
-                          <div className="h-[2px] -mt-4 -mx-4 mb-4" style={{ background: 'linear-gradient(90deg, var(--s-blue), transparent 60%)' }} />
                           <div className="flex items-center gap-2">
                             <span className="tag tag-blue" style={{ fontSize: '12px' }}>RL</span>
                             <span className="t-label" style={{ color: 'var(--s-blue)' }}>Config Rocket League</span>
@@ -1292,7 +1275,6 @@ export default function SettingsPage() {
 
                     {form.games.includes('trackmania') && (
                       <div className="p-4 space-y-4 relative overflow-hidden" style={{ background: 'rgba(0,217,54,0.04)', border: '1px solid rgba(0,217,54,0.15)' }}>
-                        <div className="h-[2px] -mt-4 -mx-4 mb-4" style={{ background: 'linear-gradient(90deg, var(--s-green), transparent 60%)' }} />
                         <div className="flex items-center gap-2">
                           <span className="tag tag-green" style={{ fontSize: '12px' }}>TM</span>
                           <span className="t-label" style={{ color: 'var(--s-green)' }}>Config Trackmania</span>
@@ -1323,7 +1305,6 @@ export default function SettingsPage() {
 
                     {form.games.includes('valorant') && (
                       <div className="p-4 space-y-4 relative overflow-hidden" style={{ background: 'rgba(255,70,85,0.04)', border: '1px solid rgba(255,70,85,0.15)' }}>
-                        <div className="h-[2px] -mt-4 -mx-4 mb-4" style={{ background: 'linear-gradient(90deg, #FF4655, transparent 60%)' }} />
                         <div className="flex items-center gap-2">
                           <span className="tag" style={{ fontSize: '12px', background: 'rgba(255,70,85,0.10)', color: '#FF6B78', borderColor: 'rgba(255,70,85,0.25)' }}>VAL</span>
                           <span className="t-label" style={{ color: '#FF6B78' }}>Config Valorant</span>
@@ -1402,9 +1383,9 @@ export default function SettingsPage() {
                               <div
                                 className="w-9 h-9 flex-shrink-0 flex items-center justify-center font-display"
                                 style={{
-                                  background: isVisible ? 'rgba(255,184,0,0.1)' : 'rgba(255,255,255,0.04)',
-                                  border: `1px solid ${isVisible ? 'rgba(255,184,0,0.3)' : 'var(--s-border)'}`,
-                                  color: isVisible ? 'var(--s-gold)' : 'var(--s-text-dim)',
+                                  background: 'rgba(255,255,255,0.04)',
+                                  border: '1px solid var(--s-border)',
+                                  color: 'var(--s-text-dim)',
                                   fontSize: 14,
                                 }}
                               >
@@ -1502,10 +1483,6 @@ export default function SettingsPage() {
             {/* RECRUTEMENT, rendu dans 'profile' (refonte 5→3 sections) */}
             {section === 'profile' && (
               <div className="panel relative animate-fade-in">
-                {form.isAvailableForRecruitment && (
-                  <div className="absolute top-0 right-0 w-[150px] h-[150px] pointer-events-none opacity-[0.06]"
-                    style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
-                )}
                 <div className="relative z-[1]">
                   <div className="panel-header">
                     <div className="flex items-center gap-2">
@@ -1634,8 +1611,6 @@ export default function SettingsPage() {
             {/* COMPTE */}
             {section === 'account' && (
               <div className="panel relative animate-fade-in">
-                <div className="absolute top-0 right-0 w-[180px] h-[180px] pointer-events-none opacity-[0.05]"
-                  style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
                 <div className="relative z-[1]">
                   <div className="panel-header">
                     <div className="flex items-center gap-2">
