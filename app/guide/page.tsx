@@ -60,6 +60,7 @@ const SECTIONS: Section[] = [
     icon: Users,
     title: 'Équipes & roster',
     intro: "Organise tes équipes compétitives au sein de ta structure.",
+    image: '/guide/equipes.webp',
     items: [
       "Créer des équipes par jeu, le format roster (titulaires + remplaçants) suit le standard du jeu",
       "Désigner un capitaine qui gère le calendrier de son équipe",
@@ -72,6 +73,7 @@ const SECTIONS: Section[] = [
     icon: CalendarClock,
     title: 'Calendrier & disponibilités',
     intro: "Planifie training, scrims et matchs, et repère les créneaux où ton équipe est dispo.",
+    image: '/guide/calendrier.webp',
     items: [
       "4 vues : Mois, Semaine (heatmap), Liste, Staff",
       "Déclare tes disponibilités par créneau de 30 min sur 2 semaines glissantes",
@@ -97,6 +99,7 @@ const SECTIONS: Section[] = [
     icon: Film,
     title: 'Replays & analyses',
     intro: "Upload tes replays et accède aux stats détaillées de chaque match. Pour l'instant, le parsing automatique des stats est disponible uniquement sur Rocket League.",
+    image: '/guide/replays.webp',
     items: [
       "Upload multi-fichiers depuis un événement (match, scrim, training)",
       "Stats automatiques : buts, saves, assists, démos, possession, boost (Rocket League)",
@@ -109,6 +112,7 @@ const SECTIONS: Section[] = [
     icon: ClipboardList,
     title: 'Exercices & feedback',
     intro: "Le coaching dans la durée : assigne des exercices et points à travailler à tes joueurs.",
+    image: '/guide/exercices.webp',
     items: [
       "Templates d'exercices réutilisables (perso ou partagés structure)",
       "5 types : entraînement libre, replay à analyser, lecture, défi, autre",
@@ -121,6 +125,7 @@ const SECTIONS: Section[] = [
     icon: MessageCircle,
     title: 'Bot Discord',
     intro: "Le bot Aedral s'installe sur ton serveur Discord pour rester synchronisé.",
+    image: '/guide/bot-discord.webp',
     items: [
       "Installation en 1 clic depuis les paramètres de structure",
       "Notifications auto : nouvel événement, invitation reçue, demande à traiter",
@@ -141,6 +146,20 @@ const SECTIONS: Section[] = [
     ],
   },
 ];
+
+// Dimensions réelles des captures (public/guide/<id>.webp) : next/image respecte
+// ainsi l'aspect ratio de CHAQUE image (les captures n'ont pas le même ratio :
+// dashboard ~2:1, embed Discord ~1:1) et ne les déforme pas. Fallback 16:10.
+const GUIDE_IMAGE_DIMS: Record<string, { w: number; h: number }> = {
+  '/guide/profil.webp': { w: 1600, h: 1000 },
+  '/guide/structures.webp': { w: 1600, h: 1000 },
+  '/guide/recrutement.webp': { w: 1600, h: 1000 },
+  '/guide/equipes.webp': { w: 2285, h: 1122 },
+  '/guide/calendrier.webp': { w: 2272, h: 1149 },
+  '/guide/replays.webp': { w: 2285, h: 1256 },
+  '/guide/exercices.webp': { w: 2287, h: 946 },
+  '/guide/bot-discord.webp': { w: 555, h: 485 },
+};
 
 // Section "Spécificités par jeu", rendu custom (grid de cards), pas une liste
 // d'items comme les autres sections. Métadonnées TOC séparées pour scroll spy.
@@ -257,6 +276,7 @@ export default function GuidePage() {
           <div className="flex-1 space-y-10 min-w-0">
             {SECTIONS.map(s => {
               const Icon = s.icon;
+              const imgDim = (s.image && GUIDE_IMAGE_DIMS[s.image]) || { w: 1600, h: 1000 };
               return (
                 <section key={s.id} id={s.id} className="scroll-mt-24 bevel relative overflow-hidden animate-fade-in"
                   style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
@@ -285,7 +305,7 @@ export default function GuidePage() {
                       {s.image && (
                         <div className="w-full max-w-xl lg:w-[460px] lg:flex-shrink-0 self-start bevel-sm overflow-hidden"
                           style={{ border: '1px solid var(--s-border)' }}>
-                          <Image src={s.image} alt={`Aperçu : ${s.title}`} width={1600} height={1000}
+                          <Image src={s.image} alt={`Aperçu : ${s.title}`} width={imgDim.w} height={imgDim.h}
                             sizes="(max-width: 1024px) 100vw, 460px" className="w-full h-auto block" />
                         </div>
                       )}
