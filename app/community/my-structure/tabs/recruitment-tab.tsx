@@ -202,10 +202,11 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
               </button>
             </div>
             {inviteLinks.length > 0 ? (
-              <div className="space-y-2">
-                {inviteLinks.map(link => (
-                  <div key={link.id} className="flex items-center gap-2 p-2" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                    <div className="flex-1 min-w-0">
+              <div className="-mx-5 -mb-5" style={{ borderTop: '1px solid var(--s-border)' }}>
+                {inviteLinks.map((link, idx) => (
+                  <div key={link.id} className="flex items-center gap-3 px-5 py-2"
+                    style={idx > 0 ? { borderTop: '1px solid var(--s-border)' } : undefined}>
+                    <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
                       <p className="t-mono text-xs truncate" style={{ color: 'var(--s-text-dim)' }}>
                         /join/{link.token.slice(0, 8)}...
                       </p>
@@ -250,66 +251,63 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
               {invLoading ? 'Chargement...' : 'Aucune demande en attente.'}
             </p>
           ) : (
-            <div className="space-y-2">
-              {joinRequests.map(jr => {
+            <div className="-mx-5 -my-5">
+              {joinRequests.map((jr, idx) => {
                 const jrAvatar = jr.avatarUrl || jr.discordAvatar;
                 return (
-                  <div key={jr.id} className="p-3" style={{ background: 'var(--s-elevated)', border: '1px solid rgba(255,184,0,0.15)' }}>
-                    <div className="flex items-start gap-3 mb-2">
-                      {jrAvatar ? (
-                        <div className="w-12 h-12 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-                          <Image src={jrAvatar} alt={jr.displayName} fill className="object-cover" unoptimized />
-                        </div>
-                      ) : (
-                        <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-                          <User size={16} style={{ color: 'var(--s-text-muted)' }} />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <Link href={`/profile/${jr.applicantId}`} className="text-sm font-semibold truncate hover:underline">{jr.displayName}</Link>
-                          {jr.country && (
-                            <Image src={`https://flagcdn.com/16x12/${jr.country.toLowerCase()}.png`}
-                              alt={jr.country} width={14} height={10} className="flex-shrink-0" unoptimized />
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                          {jr.game && (
-                            <GameTag gameId={jr.game} style={{ padding: '1px 6px' }} />
-                          )}
-                          {jr.role && jr.role !== 'joueur' && (
-                            <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 6px' }}>{jr.role}</span>
-                          )}
-                          {jr.rlRank && (
-                            <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                              {jr.rlRank}{jr.rlMmr ? ` · ${jr.rlMmr}` : ''}
-                            </span>
-                          )}
-                          {jr.pseudoTM && <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{jr.pseudoTM}</span>}
-                        </div>
+                  <div key={jr.id} className="flex items-center gap-3 px-5 py-2.5 flex-wrap"
+                    style={idx > 0 ? { borderTop: '1px solid var(--s-border)' } : undefined}>
+                    {jrAvatar ? (
+                      <div className="w-10 h-10 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                        <Image src={jrAvatar} alt={jr.displayName} fill className="object-cover" unoptimized />
                       </div>
+                    ) : (
+                      <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                        <User size={15} style={{ color: 'var(--s-text-muted)' }} />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0" style={{ minWidth: '160px' }}>
+                      <div className="flex items-center gap-2">
+                        <Link href={`/profile/${jr.applicantId}`} className="text-sm font-semibold truncate hover:underline">{jr.displayName}</Link>
+                        {jr.country && (
+                          <Image src={`https://flagcdn.com/16x12/${jr.country.toLowerCase()}.png`}
+                            alt={jr.country} width={14} height={10} className="flex-shrink-0" unoptimized />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        {jr.game && (
+                          <GameTag gameId={jr.game} style={{ padding: '1px 6px' }} />
+                        )}
+                        {jr.role && jr.role !== 'joueur' && (
+                          <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 6px' }}>{jr.role}</span>
+                        )}
+                        {jr.rlRank && (
+                          <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                            {jr.rlRank}{jr.rlMmr ? ` · ${jr.rlMmr}` : ''}
+                          </span>
+                        )}
+                        {jr.pseudoTM && <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{jr.pseudoTM}</span>}
+                        {jr.message && (
+                          <span className="text-xs italic truncate" style={{ color: 'var(--s-text-muted)', maxWidth: '220px' }}>« {jr.message} »</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button type="button" onClick={() => handleRequestAction(jr.id, true)} disabled={invActionLoading === jr.id}
+                        className="btn-springs btn-primary bevel-sm flex items-center gap-1.5 justify-center text-xs py-1.5">
+                        {invActionLoading === jr.id ? <Loader2 size={11} className="animate-spin" /> : <><Check size={11} /> Accepter</>}
+                      </button>
+                      <button type="button" onClick={() => handleRequestAction(jr.id, false)} disabled={invActionLoading === jr.id}
+                        className="btn-springs btn-secondary bevel-sm-border flex items-center gap-1.5 justify-center text-xs py-1.5"
+                        style={{ color: '#ff5555', borderColor: 'rgba(255,85,85,0.3)' }}>
+                        <Trash2 size={11} /> Refuser
+                      </button>
                       <Link href={`/profile/${jr.applicantId}`} target="_blank" rel="noopener"
                         className="p-1.5 flex-shrink-0 transition-colors duration-150 hover:bg-[var(--s-hover)]"
                         style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
                         title="Voir profil">
                         <Eye size={12} style={{ color: 'var(--s-text-dim)' }} />
                       </Link>
-                    </div>
-                    {jr.message && (
-                      <p className="text-xs mb-2 italic p-2" style={{ background: 'var(--s-surface)', color: 'var(--s-text-dim)' }}>
-                        « {jr.message} »
-                      </p>
-                    )}
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => handleRequestAction(jr.id, true)} disabled={invActionLoading === jr.id}
-                        className="btn-springs btn-primary bevel-sm flex-1 justify-center text-xs py-1.5">
-                        {invActionLoading === jr.id ? <Loader2 size={11} className="animate-spin" /> : <><Check size={11} /> Accepter</>}
-                      </button>
-                      <button type="button" onClick={() => handleRequestAction(jr.id, false)} disabled={invActionLoading === jr.id}
-                        className="btn-springs btn-secondary bevel-sm-border flex-1 justify-center text-xs py-1.5"
-                        style={{ color: '#ff5555', borderColor: 'rgba(255,85,85,0.3)' }}>
-                        <Trash2 size={11} /> Refuser
-                      </button>
                     </div>
                   </div>
                 );
@@ -328,57 +326,56 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
               Aucune invitation envoyée en attente. Invite des joueurs depuis l&apos;annuaire ou leurs profils.
             </p>
           ) : (
-            <div className="space-y-2">
-              {directInvites.map(di => {
+            <div className="-mx-5 -my-5">
+              {directInvites.map((di, idx) => {
                 const diAvatar = di.avatarUrl || di.discordAvatar;
                 return (
-                  <div key={di.id} className="p-3" style={{ background: 'var(--s-elevated)', border: '1px solid rgba(255,184,0,0.2)' }}>
-                    <div className="flex items-start gap-3 mb-2">
-                      {diAvatar ? (
-                        <div className="w-12 h-12 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-                          <Image src={diAvatar} alt={di.displayName} fill className="object-cover" unoptimized />
-                        </div>
-                      ) : (
-                        <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-                          <User size={16} style={{ color: 'var(--s-text-muted)' }} />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <Link href={`/profile/${di.targetUserId}`} className="text-sm font-semibold truncate hover:underline">{di.displayName}</Link>
-                          {di.country && (
-                            <Image src={`https://flagcdn.com/16x12/${di.country.toLowerCase()}.png`}
-                              alt={di.country} width={14} height={10} className="flex-shrink-0" unoptimized />
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                          {di.game && (
-                            <GameTag gameId={di.game} style={{ padding: '1px 6px' }} />
-                          )}
-                          {di.role && di.role !== 'joueur' && (
-                            <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 6px' }}>{di.role}</span>
-                          )}
-                          {di.rlRank && (
-                            <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                              {di.rlRank}{di.rlMmr ? ` · ${di.rlMmr}` : ''}
-                            </span>
-                          )}
-                          {di.pseudoTM && <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{di.pseudoTM}</span>}
-                          <span className="text-xs italic" style={{ color: 'var(--s-text-muted)' }}>· En attente</span>
-                        </div>
+                  <div key={di.id} className="flex items-center gap-3 px-5 py-2.5 flex-wrap"
+                    style={idx > 0 ? { borderTop: '1px solid var(--s-border)' } : undefined}>
+                    {diAvatar ? (
+                      <div className="w-10 h-10 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                        <Image src={diAvatar} alt={di.displayName} fill className="object-cover" unoptimized />
                       </div>
-                      <div className="flex flex-col gap-1 flex-shrink-0">
-                        <Link href={`/profile/${di.targetUserId}`} target="_blank" rel="noopener"
-                          className="p-1.5 transition-colors duration-150 hover:bg-[var(--s-hover)]"
-                          style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
-                          title="Voir profil">
-                          <Eye size={12} style={{ color: 'var(--s-text-dim)' }} />
-                        </Link>
-                        <button type="button" onClick={() => handleCancelDirectInvite(di.id)} disabled={invActionLoading === di.id}
-                          className="p-1.5" style={{ color: '#ff5555', background: 'var(--s-surface)', border: '1px solid rgba(255,85,85,0.2)' }} title="Annuler">
-                          {invActionLoading === di.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                        </button>
+                    ) : (
+                      <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                        <User size={15} style={{ color: 'var(--s-text-muted)' }} />
                       </div>
+                    )}
+                    <div className="flex-1 min-w-0" style={{ minWidth: '160px' }}>
+                      <div className="flex items-center gap-2">
+                        <Link href={`/profile/${di.targetUserId}`} className="text-sm font-semibold truncate hover:underline">{di.displayName}</Link>
+                        {di.country && (
+                          <Image src={`https://flagcdn.com/16x12/${di.country.toLowerCase()}.png`}
+                            alt={di.country} width={14} height={10} className="flex-shrink-0" unoptimized />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        {di.game && (
+                          <GameTag gameId={di.game} style={{ padding: '1px 6px' }} />
+                        )}
+                        {di.role && di.role !== 'joueur' && (
+                          <span className="tag tag-neutral" style={{ fontSize: '12px', padding: '1px 6px' }}>{di.role}</span>
+                        )}
+                        {di.rlRank && (
+                          <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                            {di.rlRank}{di.rlMmr ? ` · ${di.rlMmr}` : ''}
+                          </span>
+                        )}
+                        {di.pseudoTM && <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{di.pseudoTM}</span>}
+                        <span className="text-xs italic" style={{ color: 'var(--s-text-muted)' }}>· En attente</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Link href={`/profile/${di.targetUserId}`} target="_blank" rel="noopener"
+                        className="p-1.5 transition-colors duration-150 hover:bg-[var(--s-hover)]"
+                        style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
+                        title="Voir profil">
+                        <Eye size={12} style={{ color: 'var(--s-text-dim)' }} />
+                      </Link>
+                      <button type="button" onClick={() => handleCancelDirectInvite(di.id)} disabled={invActionLoading === di.id}
+                        className="p-1.5" style={{ color: '#ff5555', background: 'var(--s-surface)', border: '1px solid rgba(255,85,85,0.2)' }} title="Annuler">
+                        {invActionLoading === di.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                      </button>
                     </div>
                   </div>
                 );
@@ -399,22 +396,22 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
               Aucun joueur en shortlist. Ajoute des favoris depuis l&apos;annuaire <Link href="/community/players" className="underline" style={{ color: 'var(--s-gold)' }}>joueurs</Link>.
             </p>
           ) : (
-            <div className="space-y-2">
-              {shortlist.map(sl => {
+            <div className="-mx-5 -my-5">
+              {shortlist.map((sl, idx) => {
                 const slAvatar = sl.avatarUrl || sl.discordAvatar;
                 return (
-                  <div key={sl.uid} className="flex items-start gap-3 p-2.5"
-                    style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                  <div key={sl.uid} className="flex items-center gap-3 px-5 py-2.5 flex-wrap"
+                    style={idx > 0 ? { borderTop: '1px solid var(--s-border)' } : undefined}>
                     {slAvatar ? (
-                      <div className="w-12 h-12 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                      <div className="w-10 h-10 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
                         <Image src={slAvatar} alt={sl.displayName} fill className="object-cover" unoptimized />
                       </div>
                     ) : (
-                      <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-                        <User size={14} style={{ color: 'var(--s-text-muted)' }} />
+                      <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                        <User size={15} style={{ color: 'var(--s-text-muted)' }} />
                       </div>
                     )}
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0" style={{ minWidth: '160px' }}>
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-semibold truncate">{sl.displayName}</p>
                         {sl.country && (
@@ -437,7 +434,7 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
                         {sl.pseudoTM && <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{sl.pseudoTM}</span>}
                       </div>
                     </div>
-                    <div className="flex flex-col gap-1 flex-shrink-0">
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
                       <Link
                         href={`/profile/${sl.uid}`}
                         target="_blank"
@@ -476,19 +473,19 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
               Aucun candidat correspondant pour le moment. Les joueurs dispos au recrutement apparaîtront ici.
             </p>
           ) : (
-            <div className="space-y-2">
-              {suggestions.slice(0, 10).map(sg => {
+            <div className="-mx-5 -my-5">
+              {suggestions.slice(0, 10).map((sg, idx) => {
                 const sgAvatar = sg.avatarUrl || sg.discordAvatar;
                 return (
-                  <Link key={sg.uid} href={`/profile/${sg.uid}`} className="flex items-start gap-3 p-2.5 transition-colors duration-150 hover:bg-[var(--s-hover)]"
-                    style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                  <Link key={sg.uid} href={`/profile/${sg.uid}`} className="flex items-center gap-3 px-5 py-2.5 transition-colors duration-150 hover:bg-[var(--s-hover)]"
+                    style={idx > 0 ? { borderTop: '1px solid var(--s-border)' } : undefined}>
                     {sgAvatar ? (
-                      <div className="w-12 h-12 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                      <div className="w-10 h-10 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
                         <Image src={sgAvatar} alt={sg.displayName} fill className="object-cover" unoptimized />
                       </div>
                     ) : (
-                      <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-                        <User size={14} style={{ color: 'var(--s-text-muted)' }} />
+                      <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
+                        <User size={15} style={{ color: 'var(--s-text-muted)' }} />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
@@ -511,7 +508,7 @@ export function RecruitmentTab(props: RecruitmentTabProps) {
                         {sg.pseudoTM && <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{sg.pseudoTM}</span>}
                       </div>
                     </div>
-                    <Eye size={14} className="flex-shrink-0 mt-1" style={{ color: 'var(--s-text-muted)' }} />
+                    <Eye size={14} className="flex-shrink-0" style={{ color: 'var(--s-text-muted)' }} />
                   </Link>
                 );
               })}
