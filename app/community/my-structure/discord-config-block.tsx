@@ -34,6 +34,7 @@ export function DiscordConfigBlockRenderer(props: {
 
   useEffect(() => {
     if (expanded) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync volontaire : on (ré)initialise les brouillons sur les valeurs courantes à l'ouverture du picker (ou si elles changent pendant l'édition)
       setDraftChannelId(opts.currentChannelId ?? '');
       setDraftRoleId(opts.currentRoleId ?? '');
     }

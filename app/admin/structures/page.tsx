@@ -666,6 +666,7 @@ function MembersSection({ structureId }: { structureId: string }) {
   useEffect(() => {
     if (!firebaseUser) return;
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset l'état de chargement avant un re-fetch quand structureId/firebaseUser change (pattern de fetch idiomatique, comportement voulu)
     setLoading(true);
     api<{ members: AdminMember[]; total: number }>(`/api/admin/structures/${structureId}/members`)
       .then(res => {

@@ -175,6 +175,7 @@ export default function TeamAvailabilityView({
   // Sync config form depuis les données serveur tant que l'utilisateur n'a pas édité
   useEffect(() => {
     if (data && !configDirty) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync volontaire du form depuis les données serveur (react-query) tant que l'utilisateur n'a pas édité ; les setters sont gardés par !configDirty donc pas de boucle
       setMinPlayers(data.team.minPlayersForMatch);
       setMinDurationHours(data.team.minMatchDurationMinutes / 60);
     }

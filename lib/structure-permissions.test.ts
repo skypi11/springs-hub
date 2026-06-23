@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   isResponsable, isCoach,
   isResponsableForGame, isCoachForGame,
-  isStructureAdminForGame, isStructureStaffForGame,
+  isStructureAdminForGame,
   getResponsableGames, getCoachGames,
   canManageEventsForGame, canManageTeamsForGame, canManageTodosForGame,
   structureContext,

@@ -156,7 +156,8 @@ export default function DateTimePicker({
     out.push({ label: 'Dans 1h', date: in1h });
 
     return out;
-  }, [presetMode, anchorIso, open]); // open force un recalcul à chaque ouverture
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `open` force volontairement le recalcul des presets (heures relatives à `now`) à chaque ouverture
+  }, [presetMode, anchorIso, open]);
 
   function selectPreset(d: Date) {
     onChange(toLocalString(d));

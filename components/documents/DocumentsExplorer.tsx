@@ -74,7 +74,7 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
     placeholderData: (prev) => prev, // garde l'ancienne page visible pendant le changement de dossier
   });
 
-  const folders = foldersQuery.data?.folders ?? [];
+  const folders = useMemo(() => foldersQuery.data?.folders ?? [], [foldersQuery.data]);
   const documents = documentsQuery.data?.documents ?? [];
   const usage = {
     used: documentsQuery.data?.usageBytes ?? 0,
@@ -225,6 +225,7 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
       if (res.kind === 'json') {
         const data = res.data as { url?: string };
         if (!data.url) { toast.error('Erreur téléchargement'); return; }
+        // eslint-disable-next-line react-hooks/immutability -- navigation volontaire dans un event handler async (déclenche le download via URL signée), pas un side-effect de rendu
         window.location.href = data.url;
         return;
       }
@@ -925,6 +926,7 @@ function PreviewModal({ doc, structureId, onClose, onDownload }: {
                 <Loader2 size={14} className="animate-spin" /> Chargement…
               </div>
             ) : isImage && src ? (
+              // eslint-disable-next-line @next/next/no-img-element -- src = blob URL (binaire déchiffré) ou URL signée hors remotePatterns, dimensions inconnues : next/image inadapté
               <img src={src} alt={doc.title}
                 style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
             ) : isPdf && src ? (

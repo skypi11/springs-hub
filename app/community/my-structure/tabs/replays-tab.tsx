@@ -52,7 +52,9 @@ export function ReplaysTab({ structureId, teams, userContext, currentUid }: Prop
   const error = queryError
     ? (queryError instanceof ApiError ? queryError.message : (queryError as Error).message || 'Erreur de chargement')
     : null;
-  const allReplays = data?.replays ?? [];
+  // Wrap dans un useMemo : `data?.replays ?? []` crée une nouvelle référence à
+  // chaque render, ce qui invaliderait les useMemo en aval (eventOptions/filtered/counts).
+  const allReplays = useMemo(() => data?.replays ?? [], [data?.replays]);
 
   // Set des eventIds présents (pour le dropdown event).
   // Tri par date du replay le plus récent associé à chaque event (desc), plus

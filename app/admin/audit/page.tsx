@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
 import {
-  History, Loader2, ChevronDown, ChevronUp, Search, RefreshCw, Download,
+  History, ChevronDown, ChevronUp, Search, RefreshCw, Download,
   CheckCircle, XCircle, Ban, Shield, Trash2, Pencil, UserMinus, LogOut,
   Building2, User as UserIcon, Calendar,
 } from 'lucide-react';

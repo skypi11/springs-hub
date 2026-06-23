@@ -28,7 +28,6 @@ import {
   type ExerciseStep,
 } from '@/lib/todos';
 import { TEMPLATE_NAME_MAX } from '@/lib/todo-templates';
-import { TodoConfigFields } from '@/components/calendar/TodoConfigFields';
 import { ExerciseStepsEditor } from '@/components/calendar/ExerciseStepsEditor';
 import { getAvailableTodoTypes } from '@/lib/games-registry';
 import TodoTemplatesManager, { useTodoTemplates, type TodoTemplateUi } from '@/components/calendar/TodoTemplatesManager';
@@ -345,6 +344,7 @@ function TodoStaffRow({
   onToggle: () => void;
   onDelete: () => void;
 }) {
+  // eslint-disable-next-line react-hooks/purity -- lecture read-time bénigne pour le style du badge « en retard » ; pas de state/SSR concerné, le passer en effet changerait le comportement runtime sans bénéfice
   const overdue = isOverdue(todo, Date.now());
   const deadlineInfo = todo.deadline ? formatDeadlineShort(todo.deadline, today) : null;
   return (
@@ -521,6 +521,7 @@ export function NewTodoForm({
         completed: false,
       }));
       setSteps(resolved.length > 0 ? resolved : [{
+        // eslint-disable-next-line react-hooks/purity -- génération d'id local dans un event handler (applyTemplate), pas pendant le render
         id: `step-${Math.random().toString(36).slice(2, 10)}`, type: 'free', config: {}, completed: false,
       }]);
     } else {
@@ -533,6 +534,7 @@ export function NewTodoForm({
         cfg = { prompts: prompts.length > 0 ? prompts : [...DEFAULT_MENTAL_PROMPTS] };
       }
       setSteps([{
+        // eslint-disable-next-line react-hooks/purity -- génération d'id local dans un event handler (applyTemplate), pas pendant le render
         id: `step-${Math.random().toString(36).slice(2, 10)}`,
         type: tpl.type,
         config: cfg,

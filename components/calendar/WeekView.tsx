@@ -1027,12 +1027,14 @@ function ConsensusConfigInline({
   const [minDurationH, setMinDurationH] = useState(initialMinDurationMinutes / 60);
   const [dirty, setDirty] = useState(false);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- re-synchronise l'état éditable depuis les props rafraîchies (server) tant que l'utilisateur n'a pas modifié le formulaire (dirty) */
   useEffect(() => {
     if (!dirty) {
       setMinPlayers(initialMinPlayers);
       setMinDurationH(initialMinDurationMinutes / 60);
     }
   }, [initialMinPlayers, initialMinDurationMinutes, dirty]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const save = useMutation({
     mutationFn: () => api('/api/structures/teams', {

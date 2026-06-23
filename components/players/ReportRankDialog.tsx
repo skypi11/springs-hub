@@ -137,9 +137,9 @@ export default function ReportRankDialog({ open, onClose, targetUid, targetName,
           </div>
           <p className="text-sm mb-4" style={{ color: 'var(--s-text-dim)' }}>
             {valorantOnly ? (
-              <>Tu signales un <strong>soupçon de smurf</strong> sur <strong>{targetName ?? 'ce joueur'}</strong> : son compte Riot vérifié affiche un rang qui ne reflète pas son vrai niveau. L'admin vérifiera via le tracker.</>
+              <>Tu signales un <strong>soupçon de smurf</strong> sur <strong>{targetName ?? 'ce joueur'}</strong> : son compte Riot vérifié affiche un rang qui ne reflète pas son vrai niveau. L&apos;admin vérifiera via le tracker.</>
             ) : (
-              <>Tu signales le rang de <strong>{targetName ?? 'ce joueur'}</strong>. L'admin sera notifié et vérifiera via le lien tracker.</>
+              <>Tu signales le rang de <strong>{targetName ?? 'ce joueur'}</strong>. L&apos;admin sera notifié et vérifiera via le lien tracker.</>
             )}
           </p>
 
@@ -195,7 +195,7 @@ export default function ReportRankDialog({ open, onClose, targetUid, targetName,
               placeholder="Précise ce qui te paraît anormal (lien vers une preuve, comportement observé…)"
             />
             <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
-              {message.length}/500, les signalements abusifs sont visibles par l'admin et peuvent te bloquer.
+              {message.length}/500, les signalements abusifs sont visibles par l&apos;admin et peuvent te bloquer.
             </p>
           </div>
 

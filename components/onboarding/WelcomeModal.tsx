@@ -11,7 +11,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  BookOpen, Shield, CalendarClock, Search, Film, MessageCircle,
+  BookOpen, Shield, Film,
   ChevronLeft, ChevronRight, X, Sparkles,
 } from 'lucide-react';
 import Portal from '@/components/ui/Portal';
@@ -70,6 +70,7 @@ export default function WelcomeModal() {
     try {
       if (typeof window === 'undefined') return;
       const seen = localStorage.getItem(STORAGE_KEY);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot mount guard : localStorage n'est lisible que côté client après montage
       if (!seen) setOpen(true);
     } catch { /* SSR */ }
   }, []);

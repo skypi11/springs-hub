@@ -1,6 +1,6 @@
 import sharp from 'sharp';
-import { readdir, readFile, writeFile } from 'node:fs/promises';
-import { join, basename } from 'node:path';
+import { readdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 const SRC_DIR = 'public/aedral';
 

@@ -105,7 +105,7 @@ export default function ValorantIdentityBadge({
         <div className="text-xs" style={{ color: '#ff8a8a' }}>
           <strong>Compte Riot non lié.</strong>
           <br />
-          Ce joueur dit pratiquer Valorant mais n'a lié aucun compte Riot, son rang n'est pas vérifiable. À considérer avec prudence pour le recrutement.
+          Ce joueur dit pratiquer Valorant mais n&apos;a lié aucun compte Riot, son rang n&apos;est pas vérifiable. À considérer avec prudence pour le recrutement.
         </div>
       </div>
     );

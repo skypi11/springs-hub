@@ -32,7 +32,7 @@ import {
   formatSlotTime,
   addMinutesToIso,
 } from '@/lib/availability';
-import { getGameColor, getGameShortLabel } from '@/lib/games-registry';
+import { getGameColor } from '@/lib/games-registry';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 type StaffRole = 'fondateur' | 'co_fondateur' | 'responsable' | 'coach_structure' | 'staff_team' | 'capitaine';
@@ -110,23 +110,6 @@ function pad2(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
 }
 
-/** Formate les rôles d'un staff pour affichage compact dans le panel.
- *  Ex: "Fondateur · Coach Aedral RL · Manager Phoenix TM" */
-function formatRolesLabel(m: StaffMember): string {
-  const parts: string[] = [];
-  if (m.roles.includes('fondateur')) parts.push('Fondateur');
-  if (m.roles.includes('co_fondateur')) parts.push('Co-fondateur');
-  if (m.roles.includes('responsable')) parts.push('Responsable');
-  if (m.roles.includes('coach_structure')) parts.push('Coach structure');
-  for (const tm of m.teamMemberships) {
-    const game = tm.teamGame ? ` (${getGameShortLabel(tm.teamGame)})` : '';
-    const teamLbl = tm.teamLabel ? `${tm.teamName} ${tm.teamLabel}` : tm.teamName;
-    const roleLbl = tm.role === 'manager' ? 'Manager' : tm.role === 'coach' ? 'Coach' : 'Capitaine';
-    parts.push(`${roleLbl} ${teamLbl}${game}`);
-  }
-  return parts.join(' · ');
-}
-
 export default function StaffAvailabilityView({
   structureId,
   onCreateStaffEvent,
@@ -168,6 +151,7 @@ export default function StaffAvailabilityView({
       const stored = localStorage.getItem(staffPickerKey);
       if (stored) {
         const arr = JSON.parse(stored) as string[];
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- hydratation one-shot depuis localStorage (système externe), pattern voulu
         if (Array.isArray(arr)) setSelectedStaffUids(new Set(arr));
       }
     } catch { /* SSR ou parse fail */ }
@@ -226,6 +210,7 @@ export default function StaffAvailabilityView({
   useEffect(() => {
     if (!grid) return;
     const todayIdx = grid.days.findIndex(d => d.gridYmd === todayYmd);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- recentre la vue mobile sur aujourd'hui quand la grille/semaine change, sync voulu
     setMobileDayIdx(todayIdx >= 0 ? todayIdx : 0);
   }, [grid, todayYmd]);
 

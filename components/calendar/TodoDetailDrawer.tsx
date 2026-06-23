@@ -135,6 +135,7 @@ export default function TodoDetailDrawer({
   const steps = getSteps(todo);
   const progress = getStepProgress(todo);
   const isMultiStep = steps.length > 1;
+  // eslint-disable-next-line react-hooks/purity -- "maintenant" pour l'affichage overdue/relatif d'un drawer éphémère (ouvert puis fermé) ; figer dans un state n'apporte rien et changerait le comportement
   const now = Date.now();
   const overdue = !todo.done && isOverdue(todo, now);
   const deadlineFull = formatDeadlineFull(todo.deadlineAt);

@@ -23,7 +23,7 @@ function makeMockDb(takenSlugs: Map<string, string /* docId */>): Firestore {
     }
     return {
       where: (_field: string, _op: string, value: string) => ({
-        limit: (_n: number) => ({
+        limit: () => ({
           get: async () => {
             const docId = takenSlugs.get(value);
             if (!docId) return { empty: true, docs: [] as Array<{ id: string }> };

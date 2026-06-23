@@ -38,6 +38,7 @@ export default function PendingImagePicker({
 
   // Aperçu local via objectURL, révoqué quand le fichier change ou au démontage.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- l'objectURL est une ressource externe (createObjectURL/revokeObjectURL) qu'on doit créer en effet et stocker en state pour la révoquer au cleanup ; pas une dérivation calculable au render
     if (!value) { setPreviewUrl(null); return; }
     const url = URL.createObjectURL(value);
     setPreviewUrl(url);

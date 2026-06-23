@@ -30,9 +30,15 @@ export function AnalyticsConsentBanner() {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
 
+  function close() {
+    setClosing(true);
+    setTimeout(() => setVisible(false), 200);
+  }
+
   useEffect(() => {
     // Attend que le SSR/hydration soit fini avant d'évaluer le localStorage.
     if (getConsent() === null) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- mount guard volontaire : getConsent() lit localStorage (indispo en SSR), on l'évalue une seule fois après hydration pour éviter un flash
       setVisible(true);
       // Auto-dismiss après N secondes si l'user ne clique rien.
       // Pas d'opt-in/opt-out implicite : le tracking continue (trust-by-default),
@@ -42,11 +48,6 @@ export function AnalyticsConsentBanner() {
     }
     return undefined;
   }, []);
-
-  function close() {
-    setClosing(true);
-    setTimeout(() => setVisible(false), 200);
-  }
 
   function handleAccept() {
     optIn();

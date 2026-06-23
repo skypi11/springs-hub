@@ -8,7 +8,7 @@
 // Run : node scripts/download-rl-rank-icons.mjs
 
 import sharp from 'sharp';
-import { writeFile, mkdir } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 
 const OUT_DIR = 'public/rl-ranks';

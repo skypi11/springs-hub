@@ -287,13 +287,14 @@ function DrawerBody({
 export function ReplayCard({
   index,
   total,
-  title,
   stats,
   focused,
 }: {
   index: number;
   total: number;
-  title: string;
+  // Conservé dans le type car les appelants passent encore `title`, mais
+  // l'affichage construit son propre libellé depuis index/total.
+  title?: string;
   stats: CachedStats;
   focused: boolean;
 }) {
@@ -366,13 +367,14 @@ function StatsBlock({
   stats,
   mode,
   modeToggle,
-  showModeToggle: _showModeToggle = false,
 }: {
   title: string;
   subtitle?: string;
   stats: CachedStats;
   mode: AggregationMode;
   modeToggle?: React.ReactNode;
+  // Conservé dans le type pour les appelants ; le rendu du toggle dépend
+  // uniquement de la présence de `modeToggle`.
   showModeToggle?: boolean;
 }) {
   const winnerBlue = stats.blueGoals > stats.orangeGoals;
@@ -839,8 +841,4 @@ function TwoTeamTables({
       <TeamSubTable label={orangeLabel} accent="#FFB800" players={orange} teamRow={teamRowOrange} columns={columns} />
     </div>
   );
-}
-
-function teamColor(team: 'blue' | 'orange'): string {
-  return team === 'blue' ? '#0081FF' : '#FFB800';
 }

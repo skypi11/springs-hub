@@ -10,7 +10,7 @@ import { api } from '@/lib/api-client';
 import ImpersonateButton from '@/components/admin/ImpersonateButton';
 import { getStructureHref } from '@/lib/structure-slug';
 import {
-  UploadCloud, Loader2, FileText, Film, Building2, ExternalLink, Database,
+  UploadCloud, FileText, Film, Building2, ExternalLink, Database,
 } from 'lucide-react';
 
 type StructureUsage = {

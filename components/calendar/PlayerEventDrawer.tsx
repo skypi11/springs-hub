@@ -136,6 +136,7 @@ export default function PlayerEventDrawer({
   const handleDownload = async (replayId: string) => {
     try {
       const res = await api<{ url?: string }>(`/api/structures/${event.structureId}/replays/${replayId}/download`);
+      // eslint-disable-next-line react-hooks/immutability -- navigation déclenchée par un clic utilisateur (handler async), pas pendant le render
       if (res.url) window.location.href = res.url;
       else toast.error('Lien de téléchargement indisponible.');
     } catch (err) {
@@ -150,6 +151,7 @@ export default function PlayerEventDrawer({
   // que sa date n'est pas dépassée, sans ça, un scrim oublié resterait
   // modifiable indéfiniment en présence ce qui n'a pas de sens.
   const canChangePresence = event.status === 'scheduled'
+    // eslint-disable-next-line react-hooks/purity -- comparaison « l'event est-il encore à venir » volontaire au render ; re-évaluer à chaque render est le comportement voulu, pas un bug d'impureté
     && (!event.startsAt || new Date(event.startsAt).getTime() > Date.now());
 
   const dateLong = event.startsAt

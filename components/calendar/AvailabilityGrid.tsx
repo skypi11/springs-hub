@@ -99,6 +99,7 @@ export default function AvailabilityGrid() {
   // Sync du state local d'édition avec les données serveur (initial + refetch)
   useEffect(() => {
     if (!data) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resync volontaire du state local d'édition à chaque (re)fetch React Query ; le serveur reste la source de vérité
     setCurrentSet(new Set(data.current.slots));
     setNextSet(new Set(data.next.slots));
     setCurrentDirty(false);

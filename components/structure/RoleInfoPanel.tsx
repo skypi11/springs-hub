@@ -125,7 +125,7 @@ export function AllRolesPanel() {
       <div className="p-4 bevel-sm" style={{ background: 'rgba(255,184,0,0.06)', border: '1px solid rgba(255,184,0,0.2)' }}>
         <p className="text-xs leading-relaxed" style={{ color: 'var(--s-text-dim)' }}>
           Récapitulatif des 7 rôles structure / équipe et de leurs permissions. Utile avant de promouvoir
-          quelqu'un pour comprendre exactement ce qu'il va débloquer.
+          quelqu&apos;un pour comprendre exactement ce qu&apos;il va débloquer.
         </p>
       </div>
       <div className="space-y-3">
@@ -198,7 +198,7 @@ export function PromoteRoleModal({
             <h2 className="font-display text-xl tracking-wider">PROMOUVOIR {def.name.toUpperCase()}</h2>
             <p className="text-sm mt-1" style={{ color: 'var(--s-text-dim)' }}>
               Tu vas promouvoir <strong style={{ color: 'var(--s-text)' }}>{targetName}</strong> au rôle de <strong style={{ color: 'var(--s-gold)' }}>{def.name}</strong>.
-              Voici ce qu'il pourra faire :
+              Voici ce qu&apos;il pourra faire :
             </p>
           </div>
 

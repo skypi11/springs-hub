@@ -1,29 +1,17 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import Image from 'next/image';
 import {
   Calendar as CalendarIcon,
   Plus,
   Loader2,
-  Clock,
-  CheckCircle,
-  XCircle,
-  MapPin,
-  Target,
   ChevronRight,
-  ChevronDown,
-  Trash2,
-  Check,
   Users,
-  User,
   LayoutGrid,
   List,
   CalendarRange,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import Portal from '@/components/ui/Portal';
-import DateTimePicker from '@/components/ui/DateTimePicker';
 import type {
   UserContext,
   EventType,
@@ -33,13 +21,9 @@ import type {
   EventTarget,
 } from '@/lib/event-permissions';
 import {
-  canEditEvent,
-  canDeleteEvent,
-  canMarkTerminated,
   isDirigeant,
   normalizeEventType,
 } from '@/lib/event-permissions';
-import ReplaysPanel from '@/components/replays/ReplaysPanel';
 import MonthView from './MonthView';
 import WeekView from './WeekView';
 import EventFormModal from './EventFormModal';
@@ -49,11 +33,7 @@ import EventCard from './EventCard';
 import { useEventFilters } from './useEventFilters';
 import { useCalendarEvents } from './useCalendarEvents';
 import { useEventMutations } from './useEventMutations';
-import { ALL_GAME_DEFS, getGameColor, getGameColorRgb, getGameLabel, getGameShortLabel } from '@/lib/games-registry';
 import StaffAvailabilityView from './StaffAvailabilityView';
-import { NewTodoForm, type TeamRef } from './TeamTodosPanel';
-import { useTodoTemplates } from './TodoTemplatesManager';
-import { ListTodo } from 'lucide-react';
 
 type Presence = {
   id: string;
@@ -254,6 +234,7 @@ export default function CalendarSection({
     const params = new URLSearchParams(window.location.search);
     const eventParam = params.get('event');
     if (eventParam && events.some(e => e.id === eventParam)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- ouverture one-shot d'une modale depuis le param d'URL ?event=, gardée par un ref (ne s'exécute qu'une fois après chargement)
       setOpenEventId(eventParam);
       deepLinkHandled.current = true;
       const url = new URL(window.location.href);

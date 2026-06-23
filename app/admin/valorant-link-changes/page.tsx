@@ -109,7 +109,7 @@ export default function AdminValorantLinkChangesPage() {
 
       <p className="t-body" style={{ color: 'var(--s-text-dim)' }}>
         Les demandes de changement de compte Riot (Valorant) arrivent ici. Vérifie
-        les deux profils tracker.gg avant de trancher. Un passage d'un compte haut
+        les deux profils tracker.gg avant de trancher. Un passage d&apos;un compte haut
         vers un compte bas est un drapeau rouge évident (smurf / sandbagging).
       </p>
 

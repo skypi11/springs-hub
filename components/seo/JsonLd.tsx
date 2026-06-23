@@ -24,13 +24,13 @@ export default function JsonLd({ schemas }: JsonLdProps) {
       ? schemas[0]
       : {
           '@context': 'https://schema.org',
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructure pour retirer @context de chaque schema du @graph
           '@graph': schemas.map(({ '@context': _ctx, ...rest }) => rest),
         };
 
   return (
     <script
       type="application/ld+json"
-      // eslint-disable-next-line react/no-danger
       dangerouslySetInnerHTML={{ __html: JSON.stringify(payload) }}
     />
   );

@@ -178,7 +178,7 @@ export default function SharingSection({ user, onSaved }: Props) {
             <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {rankableGames.length === 0 && (
                 <div className="t-body text-[var(--s-text-dim)]">
-                  Aucun jeu avec rang supporté pour l'instant.
+                  Aucun jeu avec rang supporté pour l&apos;instant.
                 </div>
               )}
               {rankableGames.map(game => {
@@ -221,7 +221,7 @@ export default function SharingSection({ user, onSaved }: Props) {
                       <div className="t-body" style={{ fontWeight: 600 }}>{game.label}</div>
                       {disabled && (
                         <div className="t-body text-[var(--s-text-dim)]" style={{ fontSize: 12 }}>
-                          Pas de rang renseigné. Va dans <strong>Mes jeux</strong> pour l'ajouter.
+                          Pas de rang renseigné. Va dans <strong>Mes jeux</strong> pour l&apos;ajouter.
                         </div>
                       )}
                       {!disabled && checked && (

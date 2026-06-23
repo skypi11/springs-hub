@@ -15,7 +15,6 @@ import { getProfileHref } from '@/lib/user-slug';
 import Portal from '@/components/ui/Portal';
 import { SkeletonGrid } from '@/components/ui/Skeleton';
 import { Switch } from '@/components/ui/Switch';
-import InviteToStructureButton from '@/components/community/InviteToStructureButton';
 import RLIdentityBadge from '@/components/players/RLIdentityBadge';
 import ValorantIdentityBadge from '@/components/players/ValorantIdentityBadge';
 import CountryFlag from '@/components/ui/CountryFlag';
@@ -153,6 +152,7 @@ export default function PlayersPage() {
   useEffect(() => {
     try {
       const stored = localStorage.getItem('aedral_players_view');
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- hydratation post-mount d'une préférence UI persistée (localStorage indispo en SSR), effet one-shot volontaire
       if (stored === 'grid' || stored === 'list') setViewMode(stored);
     } catch { /* SSR */ }
   }, []);

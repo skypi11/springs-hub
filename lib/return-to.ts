@@ -75,7 +75,6 @@ export function isValidNext(path: unknown): path is string {
 
   // Caractères de contrôle (incluant CR, LF, tab, null) → injection headers
   // possible si jamais on les écrit dans une réponse HTTP.
-  // eslint-disable-next-line no-control-regex
   if (/[\x00-\x1F\x7F]/.test(decoded)) return false;
 
   // Backslash : risque navigateur (Chrome interprète `\` comme `/` dans

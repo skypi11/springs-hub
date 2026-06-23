@@ -48,6 +48,7 @@ export function useEventFilters(): UseEventFiltersReturn {
   useEffect(() => {
     try {
       const saved = localStorage.getItem(VIEW_MODE_KEY);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- restore one-shot au mount depuis localStorage : doit rester dans un effet (SSR-safe, évite le mismatch d'hydratation), pas une cascade de renders
       if (isValidViewMode(saved)) setViewMode(saved);
     } catch {
       /* localStorage indisponible (mode privé strict) → fallback default 'month' */

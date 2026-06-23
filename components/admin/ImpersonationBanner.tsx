@@ -19,6 +19,10 @@ export default function ImpersonationBanner() {
 
   useEffect(() => {
     if (!firebaseUser) {
+      // Reset volontaire de l'état dérivé du token quand la session disparaît :
+      // l'effet synchronise impersonatedBy avec le claim du firebaseUser (système
+      // externe). Pas de cascade problématique ici, le reset est borné par la dep.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync état<-token externe, reset borné par firebaseUser
       setImpersonatedBy(null);
       return;
     }

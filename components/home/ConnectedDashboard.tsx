@@ -114,6 +114,7 @@ export default function ConnectedDashboard({ user }: { user: SpringsUser }) {
   const { nextEvent, nextEventStructure } = useMemo(() => {
     const events = calendarQ.data?.events ?? [];
     const structs = calendarQ.data?.structures ?? {};
+    // eslint-disable-next-line react-hooks/purity -- comparaison volontaire à l'heure courante pour trouver le prochain événement ; recalculé quand calendarQ.data change
     const now = Date.now();
     const future = events.find(e => {
       if (!e.startsAt) return false;

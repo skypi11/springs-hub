@@ -131,7 +131,7 @@ export async function syncTrackmaniaTrophiesBatch(db: Firestore): Promise<SyncSt
 }
 
 // Helper : payload commun pour update Firestore (cron + sync à la demande).
-function buildUpdates(accountId: string, data: ReturnType<typeof okData>) {
+function buildUpdates(accountId: string, data: FetchedTmData) {
   return {
     tmAccountId: accountId,
     tmDisplayName: data.displayName || null,
@@ -158,6 +158,3 @@ type FetchedTmData = {
   cotdCount: number;
   cotdAvgRank: number | null;
 };
-function okData(): FetchedTmData {
-  return {} as FetchedTmData;
-}

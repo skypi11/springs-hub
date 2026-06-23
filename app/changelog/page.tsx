@@ -73,7 +73,7 @@ export default function ChangelogPage() {
 
   // Pré-parse toutes les descriptions en sections. Mémoïsé pour éviter
   // le re-parse à chaque changement de filtre.
-  const items = data?.items ?? [];
+  const items = useMemo(() => data?.items ?? [], [data?.items]);
   const parsed = useMemo<ParsedItem[]>(() => {
     return items.map(it => {
       const sections = parseChangelogSections(it.description);

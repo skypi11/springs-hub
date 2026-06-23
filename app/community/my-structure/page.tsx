@@ -9,13 +9,12 @@ import { api, apiForm, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import {
-  Shield, Users, Loader2, AlertCircle,
+  Shield, Loader2, AlertCircle,
   Eye,
   Check, UserMinus, X,
 } from 'lucide-react';
 import CalendarSection from '@/components/calendar/CalendarSection';
 import TeamDetailDrawer, { type DrawerTab, type DrawerTeam } from '@/components/calendar/TeamDetailDrawer';
-import { CalendarClock, ClipboardList, Film, ChevronDown, ChevronUp } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import type { UserContext } from '@/lib/event-permissions';
@@ -35,7 +34,7 @@ import {
   DEPARTURE_NOTICE_DAYS, DEPARTURE_NOTICE_MS,
   STATUS_INFO,
 } from './constants';
-import { TabBar, TeamActionChip } from './components';
+import { TabBar } from './components';
 import { DiscordConfigBlockRenderer } from './discord-config-block';
 import { TeamsTab } from './tabs/teams-tab';
 import { RecruitmentTab } from './tabs/recruitment-tab';
@@ -684,6 +683,7 @@ export default function MyStructurePage() {
       return;
     }
     if (firebaseUser) loadStructures();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- garde d'auth : ne (re)charger qu'au changement d'état d'auth ; loadStructures/router stables et volontairement omis
   }, [authLoading, firebaseUser]);
 
   // Retour du flow Discord install : on lit ?discord=... dans l'URL, on affiche

@@ -118,7 +118,7 @@ export default function RLIdentityBadge({
         <div className="text-xs" style={{ color: '#ff8a8a' }}>
           <strong>Compte Rocket League non lié.</strong>
           <br />
-          Ce joueur dit pratiquer RL mais n'a vérifié aucun compte de jeu, son rang n'est pas vérifiable. À considérer avec prudence pour le recrutement.
+          Ce joueur dit pratiquer RL mais n&apos;a vérifié aucun compte de jeu, son rang n&apos;est pas vérifiable. À considérer avec prudence pour le recrutement.
         </div>
       </div>
     );

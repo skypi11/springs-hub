@@ -21,6 +21,7 @@ export default function GlobalError({
             <p style={{ color: '#7a7a95', marginBottom: '24px', fontSize: '14px' }}>
               L&apos;équipe Aedral a été notifiée automatiquement. Tu peux réessayer ou revenir à l&apos;accueil.
             </p>
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- global-error remplace le root layout : pas de contexte router Next, <Link> ne fonctionne pas ici, un full reload via <a> est volontaire pour repartir d'un état sain */}
             <a href="/" style={{ display: 'inline-block', padding: '10px 20px', background: '#FFB800', color: '#000', textDecoration: 'none', fontWeight: 700, fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Retour à l&apos;accueil
             </a>

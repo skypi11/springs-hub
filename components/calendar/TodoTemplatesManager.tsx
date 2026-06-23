@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, X, Share2, Trash2, Edit2, Check, Users, User as UserIcon, Plus } from 'lucide-react';
 import Portal from '@/components/ui/Portal';
@@ -11,13 +11,11 @@ import { api } from '@/lib/api-client';
 import {
   TODO_TITLE_MAX,
   TODO_DESCRIPTION_MAX,
-  TODO_TYPES,
   TODO_TYPE_META,
   type TodoType,
   type ExerciseStep,
 } from '@/lib/todos';
 import { TEMPLATE_NAME_MAX } from '@/lib/todo-templates';
-import { TodoConfigFields } from '@/components/calendar/TodoConfigFields';
 import { ExerciseStepsEditor } from '@/components/calendar/ExerciseStepsEditor';
 
 export type TodoTemplateUi = {

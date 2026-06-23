@@ -55,6 +55,7 @@ export default function TeamDetailDrawer({
       const safeTab: DrawerTab = initialTab === 'replays' && team && !gameHasFeature(team.game, 'replayParsing')
         ? 'availability'
         : initialTab;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset volontaire de l'onglet actif à chaque (ré)ouverture du drawer, synchronisé sur la prop open
       setTab(safeTab);
       const t = setTimeout(() => setVisible(true), 10);
       return () => clearTimeout(t);

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Shield, Users, ExternalLink, MessageSquare, Loader2, CheckCircle,
-  Clock, MapPin, Target, Star, UserCheck, UserX, HelpCircle, Crown,
+  MapPin, Target, Star, UserCheck, UserX, HelpCircle, Crown,
   Headphones, BookOpen, Calendar as CalendarIcon, ChevronRight, LogOut,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -214,6 +214,7 @@ export default function PlayerStructureView({ structure, onChanged }: { structur
   };
 
   const upcomingEvents = useMemo(() => {
+    // eslint-disable-next-line react-hooks/purity -- "now" est volontairement capturé au calcul du memo (recalculé quand `events` change) pour filtrer les events passés ; le sortir vers un state/effet changerait le comportement runtime sans bénéfice
     const now = Date.now();
     return events
       .filter(e => e.status !== 'cancelled')

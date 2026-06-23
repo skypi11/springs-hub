@@ -65,6 +65,7 @@ export default function StructuresPage() {
   }, [gameFilter]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch async des structures au mount + au changement de gameFilter ; le setLoading(true) initial est intentionnel
     loadStructures();
   }, [loadStructures]);
 

@@ -229,6 +229,7 @@ export default function EventFormModal({
   // Quand le roster change, tout pré-cocher par défaut.
   useEffect(() => {
     if (!singleTeamRoster) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- seed mutable checkbox state when the derived roster changes (intentional reset, not pure derived render value)
       setPlayerSelection({});
       return;
     }
@@ -240,6 +241,7 @@ export default function EventFormModal({
   // Quand on passe en scope='staff', pré-cocher tout le monde par défaut.
   useEffect(() => {
     if (scope !== 'staff') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- seed mutable checkbox state when scope/staff groups change (intentional reset, not pure derived render value)
       setStaffSelection({});
       return;
     }

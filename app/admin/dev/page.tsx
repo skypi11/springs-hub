@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
 import {
-  Wrench, Loader2, Database, KeyRound, Clock, ExternalLink,
+  Wrench, Database, KeyRound, Clock, ExternalLink,
   CheckCircle2, XCircle, Server, AlertCircle,
 } from 'lucide-react';
 

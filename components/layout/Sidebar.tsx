@@ -70,12 +70,14 @@ export default function Sidebar() {
 
   useEffect(() => {
     if (typeof navigator !== 'undefined') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- détection client one-shot au mount (navigator indisponible en SSR)
       setIsMac(/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent));
     }
   }, []);
 
   // Close drawer on route change
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ferme le drawer en réaction au changement de route (sync état→navigation voulu)
     setMobileOpen(false);
   }, [pathname]);
 

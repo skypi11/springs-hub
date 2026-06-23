@@ -116,7 +116,7 @@ export default function AdminRankReportsPage() {
       </div>
 
       <p className="t-body" style={{ color: 'var(--s-text-dim)' }}>
-        Quand un joueur signale le rang d'un autre, c'est ici. Va voir le tracker
+        Quand un joueur signale le rang d&apos;un autre, c&apos;est ici. Va voir le tracker
         et tranche.
       </p>
 

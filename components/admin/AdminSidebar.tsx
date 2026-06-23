@@ -55,6 +55,7 @@ export default function AdminSidebar({ badges = {} }: Props) {
   // Ferme automatiquement le menu mobile à chaque navigation pour ne pas le
   // laisser ouvert sur la page suivante (et masquer le contenu).
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- réaction volontaire au changement de route : on referme le menu mobile à chaque navigation
     setOpenMobile(false);
   }, [pathname]);
 

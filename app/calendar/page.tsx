@@ -99,8 +99,10 @@ export default function MyCalendarPage() {
     queryFn: () => api<{ events: MyEvent[]; structures: Record<string, StructureInfo> }>('/api/calendar/me'),
     enabled: !!firebaseUser,
   });
-  const events = data?.events ?? [];
-  const structures = data?.structures ?? {};
+  // Références stables : sans le useMemo, `?? []` / `?? {}` crée un nouvel objet
+  // à chaque render et fait re-tourner les useMemo en aval pour rien.
+  const events = useMemo(() => data?.events ?? [], [data?.events]);
+  const structures = useMemo(() => data?.structures ?? {}, [data?.structures]);
 
   // Cache partagé avec MyTodosSection (même queryKey), pas de double fetch.
   // On l'utilise pour enrichir le mini-mois avec les exos (échéances).
@@ -109,7 +111,7 @@ export default function MyCalendarPage() {
     queryFn: () => api<{ todos: Array<{ id: string; title: string; structureId: string; done: boolean; deadlineAt: number | null }> }>('/api/todos/me'),
     enabled: !!firebaseUser,
   });
-  const todos = todosData?.todos ?? [];
+  const todos = useMemo(() => todosData?.todos ?? [], [todosData?.todos]);
 
   // Drawer todo piloté depuis le mini-mois : on bump `requestedTodoId`,
   // MyTodosSection l'ouvre, puis reset via onRequestConsumed.
@@ -321,6 +323,7 @@ export default function MyCalendarPage() {
                             structure={structures[ev.structureId]}
                             onRespond={respond}
                             onOpen={setOpenEventId}
+                            now={now}
                           />
                         ))}
                       </div>
@@ -344,6 +347,7 @@ export default function MyCalendarPage() {
                       structure={structures[ev.structureId]}
                       onRespond={respond}
                       onOpen={setOpenEventId}
+                      now={now}
                     />
                   ))}
                 </div>
@@ -397,18 +401,21 @@ function MyEventCard({
   structure,
   onRespond,
   onOpen,
+  now,
 }: {
   event: MyEvent;
   structure: StructureInfo | undefined;
   onRespond: (structureId: string, eventId: string, status: PresenceStatus) => void;
   onOpen: (eventId: string) => void;
+  now: number;
 }) {
   const typeInfo = TYPE_INFO[normalizeEventType(event.type)];
   const statusInfo = STATUS_INFO[event.status];
   const my = event.myPresence;
   // Modification de présence : event scheduled ET pas encore passé.
+  // `now` vient du parent (state rafraîchi chaque minute) — pas de Date.now() impur en render.
   const canChangePresence = event.status === 'scheduled'
-    && (!event.startsAt || new Date(event.startsAt).getTime() > Date.now());
+    && (!event.startsAt || new Date(event.startsAt).getTime() > now);
 
   const dateStr = event.startsAt
     ? new Date(event.startsAt).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' })

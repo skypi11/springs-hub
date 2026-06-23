@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import type { AnnounceTemplate } from '@/types';
-import { ALL_CHANGELOG_CATEGORIES, getChangelogCategory } from '@/lib/changelog-categories';
+import { ALL_CHANGELOG_CATEGORIES } from '@/lib/changelog-categories';
 
 interface BroadcastChannel {
   id: string;

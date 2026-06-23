@@ -118,6 +118,10 @@ export default function ShareButton({
   const tokens = SIZE_TOKENS[size];
 
   useEffect(() => {
+    // Mount guard : detectIsMobile()/hasNativeShare() touchent window/navigator,
+    // indisponibles en SSR. On part de `false` (hydration-safe) puis on recalcule
+    // une fois côté client. setState one-shot volontaire, pas une boucle de rendu.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- valeurs client-only dérivées après mount (hydration-safe)
     setIsMobile(detectIsMobile());
     setNativeShareAvailable(hasNativeShare());
   }, []);

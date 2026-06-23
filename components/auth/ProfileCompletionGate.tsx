@@ -26,6 +26,7 @@ export default function ProfileCompletionGate() {
     if (process.env.NODE_ENV === 'development') return;
     const { complete } = checkProfileCompletion(user);
     if (complete) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronisation volontaire de showWizard depuis l'état auth/profil/route (sources externes) ; cet effet pilote aussi un redirect router, pas dérivable au render
       setShowWizard(false);
       return;
     }

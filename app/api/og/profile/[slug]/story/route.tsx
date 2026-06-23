@@ -17,7 +17,6 @@ import {
   pickHeroRanks,
   pickVisibleGames,
   type HeroRank,
-  type UserOgStructureBlock,
 } from '@/lib/og-helpers';
 import type { OgDisplayPreferences } from '@/types';
 import { canUserCustomizeOgDisplay } from '@/lib/plan-limits';

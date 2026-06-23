@@ -916,6 +916,7 @@ function CreateTodoModal({
     if (!teamsQuery.data) return;
     const visible = teamsQuery.data.teams.filter(t => visibleSet.has(t.id) && t.status === 'active');
     if (visible.length === 1 && !selectedTeamId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-sélection one-shot quand la query async ne ramène qu'une équipe visible ; gardée par !selectedTeamId pour ne pas réécraser un choix utilisateur
       setSelectedTeamId(visible[0].id);
     }
   }, [teamsQuery.data, visibleSet, selectedTeamId]);

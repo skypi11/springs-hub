@@ -51,6 +51,7 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
       // qui préserve le token dans le returnTo (signInWithDiscord capture
       // l'URL courante par défaut). Après login Discord, il atterrit pile
       // sur cette page et le useEffect re-trigger l'auto-join.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- transition d'état pilotée par le système d'auth externe (authLoading/firebaseUser), pas une dérivation calculable au render
       setStatus('need_auth');
       return;
     }

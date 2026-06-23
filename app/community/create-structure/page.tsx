@@ -8,8 +8,7 @@ import { api, apiForm, ApiError } from '@/lib/api-client';
 import { track } from '@/lib/analytics';
 import {
   Save, Shield, Gamepad2, Users, MessageSquare,
-  AlertCircle, CheckCircle, Loader2, ExternalLink, Hash, Building2,
-  ChevronRight
+  AlertCircle, CheckCircle, Loader2, ExternalLink, Hash, Building2
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import PendingImagePicker from '@/components/ui/PendingImagePicker';
@@ -50,7 +49,7 @@ const defaultForm: StructureFormData = {
 };
 
 export default function CreateStructurePage() {
-  const { user, firebaseUser, loading: authLoading } = useAuth();
+  const { firebaseUser, loading: authLoading } = useAuth();
   const router = useRouter();
   const [form, setForm] = useState<StructureFormData>(defaultForm);
   const [logoFile, setLogoFile] = useState<File | null>(null);

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Check, Calendar as CalIcon, ChevronDown, ChevronRight, ClipboardList, Shield, X } from 'lucide-react';
+import { Loader2, Check, Calendar as CalIcon, ChevronDown, ChevronRight, ClipboardList, Shield } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
@@ -12,14 +12,10 @@ import {
   compareTodosPending,
   compareTodosDone,
   isOverdue,
-  validateTodoResponse,
-  normalizeTrainingPacks,
   getSteps,
   getStepProgress,
   TODO_TYPE_META,
-  TODO_RESPONSE_MAX,
   type TodoRef,
-  type TodoType,
   type ExerciseStep,
 } from '@/lib/todos';
 import { TodoConfigSummary, TodoResponseSummary } from './TeamTodosPanel';
@@ -81,7 +77,7 @@ export default function MyTodosSection({
     queryFn: () => api<{ todos: MyTodo[] }>('/api/todos/me'),
     enabled: !!firebaseUser,
   });
-  const todos = data?.todos ?? [];
+  const todos = useMemo(() => data?.todos ?? [], [data]);
 
   // Deep-link : `?todo=ID` depuis l'embed Discord / notif ouvre directement le drawer
   // quand les exercices sont chargés. Consommé une seule fois, puis nettoie l'URL.
@@ -91,6 +87,7 @@ export default function MyTodosSection({
     const params = new URLSearchParams(window.location.search);
     const todoParam = params.get('todo');
     if (!todoParam) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- synchro one-shot avec le param d'URL `?todo=ID` (système externe), consommé une seule fois via le ref ci-dessous
     if (todos.some(t => t.id === todoParam)) setOpenTodoId(todoParam);
     deepLinkConsumed.current = true;
     const url = new URL(window.location.href);
@@ -105,6 +102,7 @@ export default function MyTodosSection({
   useEffect(() => {
     if (!requestOpenTodoId || todos.length === 0) return;
     if (todos.some(t => t.id === requestOpenTodoId)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- ouverture pilotée par le parent (bump de `requestOpenTodoId`), reset ensuite via onRequestConsumed
       setOpenTodoId(requestOpenTodoId);
     }
     onRequestConsumed?.();
@@ -369,6 +367,7 @@ function TodoRow({
   onOpen: () => void;
   onToggleCheckbox: () => void;
 }) {
+  // eslint-disable-next-line react-hooks/purity -- comparaison « en retard » volontairement basée sur l'instant courant ; re-render d'une ligne = négligeable, et figer la valeur fausserait le statut sur une session ouverte longtemps
   const overdue = isOverdue(todo, Date.now());
   const deadlineInfo = todo.deadline ? formatDeadline(todo.deadline, today) : null;
   const meta = TODO_TYPE_META[todo.type];
