@@ -25,7 +25,6 @@ import GameTag from '@/components/games/GameTag';
 import {
   ALL_GAME_DEFS,
   getGameColor,
-  getGameColorRgb,
   getGameLabel,
 } from '@/lib/games-registry';
 
@@ -146,7 +145,6 @@ function PlayerRow({ player, color, isCaptain }: { player: TeamPlayer; color: st
 // Taille ~220px, affiche l'essentiel (nom, capitaine, cluster avatars, compteur), le détail
 // complet (rosters, staff) est dans le TeamDetailPanel qui slide depuis la droite.
 function TeamCardCompact({ team, onOpen }: { team: Team; onOpen: () => void }) {
-  const gcRaw = getGameColorRgb(team.game);
   const gcVar = getGameColor(team.game);
   const isArchived = team.status === 'archived';
 
@@ -169,15 +167,11 @@ function TeamCardCompact({ team, onOpen }: { team: Team; onOpen: () => void }) {
       className="pillar-card panel relative overflow-hidden text-left w-full transition-all duration-200 group"
       style={{ opacity: isArchived ? 0.75 : 1 }}
     >
-      <div className="h-[3px]" style={{ background: `linear-gradient(90deg, rgba(${gcRaw},1), rgba(${gcRaw},0.3), transparent 70%)` }} />
-      <div className="absolute top-0 right-0 w-[160px] h-[160px] pointer-events-none opacity-[0.06] group-hover:opacity-[0.12] transition-opacity"
-        style={{ background: `radial-gradient(circle at top right, rgba(${gcRaw},1), transparent 70%)` }} />
-
       <div className="relative z-[1] p-4 space-y-3">
         {/* Header : nom + jeu */}
         <div className="flex items-start gap-2.5">
           <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center overflow-hidden"
-            style={{ background: `rgba(${gcRaw},0.1)`, border: `1px solid rgba(${gcRaw},0.25)` }}>
+            style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
             {team.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={team.logoUrl} alt="" className="w-full h-full object-contain" />
@@ -286,7 +280,6 @@ function TeamDetailPanel({ team, onClose }: { team: Team; onClose: () => void })
     };
   }, [onClose]);
 
-  const gcRaw = getGameColorRgb(team.game);
   const gcVar = getGameColor(team.game);
   const isArchived = team.status === 'archived';
 
@@ -310,12 +303,10 @@ function TeamDetailPanel({ team, onClose }: { team: Team; onClose: () => void })
         role="dialog"
         aria-label={`Détails équipe ${team.name}`}
       >
-        <div className="h-[3px] flex-shrink-0" style={{ background: `linear-gradient(90deg, rgba(${gcRaw},1), rgba(${gcRaw},0.3), transparent 70%)` }} />
-
         {/* Header sticky */}
         <div className="flex-shrink-0 px-5 py-4 flex items-start gap-3" style={{ background: 'var(--s-surface)', borderBottom: '1px solid var(--s-border)' }}>
           <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center overflow-hidden"
-            style={{ background: `rgba(${gcRaw},0.1)`, border: `1px solid rgba(${gcRaw},0.25)` }}>
+            style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
             {team.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={team.logoUrl} alt="" className="w-full h-full object-contain" />
@@ -821,10 +812,9 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
 
         {/* Formulaire de demande (s'affiche sous le header) */}
         {showJoinForm && (
-          <div className="bevel p-6 space-y-4 animate-fade-in" style={{ background: 'var(--s-surface)', border: `1px solid rgba(${mainColorRaw},0.2)` }}>
-            <div className="h-[2px] -mt-6 -mx-6 mb-5" style={{ background: `linear-gradient(90deg, rgba(${mainColorRaw},0.5), transparent 60%)` }} />
+          <div className="bevel p-6 space-y-4 animate-fade-in" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
             <div className="flex items-center gap-3 mb-1">
-              <div className="w-8 h-8 flex items-center justify-center" style={{ background: `rgba(${mainColorRaw},0.08)`, border: `1px solid rgba(${mainColorRaw},0.2)` }}>
+              <div className="w-8 h-8 flex items-center justify-center" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                 <UserPlus size={14} style={{ color: mainColor }} />
               </div>
               <span className="font-display text-base tracking-wider">DEMANDE DE REJOINDRE</span>
@@ -917,10 +907,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
 
             {/* 1. À PROPOS */}
             {structure.description && (
-              <div className="pillar-card panel relative overflow-hidden group transition-all duration-200">
-                <div className="h-[3px]" style={{ background: `linear-gradient(90deg, rgba(${mainColorRaw},0.5), transparent 60%)` }} />
-                <div className="absolute top-0 right-0 w-[180px] h-[180px] pointer-events-none opacity-[0.05]"
-                  style={{ background: `radial-gradient(circle at top right, rgba(${mainColorRaw},1), transparent 70%)` }} />
+              <div className="panel relative overflow-hidden">
                 <div className="relative z-[1]">
                   <div className="panel-header">
                     <div className="flex items-center gap-2">
@@ -1055,10 +1042,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
             })()}
 
             {/* 3. MEMBRES */}
-            <div className="pillar-card panel relative overflow-hidden group transition-all duration-200">
-              <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
-              <div className="absolute top-0 right-0 w-[180px] h-[180px] pointer-events-none opacity-[0.05]"
-                style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
+            <div className="panel relative overflow-hidden">
               <div className="relative z-[1]">
                 <div className="panel-header">
                   <div className="flex items-center gap-2">
@@ -1155,10 +1139,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
 
             {/* 1. RECRUTEMENT */}
             {structure.recruiting?.active && (structure.recruiting.positions.length > 0 || structure.recruiting.message) && (
-              <div className="pillar-card panel relative overflow-hidden group transition-all duration-200">
-                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
-                <div className="absolute top-0 right-0 w-[150px] h-[150px] pointer-events-none opacity-[0.07]"
-                  style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
+              <div className="panel relative overflow-hidden">
                 <div className="relative z-[1]">
                   <div className="panel-header">
                     <div className="flex items-center gap-2">
@@ -1220,8 +1201,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
 
             {/* 2. LIENS & RÉSEAUX */}
             {(structure.discordUrl || socialEntries.length > 0) && (
-              <div className="pillar-card panel relative overflow-hidden group transition-all duration-200">
-                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.15), transparent 60%)' }} />
+              <div className="panel relative overflow-hidden">
                 <div className="relative z-[1]">
                   <div className="panel-header">
                     <div className="flex items-center gap-2">
@@ -1261,10 +1241,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
 
             {/* 3. PALMARÈS */}
             {structure.achievements && structure.achievements.length > 0 && (
-              <div className="pillar-card panel relative overflow-hidden group transition-all duration-200">
-                <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
-                <div className="absolute top-0 right-0 w-[150px] h-[150px] pointer-events-none opacity-[0.05]"
-                  style={{ background: 'radial-gradient(circle at top right, var(--s-gold), transparent 70%)' }} />
+              <div className="panel relative overflow-hidden">
                 <div className="relative z-[1]">
                   <div className="panel-header">
                     <div className="flex items-center gap-2">
