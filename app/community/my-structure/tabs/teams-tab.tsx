@@ -229,7 +229,6 @@ export function TeamsTab(props: TeamsTabProps) {
           border: '1px solid var(--s-border)',
           opacity: isArchived ? 0.65 : 1,
         }}>
-        <div className="h-[2px]" style={{ background: `linear-gradient(90deg, ${gameColor}, transparent 60%)` }} />
         <div className="p-4 space-y-3">
           <div className={`flex items-center justify-between gap-2 ${hasGrip ? 'pl-6' : ''}`}>
             <div className="flex items-center gap-2.5 flex-wrap">
@@ -732,10 +731,7 @@ export function TeamsTab(props: TeamsTabProps) {
           color: string,
         ) => list.length === 0 ? null : (
           <div key={label} className="flex items-start gap-2.5 py-2.5">
-            <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center bevel-sm"
-              style={{ background: `${color}18`, border: `1px solid ${color}40` }}>
-              <AlertCircle size={13} style={{ color }} />
-            </div>
+            <AlertCircle size={13} className="flex-shrink-0 mt-0.5" style={{ color }} />
             <div className="flex-1 min-w-0">
               <div className="text-sm font-semibold mb-1.5" style={{ color: 'var(--s-text)' }}>
                 {label}
@@ -760,7 +756,6 @@ export function TeamsTab(props: TeamsTabProps) {
         return (
           <div className="mb-4 p-3 bevel-sm relative overflow-hidden"
             style={{ background: 'rgba(255,184,0,0.05)', border: '1px solid rgba(255,184,0,0.25)' }}>
-            <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), transparent 70%)' }} />
             <button type="button" onClick={() => setHealthOpen(!isOpen)}
               className="w-full flex items-center gap-2 transition-colors duration-150"
               style={{ cursor: 'pointer' }}>
@@ -838,7 +833,6 @@ export function TeamsTab(props: TeamsTabProps) {
       {/* Formulaire nouvelle équipe, dirigeant + responsable */}
       {showNewTeam && isAdminOfActive && (
         <div className="mb-4 bevel-sm relative overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid rgba(0,129,255,0.25)' }}>
-          <div className="h-[2px]" style={{ background: 'linear-gradient(90deg, var(--s-blue), transparent 70%)' }} />
           <div className="p-4 space-y-3">
           <div className="flex items-center gap-2">
             <Plus size={13} style={{ color: 'var(--s-blue)' }} />

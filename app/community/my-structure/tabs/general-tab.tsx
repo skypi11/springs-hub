@@ -177,22 +177,8 @@ export function GeneralTab(props: GeneralTabProps) {
                       opacity: isDirigeantOfActive ? 1 : 0.6,
                     }}
                   >
-                    {active && (
-                      <div
-                        className="absolute top-0 right-0 w-24 h-24 pointer-events-none opacity-[0.10]"
-                        style={{ background: `radial-gradient(circle at top right, ${g.color}, transparent 70%)` }}
-                      />
-                    )}
                     <div className="relative z-[1] flex items-center gap-3">
-                      <div
-                        className="w-9 h-9 flex items-center justify-center flex-shrink-0"
-                        style={{
-                          background: `rgba(${g.colorRgb}, 0.10)`,
-                          border: `1px solid rgba(${g.colorRgb}, 0.25)`,
-                        }}
-                      >
-                        <Gamepad2 size={16} style={{ color: g.color }} />
-                      </div>
+                      <Gamepad2 size={16} className="flex-shrink-0" style={{ color: g.color }} />
                       <div className="flex-1 min-w-0">
                         <p
                           className="text-sm font-semibold truncate"
@@ -616,10 +602,6 @@ export function GeneralTab(props: GeneralTabProps) {
                   className="bevel-sm p-4 text-center relative overflow-hidden"
                   style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
                 >
-                  <div
-                    className="absolute inset-0 pointer-events-none"
-                    style={{ background: `radial-gradient(circle at 50% 0%, rgba(${def.colorRgb}, 0.06), transparent 70%)` }}
-                  />
                   <p className="font-display text-2xl relative z-[1]" style={{ color: def.color }}>{count}</p>
                   <p className="t-label-soft mt-1 relative z-[1]">Équipes {def.shortLabel}</p>
                 </div>

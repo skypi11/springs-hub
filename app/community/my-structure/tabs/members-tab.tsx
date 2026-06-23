@@ -81,12 +81,9 @@ export function MembersTab(props: MembersTabProps) {
     const recentRecruits = unassigned.filter(m => (m.joinedAt ?? 0) >= sevenDaysAgo);
     return (
       <div className="bevel relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid rgba(255,184,0,0.35)' }}>
-        <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
         <div className="relative z-[1] px-5 py-3.5 flex items-center justify-between" style={{ borderBottom: '1px solid var(--s-border)' }}>
           <div className="flex items-center gap-3">
-            <div className="w-7 h-7 flex items-center justify-center" style={{ background: 'rgba(255,184,0,0.1)', border: '1px solid rgba(255,184,0,0.25)' }}>
-              <UserPlus size={13} style={{ color: 'var(--s-gold)' }} />
-            </div>
+            <UserPlus size={14} className="flex-shrink-0" style={{ color: 'var(--s-gold)' }} />
             <div>
               <span className="font-display text-sm tracking-wider">SANS ÉQUIPE</span>
               {recentRecruits.length > 0 && (
@@ -306,14 +303,9 @@ export function MembersTab(props: MembersTabProps) {
     if (!isDirigeantOfActive && !isManagerOfActive) return null;
     return (
       <div className="bevel relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-        <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-text-dim), rgba(122,122,149,0.3), transparent 70%)' }} />
-        <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none"
-          style={{ background: 'radial-gradient(circle at 100% 0%, rgba(122,122,149,0.06), transparent 70%)' }} />
         <div className="relative z-[1] px-5 py-3.5 flex items-center justify-between" style={{ borderBottom: '1px solid var(--s-border)' }}>
           <div className="flex items-center gap-3">
-            <div className="w-7 h-7 flex items-center justify-center" style={{ background: 'rgba(122,122,149,0.08)', border: '1px solid rgba(122,122,149,0.2)' }}>
-              <Clock size={13} style={{ color: 'var(--s-text-dim)' }} />
-            </div>
+            <Clock size={14} className="flex-shrink-0" style={{ color: 'var(--s-text-dim)' }} />
             <span className="font-display text-sm tracking-wider">HISTORIQUE</span>
           </div>
           <span className="font-display text-lg" style={{ color: 'var(--s-text-dim)' }}>{history.length}</span>

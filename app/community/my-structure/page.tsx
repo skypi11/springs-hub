@@ -1636,13 +1636,9 @@ export default function MyStructurePage() {
               background: 'rgba(255,184,0,0.06)',
               border: '1px solid rgba(255,184,0,0.35)',
             }}>
-            <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.4) 60%, transparent)' }} />
             <div className="p-4 flex items-start justify-between gap-4 flex-wrap">
               <div className="flex items-start gap-3 min-w-0 flex-1">
-                <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center"
-                  style={{ background: 'rgba(255,184,0,0.1)', border: '1px solid rgba(255,184,0,0.3)' }}>
-                  <AlertCircle size={14} style={{ color: 'var(--s-gold)' }} />
-                </div>
+                <AlertCircle size={14} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--s-gold)' }} />
                 <div className="min-w-0 flex-1">
                   <div className="font-display text-sm tracking-wider mb-0.5" style={{ color: 'var(--s-gold)' }}>
                     Transfert de propriété en cours
