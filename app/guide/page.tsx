@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
+import GuideImage from '@/components/guide/GuideImage';
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
 
 // Page Guide / Découvrir Aedral, validée Matt 2026-05-25.
@@ -303,11 +304,7 @@ export default function GuidePage() {
                         </ul>
                       </div>
                       {s.image && (
-                        <div className="w-full max-w-xl lg:w-[460px] lg:flex-shrink-0 self-start bevel-sm overflow-hidden"
-                          style={{ border: '1px solid var(--s-border)' }}>
-                          <Image src={s.image} alt={`Aperçu : ${s.title}`} width={imgDim.w} height={imgDim.h}
-                            sizes="(max-width: 1024px) 100vw, 460px" className="w-full h-auto block" />
-                        </div>
+                        <GuideImage src={s.image} alt={`Aperçu : ${s.title}`} width={imgDim.w} height={imgDim.h} />
                       )}
                     </div>
                   </div>
