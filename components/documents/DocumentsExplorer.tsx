@@ -441,37 +441,47 @@ export default function DocumentsExplorer({ structureId }: { structureId: string
           <p className="text-sm">Dossier vide. Crée un sous-dossier ou upload un fichier.</p>
         </div>
       ) : (
-        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-          {subFolders.map(f => (
-            <FolderCard key={f.id}
-              folder={f}
-              isRenaming={renamingId === `folder:${f.id}`}
-              renameValue={renameValue}
-              onOpen={() => setCurrentFolderId(f.id)}
-              onStartRename={() => { setRenamingId(`folder:${f.id}`); setRenameValue(f.name); }}
-              onRenameChange={setRenameValue}
-              onRenameSubmit={() => submitRename('folder', f.id)}
-              onRenameCancel={() => setRenamingId(null)}
-              onMove={() => setMovingDoc({ type: 'folder', id: f.id, currentParent: f.parentId })}
-              onDelete={() => void askDeleteFolder(f)}
-            />
-          ))}
-          {documents.map(d => (
-            <DocCard key={d.id}
-              doc={d}
-              isRenaming={renamingId === `doc:${d.id}`}
-              renameValue={renameValue}
-              canPreview={isPreviewable(d.mime)}
-              onPreview={() => openPreview(d)}
-              onDownload={() => void downloadDoc(d)}
-              onStartRename={() => { setRenamingId(`doc:${d.id}`); setRenameValue(d.title); }}
-              onRenameChange={setRenameValue}
-              onRenameSubmit={() => submitRename('doc', d.id)}
-              onRenameCancel={() => setRenamingId(null)}
-              onMove={() => setMovingDoc({ type: 'doc', id: d.id, currentParent: d.folderId })}
-              onDelete={() => void askDeleteDoc(d)}
-            />
-          ))}
+        <div className="space-y-3">
+          {subFolders.length > 0 && (
+            <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+              {subFolders.map(f => (
+                <FolderCard key={f.id}
+                  folder={f}
+                  isRenaming={renamingId === `folder:${f.id}`}
+                  renameValue={renameValue}
+                  onOpen={() => setCurrentFolderId(f.id)}
+                  onStartRename={() => { setRenamingId(`folder:${f.id}`); setRenameValue(f.name); }}
+                  onRenameChange={setRenameValue}
+                  onRenameSubmit={() => submitRename('folder', f.id)}
+                  onRenameCancel={() => setRenamingId(null)}
+                  onMove={() => setMovingDoc({ type: 'folder', id: f.id, currentParent: f.parentId })}
+                  onDelete={() => void askDeleteFolder(f)}
+                />
+              ))}
+            </div>
+          )}
+          {documents.length > 0 && (
+            <div className="panel bevel overflow-hidden">
+              {documents.map((d, idx) => (
+                <div key={d.id} style={idx > 0 ? { borderTop: '1px solid var(--s-border)' } : undefined}>
+                  <DocCard
+                    doc={d}
+                    isRenaming={renamingId === `doc:${d.id}`}
+                    renameValue={renameValue}
+                    canPreview={isPreviewable(d.mime)}
+                    onPreview={() => openPreview(d)}
+                    onDownload={() => void downloadDoc(d)}
+                    onStartRename={() => { setRenamingId(`doc:${d.id}`); setRenameValue(d.title); }}
+                    onRenameChange={setRenameValue}
+                    onRenameSubmit={() => submitRename('doc', d.id)}
+                    onRenameCancel={() => setRenamingId(null)}
+                    onMove={() => setMovingDoc({ type: 'doc', id: d.id, currentParent: d.folderId })}
+                    onDelete={() => void askDeleteDoc(d)}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -654,42 +664,32 @@ function DocCard({ doc, isRenaming, renameValue, canPreview, onPreview, onDownlo
 }) {
   const { Icon, color } = iconForMime(doc.mime);
   return (
-    <div className="bevel-sm p-3 flex flex-col gap-2.5 group"
-      style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-      <div className="flex items-center gap-3">
-        <div className="flex-shrink-0 w-9 h-9 flex items-center justify-center"
-          style={{ background: `${color}15`, border: `1px solid ${color}40` }}>
-          <Icon size={16} style={{ color }} />
-        </div>
-        <div className="flex-1 min-w-0">
-          {isRenaming ? (
-            <input autoFocus value={renameValue}
-              onChange={e => onRenameChange(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') onRenameSubmit();
-                if (e.key === 'Escape') onRenameCancel();
-              }}
-              onBlur={onRenameSubmit}
-              className="settings-input w-full text-sm"
-              maxLength={120} />
-          ) : (
-            <>
-              <div className="flex items-center gap-1.5">
-                <div className="text-sm font-medium truncate" title={doc.title} style={{ color: 'var(--s-text)' }}>{doc.title}</div>
-                {doc.encrypted && (
-                  <span title="Chiffré AES-256-GCM" style={{ flexShrink: 0, lineHeight: 0 }}>
-                    <Lock size={11} style={{ color: 'var(--s-gold)' }} />
-                  </span>
-                )}
-              </div>
-              <div className="text-xs truncate" title={doc.filename} style={{ color: 'var(--s-text-muted)' }}>
-                {formatSize(doc.sizeBytes)} · {doc.filename}
-              </div>
-            </>
-          )}
-        </div>
+    <div className="flex items-center gap-3 px-4 py-2.5">
+      <Icon size={16} className="flex-shrink-0" style={{ color }} />
+      <div className="flex-1 min-w-0">
+        {isRenaming ? (
+          <input autoFocus value={renameValue}
+            onChange={e => onRenameChange(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') onRenameSubmit();
+              if (e.key === 'Escape') onRenameCancel();
+            }}
+            onBlur={onRenameSubmit}
+            className="settings-input w-full text-sm"
+            maxLength={120} />
+        ) : (
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-sm font-medium truncate" title={doc.filename} style={{ color: 'var(--s-text)' }}>{doc.title}</span>
+            {doc.encrypted && (
+              <span title="Chiffré AES-256-GCM" style={{ flexShrink: 0, lineHeight: 0 }}>
+                <Lock size={11} style={{ color: 'var(--s-gold)' }} />
+              </span>
+            )}
+          </div>
+        )}
       </div>
-      <div className="flex items-center gap-1 pt-2" style={{ borderTop: '1px solid var(--s-border)' }}>
+      <span className="text-xs flex-shrink-0 hidden sm:block" style={{ color: 'var(--s-text-muted)' }}>{formatSize(doc.sizeBytes)}</span>
+      <div className="flex items-center gap-1 flex-shrink-0">
         {canPreview && <IconBtn title="Aperçu" onClick={onPreview}><Eye size={12} /></IconBtn>}
         <IconBtn title="Télécharger" onClick={onDownload}><Download size={12} /></IconBtn>
         <IconBtn title="Renommer" onClick={onStartRename}><Pencil size={12} /></IconBtn>
