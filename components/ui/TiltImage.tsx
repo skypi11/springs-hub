@@ -20,6 +20,8 @@ export default function TiltImage({
   width,
   height,
   maxTilt = 7,
+  baseRx = 0,
+  baseRy = 0,
   lightbox = true,
   priority = false,
   sizes = '(max-width: 1024px) 100vw, 600px',
@@ -30,8 +32,11 @@ export default function TiltImage({
   alt: string;
   width: number;
   height: number;
-  /** Inclinaison max en degrés (rotateX/rotateY). */
+  /** Inclinaison max en degrés ajoutée par la souris (rotateX/rotateY). */
   maxTilt?: number;
+  /** Inclinaison de base au repos (la souris module autour). */
+  baseRx?: number;
+  baseRy?: number;
   /** Clic → lightbox plein écran. */
   lightbox?: boolean;
   priority?: boolean;
@@ -92,7 +97,7 @@ export default function TiltImage({
           className={`group relative block w-full bevel-sm overflow-hidden ${lightbox ? 'cursor-zoom-in' : ''}`}
           style={{
             border: `1px solid ${accentBorder || 'var(--s-border)'}`,
-            transform: `rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg) scale(${hover ? 1.02 : 1})`,
+            transform: `rotateX(${baseRx + tilt.rx}deg) rotateY(${baseRy + tilt.ry}deg) scale(${hover ? 1.02 : 1})`,
             transition: hover
               ? 'transform 0.08s ease-out, box-shadow 0.2s ease'
               : 'transform 0.45s ease, box-shadow 0.3s ease',

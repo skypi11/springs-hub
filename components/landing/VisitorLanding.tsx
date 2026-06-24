@@ -172,6 +172,7 @@ function HeroShot() {
         height={d.h}
         priority
         maxTilt={6}
+        baseRx={5}
         accentBorder="rgba(255,184,0,0.22)"
         restElevated
         sizes="(max-width: 1024px) 100vw, 960px"
@@ -233,7 +234,9 @@ function ProductRow({
       <div className={`flex flex-col gap-10 lg:gap-16 items-center ${flip ? 'lg:flex-row-reverse' : 'lg:flex-row'}`}>
         {/* Image, 58% */}
         <div className="w-full lg:w-[58%] flex-shrink-0">
-          <TiltImage src={src} alt={alt} width={d.w} height={d.h} sizes="(max-width: 1024px) 100vw, 640px" />
+          <TiltImage src={src} alt={alt} width={d.w} height={d.h}
+            baseRx={3} baseRy={flip ? 6 : -6}
+            sizes="(max-width: 1024px) 100vw, 640px" />
         </div>
         {/* Texte, 42% */}
         <div className="w-full lg:w-[42%]">
