@@ -8,6 +8,7 @@ import { expiredDepartures } from '@/lib/structure-roles';
 import { syncDiscordMember } from '@/lib/discord-role-sync';
 import { fetchDiscordConnections, mergeConnections, type DiscordConnection } from '@/lib/discord-connections';
 import { refreshDiscordAccessToken } from '@/lib/discord-refresh';
+import { fetchDiscordAvatarUrlViaBot } from '@/lib/discord-avatar';
 import { isValidEpicId } from '@/lib/rl-identity';
 import { loadCronState, saveCronState } from '@/lib/cron-state';
 import { syncValorantRanksBatch } from '@/lib/valorant-sync';
@@ -179,7 +180,7 @@ async function processExpiredDepartures(db: Firestore): Promise<{ processed: num
 // est cosmétique (pseudo Discord + rafraîchissement rôles).
 async function processNightlyDiscordSync(
   db: Firestore,
-): Promise<{ rolesSynced: number; connectionsRefreshed: number; epicNamesUpdated: number; errors: number; cycleReset: boolean }> {
+): Promise<{ rolesSynced: number; connectionsRefreshed: number; epicNamesUpdated: number; avatarsRefreshed: number; errors: number; cycleReset: boolean }> {
   const stateKey = 'discord_sync';
   const state = await loadCronState(db, stateKey);
 
@@ -195,6 +196,7 @@ async function processNightlyDiscordSync(
   let rolesSynced = 0;
   let connectionsRefreshed = 0;
   let epicNamesUpdated = 0;
+  let avatarsRefreshed = 0;
   let errors = 0;
 
   for (const userDoc of usersSnap.docs) {
@@ -202,6 +204,19 @@ async function processNightlyDiscordSync(
     try {
       const syncResult = await syncDiscordMember(db, uid);
       if (syncResult === 'synced') rolesSynced++;
+
+      // Rafraîchit l'avatar Discord via le bot (le hash stocké devient périmé
+      // quand le joueur change/retire son avatar → 404 dans l'annuaire). Marche
+      // pour TOUS les users (indépendant du refresh token), via la rotation
+      // cursor __name__ déjà en place. On n'écrit que si l'URL a changé.
+      const discordId = userDoc.data().discordId as string | undefined;
+      if (discordId) {
+        const freshAvatar = await fetchDiscordAvatarUrlViaBot(discordId);
+        if (freshAvatar && freshAvatar !== userDoc.data().discordAvatar) {
+          await userDoc.ref.update({ discordAvatar: freshAvatar });
+          avatarsRefreshed++;
+        }
+      }
 
       const refreshed = await refreshDiscordAccessToken(db, uid);
       if (refreshed) {
@@ -241,7 +256,7 @@ async function processNightlyDiscordSync(
     cycleStartedAt: state?.lastCursor ? state.cycleStartedAt : Date.now(),
   });
 
-  return { rolesSynced, connectionsRefreshed, epicNamesUpdated, errors, cycleReset: cycleComplete };
+  return { rolesSynced, connectionsRefreshed, epicNamesUpdated, avatarsRefreshed, errors, cycleReset: cycleComplete };
 }
 
 export async function GET(req: NextRequest) {
