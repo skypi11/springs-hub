@@ -373,13 +373,16 @@ function StructuresSection() {
               </p>
             </div>
             <div className="w-full lg:w-1/2 order-1 lg:order-2 flex justify-center">
-              <div className="bevel overflow-hidden" style={{ border: '1px solid var(--s-border)', maxWidth: 480, width: '100%' }}>
-                <Image
+              <div style={{ maxWidth: 480, width: '100%' }}>
+                <TiltImage
                   src="/guide/bot-discord.webp"
                   alt="Notification du bot Aedral dans Discord"
                   width={555}
                   height={485}
-                  className="w-full h-auto block"
+                  baseRx={3}
+                  baseRy={-5}
+                  accentBorder="rgba(88,101,242,0.3)"
+                  sizes="(max-width: 1024px) 100vw, 480px"
                 />
               </div>
             </div>
