@@ -789,6 +789,20 @@ const TEAM_ROLE_LABEL: Record<string, string> = {
   coach: 'Coach',
 };
 
+// ─── Avatar avec fallback onError ─────────────────────────────────────────
+// Les avatars Discord sont des URLs CDN avec le hash de l'avatar
+// (cdn.discordapp.com/avatars/<id>/<hash>.png). Le hash change quand le joueur
+// change/retire son avatar Discord ; comme on ne rafraîchit `discordAvatar`
+// qu'au login, ~20 % des URLs sont périmées → 404. Sans onError on affichait
+// l'icône « image cassée » du navigateur. Ici on bascule sur le placeholder.
+function AvatarFill({ src, alt, fallback }: { src: string; alt: string; fallback: React.ReactNode }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) return <>{fallback}</>;
+  return (
+    <Image src={src} alt={alt} fill className="object-cover" unoptimized onError={() => setFailed(true)} />
+  );
+}
+
 // ─── Card grille (hauteur fixe propre ~180px) ─────────────────────────────
 function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist, linkCopied, onGenerateLink }: {
   p: PlayerCard; matches: OpenPosition[]; canShortlist: boolean; isShortlisted: boolean;
@@ -853,13 +867,15 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
           <div className="absolute inset-0 hex-bg pointer-events-none" style={{ opacity: 0.6 }} />
         )}
 
-        {avatar ? (
-          <Image src={avatar} alt={p.displayName} fill className="object-cover" unoptimized />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--s-elevated)' }}>
-            <User size={48} style={{ color: 'var(--s-text-muted)' }} />
-          </div>
-        )}
+        <AvatarFill
+          src={avatar}
+          alt={p.displayName}
+          fallback={
+            <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--s-elevated)' }}>
+              <User size={48} style={{ color: 'var(--s-text-muted)' }} />
+            </div>
+          }
+        />
 
         {/* Fade noir bas pour lisibilité du nom */}
         <div className="absolute bottom-0 left-0 right-0 h-12 pointer-events-none"
@@ -1086,15 +1102,17 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
       <Link href={getProfileHref(p)} className="absolute inset-0 z-[1]" aria-label={p.displayName} />
       <div className="relative z-[2] flex items-center gap-3 px-4 pl-5 py-3" style={{ pointerEvents: 'none' }}>
         {/* Avatar 40px (plus présent qu'avant) */}
-        {avatar ? (
-          <div className="w-10 h-10 relative flex-shrink-0 overflow-hidden bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-            <Image src={avatar} alt={p.displayName} fill className="object-cover" unoptimized />
-          </div>
-        ) : (
-          <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-            <User size={16} style={{ color: 'var(--s-text-muted)' }} />
-          </div>
-        )}
+        <div className="w-10 h-10 relative flex-shrink-0 overflow-hidden bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+          <AvatarFill
+            src={avatar}
+            alt={p.displayName}
+            fallback={
+              <div className="absolute inset-0 flex items-center justify-center">
+                <User size={16} style={{ color: 'var(--s-text-muted)' }} />
+              </div>
+            }
+          />
+        </div>
 
         <div className="flex items-center gap-1.5 min-w-0" style={{ flex: '0 0 180px' }}>
           <span className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
