@@ -10,6 +10,7 @@ import {
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import ScrollReveal from './ScrollReveal';
+import TiltImage from '@/components/ui/TiltImage';
 import DiscordIcon, { AEDRAL_DISCORD_INVITE_URL } from '@/components/icons/DiscordIcon';
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
 
@@ -51,6 +52,18 @@ const competitions = [
     href: 'https://springs-esport.vercel.app/trackmania/cup.html?cup=monthly',
   },
 ];
+
+// Dimensions réelles des captures (Guide) → ratio correct, pas de déformation
+// next/image. Même pool d'images que la page /guide.
+const SHOT_DIMS: Record<string, { w: number; h: number }> = {
+  '/guide/structures.webp': { w: 1600, h: 1000 },
+  '/guide/profil.webp': { w: 1600, h: 1000 },
+  '/guide/recrutement.webp': { w: 1600, h: 1000 },
+  '/guide/calendrier.webp': { w: 2272, h: 1149 },
+  '/guide/equipes.webp': { w: 2285, h: 1122 },
+  '/guide/exercices.webp': { w: 2287, h: 946 },
+  '/guide/replays.webp': { w: 2285, h: 1256 },
+};
 
 export default function VisitorLanding({ stats }: { stats: PublicStats | null }) {
   return (
@@ -146,29 +159,23 @@ function HeroSection({ stats: _stats }: { stats: PublicStats | null }) {
   );
 }
 
-// Capture hero : page publique d'une structure, légèrement inclinée en
-// perspective, bordure or fine + ombre profonde + fondu bas dans le fond.
+// Capture hero : page publique d'une structure. Tilt 3D souris + lightbox
+// (TiltImage partagé), bordure or, ombre profonde au repos, fondu bas.
 function HeroShot() {
+  const d = SHOT_DIMS['/guide/structures.webp'];
   return (
-    <div className="relative w-full max-w-[960px] mx-auto mt-14 lg:mt-20" style={{ perspective: '2400px' }}>
-      <div
-        className="bevel overflow-hidden"
-        style={{
-          border: '1px solid rgba(255,184,0,0.22)',
-          transform: 'rotateX(8deg)',
-          transformOrigin: 'center top',
-          boxShadow: '0 50px 100px -35px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.04)',
-        }}
-      >
-        <Image
-          src="/guide/structures.webp"
-          alt="Page publique d'une structure sur Aedral"
-          width={1600}
-          height={1000}
-          priority
-          className="w-full h-auto block"
-        />
-      </div>
+    <div className="relative w-full max-w-[960px] mx-auto mt-14 lg:mt-20">
+      <TiltImage
+        src="/guide/structures.webp"
+        alt="Page publique d'une structure sur Aedral"
+        width={d.w}
+        height={d.h}
+        priority
+        maxTilt={6}
+        accentBorder="rgba(255,184,0,0.22)"
+        restElevated
+        sizes="(max-width: 1024px) 100vw, 960px"
+      />
       <div className="absolute -bottom-1 left-0 right-0 h-28 pointer-events-none"
         style={{ background: 'linear-gradient(180deg, transparent, var(--s-bg))' }} />
     </div>
@@ -220,12 +227,13 @@ function ProductRow({
   desc: string;
   flip: boolean;
 }) {
+  const d = SHOT_DIMS[src] ?? { w: 1600, h: 1000 };
   return (
     <ScrollReveal delay={50}>
       <div className={`flex flex-col gap-10 lg:gap-16 items-center ${flip ? 'lg:flex-row-reverse' : 'lg:flex-row'}`}>
         {/* Image, 58% */}
         <div className="w-full lg:w-[58%] flex-shrink-0">
-          <ShowcaseTilted src={src} alt={alt} flip={flip} />
+          <TiltImage src={src} alt={alt} width={d.w} height={d.h} sizes="(max-width: 1024px) 100vw, 640px" />
         </div>
         {/* Texte, 42% */}
         <div className="w-full lg:w-[42%]">
@@ -239,25 +247,6 @@ function ProductRow({
         </div>
       </div>
     </ScrollReveal>
-  );
-}
-
-function ShowcaseTilted({ src, alt, flip }: { src: string; alt: string; flip: boolean }) {
-  return (
-    <div className="showcase-tilt-frame group">
-      <div className="showcase-tilt-stage" style={{
-        transform: flip
-          ? 'perspective(2400px) rotateY(14deg) rotateX(4deg) translateZ(0)'
-          : 'perspective(2400px) rotateY(-14deg) rotateX(4deg) translateZ(0)',
-      }}>
-        <div className="showcase-tilt-image-wrapper">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={src} alt={alt} className="showcase-tilt-image" />
-          {/* Reflection subtile en haut */}
-          <div className="showcase-tilt-highlight" />
-        </div>
-      </div>
-    </div>
   );
 }
 
