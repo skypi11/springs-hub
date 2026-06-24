@@ -3,16 +3,12 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import {
-  ArrowRight, Trophy, Users, Shield, UserPlus, Calendar,
-  MessageSquare, Search, Gamepad2, ExternalLink,
-  CheckCircle2, Zap, Target, ChevronDown, BarChart3,
+  ArrowRight, Trophy, Users, Shield, Calendar,
+  MessageSquare, Gamepad2, ExternalLink,
+  CheckCircle2, Zap, Target, ChevronDown,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import {
-  PlayerProfileMockup, StructuresListMockup, CalendarMockup,
-  RecruitmentMockup, RosterMockup, PlanningMockup, DiscordMockup,
-} from './LandingMockups';
 import ScrollReveal from './ScrollReveal';
 import DiscordIcon, { AEDRAL_DISCORD_INVITE_URL } from '@/components/icons/DiscordIcon';
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
@@ -62,7 +58,6 @@ export default function VisitorLanding({ stats }: { stats: PublicStats | null })
       <HeroSection stats={stats} />
       <PlayersSection />
       <StructuresSection />
-      <ShowcaseSection />
       <HowItWorksSection />
       <CompetitionsSection />
       <FaqCtaSection />
@@ -109,10 +104,10 @@ function HeroSection({ stats: _stats }: { stats: PublicStats | null }) {
       </header>
 
       {/* Contenu hero */}
-      <div className="relative z-[1] max-w-[1200px] mx-auto px-6 lg:px-12 py-16 lg:py-24">
+      <div className="relative z-[1] max-w-[1200px] mx-auto px-6 lg:px-12 pt-16 lg:pt-24 pb-12 lg:pb-16">
         <div className="flex flex-col items-center text-center max-w-3xl mx-auto landing-stagger-1">
-          <Image src="/aedral/mark.svg" alt="" width={160} height={160} aria-hidden
-            className="aedral-logo-pulse mb-10" priority />
+          <Image src="/aedral/mark.svg" alt="" width={140} height={140} aria-hidden
+            className="aedral-logo-pulse mb-8" priority />
 
           <span className="tag tag-gold mb-6">Plateforme communautaire esport</span>
 
@@ -129,7 +124,7 @@ function HeroSection({ stats: _stats }: { stats: PublicStats | null }) {
 
           <SupportedGamesStrip />
 
-          <div className="flex items-center gap-3 flex-wrap justify-center mb-16">
+          <div className="flex items-center gap-3 flex-wrap justify-center">
             <button onClick={() => signInWithDiscord()} type="button"
               className="btn-springs btn-primary bevel-sm flex items-center gap-2"
               style={{ padding: '14px 28px', fontSize: '14px' }}>
@@ -140,13 +135,43 @@ function HeroSection({ stats: _stats }: { stats: PublicStats | null }) {
               Découvrir <ChevronDown size={15} />
             </a>
           </div>
-
-          {/* La bande de compteurs a été retirée (audit 12/06) : les « — » de
-              chargement et les petits chiffres desservaient la crédibilité.
-              À remplacer plus tard par les logos des structures actives. */}
         </div>
+
+        {/* Capture produit en grand : montrer le vrai site dès le hero. */}
+        <ScrollReveal delay={150}>
+          <HeroShot />
+        </ScrollReveal>
       </div>
     </section>
+  );
+}
+
+// Capture hero : page publique d'une structure, légèrement inclinée en
+// perspective, bordure or fine + ombre profonde + fondu bas dans le fond.
+function HeroShot() {
+  return (
+    <div className="relative w-full max-w-[960px] mx-auto mt-14 lg:mt-20" style={{ perspective: '2400px' }}>
+      <div
+        className="bevel overflow-hidden"
+        style={{
+          border: '1px solid rgba(255,184,0,0.22)',
+          transform: 'rotateX(8deg)',
+          transformOrigin: 'center top',
+          boxShadow: '0 50px 100px -35px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.04)',
+        }}
+      >
+        <Image
+          src="/guide/structures.webp"
+          alt="Page publique d'une structure sur Aedral"
+          width={1600}
+          height={1000}
+          priority
+          className="w-full h-auto block"
+        />
+      </div>
+      <div className="absolute -bottom-1 left-0 right-0 h-28 pointer-events-none"
+        style={{ background: 'linear-gradient(180deg, transparent, var(--s-bg))' }} />
+    </div>
   );
 }
 
@@ -183,260 +208,37 @@ function SupportedGamesStrip() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// FEATURE CARD : mockup en haut + texte en bas, hauteur uniforme
+// PRODUCT ROW : capture inclinée + texte, alternée gauche/droite
 // ─────────────────────────────────────────────────────────────────────────
-function FeatureCard({
-  icon: Icon, title, desc, accent, mockup,
+function ProductRow({
+  src, alt, tag, title, desc, flip,
 }: {
-  icon: typeof Shield;
+  src: string;
+  alt: string;
+  tag: string;
   title: string;
   desc: string;
-  accent: string;
-  mockup: React.ReactNode;
+  flip: boolean;
 }) {
   return (
-    <div className="feature-card-v2 bevel relative h-full flex flex-col overflow-hidden"
-      style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-      <div className="absolute top-0 left-0 right-0 h-[2px] z-[2]"
-        style={{ background: `linear-gradient(90deg, ${accent}aa, ${accent}30, transparent 70%)` }} />
-      <div className="absolute top-0 right-0 w-[200px] h-[200px] pointer-events-none opacity-[0.04] transition-opacity duration-500 group-hover:opacity-[0.08]"
-        style={{ background: `radial-gradient(circle at top right, ${accent}, transparent 70%)` }} />
-
-      {/* Mockup zone (240px fixed) */}
-      {mockup}
-
-      {/* Texte zone */}
-      <div className="p-5 flex flex-col flex-1">
-        <div className="flex items-start gap-3 mb-2">
-          <div className="p-2 flex-shrink-0"
-            style={{ background: `${accent}15`, border: `1px solid ${accent}30` }}>
-            <Icon size={16} style={{ color: accent }} />
-          </div>
-          <h3 className="t-sub flex-1" style={{ fontSize: '15px', color: 'var(--s-text)', lineHeight: 1.3 }}>{title}</h3>
+    <ScrollReveal delay={50}>
+      <div className={`flex flex-col gap-10 lg:gap-16 items-center ${flip ? 'lg:flex-row-reverse' : 'lg:flex-row'}`}>
+        {/* Image, 58% */}
+        <div className="w-full lg:w-[58%] flex-shrink-0">
+          <ShowcaseTilted src={src} alt={alt} flip={flip} />
         </div>
-        <p className="t-body" style={{ fontSize: '13px', color: 'var(--s-text-dim)', lineHeight: 1.55 }}>{desc}</p>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// JOUEURS
-// ─────────────────────────────────────────────────────────────────────────
-function PlayersSection() {
-  const features = [
-    {
-      icon: UserPlus,
-      title: 'Profil joueur complet',
-      desc: 'Pseudo, jeux, rangs auto-importés depuis les trackers. Visible publiquement aux structures qui recrutent.',
-      accent: '#0081FF',
-      mockup: <PlayerProfileMockup />,
-    },
-    {
-      icon: Search,
-      title: 'Trouve une structure',
-      desc: 'Annuaire public, recherche par jeu et par tag, candidature directe ou réponse à un poste recherché.',
-      accent: '#FFB800',
-      mockup: <StructuresListMockup />,
-    },
-    {
-      icon: Calendar,
-      title: 'Calendrier d\'équipe',
-      desc: 'Trainings, scrims, matchs. Vue partagée avec ton équipe et tes coachs. Notifications automatiques.',
-      accent: '#00D936',
-      mockup: <CalendarMockup />,
-    },
-  ];
-
-  return (
-    <section id="features" className="relative py-20 lg:py-28 px-6 lg:px-12">
-      <div className="max-w-[1200px] mx-auto">
-        <ScrollReveal>
-          <div className="text-center mb-16">
-            <span className="tag tag-blue mb-4 inline-block">Pour les joueurs</span>
-            <h2 className="t-display mb-4" style={{ fontSize: 'clamp(2rem, 4.5vw, 3rem)' }}>
-              JOUE, PROGRESSE, REJOINS.
-            </h2>
-            <p className="t-body max-w-2xl mx-auto" style={{ fontSize: '15px', color: 'var(--s-text-dim)' }}>
-              Que tu cherches une structure, que tu veuilles afficher ton niveau ou suivre les compétitions,
-              Aedral te donne les outils.
-            </p>
-          </div>
-        </ScrollReveal>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 auto-rows-fr">
-          {features.map((f, i) => (
-            <ScrollReveal key={f.title} delay={i * 100}>
-              <FeatureCard {...f} />
-            </ScrollReveal>
-          ))}
+        {/* Texte, 42% */}
+        <div className="w-full lg:w-[42%]">
+          <span className="tag tag-gold mb-4 inline-block" style={{ fontSize: 12 }}>{tag}</span>
+          <h3 className="font-display mb-4" style={{ fontSize: 'clamp(1.5rem, 2.8vw, 2.25rem)', letterSpacing: '0.02em', lineHeight: 1.1, color: 'var(--s-text)' }}>
+            {title}
+          </h3>
+          <p className="t-body" style={{ fontSize: '15px', color: 'var(--s-text-dim)', lineHeight: 1.65 }}>
+            {desc}
+          </p>
         </div>
       </div>
-    </section>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// STRUCTURES
-// ─────────────────────────────────────────────────────────────────────────
-function StructuresSection() {
-  const features = [
-    {
-      icon: UserPlus,
-      title: 'Recrutement par poste',
-      desc: 'Publie tes postes ouverts (jeu, rôle, rang min). Reçois candidatures et propose des invitations.',
-      accent: '#FFB800',
-      mockup: <RecruitmentMockup />,
-    },
-    {
-      icon: Shield,
-      title: 'Roster + équipes',
-      desc: 'Plusieurs équipes par jeu, titulaires/remplaçants, rôles coach et manager attribués finement.',
-      accent: '#FFB800',
-      mockup: <RosterMockup />,
-    },
-    {
-      icon: BarChart3,
-      title: 'Planning multi-équipes',
-      desc: 'Vue d\'ensemble structure : qui s\'entraîne quand, qui joue où. Coachs voient tout en un coup d\'œil.',
-      accent: '#0081FF',
-      mockup: <PlanningMockup />,
-    },
-    {
-      icon: MessageSquare,
-      title: 'Discord intégré',
-      desc: 'Webhooks pour notifier ton serveur Discord des candidatures, events, changements de roster.',
-      accent: '#5865F2',
-      mockup: <DiscordMockup />,
-    },
-  ];
-
-  return (
-    <section className="relative py-20 lg:py-28 px-6 lg:px-12" style={{ background: 'rgba(0,0,0,0.25)' }}>
-      <div className="max-w-[1200px] mx-auto">
-        <ScrollReveal>
-          <div className="text-center mb-16">
-            <span className="tag tag-gold mb-4 inline-block">Pour les structures</span>
-            <h2 className="t-display mb-4" style={{ fontSize: 'clamp(2rem, 4.5vw, 3rem)' }}>
-              GÈRE TA STRUCTURE,<br />
-              <span style={{ color: 'var(--s-gold)' }}>SANS T&apos;ARRACHER LES CHEVEUX.</span>
-            </h2>
-            <p className="t-body max-w-2xl mx-auto" style={{ fontSize: '15px', color: 'var(--s-text-dim)' }}>
-              Recrutement, organisation interne, planning, communication Discord :
-              tous les outils pour faire vivre une structure professionnelle.
-            </p>
-          </div>
-        </ScrollReveal>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 auto-rows-fr">
-          {features.map((f, i) => (
-            <ScrollReveal key={f.title} delay={i * 100}>
-              <FeatureCard {...f} />
-            </ScrollReveal>
-          ))}
-        </div>
-
-        <ScrollReveal delay={200}>
-          <div className="text-center mt-12">
-            <Link href="/community/create-structure" className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2"
-              style={{ padding: '14px 28px', fontSize: '14px' }}>
-              <Shield size={15} /> Demander une structure <ArrowRight size={14} />
-            </Link>
-          </div>
-        </ScrollReveal>
-      </div>
-    </section>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// SHOWCASE, captures du vrai produit, en grand, alternées L/R
-// ─────────────────────────────────────────────────────────────────────────
-const showcaseShots = [
-  {
-    src: '/landing/structure-public.webp',
-    alt: 'Page publique d\'une structure sur Aedral',
-    tag: 'Structure publique',
-    title: 'La vitrine de chaque structure',
-    desc: 'Page publique complète : direction, équipes, palmarès, liens Discord. Ce que tout le monde voit avant de candidater.',
-  },
-  {
-    src: '/landing/joueurs.webp',
-    alt: 'Annuaire des joueurs',
-    tag: 'Mercato',
-    title: 'Tout le mercato en un coup d\'œil',
-    desc: 'Cards des joueurs avec rang, jeux, dispo recrutement. Filtres par jeu, par tag. Recrute sans avoir à passer 3h sur Discord.',
-  },
-  {
-    src: '/landing/dispos-matching.webp',
-    alt: 'Heatmap des disponibilités',
-    tag: 'Dispos & matching',
-    title: 'Heatmap des dispos : fini les Doodle',
-    desc: 'Chaque joueur déclare ses créneaux. La heatmap consensus te montre instantanément les fenêtres où ton équipe est dispo. Suggestions automatiques de slots ≥ 2 joueurs.',
-  },
-  {
-    src: '/landing/match.webp',
-    alt: 'Page d\'un match',
-    tag: 'Suivi des matchs',
-    title: 'Chaque match, son histoire',
-    desc: 'Présences (présent / peut-être / absent), score, compte rendu, points à travailler, replays attachés. Tout centralisé, plus rien ne se perd.',
-  },
-  {
-    src: '/landing/exercices.webp',
-    alt: 'Modal création d\'un exercice',
-    tag: 'Exercices & coaching',
-    title: 'Coach ta structure comme un pro',
-    desc: 'Templates check-in, training, VOD, scouting. Items à auto-évaluer sur 5, deadlines, rappels Discord automatiques. Le suivi qu\'utilisaient seulement les structures pros.',
-  },
-  {
-    src: '/landing/stockage.webp',
-    alt: 'Tab documents d\'une structure',
-    tag: 'Documents',
-    title: 'Stockage d\'équipe',
-    desc: 'Stratégies, replays, contrats, charte interne. Organisés en dossiers, accessibles à toute l\'équipe.',
-  },
-];
-
-function ShowcaseSection() {
-  return (
-    <section className="relative py-20 lg:py-32 px-6 lg:px-12 overflow-hidden">
-      <div className="max-w-[1200px] mx-auto">
-        <ScrollReveal>
-          <div className="text-center mb-20">
-            <span className="tag tag-gold mb-4 inline-block">Le produit en images</span>
-            <h2 className="t-display mb-4" style={{ fontSize: 'clamp(2rem, 4.5vw, 3rem)' }}>
-              VOILÀ À QUOI <span style={{ color: 'var(--s-gold)' }}>ÇA RESSEMBLE.</span>
-            </h2>
-            <p className="t-body max-w-2xl mx-auto" style={{ fontSize: '15px', color: 'var(--s-text-dim)' }}>
-              Pas de slides marketing. Des captures du vrai site, en production.
-            </p>
-          </div>
-        </ScrollReveal>
-
-        <div className="space-y-24 lg:space-y-32">
-          {showcaseShots.map((shot, i) => (
-            <ScrollReveal key={shot.src} delay={50}>
-              <div className={`flex flex-col gap-10 lg:gap-16 items-center ${i % 2 === 1 ? 'lg:flex-row-reverse' : 'lg:flex-row'}`}>
-                {/* Image, 60% */}
-                <div className="w-full lg:w-[58%] flex-shrink-0">
-                  <ShowcaseTilted src={shot.src} alt={shot.alt} flip={i % 2 === 1} />
-                </div>
-                {/* Texte, 40% */}
-                <div className="w-full lg:w-[42%]">
-                  <span className="tag tag-gold mb-4 inline-block" style={{ fontSize: 12 }}>{shot.tag}</span>
-                  <h3 className="font-display mb-4" style={{ fontSize: 'clamp(1.5rem, 2.8vw, 2.25rem)', letterSpacing: '0.02em', lineHeight: 1.1, color: 'var(--s-text)' }}>
-                    {shot.title}
-                  </h3>
-                  <p className="t-body" style={{ fontSize: '15px', color: 'var(--s-text-dim)', lineHeight: 1.65 }}>
-                    {shot.desc}
-                  </p>
-                </div>
-              </div>
-            </ScrollReveal>
-          ))}
-        </div>
-      </div>
-    </section>
+    </ScrollReveal>
   );
 }
 
@@ -456,6 +258,152 @@ function ShowcaseTilted({ src, alt, flip }: { src: string; alt: string; flip: bo
         </div>
       </div>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// JOUEURS — narration screenshot-led (vraies captures du site)
+// ─────────────────────────────────────────────────────────────────────────
+function PlayersSection() {
+  const rows = [
+    {
+      src: '/guide/profil.webp',
+      alt: 'Profil joueur sur Aedral',
+      tag: 'Profil',
+      title: 'TON IDENTITÉ ESPORT, VÉRIFIÉE.',
+      desc: 'Pseudo, jeux, comptes Epic / Steam / Riot vérifiés, rang importé du tracker. Une page publique que les structures consultent avant de recruter.',
+    },
+    {
+      src: '/guide/recrutement.webp',
+      alt: 'Mercato : annuaire des joueurs disponibles',
+      tag: 'Mercato',
+      title: 'TROUVE UNE STRUCTURE.',
+      desc: "L'annuaire des joueurs dispos : rang, jeux, rôle recherché, filtres par jeu. Candidate en un clic, ou laisse les structures venir à toi.",
+    },
+    {
+      src: '/guide/calendrier.webp',
+      alt: "Calendrier d'équipe et heatmap des disponibilités",
+      tag: 'Calendrier & dispos',
+      title: 'PLUS JAMAIS DE DOODLE.',
+      desc: "Chaque joueur coche ses créneaux. La heatmap de consensus montre instantanément quand l'équipe est dispo. Trainings, scrims et matchs au même endroit.",
+    },
+  ];
+
+  return (
+    <section id="features" className="relative py-20 lg:py-28 px-6 lg:px-12">
+      <div className="max-w-[1200px] mx-auto">
+        <ScrollReveal>
+          <div className="text-center mb-16 lg:mb-20">
+            <span className="tag tag-blue mb-4 inline-block">Pour les joueurs</span>
+            <h2 className="t-display mb-4" style={{ fontSize: 'clamp(2rem, 4.5vw, 3rem)' }}>
+              JOUE, PROGRESSE, REJOINS.
+            </h2>
+            <p className="t-body max-w-2xl mx-auto" style={{ fontSize: '15px', color: 'var(--s-text-dim)' }}>
+              Que tu cherches une structure, que tu veuilles afficher ton niveau ou suivre tes compétitions,
+              Aedral te donne les outils.
+            </p>
+          </div>
+        </ScrollReveal>
+
+        <div className="space-y-24 lg:space-y-32">
+          {rows.map((r, i) => (
+            <ProductRow key={r.src} {...r} flip={i % 2 === 1} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// STRUCTURES — narration screenshot-led + bande Discord
+// ─────────────────────────────────────────────────────────────────────────
+function StructuresSection() {
+  const rows = [
+    {
+      src: '/guide/equipes.webp',
+      alt: 'Gestion du roster et des équipes',
+      tag: 'Roster',
+      title: 'GÈRE TON ROSTER.',
+      desc: "Plusieurs équipes par jeu, titulaires / remplaçants, staff coach et manager. Tout le roster d'un coup d'œil, avec alertes sur les équipes incomplètes.",
+    },
+    {
+      src: '/guide/exercices.webp',
+      alt: "Exercices et suivi de coaching d'une structure",
+      tag: 'Coaching',
+      title: 'COACHE COMME UN PRO.',
+      desc: 'Exercices multi-étapes assignés par joueur, deadlines, rappels Discord, suivi de progression. Le suivi qu\'utilisaient seulement les structures pros.',
+    },
+    {
+      src: '/guide/replays.webp',
+      alt: 'Bibliothèque de replays cross-équipes',
+      tag: 'Replays',
+      title: 'CENTRALISE TES REPLAYS.',
+      desc: 'Bibliothèque cross-équipes, stats Rocket League parsées automatiquement, replays rattachés aux matchs. Plus rien ne se perd dans les DM.',
+    },
+  ];
+
+  return (
+    <section className="relative py-20 lg:py-28 px-6 lg:px-12" style={{ background: 'rgba(0,0,0,0.25)' }}>
+      <div className="max-w-[1200px] mx-auto">
+        <ScrollReveal>
+          <div className="text-center mb-16 lg:mb-20">
+            <span className="tag tag-gold mb-4 inline-block">Pour les structures</span>
+            <h2 className="t-display mb-4" style={{ fontSize: 'clamp(2rem, 4.5vw, 3rem)' }}>
+              GÈRE TA STRUCTURE,<br />
+              <span style={{ color: 'var(--s-gold)' }}>SANS T&apos;ARRACHER LES CHEVEUX.</span>
+            </h2>
+            <p className="t-body max-w-2xl mx-auto" style={{ fontSize: '15px', color: 'var(--s-text-dim)' }}>
+              Recrutement, organisation interne, planning, coaching, communication Discord :
+              tous les outils pour faire vivre une structure sérieuse.
+            </p>
+          </div>
+        </ScrollReveal>
+
+        <div className="space-y-24 lg:space-y-32">
+          {rows.map((r, i) => (
+            <ProductRow key={r.src} {...r} flip={i % 2 === 1} />
+          ))}
+        </div>
+
+        {/* Bande Discord : capture embed à taille naturelle (pas de tilt agressif) */}
+        <ScrollReveal delay={50}>
+          <div className="flex flex-col lg:flex-row items-center gap-10 lg:gap-16 mt-24 lg:mt-32">
+            <div className="w-full lg:w-1/2 order-2 lg:order-1">
+              <span className="tag mb-4 inline-block" style={{ fontSize: 12, color: '#7983F5', background: 'rgba(88,101,242,0.1)', borderColor: 'rgba(88,101,242,0.3)' }}>Discord</span>
+              <h3 className="font-display mb-4" style={{ fontSize: 'clamp(1.5rem, 2.8vw, 2.25rem)', letterSpacing: '0.02em', lineHeight: 1.1, color: 'var(--s-text)' }}>
+                TON SERVEUR DISCORD, AU COURANT DE TOUT.
+              </h3>
+              <p className="t-body" style={{ fontSize: '15px', color: 'var(--s-text-dim)', lineHeight: 1.65 }}>
+                Le bot Aedral poste candidatures, événements et exercices directement
+                dans le Discord de ta structure. Tes joueurs reçoivent un ping là où
+                ils sont déjà, sans copier-coller manuel.
+              </p>
+            </div>
+            <div className="w-full lg:w-1/2 order-1 lg:order-2 flex justify-center">
+              <div className="bevel overflow-hidden" style={{ border: '1px solid var(--s-border)', maxWidth: 480, width: '100%' }}>
+                <Image
+                  src="/guide/bot-discord.webp"
+                  alt="Notification du bot Aedral dans Discord"
+                  width={555}
+                  height={485}
+                  className="w-full h-auto block"
+                />
+              </div>
+            </div>
+          </div>
+        </ScrollReveal>
+
+        <ScrollReveal delay={100}>
+          <div className="text-center mt-20">
+            <Link href="/community/create-structure" className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2"
+              style={{ padding: '14px 28px', fontSize: '14px' }}>
+              <Shield size={15} /> Demander une structure <ArrowRight size={14} />
+            </Link>
+          </div>
+        </ScrollReveal>
+      </div>
+    </section>
   );
 }
 
