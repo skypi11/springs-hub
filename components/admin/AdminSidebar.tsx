@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Building2, Users, Users2, CalendarDays, ClipboardList,
   ShieldAlert, Bell, MessagesSquare, Megaphone, UploadCloud, History, Wrench,
-  Flag, RefreshCw, BarChart3, ChevronDown, Send,
+  Flag, RefreshCw, BarChart3, ChevronDown, Send, Trophy,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -26,6 +26,7 @@ type Props = {
 
 const ITEMS: NavItem[] = [
   { href: '/admin', icon: LayoutDashboard, label: 'Dashboard', description: 'Vue globale' },
+  { href: '/admin/competitions', icon: Trophy, label: 'Compétitions', description: 'Circuits, tournois, admins compét' },
   { href: '/admin/structures', icon: Building2, label: 'Structures', description: 'Validations et gestion' },
   { href: '/admin/users', icon: Users, label: 'Utilisateurs', description: 'Profils, bans, admins' },
   { href: '/admin/teams', icon: Users2, label: 'Équipes', description: 'Vue cross-structures' },

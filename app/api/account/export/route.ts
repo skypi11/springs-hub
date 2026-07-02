@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
     // En parallèle, chaque requête cible un aspect du profil utilisateur.
     const [
       userSnap,
+      secretsSnap,
       memberships,
       structuresFounded,
       structuresCoFounded,
@@ -32,6 +33,7 @@ export async function GET(req: NextRequest) {
       todosCreated,
     ] = await Promise.all([
       db.collection('users').doc(uid).get(),
+      db.collection('user_secrets').doc(uid).get(),
       db.collection('structure_members').where('userId', '==', uid).get(),
       db.collection('structures').where('founderId', '==', uid).get(),
       db.collection('structures').where('coFounderIds', 'array-contains', uid).get(),
@@ -70,6 +72,10 @@ export async function GET(req: NextRequest) {
       exportVersion: 1,
       userId: uid,
       profile: userSnap.exists ? { id: uid, ...userSnap.data() } : null,
+      // dateOfBirth vit dans user_secrets (server-only) — l'export RGPD art. 20
+      // doit quand même la restituer. On n'exporte PAS les tokens techniques
+      // (refresh token Discord = credential, pas une donnée portable).
+      dateOfBirth: (secretsSnap.data()?.dateOfBirth as string | undefined) ?? null,
       memberships: serialize(memberships.docs),
       structures: {
         founded: serialize(structuresFounded.docs),

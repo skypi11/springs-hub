@@ -139,6 +139,16 @@ export async function POST(req: NextRequest) {
     // users/{uid} → delete le profil
     batch.delete(db.collection('users').doc(uid));
     opsInBatch++;
+    await flushIfFull();
+
+    // user_secrets/{uid} → delete (dateOfBirth, refresh token Discord…).
+    // Sans ça, l'effacement RGPD laisserait la donnée la plus sensible en base.
+    batch.delete(db.collection('user_secrets').doc(uid));
+    opsInBatch++;
+
+    // user_admin_flags/{uid} → delete (flags admin rattachés au compte supprimé)
+    batch.delete(db.collection('user_admin_flags').doc(uid));
+    opsInBatch++;
 
     // Flush final
     if (opsInBatch > 0) await batch.commit();

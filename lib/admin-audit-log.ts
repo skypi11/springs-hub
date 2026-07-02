@@ -48,9 +48,18 @@ export type AdminAuditAction =
   | 'rl_epic_link_change_rejected'
   // Demandes de changement de compte Riot (Valorant)
   | 'valorant_link_change_approved'
-  | 'valorant_link_change_rejected';
+  | 'valorant_link_change_rejected'
+  // Moteur de compétitions (Legends Cup & suivantes) — Lot 0
+  | 'competition_created'
+  | 'competition_edited'
+  | 'competition_deleted'
+  | 'circuit_created'
+  | 'circuit_edited'
+  | 'circuit_deleted'
+  | 'competition_admin_added'
+  | 'competition_admin_removed';
 
-export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event';
+export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event' | 'competition' | 'circuit';
 
 export interface AdminAuditLogEntry {
   action: AdminAuditAction;

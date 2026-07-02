@@ -111,16 +111,22 @@ async function loadRlHistory(
   db: FirebaseFirestore.Firestore,
   uid: string,
 ): Promise<RLHistory> {
+  // Schéma moteur de compétitions (docs/legends-cup-architecture.md §2) : le
+  // roster est dénormalisé dans `rosterUids[]` sur le snapshot d'inscription.
+  // (L'ancien schéma `userId ==` n'a jamais eu de données en prod — audit 02/07.)
   const regsSnap = await db
     .collection('competition_registrations')
-    .where('userId', '==', uid)
+    .where('rosterUids', 'array-contains', uid)
     .get();
 
   if (regsSnap.empty) return { competitions: [] };
 
+  // Seules les inscriptions approuvées comptent comme historique : une
+  // inscription refusée/withdrawn n'est pas une participation.
   const compIds = Array.from(
     new Set(
       regsSnap.docs
+        .filter(d => d.data().status === 'approved')
         .map(d => (d.data().competitionId as string | undefined) || '')
         .filter(Boolean),
     ),
@@ -133,6 +139,9 @@ async function loadRlHistory(
     if (!snap.exists) continue;
     const data = snap.data() ?? {};
     if (data.game !== 'rocket_league') continue;
+    // draft = compétition non publiée (données de test incluses) : jamais
+    // exposée sur un profil public.
+    if (data.status === 'draft') continue;
     comps.push({
       id,
       name: (data.name as string) || 'Compétition',

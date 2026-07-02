@@ -157,7 +157,19 @@ export async function GET(req: NextRequest) {
     const data = snap.data() ?? {};
     const requesterUid = await verifyAuth(req);
     const isOwner = requesterUid === uid;
-    const structures = await fetchUserStructures(uid);
+    // dateOfBirth vit dans user_secrets (deny-all, server-only) : le doc users
+    // est lisible par tout utilisateur connecté via le client SDK, donc une
+    // donnée de mineur n'a rien à y faire (RGPD — docs/legends-cup-architecture.md §2).
+    // Fallback transitoire sur users.dateOfBirth tant que le backfill
+    // (scripts/migrate-dateofbirth-to-secrets.mjs) n'est pas passé.
+    const [structures, secretsSnap] = await Promise.all([
+      fetchUserStructures(uid),
+      db.collection('user_secrets').doc(uid).get(),
+    ]);
+    const dateOfBirth =
+      (secretsSnap.data()?.dateOfBirth as string | undefined) ||
+      (data.dateOfBirth as string | undefined) ||
+      '';
     // Flag smurf suspecté : admin-only, jamais visible par le joueur lui-même
     // (sinon il s'en va avant qu'on enquête) ni par les autres visiteurs (risque
     // diffamation). On le strippe partout sauf pour les admins consultant la
@@ -264,6 +276,9 @@ export async function GET(req: NextRequest) {
       // ci-dessus pour les owners.
       return NextResponse.json({
         uid, ...data, ...rlAccountFields,
+        // La date réelle vient de user_secrets (fallback legacy inclus) : le
+        // owner en a besoin pour pré-remplir le champ dans Settings.
+        dateOfBirth,
         valorantAccountVerified, valorantRiotId: valorantRiotIdFull,
         valorantRank: valorantRankVerified,
         structures,
@@ -282,7 +297,7 @@ export async function GET(req: NextRequest) {
       // de ce champ, donc un RiotID masqué = badge vérifié sans lien pour le tiers.
       valorantRiotId: riotConnVisible ? valorantRiotIdFull : '',
       valorantRank: valorantRankVerified,
-      age: computeAge(data.dateOfBirth),
+      age: computeAge(dateOfBirth),
       structures,
     };
     for (const field of PRIVATE_FIELDS) delete publicData[field];
@@ -356,12 +371,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "L'URL Trackmania.io est obligatoire pour TM." }, { status: 400 });
     }
 
-    // Vérifier âge minimum (calcul précis : on compare année/mois/jour)
-    const birth = new Date(body.dateOfBirth);
-    const today = new Date();
-    let age = today.getFullYear() - birth.getFullYear();
-    const m = today.getMonth() - birth.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+    // Vérifier âge minimum. computeAge renvoie null si la date est invalide
+    // (l'ancien calcul inline laissait passer une date malformée : NaN < 13
+    // est false), donc on rejette aussi les dates illisibles.
+    const age = computeAge(body.dateOfBirth);
+    if (age === null) {
+      return NextResponse.json({ error: 'Date de naissance invalide.' }, { status: 400 });
+    }
     if (age < 13) {
       return NextResponse.json({ error: 'Tu dois avoir au moins 13 ans.' }, { status: 400 });
     }
@@ -429,7 +445,13 @@ export async function POST(req: NextRequest) {
       avatarUrl: safeUrl(body.avatarUrl),
       bio: clampString(body.bio, LIMITS.bio),
       country: body.country,
-      dateOfBirth: body.dateOfBirth,
+      // dateOfBirth ne va PLUS dans users (doc lisible par tout connecté) : la
+      // date part dans user_secrets ci-dessous, et users ne garde qu'un flag
+      // non sensible pour la complétion de profil et les segments admin.
+      // FieldValue.delete() nettoie la copie legacy au premier save du joueur
+      // (le reste est traité par scripts/migrate-dateofbirth-to-secrets.mjs).
+      dateOfBirth: FieldValue.delete(),
+      hasDateOfBirth: true,
       games: body.games,
       rlPlatform,
       rlPlatformId,
@@ -472,7 +494,15 @@ export async function POST(req: NextRequest) {
       profileData.createdAt = FieldValue.serverTimestamp();
     }
 
-    await userRef.set(profileData, { merge: true });
+    // La date de naissance part dans user_secrets (deny-all, server-only) —
+    // même pattern que le refresh token Discord, merge pour ne rien écraser.
+    await Promise.all([
+      userRef.set(profileData, { merge: true }),
+      db.collection('user_secrets').doc(uid).set(
+        { dateOfBirth: body.dateOfBirth },
+        { merge: true },
+      ),
+    ]);
 
     // Ping admin Discord post-écriture (fire-and-forget), seulement si le rang
     // a vraiment changé (pas à la création du profil).

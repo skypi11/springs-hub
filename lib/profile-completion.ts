@@ -10,7 +10,10 @@ export function checkProfileCompletion(u: SpringsUser | null): ProfileCompletion
   const missing: string[] = [];
   if (!u.displayName?.trim()) missing.push('pseudo');
   if (!u.country?.trim()) missing.push('pays');
-  if (!u.dateOfBirth?.trim()) missing.push('date de naissance');
+  // La date réelle vit dans user_secrets (server-only) : le doc users ne porte
+  // que le flag hasDateOfBirth. On garde le fallback dateOfBirth pour les
+  // profils pas encore migrés (backfill) et le retour owner de GET /api/profile.
+  if (!u.hasDateOfBirth && !u.dateOfBirth?.trim()) missing.push('date de naissance');
   if (!u.games || u.games.length === 0) {
     missing.push('jeu pratiqué');
   } else {

@@ -96,7 +96,9 @@ export function userMatchesSegment(
       return !hasAnyStructure(data);
     }
     case 'incomplete_profile':
-      return !data.country || !data.dateOfBirth;
+      // dateOfBirth a migré vers user_secrets : sur users, la présence de la
+      // date se lit via le flag hasDateOfBirth (fallback legacy pré-backfill).
+      return !data.country || !(data.hasDateOfBirth === true || data.dateOfBirth);
     default:
       return false;
   }

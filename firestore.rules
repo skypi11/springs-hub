@@ -23,6 +23,17 @@ service cloud.firestore {
              request.auth.uid == team.founderId;
     }
 
+    // Admin de compétition — rôle SCOPÉ au moteur de compétitions Aedral
+    // (collection `competition_admins`, nommés par un admin Aedral complet).
+    // Un admin Aedral complet est AUTOMATIQUEMENT admin de compétition (sans
+    // le OR, Matt serait bloqué). Voir docs/legends-cup-architecture.md §8.
+    function isCompetitionAdmin() {
+      return request.auth != null && (
+        exists(/databases/$(database)/documents/competition_admins/$(request.auth.uid)) ||
+        exists(/databases/$(database)/documents/aedral_admins/$(request.auth.uid))
+      );
+    }
+
     // ── Admins vieux site Springs (TM cup / RL) ──────────────────────────────
     match /admins/{uid} {
       // Chaque user peut lire sa propre entrée (pour savoir s'il est admin)
@@ -192,17 +203,91 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // ── Springs Hub — Compétitions ────────────────────────────────────────────
+    // ══ Moteur de compétitions Aedral (Legends Cup & suivantes) ══════════════
+    // Schéma : docs/legends-cup-architecture.md §2. Toutes les ÉCRITURES passent
+    // par les API routes (Admin SDK) — `allow write: if false` partout. Les
+    // lectures publiques ne contiennent AUCUNE donnée personnelle (ni uid, ni
+    // snowflake, ni MMR, ni âge) : tout ce qui est sensible vit dans des docs
+    // deny-all servis par API.
+
+    // Circuits (Legends Springs Cup = 1 circuit) — classement/barème publics.
+    match /circuits/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Équipes de circuit — points/placements publics. Les rosterUids des
+    // participations vivent dans la sous-collection privée (snowflakes).
+    match /circuit_teams/{id} {
+      allow read: if true;
+      allow write: if false;
+
+      match /private/{doc} {
+        allow read, write: if false;
+      }
+    }
+
+    // Compétitions — configuration publique (format, planning, statut).
     match /competitions/{id} {
       allow read: if true;
       allow write: if false;
     }
 
-    // ── Springs Hub — Inscriptions aux compétitions ───────────────────────────
-    // L'inscription passe par une API route qui valide la structure / le solo.
+    // Inscriptions — DENY-ALL : le snapshot contient MMR déclarés, âges,
+    // Discord IDs et notes de dérogation sur mineurs. La liste publique
+    // « équipes inscrites » (nom/tag/logo/pseudos) est servie par API.
+    // (Bascule Lot 0 : l'ancienne règle `read: if request.auth != null`
+    // n'avait aucun consommateur client — audit 02/07 : 0 doc legacy.)
     match /competition_registrations/{id} {
-      allow read: if request.auth != null;
+      allow read, write: if false;
+    }
+
+    // Matchs — bracket live public (onSnapshot pendant l'événement). Aucun
+    // uid dans le doc public : ACL, room et litiges en sous-collections.
+    match /competition_matches/{id} {
+      allow read: if true;
       allow write: if false;
+
+      // room (nom/mdp), acl (participantUids/staffUids), dispute (keys R2) :
+      // servis par API aux équipes du match + admins compét uniquement.
+      match /private/{doc} {
+        allow read, write: if false;
+      }
+
+      // Fil de discussion du match : capitaines/staff des 2 équipes + admins.
+      // Lecture client temps réel via l'ACL ; écriture via API rate-limitée.
+      match /messages/{messageId} {
+        allow read: if isCompetitionAdmin() || (
+          request.auth != null &&
+          request.auth.uid in get(/databases/$(database)/documents/competition_matches/$(id)/private/acl).data.participantUids
+        );
+        allow write: if false;
+      }
+    }
+
+    // Admins de compétition — chaque user peut lire sa propre entrée (pour
+    // savoir s'il a accès à la console). Nomination via API (admins Aedral).
+    match /competition_admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Registre des bans de compétition (joueurs + structures) — DENY-ALL :
+    // consulté à l'inscription côté serveur, géré via API admin compét.
+    match /competition_bans/{id} {
+      allow read, write: if false;
+    }
+
+    // Règlements de compétition — publics (page /reglement), versionnés pour
+    // la traçabilité légale (quelle version une équipe a acceptée).
+    match /rulebooks/{id} {
+      allow read: if true;
+      allow write: if false;
+
+      match /versions/{version} {
+        allow read: if true;
+        allow write: if false;
+      }
     }
 
     // ── Springs Hub — Notifications in-app ───────────────────────────────────

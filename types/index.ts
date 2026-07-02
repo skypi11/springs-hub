@@ -8,7 +8,13 @@ export interface SpringsUser {
   avatarUrl?: string;          // URL custom, sinon discordAvatar
   bio?: string;
   country?: string;
-  dateOfBirth?: string;        // ISO string "YYYY-MM-DD", jamais affiché, sert à calculer l'âge
+  // Date de naissance : STOCKÉE dans user_secrets/{uid} (server-only), PAS dans
+  // le doc users (lisible par tout connecté — donnée de mineurs, RGPD). Le champ
+  // ci-dessous n'existe que dans le retour owner de GET /api/profile (injecté
+  // depuis user_secrets pour pré-remplir Settings). Sur le doc users, seul le
+  // flag hasDateOfBirth subsiste. Voir docs/legends-cup-architecture.md §2.
+  dateOfBirth?: string;        // ISO "YYYY-MM-DD", owner uniquement, jamais affiché
+  hasDateOfBirth?: boolean;    // flag non sensible (complétion profil, segments admin)
   games?: string[];            // ['rocket_league', 'trackmania']
   isFan?: boolean;
   isAdmin?: boolean;
@@ -270,22 +276,9 @@ export interface SubTeam {
   updatedAt?: Date;
 }
 
-export interface Competition {
-  id: string;
-  name: string;
-  game: 'rocket_league' | 'trackmania';
-  type: 'league' | 'cup' | 'tournament';
-  status: 'upcoming' | 'registration' | 'active' | 'finished' | 'archived';
-  format?: Record<string, unknown>;
-  registrationOpen?: Date;
-  registrationClose?: Date;
-  startDate?: Date;
-  endDate?: Date;
-  prizePool?: Record<string, number>;
-  maxTeams?: number;
-  allowSolo?: boolean;
-  createdAt?: Date;
-}
+// Le moteur de compétitions (Legends Cup & suivantes) a ses types dédiés dans
+// types/competitions.ts — l'ancienne interface Competition (schéma spéculatif
+// de la Phase 1, jamais importée) a été retirée au Lot 0.
 
 // ── Bannière de structure, point focal ───────────────────────────────────
 // Point focal de la bannière (modèle YouTube/Twitch) : l'image s'affiche en

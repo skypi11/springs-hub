@@ -46,3 +46,17 @@ export async function isAdmin(uid: string): Promise<boolean> {
   const snap = await getAdminDb().collection('aedral_admins').doc(uid).get();
   return snap.exists;
 }
+
+// Vérifier que l'uid est admin de compétition (collection `competition_admins`).
+// Rôle SCOPÉ au module compétitions (valider les inscriptions, litiges, scores,
+// bans de compétition…) — aucun accès au reste de l'admin du site. Un admin
+// Aedral complet est AUTOMATIQUEMENT admin de compétition (spec Legends §6).
+// La nomination d'admins de compétition reste réservée aux admins Aedral.
+export async function isCompetitionAdmin(uid: string): Promise<boolean> {
+  const db = getAdminDb();
+  const [compAdminSnap, aedralAdminSnap] = await Promise.all([
+    db.collection('competition_admins').doc(uid).get(),
+    db.collection('aedral_admins').doc(uid).get(),
+  ]);
+  return compAdminSnap.exists || aedralAdminSnap.exists;
+}

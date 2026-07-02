@@ -35,4 +35,6 @@ export const LIMITS = {
   structureName: 50,
   structureTag: 5,
   displayName: 32,
+  competitionName: 80,
+  circuitName: 80,
 };
