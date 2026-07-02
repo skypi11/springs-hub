@@ -119,7 +119,7 @@
 | 25 à 32 | 6 · 6 · 5 · 5 · 4 · 4 · 3 · 3 |
 
 - Propriétés : 3× 10e place (51 pts) > 1 victoire isolée (40) ; 3× 16e (33) < 1 victoire.
-- **Scénarios simulés pour présentation au président de Springs E-Sport** : page partageable → https://claude.ai/code/artifact/b93a210f-bdb2-457c-87a9-e0e3da1d7acc (trajectoires, départage délta, forfait, cutline — chiffres réglables).
+- **Scénarios simulés pour présentation au président de Springs E-Sport** : page hébergée sur le site → **https://aedral.com/legends/bareme-scenarios.html** (statique dans `public/legends/`, noindex, partageable sans limite — trajectoires, départage délta, forfait, cutline, chiffres réglables).
 - **Tie-breaker cutline top-16** ✅ : 1) meilleur placement unique du circuit, 2) délta de buts cumulé sur les Qualifs comptabilisés, 3) résultat du Qualif le plus récent.
 - **Forfait d'un qualifié LAN** ✅ : repêchage en cascade dans l'ordre du classement (17e, puis 18e, etc.).
 

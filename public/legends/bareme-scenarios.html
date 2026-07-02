@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Legends Springs Cup — Barème & scénarios</title>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --elevated: #1a1a1a;
+    --border: rgba(255,255,255,0.08);
+    --gold: #FFB800;
+    --violet: #a364d9;
+    --text: #eaeaf0;
+    --dim: #9a9ab0;
+    --muted: #6a6a8a;
+    --green: #2fc46b;
+    --red: #ff5555;
+    --bevel: 12px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 66L0 50L0 16L28 0L56 16L56 50L28 66ZM28 100L0 84L0 50L28 34L56 50L56 84L28 100Z' fill='none' stroke='%23ffffff' stroke-width='0.4' opacity='0.05'/%3E%3C/svg%3E");
+    background-size: 56px 100px;
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    padding: 48px 20px 80px;
+  }
+  .page { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px; }
+
+  .display {
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    line-height: 1.08;
+    text-wrap: balance;
+  }
+  .label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+  }
+  .tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 3px 10px;
+    border: 1px solid;
+  }
+  .tag-violet { color: var(--violet); border-color: rgba(123,47,190,0.45); background: rgba(123,47,190,0.10); }
+  .tag-gold { color: var(--gold); border-color: rgba(255,184,0,0.35); background: rgba(255,184,0,0.08); }
+
+  header .kicker { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+  header h1 { font-size: clamp(30px, 5.4vw, 44px); }
+  header h1 em { font-style: normal; color: var(--gold); }
+  header .sub { color: var(--dim); margin-top: 12px; max-width: 62ch; }
+
+  section { display: flex; flex-direction: column; gap: 16px; }
+  .section-head { display: flex; align-items: baseline; gap: 12px; }
+  .section-head .bar { width: 22px; height: 3px; background: var(--gold); transform: translateY(-4px); flex-shrink: 0; }
+  .section-head h2 { font-size: 19px; }
+  .section-head .n { color: var(--muted); font-weight: 700; font-size: 13px; }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    clip-path: polygon(var(--bevel) 0, 100% 0, 100% calc(100% - var(--bevel)), calc(100% - var(--bevel)) 100%, 0 100%, 0 var(--bevel));
+    padding: 22px 24px;
+  }
+  .panel p + p { margin-top: 10px; }
+  .lede { color: var(--dim); max-width: 68ch; }
+  strong { color: var(--text); }
+  .gold { color: var(--gold); font-weight: 700; }
+  .green { color: var(--green); }
+  .red { color: var(--red); }
+
+  .rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .rule {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+    padding: 16px 18px;
+  }
+  .rule .label { display: block; margin-bottom: 6px; color: var(--gold); }
+  .rule div { font-size: 14px; color: var(--dim); }
+  .rule div b { color: var(--text); font-weight: 600; }
+
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th {
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--muted); text-align: left; padding: 8px 12px;
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  td.num, th.num { text-align: right; }
+  td.pts { text-align: right; font-weight: 700; color: var(--gold); }
+  .discard { color: var(--muted); text-decoration: line-through; font-weight: 400; }
+  .note-discard { font-size: 12px; color: var(--muted); margin-top: 10px; }
+  .team { font-weight: 600; }
+  .place-cell { color: var(--dim); font-size: 13px; }
+
+  .bareme-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+  .bareme-col table td { padding: 6px 12px; }
+  .bareme-col .zone { display: block; margin-bottom: 8px; }
+
+  .takeaways { display: flex; flex-direction: column; gap: 10px; }
+  .takeaway { display: flex; gap: 12px; align-items: baseline; }
+  .takeaway .tick { color: var(--gold); font-weight: 700; flex-shrink: 0; }
+  .takeaway p { color: var(--dim); }
+  .takeaway p b { color: var(--text); }
+
+  .qualified td { background: rgba(255,184,0,0.06); }
+  .status { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
+
+  footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--border); padding-top: 18px; }
+  footer b { color: var(--dim); }
+</style>
+
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="kicker">
+      <span class="tag tag-violet">Circuit Springs E-Sport</span>
+      <span class="tag tag-gold">Rocket League · 3v3</span>
+    </div>
+    <h1 class="display">Legends Springs Cup<br /><em>Barème &amp; scénarios</em></h1>
+    <p class="sub">Proposition de système de points pour la qualification à la LAN — document de travail du 2 juillet 2026. Tous les chiffres sont des curseurs réglables avant publication du règlement.</p>
+  </header>
+
+  <section>
+    <div class="section-head"><span class="bar"></span><h2 class="display">Le système en bref</h2></div>
+    <div class="rules">
+      <div class="rule">
+        <span class="label">Le circuit</span>
+        <div><b>4 Qualifs</b> (26-27/09 · 10-11/10 · 24-25/10 · 07-08/11) puis <b>LAN finale les 21-22 novembre</b>.</div>
+      </div>
+      <div class="rule">
+        <span class="label">La qualification</span>
+        <div>Chaque Qualif rapporte des points. Les <b>16 meilleures équipes</b> du classement cumulé vont à la LAN.</div>
+      </div>
+      <div class="rule">
+        <span class="label">3 meilleurs résultats sur 4</span>
+        <div>Seuls les <b>3 meilleurs Qualifs</b> de chaque équipe comptent : une absence ou une contre-performance ne condamne pas.</div>
+      </div>
+      <div class="rule">
+        <span class="label">Placement unique</span>
+        <div>Le bracket (double élimination) donne le groupe d'élimination ; le <b>délta de buts</b> départage à l'intérieur du groupe → chaque équipe a une place unique de 1 à 32.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="bar"></span><h2 class="display">Le barème <span class="n">— points par place</span></h2></div>
+    <p class="lede">Calibrage voulu : <strong>gagner domine</strong>, mais <strong>la régularité paie</strong> — cohérent avec la règle des 3 meilleurs résultats.</p>
+    <div class="panel">
+      <div class="bareme-grid">
+        <div class="bareme-col">
+          <span class="label zone">Places 1 – 8</span>
+          <table>
+            <tr><td class="place-cell">1<sup>re</sup></td><td class="pts">40</td><td class="place-cell">5<sup>e</sup></td><td class="pts">24</td></tr>
+            <tr><td class="place-cell">2<sup>e</sup></td><td class="pts">34</td><td class="place-cell">6<sup>e</sup></td><td class="pts">22</td></tr>
+            <tr><td class="place-cell">3<sup>e</sup></td><td class="pts">30</td><td class="place-cell">7<sup>e</sup></td><td class="pts">20</td></tr>
+            <tr><td class="place-cell">4<sup>e</sup></td><td class="pts">26</td><td class="place-cell">8<sup>e</sup></td><td class="pts">19</td></tr>
+          </table>
+        </div>
+        <div class="bareme-col">
+          <span class="label zone">Places 9 – 16</span>
+          <table>
+            <tr><td class="place-cell">9<sup>e</sup></td><td class="pts">18</td><td class="place-cell">13<sup>e</sup></td><td class="pts">14</td></tr>
+            <tr><td class="place-cell">10<sup>e</sup></td><td class="pts">17</td><td class="place-cell">14<sup>e</sup></td><td class="pts">13</td></tr>
+            <tr><td class="place-cell">11<sup>e</sup></td><td class="pts">16</td><td class="place-cell">15<sup>e</sup></td><td class="pts">12</td></tr>
+            <tr><td class="place-cell">12<sup>e</sup></td><td class="pts">15</td><td class="place-cell">16<sup>e</sup></td><td class="pts">11</td></tr>
+          </table>
+        </div>
+        <div class="bareme-col">
+          <span class="label zone">Places 17 – 24</span>
+          <table>
+            <tr><td class="place-cell">17-18<sup>e</sup></td><td class="pts">10</td><td class="place-cell">21-22<sup>e</sup></td><td class="pts">8</td></tr>
+            <tr><td class="place-cell">19-20<sup>e</sup></td><td class="pts">9</td><td class="place-cell">23-24<sup>e</sup></td><td class="pts">7</td></tr>
+          </table>
+        </div>
+        <div class="bareme-col">
+          <span class="label zone">Places 25 – 32</span>
+          <table>
+            <tr><td class="place-cell">25-26<sup>e</sup></td><td class="pts">6</td><td class="place-cell">29-30<sup>e</sup></td><td class="pts">4</td></tr>
+            <tr><td class="place-cell">27-28<sup>e</sup></td><td class="pts">5</td><td class="place-cell">31-32<sup>e</sup></td><td class="pts">3</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="bar"></span><h2 class="display">Scénario A <span class="n">— cinq trajectoires sur le circuit</span></h2></div>
+    <p class="lede">Cinq équipes fictives, quatre Qualifs. Le plus mauvais résultat de chaque équipe est <span class="discard">barré</span> (règle des 3 meilleurs).</p>
+    <div class="panel">
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>Équipe</th><th>Profil</th><th class="num">Qualif 1</th><th class="num">Qualif 2</th><th class="num">Qualif 3</th><th class="num">Qualif 4</th><th class="num">Total circuit</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="team">Apex</td><td class="place-cell">Le cador irrégulier</td><td class="num">1<sup>re</sup> · <b>40</b></td><td class="num place-cell">absente</td><td class="num">5<sup>e</sup> · <b>24</b></td><td class="num">9<sup>e</sup> · <b>18</b></td><td class="pts">82</td></tr>
+            <tr><td class="team">Comet</td><td class="place-cell">Le régulier du top</td><td class="num">3<sup>e</sup> · <b>30</b></td><td class="num discard">25<sup>e</sup> · 6</td><td class="num">4<sup>e</sup> · <b>26</b></td><td class="num">6<sup>e</sup> · <b>22</b></td><td class="pts">78</td></tr>
+            <tr><td class="team">Vortex</td><td class="place-cell">Le solide</td><td class="num">6<sup>e</sup> · <b>22</b></td><td class="num">7<sup>e</sup> · <b>20</b></td><td class="num">5<sup>e</sup> · <b>24</b></td><td class="num discard">8<sup>e</sup> · 19</td><td class="pts">66</td></tr>
+            <tr><td class="team">Drift</td><td class="place-cell">Le milieu de tableau assidu</td><td class="num">10<sup>e</sup> · <b>17</b></td><td class="num">11<sup>e</sup> · <b>16</b></td><td class="num">9<sup>e</sup> · <b>18</b></td><td class="num discard">12<sup>e</sup> · 15</td><td class="pts">51</td></tr>
+            <tr><td class="team">Nova</td><td class="place-cell">Le coup d'éclat isolé</td><td class="num place-cell">absente</td><td class="num">1<sup>re</sup> · <b>40</b></td><td class="num place-cell">absente</td><td class="num place-cell">absente</td><td class="pts">40</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note-discard">Résultat <span class="discard">barré</span> = 4<sup>e</sup> résultat écarté (seuls les 3 meilleurs comptent).</p>
+    </div>
+    <div class="takeaways">
+      <div class="takeaway"><span class="tick">→</span><p><b>Gagner reste roi :</b> Apex finit en tête du circuit malgré un Qualif manqué.</p></div>
+      <div class="takeaway"><span class="tick">→</span><p><b>Une contre-performance ne condamne pas :</b> la 25<sup>e</sup> place de Comet est effacée — elle talonne Apex.</p></div>
+      <div class="takeaway"><span class="tick">→</span><p><b>La régularité bat le coup d'éclat :</b> Drift, jamais mieux que 9<sup>e</sup> mais présente partout, devance Nova qui a pourtant gagné un Qualif (51 pts contre 40).</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="bar"></span><h2 class="display">Scénario B <span class="n">— le départage au délta de buts</span></h2></div>
+    <p class="lede">Qualif 3 : quatre équipes éliminées au même round du loser bracket (groupe 9-12<sup>e</sup>). Le délta de buts cumulé sur leurs matchs du Qualif leur donne une place unique.</p>
+    <div class="panel">
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th>Équipe</th><th class="num">Buts marqués</th><th class="num">Buts encaissés</th><th class="num">Délta</th><th class="num">Place finale</th><th class="num">Points</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="team">Wolves</td><td class="num">34</td><td class="num">25</td><td class="num green">+9</td><td class="num">9<sup>e</sup></td><td class="pts">18</td></tr>
+            <tr><td class="team">Foxes</td><td class="num">29</td><td class="num">25</td><td class="num green">+4</td><td class="num">10<sup>e</sup></td><td class="pts">17</td></tr>
+            <tr><td class="team">Lynx</td><td class="num">22</td><td class="num">22</td><td class="num">0</td><td class="num">11<sup>e</sup></td><td class="pts">16</td></tr>
+            <tr><td class="team">Ravens</td><td class="num">18</td><td class="num">23</td><td class="num red">−5</td><td class="num">12<sup>e</sup></td><td class="pts">15</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note-discard">À délta égal : buts marqués, puis résultat du face-à-face s'il a eu lieu, puis décision admin.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="bar"></span><h2 class="display">Scénario C <span class="n">— le cas du forfait</span></h2></div>
+    <div class="panel">
+      <p>Un match gagné par forfait est enregistré au <strong class="gold">score conventionnel</strong> : victoire <strong>3-0 en BO5</strong> (chaque manche comptée 1-0), soit <strong class="green">+3 au délta</strong> pour le vainqueur et <strong class="red">−3</strong> pour l'équipe forfaitaire (4-0 et ±4 en BO7).</p>
+      <p class="lede">Pourquoi pas simplement ignorer le match ? Parce que l'équipe qui gagne par forfait aurait alors <strong>un match de moins</strong> pour construire son délta — elle serait désavantagée au départage sans avoir rien fait de mal. Le score conventionnel neutralise ce biais.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="bar"></span><h2 class="display">Scénario D <span class="n">— la lutte pour la 16<sup>e</sup> place</span></h2></div>
+    <p class="lede">Classement final du circuit, zone de qualification. Wolves et Foxes terminent à égalité parfaite de points : le premier critère de départage (meilleur placement unique du circuit) tranche.</p>
+    <div class="panel">
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr><th class="num">Place circuit</th><th>Équipe</th><th class="num">Points</th><th>Départage</th><th>Verdict</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="num">14<sup>e</sup></td><td class="team">Titans</td><td class="pts">44</td><td class="place-cell">—</td><td class="status gold">Qualifiée LAN</td></tr>
+            <tr><td class="num">15<sup>e</sup></td><td class="team">Orion</td><td class="pts">42</td><td class="place-cell">—</td><td class="status gold">Qualifiée LAN</td></tr>
+            <tr class="qualified"><td class="num">16<sup>e</sup></td><td class="team">Wolves</td><td class="pts">40</td><td class="place-cell">Meilleur placement : 5<sup>e</sup> (Qualif 2)</td><td class="status gold">Qualifiée LAN</td></tr>
+            <tr><td class="num">17<sup>e</sup></td><td class="team">Foxes</td><td class="pts">40</td><td class="place-cell">Meilleur placement : 7<sup>e</sup> (Qualif 1)</td><td class="status" style="color: var(--dim);">1<sup>re</sup> repêchable</td></tr>
+            <tr><td class="num">18<sup>e</sup></td><td class="team">Lynx</td><td class="pts">38</td><td class="place-cell">—</td><td class="status" style="color: var(--muted);">2<sup>e</sup> repêchable</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note-discard">Critères de départage, dans l'ordre : 1) meilleur placement unique du circuit · 2) délta de buts cumulé sur les Qualifs comptabilisés · 3) résultat du Qualif le plus récent. Si une équipe qualifiée déclare forfait pour la LAN, repêchage dans l'ordre du classement (17<sup>e</sup>, puis 18<sup>e</sup>, etc.).</p>
+    </div>
+  </section>
+
+  <footer>
+    <b>Document de travail — proposition.</b> Tous les paramètres (barème, critères de départage, score conventionnel) restent réglables avant la publication du règlement officiel. Généré le 02/07/2026 · Aedral × Springs E-Sport.
+  </footer>
+</div>
+</body>
+</html>
