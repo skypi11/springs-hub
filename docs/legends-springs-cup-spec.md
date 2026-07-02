@@ -55,7 +55,7 @@
 - **Validation manuelle** par les admins de compétition : vérif trackers/MMR, registre des bans, homogénéité de l'équipe, sérieux, etc.
 - **Refus automatique** si un joueur ou la structure figure au **registre des bans**, avec motif affiché.
 - **Règle noyau (conservation des points)** ✅ : une équipe conserve ses points de circuit si **au moins 2 de ses 3 titulaires** figuraient dans le roster (titulaires ou subs) de sa précédente participation ; sinon elle repart à 0 (nouvelle équipe). **Le nom d'équipe ne peut pas changer** entre deux participations, sauf accord des admins de compétition.
-- **Date de naissance** ✅ : nouveau champ profil (le joueur renseigne sa date de naissance). **La date n'est jamais publique, mais l'ÂGE calculé s'affiche sur le profil public.** Les admins de compétition voient l'âge à la validation. **Chaque compétition a un paramètre « âge minimum »** configurable ; l'inscription est bloquée si un joueur du roster est en dessous. ⚠️ Valeur de l'âge minimum pour la Legends Cup à fixer par Matt (paramètre, non bloquant pour le build).
+- **Date de naissance** ✅ : nouveau champ profil (le joueur renseigne sa date de naissance). **La date n'est jamais publique, mais l'ÂGE calculé s'affiche sur le profil public.** Les admins de compétition voient l'âge à la validation. **Chaque compétition a un paramètre « âge minimum »** configurable — **16 ans pour la Legends Cup**. ⚠️ Important : un joueur sous l'âge minimum ne bloque PAS l'inscription en dur — elle passe en état **« dérogation requise »**, visible et arbitrée par un admin de compétition (accord parental possible). Rien n'est refusé automatiquement sans regard humain.
 
 ## 5. Registre des bans (nouveau)
 
@@ -107,8 +107,8 @@
 ## 11. Classement d'un Qualif & barème de points ✅ VALIDÉ (02/07)
 
 - **Placement unique de 1 à 32** : le bracket donne le groupe d'élimination (1er, 2e, 3e, 4e, 5-6, 7-8, 9-12, 13-16, 17-24, 25-32), puis **le délta de buts départage à l'intérieur du groupe**.
-- Ordre de départage intra-groupe ⏳ : délta de buts → buts marqués → face-à-face s'il a eu lieu → décision admin.
-- **Forfaits = score conventionnel** ⏳ (proposition suite à la remarque de Matt : exclure le match du délta désavantagerait le vainqueur du forfait, qui aurait un match de moins pour construire son délta) : un forfait est enregistré **3-0 en BO5 (chaque manche 1-0) → délta ±3** ; **4-0 / ±4 en BO7**.
+- Ordre de départage intra-groupe ✅ : délta de buts → buts marqués → face-à-face s'il a eu lieu → décision admin.
+- **Forfaits = score conventionnel** ✅ : un forfait est enregistré **3-0 en BO5 (chaque manche 1-0) → délta ±3** ; **4-0 / ±4 en BO7**. (Exclure le match du délta désavantagerait le vainqueur du forfait, qui aurait un match de moins pour construire son délta.)
 - **Barème v2** ✅ (calibré pour : gagner domine, mais la régularité paie — cohérent avec « 3 meilleurs résultats sur 4 ») :
 
 | Places | Points |
@@ -135,17 +135,13 @@
 - Pensé **gate-friendly** pour le futur premium : « les structures créent leurs tournois sur mesure » (demande explicite de Matt).
 - Réutilise l'existant : équipes/structures Aedral, comptes vérifiés, bot Discord, permissions, notifications, R2 (screenshots litiges).
 
-## 14. Questions ouvertes (round 4 — dernières)
+## 14. Statut : SPEC COMPLÈTE ✅ (02/07)
 
-Les rounds 1-3 sont clos (tout validé). Restent 3 micro-points :
+Les 4 rounds de questions/réponses sont clos — **tout est validé par Matt**. Prochaine étape : plan d'architecture ([docs/legends-cup-architecture.md](legends-cup-architecture.md)), à valider avant la première ligne de code.
 
-- **R4-1** — **Forfait = score conventionnel** (3-0 / ±3 en BO5, 4-0 / ±4 en BO7) : à valider (remplace l'exclusion du délta, voir §11).
-- **R4-2** — 3e/4e clés de départage intra-groupe (après délta → buts marqués) : face-à-face s'il a eu lieu, puis décision admin — à valider.
-- **R4-3** — **Valeur de l'âge minimum** pour la Legends Cup (le champ est un paramètre par compétition, non bloquant pour le build).
+## 15. Intégrations à l'existant — TOUTES RETENUES ✅
 
-## 15. Intégrations à l'existant (proposées par Claude, à discuter)
-
-Idées qui réutilisent l'infra déjà construite — coût marginal faible, cohérence maximale :
+Validées par Matt le 02/07 (« je veux toutes tes idées bonus »). Le palmarès automatique était d'ailleurs prévu à la base :
 
 1. **Palmarès automatique** : le placement final d'un Qualif alimente automatiquement la section PALMARÈS de la page publique de la structure (feature existante) — plus le badge circuit sur la page équipe.
 2. **Nudge de vérification dans le flux d'inscription** : à l'inscription, les joueurs non vérifiés du roster sont listés avec le bouton « Vérifier en 1 clic » existant (`VerifyAccountNudge`) → l'inscription devient LE moteur de conversion des comptes vérifiés.
