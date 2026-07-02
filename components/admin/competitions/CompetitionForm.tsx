@@ -67,8 +67,12 @@ export default function CompetitionForm({
 
   // ── Éligibilité ──
   const [requireVerified, setRequireVerified] = useState(initial?.eligibility?.requireVerifiedAccounts ?? true);
+  // En ÉDITION, minAge null (« aucun âge minimum ») doit rester vide — le
+  // défaut 16 ne s'applique qu'à la création (review adversariale Lot 0).
   const [minAge, setMinAge] = useState<string>(
-    initial?.eligibility?.minAge != null ? String(initial.eligibility.minAge) : String(LEGENDS_ELIGIBILITY.minAge),
+    initial
+      ? (initial.eligibility?.minAge != null ? String(initial.eligibility.minAge) : '')
+      : String(LEGENDS_ELIGIBILITY.minAge),
   );
   const initialMmr = initial ? initial.eligibility?.mmr ?? null : LEGENDS_ELIGIBILITY.mmr;
   const [mmrEnabled, setMmrEnabled] = useState(initialMmr !== null);
@@ -273,7 +277,7 @@ export default function CompetitionForm({
             </label>
             <div className="space-y-2">
               {overrides.map((o, i) => (
-                <div key={i} className="flex items-center gap-2">
+                <div key={i} className="flex flex-wrap items-center gap-2">
                   <select className="settings-input" value={o.bracket}
                     onChange={e => setOverrides(prev => prev.map((p, j) => j === i ? { ...p, bracket: e.target.value as 'winners' | 'losers' } : p))}>
                     <option value="winners">Winners</option>
@@ -399,7 +403,7 @@ export default function CompetitionForm({
           <label className="t-label block mb-3">Planning</label>
           <div className="space-y-2">
             {days.map((d, i) => (
-              <div key={i} className="flex items-center gap-2">
+              <div key={i} className="flex flex-wrap items-center gap-2">
                 <span className="text-sm w-14" style={{ color: 'var(--s-text-dim)' }}>Jour {i + 1}</span>
                 <input type="date" className="settings-input"
                   value={d.date}
@@ -409,7 +413,16 @@ export default function CompetitionForm({
                   onChange={e => setDays(prev => prev.map((p, j) => j === i ? { ...p, startsAt: e.target.value } : p))} />
                 {days.length > 1 && (
                   <button type="button" className="btn-springs btn-ghost text-sm"
-                    onClick={() => setDays(prev => prev.filter((_, j) => j !== i))}>
+                    onClick={() => {
+                      // Retirer un jour recale les phases qui pointaient dessus
+                      // sur le dernier jour restant, sinon la validation refuse
+                      // le plan (« jour hors planning ») sans issue dans l'UI.
+                      const newLength = days.length - 1;
+                      setDays(prev => prev.filter((_, j) => j !== i));
+                      setPhasePlan(prev => prev.map(p => (
+                        p.day > newLength ? { ...p, day: newLength } : p
+                      )));
+                    }}>
                     Retirer
                   </button>
                 )}
@@ -445,10 +458,21 @@ export default function CompetitionForm({
             </label>
             <div style={{ border: '1px solid var(--s-border)' }}>
               {phasePlan.map(p => (
-                <div key={p.phase} className="flex items-center justify-between px-3 py-1.5 text-sm"
+                <div key={p.phase} className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 text-sm"
                   style={{ borderBottom: '1px solid var(--s-border)', color: 'var(--s-text-dim)' }}>
                   <span>{p.label}</span>
-                  <span style={{ color: 'var(--s-text-muted)' }}>Jour {p.day}</span>
+                  <select
+                    className="settings-input"
+                    style={{ padding: '4px 8px' }}
+                    value={Math.min(p.day, days.length)}
+                    onChange={e => setPhasePlan(prev => prev.map(x => (
+                      x.phase === p.phase ? { ...x, day: Number(e.target.value) } : x
+                    )))}
+                  >
+                    {days.map((_, di) => (
+                      <option key={di + 1} value={di + 1}>Jour {di + 1}</option>
+                    ))}
+                  </select>
                 </div>
               ))}
             </div>

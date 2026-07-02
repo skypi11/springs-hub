@@ -496,13 +496,17 @@ export async function POST(req: NextRequest) {
 
     // La date de naissance part dans user_secrets (deny-all, server-only) —
     // même pattern que le refresh token Discord, merge pour ne rien écraser.
-    await Promise.all([
-      userRef.set(profileData, { merge: true }),
-      db.collection('user_secrets').doc(uid).set(
-        { dateOfBirth: body.dateOfBirth },
-        { merge: true },
-      ),
-    ]);
+    // WriteBatch et PAS Promise.all : les deux écritures doivent être atomiques,
+    // sinon un échec transitoire côté user_secrets après le delete de la copie
+    // legacy PERDRAIT la date (review adversariale Lot 0).
+    const saveBatch = db.batch();
+    saveBatch.set(userRef, profileData, { merge: true });
+    saveBatch.set(
+      db.collection('user_secrets').doc(uid),
+      { dateOfBirth: body.dateOfBirth },
+      { merge: true },
+    );
+    await saveBatch.commit();
 
     // Ping admin Discord post-écriture (fire-and-forget), seulement si le rang
     // a vraiment changé (pas à la création du profil).

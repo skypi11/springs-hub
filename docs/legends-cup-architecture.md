@@ -28,7 +28,9 @@ Toutes les collections en `allow write: if false` (écritures Admin SDK uniqueme
   pointsScale: { "1": 40, ... "32": 3 },      // lu sur la PLACE COMPRESSÉE (voir §3)
   bestResultsCount: 3, lanTeamCount: 16,
   tieBreakers: ["best_placement", "goal_diff_total", "latest_event"],
-  status, createdAt, createdBy
+  status, createdAt
+  // (review Lot 0) PAS de createdBy : doc public, l'invariant §8 interdit tout
+  // uid/snowflake — l'auteur est tracé dans admin_audit_logs. Idem competitions.
 }
 ```
 Lecture : publique.
@@ -51,7 +53,7 @@ Lecture : publique.
   schedule: { days: [...], phasePlan: [...], matchCheckinMinutes: 5, scoreCounterMinutes: 3 },
   discord: { guildId, participantRoleId, categoryId },
   status: "draft" | "registration" | "validation" | "seeding" | "live" | "finished" | "archived",
-  createdAt, createdBy
+  createdAt   // pas de createdBy (doc public, cf. circuits)
 }
 ```
 Lecture : publique. **(review)** La règle permissive existante est remplacée ; les docs legacy éventuels sont audités/purgés au Lot 0.

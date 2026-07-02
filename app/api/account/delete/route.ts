@@ -149,6 +149,13 @@ export async function POST(req: NextRequest) {
     // user_admin_flags/{uid} → delete (flags admin rattachés au compte supprimé)
     batch.delete(db.collection('user_admin_flags').doc(uid));
     opsInBatch++;
+    await flushIfFull();
+
+    // competition_admins/{uid} → delete. Indispensable : l'uid est déterministe
+    // (discord_SNOWFLAKE), sans purge une re-création du compte via le même
+    // Discord ré-hériterait silencieusement du rôle admin de compétition.
+    batch.delete(db.collection('competition_admins').doc(uid));
+    opsInBatch++;
 
     // Flush final
     if (opsInBatch > 0) await batch.commit();

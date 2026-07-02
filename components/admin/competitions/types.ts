@@ -19,7 +19,6 @@ export interface AdminCircuit {
   tieBreakers: string[];
   status: string;
   createdAt: string | null;
-  createdBy: string;
 }
 
 export interface AdminCompetition {
@@ -35,7 +34,6 @@ export interface AdminCompetition {
   discord: { guildId: string; participantRoleId: string | null; categoryId: string | null } | null;
   status: string;
   createdAt: string | null;
-  createdBy: string;
 }
 
 export interface CompetitionAdminEntry {

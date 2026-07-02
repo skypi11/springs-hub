@@ -36,7 +36,8 @@ export interface Circuit {
   tieBreakers: CircuitTieBreaker[];
   status: CircuitStatus;
   createdAt: Date | string;
-  createdBy: string;               // uid admin
+  // PAS de createdBy : doc à lecture publique, aucun uid/snowflake n'y a sa
+  // place (archi §8). L'auteur est tracé dans admin_audit_logs.
 }
 
 export type CircuitStatus = 'draft' | 'active' | 'finished' | 'archived';
@@ -90,7 +91,8 @@ export interface Competition {
   } | null;
   status: CompetitionStatus;
   createdAt: Date | string;
-  createdBy: string;
+  // PAS de createdBy : doc public, uid/snowflake interdits (archi §8) —
+  // l'auteur est tracé dans admin_audit_logs.
 }
 
 export type CompetitionStatus =

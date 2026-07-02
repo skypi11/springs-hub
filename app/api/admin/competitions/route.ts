@@ -67,11 +67,13 @@ export async function POST(req: NextRequest) {
 
     const batch = db.batch();
     const ref = db.collection('competitions').doc();
+    // PAS de createdBy sur le doc : competitions est en lecture publique et
+    // l'invariant archi §8 interdit tout uid/snowflake dans les docs publics
+    // (review adversariale Lot 0). L'auteur est tracé par l'audit log.
     batch.set(ref, {
       ...toFirestoreCompetition(payload),
       status: 'draft',
       createdAt: FieldValue.serverTimestamp(),
-      createdBy: uid,
     });
     if (payload.circuitId) {
       batch.update(db.collection('circuits').doc(payload.circuitId), {

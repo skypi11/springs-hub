@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
     const [
       userSnap,
       secretsSnap,
+      compAdminSnap,
       memberships,
       structuresFounded,
       structuresCoFounded,
@@ -34,6 +35,7 @@ export async function GET(req: NextRequest) {
     ] = await Promise.all([
       db.collection('users').doc(uid).get(),
       db.collection('user_secrets').doc(uid).get(),
+      db.collection('competition_admins').doc(uid).get(),
       db.collection('structure_members').where('userId', '==', uid).get(),
       db.collection('structures').where('founderId', '==', uid).get(),
       db.collection('structures').where('coFounderIds', 'array-contains', uid).get(),
@@ -76,6 +78,8 @@ export async function GET(req: NextRequest) {
       // doit quand même la restituer. On n'exporte PAS les tokens techniques
       // (refresh token Discord = credential, pas une donnée portable).
       dateOfBirth: (secretsSnap.data()?.dateOfBirth as string | undefined) ?? null,
+      // Rôle admin de compétition (displayName dénormalisé = donnée personnelle)
+      competitionAdmin: compAdminSnap.exists ? { id: uid, ...compAdminSnap.data() } : null,
       memberships: serialize(memberships.docs),
       structures: {
         founded: serialize(structuresFounded.docs),

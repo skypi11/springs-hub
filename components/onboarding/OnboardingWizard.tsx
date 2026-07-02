@@ -88,6 +88,25 @@ export default function OnboardingWizard({ onClose }: { onClose: () => void }) {
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(data)); } catch { /* noop */ }
   }, [data]);
 
+  // La date de naissance vit dans user_secrets (server-only) : le user de
+  // /api/auth/me ne la porte plus, seul le flag hasDateOfBirth subsiste. Un
+  // profil incomplet (pays, jeu…) mais dont la date est déjà enregistrée ne
+  // doit pas la re-saisir : on la récupère via le retour owner de GET
+  // /api/profile, qui l'injecte depuis user_secrets.
+  useEffect(() => {
+    if (!user?.uid || !user.hasDateOfBirth || data.dateOfBirth) return;
+    let cancelled = false;
+    api<{ dateOfBirth?: string }>(`/api/profile?uid=${encodeURIComponent(user.uid)}`)
+      .then(profile => {
+        if (!cancelled && profile.dateOfBirth) {
+          setData(prev => (prev.dateOfBirth ? prev : { ...prev, dateOfBirth: profile.dateOfBirth! }));
+        }
+      })
+      .catch(() => { /* pré-remplissage best-effort, la saisie manuelle reste possible */ });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- uniquement au montage / changement de user, pas à chaque frappe
+  }, [user?.uid, user?.hasDateOfBirth]);
+
   const update = (patch: Partial<WizardData>) => {
     setData(prev => ({ ...prev, ...patch }));
     if (stepError) setStepError('');

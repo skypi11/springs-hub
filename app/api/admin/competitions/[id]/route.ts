@@ -61,11 +61,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       updatedAt: FieldValue.serverTimestamp(),
     });
     if (payload.circuitId !== oldCircuitId) {
+      // batch.update échoue (NOT_FOUND, batch entier rollback) si le doc cible
+      // n'existe plus — or la DB partagée peut avoir perdu un circuit TEST
+      // purgé à la main. Si l'ancien circuit a disparu, le lien dénormalisé
+      // est déjà mort : on continue sans lui (review adversariale Lot 0).
       if (oldCircuitId) {
-        batch.update(db.collection('circuits').doc(oldCircuitId), {
-          competitionIds: FieldValue.arrayRemove(id),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
+        const oldSnap = await db.collection('circuits').doc(oldCircuitId).get();
+        if (oldSnap.exists) {
+          batch.update(oldSnap.ref, {
+            competitionIds: FieldValue.arrayRemove(id),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        } else {
+          console.warn(`[admin/competitions] circuit ${oldCircuitId} introuvable au détachement de ${id}`);
+        }
       }
       if (payload.circuitId) {
         batch.update(db.collection('circuits').doc(payload.circuitId), {
@@ -133,10 +142,17 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     batch.delete(ref);
     const circuitId = (data.circuitId as string | null) ?? null;
     if (circuitId) {
-      batch.update(db.collection('circuits').doc(circuitId), {
-        competitionIds: FieldValue.arrayRemove(id),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+      // Même garde que le PATCH : un circuit disparu (purge manuelle sur la DB
+      // partagée) ne doit pas rendre la compétition insupprimable.
+      const circuitSnap = await db.collection('circuits').doc(circuitId).get();
+      if (circuitSnap.exists) {
+        batch.update(circuitSnap.ref, {
+          competitionIds: FieldValue.arrayRemove(id),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      } else {
+        console.warn(`[admin/competitions] circuit ${circuitId} introuvable à la suppression de ${id}`);
+      }
     }
     await batch.commit();
 

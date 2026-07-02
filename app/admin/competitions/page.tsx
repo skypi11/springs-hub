@@ -223,7 +223,10 @@ export default function AdminCompetitionsPage() {
               Aucun circuit. Crée le circuit Legends Springs Cup pour rattacher les Qualifs.
             </p>
           ) : circuits.map((c, i) => (
-            <div key={c.id} className="flex items-center gap-3 px-4 py-3"
+            // flex-wrap : sur mobile le surplus serait clippé par le clip-path
+            // du panel .bevel (pas de scroll horizontal possible) — les actions
+            // passent à la ligne au lieu de disparaître.
+            <div key={c.id} className="flex flex-wrap items-center gap-3 px-4 py-3"
               style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' }}>
               <GameTag gameId={c.game} size="sm" />
               <span className="text-sm font-semibold flex-1 min-w-0 truncate">{c.name}</span>
@@ -267,7 +270,7 @@ export default function AdminCompetitionsPage() {
               complet (BO, MMR, phases), il ne reste que le nom et les dates.
             </p>
           ) : competitions.map((c, i) => (
-            <div key={c.id} className="flex items-center gap-3 px-4 py-3"
+            <div key={c.id} className="flex flex-wrap items-center gap-3 px-4 py-3"
               style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' }}>
               <GameTag gameId={c.game} size="sm" />
               <div className="flex-1 min-w-0">
@@ -307,7 +310,10 @@ export default function AdminCompetitionsPage() {
             ont déjà tous ces droits.
           </p>
 
-          <div className="relative max-w-md">
+          {/* Résultats en flux normal, PAS en dropdown absolute : le panel
+              porte .bevel dont le clip-path clippe tout dépassement (piège
+              documenté — mémoire project_bevel_clips_dropdowns). */}
+          <div className="max-w-md">
             <input
               className="settings-input w-full"
               placeholder="Chercher un joueur (pseudo ou Discord)"
@@ -316,7 +322,7 @@ export default function AdminCompetitionsPage() {
               onChange={e => setAdminSearch(e.target.value)}
             />
             {searchResults.length > 0 && (
-              <div className="absolute z-10 w-full mt-1"
+              <div className="mt-1"
                 style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                 {searchResults.map(u => (
                   <button

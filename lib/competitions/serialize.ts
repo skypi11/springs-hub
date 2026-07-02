@@ -48,7 +48,6 @@ export function serializeCompetition(id: string, data: FirebaseFirestore.Documen
     discord: data.discord ?? null,
     status: data.status ?? 'draft',
     createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
-    createdBy: data.createdBy ?? '',
   };
 }
 
@@ -64,6 +63,5 @@ export function serializeCircuit(id: string, data: FirebaseFirestore.DocumentDat
     tieBreakers: data.tieBreakers ?? [],
     status: data.status ?? 'draft',
     createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
-    createdBy: data.createdBy ?? '',
   };
 }

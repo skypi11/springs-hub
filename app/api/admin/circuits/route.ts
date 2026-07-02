@@ -53,6 +53,9 @@ export async function POST(req: NextRequest) {
     }
 
     const db = getAdminDb();
+    // PAS de createdBy sur le doc : circuits est en lecture publique et
+    // l'invariant archi §8 interdit tout uid/snowflake dans les docs publics
+    // (review adversariale Lot 0). L'auteur est tracé par l'audit log.
     const ref = await db.collection('circuits').add({
       ...validated.value,
       // Un circuit naît toujours en draft : la publication (visibilité public)
@@ -60,7 +63,6 @@ export async function POST(req: NextRequest) {
       status: 'draft',
       competitionIds: [],
       createdAt: FieldValue.serverTimestamp(),
-      createdBy: uid,
     });
 
     await writeAdminAuditLog(db, {
