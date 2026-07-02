@@ -36,14 +36,13 @@
 - **Seeding aléatoire**, modifiable manuellement par l'admin avant publication.
 - **< 32 équipes** → byes. **> 32 validées** → premier validé-premier servi + **liste d'attente**.
 
-## 3. Éligibilité — règles MMR (⚠️ calibrage à confirmer)
+## 3. Éligibilité — règles MMR ✅ VALIDÉES (02/07)
 
-- Le MMR qui compte est le **MMR 2v2** (décision Matt — même pour un tournoi 3v3).
-- **MMR de référence** ⏳ : formule proposée `réf = 70 % × MMR actuel + 30 % × peak all-time` (curseur réglable). Rationale : le peak seul condamne les ex-boostés de fin de saison ; l'actuel seul permet le tank (rare selon Matt, mais le peak le limite).
+- Le MMR qui compte est le **MMR 2v2** (décision Matt — même pour un tournoi 3v3). **Caps confirmés calibrés pour le 2v2.**
+- **MMR de référence** ✅ : `réf = 70 % × MMR actuel + 30 % × peak all-time` (arrondi, curseur réglable). Rationale : le peak seul condamne les ex-boostés de fin de saison ; l'actuel seul permet le tank (rare selon Matt, mais le peak le limite).
 - **Règles d'équipe** (appliquées sur le MMR de référence) :
   1. **Toute composition de 3 joueurs alignable** (n'importe quel trio parmi titulaires + subs) doit respecter : **moyenne ≤ 1850** ET **écart max-min ≤ 150**. (Cette règle unique couvre : sub trop fort, sub trop faible « pour baisser la moyenne », joueur prête-nom.)
   2. **Plafond individuel : aucun joueur au-dessus de 1900** (sur le MMR de référence).
-- ⚠️ **OUVERT (N1)** : ces chiffres (1850/1900/150) sont-ils bien calibrés pour du **2v2** (≈ niveau SSL accepté) ? La note d'origine disait « max GC3 » — en 2v2 ça correspondrait plutôt à ~1700-1750.
 - **Capture du MMR** : pas d'API publique fiable (tracker.gg n'en expose pas, scraping interdit/fragile). Le dirigeant **déclare** actuel + peak par joueur à l'inscription ; le site calcule moyenne/écarts/plafonds et lève les drapeaux ; l'**admin vérifie via le lien tracker** (fiable car comptes vérifiés obligatoires). ~10 s par joueur.
 - **Comptes vérifiés Aedral (Epic/Steam) OBLIGATOIRES** pour tous les joueurs inscrits (le « gate compét » prévu de longue date).
 
@@ -55,8 +54,8 @@
 - Inscription **gratuite**, réalisée par un **dirigeant ou manager** de la structure.
 - **Validation manuelle** par les admins de compétition : vérif trackers/MMR, registre des bans, homogénéité de l'équipe, sérieux, etc.
 - **Refus automatique** si un joueur ou la structure figure au **registre des bans**, avec motif affiché.
-- **Règle noyau (conservation des points)** ⏳ : proposition — une équipe conserve ses points de circuit si **au moins 2 de ses 3 titulaires** figuraient dans le roster (titulaires ou subs) de sa précédente participation ; sinon elle repart à 0 (nouvelle équipe). ⚠️ OUVERT (N5) : validation + le nom d'équipe peut-il changer ?
-- ⚠️ **OUVERT (N6)** : ajout d'un champ **date de naissance** au profil (obligatoire pour s'inscrire en compétition, visible UNIQUEMENT des admins de compétition, jamais public — RGPD). Âge minimum ? Enjeu mineurs/LAN ?
+- **Règle noyau (conservation des points)** ✅ : une équipe conserve ses points de circuit si **au moins 2 de ses 3 titulaires** figuraient dans le roster (titulaires ou subs) de sa précédente participation ; sinon elle repart à 0 (nouvelle équipe). **Le nom d'équipe ne peut pas changer** entre deux participations, sauf accord des admins de compétition.
+- **Date de naissance** ✅ : nouveau champ profil (le joueur renseigne sa date de naissance). **La date n'est jamais publique, mais l'ÂGE calculé s'affiche sur le profil public.** Les admins de compétition voient l'âge à la validation. **Chaque compétition a un paramètre « âge minimum »** configurable ; l'inscription est bloquée si un joueur du roster est en dessous. ⚠️ Valeur de l'âge minimum pour la Legends Cup à fixer par Matt (paramètre, non bloquant pour le build).
 
 ## 5. Registre des bans (nouveau)
 
@@ -75,7 +74,7 @@
 ## 7. Intégration Discord — serveur SPRINGS E-SPORT
 
 - Tout se passe sur le **serveur Discord Springs E-Sport** (pas le serveur communautaire Aedral).
-- Le bot doit y être invité **hors mécanisme structure** → prévoir un lien d'invitation admin classique. ⚠️ OUVERT (N8) : confirmer les droits admin de Matt sur ce serveur.
+- Le bot doit y être invité **hors mécanisme structure** → prévoir un lien d'invitation admin classique. ✅ Matt a les droits admin sur le serveur Springs E-Sport (il clique le lien, le bot arrive avec les bonnes permissions).
 - À la **validation** d'une inscription, le bot crée automatiquement :
   - un rôle générique **« Participant Legend »** (commun au circuit) + un **rôle au nom de l'équipe** ;
   - un **salon vocal + un salon textuel** privés par équipe, visibles uniquement par l'équipe et le staff.
@@ -105,11 +104,12 @@
 - **Fil de discussion** attaché au match : messages entre capitaines/staff des deux équipes + admins. Temps réel via Firestore.
 - **Décision d'architecture** : le fil est une **primitive réutilisable** (« thread attaché à un objet ») — pas une messagerie générale. Réutilisable plus tard pour les scrims, candidatures, tournois premium. Validé par Matt.
 
-## 11. Classement d'un Qualif & barème de points
+## 11. Classement d'un Qualif & barème de points ✅ VALIDÉ (02/07)
 
 - **Placement unique de 1 à 32** : le bracket donne le groupe d'élimination (1er, 2e, 3e, 4e, 5-6, 7-8, 9-12, 13-16, 17-24, 25-32), puis **le délta de buts départage à l'intérieur du groupe**.
-- ⏳ Ordre de départage proposé : délta de buts → buts marqués → (3e critère à définir). **Forfaits exclus du calcul du délta** (des deux côtés) — proposé.
-- **Barème v2** ⏳ (calibré pour : gagner domine, mais la régularité paie — cohérent avec « 3 meilleurs résultats sur 4 ») :
+- Ordre de départage intra-groupe ⏳ : délta de buts → buts marqués → face-à-face s'il a eu lieu → décision admin.
+- **Forfaits = score conventionnel** ⏳ (proposition suite à la remarque de Matt : exclure le match du délta désavantagerait le vainqueur du forfait, qui aurait un match de moins pour construire son délta) : un forfait est enregistré **3-0 en BO5 (chaque manche 1-0) → délta ±3** ; **4-0 / ±4 en BO7**.
+- **Barème v2** ✅ (calibré pour : gagner domine, mais la régularité paie — cohérent avec « 3 meilleurs résultats sur 4 ») :
 
 | Places | Points |
 |---|---|
@@ -118,9 +118,10 @@
 | 17 à 24 | 10 · 10 · 9 · 9 · 8 · 8 · 7 · 7 |
 | 25 à 32 | 6 · 6 · 5 · 5 · 4 · 4 · 3 · 3 |
 
-- Propriétés : 3× 10e place (51 pts) > 1 victoire isolée (40) ; 3× 16e (33) < 1 victoire. Simulation de cutlines top-16 à faire avant de figer.
-- ⏳ **Tie-breaker cutline top-16** proposé : 1) meilleur placement unique du circuit, 2) délta de buts cumulé sur les Qualifs comptabilisés, 3) résultat du Qualif le plus récent. ⚠️ OUVERT (N4).
-- ⚠️ **OUVERT (N7)** : forfait d'un qualifié LAN → repêchage de la 17e ?
+- Propriétés : 3× 10e place (51 pts) > 1 victoire isolée (40) ; 3× 16e (33) < 1 victoire.
+- **Scénarios simulés pour présentation au président de Springs E-Sport** : page partageable → https://claude.ai/code/artifact/b93a210f-bdb2-457c-87a9-e0e3da1d7acc (trajectoires, départage délta, forfait, cutline — chiffres réglables).
+- **Tie-breaker cutline top-16** ✅ : 1) meilleur placement unique du circuit, 2) délta de buts cumulé sur les Qualifs comptabilisés, 3) résultat du Qualif le plus récent.
+- **Forfait d'un qualifié LAN** ✅ : repêchage en cascade dans l'ordre du classement (17e, puis 18e, etc.).
 
 ## 12. Côté public / visiteurs
 
@@ -134,18 +135,27 @@
 - Pensé **gate-friendly** pour le futur premium : « les structures créent leurs tournois sur mesure » (demande explicite de Matt).
 - Réutilise l'existant : équipes/structures Aedral, comptes vérifiés, bot Discord, permissions, notifications, R2 (screenshots litiges).
 
-## 14. Questions ouvertes (round 3)
+## 14. Questions ouvertes (round 4 — dernières)
 
-- **N1** — Caps 1850/1900/150 : calibrés pour du MMR **2v2** (niveau SSL accepté) ou à redescendre (~1700-1750, esprit « max GC3 ») ?
-- **N2** — Formule MMR 70 % actuel / 30 % peak all-time : validée ?
-- **N3** — Barème v2 + départage intra-groupe (délta → buts marqués → ?) + forfaits exclus du délta : OK ?
-- **N4** — Tie-breaker cutline top-16 : OK ?
-- **N5** — Règle noyau précise (2/3 titulaires vs roster de la précédente participation, sinon 0 point) + changement de nom d'équipe autorisé ?
-- **N6** — Date de naissance : âge minimum ? enjeu mineurs/LAN ?
-- **N7** — Repêchage 17e si forfait LAN ?
-- **N8** — Matt a-t-il les droits admin sur le serveur Discord Springs E-Sport (pour inviter le bot) ?
+Les rounds 1-3 sont clos (tout validé). Restent 3 micro-points :
 
-## 15. Repères de timeline build
+- **R4-1** — **Forfait = score conventionnel** (3-0 / ±3 en BO5, 4-0 / ±4 en BO7) : à valider (remplace l'exclusion du délta, voir §11).
+- **R4-2** — 3e/4e clés de départage intra-groupe (après délta → buts marqués) : face-à-face s'il a eu lieu, puis décision admin — à valider.
+- **R4-3** — **Valeur de l'âge minimum** pour la Legends Cup (le champ est un paramètre par compétition, non bloquant pour le build).
+
+## 15. Intégrations à l'existant (proposées par Claude, à discuter)
+
+Idées qui réutilisent l'infra déjà construite — coût marginal faible, cohérence maximale :
+
+1. **Palmarès automatique** : le placement final d'un Qualif alimente automatiquement la section PALMARÈS de la page publique de la structure (feature existante) — plus le badge circuit sur la page équipe.
+2. **Nudge de vérification dans le flux d'inscription** : à l'inscription, les joueurs non vérifiés du roster sont listés avec le bouton « Vérifier en 1 clic » existant (`VerifyAccountNudge`) → l'inscription devient LE moteur de conversion des comptes vérifiés.
+3. **Flags anti-smurf à la validation** : les admins de compétition voient les `user_admin_flags` (suspectedSmurf) et les signalements de rang existants (`rank_reports`) directement dans l'écran de validation d'une équipe.
+4. **Cartes OG de résultats** : réutiliser le système OG existant pour générer des visuels partageables « Team A 3-1 Team B » et « Qualifié LAN » (hype réseaux sociaux, zéro friction).
+5. **Bannière d'inscription sur le dashboard** : pendant les fenêtres J-14 → J-3, bannière « Inscriptions Qualif N ouvertes » sur l'accueil connecté + annonce Discord via le système d'annonces existant.
+6. **Funnel PostHog** : événements `comp_registration_*` pour mesurer l'adoption (la Cup EST la stratégie d'acquisition — il faut la mesurer).
+
+## 16. Repères de timeline build
+
 
 - **Aujourd'hui : 2 juillet.** Inscriptions Qualif 1 ouvrent le **12 septembre** → flux inscription + validation + admin de compétition prêts pour ~5 septembre.
 - Moteur de bracket + déroulement de match prêts pour le **26 septembre** (Qualif 1).
