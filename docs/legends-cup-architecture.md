@@ -127,7 +127,20 @@ Lecture : publique **mais** `rosterUids` retiré du doc public (snowflakes) → 
 - Nom du snapshot ≠ nom du circuit_team → flag **`name_mismatch`** (changement de nom = accord admin, cf. spec).
 
 ### `competition_bans`, `competition_admins`
-Inchangés (v1). CRUD bans + admins réservé : bans → admins compét ; nomination d'admins compét → admins Aedral complets uniquement (pas d'auto-promotion).
+Inchangés (v1). CRUD bans + admins réservé : bans → admins compét ; nomination d'admins compét → admins Aedral complets uniquement (pas d'auto-promotion). Rappel : **un admin Aedral complet est automatiquement admin compétition** (Matt a accès à tout, partout).
+
+### `rulebooks` — règlement de compétition (ajout Matt 02/07)
+```js
+{
+  scope: { circuitId } | { competitionId },   // un règlement pour tout le circuit OU par tournoi
+  markdown, version: number,                  // édité via MarkdownEditor (composant existant)
+  updatedAt, updatedBy,
+}
+```
+- Sous-collection **`/versions/{n}`** : chaque modification archive la version précédente — **traçabilité légale** : on doit pouvoir prouver QUELLE version du règlement une équipe a acceptée.
+- Lecture : **publique** (page `/competitions/…/reglement`). Écriture : admins compét (via API).
+- **Acceptation obligatoire à l'inscription** : le wizard bloque la soumission sans la case « J'ai lu et j'accepte le règlement » ; la registration enregistre `rulebookAccepted: { version, at, byUid }`.
+- Si le règlement change APRÈS des inscriptions validées : les équipes concernées sont notifiées (in-app + Discord) — pas de re-acceptation forcée, mais la version acceptée reste tracée.
 
 ### Date de naissance — **DÉCISION FIGÉE (review, bloquant)**
 `firestore.rules` actuel : `users/{uid}` est **lisible par tout utilisateur connecté** → interdiction d'y mettre `birthDate` (fuite RGPD certaine, données de mineurs). Donc :
@@ -175,11 +188,11 @@ Volumétrie réelle : ~10-15 calls par équipe (rôle + 2 salons + overwrites + 
 
 ## 7. Pages
 
-Public + dirigeants : inchangé (v1) — hub circuit, page compétition + bracket live, page de match (zone privée : check-in, room, scores, litige, thread), wizard d'inscription avec nudge vérification, mes inscriptions.
+Public + dirigeants : inchangé (v1) — hub circuit, page compétition + bracket live, page de match (zone privée : check-in, room, scores, litige, thread), wizard d'inscription avec nudge vérification **+ étape d'acceptation du règlement**, mes inscriptions. **+ page publique `/competitions/…/reglement`** (rendu markdown, numéro de version affiché) et **éditeur de règlement** dans le panel admin compét.
 
 **Console live admin — enrichie (review)** :
 - Phases et matchs temps réel, check-ins manquants, timers échus, litiges (screenshots via URLs signées), forfaits, codes rooms, match casté, tick.
-- **Lancement de phase PARTIEL** (à valider par Matt — R5-2) : ouvrir le check-in des matchs dont les 2 équipes sont connues, sous-état « en attente du match X » pour les 1-2 matchs bloqués par un litige. Sans ça, un litige de 30 min sur UN match gèle 28 équipes.
+- **Lancement de phase PARTIEL** ✅ (validé Matt, avec amendement) : **action explicite d'un admin compétition** (jamais automatique) — l'admin peut ouvrir le check-in des matchs dont les 2 équipes sont connues pendant qu'un litige bloque les autres, avec sous-état « en attente du match X ». Sans ça, un litige de 30 min sur UN match gèle 28 équipes.
 - **Disqualifier / retirer du bracket** (cascade §3) · **Remplacer par la waitlist** · **UI de tiebreak admin** (drag & drop, audit-loggé).
 - **Export/impression du bracket + rooms pré-générées** (1 clic) — pilier du plan B (§10).
 - File de validation : **(review)** les signalements/flags anti-smurf sont montrés en **agrégat anonymisé** (« 2 signalements smurf en attente », « flag admin : oui ») — jamais l'identité des signaleurs ni les notes (les admins compét sont des bénévoles de la scène ; le modèle de confidentialité actuel dit explicitement « le joueur ne doit pas savoir qu'il est flaggé » et protège le reporter).
@@ -203,7 +216,7 @@ Inchangées (v1) sauf : anti-smurf en agrégat anonymisé (§7). OG cards + palm
 | Lot | Contenu | Deadline |
 |---|---|---|
 | **0 — Socle** (sem. 1) | Collections + **bascule rules existantes** + audit legacy + adaptation `profile/history` + `isCompetitionAdmin` + CRUD admin compétitions/circuits + birthDate (**user_secrets**) Settings + **vérif plan Blaze** | 11 juil. |
-| **1 — Inscription** (sem. 2-3) | Wizard complet + file de validation (+ flags agrégés, dérogations, conflits d'identité) + provisioning Discord **découplé** + registre bans | 25 juil. |
+| **1 — Inscription** (sem. 2-3) | Wizard complet (+ **acceptation du règlement**) + file de validation (+ flags agrégés, dérogations, conflits d'identité) + provisioning Discord **découplé** + registre bans + **feature règlement** (page publique + éditeur versionné) | 25 juil. |
 | **2 — Bracket + machine d'états** (sem. 4-5) | `lib/tournament` complète (double forfait, walkover, cancelled, withdraw, replace, places compressées) + tests + seeding + pages publiques + **squelette machine d'états match + console live** (même flux onSnapshot que le bracket public — démarré ICI, pas au Lot 3) | 8 août |
 | **3 — Jour de match** (sem. 6-7) | Check-ins (général + phase, partiel), rooms, scores + timers transactionnels + tick, litiges + screenshots signés, forfaits/disqualification/waitlist, console complète | 22 août |
 | **3bis — Simulation** (fin sem. 7) | **Script « tournoi fantôme »** : seed 32 équipes fake + déroulé complet d'un bracket via les vraies API (scores, forfaits, litige, reset) — rejouable à 13/20/27/32 équipes. Dérisque la logique AVANT le test humain | 22 août |
@@ -218,9 +231,16 @@ Inchangées (v1) sauf : anti-smurf en agrégat anonymisé (§7). OG cards + palm
 
 Inchangé (v1) : format LAN, TM natif, tournois self-service structures (premium futur), messagerie générale.
 
-## 12. Décisions restantes pour Matt (issues de la review — R5)
+## 12. Décisions R5 — TOUTES TRANCHÉES ✅ (Matt, 02/07)
 
-- **R5-1 — Double forfait** : les deux équipes éliminées, l'adversaire du match suivant passe en walkover, délta −3/−4 chacune, placement = groupe du match forfaité. OK ?
-- **R5-2 — Lancement de phase partiel** : si un litige bloque UN match, les autres matchs de la phase suivante dont les équipes sont connues peuvent se lancer (le cast reste calé sur le match casté). Ça amende légèrement le « toutes les équipes d'une phase en même temps » de la spec — recommandé pour ne pas finir après minuit. OK ?
-- **R5-3 — Liste exacte des matchs BO7** : proposition = les 2 dernières rondes du winners (demi-finales + finale), les 2 dernières rondes du losers (demi + finale), et la grande finale (+ reset). Confirme (ou ajuste — ex. seulement la finale du losers).
-- **R5-4 — Équipe disqualifiée/abandonnante** : elle garde le placement du groupe où elle se trouvait au moment du retrait (délta figé), ses matchs restants deviennent des forfaits conventionnels. OK ?
+- **R5-1 — Double forfait** ✅ : les deux équipes éliminées, l'adversaire du match suivant passe en walkover, délta −3/−4 chacune, placement = groupe du match forfaité.
+- **R5-2 — Lancement de phase partiel** ✅ avec amendement : c'est une **action explicite d'un admin compétition** (jamais automatique). Le cast reste calé sur le match casté.
+- **R5-3 — Matchs BO7** ✅ : 2 dernières rondes du winners (demi-finales + finale) + 2 dernières rondes du losers (demi + finale) + grande finale (+ reset).
+- **R5-4 — Équipe disqualifiée/abandonnante** ✅ : placement figé au groupe atteint au moment du retrait (délta figé), matchs restants en forfaits conventionnels.
+
+## 13. Le règlement de compétition (ajout Matt 02/07)
+
+Deux livrables distincts :
+1. **La feature** (Lot 1) : collection `rulebooks` versionnée + page publique + éditeur admin compét + acceptation obligatoire au wizard avec version tracée (§2, §7).
+2. **Le CONTENU** — rédaction d'un règlement complet et solide, hors code, à produire AVANT l'ouverture des inscriptions (12 sept, idéalement avec l'annonce Vague 2 début août). Doit couvrir : format et règles sportives (tout est dans la spec), code de conduite et sanctions (triche, smurf, toxicité — adossé au registre de bans), procédure de litige, **cadre légal français** (loi République numérique 2016 + décret 2017-871 sur les compétitions de jeux vidéo : inscription gratuite → pas de « sacrifice financier », prizepool 1 200 € < 10 000 € → pas de garantie financière exigée, mineurs → autorisation parentale, cohérent avec notre système de dérogation), conditions Epic Games pour les tournois communautaires Rocket League, RGPD (données collectées, MMR, date de naissance), droit à l'image (cast/stream). Rédigé par Claude avec recherche juridique sourcée, **relecture par un professionnel recommandée avant publication** (à voir avec Springs E-Sport qui a l'habitude des événements déclarés).
+- ⚠️ Question préalable à la rédaction : **qui est l'organisateur légal** de la compétition — l'association Springs E-Sport (qui porte le cashprize et la LAN ?) ou Matt/Aedral (la plateforme) ? Le règlement doit le nommer précisément (responsabilités, litiges, versement des prix).

@@ -135,9 +135,17 @@
 - Pensé **gate-friendly** pour le futur premium : « les structures créent leurs tournois sur mesure » (demande explicite de Matt).
 - Réutilise l'existant : équipes/structures Aedral, comptes vérifiés, bot Discord, permissions, notifications, R2 (screenshots litiges).
 
+## 13 bis. Règlement de compétition (ajout Matt 02/07)
+
+- Un **règlement complet** de la compétition, **accessible publiquement** et **accepté obligatoirement à l'inscription** (case à cocher, version acceptée tracée sur l'inscription — traçabilité légale).
+- **Modifiable par les admins de compétition** (éditeur versionné, historique conservé).
+- Contenu « béton » : règles sportives, code de conduite/sanctions, procédure de litige, **cadre légal français en vigueur** (loi République numérique / décret 2017-871, mineurs/autorisation parentale, RGPD, droit à l'image), conditions Epic pour les tournois communautaires RL. Rédaction avec recherche juridique sourcée + relecture pro recommandée. À publier avant l'ouverture des inscriptions (12 sept).
+
 ## 14. Statut : SPEC COMPLÈTE ✅ (02/07)
 
-Les 4 rounds de questions/réponses sont clos — **tout est validé par Matt**. Prochaine étape : plan d'architecture ([docs/legends-cup-architecture.md](legends-cup-architecture.md)), à valider avant la première ligne de code.
+Les 4 rounds de questions/réponses sont clos — **tout est validé par Matt**, y compris les 4 décisions issues de la review d'architecture (R5) : double forfait (deux éliminées, walkover aval, délta −3/−4), lancement de phase partiel **sur action explicite d'un admin compétition**, BO7 = 2 dernières rondes winners + 2 dernières rondes losers + grande finale (+ reset), équipe retirée = placement figé au groupe atteint. Rappel périmètre admin : un admin Aedral complet (Matt) a automatiquement tous les droits d'admin compétition.
+
+Plan d'architecture : [docs/legends-cup-architecture.md](legends-cup-architecture.md) (v2, review adversariale intégrée).
 
 ## 15. Intégrations à l'existant — TOUTES RETENUES ✅
 
