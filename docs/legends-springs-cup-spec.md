@@ -139,7 +139,7 @@
 
 - Un **règlement complet** de la compétition, **accessible publiquement** et **accepté obligatoirement à l'inscription** (case à cocher, version acceptée tracée sur l'inscription — traçabilité légale).
 - **Modifiable par les admins de compétition** (éditeur versionné, historique conservé).
-- Contenu « béton » : règles sportives, code de conduite/sanctions, procédure de litige, **cadre légal français en vigueur** (loi République numérique / décret 2017-871, mineurs/autorisation parentale, RGPD, droit à l'image), conditions Epic pour les tournois communautaires RL. Rédaction avec recherche juridique sourcée + relecture pro recommandée. À publier avant l'ouverture des inscriptions (12 sept).
+- Contenu « béton » : règles sportives, code de conduite/sanctions, procédure de litige, **cadre légal français en vigueur** (loi République numérique / décret 2017-871, mineurs/autorisation parentale, RGPD, droit à l'image), conditions Epic pour les tournois communautaires RL. Organisateur légal : **SPRINGS E-SPORT** (orthographe exacte). Rédaction avec recherche juridique sourcée + relecture pro recommandée. À publier avant l'ouverture des inscriptions (12 sept).
 
 ## 14. Statut : SPEC COMPLÈTE ✅ (02/07)
 

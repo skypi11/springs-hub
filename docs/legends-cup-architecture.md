@@ -231,6 +231,16 @@ Inchangées (v1) sauf : anti-smurf en agrégat anonymisé (§7). OG cards + palm
 
 Inchangé (v1) : format LAN, TM natif, tournois self-service structures (premium futur), messagerie générale.
 
+## 11 bis. Stratégie de branches & tests (demande Matt 02/07 : « ne rien casser »)
+
+- **Branches courtes par chantier** (`legends/lot-0`, `legends/inscription-wizard`, …) : rien ne part sur `main` tant que ce n'est pas stable. Chaque push de branche déclenche automatiquement un **Vercel Preview** — une URL de test privée, complète et fonctionnelle, SANS toucher aedral.com. C'est là que Matt teste « tant qu'on veut ».
+- **Merges fréquents** (tous les 2-4 jours, jamais une méga-branche de 10 semaines — l'intégration tardive est plus risquée que le trunk) + **feature gating** : même mergé sur main, TOUT le module compétitions reste invisible sur aedral.com — pas d'entrée de nav, pages accessibles uniquement aux admins, compétitions en statut `draft`. Le public ne voit rien tant qu'on n'a pas explicitement publié.
+- **⚠️ La base de données, elle, est partagée** (un seul projet Firebase — les previews et le local parlent à la même Firestore que la prod). Conséquences gérées :
+  - les données de test vivent dans des compétitions `draft` clairement nommées (« TEST — ne pas toucher ») + script de cleanup ;
+  - le script « tournoi fantôme » (Lot 3bis) crée et détruit ses propres données ;
+  - **`firestore.rules` est GLOBAL** : chaque déploiement de rules touche la prod immédiatement → les changements de rules sont conçus pour être rétro-compatibles (collections nouvelles = additives) et déployés consciemment, jamais en réflexe.
+- Le travail quotidien reste local-first (localhost:3000, workflow habituel) ; la preview Vercel sert aux validations de Matt.
+
 ## 12. Décisions R5 — TOUTES TRANCHÉES ✅ (Matt, 02/07)
 
 - **R5-1 — Double forfait** ✅ : les deux équipes éliminées, l'adversaire du match suivant passe en walkover, délta −3/−4 chacune, placement = groupe du match forfaité.
@@ -243,4 +253,4 @@ Inchangé (v1) : format LAN, TM natif, tournois self-service structures (premium
 Deux livrables distincts :
 1. **La feature** (Lot 1) : collection `rulebooks` versionnée + page publique + éditeur admin compét + acceptation obligatoire au wizard avec version tracée (§2, §7).
 2. **Le CONTENU** — rédaction d'un règlement complet et solide, hors code, à produire AVANT l'ouverture des inscriptions (12 sept, idéalement avec l'annonce Vague 2 début août). Doit couvrir : format et règles sportives (tout est dans la spec), code de conduite et sanctions (triche, smurf, toxicité — adossé au registre de bans), procédure de litige, **cadre légal français** (loi République numérique 2016 + décret 2017-871 sur les compétitions de jeux vidéo : inscription gratuite → pas de « sacrifice financier », prizepool 1 200 € < 10 000 € → pas de garantie financière exigée, mineurs → autorisation parentale, cohérent avec notre système de dérogation), conditions Epic Games pour les tournois communautaires Rocket League, RGPD (données collectées, MMR, date de naissance), droit à l'image (cast/stream). Rédigé par Claude avec recherche juridique sourcée, **relecture par un professionnel recommandée avant publication** (à voir avec Springs E-Sport qui a l'habitude des événements déclarés).
-- ⚠️ Question préalable à la rédaction : **qui est l'organisateur légal** de la compétition — l'association Springs E-Sport (qui porte le cashprize et la LAN ?) ou Matt/Aedral (la plateforme) ? Le règlement doit le nommer précisément (responsabilités, litiges, versement des prix).
+- ✅ **Organisateur légal : SPRINGS E-SPORT** (orthographe exacte, décision Matt 02/07). Le règlement nomme SPRINGS E-SPORT comme organisateur (responsabilités, litiges, versement des prix) ; Aedral est la plateforme technique d'accueil.
