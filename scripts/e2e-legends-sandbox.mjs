@@ -139,6 +139,13 @@ async function run() {
     r.status === 200 && !!wolvesStruct && wolvesStruct.teams.length === 2,
     `status ${r.status} teams ${wolvesStruct?.teams?.length}`);
 
+  // 5bis. Bannière dashboard : le dirigeant fictif voit la compétition draft
+  r = await apiCall('GET', '/api/competitions/open', WOLVES_OWNER);
+  const openDraft = r.json?.competitions?.find(c => c.id === COMP);
+  check('5bis. /api/competitions/open (compte fictif) → la draft apparaît (isDraft)',
+    r.status === 200 && openDraft?.isDraft === true,
+    JSON.stringify({ status: r.status, count: r.json?.competitions?.length }));
+
   // 6. Soumission du wizard par le dirigeant fictif (Wolves Alpha : mineur +
   //    non-vérifié + smurf dans le roster → drapeaux attendus)
   const roster = [

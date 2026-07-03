@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { CalendarDays, Users2, ScrollText, ArrowRight } from 'lucide-react';
-import { apiPublic, ApiError } from '@/lib/api-client';
+import { api, apiPublic, ApiError } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
 import GameTag from '@/components/games/GameTag';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -49,19 +49,28 @@ function fmtDate(iso: string | null | undefined): string {
 
 export default function CompetitionPage() {
   const params = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [data, setData] = useState<PublicCompetition | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Fetch AUTHENTIFIÉ dès qu'un utilisateur est connecté : une compétition
+    // en brouillon n'est servie qu'aux admins compét et aux comptes du bac à
+    // sable — sans le Bearer, le serveur ne peut pas les reconnaître et
+    // renvoie 404 même aux autorisés. On attend la fin du chargement auth
+    // pour ne pas figer un 404 public avant que le token soit disponible.
+    if (authLoading) return;
     let cancelled = false;
-    apiPublic<PublicCompetition>(`/api/competitions/${params.id}`)
-      .then(res => { if (!cancelled) setData(res); })
+    const fetcher = user
+      ? api<PublicCompetition>(`/api/competitions/${params.id}`)
+      : apiPublic<PublicCompetition>(`/api/competitions/${params.id}`);
+    fetcher
+      .then(res => { if (!cancelled) { setData(res); setNotFound(false); } })
       .catch(err => { if (!cancelled) setNotFound(err instanceof ApiError && err.status === 404); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [params.id]);
+  }, [params.id, user, authLoading]);
 
   if (loading) {
     return (
@@ -85,6 +94,10 @@ export default function CompetitionPage() {
   const opensAt = comp.registration.opensAt ? new Date(comp.registration.opensAt) : null;
   const closesAt = comp.registration.closesAt ? new Date(comp.registration.closesAt) : null;
   const registrationOpen = comp.status === 'registration' && opensAt && closesAt && now >= opensAt && now <= closesAt;
+  // Une fiche en brouillon n'est servie qu'aux testeurs autorisés (admins
+  // compét, comptes du bac à sable) : s'ils la voient, ils peuvent dérouler
+  // le wizard — même CTA que la fenêtre réelle.
+  const canRegister = registrationOpen || comp.status === 'draft';
   const maxTeams = comp.format?.maxTeams ?? null;
   const mmr = comp.eligibility?.mmr ?? null;
 
@@ -118,7 +131,7 @@ export default function CompetitionPage() {
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-3 pt-1">
-            {registrationOpen && user && (
+            {canRegister && user && (
               <Link href={`/competitions/${comp.id}/inscription`} className="btn-springs btn-primary bevel-sm flex items-center gap-1.5">
                 Inscrire mon équipe <ArrowRight size={14} />
               </Link>
