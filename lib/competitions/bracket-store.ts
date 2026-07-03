@@ -105,8 +105,12 @@ export function pureMatchToDoc(
       validatedBy: finalScores ? 'auto' : null,
     },
     stats,
+    // Métadonnée jour-de-match : le moteur pur ne connaît que le camp
+    // forfaitaire. validatedBy reste null ici (la route Lot 3 pose 'admin' +
+    // le vrai requestedAt quand un admin applique le forfait ; l'audit log
+    // porte l'identité).
     forfeit: m.forfeit
-      ? { team: m.forfeit, requestedAt: nowIso(), validatedBy: 'auto', reason: null }
+      ? { team: m.forfeit, requestedAt: nowIso(), validatedBy: null, reason: null }
       : null,
     dispute: null,
     cast: null,
@@ -131,31 +135,58 @@ function docStatusToPure(s: MatchStatus): PureMatchStatus {
 // ── Désérialisation : docs Firestore → Bracket pur (reconstruction Lot 3) ────
 
 /**
- * Reconstruit un `Bracket` pur à partir des documents `competition_matches` et
- * de la config de la compétition. L'ordre des matchs est reconstitué à
- * l'identique de la génération (winners → losers → GF → reset, par round puis
- * slot), garantissant un déroulé de propagation déterministe.
+ * Reconstruit un `Bracket` pur à partir des SEULS documents
+ * `competition_matches` + la config de la compétition. Auto-suffisant : la
+ * taille, les rondes et le tableau `teams` (par seed) sont dérivés des docs,
+ * PAS d'un `seeding` externe qui pourrait diverger (un siège vidé par
+ * replaceTeam n'est pas représentable dans `Competition.seeding`). Les docs
+ * sont donc bien l'unique source de vérité de la progression. L'ordre des
+ * matchs est reconstitué à l'identique de la génération (winners → losers →
+ * GF → reset, par round puis slot), pour un déroulé de propagation
+ * déterministe. `withdrawn` reste fourni (il vit sur `Competition.withdrawn`
+ * et les équipes retirées apparaissent dans les résultats).
  */
 export function reconstructBracket(input: {
-  seeding: string[];              // registrationIds en ordre de seed (index 0 = seed 1)
   withdrawn: string[];
   bo: BoConfig;
   forfeitScore: { games: number; goalsPerGame: number };
   matches: Array<{ id: string } & MatchDoc>;
 }): Bracket {
-  const size = nextPowerOfTwo(input.seeding.length);
+  // Taille = nombre de sièges du round 1 winners (robuste aux byes ET aux
+  // sièges vidés, contrairement au comptage des équipes présentes).
+  const w1 = input.matches.filter(m => m.bracket === 'winners' && m.round === 1);
+  const size = w1.length * 2;
+  if (size < 4 || (size & (size - 1)) !== 0) {
+    throw new Error(`Bracket incohérent : ${size} sièges round 1 (attendu puissance de 2 ≥ 4).`);
+  }
   const winnersRounds = Math.log2(size);
   const losersRounds = 2 * (winnersRounds - 1);
 
-  const matches: Record<string, PureMatch> = {};
-  for (const doc of input.matches) {
-    matches[doc.id] = docToPureMatch(doc);
+  // `teams` par seed (index 0 = seed 1) : lu depuis les sources 'seed' du round
+  // 1 winners. Un siège void (bye ou vidé par replaceTeam) → '' à sa place. La
+  // longueur = plus haute place occupée (les byes de fin ne sont pas des seats).
+  const bySeed = new Map<number, string>();
+  let maxOccupied = 0;
+  for (const m of w1) {
+    for (const [src, team, isVoid] of [
+      [m.sourceA, m.teamA, m.voidA] as const,
+      [m.sourceB, m.teamB, m.voidB] as const,
+    ]) {
+      if (src.type === 'seed' && !isVoid && team) {
+        bySeed.set(src.ref, team);
+        if (src.ref > maxOccupied) maxOccupied = src.ref;
+      }
+    }
   }
+  const teams: string[] = [];
+  for (let s = 1; s <= maxOccupied; s++) teams.push(bySeed.get(s) ?? '');
 
+  const matches: Record<string, PureMatch> = {};
+  for (const doc of input.matches) matches[doc.id] = docToPureMatch(doc);
   const order = orderIds(input.matches.map(d => ({ id: d.id, bracket: d.bracket, round: d.round, slot: d.slot })));
 
   return {
-    teams: [...input.seeding],
+    teams,
     size,
     winnersRounds,
     losersRounds,
@@ -208,8 +239,10 @@ function orderIds(ms: Array<{ id: string; bracket: PureMatch['bracket']; round: 
 export interface MaterializedBracket {
   matches: Array<{ id: string; doc: MatchDoc }>;
   /** participantUids par match, pour les sous-docs privés `/private/acl`
-   *  (deny-all). Rempli pour les matchs dont les deux équipes sont connues à la
-   *  matérialisation (round 1) ; le Lot 3 complète à chaque avancée. */
+   *  (deny-all). Émis dès qu'AU MOINS UN côté a un roster connu (round 1, mais
+   *  aussi un match aval qu'un bye a déjà à moitié peuplé). Le Lot 3, à chaque
+   *  matérialisation d'une nouvelle équipe, devra FUSIONNER (arrayUnion), pas
+   *  écraser, ces participantUids — sinon il efface l'ACL du côté déjà présent. */
   acls: Array<{ matchId: string; participantUids: string[] }>;
 }
 
@@ -251,7 +284,6 @@ export function materializeBracket(input: {
 // ── Utils ────────────────────────────────────────────────────────────────────
 
 function sum(xs: number[]): number { return xs.reduce((a, b) => a + b, 0); }
-function nextPowerOfTwo(n: number): number { let p = 1; while (p < n) p *= 2; return p; }
 
 // Timestamp textuel neutre : les routes serveur remplacent par
 // FieldValue.serverTimestamp() au write ; ce module pur reste sans I/O ni

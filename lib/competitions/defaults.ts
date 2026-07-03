@@ -63,9 +63,13 @@ export const LEGENDS_CHECKIN = {
 
 // Plan de phases par défaut pour un double élim 32 équipes sur 2 jours
 // (découpage validé de la spec §2 — « un full-winner joue 3 matchs le jour 1 »).
-// N=32 : winners WR1→WR5, losers LR1→LR8, grande finale (+ reset pré-créé).
-// Le plan reste ajustable par l'admin ; pour N < 32 le générateur de bracket
-// (Lot 2) recalera les rondes réellement existantes.
+// N=32 : winners WR1→WR5, losers LR1→LR8, grande finale + reset (P11).
+// Le rattachement se fait par NUMÉRO DE RONDE ABSOLU (generate.ts) : les
+// rondes inexistantes sont simplement ignorées. Comme les byes ne réduisent
+// PAS le nombre de rondes (size = nextPowerOfTwo(N)), ce plan est correct pour
+// tout N ∈ [17, 32] (winnersRounds = 5), le profil des Qualifs Legends. Pour
+// N ≤ 16 (size ≤ 16, moins de rondes) les libellés seraient décalés : prévoir
+// alors un plan dérivé de la taille effective. Le plan reste ajustable admin.
 export function buildLegendsPhasePlan(): PhasePlanEntry[] {
   return [
     { phase: 1, day: 1, label: 'P1 — WR1', rounds: [{ bracket: 'winners', round: 1 }] },

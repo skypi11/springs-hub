@@ -372,7 +372,10 @@ export interface CompetitionMatch {
     bSubmittedAt: Date | string | null;
     counterDeadline: Date | string | null;  // +3 min après la 1re saisie complète
     final: Array<{ a: number; b: number }> | null;
-    validatedBy: string | null;    // uid admin si force-score, 'auto' si concordance
+    /** Qui a validé le score : 'auto' (concordance) | 'admin' (force-score).
+     *  JAMAIS un uid — ce doc est en lecture PUBLIQUE (invariant §8) ;
+     *  l'identité de l'admin est tracée dans admin_audit_logs. */
+    validatedBy: 'auto' | 'admin' | null;
   };
   /** Buts marqués/encaissés — le délta seul ne suffit pas au départage (archi §2). */
   stats: {
@@ -382,14 +385,16 @@ export interface CompetitionMatch {
   forfeit: {
     team: 'a' | 'b' | 'both';
     requestedAt: Date | string;
-    validatedBy: string | null;
+    /** 'admin' (validé) — JAMAIS un uid (doc public §8, admin dans audit log). */
+    validatedBy: 'admin' | null;
     reason: string | null;
   } | null;
   dispute: {
     openedBy: 'a' | 'b' | 'admin' | 'auto';
     openedAt: Date | string;
     auto: boolean;                 // scores discordants = litige automatique
-    resolvedBy: string | null;
+    /** 'admin' — JAMAIS un uid (doc public §8, admin tracé dans audit log). */
+    resolvedBy: 'admin' | null;
     resolution: string | null;
   } | null;
   cast: { featured: boolean; streamUrl: string | null } | null;

@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   generateDoubleElim,
   advanceMatch,
+  replaceTeam,
   computePlacements,
+  computeTeamStats,
   championOf,
   isFinished,
   type Bracket,
@@ -115,7 +117,6 @@ describe('reconstructBracket', () => {
     for (let n = 4; n <= 32; n++) {
       const b = gen(n);
       const rebuilt = reconstructBracket({
-        seeding: b.teams,
         withdrawn: b.withdrawn,
         bo: LEGENDS_BO,
         forfeitScore: FORFEIT,
@@ -128,6 +129,21 @@ describe('reconstructBracket', () => {
       expect(rebuilt.losersRounds).toBe(b.losersRounds);
       expect(rebuilt.order).toEqual(b.order);
     }
+  });
+
+  it('siège vidé par replaceTeam(null) : reconstruit depuis les docs sans ressusciter l\'équipe', () => {
+    // Régression review Lot 2 : reconstructBracket dérive teams des docs, donc
+    // un siège void reste void (l'équipe retirée ne réapparaît pas).
+    const b = gen(8);
+    const vacated = b.matches['W1-2'].teamA!;
+    const mutated = replaceTeam(b, vacated, null);
+    const rebuilt = reconstructBracket({
+      withdrawn: mutated.withdrawn, bo: LEGENDS_BO, forfeitScore: FORFEIT, matches: serializeAll(mutated),
+    });
+    expect(rebuilt.teams).toEqual(mutated.teams);          // '' au siège vidé, pas l'ancienne équipe
+    expect(rebuilt.teams).not.toContain(vacated);
+    expect(computeTeamStats(rebuilt).has(vacated)).toBe(false);
+    expect(rebuilt.matches).toEqual(mutated.matches);
   });
 
   it('progression identique sur le bracket reconstruit (même champion + placements)', () => {
@@ -146,7 +162,7 @@ describe('reconstructBracket', () => {
       live = advanceMatch(live, m.id, { type: 'winner', winner, scores: scoresFor(winner, m.bo, rand) });
     }
     const rebuilt = reconstructBracket({
-      seeding: live.teams, withdrawn: live.withdrawn,
+      withdrawn: live.withdrawn,
       bo: LEGENDS_BO, forfeitScore: FORFEIT, matches: serializeAll(live),
     });
     const finishedOriginal = playOut(live, 99);
