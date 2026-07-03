@@ -80,8 +80,10 @@ export interface Bracket {
   /** Nombre de rondes losers (2·(winnersRounds − 1)). */
   losersRounds: number;
   bo: BoConfig;
-  /** Score conventionnel de forfait pour un BO5 de référence : `games` manches
-   *  `goalsPerGame`-0. Les BO7 dérivent (ceil(bo/2) manches). */
+  /** Score conventionnel de forfait : le nombre de manches est TOUJOURS dérivé
+   *  du BO du match (ceil(bo/2), soit 3 en BO5 / 4 en BO7), chaque manche
+   *  `goalsPerGame`-0. Le champ `games` vient de la config compétition (Lot 0)
+   *  et n'est pas lu par le moteur — informatif uniquement. */
   forfeitScore: { games: number; goalsPerGame: number };
   matches: Record<string, PureMatch>;
   /** Ids dans l'ordre déterministe de création (winners, losers, GF, GFR). */
@@ -107,8 +109,9 @@ export interface TeamStats {
 
 export interface Placement {
   teamId: string;
-  /** Place compressée 1→N — provisoire à l'intérieur d'un groupe non départagé. */
-  placement: number;
+  /** Place compressée 1→N — null tant que le tournoi n'est pas fini (seuls le
+   *  groupe et le flag de départage sont fiables en cours de bracket). */
+  placement: number | null;
   /** Clé du groupe d'élimination (ex. "champion", "gf_loser", "L3"). */
   group: string;
   /** Le départage intra-groupe a besoin d'un arbitrage admin. */

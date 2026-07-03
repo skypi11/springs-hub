@@ -11,4 +11,6 @@ export {
   rankWithinGroup,
   championOf,
   isFinished,
+  isConcluded,
+  needsAdminDecision,
 } from './placements';

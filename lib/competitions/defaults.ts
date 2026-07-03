@@ -78,7 +78,8 @@ export function buildLegendsPhasePlan(): PhasePlanEntry[] {
     { phase: 8, day: 2, label: 'P8 — LR7', rounds: [{ bracket: 'losers', round: 7 }] },
     { phase: 9, day: 2, label: 'P9 — Finale WB', rounds: [{ bracket: 'winners', round: 5 }] },
     { phase: 10, day: 2, label: 'P10 — Finale LB', rounds: [{ bracket: 'losers', round: 8 }] },
-    { phase: 11, day: 2, label: 'P11 — Grande finale (+ reset)', rounds: [{ bracket: 'grand_final', round: 1 }] },
+    // Le reset pré-créé est grand_final round 2 : il partage la phase de la GF.
+    { phase: 11, day: 2, label: 'P11 — Grande finale (+ reset)', rounds: [{ bracket: 'grand_final', round: 1 }, { bracket: 'grand_final', round: 2 }] },
   ];
 }
 

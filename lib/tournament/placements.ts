@@ -7,7 +7,7 @@
 // réellement compté → buts marqués → face-à-face s'il a eu lieu → arbitrage
 // admin (`needsAdminTiebreak`, flux nominal de la console — archi §3).
 
-import type { Bracket, Placement, TeamStats } from './types';
+import type { Bracket, Placement, PureMatch, TeamStats } from './types';
 
 // ── Stats ───────────────────────────────────────────────────────────────────
 
@@ -94,18 +94,29 @@ function winnersDropGroup(bracket: Bracket, round: number): { key: string; rank:
   return losersGroup(bracket, landing);
 }
 
-/** Champion du tournoi — null tant que la grande finale (et son reset le cas
- *  échéant) n'est pas résolue. */
+/**
+ * Champion du tournoi — null tant que la grande finale (et son reset le cas
+ * échéant) n'est pas résolue. JAMAIS de champion fabriqué : un match décisif
+ * en double forfait (winner=null, R5-1 : les deux éliminées) ou gagné par une
+ * équipe entre-temps RETIRÉE ne produit pas de champion — c'est une décision
+ * admin (`needsAdminDecision`).
+ */
 export function championOf(bracket: Bracket): string | null {
   const gf = bracket.matches['GF'];
   const reset = bracket.matches['GFR'];
+  const winnerOf = (m: PureMatch): string | null => {
+    if (m.forfeit === 'both' || m.winner === null) return null;
+    const w = m.winner === 'a' ? m.teamA : m.teamB;
+    if (w === null || w === '' || bracket.withdrawn.includes(w)) return null;
+    return w;
+  };
   if (reset && reset.status !== 'cancelled') {
     if (reset.status !== 'completed' && reset.status !== 'walkover') return null;
-    return reset.winner === 'a' ? reset.teamA : reset.teamB;
+    return winnerOf(reset);
   }
   if (!gf) return null;
   if (gf.status === 'completed' || gf.status === 'walkover') {
-    return gf.winner === 'a' ? gf.teamA : gf.teamB;
+    return winnerOf(gf);
   }
   return null;
 }
@@ -114,11 +125,32 @@ export function isFinished(bracket: Bracket): boolean {
   return championOf(bracket) !== null;
 }
 
-/** Match d'élimination de chaque équipe (perdre en losers, perdre la GF sans
- *  reset, perdre le reset, ou double forfait n'importe où). */
+/** Tous les matchs sont terminaux — le bracket ne peut plus évoluer seul.
+ *  Peut être vrai SANS champion (double forfait en finale, retraits en
+ *  chaîne) : la couche console doit alors escalader à l'admin. */
+export function isConcluded(bracket: Bracket): boolean {
+  return bracket.order.every(id => {
+    const m = bracket.matches[id];
+    return m.status === 'completed' || m.status === 'walkover' || m.status === 'cancelled';
+  });
+}
+
+/** Le bracket est figé mais sans champion mécanique (R5-1 en finale, double
+ *  retrait des finalistes…) : le titre est une décision admin. */
+export function needsAdminDecision(bracket: Bracket): boolean {
+  return isConcluded(bracket) && championOf(bracket) === null;
+}
+
+/** Match d'élimination de chaque équipe (perdre en losers, perdre la GF une
+ *  fois le reset réglé, perdre le reset, ou double forfait n'importe où).
+ *  INVARIANTS : une équipe apparaît dans AU PLUS un groupe ; personne n'est
+ *  classé tant qu'il est encore en course (reset pendant compris). */
 function eliminationGroups(bracket: Bracket): EliminationGroup[] {
   const groups = new Map<string, EliminationGroup>();
+  const placed = new Set<string>();
   const put = (g: { key: string; rank: number }, teamId: string) => {
+    if (!teamId || placed.has(teamId)) return; // anti-doublon dur
+    placed.add(teamId);
     let entry = groups.get(g.key);
     if (!entry) {
       entry = { key: g.key, rank: g.rank, teams: [] };
@@ -126,25 +158,34 @@ function eliminationGroups(bracket: Bracket): EliminationGroup[] {
     }
     entry.teams.push(teamId);
   };
+  const isTerminalStatus = (m: PureMatch | undefined) =>
+    !!m && (m.status === 'completed' || m.status === 'walkover' || m.status === 'cancelled');
 
   const gf = bracket.matches['GF'];
   const reset = bracket.matches['GFR'];
-  const resetPlayed = reset && reset.status !== 'cancelled' && reset.status !== 'pending';
+  // Le perdant de la GF1 n'est éliminé que quand le reset est RÉGLÉ (joué ou
+  // annulé) : entre GF1 perdue par le champion winners et le reset, il est
+  // encore en course — personne ne va en gf_loser pendant cette fenêtre.
+  const resetSettled = !reset || isTerminalStatus(reset);
+  const resetPlayed = !!reset && reset.status !== 'cancelled' && isTerminalStatus(reset);
 
   const champion = championOf(bracket);
   if (champion) put({ key: 'champion', rank: 0 }, champion);
 
-  // Vice-champion : perdant du reset s'il a eu lieu, sinon perdant de la GF.
-  const finalMatch = resetPlayed ? reset! : gf;
-  if (finalMatch && (finalMatch.status === 'completed') && finalMatch.winner && finalMatch.forfeit !== 'both') {
-    const loser = finalMatch.winner === 'a' ? finalMatch.teamB : finalMatch.teamA;
-    if (loser) put({ key: 'gf_loser', rank: 1 }, loser);
-  }
-  // GF/reset en double forfait : les deux au groupe du match (rang gf_loser).
-  for (const m of [gf, reset]) {
-    if (m && m.status === 'completed' && m.forfeit === 'both') {
-      if (m.teamA) put({ key: 'gf_loser', rank: 1 }, m.teamA);
-      if (m.teamB) put({ key: 'gf_loser', rank: 1 }, m.teamB);
+  if (resetSettled) {
+    // Vice-champion : perdant du reset s'il a eu lieu, sinon perdant de la GF.
+    const finalMatch = resetPlayed ? reset! : gf;
+    if (finalMatch && finalMatch.status === 'completed' && finalMatch.winner && finalMatch.forfeit !== 'both') {
+      const loser = finalMatch.winner === 'a' ? finalMatch.teamB : finalMatch.teamA;
+      if (loser) put({ key: 'gf_loser', rank: 1 }, loser);
+    }
+    // GF/reset en double forfait (R5-1) : pas de champion mécanique, les deux
+    // équipes au rang gf_loser — le titre devient une décision admin.
+    for (const m of [gf, reset]) {
+      if (m && m.status === 'completed' && m.forfeit === 'both') {
+        if (m.teamA) put({ key: 'gf_loser', rank: 1 }, m.teamA);
+        if (m.teamB) put({ key: 'gf_loser', rank: 1 }, m.teamB);
+      }
     }
   }
 
@@ -166,6 +207,25 @@ function eliminationGroups(bracket: Bracket): EliminationGroup[] {
       if (loser) put(losersGroup(bracket, m.round), loser);
     }
     // Une défaite en winners n'élimine pas : l'équipe descend chez les losers.
+  }
+
+  // Équipes RETIRÉES jamais passées par un match d'élimination classique
+  // (ex. retirée face à un côté void → match annulé) : placées au groupe de
+  // leur match le plus profond — R5-4, placement au groupe atteint.
+  for (const teamId of bracket.withdrawn) {
+    if (placed.has(teamId)) continue;
+    let deepest: PureMatch | null = null;
+    for (const id of bracket.order) {
+      const m = bracket.matches[id];
+      if (m.teamA === teamId || m.teamB === teamId) deepest = m;
+    }
+    if (!deepest) continue;
+    const g = deepest.bracket === 'grand_final'
+      ? { key: 'gf_loser', rank: 1 }
+      : deepest.bracket === 'winners'
+        ? winnersDropGroup(bracket, deepest.round)
+        : losersGroup(bracket, deepest.round);
+    put(g, teamId);
   }
 
   return Array.from(groups.values()).sort((x, y) => x.rank - y.rank);
@@ -242,13 +302,17 @@ export function rankWithinGroup(
 }
 
 /**
- * Placements COMPRESSÉS 1→N de toutes les équipes éliminées (+ champion).
- * Un tournoi non terminé rend les placements des équipes déjà éliminées ;
- * les équipes encore en course n'apparaissent pas.
+ * Placements COMPRESSÉS 1→N. La NUMÉROTATION n'existe que sur un tournoi FINI
+ * (champion connu) : en cours de tournoi, seuls le groupe d'élimination et le
+ * flag de départage sont rendus (`placement: null`) — numéroter des groupes
+ * partiels donnerait la place 1 au premier éliminé, et le départage
+ * intra-groupe peut encore bouger tant que le groupe se remplit. Cohérent
+ * avec l'archi §4 : la clôture n'écrit les points que sur des places uniques.
  */
 export function computePlacements(bracket: Bracket): Placement[] {
   const stats = computeTeamStats(bracket);
   const groups = eliminationGroups(bracket);
+  const finished = isFinished(bracket);
   const placements: Placement[] = [];
   let nextPlace = 1;
   for (const group of groups) {
@@ -256,7 +320,7 @@ export function computePlacements(bracket: Bracket): Placement[] {
     for (const r of ranked) {
       placements.push({
         teamId: r.teamId,
-        placement: nextPlace,
+        placement: finished ? nextPlace : null,
         group: group.key,
         needsAdminTiebreak: r.needsAdminTiebreak,
       });

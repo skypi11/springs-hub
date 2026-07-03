@@ -147,8 +147,14 @@ export function generateDoubleElim(
         sourceB = { type: 'loser_of', ref: `W1-${s * 2}` };
       } else if (isMajor) {
         const j = r / 2;
-        const reversed = j % 2 === 1; // inverse l'ordre des drops un major sur deux
-        const dropSlot = reversed ? count - s + 1 : s;
+        // Anti-rematch standard : les drops alternent inversion (majors
+        // impairs) et DEMI-DÉCALAGE (majors pairs) — l'identité renverrait le
+        // perdant de W(j+1) dans le quart exact de ses anciens adversaires
+        // (rematch de W1 possible dès L4 en bracket 32, prouvé en review).
+        const reversed = j % 2 === 1;
+        const dropSlot = reversed
+          ? count - s + 1
+          : count >= 2 ? ((s - 1 + count / 2) % count) + 1 : s;
         sourceA = { type: 'loser_of', ref: `W${j + 1}-${dropSlot}` };
         sourceB = { type: 'winner_of', ref: `L${r - 1}-${s}` };
       } else {

@@ -8,11 +8,14 @@ import {
   computeTeamStats,
   championOf,
   isFinished,
+  isConcluded,
+  needsAdminDecision,
   seedOrder,
   type Bracket,
   type BoConfig,
   type PureMatch,
 } from './index';
+import { buildLegendsPhasePlan } from '../competitions/defaults';
 
 // Config Legends (defaults.ts) : BO5, demi/finales winners+losers et GF en BO7.
 const LEGENDS_BO: BoConfig = {
@@ -403,7 +406,7 @@ describe('property : bracket joué de bout en bout', () => {
         expect(placements).toHaveLength(n);
         const teamsSeen = new Set(placements.map(p => p.teamId));
         expect(teamsSeen.size).toBe(n);
-        const places = placements.map(p => p.placement).sort((x, y) => x - y);
+        const places = placements.map(p => p.placement!).sort((x, y) => x - y);
         expect(places).toEqual(Array.from({ length: n }, (_, i) => i + 1));
 
         // Champion en tête, groupe champion unique.
@@ -429,7 +432,7 @@ describe('property : bracket joué de bout en bout', () => {
   it('groupes nominaux compressés : 20 équipes → pas de trous dans les places', () => {
     const finished = playOut(gen(20), 99);
     const placements = computePlacements(finished);
-    expect(placements.map(p => p.placement).sort((a, b) => a - b))
+    expect(placements.map(p => p.placement!).sort((a, b) => a - b))
       .toEqual(Array.from({ length: 20 }, (_, i) => i + 1));
   });
 });
@@ -486,5 +489,136 @@ describe('rankWithinGroup', () => {
     b = advanceMatch(b, 'L1-1', { type: 'winner', winner: 'a', scores: [{ a: 1, b: 0 }, { a: 0, b: 1 }, { a: 1, b: 0 }, { a: 0, b: 1 }, { a: 1, b: 0 }] });
     const placements = computePlacements(b);
     expect(placements.find(p => p.teamId === 't3')!.needsAdminTiebreak).toBe(false);
+  });
+});
+
+// ── Régressions de la review adversariale (03/07) ───────────────────────────
+
+describe('review — double forfait en finale (R5-1)', () => {
+  it('GF en double forfait : aucun champion fabriqué, pas de doublon, décision admin', () => {
+    let b = playUntilGF(genFlat(4), 30);
+    b = advanceMatch(b, 'GF', { type: 'forfeit', team: 'both' });
+    expect(championOf(b)).toBeNull();
+    expect(isFinished(b)).toBe(false);
+    expect(isConcluded(b)).toBe(true);
+    expect(needsAdminDecision(b)).toBe(true);
+    const placements = computePlacements(b);
+    expect(placements).toHaveLength(4);
+    expect(new Set(placements.map(p => p.teamId)).size).toBe(4);
+    const gfLosers = placements.filter(p => p.group === 'gf_loser');
+    expect(gfLosers.map(p => p.teamId).sort())
+      .toEqual([b.matches['GF'].teamA, b.matches['GF'].teamB].sort());
+    // Pas de numérotation sans champion.
+    expect(placements.every(p => p.placement === null)).toBe(true);
+  });
+
+  it('GFR en double forfait : le perdant de GF1 n\'est jamais couronné', () => {
+    let b = playUntilGF(genFlat(4), 31);
+    b = advanceMatch(b, 'GF', { type: 'winner', winner: 'b', scores: scoresFor('b', 5, mulberry32(32)) });
+    b = advanceMatch(b, 'GFR', { type: 'forfeit', team: 'both' });
+    expect(championOf(b)).toBeNull();
+    expect(needsAdminDecision(b)).toBe(true);
+    const placements = computePlacements(b);
+    expect(placements).toHaveLength(4);
+    expect(new Set(placements.map(p => p.teamId)).size).toBe(4);
+  });
+});
+
+describe('review — placements transitoires pendant le reset', () => {
+  it('entre GF1 perdue par le champion winners et le reset, personne n\'est gf_loser ni classé', () => {
+    let b = playUntilGF(genFlat(4), 33);
+    const gfA = b.matches['GF'].teamA!;
+    b = advanceMatch(b, 'GF', { type: 'winner', winner: 'b', scores: scoresFor('b', 5, mulberry32(34)) });
+    expect(b.matches['GFR'].status).toBe('pending');
+    const placements = computePlacements(b);
+    // Les deux finalistes sont encore en course : absents des placements.
+    expect(placements.find(p => p.teamId === gfA)).toBeUndefined();
+    expect(placements.find(p => p.group === 'gf_loser')).toBeUndefined();
+    expect(placements.find(p => p.group === 'champion')).toBeUndefined();
+    // Et rien n'est numéroté tant que le tournoi n'est pas fini.
+    expect(placements.every(p => p.placement === null)).toBe(true);
+  });
+});
+
+describe('review — retraits en finale et face à un void', () => {
+  it('retrait des DEUX finalistes : aucun champion quel que soit l\'ordre des clics', () => {
+    for (const order of [[0, 1], [1, 0]]) {
+      let b = playUntilGF(genFlat(4), 35);
+      const finalists = [b.matches['GF'].teamA!, b.matches['GF'].teamB!];
+      b = withdrawTeam(b, finalists[order[0]]);
+      b = withdrawTeam(b, finalists[order[1]]);
+      expect(championOf(b)).toBeNull();
+      expect(needsAdminDecision(b)).toBe(true);
+      const placements = computePlacements(b);
+      expect(placements).toHaveLength(4);
+      expect(new Set(placements.map(p => p.teamId)).size).toBe(4);
+    }
+  });
+
+  it('équipe retirée face à un côté void : elle n\'avance pas par walkover', () => {
+    let b = genFlat(4);
+    // W1-1 en double forfait → le slot A de L1-1 est void.
+    b = advanceMatch(b, 'W1-1', { type: 'forfeit', team: 'both' });
+    // On retire un joueur de W1-2 AVANT sa descente : la cascade R5-4 forfaite
+    // W1-2 (adversaire crédité) puis l'envoie en L1-1 face au void.
+    const leaver = b.matches['W1-2'].teamB!;
+    b = withdrawTeam(b, leaver);
+    expect(b.matches['W1-2'].status).toBe('completed');
+    expect(b.matches['W1-2'].forfeit).toBe('b');
+    // L1-1 : void vs retiré → annulé, le retiré ne remonte pas en L2-1.
+    expect(b.matches['L1-1'].status).toBe('cancelled');
+    expect(b.matches['L2-1'].teamA === leaver || b.matches['L2-1'].teamB === leaver).toBe(false);
+    // Il est bien classé (groupe L1) via la passe des retirés non placés.
+    const placements = computePlacements(b);
+    expect(placements.find(p => p.teamId === leaver)?.group).toBe('L1');
+  });
+});
+
+describe('review — gardes replaceTeam (spec §8 stricte)', () => {
+  it('refuse dès qu\'UN match du bracket est joué, même si l\'équipe n\'a pas joué', () => {
+    let b = genFlat(8);
+    b = advanceMatch(b, 'W1-1', { type: 'winner', winner: 'a', scores: [{ a: 1, b: 0 }, { a: 1, b: 0 }, { a: 1, b: 0 }] });
+    const idle = b.matches['W1-4'].teamA!; // n'a pas joué
+    expect(() => replaceTeam(b, idle, 'newcomer')).toThrow(/commencé/);
+  });
+
+  it('refuse les ids vides (siège vidé non ré-adressable, entrante invalide)', () => {
+    const b = genFlat(4);
+    const gone = b.matches['W1-1'].teamB!;
+    const vacated = replaceTeam(b, gone, null);
+    expect(() => replaceTeam(vacated, '', 'ghost')).toThrow();
+    expect(() => replaceTeam(b, b.matches['W1-1'].teamA!, '  ')).toThrow();
+  });
+});
+
+describe('review — topologie et conclusion', () => {
+  it('anti-rematch LR4 (32 équipes) : le perdant de W3-1 ne retombe pas sur son adversaire de W1', () => {
+    // Scénario prouvé en review avec les drops « identité » : t1 bat t32 en
+    // W1-1, t32 remonte L1-1→L2-1→L3-1, t1 perd W3-1 → avec le demi-décalage,
+    // le perdant de W3-1 va en L4-3, pas en L4-1.
+    const b = gen(32);
+    expect(b.matches['L4-1'].sourceA).not.toEqual({ type: 'loser_of', ref: 'W3-1' });
+    expect(b.matches['L4-3'].sourceA).toEqual({ type: 'loser_of', ref: 'W3-1' });
+  });
+
+  it('plan de phases Legends : TOUS les matchs d\'un bracket 32 ont une phase, reset compris', () => {
+    const b = generateDoubleElim(teams(32), {
+      bo: LEGENDS_BO,
+      forfeitScore: FORFEIT,
+      phasePlan: buildLegendsPhasePlan(),
+    });
+    const orphans = b.order.filter(id => b.matches[id].phase === null);
+    expect(orphans).toEqual([]);
+    expect(b.matches['GFR'].phase).toBe(11);
+  });
+
+  it('mid-tournoi : les placements ne sont jamais numérotés', () => {
+    let b = genFlat(4);
+    b = advanceMatch(b, 'W1-1', { type: 'winner', winner: 'a', scores: [{ a: 1, b: 0 }, { a: 1, b: 0 }, { a: 1, b: 0 }] });
+    b = advanceMatch(b, 'W1-2', { type: 'winner', winner: 'a', scores: [{ a: 1, b: 0 }, { a: 1, b: 0 }, { a: 1, b: 0 }] });
+    b = advanceMatch(b, 'L1-1', { type: 'winner', winner: 'a', scores: [{ a: 1, b: 0 }, { a: 1, b: 0 }, { a: 1, b: 0 }] });
+    const placements = computePlacements(b);
+    expect(placements.length).toBeGreaterThan(0);
+    expect(placements.every(p => p.placement === null)).toBe(true);
   });
 });

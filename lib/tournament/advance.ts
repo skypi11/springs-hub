@@ -112,6 +112,15 @@ function tryResolve(bracket: Bracket, matchId: string): void {
     return;
   }
   if (m.voidA || m.voidB) {
+    // Une équipe RETIRÉE ne gagne jamais, même face à un côté void : le match
+    // est annulé (elle est éliminée ici — R5-4, placement au groupe atteint)
+    // et le void se propage en aval.
+    const present = m.voidA ? m.teamB : m.teamA;
+    if (present && bracket.withdrawn.includes(present)) {
+      m.status = 'cancelled';
+      propagate(bracket, m.id);
+      return;
+    }
     // Walkover : pas un match joué — aucun score conventionnel, aucune stat
     // (le délta est normalisé par match réellement joué, archi §3).
     m.status = 'walkover';
@@ -263,17 +272,21 @@ export function withdrawTeam(bracket: Bracket, teamId: string): Bracket {
  * conventionnel (sinon iniquité au départage, archi §3).
  */
 export function replaceTeam(bracket: Bracket, oldTeamId: string, newTeamId: string | null): Bracket {
+  // Gardes d'entrée : un siège vidé ('') n'est pas ré-adressable, un id vide
+  // ne peut pas entrer dans le bracket.
+  if (!oldTeamId) throw new Error('Équipe sortante requise (un siège vidé ne se remplace pas).');
+  if (newTeamId !== null && !newTeamId.trim()) throw new Error('Équipe entrante invalide.');
   const seatIndex = bracket.teams.indexOf(oldTeamId);
   if (seatIndex === -1) throw new Error(`Équipe inconnue : ${oldTeamId}.`);
   if (newTeamId !== null && bracket.teams.includes(newTeamId)) {
     throw new Error(`${newTeamId} est déjà dans le bracket.`);
   }
-  const played = bracket.order.some(id => {
-    const m = bracket.matches[id];
-    return m.status === 'completed' && (m.teamA === oldTeamId || m.teamB === oldTeamId);
-  });
-  if (played) {
-    throw new Error(`${oldTeamId} a déjà joué : remplacement impossible (utiliser withdrawTeam).`);
+  // Spec §8 : promotion waitlist AVANT le round 1 uniquement — dès qu'UN match
+  // du bracket est joué (completed, les walkovers de bye ne comptent pas), le
+  // tournoi a commencé et tout remplacement passe par withdrawTeam.
+  const anyPlayed = bracket.order.some(id => bracket.matches[id].status === 'completed');
+  if (anyPlayed) {
+    throw new Error('Le tournoi a commencé : remplacement impossible (utiliser withdrawTeam).');
   }
 
   const next = clone(bracket);
