@@ -109,19 +109,33 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           subIds: (d.data().subIds as string[]) ?? [],
         }));
 
-      // Membres enrichis (une passe, sans doublon)
+      // Membres enrichis (une passe, sans doublon). `ageStatus` prévient le
+      // dirigeant AVANT la soumission qu'une dérogation sera demandée (mineur
+      // ou âge non renseigné) — l'âge exact et la date ne sortent jamais ici.
       const memberIds = Array.from(new Set(teams.flatMap(t => [...t.playerIds, ...t.subIds])));
-      const memberDocs = await Promise.all(memberIds.map(mid => db.collection('users').doc(mid).get()));
-      const members: Record<string, { displayName: string; verified: boolean; avatarUrl: string }> = {};
-      for (const m of memberDocs) {
-        if (!m.exists) continue;
+      const minAgeRule = (comp.eligibility?.minAge as number | undefined) ?? null;
+      const [memberDocs, memberSecrets] = await Promise.all([
+        Promise.all(memberIds.map(mid => db.collection('users').doc(mid).get())),
+        minAgeRule !== null
+          ? Promise.all(memberIds.map(mid => db.collection('user_secrets').doc(mid).get()))
+          : Promise.resolve([] as FirebaseFirestore.DocumentSnapshot[]),
+      ]);
+      const members: Record<string, { displayName: string; verified: boolean; avatarUrl: string; ageStatus: 'ok' | 'under' | 'unknown' }> = {};
+      memberDocs.forEach((m, i) => {
+        if (!m.exists) return;
         const u = m.data()!;
+        let ageStatus: 'ok' | 'under' | 'unknown' = 'ok';
+        if (minAgeRule !== null) {
+          const age = computeAge((memberSecrets[i]?.data()?.dateOfBirth as string | undefined) ?? '');
+          ageStatus = age === null ? 'unknown' : age < minAgeRule ? 'under' : 'ok';
+        }
         members[m.id] = {
           displayName: (u.displayName as string) || (u.discordUsername as string) || m.id,
           verified: !!u.rlEpicId || !!u.rlSteamId,
           avatarUrl: (u.avatarUrl as string) || (u.discordAvatar as string) || '',
+          ageStatus,
         };
-      }
+      });
 
       return {
         id: sid,

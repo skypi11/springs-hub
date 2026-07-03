@@ -36,7 +36,7 @@ interface WizardContext {
     tag: string;
     logoUrl: string | null;
     teams: Array<{ id: string; name: string; playerIds: string[]; subIds: string[] }>;
-    members: Record<string, { displayName: string; verified: boolean; avatarUrl: string }>;
+    members: Record<string, { displayName: string; verified: boolean; avatarUrl: string; ageStatus: 'ok' | 'under' | 'unknown' }>;
   }>;
   existingRegistrations: Array<{ teamId: string; status: string; name: string }>;
   rulebook: { version: number; markdown: string } | null;
@@ -422,6 +422,16 @@ export default function InscriptionPage() {
                         <ShieldCheck size={14} style={{ color: '#33ff66', flexShrink: 0 }} aria-label="Compte vérifié" />
                       ) : (
                         <ShieldAlert size={14} style={{ color: 'var(--s-gold)', flexShrink: 0 }} aria-label="Compte non vérifié" />
+                      )}
+                      {/* Âge : informatif, jamais bloquant — la dérogation se
+                          joue à la validation (spec §4). */}
+                      {m.ageStatus !== 'ok' && (
+                        <span className="flex items-center gap-1 text-xs flex-shrink-0" style={{ color: 'var(--s-gold)' }}>
+                          <ShieldAlert size={13} aria-hidden />
+                          {m.ageStatus === 'under'
+                            ? 'Mineur — dérogation demandée à la validation'
+                            : 'Âge non renseigné — dérogation demandée à la validation'}
+                        </span>
                       )}
                     </span>
                     {blocked ? (
