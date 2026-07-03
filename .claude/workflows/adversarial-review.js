@@ -1,34 +1,38 @@
 export const meta = {
   name: 'adversarial-review',
-  description: 'Review adversariale multi-agents : N lentilles spécialisées, chaque finding contre-vérifié par des réfuteurs indépendants',
-  whenToUse: 'Après avoir construit un composant substantiel (lot, module, lib critique) et AVANT de le considérer fini. Args : { context, dimensions, budget? ("eco"|"normal"|"critique"), proofTests? }',
+  description: 'TEMPLATE de review adversariale multi-agents : N lentilles spécialisées, chaque finding contre-vérifié par des réfuteurs indépendants',
   phases: [
     { title: 'Review', detail: 'lentilles spécialisées en parallèle' },
     { title: 'Verify', detail: 'réfutation indépendante de chaque finding' },
   ],
 }
 
-// ── Paramètres ───────────────────────────────────────────────────────────────
-// args.context     : string — contexte commun injecté dans chaque lentille
-//                    (fichiers à auditer, docs sources de vérité à lire,
-//                    décisions métier déjà tranchées à NE PAS re-débattre).
-// args.dimensions  : Array<{ key: string, prompt: string }> — les lentilles.
-//                    Chaque prompt doit finir par « Rends UNIQUEMENT des
-//                    défauts concrets avec le scénario exact ».
-// args.budget      : 'eco' (1 réfuteur, effort medium) | 'normal' (2 réfuteurs,
-//                    effort high — défaut) | 'critique' (2 réfuteurs effort
-//                    high + preuve par test exigée).
-// args.proofTests  : true → les réfuteurs doivent PROUVER le bug en écrivant
-//                    un test exécuté puis supprimé (défaut si budget=critique).
+// ── COMMENT UTILISER CE TEMPLATE ─────────────────────────────────────────────
+// Le passage d'`args` à un workflow NOMMÉ n'est pas fiable dans ce runtime, et
+// les lentilles d'une review sont TOUJOURS spécifiques au composant audité.
+// Donc : COPIER ce script dans un Workflow({ script }) inline, et remplir les
+// 3 zones ci-dessous. C'est le pattern éprouvé (reviews Lots 0-2).
+//
+// À REMPLIR :
+//   CONTEXT    : fichiers à auditer + docs sources de vérité + décisions métier
+//                déjà tranchées à NE PAS re-débattre.
+//   DIMENSIONS : 3 à 5 lentilles { key, prompt } d'experts spécialisés. Chaque
+//                prompt finit par « Rends UNIQUEMENT des défauts concrets avec
+//                le scénario exact ».
+//   budget     : 'eco' (1 réfuteur, medium) | 'normal' (2 réfuteurs, high) |
+//                'critique' (2 réfuteurs high + preuve par test exigée).
 
-if (!args || !args.context || !Array.isArray(args.dimensions) || args.dimensions.length === 0) {
-  throw new Error('args requis : { context: string, dimensions: [{key, prompt}], budget?, proofTests? }')
-}
+const CONTEXT = `<< à remplir : fichiers, docs sources, décisions tranchées >>`
+const DIMENSIONS = [
+  // { key: 'transactions', prompt: `Tu es ... Rends UNIQUEMENT des défauts concrets avec scénario.` },
+]
+const budget = 'normal' // 'eco' | 'normal' | 'critique'
 
-const budget = args.budget ?? 'normal'
 const refuterCount = budget === 'eco' ? 1 : 2
 const refuterEffort = budget === 'eco' ? 'medium' : 'high'
-const proofTests = args.proofTests ?? (budget === 'critique')
+const proofTests = budget === 'critique'
+
+if (DIMENSIONS.length === 0) throw new Error('Remplis CONTEXT et DIMENSIONS avant de lancer.')
 
 const FINDINGS_SCHEMA = {
   type: 'object',
@@ -69,9 +73,9 @@ const ANGLES = [
 ]
 
 const results = await pipeline(
-  args.dimensions,
+  DIMENSIONS,
   d => agent(
-    `${d.prompt}\n\nContexte commun :\n${args.context}\n\nRéponds via StructuredOutput.`,
+    `${d.prompt}\n\nContexte commun :\n${CONTEXT}\n\nRéponds via StructuredOutput.`,
     { label: `review:${d.key}`, phase: 'Review', schema: FINDINGS_SCHEMA, effort: 'high' },
   ),
   (review, dim) => {
@@ -83,7 +87,7 @@ const results = await pipeline(
           `Finding à RÉFUTER si possible (dimension ${dim.key}) :\n` +
           `Titre : ${f.title}\nFichier : ${f.file}${f.line ? ':' + f.line : ''}\nSévérité annoncée : ${f.severity}\n` +
           `Description : ${f.description}\nSuggestion : ${f.suggestion ?? '—'}\n\n` +
-          `Contexte du projet :\n${args.context}\n\n` +
+          `Contexte du projet :\n${CONTEXT}\n\n` +
           `Si le finding est faux, exagéré, contraire à une décision métier déjà validée, ou déjà couvert ailleurs → refuted=true avec la preuve. ` +
           `En cas de doute réel sur un blocker/major, refuted=false.`,
           { label: `verify:${dim.key}:${f.title.slice(0, 28)}`, phase: 'Verify', schema: VERDICT_SCHEMA, effort: refuterEffort },

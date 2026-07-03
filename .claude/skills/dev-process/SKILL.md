@@ -71,16 +71,22 @@ Quand : composant critique (moteur, transactions, argent, données de
 mineurs), fin de lot, ou > ~500 lignes de logique nouvelle. Pas pour un fix
 de copy ou un composant d'affichage trivial.
 
-Comment : `Workflow({ name: 'adversarial-review', args: { context, dimensions, budget } })`
-— le workflow versionné dans `.claude/workflows/adversarial-review.js`.
-- `context` : fichiers à auditer + docs sources + décisions métier déjà
+Comment : COPIER le template `.claude/workflows/adversarial-review.js` dans un
+`Workflow({ script })` inline et remplir `CONTEXT`, `DIMENSIONS`, `budget`.
+(Le passage d'`args` à un workflow NOMMÉ n'est pas fiable dans ce runtime, et
+les lentilles sont de toute façon toujours spécifiques au composant — on
+inline.)
+- `CONTEXT` : fichiers à auditer + docs sources + décisions métier déjà
   tranchées (à ne pas re-débattre).
-- `dimensions` : 3 à 5 lentilles SPÉCIALISÉES (ex. transactions/concurrence,
+- `DIMENSIONS` : 3 à 5 lentilles SPÉCIALISÉES (ex. transactions/concurrence,
   sécurité/fuites, conformité spec, robustesse, UX/DA). Une lentille = un
   prompt d'expert qui ne rend QUE des défauts concrets avec scénario.
 - `budget` : `eco` (chantier moyen), `normal` (fin de lot), `critique`
   (composant qui n'a pas le droit d'être faux — les réfuteurs doivent
   PROUVER les bugs par des tests exécutés).
+- Structure prouvée (Lots 0-2) : `pipeline(DIMENSIONS, lentille→findings,
+  findings→parallel(réfuteurs))`, un finding ne SURVIT que si au moins un
+  réfuteur ne le réfute pas (le doute profite au finding).
 
 Traitement des résultats — posture senior obligatoire :
 - Un finding « survivant » n'est pas automatiquement vrai : relire, trier,
