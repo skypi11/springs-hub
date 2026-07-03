@@ -15,6 +15,7 @@ import { Trophy, Plus, Pencil, Trash2, UserMinus } from 'lucide-react';
 import GameTag from '@/components/games/GameTag';
 import CircuitForm from '@/components/admin/competitions/CircuitForm';
 import CompetitionForm from '@/components/admin/competitions/CompetitionForm';
+import BansPanel, { type CompetitionBanRow } from '@/components/admin/competitions/BansPanel';
 import type { AdminCircuit, AdminCompetition, CompetitionAdminEntry } from '@/components/admin/competitions/types';
 
 type View =
@@ -41,13 +42,17 @@ function formatDate(iso: string | null): string {
 }
 
 export default function AdminCompetitionsPage() {
-  const { firebaseUser, isAdmin } = useAuth();
+  // isAdmin = admin Aedral complet (config des compétitions). Un admin de
+  // compétition (rôle scopé) voit les listes + gère le registre des bans,
+  // mais pas la création/édition ni la nomination d'admins (spec §6).
+  const { firebaseUser, isAdmin, isCompetitionAdmin } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
 
   const [circuits, setCircuits] = useState<AdminCircuit[]>([]);
   const [competitions, setCompetitions] = useState<AdminCompetition[]>([]);
   const [compAdmins, setCompAdmins] = useState<CompetitionAdminEntry[]>([]);
+  const [bans, setBans] = useState<CompetitionBanRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<View>({ kind: 'list' });
 
@@ -61,13 +66,19 @@ export default function AdminCompetitionsPage() {
     if (!firebaseUser) return;
     setLoading(true);
     try {
-      const [circuitsData, compsData, adminsData] = await Promise.all([
+      const [circuitsData, compsData, bansData, adminsData] = await Promise.all([
         api<{ circuits: AdminCircuit[] }>('/api/admin/circuits'),
         api<{ competitions: AdminCompetition[] }>('/api/admin/competitions'),
-        api<{ admins: CompetitionAdminEntry[] }>('/api/admin/competition-admins'),
+        api<{ bans: CompetitionBanRow[] }>('/api/admin/competition-bans'),
+        // Nomination réservée aux admins Aedral : la route 403 un admin compét,
+        // on ne l'appelle pas pour lui.
+        isAdmin
+          ? api<{ admins: CompetitionAdminEntry[] }>('/api/admin/competition-admins')
+          : Promise.resolve({ admins: [] as CompetitionAdminEntry[] }),
       ]);
       setCircuits(circuitsData.circuits ?? []);
       setCompetitions(compsData.competitions ?? []);
+      setBans(bansData.bans ?? []);
       setCompAdmins(adminsData.admins ?? []);
     } catch (err) {
       console.error('[admin/competitions] load', err);
@@ -77,9 +88,9 @@ export default function AdminCompetitionsPage() {
   }
 
   useEffect(() => {
-    if (firebaseUser && isAdmin) load();
+    if (firebaseUser && (isAdmin || isCompetitionAdmin)) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firebaseUser, isAdmin]);
+  }, [firebaseUser, isAdmin, isCompetitionAdmin]);
 
   const circuitNames = useMemo(() => {
     const map: Record<string, string> = {};
@@ -209,13 +220,15 @@ export default function AdminCompetitionsPage() {
       <div className="panel bevel">
         <div className="panel-header flex items-center justify-between">
           <span className="t-sub">Circuits ({circuits.length})</span>
-          <button
-            type="button"
-            className="btn-springs btn-secondary bevel-sm text-sm flex items-center gap-1.5"
-            onClick={() => setView({ kind: 'circuit-form', circuit: null })}
-          >
-            <Plus size={14} /> Nouveau circuit
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              className="btn-springs btn-secondary bevel-sm text-sm flex items-center gap-1.5"
+              onClick={() => setView({ kind: 'circuit-form', circuit: null })}
+            >
+              <Plus size={14} /> Nouveau circuit
+            </button>
+          )}
         </div>
         <div className="panel-body p-0">
           {circuits.length === 0 ? (
@@ -237,15 +250,19 @@ export default function AdminCompetitionsPage() {
                 Top {c.lanTeamCount} · best {c.bestResultsCount}
               </span>
               <span className="tag tag-neutral">{STATUS_LABELS[c.status] ?? c.status}</span>
-              <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
-                onClick={() => setView({ kind: 'circuit-form', circuit: c })}>
-                <Pencil size={13} /> Éditer
-              </button>
-              <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
-                style={{ color: '#ff8a8a' }}
-                onClick={() => deleteCircuit(c)}>
-                <Trash2 size={13} />
-              </button>
+              {isAdmin && (
+                <>
+                  <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
+                    onClick={() => setView({ kind: 'circuit-form', circuit: c })}>
+                    <Pencil size={13} /> Éditer
+                  </button>
+                  <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
+                    style={{ color: '#ff8a8a' }}
+                    onClick={() => deleteCircuit(c)}>
+                    <Trash2 size={13} />
+                  </button>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -255,13 +272,15 @@ export default function AdminCompetitionsPage() {
       <div className="panel bevel">
         <div className="panel-header flex items-center justify-between">
           <span className="t-sub">Compétitions ({competitions.length})</span>
-          <button
-            type="button"
-            className="btn-springs btn-primary bevel-sm text-sm flex items-center gap-1.5"
-            onClick={() => setView({ kind: 'competition-form', competition: null })}
-          >
-            <Plus size={14} /> Nouvelle compétition
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              className="btn-springs btn-primary bevel-sm text-sm flex items-center gap-1.5"
+              onClick={() => setView({ kind: 'competition-form', competition: null })}
+            >
+              <Plus size={14} /> Nouvelle compétition
+            </button>
+          )}
         </div>
         <div className="panel-body p-0">
           {competitions.length === 0 ? (
@@ -284,21 +303,29 @@ export default function AdminCompetitionsPage() {
                 </p>
               </div>
               <span className="tag tag-neutral">{STATUS_LABELS[c.status] ?? c.status}</span>
-              <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
-                onClick={() => setView({ kind: 'competition-form', competition: c })}>
-                <Pencil size={13} /> Éditer
-              </button>
-              <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
-                style={{ color: '#ff8a8a' }}
-                onClick={() => deleteCompetition(c)}>
-                <Trash2 size={13} />
-              </button>
+              {isAdmin && (
+                <>
+                  <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
+                    onClick={() => setView({ kind: 'competition-form', competition: c })}>
+                    <Pencil size={13} /> Éditer
+                  </button>
+                  <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
+                    style={{ color: '#ff8a8a' }}
+                    onClick={() => deleteCompetition(c)}>
+                    <Trash2 size={13} />
+                  </button>
+                </>
+              )}
             </div>
           ))}
         </div>
       </div>
 
-      {/* Admins de compétition */}
+      {/* Registre des bans — géré par les admins de compétition (rôle scopé inclus) */}
+      <BansPanel bans={bans} onChanged={load} />
+
+      {/* Admins de compétition — nomination réservée aux admins Aedral */}
+      {isAdmin && (
       <div className="panel bevel">
         <div className="panel-header">
           <span className="t-sub">Admins de compétition ({compAdmins.length})</span>
@@ -371,6 +398,7 @@ export default function AdminCompetitionsPage() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

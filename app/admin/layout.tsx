@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Shield, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -25,18 +25,30 @@ type DashboardBadges = {
 };
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { isAdmin, loading: authLoading, firebaseUser } = useAuth();
+  const { isAdmin, isCompetitionAdmin, loading: authLoading, firebaseUser } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+
+  // Un admin de compétition (rôle scopé, spec Legends §6) n'a accès QU'À
+  // /admin/competitions — le reste du panel lui est fermé, et les routes API
+  // le re-vérifient de toute façon côté serveur.
+  const compAdminOnly = !isAdmin && isCompetitionAdmin;
+  const allowed = isAdmin || isCompetitionAdmin;
 
   useEffect(() => {
     if (authLoading) return;
-    if (!firebaseUser || !isAdmin) {
+    if (!firebaseUser || !allowed) {
       router.replace('/');
+      return;
     }
-  }, [authLoading, isAdmin, firebaseUser, router]);
+    if (compAdminOnly && !pathname.startsWith('/admin/competitions')) {
+      router.replace('/admin/competitions');
+    }
+  }, [authLoading, allowed, compAdminOnly, firebaseUser, router, pathname]);
 
   // Même queryKey que le dashboard → React Query déduplique le fetch et les
   // badges se rafraîchissent quand l'admin clique "marquer comme vu".
+  // Dashboard réservé aux admins complets (la route 403 un admin compét).
   const { data } = useQuery({
     queryKey: ['admin', 'dashboard'] as const,
     queryFn: () => api<DashboardBadges>('/api/admin/dashboard'),
@@ -67,8 +79,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  if (!firebaseUser || !isAdmin) {
+  if (!firebaseUser || !allowed) {
     // Le useEffect redirige, on évite juste un flash de contenu
+    return null;
+  }
+  if (compAdminOnly && !pathname.startsWith('/admin/competitions')) {
     return null;
   }
 
@@ -96,7 +111,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 PANEL ADMIN
               </h1>
               <p className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                Accès complet aux outils de gestion Aedral
+                {compAdminOnly
+                  ? 'Gestion des compétitions (validation, litiges, bans)'
+                  : 'Accès complet aux outils de gestion Aedral'}
               </p>
             </div>
           </div>
@@ -104,7 +121,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Layout 2 colonnes : sous-nav gauche + contenu droite */}
         <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6 animate-fade-in-d1">
-          <AdminSidebar badges={badges} />
+          <AdminSidebar badges={badges} competitionsOnly={compAdminOnly} />
           <div className="min-w-0 space-y-6">{children}</div>
         </div>
       </div>

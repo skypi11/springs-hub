@@ -22,6 +22,9 @@ type Props = {
   // Compteurs par href : demandes à traiter ou nouveautés depuis la dernière
   // visite. Le dashboard les calcule, le layout les passe ici.
   badges?: Record<string, number>;
+  // Admin de compétition (rôle scopé, spec Legends §6) : seule l'entrée
+  // Compétitions est visible — aucun accès au reste du panel.
+  competitionsOnly?: boolean;
 };
 
 const ITEMS: NavItem[] = [
@@ -46,8 +49,11 @@ const ITEMS: NavItem[] = [
   { href: '/admin/dev', icon: Wrench, label: 'Outils dev', description: 'Diagnostics, env, crons' },
 ];
 
-export default function AdminSidebar({ badges = {} }: Props) {
+export default function AdminSidebar({ badges = {}, competitionsOnly = false }: Props) {
   const pathname = usePathname();
+  const items = competitionsOnly
+    ? ITEMS.filter(it => it.href === '/admin/competitions')
+    : ITEMS;
   // Collapse mobile : sidebar pliée par défaut en <lg pour ne pas occuper 16
   // lignes verticales au-dessus du contenu. Toggle via le header "Panel admin".
   // En lg+, la sidebar reste toujours déployée (le toggle est invisible).
@@ -62,7 +68,7 @@ export default function AdminSidebar({ badges = {} }: Props) {
 
   // Label de la page courante affiché à côté du bouton "Panel admin" en mobile,
   // pour donner du contexte ("Panel admin · Utilisateurs") sans déployer.
-  const currentItem = ITEMS.find(it => it.href === '/admin'
+  const currentItem = items.find(it => it.href === '/admin'
     ? pathname === '/admin'
     : pathname === it.href || pathname.startsWith(it.href + '/'));
 
@@ -104,7 +110,7 @@ export default function AdminSidebar({ badges = {} }: Props) {
           </button>
           {/* Items : toujours visibles en lg, conditionnels en mobile selon openMobile */}
           <div className={openMobile ? 'block' : 'hidden lg:block'}>
-          {ITEMS.map((item) => {
+          {items.map((item) => {
             const Icon = item.icon;
             const active = item.href === '/admin'
               ? pathname === '/admin'
