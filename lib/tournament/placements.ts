@@ -7,7 +7,7 @@
 // réellement compté → buts marqués → face-à-face s'il a eu lieu → arbitrage
 // admin (`needsAdminTiebreak`, flux nominal de la console — archi §3).
 
-import type { Bracket, Placement, PureMatch, TeamStats } from './types';
+import type { Bracket, Placement, TeamStats } from './types';
 
 // ── Stats ───────────────────────────────────────────────────────────────────
 
