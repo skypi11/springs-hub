@@ -34,6 +34,9 @@ export interface Circuit {
   lanTeamCount: number;            // 16 : cutline LAN
   /** Ordre des clés de départage cutline (spec §11). */
   tieBreakers: CircuitTieBreaker[];
+  /** Rôle Discord « Participant » commun aux compétitions du circuit (spec §7),
+   *  créé au premier provisioning — réutilisé uniquement sur le même serveur. */
+  discord?: { guildId: string; participantRoleId: string } | null;
   status: CircuitStatus;
   createdAt: Date | string;
   // PAS de createdBy : doc à lecture publique, aucun uid/snowflake n'y a sa
@@ -67,6 +70,27 @@ export interface CircuitParticipation {
   goalsFor: number;                // buts marqués — tiebreak circuit auditables
 }
 
+/**
+ * Sous-collection privée `circuit_teams/{id}/private/state` — DENY-ALL
+ * (uids/snowflakes interdits dans le doc public). Alimentée à chaque
+ * approbation d'inscription, PAS à la clôture : les inscriptions du Qualif
+ * N+1 ouvrent pendant le Qualif N (J-14), la résolution d'identité noyau 2/3
+ * doit donc lire les rosters approuvés, pas les participations closes.
+ */
+export interface CircuitTeamPrivateState {
+  /** Réservation par compétition : max 1 inscription rattachée (archi §2). */
+  claims: Record<string, string>;  // competitionId → registrationId
+  /** Roster approuvé par compétition — la « précédente participation » de la
+   *  règle noyau = l'entrée de la compétition la plus récente dans l'ordre de
+   *  circuit.competitionIds. Map (pas array) : idempotent au re-approve. */
+  rosterByCompetition: Record<string, {
+    registrationId: string;
+    rosterUids: string[];
+    starterUids: string[];
+    approvedAt: Date | string;
+  }>;
+}
+
 // ── Compétitions ────────────────────────────────────────────────────────────
 
 /** Collection `competitions` — lecture publique. */
@@ -86,10 +110,22 @@ export interface Competition {
   schedule: CompetitionSchedule;
   discord: {
     guildId: string;               // serveur SPRINGS E-SPORT
-    participantRoleId: string | null;  // rôle « Participant Legend » (créé au provisioning)
+    /** Rôle « Participant » — commun au CIRCUIT quand la compétition en a un
+     *  (spec §7), l'ID vit alors aussi sur circuits/{id}.discord. */
+    participantRoleId: string | null;
     categoryId: string | null;         // catégorie des salons d'équipe
+    /** Verrou anti-concurrence du provisioning (bail à expiration). */
+    provisioningLockedUntil?: Date | string | null;
   } | null;
   status: CompetitionStatus;
+  /**
+   * Compteur dénormalisé d'inscriptions `approved` — maintenu EXCLUSIVEMENT
+   * par les transitions de statut de la file de validation (transaction), pour
+   * décider cap → approved | waitlisted sans query en transaction (piège
+   * Firestore documenté). Public (affiché « 12/32 équipes »), pas une donnée
+   * personnelle. Absent = 0.
+   */
+  approvedCount?: number;
   createdAt: Date | string;
   // PAS de createdBy : doc public, uid/snowflake interdits (archi §8) —
   // l'auteur est tracé dans admin_audit_logs.
@@ -196,6 +232,9 @@ export interface CompetitionRegistration {
     derogations: Array<{ uid: string; note: string }>;
   } | null;
   rulebookAccepted: { version: number; at: Date | string; byUid: string } | null;
+  /** L'inscripteur était-il sur le serveur Discord de la compétition à la
+   *  soumission (spec §7) — null si serveur non configuré / indéterminé. */
+  createdByOnDiscordGuild?: boolean | null;
   /** Check-in général 14h30 (jour de match) — null tant que non ouvert. */
   generalCheckin: { done: boolean; byUid: string | null; at: Date | string | null } | null;
   /** Provisioning Discord découplé de l'approbation (archi §6), reprise idempotente. */
@@ -204,6 +243,10 @@ export interface CompetitionRegistration {
     roleId: string | null;
     textChannelId: string | null;
     voiceChannelId: string | null;
+    /** Avertissements non bloquants du dernier passage (joueur absent du serveur…). */
+    warnings?: string[];
+    /** Message de la dernière erreur bloquante (statut `error`). */
+    errorMessage?: string | null;
   };
   seed: number | null;
   createdBy: string;
@@ -227,12 +270,13 @@ export type RegistrationFlag =
   | 'mmr_gap_exceeded'        // une compo alignable dépasse l'écart max
   | 'mmr_player_cap_exceeded' // un joueur dépasse le plafond individuel
   | 'underage'                // joueur sous l'âge minimum → dérogation requise
-  | 'unverified_account'      // compte non vérifié dans le roster
+  | 'unverified_account'      // legacy — les comptes non vérifiés sont désormais REFUSÉS à la soumission (spec §3)
   | 'banned_player'           // joueur au registre des bans → refus auto + motif
   | 'banned_structure'        // structure au registre des bans
   | 'smurf_reports'           // signalements smurf existants (agrégat)
   | 'identity_conflict'       // rattachement circuit ambigu → arbitrage admin
-  | 'name_mismatch';          // nom du snapshot ≠ nom du circuit_team
+  | 'name_mismatch'           // nom du snapshot ≠ nom du circuit_team
+  | 'discord_guild_missing';  // joueur (ou inscripteur) absent du serveur Discord de la compétition
 
 export interface RegistrationRosterEntry {
   uid: string;
@@ -243,12 +287,19 @@ export interface RegistrationRosterEntry {
   /** MMR de référence calculé serveur : weightCurrent × actuel + reste × peak. */
   refMmr: number;
   epicId: string | null;
+  /** Pseudo Epic au moment de l'inscription (lisible, l'epicId est un GUID). */
+  epicName: string | null;
   steamId: string | null;
   trackerUrl: string | null;
   discordId: string;
+  /** Username Discord au moment de l'inscription (lisible console admin). */
+  discordUsername: string | null;
   country: string | null;
   age: number | null;              // calculé serveur depuis user_secrets, dénormalisé ici
   verified: boolean;
+  /** Présence sur le serveur Discord de la compétition, vérifiée par le bot à
+   *  la soumission (spec §7) — null si le serveur n'était pas configuré. */
+  onDiscordGuild: boolean | null;
 }
 
 // ── Matchs ──────────────────────────────────────────────────────────────────

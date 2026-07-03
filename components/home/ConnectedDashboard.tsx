@@ -18,6 +18,7 @@ import { api } from '@/lib/api-client';
 import { normalizeEventType } from '@/lib/event-permissions';
 import DiscordIcon, { AEDRAL_DISCORD_INVITE_URL } from '@/components/icons/DiscordIcon';
 import VerifyAccountNudge from '@/components/verification/VerifyAccountNudge';
+import CompetitionRegistrationBanner from '@/components/home/CompetitionRegistrationBanner';
 import type { SpringsUser } from '@/types';
 
 type MyEvent = {
@@ -173,6 +174,10 @@ export default function ConnectedDashboard({ user }: { user: SpringsUser }) {
 
       {/* Nudge de vérification de compte (se masque seul si tout est vérifié) */}
       <VerifyAccountNudge />
+
+      {/* Inscriptions de compétition ouvertes (spec Legends §15.5) — se masque
+          seule hors fenêtre ; montre aussi les brouillons aux testeurs. */}
+      <CompetitionRegistrationBanner />
 
       {/* Layout asymétrique 2/3-1/3 : le prochain event domine (info n°1 du
           joueur), exercices + structure en colonne compacte à droite. Le chrome

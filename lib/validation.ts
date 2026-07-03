@@ -37,4 +37,7 @@ export const LIMITS = {
   displayName: 32,
   competitionName: 80,
   circuitName: 80,
+  // Règlement de compétition complet (règles sportives + code de conduite +
+  // cadre légal) : long par nature.
+  rulebookMarkdown: 120000,
 };

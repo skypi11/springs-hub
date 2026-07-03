@@ -18,6 +18,11 @@ pas comme un SaaS généré. Chaque texte et chaque écran passent ce filtre.
   amicale » → « scrim »).
 - **Parler joueur, pas plateforme** : « Ton rang est synchronisé » et non
   « La plateforme synchronise automatiquement votre rang ».
+- **Des faits, jamais d'avis sur l'utilisateur** (retour Matt 03/07) : le site
+  ne juge pas ce que fait un joueur ou un manager, il énonce des données.
+  « Pire compo alignable » → « Compositions possibles : moyenne la plus
+  haute X (limite Y) ». Un dépassement se constate (« sera examiné par les
+  admins »), il ne se reproche pas.
 
 ## Interdits copy (les tics qui « puent l'IA »)
 

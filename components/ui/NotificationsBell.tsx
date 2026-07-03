@@ -47,6 +47,7 @@ function iconFor(type: string) {
     case 'invitation': return { Icon: UserPlus, color: 'var(--s-gold)' };
     case 'new_event': return { Icon: Calendar, color: 'var(--s-blue)' };
     case 'new_competition': return { Icon: Trophy, color: 'var(--s-gold)' };
+    case 'competition_registration': return { Icon: Trophy, color: 'var(--s-gold)' };
     default: return { Icon: Bell, color: 'var(--s-text-dim)' };
   }
 }

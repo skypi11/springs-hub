@@ -17,9 +17,10 @@ export async function GET(req: NextRequest) {
     const uid = decoded.uid;
 
     const db = getAdminDb();
-    const [userSnap, adminSnap, founderSnap, coFounderSnap] = await Promise.all([
+    const [userSnap, adminSnap, compAdminSnap, founderSnap, coFounderSnap] = await Promise.all([
       db.collection('users').doc(uid).get(),
       db.collection('aedral_admins').doc(uid).get(),
+      db.collection('competition_admins').doc(uid).get(),
       db.collection('structures').where('founderId', '==', uid).limit(1).get(),
       db.collection('structures').where('coFounderIds', 'array-contains', uid).limit(1).get(),
     ]);
@@ -39,6 +40,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       user: userSnap.exists ? { ...userSnap.data(), structureRole } : null,
       isAdmin: adminSnap.exists,
+      // Rôle scopé compétitions (spec Legends §6) : ouvre UNIQUEMENT la page
+      // /admin/competitions (validation, litiges, bans). Un admin Aedral
+      // complet l'est automatiquement — inutile de le redoubler ici, le
+      // client teste isAdmin || isCompetitionAdmin.
+      isCompetitionAdmin: compAdminSnap.exists,
     });
   } catch (err) {
     captureApiError('API Auth/me error', err);

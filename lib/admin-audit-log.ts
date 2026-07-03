@@ -57,7 +57,19 @@ export type AdminAuditAction =
   | 'circuit_edited'
   | 'circuit_deleted'
   | 'competition_admin_added'
-  | 'competition_admin_removed';
+  | 'competition_admin_removed'
+  // Moteur de compétitions — Lot 1 (registre des bans, règlement)
+  | 'competition_ban_added'
+  | 'competition_ban_revoked'
+  | 'rulebook_published'
+  // Moteur de compétitions — Lot 1 (file de validation, provisioning Discord)
+  | 'competition_registration_approved'
+  | 'competition_registration_rejected'
+  | 'competition_registration_unapproved'
+  | 'competition_discord_provisioned'
+  // Bac à sable de test compétitions (données fictives isDev)
+  | 'competition_sandbox_seeded'
+  | 'competition_sandbox_cleaned';
 
 export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event' | 'competition' | 'circuit';
 

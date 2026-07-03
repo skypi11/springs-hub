@@ -18,6 +18,9 @@ interface AuthContextType {
   loading: boolean;
   profileEnriched: boolean;
   isAdmin: boolean;
+  /** Rôle scopé compétitions (spec Legends §6) : accès à /admin/competitions
+   *  uniquement. Un admin Aedral complet a déjà tous ces droits via isAdmin. */
+  isCompetitionAdmin: boolean;
   authError: AuthError;
   dismissAuthError: () => void;
   signInWithDiscord: (next?: string) => void;
@@ -31,6 +34,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   profileEnriched: false,
   isAdmin: false,
+  isCompetitionAdmin: false,
   authError: null,
   dismissAuthError: () => {},
   signInWithDiscord: () => {},
@@ -44,6 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [profileEnriched, setProfileEnriched] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isCompetitionAdmin, setIsCompetitionAdmin] = useState(false);
   const [authError, setAuthError] = useState<AuthError>(null);
   const dismissAuthError = () => setAuthError(null);
 
@@ -104,6 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser({ uid: fbUser.uid, ...data.user } as SpringsUser);
         }
         setIsAdmin(data.isAdmin ?? false);
+        setIsCompetitionAdmin(data.isCompetitionAdmin ?? false);
       }
     } catch (err) {
       console.error('[Auth] API /auth/me error:', err);
@@ -124,6 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!fbUser) {
         setUser(null);
         setIsAdmin(false);
+        setIsCompetitionAdmin(false);
         setProfileEnriched(false);
         setLoading(false);
         return;
@@ -181,10 +188,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await firebaseSignOut(auth);
     setUser(null);
     setIsAdmin(false);
+    setIsCompetitionAdmin(false);
   }
 
   return (
-    <AuthContext.Provider value={{ user, firebaseUser, loading, profileEnriched, isAdmin, authError, dismissAuthError, signInWithDiscord, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, firebaseUser, loading, profileEnriched, isAdmin, isCompetitionAdmin, authError, dismissAuthError, signInWithDiscord, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
