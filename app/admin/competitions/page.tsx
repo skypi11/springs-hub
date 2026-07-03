@@ -11,17 +11,19 @@ import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
-import { Trophy, Plus, Pencil, Trash2, UserMinus } from 'lucide-react';
+import { Trophy, Plus, Pencil, Trash2, UserMinus, ScrollText } from 'lucide-react';
 import GameTag from '@/components/games/GameTag';
 import CircuitForm from '@/components/admin/competitions/CircuitForm';
 import CompetitionForm from '@/components/admin/competitions/CompetitionForm';
 import BansPanel, { type CompetitionBanRow } from '@/components/admin/competitions/BansPanel';
+import RulebookEditor, { type RulebookScope } from '@/components/admin/competitions/RulebookEditor';
 import type { AdminCircuit, AdminCompetition, CompetitionAdminEntry } from '@/components/admin/competitions/types';
 
 type View =
   | { kind: 'list' }
   | { kind: 'circuit-form'; circuit: AdminCircuit | null }
-  | { kind: 'competition-form'; competition: AdminCompetition | null };
+  | { kind: 'competition-form'; competition: AdminCompetition | null }
+  | { kind: 'rulebook'; scope: RulebookScope; label: string };
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Brouillon',
@@ -207,6 +209,16 @@ export default function AdminCompetitionsPage() {
     );
   }
 
+  if (view.kind === 'rulebook') {
+    return (
+      <RulebookEditor
+        scope={view.scope}
+        label={view.label}
+        onClose={() => setView({ kind: 'list' })}
+      />
+    );
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-3">
@@ -250,6 +262,10 @@ export default function AdminCompetitionsPage() {
                 Top {c.lanTeamCount} · best {c.bestResultsCount}
               </span>
               <span className="tag tag-neutral">{STATUS_LABELS[c.status] ?? c.status}</span>
+              <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
+                onClick={() => setView({ kind: 'rulebook', scope: { circuitId: c.id }, label: c.name })}>
+                <ScrollText size={13} /> Règlement
+              </button>
               {isAdmin && (
                 <>
                   <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
@@ -303,6 +319,10 @@ export default function AdminCompetitionsPage() {
                 </p>
               </div>
               <span className="tag tag-neutral">{STATUS_LABELS[c.status] ?? c.status}</span>
+              <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
+                onClick={() => setView({ kind: 'rulebook', scope: { competitionId: c.id }, label: c.name })}>
+                <ScrollText size={13} /> Règlement
+              </button>
               {isAdmin && (
                 <>
                   <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"

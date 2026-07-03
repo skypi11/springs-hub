@@ -58,9 +58,10 @@ export type AdminAuditAction =
   | 'circuit_deleted'
   | 'competition_admin_added'
   | 'competition_admin_removed'
-  // Moteur de compétitions — Lot 1 (registre des bans)
+  // Moteur de compétitions — Lot 1 (registre des bans, règlement)
   | 'competition_ban_added'
-  | 'competition_ban_revoked';
+  | 'competition_ban_revoked'
+  | 'rulebook_published';
 
 export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event' | 'competition' | 'circuit';
 
