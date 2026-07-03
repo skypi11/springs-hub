@@ -378,6 +378,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const regRef = db.collection('competition_registrations').doc(`${id}_${teamId}`);
     await db.runTransaction(async tx => {
       const existing = await tx.get(regRef);
+      // Ressources Discord d'un provisioning antérieur (équipe validée puis
+      // rejetée dont le déprovisionnement a échoué) : préservées à la
+      // réécriture, sinon rôles/salons deviennent orphelins et le prochain
+      // provisioning en crée des doublons.
+      let discordBlock = {
+        provisioningStatus: 'none', roleId: null as string | null,
+        textChannelId: null as string | null, voiceChannelId: null as string | null,
+      };
       if (existing.exists) {
         const st = existing.data()?.status;
         if (st === 'pending' || st === 'approved' || st === 'waitlisted') {
@@ -385,6 +393,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
         // rejected / withdrawn : re-soumission autorisée, le doc est réécrit
         // (les décisions passées restent dans admin_audit_logs).
+        const prevDiscord = existing.data()?.discord;
+        if (prevDiscord?.roleId || prevDiscord?.textChannelId || prevDiscord?.voiceChannelId) {
+          discordBlock = {
+            provisioningStatus: prevDiscord.provisioningStatus ?? 'none',
+            roleId: prevDiscord.roleId ?? null,
+            textChannelId: prevDiscord.textChannelId ?? null,
+            voiceChannelId: prevDiscord.voiceChannelId ?? null,
+          };
+        }
       }
       tx.set(regRef, {
         competitionId: id,
@@ -406,7 +423,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         review: null,
         rulebookAccepted,
         generalCheckin: null,
-        discord: { provisioningStatus: 'none', roleId: null, textChannelId: null, voiceChannelId: null },
+        discord: discordBlock,
         seed: null,
         createdBy: uid,
         createdAt: FieldValue.serverTimestamp(),

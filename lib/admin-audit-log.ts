@@ -61,7 +61,12 @@ export type AdminAuditAction =
   // Moteur de compétitions — Lot 1 (registre des bans, règlement)
   | 'competition_ban_added'
   | 'competition_ban_revoked'
-  | 'rulebook_published';
+  | 'rulebook_published'
+  // Moteur de compétitions — Lot 1 (file de validation, provisioning Discord)
+  | 'competition_registration_approved'
+  | 'competition_registration_rejected'
+  | 'competition_registration_unapproved'
+  | 'competition_discord_provisioned';
 
 export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event' | 'competition' | 'circuit';
 

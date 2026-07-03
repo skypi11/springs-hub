@@ -11,19 +11,21 @@ import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
-import { Trophy, Plus, Pencil, Trash2, UserMinus, ScrollText } from 'lucide-react';
+import { Trophy, Plus, Pencil, Trash2, UserMinus, ScrollText, ClipboardCheck } from 'lucide-react';
 import GameTag from '@/components/games/GameTag';
 import CircuitForm from '@/components/admin/competitions/CircuitForm';
 import CompetitionForm from '@/components/admin/competitions/CompetitionForm';
 import BansPanel, { type CompetitionBanRow } from '@/components/admin/competitions/BansPanel';
 import RulebookEditor, { type RulebookScope } from '@/components/admin/competitions/RulebookEditor';
+import RegistrationsPanel from '@/components/admin/competitions/RegistrationsPanel';
 import type { AdminCircuit, AdminCompetition, CompetitionAdminEntry } from '@/components/admin/competitions/types';
 
 type View =
   | { kind: 'list' }
   | { kind: 'circuit-form'; circuit: AdminCircuit | null }
   | { kind: 'competition-form'; competition: AdminCompetition | null }
-  | { kind: 'rulebook'; scope: RulebookScope; label: string };
+  | { kind: 'rulebook'; scope: RulebookScope; label: string }
+  | { kind: 'registrations'; competition: AdminCompetition };
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Brouillon',
@@ -219,6 +221,15 @@ export default function AdminCompetitionsPage() {
     );
   }
 
+  if (view.kind === 'registrations') {
+    return (
+      <RegistrationsPanel
+        competition={view.competition}
+        onClose={() => { setView({ kind: 'list' }); load(); }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-3">
@@ -319,6 +330,10 @@ export default function AdminCompetitionsPage() {
                 </p>
               </div>
               <span className="tag tag-neutral">{STATUS_LABELS[c.status] ?? c.status}</span>
+              <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
+                onClick={() => setView({ kind: 'registrations', competition: c })}>
+                <ClipboardCheck size={13} /> Inscriptions
+              </button>
               <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
                 onClick={() => setView({ kind: 'rulebook', scope: { competitionId: c.id }, label: c.name })}>
                 <ScrollText size={13} /> Règlement
