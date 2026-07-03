@@ -133,7 +133,7 @@ export default function CompetitionPage() {
           <div className="flex flex-wrap items-center gap-3 pt-1">
             {canRegister && user && (
               <Link href={`/competitions/${comp.id}/inscription`} className="btn-springs btn-primary bevel-sm flex items-center gap-1.5">
-                Inscrire mon équipe <ArrowRight size={14} />
+                Inscrire une équipe <ArrowRight size={14} />
               </Link>
             )}
             {registrationOpen && !user && (

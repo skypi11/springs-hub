@@ -19,7 +19,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
+import Link from 'next/link';
 import { ArrowLeft, ChevronDown, ChevronRight, ExternalLink, ShieldAlert } from 'lucide-react';
+import { getProfileHref } from '@/lib/user-slug';
+import { getStructureHref } from '@/lib/structure-slug';
 import type { AdminCompetition } from '@/components/admin/competitions/types';
 
 // ── Formes JSON de /api/admin/competitions/[id]/registrations ───────────────
@@ -28,11 +31,17 @@ interface RosterRow {
   uid: string;
   role: 'titulaire' | 'remplacant';
   displayName: string;
+  slug: string | null;
   declaredCurrentMmr: number;
   declaredPeakMmr: number;
   refMmr: number;
   trackerUrl: string | null;
   discordId: string | null;
+  discordUsername: string | null;
+  epicId: string | null;
+  epicName: string | null;
+  steamId: string | null;
+  onDiscordGuild: boolean | null;
   country: string | null;
   age: number | null;
   verified: boolean;
@@ -61,12 +70,18 @@ interface RegistrationRow {
   id: string;
   teamId: string;
   structureId: string;
+  structureName: string;
+  structureSlug: string | null;
   name: string;
   tag: string;
   logoUrl: string | null;
   status: 'pending' | 'approved' | 'waitlisted' | 'rejected' | 'withdrawn';
   createdAt: string | null;
   createdByName: string;
+  createdByUid: string;
+  createdBySlug: string | null;
+  createdByDiscordUsername: string | null;
+  createdByOnDiscordGuild: boolean | null;
   captainUid: string;
   roster: RosterRow[];
   computed: { worstLineupAvg: number | null; worstLineupGap: number | null; flags: string[] };
@@ -110,6 +125,7 @@ const FLAG_LABELS: Record<string, string> = {
   banned_structure: 'Structure bannie',
   identity_conflict: 'Conflit d\'identité circuit',
   name_mismatch: 'Changement de nom',
+  discord_guild_missing: 'Absent du Discord',
 };
 
 const DISCORD_STATUS_LABELS: Record<string, string> = {
@@ -479,53 +495,82 @@ function RegistrationRowView({
           {/* Roster */}
           <div style={{ border: '1px solid var(--s-border)' }}>
             {reg.roster.map((p, i) => (
-              <div key={p.uid} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2"
+              <div key={p.uid} className="px-3 py-2 space-y-0.5"
                 style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' }}>
-                <span className="text-sm font-semibold" style={{ minWidth: '12ch' }}>
-                  {p.displayName}
-                </span>
-                <span className="tag tag-neutral">{p.role === 'titulaire' ? 'Titulaire' : 'Remplaçant'}</span>
-                {showMmr && (
-                  <span className="text-sm t-mono" title={`Actuel ${p.declaredCurrentMmr} · Peak ${p.declaredPeakMmr}`}>
-                    Réf {p.refMmr}
-                    <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}> ({p.declaredCurrentMmr}/{p.declaredPeakMmr})</span>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <Link href={getProfileHref({ slug: p.slug, uid: p.uid })} target="_blank"
+                    className="text-sm font-semibold hover:underline" style={{ minWidth: '12ch' }}>
+                    {p.displayName}
+                  </Link>
+                  <span className="tag tag-neutral">{p.role === 'titulaire' ? 'Titulaire' : 'Remplaçant'}</span>
+                  {showMmr && (
+                    <span className="text-sm t-mono" title={`Actuel ${p.declaredCurrentMmr} · Peak ${p.declaredPeakMmr}`}>
+                      Réf {p.refMmr}
+                      <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}> ({p.declaredCurrentMmr}/{p.declaredPeakMmr})</span>
+                    </span>
+                  )}
+                  <span className="text-sm" style={{
+                    color: minAge !== null && (p.age === null || p.age < minAge) ? '#ffb46b' : 'var(--s-text-dim)',
+                  }}>
+                    {p.age !== null ? `${p.age} ans` : 'Âge inconnu'}
                   </span>
-                )}
-                <span className="text-sm" style={{
-                  color: minAge !== null && (p.age === null || p.age < minAge) ? '#ffb46b' : 'var(--s-text-dim)',
-                }}>
-                  {p.age !== null ? `${p.age} ans` : 'Âge inconnu'}
-                </span>
-                {p.country && <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>{p.country}</span>}
-                <span className="text-sm" style={{ color: p.verified ? 'var(--s-text-dim)' : '#ffb46b' }}>
-                  {p.verified ? 'Vérifié' : 'Non vérifié'}
-                </span>
-                {p.trackerUrl && (
-                  <a href={p.trackerUrl} target="_blank" rel="noopener noreferrer"
-                    className="text-sm flex items-center gap-1 hover:underline"
-                    style={{ color: 'var(--s-blue)' }}
-                    onClick={e => e.stopPropagation()}>
-                    Tracker <ExternalLink size={11} />
-                  </a>
-                )}
-                {p.smurf.pendingReports > 0 && (
-                  <span className="text-xs flex items-center gap-1" style={{ color: '#ff8a8a' }}>
-                    <ShieldAlert size={12} /> {p.smurf.pendingReports} signalement{p.smurf.pendingReports > 1 ? 's' : ''} smurf en attente
+                  {p.country && <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>{p.country}</span>}
+                  <span className="text-sm" style={{ color: p.verified ? 'var(--s-text-dim)' : '#ffb46b' }}>
+                    {p.verified ? 'Vérifié' : 'Non vérifié'}
                   </span>
-                )}
-                {p.smurf.adminFlag && (
-                  <span className="text-xs flex items-center gap-1" style={{ color: '#ff8a8a' }}>
-                    <ShieldAlert size={12} /> flag admin
-                  </span>
-                )}
+                  {p.trackerUrl && (
+                    <a href={p.trackerUrl} target="_blank" rel="noopener noreferrer"
+                      className="text-sm flex items-center gap-1 hover:underline"
+                      style={{ color: 'var(--s-blue)' }}
+                      onClick={e => e.stopPropagation()}>
+                      Tracker <ExternalLink size={11} />
+                    </a>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                  {p.discordUsername && <span>Discord @{p.discordUsername}</span>}
+                  {p.epicName && <span>Epic {p.epicName}</span>}
+                  {!p.epicName && p.steamId && <span>Steam {p.steamId}</span>}
+                  {p.onDiscordGuild === false && (
+                    <span style={{ color: '#ffb46b' }}>Absent du serveur Discord de la compétition</span>
+                  )}
+                  {p.smurf.pendingReports > 0 && (
+                    <span className="flex items-center gap-1" style={{ color: '#ff8a8a' }}>
+                      <ShieldAlert size={12} /> {p.smurf.pendingReports} signalement{p.smurf.pendingReports > 1 ? 's' : ''} smurf en attente
+                    </span>
+                  )}
+                  {p.smurf.adminFlag && (
+                    <span className="flex items-center gap-1" style={{ color: '#ff8a8a' }}>
+                      <ShieldAlert size={12} /> flag admin
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
           </div>
 
           {/* Meta */}
           <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm" style={{ color: 'var(--s-text-dim)' }}>
+            <span>
+              Structure{' '}
+              <Link href={getStructureHref({ id: reg.structureId, slug: reg.structureSlug })} target="_blank"
+                className="hover:underline" style={{ color: 'var(--s-text)' }}>
+                {reg.structureName || reg.structureId}
+              </Link>
+            </span>
+            <span>
+              Inscrite par{' '}
+              <Link href={getProfileHref({ slug: reg.createdBySlug, uid: reg.createdByUid })} target="_blank"
+                className="hover:underline" style={{ color: 'var(--s-text)' }}>
+                {reg.createdByName}
+              </Link>
+              {reg.createdByDiscordUsername ? ` (@${reg.createdByDiscordUsername})` : ''}
+              {reg.createdByOnDiscordGuild === false && (
+                <span style={{ color: '#ffb46b' }}> · absent du serveur Discord</span>
+              )}
+            </span>
             {showMmr && reg.computed.worstLineupAvg !== null && (
-              <span>Pire compo : moyenne {reg.computed.worstLineupAvg} · écart {reg.computed.worstLineupGap}</span>
+              <span>Compos alignables : moyenne max {reg.computed.worstLineupAvg} · écart max {reg.computed.worstLineupGap}</span>
             )}
             <span>
               {reg.rulebookAccepted

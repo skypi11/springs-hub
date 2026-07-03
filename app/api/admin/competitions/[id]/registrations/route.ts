@@ -146,24 +146,37 @@ function resolveFor(
   });
 }
 
-// ── Agrégat smurf anonymisé (archi §7) ──────────────────────────────────────
+// ── Méta par joueur : agrégat smurf anonymisé (archi §7) + infos de
+//    navigation console (slug de profil, username Discord, pseudo Epic frais).
 
-async function loadSmurfAggregates(
+interface PlayerMeta {
+  pendingReports: number;
+  adminFlag: boolean;
+  slug: string | null;
+  displayName: string | null;
+  discordUsername: string | null;
+  epicName: string | null;
+}
+
+async function loadPlayerMeta(
   db: FirebaseFirestore.Firestore,
   uids: string[],
-): Promise<Map<string, { pendingReports: number; adminFlag: boolean }>> {
-  const map = new Map<string, { pendingReports: number; adminFlag: boolean }>();
+): Promise<Map<string, PlayerMeta>> {
+  const map = new Map<string, PlayerMeta>();
   if (uids.length === 0) return map;
-  for (const uid of uids) map.set(uid, { pendingReports: 0, adminFlag: false });
+  for (const uid of uids) {
+    map.set(uid, { pendingReports: 0, adminFlag: false, slug: null, displayName: null, discordUsername: null, epicName: null });
+  }
 
   const chunks: string[][] = [];
   for (let i = 0; i < uids.length; i += 10) chunks.push(uids.slice(i, i + 10));
 
-  const [reportSnaps, flagSnaps] = await Promise.all([
+  const [reportSnaps, flagSnaps, userSnaps] = await Promise.all([
     Promise.all(chunks.map(chunk =>
       db.collection('rank_reports').where('targetUid', 'in', chunk).get(),
     )),
     db.getAll(...uids.map(uid => db.collection('user_admin_flags').doc(uid))),
+    db.getAll(...uids.map(uid => db.collection('users').doc(uid))),
   ]);
 
   for (const snap of reportSnaps) {
@@ -180,6 +193,14 @@ async function loadSmurfAggregates(
       const entry = map.get(uids[i]);
       if (entry) entry.adminFlag = true;
     }
+  });
+  userSnaps.forEach((snap, i) => {
+    const entry = map.get(uids[i]);
+    if (!entry || !snap.exists) return;
+    entry.slug = (snap.data()?.slug as string) || null;
+    entry.displayName = (snap.data()?.displayName as string) || (snap.data()?.discordUsername as string) || null;
+    entry.discordUsername = (snap.data()?.discordUsername as string) || null;
+    entry.epicName = (snap.data()?.rlEpicName as string) || null;
   });
   return map;
 }
@@ -206,63 +227,97 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .get();
 
     const activeStatuses = new Set(['pending', 'approved', 'waitlisted']);
-    const smurfUids = Array.from(new Set(
-      regsSnap.docs
-        .filter(d => activeStatuses.has(d.data().status))
-        .flatMap(d => (d.data().rosterUids as string[] | undefined) ?? []),
-    ));
-
-    const [smurf, circuitCtx] = await Promise.all([
-      loadSmurfAggregates(db, smurfUids),
-      comp.circuitId ? loadCircuitContext(db, comp.circuitId as string) : Promise.resolve(null),
-    ]);
-
-    // displayName des reviewers / créateurs pour l'affichage console.
-    const nameUids = Array.from(new Set(
+    // Méta joueurs : roster actifs + inscripteurs + reviewers (une seule passe).
+    const metaUids = Array.from(new Set(
       regsSnap.docs.flatMap(d => {
         const r = d.data();
-        return [r.createdBy as string, r.review?.by as string | undefined].filter(Boolean) as string[];
+        return [
+          ...(activeStatuses.has(r.status) ? ((r.rosterUids as string[] | undefined) ?? []) : []),
+          r.createdBy as string,
+          r.review?.by as string | undefined,
+        ].filter(Boolean) as string[];
       }),
     ));
+
+    const structureIds = Array.from(new Set(
+      regsSnap.docs.map(d => d.data().structureId as string).filter(Boolean),
+    ));
+
+    const [meta, circuitCtx, structureSnaps] = await Promise.all([
+      loadPlayerMeta(db, metaUids),
+      comp.circuitId ? loadCircuitContext(db, comp.circuitId as string) : Promise.resolve(null),
+      structureIds.length > 0
+        ? db.getAll(...structureIds.map(sid => db.collection('structures').doc(sid)))
+        : Promise.resolve([] as FirebaseFirestore.DocumentSnapshot[]),
+    ]);
+
+    const structuresById = new Map<string, { name: string; slug: string | null }>();
+    structureSnaps.forEach(s => {
+      if (s.exists) {
+        structuresById.set(s.id, {
+          name: (s.data()?.name as string) ?? '',
+          slug: (s.data()?.slug as string) || null,
+        });
+      }
+    });
+
+    // displayName des créateurs/reviewers — tous présents dans la méta.
     const names = new Map<string, string>();
-    if (nameUids.length > 0) {
-      const snaps = await db.getAll(...nameUids.map(u => db.collection('users').doc(u)));
-      snaps.forEach((s, i) => {
-        names.set(nameUids[i], (s.data()?.displayName as string) || (s.data()?.discordUsername as string) || nameUids[i]);
-      });
-    }
+    for (const uid of metaUids) names.set(uid, meta.get(uid)?.displayName ?? uid);
 
     const registrations = regsSnap.docs.map(d => {
       const r = d.data();
-      const roster = ((r.roster as Array<Record<string, unknown>>) ?? []).map(m => ({
-        uid: m.uid,
-        role: m.role,
-        displayName: m.displayName,
-        declaredCurrentMmr: m.declaredCurrentMmr ?? 0,
-        declaredPeakMmr: m.declaredPeakMmr ?? 0,
-        refMmr: m.refMmr ?? 0,
-        trackerUrl: m.trackerUrl ?? null,
-        discordId: m.discordId ?? null,
-        country: m.country ?? null,
-        age: m.age ?? null,
-        verified: m.verified === true,
-        smurf: smurf.get(m.uid as string) ?? { pendingReports: 0, adminFlag: false },
-      }));
+      const roster = ((r.roster as Array<Record<string, unknown>>) ?? []).map(m => {
+        const pm = meta.get(m.uid as string);
+        return {
+          uid: m.uid,
+          role: m.role,
+          displayName: m.displayName,
+          slug: pm?.slug ?? null,
+          declaredCurrentMmr: m.declaredCurrentMmr ?? 0,
+          declaredPeakMmr: m.declaredPeakMmr ?? 0,
+          refMmr: m.refMmr ?? 0,
+          trackerUrl: m.trackerUrl ?? null,
+          discordId: m.discordId ?? null,
+          // Snapshot d'abord (contractuel), méta fraîche en secours pour les
+          // inscriptions antérieures à l'enrichissement du snapshot.
+          discordUsername: (m.discordUsername as string) ?? pm?.discordUsername ?? null,
+          epicId: m.epicId ?? null,
+          epicName: (m.epicName as string) ?? pm?.epicName ?? null,
+          steamId: m.steamId ?? null,
+          onDiscordGuild: (m.onDiscordGuild as boolean | null) ?? null,
+          country: m.country ?? null,
+          age: m.age ?? null,
+          verified: m.verified === true,
+          smurf: pm
+            ? { pendingReports: pm.pendingReports, adminFlag: pm.adminFlag }
+            : { pendingReports: 0, adminFlag: false },
+        };
+      });
 
       const identity = circuitCtx && r.status === 'pending'
         ? enrichIdentity(resolveFor(circuitCtx, id, d.id, r), circuitCtx)
         : null;
 
+      const structureInfo = structuresById.get(r.structureId as string);
+      const createdByMeta = meta.get(r.createdBy as string);
+
       return {
         id: d.id,
         teamId: r.teamId ?? '',
         structureId: r.structureId ?? '',
+        structureName: structureInfo?.name ?? '',
+        structureSlug: structureInfo?.slug ?? null,
         name: r.name ?? '',
         tag: r.tag ?? '',
         logoUrl: r.logoUrl ?? null,
         status: r.status ?? 'pending',
         createdAt: r.createdAt?.toDate?.()?.toISOString() ?? null,
         createdByName: names.get(r.createdBy as string) ?? '',
+        createdByUid: r.createdBy ?? '',
+        createdBySlug: createdByMeta?.slug ?? null,
+        createdByDiscordUsername: createdByMeta?.discordUsername ?? null,
+        createdByOnDiscordGuild: (r.createdByOnDiscordGuild as boolean | null) ?? null,
         captainUid: r.captainUid ?? '',
         roster,
         computed: r.computed ?? { worstLineupAvg: null, worstLineupGap: null, flags: [] },

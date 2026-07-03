@@ -128,20 +128,24 @@ export default function InscriptionPage() {
     };
   }, [mmrRules, selectedUids, mmr, starters]);
 
-  function toggleAssign(uid: string) {
+  // Rôle choisi explicitement (boutons Titulaire / Remplaçant) — re-cliquer le
+  // rôle actif retire le joueur du roster.
+  function setRole(uid: string, role: 'titulaire' | 'remplacant') {
     setAssignment(prev => {
       const next = { ...prev };
-      const current = next[uid];
-      if (!current) {
-        if (Object.values(next).filter(v => v === 'titulaire').length < starters) next[uid] = 'titulaire';
-        else if (Object.values(next).filter(v => v === 'remplacant').length < subsMax) next[uid] = 'remplacant';
-        else return prev; // plein
-      } else if (current === 'titulaire') {
-        if (Object.values(next).filter(v => v === 'remplacant').length < subsMax) next[uid] = 'remplacant';
-        else delete next[uid];
-      } else {
+      if (next[uid] === role) {
         delete next[uid];
+        return next;
       }
+      const count = Object.entries(next).filter(([u, v]) => u !== uid && v === role).length;
+      const cap = role === 'titulaire' ? starters : subsMax;
+      if (count >= cap) {
+        toast.error(role === 'titulaire'
+          ? `Déjà ${starters} titulaires — retire un joueur d'abord.`
+          : `Déjà ${subsMax} remplaçants — retire un joueur d'abord.`);
+        return prev;
+      }
+      next[uid] = role;
       return next;
     });
   }
@@ -155,6 +159,13 @@ export default function InscriptionPage() {
     }
     if (s === 2) {
       if (titulaires.length !== starters) return `Il faut exactement ${starters} titulaires (${titulaires.length} sélectionnés).`;
+      // Gate compét (spec §3) : le serveur refuse aussi — défense en profondeur.
+      if (comp?.eligibility?.requireVerifiedAccounts) {
+        const unverified = selectedUids.find(u => structure?.members[u] && !structure.members[u].verified);
+        if (unverified) {
+          return `${structure?.members[unverified]?.displayName ?? 'Un joueur'} doit vérifier son compte (Epic ou Steam) avant de pouvoir être aligné.`;
+        }
+      }
       if (mmrRules) {
         for (const u of selectedUids) {
           const cur = parseInt(mmr[u]?.current ?? '', 10);
@@ -368,56 +379,76 @@ export default function InscriptionPage() {
           </div>
           <div className="panel-body space-y-4">
             <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-              Clique un joueur pour le passer titulaire, puis remplaçant, puis le retirer.
-              Le roster est verrouillé une fois l&apos;inscription soumise.
+              Choisis le rôle de chaque joueur aligné. Le roster est verrouillé une
+              fois l&apos;inscription soumise.
             </p>
             <div style={{ border: '1px solid var(--s-border)' }}>
               {[...team.playerIds, ...team.subIds].map((uid, i) => {
                 const m = structure.members[uid];
                 if (!m) return null;
                 const role = assignment[uid];
+                const blocked = !!comp?.eligibility?.requireVerifiedAccounts && !m.verified;
+                const ref = liveMmr?.refs.find(x => x.uid === uid)?.ref ?? null;
                 return (
-                  <div key={uid} className="flex flex-wrap items-center gap-3 px-3 py-2"
-                    style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' }}>
-                    <button type="button" onClick={() => toggleAssign(uid)}
-                      className="flex items-center gap-2 flex-1 min-w-0 text-left"
-                      style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}>
-                      <span className="tag"
-                        style={{
-                          minWidth: '86px', textAlign: 'center', cursor: 'pointer',
-                          background: role === 'titulaire' ? 'rgba(0,129,255,0.15)' : role === 'remplacant' ? 'rgba(255,255,255,0.1)' : 'transparent',
-                          borderColor: role ? (role === 'titulaire' ? 'rgba(0,129,255,0.5)' : 'rgba(255,255,255,0.3)') : 'var(--s-border)',
-                          color: role === 'titulaire' ? '#4fb3ff' : role === 'remplacant' ? 'var(--s-text)' : 'var(--s-text-muted)',
-                        }}>
-                        {role === 'titulaire' ? 'Titulaire' : role === 'remplacant' ? 'Remplaçant' : '—'}
-                      </span>
+                  <div key={uid} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2"
+                    style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none', opacity: blocked ? 0.75 : 1 }}>
+                    <span className="flex items-center gap-1.5" role="group" aria-label={`Rôle de ${m.displayName}`}>
+                      {(['titulaire', 'remplacant'] as const).map(r => (
+                        <button key={r} type="button"
+                          onClick={() => setRole(uid, r)}
+                          disabled={blocked}
+                          aria-pressed={role === r}
+                          className="tag"
+                          style={{
+                            cursor: blocked ? 'not-allowed' : 'pointer',
+                            minWidth: '92px', textAlign: 'center',
+                            background: role === r
+                              ? (r === 'titulaire' ? 'rgba(0,129,255,0.15)' : 'rgba(255,255,255,0.12)')
+                              : 'transparent',
+                            borderColor: role === r
+                              ? (r === 'titulaire' ? 'rgba(0,129,255,0.5)' : 'rgba(255,255,255,0.35)')
+                              : 'var(--s-border)',
+                            color: role === r
+                              ? (r === 'titulaire' ? '#4fb3ff' : 'var(--s-text)')
+                              : 'var(--s-text-muted)',
+                          }}>
+                          {r === 'titulaire' ? 'Titulaire' : 'Remplaçant'}
+                        </button>
+                      ))}
+                    </span>
+                    <span className="flex items-center gap-2 flex-1 min-w-0">
                       <span className="text-sm font-semibold truncate">{m.displayName}</span>
                       {m.verified ? (
                         <ShieldCheck size={14} style={{ color: '#33ff66', flexShrink: 0 }} aria-label="Compte vérifié" />
                       ) : (
                         <ShieldAlert size={14} style={{ color: 'var(--s-gold)', flexShrink: 0 }} aria-label="Compte non vérifié" />
                       )}
-                    </button>
-                    {mmrRules && role && (
-                      <div className="flex items-center gap-2">
+                    </span>
+                    {blocked ? (
+                      <span className="text-sm" style={{ color: 'var(--s-gold)' }}>
+                        Compte non vérifié — requis pour être aligné
+                      </span>
+                    ) : mmrRules && role ? (
+                      <span className="flex items-center gap-2">
                         <input type="number" min={0} max={5000} placeholder="MMR 2v2"
                           className="settings-input w-24"
+                          aria-label={`MMR actuel de ${m.displayName}`}
                           value={mmr[uid]?.current ?? ''}
                           onChange={e => setMmr(prev => ({ ...prev, [uid]: { current: e.target.value, peak: prev[uid]?.peak ?? '' } }))} />
                         <input type="number" min={0} max={5000} placeholder="Peak"
                           className="settings-input w-24"
+                          aria-label={`Peak MMR de ${m.displayName}`}
                           value={mmr[uid]?.peak ?? ''}
                           onChange={e => setMmr(prev => ({ ...prev, [uid]: { current: prev[uid]?.current ?? '', peak: e.target.value } }))} />
-                        {(() => {
-                          const r = liveMmr?.refs.find(x => x.uid === uid)?.ref;
-                          return r != null ? (
-                            <span className="t-mono text-xs" style={{ color: mmrRules && r > mmrRules.maxPlayer ? '#ff8a8a' : 'var(--s-text-muted)' }}>
-                              réf {r}
-                            </span>
-                          ) : null;
-                        })()}
-                      </div>
-                    )}
+                        {/* Colonne à largeur fixe : le calcul apparaît sans décaler les champs */}
+                        <span className="t-mono text-xs text-right" style={{
+                          width: '58px', flexShrink: 0,
+                          color: ref != null && mmrRules && ref > mmrRules.maxPlayer ? '#ff8a8a' : 'var(--s-text-muted)',
+                        }}>
+                          {ref != null ? `réf ${ref}` : ''}
+                        </span>
+                      </span>
+                    ) : null}
                   </div>
                 );
               })}
@@ -431,12 +462,12 @@ export default function InscriptionPage() {
                   sur les trackers : déclare juste.
                 </p>
                 {liveMmr?.complete && liveMmr.analysis && (
-                  <p style={{ color: liveMmr.flags.length ? 'var(--s-gold)' : '#33ff66' }}>
-                    Pire compo alignable : moyenne {liveMmr.analysis.worstLineupAvg} (max {mmrRules.maxAvg}) ·
-                    écart {liveMmr.analysis.worstLineupGap} (max {mmrRules.maxGap})
+                  <p style={{ color: liveMmr.flags.length ? 'var(--s-gold)' : 'var(--s-text-dim)' }}>
+                    Compositions possibles : moyenne la plus haute {liveMmr.analysis.worstLineupAvg} (limite {mmrRules.maxAvg}) ·
+                    écart le plus grand {liveMmr.analysis.worstLineupGap} (limite {mmrRules.maxGap}).
                     {liveMmr.flags.length > 0
-                      ? ` — sera signalé à la validation : ${liveMmr.flags.map(flagLabel).join(', ')}`
-                      : ' — dans les clous'}
+                      ? ' L\'inscription partira avec un signalement, examiné par les admins à la validation.'
+                      : ''}
                   </p>
                 )}
               </div>
@@ -449,7 +480,10 @@ export default function InscriptionPage() {
       {step === 3 && ctx.rulebook && (
         <div className="panel bevel">
           <div className="panel-header flex items-center justify-between">
-            <span className="t-sub">Règlement — version {ctx.rulebook.version}</span>
+            <Link href={`/competitions/${comp.id}/reglement`} target="_blank"
+              className="t-sub hover:underline" style={{ color: 'var(--s-text)' }}>
+              Règlement — version {ctx.rulebook.version}
+            </Link>
             <Link href={`/competitions/${comp.id}/reglement`} target="_blank" className="text-sm underline"
               style={{ color: 'var(--s-text-dim)' }}>
               Ouvrir dans un onglet
@@ -543,6 +577,7 @@ function flagLabel(flag: string): string {
     mmr_player_cap_exceeded: 'joueur au-dessus du plafond MMR',
     underage: 'joueur mineur ou âge inconnu (dérogation)',
     unverified_account: 'compte non vérifié dans le roster',
+    discord_guild_missing: 'joueur absent du serveur Discord de la compétition',
   };
   return labels[flag] ?? flag;
 }

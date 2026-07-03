@@ -146,19 +146,32 @@ async function run() {
     r.status === 200 && openDraft?.isDraft === true,
     JSON.stringify({ status: r.status, count: r.json?.competitions?.length }));
 
-  // 6. Soumission du wizard par le dirigeant fictif (Wolves Alpha : mineur +
-  //    non-vérifié + smurf dans le roster → drapeaux attendus)
-  const roster = [
+  // 6a. Gate compét (spec §3) : un joueur non vérifié (wolves_p4) → refus net
+  const rosterWithUnverified = [
     { uid: 'discord_dev_lgd_wolves_p1', role: 'titulaire', declaredCurrentMmr: 1400, declaredPeakMmr: 1500 },
     { uid: 'discord_dev_lgd_wolves_p2', role: 'titulaire', declaredCurrentMmr: 1350, declaredPeakMmr: 1450 },
     { uid: 'discord_dev_lgd_wolves_p3', role: 'titulaire', declaredCurrentMmr: 1200, declaredPeakMmr: 1300 },
     { uid: 'discord_dev_lgd_wolves_p4', role: 'remplacant', declaredCurrentMmr: 1300, declaredPeakMmr: 1400 },
   ];
   r = await apiCall('POST', `/api/competitions/${COMP}/register`, WOLVES_OWNER, {
+    structureId: 'dev-lgd-wolves', teamId: TEAM_ALPHA, name: 'Wolves Alpha', roster: rosterWithUnverified,
+  });
+  check('6a. wizard POST avec un joueur non vérifié → 400 + unverifiedUids',
+    r.status === 400 && r.json?.unverifiedUids?.includes('discord_dev_lgd_wolves_p4'),
+    `status ${r.status} ${JSON.stringify(r.json)}`);
+
+  // 6b. Sans le non-vérifié (p5 signalé smurf en sub) → accepté, flag underage
+  const roster = [
+    { uid: 'discord_dev_lgd_wolves_p1', role: 'titulaire', declaredCurrentMmr: 1400, declaredPeakMmr: 1500 },
+    { uid: 'discord_dev_lgd_wolves_p2', role: 'titulaire', declaredCurrentMmr: 1350, declaredPeakMmr: 1450 },
+    { uid: 'discord_dev_lgd_wolves_p3', role: 'titulaire', declaredCurrentMmr: 1200, declaredPeakMmr: 1300 },
+    { uid: 'discord_dev_lgd_wolves_p5', role: 'remplacant', declaredCurrentMmr: 1300, declaredPeakMmr: 1400 },
+  ];
+  r = await apiCall('POST', `/api/competitions/${COMP}/register`, WOLVES_OWNER, {
     structureId: 'dev-lgd-wolves', teamId: TEAM_ALPHA, name: 'Wolves Alpha', roster,
   });
-  check('6. wizard POST par le dirigeant fictif → 200 + flags underage/unverified',
-    r.status === 200 && r.json?.flags?.includes('underage') && r.json?.flags?.includes('unverified_account'),
+  check('6b. wizard POST roster vérifié → 200 + flag underage',
+    r.status === 200 && r.json?.flags?.includes('underage') && !r.json?.flags?.includes('unverified_account'),
     `status ${r.status} ${JSON.stringify(r.json)}`);
 
   // 7. File de validation : agrégat smurf du joueur fictif signalé

@@ -168,6 +168,17 @@ export async function addMemberRole(
   throw await discordError(res, 'Discord add member role failed');
 }
 
+/**
+ * Le joueur est-il membre du serveur ? `null` = indéterminé (erreur API après
+ * backoff) — l'appelant ne doit pas conclure à une absence.
+ */
+export async function isGuildMember(guildId: string, discordUserId: string): Promise<boolean | null> {
+  const res = await discordFetch(`/guilds/${guildId}/members/${discordUserId}`);
+  if (res.ok) return true;
+  if (res.status === 404) return false;
+  return null;
+}
+
 // ── Orchestration idempotente ───────────────────────────────────────────────
 
 export interface CompetitionDiscordShared {

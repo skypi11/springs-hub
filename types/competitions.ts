@@ -232,6 +232,9 @@ export interface CompetitionRegistration {
     derogations: Array<{ uid: string; note: string }>;
   } | null;
   rulebookAccepted: { version: number; at: Date | string; byUid: string } | null;
+  /** L'inscripteur était-il sur le serveur Discord de la compétition à la
+   *  soumission (spec §7) — null si serveur non configuré / indéterminé. */
+  createdByOnDiscordGuild?: boolean | null;
   /** Check-in général 14h30 (jour de match) — null tant que non ouvert. */
   generalCheckin: { done: boolean; byUid: string | null; at: Date | string | null } | null;
   /** Provisioning Discord découplé de l'approbation (archi §6), reprise idempotente. */
@@ -267,12 +270,13 @@ export type RegistrationFlag =
   | 'mmr_gap_exceeded'        // une compo alignable dépasse l'écart max
   | 'mmr_player_cap_exceeded' // un joueur dépasse le plafond individuel
   | 'underage'                // joueur sous l'âge minimum → dérogation requise
-  | 'unverified_account'      // compte non vérifié dans le roster
+  | 'unverified_account'      // legacy — les comptes non vérifiés sont désormais REFUSÉS à la soumission (spec §3)
   | 'banned_player'           // joueur au registre des bans → refus auto + motif
   | 'banned_structure'        // structure au registre des bans
   | 'smurf_reports'           // signalements smurf existants (agrégat)
   | 'identity_conflict'       // rattachement circuit ambigu → arbitrage admin
-  | 'name_mismatch';          // nom du snapshot ≠ nom du circuit_team
+  | 'name_mismatch'           // nom du snapshot ≠ nom du circuit_team
+  | 'discord_guild_missing';  // joueur (ou inscripteur) absent du serveur Discord de la compétition
 
 export interface RegistrationRosterEntry {
   uid: string;
@@ -283,12 +287,19 @@ export interface RegistrationRosterEntry {
   /** MMR de référence calculé serveur : weightCurrent × actuel + reste × peak. */
   refMmr: number;
   epicId: string | null;
+  /** Pseudo Epic au moment de l'inscription (lisible, l'epicId est un GUID). */
+  epicName: string | null;
   steamId: string | null;
   trackerUrl: string | null;
   discordId: string;
+  /** Username Discord au moment de l'inscription (lisible console admin). */
+  discordUsername: string | null;
   country: string | null;
   age: number | null;              // calculé serveur depuis user_secrets, dénormalisé ici
   verified: boolean;
+  /** Présence sur le serveur Discord de la compétition, vérifiée par le bot à
+   *  la soumission (spec §7) — null si le serveur n'était pas configuré. */
+  onDiscordGuild: boolean | null;
 }
 
 // ── Matchs ──────────────────────────────────────────────────────────────────

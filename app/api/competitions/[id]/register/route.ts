@@ -7,6 +7,7 @@ import { clampString, LIMITS } from '@/lib/validation';
 import { isDirigeant, isResponsableForGame } from '@/lib/structure-permissions';
 import { computeAge } from '@/lib/age';
 import { computeRefMmr, computeMmrFlags, analyzeLineups } from '@/lib/competitions/mmr';
+import { isGuildMember } from '@/lib/discord-competition';
 import { getActiveCompetitionBans } from '@/lib/competitions/bans';
 import { getRulebookForCompetition } from '@/lib/competitions/rulebooks';
 import { buildTrackerGgUrl, type RLPlatform } from '@/lib/rl-platform';
@@ -336,7 +337,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         : 0;
       if (mmrRules) refMmrs.push(refMmr);
 
-      if (requireVerified && !verified) flags.add('unverified_account');
       // Âge inconnu (pas de date de naissance) = à vérifier humainement, même
       // circuit que la dérogation mineur : jamais de refus automatique (spec §4).
       if (minAge !== null && (age === null || age < minAge)) flags.add('underage');
@@ -349,14 +349,57 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         declaredPeakMmr,
         refMmr,
         epicId,
+        epicName: (u.rlEpicName as string) || null,
         steamId,
         trackerUrl,
         discordId: (u.discordId as string) || rosterUids[i].replace('discord_', ''),
+        discordUsername: (u.discordUsername as string) || null,
         country: (u.country as string) || null,
         age,
         verified,
+        onDiscordGuild: null as boolean | null,
       };
     });
+
+    // ── Gate compét (spec §3) : comptes vérifiés OBLIGATOIRES — une équipe ne
+    //    peut pas s'inscrire avec un joueur non vérifié. Refus net avec les
+    //    noms, le wizard bloque déjà en amont (défense en profondeur ici).
+    if (requireVerified) {
+      const unverified = rosterSnapshot.filter(p => !p.verified);
+      if (unverified.length > 0) {
+        return NextResponse.json({
+          error: `Compte non vérifié : ${unverified.map(p => p.displayName).join(', ')}. `
+            + 'Chaque joueur inscrit doit lier son compte Epic ou Steam (Paramètres → Rocket League) avant l\'inscription.',
+          unverifiedUids: unverified.map(p => p.uid),
+        }, { status: 400 });
+      }
+    }
+
+    // ── Adhésion au serveur Discord de la compétition, vérifiée par le bot à
+    //    l'inscription (spec §7) : jamais bloquant (le joueur peut rejoindre
+    //    ensuite), mais snapshoté par joueur + signalé aux admins. L'inscripteur
+    //    est vérifié aussi. `null` = serveur non configuré ou API indisponible.
+    let createdByOnGuild: boolean | null = null;
+    const guildId = (comp.discord?.guildId as string | undefined) ?? null;
+    if (guildId) {
+      try {
+        const checks = await Promise.all([
+          ...rosterSnapshot.map(p => isGuildMember(guildId, p.discordId)),
+          (async () => {
+            const requesterSnap = await db.collection('users').doc(uid).get();
+            const requesterDiscordId = (requesterSnap.data()?.discordId as string) || uid.replace('discord_', '');
+            return isGuildMember(guildId, requesterDiscordId);
+          })(),
+        ]);
+        rosterSnapshot.forEach((p, i) => { p.onDiscordGuild = checks[i]; });
+        createdByOnGuild = checks[checks.length - 1];
+        if (rosterSnapshot.some(p => p.onDiscordGuild === false) || createdByOnGuild === false) {
+          flags.add('discord_guild_missing');
+        }
+      } catch (err) {
+        console.error('[register] Discord guild check failed:', err);
+      }
+    }
 
     let worstLineupAvg: number | null = null;
     let worstLineupGap: number | null = null;
@@ -439,6 +482,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         rulebookAccepted,
         generalCheckin: null,
         discord: discordBlock,
+        createdByOnDiscordGuild: createdByOnGuild,
         seed: null,
         createdBy: uid,
         createdAt: FieldValue.serverTimestamp(),

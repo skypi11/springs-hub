@@ -61,7 +61,7 @@ export default function CompetitionRegistrationBanner() {
               : c.closesAt ? `jusqu'au ${fmtDeadline(c.closesAt)}` : ''}
           </span>
           <span className="text-sm ml-auto flex items-center gap-1.5" style={{ color: 'var(--s-gold)' }}>
-            Inscrire mon équipe
+            Inscrire une équipe
             <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
           </span>
         </Link>
