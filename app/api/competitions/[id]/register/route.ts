@@ -64,7 +64,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!compSnap.exists) return NextResponse.json({ error: 'not_found' }, { status: 404 });
     const comp = compSnap.data()!;
     const requesterIsCompAdmin = await isCompetitionAdmin(uid);
-    if (comp.status === 'draft' && !requesterIsCompAdmin && !(await isSandboxUser(db, uid))) {
+    // Droit de tester le wizard sur une compétition en DRAFT : admins compét
+    // et comptes du bac à sable. Le flag est renvoyé au client (`canTestDraft`)
+    // pour que le wizard ne bloque pas sur la fenêtre fermée.
+    const canTestDraft = requesterIsCompAdmin || (await isSandboxUser(db, uid));
+    if (comp.status === 'draft' && !canTestDraft) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 });
     }
 
@@ -165,6 +169,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       existingRegistrations: existing,
       rulebook: rulebook ? { version: rulebook.version, markdown: rulebook.markdown } : null,
       isCompetitionAdmin: requesterIsCompAdmin,
+      canTestDraft,
     });
   } catch (err) {
     captureApiError('API Competitions/Register GET error', err);

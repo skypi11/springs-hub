@@ -8,7 +8,8 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import { ScrollText } from 'lucide-react';
-import { apiPublic, ApiError } from '@/lib/api-client';
+import { api, apiPublic, ApiError } from '@/lib/api-client';
+import { useAuth } from '@/context/AuthContext';
 import GameTag from '@/components/games/GameTag';
 import { Skeleton } from '@/components/ui/Skeleton';
 
@@ -19,20 +20,28 @@ interface RulebookResponse {
 
 export default function ReglementPage() {
   const params = useParams<{ id: string }>();
+  const { user, loading: authLoading } = useAuth();
   const [data, setData] = useState<RulebookResponse | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Fetch authentifié quand connecté : une compétition en brouillon n'est
+    // servie qu'aux testeurs autorisés (admins compét, comptes du bac à
+    // sable) — sans le Bearer, le serveur renvoie 404 même aux autorisés.
+    if (authLoading) return;
     let cancelled = false;
-    apiPublic<RulebookResponse>(`/api/competitions/${params.id}/rulebook`)
-      .then(res => { if (!cancelled) setData(res); })
+    const fetcher = user
+      ? api<RulebookResponse>(`/api/competitions/${params.id}/rulebook`)
+      : apiPublic<RulebookResponse>(`/api/competitions/${params.id}/rulebook`);
+    fetcher
+      .then(res => { if (!cancelled) { setData(res); setNotFound(false); } })
       .catch(err => {
         if (!cancelled) setNotFound(err instanceof ApiError && err.status === 404);
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [params.id]);
+  }, [params.id, user, authLoading]);
 
   if (loading) {
     return (

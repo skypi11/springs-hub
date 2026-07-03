@@ -41,6 +41,9 @@ interface WizardContext {
   existingRegistrations: Array<{ teamId: string; status: string; name: string }>;
   rulebook: { version: number; markdown: string } | null;
   isCompetitionAdmin: boolean;
+  /** Droit de dérouler le wizard sur une compétition en brouillon : admins
+   *  compét ET comptes du bac à sable (calculé serveur). */
+  canTestDraft: boolean;
 }
 
 type Assignment = Record<string, 'titulaire' | 'remplacant'>;
@@ -255,7 +258,7 @@ export default function InscriptionPage() {
     );
   }
 
-  const registrationBlocked = comp.windowState !== 'open' && !(ctx.isCompetitionAdmin && comp.status === 'draft');
+  const registrationBlocked = comp.windowState !== 'open' && !(ctx.canTestDraft && comp.status === 'draft');
   if (registrationBlocked) {
     return (
       <div className="px-4 sm:px-8 py-8 max-w-3xl mx-auto">

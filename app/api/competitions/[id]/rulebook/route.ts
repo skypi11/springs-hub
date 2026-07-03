@@ -24,9 +24,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const comp = compSnap.data()!;
 
     if (comp.status === 'draft') {
+      // Draft visible des admins compét ET des comptes du bac à sable
+      // (users.isDev, Admin SDK only) — jamais du public.
       const uid = await verifyAuth(req);
-      if (!uid || !(await isCompetitionAdmin(uid))) {
-        return NextResponse.json({ error: 'not_found' }, { status: 404 });
+      if (!uid) return NextResponse.json({ error: 'not_found' }, { status: 404 });
+      if (!(await isCompetitionAdmin(uid))) {
+        const userSnap = await db.collection('users').doc(uid).get();
+        if (userSnap.data()?.isDev !== true) {
+          return NextResponse.json({ error: 'not_found' }, { status: 404 });
+        }
       }
     }
 
