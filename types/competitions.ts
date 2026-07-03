@@ -126,6 +126,21 @@ export interface Competition {
    * personnelle. Absent = 0.
    */
   approvedCount?: number;
+  /**
+   * Ordre de seed (statut 'seeding') : registrationId par place, index 0 =
+   * seed 1. Aléatoire à l'ouverture du seeding, réordonnable par l'admin avant
+   * publication (spec §2). Figé à la matérialisation du bracket. Public-safe
+   * (registrationId = `${compId}_${teamId}`, aucun snowflake).
+   */
+  seeding?: string[];
+  /**
+   * Équipes retirées en cours de tournoi (withdrawTeam, R5-4) — nécessaire à la
+   * reconstruction du bracket pur (lib/competitions/bracket-store). Initialisé
+   * à [] à la publication.
+   */
+  withdrawn?: string[];
+  /** Bracket matérialisé (competition_matches écrits) — pose au `publish`. */
+  bracketMaterializedAt?: Date | string | null;
   createdAt: Date | string;
   // PAS de createdBy : doc public, uid/snowflake interdits (archi §8) —
   // l'auteur est tracé dans admin_audit_logs.
@@ -319,6 +334,26 @@ export interface CompetitionMatch {
   bo: number;
   teamA: string | null;            // registrationId, null = TBD
   teamB: string | null;
+  /**
+   * Un côté « void » ne recevra JAMAIS d'équipe (bye de seeding, double forfait
+   * en amont, slot de waitlist vide). Distinct de `teamA === null` (= TBD, une
+   * équipe arrive plus tard). Fidèle au moteur pur (lib/tournament) pour
+   * permettre la reconstruction exacte du bracket au Lot 3.
+   */
+  voidA: boolean;
+  voidB: boolean;
+  /**
+   * Le score conventionnel d'un forfait compte-t-il dans les stats de départage
+   * de chaque camp ? (forfait simple : oui des deux côtés ; cascade de retrait :
+   * non pour le retiré). Fidèle au moteur.
+   */
+  statsCountA: boolean;
+  statsCountB: boolean;
+  /** Nom/tag/logo dénormalisés pour le rendu du bracket public en onSnapshot
+   *  (le client ne peut pas lire `competition_registrations`, deny-all). Figés
+   *  à l'inscription — jamais de donnée personnelle. Null si côté TBD/void. */
+  teamAInfo: { name: string; tag: string; logoUrl: string | null } | null;
+  teamBInfo: { name: string; tag: string; logoUrl: string | null } | null;
   sourceA: MatchSource;
   sourceB: MatchSource;
   status: MatchStatus;

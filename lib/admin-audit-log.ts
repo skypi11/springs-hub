@@ -69,7 +69,12 @@ export type AdminAuditAction =
   | 'competition_discord_provisioned'
   // Bac à sable de test compétitions (données fictives isDev)
   | 'competition_sandbox_seeded'
-  | 'competition_sandbox_cleaned';
+  | 'competition_sandbox_cleaned'
+  // Moteur de compétitions — Lot 2 (seeding + matérialisation du bracket)
+  | 'competition_seeding_opened'
+  | 'competition_seeding_shuffled'
+  | 'competition_seeding_reordered'
+  | 'competition_bracket_published';
 
 export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event' | 'competition' | 'circuit';
 
