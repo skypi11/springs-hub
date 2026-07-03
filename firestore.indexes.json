@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "competition_registrations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "competitionId", "order": "ASCENDING" },
+        { "fieldPath": "rosterUids", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
       "collectionGroup": "structures",
       "queryScope": "COLLECTION",
       "fields": [
