@@ -137,6 +137,11 @@ export async function seedCompetitionSandbox(db: Firestore, adminAuth: Auth): Pr
       games: ['rocket_league'],
       country: u.country,
       rlRank: u.rlRank,
+      // Plateforme RL DÉCLARÉE (indépendante de la vérification rlEpicId) :
+      // sans elle, checkProfileCompletion juge le profil incomplet et
+      // l'onboarding bloque le compte fictif sur Settings dès l'impersonation.
+      rlPlatform: 'epic',
+      rlPlatformId: u.displayName.replace(/\s+/g, ''),
       ...(u.verified ? {
         rlEpicId: `dev-lgd-epic-${u.slug}`,
         rlEpicName: u.displayName.replace(/\s+/g, ''),

@@ -98,10 +98,18 @@ export default function SandboxPanel({ competitions }: { competitions: AdminComp
           Bac à sable de test
         </span>
         {state?.exists ? (
-          <button type="button" className="btn-springs btn-ghost text-sm" style={{ color: '#ff8a8a' }}
-            onClick={cleanup} disabled={working}>
-            {working ? 'En cours…' : 'Supprimer les données de test'}
-          </button>
+          <span className="flex items-center gap-2">
+            {/* Re-seed idempotent (merge) : réapplique les profils fictifs à
+                jour sans toucher aux inscriptions de test en cours. */}
+            <button type="button" className="btn-springs btn-ghost text-sm"
+              onClick={seed} disabled={working}>
+              {working ? 'En cours…' : 'Recréer'}
+            </button>
+            <button type="button" className="btn-springs btn-ghost text-sm" style={{ color: '#ff8a8a' }}
+              onClick={cleanup} disabled={working}>
+              {working ? 'En cours…' : 'Supprimer les données de test'}
+            </button>
+          </span>
         ) : (
           <button type="button" className="btn-springs btn-secondary bevel-sm text-sm"
             onClick={seed} disabled={working}>
