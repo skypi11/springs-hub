@@ -33,6 +33,14 @@ const MMR_MAX = 5000;
 
 type RegistrationWindowState = 'before' | 'open' | 'closed' | 'unavailable';
 
+// Compte fictif du bac à sable de test (users.isDev, écrit uniquement par
+// l'Admin SDK — un utilisateur réel ne peut pas se déclarer isDev) : autorisé
+// à dérouler le wizard sur une compétition en DRAFT, comme un admin compét.
+async function isSandboxUser(db: FirebaseFirestore.Firestore, uid: string): Promise<boolean> {
+  const snap = await db.collection('users').doc(uid).get();
+  return snap.data()?.isDev === true;
+}
+
 function windowState(comp: FirebaseFirestore.DocumentData, now: Date): RegistrationWindowState {
   const opensAt = comp.registration?.opensAt?.toDate?.() ?? null;
   const closesAt = comp.registration?.closesAt?.toDate?.() ?? null;
@@ -56,7 +64,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!compSnap.exists) return NextResponse.json({ error: 'not_found' }, { status: 404 });
     const comp = compSnap.data()!;
     const requesterIsCompAdmin = await isCompetitionAdmin(uid);
-    if (comp.status === 'draft' && !requesterIsCompAdmin) {
+    if (comp.status === 'draft' && !requesterIsCompAdmin && !(await isSandboxUser(db, uid))) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 });
     }
 
@@ -185,9 +193,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const requesterIsCompAdmin = await isCompetitionAdmin(uid);
     const state = windowState(comp, new Date());
-    // Les admins compét peuvent tester le flux sur une compétition en draft
-    // (previews pré-publication, tournoi fantôme) — le public, jamais.
-    const adminTestBypass = requesterIsCompAdmin && comp.status === 'draft';
+    // Les admins compét ET les comptes fictifs du bac à sable peuvent tester
+    // le flux sur une compétition en draft (previews pré-publication, tournoi
+    // fantôme, tests d'inscription impersonés) — le public, jamais.
+    const adminTestBypass = comp.status === 'draft'
+      && (requesterIsCompAdmin || await isSandboxUser(db, uid));
     if (!adminTestBypass && state !== 'open') {
       const msg = state === 'before'
         ? 'Les inscriptions ne sont pas encore ouvertes.'

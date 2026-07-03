@@ -66,7 +66,10 @@ export type AdminAuditAction =
   | 'competition_registration_approved'
   | 'competition_registration_rejected'
   | 'competition_registration_unapproved'
-  | 'competition_discord_provisioned';
+  | 'competition_discord_provisioned'
+  // Bac à sable de test compétitions (données fictives isDev)
+  | 'competition_sandbox_seeded'
+  | 'competition_sandbox_cleaned';
 
 export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event' | 'competition' | 'circuit';
 

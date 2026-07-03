@@ -18,6 +18,7 @@ import CompetitionForm from '@/components/admin/competitions/CompetitionForm';
 import BansPanel, { type CompetitionBanRow } from '@/components/admin/competitions/BansPanel';
 import RulebookEditor, { type RulebookScope } from '@/components/admin/competitions/RulebookEditor';
 import RegistrationsPanel from '@/components/admin/competitions/RegistrationsPanel';
+import SandboxPanel from '@/components/admin/competitions/SandboxPanel';
 import type { AdminCircuit, AdminCompetition, CompetitionAdminEntry } from '@/components/admin/competitions/types';
 
 type View =
@@ -358,6 +359,9 @@ export default function AdminCompetitionsPage() {
 
       {/* Registre des bans — géré par les admins de compétition (rôle scopé inclus) */}
       <BansPanel bans={bans} onChanged={load} />
+
+      {/* Bac à sable de test — admins Aedral uniquement (création de comptes fictifs) */}
+      {isAdmin && <SandboxPanel competitions={competitions} />}
 
       {/* Admins de compétition — nomination réservée aux admins Aedral */}
       {isAdmin && (
