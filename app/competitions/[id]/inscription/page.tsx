@@ -10,11 +10,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
-import { ChevronLeft, ChevronRight, ShieldCheck, ShieldAlert, ArrowRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ShieldCheck, ShieldAlert, ArrowRight, Check } from 'lucide-react';
 import { api, ApiError } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import GameTag from '@/components/games/GameTag';
+import { getGameColor, getGameColorRgb } from '@/lib/games-registry';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { computeRefMmr, computeMmrFlags, analyzeLineups } from '@/lib/competitions/mmr';
 import type { CompetitionEligibility } from '@/types/competitions';
@@ -230,7 +231,7 @@ export default function InscriptionPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="px-4 sm:px-8 py-8 max-w-3xl mx-auto space-y-4">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-4">
         <Skeleton className="h-8 w-1/2" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -239,7 +240,7 @@ export default function InscriptionPage() {
 
   if (loadError || !ctx || !comp) {
     return (
-      <div className="px-4 sm:px-8 py-8 max-w-3xl mx-auto">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         <p className="t-body" style={{ color: 'var(--s-text-dim)' }}>{loadError || 'Compétition introuvable.'}</p>
       </div>
     );
@@ -247,7 +248,7 @@ export default function InscriptionPage() {
 
   if (submitted !== null) {
     return (
-      <div className="px-4 sm:px-8 py-8 max-w-3xl mx-auto space-y-4 animate-fade-in">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-4 animate-fade-in">
         <div className="panel bevel">
           <div className="panel-body space-y-3">
             <h1 className="font-display text-2xl" style={{ letterSpacing: '0.03em' }}>INSCRIPTION ENVOYÉE</h1>
@@ -272,7 +273,7 @@ export default function InscriptionPage() {
   const registrationBlocked = comp.windowState !== 'open' && !(ctx.canTestDraft && comp.status === 'draft');
   if (registrationBlocked) {
     return (
-      <div className="px-4 sm:px-8 py-8 max-w-3xl mx-auto">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         <p className="t-body" style={{ color: 'var(--s-text-dim)' }}>
           {comp.windowState === 'before' && 'Les inscriptions ne sont pas encore ouvertes.'}
           {comp.windowState === 'closed' && 'Les inscriptions sont fermées.'}
@@ -284,7 +285,7 @@ export default function InscriptionPage() {
 
   if (ctx.structures.length === 0) {
     return (
-      <div className="px-4 sm:px-8 py-8 max-w-3xl mx-auto space-y-3">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-3">
         <p className="t-body" style={{ color: 'var(--s-text-dim)' }}>
           L&apos;inscription se fait par un dirigeant ou responsable d&apos;une structure
           avec une équipe {comp.game === 'rocket_league' ? 'Rocket League' : ''} sur Aedral.
@@ -297,17 +298,48 @@ export default function InscriptionPage() {
   }
 
   const existingForTeam = ctx.existingRegistrations.find(r => r.teamId === teamId);
+  const color = getGameColor(comp.game);
+  const colorRgb = getGameColorRgb(comp.game);
+  const stepLabels = ctx.rulebook ? ['Équipe', 'Roster', 'Règlement', 'Récap'] : ['Équipe', 'Roster', 'Récap'];
+  // step 1..4 avec l'étape 3 (règlement) sautée s'il n'y a pas de règlement.
+  const currentIndex = ctx.rulebook ? step - 1 : (step === 4 ? 2 : step - 1);
 
   return (
-    <div className="px-4 sm:px-8 py-8 max-w-3xl mx-auto space-y-6 animate-fade-in">
-      <div>
-        <div className="flex flex-wrap items-center gap-2 mb-1">
+    <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-6 animate-fade-in">
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
           <GameTag gameId={comp.game} size="sm" />
-          <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>{comp.name}</span>
+          <Link href={`/competitions/${comp.id}`} className="text-sm hover:underline" style={{ color: 'var(--s-text-dim)' }}>
+            {comp.name}
+          </Link>
+          <span className="text-sm" style={{ color: 'var(--s-text-muted)' }}>· Inscription</span>
         </div>
-        <h1 className="font-display text-2xl" style={{ letterSpacing: '0.03em' }}>
-          INSCRIPTION — ÉTAPE {step === 4 && !ctx.rulebook ? 3 : step}/{ctx.rulebook ? 4 : 3}
-        </h1>
+        {/* Stepper — occupe la largeur, situe la progression sans le « ÉTAPE X/Y » */}
+        <div className="flex items-center gap-2">
+          {stepLabels.map((label, i) => {
+            const done = i < currentIndex;
+            const active = i === currentIndex;
+            return (
+              <div key={label} className="flex items-center gap-2 flex-1 min-w-0">
+                <span className="flex items-center justify-center flex-shrink-0" style={{
+                  width: 26, height: 26, fontSize: '13px', fontWeight: 600,
+                  background: active ? color : done ? `rgba(${colorRgb},0.15)` : 'var(--s-elevated)',
+                  color: active ? '#000' : done ? color : 'var(--s-text-muted)',
+                  border: `1px solid ${active || done ? `rgba(${colorRgb},0.5)` : 'var(--s-border)'}`,
+                }}>
+                  {done ? <Check size={14} /> : i + 1}
+                </span>
+                <span className="text-sm truncate" style={{
+                  color: active ? 'var(--s-text)' : 'var(--s-text-dim)',
+                  fontWeight: active ? 600 : 400,
+                }}>{label}</span>
+                {i < stepLabels.length - 1 && (
+                  <span className="flex-1 h-px" style={{ background: 'var(--s-border)', minWidth: 12 }} />
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Étape 1 — équipe */}
@@ -317,7 +349,7 @@ export default function InscriptionPage() {
             {ctx.structures.length > 1 && (
               <div>
                 <label className="t-label block mb-2">Structure</label>
-                <select className="settings-input w-full" value={structureId}
+                <select className="settings-input w-full max-w-md" value={structureId}
                   onChange={e => {
                     setStructureId(e.target.value);
                     setTeamId('');
@@ -338,7 +370,7 @@ export default function InscriptionPage() {
                     Aucune équipe pour ce jeu. Crée-la d&apos;abord dans ta structure.
                   </p>
                 ) : (
-                  <select className="settings-input w-full" value={teamId}
+                  <select className="settings-input w-full max-w-md" value={teamId}
                     onChange={e => { setTeamId(e.target.value); setAssignment({}); }}>
                     <option value="">Choisir…</option>
                     {structure.teams.map(t => (
@@ -357,7 +389,7 @@ export default function InscriptionPage() {
             )}
             <div>
               <label className="t-label block mb-2">Nom d&apos;équipe affiché</label>
-              <input className="settings-input w-full" value={displayName} maxLength={50}
+              <input className="settings-input w-full max-w-md" value={displayName} maxLength={50}
                 onChange={e => setDisplayName(e.target.value)} />
               <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
                 Il identifie l&apos;équipe sur tout le circuit : le changer entre deux
@@ -419,24 +451,26 @@ export default function InscriptionPage() {
                     <span className="flex items-center gap-2 flex-1 min-w-0">
                       <span className="text-sm font-semibold truncate">{m.displayName}</span>
                       {m.verified ? (
-                        <ShieldCheck size={14} style={{ color: '#33ff66', flexShrink: 0 }} aria-label="Compte vérifié" />
+                        <ShieldCheck size={14} style={{ color: 'var(--s-text-dim)', flexShrink: 0 }} aria-label="Compte vérifié" />
                       ) : (
                         <ShieldAlert size={14} style={{ color: 'var(--s-gold)', flexShrink: 0 }} aria-label="Compte non vérifié" />
                       )}
                       {/* Âge : informatif, jamais bloquant — la dérogation se
-                          joue à la validation (spec §4). */}
+                          joue à la validation (spec §4). Même style d'alerte que
+                          le compte non vérifié (or, text-xs, icône bouclier). */}
                       {m.ageStatus !== 'ok' && (
                         <span className="flex items-center gap-1 text-xs flex-shrink-0" style={{ color: 'var(--s-gold)' }}>
                           <ShieldAlert size={13} aria-hidden />
                           {m.ageStatus === 'under'
-                            ? 'Mineur — dérogation demandée à la validation'
-                            : 'Âge non renseigné — dérogation demandée à la validation'}
+                            ? 'Mineur · dérogation à la validation'
+                            : 'Âge non renseigné · dérogation à la validation'}
                         </span>
                       )}
                     </span>
                     {blocked ? (
-                      <span className="text-sm" style={{ color: 'var(--s-gold)' }}>
-                        Compte non vérifié — requis pour être aligné
+                      <span className="flex items-center gap-1 text-xs flex-shrink-0" style={{ color: 'var(--s-gold)' }}>
+                        <ShieldAlert size={13} aria-hidden />
+                        Compte non vérifié · requis pour être aligné
                       </span>
                     ) : mmrRules && role ? (
                       <span className="flex items-center gap-2">
@@ -500,7 +534,7 @@ export default function InscriptionPage() {
             </Link>
           </div>
           <div className="panel-body space-y-4">
-            <div className="prose-springs text-sm max-w-none overflow-y-auto px-1"
+            <div className="prose-springs text-sm max-w-3xl overflow-y-auto px-1"
               style={{ maxHeight: '420px', border: '1px solid var(--s-border)', padding: '16px' }}>
               <ReactMarkdown>{ctx.rulebook.markdown}</ReactMarkdown>
             </div>
