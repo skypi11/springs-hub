@@ -201,6 +201,9 @@ async function processNightlyDiscordSync(
 
   for (const userDoc of usersSnap.docs) {
     const uid = userDoc.id;
+    // Comptes synthétiques (bac à sable compétitions, seed démo) : jamais de
+    // vrais comptes Discord → on ne les traite dans aucun appel externe.
+    if (userDoc.data().isDev === true) continue;
     try {
       const syncResult = await syncDiscordMember(db, uid);
       if (syncResult === 'synced') rolesSynced++;

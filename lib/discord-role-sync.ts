@@ -166,6 +166,11 @@ export async function syncDiscordMember(db: Firestore, userId: string): Promise<
     if (!botToken()) return 'disabled';
     if (!userId.startsWith('discord_')) return 'no_discord_id';
     const discordId = userId.slice('discord_'.length);
+    // Un vrai identifiant Discord est un snowflake numérique. Tout le reste
+    // (comptes synthétiques du bac à sable `discord_dev_*`, données corrompues)
+    // ne doit JAMAIS atteindre l'API Discord : un id non numérique renvoie 400
+    // en boucle → bruit Sentry (incident 04/07 : 17 comptes de test).
+    if (!/^\d{5,25}$/.test(discordId)) return 'no_discord_id';
 
     // Le bot ne peut agir que si le joueur a rejoint le serveur Aedral.
     const memberRes = await discord(`/guilds/${AEDRAL_GUILD_ID}/members/${discordId}`);
