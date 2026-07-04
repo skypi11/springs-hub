@@ -44,8 +44,25 @@ export interface CircuitPayload {
   pointsScale: Record<string, number>;
   bestResultsCount: number;
   lanTeamCount: number;
+  prizePool: { amount: number; currency: string; note?: string } | null;
   tieBreakers: CircuitTieBreaker[];
   status: CircuitStatus;
+}
+
+// Dotation optionnelle du circuit. null (ou absent) = pas de dotation.
+const PRIZE_CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'CAD'] as const;
+function validatePrizePool(input: unknown): ValidationResult<CircuitPayload['prizePool']> {
+  if (input === null || input === undefined) return { ok: true, value: null };
+  if (typeof input !== 'object') return err('Dotation invalide.');
+  const p = input as Record<string, unknown>;
+  const amount = asInt(p.amount);
+  if (amount === null || amount < 0 || amount > 10_000_000) return err('Montant de dotation invalide.');
+  if (amount === 0) return { ok: true, value: null }; // 0 = pas de dotation
+  const currency = typeof p.currency === 'string' && PRIZE_CURRENCIES.includes(p.currency as (typeof PRIZE_CURRENCIES)[number])
+    ? p.currency
+    : 'EUR';
+  const note = clampString(p.note, 80);
+  return { ok: true, value: { amount, currency, ...(note ? { note } : {}) } };
 }
 
 export function validateCircuitPayload(body: unknown): ValidationResult<CircuitPayload> {
@@ -72,6 +89,9 @@ export function validateCircuitPayload(body: unknown): ValidationResult<CircuitP
     return err("Nombre d'équipes qualifiées invalide (2-64).");
   }
 
+  const prizePool = validatePrizePool(b.prizePool);
+  if (!prizePool.ok) return prizePool;
+
   // L'ordre des clés de départage est figé au Lot 0 (celui de la spec). On
   // accepte le tableau du client uniquement s'il est une permutation valide.
   const tb = Array.isArray(b.tieBreakers) ? (b.tieBreakers as unknown[]) : [];
@@ -93,6 +113,7 @@ export function validateCircuitPayload(body: unknown): ValidationResult<CircuitP
       pointsScale: scale.value,
       bestResultsCount,
       lanTeamCount,
+      prizePool: prizePool.value,
       tieBreakers,
       status,
     },

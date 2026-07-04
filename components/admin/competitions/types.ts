@@ -16,6 +16,7 @@ export interface AdminCircuit {
   pointsScale: Record<string, number>;
   bestResultsCount: number;
   lanTeamCount: number;
+  prizePool: { amount: number; currency: string; note?: string } | null;
   tieBreakers: string[];
   status: string;
   createdAt: string | null;

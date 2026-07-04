@@ -32,6 +32,8 @@ export default function CircuitForm({
   const [name, setName] = useState(initial?.name ?? '');
   const [bestResultsCount, setBestResultsCount] = useState(initial?.bestResultsCount ?? LEGENDS_CIRCUIT.bestResultsCount);
   const [lanTeamCount, setLanTeamCount] = useState(initial?.lanTeamCount ?? LEGENDS_CIRCUIT.lanTeamCount);
+  const [prizeAmount, setPrizeAmount] = useState(initial?.prizePool?.amount ?? 0);
+  const [prizeNote, setPrizeNote] = useState(initial?.prizePool?.note ?? '');
   const [scale, setScale] = useState<Record<string, number>>(
     initial && Object.keys(initial.pointsScale).length > 0 ? initial.pointsScale : { ...LEGENDS_POINTS_SCALE },
   );
@@ -53,6 +55,8 @@ export default function CircuitForm({
     setScale({ ...LEGENDS_POINTS_SCALE });
     setBestResultsCount(LEGENDS_CIRCUIT.bestResultsCount);
     setLanTeamCount(LEGENDS_CIRCUIT.lanTeamCount);
+    setPrizeAmount(LEGENDS_CIRCUIT.prizePool.amount);
+    setPrizeNote(LEGENDS_CIRCUIT.prizePool.note);
     toast.success('Préréglage Legends appliqué.');
   }
 
@@ -63,6 +67,10 @@ export default function CircuitForm({
       pointsScale: scale,
       bestResultsCount,
       lanTeamCount,
+      // 0 = pas de dotation (le serveur normalise à null).
+      prizePool: prizeAmount > 0
+        ? { amount: prizeAmount, currency: 'EUR', note: prizeNote.trim() || undefined }
+        : null,
       tieBreakers: [...LEGENDS_TIE_BREAKERS],
       status: 'draft',
     };
@@ -133,6 +141,33 @@ export default function CircuitForm({
 
         <div className="divider" />
 
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="t-label block mb-2">Dotation (€)</label>
+            <input
+              type="number" min={0}
+              className="settings-input w-full"
+              value={prizeAmount}
+              onChange={e => setPrizeAmount(Number(e.target.value))}
+            />
+            <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
+              0 = pas de dotation. Affichée sur la page du circuit.
+            </p>
+          </div>
+          <div className="md:col-span-2">
+            <label className="t-label block mb-2">Mention de dotation</label>
+            <input
+              className="settings-input w-full"
+              value={prizeNote}
+              onChange={e => setPrizeNote(e.target.value)}
+              placeholder="Remis à la LAN finale"
+              maxLength={80}
+            />
+          </div>
+        </div>
+
+        <div className="divider" />
+
         <div>
           <div className="flex items-center justify-between mb-3">
             <label className="t-label">Barème de points (place → points)</label>
@@ -142,7 +177,13 @@ export default function CircuitForm({
                 type="number" min={2} max={64}
                 className="settings-input w-20"
                 value={places}
-                onChange={e => setPlaces(Number(e.target.value))}
+                onChange={e => {
+                  // Champ vidé (Number('') === 0 → clamp 2) : ne pas effondrer le
+                  // barème à 2 places et perdre les points saisis. On n'applique
+                  // qu'une valeur numérique réelle.
+                  const n = Number(e.target.value);
+                  if (e.target.value !== '' && Number.isFinite(n)) setPlaces(n);
+                }}
               />
             </div>
           </div>

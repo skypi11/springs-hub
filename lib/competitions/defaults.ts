@@ -94,4 +94,6 @@ export const LEGENDS_TIE_BREAKERS = ['best_placement', 'goal_diff_total', 'lates
 export const LEGENDS_CIRCUIT = {
   bestResultsCount: 3,
   lanTeamCount: 16,
+  // Dotation Legends : 1 200 € cash, remis à la LAN uniquement (spec §1).
+  prizePool: { amount: 1200, currency: 'EUR', note: 'Remis à la LAN finale' },
 };

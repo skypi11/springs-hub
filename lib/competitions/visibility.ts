@@ -14,6 +14,13 @@ export function isCompetitionHidden(comp: { status?: string; isDev?: boolean }):
   return comp.status === 'draft' || comp.isDev === true;
 }
 
+/** Un circuit est masqué du public tant qu'il n'est pas publié (status active/
+ *  finished/archived). Un circuit en brouillon — dont le circuit de test — n'est
+ *  visible que des testeurs autorisés. Même porte que canViewHiddenCompetition. */
+export function isCircuitHidden(circuit: { status?: string }): boolean {
+  return circuit.status === 'draft';
+}
+
 /** L'utilisateur peut-il voir/interagir avec une compétition masquée ?
  *  Admin de compétition (rôle scopé ou admin Aedral) OU compte du bac à sable. */
 export async function canViewHiddenCompetition(db: Firestore, uid: string): Promise<boolean> {

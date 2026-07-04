@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { CalendarDays, Users2, ScrollText, ArrowRight, Trophy, EyeOff } from 'lucide-react';
+import { CalendarDays, Users2, ScrollText, ArrowRight, Trophy, EyeOff, ChevronLeft } from 'lucide-react';
 import { api, apiPublic, ApiError } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
 import GameTag from '@/components/games/GameTag';
@@ -22,6 +22,7 @@ interface PublicCompetition {
     name: string;
     game: string;
     status: string;
+    circuitId: string | null;
     circuitName: string | null;
     format: CompetitionFormat | null;
     roster: { starters: number; subsMax: number } | null;
@@ -86,7 +87,7 @@ export default function CompetitionPage() {
 
   if (loading) {
     return (
-      <div className="px-4 sm:px-8 py-8 max-w-5xl mx-auto space-y-4">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-4">
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-48 w-full" />
       </div>
@@ -95,7 +96,7 @@ export default function CompetitionPage() {
 
   if (notFound || !data) {
     return (
-      <div className="px-4 sm:px-8 py-8 max-w-5xl mx-auto">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         <p className="t-body" style={{ color: 'var(--s-text-dim)' }}>Compétition introuvable.</p>
       </div>
     );
@@ -116,7 +117,16 @@ export default function CompetitionPage() {
   const bracketPublished = !!comp.bracketMaterializedAt;
 
   return (
-    <div className="px-4 sm:px-8 py-8 max-w-5xl mx-auto space-y-6 animate-fade-in">
+    <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-6 animate-fade-in">
+      {/* Retour au circuit — le contexte complet (parcours, qualif, classement)
+          vit sur la page circuit ; cette fiche est centrée sur la Qualif. */}
+      {comp.circuitId && comp.circuitName && (
+        <Link href={`/competitions/circuit/${comp.circuitId}`}
+          className="inline-flex items-center gap-1.5 text-sm" style={{ color: 'var(--s-text-dim)' }}>
+          <ChevronLeft size={15} /> {comp.circuitName}
+        </Link>
+      )}
+
       {/* Hero — niveau 1 : image du jeu en fond, accent barre couleur jeu */}
       <div className="panel bevel relative overflow-hidden">
         {banner && (
@@ -133,9 +143,6 @@ export default function CompetitionPage() {
         <div className="relative p-6 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <GameTag gameId={comp.game} size="sm" />
-            {comp.circuitName && (
-              <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>{comp.circuitName}</span>
-            )}
             <span className="tag tag-neutral">{STATUS_LABELS[comp.status] ?? comp.status}</span>
             {comp.isDev && (
               <span className="tag tag-neutral flex items-center gap-1" style={{ color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.4)' }}>

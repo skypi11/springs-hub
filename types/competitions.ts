@@ -32,6 +32,13 @@ export interface Circuit {
   pointsScale: Record<string, number>;
   bestResultsCount: number;        // 3 : seuls les 3 meilleurs résultats comptent
   lanTeamCount: number;            // 16 : cutline LAN
+  /**
+   * Dotation du circuit — remise à la LAN finale (spec §1 : 1 200 € cash, aucun
+   * cashprize sur les Qualifs). Attribut du CIRCUIT, pas d'une Qualif : la
+   * fiche circuit l'affiche comme argument d'inscription. null = pas de dotation
+   * annoncée. `note` = mention libre ("Remis à la LAN finale").
+   */
+  prizePool?: { amount: number; currency: string; note?: string } | null;
   /** Ordre des clés de départage cutline (spec §11). */
   tieBreakers: CircuitTieBreaker[];
   /** Rôle Discord « Participant » commun aux compétitions du circuit (spec §7),
