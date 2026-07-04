@@ -1,16 +1,19 @@
 'use client';
 
-// Fiche publique d'une compétition (version Lot 1 : config + équipes validées
-// + inscription). Le bracket live arrive au Lot 2 sur cette même page.
+// Fiche publique d'une compétition (Lot 2) : hero + format + BRACKET LIVE
+// (quand publié, onSnapshot) + équipes. Gating : brouillon ou compét de test
+// (isDev) = 404 public, servie aux admins compét / comptes du bac à sable.
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { CalendarDays, Users2, ScrollText, ArrowRight } from 'lucide-react';
+import { CalendarDays, Users2, ScrollText, ArrowRight, Trophy, EyeOff } from 'lucide-react';
 import { api, apiPublic, ApiError } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
 import GameTag from '@/components/games/GameTag';
+import BracketView from '@/components/competitions/BracketView';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { getGameColor, getGameColorRgb, getGameBannerUrl } from '@/lib/games-registry';
 import type { CompetitionEligibility, CompetitionFormat, CompetitionSchedule } from '@/types/competitions';
 
 interface PublicCompetition {
@@ -25,6 +28,9 @@ interface PublicCompetition {
     eligibility: CompetitionEligibility | null;
     registration: { opensAt: string | null; closesAt: string | null; waitlist: boolean };
     schedule: CompetitionSchedule | null;
+    bracketMaterializedAt: string | null;
+    prizePool: { amount?: number; currency?: string } | number | null;
+    isDev: boolean;
   };
   teams: Array<{ name: string; tag: string; logoUrl: string | null }>;
   waitlistedCount: number;
@@ -47,6 +53,13 @@ function fmtDate(iso: string | null | undefined): string {
   } catch { return '—'; }
 }
 
+function fmtPrize(p: PublicCompetition['competition']['prizePool']): string | null {
+  if (p == null) return null;
+  if (typeof p === 'number') return p > 0 ? `${p} €` : null;
+  if (typeof p.amount === 'number' && p.amount > 0) return `${p.amount} ${p.currency ?? '€'}`;
+  return null;
+}
+
 export default function CompetitionPage() {
   const params = useParams<{ id: string }>();
   const { user, loading: authLoading } = useAuth();
@@ -56,10 +69,9 @@ export default function CompetitionPage() {
 
   useEffect(() => {
     // Fetch AUTHENTIFIÉ dès qu'un utilisateur est connecté : une compétition
-    // en brouillon n'est servie qu'aux admins compét et aux comptes du bac à
-    // sable — sans le Bearer, le serveur ne peut pas les reconnaître et
-    // renvoie 404 même aux autorisés. On attend la fin du chargement auth
-    // pour ne pas figer un 404 public avant que le token soit disponible.
+    // masquée (brouillon ou test) n'est servie qu'aux admins compét et aux
+    // comptes du bac à sable — sans le Bearer, le serveur renvoie 404 même aux
+    // autorisés. On attend la fin du chargement auth pour ne pas figer un 404.
     if (authLoading) return;
     let cancelled = false;
     const fetcher = user
@@ -74,8 +86,8 @@ export default function CompetitionPage() {
 
   if (loading) {
     return (
-      <div className="px-4 sm:px-8 py-8 max-w-4xl mx-auto space-y-4">
-        <Skeleton className="h-24 w-full" />
+      <div className="px-4 sm:px-8 py-8 max-w-5xl mx-auto space-y-4">
+        <Skeleton className="h-32 w-full" />
         <Skeleton className="h-48 w-full" />
       </div>
     );
@@ -83,41 +95,58 @@ export default function CompetitionPage() {
 
   if (notFound || !data) {
     return (
-      <div className="px-4 sm:px-8 py-8 max-w-4xl mx-auto">
+      <div className="px-4 sm:px-8 py-8 max-w-5xl mx-auto">
         <p className="t-body" style={{ color: 'var(--s-text-dim)' }}>Compétition introuvable.</p>
       </div>
     );
   }
 
   const { competition: comp, teams, waitlistedCount } = data;
+  const color = getGameColor(comp.game);
+  const colorRgb = getGameColorRgb(comp.game);
+  const banner = getGameBannerUrl(comp.game);
   const now = new Date();
   const opensAt = comp.registration.opensAt ? new Date(comp.registration.opensAt) : null;
   const closesAt = comp.registration.closesAt ? new Date(comp.registration.closesAt) : null;
   const registrationOpen = comp.status === 'registration' && opensAt && closesAt && now >= opensAt && now <= closesAt;
-  // Une fiche en brouillon n'est servie qu'aux testeurs autorisés (admins
-  // compét, comptes du bac à sable) : s'ils la voient, ils peuvent dérouler
-  // le wizard — même CTA que la fenêtre réelle.
   const canRegister = registrationOpen || comp.status === 'draft';
   const maxTeams = comp.format?.maxTeams ?? null;
   const mmr = comp.eligibility?.mmr ?? null;
+  const prize = fmtPrize(comp.prizePool);
+  const bracketPublished = !!comp.bracketMaterializedAt;
 
   return (
-    <div className="px-4 sm:px-8 py-8 max-w-4xl mx-auto space-y-6 animate-fade-in">
-      {/* Héros — seul élément avec chrome de la page */}
+    <div className="px-4 sm:px-8 py-8 max-w-5xl mx-auto space-y-6 animate-fade-in">
+      {/* Hero — niveau 1 : image du jeu en fond, accent barre couleur jeu */}
       <div className="panel bevel relative overflow-hidden">
-        <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-blue), rgba(0,129,255,0.3), transparent 70%)' }} />
-        <div className="p-6 space-y-3">
+        {banner && (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element -- asset local /public, décoratif */}
+            <img src={banner} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover"
+              style={{ opacity: 0.14 }} />
+            <div className="absolute inset-0" style={{
+              background: `linear-gradient(90deg, var(--s-surface) 30%, rgba(${colorRgb},0.06) 100%)`,
+            }} />
+          </>
+        )}
+        <div className="h-[3px] relative" style={{ background: `linear-gradient(90deg, ${color}, rgba(${colorRgb},0.3), transparent 70%)` }} />
+        <div className="relative p-6 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <GameTag gameId={comp.game} size="sm" />
             {comp.circuitName && (
               <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>{comp.circuitName}</span>
             )}
             <span className="tag tag-neutral">{STATUS_LABELS[comp.status] ?? comp.status}</span>
+            {comp.isDev && (
+              <span className="tag tag-neutral flex items-center gap-1" style={{ color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.4)' }}>
+                <EyeOff size={11} /> Test · masquée du public
+              </span>
+            )}
           </div>
-          <h1 className="font-display text-3xl" style={{ letterSpacing: '0.03em' }}>
+          <h1 className="font-display text-4xl" style={{ letterSpacing: '0.03em' }}>
             {comp.name.toUpperCase()}
           </h1>
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm" style={{ color: 'var(--s-text-dim)' }}>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm" style={{ color: 'var(--s-text-dim)' }}>
             {comp.schedule?.days?.length ? (
               <span className="flex items-center gap-1.5">
                 <CalendarDays size={14} />
@@ -126,9 +155,14 @@ export default function CompetitionPage() {
             ) : null}
             <span className="flex items-center gap-1.5">
               <Users2 size={14} />
-              {teams.length}{maxTeams ? ` / ${maxTeams}` : ''} équipes validées
-              {waitlistedCount > 0 ? ` · ${waitlistedCount} en liste d'attente` : ''}
+              {teams.length}{maxTeams ? ` / ${maxTeams}` : ''} équipes
+              {waitlistedCount > 0 ? ` · ${waitlistedCount} en attente` : ''}
             </span>
+            {prize && (
+              <span className="flex items-center gap-1.5" style={{ color: 'var(--s-gold)' }}>
+                <Trophy size={14} /> {prize}
+              </span>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-3 pt-1">
             {canRegister && user && (
@@ -152,6 +186,16 @@ export default function CompetitionPage() {
           </div>
         </div>
       </div>
+
+      {/* Bracket live — dès qu'il est publié */}
+      {bracketPublished && (
+        <div className="panel bevel">
+          <div className="panel-header"><span className="t-sub">Bracket</span></div>
+          <div className="panel-body">
+            <BracketView competitionId={comp.id} gameColor={color} />
+          </div>
+        </div>
+      )}
 
       {/* Format */}
       <div className="panel bevel">

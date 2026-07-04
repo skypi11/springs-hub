@@ -24,6 +24,10 @@ export async function GET(req: NextRequest) {
       .get();
     const competitions = openSnap.docs
       .filter(d => {
+        // Les compétitions de test (isDev) ne fuient jamais dans la bannière
+        // publique, même en fenêtre d'inscription — elles rejoignent la
+        // section « brouillons/test » réservée aux testeurs plus bas.
+        if (d.data().isDev === true) return false;
         const r = d.data().registration;
         const opensAt = r?.opensAt?.toDate?.() ?? null;
         const closesAt = r?.closesAt?.toDate?.() ?? null;
@@ -43,8 +47,19 @@ export async function GET(req: NextRequest) {
       db.collection('users').doc(uid).get(),
     ]);
     if (requesterIsCompAdmin || userSnap.data()?.isDev === true) {
-      const draftSnap = await db.collection('competitions').where('status', '==', 'draft').get();
-      for (const d of draftSnap.docs) {
+      // Terrain de test des testeurs : les brouillons + les compétitions de
+      // test (isDev) à tout statut non terminé (elles n'apparaissent pas dans
+      // la liste publique ci-dessus). Dédupliqué sur l'id déjà présent.
+      const present = new Set(competitions.map(c => c.id));
+      const [draftSnap, devSnap] = await Promise.all([
+        db.collection('competitions').where('status', '==', 'draft').get(),
+        db.collection('competitions').where('isDev', '==', true).get(),
+      ]);
+      for (const d of [...draftSnap.docs, ...devSnap.docs]) {
+        if (present.has(d.id)) continue;
+        const status = (d.data().status as string) ?? 'draft';
+        if (status === 'finished' || status === 'archived') continue;
+        present.add(d.id);
         competitions.push({
           id: d.id,
           name: (d.data().name as string) ?? '',

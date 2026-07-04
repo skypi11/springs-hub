@@ -141,6 +141,14 @@ export interface Competition {
   withdrawn?: string[];
   /** Bracket matérialisé (competition_matches écrits) — pose au `publish`. */
   bracketMaterializedAt?: Date | string | null;
+  /**
+   * Compétition de TEST : invisible du public (fiche + bracket + futures listes)
+   * comme un brouillon, MÊME une fois publiée en 'live'. Visible uniquement des
+   * admins compét et des comptes du bac à sable. Même logique que `users.isDev`.
+   * Permet à Matt de dérouler tout le cycle (seeding → publish → bracket) sur
+   * une compét de test sans fuite publique. Absent/false = compét réelle.
+   */
+  isDev?: boolean;
   createdAt: Date | string;
   // PAS de createdBy : doc public, uid/snowflake interdits (archi §8) —
   // l'auteur est tracé dans admin_audit_logs.

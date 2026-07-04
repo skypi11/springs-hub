@@ -73,6 +73,9 @@ export async function POST(req: NextRequest) {
     batch.set(ref, {
       ...toFirestoreCompetition(payload),
       status: 'draft',
+      // Compétition de test (invisible du public même publiée) — flag simple
+      // hors schéma de validation partagé, écrit à la création uniquement.
+      isDev: body.isDev === true,
       createdAt: FieldValue.serverTimestamp(),
     });
     if (payload.circuitId) {

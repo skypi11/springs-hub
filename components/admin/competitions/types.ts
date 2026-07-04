@@ -33,6 +33,8 @@ export interface AdminCompetition {
   schedule: CompetitionSchedule | null;
   discord: { guildId: string; participantRoleId: string | null; categoryId: string | null } | null;
   status: string;
+  isDev?: boolean;
+  bracketMaterializedAt?: string | null;
   createdAt: string | null;
 }
 

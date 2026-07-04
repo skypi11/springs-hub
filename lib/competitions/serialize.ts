@@ -47,6 +47,8 @@ export function serializeCompetition(id: string, data: FirebaseFirestore.Documen
     schedule: data.schedule ?? null,
     discord: data.discord ?? null,
     status: data.status ?? 'draft',
+    isDev: data.isDev === true,
+    bracketMaterializedAt: data.bracketMaterializedAt?.toDate?.()?.toISOString() ?? null,
     createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
   };
 }

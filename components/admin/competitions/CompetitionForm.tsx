@@ -55,6 +55,7 @@ export default function CompetitionForm({
   // ── Base ──
   const [name, setName] = useState(initial?.name ?? '');
   const [circuitId, setCircuitId] = useState(initial?.circuitId ?? '');
+  const [isDevComp, setIsDevComp] = useState(initial?.isDev ?? false);
 
   // ── Format ──
   const [maxTeams, setMaxTeams] = useState(initial?.format?.maxTeams ?? LEGENDS_FORMAT.maxTeams);
@@ -179,6 +180,7 @@ export default function CompetitionForm({
       },
       schedule: { days, phasePlan, generalCheckinMinutes, matchCheckinMinutes, scoreCounterMinutes },
       discordGuildId,
+      isDev: isDevComp,
     };
     const check = validateCompetitionPayload(payload);
     if (!check.ok) {
@@ -239,6 +241,15 @@ export default function CompetitionForm({
               ))}
             </select>
           </div>
+        </div>
+
+        <div>
+          <Switch label="Compétition de test (invisible du public)" value={isDevComp} onChange={setIsDevComp} />
+          <p className="text-xs mt-1 px-2" style={{ color: 'var(--s-text-muted)' }}>
+            Réservée au bac à sable : elle reste masquée du public (fiche, bracket,
+            listes) même une fois publiée, seuls toi et les comptes de test la voient.
+            Coche pour tester le cycle complet sans rien exposer.
+          </p>
         </div>
 
         <div className="divider" />

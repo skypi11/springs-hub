@@ -20,9 +20,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!compSnap.exists) return NextResponse.json({ error: 'not_found' }, { status: 404 });
     const comp = compSnap.data()!;
 
-    if (comp.status === 'draft') {
-      // Draft visible des admins compét ET des comptes fictifs du bac à sable
-      // (users.isDev, Admin SDK only) — jamais du public.
+    // Masquée du public : brouillon OU compétition de test (isDev) — même une
+    // fois publiée en 'live'. Visible uniquement des admins compét et des
+    // comptes du bac à sable (users.isDev). C'est le garde-fou anti-fuite des
+    // données de test (une compét de test publiée ne doit jamais être publique).
+    const hiddenFromPublic = comp.status === 'draft' || comp.isDev === true;
+    if (hiddenFromPublic) {
       const uid = await verifyAuth(req);
       if (!uid) return NextResponse.json({ error: 'not_found' }, { status: 404 });
       if (!(await isCompetitionAdmin(uid))) {
@@ -73,6 +76,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           waitlist: comp.registration?.waitlist === true,
         },
         schedule: comp.schedule ?? null,
+        // Le client affiche le bracket (onSnapshot competition_matches) dès que
+        // le bracket est matérialisé.
+        bracketMaterializedAt: comp.bracketMaterializedAt?.toDate?.()?.toISOString() ?? null,
+        prizePool: comp.prizePool ?? null,
+        isDev: comp.isDev === true,
       },
       teams,
       waitlistedCount: waitlisted,
