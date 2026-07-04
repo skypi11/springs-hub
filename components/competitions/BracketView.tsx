@@ -60,19 +60,35 @@ function gamesWon(m: MatchDoc): { a: number; b: number } {
 }
 
 function roundLabel(bracket: MatchDoc['bracket'], round: number, maxRound: number): string {
-  if (bracket === 'grand_final') return round === 1 ? 'Grande finale' : 'Belle (reset)';
+  // Grande finale : l'en-tête de section porte déjà « Grande finale » → pas de
+  // sous-libellé redondant pour le match aller (chaîne vide = masqué), « Belle »
+  // pour le reset.
+  if (bracket === 'grand_final') return round === 1 ? '' : 'Belle (reset)';
+  // Losers : l'échelle « quarts/demi » d'un simple-élim ne colle pas ; on nomme
+  // seulement la finale et la demi du bracket, le reste en tours.
+  if (bracket === 'losers') {
+    if (round === maxRound) return 'Finale du losers';
+    if (round === maxRound - 1) return 'Demi du losers';
+    return `Tour ${round}`;
+  }
   if (round === maxRound) return 'Finale';
   if (round === maxRound - 1) return 'Demi-finales';
   if (round === maxRound - 2) return 'Quarts';
   return `Tour ${round}`;
 }
 
-export default function BracketView({ competitionId, gameColor }: { competitionId: string; gameColor: string }) {
+export default function BracketView({ competitionId, gameColor, competitionStatus }: {
+  competitionId: string;
+  gameColor: string;
+  competitionStatus?: string;
+}) {
   const { user } = useAuth();
+  // Une compét terminée/archivée ne bouge plus → inutile de poller.
+  const concluded = competitionStatus === 'finished' || competitionStatus === 'archived';
   const { data, isError } = useQuery({
     queryKey: ['competition-bracket', competitionId, !!user],
     queryFn: () => (user ? api : apiPublic)<{ matches: MatchDoc[] }>(`/api/competitions/${competitionId}/matches`),
-    refetchInterval: 15_000,   // rafraîchissement live pendant le jour de match
+    refetchInterval: concluded ? false : 15_000,   // rafraîchissement live le jour de match
     staleTime: 10_000,
   });
   // null = chargement ; [] = erreur ou vide. Mémoïsé pour une dépendance
@@ -102,7 +118,11 @@ export default function BracketView({ competitionId, gameColor }: { competitionI
       .filter((s): s is NonNullable<typeof s> => s !== null);
   }, [matches]);
 
-  if (isError) {
+  // On ne blanke le bracket QUE si on n'a jamais rien reçu : un blip réseau
+  // (refetch 15 s échoué) garde le dernier bracket affiché (React Query
+  // conserve la dernière donnée réussie), au lieu d'effacer l'écran en plein
+  // jour de match.
+  if (isError && !data) {
     return <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>Le bracket n&apos;a pas pu être chargé.</p>;
   }
   if (!matches) {
@@ -123,7 +143,7 @@ export default function BracketView({ competitionId, gameColor }: { competitionI
           <div className="space-y-5">
             {section.rounds.map(r => (
               <div key={r.round}>
-                <p className="t-label mb-2" style={{ color: 'var(--s-text-muted)' }}>{r.label}</p>
+                {r.label && <p className="t-label mb-2" style={{ color: 'var(--s-text-muted)' }}>{r.label}</p>}
                 <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
                   {r.matches.map(m => <MatchCard key={m.id} m={m} gameColor={gameColor} />)}
                 </div>
@@ -141,6 +161,26 @@ function MatchCard({ m, gameColor }: { m: MatchDoc; gameColor: string }) {
   const isLive = m.status === 'live' || m.status === 'awaiting_scores' || m.status === 'score_review';
   const isDone = m.status === 'completed' || m.status === 'walkover';
   const cancelled = m.status === 'cancelled';
+  // Score chiffré uniquement quand des manches ont réellement été jouées : un
+  // walkover (bye) n'a pas de score → on n'affiche pas un « 0 » trompeur.
+  const hasScores = m.status === 'completed' && !!m.scores?.final;
+  const doubleForfeit = m.forfeit?.team === 'both';
+  const forfeitA = m.forfeit?.team === 'a' || doubleForfeit;
+  const forfeitB = m.forfeit?.team === 'b' || doubleForfeit;
+
+  // Libellé de statut à droite du bandeau.
+  let statusBadge: React.ReactNode = null;
+  if (m.cast?.featured && !isDone) {
+    statusBadge = <span className="flex items-center gap-1" style={{ fontSize: '12px', color: 'var(--s-gold)' }}><Radio size={12} /> EN STREAM</span>;
+  } else if (isLive) {
+    statusBadge = <span className="flex items-center gap-1" style={{ fontSize: '12px', color: 'var(--s-gold)' }}><Swords size={12} /> EN COURS</span>;
+  } else if (doubleForfeit) {
+    statusBadge = <span style={{ fontSize: '12px', color: 'var(--s-text-dim)' }}>Double forfait</span>;
+  } else if (m.status === 'walkover') {
+    statusBadge = <span style={{ fontSize: '12px', color: 'var(--s-text-muted)' }}>Qualifié d&apos;office</span>;
+  } else if (cancelled) {
+    statusBadge = <span style={{ fontSize: '12px', color: 'var(--s-text-muted)' }}>Non joué</span>;
+  }
 
   return (
     <div className="bevel-sm relative overflow-hidden" style={{
@@ -150,25 +190,15 @@ function MatchCard({ m, gameColor }: { m: MatchDoc; gameColor: string }) {
     }}>
       {/* Bandeau haut : BO + statut/cast */}
       <div className="flex items-center justify-between px-3 py-1.5" style={{ borderBottom: '1px solid var(--s-border)' }}>
-        <span className="t-mono" style={{ fontSize: '11px', color: 'var(--s-text-muted)' }}>BO{m.bo}</span>
-        {m.cast?.featured ? (
-          <span className="flex items-center gap-1" style={{ fontSize: '11px', color: 'var(--s-gold)' }}>
-            <Radio size={11} /> EN STREAM
-          </span>
-        ) : isLive ? (
-          <span className="flex items-center gap-1" style={{ fontSize: '11px', color: 'var(--s-gold)' }}>
-            <Swords size={11} /> EN COURS
-          </span>
-        ) : cancelled ? (
-          <span style={{ fontSize: '11px', color: 'var(--s-text-muted)' }}>Non joué</span>
-        ) : null}
+        <span className="t-mono" style={{ fontSize: '12px', color: 'var(--s-text-muted)' }}>BO{m.bo}</span>
+        {statusBadge}
       </div>
 
-      <TeamRow side={m.teamAInfo} isVoid={m.voidA} isWinner={m.winner === 'a'} forfeit={m.forfeit?.team === 'a'}
-        games={isDone ? wins.a : null} done={isDone} gameColor={gameColor} />
+      <TeamRow side={m.teamAInfo} isVoid={m.voidA} isWinner={m.winner === 'a'} forfeit={forfeitA}
+        games={hasScores ? wins.a : null} done={isDone} gameColor={gameColor} />
       <div style={{ borderTop: '1px solid var(--s-border)' }} />
-      <TeamRow side={m.teamBInfo} isVoid={m.voidB} isWinner={m.winner === 'b'} forfeit={m.forfeit?.team === 'b'}
-        games={isDone ? wins.b : null} done={isDone} gameColor={gameColor} />
+      <TeamRow side={m.teamBInfo} isVoid={m.voidB} isWinner={m.winner === 'b'} forfeit={forfeitB}
+        games={hasScores ? wins.b : null} done={isDone} gameColor={gameColor} />
     </div>
   );
 }
@@ -208,7 +238,7 @@ function TeamRow({ side, isVoid, isWinner, forfeit, games, done, gameColor }: {
         {label}
         {side?.tag && !isVoid ? <span style={{ color: 'var(--s-text-muted)', fontWeight: 400 }}> [{side.tag}]</span> : null}
       </span>
-      {forfeit && <span style={{ fontSize: '10px', color: 'var(--s-text-muted)' }}>forfait</span>}
+      {forfeit && <span style={{ fontSize: '12px', color: 'var(--s-text-muted)' }}>forfait</span>}
       {games !== null && (
         <span className="t-mono flex-shrink-0" style={{
           fontSize: '14px',

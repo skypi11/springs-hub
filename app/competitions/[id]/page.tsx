@@ -192,7 +192,7 @@ export default function CompetitionPage() {
         <div className="panel bevel">
           <div className="panel-header"><span className="t-sub">Bracket</span></div>
           <div className="panel-body">
-            <BracketView competitionId={comp.id} gameColor={color} />
+            <BracketView competitionId={comp.id} gameColor={color} competitionStatus={comp.status} />
           </div>
         </div>
       )}

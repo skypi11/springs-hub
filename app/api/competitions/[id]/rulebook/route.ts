@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDb, verifyAuth, isCompetitionAdmin } from '@/lib/firebase-admin';
+import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { getRulebookForCompetition } from '@/lib/competitions/rulebooks';
+import { isCompetitionHidden, canViewHiddenCompetition } from '@/lib/competitions/visibility';
 
 // GET /api/competitions/[id]/rulebook — règlement applicable à une compétition
 // (le règlement propre à la compétition prime, sinon celui du circuit).
@@ -23,16 +24,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
     const comp = compSnap.data()!;
 
-    if (comp.status === 'draft') {
-      // Draft visible des admins compét ET des comptes du bac à sable
-      // (users.isDev, Admin SDK only) — jamais du public.
+    // Masquée du public (brouillon OU test isDev) : visible uniquement des
+    // admins compét et comptes du bac à sable (helper partagé — la revue Lot 2
+    // avait relevé que ce endpoint ne gatait que 'draft', pas isDev).
+    if (isCompetitionHidden(comp)) {
       const uid = await verifyAuth(req);
-      if (!uid) return NextResponse.json({ error: 'not_found' }, { status: 404 });
-      if (!(await isCompetitionAdmin(uid))) {
-        const userSnap = await db.collection('users').doc(uid).get();
-        if (userSnap.data()?.isDev !== true) {
-          return NextResponse.json({ error: 'not_found' }, { status: 404 });
-        }
+      if (!uid || !(await canViewHiddenCompetition(db, uid))) {
+        return NextResponse.json({ error: 'not_found' }, { status: 404 });
       }
     }
 

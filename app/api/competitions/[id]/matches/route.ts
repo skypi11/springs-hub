@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDb, verifyAuth, isCompetitionAdmin } from '@/lib/firebase-admin';
+import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { isCompetitionHidden, canViewHiddenCompetition } from '@/lib/competitions/visibility';
 
 // GET /api/competitions/[id]/matches — matchs du bracket pour le rendu public
 // (BracketView, polling). Servi par l'Admin SDK : le SDK Firestore CLIENT est
@@ -45,17 +46,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!compSnap.exists) return NextResponse.json({ error: 'not_found' }, { status: 404 });
     const comp = compSnap.data()!;
 
-    // Gate identique à la fiche : brouillon OU compét de test = visible
-    // uniquement des admins compét et des comptes du bac à sable.
-    const hidden = comp.status === 'draft' || comp.isDev === true;
-    if (hidden) {
+    // Gate identique à la fiche (helper partagé).
+    if (isCompetitionHidden(comp)) {
       const uid = await verifyAuth(req);
-      if (!uid) return NextResponse.json({ error: 'not_found' }, { status: 404 });
-      if (!(await isCompetitionAdmin(uid))) {
-        const userSnap = await db.collection('users').doc(uid).get();
-        if (userSnap.data()?.isDev !== true) {
-          return NextResponse.json({ error: 'not_found' }, { status: 404 });
-        }
+      if (!uid || !(await canViewHiddenCompetition(db, uid))) {
+        return NextResponse.json({ error: 'not_found' }, { status: 404 });
       }
     }
 

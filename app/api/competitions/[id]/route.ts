@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDb, verifyAuth, isCompetitionAdmin } from '@/lib/firebase-admin';
+import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
+import { isCompetitionHidden, canViewHiddenCompetition } from '@/lib/competitions/visibility';
 
 // GET /api/competitions/[id] — fiche publique d'une compétition.
 // Sert la config publique (format, fenêtres, planning) + la liste des équipes
@@ -20,19 +21,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!compSnap.exists) return NextResponse.json({ error: 'not_found' }, { status: 404 });
     const comp = compSnap.data()!;
 
-    // Masquée du public : brouillon OU compétition de test (isDev) — même une
-    // fois publiée en 'live'. Visible uniquement des admins compét et des
-    // comptes du bac à sable (users.isDev). C'est le garde-fou anti-fuite des
-    // données de test (une compét de test publiée ne doit jamais être publique).
-    const hiddenFromPublic = comp.status === 'draft' || comp.isDev === true;
-    if (hiddenFromPublic) {
+    // Masquée du public : brouillon OU compétition de test (isDev), même
+    // publiée. Visible uniquement des admins compét et des comptes du bac à
+    // sable (helper partagé — garde-fou anti-fuite des données de test).
+    if (isCompetitionHidden(comp)) {
       const uid = await verifyAuth(req);
-      if (!uid) return NextResponse.json({ error: 'not_found' }, { status: 404 });
-      if (!(await isCompetitionAdmin(uid))) {
-        const userSnap = await db.collection('users').doc(uid).get();
-        if (userSnap.data()?.isDev !== true) {
-          return NextResponse.json({ error: 'not_found' }, { status: 404 });
-        }
+      if (!uid || !(await canViewHiddenCompetition(db, uid))) {
+        return NextResponse.json({ error: 'not_found' }, { status: 404 });
       }
     }
 

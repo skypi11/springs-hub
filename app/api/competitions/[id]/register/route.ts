@@ -10,6 +10,7 @@ import { computeRefMmr, computeMmrFlags, analyzeLineups } from '@/lib/competitio
 import { isGuildMember } from '@/lib/discord-competition';
 import { getActiveCompetitionBans } from '@/lib/competitions/bans';
 import { getRulebookForCompetition } from '@/lib/competitions/rulebooks';
+import { isCompetitionHidden } from '@/lib/competitions/visibility';
 import { buildTrackerGgUrl, type RLPlatform } from '@/lib/rl-platform';
 import type { RegistrationFlag } from '@/types/competitions';
 
@@ -65,11 +66,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!compSnap.exists) return NextResponse.json({ error: 'not_found' }, { status: 404 });
     const comp = compSnap.data()!;
     const requesterIsCompAdmin = await isCompetitionAdmin(uid);
-    // Droit de tester le wizard sur une compétition en DRAFT : admins compét
-    // et comptes du bac à sable. Le flag est renvoyé au client (`canTestDraft`)
-    // pour que le wizard ne bloque pas sur la fenêtre fermée.
+    // Droit de tester le wizard sur une compétition MASQUÉE (brouillon OU test
+    // isDev, même publiée) : admins compét et comptes du bac à sable. Le flag
+    // (`canTestDraft`) est renvoyé au client pour qu'il ne bloque pas sur la
+    // fenêtre. Une compét masquée est un 404 pour tout le monde d'autre — sinon
+    // un user lambda verrait/inscrirait dans une compét de test (revue Lot 2).
     const canTestDraft = requesterIsCompAdmin || (await isSandboxUser(db, uid));
-    if (comp.status === 'draft' && !canTestDraft) {
+    if (isCompetitionHidden(comp) && !canTestDraft) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 });
     }
 
@@ -213,11 +216,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const requesterIsCompAdmin = await isCompetitionAdmin(uid);
     const state = windowState(comp, new Date());
-    // Les admins compét ET les comptes fictifs du bac à sable peuvent tester
-    // le flux sur une compétition en draft (previews pré-publication, tournoi
-    // fantôme, tests d'inscription impersonés) — le public, jamais.
-    const adminTestBypass = comp.status === 'draft'
-      && (requesterIsCompAdmin || await isSandboxUser(db, uid));
+    const canTest = requesterIsCompAdmin || (await isSandboxUser(db, uid));
+    // Compétition MASQUÉE (brouillon OU test isDev, même publiée) : seuls les
+    // testeurs peuvent la voir ET s'y inscrire. Sinon un user lambda pourrait
+    // injecter une VRAIE inscription (snapshot réel : âges, MMR, identités)
+    // dans une compét de test publiée en 'registration' (revue Lot 2).
+    if (isCompetitionHidden(comp) && !canTest) {
+      return NextResponse.json({ error: 'Compétition introuvable.' }, { status: 404 });
+    }
+    // Les testeurs bypassent la fenêtre sur une compét masquée (previews,
+    // tournoi fantôme, tests d'inscription impersonés).
+    const adminTestBypass = isCompetitionHidden(comp) && canTest;
     if (!adminTestBypass && state !== 'open') {
       const msg = state === 'before'
         ? 'Les inscriptions ne sont pas encore ouvertes.'
