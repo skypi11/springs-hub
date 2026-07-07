@@ -344,7 +344,20 @@ function validateSchedule(input: unknown): ValidationResult<CompetitionSchedule>
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(startsAt)) {
       return err(`Heure de début invalide : « ${startsAt || '?'} » (format HH:MM).`);
     }
-    days.push({ date, startsAt });
+    // Heure de fin optionnelle (rétrocompat) : sert à poser la durée dans le
+    // calendrier des équipes. Si fournie, doit être après le début.
+    const endsAtRaw = typeof day.endsAt === 'string' ? day.endsAt.trim() : '';
+    let endsAt: string | undefined;
+    if (endsAtRaw) {
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(endsAtRaw)) {
+        return err(`Heure de fin invalide : « ${endsAtRaw} » (format HH:MM).`);
+      }
+      if (endsAtRaw <= startsAt) {
+        return err(`L'heure de fin doit être après le début (jour ${days.length + 1}).`);
+      }
+      endsAt = endsAtRaw;
+    }
+    days.push(endsAt ? { date, startsAt, endsAt } : { date, startsAt });
   }
   for (let i = 1; i < days.length; i++) {
     if (days[i].date <= days[i - 1].date) return err('Les journées doivent être en ordre chronologique.');

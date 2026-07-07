@@ -91,6 +91,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         circuitCache.set(circuitId, cc.exists ? ((cc.data()!.name as string) ?? null) : null);
       }
 
+      // Roster FIGÉ à l'inscription (spec §4 : roster lock total) : c'est SON
+      // équipe, le staff a le droit de voir qui a été aligné. On expose seulement
+      // pseudo + rôle + capitaine (jamais MMR/âge/uid — restent au snapshot admin).
+      const captainUid = (r.captainUid as string) ?? '';
+      const rosterRaw = Array.isArray(r.roster) ? r.roster as Array<Record<string, unknown>> : [];
+      const roster = rosterRaw.map(p => ({
+        displayName: (p.displayName as string) ?? '',
+        role: p.role === 'titulaire' ? 'titulaire' : 'remplacant',
+        isCaptain: (p.uid as string) === captainUid,
+      }));
+      const days: Array<{ date: string; startsAt: string; endsAt: string | null }> =
+        Array.isArray(comp.schedule?.days)
+          ? comp.schedule.days.map((d: Record<string, unknown>) => ({
+              date: (d.date as string) ?? '',
+              startsAt: (d.startsAt as string) ?? '',
+              endsAt: (d.endsAt as string) ?? null,
+            }))
+          : [];
+
       registrations.push({
         id: doc.id,
         teamId,
@@ -105,6 +124,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         rejectionReason: r.status === 'rejected' ? (r.review?.reason as string | null) ?? null : null,
         bracketPublished: !!comp.bracketMaterializedAt,
         createdAt: r.createdAt?.toDate?.()?.toISOString() ?? null,
+        roster,
+        days,
         // Prépare le retrait depuis l'onglet (Lot 3) : le bouton n'est pas encore
         // rendu, mais le droit est calculé côté serveur dès maintenant.
         canWithdraw: dir || (resp && isResponsableForGame(ctx, game)) || managedTeamIds.has(teamId),

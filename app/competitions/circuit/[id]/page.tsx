@@ -236,30 +236,34 @@ export default function CircuitPage() {
             const range = fmtRange(e.startDate, e.endDate);
             const canRegisterHere = e.registrationOpen || (e.hidden && registrationTargetId === e.id);
             return (
-              <div key={e.id} className="flex items-center gap-3 px-4 py-3"
+              <div key={e.id} className="flex items-center gap-3 px-4 py-3 group transition-colors hover:bg-[var(--s-elevated)]"
                 style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' }}>
-                <span className="t-mono flex-shrink-0" style={{ color: 'var(--s-text-muted)', width: 24, fontSize: '13px' }}>
-                  {i + 1}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold truncate">{e.name}</span>
-                    <span className="tag tag-neutral" style={{
-                      ...(e.registrationOpen ? { color: color, borderColor: `rgba(${colorRgb},0.4)` } : {}),
-                    }}>{EVENT_STATUS[e.status] ?? e.status}</span>
+                {/* Toute la ligne mène à la fiche de la Qualif (équipes inscrites +
+                    bracket) ; « S'inscrire » est un bouton distinct vers le wizard. */}
+                <Link href={`/competitions/${e.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+                  <span className="t-mono flex-shrink-0" style={{ color: 'var(--s-text-muted)', width: 24, fontSize: '13px' }}>
+                    {i + 1}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold truncate">{e.name}</span>
+                      <span className="tag tag-neutral" style={{
+                        ...(e.registrationOpen ? { color: color, borderColor: `rgba(${colorRgb},0.4)` } : {}),
+                      }}>{EVENT_STATUS[e.status] ?? e.status}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: 'var(--s-text-muted)' }}>
+                      {range && <span className="flex items-center gap-1"><CalendarDays size={12} /> {range}</span>}
+                      <span>{e.approvedCount}{e.maxTeams ? ` / ${e.maxTeams}` : ''} équipes</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: 'var(--s-text-muted)' }}>
-                    {range && <span className="flex items-center gap-1"><CalendarDays size={12} /> {range}</span>}
-                    <span>{e.approvedCount}{e.maxTeams ? ` / ${e.maxTeams}` : ''} équipes</span>
-                  </div>
-                </div>
+                </Link>
                 {canRegisterHere && user ? (
                   <Link href={`/competitions/${e.id}/inscription`} className="btn-springs btn-secondary bevel-sm text-sm flex-shrink-0">
                     S&apos;inscrire
                   </Link>
                 ) : (
-                  <Link href={`/competitions/${e.id}`} className="text-sm flex items-center gap-0.5 flex-shrink-0" style={{ color: 'var(--s-text-dim)' }}>
-                    Voir <ChevronRight size={14} />
+                  <Link href={`/competitions/${e.id}`} className="flex-shrink-0" aria-label="Voir la Qualif">
+                    <ChevronRight size={16} style={{ color: 'var(--s-text-muted)' }} />
                   </Link>
                 )}
               </div>

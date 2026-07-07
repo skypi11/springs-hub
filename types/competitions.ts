@@ -208,8 +208,10 @@ export interface CompetitionEligibility {
 }
 
 export interface CompetitionSchedule {
-  /** Jours de compétition (dates ISO "YYYY-MM-DD", heure de début par jour). */
-  days: Array<{ date: string; startsAt: string }>;   // startsAt "15:00"
+  /** Jours de compétition (dates ISO "YYYY-MM-DD", heure de début + fin par jour).
+   *  `endsAt` (optionnel, rétrocompat) sert à poser la durée dans le calendrier
+   *  des équipes à la validation d'une inscription. */
+  days: Array<{ date: string; startsAt: string; endsAt?: string }>;   // "15:00" → "22:00"
   /**
    * Plan des phases : quelles rondes de quel bracket se jouent dans quelle
    * phase, dans l'ordre. Ajustable par l'admin (spec §2).

@@ -92,8 +92,8 @@ export default function CompetitionForm({
   const [waitlist, setWaitlist] = useState(initial?.registration?.waitlist ?? true);
 
   // ── Planning ──
-  const [days, setDays] = useState<Array<{ date: string; startsAt: string }>>(
-    initial?.schedule?.days ?? [{ date: '', startsAt: '15:00' }, { date: '', startsAt: '15:00' }],
+  const [days, setDays] = useState<Array<{ date: string; startsAt: string; endsAt?: string }>>(
+    initial?.schedule?.days ?? [{ date: '', startsAt: '15:00', endsAt: '22:00' }, { date: '', startsAt: '15:00', endsAt: '22:00' }],
   );
   const [generalCheckinMinutes, setGeneralCheckinMinutes] = useState(
     initial?.schedule?.generalCheckinMinutes ?? LEGENDS_CHECKIN.generalCheckinMinutes,
@@ -419,9 +419,13 @@ export default function CompetitionForm({
                 <input type="date" className="settings-input"
                   value={d.date}
                   onChange={e => setDays(prev => prev.map((p, j) => j === i ? { ...p, date: e.target.value } : p))} />
-                <input type="time" className="settings-input"
+                <input type="time" className="settings-input" aria-label={`Début jour ${i + 1}`}
                   value={d.startsAt}
                   onChange={e => setDays(prev => prev.map((p, j) => j === i ? { ...p, startsAt: e.target.value } : p))} />
+                <span className="text-sm" style={{ color: 'var(--s-text-muted)' }}>→</span>
+                <input type="time" className="settings-input" aria-label={`Fin jour ${i + 1}`}
+                  value={d.endsAt ?? ''}
+                  onChange={e => setDays(prev => prev.map((p, j) => j === i ? { ...p, endsAt: e.target.value } : p))} />
                 {days.length > 1 && (
                   <button type="button" className="btn-springs btn-ghost text-sm"
                     onClick={() => {
@@ -440,7 +444,7 @@ export default function CompetitionForm({
               </div>
             ))}
             <button type="button" className="btn-springs btn-ghost text-sm"
-              onClick={() => setDays(prev => [...prev, { date: '', startsAt: '15:00' }])}>
+              onClick={() => setDays(prev => [...prev, { date: '', startsAt: '15:00', endsAt: '22:00' }])}>
               Ajouter un jour
             </button>
           </div>

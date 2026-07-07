@@ -32,7 +32,18 @@ interface Registration {
   rejectionReason: string | null;
   bracketPublished: boolean;
   createdAt: string | null;
+  roster: Array<{ displayName: string; role: 'titulaire' | 'remplacant'; isCaptain: boolean }>;
+  days: Array<{ date: string; startsAt: string; endsAt: string | null }>;
   canWithdraw: boolean;
+}
+
+function fmtDay(d: { date: string; startsAt: string; endsAt: string | null }): string {
+  let out = '';
+  try {
+    out = new Date(d.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  } catch { out = d.date; }
+  if (d.startsAt) out += ` · ${d.startsAt}${d.endsAt ? `–${d.endsAt}` : ''}`;
+  return out;
 }
 
 // Or réservé au CTA/récompense (règle « or rationné ») : les états d'attente
@@ -86,38 +97,64 @@ export function InscriptionsTab({ structureId }: { structureId: string }) {
 
   return (
     <div className="panel bevel">
-      <div className="panel-header">
+      <div className="panel-header flex items-center justify-between">
         <span className="font-display text-sm tracking-wider">INSCRIPTIONS ({registrations.length})</span>
+        <Link href="/competitions" className="inline-flex items-center gap-1 text-sm" style={{ color: 'var(--s-text-dim)' }}>
+          Compétitions <ChevronRight size={14} />
+        </Link>
       </div>
       <div className="panel-body p-0">
         {registrations.map((r, i) => {
           const st = STATUS[r.status] ?? { label: r.status, color: 'var(--s-text-dim)' };
+          const titulaires = r.roster.filter(p => p.role === 'titulaire');
+          const remplacants = r.roster.filter(p => p.role === 'remplacant');
+          const name = (p: { displayName: string; isCaptain: boolean }) => p.isCaptain ? `${p.displayName} (C)` : p.displayName;
           return (
-            <Link
-              key={r.id}
-              href={`/competitions/${r.competitionId}`}
-              className="flex items-center gap-3 px-4 py-3 group transition-colors hover:bg-[var(--s-elevated)]"
-              style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' }}
-            >
-              <GameTag gameId={r.game} size="sm" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-semibold truncate">{r.teamName}</span>
-                  <span className="text-sm" style={{ color: 'var(--s-text-muted)' }}>·</span>
-                  <span className="text-sm truncate" style={{ color: 'var(--s-text-dim)' }}>{r.competitionName}</span>
+            <div key={r.id} style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' }}>
+              {/* En-tête cliquable → fiche de la Qualif (équipes + bracket). */}
+              <Link
+                href={`/competitions/${r.competitionId}`}
+                className="flex items-center gap-3 px-4 py-3 group transition-colors hover:bg-[var(--s-elevated)]"
+              >
+                <GameTag gameId={r.game} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold truncate">{r.teamName}</span>
+                    <span className="text-sm" style={{ color: 'var(--s-text-muted)' }}>·</span>
+                    <span className="text-sm truncate" style={{ color: 'var(--s-text-dim)' }}>{r.competitionName}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs mt-0.5" style={{ color: 'var(--s-text-muted)' }}>
+                    {r.circuitName && <span className="truncate">{r.circuitName}</span>}
+                    {r.days.length > 0 && <span className="truncate">· {r.days.map(fmtDay).join(' · ')}</span>}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 text-xs mt-0.5" style={{ color: 'var(--s-text-muted)' }}>
-                  {r.circuitName && <span className="truncate">{r.circuitName}</span>}
+                <span className="text-sm flex-shrink-0" style={{ color: st.color, fontWeight: 600 }}>
+                  {st.label}
+                </span>
+                <ChevronRight size={16} className="flex-shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: 'var(--s-text-muted)' }} />
+              </Link>
+
+              {/* Roster FIGÉ à l'inscription (l'équipe est verrouillée après envoi). */}
+              {r.roster.length > 0 && (
+                <div className="px-4 pb-3 pl-[52px] space-y-1 text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                  {titulaires.length > 0 && (
+                    <p>
+                      <span style={{ color: 'var(--s-text-muted)' }}>Titulaires : </span>
+                      {titulaires.map(name).join(', ')}
+                    </p>
+                  )}
+                  {remplacants.length > 0 && (
+                    <p>
+                      <span style={{ color: 'var(--s-text-muted)' }}>Remplaçants : </span>
+                      {remplacants.map(name).join(', ')}
+                    </p>
+                  )}
                   {r.status === 'rejected' && r.rejectionReason && (
-                    <span className="truncate" style={{ color: 'var(--s-text-dim)' }}>· {r.rejectionReason}</span>
+                    <p style={{ color: '#ff8a8a' }}>Motif du refus : {r.rejectionReason}</p>
                   )}
                 </div>
-              </div>
-              <span className="text-sm flex-shrink-0" style={{ color: st.color, fontWeight: 600 }}>
-                {st.label}
-              </span>
-              <ChevronRight size={16} className="flex-shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: 'var(--s-text-muted)' }} />
-            </Link>
+              )}
+            </div>
           );
         })}
       </div>
