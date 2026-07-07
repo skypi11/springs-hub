@@ -13,6 +13,7 @@ import {
   type IdentityCandidate,
   type IdentityResolution,
 } from '@/lib/competitions/identity';
+import { syncRegistrationToCalendar, removeRegistrationFromCalendar } from '@/lib/competitions/calendar-sync';
 
 // File de validation des inscriptions (spec Legends §4, archi §2 + §7).
 //
@@ -723,6 +724,18 @@ async function approve(db: FirebaseFirestore.Firestore, ctx: ActionContext) {
     reason: null,
   });
 
+  // Créneaux au calendrier de l'équipe (retour Matt 07/07) : uniquement si
+  // VALIDÉE (pas liste d'attente). Best-effort — n'échoue jamais l'approbation.
+  if (finalStatus === 'approved') {
+    try {
+      await syncRegistrationToCalendar(db, {
+        competitionId: id, comp, teamId: reg.teamId as string, structureId: reg.structureId as string,
+      });
+    } catch (err) {
+      console.error('[competitions/registrations] calendar sync on approve failed:', err);
+    }
+  }
+
   return NextResponse.json({ success: true, status: finalStatus, circuitTeamId: finalCircuitTeamId });
 }
 
@@ -798,6 +811,14 @@ async function reject(db: FirebaseFirestore.Firestore, ctx: ActionContext) {
     reason,
   });
 
+  // Retire les créneaux calendrier posés à une éventuelle validation antérieure
+  // (idempotent : no-op si l'équipe n'avait jamais été validée). Best-effort.
+  try {
+    await removeRegistrationFromCalendar(db, { competitionId: id, teamId: reg.teamId as string });
+  } catch (err) {
+    console.error('[competitions/registrations] calendar cleanup on reject failed:', err);
+  }
+
   return NextResponse.json({ success: true, status: 'rejected' });
 }
 
@@ -841,6 +862,13 @@ async function unapprove(db: FirebaseFirestore.Firestore, ctx: ActionContext) {
     targetLabel: (comp.name as string) ?? id,
     metadata: { registrationId, teamName: reg.name ?? '' },
   });
+
+  // L'équipe n'est plus validée → retirer ses créneaux du calendrier. Best-effort.
+  try {
+    await removeRegistrationFromCalendar(db, { competitionId: id, teamId: reg.teamId as string });
+  } catch (err) {
+    console.error('[competitions/registrations] calendar cleanup on unapprove failed:', err);
+  }
 
   return NextResponse.json({ success: true, status: 'pending' });
 }
