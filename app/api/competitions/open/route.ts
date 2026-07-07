@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
         id: d.id,
         name: (d.data().name as string) ?? '',
         game: (d.data().game as string) ?? '',
+        circuitId: (d.data().circuitId as string | null) ?? null,
         closesAt: d.data().registration?.closesAt?.toDate?.()?.toISOString() ?? null,
         isDraft: false,
       }));
@@ -64,6 +65,7 @@ export async function GET(req: NextRequest) {
           id: d.id,
           name: (d.data().name as string) ?? '',
           game: (d.data().game as string) ?? '',
+          circuitId: (d.data().circuitId as string | null) ?? null,
           closesAt: null,
           isDraft: true,
         });

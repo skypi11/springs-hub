@@ -1,4 +1,4 @@
-export type DashboardTab = 'general' | 'teams' | 'recruitment' | 'members' | 'calendar' | 'todos' | 'replays' | 'documents';
+export type DashboardTab = 'general' | 'teams' | 'inscriptions' | 'recruitment' | 'members' | 'calendar' | 'todos' | 'replays' | 'documents';
 
 export type DiscordChannel = { id: string; name: string; parentId: string | null; parentName: string | null; parentPosition: number | null; position: number };
 export type DiscordRole = { id: string; name: string; color: number; position: number; mentionable: boolean };

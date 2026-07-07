@@ -35,7 +35,18 @@ interface PublicCompetition {
   };
   teams: Array<{ name: string; tag: string; logoUrl: string | null }>;
   waitlistedCount: number;
+  myRegistrations: Array<{ teamName: string; status: string }>;
 }
+
+// Statut de l'inscription de l'utilisateur, affiché en clair sur la fiche.
+// L'or est réservé au CTA + à la dotation (règle « or rationné ») : un état
+// d'attente n'est pas une récompense → neutre. Vert = validée, rouge = refusée.
+const MY_REG_STATUS: Record<string, { label: string; color: string }> = {
+  pending: { label: 'en attente de validation', color: 'var(--s-text)' },
+  approved: { label: 'validée', color: '#33ff66' },
+  waitlisted: { label: "en liste d'attente", color: 'var(--s-text)' },
+  rejected: { label: 'refusée', color: '#ff8a8a' },
+};
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Brouillon',
@@ -102,7 +113,7 @@ export default function CompetitionPage() {
     );
   }
 
-  const { competition: comp, teams, waitlistedCount } = data;
+  const { competition: comp, teams, waitlistedCount, myRegistrations } = data;
   const color = getGameColor(comp.game);
   const colorRgb = getGameColorRgb(comp.game);
   const banner = getGameBannerUrl(comp.game);
@@ -194,15 +205,44 @@ export default function CompetitionPage() {
         </div>
       </div>
 
-      {/* Bracket live — dès qu'il est publié */}
-      {bracketPublished && (
+      {/* Statut de MON inscription (dirigeant/manager qui a inscrit, ou joueur du
+          roster) — le suivi complet est dans Ma structure › Inscriptions. */}
+      {myRegistrations.length > 0 && (
+        <div className="panel bevel">
+          <div className="panel-body py-3 space-y-1.5">
+            {myRegistrations.map((reg, i) => {
+              const st = MY_REG_STATUS[reg.status] ?? { label: reg.status, color: 'var(--s-text-dim)' };
+              return (
+                <p key={`${reg.teamName}-${i}`} className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                  Ton inscription <span className="font-semibold" style={{ color: 'var(--s-text)' }}>{reg.teamName}</span>
+                  {' '}est <span style={{ color: st.color, fontWeight: 600 }}>{st.label}</span>.
+                </p>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Bracket — affiché dès qu'il est publié ; sinon, une fois la compétition
+          en seeding/en cours, on indique qu'il arrive (jamais en phase d'inscription
+          où ce serait prématuré). */}
+      {bracketPublished ? (
         <div className="panel bevel">
           <div className="panel-header"><span className="t-sub">Bracket</span></div>
           <div className="panel-body">
             <BracketView competitionId={comp.id} gameColor={color} competitionStatus={comp.status} />
           </div>
         </div>
-      )}
+      ) : (comp.status === 'seeding' || comp.status === 'live') ? (
+        <div className="panel bevel">
+          <div className="panel-header"><span className="t-sub">Bracket</span></div>
+          <div className="panel-body">
+            <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+              Le bracket est en cours de préparation. Il s&apos;affichera ici dès la publication du seeding.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       {/* Format */}
       <div className="panel bevel">

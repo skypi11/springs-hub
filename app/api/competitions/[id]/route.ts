@@ -21,11 +21,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!compSnap.exists) return NextResponse.json({ error: 'not_found' }, { status: 404 });
     const comp = compSnap.data()!;
 
+    // uid résolu systématiquement (pas seulement pour le gate) : sert aussi à
+    // remonter le statut des inscriptions de l'utilisateur (bandeau « ton équipe »).
+    const uid = await verifyAuth(req);
+
     // Masquée du public : brouillon OU compétition de test (isDev), même
     // publiée. Visible uniquement des admins compét et des comptes du bac à
     // sable (helper partagé — garde-fou anti-fuite des données de test).
     if (isCompetitionHidden(comp)) {
-      const uid = await verifyAuth(req);
       if (!uid || !(await canViewHiddenCompetition(db, uid))) {
         return NextResponse.json({ error: 'not_found' }, { status: 404 });
       }
@@ -54,6 +57,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       circuitName = (circuitSnap.data()?.name as string) ?? null;
     }
 
+    // Statut des inscriptions de l'utilisateur connecté sur cette compétition
+    // (bandeau « ton équipe : validée / en attente » sur la fiche). Couvre celui
+    // qui a inscrit (createdBy) ET les joueurs du roster (rosterUids). Non retirées.
+    const myRegistrations: Array<{ teamName: string; status: string }> = [];
+    if (uid) {
+      const [byRoster, byCreator] = await Promise.all([
+        db.collection('competition_registrations').where('competitionId', '==', id).where('rosterUids', 'array-contains', uid).get(),
+        db.collection('competition_registrations').where('competitionId', '==', id).where('createdBy', '==', uid).get(),
+      ]);
+      const seen = new Set<string>();
+      for (const d of [...byRoster.docs, ...byCreator.docs]) {
+        if (seen.has(d.id)) continue;
+        seen.add(d.id);
+        const r = d.data();
+        if (r.status === 'withdrawn') continue;
+        myRegistrations.push({ teamName: (r.name as string) ?? '', status: (r.status as string) ?? 'pending' });
+      }
+    }
+
     return NextResponse.json({
       competition: {
         id,
@@ -79,6 +101,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       },
       teams,
       waitlistedCount: waitlisted,
+      myRegistrations,
     });
   } catch (err) {
     captureApiError('API Competitions GET error', err);

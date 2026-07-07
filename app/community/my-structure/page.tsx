@@ -32,7 +32,7 @@ import type {
 } from './types';
 import {
   DEPARTURE_NOTICE_DAYS, DEPARTURE_NOTICE_MS,
-  STATUS_INFO,
+  STATUS_INFO, computeVisibleTabs,
 } from './constants';
 import { TabBar } from './components';
 import { DiscordConfigBlockRenderer } from './discord-config-block';
@@ -41,6 +41,7 @@ import { RecruitmentTab } from './tabs/recruitment-tab';
 import { MembersTab } from './tabs/members-tab';
 import { GeneralTab } from './tabs/general-tab';
 import { ReplaysTab } from './tabs/replays-tab';
+import { InscriptionsTab } from './tabs/inscriptions-tab';
 import { PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 
@@ -169,17 +170,18 @@ export default function MyStructurePage() {
     // ['calendar'] et perdaient l'accès à membres/todos/replays.
     const isTeamStaff = !isDirigeant && !isManager && !isCoach
       && teams.some(t => t.staff.some(st => st.uid === firebaseUser.uid));
+    const isTeamManager = teams.some(t =>
+      t.staff.some(st => st.uid === firebaseUser.uid) && t.staffRoles?.[firebaseUser.uid] === 'manager');
+    const captainOnly = !isDirigeant && !isManager && !isCoach && !isTeamStaff
+      && teams.some(t => t.captainId === firebaseUser.uid);
     // Replays masqués si aucun jeu de la structure ne supporte le parsing
     // (typiquement structure 100% Valorant/TM, sans RL).
     const hasReplaySupport = (activeStructure.games ?? []).some(g => gameHasFeature(g, 'replayParsing'));
-    const base: DashboardTab[] = isDirigeant
-      ? ['general', 'teams', 'recruitment', 'members', 'calendar', 'todos', 'replays', 'documents']
-      : isManager
-      ? ['teams', 'members', 'calendar', 'todos', 'replays']
-      : isCoach || isTeamStaff
-      ? ['members', 'calendar', 'todos', 'replays']
-      : ['calendar'];
-    const visible = hasReplaySupport ? base : base.filter(t => t !== 'replays');
+    // Source unique partagée avec le rendu (computeVisibleTabs) — sinon les deux
+    // listes divergent et l'effet éjecte l'utilisateur d'un onglet pourtant visible.
+    const visible = computeVisibleTabs({
+      isDirigeant, isResponsable: isManager, isCoach, isTeamStaff, isTeamManager, captainOnly, hasReplaySupport,
+    });
     if (!visible.includes(tab)) setTab(visible[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeStructure?.id, firebaseUser?.uid, teams.length]);
@@ -211,7 +213,7 @@ export default function MyStructurePage() {
     const { tab: tabParam, teamId, todoId } = deepLinkRef.current;
     if (!tabParam && !teamId && !todoId) return;
 
-    const validTabs: DashboardTab[] = ['general', 'teams', 'recruitment', 'members', 'calendar', 'todos', 'replays', 'documents'];
+    const validTabs: DashboardTab[] = ['general', 'teams', 'inscriptions', 'recruitment', 'members', 'calendar', 'todos', 'replays', 'documents'];
     if (tabParam && (validTabs as string[]).includes(tabParam)) {
       setTab(tabParam as DashboardTab);
     }
@@ -1034,16 +1036,21 @@ export default function MyStructurePage() {
     ? teams.some(t => t.captainId === firebaseUser.uid)
     : false;
   const hasReplaySupportActive = (s.games ?? []).some(g => gameHasFeature(g, 'replayParsing'));
-  const baseTabs: DashboardTab[] = isDirigeantOfActive
-    ? ['general', 'teams', 'recruitment', 'members', 'calendar', 'todos', 'replays', 'documents']
-    : isManagerOfActive
-    ? ['teams', 'recruitment', 'members', 'calendar', 'todos', 'replays']
-    : isCoachOfActive || isTeamStaffOnly
-    ? ['members', 'calendar', 'todos', 'replays']
-    : captainOnlyAccess
-    ? ['teams', 'calendar']
-    : ['calendar'];
-  const visibleTabs: DashboardTab[] = hasReplaySupportActive ? baseTabs : baseTabs.filter(t => t !== 'replays');
+  // Onglet « Inscriptions » (suivi compét) : dirigeant, responsable, ou manager
+  // d'AU MOINS une équipe (sub_teams.staffRoles==='manager'). Coach et capitaine exclus.
+  const isTeamManagerOfActive = !!firebaseUser && teams.some(t =>
+    t.staff.some(st => st.uid === firebaseUser.uid) && t.staffRoles?.[firebaseUser.uid] === 'manager');
+  const canSeeInscriptions = isDirigeantOfActive || isManagerOfActive || isTeamManagerOfActive;
+  // Source unique partagée avec l'effet de rabat (computeVisibleTabs).
+  const visibleTabs: DashboardTab[] = computeVisibleTabs({
+    isDirigeant: isDirigeantOfActive,
+    isResponsable: isManagerOfActive,
+    isCoach: isCoachOfActive,
+    isTeamStaff: isTeamStaffOnly,
+    isTeamManager: isTeamManagerOfActive,
+    captainOnly: captainOnlyAccess,
+    hasReplaySupport: hasReplaySupportActive,
+  });
   const myDepartureIso = firebaseUser ? s.coFounderDepartures?.[firebaseUser.uid] : null;
   const myDepartureRemainingMs = myDepartureIso ? Math.max(0, new Date(myDepartureIso).getTime() + DEPARTURE_NOTICE_MS - now) : null;
 
@@ -1910,6 +1917,13 @@ export default function MyStructurePage() {
               userContext={userContext}
               currentUid={firebaseUser.uid}
             />
+          </div>
+        )}
+
+        {/* ═══ INSCRIPTIONS (suivi compétitions) ═══ */}
+        {tab === 'inscriptions' && canSeeInscriptions && (
+          <div className="animate-fade-in-d3">
+            <InscriptionsTab structureId={s.id} />
           </div>
         )}
 
