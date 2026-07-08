@@ -3,6 +3,7 @@ import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { isDirigeant, isResponsable, isResponsableForGame } from '@/lib/structure-permissions';
+import { getSanctionsFor } from '@/lib/competitions/sanctions';
 
 // GET /api/structures/[id]/registrations — SUIVI des inscriptions compétition
 // d'une structure (onglet « Inscriptions » de Ma structure). Pas une vitrine :
@@ -61,6 +62,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .where('structureId', '==', structureId)
       .get();
 
+    // Sanctions ACTIVES visant la structure, ses équipes ou les joueurs des
+    // rosters (le staff a le droit de voir les sanctions de SON équipe). Motif +
+    // type + date seulement (pas d'uid signaleur).
+    const allTeamIds = Array.from(new Set(regsSnap.docs.map(d => d.data().teamId as string).filter(Boolean)));
+    const allRosterUids = Array.from(new Set(regsSnap.docs.flatMap(d => (d.data().rosterUids as string[] | undefined) ?? [])));
+    const activeSanctions = (await getSanctionsFor(db, { uids: allRosterUids, structureIds: [structureId], teamIds: allTeamIds }))
+      .filter(s => s.active);
+
     // Caches pour éviter les lectures répétées (peu de compétitions/circuits).
     const compCache = new Map<string, FirebaseFirestore.DocumentData | null>();
     const circuitCache = new Map<string, string | null>();
@@ -110,6 +119,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             }))
           : [];
 
+      // Sanctions actives visibles côté équipe (avertissements/bans en cours).
+      const regRosterUids = new Set((r.rosterUids as string[] | undefined) ?? []);
+      const sanctions = activeSanctions
+        .filter(s =>
+          (s.targetType === 'team' && s.targetId === teamId)
+          || (s.targetType === 'structure' && s.targetId === structureId)
+          || (s.targetType === 'user' && regRosterUids.has(s.targetId)))
+        .map(s => ({ type: s.type, reason: s.reason, createdAt: s.createdAt }));
+
       registrations.push({
         id: doc.id,
         teamId,
@@ -126,6 +144,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         createdAt: r.createdAt?.toDate?.()?.toISOString() ?? null,
         roster,
         days,
+        sanctions,
         // Prépare le retrait depuis l'onglet (Lot 3) : le bouton n'est pas encore
         // rendu, mais le droit est calculé côté serveur dès maintenant.
         canWithdraw: dir || (resp && isResponsableForGame(ctx, game)) || managedTeamIds.has(teamId),

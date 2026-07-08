@@ -14,7 +14,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { Loader2, ChevronRight } from 'lucide-react';
+import { Loader2, ChevronRight, ShieldAlert } from 'lucide-react';
 import { api, ApiError } from '@/lib/api-client';
 import GameTag from '@/components/games/GameTag';
 
@@ -34,8 +34,11 @@ interface Registration {
   createdAt: string | null;
   roster: Array<{ displayName: string; role: 'titulaire' | 'remplacant'; isCaptain: boolean }>;
   days: Array<{ date: string; startsAt: string; endsAt: string | null }>;
+  sanctions: Array<{ type: 'warn' | 'exclusion' | 'ban'; reason: string; createdAt: string | null }>;
   canWithdraw: boolean;
 }
+
+const SANCTION_LABEL: Record<string, string> = { warn: 'Avertissement', exclusion: 'Exclusion', ban: 'Ban' };
 
 function fmtDay(d: { date: string; startsAt: string; endsAt: string | null }): string {
   let out = '';
@@ -133,6 +136,17 @@ export function InscriptionsTab({ structureId }: { structureId: string }) {
                 </span>
                 <ChevronRight size={16} className="flex-shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: 'var(--s-text-muted)' }} />
               </Link>
+
+              {/* Sanctions actives (avertissement / ban) — bien visibles. */}
+              {r.sanctions.length > 0 && (
+                <div className="px-4 pb-2 pl-[52px] space-y-1">
+                  {r.sanctions.map((s, si) => (
+                    <p key={si} className="text-xs flex items-center gap-1.5" style={{ color: '#ffb46b' }}>
+                      <ShieldAlert size={13} className="flex-shrink-0" /> {SANCTION_LABEL[s.type] ?? s.type} : {s.reason}
+                    </p>
+                  ))}
+                </div>
+              )}
 
               {/* Roster FIGÉ à l'inscription (l'équipe est verrouillée après envoi). */}
               {r.roster.length > 0 && (

@@ -75,24 +75,22 @@ export function serializeSanction(id: string, data: FirebaseFirestore.DocumentDa
 
 interface TargetQuery {
   uids?: string[];
-  structureId?: string | null;
+  structureIds?: string[];
   teamIds?: string[];
 }
 
-// Documents visant l'une des cibles (joueurs / structure / équipes), dédupliqués.
-async function queryByTargets(db: Firestore, { uids = [], structureId, teamIds = [] }: TargetQuery) {
+// Documents visant l'une des cibles (joueurs / structures / équipes), dédupliqués.
+async function queryByTargets(db: Firestore, { uids = [], structureIds = [], teamIds = [] }: TargetQuery) {
   const queries: Promise<FirebaseFirestore.QuerySnapshot>[] = [];
-  for (let i = 0; i < uids.length; i += 10) {
-    const chunk = uids.slice(i, i + 10);
-    if (chunk.length) queries.push(db.collection(COLLECTION).where('targetType', '==', 'user').where('targetId', 'in', chunk).get());
-  }
-  if (structureId) {
-    queries.push(db.collection(COLLECTION).where('targetType', '==', 'structure').where('targetId', '==', structureId).get());
-  }
-  for (let i = 0; i < teamIds.length; i += 10) {
-    const chunk = teamIds.slice(i, i + 10);
-    if (chunk.length) queries.push(db.collection(COLLECTION).where('targetType', '==', 'team').where('targetId', 'in', chunk).get());
-  }
+  const chunked = (ids: string[], targetType: string) => {
+    for (let i = 0; i < ids.length; i += 10) {
+      const chunk = ids.slice(i, i + 10);
+      if (chunk.length) queries.push(db.collection(COLLECTION).where('targetType', '==', targetType).where('targetId', 'in', chunk).get());
+    }
+  };
+  chunked(uids, 'user');
+  chunked(structureIds, 'structure');
+  chunked(teamIds, 'team');
   const snaps = await Promise.all(queries);
   const docs: FirebaseFirestore.QueryDocumentSnapshot[] = [];
   const seen = new Set<string>();
@@ -124,7 +122,7 @@ export async function getBlockingSanctions(
     { uids: string[]; structureId?: string | null; teamId?: string | null; competitionId: string; circuitId?: string | null },
 ): Promise<SanctionRecord[]> {
   const now = new Date();
-  const docs = await queryByTargets(db, { uids, structureId, teamIds: teamId ? [teamId] : [] });
+  const docs = await queryByTargets(db, { uids, structureIds: structureId ? [structureId] : [], teamIds: teamId ? [teamId] : [] });
   const out: SanctionRecord[] = [];
   for (const d of docs) {
     const data = d.data();

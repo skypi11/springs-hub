@@ -15,7 +15,7 @@ import { Trophy, Plus, Pencil, Trash2, UserMinus, ScrollText, ClipboardCheck } f
 import GameTag from '@/components/games/GameTag';
 import CircuitForm from '@/components/admin/competitions/CircuitForm';
 import CompetitionForm from '@/components/admin/competitions/CompetitionForm';
-import BansPanel, { type CompetitionBanRow } from '@/components/admin/competitions/BansPanel';
+import SanctionsPanel from '@/components/admin/competitions/SanctionsPanel';
 import RulebookEditor, { type RulebookScope } from '@/components/admin/competitions/RulebookEditor';
 import RegistrationsPanel from '@/components/admin/competitions/RegistrationsPanel';
 import SandboxPanel from '@/components/admin/competitions/SandboxPanel';
@@ -57,7 +57,6 @@ export default function AdminCompetitionsPage() {
   const [circuits, setCircuits] = useState<AdminCircuit[]>([]);
   const [competitions, setCompetitions] = useState<AdminCompetition[]>([]);
   const [compAdmins, setCompAdmins] = useState<CompetitionAdminEntry[]>([]);
-  const [bans, setBans] = useState<CompetitionBanRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<View>({ kind: 'list' });
 
@@ -71,10 +70,9 @@ export default function AdminCompetitionsPage() {
     if (!firebaseUser) return;
     setLoading(true);
     try {
-      const [circuitsData, compsData, bansData, adminsData] = await Promise.all([
+      const [circuitsData, compsData, adminsData] = await Promise.all([
         api<{ circuits: AdminCircuit[] }>('/api/admin/circuits'),
         api<{ competitions: AdminCompetition[] }>('/api/admin/competitions'),
-        api<{ bans: CompetitionBanRow[] }>('/api/admin/competition-bans'),
         // Nomination réservée aux admins Aedral : la route 403 un admin compét,
         // on ne l'appelle pas pour lui.
         isAdmin
@@ -83,7 +81,6 @@ export default function AdminCompetitionsPage() {
       ]);
       setCircuits(circuitsData.circuits ?? []);
       setCompetitions(compsData.competitions ?? []);
-      setBans(bansData.bans ?? []);
       setCompAdmins(adminsData.admins ?? []);
     } catch (err) {
       console.error('[admin/competitions] load', err);
@@ -357,8 +354,8 @@ export default function AdminCompetitionsPage() {
         </div>
       </div>
 
-      {/* Registre des bans — géré par les admins de compétition (rôle scopé inclus) */}
-      <BansPanel bans={bans} onChanged={load} />
+      {/* Registre des sanctions (warn / exclusion / ban) — admins de compétition */}
+      <SanctionsPanel />
 
       {/* Bac à sable de test — admins Aedral uniquement (création de comptes fictifs) */}
       {isAdmin && <SandboxPanel competitions={competitions} />}

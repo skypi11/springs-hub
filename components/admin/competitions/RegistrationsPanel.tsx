@@ -23,6 +23,7 @@ import Link from 'next/link';
 import { ArrowLeft, ChevronDown, ChevronRight, ExternalLink, ShieldAlert } from 'lucide-react';
 import { getProfileHref } from '@/lib/user-slug';
 import { getStructureHref } from '@/lib/structure-slug';
+import { SANCTION_REASON_CODES } from '@/lib/competitions/sanctions';
 import type { AdminCompetition } from '@/components/admin/competitions/types';
 
 // ── Formes JSON de /api/admin/competitions/[id]/registrations ───────────────
@@ -66,6 +67,36 @@ interface IdentityInfo {
   matches: IdentityMatchRow[];
 }
 
+interface StaffMember {
+  uid: string;
+  displayName: string;
+  discordUsername: string | null;
+  slug: string | null;
+}
+
+interface StaffInfo {
+  founder: StaffMember | null;
+  coFounders: StaffMember[];
+  responsables: StaffMember[];
+  teamManagers: StaffMember[];
+  teamCoaches: StaffMember[];
+  captain: StaffMember | null;
+}
+
+interface SanctionRow {
+  id: string;
+  type: 'warn' | 'exclusion' | 'ban';
+  targetType: 'user' | 'structure' | 'team';
+  targetId: string;
+  targetLabel: string;
+  reason: string;
+  reasonCode: string | null;
+  createdAt: string | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  active: boolean;
+}
+
 interface RegistrationRow {
   id: string;
   teamId: string;
@@ -83,6 +114,9 @@ interface RegistrationRow {
   createdByDiscordUsername: string | null;
   createdByOnDiscordGuild: boolean | null;
   captainUid: string;
+  staff: StaffInfo;
+  sanctions: SanctionRow[];
+  adminNotes: string;
   roster: RosterRow[];
   computed: { worstLineupAvg: number | null; worstLineupGap: number | null; flags: string[] };
   review: { byName: string; at: string | null; reason: string | null; derogations: Array<{ uid: string; note: string }> } | null;
@@ -326,6 +360,38 @@ export default function RegistrationsPanel({
     }
   }
 
+  // Export CSV client-side (ouvrable dans Google Sheets / Excel) — une ligne par
+  // joueur, toutes les équipes. BOM UTF-8 pour les accents.
+  function exportCsv() {
+    const regs = data?.registrations ?? [];
+    const head = ['Équipe', 'Tag', 'Statut', 'Structure', 'Joueur', 'Rôle', 'Capitaine', 'MMR réf', 'MMR actuel', 'MMR peak', 'Âge', 'Pays', 'Vérifié', 'Discord', 'Epic/Steam'];
+    const rows: string[][] = [head];
+    for (const r of regs) {
+      for (const p of r.roster) {
+        rows.push([
+          r.name, r.tag, r.status, r.structureName, p.displayName, p.role,
+          p.uid === r.captainUid ? 'oui' : '',
+          String(p.refMmr), String(p.declaredCurrentMmr), String(p.declaredPeakMmr),
+          p.age != null ? String(p.age) : '', p.country ?? '', p.verified ? 'oui' : 'non',
+          p.discordUsername ?? '', p.epicName ?? p.steamId ?? '',
+        ]);
+      }
+    }
+    // Anti-injection de formules (CSV injection) : un nom d'équipe/pseudo saisi
+    // par un utilisateur commençant par = + - @ (ou tab/CR) serait interprété
+    // comme une formule à l'ouverture dans Sheets/Excel → on préfixe d'une
+    // apostrophe (forçage texte, masquée par le tableur) avant l'échappement.
+    const neutralize = (c: string) => (/^[=+\-@\t\r]/.test(c) ? `'${c}` : c);
+    const csv = rows.map(row => row.map(c => `"${neutralize(String(c)).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `inscriptions-${competition.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (loading) {
     return (
       <div className="panel bevel">
@@ -351,6 +417,14 @@ export default function RegistrationsPanel({
           {counts.approved}/{counts.maxTeams} équipes validées
           {counts.waitlistEnabled ? ' · liste d\'attente activée' : ''}
         </span>
+        <button
+          type="button"
+          className="btn-springs btn-ghost text-sm"
+          onClick={exportCsv}
+          disabled={(data?.registrations?.length ?? 0) === 0}
+        >
+          Exporter CSV
+        </button>
         {data?.discordConfigured && (
           <button
             type="button"
@@ -420,6 +494,9 @@ export default function RegistrationsPanel({
                 onUnapprove={() => unapprove(reg)}
                 acting={acting || provisioning}
                 underage={underagePlayers(reg)}
+                competitionId={competition.id}
+                competitionName={competition.name}
+                onReload={load}
               />
             ))}
           </div>
@@ -434,7 +511,7 @@ export default function RegistrationsPanel({
 function RegistrationRowView({
   reg, first, expanded, onToggle, showMmr, minAge, circuitName,
   decision, setDecision, onOpenDecision, onSubmitDecision, onUnapprove,
-  acting, underage,
+  acting, underage, competitionId, competitionName, onReload,
 }: {
   reg: RegistrationRow;
   first: boolean;
@@ -450,7 +527,11 @@ function RegistrationRowView({
   onUnapprove: () => void;
   acting: boolean;
   underage: RosterRow[];
+  competitionId: string;
+  competitionName: string;
+  onReload: () => void;
 }) {
+  const [sanctionTarget, setSanctionTarget] = useState<{ targetType: 'user' | 'structure' | 'team'; targetId: string; targetLabel: string } | null>(null);
   const smurfTotal = reg.roster.reduce((n, p) => n + p.smurf.pendingReports, 0);
   const adminFlagged = reg.roster.some(p => p.smurf.adminFlag);
   const discordLabel = DISCORD_STATUS_LABELS[reg.discord.provisioningStatus];
@@ -492,64 +573,110 @@ function RegistrationRowView({
 
       {expanded && (
         <div className="px-4 pb-4 space-y-4" style={{ paddingLeft: '2rem' }}>
-          {/* Roster */}
-          <div style={{ border: '1px solid var(--s-border)' }}>
-            {reg.roster.map((p, i) => (
-              <div key={p.uid} className="px-3 py-2 space-y-0.5"
-                style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' }}>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                  <Link href={getProfileHref({ slug: p.slug, uid: p.uid })} target="_blank"
-                    className="text-sm font-semibold hover:underline" style={{ minWidth: '12ch' }}>
-                    {p.displayName}
-                  </Link>
-                  <span className="tag tag-neutral">{p.role === 'titulaire' ? 'Titulaire' : 'Remplaçant'}</span>
-                  {showMmr && (
-                    <span className="text-sm t-mono" title={`Actuel ${p.declaredCurrentMmr} · Peak ${p.declaredPeakMmr}`}>
-                      Réf {p.refMmr}
-                      <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}> ({p.declaredCurrentMmr}/{p.declaredPeakMmr})</span>
-                    </span>
-                  )}
-                  <span className="text-sm" style={{
-                    color: minAge !== null && (p.age === null || p.age < minAge) ? '#ffb46b' : 'var(--s-text-dim)',
-                  }}>
-                    {p.age !== null ? `${p.age} ans` : 'Âge inconnu'}
-                  </span>
-                  {p.country && <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>{p.country}</span>}
-                  <span className="text-sm" style={{ color: p.verified ? 'var(--s-text-dim)' : '#ffb46b' }}>
-                    {p.verified ? 'Vérifié' : 'Non vérifié'}
-                  </span>
-                  {p.trackerUrl && (
-                    <a href={p.trackerUrl} target="_blank" rel="noopener noreferrer"
-                      className="text-sm flex items-center gap-1 hover:underline"
-                      style={{ color: 'var(--s-blue)' }}
-                      onClick={e => e.stopPropagation()}>
-                      Tracker <ExternalLink size={11} />
-                    </a>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                  {p.discordUsername && <span>Discord @{p.discordUsername}</span>}
-                  {p.epicName && <span>Epic {p.epicName}</span>}
-                  {!p.epicName && p.steamId && <span>Steam {p.steamId}</span>}
-                  {p.onDiscordGuild === false && (
-                    <span style={{ color: '#ffb46b' }}>Absent du serveur Discord de la compétition</span>
-                  )}
-                  {p.smurf.pendingReports > 0 && (
-                    <span className="flex items-center gap-1" style={{ color: '#ff8a8a' }}>
-                      <ShieldAlert size={12} /> {p.smurf.pendingReports} signalement{p.smurf.pendingReports > 1 ? 's' : ''} smurf en attente
-                    </span>
-                  )}
-                  {p.smurf.adminFlag && (
-                    <span className="flex items-center gap-1" style={{ color: '#ff8a8a' }}>
-                      <ShieldAlert size={12} /> flag admin
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
+          {/* Roster — table alignée, titulaires puis remplaçants */}
+          <div className="overflow-x-auto" style={{ border: '1px solid var(--s-border)' }}>
+            <table className="w-full text-sm" style={{ borderCollapse: 'collapse', minWidth: showMmr ? 720 : 620 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--s-border)', color: 'var(--s-text-muted)' }}>
+                  <th className="text-left font-medium px-3 py-2">Joueur</th>
+                  <th className="text-left font-medium px-2 py-2">Rôle</th>
+                  {showMmr && <th className="text-right font-medium px-2 py-2">MMR réf</th>}
+                  <th className="text-right font-medium px-2 py-2">Âge</th>
+                  <th className="text-left font-medium px-2 py-2">Pays</th>
+                  <th className="text-left font-medium px-2 py-2">Comptes</th>
+                  <th className="text-left font-medium px-3 py-2">Alertes</th>
+                  <th className="px-2 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {[...reg.roster].sort((a, b) => (a.role === b.role ? 0 : a.role === 'titulaire' ? -1 : 1)).map((p, i) => {
+                  const underAge = minAge !== null && (p.age === null || p.age < minAge);
+                  return (
+                    <tr key={p.uid} style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' }}>
+                      <td className="px-3 py-2">
+                        <Link href={getProfileHref({ slug: p.slug, uid: p.uid })} target="_blank"
+                          className="font-semibold hover:underline" onClick={e => e.stopPropagation()}>
+                          {p.displayName}
+                        </Link>
+                        {p.uid === reg.captainUid && <span className="text-xs ml-1.5" style={{ color: 'var(--s-text-muted)' }}>(C)</span>}
+                      </td>
+                      <td className="px-2 py-2">
+                        <span className="tag tag-neutral" style={p.role === 'titulaire'
+                          ? { color: '#4fb3ff', borderColor: 'rgba(0,129,255,0.4)' } : undefined}>
+                          {p.role === 'titulaire' ? 'Titulaire' : 'Remplaçant'}
+                        </span>
+                      </td>
+                      {showMmr && (
+                        <td className="px-2 py-2 text-right t-mono whitespace-nowrap" title={`Actuel ${p.declaredCurrentMmr} · Peak ${p.declaredPeakMmr}`}>
+                          {p.refMmr}
+                          <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}> ({p.declaredCurrentMmr}/{p.declaredPeakMmr})</span>
+                        </td>
+                      )}
+                      <td className="px-2 py-2 text-right whitespace-nowrap" style={{ color: underAge ? '#ffb46b' : 'var(--s-text-dim)' }}>
+                        {p.age !== null ? `${p.age} ans` : 'Inconnu'}
+                      </td>
+                      <td className="px-2 py-2" style={{ color: 'var(--s-text-dim)' }}>{p.country || '—'}</td>
+                      <td className="px-2 py-2">
+                        <div className="flex flex-col gap-0.5" style={{ color: 'var(--s-text-dim)' }}>
+                          {p.discordUsername ? <span>@{p.discordUsername}</span> : <span style={{ color: 'var(--s-text-muted)' }}>Discord —</span>}
+                          {p.epicName ? <span>Epic {p.epicName}</span> : p.steamId ? <span>Steam {p.steamId}</span> : (
+                            <span style={{ color: '#ffb46b' }}>Non vérifié</span>
+                          )}
+                          {p.trackerUrl && (
+                            <a href={p.trackerUrl} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1 hover:underline" style={{ color: 'var(--s-blue)' }}
+                              onClick={e => e.stopPropagation()}>
+                              Tracker <ExternalLink size={11} />
+                            </a>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-col gap-0.5">
+                          {underAge && <span style={{ color: '#ffb46b' }}>Dérogation</span>}
+                          {p.onDiscordGuild === false && <span style={{ color: '#ffb46b' }}>Hors Discord</span>}
+                          {p.smurf.pendingReports > 0 && (
+                            <span className="flex items-center gap-1" style={{ color: '#ff8a8a' }}>
+                              <ShieldAlert size={12} /> {p.smurf.pendingReports} smurf
+                            </span>
+                          )}
+                          {p.smurf.adminFlag && (
+                            <span className="flex items-center gap-1" style={{ color: '#ff8a8a' }}><ShieldAlert size={12} /> flag</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 text-right whitespace-nowrap">
+                        <button type="button" className="text-xs hover:underline" style={{ color: 'var(--s-text-muted)' }}
+                          onClick={e => { e.stopPropagation(); setSanctionTarget({ targetType: 'user', targetId: p.uid, targetLabel: p.displayName }); }}>
+                          Sanctionner
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
 
-          {/* Meta */}
+          {/* Staff & direction (état LIVE de la structure/équipe) */}
+          <div>
+            <p className="t-label mb-1.5">Staff & direction</p>
+            <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
+              {reg.staff.founder && <StaffTag label="Dirigeant" m={reg.staff.founder} />}
+              {reg.staff.coFounders.map(m => <StaffTag key={`cf-${m.uid}`} label="Co-fondateur" m={m} />)}
+              {reg.staff.responsables.map(m => <StaffTag key={`resp-${m.uid}`} label="Responsable" m={m} />)}
+              {reg.staff.teamManagers.map(m => <StaffTag key={`tm-${m.uid}`} label="Manager d'équipe" m={m} />)}
+              {reg.staff.teamCoaches.map(m => <StaffTag key={`tc-${m.uid}`} label="Coach d'équipe" m={m} />)}
+              {reg.staff.captain && <StaffTag label="Capitaine" m={reg.staff.captain} />}
+              <StaffTag
+                label="Inscrite par"
+                m={{ uid: reg.createdByUid, displayName: reg.createdByName, discordUsername: reg.createdByDiscordUsername, slug: reg.createdBySlug }}
+                warn={reg.createdByOnDiscordGuild === false ? 'hors Discord' : null}
+              />
+            </div>
+          </div>
+
+          {/* Meta compétition */}
           <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm" style={{ color: 'var(--s-text-dim)' }}>
             <span>
               Structure{' '}
@@ -557,17 +684,6 @@ function RegistrationRowView({
                 className="hover:underline" style={{ color: 'var(--s-text)' }}>
                 {reg.structureName || reg.structureId}
               </Link>
-            </span>
-            <span>
-              Inscrite par{' '}
-              <Link href={getProfileHref({ slug: reg.createdBySlug, uid: reg.createdByUid })} target="_blank"
-                className="hover:underline" style={{ color: 'var(--s-text)' }}>
-                {reg.createdByName}
-              </Link>
-              {reg.createdByDiscordUsername ? ` (@${reg.createdByDiscordUsername})` : ''}
-              {reg.createdByOnDiscordGuild === false && (
-                <span style={{ color: '#ffb46b' }}> · absent du serveur Discord</span>
-              )}
             </span>
             {showMmr && reg.computed.worstLineupAvg !== null && (
               <span>Compos alignables : moyenne max {reg.computed.worstLineupAvg} · écart max {reg.computed.worstLineupGap}</span>
@@ -593,6 +709,56 @@ function RegistrationRowView({
               <span style={{ color: '#ff8a8a' }}>Discord : {reg.discord.errorMessage}</span>
             )}
           </div>
+
+          {/* Historique des sanctions (fonde l'escalade manuelle) */}
+          {reg.sanctions.length > 0 && (
+            <div style={{ border: '1px solid var(--s-border)' }}>
+              <div className="px-3 py-1.5" style={{ borderBottom: '1px solid var(--s-border)' }}>
+                <span className="t-label">Historique sanctions ({reg.sanctions.length})</span>
+              </div>
+              {reg.sanctions.map((s, i) => (
+                <div key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-1.5 text-sm"
+                  style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none', opacity: s.active ? 1 : 0.55 }}>
+                  <span className="tag tag-neutral" style={SANCTION_COLOR[s.type]}>{SANCTION_LABEL[s.type]}</span>
+                  <span style={{ color: 'var(--s-text-dim)' }}>{s.reason}</span>
+                  <span className="text-xs ml-auto" style={{ color: 'var(--s-text-muted)' }}>
+                    {formatDate(s.createdAt)}
+                    {s.revokedAt ? ' · levée' : !s.active ? ' · expirée' : s.expiresAt ? ` · jusqu'au ${formatDate(s.expiresAt)}` : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Notes admin internes (jamais vues par l'équipe) */}
+          <NotesEditor regId={reg.id} competitionId={competitionId} initial={reg.adminNotes} onSaved={onReload} />
+
+          {/* Modération graduée — avertir/exclure/bannir l'équipe ou la structure */}
+          {!sanctionTarget && (
+            <div className="flex items-center gap-3 flex-wrap">
+              <button type="button" className="btn-springs btn-ghost text-sm"
+                onClick={() => setSanctionTarget({ targetType: 'team', targetId: reg.teamId, targetLabel: reg.name })}>
+                Sanctionner l&apos;équipe
+              </button>
+              <button type="button" className="btn-springs btn-ghost text-sm"
+                onClick={() => setSanctionTarget({ targetType: 'structure', targetId: reg.structureId, targetLabel: reg.structureName || reg.structureId })}>
+                Sanctionner la structure
+              </button>
+            </div>
+          )}
+
+          {/* Formulaire de sanction (joueur / équipe / structure) */}
+          {sanctionTarget && (
+            <SanctionForm
+              target={sanctionTarget}
+              competitionId={competitionId}
+              competitionName={competitionName}
+              contextStructureId={reg.structureId}
+              contextTeamId={reg.teamId}
+              onClose={() => setSanctionTarget(null)}
+              onDone={() => { setSanctionTarget(null); onReload(); }}
+            />
+          )}
 
           {/* Identité circuit (pending uniquement, résolue serveur) */}
           {reg.identity && reg.status === 'pending' && (
@@ -779,6 +945,151 @@ function IdentityBlock({
           Le choix se fait au moment de la validation.
         </p>
       )}
+    </div>
+  );
+}
+
+// ── Sanctions ────────────────────────────────────────────────────────────────
+
+const SANCTION_LABEL: Record<string, string> = { warn: 'Avertissement', exclusion: 'Exclusion', ban: 'Ban' };
+const SANCTION_COLOR: Record<string, React.CSSProperties> = {
+  warn: { color: '#ffb46b', borderColor: 'rgba(255,180,107,0.4)' },
+  exclusion: { color: '#ff8a8a', borderColor: 'rgba(255,138,138,0.4)' },
+  ban: { color: '#ff8a8a', borderColor: 'rgba(255,138,138,0.4)' },
+};
+
+function StaffTag({ label, m, warn }: { label: string; m: StaffMember; warn?: string | null }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>{label}</span>
+      <Link href={getProfileHref({ slug: m.slug, uid: m.uid })} target="_blank"
+        className="hover:underline" style={{ color: 'var(--s-text)' }} onClick={e => e.stopPropagation()}>
+        {m.displayName}
+      </Link>
+      {m.discordUsername && <span style={{ color: 'var(--s-text-muted)' }}>@{m.discordUsername}</span>}
+      {warn && <span style={{ color: '#ffb46b' }}>· {warn}</span>}
+    </span>
+  );
+}
+
+function NotesEditor({ regId, competitionId, initial, onSaved }: {
+  regId: string; competitionId: string; initial: string; onSaved: () => void;
+}) {
+  const toast = useToast();
+  const [value, setValue] = useState(initial);
+  const [saving, setSaving] = useState(false);
+  const dirty = value !== initial;
+  async function save() {
+    setSaving(true);
+    try {
+      await api(`/api/admin/competitions/${competitionId}/registrations`, {
+        method: 'POST', body: { action: 'set_notes', registrationId: regId, notes: value },
+      });
+      toast.success('Notes enregistrées.');
+      onSaved();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau.');
+    } finally { setSaving(false); }
+  }
+  return (
+    <div>
+      <p className="t-label mb-1.5">Notes admin (internes)</p>
+      <textarea className="settings-input w-full" rows={2} maxLength={2000}
+        value={value} onChange={e => setValue(e.target.value)}
+        placeholder="Notes internes sur l'équipe — jamais visibles par elle." />
+      {dirty && (
+        <div className="mt-2">
+          <button type="button" className="btn-springs btn-secondary bevel-sm text-sm" disabled={saving} onClick={save}>
+            {saving ? 'Enregistrement…' : 'Enregistrer les notes'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SanctionForm({ target, competitionId, competitionName, contextStructureId, contextTeamId, onClose, onDone }: {
+  target: { targetType: 'user' | 'structure' | 'team'; targetId: string; targetLabel: string };
+  competitionId: string;
+  competitionName: string;
+  contextStructureId: string;
+  contextTeamId: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const toast = useToast();
+  // Exclusion = Lot 3 (nécessite la plomberie de retrait) : ici warn + ban.
+  const [type, setType] = useState<'warn' | 'ban'>('warn');
+  const [reasonCode, setReasonCode] = useState('');
+  const [reason, setReason] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [saving, setSaving] = useState(false);
+  const kind = target.targetType === 'user' ? 'le joueur' : target.targetType === 'team' ? 'l’équipe' : 'la structure';
+
+  const chip = (active: boolean): React.CSSProperties => ({
+    cursor: 'pointer',
+    background: active ? 'rgba(255,255,255,0.12)' : 'transparent',
+    color: active ? 'var(--s-text)' : 'var(--s-text-muted)',
+    borderColor: active ? 'rgba(255,255,255,0.35)' : 'var(--s-border)',
+  });
+
+  async function submit() {
+    if (reason.trim().length < 3) { toast.error('Le motif est obligatoire.'); return; }
+    setSaving(true);
+    try {
+      await api('/api/admin/competition-sanctions', {
+        method: 'POST',
+        body: {
+          type, targetType: target.targetType, targetId: target.targetId,
+          reasonCode: reasonCode || undefined, reason: reason.trim(),
+          expiresAt: type === 'ban' && expiresAt ? expiresAt : undefined,
+          competitionId, competitionName,
+          contextStructureId, contextTeamId,
+        },
+      });
+      toast.success(type === 'warn' ? 'Avertissement envoyé (notification + DM).' : 'Ban enregistré.');
+      onDone();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau.');
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="space-y-3" style={{ border: '1px solid rgba(255,180,107,0.35)', padding: '12px' }}>
+      <p className="text-sm font-semibold">Sanctionner {kind} — {target.targetLabel}</p>
+      <div className="flex items-center gap-2 flex-wrap">
+        {(['warn', 'ban'] as const).map(t => (
+          <button key={t} type="button" className="tag" style={chip(type === t)} onClick={() => setType(t)}>
+            {SANCTION_LABEL[t]}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        {SANCTION_REASON_CODES.map(rc => (
+          <button key={rc.code} type="button" className="tag" style={chip(reasonCode === rc.code)}
+            onClick={() => setReasonCode(reasonCode === rc.code ? '' : rc.code)}>
+            {rc.label}
+          </button>
+        ))}
+      </div>
+      <textarea className="settings-input w-full" rows={2} maxLength={500}
+        value={reason} onChange={e => setReason(e.target.value)}
+        placeholder="Motif — transmis à l'équipe (notification in-app + DM Discord)." />
+      {type === 'ban' && (
+        <div className="flex items-center gap-2 text-sm flex-wrap">
+          <span style={{ color: 'var(--s-text-dim)' }}>Expiration (vide = permanent)</span>
+          <input type="date" className="settings-input" value={expiresAt} onChange={e => setExpiresAt(e.target.value)} />
+        </div>
+      )}
+      <div className="flex items-center gap-3">
+        <button type="button" className="btn-springs btn-primary bevel-sm text-sm"
+          disabled={saving || reason.trim().length < 3} onClick={submit}>
+          {saving ? 'Envoi…' : type === 'warn' ? 'Envoyer l’avertissement' : 'Bannir'}
+        </button>
+        <button type="button" className="btn-springs btn-ghost text-sm" disabled={saving} onClick={onClose}>
+          Annuler
+        </button>
+      </div>
     </div>
   );
 }
