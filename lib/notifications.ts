@@ -25,6 +25,7 @@ export type NotificationType =
   | 'todo_overdue'
   | 'rank_contested'
   | 'competition_registration'
+  | 'competition_sanction'
   | 'generic';
 
 export type NotificationPayload = {

@@ -438,24 +438,72 @@ export type MatchStatus =
   | 'walkover'                     // état terminal — adversaire d'un double forfait
   | 'cancelled';                   // état terminal — ex. reset non joué
 
-// ── Bans & admins de compétition ────────────────────────────────────────────
+// ── Sanctions & admins de compétition ───────────────────────────────────────
 
 /**
- * Collection `competition_bans` — registre des bans joueurs ET structures.
- * Lecture deny-all (servie via API admin compét). Consulté automatiquement à
- * l'inscription : refus auto + motif affiché (spec §5).
+ * Échelle de modération graduée (validée Matt 08/07) — une seule collection
+ * `competition_sanctions` avec discriminant `type` :
+ *  - `warn`      : avertissement. AUCUN blocage. Notif in-app + DM Discord au
+ *                  staff/dirigeants avec le motif. Cumulable (escalade MANUELLE).
+ *  - `exclusion` : retrait d'UN tournoi ou d'UN circuit (scope). Bloque la
+ *                  réinscription à ce scope. Effet branché au Lot 3 (retrait).
+ *  - `ban`       : refuse l'inscription à TOUTE compétition (scope global).
+ */
+export type SanctionType = 'warn' | 'exclusion' | 'ban';
+
+/** Cible : un joueur, une structure entière, ou une équipe (sub_team) précise. */
+export type SanctionTargetType = 'user' | 'structure' | 'team';
+
+/** Portée : globale (ban), ou limitée à une compétition / un circuit (exclusion). */
+export type SanctionScope =
+  | { kind: 'global' }
+  | { kind: 'competition'; competitionId: string }
+  | { kind: 'circuit'; circuitId: string };
+
+/**
+ * Collection `competition_sanctions` — registre unifié (warn / exclusion / ban).
+ * Lecture deny-all (Admin SDK only, servie via API admin compét). Jamais de
+ * delete : une sanction levée est RÉVOQUÉE (horodatée), l'historique fait foi
+ * (c'est lui qui rend l'escalade manuelle juste). Consultée à l'inscription
+ * pour le refus auto (ban global + exclusion scopée), jamais le warn (§5).
+ */
+export interface CompetitionSanction {
+  id: string;
+  type: SanctionType;
+  targetType: SanctionTargetType;
+  targetId: string;                // uid | structureId | teamId (sub_team)
+  targetLabel: string;             // dénormalisé (lisible même si la cible disparaît)
+  scope: SanctionScope;
+  /** Motif type (liste fermée UI) pour la cohérence + les stats ; null si libre seul. */
+  reasonCode: string | null;
+  reason: string;                  // motif libre (obligatoire, complète le code)
+  /** Contexte d'émission (compétition depuis laquelle l'admin a sanctionné). */
+  competitionId: string | null;
+  /** null = permanent (warn/ban) ; daté = sanction temporaire (exclusion). */
+  expiresAt: Date | string | null;
+  createdBy: string;
+  createdAt: Date | string;
+  /** Sanction levée manuellement (on garde l'historique, jamais de delete). */
+  revokedAt: Date | string | null;
+  revokedBy: string | null;
+  /** Notif in-app + DM Discord envoyés (best-effort) au staff/dirigeants. */
+  notified: boolean;
+}
+
+/**
+ * @deprecated Remplacé par `CompetitionSanction` (type='ban'). Conservé pour
+ * référence — la collection `competition_bans` était vide en prod (0 doc au
+ * 08/07), aucune migration de données nécessaire.
  */
 export interface CompetitionBan {
   id: string;
   targetType: 'user' | 'structure';
-  targetId: string;                // uid ou structureId
-  targetLabel: string;             // displayName / nom structure au moment du ban
+  targetId: string;
+  targetLabel: string;
   reason: string;
-  /** null = permanent. */
   expiresAt: Date | string | null;
   createdBy: string;
   createdAt: Date | string;
-  /** Ban levé manuellement (on garde l'historique, jamais de delete). */
   revokedAt: Date | string | null;
   revokedBy: string | null;
 }

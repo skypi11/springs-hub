@@ -8,7 +8,7 @@ import { isDirigeant, isResponsableForGame } from '@/lib/structure-permissions';
 import { computeAge } from '@/lib/age';
 import { computeRefMmr, computeMmrFlags, analyzeLineups } from '@/lib/competitions/mmr';
 import { isGuildMember } from '@/lib/discord-competition';
-import { getActiveCompetitionBans } from '@/lib/competitions/bans';
+import { getBlockingSanctions } from '@/lib/competitions/sanctions';
 import { getRulebookForCompetition } from '@/lib/competitions/rulebooks';
 import { isCompetitionHidden } from '@/lib/competitions/visibility';
 import { buildTrackerGgUrl, type RLPlatform } from '@/lib/rl-platform';
@@ -344,12 +344,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
     }
 
-    // ── Bans actifs : refus automatique avec motif (spec §5) ──
-    const activeBans = await getActiveCompetitionBans(db, { uids: rosterUids, structureId });
-    if (activeBans.length > 0) {
-      const labels = activeBans.map(b => `${b.targetLabel} (${b.reason})`).join(' · ');
+    // ── Sanctions bloquantes : refus automatique avec motif (spec §5) ──
+    // Ban (global) OU exclusion scopée à CETTE compétition / son circuit. Le
+    // warn ne bloque jamais. L'historique/registre est unifié (competition_sanctions).
+    const blocking = await getBlockingSanctions(db, {
+      uids: rosterUids, structureId, teamId, competitionId: id, circuitId: (comp.circuitId as string | null) ?? null,
+    });
+    if (blocking.length > 0) {
+      const labels = blocking.map(b => `${b.targetLabel} (${b.reason})`).join(' · ');
       return NextResponse.json(
-        { error: `Inscription refusée — au registre des bans : ${labels}`, bans: activeBans.map(b => ({ label: b.targetLabel, reason: b.reason })) },
+        { error: `Inscription refusée — sanction active : ${labels}`, bans: blocking.map(b => ({ label: b.targetLabel, reason: b.reason })) },
         { status: 403 },
       );
     }

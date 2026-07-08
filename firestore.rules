@@ -274,7 +274,16 @@ service cloud.firestore {
 
     // Registre des bans de compétition (joueurs + structures) — DENY-ALL :
     // consulté à l'inscription côté serveur, géré via API admin compét.
+    // @deprecated remplacé par competition_sanctions (vide en prod, 0 doc).
     match /competition_bans/{id} {
+      allow read, write: if false;
+    }
+
+    // Registre unifié des sanctions de compétition (warn / exclusion / ban) —
+    // DENY-ALL : consulté à l'inscription + à la validation côté serveur, géré
+    // via API admin compét. La visibilité côté équipe passe par des notifs/API
+    // filtrées, jamais par une lecture client (invariant §8 : aucun uid public).
+    match /competition_sanctions/{id} {
       allow read, write: if false;
     }
 

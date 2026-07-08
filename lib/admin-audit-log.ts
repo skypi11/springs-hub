@@ -62,6 +62,9 @@ export type AdminAuditAction =
   | 'competition_ban_added'
   | 'competition_ban_revoked'
   | 'rulebook_published'
+  // Sanctions graduées (warn / exclusion / ban unifiés — competition_sanctions)
+  | 'competition_sanction_added'
+  | 'competition_sanction_revoked'
   // Moteur de compétitions — Lot 1 (file de validation, provisioning Discord)
   | 'competition_registration_approved'
   | 'competition_registration_rejected'
