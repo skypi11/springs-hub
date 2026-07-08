@@ -15,7 +15,7 @@
 // Formulaires INLINE dans la rangée dépliée — pas de dropdown/modal absolu
 // dans un panel .bevel (le clip-path clippe, piège documenté).
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
@@ -485,6 +485,8 @@ export default function RegistrationsPanel({
                 expanded={expanded.has(reg.id)}
                 onToggle={() => toggleExpand(reg.id)}
                 showMmr={showMmr}
+                mmrMaxAvg={competition.eligibility?.mmr?.maxAvg ?? null}
+                mmrMaxGap={competition.eligibility?.mmr?.maxGap ?? null}
                 minAge={data?.minAge ?? null}
                 circuitName={data?.circuitName ?? null}
                 decision={decision?.regId === reg.id ? decision : null}
@@ -509,7 +511,7 @@ export default function RegistrationsPanel({
 // ── Rangée d'inscription ────────────────────────────────────────────────────
 
 function RegistrationRowView({
-  reg, first, expanded, onToggle, showMmr, minAge, circuitName,
+  reg, first, expanded, onToggle, showMmr, mmrMaxAvg, mmrMaxGap, minAge, circuitName,
   decision, setDecision, onOpenDecision, onSubmitDecision, onUnapprove,
   acting, underage, competitionId, competitionName, onReload,
 }: {
@@ -518,6 +520,8 @@ function RegistrationRowView({
   expanded: boolean;
   onToggle: () => void;
   showMmr: boolean;
+  mmrMaxAvg: number | null;
+  mmrMaxGap: number | null;
   minAge: number | null;
   circuitName: string | null;
   decision: { regId: string; mode: 'approve' | 'reject'; reason: string; derogations: Record<string, string>; circuitChoice: string | null } | null;
@@ -536,6 +540,18 @@ function RegistrationRowView({
   const adminFlagged = reg.roster.some(p => p.smurf.adminFlag);
   const discordLabel = DISCORD_STATUS_LABELS[reg.discord.provisioningStatus];
   const actionable = reg.status === 'pending' || reg.status === 'waitlisted';
+
+  // Roster trié titulaires → remplaçants + compteurs (rangées-groupe dans la table).
+  const rosterSorted = [...reg.roster].sort((a, b) => (a.role === b.role ? 0 : a.role === 'titulaire' ? -1 : 1));
+  const titCount = rosterSorted.filter(p => p.role === 'titulaire').length;
+  const remCount = rosterSorted.length - titCount;
+  const colCount = showMmr ? 9 : 6;
+  // MMR d'équipe (worstLineupAvg = moyenne de la meilleure compo alignable) + éligibilité.
+  const teamAvg = reg.computed.worstLineupAvg;
+  const teamGap = reg.computed.worstLineupGap;
+  const avgOver = reg.computed.flags.includes('mmr_avg_exceeded');
+  const gapOver = reg.computed.flags.includes('mmr_gap_exceeded');
+  const staffRows = buildStaffRows(reg);
 
   return (
     <div style={{ borderTop: first ? 'none' : '1px solid var(--s-border)' }}>
@@ -573,106 +589,162 @@ function RegistrationRowView({
 
       {expanded && (
         <div className="px-4 pb-4 space-y-4" style={{ paddingLeft: '2rem' }}>
-          {/* Roster — table alignée, titulaires puis remplaçants */}
-          <div className="overflow-x-auto" style={{ border: '1px solid var(--s-border)' }}>
-            <table className="w-full text-sm" style={{ borderCollapse: 'collapse', minWidth: showMmr ? 720 : 620 }}>
+          {/* Roster — caption « MMR d'équipe » (lu en premier) + table alignée */}
+          <div className="bevel-sm overflow-x-auto" style={{ border: '1px solid var(--s-border)' }}>
+            <div className="flex items-baseline justify-between gap-4 px-3 py-2" style={{ borderBottom: '1px solid var(--s-border)' }}>
+              {showMmr ? (
+                teamAvg !== null ? (
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <span className="t-label-soft">MMR d&apos;équipe</span>
+                    <span className="t-mono" style={{ fontSize: '16px', color: avgOver ? '#ffb46b' : 'var(--s-text)', fontWeight: 600 }}>{teamAvg}</span>
+                    <span className="t-mono" style={{ color: gapOver ? '#ffb46b' : 'var(--s-text-dim)' }}>· écart {teamGap}</span>
+                    {(mmrMaxAvg !== null || mmrMaxGap !== null) && (
+                      <span className="t-label-soft">· limite {mmrMaxAvg ?? '—'} / {mmrMaxGap ?? '—'}</span>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                    MMR d&apos;équipe — indisponible (compo de 3 incomplète)
+                  </span>
+                )
+              ) : <span />}
+              <span className="flex-shrink-0 whitespace-nowrap">
+                <span className="t-label">Roster</span>
+                <span className="t-label-soft"> · {reg.roster.length} joueur{reg.roster.length > 1 ? 's' : ''}</span>
+              </span>
+            </div>
+
+            <table className="w-full text-sm" style={{ borderCollapse: 'collapse', minWidth: showMmr ? 900 : 680 }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid var(--s-border)', color: 'var(--s-text-muted)' }}>
-                  <th className="text-left font-medium px-3 py-2">Joueur</th>
-                  <th className="text-left font-medium px-2 py-2">Rôle</th>
-                  {showMmr && <th className="text-right font-medium px-2 py-2">MMR réf</th>}
-                  <th className="text-right font-medium px-2 py-2">Âge</th>
-                  <th className="text-left font-medium px-2 py-2">Pays</th>
-                  <th className="text-left font-medium px-2 py-2">Comptes</th>
-                  <th className="text-left font-medium px-3 py-2">Alertes</th>
-                  <th className="px-2 py-2" />
-                </tr>
+                {showMmr ? (
+                  <>
+                    <tr style={{ borderBottom: '1px solid var(--s-border)', color: 'var(--s-text-muted)' }}>
+                      <th rowSpan={2} className="text-left font-medium px-3 py-2 align-bottom">Joueur</th>
+                      <th colSpan={3} className="text-center font-medium px-2 py-1.5"
+                        title="MMR de référence = 0,7 × actuel + 0,3 × peak (le MMR qui compte pour l'éligibilité)"
+                        style={{ borderBottom: '1px solid var(--s-border)' }}>MMR</th>
+                      <th rowSpan={2} className="text-right font-medium px-2 py-2 align-bottom">Âge</th>
+                      <th rowSpan={2} className="text-center font-medium px-2 py-2 align-bottom">Pays</th>
+                      <th rowSpan={2} className="text-left font-medium px-2 py-2 align-bottom">Comptes</th>
+                      <th rowSpan={2} className="text-left font-medium px-3 py-2 align-bottom">Alertes</th>
+                      <th rowSpan={2} className="px-2 py-2" />
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid var(--s-border)', color: 'var(--s-text-muted)' }}>
+                      <th className="text-right font-medium px-2 py-1.5">Actuel</th>
+                      <th className="text-right font-medium px-2 py-1.5">Peak</th>
+                      <th className="text-right font-medium px-2 py-1.5">Réf</th>
+                    </tr>
+                  </>
+                ) : (
+                  <tr style={{ borderBottom: '1px solid var(--s-border)', color: 'var(--s-text-muted)' }}>
+                    <th className="text-left font-medium px-3 py-2">Joueur</th>
+                    <th className="text-right font-medium px-2 py-2">Âge</th>
+                    <th className="text-center font-medium px-2 py-2">Pays</th>
+                    <th className="text-left font-medium px-2 py-2">Comptes</th>
+                    <th className="text-left font-medium px-3 py-2">Alertes</th>
+                    <th className="px-2 py-2" />
+                  </tr>
+                )}
               </thead>
               <tbody>
-                {[...reg.roster].sort((a, b) => (a.role === b.role ? 0 : a.role === 'titulaire' ? -1 : 1)).map((p, i) => {
+                {rosterSorted.map((p, i) => {
                   const underAge = minAge !== null && (p.age === null || p.age < minAge);
+                  const newGroup = i === 0 || rosterSorted[i - 1].role !== p.role;
                   return (
-                    <tr key={p.uid} style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' }}>
-                      <td className="px-3 py-2">
-                        <Link href={getProfileHref({ slug: p.slug, uid: p.uid })} target="_blank"
-                          className="font-semibold hover:underline" onClick={e => e.stopPropagation()}>
-                          {p.displayName}
-                        </Link>
-                        {p.uid === reg.captainUid && <span className="text-xs ml-1.5" style={{ color: 'var(--s-text-muted)' }}>(C)</span>}
-                      </td>
-                      <td className="px-2 py-2">
-                        <span className="tag tag-neutral" style={p.role === 'titulaire'
-                          ? { color: '#4fb3ff', borderColor: 'rgba(0,129,255,0.4)' } : undefined}>
-                          {p.role === 'titulaire' ? 'Titulaire' : 'Remplaçant'}
-                        </span>
-                      </td>
-                      {showMmr && (
-                        <td className="px-2 py-2 text-right t-mono whitespace-nowrap" title={`Actuel ${p.declaredCurrentMmr} · Peak ${p.declaredPeakMmr}`}>
-                          {p.refMmr}
-                          <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}> ({p.declaredCurrentMmr}/{p.declaredPeakMmr})</span>
-                        </td>
+                    <Fragment key={p.uid}>
+                      {newGroup && (
+                        <tr style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' }}>
+                          <td colSpan={colCount} className="t-label-soft px-3 py-1.5" style={{ background: 'var(--s-elevated)' }}>
+                            {p.role === 'titulaire' ? `Titulaires · ${titCount}` : `Remplaçants · ${remCount}`}
+                          </td>
+                        </tr>
                       )}
-                      <td className="px-2 py-2 text-right whitespace-nowrap" style={{ color: underAge ? '#ffb46b' : 'var(--s-text-dim)' }}>
-                        {p.age !== null ? `${p.age} ans` : 'Inconnu'}
-                      </td>
-                      <td className="px-2 py-2" style={{ color: 'var(--s-text-dim)' }}>{p.country || '—'}</td>
-                      <td className="px-2 py-2">
-                        <div className="flex flex-col gap-0.5" style={{ color: 'var(--s-text-dim)' }}>
-                          {p.discordUsername ? <span>@{p.discordUsername}</span> : <span style={{ color: 'var(--s-text-muted)' }}>Discord —</span>}
-                          {p.epicName ? <span>Epic {p.epicName}</span> : p.steamId ? <span>Steam {p.steamId}</span> : (
-                            <span style={{ color: '#ffb46b' }}>Non vérifié</span>
-                          )}
-                          {p.trackerUrl && (
-                            <a href={p.trackerUrl} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-1 hover:underline" style={{ color: 'var(--s-blue)' }}
-                              onClick={e => e.stopPropagation()}>
-                              Tracker <ExternalLink size={11} />
-                            </a>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex flex-col gap-0.5">
-                          {underAge && <span style={{ color: '#ffb46b' }}>Dérogation</span>}
-                          {p.onDiscordGuild === false && <span style={{ color: '#ffb46b' }}>Hors Discord</span>}
-                          {p.smurf.pendingReports > 0 && (
-                            <span className="flex items-center gap-1" style={{ color: '#ff8a8a' }}>
-                              <ShieldAlert size={12} /> {p.smurf.pendingReports} smurf
-                            </span>
-                          )}
-                          {p.smurf.adminFlag && (
-                            <span className="flex items-center gap-1" style={{ color: '#ff8a8a' }}><ShieldAlert size={12} /> flag</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-2 py-2 text-right whitespace-nowrap">
-                        <button type="button" className="text-xs hover:underline" style={{ color: 'var(--s-text-muted)' }}
-                          onClick={e => { e.stopPropagation(); setSanctionTarget({ targetType: 'user', targetId: p.uid, targetLabel: p.displayName }); }}>
-                          Sanctionner
-                        </button>
-                      </td>
-                    </tr>
+                      <tr style={{ borderTop: '1px solid var(--s-border)' }}>
+                        <td className="px-3 py-2 align-top">
+                          <Link href={getProfileHref({ slug: p.slug, uid: p.uid })} target="_blank"
+                            className="font-semibold hover:underline" onClick={e => e.stopPropagation()}>
+                            {p.displayName}
+                          </Link>
+                          {p.uid === reg.captainUid && <span className="text-xs ml-1.5" style={{ color: 'var(--s-text-muted)' }}>(C)</span>}
+                        </td>
+                        {showMmr && (
+                          <>
+                            <td className="px-2 py-2 text-right t-mono align-top" style={{ color: 'var(--s-text-dim)' }}>{p.declaredCurrentMmr}</td>
+                            <td className="px-2 py-2 text-right t-mono align-top" style={{ color: 'var(--s-text-dim)' }}>{p.declaredPeakMmr}</td>
+                            <td className="px-2 py-2 text-right t-mono align-top" style={{ color: 'var(--s-text)', fontWeight: 600 }}>{p.refMmr}</td>
+                          </>
+                        )}
+                        <td className="px-2 py-2 text-right whitespace-nowrap align-top" style={{ color: underAge ? '#ffb46b' : 'var(--s-text-dim)' }}>
+                          {p.age !== null ? `${p.age} ans` : 'Inconnu'}
+                        </td>
+                        <td className="px-2 py-2 text-center align-top" style={{ color: 'var(--s-text-dim)' }}>{p.country || '—'}</td>
+                        <td className="px-2 py-2 align-top">
+                          <div className="flex flex-col gap-0.5" style={{ color: 'var(--s-text-dim)' }}>
+                            {p.discordUsername ? <span>@{p.discordUsername}</span> : <span style={{ color: 'var(--s-text-muted)' }}>Discord —</span>}
+                            {p.epicName ? <span>Epic {p.epicName}</span> : p.steamId ? <span>Steam {p.steamId}</span> : (
+                              <span style={{ color: '#ffb46b' }}>Non vérifié</span>
+                            )}
+                            {p.trackerUrl && (
+                              <a href={p.trackerUrl} target="_blank" rel="noopener noreferrer"
+                                className="flex items-center gap-1 hover:underline" style={{ color: 'var(--s-blue)' }}
+                                onClick={e => e.stopPropagation()}>
+                                Tracker <ExternalLink size={11} />
+                              </a>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          <div className="flex flex-col gap-0.5">
+                            {underAge && <span style={{ color: '#ffb46b' }}>Dérogation</span>}
+                            {p.onDiscordGuild === false && <span style={{ color: '#ffb46b' }}>Hors Discord</span>}
+                            {p.smurf.pendingReports > 0 && (
+                              <span className="flex items-center gap-1" style={{ color: '#ff8a8a' }}>
+                                <ShieldAlert size={12} /> {p.smurf.pendingReports} smurf
+                              </span>
+                            )}
+                            {p.smurf.adminFlag && (
+                              <span className="flex items-center gap-1" style={{ color: '#ff8a8a' }}><ShieldAlert size={12} /> flag</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-2 py-2 text-right whitespace-nowrap align-top">
+                          <button type="button" className="text-xs hover:underline" style={{ color: 'var(--s-text-muted)' }}
+                            onClick={e => { e.stopPropagation(); setSanctionTarget({ targetType: 'user', targetId: p.uid, targetLabel: p.displayName }); }}>
+                            Sanctionner
+                          </button>
+                        </td>
+                      </tr>
+                    </Fragment>
                   );
                 })}
               </tbody>
             </table>
           </div>
 
-          {/* Staff & direction (état LIVE de la structure/équipe) */}
+          {/* Staff & direction — grille « rôle · nom · @Discord », une ligne par personne */}
           <div>
-            <p className="t-label mb-1.5">Staff & direction</p>
-            <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
-              {reg.staff.founder && <StaffTag label="Dirigeant" m={reg.staff.founder} />}
-              {reg.staff.coFounders.map(m => <StaffTag key={`cf-${m.uid}`} label="Co-fondateur" m={m} />)}
-              {reg.staff.responsables.map(m => <StaffTag key={`resp-${m.uid}`} label="Responsable" m={m} />)}
-              {reg.staff.teamManagers.map(m => <StaffTag key={`tm-${m.uid}`} label="Manager d'équipe" m={m} />)}
-              {reg.staff.teamCoaches.map(m => <StaffTag key={`tc-${m.uid}`} label="Coach d'équipe" m={m} />)}
-              {reg.staff.captain && <StaffTag label="Capitaine" m={reg.staff.captain} />}
-              <StaffTag
-                label="Inscrite par"
-                m={{ uid: reg.createdByUid, displayName: reg.createdByName, discordUsername: reg.createdByDiscordUsername, slug: reg.createdBySlug }}
-                warn={reg.createdByOnDiscordGuild === false ? 'hors Discord' : null}
-              />
+            <p className="t-label mb-2">Staff & direction</p>
+            <div className="overflow-x-auto">
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(150px,max-content) minmax(110px,max-content) minmax(0,1fr)', columnGap: '1.5rem', minWidth: 'min-content' }}>
+                {staffRows.map((s, i) => {
+                  const cellStyle = { padding: '0.5rem 0', borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' } as const;
+                  return (
+                    <Fragment key={s.uid}>
+                      <div className="t-label-soft" style={cellStyle}>{s.roles.join(' · ')}</div>
+                      <div className="text-sm" style={cellStyle}>
+                        <Link href={getProfileHref({ slug: s.slug, uid: s.uid })} target="_blank"
+                          className="hover:underline" style={{ color: 'var(--s-text)', fontWeight: 500 }} onClick={e => e.stopPropagation()}>
+                          {s.name}
+                        </Link>
+                      </div>
+                      <div className="text-sm truncate min-w-0" style={{ ...cellStyle, color: 'var(--s-text-muted)' }}>
+                        {s.discord && `@${s.discord}`}
+                        {s.warn && <span style={{ color: '#ffb46b' }}>{s.discord ? ' · ' : ''}{s.warn}</span>}
+                      </div>
+                    </Fragment>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
@@ -685,9 +757,6 @@ function RegistrationRowView({
                 {reg.structureName || reg.structureId}
               </Link>
             </span>
-            {showMmr && reg.computed.worstLineupAvg !== null && (
-              <span>Compos alignables : moyenne max {reg.computed.worstLineupAvg} · écart max {reg.computed.worstLineupGap}</span>
-            )}
             <span>
               {reg.rulebookAccepted
                 ? `Règlement v${reg.rulebookAccepted.version} accepté le ${formatDate(reg.rulebookAccepted.at)}`
@@ -958,18 +1027,50 @@ const SANCTION_COLOR: Record<string, React.CSSProperties> = {
   ban: { color: '#ff8a8a', borderColor: 'rgba(255,138,138,0.4)' },
 };
 
-function StaffTag({ label, m, warn }: { label: string; m: StaffMember; warn?: string | null }) {
-  return (
-    <span className="flex items-center gap-1.5">
-      <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>{label}</span>
-      <Link href={getProfileHref({ slug: m.slug, uid: m.uid })} target="_blank"
-        className="hover:underline" style={{ color: 'var(--s-text)' }} onClick={e => e.stopPropagation()}>
-        {m.displayName}
-      </Link>
-      {m.discordUsername && <span style={{ color: 'var(--s-text-muted)' }}>@{m.discordUsername}</span>}
-      {warn && <span style={{ color: '#ffb46b' }}>· {warn}</span>}
-    </span>
-  );
+interface StaffRowData { uid: string; name: string; slug: string | null; discord: string | null; roles: string[]; warn: string | null }
+
+// Ordre de priorité d'affichage (dirigeant en haut, inscripteur externe en bas).
+const STAFF_PRIORITY = ['Dirigeant', 'Co-fondateur', 'Responsable', "Manager d'équipe", "Coach d'équipe", 'Capitaine', 'Inscription'];
+
+// Dédoublonne le staff par uid : une personne = une ligne, rôles cumulés joints
+// par « · ». L'inscripteur fusionne dans sa ligne s'il est déjà staff, sinon en
+// ligne « Inscription ». Catégories vides omises. Trié par priorité de rôle.
+function buildStaffRows(reg: RegistrationRow): StaffRowData[] {
+  const map = new Map<string, StaffRowData>();
+  const add = (m: StaffMember | null, role: string) => {
+    if (!m || !m.uid) return;
+    const existing = map.get(m.uid);
+    if (existing) {
+      if (!existing.roles.includes(role)) existing.roles.push(role);
+    } else {
+      map.set(m.uid, { uid: m.uid, name: m.displayName, slug: m.slug, discord: m.discordUsername, roles: [role], warn: null });
+    }
+  };
+  add(reg.staff.founder, 'Dirigeant');
+  reg.staff.coFounders.forEach(m => add(m, 'Co-fondateur'));
+  reg.staff.responsables.forEach(m => add(m, 'Responsable'));
+  reg.staff.teamManagers.forEach(m => add(m, "Manager d'équipe"));
+  reg.staff.teamCoaches.forEach(m => add(m, "Coach d'équipe"));
+  add(reg.staff.captain, 'Capitaine');
+  // Inscripteur (peut déjà être staff → fusion) + warn « hors Discord » le cas échéant.
+  const inscWarn = reg.createdByOnDiscordGuild === false ? 'hors Discord' : null;
+  if (reg.createdByUid) {
+    const existing = map.get(reg.createdByUid);
+    if (existing) {
+      if (!existing.roles.includes('Inscription')) existing.roles.push('Inscription');
+      if (inscWarn) existing.warn = inscWarn;
+    } else {
+      map.set(reg.createdByUid, {
+        uid: reg.createdByUid, name: reg.createdByName, slug: reg.createdBySlug,
+        discord: reg.createdByDiscordUsername, roles: ['Inscription'], warn: inscWarn,
+      });
+    }
+  }
+  const minPriority = (roles: string[]) => Math.min(...roles.map(r => {
+    const idx = STAFF_PRIORITY.indexOf(r);
+    return idx === -1 ? 99 : idx;
+  }));
+  return Array.from(map.values()).sort((a, b) => minPriority(a.roles) - minPriority(b.roles));
 }
 
 function NotesEditor({ regId, competitionId, initial, onSaved }: {
