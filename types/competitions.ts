@@ -491,24 +491,6 @@ export interface CompetitionSanction {
 }
 
 /**
- * @deprecated Remplacé par `CompetitionSanction` (type='ban'). Conservé pour
- * référence — la collection `competition_bans` était vide en prod (0 doc au
- * 08/07), aucune migration de données nécessaire.
- */
-export interface CompetitionBan {
-  id: string;
-  targetType: 'user' | 'structure';
-  targetId: string;
-  targetLabel: string;
-  reason: string;
-  expiresAt: Date | string | null;
-  createdBy: string;
-  createdAt: Date | string;
-  revokedAt: Date | string | null;
-  revokedBy: string | null;
-}
-
-/**
  * Collection `competition_admins` — rôle scopé compétitions uniquement,
  * distinct des admins Aedral complets (`aedral_admins`). Un admin Aedral
  * complet est AUTOMATIQUEMENT admin compétition (spec §6).
