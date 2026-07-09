@@ -12,7 +12,9 @@ import { useAuth } from '@/context/AuthContext';
 import ScrollReveal from './ScrollReveal';
 import TiltImage from '@/components/ui/TiltImage';
 import DiscordIcon, { AEDRAL_DISCORD_INVITE_URL } from '@/components/icons/DiscordIcon';
-import { ALL_GAME_DEFS } from '@/lib/games-registry';
+import GameTag from '@/components/games/GameTag';
+import { ALL_GAME_DEFS, getGameBannerUrl, getGameColor } from '@/lib/games-registry';
+import { LEGACY_COMPETITIONS } from '@/lib/legacy-competitions';
 
 type PublicStats = {
   structures: number;
@@ -20,38 +22,6 @@ type PublicStats = {
   recruitingPlayers: number;
 };
 
-const competitions = [
-  {
-    id: 'rl-s2',
-    game: 'Rocket League',
-    tag: 'RL',
-    tagClass: 'tag-blue',
-    name: 'SPRINGS LEAGUE SERIES S2',
-    format: 'Ligue · 3v3 · Round Robin · BO7',
-    status: 'En cours',
-    date: 'Saison 2026',
-    teams: '32 équipes',
-    prize: '1 600€',
-    accent: '#0081FF',
-    bgImage: '/rocket-league.webp',
-    href: 'https://springs-esport.vercel.app/rocket-league/',
-  },
-  {
-    id: 'tm-monthly',
-    game: 'Trackmania',
-    tag: 'TM',
-    tagClass: 'tag-green',
-    name: 'MONTHLY CUP',
-    format: 'Cup · Solo · Qualifications + Finale',
-    status: 'Mensuel',
-    date: 'Chaque mois',
-    teams: 'Solo',
-    prize: null,
-    accent: '#00D936',
-    bgImage: '/tm.webp',
-    href: 'https://springs-esport.vercel.app/trackmania/cup.html?cup=monthly',
-  },
-];
 
 // Dimensions réelles des captures (Guide) → ratio correct, pas de déformation
 // next/image. Même pool d'images que la page /guide.
@@ -476,31 +446,31 @@ function CompetitionsSection() {
           <div className="text-center mb-12">
             <span className="tag tag-violet mb-4 inline-block">Springs E-Sport</span>
           <h2 className="t-display mb-4" style={{ fontSize: 'clamp(2rem, 4.5vw, 3rem)' }}>
-            COMPÉTITIONS <span style={{ color: 'var(--s-gold)' }}>EN DIRECT</span>
+            COMPÉTITIONS <span style={{ color: 'var(--s-gold)' }}>SPRINGS</span>
           </h2>
             <p className="t-body max-w-2xl mx-auto" style={{ fontSize: '15px', color: 'var(--s-text-dim)' }}>
-              Les compétitions Springs E-Sport (partenaire historique d&apos;Aedral) tournent
-              actuellement sur leur site dédié. La gestion native depuis Aedral arrive bientôt.
+              Springs E-Sport, partenaire historique d&apos;Aedral, organise ses compétitions
+              sur son site dédié. La gestion native depuis Aedral arrive.
             </p>
           </div>
         </ScrollReveal>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {competitions.map((comp, i) => (
+          {LEGACY_COMPETITIONS.map((comp, i) => {
+            const bg = getGameBannerUrl(comp.gameId);
+            const accent = getGameColor(comp.gameId);
+            return (
             <ScrollReveal key={comp.id} delay={i * 120}>
             <a href={comp.href} target="_blank" rel="noopener noreferrer"
-              className="comp-card bevel group block" style={{ minHeight: '240px' }}>
-              <div className="comp-card-bg" style={{ backgroundImage: `url(${comp.bgImage})` }} />
+              className="comp-card bevel group block" style={{ minHeight: '240px', opacity: comp.state === 'finished' ? 0.85 : 1 }}>
+              {bg && <div className="comp-card-bg" style={{ backgroundImage: `url(${bg})` }} />}
               <div className="comp-card-overlay" />
               <div className="absolute top-0 left-0 right-0 h-[3px] z-[2]"
-                style={{ background: `linear-gradient(90deg, ${comp.accent}, ${comp.accent}60, transparent 70%)` }} />
+                style={{ background: `linear-gradient(90deg, ${accent}, ${accent}60, transparent 70%)` }} />
               <div className="comp-card-content p-7 flex flex-col h-full" style={{ minHeight: '240px' }}>
                 <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-2">
-                    <span className={`tag ${comp.tagClass}`}>{comp.tag}</span>
-                    <span className="t-label" style={{ color: 'rgba(255,255,255,0.5)' }}>{comp.game}</span>
-                  </div>
-                  <span className="status status-live">{comp.status}</span>
+                  <GameTag gameId={comp.gameId} size="sm" />
+                  <span className="tag tag-neutral">{comp.statusLabel}</span>
                 </div>
                 <h3 className="font-display mb-5" style={{ fontSize: '2rem', letterSpacing: '0.03em', color: '#fff' }}>
                   {comp.name}
@@ -509,11 +479,13 @@ function CompetitionsSection() {
                   <span className="t-mono flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
                     <Gamepad2 size={11} /> {comp.format}
                   </span>
+                  {comp.teams && (
+                    <span className="t-mono flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                      <Users size={11} /> {comp.teams}
+                    </span>
+                  )}
                   <span className="t-mono flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                    <Users size={11} /> {comp.teams}
-                  </span>
-                  <span className="t-mono flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                    <Calendar size={11} /> {comp.date}
+                    <Calendar size={11} /> {comp.edition}
                   </span>
                   {comp.prize && (
                     <span className="t-mono flex items-center gap-1.5 font-bold" style={{ color: 'var(--s-gold)' }}>
@@ -534,7 +506,8 @@ function CompetitionsSection() {
               </div>
             </a>
             </ScrollReveal>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

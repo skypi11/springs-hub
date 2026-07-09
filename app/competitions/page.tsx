@@ -15,6 +15,7 @@ import { useAuth } from '@/context/AuthContext';
 import GameTag from '@/components/games/GameTag';
 import GlanceStat from '@/components/competitions/GlanceStat';
 import { getGameColor, getGameColorRgb, getGameBannerUrl, getGameLogoUrl } from '@/lib/games-registry';
+import { ACTIVE_LEGACY_COMPETITIONS, FINISHED_LEGACY_COMPETITIONS, type LegacyCompetition } from '@/lib/legacy-competitions';
 
 interface CircuitFocus {
   mode: string;
@@ -39,24 +40,6 @@ interface CircuitSummary {
   organizer: { name: string; logoUrl?: string | null } | null;
   focus: CircuitFocus;
 }
-
-// Compétitions historiques hébergées sur le site Springs E-Sport (partenaire).
-// Gardées — pas des archives à supprimer : la SLS est terminée, la Monthly Cup
-// tourne chaque mois. Liens sortants vers l'ancien site.
-const legacyCompetitions = [
-  {
-    id: 'rl-s2', gameId: 'rocket_league',
-    name: 'Springs League Series', edition: 'Saison 2, 2026', status: 'Terminé',
-    format: 'Ligue · 2 poules · BO7', prize: '1 600 €',
-    href: 'https://springs-esport.vercel.app/rocket-league/',
-  },
-  {
-    id: 'tm-monthly', gameId: 'trackmania',
-    name: 'Monthly Cup', edition: 'Chaque mois', status: 'Mensuel',
-    format: 'Cup · Solo · Quals + Finale', prize: null,
-    href: 'https://springs-esport.vercel.app/trackmania/cup.html?cup=monthly',
-  },
-];
 
 const CIRCUIT_STATUS: Record<string, string> = {
   draft: 'Brouillon', active: 'En cours', finished: 'Terminé', archived: 'Archivé',
@@ -109,37 +92,60 @@ export default function CompetitionsPage() {
         </section>
       )}
 
-      {/* ── Sur l'ancien site Springs (démoté, gardé) ── */}
-      <section className="space-y-4">
-        <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>Sur l&apos;ancien site Springs</p>
-        <div className="panel bevel">
-          <div className="panel-body p-0">
-            {legacyCompetitions.map((comp, i) => (
-              <a key={comp.id} href={comp.href} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--s-elevated)] group"
-                style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' }}>
-                <GameTag gameId={comp.gameId} size="sm" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold truncate group-hover:underline">{comp.name}</span>
-                    <span className="tag tag-neutral">{comp.status}</span>
-                  </div>
-                  <div className="flex items-center gap-x-3 gap-y-0.5 text-xs mt-0.5 flex-wrap" style={{ color: 'var(--s-text-muted)' }}>
-                    <span>{comp.format}</span>
-                    <span>· {comp.edition}</span>
-                    {comp.prize && <span>· {comp.prize}</span>}
-                  </div>
-                </div>
-                <span className="text-xs hidden sm:inline-flex items-center gap-1 flex-shrink-0" style={{ color: 'var(--s-text-muted)' }}>
-                  <ExternalLink size={11} /> springs-esport
-                </span>
-                <ExternalLink size={15} className="flex-shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: 'var(--s-text-muted)' }} />
-              </a>
-            ))}
+      {/* ── Sur l'ancien site Springs (actives : récurrentes / joignables) ── */}
+      {ACTIVE_LEGACY_COMPETITIONS.length > 0 && (
+        <section className="space-y-4">
+          <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>Sur l&apos;ancien site Springs</p>
+          <div className="panel bevel">
+            <div className="panel-body p-0">
+              {ACTIVE_LEGACY_COMPETITIONS.map((comp, i) => (
+                <LegacyRow key={comp.id} comp={comp} first={i === 0} />
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
+
+      {/* ── Compétitions passées (terminées) ── */}
+      {FINISHED_LEGACY_COMPETITIONS.length > 0 && (
+        <section className="space-y-4">
+          <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>Compétitions passées</p>
+          <div className="panel bevel">
+            <div className="panel-body p-0">
+              {FINISHED_LEGACY_COMPETITIONS.map((comp, i) => (
+                <LegacyRow key={comp.id} comp={comp} first={i === 0} finished />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
     </div>
+  );
+}
+
+// Rangée d'une compétition legacy (lien sortant vers l'ancien site Springs).
+function LegacyRow({ comp, first, finished }: { comp: LegacyCompetition; first: boolean; finished?: boolean }) {
+  return (
+    <a href={comp.href} target="_blank" rel="noopener noreferrer"
+      className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--s-elevated)] group"
+      style={{ borderTop: first ? 'none' : '1px solid var(--s-border)', opacity: finished ? 0.8 : 1 }}>
+      <GameTag gameId={comp.gameId} size="sm" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-semibold truncate group-hover:underline">{comp.name}</span>
+          <span className="tag tag-neutral">{comp.statusLabel}</span>
+        </div>
+        <div className="flex items-center gap-x-3 gap-y-0.5 text-xs mt-0.5 flex-wrap" style={{ color: 'var(--s-text-muted)' }}>
+          <span>{comp.format}</span>
+          <span>· {comp.edition}</span>
+          {comp.prize && <span>· {comp.prize}</span>}
+        </div>
+      </div>
+      <span className="text-xs hidden sm:inline-flex items-center gap-1 flex-shrink-0" style={{ color: 'var(--s-text-muted)' }}>
+        <ExternalLink size={11} /> springs-esport
+      </span>
+      <ExternalLink size={15} className="flex-shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: 'var(--s-text-muted)' }} />
+    </a>
   );
 }
 
