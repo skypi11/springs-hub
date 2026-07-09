@@ -36,6 +36,8 @@ export interface AdminCompetition {
   status: string;
   isDev?: boolean;
   bracketMaterializedAt?: string | null;
+  /** Inscriptions en attente de validation (signal « à valider » sur la carte admin). */
+  pendingCount?: number;
   createdAt: string | null;
 }
 

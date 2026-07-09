@@ -328,7 +328,13 @@ export default function AdminCompetitionsPage() {
                 </p>
               </div>
               <span className="tag tag-neutral">{STATUS_LABELS[c.status] ?? c.status}</span>
-              <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
+              {(c.pendingCount ?? 0) > 0 && (
+                <span className="tag" style={{ color: '#ffb46b', borderColor: 'rgba(255,180,107,0.4)', background: 'rgba(255,180,107,0.08)' }}>
+                  {c.pendingCount} à valider
+                </span>
+              )}
+              <button type="button"
+                className={`btn-springs text-sm flex items-center gap-1 ${(c.pendingCount ?? 0) > 0 ? 'btn-secondary bevel-sm' : 'btn-ghost'}`}
                 onClick={() => setView({ kind: 'registrations', competition: c })}>
                 <ClipboardCheck size={13} /> Inscriptions
               </button>

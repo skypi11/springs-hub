@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth, isCompetitionAdmin } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { notifyAdminsOfNewRegistration } from '@/lib/competitions/registration-notify';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { clampString, LIMITS } from '@/lib/validation';
@@ -558,6 +559,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         createdAt: FieldValue.serverTimestamp(),
       });
     });
+
+    // Prévient les admins qu'une inscription attend validation (in-app ; le
+    // compteur « à valider » sur /admin/competitions complète). Best-effort —
+    // ne casse jamais l'inscription si la notif échoue.
+    try {
+      await notifyAdminsOfNewRegistration(db, {
+        competitionId: id,
+        competitionName: (comp.name as string) ?? '',
+        teamName: displayName,
+        excludeUid: uid,
+      });
+    } catch (err) {
+      console.error('[competitions/register] admin notify failed:', err);
+    }
 
     return NextResponse.json({ success: true, flags: Array.from(flags) });
   } catch (err) {
