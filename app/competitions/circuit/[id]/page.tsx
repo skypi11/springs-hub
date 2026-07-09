@@ -300,11 +300,11 @@ export default function CircuitPage() {
                         ? <Check size={14} style={{ color: 'var(--s-text-muted)' }} />
                         : <span className="t-mono" style={{ fontSize: 13, fontWeight: 600, color: nodeColor }}>{i + 1}</span>}
                     </div>
-                    {/* Contenu — toute la ligne mène à la fiche Qualif */}
-                    <Link href={`/competitions/${e.id}`} className="flex items-center gap-3 flex-1 min-w-0 pl-1 transition-colors rounded group-hover:opacity-100">
+                    {/* Contenu — toute la ligne mène à la fiche Qualif (hover net) */}
+                    <Link href={`/competitions/${e.id}`} className="group/step flex items-center gap-3 flex-1 min-w-0 px-2 py-1.5 -my-1 transition-colors hover:bg-[var(--s-elevated)]">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{e.name}</span>
+                          <span className="text-sm font-semibold truncate group-hover/step:underline" style={{ color: 'var(--s-text)' }}>{e.name}</span>
                           <span className="tag tag-neutral" style={st === 'open' || st === 'live' ? { color, borderColor: `rgba(${colorRgb},0.4)` } : undefined}>
                             {isHere ? 'Tu es ici' : EVENT_STATUS[e.status] ?? e.status}
                           </span>

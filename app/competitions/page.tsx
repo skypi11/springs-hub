@@ -33,7 +33,7 @@ const legacyCompetitions = [
     tagClass: 'tag-blue',
     name: 'SPRINGS LEAGUE SERIES',
     edition: 'Saison 2, 2026',
-    status: 'En cours',
+    status: 'Terminé',
     format: 'Ligue · 2 Poules · Round Robin · BO7',
     teams: '32 équipes',
     prize: '1 600€',
@@ -189,7 +189,7 @@ export default function CompetitionsPage() {
                   <span className={`tag ${comp.tagClass}`}>{comp.tag}</span>
                   <span className="t-label" style={{ color: 'rgba(255,255,255,0.5)' }}>{comp.game}</span>
                 </div>
-                <span className="status status-live">{comp.status}</span>
+                <span className="tag tag-neutral">{comp.status}</span>
               </div>
               <h2 className="font-display mb-2" style={{ fontSize: '2.8rem', letterSpacing: '0.03em', color: '#fff' }}>
                 {comp.name}
