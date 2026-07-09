@@ -20,7 +20,7 @@ import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import Link from 'next/link';
-import { ArrowLeft, ChevronDown, ChevronRight, ExternalLink, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, ChevronRight, Copy, ExternalLink, MoreHorizontal, ShieldAlert } from 'lucide-react';
 import { getProfileHref } from '@/lib/user-slug';
 import { getStructureHref } from '@/lib/structure-slug';
 import { SANCTION_REASON_CODES } from '@/lib/competitions/sanctions';
@@ -510,6 +510,62 @@ export default function RegistrationsPanel({
 
 // ── Rangée d'inscription ────────────────────────────────────────────────────
 
+// Logo d'équipe (44px, biseauté) — ancre d'identité du verdict, enfin rendu.
+// <img> natif + fallback monogramme (pas next/image : logos R2/externes hors
+// remotePatterns ; même pattern que l'annuaire joueurs).
+function TeamLogo({ url, tag, name }: { url: string | null; tag: string; name: string }) {
+  const [broken, setBroken] = useState(false);
+  const mono = (tag || name || '?').slice(0, 3).toUpperCase();
+  return (
+    <div className="bevel-sm flex items-center justify-center flex-shrink-0"
+      style={{ width: 44, height: 44, background: 'var(--s-elevated)', overflow: 'hidden' }}>
+      {url && !broken ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="" width={44} height={44} style={{ width: 44, height: 44, objectFit: 'cover' }} onError={() => setBroken(true)} />
+      ) : (
+        <span className="font-display" style={{ fontSize: 16, color: 'var(--s-text-dim)', letterSpacing: '0.04em' }}>{mono}</span>
+      )}
+    </div>
+  );
+}
+
+// @Discord copiable en un clic (carnet de contacts « pensé pour l'usage »).
+function CopyHandle({ handle }: { handle: string }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 1200);
+    return () => clearTimeout(t);
+  }, [copied]);
+  return (
+    <button type="button" className="inline-flex items-center gap-1 hover:underline whitespace-nowrap"
+      style={{ color: 'var(--s-text-dim)' }} title="Copier le pseudo Discord"
+      onClick={e => { e.stopPropagation(); navigator.clipboard?.writeText(`@${handle}`).then(() => setCopied(true)).catch(() => {}); }}>
+      <span className="t-mono">@{handle}</span>
+      {copied ? <Check size={12} style={{ color: '#ffb46b' }} /> : <Copy size={12} />}
+    </button>
+  );
+}
+
+// Pastille de statut (marqueur carré + libellé) — couleur par état, jamais de
+// vert (réservé Trackmania) : l'absence d'alerte suffit comme signal positif.
+function StatusPill({ status }: { status: string }) {
+  const map: Record<string, { label: string; color: string }> = {
+    pending: { label: 'En attente', color: 'var(--s-text-dim)' },
+    waitlisted: { label: "Liste d'attente", color: '#ffb46b' },
+    approved: { label: 'Validée', color: 'var(--s-text)' },
+    rejected: { label: 'Refusée', color: '#ff8a8a' },
+    withdrawn: { label: 'Retirée', color: 'var(--s-text-muted)' },
+  };
+  const s = map[status] ?? { label: status, color: 'var(--s-text-dim)' };
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: s.color }}>
+      <span style={{ width: 6, height: 6, background: s.color, display: 'inline-block' }} />
+      {s.label}
+    </span>
+  );
+}
+
 function RegistrationRowView({
   reg, first, expanded, onToggle, showMmr, mmrMaxAvg, mmrMaxGap, minAge, circuitName,
   decision, setDecision, onOpenDecision, onSubmitDecision, onUnapprove,
@@ -536,6 +592,7 @@ function RegistrationRowView({
   onReload: () => void;
 }) {
   const [sanctionTarget, setSanctionTarget] = useState<{ targetType: 'user' | 'structure' | 'team'; targetId: string; targetLabel: string } | null>(null);
+  const [showNotes, setShowNotes] = useState<boolean>(!!reg.adminNotes);
   const smurfTotal = reg.roster.reduce((n, p) => n + p.smurf.pendingReports, 0);
   const adminFlagged = reg.roster.some(p => p.smurf.adminFlag);
   const discordLabel = DISCORD_STATUS_LABELS[reg.discord.provisioningStatus];
@@ -553,6 +610,35 @@ function RegistrationRowView({
   const gapOver = reg.computed.flags.includes('mmr_gap_exceeded');
   const staffRows = buildStaffRows(reg);
 
+  // Rail « Contexte » : règlement, décision passée, dérogations, Discord. La
+  // structure vit déjà dans l'identité du verdict (une info = un endroit).
+  const contextItems: { k: string; v: React.ReactNode }[] = [
+    {
+      k: 'Règlement',
+      v: reg.rulebookAccepted
+        ? `v${reg.rulebookAccepted.version} · accepté le ${formatDate(reg.rulebookAccepted.at)}`
+        : 'Aucun règlement accepté',
+    },
+    {
+      k: 'Décision',
+      v: reg.review && reg.status !== 'pending'
+        ? `${reg.status === 'rejected' ? 'Refusée' : 'Validée'} par ${reg.review.byName} le ${formatDate(reg.review.at)}${reg.review.reason ? ` — ${reg.review.reason}` : ''}`
+        : '—',
+    },
+  ];
+  if ((reg.review?.derogations?.length ?? 0) > 0) {
+    contextItems.push({ k: 'Dérogations', v: `${reg.review!.derogations.length} accordée${reg.review!.derogations.length > 1 ? 's' : ''}` });
+  }
+  const discordCtx: React.ReactNode = (reg.discord.errorMessage || reg.discord.warnings.length > 0)
+    ? (
+        <span className="inline-flex flex-col gap-0.5">
+          {reg.discord.errorMessage && <span style={{ color: '#ff8a8a' }}>{reg.discord.errorMessage}</span>}
+          {reg.discord.warnings.length > 0 && <span style={{ color: '#ffb46b' }}>{reg.discord.warnings.join(' · ')}</span>}
+        </span>
+      )
+    : discordLabel || null;
+  if (discordCtx) contextItems.push({ k: 'Discord', v: discordCtx });
+
   return (
     <div style={{ borderTop: first ? 'none' : '1px solid var(--s-border)' }}>
       <button
@@ -566,257 +652,353 @@ function RegistrationRowView({
         <span className="text-sm font-semibold min-w-0 truncate">
           {reg.name}{reg.tag ? <span style={{ color: 'var(--s-text-muted)' }}> [{reg.tag}]</span> : null}
         </span>
-        {reg.computed.flags.map(f => (
-          <span key={f} className="tag tag-neutral" style={{ color: '#ffb46b', borderColor: 'rgba(255,180,107,0.4)' }}>
-            {FLAG_LABELS[f] ?? f}
-          </span>
-        ))}
-        {smurfTotal > 0 && (
-          <span className="tag tag-neutral" style={{ color: '#ff8a8a', borderColor: 'rgba(255,138,138,0.4)' }}>
-            {smurfTotal} signalement{smurfTotal > 1 ? 's' : ''} smurf
-          </span>
+        {/* Chips de scan : UNIQUEMENT quand la rangée est repliée (une fois
+            dépliée, la carte verdict les porte en détail — pas de doublon). */}
+        {!expanded && (
+          <>
+            {reg.computed.flags.map(f => (
+              <span key={f} className="tag tag-neutral" style={{ color: '#ffb46b', borderColor: 'rgba(255,180,107,0.4)' }}>
+                {FLAG_LABELS[f] ?? f}
+              </span>
+            ))}
+            {smurfTotal > 0 && (
+              <span className="tag tag-neutral" style={{ color: '#ff8a8a', borderColor: 'rgba(255,138,138,0.4)' }}>
+                {smurfTotal} signalement{smurfTotal > 1 ? 's' : ''} smurf
+              </span>
+            )}
+            {adminFlagged && (
+              <span className="tag tag-neutral" style={{ color: '#ff8a8a', borderColor: 'rgba(255,138,138,0.4)' }}>
+                Flag admin
+              </span>
+            )}
+            {discordLabel && <span className="tag tag-neutral">{discordLabel}</span>}
+          </>
         )}
-        {adminFlagged && (
-          <span className="tag tag-neutral" style={{ color: '#ff8a8a', borderColor: 'rgba(255,138,138,0.4)' }}>
-            Flag admin
-          </span>
-        )}
-        {discordLabel && <span className="tag tag-neutral">{discordLabel}</span>}
         <span className="text-xs ml-auto" style={{ color: 'var(--s-text-muted)' }}>
           {formatDate(reg.createdAt)} · par {reg.createdByName}
         </span>
       </button>
 
       {expanded && (
-        <div className="px-4 pb-4 space-y-4" style={{ paddingLeft: '2rem' }}>
-          {/* Roster — caption « MMR d'équipe » (lu en premier) + table alignée */}
-          <div className="bevel-sm overflow-x-auto" style={{ border: '1px solid var(--s-border)' }}>
-            <div className="flex items-baseline justify-between gap-4 px-3 py-2" style={{ borderBottom: '1px solid var(--s-border)' }}>
-              {showMmr ? (
-                teamAvg !== null ? (
-                  <div className="flex items-baseline gap-2 flex-wrap">
-                    <span className="t-label-soft">MMR d&apos;équipe</span>
-                    <span className="t-mono" style={{ fontSize: '16px', color: avgOver ? '#ffb46b' : 'var(--s-text)', fontWeight: 600 }}>{teamAvg}</span>
-                    <span className="t-mono" style={{ color: gapOver ? '#ffb46b' : 'var(--s-text-dim)' }}>· écart {teamGap}</span>
-                    {(mmrMaxAvg !== null || mmrMaxGap !== null) && (
-                      <span className="t-label-soft">· limite {mmrMaxAvg ?? '—'} / {mmrMaxGap ?? '—'}</span>
-                    )}
+        <div className="reg-well">
+          {/* ── ZONE A · VERDICT (héros) : identité + éligibilité + décision ── */}
+          <section className="reg-card reg-verdict bevel-sm">
+            <div className="reg-verdict-grid">
+              {/* Identité — logo enfin rendu + nom Bebas + structure */}
+              <div className="flex items-center gap-3 min-w-0">
+                <TeamLogo url={reg.logoUrl} tag={reg.tag} name={reg.name} />
+                <div className="min-w-0">
+                  <div className="reg-team-name font-display">
+                    {reg.name}
+                    {reg.tag && <span className="t-mono" style={{ color: 'var(--s-text-muted)', marginLeft: 8, fontSize: 13 }}>[{reg.tag}]</span>}
                   </div>
-                ) : (
-                  <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                    MMR d&apos;équipe — indisponible (compo de 3 incomplète)
-                  </span>
-                )
-              ) : <span />}
-              <span className="flex-shrink-0 whitespace-nowrap">
-                <span className="t-label">Roster</span>
-                <span className="t-label-soft"> · {reg.roster.length} joueur{reg.roster.length > 1 ? 's' : ''}</span>
-              </span>
-            </div>
+                  <Link href={getStructureHref({ id: reg.structureId, slug: reg.structureSlug })} target="_blank"
+                    className="inline-flex items-center gap-1 text-sm hover:underline" style={{ color: 'var(--s-text-dim)' }}
+                    onClick={e => e.stopPropagation()}>
+                    {reg.structureName || reg.structureId} <ExternalLink size={11} />
+                  </Link>
+                </div>
+              </div>
 
-            <table className="w-full text-sm" style={{ borderCollapse: 'collapse', minWidth: showMmr ? 900 : 680 }}>
-              <thead>
-                {showMmr ? (
+              {/* Éligibilité (verdict d'un coup d'œil) + décision accolée */}
+              <div className="reg-eligibility">
+                {showMmr && (teamAvg !== null ? (
                   <>
-                    <tr style={{ borderBottom: '1px solid var(--s-border)', color: 'var(--s-text-muted)' }}>
-                      <th rowSpan={2} className="text-left font-medium px-3 py-2 align-bottom">Joueur</th>
-                      <th colSpan={3} className="text-center font-medium px-2 py-1.5"
-                        title="MMR de référence = 0,7 × actuel + 0,3 × peak (le MMR qui compte pour l'éligibilité)"
-                        style={{ borderBottom: '1px solid var(--s-border)' }}>MMR</th>
-                      <th rowSpan={2} className="text-right font-medium px-2 py-2 align-bottom">Âge</th>
-                      <th rowSpan={2} className="text-center font-medium px-2 py-2 align-bottom">Pays</th>
-                      <th rowSpan={2} className="text-left font-medium px-2 py-2 align-bottom">Comptes</th>
-                      <th rowSpan={2} className="text-left font-medium px-3 py-2 align-bottom">Alertes</th>
-                      <th rowSpan={2} className="px-2 py-2" />
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid var(--s-border)', color: 'var(--s-text-muted)' }}>
-                      <th className="text-right font-medium px-2 py-1.5">Actuel</th>
-                      <th className="text-right font-medium px-2 py-1.5">Peak</th>
-                      <th className="text-right font-medium px-2 py-1.5">Réf</th>
-                    </tr>
+                    <div className="flex items-baseline gap-2">
+                      <span className="t-label-soft">MMR équipe</span>
+                      <span className="t-mono" style={{ fontSize: 22, fontWeight: 600, color: avgOver ? '#ffb46b' : 'var(--s-text)' }}>{teamAvg}</span>
+                      {mmrMaxAvg !== null && <span className="t-label-soft">/ {mmrMaxAvg} max</span>}
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="t-label-soft">Écart</span>
+                      <span className="t-mono" style={{ color: gapOver ? '#ffb46b' : 'var(--s-text-dim)' }}>{teamGap}</span>
+                      {mmrMaxGap !== null && <span className="t-label-soft">/ {mmrMaxGap} max</span>}
+                    </div>
                   </>
                 ) : (
+                  <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>MMR équipe — indisponible (compo de 3 incomplète)</span>
+                ))}
+
+                {(reg.computed.flags.length > 0 || smurfTotal > 0 || adminFlagged || !!discordLabel) && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {reg.computed.flags.map(f => (
+                      <span key={f} className="tag tag-neutral" style={{ color: '#ffb46b', borderColor: 'rgba(255,180,107,0.4)' }}>{FLAG_LABELS[f] ?? f}</span>
+                    ))}
+                    {smurfTotal > 0 && (
+                      <span className="tag tag-neutral" style={{ color: '#ff8a8a', borderColor: 'rgba(255,138,138,0.4)' }}>{smurfTotal} smurf</span>
+                    )}
+                    {adminFlagged && (
+                      <span className="tag tag-neutral" style={{ color: '#ff8a8a', borderColor: 'rgba(255,138,138,0.4)' }}>Flag admin</span>
+                    )}
+                    {discordLabel && (
+                      <span className="tag tag-neutral" style={reg.discord.provisioningStatus === 'error'
+                        ? { color: '#ff8a8a', borderColor: 'rgba(255,138,138,0.4)' }
+                        : reg.discord.provisioningStatus === 'queued'
+                          ? { color: '#ffb46b', borderColor: 'rgba(255,180,107,0.4)' }
+                          : undefined}>{discordLabel}</span>
+                    )}
+                  </div>
+                )}
+
+                <StatusPill status={reg.status} />
+
+                {actionable && !decision && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button type="button" className="btn-springs btn-primary bevel-sm text-sm" disabled={acting}
+                      onClick={() => onOpenDecision(reg, 'approve')}>Valider</button>
+                    <button type="button" className="btn-springs btn-secondary bevel-sm text-sm" disabled={acting}
+                      onClick={() => onOpenDecision(reg, 'reject')}>Refuser</button>
+                    {reg.status === 'waitlisted' && (
+                      <button type="button" className="btn-springs btn-ghost text-sm" disabled={acting} onClick={onUnapprove}>Remettre en attente</button>
+                    )}
+                  </div>
+                )}
+                {reg.status === 'approved' && (
+                  <button type="button" className="btn-springs btn-ghost text-sm" disabled={acting} onClick={onUnapprove}>Annuler la validation</button>
+                )}
+              </div>
+            </div>
+
+            {/* Identité circuit (pending) — info, ou radios en mode validation */}
+            {reg.identity && reg.status === 'pending' && (
+              <div style={{ borderTop: '1px solid var(--s-border)', padding: '12px 16px' }}>
+                <IdentityBlock reg={reg} circuitName={circuitName} decision={decision} setDecision={setDecision} />
+              </div>
+            )}
+
+            {/* Étape 2 : formulaire de décision inline, DANS la carte verdict */}
+            {decision && actionable && (
+              <div className="space-y-3" style={{ borderTop: '1px solid var(--s-border)', padding: '16px' }}>
+                {decision.mode === 'reject' ? (
+                  <>
+                    <label className="block text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                      Motif du refus — transmis à l&apos;équipe (notification + DM au capitaine)
+                    </label>
+                    <textarea className="settings-input w-full" rows={2} maxLength={500} aria-label="Motif du refus"
+                      value={decision.reason}
+                      onChange={e => setDecision(d => d ? { ...d, reason: e.target.value } : d)}
+                      placeholder="MMR incohérent avec le tracker, roster incomplet…" />
+                  </>
+                ) : (
+                  <>
+                    {underage.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                          Dérogation requise pour chaque joueur sous l&apos;âge minimum ({minAge} ans) ou d&apos;âge
+                          inconnu. La note reste interne (audit).
+                        </p>
+                        {underage.map(p => (
+                          <div key={p.uid} className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold" style={{ minWidth: '12ch' }}>
+                              {p.displayName} <span style={{ color: 'var(--s-text-muted)' }}>({p.age !== null ? `${p.age} ans` : 'âge inconnu'})</span>
+                            </span>
+                            <input className="settings-input flex-1" style={{ minWidth: '220px' }} maxLength={500}
+                              aria-label={`Note de dérogation pour ${p.displayName}`}
+                              value={decision.derogations[p.uid] ?? ''}
+                              onChange={e => setDecision(d => d
+                                ? { ...d, derogations: { ...d.derogations, [p.uid]: e.target.value } }
+                                : d)}
+                              placeholder="Accord parental reçu le…, justificatif…" />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {underage.length === 0 && reg.identity?.proposal !== 'choice_required' && (
+                      <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                        Valider cette inscription ? L&apos;équipe sera notifiée (notification + DM au capitaine).
+                      </p>
+                    )}
+                  </>
+                )}
+                <div className="flex items-center gap-3">
+                  <button type="button" className="btn-springs btn-primary bevel-sm text-sm"
+                    disabled={acting
+                      || (decision.mode === 'reject' && decision.reason.trim().length < 3)
+                      || (decision.mode === 'approve'
+                        && underage.some(p => (decision.derogations[p.uid] ?? '').trim().length < 3))}
+                    onClick={onSubmitDecision}>
+                    {acting ? 'En cours…' : decision.mode === 'reject' ? 'Confirmer le refus' : 'Confirmer la validation'}
+                  </button>
+                  <button type="button" className="btn-springs btn-ghost text-sm" disabled={acting}
+                    onClick={() => setDecision(null)}>Annuler</button>
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* ── ZONE B · ROSTER (dense) ── */}
+          <section className="reg-card bevel-sm">
+            <div className="flex items-baseline gap-1.5 px-3 py-2" style={{ borderBottom: '1px solid var(--s-border)' }}>
+              <span className="t-label">Roster</span>
+              <span className="t-label-soft">· {reg.roster.length} joueur{reg.roster.length > 1 ? 's' : ''}</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm" style={{ borderCollapse: 'collapse', minWidth: showMmr ? 900 : 680 }}>
+                <thead>
                   <tr style={{ borderBottom: '1px solid var(--s-border)', color: 'var(--s-text-muted)' }}>
                     <th className="text-left font-medium px-3 py-2">Joueur</th>
+                    {showMmr && (
+                      <>
+                        <th className="text-right font-medium px-2 py-2">Actuel</th>
+                        <th className="text-right font-medium px-2 py-2">Peak</th>
+                        <th className="text-right font-medium px-2 py-2"
+                          title="MMR de référence = 0,7 × actuel + 0,3 × peak (le MMR qui compte pour l'éligibilité)">Réf</th>
+                      </>
+                    )}
                     <th className="text-right font-medium px-2 py-2">Âge</th>
                     <th className="text-center font-medium px-2 py-2">Pays</th>
                     <th className="text-left font-medium px-2 py-2">Comptes</th>
                     <th className="text-left font-medium px-3 py-2">Alertes</th>
                     <th className="px-2 py-2" />
                   </tr>
-                )}
-              </thead>
-              <tbody>
-                {rosterSorted.map((p, i) => {
-                  const underAge = minAge !== null && (p.age === null || p.age < minAge);
-                  const newGroup = i === 0 || rosterSorted[i - 1].role !== p.role;
-                  return (
-                    <Fragment key={p.uid}>
-                      {newGroup && (
-                        <tr style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' }}>
-                          <td colSpan={colCount} className="t-label-soft px-3 py-1.5" style={{ background: 'var(--s-elevated)' }}>
-                            {p.role === 'titulaire' ? `Titulaires · ${titCount}` : `Remplaçants · ${remCount}`}
+                </thead>
+                <tbody>
+                  {rosterSorted.map((p, i) => {
+                    const underAge = minAge !== null && (p.age === null || p.age < minAge);
+                    const newGroup = i === 0 || rosterSorted[i - 1].role !== p.role;
+                    const noAlert = !underAge && p.onDiscordGuild !== false && p.smurf.pendingReports === 0 && !p.smurf.adminFlag;
+                    return (
+                      <Fragment key={p.uid}>
+                        {newGroup && (
+                          <tr>
+                            <td colSpan={colCount} className="t-label-soft px-3 pt-3 pb-1" style={{ color: 'var(--s-text-muted)' }}>
+                              {p.role === 'titulaire' ? `Titulaires · ${titCount}` : `Remplaçants · ${remCount}`}
+                            </td>
+                          </tr>
+                        )}
+                        <tr style={{ borderTop: (i > 0 && !newGroup) ? '1px solid var(--s-border)' : 'none' }}>
+                          <td className="px-3 py-1.5 align-middle">
+                            <Link href={getProfileHref({ slug: p.slug, uid: p.uid })} target="_blank"
+                              className="font-semibold hover:underline" onClick={e => e.stopPropagation()}>
+                              {p.displayName}
+                            </Link>
+                            {p.uid === reg.captainUid && <span className="text-xs ml-1.5" style={{ color: 'var(--s-text-muted)' }}>(C)</span>}
+                          </td>
+                          {showMmr && (
+                            <>
+                              <td className="px-2 py-1.5 text-right t-mono align-middle" style={{ color: 'var(--s-text-dim)' }}>{p.declaredCurrentMmr}</td>
+                              <td className="px-2 py-1.5 text-right t-mono align-middle" style={{ color: 'var(--s-text-dim)' }}>{p.declaredPeakMmr}</td>
+                              <td className="px-2 py-1.5 text-right t-mono align-middle" style={{ color: 'var(--s-text)', fontWeight: 600 }}>{p.refMmr}</td>
+                            </>
+                          )}
+                          <td className="px-2 py-1.5 text-right whitespace-nowrap align-middle" style={{ color: underAge ? '#ffb46b' : 'var(--s-text-dim)' }}>
+                            {p.age !== null ? `${p.age} ans` : 'Inconnu'}
+                          </td>
+                          <td className="px-2 py-1.5 text-center align-middle" style={{ color: 'var(--s-text-dim)' }}>{p.country || '—'}</td>
+                          <td className="px-2 py-1.5 align-middle" style={{ color: 'var(--s-text-dim)' }}>
+                            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                              {p.discordUsername ? <span>@{p.discordUsername}</span> : <span style={{ color: 'var(--s-text-muted)' }}>Discord —</span>}
+                              <span style={{ color: 'var(--s-text-muted)' }}>·</span>
+                              {p.epicName ? <span>Epic {p.epicName}</span> : p.steamId ? <span>Steam {p.steamId}</span> : <span style={{ color: '#ffb46b' }}>Non vérifié</span>}
+                              {p.trackerUrl && (
+                                <>
+                                  <span style={{ color: 'var(--s-text-muted)' }}>·</span>
+                                  <a href={p.trackerUrl} target="_blank" rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-0.5 hover:underline" style={{ color: 'var(--s-blue)' }}
+                                    onClick={e => e.stopPropagation()}>Tracker <ExternalLink size={11} /></a>
+                                </>
+                              )}
+                            </span>
+                          </td>
+                          <td className="px-3 py-1.5 align-middle">
+                            <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                              {underAge && <span style={{ color: '#ffb46b' }}>Dérogation</span>}
+                              {p.onDiscordGuild === false && <span style={{ color: '#ffb46b' }}>Hors Discord</span>}
+                              {p.smurf.pendingReports > 0 && (
+                                <span className="inline-flex items-center gap-1" style={{ color: '#ff8a8a' }}><ShieldAlert size={12} /> {p.smurf.pendingReports} smurf</span>
+                              )}
+                              {p.smurf.adminFlag && (
+                                <span className="inline-flex items-center gap-1" style={{ color: '#ff8a8a' }}><ShieldAlert size={12} /> flag</span>
+                              )}
+                              {noAlert && <span style={{ color: 'var(--s-text-muted)' }}>—</span>}
+                            </span>
+                          </td>
+                          <td className="px-2 py-1.5 text-right whitespace-nowrap align-middle">
+                            <button type="button" className="reg-quiet-link" title="Sanctionner ce joueur"
+                              onClick={e => { e.stopPropagation(); setSanctionTarget({ targetType: 'user', targetId: p.uid, targetLabel: p.displayName }); }}>
+                              <MoreHorizontal size={14} />
+                            </button>
                           </td>
                         </tr>
-                      )}
-                      <tr style={{ borderTop: '1px solid var(--s-border)' }}>
-                        <td className="px-3 py-2 align-top">
-                          <Link href={getProfileHref({ slug: p.slug, uid: p.uid })} target="_blank"
-                            className="font-semibold hover:underline" onClick={e => e.stopPropagation()}>
-                            {p.displayName}
-                          </Link>
-                          {p.uid === reg.captainUid && <span className="text-xs ml-1.5" style={{ color: 'var(--s-text-muted)' }}>(C)</span>}
-                        </td>
-                        {showMmr && (
-                          <>
-                            <td className="px-2 py-2 text-right t-mono align-top" style={{ color: 'var(--s-text-dim)' }}>{p.declaredCurrentMmr}</td>
-                            <td className="px-2 py-2 text-right t-mono align-top" style={{ color: 'var(--s-text-dim)' }}>{p.declaredPeakMmr}</td>
-                            <td className="px-2 py-2 text-right t-mono align-top" style={{ color: 'var(--s-text)', fontWeight: 600 }}>{p.refMmr}</td>
-                          </>
-                        )}
-                        <td className="px-2 py-2 text-right whitespace-nowrap align-top" style={{ color: underAge ? '#ffb46b' : 'var(--s-text-dim)' }}>
-                          {p.age !== null ? `${p.age} ans` : 'Inconnu'}
-                        </td>
-                        <td className="px-2 py-2 text-center align-top" style={{ color: 'var(--s-text-dim)' }}>{p.country || '—'}</td>
-                        <td className="px-2 py-2 align-top">
-                          <div className="flex flex-col gap-0.5" style={{ color: 'var(--s-text-dim)' }}>
-                            {p.discordUsername ? <span>@{p.discordUsername}</span> : <span style={{ color: 'var(--s-text-muted)' }}>Discord —</span>}
-                            {p.epicName ? <span>Epic {p.epicName}</span> : p.steamId ? <span>Steam {p.steamId}</span> : (
-                              <span style={{ color: '#ffb46b' }}>Non vérifié</span>
-                            )}
-                            {p.trackerUrl && (
-                              <a href={p.trackerUrl} target="_blank" rel="noopener noreferrer"
-                                className="flex items-center gap-1 hover:underline" style={{ color: 'var(--s-blue)' }}
-                                onClick={e => e.stopPropagation()}>
-                                Tracker <ExternalLink size={11} />
-                              </a>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 align-top">
-                          <div className="flex flex-col gap-0.5">
-                            {underAge && <span style={{ color: '#ffb46b' }}>Dérogation</span>}
-                            {p.onDiscordGuild === false && <span style={{ color: '#ffb46b' }}>Hors Discord</span>}
-                            {p.smurf.pendingReports > 0 && (
-                              <span className="flex items-center gap-1" style={{ color: '#ff8a8a' }}>
-                                <ShieldAlert size={12} /> {p.smurf.pendingReports} smurf
-                              </span>
-                            )}
-                            {p.smurf.adminFlag && (
-                              <span className="flex items-center gap-1" style={{ color: '#ff8a8a' }}><ShieldAlert size={12} /> flag</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-2 py-2 text-right whitespace-nowrap align-top">
-                          <button type="button" className="text-xs hover:underline" style={{ color: 'var(--s-text-muted)' }}
-                            onClick={e => { e.stopPropagation(); setSanctionTarget({ targetType: 'user', targetId: p.uid, targetLabel: p.displayName }); }}>
-                            Sanctionner
-                          </button>
-                        </td>
-                      </tr>
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Staff & direction — grille « rôle · nom · @Discord », une ligne par personne */}
-          <div>
-            <p className="t-label mb-2">Staff & direction</p>
-            <div className="overflow-x-auto">
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(150px,max-content) minmax(110px,max-content) minmax(0,1fr)', columnGap: '1.5rem', minWidth: 'min-content' }}>
-                {staffRows.map((s, i) => {
-                  const cellStyle = { padding: '0.5rem 0', borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' } as const;
-                  return (
-                    <Fragment key={s.uid}>
-                      <div className="t-label-soft" style={cellStyle}>{s.roles.join(' · ')}</div>
-                      <div className="text-sm" style={cellStyle}>
-                        <Link href={getProfileHref({ slug: s.slug, uid: s.uid })} target="_blank"
-                          className="hover:underline" style={{ color: 'var(--s-text)', fontWeight: 500 }} onClick={e => e.stopPropagation()}>
-                          {s.name}
-                        </Link>
-                      </div>
-                      <div className="text-sm truncate min-w-0" style={{ ...cellStyle, color: 'var(--s-text-muted)' }}>
-                        {s.discord && `@${s.discord}`}
-                        {s.warn && <span style={{ color: '#ffb46b' }}>{s.discord ? ' · ' : ''}{s.warn}</span>}
-                      </div>
-                    </Fragment>
-                  );
-                })}
-              </div>
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          </div>
+          </section>
 
-          {/* Meta compétition */}
-          <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            <span>
-              Structure{' '}
-              <Link href={getStructureHref({ id: reg.structureId, slug: reg.structureSlug })} target="_blank"
-                className="hover:underline" style={{ color: 'var(--s-text)' }}>
-                {reg.structureName || reg.structureId}
-              </Link>
-            </span>
-            <span>
-              {reg.rulebookAccepted
-                ? `Règlement v${reg.rulebookAccepted.version} accepté le ${formatDate(reg.rulebookAccepted.at)}`
-                : 'Aucun règlement accepté'}
-            </span>
-            {reg.review && reg.status !== 'pending' && (
-              <span>
-                {reg.status === 'rejected' ? 'Refusée' : 'Validée'} par {reg.review.byName} le {formatDate(reg.review.at)}
-                {reg.review.reason ? ` — ${reg.review.reason}` : ''}
-              </span>
-            )}
-            {(reg.review?.derogations?.length ?? 0) > 0 && (
-              <span>{reg.review!.derogations.length} dérogation{reg.review!.derogations.length > 1 ? 's' : ''} accordée{reg.review!.derogations.length > 1 ? 's' : ''}</span>
-            )}
-            {reg.discord.warnings.length > 0 && (
-              <span style={{ color: '#ffb46b' }}>{reg.discord.warnings.join(' · ')}</span>
-            )}
-            {reg.discord.errorMessage && (
-              <span style={{ color: '#ff8a8a' }}>Discord : {reg.discord.errorMessage}</span>
-            )}
-          </div>
-
-          {/* Historique des sanctions (fonde l'escalade manuelle) */}
-          {reg.sanctions.length > 0 && (
-            <div style={{ border: '1px solid var(--s-border)' }}>
-              <div className="px-3 py-1.5" style={{ borderBottom: '1px solid var(--s-border)' }}>
-                <span className="t-label">Historique sanctions ({reg.sanctions.length})</span>
-              </div>
-              {reg.sanctions.map((s, i) => (
-                <div key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-1.5 text-sm"
-                  style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none', opacity: s.active ? 1 : 0.55 }}>
-                  <span className="tag tag-neutral" style={SANCTION_COLOR[s.type]}>{SANCTION_LABEL[s.type]}</span>
-                  <span style={{ color: 'var(--s-text-dim)' }}>{s.reason}</span>
-                  <span className="text-xs ml-auto" style={{ color: 'var(--s-text-muted)' }}>
-                    {formatDate(s.createdAt)}
-                    {s.revokedAt ? ' · levée' : !s.active ? ' · expirée' : s.expiresAt ? ` · jusqu'au ${formatDate(s.expiresAt)}` : ''}
-                  </span>
+          {/* ── ZONE C · CONTACTS | CONTEXTE ── */}
+          <div className="reg-c-grid">
+            {/* Carnet d'adresses de décision */}
+            <section className="reg-card bevel-sm" style={{ padding: 12 }}>
+              <p className="t-label mb-2">Contacts</p>
+              <div className="overflow-x-auto">
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(90px,max-content) minmax(0,1fr) max-content', columnGap: '0.75rem', alignItems: 'center', minWidth: 'min-content' }}>
+                  {staffRows.map((s, i) => {
+                    const cell = { padding: '0.4rem 0', borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' } as const;
+                    return (
+                      <Fragment key={s.uid}>
+                        <div className="t-label-soft" style={cell}>{s.roles.join(' · ')}</div>
+                        <div className="text-sm truncate min-w-0" style={cell}>
+                          <Link href={getProfileHref({ slug: s.slug, uid: s.uid })} target="_blank"
+                            className="hover:underline" style={{ color: 'var(--s-text)', fontWeight: 500 }} onClick={e => e.stopPropagation()}>{s.name}</Link>
+                          {s.warn && <span className="text-xs ml-1.5" style={{ color: '#ffb46b' }}>{s.warn}</span>}
+                        </div>
+                        <div style={cell}>
+                          {s.discord ? <CopyHandle handle={s.discord} /> : <span className="t-mono" style={{ color: 'var(--s-text-muted)' }}>—</span>}
+                        </div>
+                      </Fragment>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
+              </div>
+            </section>
+
+            {/* Rail contexte + historique sanctions */}
+            <section className="reg-card bevel-sm" style={{ padding: 12 }}>
+              <p className="t-label mb-2">Contexte</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(90px,max-content) minmax(0,1fr)', columnGap: '0.75rem', rowGap: '0.35rem' }}>
+                {contextItems.map((it, i) => (
+                  <Fragment key={i}>
+                    <div className="t-label-soft">{it.k}</div>
+                    <div className="text-sm min-w-0" style={{ color: 'var(--s-text)' }}>{it.v}</div>
+                  </Fragment>
+                ))}
+              </div>
+              {reg.sanctions.length > 0 && (
+                <div className="mt-3">
+                  <p className="t-label-soft mb-1.5">Historique sanctions ({reg.sanctions.length})</p>
+                  {reg.sanctions.map((s, i) => (
+                    <div key={s.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 py-1 text-sm"
+                      style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none', opacity: s.active ? 1 : 0.55 }}>
+                      <span className="tag tag-neutral" style={SANCTION_COLOR[s.type]}>{SANCTION_LABEL[s.type]}</span>
+                      <span style={{ color: 'var(--s-text-dim)' }}>{s.reason}</span>
+                      <span className="text-xs ml-auto" style={{ color: 'var(--s-text-muted)' }}>
+                        {formatDate(s.createdAt)}
+                        {s.revokedAt ? ' · levée' : !s.active ? ' · expirée' : s.expiresAt ? ` · jusqu'au ${formatDate(s.expiresAt)}` : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+
+          {/* ── ZONE D · modération (démotée, quiet) ── */}
+          <div className="flex items-center gap-4 flex-wrap" style={{ borderTop: '1px solid var(--s-border)', paddingTop: 12 }}>
+            <button type="button" className="reg-quiet-link inline-flex items-center gap-1" onClick={() => setShowNotes(v => !v)}>
+              Notes internes{reg.adminNotes ? <span style={{ color: 'var(--s-text-dim)' }}> · renseignées</span> : ''}
+              <ChevronDown size={12} style={{ transform: showNotes ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+            </button>
+            <button type="button" className="reg-quiet-link"
+              onClick={() => setSanctionTarget({ targetType: 'team', targetId: reg.teamId, targetLabel: reg.name })}>Sanctionner l&apos;équipe</button>
+            <button type="button" className="reg-quiet-link"
+              onClick={() => setSanctionTarget({ targetType: 'structure', targetId: reg.structureId, targetLabel: reg.structureName || reg.structureId })}>Sanctionner la structure</button>
+          </div>
+          {showNotes && (
+            <NotesEditor regId={reg.id} competitionId={competitionId} initial={reg.adminNotes} onSaved={onReload} />
           )}
-
-          {/* Notes admin internes (jamais vues par l'équipe) */}
-          <NotesEditor regId={reg.id} competitionId={competitionId} initial={reg.adminNotes} onSaved={onReload} />
-
-          {/* Modération graduée — avertir/exclure/bannir l'équipe ou la structure */}
-          {!sanctionTarget && (
-            <div className="flex items-center gap-3 flex-wrap">
-              <button type="button" className="btn-springs btn-ghost text-sm"
-                onClick={() => setSanctionTarget({ targetType: 'team', targetId: reg.teamId, targetLabel: reg.name })}>
-                Sanctionner l&apos;équipe
-              </button>
-              <button type="button" className="btn-springs btn-ghost text-sm"
-                onClick={() => setSanctionTarget({ targetType: 'structure', targetId: reg.structureId, targetLabel: reg.structureName || reg.structureId })}>
-                Sanctionner la structure
-              </button>
-            </div>
-          )}
-
-          {/* Formulaire de sanction (joueur / équipe / structure) */}
           {sanctionTarget && (
             <SanctionForm
               target={sanctionTarget}
@@ -827,112 +1009,6 @@ function RegistrationRowView({
               onClose={() => setSanctionTarget(null)}
               onDone={() => { setSanctionTarget(null); onReload(); }}
             />
-          )}
-
-          {/* Identité circuit (pending uniquement, résolue serveur) */}
-          {reg.identity && reg.status === 'pending' && (
-            <IdentityBlock reg={reg} circuitName={circuitName} decision={decision} setDecision={setDecision} />
-          )}
-
-          {/* Actions */}
-          {actionable && !decision && (
-            <div className="flex items-center gap-3">
-              <button type="button" className="btn-springs btn-primary bevel-sm text-sm"
-                disabled={acting}
-                onClick={() => onOpenDecision(reg, 'approve')}>
-                Valider
-              </button>
-              <button type="button" className="btn-springs btn-secondary bevel-sm text-sm"
-                disabled={acting}
-                onClick={() => onOpenDecision(reg, 'reject')}>
-                Refuser
-              </button>
-              {reg.status === 'waitlisted' && (
-                <button type="button" className="btn-springs btn-ghost text-sm" disabled={acting} onClick={onUnapprove}>
-                  Remettre en attente
-                </button>
-              )}
-            </div>
-          )}
-          {reg.status === 'approved' && (
-            <div>
-              <button type="button" className="btn-springs btn-ghost text-sm" disabled={acting} onClick={onUnapprove}>
-                Annuler la validation
-              </button>
-            </div>
-          )}
-
-          {/* Formulaire de décision inline */}
-          {decision && actionable && (
-            <div className="space-y-3" style={{ border: '1px solid var(--s-border)', padding: '12px' }}>
-              {decision.mode === 'reject' ? (
-                <>
-                  <label className="block text-sm" style={{ color: 'var(--s-text-dim)' }}>
-                    Motif du refus — transmis à l&apos;équipe (notification + DM au capitaine)
-                  </label>
-                  <textarea
-                    className="settings-input w-full"
-                    rows={2}
-                    maxLength={500}
-                    aria-label="Motif du refus"
-                    value={decision.reason}
-                    onChange={e => setDecision(d => d ? { ...d, reason: e.target.value } : d)}
-                    placeholder="MMR incohérent avec le tracker, roster incomplet…"
-                  />
-                </>
-              ) : (
-                <>
-                  {underage.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-                        Dérogation requise pour chaque joueur sous l&apos;âge minimum ({minAge} ans) ou d&apos;âge
-                        inconnu. La note reste interne (audit).
-                      </p>
-                      {underage.map(p => (
-                        <div key={p.uid} className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-semibold" style={{ minWidth: '12ch' }}>
-                            {p.displayName} <span style={{ color: 'var(--s-text-muted)' }}>({p.age !== null ? `${p.age} ans` : 'âge inconnu'})</span>
-                          </span>
-                          <input
-                            className="settings-input flex-1"
-                            style={{ minWidth: '220px' }}
-                            maxLength={500}
-                            aria-label={`Note de dérogation pour ${p.displayName}`}
-                            value={decision.derogations[p.uid] ?? ''}
-                            onChange={e => setDecision(d => d
-                              ? { ...d, derogations: { ...d.derogations, [p.uid]: e.target.value } }
-                              : d)}
-                            placeholder="Accord parental reçu le…, justificatif…"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {underage.length === 0 && reg.identity?.proposal !== 'choice_required' && (
-                    <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-                      Valider cette inscription ? L&apos;équipe sera notifiée (notification + DM au capitaine).
-                    </p>
-                  )}
-                </>
-              )}
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  className="btn-springs btn-primary bevel-sm text-sm"
-                  disabled={acting
-                    || (decision.mode === 'reject' && decision.reason.trim().length < 3)
-                    || (decision.mode === 'approve'
-                      && underage.some(p => (decision.derogations[p.uid] ?? '').trim().length < 3))}
-                  onClick={onSubmitDecision}
-                >
-                  {acting ? 'En cours…' : decision.mode === 'reject' ? 'Confirmer le refus' : 'Confirmer la validation'}
-                </button>
-                <button type="button" className="btn-springs btn-ghost text-sm" disabled={acting}
-                  onClick={() => setDecision(null)}>
-                  Annuler
-                </button>
-              </div>
-            </div>
           )}
         </div>
       )}
@@ -973,7 +1049,7 @@ function IdentityBlock({
   // choice_required — l'arbitrage se fait dans le formulaire de validation.
   const choosing = decision?.mode === 'approve';
   return (
-    <div className="space-y-2" style={{ border: '1px solid rgba(255,180,107,0.35)', padding: '12px' }}>
+    <div className="space-y-2 bevel-sm" style={{ border: '1px solid var(--s-border)', padding: '12px' }}>
       <p className="text-sm font-semibold" style={{ color: '#ffb46b' }}>
         Rattachement {label} à arbitrer
         {identity.flags.includes('name_mismatch') ? ' — noyau retrouvé sous un autre nom (rattacher vaut accord de changement de nom)' : ''}
@@ -1156,7 +1232,7 @@ function SanctionForm({ target, competitionId, competitionName, contextStructure
   }
 
   return (
-    <div className="space-y-3" style={{ border: '1px solid rgba(255,180,107,0.35)', padding: '12px' }}>
+    <div className="space-y-3 bevel-sm" style={{ border: '1px solid var(--s-border)', padding: '12px' }}>
       <p className="text-sm font-semibold">Sanctionner {kind} — {target.targetLabel}</p>
       <div className="flex items-center gap-2 flex-wrap">
         {(['warn', 'ban'] as const).map(t => (

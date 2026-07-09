@@ -118,6 +118,63 @@
   color: var(--s-text-dim);
 }
 
+/* ── REGISTRATIONS CONSOLE — vue dépliée « Le Dossier » (panel admin) ───
+   Un PUITS recessé (fond --s-bg) qui matérialise « tu as ouvert le dossier »
+   (depth-cue), 4 zones : verdict-héros lifted / roster / contacts|contexte /
+   modération quiet. Zoner/sectionner n'est PAS de la déco — c'est la structure
+   qui manquait. Zéro accent bar, zéro glow ; le seul or reste le CTA Valider. */
+.reg-well {
+  background: var(--s-bg);
+  border-top: 1px solid var(--s-border);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.reg-card { background: var(--s-surface); border: 1px solid var(--s-border); }
+.reg-verdict { background: var(--s-elevated); }        /* le seul héros = lifted */
+.reg-verdict-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  padding: 16px;
+  align-items: center;
+}
+.reg-team-name {
+  font-size: 22px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--s-text);
+  line-height: 1.05;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reg-eligibility {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+  text-align: right;
+  min-width: 260px;
+}
+.reg-c-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.reg-quiet-link {
+  font-size: 12px;
+  color: var(--s-text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.reg-quiet-link:hover { color: var(--s-text); text-decoration: underline; }
+@media (max-width: 900px) {
+  .reg-verdict-grid { grid-template-columns: 1fr; }
+  .reg-eligibility { align-items: flex-start; text-align: left; min-width: 0; }
+  .reg-c-grid { grid-template-columns: 1fr; }
+}
+
 /* ── BEVELED CARD — coins biseautés signature Springs ────────────────── */
 .bevel {
   clip-path: polygon(
