@@ -17,6 +17,7 @@ export interface AdminCircuit {
   bestResultsCount: number;
   lanTeamCount: number;
   prizePool: { amount: number; currency: string; note?: string } | null;
+  organizer: { name: string; logoUrl?: string | null } | null;
   tieBreakers: string[];
   status: string;
   createdAt: string | null;

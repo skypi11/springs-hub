@@ -34,6 +34,8 @@ export default function CircuitForm({
   const [lanTeamCount, setLanTeamCount] = useState(initial?.lanTeamCount ?? LEGENDS_CIRCUIT.lanTeamCount);
   const [prizeAmount, setPrizeAmount] = useState(initial?.prizePool?.amount ?? 0);
   const [prizeNote, setPrizeNote] = useState(initial?.prizePool?.note ?? '');
+  const [organizerName, setOrganizerName] = useState(initial?.organizer?.name ?? '');
+  const [organizerLogoUrl, setOrganizerLogoUrl] = useState(initial?.organizer?.logoUrl ?? '');
   const [scale, setScale] = useState<Record<string, number>>(
     initial && Object.keys(initial.pointsScale).length > 0 ? initial.pointsScale : { ...LEGENDS_POINTS_SCALE },
   );
@@ -57,6 +59,7 @@ export default function CircuitForm({
     setLanTeamCount(LEGENDS_CIRCUIT.lanTeamCount);
     setPrizeAmount(LEGENDS_CIRCUIT.prizePool.amount);
     setPrizeNote(LEGENDS_CIRCUIT.prizePool.note);
+    setOrganizerName('Springs E-Sport');
     toast.success('Préréglage Legends appliqué.');
   }
 
@@ -70,6 +73,9 @@ export default function CircuitForm({
       // 0 = pas de dotation (le serveur normalise à null).
       prizePool: prizeAmount > 0
         ? { amount: prizeAmount, currency: 'EUR', note: prizeNote.trim() || undefined }
+        : null,
+      organizer: organizerName.trim()
+        ? { name: organizerName.trim(), logoUrl: organizerLogoUrl.trim() || undefined }
         : null,
       tieBreakers: [...LEGENDS_TIE_BREAKERS],
       status: 'draft',
@@ -162,6 +168,34 @@ export default function CircuitForm({
               onChange={e => setPrizeNote(e.target.value)}
               placeholder="Remis à la LAN finale"
               maxLength={80}
+            />
+          </div>
+        </div>
+
+        <div className="divider" />
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="t-label block mb-2">Organisateur</label>
+            <input
+              className="settings-input w-full"
+              value={organizerName}
+              onChange={e => setOrganizerName(e.target.value)}
+              placeholder="Springs E-Sport"
+              maxLength={60}
+            />
+            <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
+              La structure qui porte la compétition (Aedral n&apos;est que l&apos;hébergeur).
+            </p>
+          </div>
+          <div className="md:col-span-2">
+            <label className="t-label block mb-2">Logo organisateur (URL, optionnel)</label>
+            <input
+              className="settings-input w-full"
+              value={organizerLogoUrl}
+              onChange={e => setOrganizerLogoUrl(e.target.value)}
+              placeholder="/aedral/… ou https://…"
+              maxLength={500}
             />
           </div>
         </div>

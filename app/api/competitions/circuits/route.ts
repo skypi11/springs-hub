@@ -79,6 +79,7 @@ export async function GET(req: NextRequest) {
         eventCount: compIds.length,
         lanTeamCount: (c.lanTeamCount as number) ?? 0,
         prizePool: c.prizePool ?? null,
+        organizer: (c.organizer as { name: string; logoUrl?: string | null }) ?? null,
         createdAt: c.createdAt?.toDate?.()?.toISOString() ?? null,
         focus: {
           mode: focus.mode,                       // open | live | upcoming | done

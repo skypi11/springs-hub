@@ -63,6 +63,7 @@ export function serializeCircuit(id: string, data: FirebaseFirestore.DocumentDat
     bestResultsCount: data.bestResultsCount ?? 0,
     lanTeamCount: data.lanTeamCount ?? 0,
     prizePool: data.prizePool ?? null,
+    organizer: data.organizer ?? null,
     tieBreakers: data.tieBreakers ?? [],
     status: data.status ?? 'draft',
     createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,

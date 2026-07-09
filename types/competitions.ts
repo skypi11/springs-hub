@@ -39,6 +39,11 @@ export interface Circuit {
    * annoncée. `note` = mention libre ("Remis à la LAN finale").
    */
   prizePool?: { amount: number; currency: string; note?: string } | null;
+  /** Structure organisatrice de la compétition (organisateur légal — ex. Springs
+   *  E-Sport pour la Legends Cup). Aedral n'est que l'hébergeur : une compétition
+   *  appartient à l'orga qui la porte. `name` affiché sur la vitrine, `logoUrl`
+   *  optionnel (crest). null = pas d'organisateur déclaré. Public-safe (pas d'uid). */
+  organizer?: { name: string; logoUrl?: string | null } | null;
   /** Ordre des clés de départage cutline (spec §11). */
   tieBreakers: CircuitTieBreaker[];
   /** Rôle Discord « Participant » commun aux compétitions du circuit (spec §7),

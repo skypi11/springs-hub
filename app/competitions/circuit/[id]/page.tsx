@@ -57,6 +57,7 @@ interface CircuitData {
     bestResultsCount: number;
     lanTeamCount: number;
     prizePool: { amount: number; currency: string; note?: string } | null;
+    organizer: { name: string; logoUrl?: string | null } | null;
     pointsScale: Record<string, number>;
     isDev: boolean;
   };
@@ -198,7 +199,17 @@ export default function CircuitPage() {
               )}
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Circuit Aedral</span>
+                  {circuit.organizer?.name ? (
+                    <span className="t-label inline-flex items-center gap-1.5" style={{ color: 'var(--s-text-muted)' }}>
+                      {circuit.organizer.logoUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={circuit.organizer.logoUrl} alt="" width={16} height={16} style={{ width: 16, height: 16, objectFit: 'contain' }} />
+                      )}
+                      Organisé par {circuit.organizer.name}
+                    </span>
+                  ) : (
+                    <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Circuit</span>
+                  )}
                   <GameTag gameId={circuit.game} size="sm" />
                   {circuit.isDev && (
                     <span className="tag tag-neutral inline-flex items-center gap-1" style={{ color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.4)' }}>

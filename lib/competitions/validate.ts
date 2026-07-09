@@ -45,8 +45,23 @@ export interface CircuitPayload {
   bestResultsCount: number;
   lanTeamCount: number;
   prizePool: { amount: number; currency: string; note?: string } | null;
+  organizer: { name: string; logoUrl: string | null } | null;
   tieBreakers: CircuitTieBreaker[];
   status: CircuitStatus;
+}
+
+// Organisateur optionnel (la structure qui porte la compétition — Aedral n'est
+// que l'hébergeur). name requis s'il est fourni ; logoUrl optionnel (URL /public
+// ou http). Public-safe (pas d'uid).
+function validateOrganizer(input: unknown): ValidationResult<CircuitPayload['organizer']> {
+  if (input === null || input === undefined) return { ok: true, value: null };
+  if (typeof input !== 'object') return err('Organisateur invalide.');
+  const o = input as Record<string, unknown>;
+  const name = clampString(o.name, 60);
+  if (!name) return { ok: true, value: null };
+  const raw = typeof o.logoUrl === 'string' ? o.logoUrl.trim() : '';
+  const logoUrl = raw && (raw.startsWith('http') || raw.startsWith('/')) ? clampString(raw, 500) : null;
+  return { ok: true, value: { name, logoUrl } };
 }
 
 // Dotation optionnelle du circuit. null (ou absent) = pas de dotation.
@@ -92,6 +107,9 @@ export function validateCircuitPayload(body: unknown): ValidationResult<CircuitP
   const prizePool = validatePrizePool(b.prizePool);
   if (!prizePool.ok) return prizePool;
 
+  const organizer = validateOrganizer(b.organizer);
+  if (!organizer.ok) return organizer;
+
   // L'ordre des clés de départage est figé au Lot 0 (celui de la spec). On
   // accepte le tableau du client uniquement s'il est une permutation valide.
   const tb = Array.isArray(b.tieBreakers) ? (b.tieBreakers as unknown[]) : [];
@@ -114,6 +132,7 @@ export function validateCircuitPayload(body: unknown): ValidationResult<CircuitP
       bestResultsCount,
       lanTeamCount,
       prizePool: prizePool.value,
+      organizer: organizer.value,
       tieBreakers,
       status,
     },

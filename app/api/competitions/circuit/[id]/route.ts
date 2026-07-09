@@ -140,6 +140,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         bestResultsCount: (circuit.bestResultsCount as number) ?? 3,
         lanTeamCount: (circuit.lanTeamCount as number) ?? 16,
         prizePool: circuit.prizePool ?? null,
+        organizer: (circuit.organizer as { name: string; logoUrl?: string | null }) ?? null,
         pointsScale: circuit.pointsScale ?? {},
         isDev: isCircuitHidden(circuit),  // le public ne voit jamais ce cas (404 plus haut)
       },

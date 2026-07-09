@@ -36,6 +36,7 @@ interface CircuitSummary {
   eventCount: number;
   lanTeamCount: number;
   prizePool: { amount: number; currency: string } | number | null;
+  organizer: { name: string; logoUrl?: string | null } | null;
   focus: CircuitFocus;
 }
 
@@ -93,24 +94,24 @@ export default function CompetitionsPage() {
         <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>Compétitions</p>
         <h1 className="font-display text-4xl lg:text-5xl mt-1" style={{ letterSpacing: '0.03em' }}>COMPÉTITIONS</h1>
         <p className="text-sm mt-2 max-w-xl" style={{ color: 'var(--s-text-dim)' }}>
-          Les circuits natifs Aedral et les compétitions historiques hébergées sur le site
+          Les compétitions en direct sur Aedral et celles encore hébergées sur le site
           Springs E-Sport, notre partenaire.
         </p>
       </header>
 
-      {/* ── Circuits Aedral (héros) ── */}
+      {/* ── Circuits en direct sur Aedral (héros) ── */}
       {circuits.length > 0 && (
         <section className="space-y-4">
-          <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>Circuits Aedral</p>
+          <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>Circuits</p>
           {circuits.map(c => (
             <FlagshipCircuit key={c.id} c={c} canRegister={!!(c.focus.registrationOpen && c.focus.targetId && user)} />
           ))}
         </section>
       )}
 
-      {/* ── Sur Springs E-Sport (démoté, gardé) ── */}
+      {/* ── Sur l'ancien site Springs (démoté, gardé) ── */}
       <section className="space-y-4">
-        <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>Sur Springs E-Sport</p>
+        <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>Sur l&apos;ancien site Springs</p>
         <div className="panel bevel">
           <div className="panel-body p-0">
             {legacyCompetitions.map((comp, i) => (
@@ -183,7 +184,17 @@ function FlagshipCircuit({ c, canRegister }: { c: CircuitSummary; canRegister: b
             )}
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2 mb-1">
-                <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Circuit Aedral</span>
+                {c.organizer?.name ? (
+                  <span className="t-label inline-flex items-center gap-1.5" style={{ color: 'var(--s-text-muted)' }}>
+                    {c.organizer.logoUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={c.organizer.logoUrl} alt="" width={16} height={16} style={{ width: 16, height: 16, objectFit: 'contain' }} />
+                    )}
+                    Organisé par {c.organizer.name}
+                  </span>
+                ) : (
+                  <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Circuit</span>
+                )}
                 <GameTag gameId={c.game} size="sm" />
                 {c.hidden && (
                   <span className="tag tag-neutral inline-flex items-center gap-1" style={{ color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.4)' }}>
