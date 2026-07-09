@@ -1,18 +1,31 @@
 'use client';
 
-// Liste des compétitions : les circuits Aedral natifs (moteur de compétitions,
-// ex. Legends Springs Cup) en tête, puis les compétitions historiques encore
-// hébergées sur le site Springs E-Sport. Les circuits sont chargés via l'API
-// gatée : un visiteur ne voit que les circuits publiés, un testeur voit aussi
-// les brouillons / circuits de test.
+// Liste des compétitions — porte d'entrée du module (visiteurs inclus). Refonte
+// « Le Dossier » : le circuit Aedral natif en HÉROS (identité + stat-décision
+// « inscriptions ouvertes / prochaine Qualif » + CTA), puis les compétitions
+// Springs E-Sport (SLS terminée, Monthly Cup mensuelle active) démotées en
+// rangées — plus le circuit phare noyé au milieu de cards équivalentes. Les
+// circuits sont chargés via l'API gatée (un testeur voit les brouillons/tests).
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Calendar, ExternalLink, Gamepad2, Users, Award, Trophy, ArrowRight } from 'lucide-react';
+import { CalendarDays, ExternalLink, Trophy, ArrowRight, EyeOff, Users2 } from 'lucide-react';
 import { api, apiPublic } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
 import GameTag from '@/components/games/GameTag';
-import { getGameColor, getGameColorRgb, getGameBannerUrl } from '@/lib/games-registry';
+import GlanceStat from '@/components/competitions/GlanceStat';
+import { getGameColor, getGameColorRgb, getGameBannerUrl, getGameLogoUrl } from '@/lib/games-registry';
+
+interface CircuitFocus {
+  mode: string;
+  registrationOpen: boolean;
+  targetId: string | null;
+  eventName: string | null;
+  closesAt: string | null;
+  startDate: string | null;
+  approvedCount: number;
+  maxTeams: number | null;
+}
 
 interface CircuitSummary {
   id: string;
@@ -23,49 +36,36 @@ interface CircuitSummary {
   eventCount: number;
   lanTeamCount: number;
   prizePool: { amount: number; currency: string } | number | null;
+  focus: CircuitFocus;
 }
 
+// Compétitions historiques hébergées sur le site Springs E-Sport (partenaire).
+// Gardées — pas des archives à supprimer : la SLS est terminée, la Monthly Cup
+// tourne chaque mois. Liens sortants vers l'ancien site.
 const legacyCompetitions = [
   {
-    id: 'rl-s2',
-    game: 'Rocket League',
-    tag: 'RL',
-    tagClass: 'tag-blue',
-    name: 'SPRINGS LEAGUE SERIES',
-    edition: 'Saison 2, 2026',
-    status: 'Terminé',
-    format: 'Ligue · 2 Poules · Round Robin · BO7',
-    teams: '32 équipes',
-    prize: '1 600€',
-    accent: '#0081FF',
-    bgImage: '/rocket-league.webp',
+    id: 'rl-s2', gameId: 'rocket_league',
+    name: 'Springs League Series', edition: 'Saison 2, 2026', status: 'Terminé',
+    format: 'Ligue · 2 poules · BO7', prize: '1 600 €',
     href: 'https://springs-esport.vercel.app/rocket-league/',
-    description: '32 équipes réparties en 2 poules. Top 8 de chaque poule qualifié pour la LAN finale. Format 3v3.',
   },
   {
-    id: 'tm-monthly',
-    game: 'Trackmania',
-    tag: 'TM',
-    tagClass: 'tag-green',
-    name: 'MONTHLY CUP',
-    edition: 'Mensuel',
-    status: 'Mensuel',
-    format: 'Cup · Solo · Qualifications + Finale',
-    teams: null,
-    prize: null,
-    accent: '#00D936',
-    bgImage: '/tm.webp',
+    id: 'tm-monthly', gameId: 'trackmania',
+    name: 'Monthly Cup', edition: 'Chaque mois', status: 'Mensuel',
+    format: 'Cup · Solo · Quals + Finale', prize: null,
     href: 'https://springs-esport.vercel.app/trackmania/cup.html?cup=monthly',
-    description: 'Compétition mensuelle en solo. Qualifications sur plusieurs maps officielles Springs puis finale.',
   },
 ];
 
 const CIRCUIT_STATUS: Record<string, string> = {
-  draft: 'Brouillon',
-  active: 'En cours',
-  finished: 'Terminé',
-  archived: 'Archivé',
+  draft: 'Brouillon', active: 'En cours', finished: 'Terminé', archived: 'Archivé',
 };
+
+function fmtDate(iso: string | null): string | null {
+  if (!iso) return null;
+  try { return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }); }
+  catch { return null; }
+}
 
 function fmtPrize(p: CircuitSummary['prizePool']): string | null {
   if (p == null) return null;
@@ -87,149 +87,166 @@ export default function CompetitionsPage() {
   }, [user, authLoading]);
 
   return (
-    <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-10">
-
-      {/* ─── HEADER ───────────────────────────────────────────────────────── */}
-      <header className="bevel animate-fade-in relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
-        <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), var(--s-gold), transparent 80%)' }} />
-        <div className="absolute top-0 right-0 w-[400px] h-[300px] pointer-events-none opacity-[0.05]"
-          style={{ background: 'radial-gradient(ellipse at top right, var(--s-gold), transparent 70%)' }} />
-        <div className="relative z-[1] p-10">
-          <div className="flex items-center gap-3 mb-5">
-            <span className="tag tag-gold">Compétitions</span>
-          </div>
-          <h1 className="t-display mb-4">
-            <span style={{ color: 'var(--s-gold)' }}>COMPÉTITIONS</span>
-          </h1>
-          <p className="t-body max-w-xl" style={{ fontSize: '15px' }}>
-            Les circuits Aedral et les compétitions historiques hébergées sur le
-            site Springs E-Sport, notre partenaire.
-          </p>
-        </div>
+    <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-8 animate-fade-in">
+      {/* ── Header dégraissé ── */}
+      <header>
+        <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>Compétitions</p>
+        <h1 className="font-display text-4xl lg:text-5xl mt-1" style={{ letterSpacing: '0.03em' }}>COMPÉTITIONS</h1>
+        <p className="text-sm mt-2 max-w-xl" style={{ color: 'var(--s-text-dim)' }}>
+          Les circuits natifs Aedral et les compétitions historiques hébergées sur le site
+          Springs E-Sport, notre partenaire.
+        </p>
       </header>
 
-      {/* ─── CIRCUITS AEDRAL ──────────────────────────────────────────────── */}
+      {/* ── Circuits Aedral (héros) ── */}
       {circuits.length > 0 && (
-        <section className="animate-fade-in-d1 space-y-6">
-          <div className="section-label"><span className="t-label">Circuits Aedral</span></div>
-          {circuits.map((c) => {
-            const accent = getGameColor(c.game);
-            const accentRgb = getGameColorRgb(c.game);
-            const bg = getGameBannerUrl(c.game);
-            const prize = fmtPrize(c.prizePool);
-            return (
-              <Link key={c.id} href={`/competitions/circuit/${c.id}`}
-                className="comp-card bevel group block" style={{ minHeight: '300px' }}>
-                {bg && <div className="comp-card-bg" style={{ backgroundImage: `url(${bg})` }} />}
-                <div className="comp-card-overlay" />
-                <div className="absolute top-0 left-0 right-0 h-[3px] z-[2]"
-                  style={{ background: `linear-gradient(90deg, ${accent}, rgba(${accentRgb},0.4), transparent 70%)` }} />
-                <div className="comp-card-content p-8 flex flex-col h-full" style={{ minHeight: '300px' }}>
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-2">
-                      <GameTag gameId={c.game} size="sm" />
-                      <span className="t-label" style={{ color: 'rgba(255,255,255,0.5)' }}>Circuit</span>
-                    </div>
-                    <span className="tag tag-neutral"
-                      style={c.hidden ? { color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.4)' } : undefined}>
-                      {c.hidden ? 'Test' : (CIRCUIT_STATUS[c.status] ?? c.status)}
-                    </span>
-                  </div>
-                  <h2 className="font-display mb-2" style={{ fontSize: '2.8rem', letterSpacing: '0.03em', color: '#fff' }}>
-                    {c.name.toUpperCase()}
-                  </h2>
-                  <p className="t-body mb-6" style={{ color: 'rgba(255,255,255,0.45)', maxWidth: '600px' }}>
-                    Qualifs online puis LAN finale. Les {c.lanTeamCount} meilleures équipes du circuit rejoignent la LAN.
-                  </p>
-                  <div className="flex items-center gap-6 mb-auto flex-wrap">
-                    {c.eventCount > 0 && (
-                      <span className="t-mono flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                        <Gamepad2 size={12} /> {c.eventCount} Qualif{c.eventCount > 1 ? 's' : ''}
-                      </span>
-                    )}
-                    <span className="t-mono flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                      <Users size={12} /> {c.lanTeamCount} places LAN
-                    </span>
-                    {prize && (
-                      <span className="t-mono flex items-center gap-1.5 font-bold" style={{ color: 'var(--s-gold)' }}>
-                        <Trophy size={12} /> {prize}
-                      </span>
-                    )}
-                  </div>
-                  <div className="divider mb-4 mt-6" style={{ background: 'rgba(255,255,255,0.1)' }} />
-                  <div className="flex items-center justify-end">
-                    <span className="btn-springs btn-secondary bevel-sm transition-all group-hover:border-[rgba(255,255,255,0.4)]"
-                      style={{ padding: '8px 20px', fontSize: '12px', borderColor: 'rgba(255,255,255,0.2)' }}>
-                      Voir le circuit <ArrowRight size={12} />
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+        <section className="space-y-4">
+          <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>Circuits Aedral</p>
+          {circuits.map(c => (
+            <FlagshipCircuit key={c.id} c={c} canRegister={!!(c.focus.registrationOpen && c.focus.targetId && user)} />
+          ))}
         </section>
       )}
 
-      {/* ─── COMPÉTITIONS SPRINGS E-SPORT (historique) ────────────────────── */}
-      <section className="animate-fade-in-d2 space-y-6">
-        <div className="section-label">
-          <span className="t-label">Sur Springs E-Sport</span>
-        </div>
-
-        {legacyCompetitions.map((comp) => (
-          <a key={comp.id} href={comp.href} target="_blank" rel="noopener noreferrer"
-            className="comp-card bevel group block" style={{ minHeight: '300px' }}>
-            <div className="comp-card-bg" style={{ backgroundImage: `url(${comp.bgImage})` }} />
-            <div className="comp-card-overlay" />
-            <div className="absolute top-0 left-0 right-0 h-[3px] z-[2]"
-              style={{ background: `linear-gradient(90deg, ${comp.accent}, ${comp.accent}60, transparent 70%)` }} />
-            <div className="comp-card-content p-8 flex flex-col h-full" style={{ minHeight: '300px' }}>
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2">
-                  <span className={`tag ${comp.tagClass}`}>{comp.tag}</span>
-                  <span className="t-label" style={{ color: 'rgba(255,255,255,0.5)' }}>{comp.game}</span>
+      {/* ── Sur Springs E-Sport (démoté, gardé) ── */}
+      <section className="space-y-4">
+        <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>Sur Springs E-Sport</p>
+        <div className="panel bevel">
+          <div className="panel-body p-0">
+            {legacyCompetitions.map((comp, i) => (
+              <a key={comp.id} href={comp.href} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--s-elevated)] group"
+                style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' }}>
+                <GameTag gameId={comp.gameId} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold truncate group-hover:underline">{comp.name}</span>
+                    <span className="tag tag-neutral">{comp.status}</span>
+                  </div>
+                  <div className="flex items-center gap-x-3 gap-y-0.5 text-xs mt-0.5 flex-wrap" style={{ color: 'var(--s-text-muted)' }}>
+                    <span>{comp.format}</span>
+                    <span>· {comp.edition}</span>
+                    {comp.prize && <span>· {comp.prize}</span>}
+                  </div>
                 </div>
-                <span className="tag tag-neutral">{comp.status}</span>
-              </div>
-              <h2 className="font-display mb-2" style={{ fontSize: '2.8rem', letterSpacing: '0.03em', color: '#fff' }}>
-                {comp.name}
-              </h2>
-              <p className="t-body mb-6" style={{ color: 'rgba(255,255,255,0.45)', maxWidth: '600px' }}>
-                {comp.description}
-              </p>
-              <div className="flex items-center gap-6 mb-auto flex-wrap">
-                <span className="t-mono flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                  <Gamepad2 size={12} /> {comp.format}
+                <span className="text-xs hidden sm:inline-flex items-center gap-1 flex-shrink-0" style={{ color: 'var(--s-text-muted)' }}>
+                  <ExternalLink size={11} /> springs-esport
                 </span>
-                {comp.teams && (
-                  <span className="t-mono flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                    <Users size={12} /> {comp.teams}
+                <ExternalLink size={15} className="flex-shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: 'var(--s-text-muted)' }} />
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+// ── Circuit Aedral en héros : identité + carte focus (stat-décision + CTA) ──
+function FlagshipCircuit({ c, canRegister }: { c: CircuitSummary; canRegister: boolean }) {
+  const color = getGameColor(c.game);
+  const colorRgb = getGameColorRgb(c.game);
+  const banner = getGameBannerUrl(c.game);
+  const gameLogo = getGameLogoUrl(c.game);
+  const prize = fmtPrize(c.prizePool);
+  const prizeGold = !canRegister;
+  const f = c.focus;
+
+  const focusEyebrow = f.registrationOpen ? 'Inscriptions ouvertes'
+    : f.mode === 'live' ? 'En cours'
+    : f.mode === 'upcoming' ? 'Prochaine Qualif'
+    : f.mode === 'done' ? 'Terminé'
+    : c.hidden ? 'Accès test' : 'Bientôt';
+  const focusMeta = f.registrationOpen && f.closesAt ? `Clôture le ${fmtDate(f.closesAt)}`
+    : f.mode === 'upcoming' && f.startDate ? `Le ${fmtDate(f.startDate)}`
+    : null;
+
+  return (
+    <div className="panel bevel relative overflow-hidden">
+      {banner && (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element -- asset local /public, décoratif */}
+          <img src={banner} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover" style={{ opacity: 0.13 }} />
+          <div className="absolute inset-0" style={{ background: `linear-gradient(90deg, var(--s-surface) 42%, rgba(${colorRgb},0.06) 100%)` }} />
+        </>
+      )}
+      <div className="h-[3px] relative" style={{ background: `linear-gradient(90deg, ${color}, rgba(${colorRgb},0.3), transparent 70%)` }} />
+      <div className="relative p-5 lg:p-6">
+        <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
+          {/* Identité */}
+          <div className="flex items-start gap-4 min-w-0">
+            {gameLogo && (
+              <div className="bevel-sm flex items-center justify-center flex-shrink-0" style={{ width: 52, height: 52, background: 'var(--s-elevated)' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={gameLogo} alt="" width={38} height={38} style={{ width: 38, height: 38, objectFit: 'contain' }} />
+              </div>
+            )}
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Circuit Aedral</span>
+                <GameTag gameId={c.game} size="sm" />
+                {c.hidden && (
+                  <span className="tag tag-neutral inline-flex items-center gap-1" style={{ color: 'var(--s-gold)', borderColor: 'rgba(255,184,0,0.4)' }}>
+                    <EyeOff size={12} /> Test
                   </span>
                 )}
-                <span className="t-mono flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                  <Calendar size={12} /> {comp.edition}
+                {!c.hidden && c.status !== 'active' && <span className="tag tag-neutral">{CIRCUIT_STATUS[c.status] ?? c.status}</span>}
+              </div>
+              <Link href={`/competitions/circuit/${c.id}`} className="font-display text-3xl lg:text-4xl hover:underline block truncate"
+                style={{ letterSpacing: '0.03em', lineHeight: 1.05 }}>
+                {c.name.toUpperCase()}
+              </Link>
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm mt-2" style={{ color: 'var(--s-text-dim)' }}>
+                <span className="inline-flex items-center gap-1.5">
+                  <Users2 size={14} /> {c.eventCount} Qualif{c.eventCount > 1 ? 's' : ''} → LAN {c.lanTeamCount}
                 </span>
-                {comp.prize && (
-                  <span className="t-mono flex items-center gap-1.5 font-bold" style={{ color: 'var(--s-gold)' }}>
-                    <Award size={12} /> {comp.prize}
+                {prize && (
+                  <span className="inline-flex items-center gap-1.5" style={{ color: prizeGold ? 'var(--s-gold)' : 'var(--s-text)', fontWeight: 600 }}>
+                    <Trophy size={14} style={{ color: prizeGold ? 'var(--s-gold)' : 'var(--s-text-dim)' }} /> {prize}
                   </span>
                 )}
-              </div>
-              <div className="divider mb-4 mt-6" style={{ background: 'rgba(255,255,255,0.1)' }} />
-              <div className="flex items-center justify-between">
-                <span className="t-label flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                  <ExternalLink size={10} /> Hébergée sur springs-esport.vercel.app
-                </span>
-                <span className="btn-springs btn-secondary bevel-sm transition-all group-hover:border-[rgba(255,255,255,0.4)]"
-                  style={{ padding: '8px 20px', fontSize: '12px', borderColor: 'rgba(255,255,255,0.2)' }}>
-                  Voir la compétition <ExternalLink size={12} />
-                </span>
               </div>
             </div>
-          </a>
-        ))}
-      </section>
+          </div>
 
+          {/* Carte focus : stat-décision + CTA */}
+          <div className="bevel-sm p-4 lg:min-w-[260px]" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+            <p className="t-label mb-1" style={{ color: f.registrationOpen ? color : 'var(--s-text-muted)' }}>{focusEyebrow}</p>
+            {f.eventName && f.mode !== 'done' ? (
+              <>
+                <p className="font-semibold text-sm truncate">{f.eventName}</p>
+                {focusMeta && (
+                  <p className="text-xs mt-0.5 inline-flex items-center gap-1.5" style={{ color: f.registrationOpen ? '#ffb46b' : 'var(--s-text-dim)' }}>
+                    <CalendarDays size={12} /> {focusMeta}
+                  </p>
+                )}
+                {(f.registrationOpen || f.mode === 'live') && (
+                  <div className="mt-2.5">
+                    <GlanceStat mono size={20}
+                      value={`${f.approvedCount}${f.maxTeams ? ` / ${f.maxTeams}` : ''}`}
+                      label="équipes inscrites" />
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                {f.mode === 'done' ? 'Circuit terminé' : 'Aucune inscription ouverte'}
+              </p>
+            )}
+            <div className="mt-3">
+              {canRegister ? (
+                <Link href={`/competitions/${f.targetId}/inscription`} className="btn-springs btn-primary bevel-sm text-sm inline-flex items-center gap-1.5">
+                  Inscrire une équipe <ArrowRight size={14} />
+                </Link>
+              ) : (
+                <Link href={`/competitions/circuit/${c.id}`} className="btn-springs btn-secondary bevel-sm text-sm inline-flex items-center gap-1.5">
+                  Voir le circuit <ArrowRight size={14} />
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
