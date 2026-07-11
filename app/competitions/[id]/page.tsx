@@ -7,13 +7,14 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { CalendarDays, Users2, ScrollText, ArrowRight, Trophy, EyeOff, ChevronLeft } from 'lucide-react';
+import { CalendarDays, Users2, ScrollText, ArrowRight, Trophy, EyeOff, ChevronLeft, ChevronDown, ExternalLink, ShieldCheck } from 'lucide-react';
 import { api, apiPublic, ApiError } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
 import GameTag from '@/components/games/GameTag';
 import BracketView from '@/components/competitions/BracketView';
 import TeamCrest from '@/components/competitions/TeamCrest';
 import RegistrationStatusPill from '@/components/competitions/RegistrationStatusPill';
+import OrganizerCredit from '@/components/competitions/OrganizerCredit';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { getGameColor, getGameColorRgb, getGameBannerUrl } from '@/lib/games-registry';
 import type { CompetitionEligibility, CompetitionFormat, CompetitionSchedule } from '@/types/competitions';
@@ -26,6 +27,7 @@ interface PublicCompetition {
     status: string;
     circuitId: string | null;
     circuitName: string | null;
+    organizer: { name: string; logoUrl?: string | null } | null;
     format: CompetitionFormat | null;
     roster: { starters: number; subsMax: number } | null;
     eligibility: CompetitionEligibility | null;
@@ -35,7 +37,14 @@ interface PublicCompetition {
     prizePool: { amount?: number; currency?: string } | number | null;
     isDev: boolean;
   };
-  teams: Array<{ name: string; tag: string; logoUrl: string | null }>;
+  teams: Array<{
+    teamId: string;
+    name: string;
+    tag: string;
+    logoUrl: string | null;
+    roster: Array<{ displayName: string; role: 'titulaire' | 'remplacant'; trackerUrl: string | null; verified: boolean }>;
+    staff: Array<{ name: string; role: 'manager' | 'coach' }>;
+  }>;
   waitlistedCount: number;
   myRegistrations: Array<{ teamName: string; tag: string; logoUrl: string | null; status: string }>;
 }
@@ -79,6 +88,7 @@ export default function CompetitionPage() {
   const [data, setData] = useState<PublicCompetition | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
 
   useEffect(() => {
     // Fetch AUTHENTIFIÉ dès qu'un utilisateur est connecté : une compétition
@@ -153,6 +163,9 @@ export default function CompetitionPage() {
         )}
         <div className="h-[3px] relative" style={{ background: `linear-gradient(90deg, ${color}, rgba(${colorRgb},0.3), transparent 70%)` }} />
         <div className="relative p-6 space-y-3">
+          {comp.organizer?.name && (
+            <OrganizerCredit organizer={comp.organizer} height={30} />
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <GameTag gameId={comp.game} size="sm" />
             <span className="tag tag-neutral">{STATUS_LABELS[comp.status] ?? comp.status}</span>
@@ -313,14 +326,58 @@ export default function CompetitionPage() {
             <p className="text-sm px-4 py-6" style={{ color: 'var(--s-text-dim)' }}>
               Aucune équipe validée pour l&apos;instant.
             </p>
-          ) : teams.map((t, i) => (
-            <div key={`${t.name}-${i}`} className="flex items-center gap-3 px-4 py-2.5"
-              style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' }}>
-              <TeamCrest url={t.logoUrl} tag={t.tag} name={t.name} size={26} />
-              <span className="text-sm font-semibold flex-1 min-w-0 truncate">{t.name}</span>
-              {t.tag && <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>[{t.tag}]</span>}
-            </div>
-          ))}
+          ) : teams.map((t, i) => {
+            const open = expandedTeam === t.teamId;
+            const roster = [...t.roster].sort((a, b) => (a.role === b.role ? 0 : a.role === 'titulaire' ? -1 : 1));
+            const hasDetails = t.roster.length > 0 || t.staff.length > 0;
+            return (
+              <div key={t.teamId || `${t.name}-${i}`} style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' }}>
+                <button type="button"
+                  onClick={() => hasDetails && setExpandedTeam(open ? null : t.teamId)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors"
+                  style={{ cursor: hasDetails ? 'pointer' : 'default', background: open ? 'var(--s-elevated)' : 'transparent' }}>
+                  <TeamCrest url={t.logoUrl} tag={t.tag} name={t.name} size={26} />
+                  <span className="text-sm font-semibold flex-1 min-w-0 truncate">{t.name}</span>
+                  {t.tag && <span className="text-xs flex-shrink-0" style={{ color: 'var(--s-text-muted)' }}>[{t.tag}]</span>}
+                  {hasDetails && (
+                    <ChevronDown size={15} style={{ color: 'var(--s-text-muted)', flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
+                  )}
+                </button>
+                {open && (
+                  <div className="px-4 pb-3.5 pt-1 space-y-3" style={{ background: 'var(--s-bg)' }}>
+                    <div className="space-y-1.5">
+                      {roster.map((p, pi) => (
+                        <div key={pi} className="flex items-center gap-2.5 text-sm flex-wrap">
+                          <span className="t-label-soft flex-shrink-0" style={{ width: 78, color: 'var(--s-text-muted)' }}>
+                            {p.role === 'titulaire' ? 'Titulaire' : 'Remplaçant'}
+                          </span>
+                          <span className="font-medium">{p.displayName}</span>
+                          {p.verified && <ShieldCheck size={12} style={{ color: 'var(--s-text-dim)', flexShrink: 0 }} aria-label="Compte vérifié" />}
+                          {p.trackerUrl && (
+                            <a href={p.trackerUrl} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs hover:underline" style={{ color }}>
+                              tracker <ExternalLink size={11} />
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                      {roster.length === 0 && (
+                        <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Roster non communiqué.</p>
+                      )}
+                    </div>
+                    {t.staff.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" style={{ color: 'var(--s-text-dim)', borderTop: '1px solid var(--s-border)', paddingTop: 10 }}>
+                        <span className="t-label-soft" style={{ color: 'var(--s-text-muted)' }}>Staff</span>
+                        {t.staff.map((s, si) => (
+                          <span key={si}>{s.name} <span style={{ color: 'var(--s-text-muted)' }}>· {s.role === 'manager' ? 'Manager' : 'Coach'}</span></span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

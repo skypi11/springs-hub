@@ -39,22 +39,66 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const regsSnap = await db.collection('competition_registrations')
       .where('competitionId', '==', id)
       .get();
-    const teams: Array<{ name: string; tag: string; logoUrl: string | null }> = [];
+    type PublicRosterPlayer = { displayName: string; role: 'titulaire' | 'remplacant'; trackerUrl: string | null; verified: boolean };
+    type PublicTeam = { teamId: string; name: string; tag: string; logoUrl: string | null; roster: PublicRosterPlayer[]; staff: Array<{ name: string; role: 'manager' | 'coach' }> };
+    const teams: PublicTeam[] = [];
     let waitlisted = 0;
     for (const d of regsSnap.docs) {
       const r = d.data();
       if (r.status === 'approved') {
-        teams.push({ name: r.name ?? '', tag: r.tag ?? '', logoUrl: r.logoUrl ?? null });
+        // Roster PUBLIC : uniquement pseudo + rôle + tracker + vérifié. Les champs
+        // sensibles du snapshot (MMR, âge, Discord/Epic/Steam IDs) restent
+        // admin-only (archi §2) — on ne les mappe JAMAIS ici.
+        const roster: PublicRosterPlayer[] = Array.isArray(r.roster)
+          ? (r.roster as Array<Record<string, unknown>>).map(p => ({
+              displayName: (p.displayName as string) ?? '',
+              role: p.role === 'titulaire' ? 'titulaire' : 'remplacant',
+              trackerUrl: (p.trackerUrl as string) || null,
+              verified: p.verified === true,
+            }))
+          : [];
+        teams.push({ teamId: (r.teamId as string) ?? '', name: r.name ?? '', tag: r.tag ?? '', logoUrl: r.logoUrl ?? null, roster, staff: [] });
       } else if (r.status === 'waitlisted') {
         waitlisted++;
       }
     }
     teams.sort((a, b) => a.name.localeCompare(b.name));
 
+    // Staff (coach/manager) de chaque équipe validée : résolu en DIRECT depuis
+    // sub_teams — le staff n'est pas figé dans le snapshot (contrairement au
+    // roster compétitif, gelé pour la fairness) car ce n'est pas un fait de
+    // fairness. Public : pseudo + rôle uniquement.
+    const teamIds = teams.map(t => t.teamId).filter(Boolean);
+    if (teamIds.length > 0) {
+      const teamDocs = await Promise.all(teamIds.map(tid => db.collection('sub_teams').doc(tid).get()));
+      const staffByTeam = new Map<string, Array<{ uid: string; role: 'manager' | 'coach' }>>();
+      const allStaffUids = new Set<string>();
+      teamDocs.forEach((ts, i) => {
+        if (!ts.exists) return;
+        const t = ts.data()!;
+        const ids = Array.isArray(t.staffIds) ? (t.staffIds as string[]) : [];
+        const roles = (t.staffRoles as Record<string, string> | undefined) ?? {};
+        const entries = ids.map(u => ({ uid: u, role: (roles[u] === 'manager' ? 'manager' : 'coach') as 'manager' | 'coach' }));
+        staffByTeam.set(teamIds[i], entries);
+        entries.forEach(e => allStaffUids.add(e.uid));
+      });
+      const staffDocs = await Promise.all([...allStaffUids].map(u => db.collection('users').doc(u).get()));
+      const nameByUid = new Map<string, string>();
+      staffDocs.forEach(s => {
+        if (s.exists) nameByUid.set(s.id, (s.data()!.displayName as string) || (s.data()!.discordUsername as string) || s.id);
+      });
+      for (const t of teams) {
+        t.staff = (staffByTeam.get(t.teamId) ?? []).map(e => ({ name: nameByUid.get(e.uid) ?? e.uid, role: e.role }));
+      }
+    }
+
     let circuitName: string | null = null;
+    let organizer: { name: string; logoUrl?: string | null } | null = null;
     if (comp.circuitId) {
       const circuitSnap = await db.collection('circuits').doc(comp.circuitId as string).get();
-      circuitName = (circuitSnap.data()?.name as string) ?? null;
+      const c = circuitSnap.data();
+      circuitName = (c?.name as string) ?? null;
+      organizer = (c?.organizer as { name: string; logoUrl?: string | null } | undefined) ?? null;
     }
 
     // Statut des inscriptions de l'utilisateur connecté sur cette compétition
@@ -89,6 +133,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         status: comp.status ?? 'draft',
         circuitId: comp.circuitId ?? null,
         circuitName,
+        organizer,
         format: comp.format ?? null,
         roster: comp.roster ?? null,
         eligibility: comp.eligibility ?? null,
