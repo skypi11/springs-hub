@@ -7,6 +7,8 @@ import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { clampString } from '@/lib/validation';
 import { serializeSanction, SANCTION_REASON_CODE_SET } from '@/lib/competitions/sanctions';
 import { notifyCompetitionSanction } from '@/lib/competitions/sanctions-notify';
+import { withdrawRegistration } from '@/lib/competitions/withdraw-registration';
+import { createNotifications, type NotificationPayload } from '@/lib/notifications';
 import type { SanctionScope, SanctionTargetType, SanctionType } from '@/types/competitions';
 
 // Registre unifié des sanctions (warn / exclusion / ban) — géré par les admins
@@ -180,9 +182,108 @@ export async function POST(req: NextRequest) {
       console.error('[competition-sanctions] notify failed:', err);
     }
 
-    return NextResponse.json({ success: true, id: ref.id });
+    // EFFET de l'exclusion / du ban (Lot 3G, spec §5) : les inscriptions
+    // ACTIVES de la cible dans le périmètre sont retirées automatiquement —
+    // SAUF si le bracket est déjà publié : là c'est une disqualification, un
+    // humain décide via la console (on signale, on ne DQ jamais tout seul).
+    // Best-effort : la sanction elle-même est déjà posée.
+    let effect: { withdrawn: string[]; stillInBracket: string[] } = { withdrawn: [], stillInBracket: [] };
+    if (type === 'exclusion' || type === 'ban') {
+      try {
+        effect = await applySanctionEffect(db, { targetType, targetId, targetLabel, scope, reason });
+      } catch (err) {
+        captureApiError('API Admin/CompetitionSanctions effect error', err);
+      }
+    }
+
+    return NextResponse.json({ success: true, id: ref.id, effect });
   } catch (err) {
     captureApiError('API Admin/CompetitionSanctions POST error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
+}
+
+// ── Effet d'une exclusion / d'un ban sur les inscriptions actives ───────────
+
+async function applySanctionEffect(
+  db: FirebaseFirestore.Firestore,
+  { targetType, targetId, targetLabel, scope, reason }: {
+    targetType: SanctionTargetType;
+    targetId: string;
+    targetLabel: string;
+    scope: SanctionScope;
+    reason: string;
+  },
+): Promise<{ withdrawn: string[]; stillInBracket: string[] }> {
+  // Inscriptions actives de la CIBLE.
+  let query = db.collection('competition_registrations') as FirebaseFirestore.Query;
+  if (targetType === 'user') query = query.where('rosterUids', 'array-contains', targetId);
+  else if (targetType === 'team') query = query.where('teamId', '==', targetId);
+  else query = query.where('structureId', '==', targetId);
+  const snap = await query.get();
+  const active = snap.docs.filter(d => ['pending', 'approved', 'waitlisted'].includes((d.data().status as string) ?? ''));
+  if (active.length === 0) return { withdrawn: [], stillInBracket: [] };
+
+  // Périmètre : compétition précise, compétitions d'un circuit, ou global
+  // (ban). Les compétitions terminées/archivées ne sont jamais touchées.
+  let scopeCompIds: Set<string> | null = null;   // null = global
+  if (scope.kind === 'competition') scopeCompIds = new Set([scope.competitionId]);
+  else if (scope.kind === 'circuit') {
+    const circuit = await db.collection('circuits').doc(scope.circuitId).get();
+    scopeCompIds = new Set(Array.isArray(circuit.data()?.competitionIds) ? (circuit.data()!.competitionIds as string[]) : []);
+  }
+
+  const withdrawn: string[] = [];
+  const stillInBracket: string[] = [];
+  const compCache = new Map<string, FirebaseFirestore.DocumentData | null>();
+
+  for (const d of active) {
+    const r = d.data();
+    const compId = r.competitionId as string;
+    if (scopeCompIds && !scopeCompIds.has(compId)) continue;
+    if (!compCache.has(compId)) {
+      const cs = await db.collection('competitions').doc(compId).get();
+      compCache.set(compId, cs.exists ? cs.data()! : null);
+    }
+    const comp = compCache.get(compId);
+    if (!comp || comp.status === 'finished' || comp.status === 'archived') continue;
+
+    const teamLine = `${(r.name as string) ?? d.id} (${(comp.name as string) ?? compId})`;
+    if (comp.bracketMaterializedAt) {
+      stillInBracket.push(teamLine);
+      continue;
+    }
+    const res = await withdrawRegistration(db, {
+      registrationId: d.id,
+      cause: `Sanction appliquée à ${targetLabel} : ${reason}`,
+    });
+    if (res.ok) withdrawn.push(teamLine);
+    else if (res.code === 'bracket_published') stillInBracket.push(teamLine);
+  }
+
+  // Équipes encore dans un bracket vivant : les admins tranchent (console).
+  if (stillInBracket.length > 0) {
+    try {
+      const [aedralSnap, compAdminsSnap] = await Promise.all([
+        db.collection('aedral_admins').get(),
+        db.collection('competition_admins').get(),
+      ]);
+      const admins = new Set<string>();
+      for (const a of aedralSnap.docs) admins.add(a.id);
+      for (const a of compAdminsSnap.docs) admins.add(a.id);
+      const payloads: NotificationPayload[] = Array.from(admins).map(userId => ({
+        userId,
+        type: 'competition_match_alert',
+        title: 'Sanction posée — équipe encore en bracket',
+        message: `${targetLabel} est sanctionné(e) mais encore dans un bracket publié : ${stillInBracket.join(' · ')}. Retrait à décider via la console.`,
+        link: '/admin/competitions',
+        metadata: { sanctionTargetId: targetId },
+      }));
+      await createNotifications(db, payloads);
+    } catch (err) {
+      captureApiError('applySanctionEffect notify admins', err);
+    }
+  }
+
+  return { withdrawn, stillInBracket };
 }

@@ -12,7 +12,7 @@
 import { use, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, apiPublic, ApiError } from '@/lib/api-client';
+import { api, apiPublic, apiForm, ApiError } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { getGameColor, getGameColorRgb, getGameBannerUrl } from '@/lib/games-registry';
@@ -474,7 +474,8 @@ export default function MatchPage({ params }: { params: Promise<{ id: string; ma
                     <ShieldAlert size={16} style={{ color: 'var(--s-text-dim)' }} /> Saisies gelées.
                   </p>
                   <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>
-                    Un admin de compétition tranche et débloque le bracket.
+                    Un admin de compétition tranche et débloque le bracket. Les captures
+                    d&apos;écran de chaque manche servent de preuves.
                   </p>
                   {myEntry.length > 0 && (
                     <>
@@ -486,6 +487,11 @@ export default function MatchPage({ params }: { params: Promise<{ id: string; ma
                       </div>
                     </>
                   )}
+                  <DisputeScreenshots
+                    competitionId={id} matchId={matchId}
+                    nameA={nameA} nameB={nameB}
+                    canUpload={access?.canSubmitScores === true}
+                  />
                 </div>
               )}
             </div>
@@ -883,6 +889,83 @@ function ScoreEntryForm({ bo, teamA, teamB, mySide, color, initial, busy, alread
           Il faut un vainqueur à {needed} manches, sans manche nulle.
         </p>
       )}
+    </div>
+  );
+}
+
+// Captures d'écran du litige (spec §9) : preuves uploadées par les deux camps,
+// visibles des membres du match + admins (URLs signées courtes).
+function DisputeScreenshots({ competitionId, matchId, nameA, nameB, canUpload }: {
+  competitionId: string;
+  matchId: string;
+  nameA: string;
+  nameB: string;
+  canUpload: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const [uploading, setUploading] = useState(false);
+  const { data } = useQuery({
+    queryKey: ['match-screenshots', competitionId, matchId],
+    queryFn: () => api<{ a: Array<{ key: string; url: string }>; b: Array<{ key: string; url: string }> }>(
+      `/api/competitions/${competitionId}/matches/${matchId}/screenshots`),
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  });
+
+  async function upload(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files).slice(0, 10)) {
+        const form = new FormData();
+        form.append('file', file);
+        await apiForm(`/api/competitions/${competitionId}/matches/${matchId}/screenshots`, form);
+      }
+      toast.success(files.length > 1 ? `${files.length} captures envoyées.` : 'Capture envoyée.');
+      queryClient.invalidateQueries({ queryKey: ['match-screenshots', competitionId, matchId] });
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'Envoi impossible.');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const sideBlock = (label: string, shots: Array<{ key: string; url: string }> | undefined) => (
+    <div className="min-w-0">
+      <p className="t-label-soft mb-1">{label}</p>
+      {shots && shots.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {shots.map(s => (
+            <a key={s.key} href={s.url} target="_blank" rel="noopener noreferrer" className="bevel-sm block"
+              style={{ border: '1px solid var(--s-border)' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- URL signée R2 éphémère, hors next/image */}
+              <img src={s.url} alt={`Capture ${label}`} style={{ height: 72, width: 112, objectFit: 'cover', display: 'block' }} />
+            </a>
+          ))}
+        </div>
+      ) : (
+        <p style={{ fontSize: 13, color: 'var(--s-text-muted)' }}>Aucune capture.</p>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="space-y-3 pt-1" style={{ borderTop: '1px solid var(--s-border)', paddingTop: 12 }}>
+      <div className="flex items-center justify-between gap-3">
+        <span className="t-label-soft">Captures des manches</span>
+        {canUpload && (
+          <label className={`btn-springs btn-secondary bevel-sm text-sm ${uploading ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}>
+            {uploading ? 'Envoi…' : 'Ajouter des captures'}
+            <input type="file" accept="image/png,image/jpeg,image/webp" multiple className="sr-only"
+              onChange={e => { upload(e.target.files); e.target.value = ''; }} />
+          </label>
+        )}
+      </div>
+      <div className="grid sm:grid-cols-2 gap-4">
+        {sideBlock(nameA, data?.a)}
+        {sideBlock(nameB, data?.b)}
+      </div>
     </div>
   );
 }

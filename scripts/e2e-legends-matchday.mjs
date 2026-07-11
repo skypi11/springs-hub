@@ -9,7 +9,14 @@ import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 
-const BASE = 'http://localhost:3000';
+// E2E_BASE_URL : rejouer le run contre une preview Vercel (secrets R2 injectés
+// côté serveur). VERCEL_AUTOMATION_BYPASS_SECRET : franchir le mur SSO preview.
+const BASE = process.env.E2E_BASE_URL || 'http://localhost:3000';
+const BYPASS = process.env.VERCEL_AUTOMATION_BYPASS_SECRET || '';
+const bypassHeaders = BYPASS ? { 'x-vercel-protection-bypass': BYPASS } : {};
+// La jambe R2 (upload réel + URL signée) exige les credentials CÔTÉ SERVEUR :
+// jamais dispo en local (secret « Sensitive » Vercel), toujours sur preview/prod.
+const SERVER_HAS_R2 = !!process.env.E2E_BASE_URL || (process.env.R2_SECRET_ACCESS_KEY || '').length > 10;
 const API_KEY = 'AIzaSyBx4Goq8VR1I2MFf9L2wJm2TBaV-l_cCps';
 const P = 'e2e_md';
 const ADMIN_UID = `discord_${P}_admin`;
@@ -32,6 +39,7 @@ function check(name, cond, extra = '') {
   else { failed++; console.log(`  ✗ ${name}${extra ? ` — ${extra}` : ''}`); }
 }
 
+const r2Keys = [];   // captures uploadées pendant le run → purgées au cleanup
 const tokens = new Map();
 async function tokenFor(uid) {
   if (tokens.has(uid)) return tokens.get(uid);
@@ -50,7 +58,7 @@ async function apiAs(uid, method, path, body) {
   const token = await tokenFor(uid);
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...bypassHeaders },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   let json = null;
@@ -118,6 +126,24 @@ async function setup() {
 
 async function cleanup() {
   console.log('\n— Cleanup…');
+  // Captures R2 du run (client S3 direct, mêmes env que lib/storage).
+  if (r2Keys.length > 0 && (process.env.R2_SECRET_ACCESS_KEY || '').length <= 10) {
+    // Run contre une preview sans credentials locaux : purge impossible d'ici.
+    console.log(`  ⚠ ${r2Keys.length} capture(s) R2 non purgée(s) (pas de credentials locaux) :`);
+    for (const k of r2Keys) console.log(`    ${k}`);
+  } else if (r2Keys.length > 0) {
+    try {
+      const { S3Client, DeleteObjectCommand } = await import('@aws-sdk/client-s3');
+      const s3 = new S3Client({
+        region: 'auto', endpoint: process.env.R2_ENDPOINT,
+        credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY },
+      });
+      for (const key of r2Keys) {
+        await s3.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: key })).catch(() => null);
+      }
+      console.log(`  ${r2Keys.length} capture(s) R2 purgée(s).`);
+    } catch (e) { console.log('  cleanup R2 raté (non bloquant) :', e.message); }
+  }
   const ms = await db.collection('competition_matches').where('competitionId', '==', COMP).get();
   for (const d of ms.docs) {
     const priv = await d.ref.collection('private').get();
@@ -189,7 +215,7 @@ async function run() {
 
   console.log('— Accès & check-ins (W1-1)…');
   const w11 = await sidesOf('W1-1');
-  const anon = await fetch(`${BASE}/api/competitions/${COMP}/matches/W1-1`);
+  const anon = await fetch(`${BASE}/api/competitions/${COMP}/matches/W1-1`, { headers: bypassHeaders });
   check('anonyme sur compét masquée → 404', anon.status === 404, String(anon.status));
   const w12 = await sidesOf('W1-2');
   r = await apiAs(w12.capA, 'POST', `/api/competitions/${COMP}/matches/W1-1`, { action: 'checkin' });
@@ -223,6 +249,43 @@ async function run() {
   check('divergence → litige automatique', r.json?.resolution === 'mismatch' && disputed.status === 'disputed' && disputed.dispute?.auto === true);
   r = await apiAs(w12.capA, 'POST', `/api/competitions/${COMP}/matches/W1-2`, { action: 'submit_scores', games: WIN_A });
   check('saisie refusée pendant un litige', r.status === 409);
+
+  // Captures d'écran de litige (3D) : gardes toujours testées ; la jambe R2
+  // (upload réel + URL signée) uniquement si le serveur a les credentials.
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+  const mkForm = (type, name) => {
+    const f = new FormData();
+    f.append('file', new Blob([png], { type }), name);
+    return f;
+  };
+  const postShot = async (uid, matchKey, form) => {
+    const res = await fetch(`${BASE}/api/competitions/${COMP}/matches/${matchKey}/screenshots`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${await tokenFor(uid)}`, ...bypassHeaders },
+      body: form,
+    });
+    return { status: res.status, json: await res.json().catch(() => null) };
+  };
+  let up = await postShot(w11.capA, 'W1-1', mkForm('image/png', 'preuve.png'));
+  check('capture refusée hors litige → 409', up.status === 409, String(up.status));
+  up = await postShot(w11.capA, 'W1-2', mkForm('image/png', 'preuve.png'));
+  check('capture d\'un capitaine étranger au match → 403', up.status === 403, String(up.status));
+  up = await postShot(w12.capA, 'W1-2', mkForm('text/plain', 'preuve.txt'));
+  check('format non-image refusé → 400', up.status === 400, String(up.status));
+  const anonShots = await fetch(`${BASE}/api/competitions/${COMP}/matches/W1-2/screenshots`, { headers: bypassHeaders });
+  check('captures interdites sans authentification', anonShots.status === 401 || anonShots.status === 404, String(anonShots.status));
+  if (SERVER_HAS_R2) {
+    up = await postShot(w12.capA, 'W1-2', mkForm('image/png', 'preuve.png'));
+    check('capture de litige uploadée (capitaine)', up.status === 200 && !!up.json?.key, String(up.status));
+    if (up.json?.key) r2Keys.push(up.json.key);
+    r = await api('GET', `/api/competitions/${COMP}/matches/W1-2/screenshots`);
+    check('captures servies en URLs signées (admin)', r.status === 200 && (r.json.a ?? []).length === 1 && String(r.json.a[0].url).startsWith('http'));
+    const signed = r.status === 200 && r.json.a?.[0]?.url ? await fetch(r.json.a[0].url) : null;
+    check('URL signée téléchargeable (image/png)', !!signed && signed.ok && (signed.headers.get('content-type') ?? '').includes('image/png'), signed ? String(signed.status) : 'n/a');
+  } else {
+    console.log('  ⚠ jambe R2 sautée (R2_SECRET_ACCESS_KEY absent en local — secret « Sensitive » Vercel).');
+    console.log('    Preuve complète : E2E_BASE_URL=https://preview.aedral.com + VERCEL_AUTOMATION_BYPASS_SECRET.');
+  }
   r = await api('POST', `/api/admin/competitions/${COMP}/console`, { action: 'force_score', matchId: 'W1-2', games: WIN_B, resolution: 'Captures vérifiées : victoire B.' });
   const resolved = (await matchRef('W1-2').get()).data();
   check('force-score → completed + litige résolu (admin, pas d\'uid public)', r.status === 200 && resolved.status === 'completed' && resolved.winner === 'b' && resolved.dispute?.resolvedBy === 'admin' && resolved.scores.validatedBy === 'admin');

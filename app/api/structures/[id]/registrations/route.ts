@@ -4,6 +4,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { isDirigeant, isResponsable, isResponsableForGame } from '@/lib/structure-permissions';
 import { getSanctionsFor } from '@/lib/competitions/sanctions';
+import { withdrawRegistration } from '@/lib/competitions/withdraw-registration';
 
 // GET /api/structures/[id]/registrations — SUIVI des inscriptions compétition
 // d'une structure (onglet « Inscriptions » de Ma structure). Pas une vitrine :
@@ -160,6 +161,72 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ registrations });
   } catch (err) {
     captureApiError('API Structures/Registrations GET error', err);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+  }
+}
+
+// POST { action: 'withdraw', registrationId } — retrait de SON inscription
+// (Lot 3G). Mêmes droits que l'inscription elle-même : dirigeant, responsable
+// du jeu, ou manager de l'équipe. Possible uniquement AVANT la publication du
+// bracket (après = disqualification, décidée par un admin via la console).
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const uid = await verifyAuth(req);
+    if (!uid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
+    if (blocked) return blocked;
+
+    const { id: structureId } = await params;
+    const body = await req.json();
+    if (body.action !== 'withdraw') return NextResponse.json({ error: 'Action inconnue.' }, { status: 400 });
+    const registrationId = typeof body.registrationId === 'string' ? body.registrationId : '';
+    if (!registrationId) return NextResponse.json({ error: 'Paramètres invalides.' }, { status: 400 });
+
+    const db = getAdminDb();
+    const [structSnap, regSnap] = await Promise.all([
+      db.collection('structures').doc(structureId).get(),
+      db.collection('competition_registrations').doc(registrationId).get(),
+    ]);
+    if (!structSnap.exists || !regSnap.exists || regSnap.data()!.structureId !== structureId) {
+      return NextResponse.json({ error: 'Inscription introuvable.' }, { status: 404 });
+    }
+    const reg = regSnap.data()!;
+    const ctx = { uid, structure: structSnap.data()! as never };
+    const dir = isDirigeant(ctx);
+    const resp = isResponsable(ctx);
+
+    let allowed = dir;
+    if (!allowed) {
+      const compSnap = await db.collection('competitions').doc(reg.competitionId as string).get();
+      const game = (compSnap.data()?.game as string) ?? '';
+      if (resp && isResponsableForGame(ctx, game)) allowed = true;
+      if (!allowed) {
+        const teamSnap = await db.collection('sub_teams').doc(reg.teamId as string).get();
+        const t = teamSnap.data();
+        allowed = !!t && Array.isArray(t.staffIds) && (t.staffIds as string[]).includes(uid)
+          && ((t.staffRoles as Record<string, string> | undefined)?.[uid] ?? 'coach') === 'manager';
+      }
+    }
+    if (!allowed) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+
+    const actor = await db.collection('users').doc(uid).get();
+    const actorName = (actor.data()?.displayName as string) || (actor.data()?.discordUsername as string) || 'un dirigeant';
+    const result = await withdrawRegistration(db, {
+      registrationId,
+      cause: `Retrait décidé par ${actorName}.`,
+    });
+    if (!result.ok) {
+      const messages: Record<string, string> = {
+        not_found: 'Inscription introuvable.',
+        already_withdrawn: 'Inscription déjà retirée.',
+        bracket_published: 'Le bracket est publié — un retrait est une disqualification, à demander à un admin de compétition.',
+        state_changed: "L'inscription a changé d'état entre-temps. Recharge la page.",
+      };
+      return NextResponse.json({ error: messages[result.code] }, { status: 409 });
+    }
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    captureApiError('API Structures/Registrations POST error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

@@ -9,14 +9,18 @@
 // Portée par rôle (gérée côté serveur) : dirigeant/responsable voient toutes les
 // inscriptions, le manager d'équipe uniquement les siennes.
 //
-// Le retrait d'une inscription depuis cet onglet viendra au Lot 3 (le serveur
-// renvoie déjà `canWithdraw` par ligne) — consultation seule pour l'instant.
+// Retrait (Lot 3G) : possible AVANT la publication du bracket, par les mêmes
+// rôles que l'inscription (canWithdraw serveur). Après publication, un retrait
+// est une disqualification — décidée par un admin de compétition.
 
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Loader2, ChevronRight, ShieldAlert } from 'lucide-react';
 import { api, ApiError } from '@/lib/api-client';
 import GameTag from '@/components/games/GameTag';
+import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/ui/ConfirmModal';
 
 interface Registration {
   id: string;
@@ -60,10 +64,37 @@ const STATUS: Record<string, { label: string; color: string }> = {
 };
 
 export function InscriptionsTab({ structureId }: { structureId: string }) {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const confirm = useConfirm();
+  const [busy, setBusy] = useState(false);
   const { data, isPending, error } = useQuery({
     queryKey: ['structure-registrations', structureId] as const,
     queryFn: () => api<{ registrations: Registration[] }>(`/api/structures/${structureId}/registrations`),
   });
+
+  async function withdraw(r: Registration) {
+    const ok = await confirm({
+      title: `Retirer ${r.teamName}`,
+      message: `L'inscription à ${r.competitionName} sera retirée : place libérée, créneaux du calendrier supprimés, salons Discord fermés. Irréversible — une nouvelle inscription repasserait par la validation.`,
+      confirmLabel: 'Retirer',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await api(`/api/structures/${structureId}/registrations`, {
+        method: 'POST',
+        body: { action: 'withdraw', registrationId: r.id },
+      });
+      toast.success(`${r.teamName} retirée de ${r.competitionName}.`);
+      queryClient.invalidateQueries({ queryKey: ['structure-registrations', structureId] });
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'Retrait impossible.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (isPending) {
     return (
@@ -165,6 +196,22 @@ export function InscriptionsTab({ structureId }: { structureId: string }) {
                   )}
                   {r.status === 'rejected' && r.rejectionReason && (
                     <p style={{ color: '#ff8a8a' }}>Motif du refus : {r.rejectionReason}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Retrait — avant publication du bracket uniquement (après =
+                  disqualification, décidée par un admin). */}
+              {r.canWithdraw && ['pending', 'approved', 'waitlisted'].includes(r.status) && (
+                <div className="px-4 pb-3 pl-[52px]">
+                  {r.bracketPublished ? (
+                    <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                      Bracket publié — un retrait passe par un admin de compétition.
+                    </p>
+                  ) : (
+                    <button className="quiet-link" disabled={busy} onClick={() => withdraw(r)}>
+                      Retirer cette inscription
+                    </button>
                   )}
                 </div>
               )}

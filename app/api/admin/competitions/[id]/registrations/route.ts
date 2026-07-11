@@ -7,6 +7,7 @@ import { clampString } from '@/lib/validation';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { createNotifications, type NotificationPayload } from '@/lib/notifications';
 import { sendCompetitionDM, deprovisionRegistration } from '@/lib/discord-competition';
+import { releaseCircuitClaim } from '@/lib/competitions/withdraw-registration';
 import {
   resolveCircuitIdentity,
   circuitTeamSlug,
@@ -933,38 +934,6 @@ async function unapprove(db: FirebaseFirestore.Firestore, ctx: ActionContext) {
 // (aucune participation close, aucun claim, aucun roster) — pas de fantômes.
 // Appelée DANS une transaction : les gets précèdent tous les writes de
 // l'appelant (contrat Firestore respecté par ordre d'appel).
-async function releaseCircuitClaim(
-  db: FirebaseFirestore.Firestore,
-  tx: FirebaseFirestore.Transaction,
-  competitionId: string,
-  registrationId: string,
-  circuitTeamId: string | null,
-): Promise<void> {
-  if (!circuitTeamId) return;
-  const ctRef = db.collection('circuit_teams').doc(circuitTeamId);
-  const stateRef = ctRef.collection('private').doc('state');
-  const [ctSnap, stateSnap] = await Promise.all([tx.get(ctRef), tx.get(stateRef)]);
-  if (!ctSnap.exists) return;
-
-  const claims = { ...((stateSnap.data()?.claims as Record<string, string>) ?? {}) };
-  const rosters = { ...((stateSnap.data()?.rosterByCompetition as Record<string, unknown>) ?? {}) };
-  if (claims[competitionId] === registrationId) delete claims[competitionId];
-  if ((rosters[competitionId] as { registrationId?: string } | undefined)?.registrationId === registrationId) {
-    delete rosters[competitionId];
-  }
-
-  const participations = (ctSnap.data()?.participations as unknown[] | undefined) ?? [];
-  const orphan = participations.length === 0
-    && Object.keys(claims).length === 0
-    && Object.keys(rosters).length === 0;
-
-  if (orphan) {
-    tx.delete(stateRef);
-    tx.delete(ctRef);
-  } else {
-    tx.set(stateRef, { claims, rosterByCompetition: rosters });
-  }
-}
 
 // ── Notifications de décision (in-app garanties + DM best-effort) ───────────
 
