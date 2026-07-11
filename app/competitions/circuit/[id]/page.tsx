@@ -192,7 +192,7 @@ export default function CircuitPage() {
           {/* Crédit organisateur en tête — l'entité qui possède la compétition (Aedral héberge) */}
           {circuit.organizer?.name && (
             <div className="mb-7 pb-7" style={{ borderBottom: '1px solid var(--s-border)' }}>
-              <OrganizerCredit organizer={circuit.organizer} variant="teaser" height={84} showHost />
+              <OrganizerCredit organizer={circuit.organizer} variant="teaser" height={84} />
             </div>
           )}
           <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import AedralLogo from '@/components/brand/AedralLogo';
 
 // Crédit « Organisé par » réutilisable du module compétition. L'organisateur est
 // la VEDETTE : c'est l'entité qui possède/organise la compétition, Aedral n'est
@@ -26,13 +25,11 @@ export default function OrganizerCredit({
   organizer,
   variant = 'inline',
   height = 52,
-  showHost = false,
   className = '',
 }: {
   organizer: { name: string; logoUrl?: string | null } | null;
   variant?: 'inline' | 'teaser';
   height?: number;
-  showHost?: boolean;
   className?: string;
 }) {
   const [broken, setBroken] = useState(false);
@@ -57,13 +54,6 @@ export default function OrganizerCredit({
     </p>
   );
 
-  const hostCredit = showHost ? (
-    <div className="flex items-center gap-1.5" style={{ opacity: 0.5 }}>
-      <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Hébergé sur</span>
-      <AedralLogo variant="horizontal" theme="mono-light" height={14} />
-    </div>
-  ) : null;
-
   // ── Teaser : masthead centré, la vedette ──
   if (variant === 'teaser') {
     return (
@@ -75,7 +65,6 @@ export default function OrganizerCredit({
         <div className="relative flex flex-col items-center">
           <p className="t-label mb-3" style={{ color: accent, letterSpacing: '0.32em' }}>Organisé par</p>
           {logoNode}
-          {showHost && <div className="mt-3.5">{hostCredit}</div>}
         </div>
       </div>
     );
@@ -88,7 +77,6 @@ export default function OrganizerCredit({
         <p className="t-label mb-2" style={{ color: accent }}>Organisé par</p>
         {logoNode}
       </div>
-      {showHost && <div className="ml-auto hidden sm:flex flex-shrink-0">{hostCredit}</div>}
     </div>
   );
 }
