@@ -27,6 +27,11 @@ interface BracketMatch {
   voidB: boolean;
   teamAInfo: { name: string; tag: string; logoUrl: string | null } | null;
   teamBInfo: { name: string; tag: string; logoUrl: string | null } | null;
+  // Sources publiques d'un côté (seed ou match amont) : n° de seed et clés de
+  // match uniquement — aucune PII. Sert aux hints d'origine du bracket
+  // (« Perdant WB 1.2 », « Seed 3 »).
+  sourceA: { type: string; ref: number | string | null } | null;
+  sourceB: { type: string; ref: number | string | null } | null;
   status: string;
   winner: 'a' | 'b' | null;
   scores: { final: Array<{ a: number; b: number }> | null } | null;
@@ -69,6 +74,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         voidB: m.voidB === true,
         teamAInfo: m.teamAInfo ?? null,
         teamBInfo: m.teamBInfo ?? null,
+        sourceA: m.sourceA ?? null,
+        sourceB: m.sourceB ?? null,
         status: m.status ?? 'pending',
         winner: m.winner ?? null,
         scores: m.scores?.final ? { final: m.scores.final } : { final: null },

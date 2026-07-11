@@ -160,7 +160,8 @@ describe('getters avec fallback', () => {
 
   it('getGameLogoUrl null si jeu inconnu', () => {
     expect(getGameLogoUrl('lol')).toBeNull();
-    expect(getGameLogoUrl('rocket_league')).toBe('/games/rocket-league.png');
+    // Blason RL (swap 63e3c66) — pas l'ancien /games/rocket-league.png.
+    expect(getGameLogoUrl('rocket_league')).toBe('/logorocket.png');
   });
 
   it('getGameBannerUrl null si jeu inconnu', () => {
