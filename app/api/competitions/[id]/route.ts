@@ -60,7 +60,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // Statut des inscriptions de l'utilisateur connecté sur cette compétition
     // (bandeau « ton équipe : validée / en attente » sur la fiche). Couvre celui
     // qui a inscrit (createdBy) ET les joueurs du roster (rosterUids). Non retirées.
-    const myRegistrations: Array<{ teamName: string; status: string }> = [];
+    const myRegistrations: Array<{ teamName: string; tag: string; logoUrl: string | null; status: string }> = [];
     if (uid) {
       const [byRoster, byCreator] = await Promise.all([
         db.collection('competition_registrations').where('competitionId', '==', id).where('rosterUids', 'array-contains', uid).get(),
@@ -72,7 +72,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         seen.add(d.id);
         const r = d.data();
         if (r.status === 'withdrawn') continue;
-        myRegistrations.push({ teamName: (r.name as string) ?? '', status: (r.status as string) ?? 'pending' });
+        myRegistrations.push({
+          teamName: (r.name as string) ?? '',
+          tag: (r.tag as string) ?? '',
+          logoUrl: (r.logoUrl as string) ?? null,
+          status: (r.status as string) ?? 'pending',
+        });
       }
     }
 

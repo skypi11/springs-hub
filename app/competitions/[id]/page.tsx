@@ -12,6 +12,8 @@ import { api, apiPublic, ApiError } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
 import GameTag from '@/components/games/GameTag';
 import BracketView from '@/components/competitions/BracketView';
+import TeamCrest from '@/components/competitions/TeamCrest';
+import RegistrationStatusPill from '@/components/competitions/RegistrationStatusPill';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { getGameColor, getGameColorRgb, getGameBannerUrl } from '@/lib/games-registry';
 import type { CompetitionEligibility, CompetitionFormat, CompetitionSchedule } from '@/types/competitions';
@@ -35,17 +37,16 @@ interface PublicCompetition {
   };
   teams: Array<{ name: string; tag: string; logoUrl: string | null }>;
   waitlistedCount: number;
-  myRegistrations: Array<{ teamName: string; status: string }>;
+  myRegistrations: Array<{ teamName: string; tag: string; logoUrl: string | null; status: string }>;
 }
 
-// Statut de l'inscription de l'utilisateur, affiché en clair sur la fiche.
-// L'or est réservé au CTA + à la dotation (règle « or rationné ») : un état
-// d'attente n'est pas une récompense → neutre. Vert = validée, rouge = refusée.
-const MY_REG_STATUS: Record<string, { label: string; color: string }> = {
-  pending: { label: 'en attente de validation', color: 'var(--s-text)' },
-  approved: { label: 'validée', color: '#33ff66' },
-  waitlisted: { label: "en liste d'attente", color: 'var(--s-text)' },
-  rejected: { label: 'refusée', color: '#ff8a8a' },
+// Contexte ajouté sous la pastille de statut : une info NON évidente (qui doit
+// agir, conséquence, mécanique de la liste d'attente). Le LIBELLÉ du statut vit
+// dans RegistrationStatusPill (source unique — jamais de vert brut, vert = TM).
+const REG_CONTEXT: Record<string, string> = {
+  pending: "l'organisateur doit valider ton roster",
+  approved: 'ta place est confirmée',
+  waitlisted: 'promue si une place se libère',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -205,20 +206,35 @@ export default function CompetitionPage() {
         </div>
       </div>
 
-      {/* Statut de MON inscription (dirigeant/manager qui a inscrit, ou joueur du
-          roster) — le suivi complet est dans Ma structure › Inscriptions. */}
+      {/* Mon inscription — 2e héros : le bloc perso actionnable (dirigeant/manager
+          qui a inscrit, ou joueur du roster). Crest + statut prominent + contexte.
+          Le suivi complet vit dans Ma structure › Inscriptions. */}
       {myRegistrations.length > 0 && (
-        <div className="panel bevel">
-          <div className="panel-body py-3 space-y-1.5">
-            {myRegistrations.map((reg, i) => {
-              const st = MY_REG_STATUS[reg.status] ?? { label: reg.status, color: 'var(--s-text-dim)' };
-              return (
-                <p key={`${reg.teamName}-${i}`} className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-                  Ton inscription <span className="font-semibold" style={{ color: 'var(--s-text)' }}>{reg.teamName}</span>
-                  {' '}est <span style={{ color: st.color, fontWeight: 600 }}>{st.label}</span>.
-                </p>
-              );
-            })}
+        <div className="panel bevel" style={{ background: 'var(--s-elevated)' }}>
+          <div className="p-5 space-y-4">
+            <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>Mon inscription</p>
+            <div className="space-y-3">
+              {myRegistrations.map((reg, i) => (
+                <div key={`${reg.teamName}-${i}`} className="flex items-center gap-3">
+                  <TeamCrest url={reg.logoUrl} tag={reg.tag} name={reg.teamName} size={40} />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold truncate">{reg.teamName}</p>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                      <RegistrationStatusPill status={reg.status} />
+                      {REG_CONTEXT[reg.status] && (
+                        <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>· {REG_CONTEXT[reg.status]}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="divider" />
+            <Link href="/community/my-structure?tab=inscriptions"
+              className="group text-sm inline-flex items-center gap-1.5" style={{ color: 'var(--s-text-dim)' }}>
+              Suivi dans Ma structure › Inscriptions
+              <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
+            </Link>
           </div>
         </div>
       )}
@@ -300,12 +316,7 @@ export default function CompetitionPage() {
           ) : teams.map((t, i) => (
             <div key={`${t.name}-${i}`} className="flex items-center gap-3 px-4 py-2.5"
               style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' }}>
-              {t.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element -- logos uploadés R2, taille fixe
-                <img src={t.logoUrl} alt="" width={24} height={24} style={{ objectFit: 'cover', flexShrink: 0 }} />
-              ) : (
-                <span className="w-6 h-6 flex-shrink-0" style={{ background: 'var(--s-elevated)' }} />
-              )}
+              <TeamCrest url={t.logoUrl} tag={t.tag} name={t.name} size={26} />
               <span className="text-sm font-semibold flex-1 min-w-0 truncate">{t.name}</span>
               {t.tag && <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>[{t.tag}]</span>}
             </div>
