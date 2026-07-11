@@ -68,8 +68,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if ('error' in ctx) return NextResponse.json({ error: 'not_found' }, { status: ctx.error });
     const { db, uid, match, ref } = ctx;
 
+    // access calculé pour TOUT connecté, admins inclus : un admin qui est
+    // aussi capitaine/staff d'une équipe du match (cas des tests sur preview)
+    // voit la zone participant en plus de ses accès admin.
     const isAdmin = uid ? await isCompetitionAdmin(uid) : false;
-    const access: MatchAccess | null = uid && !isAdmin
+    const access: MatchAccess | null = uid
       ? await getMatchSideForUser(db, { teamA: match.teamA ?? null, teamB: match.teamB ?? null }, uid)
       : null;
     const involved = isAdmin || (access?.side ?? null) !== null;

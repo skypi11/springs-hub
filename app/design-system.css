@@ -600,3 +600,5 @@ a.bv-flag:hover { border-color: color-mix(in srgb, var(--s-gold) 45%, transparen
 .aedral-bracket .bv-live .opponents {
   border-color: color-mix(in srgb, var(--bv-accent, var(--s-gold)) 55%, transparent);
 }
+/* Bracket cliquable (page de match) — affordance sur les cartes. */
+.bv-clickable .brackets-viewer .opponents { cursor: pointer; }

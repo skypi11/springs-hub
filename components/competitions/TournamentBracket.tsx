@@ -154,14 +154,21 @@ function decorate(root: HTMLElement, decorations: AdaptedBracket['decorations'])
   }
 }
 
-export default function TournamentBracket({ matches, gameColor }: {
+export default function TournamentBracket({ matches, gameColor, onMatchClick }: {
   matches: PublicBracketMatch[];
   gameColor: string;
+  /** Clic sur un match (id = clé moteur "W1-1") — ex. navigation vers sa page. */
+  onMatchClick?: (matchId: string) => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const seqRef = useRef(0);
   const renderedRef = useRef<string>('');
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Ref : le viewer capture le callback au render DOM — la ref évite de
+  // re-rendre le bracket quand seule l'identité du callback change (assignée
+  // en effet, règle react-hooks/refs).
+  const onMatchClickRef = useRef(onMatchClick);
+  useEffect(() => { onMatchClickRef.current = onMatchClick; }, [onMatchClick]);
   const [failed, setFailed] = useState(false);
   // Un bracket statique garde la même ref React Query (structural sharing) :
   // sans ce tick, un échec transitoire ne serait jamais retenté.
@@ -201,6 +208,7 @@ export default function TournamentBracket({ matches, gameColor }: {
         selector: `.${instanceClass}`,
         clear: true,
         customRoundName,
+        onMatchClick: match => { onMatchClickRef.current?.(String(match.id)); },
         showSlotsOrigin: true,               // préfixes « #seed » du round 1 winners
         showLowerBracketSlotsOrigin: false,  // provenances servies par NOS hints (décorations)
         showPopoverOnMatchLabelClick: false,
@@ -233,7 +241,8 @@ export default function TournamentBracket({ matches, gameColor }: {
   // retour du réseau) retente le rendu dans le même div — un échec transitoire
   // ne condamne pas le bracket jusqu'au reload (review adversariale).
   return (
-    <div className="aedral-bracket" style={{ '--bv-accent': gameColor } as React.CSSProperties}>
+    <div className={onMatchClick ? 'aedral-bracket bv-clickable' : 'aedral-bracket'}
+      style={{ '--bv-accent': gameColor } as React.CSSProperties}>
       {failed && (
         <p className="text-sm mb-2" style={{ color: 'var(--s-text-dim)' }}>
           Le bracket n&apos;a pas pu être affiché. Nouvelle tentative au prochain rafraîchissement.

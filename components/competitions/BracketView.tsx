@@ -11,7 +11,8 @@
 // de l'arbre est délégué à TournamentBracket (brackets-viewer + adaptateur
 // pur) — la vue de tournoi scalable multi-formats.
 
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api, apiPublic } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
@@ -24,6 +25,11 @@ export default function BracketView({ competitionId, gameColor, competitionStatu
   competitionStatus?: string;
 }) {
   const { user } = useAuth();
+  const router = useRouter();
+  const openMatch = useCallback(
+    (matchId: string) => router.push(`/competitions/${competitionId}/match/${matchId}`),
+    [router, competitionId],
+  );
   // Une compét terminée/archivée ne bouge plus → inutile de poller.
   const concluded = competitionStatus === 'finished' || competitionStatus === 'archived';
   const { data, isError } = useQuery({
@@ -55,5 +61,5 @@ export default function BracketView({ competitionId, gameColor, competitionStatu
     return <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>Le bracket n&apos;est pas encore publié.</p>;
   }
 
-  return <TournamentBracket matches={matches} gameColor={gameColor} />;
+  return <TournamentBracket matches={matches} gameColor={gameColor} onMatchClick={openMatch} />;
 }
