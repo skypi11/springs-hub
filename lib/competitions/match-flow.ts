@@ -287,6 +287,23 @@ export function applyDeadlines(m: FlowMatchState, nowMs: number): DeadlineTransi
   return null;
 }
 
+/**
+ * RÉPARATION (tick) : deux saisies complètes et CONCORDANTES en score_review =
+ * un accord enregistré dont la finalisation (progression) n'est jamais partie
+ * (crash entre l'enregistrement de la contre-saisie et l'application du
+ * résultat). Le tick rejoue la finalisation — la progression est idempotente.
+ * Deux saisies divergentes ne passent jamais par ici (litige posé dans la
+ * même transaction que la contre-saisie).
+ */
+export function detectUnfinalizedAgreement(m: FlowMatchState): FlowOutcome | null {
+  if (m.status !== 'score_review' || m.disputeOpen) return null;
+  if (m.scores.a.length === 0 || m.scores.b.length === 0) return null;
+  if (!sameEntries(m.scores.a, m.scores.b)) return null;
+  const valid = validateEntry(m.scores.a, m.bo);
+  if (!valid.ok) return null;
+  return { type: 'winner', winner: valid.winner, games: m.scores.a };
+}
+
 // ── Actions admin (console) ──────────────────────────────────────────────────
 
 export interface AdminOutcomeDecision {

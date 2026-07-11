@@ -77,7 +77,12 @@ export type AdminAuditAction =
   | 'competition_seeding_opened'
   | 'competition_seeding_shuffled'
   | 'competition_seeding_reordered'
-  | 'competition_bracket_published';
+  | 'competition_bracket_published'
+  // Moteur de compétitions — Lot 3 (jour de match : console live)
+  | 'competition_phase_launched'
+  | 'competition_forfeit_validated'
+  | 'competition_score_forced'
+  | 'competition_cast_set';
 
 export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event' | 'competition' | 'circuit';
 
