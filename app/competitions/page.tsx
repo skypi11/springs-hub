@@ -183,7 +183,7 @@ function FlagshipCircuit({ c, canRegister }: { c: CircuitSummary; canRegister: b
         {/* Crédit organisateur en tête */}
         {c.organizer?.name && (
           <div className="mb-4 pb-4" style={{ borderBottom: '1px solid var(--s-border)' }}>
-            <OrganizerCredit organizer={c.organizer} height={40} />
+            <OrganizerCredit organizer={c.organizer} height={44} />
           </div>
         )}
         <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
