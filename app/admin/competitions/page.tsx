@@ -11,7 +11,8 @@ import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
-import { Trophy, Plus, Pencil, Trash2, UserMinus, ScrollText, ClipboardCheck } from 'lucide-react';
+import Link from 'next/link';
+import { Trophy, Plus, Pencil, Trash2, UserMinus, ScrollText, ClipboardCheck, Radio } from 'lucide-react';
 import GameTag from '@/components/games/GameTag';
 import CircuitForm from '@/components/admin/competitions/CircuitForm';
 import CompetitionForm from '@/components/admin/competitions/CompetitionForm';
@@ -338,6 +339,12 @@ export default function AdminCompetitionsPage() {
                 onClick={() => setView({ kind: 'registrations', competition: c })}>
                 <ClipboardCheck size={13} /> Inscriptions
               </button>
+              {(c.status === 'live' || c.status === 'seeding') && (
+                <Link href={`/admin/competitions/${c.id}/console`}
+                  className="btn-springs btn-secondary bevel-sm text-sm flex items-center gap-1">
+                  <Radio size={13} /> Console
+                </Link>
+              )}
               <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
                 onClick={() => setView({ kind: 'rulebook', scope: { competitionId: c.id }, label: c.name })}>
                 <ScrollText size={13} /> Règlement
