@@ -26,6 +26,7 @@ import { RL_RANKS } from '@/lib/rl-ranks';
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
 import { RL_PLATFORMS, getRLPlatformMeta, buildTrackerGgUrl, buildBallchasingUrl, isValidRLPlatform, type RLPlatform } from '@/lib/rl-platform';
 import { getConnectionMeta, buildConnectionUrl, pickBestRLConnection, type DiscordConnection } from '@/lib/discord-connections';
+import { VALORANT_VERIFICATION_PAUSED } from '@/lib/account-verification';
 import GameTag from '@/components/games/GameTag';
 
 const RECRUIT_ROLE_LABEL: Record<string, string> = {
@@ -109,7 +110,6 @@ export default function SettingsPage() {
   const [requestingSteamChange, setRequestingSteamChange] = useState(false);
   // Compte Riot Valorant vérifié (verrouillé sur le PUUID, miroir Epic RL).
   const [valorantLinked, setValorantLinked] = useState<{ puuid: string; riotId: string } | null>(null);
-  const [requestingValorantChange, setRequestingValorantChange] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
@@ -352,32 +352,6 @@ export default function SettingsPage() {
       toast.error(msg);
     } finally {
       setRequestingSteamChange(false);
-    }
-  }
-
-  // Demande de changement de compte Riot (Valorant) officiel. Pré-requis : avoir
-  // déjà relié la connexion Riot Discord vers le nouveau compte + reconnexion.
-  async function handleRequestValorantChange() {
-    const reason = typeof window !== 'undefined'
-      ? window.prompt(
-          'Pour quelle raison veux-tu changer ton compte Riot (Valorant) vérifié ?\n\n'
-          + '(Ex : « compte précédent perdu / hacké », « mauvais compte lié par erreur »…)\n\n'
-          + 'Précision : assure-toi d\'avoir déjà mis à jour ta connexion Riot sur Discord ET de t\'être reconnecté à Aedral. Sinon la demande sera refusée.',
-        )
-      : null;
-    if (!reason || !reason.trim()) return;
-    setRequestingValorantChange(true);
-    try {
-      await api('/api/profile/valorant-link/change-request', {
-        method: 'POST',
-        body: { reason: reason.trim() },
-      });
-      toast.success('Demande envoyée. L\'admin va la traiter.');
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'Erreur réseau.';
-      toast.error(msg);
-    } finally {
-      setRequestingValorantChange(false);
     }
   }
 
@@ -1312,9 +1286,6 @@ export default function SettingsPage() {
                         <ValorantSyncBlock
                           currentRank={form.valorantRank}
                           valorantLinked={valorantLinked}
-                          connections={form.connections}
-                          onRequestChange={handleRequestValorantChange}
-                          requestingChange={requestingValorantChange}
                         />
                       </div>
                     )}
@@ -2044,30 +2015,17 @@ export default function SettingsPage() {
 function ValorantSyncBlock({
   currentRank,
   valorantLinked,
-  connections,
-  onRequestChange,
-  requestingChange,
 }: {
   currentRank: string;
   valorantLinked: { puuid: string; riotId: string } | null;
-  connections: DiscordConnection[];
-  onRequestChange: () => void;
-  requestingChange: boolean;
 }) {
   const toast = useToast();
   const [syncing, setSyncing] = useState(false);
   const [lastResult, setLastResult] = useState<{ rank: string; rr: number; riotId: string; notRanked?: boolean } | null>(null);
 
-  // PUUID de la connexion Riot Discord actuelle (id de la connection riotgames).
-  const connRiotPuuid = (connections ?? []).find(c => c.type === 'riotgames')?.id || '';
-  // Deux cas de mismatch (les deux bloquent le sync) :
-  //  - connectionAbsent : plus aucune connexion Riot sur Discord → une demande de
-  //    changement échouerait (rien à pointer), on guide vers la re-liaison.
-  //  - connectionDiffers : une AUTRE connexion Riot est présente → on peut demander
-  //    le changement vers ce nouveau compte (validation admin).
-  const connectionAbsent = !!valorantLinked && !connRiotPuuid;
-  const connectionDiffers = !!valorantLinked && !!connRiotPuuid && connRiotPuuid !== valorantLinked.puuid;
-  const accountMismatch = connectionAbsent || connectionDiffers;
+  // NB : on ne lit plus l'état de la connexion Riot dans Discord (Discord a coupé
+  // les comptes Riot de son API OAuth en juillet 2026). Le sync s'appuie sur le
+  // PUUID vérifié STOCKÉ, indépendant de Discord → il reste dispo pour les liés.
 
   async function handleSync() {
     setSyncing(true);
@@ -2089,95 +2047,74 @@ function ValorantSyncBlock({
 
   return (
     <div className="space-y-3">
-      {/* Compte Riot vérifié (verrouillé) — miroir du bloc Epic RL */}
-      {valorantLinked && (
-        <div className="p-3 space-y-2"
-          style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.3)' }}>
-          <div className="flex items-center gap-2 flex-wrap">
-            <CheckCircle size={14} style={{ color: 'var(--s-gold)' }} />
-            <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
-              Compte Riot vérifié
-            </span>
+      {valorantLinked ? (
+        <>
+          {/* Compte Riot vérifié (verrouillé) — miroir du bloc Epic RL */}
+          <div className="p-3 space-y-2"
+            style={{ background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.3)' }}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <CheckCircle size={14} style={{ color: 'var(--s-gold)' }} />
+              <span className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
+                Compte Riot vérifié
+              </span>
+            </div>
+            {valorantLinked.riotId && (
+              <div className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                <span className="font-semibold" style={{ color: 'var(--s-text)' }}>{valorantLinked.riotId}</span>
+              </div>
+            )}
+            <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+              Changer de compte Valorant sera possible avec la connexion Riot directe (à venir).
+            </p>
           </div>
-          {valorantLinked.riotId && (
-            <div className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-              <span className="font-semibold" style={{ color: 'var(--s-text)' }}>{valorantLinked.riotId}</span>
-            </div>
-          )}
-          {connectionDiffers && (
-            <div className="p-2" style={{ background: 'rgba(255,85,85,0.08)', border: '1px solid rgba(255,85,85,0.25)' }}>
-              <p className="text-xs" style={{ color: '#ff8a8a' }}>
-                La connexion Riot sur ton Discord pointe vers un autre compte que celui vérifié. Tant que ce n&apos;est pas résolu, ton rang n&apos;est plus synchronisé. Pour lier ce nouveau compte, fais une demande de changement (validée par un admin).
-              </p>
-            </div>
-          )}
-          {connectionAbsent && (
-            <div className="p-2" style={{ background: 'rgba(255,85,85,0.08)', border: '1px solid rgba(255,85,85,0.25)' }}>
-              <p className="text-xs" style={{ color: '#ff8a8a' }}>
-                Ta connexion Riot a été retirée de ton Discord. Ton rang n&apos;est plus synchronisé. Re-lie ton compte Riot (Discord → Connexions → Riot Games) et reconnecte-toi pour reprendre la sync.
-              </p>
-            </div>
-          )}
-          {/* Le bouton de demande n'a de sens que si une NOUVELLE connexion est
-              présente (connectionDiffers). Sinon (connexion absente), la demande
-              échouerait → on guide vers la re-liaison via le message ci-dessus. */}
-          {!connectionAbsent && (
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <p className="text-xs flex-1" style={{ color: 'var(--s-text-muted)' }}>
-                Pour changer le compte vérifié, modifie d&apos;abord ta connexion Riot sur Discord, reconnecte-toi à Aedral, puis fais une demande.
-              </p>
-              <button type="button"
-                onClick={onRequestChange}
-                disabled={requestingChange}
-                className="btn-springs btn-secondary bevel-sm inline-flex items-center gap-2 disabled:opacity-50"
-                style={{ fontSize: '12px', padding: '6px 12px' }}>
-                {requestingChange ? <Loader2 size={11} className="animate-spin" /> : null}
-                Demander un changement
+
+          <div>
+            <label className="t-label block mb-2">Resynchroniser mon rang</label>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={handleSync}
+                disabled={syncing}
+                className="btn-springs bevel-sm flex items-center gap-2 px-4 py-2"
+                style={{
+                  fontSize: '13px',
+                  background: '#FF4655',
+                  border: '1px solid #FF4655',
+                  color: '#fff',
+                  cursor: syncing ? 'wait' : 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                {syncing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                {syncing ? 'Synchronisation…' : 'Sync mon rang maintenant'}
               </button>
+              {lastResult && (
+                <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                  ✓ {lastResult.riotId} · {lastResult.notRanked ? 'Non classé' : `${lastResult.rank} (${lastResult.rr} RR)`}
+                </span>
+              )}
             </div>
+            <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
+              Ton rang est resynchronisé depuis ton compte Riot vérifié, au clic et chaque nuit en arrière-plan. Pas de saisie manuelle, donc impossible de mentir.
+              {currentRank && (
+                <span> Rang actuel stocké : <strong style={{ color: 'var(--s-text-dim)' }}>{currentRank}</strong>.</span>
+              )}
+            </p>
+          </div>
+        </>
+      ) : (
+        // Non lié : plus aucune vérif possible via Discord (Riot coupé) → en pause.
+        <div className="p-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+          <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+            {VALORANT_VERIFICATION_PAUSED}
+          </p>
+          {currentRank && (
+            <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
+              Rang précédemment stocké : <strong style={{ color: 'var(--s-text-dim)' }}>{currentRank}</strong>.
+            </p>
           )}
         </div>
       )}
-
-      <div>
-        <label className="t-label block mb-2">
-          {valorantLinked ? 'Resynchroniser mon rang' : 'Lier mon compte Riot & synchroniser'}
-        </label>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={handleSync}
-            disabled={syncing || accountMismatch}
-            className="btn-springs bevel-sm flex items-center gap-2 px-4 py-2"
-            style={{
-              fontSize: '13px',
-              background: accountMismatch ? 'var(--s-elevated)' : '#FF4655',
-              border: `1px solid ${accountMismatch ? 'var(--s-border)' : '#FF4655'}`,
-              color: accountMismatch ? 'var(--s-text-muted)' : '#fff',
-              cursor: syncing ? 'wait' : (accountMismatch ? 'not-allowed' : 'pointer'),
-              fontWeight: 600,
-              opacity: accountMismatch ? 0.6 : 1,
-            }}
-          >
-            {syncing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-            {syncing ? 'Synchronisation…' : 'Sync mon rang maintenant'}
-          </button>
-          {lastResult && (
-            <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-              ✓ {lastResult.riotId} · {lastResult.notRanked ? 'Non classé' : `${lastResult.rank} (${lastResult.rr} RR)`}
-            </span>
-          )}
-        </div>
-        <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
-          Ton rang Valorant est récupéré automatiquement depuis ton compte Riot lié dans Discord (via HenrikDev), au clic et chaque nuit en arrière-plan. C&apos;est la seule façon d&apos;afficher un rang : pas de saisie manuelle, donc impossible de mentir.
-          {!valorantLinked && (
-            <span> Lie ton compte Riot dans Discord (Connexions → Riot Games), reconnecte-toi sur Aedral, puis clique ci-dessus.</span>
-          )}
-          {currentRank && (
-            <span> Rang actuel stocké : <strong style={{ color: 'var(--s-text-dim)' }}>{currentRank}</strong>.</span>
-          )}
-        </p>
-      </div>
     </div>
   );
 }

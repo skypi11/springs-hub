@@ -43,7 +43,9 @@ export default function VerifyAccountNudge() {
   const autoRefreshedRef = useRef(false);
 
   const items = getVerificationItems(user);
-  const unverified = items.filter(i => i.action);
+  // On exclut valorantPaused : rien à faire dessus (Discord a coupé Riot), donc
+  // pas de ligne d'action dans le nudge — il ne surface que l'actionnable.
+  const unverified = items.filter(i => i.action && i.action.kind !== 'valorantPaused');
   const hasLinkInDiscord = unverified.some(i => i.action?.kind === 'linkInDiscord');
   const visible = unverified.length > 0 && !dismissed;
 
@@ -90,7 +92,7 @@ export default function VerifyAccountNudge() {
 
   async function handleVerify(item: VerifyItem) {
     const action = item.action;
-    if (!action || action.kind === 'linkInDiscord') return;
+    if (!action || action.kind === 'linkInDiscord' || action.kind === 'valorantPaused') return;
     setBusy(item.game);
     track('account_verify_clicked', { game: item.game, method: action.kind });
     try {
@@ -181,6 +183,8 @@ export default function VerifyAccountNudge() {
         <div className="flex flex-col gap-2">
           {unverified.map(item => {
             const action = item.action!;
+            // valorantPaused est déjà filtré de `unverified` ; garde de type.
+            if (action.kind === 'valorantPaused') return null;
             const isBusy = busy === item.game;
 
             if (action.kind === 'linkInDiscord') {
@@ -209,23 +213,12 @@ export default function VerifyAccountNudge() {
                         <li><span style={{ color: 'var(--s-gold)' }}>2.</span> Ajoute <strong style={{ color: 'var(--s-text)' }}>{action.what}</strong> et autorise l&apos;affichage.</li>
                         <li><span style={{ color: 'var(--s-gold)' }}>3.</span> Reviens ici et clique <strong style={{ color: 'var(--s-text)' }}>J&apos;ai lié mon compte</strong>.</li>
                       </ol>
-                      {item.game === 'valorant' && (
-                        // Cause #1 des « Riot non détecté alors qu'il est sur Discord » :
-                        // Discord est passé à une liaison Riot bidirectionnelle en 2026, les
-                        // anciens liens « legacy » restent visibles dans Discord mais ne sont
-                        // plus exposés par l'API tant qu'ils ne sont pas refaits.
-                        <p className="text-xs" style={{ color: 'var(--s-text-dim)', borderLeft: '2px solid rgba(255,184,0,0.45)', paddingLeft: 10 }}>
-                          Riot est déjà dans tes connexions Discord mais reste non détecté ? Discord a changé sa liaison Riot en 2026 : <strong style={{ color: 'var(--s-text)' }}>supprime « Riot Games » dans Discord (Paramètres → Connexions) puis relie-le</strong>, et reconnecte-toi ici. Les anciens liens ne sont plus reconnus tant qu&apos;ils ne sont pas refaits.
-                        </p>
-                      )}
                       {reloginGame === item.game ? (
                         // Le refresh n'a pas suffi (session Discord expirée / connexion
                         // toujours absente) → relogin complet, bien visible.
                         <div className="space-y-2">
                           <p className="text-sm" style={{ color: '#ff8a8a' }}>
-                            {item.game === 'valorant'
-                              ? 'Toujours pas détecté. Si « Riot Games » est déjà dans tes connexions Discord, supprime-le et relie-le (Discord a changé sa liaison Riot en 2026), puis reconnecte-toi ici.'
-                              : 'Ta session Discord a expiré, on ne peut pas resynchroniser automatiquement. Reconnecte-toi : ça récupère toutes tes connexions.'}
+                            Ta session Discord a expiré, on ne peut pas resynchroniser automatiquement. Reconnecte-toi : ça récupère toutes tes connexions.
                           </p>
                           <button type="button" onClick={() => signInWithDiscord?.()}
                             className="btn-springs btn-primary bevel-sm inline-flex items-center gap-2">
