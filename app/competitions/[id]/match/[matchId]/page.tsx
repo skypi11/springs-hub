@@ -1,11 +1,13 @@
 'use client';
 
-// Page de match — publique (statut, score, stream) + zone privée des
-// participants (check-in capitaine, room, saisie des scores, litige).
-// Le camp et les droits arrivent du SERVEUR (access) — l'UI ne décide rien.
-// Polling 10 s ; tick opportuniste toutes les 30 s quand le match a une
-// deadline active (archi §5 : les pages de match tiennent l'horloge vivante
-// même console fermée).
+// FEUILLE DE MATCH — extension du langage « Le Dossier » (spec panel design
+// 12/07). Trois plans : l'AFFICHE (héros public unique, cohérente avec le hero
+// de la fiche), le puits « TON MATCH » (un seul bloc-action lifted, piloté par
+// la machine d'états — check-in → room → saisie), les ALIGNEMENTS en rangées
+// quiet. Le statut n'existe qu'à UN endroit (ligne dot + libellé de
+// l'affiche) ; les manches passent par GameRow (jamais de « 3-1 · 1-2 »
+// cryptique) ; les équipes sont nommées en NOM COMPLET partout.
+// Budget or : le CTA du bloc-action + le countdown urgent (<2 min) accolé.
 
 import { use, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -13,12 +15,21 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, apiPublic, ApiError } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
-import { getGameColor, getGameColorRgb } from '@/lib/games-registry';
+import { getGameColor, getGameColorRgb, getGameBannerUrl } from '@/lib/games-registry';
 import TeamCrest from '@/components/competitions/TeamCrest';
-import { ChevronLeft, Copy, Radio, ShieldAlert } from 'lucide-react';
+import GameRow from '@/components/competitions/GameRow';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { ChevronLeft, Copy, Radio, ShieldAlert, ShieldCheck } from 'lucide-react';
 
 type Side = { name: string; tag: string; logoUrl: string | null } | null;
 interface Game { a: number; b: number }
+interface RosterPlayer {
+  displayName: string;
+  role: 'titulaire' | 'remplacant';
+  isCaptain: boolean;
+  verified: boolean;
+  trackerUrl: string | null;
+}
 
 interface MatchPayload {
   match: {
@@ -50,16 +61,17 @@ interface MatchPayload {
   access: { side: 'a' | 'b' | null; isCaptain: boolean; isStaff: boolean; canCheckin: boolean; canSubmitScores: boolean };
   isAdmin: boolean;
   room: { name: string; password: string } | null;
+  rosters: { a: RosterPlayer[] | null; b: RosterPlayer[] | null };
 }
 
 const STATUS_FR: Record<string, string> = {
   pending: 'À venir',
   checkin: 'Check-in en cours',
-  ready: 'Prêt',
+  ready: 'Prêt à jouer',
   live: 'En cours',
   awaiting_scores: 'En attente des scores',
   score_review: 'Contre-saisie en cours',
-  disputed: 'Litige — arbitrage admin',
+  disputed: 'Score contesté',
   awaiting_forfeit_validation: 'En attente de décision admin',
   completed: 'Terminé',
   walkover: "Qualifié d'office",
@@ -80,15 +92,12 @@ function gamesWon(final: Game[] | null): { a: number; b: number } {
   return w;
 }
 
-// Compte à rebours mm:ss — l'horloge vit dans un effet (pas de Date.now() au
-// render, règle react-hooks/purity), tick 1 s uniquement quand une deadline
-// est active.
-function useCountdown(deadline: string | null): string | null {
+// Compte à rebours — l'horloge vit dans un effet (règle react-hooks/purity).
+function useCountdown(deadline: string | null): { label: string; seconds: number } | null {
   const [remaining, setRemaining] = useState<number | null>(null);
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- abonnement à l'horloge
-       (système externe) : la valeur initiale du compte à rebours doit être
-       posée immédiatement, puis tick 1 s — pattern compte à rebours assumé. */
+       (système externe) : valeur initiale immédiate puis tick 1 s. */
     if (!deadline) { setRemaining(null); return; }
     const target = Date.parse(deadline);
     if (Number.isNaN(target)) { setRemaining(null); return; }
@@ -100,7 +109,7 @@ function useCountdown(deadline: string | null): string | null {
   }, [deadline]);
   if (remaining === null) return null;
   const s = Math.floor(remaining / 1000);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  return { label: `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`, seconds: s };
 }
 
 export default function MatchPage({ params }: { params: Promise<{ id: string; matchId: string }> }) {
@@ -113,7 +122,10 @@ export default function MatchPage({ params }: { params: Promise<{ id: string; ma
   const { data: compData } = useQuery({
     queryKey: ['competition', id, !!user],
     queryFn: async () => {
-      const res = await (user ? api : apiPublic)<{ competition: { name: string; game: string } }>(`/api/competitions/${id}`);
+      const res = await (user ? api : apiPublic)<{ competition: {
+        name: string; game: string;
+        schedule?: { days?: Array<{ date?: string; startsAt?: string }> } | null;
+      } }>(`/api/competitions/${id}`);
       return res.competition;
     },
     staleTime: 60_000,
@@ -128,8 +140,25 @@ export default function MatchPage({ params }: { params: Promise<{ id: string; ma
   const m = data?.match;
   const access = data?.access;
   const involved = !!access?.side || data?.isAdmin === true;
-  const color = getGameColor(compData?.game ?? 'rocket_league');
-  const colorRgb = getGameColorRgb(compData?.game ?? 'rocket_league');
+  const game = compData?.game ?? 'rocket_league';
+  const color = getGameColor(game);
+  const colorRgb = getGameColorRgb(game);
+  const banner = getGameBannerUrl(game);
+
+  // Jour courant du planning : aujourd'hui si présent, sinon le prochain,
+  // sinon le premier — affiché à la place d'un « VS » mort.
+  const matchDay = useMemo(() => {
+    const days = compData?.schedule?.days ?? [];
+    if (days.length === 0) return null;
+    const today = new Date().toISOString().slice(0, 10);
+    const day = days.find(d => d.date === today)
+      ?? days.find(d => (d.date ?? '') >= today)
+      ?? days[0];
+    if (!day?.date) return null;
+    const date = new Date(`${day.date}T12:00:00`);
+    const label = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }).format(date);
+    return { label, time: day.startsAt ?? null };
+  }, [compData]);
 
   // Tick opportuniste : tient les deadlines vivantes même console fermée.
   useEffect(() => {
@@ -156,8 +185,8 @@ export default function MatchPage({ params }: { params: Promise<{ id: string; ma
     }
   }
 
-  const checkinCountdown = useCountdown(m?.status === 'checkin' ? m.checkin?.deadline ?? null : null);
-  const counterCountdown = useCountdown(m?.status === 'score_review' ? m.scores.counterDeadline : null);
+  const checkinCd = useCountdown(m?.status === 'checkin' ? m.checkin?.deadline ?? null : null);
+  const counterCd = useCountdown(m?.status === 'score_review' ? m.scores.counterDeadline : null);
 
   if (isError && !data) {
     return (
@@ -168,256 +197,594 @@ export default function MatchPage({ params }: { params: Promise<{ id: string; ma
   }
   if (!m) {
     return (
-      <div className="px-4 sm:px-6 lg:px-8 py-8">
-        <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>Chargement du match…</p>
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-6">
+        <Skeleton className="h-6 w-72" />
+        <Skeleton className="h-64 w-full" />
+        <Skeleton className="h-44 w-full" />
       </div>
     );
   }
 
+  const nameA = m.teamAInfo?.name ?? (m.voidA ? 'BYE' : 'À déterminer');
+  const nameB = m.teamBInfo?.name ?? (m.voidB ? 'BYE' : 'À déterminer');
   const wins = gamesWon(m.scores.final);
   const done = m.status === 'completed' || m.status === 'walkover' || m.status === 'cancelled';
   const disputeOpen = !!m.dispute && m.dispute.resolvedBy === null;
   const mySide = access?.side ?? null;
-  const scorable = ['live', 'awaiting_scores', 'score_review'].includes(m.status) && !disputeOpen;
+  const needed = Math.ceil(m.bo / 2);
   const myEntry = mySide ? m.scores[mySide] : [];
   const otherEntry = mySide ? m.scores[mySide === 'a' ? 'b' : 'a'] : [];
 
+  // Manche décisive : celle où le vainqueur atteint `needed`.
+  const decisiveIndex = (() => {
+    if (!m.winner || !m.scores.final) return -1;
+    let count = 0;
+    for (let i = 0; i < m.scores.final.length; i++) {
+      const g = m.scores.final[i];
+      if ((m.winner === 'a' && g.a > g.b) || (m.winner === 'b' && g.b > g.a)) {
+        count++;
+        if (count === needed) return i;
+      }
+    }
+    return -1;
+  })();
+
+  // ── Bloc-action : un seul, choisi par la machine d'états ──────────────────
+  type ActionKind = 'checkin' | 'admin_decision' | 'room' | 'entry' | 'submitted' | 'frozen' | null;
+  const actionKind: ActionKind = (() => {
+    if (done) return null;
+    if (disputeOpen) return 'frozen';
+    switch (m.status) {
+      case 'checkin': return 'checkin';
+      case 'awaiting_forfeit_validation': return 'admin_decision';
+      case 'ready': return 'room';
+      case 'live': return 'room';
+      case 'awaiting_scores': return 'entry';
+      case 'score_review': return myEntry.length > 0 ? 'submitted' : 'entry';
+      default: return data?.room ? 'room' : null;   // pending avec room déjà servie
+    }
+  })();
+  const showWell = involved && !done && (actionKind !== null || !!data?.room);
+
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-6 animate-fade-in">
-      <Link href={`/competitions/${id}`} className="inline-flex items-center gap-1 text-sm"
-        style={{ color: 'var(--s-text-dim)' }}>
-        <ChevronLeft size={15} /> {compData?.name ?? 'Compétition'}
-      </Link>
+      <h1 className="sr-only">{nameA} vs {nameB} — {compData?.name ?? 'Compétition'}</h1>
 
-      {/* Héros du match — seul élément de niveau 1 de la page */}
+      {/* A — Rail de contexte */}
+      <nav className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+        <Link href={`/competitions/${id}`} className="inline-flex items-center gap-1" style={{ color: 'var(--s-text-dim)' }}>
+          <ChevronLeft size={15} /> {compData?.name ?? 'Compétition'}
+        </Link>
+        <span style={{ color: 'var(--s-text-muted)' }}>·</span>
+        <span style={{ color: 'var(--s-text-dim)' }}>{bracketLabel(m.bracket, m.round)}</span>
+        <span style={{ color: 'var(--s-text-muted)' }}>·</span>
+        <span className="t-mono" style={{ fontSize: 13, color: 'var(--s-text-muted)' }}>BO{m.bo}</span>
+        {matchDay && (
+          <span className="ml-auto t-mono" style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>
+            {matchDay.label}{matchDay.time ? ` · dès ${matchDay.time}` : ''}
+          </span>
+        )}
+      </nav>
+
+      {/* B — L'AFFICHE (héros public unique) */}
       <div className="panel bevel relative overflow-hidden">
-        <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${color}, rgba(${colorRgb},0.3), transparent 70%)` }} />
-        <div className="p-6 space-y-5">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="t-label-soft">{bracketLabel(m.bracket, m.round)}</span>
-            <span className="tag tag-neutral">BO{m.bo}</span>
-            <span className="tag tag-neutral">{STATUS_FR[m.status] ?? m.status}</span>
-            {m.cast?.featured && !done && (
-              m.cast.streamUrl ? (
+        {banner && (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element -- asset local /public, décoratif */}
+            <img src={banner} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover" style={{ opacity: 0.14 }} />
+            <div className="absolute inset-0" style={{ background: `linear-gradient(90deg, var(--s-surface) 30%, rgba(${colorRgb},0.06) 100%)` }} />
+          </>
+        )}
+        <div className="h-[3px] relative" style={{ background: `linear-gradient(90deg, ${color}, rgba(${colorRgb},0.3), transparent 70%)` }} />
+
+        {/* Ligne de statut — l'UNIQUE emplacement du statut */}
+        <div className="relative px-6 pt-5 flex items-center gap-2">
+          {!done && (
+            <span
+              className={m.status === 'live' ? 'match-live-dot' : ''}
+              style={{ width: 8, height: 8, flexShrink: 0, background: m.status === 'live' ? color : 'var(--s-text-muted)' }}
+            />
+          )}
+          <span className="text-sm font-semibold" style={{ color: m.status === 'live' ? color : 'var(--s-text)' }}>
+            {STATUS_FR[m.status] ?? m.status}
+          </span>
+          {m.cast?.featured && !done && (
+            <span className="ml-auto">
+              {m.cast.streamUrl ? (
                 <a href={m.cast.streamUrl} target="_blank" rel="noopener noreferrer"
-                  className="tag tag-gold inline-flex items-center gap-1">
-                  <Radio size={11} /> En stream
+                  className="btn-springs btn-secondary bevel-sm text-sm inline-flex items-center gap-1.5">
+                  <Radio size={14} /> Regarder le stream
                 </a>
               ) : (
-                <span className="tag tag-gold inline-flex items-center gap-1"><Radio size={11} /> En stream</span>
-              )
+                <span className="inline-flex items-center gap-1" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>
+                  <Radio size={12} /> Match casté
+                </span>
+              )}
+            </span>
+          )}
+        </div>
+
+        {/* Faceoff */}
+        <div className="relative grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-4 md:gap-6 px-6 py-6 md:py-8">
+          <FaceSide info={m.teamAInfo} isVoid={m.voidA} winner={m.winner === 'a'} color={color} align="right" />
+          <div className="text-center px-2">
+            {m.scores.final ? (
+              <p className="font-display text-5xl" style={{ letterSpacing: '0.04em', fontVariantNumeric: 'tabular-nums' }}>
+                <span style={{ color: m.winner === 'a' ? color : 'var(--s-text-dim)' }}>{wins.a}</span>
+                <span style={{ color: 'var(--s-text-muted)' }}> – </span>
+                <span style={{ color: m.winner === 'b' ? color : 'var(--s-text-dim)' }}>{wins.b}</span>
+              </p>
+            ) : matchDay?.time && ['pending', 'checkin', 'ready'].includes(m.status) ? (
+              <div>
+                <p className="font-display" style={{ fontSize: 32, color: 'var(--s-text)' }}>{matchDay.time}</p>
+                <p style={{ fontSize: 12, color: 'var(--s-text-dim)' }}>{matchDay.label}</p>
+              </div>
+            ) : (
+              <p className="font-display" style={{ fontSize: 28, color: 'var(--s-text-muted)', letterSpacing: '0.08em' }}>VS</p>
             )}
           </div>
-
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-            <TeamSide info={m.teamAInfo} isVoid={m.voidA} winner={m.winner === 'a'} forfeit={m.forfeit?.team === 'a' || m.forfeit?.team === 'both'} align="right" color={color} />
-            <div className="text-center px-2">
-              {m.scores.final ? (
-                <p className="font-display text-5xl" style={{ letterSpacing: '0.04em' }}>
-                  <span style={{ color: m.winner === 'a' ? color : 'var(--s-text-dim)' }}>{wins.a}</span>
-                  <span style={{ color: 'var(--s-text-muted)' }}> – </span>
-                  <span style={{ color: m.winner === 'b' ? color : 'var(--s-text-dim)' }}>{wins.b}</span>
-                </p>
-              ) : (
-                <p className="font-display text-3xl" style={{ color: 'var(--s-text-muted)', letterSpacing: '0.08em' }}>VS</p>
-              )}
-            </div>
-            <TeamSide info={m.teamBInfo} isVoid={m.voidB} winner={m.winner === 'b'} forfeit={m.forfeit?.team === 'b' || m.forfeit?.team === 'both'} align="left" color={color} />
-          </div>
-
-          {m.scores.final && m.scores.final.length > 0 && !m.forfeit && (
-            <p className="text-center t-mono text-sm" style={{ color: 'var(--s-text-dim)' }}>
-              {m.scores.final.map(g => `${g.a}-${g.b}`).join(' · ')}
-            </p>
-          )}
-          {m.forfeit && (
-            <p className="text-center text-sm" style={{ color: 'var(--s-text-dim)' }}>
-              {m.forfeit.team === 'both' ? 'Double forfait — les deux équipes sont éliminées.' : 'Victoire par forfait.'}
-              {m.forfeit.reason ? ` ${m.forfeit.reason}` : ''}
-            </p>
-          )}
-          {m.status === 'walkover' && (
-            <p className="text-center text-sm" style={{ color: 'var(--s-text-dim)' }}>
-              Qualification d&apos;office — pas d&apos;adversaire sur ce match.
-            </p>
-          )}
+          <FaceSide info={m.teamBInfo} isVoid={m.voidB} winner={m.winner === 'b'} color={color} align="left" />
         </div>
-      </div>
 
-      {/* Litige — visible de tous (statut public), détail sobre */}
-      {m.dispute && (
-        <div className="panel bevel">
-          <div className="panel-body flex items-start gap-3">
-            <ShieldAlert size={17} style={{ color: disputeOpen ? 'var(--s-gold)' : 'var(--s-text-muted)', marginTop: 2 }} />
-            <div className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-              {disputeOpen ? (
-                <>
-                  <p style={{ color: 'var(--s-text)' }} className="font-semibold">Litige en cours</p>
-                  <p>Le match est gelé le temps de l&apos;arbitrage. Un admin de compétition tranche et débloque le bracket.</p>
-                </>
-              ) : (
-                <>
-                  <p style={{ color: 'var(--s-text)' }} className="font-semibold">Litige résolu</p>
-                  {m.dispute.resolution && <p>{m.dispute.resolution}</p>}
-                </>
-              )}
-            </div>
+        {/* Bandeau d'état (un seul, priorité litige > forfait > walkover > annulé) */}
+        {(disputeOpen || m.forfeit || m.status === 'walkover' || m.status === 'cancelled') && (
+          <div className="relative flex items-center gap-2 px-6 py-2.5 text-sm"
+            style={{ borderTop: '1px solid var(--s-border)', background: `rgba(${colorRgb},0.06)`, color: 'var(--s-text-dim)' }}>
+            {disputeOpen ? (
+              <>
+                <ShieldAlert size={15} style={{ color: 'var(--s-text-dim)', flexShrink: 0 }} />
+                <span>Score contesté — un admin de compétition tranche et débloque le bracket.</span>
+              </>
+            ) : m.forfeit ? (
+              <span>
+                {m.forfeit.team === 'both'
+                  ? 'Double forfait — les deux équipes sont éliminées.'
+                  : `${m.forfeit.team === 'a' ? nameA : nameB} déclarée forfait.`}
+                {m.forfeit.reason ? ` ${m.forfeit.reason}` : ''}
+              </span>
+            ) : m.status === 'walkover' ? (
+              <span>Qualification d&apos;office — pas d&apos;adversaire sur ce match.</span>
+            ) : (
+              <span>Match non joué.</span>
+            )}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Zone participants */}
-      {involved && !done && (
-        <div className="grid md:grid-cols-2 gap-4">
-          {/* Check-in */}
-          {m.checkin && (m.status === 'checkin' || m.status === 'awaiting_forfeit_validation') && (
-            <div className="panel bevel">
-              <div className="panel-header flex items-center justify-between">
-                <span className="t-sub">Check-in</span>
-                {checkinCountdown && <span className="t-mono text-sm" style={{ color: 'var(--s-text-dim)' }}>{checkinCountdown}</span>}
-              </div>
-              <div className="panel-body space-y-3">
-                <CheckinRow label={m.teamAInfo?.name ?? 'Équipe A'} done={m.checkin.a.done} color={color} />
-                <CheckinRow label={m.teamBInfo?.name ?? 'Équipe B'} done={m.checkin.b.done} color={color} />
-                {m.status === 'awaiting_forfeit_validation' ? (
-                  <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-                    Le délai est écoulé. Un admin statue — forfait ou relance du check-in.
-                  </p>
-                ) : mySide && !m.checkin[mySide].done ? (
-                  access?.canCheckin ? (
-                    <button className="btn-springs btn-primary bevel-sm" disabled={busy}
-                      onClick={() => act({ action: 'checkin' }, 'Check-in confirmé.')}>
-                      Check-in de mon équipe
-                    </button>
-                  ) : (
-                    <p className="text-sm" style={{ color: 'var(--s-text-muted)' }}>
-                      Seul le capitaine peut check-in.
-                    </p>
-                  )
-                ) : null}
-              </div>
-            </div>
-          )}
-
-          {/* Room */}
-          {data?.room && !done && (
-            <div className="panel bevel">
-              <div className="panel-header"><span className="t-sub">Room privée</span></div>
-              <div className="panel-body space-y-3">
-                <CopyRow label="Nom" value={data.room.name} onCopy={() => toast.info('Nom de room copié.')} />
-                <CopyRow label="Mot de passe" value={data.room.password} onCopy={() => toast.info('Mot de passe copié.')} />
-                <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-                  Room à créer par : <span className="font-semibold" style={{ color: 'var(--s-text)' }}>
-                    {(m.roomHost === 'a' ? m.teamAInfo?.name : m.teamBInfo?.name) ?? '—'}
-                  </span>
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Saisie des scores */}
-          {mySide && scorable && (
-            <div className="panel bevel md:col-span-2">
-              <div className="panel-header flex items-center justify-between">
-                <span className="t-sub">Score du match</span>
-                {counterCountdown && otherEntry.length > 0 && myEntry.length === 0 && (
-                  <span className="t-mono text-sm" style={{ color: 'var(--s-gold)' }}>
-                    Contre-saisie : {counterCountdown}
+        {/* Registre des manches */}
+        {m.scores.final && m.scores.final.length > 0 && !m.forfeit && (
+          <div className="relative px-6 py-4" style={{ borderTop: '1px solid var(--s-border)' }}>
+            <div className="max-w-md mx-auto w-full">
+              <div className="flex items-baseline justify-between mb-1">
+                <span className="t-label-soft">Manches</span>
+                {m.scores.validatedBy && (
+                  <span style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>
+                    {m.scores.validatedBy === 'auto' ? 'Validé automatiquement' : 'Validé par un admin'}
                   </span>
                 )}
               </div>
-              <div className="panel-body">
-                {access?.canSubmitScores ? (
+              <div className="match-rows">
+                {m.scores.final.map((g, i) => (
+                  <GameRow key={i} index={i} game={g} teamAName={nameA} teamBName={nameB} color={color} decisive={i === decisiveIndex} />
+                ))}
+              </div>
+              {m.dispute && m.dispute.resolvedBy && (
+                <p className="mt-2" style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>
+                  Litige résolu{m.dispute.resolution ? ` — ${m.dispute.resolution}` : ''}.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* C — Le puits « TON MATCH » */}
+      {showWell && (
+        <div className="panel bevel overflow-hidden">
+          <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid var(--s-border)' }}>
+            <span className="t-label">{data?.isAdmin && !mySide ? 'Vue admin' : 'Ton match'}</span>
+            {mySide && (
+              <span className="t-label-soft">{mySide === 'a' ? nameA : nameB}</span>
+            )}
+          </div>
+          <div className="match-well">
+            <div key={`${m.status}${disputeOpen ? '-frozen' : ''}${myEntry.length > 0 ? '-submitted' : ''}`} className="animate-fade-in">
+              {actionKind === 'checkin' && (
+                <CheckinAction
+                  m={m} mySide={mySide} canCheckin={access?.canCheckin === true} busy={busy}
+                  countdown={checkinCd} color={color}
+                  onCheckin={() => act({ action: 'checkin' }, 'Check-in confirmé.')}
+                />
+              )}
+              {actionKind === 'admin_decision' && (
+                <div className="match-action bevel-sm">
+                  <p className="text-sm" style={{ color: 'var(--s-text)' }}>Délai écoulé.</p>
+                  <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>Un admin statue — forfait ou relance du check-in.</p>
+                </div>
+              )}
+              {actionKind === 'room' && (
+                <RoomAction room={data?.room ?? null} m={m} nameA={nameA} nameB={nameB} mySide={mySide}
+                  color={color} colorRgb={colorRgb}
+                  onCopy={msg => toast.info(msg)} />
+              )}
+              {actionKind === 'entry' && (
+                access?.canSubmitScores ? (
+                  <div className="match-action bevel-sm">
+                    <ScoreEntryForm
+                      bo={m.bo}
+                      teamA={{ name: nameA, tag: m.teamAInfo?.tag ?? '', logoUrl: m.teamAInfo?.logoUrl ?? null }}
+                      teamB={{ name: nameB, tag: m.teamBInfo?.tag ?? '', logoUrl: m.teamBInfo?.logoUrl ?? null }}
+                      mySide={mySide}
+                      color={color}
+                      initial={myEntry}
+                      busy={busy}
+                      alreadySubmitted={myEntry.length > 0}
+                      otherSubmitted={otherEntry.length > 0}
+                      counter={counterCd}
+                      onSubmit={games => act({ action: 'submit_scores', games }, 'Score envoyé.')}
+                      onDispute={() => act({ action: 'open_dispute' }, 'Litige ouvert — un admin va trancher.')}
+                    />
+                  </div>
+                ) : (
+                  <div className="match-action bevel-sm">
+                    <p style={{ fontSize: 13, color: 'var(--s-text-muted)' }}>
+                      La saisie est réservée au capitaine et au staff de l&apos;équipe.
+                    </p>
+                    {counterCd && (
+                      <p className="mt-2 flex items-center gap-3">
+                        <span className="t-label-soft">Contre-saisie</span>
+                        <span className={`match-countdown ${counterCd.seconds < 120 ? 'is-urgent' : ''}`} style={{ fontSize: 24 }}>
+                          {counterCd.label}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                )
+              )}
+              {actionKind === 'submitted' && (
+                <div className="match-action bevel-sm space-y-3">
+                  <span className="t-label-soft">Ta saisie</span>
+                  <div className="match-rows">
+                    {myEntry.map((g, i) => (
+                      <GameRow key={i} index={i} game={g} teamAName={nameA} teamBName={nameB} color={color} />
+                    ))}
+                  </div>
+                  <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>
+                    {otherEntry.length > 0
+                      ? 'Les deux saisies sont là — résolution en cours.'
+                      : "En attente de la saisie de l'équipe adverse."}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {access?.canSubmitScores && (
+                      <ResubmitButton m={m} mySide={mySide} color={color} busy={busy}
+                        nameA={nameA} nameB={nameB}
+                        onSubmit={games => act({ action: 'submit_scores', games }, 'Score corrigé.')} />
+                    )}
+                    {access?.canSubmitScores && (
+                      <button className="quiet-link" disabled={busy}
+                        onClick={() => act({ action: 'open_dispute' }, 'Litige ouvert — un admin va trancher.')}>
+                        Signaler un problème
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+              {actionKind === 'frozen' && (
+                <div className="match-action bevel-sm space-y-3">
+                  <p className="flex items-center gap-2 text-sm" style={{ color: 'var(--s-text)' }}>
+                    <ShieldAlert size={16} style={{ color: 'var(--s-text-dim)' }} /> Saisies gelées.
+                  </p>
+                  <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>
+                    Un admin de compétition tranche et débloque le bracket.
+                  </p>
+                  {myEntry.length > 0 && (
+                    <>
+                      <span className="t-label-soft">Ta saisie</span>
+                      <div className="match-rows">
+                        {myEntry.map((g, i) => (
+                          <GameRow key={i} index={i} game={g} teamAName={nameA} teamBName={nameB} color={color} />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Rangées support */}
+            <div className="match-rows">
+              {(m.status === 'checkin' || m.status === 'awaiting_forfeit_validation') && m.checkin && (
+                <>
+                  <SupportRow label={nameA} value={m.checkin.a.done ? 'Présente' : 'En attente'} strong={m.checkin.a.done} color={color} />
+                  <SupportRow label={nameB} value={m.checkin.b.done ? 'Présente' : 'En attente'} strong={m.checkin.b.done} color={color} />
+                </>
+              )}
+              {(m.status === 'ready' || m.status === 'live') && m.checkin?.a.done && m.checkin?.b.done && (
+                <div className="py-2.5" style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>
+                  Check-in terminé — les deux équipes présentes.
+                </div>
+              )}
+              {['awaiting_scores', 'score_review', 'disputed'].includes(m.status) && data?.room && (
+                <div className="flex items-center gap-3 py-2">
+                  <span className="t-label-soft">Room</span>
+                  <span className="t-mono truncate" style={{ fontSize: 14, color: 'var(--s-text)' }}>{data.room.name}</span>
+                  <button className="ml-auto bevel-sm flex items-center justify-center" aria-label="Copier la room"
+                    style={{ width: 40, height: 40, background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
+                    onClick={() => {
+                      navigator.clipboard?.writeText(`Room : ${data.room!.name} · Mdp : ${data.room!.password}`)
+                        .then(() => toast.info('Room copiée.')).catch(() => null);
+                    }}>
+                    <Copy size={16} style={{ color: 'var(--s-text-dim)' }} />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Saisie à live : panel niveau 2 sous le bloc room */}
+            {actionKind === 'room' && m.status === 'live' && access?.canSubmitScores && (
+              <div className="panel bevel-sm">
+                <div className="panel-header"><span className="t-sub">Score du match</span></div>
+                <div className="panel-body">
                   <ScoreEntryForm
                     bo={m.bo}
-                    tagA={m.teamAInfo?.tag ?? 'A'}
-                    tagB={m.teamBInfo?.tag ?? 'B'}
+                    teamA={{ name: nameA, tag: m.teamAInfo?.tag ?? '', logoUrl: m.teamAInfo?.logoUrl ?? null }}
+                    teamB={{ name: nameB, tag: m.teamBInfo?.tag ?? '', logoUrl: m.teamBInfo?.logoUrl ?? null }}
+                    mySide={mySide}
+                    color={color}
                     initial={myEntry}
                     busy={busy}
                     alreadySubmitted={myEntry.length > 0}
                     otherSubmitted={otherEntry.length > 0}
+                    counter={counterCd}
                     onSubmit={games => act({ action: 'submit_scores', games }, 'Score envoyé.')}
                     onDispute={() => act({ action: 'open_dispute' }, 'Litige ouvert — un admin va trancher.')}
                   />
-                ) : (
-                  <p className="text-sm" style={{ color: 'var(--s-text-muted)' }}>
-                    La saisie est réservée au capitaine et au staff de l&apos;équipe.
-                  </p>
-                )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
+
+      {/* D — Alignements */}
+      {(data?.rosters?.a?.length || data?.rosters?.b?.length) ? (
+        <div className="panel bevel">
+          <div className="panel-header"><span className="t-sub">Alignements</span></div>
+          <div className="panel-body grid sm:grid-cols-2 gap-x-8 gap-y-4">
+            <RosterColumn info={m.teamAInfo} roster={data?.rosters?.a ?? null} color={color} />
+            <RosterColumn info={m.teamBInfo} roster={data?.rosters?.b ?? null} color={color} />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function TeamSide({ info, isVoid, winner, forfeit, align, color }: {
-  info: Side; isVoid: boolean; winner: boolean; forfeit: boolean; align: 'left' | 'right'; color: string;
+// ── Sous-composants ──────────────────────────────────────────────────────────
+
+function FaceSide({ info, isVoid, winner, color, align }: {
+  info: Side; isVoid: boolean; winner: boolean; color: string; align: 'left' | 'right';
 }) {
+  const unknown = !info || isVoid;
   return (
-    <div className={`flex items-center gap-3 min-w-0 ${align === 'right' ? 'flex-row-reverse text-right justify-start' : ''}`}>
-      {info && !isVoid ? <TeamCrest url={info.logoUrl} tag={info.tag} name={info.name} size={56} /> : (
-        <div className="bevel-sm flex-shrink-0" style={{ width: 56, height: 56, background: 'var(--s-elevated)' }} />
-      )}
+    <div className={`flex items-center gap-4 min-w-0 ${align === 'right' ? 'sm:flex-row-reverse sm:text-right' : ''}`}>
+      {!unknown && <TeamCrest url={info!.logoUrl} tag={info!.tag} name={info!.name} size={80} />}
       <div className="min-w-0">
-        <p className="font-display text-xl truncate" style={{
+        {winner && <p className="t-label-soft" style={{ color }}>Vainqueur</p>}
+        <p className="font-display line-clamp-2" style={{
+          fontSize: unknown ? 20 : 'clamp(22px, 3vw, 30px)',
           letterSpacing: '0.03em',
-          color: isVoid || !info ? 'var(--s-text-muted)' : winner ? color : 'var(--s-text)',
+          lineHeight: 1.05,
+          color: unknown ? 'var(--s-text-muted)' : winner ? color : 'var(--s-text)',
         }}>
           {isVoid ? 'BYE' : info ? info.name.toUpperCase() : 'À DÉTERMINER'}
         </p>
-        <p className="text-sm" style={{ color: 'var(--s-text-muted)' }}>
-          {info && !isVoid ? `[${info.tag}]` : ''}{forfeit ? ' · forfait' : ''}
-        </p>
+        {info && !isVoid && (
+          <p className="t-mono" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>[{info.tag}]</p>
+        )}
       </div>
     </div>
   );
 }
 
-function CheckinRow({ label, done, color }: { label: string; done: boolean; color: string }) {
+function CheckinAction({ m, mySide, canCheckin, busy, countdown, color, onCheckin }: {
+  m: MatchPayload['match'];
+  mySide: 'a' | 'b' | null;
+  canCheckin: boolean;
+  busy: boolean;
+  countdown: { label: string; seconds: number } | null;
+  color: string;
+  onCheckin: () => void;
+}) {
+  const myDone = mySide && m.checkin ? m.checkin[mySide].done : false;
   return (
-    <div className="flex items-center justify-between text-sm">
-      <span style={{ color: 'var(--s-text)' }}>{label}</span>
-      <span className="font-semibold" style={{ color: done ? color : 'var(--s-text-muted)' }}>
-        {done ? 'Présente' : 'En attente'}
-      </span>
+    <div className="match-action bevel-sm">
+      <div className="grid sm:grid-cols-[1fr_auto] items-center gap-4">
+        <div className="space-y-2">
+          <p className="font-display text-lg" style={{ letterSpacing: '0.03em' }}>Check-in</p>
+          <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>
+            À 0:00 sans check-in, un admin statue — forfait possible.
+          </p>
+          {mySide && !myDone ? (
+            canCheckin ? (
+              <button className="btn-springs btn-primary bevel-sm w-full sm:w-auto" disabled={busy} onClick={onCheckin}>
+                Check-in de mon équipe
+              </button>
+            ) : (
+              <p style={{ fontSize: 13, color: 'var(--s-text-muted)' }}>Seul le capitaine peut check-in.</p>
+            )
+          ) : mySide && myDone ? (
+            <p style={{ fontSize: 13, color }}>Ton équipe est pointée.</p>
+          ) : null}
+        </div>
+        {countdown && (
+          <span className={`match-countdown ${countdown.seconds < 120 ? 'is-urgent' : ''}`}>
+            {countdown.label}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
 
-function CopyRow({ label, value, onCopy }: { label: string; value: string; onCopy: () => void }) {
+function RoomAction({ room, m, nameA, nameB, mySide, color, colorRgb, onCopy }: {
+  room: { name: string; password: string } | null;
+  m: MatchPayload['match'];
+  nameA: string;
+  nameB: string;
+  mySide: 'a' | 'b' | null;
+  color: string;
+  colorRgb: string;
+  onCopy: (msg: string) => void;
+}) {
+  if (!room) {
+    return (
+      <div className="match-action bevel-sm">
+        <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>Identifiants de room pas encore communiqués.</p>
+      </div>
+    );
+  }
+  const hostName = m.roomHost === 'a' ? nameA : nameB;
+  const iAmHost = mySide !== null && m.roomHost === mySide;
+  const copy = (value: string, msg: string) => {
+    navigator.clipboard?.writeText(value).then(() => onCopy(msg)).catch(() => null);
+  };
   return (
-    <div className="flex items-center justify-between gap-3 text-sm">
-      <span style={{ color: 'var(--s-text-muted)' }}>{label}</span>
-      <span className="t-mono flex-1 text-right truncate" style={{ color: 'var(--s-text)' }}>{value}</span>
-      <button
-        className="p-1.5 bevel-sm"
-        style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}
-        aria-label={`Copier ${label.toLowerCase()}`}
-        onClick={() => { navigator.clipboard?.writeText(value).then(onCopy).catch(() => null); }}
-      >
-        <Copy size={13} style={{ color: 'var(--s-text-dim)' }} />
+    <div className="match-action bevel-sm space-y-4">
+      {iAmHost ? (
+        <span className="bevel-sm inline-flex px-2.5 py-1 font-semibold" style={{
+          fontSize: 13, border: `1px solid ${color}`, background: `rgba(${colorRgb},0.10)`, color,
+        }}>
+          Ton équipe crée la room
+        </span>
+      ) : (
+        <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>
+          Room créée par <span className="font-semibold" style={{ color: 'var(--s-text)' }}>{hostName}</span>
+        </p>
+      )}
+      <div className="space-y-3">
+        {([['Nom', room.name, 'Nom copié.'], ['Mot de passe', room.password, 'Mot de passe copié.']] as const).map(([label, value, msg]) => (
+          <div key={label} className="flex items-end gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="t-label-soft">{label}</p>
+              <p className="t-mono break-all" style={{ fontSize: 17, color: 'var(--s-text)' }}>{value}</p>
+            </div>
+            <button className="bevel-sm flex items-center justify-center flex-shrink-0" aria-label={`Copier ${label.toLowerCase()}`}
+              style={{ width: 40, height: 40, background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
+              onClick={() => copy(value, msg)}>
+              <Copy size={16} style={{ color: 'var(--s-text-dim)' }} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <button className="btn-springs btn-secondary bevel-sm"
+        onClick={() => copy(`Room : ${room.name} · Mdp : ${room.password}`, 'Room copiée.')}>
+        Tout copier
       </button>
     </div>
   );
 }
 
-function ScoreEntryForm({ bo, tagA, tagB, initial, busy, alreadySubmitted, otherSubmitted, onSubmit, onDispute }: {
+function SupportRow({ label, value, strong, color }: { label: string; value: string; strong: boolean; color: string }) {
+  return (
+    <div className="flex items-center justify-between py-2 text-sm" style={{ minHeight: 40 }}>
+      <span style={{ color: 'var(--s-text)' }}>{label}</span>
+      <span className="font-semibold" style={{ color: strong ? color : 'var(--s-text-muted)' }}>{value}</span>
+    </div>
+  );
+}
+
+function RosterColumn({ info, roster, color }: { info: Side; roster: RosterPlayer[] | null; color: string }) {
+  const ordered = roster
+    ? [...roster].sort((a, b) => (a.role === b.role ? 0 : a.role === 'titulaire' ? -1 : 1))
+    : null;
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center gap-2 pb-2" style={{ borderBottom: '1px solid var(--s-border)' }}>
+        {info && <TeamCrest url={info.logoUrl} tag={info.tag} name={info.name} size={24} />}
+        <span className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>
+          {info?.name ?? 'À déterminer'}
+        </span>
+      </div>
+      {ordered && ordered.length > 0 ? (
+        <div className="match-rows">
+          {ordered.map((p, i) => (
+            <div key={i} className="flex items-center gap-2 text-sm" style={{ minHeight: 36 }}>
+              <span style={{
+                width: 7, height: 7, flexShrink: 0,
+                background: p.role === 'titulaire' ? color : 'transparent',
+                border: p.role === 'titulaire' ? 'none' : '1px solid var(--s-text-muted)',
+              }} />
+              <span className="truncate" style={{ color: p.role === 'titulaire' ? 'var(--s-text)' : 'var(--s-text-dim)' }}>
+                {p.displayName}
+              </span>
+              {p.verified && <ShieldCheck size={12} style={{ color: 'var(--s-text-dim)', flexShrink: 0 }} />}
+              {p.isCaptain && <span className="ml-auto t-label-soft flex-shrink-0">Capitaine</span>}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="pt-2" style={{ fontSize: 13, color: 'var(--s-text-muted)' }}>Alignement non communiqué.</p>
+      )}
+    </div>
+  );
+}
+
+// Correction après soumission : rouvre le formulaire dans une zone dédiée.
+function ResubmitButton({ m, mySide, color, busy, nameA, nameB, onSubmit }: {
+  m: MatchPayload['match'];
+  mySide: 'a' | 'b' | null;
+  color: string;
+  busy: boolean;
+  nameA: string;
+  nameB: string;
+  onSubmit: (games: Game[]) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  if (!editing) {
+    return (
+      <button className="btn-springs btn-secondary bevel-sm" disabled={busy} onClick={() => setEditing(true)}>
+        Corriger ma saisie
+      </button>
+    );
+  }
+  return (
+    <div className="w-full">
+      <ScoreEntryForm
+        bo={m.bo}
+        teamA={{ name: nameA, tag: m.teamAInfo?.tag ?? '', logoUrl: m.teamAInfo?.logoUrl ?? null }}
+        teamB={{ name: nameB, tag: m.teamBInfo?.tag ?? '', logoUrl: m.teamBInfo?.logoUrl ?? null }}
+        mySide={mySide}
+        color={color}
+        initial={mySide ? m.scores[mySide] : []}
+        busy={busy}
+        alreadySubmitted
+        otherSubmitted={mySide ? m.scores[mySide === 'a' ? 'b' : 'a'].length > 0 : false}
+        counter={null}
+        onSubmit={onSubmit}
+        onDispute={() => null}
+        hideDispute
+      />
+    </div>
+  );
+}
+
+function ScoreEntryForm({ bo, teamA, teamB, mySide, color, initial, busy, alreadySubmitted, otherSubmitted, counter, onSubmit, onDispute, hideDispute = false }: {
   bo: number;
-  tagA: string;
-  tagB: string;
+  teamA: { name: string; tag: string; logoUrl: string | null };
+  teamB: { name: string; tag: string; logoUrl: string | null };
+  mySide: 'a' | 'b' | null;
+  color: string;
   initial: Game[];
   busy: boolean;
   alreadySubmitted: boolean;
   otherSubmitted: boolean;
+  counter: { label: string; seconds: number } | null;
   onSubmit: (games: Game[]) => void;
   onDispute: () => void;
+  hideDispute?: boolean;
 }) {
   const needed = Math.ceil(bo / 2);
   const [games, setGames] = useState<Game[]>(initial.length > 0 ? initial : Array.from({ length: needed }, () => ({ a: 0, b: 0 })));
-  const [editing, setEditing] = useState(initial.length === 0);
 
   const wins = useMemo(() => {
     const w = { a: 0, b: 0 };
@@ -426,81 +793,129 @@ function ScoreEntryForm({ bo, tagA, tagB, initial, busy, alreadySubmitted, other
   }, [games]);
   const valid = (wins.a === needed || wins.b === needed) && games.every(g => g.a !== g.b);
 
-  if (!editing) {
-    return (
-      <div className="space-y-3">
-        <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-          Saisie de ton équipe : <span className="t-mono" style={{ color: 'var(--s-text)' }}>
-            {initial.map(g => `${g.a}-${g.b}`).join(' · ')}
-          </span>
-          {otherSubmitted
-            ? ' — en attente de résolution.'
-            : " — en attente de la saisie de l'équipe adverse."}
-        </p>
-        <div className="flex flex-wrap gap-3">
-          <button className="btn-springs btn-secondary bevel-sm" onClick={() => setEditing(true)}>
-            Corriger ma saisie
-          </button>
-          <button className="btn-springs btn-ghost text-sm" disabled={busy} onClick={onDispute}>
-            Signaler un problème
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const setVal = (i: number, side: 'a' | 'b', v: number) => {
+    const clamped = Math.max(0, Math.min(99, v));
+    setGames(gs => gs.map((x, j) => (j === i ? { ...x, [side]: clamped } : x)));
+  };
 
   return (
-    <div className="space-y-3">
-      <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-        Buts de chaque manche, dans l&apos;ordre. Vainqueur du match à {needed} manches (BO{bo}).
+    <div className="space-y-4">
+      <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>
+        Buts de chaque manche, dans l&apos;ordre. Vainqueur à {needed} manches (BO{bo}).
       </p>
+
+      {/* En-têtes de colonnes NOMMÉES */}
+      <div className="hidden sm:grid grid-cols-[64px_1fr_16px_1fr_auto] items-end gap-2">
+        <span />
+        <ColumnHead team={teamA} mine={mySide === 'a'} color={color} />
+        <span />
+        <ColumnHead team={teamB} mine={mySide === 'b'} color={color} />
+        <span />
+      </div>
+
       <div className="space-y-2">
         {games.map((g, i) => (
-          <div key={i} className="flex items-center gap-3">
-            <span className="t-label-soft w-20 flex-shrink-0">Manche {i + 1}</span>
-            <ScoreInput label={tagA} value={g.a} onChange={v => setGames(gs => gs.map((x, j) => j === i ? { ...x, a: v } : x))} />
-            <span style={{ color: 'var(--s-text-muted)' }}>–</span>
-            <ScoreInput label={tagB} value={g.b} onChange={v => setGames(gs => gs.map((x, j) => j === i ? { ...x, b: v } : x))} />
-            {games.length > needed && (
-              <button className="text-sm" style={{ color: 'var(--s-text-muted)' }}
-                onClick={() => setGames(gs => gs.filter((_, j) => j !== i))}>
-                Retirer
-              </button>
-            )}
+          <div key={i}>
+            {/* sm+ : une ligne */}
+            <div className="hidden sm:grid grid-cols-[64px_1fr_16px_1fr_auto] items-center gap-2">
+              <span className="t-label-soft">Manche {i + 1}</span>
+              <Stepper value={g.a} onChange={v => setVal(i, 'a', v)} label={`Buts ${teamA.name}, manche ${i + 1}`} />
+              <span className="text-center" style={{ color: 'var(--s-text-muted)' }}>–</span>
+              <Stepper value={g.b} onChange={v => setVal(i, 'b', v)} label={`Buts ${teamB.name}, manche ${i + 1}`} />
+              {games.length > needed ? (
+                <button className="quiet-link justify-self-end" onClick={() => setGames(gs => gs.filter((_, j) => j !== i))}>
+                  Retirer
+                </button>
+              ) : <span />}
+            </div>
+            {/* mobile : deux lignes */}
+            <div className="sm:hidden space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="t-label-soft">Manche {i + 1}</span>
+                {games.length > needed && (
+                  <button className="quiet-link" onClick={() => setGames(gs => gs.filter((_, j) => j !== i))}>Retirer</button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Stepper value={g.a} onChange={v => setVal(i, 'a', v)} label={`Buts ${teamA.name}, manche ${i + 1}`} />
+                <span style={{ color: 'var(--s-text-muted)' }}>–</span>
+                <Stepper value={g.b} onChange={v => setVal(i, 'b', v)} label={`Buts ${teamB.name}, manche ${i + 1}`} />
+              </div>
+            </div>
           </div>
         ))}
       </div>
+
+      {/* Total live */}
+      <p className="text-center font-display" style={{ fontSize: 20, fontVariantNumeric: 'tabular-nums' }}>
+        <span className="truncate inline-block align-bottom" style={{ maxWidth: '16ch', color: wins.a >= wins.b ? 'var(--s-text)' : 'var(--s-text-dim)' }}>
+          {teamA.name.toUpperCase()}
+        </span>
+        <span style={{ color: 'var(--s-text)' }}> {wins.a} – {wins.b} </span>
+        <span className="truncate inline-block align-bottom" style={{ maxWidth: '16ch', color: wins.b >= wins.a ? 'var(--s-text)' : 'var(--s-text-dim)' }}>
+          {teamB.name.toUpperCase()}
+        </span>
+      </p>
+
       <div className="flex flex-wrap items-center gap-3">
         {games.length < bo && (
-          <button className="btn-springs btn-ghost text-sm"
-            onClick={() => setGames(gs => [...gs, { a: 0, b: 0 }])}>
+          <button className="btn-springs btn-ghost text-sm" onClick={() => setGames(gs => [...gs, { a: 0, b: 0 }])}>
             Ajouter une manche
           </button>
         )}
-        <button className="btn-springs btn-primary bevel-sm" disabled={busy || !valid}
-          onClick={() => onSubmit(games)}>
+        <button className="btn-springs btn-primary bevel-sm" disabled={busy || !valid} onClick={() => onSubmit(games)}>
           {alreadySubmitted ? 'Corriger le score' : 'Envoyer le score'}
         </button>
-        {!valid && (
-          <span className="text-sm" style={{ color: 'var(--s-text-muted)' }}>
-            Il faut un vainqueur net à {needed} manches, sans manche nulle.
+        {counter && otherSubmitted && !alreadySubmitted && (
+          <span className="flex items-center gap-2">
+            <span className="t-label-soft">Contre-saisie</span>
+            <span className={`match-countdown ${counter.seconds < 120 ? 'is-urgent' : ''}`} style={{ fontSize: 24 }}>
+              {counter.label}
+            </span>
           </span>
         )}
+        {!hideDispute && (
+          <button className="quiet-link" disabled={busy} onClick={onDispute}>Signaler un problème</button>
+        )}
+      </div>
+      {!valid && (
+        <p style={{ fontSize: 13, color: 'var(--s-text-muted)' }}>
+          Il faut un vainqueur à {needed} manches, sans manche nulle.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ColumnHead({ team, mine, color }: {
+  team: { name: string; tag: string; logoUrl: string | null }; mine: boolean; color: string;
+}) {
+  return (
+    <div className="min-w-0">
+      {mine && <p className="t-label-soft" style={{ color }}>Ton équipe</p>}
+      <div className="flex items-center gap-2">
+        <TeamCrest url={team.logoUrl} tag={team.tag} name={team.name} size={32} />
+        <span className="font-display truncate" style={{ fontSize: 17, letterSpacing: '0.03em' }}>{team.name.toUpperCase()}</span>
+        {team.tag && <span className="t-mono flex-shrink-0" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>[{team.tag}]</span>}
       </div>
     </div>
   );
 }
 
-function ScoreInput({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+function Stepper({ value, onChange, label }: { value: number; onChange: (v: number) => void; label: string }) {
   return (
-    <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--s-text-dim)' }}>
-      <span className="t-mono" style={{ fontSize: 12 }}>{label}</span>
+    <span className="inline-flex items-center gap-1">
+      <button type="button" className="match-stepper bevel-sm" disabled={value <= 0} aria-label={`${label} : moins`}
+        onClick={() => onChange(value - 1)}>−</button>
       <input
-        type="number" min={0} max={99} value={value}
-        onChange={e => onChange(Math.max(0, Math.min(99, Number(e.target.value) || 0)))}
-        className="settings-input bevel-sm"
-        style={{ width: 64, textAlign: 'center' }}
+        inputMode="numeric"
+        className="match-score-input bevel-sm"
+        aria-label={label}
+        value={value}
+        onChange={e => onChange(Math.max(0, Math.min(99, Number(e.target.value.replace(/\D/g, '')) || 0)))}
       />
-    </label>
+      <button type="button" className="match-stepper bevel-sm" disabled={value >= 99} aria-label={`${label} : plus`}
+        onClick={() => onChange(value + 1)}>+</button>
+    </span>
   );
 }

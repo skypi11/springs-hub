@@ -84,6 +84,30 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       if (roomSnap.exists) room = roomSnap.data() as { name: string; password: string };
     }
 
+    // Rosters PUBLICS des deux équipes (récap joueurs) : même projection que la
+    // fiche — pseudo + rôle + capitaine + vérifié + tracker. RIEN d'autre du
+    // snapshot (MMR, âges, IDs = admin only, archi §2).
+    const rosterOf = async (regId: string | null) => {
+      if (!regId) return null;
+      const snap = await db.collection('competition_registrations').doc(regId).get();
+      if (!snap.exists) return null;
+      const r = snap.data()!;
+      const captainUid = r.captainUid as string | undefined;
+      return Array.isArray(r.roster)
+        ? (r.roster as Array<Record<string, unknown>>).map(p => ({
+            displayName: (p.displayName as string) ?? '',
+            role: p.role === 'titulaire' ? 'titulaire' : 'remplacant',
+            isCaptain: !!captainUid && p.uid === captainUid,
+            verified: p.verified === true,
+            trackerUrl: (p.trackerUrl as string) || null,
+          }))
+        : [];
+    };
+    const [rosterA, rosterB] = await Promise.all([
+      rosterOf(match.teamA ?? null),
+      rosterOf(match.teamB ?? null),
+    ]);
+
     return NextResponse.json({
       match: {
         id: (match.id as string) ?? ctx.matchId,
@@ -134,6 +158,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       },
       isAdmin,
       room,
+      rosters: { a: rosterA, b: rosterB },
     });
   } catch (err) {
     captureApiError('API Competitions/Match GET error', err);

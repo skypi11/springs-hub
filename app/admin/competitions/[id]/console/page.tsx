@@ -1,11 +1,18 @@
 'use client';
 
-// Console live admin — jour de match (archi §7). Pilotage complet : check-in
-// général, lancement de phase PARTIEL (R5-2), rooms, forfaits, force-score,
-// litiges, cast, disqualification, repêchage waitlist. Polling 10 s + tick
-// 30 s (idempotent — les pages de match des participants le complètent).
-// L'identité des admins ne sort jamais d'ici : tout est journalisé côté
-// serveur (admin_audit_logs), les docs publics ne portent que 'admin'.
+// CONSOLE LIVE ADMIN — « Le Dossier ouvert » (spec panel design 12/07).
+// Le jour de match est un dossier ouvert sur la table de l'admin : une BARRE
+// DE SITUATION sticky (l'état du jour en 2 secondes au retour d'alt-tab), UN
+// héros lifted « À trancher » (litiges, forfaits, titre — le seul or de
+// l'écran), les phases en puits recessés avec rangées denses à colonnes
+// fixes, la périphérie (équipes) en quiet. Les matchs terminés se replient.
+//
+// REGISTRE COULEUR (règle codée) :
+// - OR = « une décision admin est requise » : compteur « À trancher » de la
+//   barre + intérieur de la zone héros. Zéro décision ⇒ zéro pixel d'or.
+// - BLEU (--s-blue) = ça joue (live/awaiting_scores, compteur « En jeu »,
+//   chiffre vainqueur de manche).
+// - NEUTRE = on attend les joueurs. VERT = fait. DIM = archive.
 
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -14,7 +21,9 @@ import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import TeamCrest from '@/components/competitions/TeamCrest';
-import { ChevronLeft, Copy, Play, Radio, RotateCcw, ShieldAlert, UserX } from 'lucide-react';
+import GlanceStat from '@/components/competitions/GlanceStat';
+import GameRow from '@/components/competitions/GameRow';
+import { ChevronDown, ChevronLeft, Copy, Radio } from 'lucide-react';
 
 interface Game { a: number; b: number }
 type Side = { name: string; tag: string; logoUrl: string | null } | null;
@@ -81,17 +90,51 @@ const STATUS_FR: Record<string, string> = {
   cancelled: 'Non joué',
 };
 
-// Statut → couleur du point (signal visuel unique de la rangée).
+const COMP_STATUS_FR: Record<string, string> = {
+  draft: 'Brouillon',
+  registration: 'Inscriptions',
+  validation: 'Validation',
+  seeding: 'Seeding',
+  live: 'En cours',
+  finished: 'Terminée',
+  archived: 'Archivée',
+};
+
+// Dots : bleu = ça joue ; blanc plein = décision (le héros porte l'alarme,
+// pas l'or) ; vert = terminé ; neutre = attente/archive.
 const STATUS_DOT: Record<string, string> = {
-  checkin: 'var(--s-gold)',
   live: 'var(--s-blue)',
   awaiting_scores: 'var(--s-blue)',
-  score_review: 'var(--s-gold)',
-  disputed: 'var(--s-gold)',
-  awaiting_forfeit_validation: 'var(--s-gold)',
+  disputed: 'var(--s-text)',
+  awaiting_forfeit_validation: 'var(--s-text)',
   completed: 'var(--s-green)',
-  walkover: 'var(--s-text-muted)',
-  cancelled: 'var(--s-text-muted)',
+};
+
+const EN_JEU = new Set(['checkin', 'ready', 'live', 'awaiting_scores', 'score_review']);
+const TERMINAL = new Set(['completed', 'walkover', 'cancelled']);
+
+const disputeOpen = (m: ConsoleMatch) => !!m.dispute && m.dispute.resolvedBy === null;
+const isDecision = (m: ConsoleMatch) => disputeOpen(m) || m.status === 'awaiting_forfeit_validation';
+const nameOf = (m: ConsoleMatch, side: 'a' | 'b') => {
+  const info = side === 'a' ? m.teamAInfo : m.teamBInfo;
+  const isVoid = side === 'a' ? m.voidA : m.voidB;
+  if (isVoid) return 'BYE';
+  return info?.name ?? 'À déterminer';
+};
+const winsOf = (games: Game[]) => {
+  const w = { a: 0, b: 0 };
+  for (const g of games) { if (g.a > g.b) w.a++; else if (g.b > g.a) w.b++; }
+  return w;
+};
+const matchOrder = (a: ConsoleMatch, b: ConsoleMatch) => {
+  const rank: Record<string, number> = { winners: 0, losers: 1, grand_final: 2 };
+  return (rank[a.bracket] ?? 3) - (rank[b.bracket] ?? 3) || a.round - b.round || a.slot - b.slot;
+};
+const hhmm = (iso: string | null) => {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return null;
+  return new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(t);
 };
 
 export default function CompetitionConsolePage({ params }: { params: Promise<{ id: string }> }) {
@@ -103,8 +146,11 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
 
   const [data, setData] = useState<ConsoleData | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [phaseOverride, setPhaseOverride] = useState<Map<string, boolean>>(new Map());
+  const [showConfirmed, setShowConfirmed] = useState(false);
   const [forceScoreFor, setForceScoreFor] = useState<ConsoleMatch | null>(null);
-  const [forfeitFor, setForfeitFor] = useState<ConsoleMatch | null>(null);
+  const [forfeitFor, setForfeitFor] = useState<{ m: ConsoleMatch; preset?: 'a' | 'b' | 'both' } | null>(null);
   const [castFor, setCastFor] = useState<ConsoleMatch | null>(null);
   const [replaceFor, setReplaceFor] = useState<ConsoleRegistration | null>(null);
 
@@ -112,9 +158,7 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
     try {
       const d = await api<ConsoleData>(`/api/admin/competitions/${id}/console`);
       setData(d);
-    } catch {
-      // Blip réseau : on garde le dernier état affiché.
-    }
+    } catch { /* blip réseau : on garde le dernier état */ }
   }, [id]);
 
   useEffect(() => {
@@ -127,8 +171,8 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
     return () => { clearInterval(poll); clearInterval(tick); };
   }, [firebaseUser, authorized, id, load]);
 
-  async function action(body: Record<string, unknown>, okMsg: string, key?: string) {
-    setBusy(key ?? String(body.action));
+  async function action(body: Record<string, unknown>, okMsg: string) {
+    setBusy(String(body.action));
     try {
       await api(`/api/admin/competitions/${id}/console`, { method: 'POST', body });
       toast.success(okMsg);
@@ -151,12 +195,22 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
       if (!byPhase.has(k)) byPhase.set(k, []);
       byPhase.get(k)!.push(m);
     }
-    const planned = (data.competition.phasePlan ?? [])
+    const list = (data.competition.phasePlan ?? [])
       .map(p => ({ phase: p.phase as number | null, label: p.label, matches: (byPhase.get(p.phase) ?? []).sort(matchOrder) }))
       .filter(p => p.matches.length > 0);
     const rest = byPhase.get(null);
-    if (rest && rest.length > 0) planned.push({ phase: null, label: 'Hors plan', matches: rest.sort(matchOrder) });
-    return planned;
+    if (rest && rest.length > 0) list.push({ phase: null, label: 'Hors plan', matches: rest.sort(matchOrder) });
+    return list;
+  }, [data]);
+
+  const decisions = useMemo(() => {
+    if (!data) return [] as Array<{ kind: 'title' | 'dispute' | 'forfeit'; m: ConsoleMatch | null }>;
+    const out: Array<{ kind: 'title' | 'dispute' | 'forfeit'; m: ConsoleMatch | null }> = [];
+    if (data.needsAdminDecision) out.push({ kind: 'title', m: null });
+    const sorted = [...data.matches].sort(matchOrder);
+    for (const m of sorted) if (disputeOpen(m)) out.push({ kind: 'dispute', m });
+    for (const m of sorted) if (m.status === 'awaiting_forfeit_validation') out.push({ kind: 'forfeit', m });
+    return out;
   }, [data]);
 
   if (!firebaseUser || !authorized) {
@@ -168,68 +222,124 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
   }
   if (!data) {
     return (
-      <div className="px-8 py-8">
-        <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>Chargement de la console…</p>
+      <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-4">
+        <div className="animate-pulse" style={{ height: 64, background: 'var(--s-elevated)' }} />
+        <div className="animate-pulse" style={{ height: 96, background: 'var(--s-elevated)' }} />
+        <div className="animate-pulse" style={{ height: 240, background: 'var(--s-elevated)' }} />
+        <div className="animate-pulse" style={{ height: 240, background: 'var(--s-elevated)' }} />
       </div>
     );
   }
 
   const approved = data.registrations.filter(r => r.status === 'approved');
   const waitlisted = data.registrations.filter(r => r.status === 'waitlisted');
+  const withdrawn = data.registrations.filter(r => r.status === 'withdrawn');
   const generalOpened = approved.some(r => r.generalCheckin !== null);
-  const missingGeneral = approved.filter(r => r.generalCheckin && !r.generalCheckin.done);
+  const confirmed = approved.filter(r => r.generalCheckin?.done);
+  const missing = approved.filter(r => r.generalCheckin && !r.generalCheckin.done);
+  const enJeuCount = data.matches.filter(m => EN_JEU.has(m.status)).length;
+  const doneCount = data.matches.filter(m => TERMINAL.has(m.status)).length;
+  const livePhase = phases.find(p => p.matches.some(m => EN_JEU.has(m.status) || isDecision(m)));
+
+  const scrollToId = (anchor: string) => {
+    document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const launchMatches = async (ms: ConsoleMatch[], label: string) => {
+    const ok = await confirm({
+      title: ms.length === 1 ? `Lancer ${nameOf(ms[0], 'a')} vs ${nameOf(ms[0], 'b')}` : `Lancer ${ms.length} matchs`,
+      message: `Check-in de ${data.competition.checkinMinutes} min ouvert, rooms générées, équipes notifiées (in-app + Discord).`,
+      confirmLabel: 'Lancer',
+    });
+    if (ok) action({ action: 'launch_phase', matchIds: ms.map(m => m.id) }, label);
+  };
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-6 animate-fade-in">
+    <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-5 animate-fade-in">
+      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1">
+        <div className="space-y-1 min-w-0">
           <Link href="/admin/competitions" className="inline-flex items-center gap-1 text-sm" style={{ color: 'var(--s-text-dim)' }}>
             <ChevronLeft size={15} /> Compétitions
           </Link>
-          <h1 className="font-display text-3xl" style={{ letterSpacing: '0.03em' }}>
+          <h1 className="font-display text-3xl truncate" style={{ letterSpacing: '0.03em' }}>
             CONSOLE — {data.competition.name.toUpperCase()}
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <span className="tag tag-neutral">{data.competition.status}</span>
+          <span className="tag tag-neutral">{COMP_STATUS_FR[data.competition.status] ?? data.competition.status}</span>
           <button className="btn-springs btn-secondary bevel-sm text-sm" disabled={busy !== null}
             onClick={async () => {
               setBusy('tick');
               try {
-                const r = await api<{ processed: Array<{ matchId: string; transition: string }> }>(`/api/competitions/${id}/tick`, { method: 'POST' });
-                toast.info(r.processed.length > 0 ? `Tick : ${r.processed.length} transition(s).` : 'Tick : rien à appliquer.');
+                const r = await api<{ processed: unknown[] }>(`/api/competitions/${id}/tick`, { method: 'POST' });
+                toast.info(r.processed.length > 0 ? `${r.processed.length} échéance(s) appliquée(s).` : 'Rien à appliquer.');
                 await load();
-              } catch { toast.error('Tick impossible.'); } finally { setBusy(null); }
+              } catch { toast.error('Échéances impossibles à forcer.'); } finally { setBusy(null); }
             }}>
-            Tick
+            Forcer les échéances
           </button>
         </div>
       </div>
 
-      {data.needsAdminDecision && (
-        <div className="panel bevel">
-          <div className="panel-body flex items-center gap-3 text-sm">
-            <ShieldAlert size={16} style={{ color: 'var(--s-gold)' }} />
-            <span style={{ color: 'var(--s-text)' }}>
-              Fin de bracket sans vainqueur mécanique — le titre doit être tranché par un admin.
-            </span>
-          </div>
-        </div>
-      )}
-      {data.finished && (
-        <div className="panel bevel">
-          <div className="panel-body text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            Bracket intégralement résolu. Clôture et points de circuit : à venir (Lot 4).
-          </div>
-        </div>
-      )}
+      {/* Barre de situation — sticky (inline : .hex-bg > * force relative) */}
+      <div className="con-bar bevel-sm" style={{ position: 'sticky', top: 0 }}>
+        <BarButton onClick={() => livePhase && scrollToId(`phase-${livePhase.phase}`)}>
+          <GlanceStat label="Phase en cours" size={20}
+            value={<span className="truncate inline-block max-w-full" title={livePhase?.label}>{livePhase?.label ?? '—'}</span>}
+            color={livePhase ? 'var(--s-text)' : 'var(--s-text-muted)'} />
+        </BarButton>
+        <BarButton onClick={() => scrollToId('a-trancher')}>
+          <GlanceStat label="À trancher" size={22} value={decisions.length}
+            color={decisions.length > 0 ? 'var(--s-gold)' : 'var(--s-text-muted)'} />
+        </BarButton>
+        <BarButton onClick={() => livePhase && scrollToId(`phase-${livePhase.phase}`)}>
+          <GlanceStat label="En jeu" size={22} value={enJeuCount}
+            color={enJeuCount > 0 ? 'var(--s-blue)' : 'var(--s-text-muted)'} />
+        </BarButton>
+        <BarButton onClick={() => scrollToId('equipes')}>
+          <GlanceStat label="Terminés" size={18} mono value={`${doneCount}/${data.matches.length}`} color="var(--s-text-muted)" />
+        </BarButton>
+      </div>
 
-      {/* Check-in général */}
+      {/* Zone À TRANCHER — l'unique héros */}
+      <div id="a-trancher" className="con-anchor">
+        {decisions.length > 0 ? (
+          <section className="con-decide bevel">
+            <div className="flex items-baseline gap-2" style={{ padding: '16px 20px' }}>
+              <span className="font-display" style={{ fontSize: 22, letterSpacing: '0.03em' }}>À TRANCHER</span>
+              <span className="font-display" style={{ fontSize: 22, color: 'var(--s-gold)' }}>— {decisions.length}</span>
+            </div>
+            {decisions.map(d => (
+              <DecisionRow key={d.m ? `${d.kind}-${d.m.id}` : 'title'} d={d} competitionId={id} busy={busy !== null}
+                onForceScore={m => setForceScoreFor(m)}
+                onForfeit={(m, preset) => setForfeitFor({ m, preset })}
+                onReopen={m => action({ action: 'reopen_checkin', matchId: m.id }, `Check-in relancé — ${nameOf(m, 'a')} vs ${nameOf(m, 'b')}.`)}
+                onTitle={() => {
+                  const target = data.matches.find(x => (x.id === 'GFR' || x.id === 'GF') && !TERMINAL.has(x.status) && x.teamA && x.teamB)
+                    ?? data.matches.find(x => !TERMINAL.has(x.status) && x.teamA && x.teamB);
+                  if (target) setForceScoreFor(target);
+                  else if (phases.length > 0) scrollToId(`phase-${phases[phases.length - 1].phase}`);
+                }} />
+            ))}
+          </section>
+        ) : (
+          <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>
+            {data.finished
+              ? 'Bracket intégralement résolu — clôture et points de circuit au Lot 4.'
+              : 'Rien en attente de décision.'}
+          </p>
+        )}
+      </div>
+
+      {/* Check-in général — jamais dominant */}
       <div className="panel bevel">
-        <div className="panel-header flex items-center justify-between">
-          <span className="t-sub">Check-in général</span>
+        <div className="panel-header flex items-center justify-between gap-3">
+          <span className="t-sub">
+            Check-in général{generalOpened ? ` — ${confirmed.length}/${approved.length} confirmées` : ''}
+          </span>
           {!generalOpened ? (
-            <button className="btn-springs btn-primary bevel-sm text-sm" disabled={busy !== null}
+            <button className="btn-springs btn-secondary bevel-sm text-sm" disabled={busy !== null}
               onClick={async () => {
                 const ok = await confirm({
                   title: 'Ouvrir le check-in général',
@@ -240,94 +350,83 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
               }}>
               Ouvrir
             </button>
-          ) : (
-            <span className="text-sm" style={{ color: missingGeneral.length > 0 ? 'var(--s-gold)' : 'var(--s-text-dim)' }}>
-              {missingGeneral.length > 0 ? `${missingGeneral.length} équipe(s) manquante(s)` : 'Toutes les équipes ont confirmé'}
-            </span>
-          )}
+          ) : missing.length === 0 ? (
+            <span className="con-pip con-pip-done" />
+          ) : null}
         </div>
-        {generalOpened && (
-          <div className="panel-body">
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-1 text-sm">
-              {approved.map(r => (
-                <div key={r.registrationId} className="flex items-center justify-between gap-2 py-1"
-                  style={{ borderBottom: '1px solid var(--s-border)' }}>
-                  <span className="truncate" style={{ color: 'var(--s-text)' }}>{r.name}</span>
-                  <span className="flex-shrink-0 font-semibold" style={{
-                    color: r.generalCheckin?.done ? 'var(--s-green)' : 'var(--s-gold)',
-                  }}>
-                    {r.generalCheckin?.done ? 'OK' : 'Manquante'}
-                  </span>
+        {generalOpened && missing.length > 0 && (
+          <div className="panel-body space-y-3">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-6">
+              {missing.map(r => (
+                <div key={r.registrationId} className="flex items-center gap-2 py-1.5 text-sm" style={{ borderBottom: '1px solid var(--s-border)' }}>
+                  <TeamCrest url={r.logoUrl} tag={r.tag} name={r.name} size={22} />
+                  <span className="truncate flex-1" style={{ color: 'var(--s-text)' }}>{r.name}</span>
+                  <span style={{ fontSize: 12, color: 'var(--s-text)' }}>Manquante</span>
                 </div>
               ))}
             </div>
+            {confirmed.length > 0 && (
+              <div>
+                <button className="quiet-link" onClick={() => setShowConfirmed(v => !v)}>
+                  {showConfirmed ? 'Masquer les confirmées' : `Voir les ${confirmed.length} confirmées`}
+                </button>
+                {showConfirmed && (
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 mt-2">
+                    {confirmed.map(r => (
+                      <div key={r.registrationId} className="flex items-center gap-2 py-1 text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                        <span className="con-pip con-pip-done" />
+                        <span className="truncate">{r.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* Phases */}
-      {phases.map(p => {
-        const launchable = p.matches.filter(m => m.status === 'pending' && m.teamA && m.teamB && !m.voidA && !m.voidB);
-        return (
-          <div key={String(p.phase)} className="panel bevel">
-            <div className="panel-header flex items-center justify-between">
-              <span className="t-sub">{p.label}</span>
-              {launchable.length > 0 && (
-                <button className="btn-springs btn-primary bevel-sm text-sm inline-flex items-center gap-1.5"
-                  disabled={busy !== null}
-                  onClick={async () => {
-                    const ok = await confirm({
-                      title: `Lancer ${launchable.length} match(s)`,
-                      message: `Check-in de ${data.competition.checkinMinutes} min ouvert, rooms générées, équipes notifiées (in-app + Discord). Les matchs non prêts de la phase ne sont pas touchés.`,
-                      confirmLabel: 'Lancer',
-                    });
-                    if (ok) action({ action: 'launch_phase', matchIds: launchable.map(m => m.id) }, 'Phase lancée.');
-                  }}>
-                  <Play size={13} /> Lancer ({launchable.length})
-                </button>
-              )}
-            </div>
-            <div className="panel-body space-y-0">
-              {p.matches.map(m => (
-                <MatchRow key={m.id} m={m} room={data.rooms[m.id] ?? null} busy={busy !== null}
-                  competitionId={id}
-                  onLaunch={() => action({ action: 'launch_phase', matchIds: [m.id] }, `${m.id} lancé.`)}
-                  onReopen={() => action({ action: 'reopen_checkin', matchId: m.id }, 'Check-in relancé.')}
-                  onForfeit={() => setForfeitFor(m)}
-                  onForceScore={() => setForceScoreFor(m)}
-                  onCast={() => setCastFor(m)}
-                  onCopy={label => toast.info(`${label} copié.`)}
-                />
-              ))}
-            </div>
-          </div>
-        );
-      })}
+      {phases.map(p => (
+        <PhaseSection key={String(p.phase)} p={p} competitionId={id} rooms={data.rooms} busy={busy !== null}
+          override={phaseOverride.get(String(p.phase))}
+          onToggle={() => setPhaseOverride(prev => {
+            const next = new Map(prev);
+            const cur = next.get(String(p.phase));
+            const isOpen = cur ?? defaultPhaseOpen(p.matches);
+            next.set(String(p.phase), !isOpen);
+            return next;
+          })}
+          expandedRows={expandedRows}
+          onToggleRow={mid => setExpandedRows(prev => {
+            const next = new Set(prev);
+            if (next.has(mid)) next.delete(mid); else next.add(mid);
+            return next;
+          })}
+          onLaunchPhase={ms => launchMatches(ms, `${ms.length} match(s) lancé(s).`)}
+          onLaunchOne={m => launchMatches([m], `${nameOf(m, 'a')} vs ${nameOf(m, 'b')} — lancé.`)}
+          onForceScore={m => setForceScoreFor(m)}
+          onForfeit={m => setForfeitFor({ m })}
+          onCast={m => setCastFor(m)}
+          onReopen={m => action({ action: 'reopen_checkin', matchId: m.id }, `Check-in relancé — ${nameOf(m, 'a')} vs ${nameOf(m, 'b')}.`)}
+          onCopyRoom={(m, room) => {
+            navigator.clipboard?.writeText(`${room.name} / ${room.password}`)
+              .then(() => toast.info(`Room de ${nameOf(m, 'a')} vs ${nameOf(m, 'b')} copiée.`)).catch(() => null);
+          }}
+        />
+      ))}
 
-      {/* Équipes — waitlist, retraits */}
-      <div className="panel bevel">
+      {/* Équipes — périphérie quiet */}
+      <div id="equipes" className="panel bevel con-anchor">
         <div className="panel-header"><span className="t-sub">Équipes</span></div>
-        <div className="panel-body space-y-0">
-          {data.registrations.map(r => (
-            <div key={r.registrationId} className="flex items-center gap-3 py-2 text-sm"
-              style={{ borderBottom: '1px solid var(--s-border)' }}>
-              <TeamCrest url={r.logoUrl} tag={r.tag} name={r.name} size={26} />
-              <span className="flex-1 min-w-0 truncate" style={{
-                color: r.status === 'withdrawn' ? 'var(--s-text-muted)' : 'var(--s-text)',
-                textDecoration: r.status === 'withdrawn' ? 'line-through' : 'none',
-              }}>
-                {r.name} <span style={{ color: 'var(--s-text-muted)' }}>[{r.tag}]{r.seed ? ` · seed ${r.seed}` : ''}</span>
-              </span>
-              <span className="t-label-soft flex-shrink-0">
-                {r.status === 'approved' ? 'validée' : r.status === 'waitlisted' ? "liste d'attente" : 'retirée'}
-              </span>
-              {r.status === 'approved' && (
-                <>
-                  <button className="btn-springs btn-ghost text-sm inline-flex items-center gap-1" disabled={busy !== null}
-                    onClick={() => setReplaceFor(r)}>
-                    <RotateCcw size={12} /> Remplacer
-                  </button>
-                  <button className="btn-springs btn-ghost text-sm inline-flex items-center gap-1" disabled={busy !== null}
+        <div className="panel-body space-y-4">
+          {approved.length > 0 && (
+            <TeamGroup label={`Validées — ${approved.length}`}>
+              {approved.map(r => (
+                <TeamRowLine key={r.registrationId} r={r}>
+                  <button className="quiet-link" disabled={busy !== null} onClick={() => setReplaceFor(r)}>Remplacer</button>
+                  <span style={{ color: 'var(--s-text-muted)', fontSize: 12 }}>·</span>
+                  <button className="quiet-link" disabled={busy !== null}
                     onClick={async () => {
                       const ok = await confirm({
                         title: `Retirer ${r.name}`,
@@ -337,40 +436,72 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
                       });
                       if (ok) action({ action: 'withdraw_team', registrationId: r.registrationId, reason: 'Retrait décidé par un admin de compétition.' }, `${r.name} retirée.`);
                     }}>
-                    <UserX size={12} /> Retirer
+                    Retirer
                   </button>
-                </>
-              )}
-            </div>
-          ))}
+                </TeamRowLine>
+              ))}
+            </TeamGroup>
+          )}
+          {waitlisted.length > 0 && (
+            <TeamGroup label={`Liste d'attente — ${waitlisted.length}`}>
+              {waitlisted.map((r, i) => (
+                <TeamRowLine key={r.registrationId} r={r} prefix={`n° ${i + 1}`} />
+              ))}
+            </TeamGroup>
+          )}
+          {withdrawn.length > 0 && (
+            <TeamGroup label={`Retirées — ${withdrawn.length}`}>
+              {withdrawn.map(r => (
+                <div key={r.registrationId} className="flex items-center gap-2 py-1.5 text-sm"
+                  style={{ borderBottom: '1px solid var(--s-border)', color: 'var(--s-text-dim)', textDecoration: 'line-through' }}>
+                  <span className="truncate">{r.name} [{r.tag}]</span>
+                </div>
+              ))}
+            </TeamGroup>
+          )}
         </div>
       </div>
 
+      {/* Modales */}
       {forceScoreFor && (
         <ForceScoreModal m={forceScoreFor} onClose={() => setForceScoreFor(null)}
           onSubmit={async (games, resolution) => {
-            const ok = await action({ action: 'force_score', matchId: forceScoreFor.id, games, resolution }, 'Score imposé — bracket avancé.');
+            const ok = await action(
+              { action: 'force_score', matchId: forceScoreFor.id, games, resolution },
+              `Score imposé — ${nameOf(forceScoreFor, 'a')} vs ${nameOf(forceScoreFor, 'b')}.`,
+            );
             if (ok) setForceScoreFor(null);
           }} />
       )}
       {forfeitFor && (
-        <ForfeitModal m={forfeitFor} onClose={() => setForfeitFor(null)}
+        <ForfeitModal m={forfeitFor.m} preset={forfeitFor.preset} onClose={() => setForfeitFor(null)}
           onSubmit={async (team, reason) => {
-            const ok = await action({ action: 'validate_forfeit', matchId: forfeitFor.id, team, reason }, 'Forfait validé — bracket avancé.');
+            const target = team === 'both' ? 'Double forfait' : nameOf(forfeitFor.m, team);
+            const ok = await action(
+              { action: 'validate_forfeit', matchId: forfeitFor.m.id, team, reason },
+              `Forfait validé — ${target}.`,
+            );
             if (ok) setForfeitFor(null);
           }} />
       )}
       {castFor && (
         <CastModal m={castFor} onClose={() => setCastFor(null)}
           onSubmit={async (featured, streamUrl) => {
-            const ok = await action({ action: 'set_cast', matchId: castFor.id, featured, streamUrl }, featured ? 'Match casté.' : 'Cast retiré.');
+            const ok = await action(
+              { action: 'set_cast', matchId: castFor.id, featured, streamUrl },
+              featured ? `${nameOf(castFor, 'a')} vs ${nameOf(castFor, 'b')} en stream.` : 'Cast retiré.',
+            );
             if (ok) setCastFor(null);
           }} />
       )}
       {replaceFor && (
         <ReplaceModal team={replaceFor} waitlisted={waitlisted} onClose={() => setReplaceFor(null)}
           onSubmit={async newRegistrationId => {
-            const ok = await action({ action: 'replace_team', oldRegistrationId: replaceFor.registrationId, newRegistrationId }, 'Remplacement effectué.');
+            const newName = newRegistrationId ? waitlisted.find(w => w.registrationId === newRegistrationId)?.name : null;
+            const ok = await action(
+              { action: 'replace_team', oldRegistrationId: replaceFor.registrationId, newRegistrationId },
+              newName ? `${replaceFor.name} remplacée par ${newName}.` : `${replaceFor.name} retirée — le siège devient un bye.`,
+            );
             if (ok) setReplaceFor(null);
           }} />
       )}
@@ -378,100 +509,434 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
   );
 }
 
-function matchOrder(a: ConsoleMatch, b: ConsoleMatch): number {
-  const rank: Record<string, number> = { winners: 0, losers: 1, grand_final: 2 };
-  return (rank[a.bracket] ?? 3) - (rank[b.bracket] ?? 3) || a.round - b.round || a.slot - b.slot;
+// ── Barre de situation ───────────────────────────────────────────────────────
+
+function BarButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} className="text-left min-w-0"
+      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+      {children}
+    </button>
+  );
 }
 
-function sideName(s: Side, isVoid: boolean): string {
-  if (isVoid) return 'BYE';
-  return s ? s.name : 'À déterminer';
-}
+// ── Zone À trancher ──────────────────────────────────────────────────────────
 
-function MatchRow({ m, room, busy, onLaunch, onReopen, onForfeit, onForceScore, onCast, onCopy }: {
-  m: ConsoleMatch;
-  room: { name: string; password: string } | null;
-  busy: boolean;
+function DecisionRow({ d, competitionId, busy, onForceScore, onForfeit, onReopen, onTitle }: {
+  d: { kind: 'title' | 'dispute' | 'forfeit'; m: ConsoleMatch | null };
   competitionId: string;
-  onLaunch: () => void;
-  onReopen: () => void;
-  onForfeit: () => void;
-  onForceScore: () => void;
-  onCast: () => void;
-  onCopy: (label: string) => void;
+  busy: boolean;
+  onForceScore: (m: ConsoleMatch) => void;
+  onForfeit: (m: ConsoleMatch, preset?: 'a' | 'b' | 'both') => void;
+  onReopen: (m: ConsoleMatch) => void;
+  onTitle: () => void;
 }) {
-  const terminal = ['completed', 'walkover', 'cancelled'].includes(m.status);
-  const launchable = m.status === 'pending' && m.teamA && m.teamB && !m.voidA && !m.voidB;
-  const disputeOpen = !!m.dispute && m.dispute.resolvedBy === null;
-  const wins = (() => {
-    const w = { a: 0, b: 0 };
-    for (const g of m.scores.final ?? []) { if (g.a > g.b) w.a++; else if (g.b > g.a) w.b++; }
-    return w;
-  })();
+  const m = d.m;
+  const kicker = d.kind === 'dispute' ? 'Litige' : d.kind === 'forfeit' ? 'Forfait' : 'Titre';
+
+  let motif: React.ReactNode = null;
+  let cta: React.ReactNode = null;
+  let preset: 'a' | 'b' | 'both' | undefined;
+
+  if (d.kind === 'title') {
+    motif = <span>Fin de bracket sans vainqueur mécanique — le titre doit être tranché.</span>;
+    cta = <button className="btn-springs btn-primary bevel-sm text-sm" disabled={busy} onClick={onTitle}>Trancher le titre</button>;
+  } else if (m && d.kind === 'dispute') {
+    const opener = m.dispute?.openedBy === 'a' ? nameOf(m, 'a') : m.dispute?.openedBy === 'b' ? nameOf(m, 'b') : null;
+    const wa = winsOf(m.scores.a);
+    const wb = winsOf(m.scores.b);
+    motif = (
+      <>
+        <span>
+          Litige {opener ? `ouvert par ${opener}` : 'automatique'}{m.dispute?.auto && opener ? ' (automatique)' : ''} — saisies divergentes.
+        </span>
+        <span className="block t-mono" style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>
+          Saisie {nameOf(m, 'a')} : {m.scores.a.length > 0 ? `${wa.a}–${wa.b}` : 'aucune'} · Saisie {nameOf(m, 'b')} : {m.scores.b.length > 0 ? `${wb.a}–${wb.b}` : 'aucune'}
+        </span>
+      </>
+    );
+    cta = <button className="btn-springs btn-primary bevel-sm text-sm" disabled={busy} onClick={() => onForceScore(m)}>Trancher le score</button>;
+  } else if (m) {
+    const missing: Array<'a' | 'b'> = [];
+    if (m.checkin && !m.checkin.a.done) missing.push('a');
+    if (m.checkin && !m.checkin.b.done) missing.push('b');
+    preset = m.forfeit?.team ?? (missing.length === 2 ? 'both' : missing[0]);
+    motif = missing.length === 2
+      ? <span>Double forfait proposé — les deux équipes absentes au check-in.</span>
+      : <span>Forfait proposé — {preset && preset !== 'both' ? nameOf(m, preset) : 'équipe'} absente au check-in.</span>;
+    cta = <button className="btn-springs btn-primary bevel-sm text-sm" disabled={busy} onClick={() => onForfeit(m, preset)}>Statuer sur le forfait</button>;
+  }
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 text-sm"
-      style={{ borderBottom: '1px solid var(--s-border)' }}>
-      <span className="t-mono flex-shrink-0" style={{ width: 46, fontSize: 12, color: 'var(--s-text-muted)' }}>{m.id}</span>
-      <span className="flex-shrink-0 inline-block rounded-none" style={{
-        width: 7, height: 7, background: STATUS_DOT[m.status] ?? 'var(--s-text-muted)',
-      }} />
-      <span className="flex-1 min-w-[220px] truncate" style={{ color: 'var(--s-text)' }}>
-        <span style={{ fontWeight: m.winner === 'a' ? 700 : 400 }}>{sideName(m.teamAInfo, m.voidA)}</span>
-        {m.scores.final ? (
-          <span className="t-mono" style={{ color: 'var(--s-text-dim)' }}> {wins.a}–{wins.b} </span>
-        ) : (
-          <span style={{ color: 'var(--s-text-muted)' }}> vs </span>
+    <div className="con-decide-row">
+      <div className="min-w-0 space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="t-label-soft">{kicker}</span>
+          {m && (
+            <>
+              <span className="text-[15px] font-semibold truncate" style={{ color: 'var(--s-text)' }} title={`${nameOf(m, 'a')} vs ${nameOf(m, 'b')}`}>
+                {nameOf(m, 'a')} vs {nameOf(m, 'b')}
+              </span>
+              <Link href={`/competitions/${competitionId}/match/${m.id}`} className="t-mono hover:underline"
+                style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>
+                {m.id}
+              </Link>
+            </>
+          )}
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--s-text)' }}>{motif}</div>
+      </div>
+      <div className="flex flex-col items-start sm:items-end gap-1.5">
+        {cta}
+        {m && (
+          <span className="flex items-center gap-2">
+            <Link href={`/competitions/${competitionId}/match/${m.id}`} className="quiet-link">Ouvrir la page du match</Link>
+            {d.kind === 'forfeit' && (
+              <button className="quiet-link" disabled={busy} onClick={() => onReopen(m)}>Relancer le check-in</button>
+            )}
+          </span>
         )}
-        <span style={{ fontWeight: m.winner === 'b' ? 700 : 400 }}>{sideName(m.teamBInfo, m.voidB)}</span>
-      </span>
-      <span className="t-label-soft flex-shrink-0" style={{
-        color: disputeOpen || m.status === 'awaiting_forfeit_validation' ? 'var(--s-gold)' : undefined,
-      }}>
-        {STATUS_FR[m.status] ?? m.status}{m.forfeit ? ` · forfait ${m.forfeit.team}` : ''}
-      </span>
-      {m.checkin && !terminal && (
-        <span className="t-mono flex-shrink-0" style={{ fontSize: 12, color: 'var(--s-text-dim)' }}>
-          CI {m.checkin.a.done ? '✓' : '·'}/{m.checkin.b.done ? '✓' : '·'}
-        </span>
-      )}
-      {room && !terminal && (
-        <button className="t-mono flex-shrink-0 inline-flex items-center gap-1" style={{ fontSize: 12, color: 'var(--s-text-dim)' }}
-          onClick={() => { navigator.clipboard?.writeText(`${room.name} / ${room.password}`).then(() => onCopy('Room')).catch(() => null); }}>
-          {room.name} · {room.password} <Copy size={11} />
-        </button>
-      )}
-      {m.cast?.featured && <Radio size={13} style={{ color: 'var(--s-gold)' }} />}
-
-      <span className="flex items-center gap-1 flex-shrink-0 ml-auto">
-        {launchable && (
-          <button className="btn-springs btn-ghost text-sm" disabled={busy} onClick={onLaunch}>Lancer</button>
-        )}
-        {m.status === 'awaiting_forfeit_validation' && (
-          <button className="btn-springs btn-ghost text-sm" disabled={busy} onClick={onReopen}>Relancer check-in</button>
-        )}
-        {!terminal && m.teamA && m.teamB && (
-          <>
-            <button className="btn-springs btn-ghost text-sm" disabled={busy} onClick={onForceScore}>Score</button>
-            <button className="btn-springs btn-ghost text-sm" disabled={busy} onClick={onForfeit}>Forfait</button>
-          </>
-        )}
-        {!terminal && <button className="btn-springs btn-ghost text-sm" disabled={busy} onClick={onCast}>Cast</button>}
-      </span>
+      </div>
     </div>
   );
 }
 
-// ── Modals (locales, DA sobre) ───────────────────────────────────────────────
+// ── Phases ───────────────────────────────────────────────────────────────────
 
-function ModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function defaultPhaseOpen(matches: ConsoleMatch[]): boolean {
+  const allDone = matches.every(m => TERMINAL.has(m.status));
+  if (allDone) return false;
+  const anyAlive = matches.some(m => EN_JEU.has(m.status) || isDecision(m));
+  const anyLaunchable = matches.some(m => m.status === 'pending' && m.teamA && m.teamB && !m.voidA && !m.voidB);
+  return anyAlive || anyLaunchable;
+}
+
+function PhaseSection({ p, competitionId, rooms, busy, override, onToggle, expandedRows, onToggleRow, onLaunchPhase, onLaunchOne, onForceScore, onForfeit, onCast, onReopen, onCopyRoom }: {
+  p: { phase: number | null; label: string; matches: ConsoleMatch[] };
+  competitionId: string;
+  rooms: Record<string, { name: string; password: string }>;
+  busy: boolean;
+  override: boolean | undefined;
+  onToggle: () => void;
+  expandedRows: Set<string>;
+  onToggleRow: (mid: string) => void;
+  onLaunchPhase: (ms: ConsoleMatch[]) => void;
+  onLaunchOne: (m: ConsoleMatch) => void;
+  onForceScore: (m: ConsoleMatch) => void;
+  onForfeit: (m: ConsoleMatch) => void;
+  onCast: (m: ConsoleMatch) => void;
+  onReopen: (m: ConsoleMatch) => void;
+  onCopyRoom: (m: ConsoleMatch, room: { name: string; password: string }) => void;
+}) {
+  const open = override ?? defaultPhaseOpen(p.matches);
+  const allDone = p.matches.every(m => TERMINAL.has(m.status));
+  const launchable = p.matches.filter(m => m.status === 'pending' && m.teamA && m.teamB && !m.voidA && !m.voidB);
+  const inPlay = p.matches.filter(m => EN_JEU.has(m.status)).length;
+  const waiting = p.matches.filter(m => !TERMINAL.has(m.status) && !EN_JEU.has(m.status)).length;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.72)' }}
-      onClick={onClose}>
-      <div className="panel bevel w-full max-w-lg" onClick={e => e.stopPropagation()}>
-        <div className="panel-header flex items-center justify-between">
-          <span className="t-sub">{title}</span>
-          <button onClick={onClose} className="text-sm" style={{ color: 'var(--s-text-muted)' }}>Fermer</button>
+    <div id={`phase-${p.phase}`} className="panel bevel con-anchor">
+      <div className="panel-header flex items-center justify-between gap-3 cursor-pointer" onClick={onToggle}>
+        <span className="flex items-baseline gap-2 min-w-0">
+          <span className={allDone && !open ? 'text-sm' : 't-sub'} style={allDone && !open ? { color: 'var(--s-text-dim)' } : undefined}>
+            {p.label}
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>
+            {allDone ? `${p.matches.length} matchs · terminée` : `${inPlay} en cours · ${waiting} en attente`}
+          </span>
+        </span>
+        <span className="flex items-center gap-2 flex-shrink-0">
+          {launchable.length > 0 && (
+            <button className="btn-springs btn-secondary bevel-sm text-sm" disabled={busy}
+              onClick={e => { e.stopPropagation(); onLaunchPhase(launchable); }}>
+              Lancer ({launchable.length})
+            </button>
+          )}
+          <ChevronDown size={15} style={{ color: 'var(--s-text-muted)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
+        </span>
+      </div>
+      {open && (
+        <div className="con-well">
+          {p.matches.map(m => (
+            <ConsoleRow key={m.id} m={m} competitionId={competitionId} room={rooms[m.id] ?? null} busy={busy}
+              expanded={expandedRows.has(m.id)}
+              onToggle={() => onToggleRow(m.id)}
+              onLaunch={() => onLaunchOne(m)}
+              onForceScore={() => onForceScore(m)}
+              onForfeit={() => onForfeit(m)}
+              onCast={() => onCast(m)}
+              onReopen={() => onReopen(m)}
+              onCopyRoom={room => onCopyRoom(m, room)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ConsoleRow({ m, competitionId, room, busy, expanded, onToggle, onLaunch, onForceScore, onForfeit, onCast, onReopen, onCopyRoom }: {
+  m: ConsoleMatch;
+  competitionId: string;
+  room: { name: string; password: string } | null;
+  busy: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+  onLaunch: () => void;
+  onForceScore: () => void;
+  onForfeit: () => void;
+  onCast: () => void;
+  onReopen: () => void;
+  onCopyRoom: (room: { name: string; password: string }) => void;
+}) {
+  const terminal = TERMINAL.has(m.status);
+  const launchable = m.status === 'pending' && m.teamA && m.teamB && !m.voidA && !m.voidB;
+  const wins = winsOf(m.scores.final ?? []);
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+  const showRoomChip = room && ['checkin', 'ready', 'live'].includes(m.status);
+  const counterAt = m.status === 'score_review' ? hhmm(m.scores.counterDeadline) : null;
+
+  const statusLabel = m.forfeit
+    ? (m.forfeit.team === 'both' ? 'Double forfait' : `Forfait — ${nameOf(m, m.forfeit.team)}`)
+    : STATUS_FR[m.status] ?? m.status;
+
+  return (
+    <>
+      <div className={`con-row ${terminal ? 'con-row-quiet' : ''}`} onClick={onToggle}>
+        <Link href={`/competitions/${competitionId}/match/${m.id}`} onClick={stop}
+          className="con-col-lg t-mono hover:underline" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>
+          {m.id}
+        </Link>
+        <span className="rounded-none" style={{ width: 7, height: 7, background: STATUS_DOT[m.status] ?? 'var(--s-text-muted)' }} />
+        <span className="flex items-center justify-end gap-2 min-w-0 text-right">
+          <span className="truncate text-sm" title={nameOf(m, 'a')} style={{
+            color: m.winner === 'a' ? 'var(--s-text)' : terminal ? 'var(--s-text-dim)' : 'var(--s-text)',
+            fontWeight: m.winner === 'a' ? 700 : 400,
+            fontStyle: !m.teamAInfo || m.voidA ? 'italic' : undefined,
+          }}>{nameOf(m, 'a')}</span>
+          {m.teamAInfo && !m.voidA && <TeamCrest url={m.teamAInfo.logoUrl} tag={m.teamAInfo.tag} name={m.teamAInfo.name} size={20} />}
+        </span>
+        <span className="text-center flex items-center justify-center gap-1.5">
+          {m.scores.final ? (
+            <span className="font-display" style={{ fontSize: 18, fontVariantNumeric: 'tabular-nums' }}>{wins.a}–{wins.b}</span>
+          ) : m.status === 'walkover' ? (
+            <span className="t-mono" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>W.O.</span>
+          ) : m.status === 'cancelled' ? (
+            <span style={{ color: 'var(--s-text-muted)' }}>—</span>
+          ) : (
+            <span className="t-mono" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>vs</span>
+          )}
+          {m.cast?.featured && <Radio size={13} style={{ color: 'var(--s-text-dim)' }} aria-label="Casté" />}
+        </span>
+        <span className="flex items-center gap-2 min-w-0">
+          {m.teamBInfo && !m.voidB && <TeamCrest url={m.teamBInfo.logoUrl} tag={m.teamBInfo.tag} name={m.teamBInfo.name} size={20} />}
+          <span className="truncate text-sm" title={nameOf(m, 'b')} style={{
+            color: m.winner === 'b' ? 'var(--s-text)' : terminal ? 'var(--s-text-dim)' : 'var(--s-text)',
+            fontWeight: m.winner === 'b' ? 700 : 400,
+            fontStyle: !m.teamBInfo || m.voidB ? 'italic' : undefined,
+          }}>{nameOf(m, 'b')}</span>
+        </span>
+        <span className="con-col-lg t-label-soft" style={isDecision(m) ? { color: 'var(--s-text)' } : undefined}>
+          {statusLabel}
+          {counterAt && <span className="block t-mono" style={{ fontSize: 12 }}>avant {counterAt}</span>}
+        </span>
+        <span className="con-col-xl flex items-center gap-2">
+          {m.checkin && !terminal && (['a', 'b'] as const).map(s => (
+            <span key={s} className="flex items-center gap-1" title={`${nameOf(m, s)} — check-in ${m.checkin![s].done ? 'fait' : 'attendu'}`}>
+              <span className="t-mono" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>
+                {(s === 'a' ? m.teamAInfo?.tag : m.teamBInfo?.tag) ?? s.toUpperCase()}
+              </span>
+              <span className={`con-pip ${m.checkin![s].done ? 'con-pip-done' : 'con-pip-wait'}`} />
+            </span>
+          ))}
+        </span>
+        <span className="con-col-xl min-w-0" onClick={stop}>
+          {showRoomChip && (
+            <button className="con-chip bevel-sm" onClick={() => onCopyRoom(room!)}
+              title={`${room!.name} · ${room!.password}`}
+              aria-label={`Copier la room de ${nameOf(m, 'a')} vs ${nameOf(m, 'b')}`}>
+              <span className="truncate">{room!.name} · {room!.password}</span>
+              <Copy size={12} style={{ flexShrink: 0 }} />
+            </button>
+          )}
+        </span>
+        <span className="con-col-lg" onClick={stop}>
+          {launchable && !busy && (
+            <button className="btn-springs btn-ghost text-sm" onClick={onLaunch}>Lancer</button>
+          )}
+        </span>
+        <button className="flex items-center justify-center" aria-expanded={expanded} aria-label="Détail du match"
+          style={{ width: 28, height: 28, background: 'none', border: 'none', cursor: 'pointer' }} onClick={e => { stop(e); onToggle(); }}>
+          <ChevronDown size={14} style={{ color: 'var(--s-text-muted)', transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
+        </button>
+      </div>
+      {expanded && (
+        <RowDossier m={m} competitionId={competitionId} room={room} busy={busy}
+          onForceScore={onForceScore} onForfeit={onForfeit} onCast={onCast} onReopen={onReopen} onCopyRoom={onCopyRoom} />
+      )}
+    </>
+  );
+}
+
+function RowDossier({ m, competitionId, room, busy, onForceScore, onForfeit, onCast, onReopen, onCopyRoom }: {
+  m: ConsoleMatch;
+  competitionId: string;
+  room: { name: string; password: string } | null;
+  busy: boolean;
+  onForceScore: () => void;
+  onForfeit: () => void;
+  onCast: () => void;
+  onReopen: () => void;
+  onCopyRoom: (room: { name: string; password: string }) => void;
+}) {
+  const terminal = TERMINAL.has(m.status);
+  const counterAt = m.status === 'score_review' ? hhmm(m.scores.counterDeadline) : null;
+
+  const entryCol = (side: 'a' | 'b') => {
+    const games = m.scores[side];
+    const info = side === 'a' ? m.teamAInfo : m.teamBInfo;
+    return (
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 pb-1.5" style={{ borderBottom: '1px solid var(--s-border)' }}>
+          {info && <TeamCrest url={info.logoUrl} tag={info.tag} name={info.name} size={20} />}
+          <span className="font-semibold truncate" style={{ fontSize: 13, color: 'var(--s-text)' }}>
+            Saisie {nameOf(m, side)}
+          </span>
+        </div>
+        {games.length > 0 ? (
+          <div className="match-rows">
+            {games.map((g, i) => (
+              <GameRow key={i} index={i} game={g} teamAName={nameOf(m, 'a')} teamBName={nameOf(m, 'b')} color="var(--s-blue)" />
+            ))}
+          </div>
+        ) : (
+          <p className="pt-2" style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>Aucune saisie.</p>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="con-card bevel-sm my-2">
+      <div className="grid md:grid-cols-3 gap-4">
+        {terminal && m.scores.final ? (
+          <div className="md:col-span-2 min-w-0">
+            <p className="t-label-soft pb-1.5" style={{ borderBottom: '1px solid var(--s-border)' }}>Résultat</p>
+            <div className="match-rows">
+              {m.scores.final.map((g, i) => (
+                <GameRow key={i} index={i} game={g} teamAName={nameOf(m, 'a')} teamBName={nameOf(m, 'b')} color="var(--s-blue)" />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <>
+            {entryCol('a')}
+            {entryCol('b')}
+          </>
+        )}
+        <div className="space-y-2 text-sm min-w-0" style={{ color: 'var(--s-text-dim)' }}>
+          {room && (
+            <button className="con-chip bevel-sm w-full" onClick={() => onCopyRoom(room)} title={`${room.name} · ${room.password}`}>
+              <span className="truncate">{room.name} · {room.password}</span>
+              <Copy size={12} style={{ flexShrink: 0 }} />
+            </button>
+          )}
+          {room && (
+            <p style={{ fontSize: 12 }}>Room créée par {nameOf(m, m.roomHost)}</p>
+          )}
+          <p className="t-mono" style={{ fontSize: 12 }}>BO{m.bo}</p>
+          {counterAt && <p className="t-mono" style={{ fontSize: 12 }}>Contre-saisie ouverte jusqu&apos;à {counterAt}.</p>}
+          {m.cast?.featured && (
+            m.cast.streamUrl
+              ? <a href={m.cast.streamUrl} target="_blank" rel="noopener noreferrer" className="hover:underline block truncate">En stream — {m.cast.streamUrl}</a>
+              : <p>En stream.</p>
+          )}
+          {disputeOpen(m) && (
+            <p>Litige ouvert{m.dispute?.openedBy === 'a' || m.dispute?.openedBy === 'b' ? ` par ${nameOf(m, m.dispute.openedBy)}` : ''}{m.dispute?.auto ? ' (automatique)' : ''}.</p>
+          )}
+          {m.forfeit && (
+            <p>Forfait — {m.forfeit.team === 'both' ? 'les deux équipes' : nameOf(m, m.forfeit.team)}{m.forfeit.reason ? ` · ${m.forfeit.reason}` : ''}</p>
+          )}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 pt-3 mt-3" style={{ borderTop: '1px solid var(--s-border)' }}>
+        {!terminal && m.teamA && m.teamB && (
+          <>
+            <button className="quiet-link" disabled={busy} onClick={onForceScore}>Imposer un score</button>
+            <span style={{ color: 'var(--s-text-muted)', fontSize: 12 }}>·</span>
+            <button className="quiet-link" disabled={busy} onClick={onForfeit}>Déclarer un forfait</button>
+            <span style={{ color: 'var(--s-text-muted)', fontSize: 12 }}>·</span>
+          </>
+        )}
+        {!terminal && (
+          <>
+            <button className="quiet-link" disabled={busy} onClick={onCast}>Mettre en stream</button>
+            <span style={{ color: 'var(--s-text-muted)', fontSize: 12 }}>·</span>
+          </>
+        )}
+        {m.status === 'awaiting_forfeit_validation' && (
+          <>
+            <button className="quiet-link" disabled={busy} onClick={onReopen}>Relancer le check-in</button>
+            <span style={{ color: 'var(--s-text-muted)', fontSize: 12 }}>·</span>
+          </>
+        )}
+        <Link href={`/competitions/${competitionId}/match/${m.id}`} className="quiet-link">Ouvrir la page du match</Link>
+      </div>
+    </div>
+  );
+}
+
+// ── Équipes ──────────────────────────────────────────────────────────────────
+
+function TeamGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="t-label-soft mb-1">{label}</p>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+function TeamRowLine({ r, prefix, children }: { r: ConsoleRegistration; prefix?: string; children?: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 py-2 text-sm" style={{ borderBottom: '1px solid var(--s-border)' }}>
+      {prefix && <span className="t-mono flex-shrink-0" style={{ fontSize: 12, color: 'var(--s-text-dim)' }}>{prefix}</span>}
+      <TeamCrest url={r.logoUrl} tag={r.tag} name={r.name} size={26} />
+      <span className="flex-1 min-w-0 truncate" style={{ color: 'var(--s-text)' }}>
+        {r.name} <span style={{ color: 'var(--s-text-muted)' }}>[{r.tag}]{r.seed ? ` · seed ${r.seed}` : ''}</span>
+      </span>
+      {children && <span className="flex items-center gap-2 flex-shrink-0">{children}</span>}
+    </div>
+  );
+}
+
+// ── Modales v2 — en-tête d'identité faceoff ──────────────────────────────────
+
+function ModalShell({ heading, m, onClose, children }: {
+  heading?: string;
+  m?: ConsoleMatch;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.72)' }} onClick={onClose}>
+      <div className="panel bevel w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="panel-header flex items-start justify-between gap-3">
+          {m ? (
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                {m.teamAInfo && !m.voidA && <TeamCrest url={m.teamAInfo.logoUrl} tag={m.teamAInfo.tag} name={m.teamAInfo.name} size={28} />}
+                {m.teamBInfo && !m.voidB && <TeamCrest url={m.teamBInfo.logoUrl} tag={m.teamBInfo.tag} name={m.teamBInfo.name} size={28} />}
+                <span className="font-display line-clamp-2" style={{ fontSize: 20, letterSpacing: '0.03em' }}>
+                  {nameOf(m, 'a').toUpperCase()} vs {nameOf(m, 'b').toUpperCase()}
+                </span>
+              </div>
+              <p className="t-mono" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>{m.id} · BO{m.bo}</p>
+            </div>
+          ) : (
+            <span className="t-sub">{heading}</span>
+          )}
+          <button onClick={onClose} className="quiet-link flex-shrink-0">Fermer</button>
         </div>
         <div className="panel-body">{children}</div>
       </div>
@@ -485,75 +950,94 @@ function ForceScoreModal({ m, onClose, onSubmit }: {
   const needed = Math.ceil(m.bo / 2);
   const [games, setGames] = useState<Game[]>(Array.from({ length: needed }, () => ({ a: 0, b: 0 })));
   const [resolution, setResolution] = useState('');
-  const wins = games.reduce((w, g) => {
-    if (g.a > g.b) w.a++; else if (g.b > g.a) w.b++;
-    return w;
-  }, { a: 0, b: 0 });
+  const wins = winsOf(games);
   const valid = (wins.a === needed || wins.b === needed) && games.every(g => g.a !== g.b);
+  const clamp = (v: string) => Math.max(0, Math.min(99, Number(v) || 0));
 
   return (
-    <ModalShell title={`Imposer le score — ${m.id}`} onClose={onClose}>
-      <div className="space-y-3">
-        <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-          {sideName(m.teamAInfo, m.voidA)} vs {sideName(m.teamBInfo, m.voidB)} · BO{m.bo}.
-          {m.dispute && m.dispute.resolvedBy === null ? ' Résout le litige en cours.' : ''}
-        </p>
+    <ModalShell m={m} onClose={onClose}>
+      <div className="space-y-4">
+        {m.dispute && m.dispute.resolvedBy === null && (
+          <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>Résout le litige en cours.</p>
+        )}
+        {/* Colonnes NOMMÉES */}
+        <div className="grid grid-cols-[72px_1fr_1fr] items-end gap-2">
+          <span />
+          {(['a', 'b'] as const).map(s => {
+            const info = s === 'a' ? m.teamAInfo : m.teamBInfo;
+            return (
+              <div key={s} className="flex items-center gap-2 min-w-0">
+                {info && <TeamCrest url={info.logoUrl} tag={info.tag} name={info.name} size={24} />}
+                <span className="font-semibold line-clamp-2" style={{ fontSize: 13, color: 'var(--s-text)' }}>{nameOf(m, s)}</span>
+              </div>
+            );
+          })}
+        </div>
         {games.map((g, i) => (
-          <div key={i} className="flex items-center gap-3 text-sm">
-            <span className="t-label-soft w-20">Manche {i + 1}</span>
+          <div key={i} className="grid grid-cols-[72px_1fr_1fr] items-center gap-2">
+            <span className="t-label-soft">Manche {i + 1}</span>
             <input type="number" min={0} max={99} value={g.a} className="settings-input bevel-sm" style={{ width: 64, textAlign: 'center' }}
+              aria-label={`Buts ${nameOf(m, 'a')}, manche ${i + 1}`}
               onChange={e => setGames(gs => gs.map((x, j) => j === i ? { ...x, a: clamp(e.target.value) } : x))} />
-            <span style={{ color: 'var(--s-text-muted)' }}>–</span>
-            <input type="number" min={0} max={99} value={g.b} className="settings-input bevel-sm" style={{ width: 64, textAlign: 'center' }}
-              onChange={e => setGames(gs => gs.map((x, j) => j === i ? { ...x, b: clamp(e.target.value) } : x))} />
-            {games.length > needed && (
-              <button className="text-sm" style={{ color: 'var(--s-text-muted)' }}
-                onClick={() => setGames(gs => gs.filter((_, j) => j !== i))}>Retirer</button>
-            )}
+            <div className="flex items-center gap-2">
+              <input type="number" min={0} max={99} value={g.b} className="settings-input bevel-sm" style={{ width: 64, textAlign: 'center' }}
+                aria-label={`Buts ${nameOf(m, 'b')}, manche ${i + 1}`}
+                onChange={e => setGames(gs => gs.map((x, j) => j === i ? { ...x, b: clamp(e.target.value) } : x))} />
+              {games.length > needed && (
+                <button className="quiet-link" onClick={() => setGames(gs => gs.filter((_, j) => j !== i))}>Retirer</button>
+              )}
+            </div>
           </div>
         ))}
+        {/* Totaux live */}
+        <p className="text-center font-display" style={{ fontSize: 22, fontVariantNumeric: 'tabular-nums' }}>
+          <span style={{ color: wins.a > wins.b ? 'var(--s-blue)' : 'var(--s-text-dim)' }}>{wins.a}</span>
+          <span style={{ color: 'var(--s-text-muted)' }}> — </span>
+          <span style={{ color: wins.b > wins.a ? 'var(--s-blue)' : 'var(--s-text-dim)' }}>{wins.b}</span>
+        </p>
         {games.length < m.bo && (
           <button className="btn-springs btn-ghost text-sm" onClick={() => setGames(gs => [...gs, { a: 0, b: 0 }])}>
             Ajouter une manche
           </button>
         )}
-        <textarea
-          className="settings-input bevel-sm w-full" rows={2}
-          placeholder="Résolution visible des équipes (ex. captures vérifiées : victoire NL)"
-          value={resolution}
-          onChange={e => setResolution(e.target.value)}
-        />
-        <div className="flex items-center gap-3">
+        <textarea className="settings-input bevel-sm w-full" rows={2}
+          placeholder="Résolution visible des équipes (ex. captures vérifiées)"
+          value={resolution} onChange={e => setResolution(e.target.value)} />
+        <div className="flex flex-wrap items-center gap-3">
           <button className="btn-springs btn-primary bevel-sm" disabled={!valid}
             onClick={() => onSubmit(games, resolution.trim() || null)}>
             Imposer le score
           </button>
-          {!valid && <span className="text-sm" style={{ color: 'var(--s-text-muted)' }}>Vainqueur net à {needed} manches requis.</span>}
+          {!valid && <span style={{ fontSize: 13, color: 'var(--s-text-muted)' }}>Vainqueur net à {needed} manches requis.</span>}
         </div>
       </div>
     </ModalShell>
   );
 }
 
-function ForfeitModal({ m, onClose, onSubmit }: {
-  m: ConsoleMatch; onClose: () => void; onSubmit: (team: 'a' | 'b' | 'both', reason: string | null) => void;
+function ForfeitModal({ m, preset, onClose, onSubmit }: {
+  m: ConsoleMatch; preset?: 'a' | 'b' | 'both'; onClose: () => void; onSubmit: (team: 'a' | 'b' | 'both', reason: string | null) => void;
 }) {
-  const [team, setTeam] = useState<'a' | 'b' | 'both'>('a');
+  const [team, setTeam] = useState<'a' | 'b' | 'both'>(preset ?? 'a');
   const [reason, setReason] = useState('');
   return (
-    <ModalShell title={`Valider un forfait — ${m.id}`} onClose={onClose}>
+    <ModalShell m={m} onClose={onClose}>
       <div className="space-y-3 text-sm">
         <p style={{ color: 'var(--s-text-dim)' }}>
-          Score conventionnel {Math.ceil(m.bo / 2)}-0, compté dans le délta (spec §11).
-          Le double forfait élimine les deux équipes (R5-1).
+          Score conventionnel {Math.ceil(m.bo / 2)}-0, compté dans le délta. Le double forfait élimine les deux équipes.
         </p>
         <div className="flex flex-col gap-2">
-          {([['a', `Forfait de ${sideName(m.teamAInfo, m.voidA)}`], ['b', `Forfait de ${sideName(m.teamBInfo, m.voidB)}`], ['both', 'Double forfait (deux équipes absentes)']] as const).map(([v, label]) => (
-            <label key={v} className="flex items-center gap-2" style={{ color: 'var(--s-text)' }}>
-              <input type="radio" name="forfeit-team" checked={team === v} onChange={() => setTeam(v)} />
-              {label}
-            </label>
-          ))}
+          {(['a', 'b', 'both'] as const).map(v => {
+            const info = v === 'a' ? m.teamAInfo : v === 'b' ? m.teamBInfo : null;
+            const label = v === 'both' ? 'Double forfait — les deux équipes absentes' : `Forfait de ${nameOf(m, v)}`;
+            return (
+              <label key={v} className="con-option bevel-sm" data-checked={team === v}>
+                <input type="radio" name="forfeit-team" className="sr-only" checked={team === v} onChange={() => setTeam(v)} />
+                {info && <TeamCrest url={info.logoUrl} tag={info.tag} name={info.name} size={20} />}
+                <span style={{ color: 'var(--s-text)' }}>{label}</span>
+              </label>
+            );
+          })}
         </div>
         <textarea className="settings-input bevel-sm w-full" rows={2}
           placeholder="Motif (visible des équipes)"
@@ -571,7 +1055,7 @@ function CastModal({ m, onClose, onSubmit }: {
 }) {
   const [streamUrl, setStreamUrl] = useState(m.cast?.streamUrl ?? '');
   return (
-    <ModalShell title={`Cast — ${m.id}`} onClose={onClose}>
+    <ModalShell m={m} onClose={onClose}>
       <div className="space-y-3 text-sm">
         <p style={{ color: 'var(--s-text-dim)' }}>
           1 match casté par phase : le précédent match casté de la phase est automatiquement remplacé.
@@ -579,11 +1063,11 @@ function CastModal({ m, onClose, onSubmit }: {
         <input className="settings-input bevel-sm w-full" placeholder="https://twitch.tv/…"
           value={streamUrl} onChange={e => setStreamUrl(e.target.value)} />
         <div className="flex items-center gap-3">
-          <button className="btn-springs btn-primary bevel-sm" onClick={() => onSubmit(true, streamUrl.trim() || null)}>
+          <button className="btn-springs btn-secondary bevel-sm" onClick={() => onSubmit(true, streamUrl.trim() || null)}>
             Mettre en stream
           </button>
           {m.cast?.featured && (
-            <button className="btn-springs btn-secondary bevel-sm" onClick={() => onSubmit(false, null)}>
+            <button className="btn-springs btn-ghost text-sm" onClick={() => onSubmit(false, null)}>
               Retirer le cast
             </button>
           )}
@@ -601,36 +1085,30 @@ function ReplaceModal({ team, waitlisted, onClose, onSubmit }: {
 }) {
   const [choice, setChoice] = useState<string | null>(waitlisted[0]?.registrationId ?? null);
   return (
-    <ModalShell title={`Remplacer ${team.name}`} onClose={onClose}>
+    <ModalShell heading={`Remplacer ${team.name}`} onClose={onClose}>
       <div className="space-y-3 text-sm">
         <p style={{ color: 'var(--s-text-dim)' }}>
-          Possible uniquement avant le premier match joué (spec §8). Sans équipe en liste d&apos;attente, le siège devient un bye.
+          Possible uniquement avant le premier match joué. Sans équipe en liste d&apos;attente, le siège devient un bye.
         </p>
-        {waitlisted.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            {waitlisted.map(w => (
-              <label key={w.registrationId} className="flex items-center gap-2" style={{ color: 'var(--s-text)' }}>
-                <input type="radio" name="replace-with" checked={choice === w.registrationId}
-                  onChange={() => setChoice(w.registrationId)} />
-                {w.name} [{w.tag}]
-              </label>
-            ))}
-            <label className="flex items-center gap-2" style={{ color: 'var(--s-text-dim)' }}>
-              <input type="radio" name="replace-with" checked={choice === null} onChange={() => setChoice(null)} />
-              Personne — le siège devient un bye
+        <div className="flex flex-col gap-2">
+          {waitlisted.map((w, i) => (
+            <label key={w.registrationId} className="con-option bevel-sm" data-checked={choice === w.registrationId}>
+              <input type="radio" name="replace-with" className="sr-only" checked={choice === w.registrationId}
+                onChange={() => setChoice(w.registrationId)} />
+              <TeamCrest url={w.logoUrl} tag={w.tag} name={w.name} size={20} />
+              <span style={{ color: 'var(--s-text)' }}>{w.name}</span>
+              <span className="t-mono ml-auto" style={{ fontSize: 12, color: 'var(--s-text-dim)' }}>n° {i + 1} liste d&apos;attente</span>
             </label>
-          </div>
-        ) : (
-          <p style={{ color: 'var(--s-text-muted)' }}>Aucune équipe en liste d&apos;attente : le siège deviendra un bye.</p>
-        )}
+          ))}
+          <label className="con-option bevel-sm" data-checked={choice === null}>
+            <input type="radio" name="replace-with" className="sr-only" checked={choice === null} onChange={() => setChoice(null)} />
+            <span style={{ color: 'var(--s-text-dim)' }}>Personne — le siège devient un bye</span>
+          </label>
+        </div>
         <button className="btn-springs btn-primary bevel-sm" onClick={() => onSubmit(choice)}>
           Remplacer
         </button>
       </div>
     </ModalShell>
   );
-}
-
-function clamp(v: string): number {
-  return Math.max(0, Math.min(99, Number(v) || 0));
 }
