@@ -82,6 +82,33 @@ function fmtPrize(p: PublicCompetition['competition']['prizePool']): string | nu
   return null;
 }
 
+// Ligne joueur du roster déplié. Le titulaire (starter) = pastille pleine couleur
+// du jeu + nom plein ; le remplaçant = pastille creuse + nom atténué. Le lien
+// tracker est aligné à droite (colonne), couleur du jeu.
+function RosterRow({ player, color, starter }: {
+  player: { displayName: string; trackerUrl: string | null; verified: boolean };
+  color: string;
+  starter?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2.5 text-sm">
+      <span aria-hidden style={{
+        width: 7, height: 7, flexShrink: 0,
+        background: starter ? color : 'transparent',
+        border: starter ? 'none' : '1px solid var(--s-text-muted)',
+      }} />
+      <span className="font-medium truncate" style={{ color: starter ? 'var(--s-text)' : 'var(--s-text-dim)' }}>{player.displayName}</span>
+      {player.verified && <ShieldCheck size={12} style={{ color: 'var(--s-text-dim)', flexShrink: 0 }} aria-label="Compte vérifié" />}
+      {player.trackerUrl && (
+        <a href={player.trackerUrl} target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs hover:underline ml-auto flex-shrink-0" style={{ color }}>
+          Tracker <ExternalLink size={11} />
+        </a>
+      )}
+    </div>
+  );
+}
+
 export default function CompetitionPage() {
   const params = useParams<{ id: string }>();
   const { user, loading: authLoading } = useAuth();
@@ -328,48 +355,44 @@ export default function CompetitionPage() {
             </p>
           ) : teams.map((t, i) => {
             const open = expandedTeam === t.teamId;
-            const roster = [...t.roster].sort((a, b) => (a.role === b.role ? 0 : a.role === 'titulaire' ? -1 : 1));
+            const titulaires = t.roster.filter(p => p.role === 'titulaire');
+            const remplacants = t.roster.filter(p => p.role === 'remplacant');
             const hasDetails = t.roster.length > 0 || t.staff.length > 0;
             return (
               <div key={t.teamId || `${t.name}-${i}`} style={{ borderTop: i > 0 ? '1px solid var(--s-border)' : 'none' }}>
                 <button type="button"
                   onClick={() => hasDetails && setExpandedTeam(open ? null : t.teamId)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors"
-                  style={{ cursor: hasDetails ? 'pointer' : 'default', background: open ? 'var(--s-elevated)' : 'transparent' }}>
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${open ? 'bg-[var(--s-elevated)]' : hasDetails ? 'hover:bg-[var(--s-elevated)]' : ''}`}
+                  style={{ cursor: hasDetails ? 'pointer' : 'default' }}>
                   <TeamCrest url={t.logoUrl} tag={t.tag} name={t.name} size={26} />
                   <span className="text-sm font-semibold flex-1 min-w-0 truncate">{t.name}</span>
                   {t.tag && <span className="text-xs flex-shrink-0" style={{ color: 'var(--s-text-muted)' }}>[{t.tag}]</span>}
                   {hasDetails && (
-                    <ChevronDown size={15} style={{ color: 'var(--s-text-muted)', flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
+                    <ChevronDown size={15} style={{ color: open ? color : 'var(--s-text-muted)', flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
                   )}
                 </button>
                 {open && (
-                  <div className="px-4 pb-3.5 pt-1 space-y-3" style={{ background: 'var(--s-bg)' }}>
-                    <div className="space-y-1.5">
-                      {roster.map((p, pi) => (
-                        <div key={pi} className="flex items-center gap-2.5 text-sm flex-wrap">
-                          <span className="t-label-soft flex-shrink-0" style={{ width: 78, color: 'var(--s-text-muted)' }}>
-                            {p.role === 'titulaire' ? 'Titulaire' : 'Remplaçant'}
-                          </span>
-                          <span className="font-medium">{p.displayName}</span>
-                          {p.verified && <ShieldCheck size={12} style={{ color: 'var(--s-text-dim)', flexShrink: 0 }} aria-label="Compte vérifié" />}
-                          {p.trackerUrl && (
-                            <a href={p.trackerUrl} target="_blank" rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs hover:underline" style={{ color }}>
-                              tracker <ExternalLink size={11} />
-                            </a>
-                          )}
-                        </div>
-                      ))}
-                      {roster.length === 0 && (
-                        <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Roster non communiqué.</p>
-                      )}
-                    </div>
+                  <div className="px-4 pb-4 pt-1.5 space-y-3.5" style={{ background: 'var(--s-bg)' }}>
+                    {titulaires.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="t-label" style={{ color }}>Titulaires</p>
+                        {titulaires.map((p, pi) => <RosterRow key={pi} player={p} color={color} starter />)}
+                      </div>
+                    )}
+                    {remplacants.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>Remplaçants</p>
+                        {remplacants.map((p, pi) => <RosterRow key={pi} player={p} color={color} />)}
+                      </div>
+                    )}
+                    {t.roster.length === 0 && (
+                      <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Roster non communiqué.</p>
+                    )}
                     {t.staff.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" style={{ color: 'var(--s-text-dim)', borderTop: '1px solid var(--s-border)', paddingTop: 10 }}>
-                        <span className="t-label-soft" style={{ color: 'var(--s-text-muted)' }}>Staff</span>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs pt-2.5" style={{ borderTop: '1px solid var(--s-border)' }}>
+                        <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Staff</span>
                         {t.staff.map((s, si) => (
-                          <span key={si}>{s.name} <span style={{ color: 'var(--s-text-muted)' }}>· {s.role === 'manager' ? 'Manager' : 'Coach'}</span></span>
+                          <span key={si} style={{ color: 'var(--s-text-dim)' }}>{s.name} <span style={{ color: 'var(--s-text-muted)' }}>· {s.role === 'manager' ? 'Manager' : 'Coach'}</span></span>
                         ))}
                       </div>
                     )}
