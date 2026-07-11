@@ -19,6 +19,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api, apiPublic } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
 import { Radio, Swords } from 'lucide-react';
+import TeamCrest from '@/components/competitions/TeamCrest';
 
 type Side = { name: string; tag: string; logoUrl: string | null } | null;
 
@@ -140,15 +141,23 @@ export default function BracketView({ competitionId, gameColor, competitionStatu
             <span className="w-1 h-4" style={{ background: gameColor }} />
             <h3 className="t-sub" style={{ letterSpacing: '0.04em' }}>{BRACKET_LABELS[section.bracket]}</h3>
           </div>
-          <div className="space-y-5">
-            {section.rounds.map(r => (
-              <div key={r.round}>
-                {r.label && <p className="t-label mb-2" style={{ color: 'var(--s-text-muted)' }}>{r.label}</p>}
-                <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
-                  {r.matches.map(m => <MatchCard key={m.id} m={m} gameColor={gameColor} />)}
+          <div className="bkt-scroll">
+            <div className={`bkt${section.bracket === 'winners' ? ' bkt-tree' : ''}`}>
+              {section.rounds.map(r => (
+                <div key={r.round} className="bkt-col">
+                  <div className="bkt-col-head">
+                    {r.label && <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>{r.label}</p>}
+                  </div>
+                  {r.matches.map(m => (
+                    <div key={m.id} className="bkt-cell">
+                      <div className="bkt-match">
+                        <MatchCard m={m} gameColor={gameColor} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       ))}
@@ -222,12 +231,7 @@ function TeamRow({ side, isVoid, isWinner, forfeit, games, done, gameColor }: {
       {/* Barre gagnant */}
       <span style={{ width: 3, alignSelf: 'stretch', background: isWinner ? gameColor : 'transparent', flexShrink: 0, marginLeft: -12, marginRight: 4 }} />
       {side && !isVoid ? (
-        side.logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- logo R2, taille fixe
-          <img src={side.logoUrl} alt="" width={20} height={20} style={{ objectFit: 'cover', flexShrink: 0 }} />
-        ) : (
-          <span className="flex-shrink-0" style={{ width: 20, height: 20, background: 'var(--s-elevated)' }} />
-        )
+        <TeamCrest url={side.logoUrl} tag={side.tag} name={side.name} size={20} />
       ) : (
         <span className="flex-shrink-0" style={{ width: 20, height: 20 }} />
       )}
