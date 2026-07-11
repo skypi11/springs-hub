@@ -216,9 +216,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       let batch = db.batch();
       let ops = 0;
       const flush = async () => { if (ops > 0) { await batch.commit(); batch = db.batch(); ops = 0; } };
+      // `hidden` dénormalisé pour les rules (défense en profondeur, review
+      // Lot 3) : le publish flippe le statut en 'live', seule une compétition
+      // de test (isDev) garde ses matchs invisibles en lecture directe.
+      const hidden = comp.isDev === true;
       for (const { id: matchKey, doc } of matches) {
         const matchRef = db.collection('competition_matches').doc(`${id}__${matchKey}`);
-        batch.set(matchRef, { id: matchKey, ...doc, updatedAt: FieldValue.serverTimestamp() });
+        batch.set(matchRef, { id: matchKey, ...doc, hidden, updatedAt: FieldValue.serverTimestamp() });
         ops++;
         const participantUids = aclByMatch.get(matchKey);
         if (participantUids && participantUids.length > 0) {

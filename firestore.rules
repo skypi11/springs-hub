@@ -228,8 +228,13 @@ service cloud.firestore {
     }
 
     // Compétitions — configuration publique (format, planning, statut).
+    // Défense en profondeur (review Lot 3) : une compétition MASQUÉE (brouillon
+    // ou test isDev) n'est pas lisible en lecture directe non plus — le gate
+    // API (isCompetitionHidden) est doublé au niveau des rules. Les admins
+    // lisent via l'API (Admin SDK, bypass rules).
     match /competitions/{id} {
-      allow read: if true;
+      allow read: if resource.data.status != 'draft'
+                  && (!('isDev' in resource.data) || resource.data.isDev != true);
       allow write: if false;
     }
 
@@ -244,8 +249,11 @@ service cloud.firestore {
 
     // Matchs — bracket live public (onSnapshot pendant l'événement). Aucun
     // uid dans le doc public : ACL, room et litiges en sous-collections.
+    // `hidden` est dénormalisé depuis la compétition à la matérialisation
+    // (publish) : les matchs d'une compétition de test restent invisibles en
+    // lecture directe (défense en profondeur, review Lot 3).
     match /competition_matches/{id} {
-      allow read: if true;
+      allow read: if !('hidden' in resource.data) || resource.data.hidden != true;
       allow write: if false;
 
       // room (nom/mdp), acl (participantUids/staffUids), dispute (keys R2) :

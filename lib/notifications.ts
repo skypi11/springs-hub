@@ -28,6 +28,7 @@ export type NotificationType =
   | 'competition_registration_submitted'
   | 'competition_sanction'
   | 'competition_match_alert'
+  | 'competition_match_checkin'
   | 'generic';
 
 export type NotificationPayload = {

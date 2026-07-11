@@ -6,10 +6,13 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import {
   openPhaseCheckin,
+  reopenCheckin,
   forceScore,
   validateForfeit,
   type GamePair,
 } from '@/lib/competitions/match-flow';
+import { createNotifications, type NotificationPayload } from '@/lib/notifications';
+import { sendCompetitionChannelMessage } from '@/lib/discord-competition';
 import { toFlowState, toIso, flowConfigOf, generateRoomCredentials, toEngineOutcome } from '@/lib/competitions/match-flow-server';
 import { applyMatchOutcome } from '@/lib/competitions/progression';
 import { reconstructBracket, type MatchDoc } from '@/lib/competitions/bracket-store';
@@ -49,12 +52,28 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const matchesSnap = await db.collection('competition_matches').where('competitionId', '==', id).get();
     const docs = matchesSnap.docs.map(d => ({ id: (d.data().id as string) ?? d.id, ref: d.ref, data: d.data() }));
 
-    // Rooms : les admins voient tous les codes (spec §8).
+    // Rooms : les admins voient tous les codes (spec §8). SELF-HEAL : un match
+    // lancé dont la room manque (échec transitoire au launch) la récupère ici
+    // — recharger la console suffit, jamais de chirurgie en base.
+    const NEEDS_ROOM = new Set(['checkin', 'ready', 'live', 'awaiting_scores', 'score_review', 'disputed', 'awaiting_forfeit_validation']);
     const roomSnaps = await Promise.all(docs.map(d => d.ref.collection('private').doc('room').get()));
     const rooms: Record<string, { name: string; password: string }> = {};
-    roomSnaps.forEach((r, i) => {
-      if (r.exists) rooms[docs[i].id] = r.data() as { name: string; password: string };
-    });
+    for (let i = 0; i < docs.length; i++) {
+      const r = roomSnaps[i];
+      if (r.exists) {
+        rooms[docs[i].id] = r.data() as { name: string; password: string };
+      } else if (NEEDS_ROOM.has((docs[i].data.status as string) ?? 'pending')) {
+        const creds = generateRoomCredentials(docs[i].id);
+        try {
+          await docs[i].ref.collection('private').doc('room').create(creds);
+          rooms[docs[i].id] = creds;
+        } catch {
+          // Créée en concurrence par un autre admin : relire.
+          const again = await docs[i].ref.collection('private').doc('room').get();
+          if (again.exists) rooms[docs[i].id] = again.data() as { name: string; password: string };
+        }
+      }
+    }
 
     // État global du bracket (clôture possible ? décision admin requise ?).
     let finished = false;
@@ -112,20 +131,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const refOf = (matchKey: string) => db.collection('competition_matches').doc(`${id}__${matchKey}`);
 
     if (action === 'launch_phase') {
-      const matchIds: string[] = Array.isArray(body.matchIds)
-        ? (body.matchIds as unknown[]).filter((x): x is string => typeof x === 'string').slice(0, 40)
+      const rawIds: string[] = Array.isArray(body.matchIds)
+        ? (body.matchIds as unknown[]).filter((x): x is string => typeof x === 'string')
         : [];
-      if (matchIds.length === 0) return NextResponse.json({ error: 'Aucun match à lancer.' }, { status: 400 });
+      if (rawIds.length === 0) return NextResponse.json({ error: 'Aucun match à lancer.' }, { status: 400 });
+      const matchIds = rawIds.slice(0, 40);
 
-      const launched: string[] = [];
+      const SKIP_REASON_FR: Record<string, string> = {
+        invalid_state: 'déjà lancé ou terminé',
+        teams_not_ready: 'équipes pas toutes connues',
+        dispute_open: 'litige en cours',
+      };
+      const launched: Array<{ matchKey: string; teamA: string; teamB: string }> = [];
       const skipped: Array<{ matchId: string; reason: string }> = [];
+      // Cap de sécurité tracé — jamais de troncature silencieuse.
+      for (const over of rawIds.slice(40)) skipped.push({ matchId: over, reason: 'au-delà du plafond de 40 matchs par lancement' });
+
       for (const matchKey of matchIds) {
         const ref = refOf(matchKey);
-        const ok = await db.runTransaction<boolean>(async tx => {
+        const res = await db.runTransaction<{ ok: boolean; reason?: string; teamA?: string; teamB?: string }>(async tx => {
           const snap = await tx.get(ref);
-          if (!snap.exists) return false;
-          const dec = openPhaseCheckin(toFlowState(matchKey, snap.data()!), cfg, Date.now());
-          if (!dec.ok) return false;
+          if (!snap.exists) return { ok: false, reason: 'match introuvable' };
+          const m = snap.data()!;
+          const dec = openPhaseCheckin(toFlowState(matchKey, m), cfg, Date.now());
+          if (!dec.ok) return { ok: false, reason: SKIP_REASON_FR[dec.error] ?? dec.error };
           tx.update(ref, {
             status: 'checkin',
             checkin: {
@@ -136,18 +165,98 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             },
             updatedAt: FieldValue.serverTimestamp(),
           });
-          return true;
+          return { ok: true, teamA: m.teamA as string, teamB: m.teamB as string };
         });
-        if (!ok) { skipped.push({ matchId: matchKey, reason: 'non lançable' }); continue; }
-        launched.push(matchKey);
-        // Room générée par le site (spec §8) — créée une seule fois, JAMAIS
-        // régénérée (create ignore l'échec si le doc existe déjà).
+        if (!res.ok) { skipped.push({ matchId: matchKey, reason: res.reason ?? 'non lançable' }); continue; }
+        launched.push({ matchKey, teamA: res.teamA!, teamB: res.teamB! });
+        // Room générée par le site (spec §8) — créée une seule fois, jamais
+        // régénérée. SEUL already-exists est ignoré : tout autre échec est
+        // tracé et signalé (le GET console auto-répare aussi — self-heal).
         try {
           await ref.collection('private').doc('room').create(generateRoomCredentials(matchKey));
-        } catch { /* room déjà créée (relance d'un check-in) */ }
+        } catch (e) {
+          const code = (e as { code?: number | string }).code;
+          if (code !== 6 && code !== 'already-exists') {
+            captureApiError('Console launch_phase room create', e);
+            skipped.push({ matchId: matchKey, reason: 'room non créée — recharger la console la régénère' });
+          }
+        }
       }
-      await audit(db, uid, 'competition_phase_launched', id, comp, { launched, skipped });
-      return NextResponse.json({ ok: true, launched, skipped });
+
+      // Le check-in ne démarre jamais en silence (spec §8) : notif in-app à
+      // tout le roster + message dans les salons Discord privés des équipes.
+      // Best-effort borné — jamais bloquant pour le lancement lui-même.
+      if (launched.length > 0) {
+        try {
+          const regIds = [...new Set(launched.flatMap(l => [l.teamA, l.teamB]))].filter(Boolean);
+          const regSnaps = await db.getAll(...regIds.map(r => db.collection('competition_registrations').doc(r)));
+          const regs = new Map(regSnaps.filter(s => s.exists).map(s => [s.id, s.data()!]));
+          const compName = (comp.name as string) ?? id;
+          const payloads: NotificationPayload[] = [];
+          const discordPosts: Array<Promise<unknown>> = [];
+          for (const l of launched) {
+            const a = regs.get(l.teamA);
+            const b = regs.get(l.teamB);
+            const title = 'Check-in ouvert';
+            const message = `${a?.name ?? '?'} vs ${b?.name ?? '?'} — ${compName}. Le capitaine a ${cfg.matchCheckinMinutes} minutes pour check-in.`;
+            for (const reg of [a, b]) {
+              if (!reg) continue;
+              for (const ruid of (reg.rosterUids as string[] | undefined) ?? []) {
+                payloads.push({
+                  userId: ruid, type: 'competition_match_checkin', title, message,
+                  link: `/competitions/${id}`, metadata: { competitionId: id, matchId: l.matchKey },
+                });
+              }
+              const channelId = reg.discord?.textChannelId as string | undefined;
+              if (channelId) {
+                discordPosts.push(sendCompetitionChannelMessage(channelId, {
+                  title, message, link: `https://aedral.com/competitions/${id}`,
+                }).catch(() => null));
+              }
+            }
+          }
+          await createNotifications(db, payloads);
+          // Salons Discord : borné à 8 s au total (pattern DM borné du repo).
+          await Promise.race([
+            Promise.allSettled(discordPosts),
+            new Promise(resolve => setTimeout(resolve, 8_000)),
+          ]);
+        } catch (e) {
+          captureApiError('Console launch_phase notifications', e);
+        }
+      }
+
+      await audit(db, uid, 'competition_phase_launched', id, comp, {
+        launched: launched.map(l => l.matchKey), skipped,
+      });
+      return NextResponse.json({ ok: true, launched: launched.map(l => l.matchKey), skipped });
+    }
+
+    if (action === 'reopen_checkin') {
+      // Reprise d'un match en attente de forfait : l'équipe en retard est
+      // arrivée, l'admin relance le check-in au lieu de valider le forfait
+      // (le forfait n'est jamais la seule issue — spec §8).
+      const matchKey = String(body.matchId ?? '');
+      if (!matchKey) return NextResponse.json({ error: 'Paramètres invalides.' }, { status: 400 });
+      const ref = refOf(matchKey);
+      const res = await db.runTransaction<{ ok: boolean; reason?: string; live?: boolean }>(async tx => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) return { ok: false, reason: 'Match introuvable.' };
+        const dec = reopenCheckin(toFlowState(matchKey, snap.data()!), cfg, Date.now());
+        if (!dec.ok) return { ok: false, reason: dec.error };
+        tx.update(ref, dec.bothDone
+          ? { status: 'live', updatedAt: FieldValue.serverTimestamp() }
+          : {
+              status: 'checkin',
+              'checkin.openedAt': Timestamp.now(),
+              'checkin.deadline': Timestamp.fromMillis(dec.deadlineMs),
+              updatedAt: FieldValue.serverTimestamp(),
+            });
+        return { ok: true, live: dec.bothDone };
+      });
+      if (!res.ok) return NextResponse.json({ error: res.reason }, { status: 409 });
+      await audit(db, uid, 'competition_checkin_reopened', id, comp, { matchId: matchKey, resumedLive: res.live === true });
+      return NextResponse.json({ ok: true, live: res.live === true });
     }
 
     if (action === 'validate_forfeit') {
@@ -163,7 +272,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const reason = typeof body.reason === 'string' ? body.reason.slice(0, 500) : null;
       const result = await applyMatchOutcome(db, id, matchKey, toEngineOutcome(dec.outcome), {
         validatedBy: 'admin', forfeitReason: reason,
+        // Un litige encore ouvert sur ce match est clôturé par la décision.
+        resolveDispute: reason ?? 'Résolu par forfait validé.',
       });
+      if (result.changedMatchIds.length === 0) {
+        // La garde pivot a no-opé (déjà finalisé par une action concurrente) :
+        // le dire à l'admin plutôt que de faire semblant d'avoir tranché.
+        return NextResponse.json({ error: 'Ce match est déjà finalisé — recharge la console.' }, { status: 409 });
+      }
       await audit(db, uid, 'competition_forfeit_validated', id, comp, { matchId: matchKey, team, reason });
       return NextResponse.json({ ok: true, ...result });
     }
@@ -182,6 +298,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         // Résout le litige ouvert le cas échéant (texte visible des équipes).
         resolveDispute: resolution,
       });
+      if (result.changedMatchIds.length === 0) {
+        return NextResponse.json({ error: 'Ce match est déjà finalisé — recharge la console.' }, { status: 409 });
+      }
       await audit(db, uid, 'competition_score_forced', id, comp, { matchId: matchKey, games, resolution });
       return NextResponse.json({ ok: true, ...result });
     }
@@ -197,15 +316,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
       const batch = db.batch();
       if (featured) {
-        // 1 match casté par phase (spec §8) : dé-feature les autres de la phase.
+        // 1 match casté par phase (spec §8) : dé-feature les autres de la
+        // phase — les matchs hors plan (phase null) forment leur propre groupe.
         const phase = snap.data()!.phase ?? null;
-        if (phase !== null) {
-          const others = await db.collection('competition_matches')
-            .where('competitionId', '==', id).get();
-          for (const d of others.docs) {
-            if (d.id !== snap.id && d.data().phase === phase && d.data().cast?.featured === true) {
-              batch.update(d.ref, { 'cast.featured': false, updatedAt: FieldValue.serverTimestamp() });
-            }
+        const others = await db.collection('competition_matches')
+          .where('competitionId', '==', id).get();
+        for (const d of others.docs) {
+          if (d.id !== snap.id && (d.data().phase ?? null) === phase && d.data().cast?.featured === true) {
+            batch.update(d.ref, { 'cast.featured': false, updatedAt: FieldValue.serverTimestamp() });
           }
         }
       }

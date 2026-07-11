@@ -29,6 +29,18 @@ class FlowHttpError extends Error {
   constructor(public status: number, public code: string) { super(code); }
 }
 
+// Messages français des refus de la machine d'états — jamais de code brut
+// devant un capitaine (review adversariale).
+const FLOW_ERROR_FR: Record<string, string> = {
+  invalid_state: "Cette action n'est plus possible dans l'état actuel du match.",
+  teams_not_ready: 'Les deux équipes ne sont pas encore connues.',
+  already_done: 'Déjà fait.',
+  deadline_passed: 'Le délai est écoulé — un admin va statuer.',
+  invalid_scores: 'Saisie incohérente avec le format du match (vainqueur net requis, pas de manche nulle).',
+  dispute_open: 'Match gelé par un litige — un admin va trancher.',
+};
+const frError = (code: string) => FLOW_ERROR_FR[code] ?? "Action impossible dans l'état actuel du match.";
+
 function matchRefOf(db: FirebaseFirestore.Firestore, competitionId: string, matchKey: string) {
   return db.collection('competition_matches').doc(`${competitionId}__${matchKey}`);
 }
@@ -205,9 +217,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       });
 
       if (resolution?.kind === 'agreement') {
-        await applyMatchOutcome(db, id, matchId, toEngineOutcome(resolution.outcome), { validatedBy: 'auto' });
+        // autoGuard : la progression re-valide l'accord sur le doc frais dans
+        // SA transaction (une correction divergente peut arriver entre-temps).
+        await applyMatchOutcome(db, id, matchId, toEngineOutcome(resolution.outcome), { validatedBy: 'auto', autoGuard: true });
       } else if (resolution?.kind === 'mismatch') {
-        void notifyMatchAlert(db, { kind: 'dispute_auto', competitionId: id, competitionName: compName, matchLabel: label });
+        // Attendu (pas de fire-and-forget en serverless — la fonction peut
+        // être gelée dès la réponse envoyée).
+        await notifyMatchAlert(db, { kind: 'dispute_auto', competitionId: id, competitionName: compName, matchLabel: label });
       }
       return NextResponse.json({ ok: true, resolution: resolution?.kind ?? 'recorded' });
     }
@@ -227,17 +243,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           updatedAt: FieldValue.serverTimestamp(),
         });
       });
-      void notifyMatchAlert(db, { kind: 'dispute_manual', competitionId: id, competitionName: compName, matchLabel: label });
+      await notifyMatchAlert(db, { kind: 'dispute_manual', competitionId: id, competitionName: compName, matchLabel: label });
       return NextResponse.json({ ok: true });
     }
 
     return NextResponse.json({ error: 'Action inconnue.' }, { status: 400 });
   } catch (err) {
     if (err instanceof FlowHttpError) {
-      return NextResponse.json({ error: err.code }, { status: err.status });
+      return NextResponse.json({ error: frError(err.code), code: err.code }, { status: err.status });
     }
     captureApiError('API Competitions/Match POST error', err);
-    return NextResponse.json({ error: 'server_error' }, { status: 500 });
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
 

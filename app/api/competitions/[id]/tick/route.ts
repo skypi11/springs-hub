@@ -81,17 +81,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       });
       if (decision?.t === 'checkin_expired') {
         processed.push({ matchId: engineId, transition: 'checkin_expired' });
-        void notifyMatchAlert(db, { kind: 'checkin_expired', competitionId: id, competitionName: compName, matchLabel: engineId });
+        // Attendu : pas de fire-and-forget en serverless.
+        await notifyMatchAlert(db, { kind: 'checkin_expired', competitionId: id, competitionName: compName, matchLabel: engineId });
       } else if (decision?.t === 'finalize') {
         outcomes.push({ matchId: engineId, outcome: decision.outcome, kind: decision.kind });
       }
     }
 
     for (const o of outcomes) {
-      await applyMatchOutcome(db, id, o.matchId, toEngineOutcome(o.outcome), { validatedBy: 'auto' });
+      // autoGuard : la progression re-valide la décision sur le doc pivot
+      // FRAIS dans sa transaction — une contre-saisie, une correction ou un
+      // litige arrivés dans la fenêtre annulent la finalisation périmée
+      // (règle de course archi §5, blocker de la review adversariale).
+      const r = await applyMatchOutcome(db, id, o.matchId, toEngineOutcome(o.outcome), { validatedBy: 'auto', autoGuard: true });
+      if (r.changedMatchIds.length === 0) continue;   // no-op (déjà fait / état périmé) : ni trace ni notif
       processed.push({ matchId: o.matchId, transition: o.kind === 'repair' ? 'agreement_repaired' : 'single_entry_finalized' });
       if (o.kind === 'deadline') {
-        void notifyMatchAlert(db, { kind: 'single_entry', competitionId: id, competitionName: compName, matchLabel: o.matchId });
+        await notifyMatchAlert(db, { kind: 'single_entry', competitionId: id, competitionName: compName, matchLabel: o.matchId });
       }
     }
 

@@ -8,6 +8,9 @@ import {
   applyDeadlines,
   forceScore,
   validateForfeit,
+  expectedAutoOutcome,
+  sameOutcome,
+  reopenCheckin,
   type FlowMatchState,
   type FlowConfig,
   type GamePair,
@@ -228,6 +231,83 @@ describe('applyDeadlines (tick idempotent, archi §5)', () => {
     expect(applyDeadlines(st, NOW + 179_999)).toBeNull();
     expect(applyDeadlines({ ...st, disputeOpen: true }, NOW + 999_999)).toBeNull();
     expect(applyDeadlines(mkState({ status: 'completed' }), NOW)).toBeNull();
+  });
+});
+
+describe('expectedAutoOutcome — garde de re-validation des finalisations auto (blocker review)', () => {
+  const reviewState = (over: Partial<FlowMatchState['scores']> = {}, extra: Partial<FlowMatchState> = {}) => mkState({
+    status: 'score_review',
+    scores: { a: WIN_A_31, b: [], aSubmittedAtMs: NOW, bSubmittedAtMs: null, counterDeadlineMs: NOW + 180_000, ...over },
+    ...extra,
+  });
+
+  it('deadline échue, saisie unique intacte → même outcome que la décision', () => {
+    const out = expectedAutoOutcome(reviewState(), NOW + 180_001);
+    expect(out).toMatchObject({ type: 'winner', winner: 'a' });
+  });
+
+  it('un litige ouvert entre-temps → null (la finalisation périmée est abandonnée)', () => {
+    const st = reviewState({}, { disputeOpen: true, status: 'disputed' });
+    expect(expectedAutoOutcome(st, NOW + 180_001)).toBeNull();
+  });
+
+  it('le camp unique a CORRIGÉ sa saisie entre-temps → outcome différent → mismatch détecté', () => {
+    const corrected = [{ a: 2, b: 1 }, { a: 1, b: 0 }, { a: 3, b: 2 }];
+    const out = expectedAutoOutcome(reviewState({ a: corrected }), NOW + 180_001);
+    expect(out).toMatchObject({ type: 'winner', winner: 'a' });
+    // La décision périmée (anciennes manches) ne matche plus l'état frais.
+    expect(sameOutcome(out!, { type: 'winner', winner: 'a', games: WIN_A_31 })).toBe(false);
+  });
+
+  it('contre-saisie concordante arrivée entre-temps → accord détecté (même outcome)', () => {
+    const out = expectedAutoOutcome(reviewState({ b: WIN_A_31, bSubmittedAtMs: NOW + 60_000 }), NOW + 180_001);
+    expect(out).toMatchObject({ type: 'winner', winner: 'a' });
+    expect(sameOutcome(out!, { type: 'winner', winner: 'a', games: WIN_A_31 })).toBe(true);
+  });
+
+  it('match déjà terminal → null (idempotence)', () => {
+    expect(expectedAutoOutcome(mkState({ status: 'completed' }), NOW)).toBeNull();
+  });
+
+  it('sameOutcome : types, camps, manches et forfaits comparés strictement', () => {
+    const w = { type: 'winner', winner: 'a', games: WIN_A_31 } as const;
+    expect(sameOutcome(w, { type: 'winner', winner: 'a', games: [...WIN_A_31] })).toBe(true);
+    expect(sameOutcome(w, { type: 'winner', winner: 'b', games: WIN_A_31 })).toBe(false);
+    expect(sameOutcome(w, { type: 'forfeit', team: 'a' })).toBe(false);
+    expect(sameOutcome({ type: 'forfeit', team: 'both' }, { type: 'forfeit', team: 'both' })).toBe(true);
+    expect(sameOutcome({ type: 'forfeit', team: 'a' }, { type: 'forfeit', team: 'b' })).toBe(false);
+  });
+});
+
+describe('reopenCheckin — reprise admin d\'un match en attente de forfait', () => {
+  it('relance depuis awaiting_forfeit_validation en conservant les check-ins faits', () => {
+    const st = mkState({
+      status: 'awaiting_forfeit_validation',
+      checkin: { deadlineMs: NOW - 1, aDone: true, bDone: false },
+    });
+    const r = reopenCheckin(st, CFG, NOW + 60_000);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.aDone).toBe(true);
+      expect(r.bDone).toBe(false);
+      expect(r.bothDone).toBe(false);
+      expect(r.deadlineMs).toBe(NOW + 60_000 + 5 * 60_000);
+    }
+  });
+
+  it('les deux avaient check-in → bothDone (repart directement en cours)', () => {
+    const st = mkState({
+      status: 'awaiting_forfeit_validation',
+      checkin: { deadlineMs: NOW - 1, aDone: true, bDone: true },
+    });
+    const r = reopenCheckin(st, CFG, NOW);
+    expect(r.ok && r.bothDone).toBe(true);
+  });
+
+  it('refuse : terminal, litige, équipes incomplètes', () => {
+    expect(reopenCheckin(mkState({ status: 'completed' }), CFG, NOW)).toEqual({ ok: false, error: 'invalid_state' });
+    expect(reopenCheckin(mkState({ status: 'checkin', disputeOpen: true }), CFG, NOW)).toEqual({ ok: false, error: 'dispute_open' });
+    expect(reopenCheckin(mkState({ status: 'awaiting_forfeit_validation', teamB: null }), CFG, NOW)).toEqual({ ok: false, error: 'teams_not_ready' });
   });
 });
 

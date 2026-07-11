@@ -82,7 +82,8 @@ export type AdminAuditAction =
   | 'competition_phase_launched'
   | 'competition_forfeit_validated'
   | 'competition_score_forced'
-  | 'competition_cast_set';
+  | 'competition_cast_set'
+  | 'competition_checkin_reopened';
 
 export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event' | 'competition' | 'circuit';
 

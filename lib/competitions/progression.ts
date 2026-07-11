@@ -29,6 +29,8 @@ import {
   type MatchOutcome,
 } from '@/lib/tournament';
 import { reconstructBracket, type MatchDoc, type TeamDisplay } from '@/lib/competitions/bracket-store';
+import { expectedAutoOutcome, sameOutcome, type FlowOutcome } from '@/lib/competitions/match-flow';
+import { toFlowState } from '@/lib/competitions/match-flow-server';
 import type { MatchStatus } from '@/types/competitions';
 
 // ── Diff pur : bracket avant/après → patchs ciblés ──────────────────────────
@@ -157,9 +159,28 @@ export interface ProgressionExtra {
   /** Qui a validé le score du PIVOT : 'auto' (accord / deadline) ou 'admin'
    *  (force-score, forfait). Les matchs de cascade restent 'auto'. */
   validatedBy?: 'auto' | 'admin';
+  /**
+   * GARDE DES FINALISATIONS AUTOMATIQUES (blocker review) : la décision
+   * (accord, deadline du tick) a été prise HORS de cette transaction. Quand ce
+   * flag est posé, la transaction rejoue expectedAutoOutcome sur le doc pivot
+   * FRAIS : si un litige s'est ouvert, si une saisie a changé, ou si l'outcome
+   * attendu n'est plus EXACTEMENT celui décidé → no-op (le tick suivant
+   * re-décidera sur l'état à jour). La règle de course (archi §5) est ainsi
+   * garantie jusqu'à l'écriture, pas seulement jusqu'à la décision.
+   */
+  autoGuard?: boolean;
   forfeitReason?: string | null;
   /** Texte de résolution si un litige était ouvert sur le pivot. */
   resolveDispute?: string | null;
+}
+
+// Comparaison MatchOutcome (moteur) ↔ FlowOutcome (machine d'états) — mêmes
+// données, vocabulaires différents (scores ↔ games).
+function outcomeMatchesFlow(engine: MatchOutcome, flow: FlowOutcome): boolean {
+  const asFlow: FlowOutcome = engine.type === 'winner'
+    ? { type: 'winner', winner: engine.winner, games: engine.scores }
+    : { type: 'forfeit', team: engine.team };
+  return sameOutcome(asFlow, flow);
 }
 
 async function applyEngineOp(
@@ -220,6 +241,18 @@ async function applyEngineOp(
       if (pivot.status === 'completed' || pivot.status === 'walkover' || pivot.status === 'cancelled') {
         return { changedMatchIds: [], finished: isFinished(before), needsAdminDecision: needsAdminDecision(before) };
       }
+      // Garde des finalisations AUTO : re-valider la décision sur le doc frais.
+      if (extra?.autoGuard) {
+        const pivotDoc = docs.find(d => d.id === op.matchId);
+        if (!pivotDoc) throw new Error('match_not_found');
+        const fresh = toFlowState(op.matchId, pivotDoc.data as FirebaseFirestore.DocumentData);
+        const expected = expectedAutoOutcome(fresh, Date.now());
+        if (!expected || !outcomeMatchesFlow(op.outcome, expected)) {
+          // L'état a bougé depuis la décision (litige, correction, contre-
+          // saisie) : finalisation périmée abandonnée.
+          return { changedMatchIds: [], finished: isFinished(before), needsAdminDecision: needsAdminDecision(before) };
+        }
+      }
     }
 
     let after: Bracket;
@@ -231,9 +264,13 @@ async function applyEngineOp(
       regId ? infoByReg.get(regId) ?? null : null);
 
     const docByEngineId = new Map(docs.map(d => [d.id, d]));
+    // Statuts « jour de match » actifs : un changement d'équipe sur un tel
+    // match (remplacement waitlist…) doit purger les traces du camp sortant.
+    const ACTIVE = new Set(['checkin', 'ready', 'live', 'awaiting_scores', 'score_review', 'disputed', 'awaiting_forfeit_validation']);
     for (const p of patches) {
       const doc = docByEngineId.get(p.matchId);
       if (!doc) continue;
+      const raw = doc.data as FirebaseFirestore.DocumentData;
       const update: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
       const f = p.fields;
       if ('teamA' in f) { update.teamA = f.teamA; update.teamAInfo = f.teamAInfo; }
@@ -257,13 +294,34 @@ async function applyEngineOp(
           reason: extra?.forfeitReason ?? null,
         };
       }
-      // Pivot : la finalisation ferme les compteurs de saisie ; un litige
-      // ouvert résolu par force-score est clôturé ('admin', doc public §8).
+      // Équipe qui change de siège sur un match DÉJÀ actif (remplacement
+      // waitlist, review adversariale) : les check-ins et saisies du camp
+      // sortant ne doivent pas être hérités par l'arrivante.
+      if (ACTIVE.has((raw.status as string) ?? 'pending')) {
+        for (const side of ['a', 'b'] as const) {
+          const teamKey = side === 'a' ? 'teamA' : 'teamB';
+          if (teamKey in f) {
+            if (raw.checkin) {
+              update[`checkin.${side}`] = { done: false, at: null };
+            }
+            update[`scores.${side}`] = [];
+            update[`scores.${side}SubmittedAt`] = null;
+            update['scores.counterDeadline'] = null;
+          }
+        }
+      }
+      // Finalisation TERMINALE du pivot : compteurs fermés, et JAMAIS de match
+      // terminal avec un litige encore ouvert (review adversariale) — les
+      // finalisations auto sur litige ouvert sont déjà no-opées par la garde,
+      // ce chemin ne concerne donc que les décisions admin.
       if (op.op === 'outcome' && p.matchId === op.matchId) {
         update['scores.counterDeadline'] = null;
-        if (extra?.resolveDispute !== undefined && doc.data.dispute) {
+        const disputeOpen = !!raw.dispute && raw.dispute.resolvedBy == null;
+        if (disputeOpen) {
           update['dispute.resolvedBy'] = 'admin';
-          update['dispute.resolution'] = extra.resolveDispute;
+          update['dispute.resolution'] = extra?.resolveDispute
+            ?? extra?.forfeitReason
+            ?? 'Tranché par un admin de compétition.';
         }
       }
       tx.update(doc.ref, update);

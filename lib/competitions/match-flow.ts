@@ -288,6 +288,62 @@ export function applyDeadlines(m: FlowMatchState, nowMs: number): DeadlineTransi
 }
 
 /**
+ * GARDE DE FINALISATION AUTOMATIQUE (review adversariale — blocker) : toute
+ * finalisation « auto » (accord des capitaines, deadline du tick) est décidée
+ * HORS de la transaction de progression. Entre la décision et l'application,
+ * une contre-saisie, une correction ou un litige peuvent légalement arriver
+ * (règle de course archi §5). La progression rejoue donc cette fonction sur
+ * l'état FRAIS du pivot dans SA transaction : si l'outcome attendu n'est plus
+ * exactement celui décidé, elle ABANDONNE (no-op) — le tick suivant décidera
+ * sur l'état à jour. Un litige ouvert bloque toute finalisation auto.
+ */
+export function expectedAutoOutcome(m: FlowMatchState, nowMs: number): FlowOutcome | null {
+  if (m.disputeOpen || TERMINAL.has(m.status)) return null;
+  const agreement = detectUnfinalizedAgreement(m);
+  if (agreement) return agreement;
+  const due = applyDeadlines(m, nowMs);
+  return due?.type === 'finalize_single_entry' ? due.outcome : null;
+}
+
+export function sameOutcome(x: FlowOutcome, y: FlowOutcome): boolean {
+  if (x.type !== y.type) return false;
+  if (x.type === 'forfeit' && y.type === 'forfeit') return x.team === y.team;
+  if (x.type === 'winner' && y.type === 'winner') {
+    return x.winner === y.winner && sameEntries(x.games, y.games);
+  }
+  return false;
+}
+
+/**
+ * Relance du check-in par un admin (console) : un match en « attente de
+ * validation du forfait » peut REPRENDRE si l'équipe en retard arrive (le
+ * forfait n'est jamais la seule issue — spec §8, l'admin décide). Les
+ * check-ins déjà faits sont conservés ; nouvelle deadline pleine.
+ */
+export interface ReopenCheckinDecision {
+  ok: true;
+  deadlineMs: number;
+  aDone: boolean;
+  bDone: boolean;
+  /** Les deux camps avaient déjà check-in → le match repart directement en cours. */
+  bothDone: boolean;
+  events: FlowEvent[];
+}
+
+export function reopenCheckin(m: FlowMatchState, cfg: FlowConfig, nowMs: number): ReopenCheckinDecision | Fail {
+  if (m.status !== 'awaiting_forfeit_validation' && m.status !== 'checkin') return fail('invalid_state');
+  if (!m.teamA || !m.teamB || m.voidA || m.voidB) return fail('teams_not_ready');
+  if (m.disputeOpen) return fail('dispute_open');
+  const aDone = m.checkin?.aDone === true;
+  const bDone = m.checkin?.bDone === true;
+  const deadlineMs = nowMs + cfg.matchCheckinMinutes * 60_000;
+  return {
+    ok: true, deadlineMs, aDone, bDone, bothDone: aDone && bDone,
+    events: [{ kind: 'checkin_opened', deadlineMs }],
+  };
+}
+
+/**
  * RÉPARATION (tick) : deux saisies complètes et CONCORDANTES en score_review =
  * un accord enregistré dont la finalisation (progression) n'est jamais partie
  * (crash entre l'enregistrement de la contre-saisie et l'application du
