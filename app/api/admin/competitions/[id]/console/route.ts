@@ -14,9 +14,10 @@ import {
 import { createNotifications, type NotificationPayload } from '@/lib/notifications';
 import { sendCompetitionChannelMessage } from '@/lib/discord-competition';
 import { toFlowState, toIso, flowConfigOf, generateRoomCredentials, toEngineOutcome } from '@/lib/competitions/match-flow-server';
-import { applyMatchOutcome } from '@/lib/competitions/progression';
+import { applyMatchOutcome, applyWithdraw, applyReplacement } from '@/lib/competitions/progression';
 import { reconstructBracket, type MatchDoc } from '@/lib/competitions/bracket-store';
 import { isFinished, needsAdminDecision } from '@/lib/tournament';
+import { syncRegistrationToCalendar, removeRegistrationFromCalendar } from '@/lib/competitions/calendar-sync';
 
 // Console live admin (archi §7) — jour de match. Lecture : admins de
 // compétition (un admin Aedral complet l'est automatiquement, spec §6).
@@ -93,14 +94,38 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
 
+    // Inscriptions : check-in général + waitlist (repêchage) + retraits.
+    const regsSnap = await db.collection('competition_registrations')
+      .where('competitionId', '==', id).get();
+    const registrations = regsSnap.docs
+      .filter(d => ['approved', 'waitlisted', 'withdrawn'].includes((d.data().status as string) ?? ''))
+      .map(d => {
+        const r = d.data();
+        return {
+          registrationId: d.id,
+          name: r.name ?? '',
+          tag: r.tag ?? '',
+          logoUrl: r.logoUrl ?? null,
+          status: r.status,
+          seed: r.seed ?? null,
+          generalCheckin: r.generalCheckin
+            ? { done: r.generalCheckin.done === true, at: toIso(r.generalCheckin.at) }
+            : null,
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+
     return NextResponse.json({
       competition: {
         id, name: comp.name ?? id, status: comp.status ?? 'draft',
         phasePlan: comp.schedule?.phasePlan ?? [],
         checkinMinutes: flowConfigOf(comp).matchCheckinMinutes,
+        generalCheckinMinutes: (comp.schedule?.generalCheckinMinutes as number) ?? 20,
+        withdrawn: Array.isArray(comp.withdrawn) ? comp.withdrawn : [],
       },
       matches: docs.map(d => serializeConsoleMatch(d.id, d.data)),
       rooms,
+      registrations,
       finished,
       needsAdminDecision: adminDecision,
     });
@@ -334,6 +359,160 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await batch.commit();
       await audit(db, uid, 'competition_cast_set', id, comp, { matchId: matchKey, featured, streamUrl });
       return NextResponse.json({ ok: true });
+    }
+
+    if (action === 'open_general_checkin') {
+      // Spec §8 : 14 h 30, 20 min, capitaine seul. Action admin explicite.
+      const regsSnap = await db.collection('competition_registrations')
+        .where('competitionId', '==', id).where('status', '==', 'approved').get();
+      const batch = db.batch();
+      let opened = 0;
+      for (const d of regsSnap.docs) {
+        if (d.data().generalCheckin?.done === true) continue;   // idempotent, ne réinitialise jamais un done
+        batch.update(d.ref, {
+          generalCheckin: { done: false, byUid: null, at: null },
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        opened++;
+      }
+      await batch.commit();
+      // Le check-in ne démarre jamais en silence : notif aux capitaines +
+      // salons Discord d'équipe (borné, best-effort).
+      try {
+        const compName = (comp.name as string) ?? id;
+        const minutes = (comp.schedule?.generalCheckinMinutes as number) ?? 20;
+        const payloads: NotificationPayload[] = [];
+        const discordPosts: Array<Promise<unknown>> = [];
+        for (const d of regsSnap.docs) {
+          const r = d.data();
+          if (r.generalCheckin?.done === true) continue;
+          const title = 'Check-in général ouvert';
+          const message = `${compName} — le capitaine de ${r.name ?? 'ton équipe'} a ${minutes} minutes pour confirmer la présence de l'équipe.`;
+          for (const ruid of (r.rosterUids as string[] | undefined) ?? []) {
+            payloads.push({
+              userId: ruid, type: 'competition_match_checkin', title, message,
+              link: `/competitions/${id}`, metadata: { competitionId: id },
+            });
+          }
+          const channelId = r.discord?.textChannelId as string | undefined;
+          if (channelId) {
+            discordPosts.push(sendCompetitionChannelMessage(channelId, {
+              title, message, link: `https://aedral.com/competitions/${id}`,
+            }).catch(() => null));
+          }
+        }
+        await createNotifications(db, payloads);
+        await Promise.race([
+          Promise.allSettled(discordPosts),
+          new Promise(resolve => setTimeout(resolve, 8_000)),
+        ]);
+      } catch (e) {
+        captureApiError('Console open_general_checkin notifications', e);
+      }
+      await audit(db, uid, 'competition_general_checkin_opened', id, comp, { teams: opened });
+      return NextResponse.json({ ok: true, opened });
+    }
+
+    if (action === 'withdraw_team') {
+      // Disqualification / abandon (R5-4) : cascade moteur (forfaits
+      // conventionnels aval, placement figé), statut d'inscription, créneaux
+      // calendrier retirés. L'équipe reste au classement (place figée).
+      const registrationId = String(body.registrationId ?? '');
+      const reason = typeof body.reason === 'string' ? body.reason.slice(0, 500) : null;
+      if (!registrationId) return NextResponse.json({ error: 'Paramètres invalides.' }, { status: 400 });
+      const regRef = db.collection('competition_registrations').doc(registrationId);
+      const regSnap = await regRef.get();
+      if (!regSnap.exists || regSnap.data()!.competitionId !== id) {
+        return NextResponse.json({ error: 'Inscription introuvable.' }, { status: 404 });
+      }
+      if (regSnap.data()!.status === 'withdrawn') {
+        return NextResponse.json({ error: 'Équipe déjà retirée.' }, { status: 409 });
+      }
+      const result = await applyWithdraw(db, id, registrationId, { forfeitReason: reason ?? 'Équipe retirée du tournoi.' });
+      await regRef.update({ status: 'withdrawn', updatedAt: FieldValue.serverTimestamp() });
+      try {
+        await removeRegistrationFromCalendar(db, { competitionId: id, teamId: regSnap.data()!.teamId as string });
+      } catch (e) { captureApiError('Console withdraw_team calendar cleanup', e); }
+      await audit(db, uid, 'competition_team_withdrawn', id, comp, {
+        registrationId, team: regSnap.data()!.name ?? registrationId, reason,
+        cascadedMatches: result.changedMatchIds,
+      });
+      return NextResponse.json({ ok: true, ...result });
+    }
+
+    if (action === 'replace_team') {
+      // Repêchage waitlist AVANT le round 1 (spec §8) — le moteur refuse dès
+      // qu'un match du bracket est joué. newRegistrationId null = personne en
+      // liste d'attente → le siège devient un bye.
+      const oldRegistrationId = String(body.oldRegistrationId ?? '');
+      const newRegistrationId = body.newRegistrationId ? String(body.newRegistrationId) : null;
+      if (!oldRegistrationId) return NextResponse.json({ error: 'Paramètres invalides.' }, { status: 400 });
+
+      const oldRef = db.collection('competition_registrations').doc(oldRegistrationId);
+      const oldSnap = await oldRef.get();
+      if (!oldSnap.exists || oldSnap.data()!.competitionId !== id) {
+        return NextResponse.json({ error: 'Inscription sortante introuvable.' }, { status: 404 });
+      }
+      let newSnap: FirebaseFirestore.DocumentSnapshot | null = null;
+      if (newRegistrationId) {
+        newSnap = await db.collection('competition_registrations').doc(newRegistrationId).get();
+        if (!newSnap.exists || newSnap.data()!.competitionId !== id) {
+          return NextResponse.json({ error: 'Inscription entrante introuvable.' }, { status: 404 });
+        }
+        if (newSnap.data()!.status !== 'waitlisted') {
+          return NextResponse.json({ error: "L'équipe entrante doit venir de la liste d'attente." }, { status: 409 });
+        }
+      }
+
+      let result;
+      try {
+        result = await applyReplacement(db, id, oldRegistrationId, newRegistrationId);
+      } catch (e) {
+        // Garde moteur §8 : refus dès qu'un match est joué.
+        return NextResponse.json({ error: (e as Error).message }, { status: 409 });
+      }
+
+      await oldRef.update({ status: 'withdrawn', updatedAt: FieldValue.serverTimestamp() });
+      try {
+        await removeRegistrationFromCalendar(db, { competitionId: id, teamId: oldSnap.data()!.teamId as string });
+      } catch (e) { captureApiError('Console replace_team calendar cleanup (old)', e); }
+
+      if (newSnap) {
+        const n = newSnap.data()!;
+        await newSnap.ref.update({
+          status: 'approved',
+          // Repêchée après ouverture du check-in général : à confirmer aussi.
+          ...(comp.status === 'live' && n.generalCheckin == null
+            ? { generalCheckin: { done: false, byUid: null, at: null } } : {}),
+          // Salons Discord : à provisionner via le bouton existant si besoin.
+          ...(n.discord?.provisioningStatus === 'none' ? { 'discord.provisioningStatus': 'queued' } : {}),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        try {
+          await syncRegistrationToCalendar(db, {
+            competitionId: id, comp, teamId: n.teamId as string, structureId: n.structureId as string,
+          });
+        } catch (e) { captureApiError('Console replace_team calendar sync (new)', e); }
+        try {
+          const payloads: NotificationPayload[] = ((n.rosterUids as string[]) ?? []).map(ruid => ({
+            userId: ruid,
+            type: 'competition_registration',
+            title: 'Repêchage — vous êtes dans le tournoi',
+            message: `${n.name ?? 'Votre équipe'} remplace ${oldSnap.data()!.name ?? 'une équipe'} sur ${(comp.name as string) ?? id}.`,
+            link: `/competitions/${id}`,
+            metadata: { competitionId: id },
+          }));
+          await createNotifications(db, payloads);
+        } catch (e) { captureApiError('Console replace_team notify', e); }
+      }
+
+      await audit(db, uid, 'competition_team_replaced', id, comp, {
+        oldRegistrationId, newRegistrationId,
+        oldTeam: oldSnap.data()!.name ?? oldRegistrationId,
+        newTeam: newSnap?.data()?.name ?? null,
+        changedMatchIds: result.changedMatchIds,
+      });
+      return NextResponse.json({ ok: true, ...result });
     }
 
     return NextResponse.json({ error: 'Action inconnue.' }, { status: 400 });

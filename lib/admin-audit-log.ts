@@ -83,7 +83,10 @@ export type AdminAuditAction =
   | 'competition_forfeit_validated'
   | 'competition_score_forced'
   | 'competition_cast_set'
-  | 'competition_checkin_reopened';
+  | 'competition_checkin_reopened'
+  | 'competition_general_checkin_opened'
+  | 'competition_team_withdrawn'
+  | 'competition_team_replaced';
 
 export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event' | 'competition' | 'circuit';
 

@@ -14,7 +14,8 @@ const API_KEY = 'AIzaSyBx4Goq8VR1I2MFf9L2wJm2TBaV-l_cCps';
 const P = 'e2e_md';
 const ADMIN_UID = `discord_${P}_admin`;
 const COMP = `${P}-comp`;
-const TEAM_COUNT = 4;
+const TEAM_COUNT = 4;      // approuvées (bracket de 4)
+const WAITLISTED = 5;      // team5 = liste d'attente (test repêchage)
 
 function parseSA(raw) {
   try { return JSON.parse(raw); } catch {
@@ -70,7 +71,7 @@ async function setup() {
   await db.collection('aedral_admins').doc(ADMIN_UID).set({ addedBy: 'e2e', addedAt: FieldValue.serverTimestamp() });
 
   const batch = db.batch();
-  for (let i = 1; i <= TEAM_COUNT; i++) {
+  for (let i = 1; i <= WAITLISTED; i++) {
     const cap = `discord_${P}_cap${i}`;
     capOfReg.set(regId(i), cap);
     // isDev : passe le gate des compétitions masquées (bac à sable).
@@ -83,9 +84,14 @@ async function setup() {
       name: `MD Team ${i}`, tag: `MD${i}`, logoUrl: null,
       captainUid: cap,
       rosterUids: [cap, `discord_${P}_p${i}b`, `discord_${P}_p${i}c`],
-      status: 'approved', createdAt: Timestamp.now(),
+      status: i <= TEAM_COUNT ? 'approved' : 'waitlisted', createdAt: Timestamp.now(),
     });
   }
+  // Un joueur NON capitaine avec accès à la compét masquée (test du 403).
+  batch.set(db.collection('users').doc(`discord_${P}_p1b`), {
+    uid: `discord_${P}_p1b`, displayName: 'E2E P1b', discordUsername: 'e2e_md_p1b',
+    discordId: '999999999999999930', games: ['rl'], isDev: true, createdAt: Timestamp.now(),
+  });
   batch.set(db.collection('competitions').doc(COMP), {
     name: 'TEST E2E Matchday — ne pas toucher',
     game: 'rocket_league', circuitId: null,
@@ -126,8 +132,8 @@ async function cleanup() {
   for (const d of notifs.docs) await d.ref.delete();
   const logs = await db.collection('admin_audit_logs').where('adminUid', '==', ADMIN_UID).get();
   for (const d of logs.docs) await d.ref.delete();
-  const uids = [ADMIN_UID];
-  for (let i = 1; i <= TEAM_COUNT; i++) uids.push(`discord_${P}_cap${i}`);
+  const uids = [ADMIN_UID, `discord_${P}_p1b`];
+  for (let i = 1; i <= WAITLISTED; i++) uids.push(`discord_${P}_cap${i}`);
   for (const u of uids) await db.collection('users').doc(u).delete();
   await db.collection('aedral_admins').doc(ADMIN_UID).delete();
   await auth.deleteUsers(uids).catch(() => {});
@@ -151,6 +157,29 @@ async function run() {
   if (r.status !== 200) throw new Error(`publish: ${r.status} ${JSON.stringify(r.json)}`);
   const count = (await db.collection('competition_matches').where('competitionId', '==', COMP).get()).size;
   check('bracket publié (7 matchs pour 4 équipes)', count === 7, `${count}`);
+
+  console.log('— Check-in général (spec §8 : capitaine seul)…');
+  r = await api('POST', `/api/admin/competitions/${COMP}/console`, { action: 'open_general_checkin' });
+  check('ouverture : 4 équipes concernées', r.status === 200 && r.json.opened === 4, JSON.stringify(r.json));
+  r = await apiAs(`discord_${P}_p1b`, 'POST', `/api/competitions/${COMP}/checkin`);
+  check('un joueur non-capitaine → 403', r.status === 403, String(r.status));
+  r = await apiAs(`discord_${P}_cap1`, 'POST', `/api/competitions/${COMP}/checkin`);
+  const reg1 = (await db.collection('competition_registrations').doc(regId(1)).get()).data();
+  check('check-in général du capitaine → done', r.status === 200 && reg1.generalCheckin?.done === true);
+  r = await apiAs(`discord_${P}_cap1`, 'POST', `/api/competitions/${COMP}/checkin`);
+  check('doublon → 409', r.status === 409, String(r.status));
+
+  console.log('— Repêchage waitlist avant le round 1 (spec §8)…');
+  // Team en seed 1 (peu importe laquelle) remplacée par la team 5 (waitlist).
+  const anySeat = (await matchRef('W1-1').get()).data().teamA;
+  r = await api('POST', `/api/admin/competitions/${COMP}/console`, {
+    action: 'replace_team', oldRegistrationId: anySeat, newRegistrationId: regId(WAITLISTED),
+  });
+  const w11Seat = (await matchRef('W1-1').get()).data();
+  const oldReg = (await db.collection('competition_registrations').doc(anySeat).get()).data();
+  const newReg = (await db.collection('competition_registrations').doc(regId(WAITLISTED)).get()).data();
+  check('siège remplacé dans le bracket + info dénormalisée', r.status === 200 && w11Seat.teamA === regId(WAITLISTED) && w11Seat.teamAInfo?.name === `MD Team ${WAITLISTED}`);
+  check('statuts échangés (sortante withdrawn, entrante approved + check-in à faire)', oldReg.status === 'withdrawn' && newReg.status === 'approved' && newReg.generalCheckin?.done === false);
 
   console.log('— Lancement de phase (console admin)…');
   r = await api('POST', `/api/admin/competitions/${COMP}/console`, { action: 'launch_phase', matchIds: ['W1-1', 'W1-2'] });
@@ -227,6 +256,23 @@ async function run() {
   r = await api('POST', `/api/admin/competitions/${COMP}/console`, { action: 'set_cast', matchId: 'GF', featured: true, streamUrl: 'https://twitch.tv/springsesport' });
   const cast = (await matchRef('GF').get()).data();
   check('match casté (EN STREAM + lien)', r.status === 200 && cast.cast?.featured === true && cast.cast?.streamUrl === 'https://twitch.tv/springsesport');
+
+  console.log('— Disqualification en cours de tournoi (R5-4, cascade différée)…');
+  const gfBefore = (await matchRef('GF').get()).data();
+  const dqTarget = gfBefore.teamA;   // finaliste côté winners (adversaire GF encore inconnu)
+  r = await api('POST', `/api/admin/competitions/${COMP}/console`, { action: 'withdraw_team', registrationId: dqTarget, reason: 'Test DQ e2e.' });
+  const dqReg = (await db.collection('competition_registrations').doc(dqTarget).get()).data();
+  const compAfterDq = (await db.collection('competitions').doc(COMP).get()).data();
+  check('retrait : inscription withdrawn + retiré tracé sur la compét', r.status === 200 && dqReg.status === 'withdrawn' && (compAfterDq.withdrawn ?? []).includes(dqTarget));
+  // La cascade est DIFFÉRÉE-SAFE : la GF n'a pas encore d'adversaire, rien à
+  // forfaiter maintenant. On joue la finale losers → l'adversaire arrive en
+  // GF → le forfait conventionnel doit tomber dans la MÊME progression.
+  const l21 = (await matchRef('L2-1').get()).data();
+  const l21Winner = l21.teamA && l21.teamB ? 'a' : null;
+  check('finale losers jouable (2 équipes)', l21Winner !== null);
+  r = await api('POST', `/api/admin/competitions/${COMP}/console`, { action: 'force_score', matchId: 'L2-1', games: WIN_A.map(g => ({ a: g.a, b: g.b })) });
+  const gfAfter = (await matchRef('GF').get()).data();
+  check('cascade différée : GF auto-forfaite à l\'arrivée de l\'adversaire', r.status === 200 && gfAfter.status === 'completed' && gfAfter.forfeit?.team === 'a' && gfAfter.winner === 'b');
 }
 
 try {
