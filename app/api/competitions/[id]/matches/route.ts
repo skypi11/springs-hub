@@ -52,7 +52,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const comp = compSnap.data()!;
 
     // Gate identique à la fiche (helper partagé).
-    if (isCompetitionHidden(comp)) {
+    const hidden = isCompetitionHidden(comp);
+    if (hidden) {
       const uid = await verifyAuth(req);
       if (!uid || !(await canViewHiddenCompetition(db, uid))) {
         return NextResponse.json({ error: 'not_found' }, { status: 404 });
@@ -84,7 +85,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       };
     });
 
-    return NextResponse.json({ matches });
+    const res = NextResponse.json({ matches });
+    // Route POLLÉE par tous les spectateurs (15 s) : sans cache, un jour de
+    // match à N viewers coûte N × 63 lectures Firestore / 15 s. Une compét
+    // visible publiquement renvoie la MÊME réponse pour tout le monde → cache
+    // CDN court : le réseau Vercel absorbe la foule, Firestore ne voit plus
+    // que ~6 requêtes/min quel que soit le nombre de spectateurs. JAMAIS de
+    // cache partagé sur une compét masquée (réponse réservée admins/testeurs).
+    res.headers.set(
+      'Cache-Control',
+      hidden ? 'private, no-store' : 'public, s-maxage=10, stale-while-revalidate=30',
+    );
+    return res;
   } catch (err) {
     captureApiError('API Competitions/Matches GET error', err);
     return NextResponse.json({ error: 'server_error' }, { status: 500 });
