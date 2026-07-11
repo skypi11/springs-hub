@@ -17,6 +17,7 @@ import { useAuth } from '@/context/AuthContext';
 import GameTag from '@/components/games/GameTag';
 import TeamCrest from '@/components/competitions/TeamCrest';
 import GlanceStat from '@/components/competitions/GlanceStat';
+import OrganizerCredit from '@/components/competitions/OrganizerCredit';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { getGameColor, getGameColorRgb, getGameBannerUrl, getGameLogoUrl } from '@/lib/games-registry';
 import { stageState, pickFocusEvent, type StageState } from '@/lib/competitions/circuit-timeline';
@@ -188,6 +189,12 @@ export default function CircuitPage() {
         )}
         <div className="h-[3px] relative" style={{ background: `linear-gradient(90deg, ${color}, rgba(${colorRgb},0.3), transparent 70%)` }} />
         <div className="relative p-6 lg:p-8">
+          {/* Crédit organisateur en tête — l'entité qui possède la compétition (Aedral héberge) */}
+          {circuit.organizer?.name && (
+            <div className="mb-5 pb-5" style={{ borderBottom: '1px solid var(--s-border)' }}>
+              <OrganizerCredit organizer={circuit.organizer} size="lg" showHost />
+            </div>
+          )}
           <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
             {/* Identité */}
             <div className="flex items-start gap-4 min-w-0">
@@ -199,15 +206,7 @@ export default function CircuitPage() {
               )}
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2 mb-1">
-                  {circuit.organizer?.name ? (
-                    <span className="t-label inline-flex items-center gap-1.5" style={{ color: 'var(--s-text-muted)' }}>
-                      {circuit.organizer.logoUrl && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={circuit.organizer.logoUrl} alt="" width={16} height={16} style={{ width: 16, height: 16, objectFit: 'contain' }} />
-                      )}
-                      Organisé par {circuit.organizer.name}
-                    </span>
-                  ) : (
+                  {!circuit.organizer?.name && (
                     <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Circuit</span>
                   )}
                   <GameTag gameId={circuit.game} size="sm" />

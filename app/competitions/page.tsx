@@ -14,6 +14,7 @@ import { api, apiPublic } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
 import GameTag from '@/components/games/GameTag';
 import GlanceStat from '@/components/competitions/GlanceStat';
+import OrganizerCredit from '@/components/competitions/OrganizerCredit';
 import { getGameColor, getGameColorRgb, getGameBannerUrl, getGameLogoUrl } from '@/lib/games-registry';
 import { ACTIVE_LEGACY_COMPETITIONS, FINISHED_LEGACY_COMPETITIONS, type LegacyCompetition } from '@/lib/legacy-competitions';
 
@@ -179,6 +180,12 @@ function FlagshipCircuit({ c, canRegister }: { c: CircuitSummary; canRegister: b
       )}
       <div className="h-[3px] relative" style={{ background: `linear-gradient(90deg, ${color}, rgba(${colorRgb},0.3), transparent 70%)` }} />
       <div className="relative p-5 lg:p-6">
+        {/* Crédit organisateur en tête */}
+        {c.organizer?.name && (
+          <div className="mb-4 pb-4" style={{ borderBottom: '1px solid var(--s-border)' }}>
+            <OrganizerCredit organizer={c.organizer} size="sm" />
+          </div>
+        )}
         <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
           {/* Identité */}
           <div className="flex items-start gap-4 min-w-0">
@@ -190,15 +197,7 @@ function FlagshipCircuit({ c, canRegister }: { c: CircuitSummary; canRegister: b
             )}
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2 mb-1">
-                {c.organizer?.name ? (
-                  <span className="t-label inline-flex items-center gap-1.5" style={{ color: 'var(--s-text-muted)' }}>
-                    {c.organizer.logoUrl && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={c.organizer.logoUrl} alt="" width={16} height={16} style={{ width: 16, height: 16, objectFit: 'contain' }} />
-                    )}
-                    Organisé par {c.organizer.name}
-                  </span>
-                ) : (
+                {!c.organizer?.name && (
                   <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Circuit</span>
                 )}
                 <GameTag gameId={c.game} size="sm" />
