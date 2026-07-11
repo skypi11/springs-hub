@@ -56,6 +56,11 @@ const REG_STATUS_LABELS: Record<string, string> = {
   waitlisted: "Liste d'attente",
 };
 
+// Ambre « attention » : signale ce qui sera examiné à la validation (compte non
+// vérifié, âge, flags MMR, inscription déjà là). PAS de l'or — l'or reste réservé
+// au CTA (btn-primary). Même ambre que la pastille « liste d'attente ».
+const WARN = '#ffb46b';
+
 export default function InscriptionPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -383,7 +388,7 @@ export default function InscriptionPage() {
               </div>
             )}
             {existingForTeam && (
-              <p className="text-sm" style={{ color: 'var(--s-gold)' }}>
+              <p className="text-sm" style={{ color: WARN }}>
                 Cette équipe a déjà une inscription : {REG_STATUS_LABELS[existingForTeam.status] ?? existingForTeam.status}.
               </p>
             )}
@@ -435,13 +440,13 @@ export default function InscriptionPage() {
                             cursor: blocked ? 'not-allowed' : 'pointer',
                             minWidth: '92px', textAlign: 'center',
                             background: role === r
-                              ? (r === 'titulaire' ? 'rgba(0,129,255,0.15)' : 'rgba(255,255,255,0.12)')
+                              ? (r === 'titulaire' ? `rgba(${colorRgb},0.15)` : 'rgba(255,255,255,0.12)')
                               : 'transparent',
                             borderColor: role === r
-                              ? (r === 'titulaire' ? 'rgba(0,129,255,0.5)' : 'rgba(255,255,255,0.35)')
+                              ? (r === 'titulaire' ? `rgba(${colorRgb},0.5)` : 'rgba(255,255,255,0.35)')
                               : 'var(--s-border)',
                             color: role === r
-                              ? (r === 'titulaire' ? '#4fb3ff' : 'var(--s-text)')
+                              ? (r === 'titulaire' ? color : 'var(--s-text)')
                               : 'var(--s-text-muted)',
                           }}>
                           {r === 'titulaire' ? 'Titulaire' : 'Remplaçant'}
@@ -449,17 +454,18 @@ export default function InscriptionPage() {
                       ))}
                     </span>
                     <span className="flex items-center gap-2 flex-1 min-w-0">
+                      <PlayerAvatar url={m.avatarUrl} name={m.displayName} size={24} />
                       <span className="text-sm font-semibold truncate">{m.displayName}</span>
                       {m.verified ? (
                         <ShieldCheck size={14} style={{ color: 'var(--s-text-dim)', flexShrink: 0 }} aria-label="Compte vérifié" />
                       ) : (
-                        <ShieldAlert size={14} style={{ color: 'var(--s-gold)', flexShrink: 0 }} aria-label="Compte non vérifié" />
+                        <ShieldAlert size={14} style={{ color: WARN, flexShrink: 0 }} aria-label="Compte non vérifié" />
                       )}
                       {/* Âge : informatif, jamais bloquant — la dérogation se
                           joue à la validation (spec §4). Même style d'alerte que
                           le compte non vérifié (or, text-xs, icône bouclier). */}
                       {m.ageStatus !== 'ok' && (
-                        <span className="flex items-center gap-1 text-xs flex-shrink-0" style={{ color: 'var(--s-gold)' }}>
+                        <span className="flex items-center gap-1 text-xs flex-shrink-0" style={{ color: WARN }}>
                           <ShieldAlert size={13} aria-hidden />
                           {m.ageStatus === 'under'
                             ? 'Mineur · dérogation à la validation'
@@ -468,7 +474,7 @@ export default function InscriptionPage() {
                       )}
                     </span>
                     {blocked ? (
-                      <span className="flex items-center gap-1 text-xs flex-shrink-0" style={{ color: 'var(--s-gold)' }}>
+                      <span className="flex items-center gap-1 text-xs flex-shrink-0" style={{ color: WARN }}>
                         <ShieldAlert size={13} aria-hidden />
                         Compte non vérifié · requis pour être aligné
                       </span>
@@ -506,7 +512,7 @@ export default function InscriptionPage() {
                   sur les trackers : déclare juste.
                 </p>
                 {liveMmr?.complete && liveMmr.analysis && (
-                  <p style={{ color: liveMmr.flags.length ? 'var(--s-gold)' : 'var(--s-text-dim)' }}>
+                  <p style={{ color: liveMmr.flags.length ? WARN : 'var(--s-text-dim)' }}>
                     Compositions possibles : moyenne la plus haute {liveMmr.analysis.worstLineupAvg} (limite {mmrRules.maxAvg}) ·
                     écart le plus grand {liveMmr.analysis.worstLineupGap} (limite {mmrRules.maxGap}).
                     {liveMmr.flags.length > 0
@@ -570,17 +576,18 @@ export default function InscriptionPage() {
                     <span className="tag tag-neutral" style={{ minWidth: '86px', textAlign: 'center' }}>
                       {assignment[uid] === 'titulaire' ? 'Titulaire' : 'Remplaçant'}
                     </span>
+                    <PlayerAvatar url={m?.avatarUrl} name={m?.displayName ?? uid} size={22} />
                     <span className="font-semibold flex-1 min-w-0 truncate">{m?.displayName ?? uid}</span>
                     {mmrRules && ref != null && <span className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>réf {ref}</span>}
                     {!m?.verified && (
-                      <span className="text-xs" style={{ color: 'var(--s-gold)' }}>compte non vérifié</span>
+                      <span className="text-xs" style={{ color: WARN }}>compte non vérifié</span>
                     )}
                   </div>
                 );
               })}
             </div>
             {liveMmr && liveMmr.flags.length > 0 && (
-              <p className="text-sm" style={{ color: 'var(--s-gold)' }}>
+              <p className="text-sm" style={{ color: WARN }}>
                 L&apos;inscription partira avec des points à vérifier : {liveMmr.flags.map(flagLabel).join(' · ')}.
                 Les admins trancheront à la validation.
               </p>
@@ -611,6 +618,24 @@ export default function InscriptionPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Avatar joueur compact, fallback initiale (les URLs Discord peuvent 404 — hash
+// périmé, bug connu). Coins biseautés, jamais rond (DA).
+function PlayerAvatar({ url, name, size = 24 }: { url?: string | null; name: string; size?: number }) {
+  const [broken, setBroken] = useState(false);
+  const initial = (name || '?').trim().charAt(0).toUpperCase();
+  return (
+    <span className="flex items-center justify-center flex-shrink-0 bevel-sm overflow-hidden"
+      style={{ width: size, height: size, background: 'var(--s-elevated)' }}>
+      {url && !broken ? (
+        // eslint-disable-next-line @next/next/no-img-element -- avatars Discord/R2 hors remotePatterns
+        <img src={url} alt="" width={size} height={size} style={{ width: size, height: size, objectFit: 'cover' }} onError={() => setBroken(true)} />
+      ) : (
+        <span className="font-display" style={{ fontSize: Math.round(size * 0.44), color: 'var(--s-text-dim)', lineHeight: 1 }}>{initial}</span>
+      )}
+    </span>
   );
 }
 
