@@ -66,8 +66,8 @@ export default function OrganizerCredit({
 
       {/* Mention hôte discrète : Aedral = hébergeur */}
       {showHost && (
-        <div className="ml-auto hidden sm:flex items-center gap-1.5 flex-shrink-0" style={{ opacity: 0.65 }}>
-          <span className="t-label" style={{ color: 'var(--s-text-muted)' }}>Hébergé sur</span>
+        <div className="ml-auto hidden sm:flex items-center gap-1.5 flex-shrink-0" style={{ opacity: 0.6 }}>
+          <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Hébergé sur</span>
           <AedralLogo variant="mark" theme="mono-light" height={16} />
         </div>
       )}
