@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Legends Springs Cup — Fonctionnement de la plateforme</title>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --elevated: #1a1a1a;
+    --border: rgba(255,255,255,0.08);
+    --gold: #FFB800;
+    --violet: #a364d9;
+    --blue: #4da3ff;
+    --text: #eaeaf0;
+    --dim: #9a9ab0;
+    --muted: #6a6a8a;
+    --green: #2fc46b;
+    --red: #ff5555;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 66L0 50L0 16L28 0L56 16L56 50L28 66ZM28 100L0 84L0 50L28 34L56 50L56 84L28 100Z' fill='none' stroke='%23ffffff' stroke-width='0.4' opacity='0.05'/%3E%3C/svg%3E");
+    background-size: 56px 100px;
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
+    padding: 48px 20px 90px;
+  }
+  .page { max-width: 920px; margin: 0 auto; display: flex; flex-direction: column; gap: 44px; }
+  .display { font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; line-height: 1.1; text-wrap: balance; }
+  .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); }
+  h1.display { font-size: 34px; }
+  h2.display { font-size: 21px; padding-left: 12px; border-left: 3px solid var(--gold); }
+  h3 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+  p { color: var(--dim); }
+  strong { color: var(--text); }
+  em { color: var(--dim); }
+  section { display: flex; flex-direction: column; gap: 16px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 20px 22px;
+  }
+  .card + .card { margin-top: 2px; }
+  ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  ul li { color: var(--dim); padding-left: 18px; position: relative; }
+  ul li::before { content: ''; position: absolute; left: 2px; top: 0.62em; width: 7px; height: 7px; background: rgba(255,184,0,0.55); }
+  ul li strong { color: var(--text); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: bottom; }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--dim); vertical-align: top; }
+  td:first-child { color: var(--text); font-weight: 600; width: 34%; }
+  tr:last-child td { border-bottom: none; }
+  .tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; padding: 3px 10px; border: 1px solid; white-space: nowrap; }
+  .tag-gold { color: var(--gold); border-color: rgba(255,184,0,0.35); background: rgba(255,184,0,0.08); }
+  .tag-green { color: var(--green); border-color: rgba(47,196,107,0.35); background: rgba(47,196,107,0.08); }
+  .tag-blue { color: var(--blue); border-color: rgba(77,163,255,0.35); background: rgba(77,163,255,0.08); }
+  .tag-muted { color: var(--muted); border-color: var(--border); }
+  .callout { border-left: 3px solid var(--gold); background: rgba(255,184,0,0.05); padding: 14px 18px; color: var(--dim); }
+  .callout strong { color: var(--gold); }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .divider { height: 1px; background: var(--border); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header style="display:flex;flex-direction:column;gap:14px;">
+    <div class="meta">
+      <span class="tag tag-gold">Legends Springs Cup</span>
+      <span class="tag tag-muted">Document interne organisation</span>
+    </div>
+    <h1 class="display">Fonctionnement de la plateforme</h1>
+    <p style="max-width:70ch;">
+      Ce document décrit, situation par situation, ce que la plateforme Aedral met en place pour la
+      Legends Springs Cup et comment elle se comporte — de l'inscription d'une équipe jusqu'au
+      classement final d'un Qualif. Organisateur de la compétition : <strong>SPRINGS E-SPORT</strong>.
+      Aedral est la plateforme technique d'accueil.
+    </p>
+    <p class="label">État au 11 juillet 2026 — voir « État du chantier » en fin de document</p>
+  </header>
+
+  <!-- ══════════════ 1. LE CIRCUIT ══════════════ -->
+  <section>
+    <h2 class="display">1 · Le circuit en bref</h2>
+    <div class="card">
+      <ul>
+        <li><strong>4 Qualifs online</strong> (26-27 sept, 10-11 oct, 24-25 oct, 7-8 nov) + <strong>LAN finale les 21-22 novembre</strong>. Rocket League 3v3.</li>
+        <li>Chaque Qualif : <strong>32 équipes max</strong>, double élimination complète avec grande finale et « belle » (bracket reset). BO5 partout, demi-finales / finales / grande finale en BO7.</li>
+        <li>Chaque Qualif distribue des <strong>points de circuit</strong> ; seuls les <strong>3 meilleurs résultats sur 4</strong> comptent (une absence ou une contre-performance ne condamne pas une équipe).</li>
+        <li>Les <strong>16 meilleures équipes</strong> du classement vont à la LAN. Prizepool : <strong>1 200 € cash à la LAN uniquement</strong> — aucun cashprize sur les Qualifs.</li>
+        <li>Barème et scénarios simulés : <a href="/legends/bareme-scenarios.html">aedral.com/legends/bareme-scenarios.html</a></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ══════════════ 2. INSCRIPTIONS ══════════════ -->
+  <section>
+    <h2 class="display">2 · Inscriptions</h2>
+    <div class="card">
+      <h3>Conditions pour s'inscrire</h3>
+      <ul>
+        <li>Inscription <strong>gratuite</strong>, ouverte <strong>J-14</strong>, fermée <strong>J-3</strong> (mercredi soir pour un Qualif le samedi). Une inscription par Qualif.</li>
+        <li>L'équipe doit être <strong>formée sur Aedral</strong> (structure + équipe RL sur le site) : 3 titulaires + 2 remplaçants maximum.</li>
+        <li><strong>Comptes vérifiés obligatoires</strong> pour tous les joueurs du roster (compte Epic/Steam relié — c'est ce qui rend les trackers fiables). Un joueur non vérifié bloque la soumission.</li>
+        <li><strong>Règlement accepté obligatoirement</strong> à l'inscription — la version exacte acceptée est enregistrée (traçabilité légale). Le règlement est public et versionné.</li>
+        <li>Peuvent inscrire une équipe : le <strong>dirigeant</strong>, un <strong>responsable</strong> de la structure, ou le <strong>manager de l'équipe</strong>. Pas le coach ni le capitaine (l'inscription fige un roster : c'est un acte de gestion).</li>
+        <li>Un joueur ne peut figurer que dans <strong>une seule équipe</strong> par Qualif (contrôle automatique, y compris contre les inscriptions en attente).</li>
+        <li>Le roster est <strong>figé au moment de l'inscription</strong> (« snapshot ») : les changements d'effectif sur le site après coup n'affectent pas l'inscription.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Règles MMR (anti-écrasement des divisions)</h3>
+      <ul>
+        <li>Chaque joueur déclare son <strong>MMR 2v2 actuel et son peak</strong>. Le site calcule un <strong>MMR de référence = 70 % actuel + 30 % peak</strong>.</li>
+        <li><strong>Toute composition de 3 joueurs alignable</strong> (n'importe quel trio titulaires + remplaçants) doit respecter : moyenne ≤ 1850 <em>et</em> écart max-min ≤ 150. Plafond individuel : 1900.</li>
+        <li>Le site calcule tout automatiquement et <strong>lève des drapeaux</strong> pour les admins ; la vérification humaine se fait via le <strong>lien tracker</strong> de chaque joueur (fiable car comptes vérifiés). Un dépassement ne bloque pas la soumission : il alerte les admins, qui tranchent.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Ce qui se passe selon la situation</h3>
+      <div class="tablewrap"><table>
+        <tr><th>Situation</th><th>Comportement de la plateforme</th></tr>
+        <tr><td>Joueur ou structure au registre des sanctions (ban, ou exclusion visant ce tournoi/circuit)</td><td><strong>Refus automatique</strong> à la soumission, motif affiché. Aucune intervention admin nécessaire.</td></tr>
+        <tr><td>Joueur sous l'âge minimum (16 ans)</td><td>L'inscription passe en <strong>« dérogation requise »</strong> — jamais de refus automatique. Un admin de compétition arbitre (accord parental possible) et sa décision est journalisée, joueur par joueur.</td></tr>
+        <tr><td>Plus de 32 équipes validées</td><td>Premier validé, premier servi. Les suivantes passent en <strong>liste d'attente</strong>, promue en cascade si une place se libère.</td></tr>
+        <tr><td>Équipe déjà venue à un Qualif précédent</td><td><strong>Conservation des points</strong> si au moins 2 des 3 titulaires figuraient dans le roster précédent (règle du « noyau »). Sinon l'équipe repart de zéro. Le rattachement ambigu (équipe scindée, homonymes) n'est <strong>jamais automatique</strong> : arbitrage admin explicite.</td></tr>
+        <tr><td>Changement de nom d'équipe entre deux Qualifs</td><td>Interdit sauf accord des admins de compétition — l'écart de nom est signalé automatiquement dans la file de validation.</td></tr>
+        <tr><td>Inscription soumise</td><td>Les admins reçoivent une notification + un compteur « à valider » sur leur panel. Ils voient : roster complet avec MMR/trackers/âges/comptes Discord et Epic, drapeaux automatiques, éventuels signalements smurf <em>en agrégat anonymisé</em> (jamais l'identité des signaleurs), staff et direction de la structure, historique de sanctions.</td></tr>
+        <tr><td>Inscription validée</td><td>Notification à tout le roster + message Discord au capitaine et à l'inscripteur. Les <strong>créneaux du Qualif sont posés automatiquement dans le calendrier de l'équipe</strong> sur Aedral. Le bot crée sur le serveur Discord SPRINGS E-SPORT : rôle « Participant » du circuit, rôle au nom de l'équipe, <strong>salon textuel + vocal privés</strong> visibles de l'équipe et du staff seulement.</td></tr>
+        <tr><td>Inscription refusée</td><td>Motif transmis à l'équipe. Créneaux calendrier et provisioning Discord retirés le cas échéant.</td></tr>
+        <tr><td>Équipe qui suit son dossier</td><td>Onglet « Inscriptions » dans <em>Ma structure</em> : statut, roster figé, dates. La fiche du Qualif affiche aussi « ton inscription est {statut} ».</td></tr>
+      </table></div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 3. SANCTIONS ══════════════ -->
+  <section>
+    <h2 class="display">3 · Sanctions (modération graduée)</h2>
+    <div class="card">
+      <div class="tablewrap"><table>
+        <tr><th>Niveau</th><th>Effet</th></tr>
+        <tr><td>Avertissement (warn)</td><td>Informatif : notification in-app + message Discord avec le motif. <strong>Ne bloque rien.</strong> Cumulable — l'escalade est toujours une décision humaine, jamais automatique.</td></tr>
+        <tr><td>Exclusion</td><td>Retrait d'<strong>un tournoi ou d'un circuit précis</strong> : bloque la réinscription à ce périmètre. Peut être temporaire (datée) ou permanente.</td></tr>
+        <tr><td>Ban</td><td>Refuse l'inscription à <strong>toute compétition</strong> hébergée. Ce n'est jamais un bannissement du site Aedral lui-même.</td></tr>
+      </table></div>
+      <p style="margin-top:12px;">Les sanctions visent un <strong>joueur</strong>, une <strong>équipe</strong> ou une <strong>structure entière</strong>. Bannir une équipe bloque l'entité équipe — pas ses joueurs individuellement. Une sanction levée est <strong>révoquée et horodatée</strong>, jamais effacée : l'historique complet reste consultable (c'est lui qui rend l'escalade juste). Toute la modération est journalisée.</p>
+    </div>
+  </section>
+
+  <!-- ══════════════ 4. SEEDING & BRACKET ══════════════ -->
+  <section>
+    <h2 class="display">4 · Seeding et bracket</h2>
+    <div class="card">
+      <ul>
+        <li>Seeding <strong>aléatoire</strong> (tirage cryptographique), <strong>réordonnable manuellement</strong> par un admin avant publication.</li>
+        <li>À la publication : le bracket complet est généré (jusqu'à 63 matchs pour 32 équipes) et devient <strong>visible publiquement</strong> sur la fiche du Qualif — arbre professionnel à connecteurs, seeds, BO par match, mis à jour en continu.</li>
+        <li>Moins de 32 équipes → des <strong>byes</strong> (« qualifié d'office ») placés automatiquement, sans avantage au départage (voir §7).</li>
+        <li>La « belle » de grande finale est prévue d'avance et ne s'affiche que si elle devient possible — si le vainqueur du winner bracket gagne la grande finale, elle n'apparaît jamais.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ══════════════ 5. JOUR DE MATCH ══════════════ -->
+  <section>
+    <h2 class="display">5 · Le jour de match, situation par situation</h2>
+    <div class="callout">
+      <strong>Principe directeur :</strong> rien d'irréversible n'est automatique. Les forfaits, litiges et
+      dérogations passent toujours par un humain. En revanche, tout ce qui peut avancer tout seul
+      avance tout seul (résultats concordants, propagation du bracket) pour que les admins ne soient
+      sollicités que là où leur jugement compte.
+    </div>
+
+    <div class="card">
+      <h3>Check-in général (14 h 30, 20 minutes)</h3>
+      <div class="tablewrap"><table>
+        <tr><th>Situation</th><th>Comportement</th></tr>
+        <tr><td>Ouverture</td><td>Déclenchée par un admin. Chaque <strong>capitaine</strong> (lui seul) confirme la présence de son équipe.</td></tr>
+        <tr><td>Équipe manquante à l'échéance</td><td>Visible immédiatement dans la console admin. <strong>Décision humaine</strong> : forfait, ou remplacement par la première équipe de la liste d'attente (possible uniquement avant le premier match).</td></tr>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <h3>Lancement d'une phase</h3>
+      <div class="tablewrap"><table>
+        <tr><th>Situation</th><th>Comportement</th></tr>
+        <tr><td>Une phase = un créneau où tous les matchs partent ensemble</td><td>Le lancement est une <strong>action explicite d'un admin</strong> — jamais automatique. Le planning des phases (2 jours, ~5 phases/jour) reste ajustable.</td></tr>
+        <tr><td>Un match de la phase est bloqué (litige en cours)</td><td><strong>Lancement partiel</strong> : l'admin lance les matchs prêts, le match bloqué suit dès résolution. Un litige de 30 minutes ne gèle jamais les 28 autres équipes.</td></tr>
+        <tr><td>Au lancement</td><td>Chaque match passe en check-in (5 min) et sa <strong>room est générée par le site</strong> : nom + mot de passe uniques, lisibles à la dictée vocale (pas de caractères ambigus). Jamais régénérée ensuite.</td></tr>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <h3>Check-in de match et room</h3>
+      <div class="tablewrap"><table>
+        <tr><th>Situation</th><th>Comportement</th></tr>
+        <tr><td>Qui check-in ?</td><td>Le <strong>capitaine seul</strong>, depuis la page du match. 5 minutes.</td></tr>
+        <tr><td>Les deux capitaines ont check-in</td><td>Le match passe <strong>en cours</strong>. La page de match affiche la room (nom + mot de passe) et <strong>qui doit la créer</strong> : l'équipe du haut du bracket, indiquée explicitement.</td></tr>
+        <tr><td>Une équipe (ou les deux) ne check-in pas à temps</td><td>Le match passe en <strong>« en attente de validation d'un admin »</strong>. L'équipe présente voit : <em>« L'équipe adverse n'a pas check-in, attendez la validation d'un admin. »</em> <strong>Jamais de forfait automatique.</strong> Les admins sont notifiés.</td></tr>
+        <tr><td>Qui voit les codes de room ?</td><td>Les deux équipes du match et les admins (pour spectater/caster). <strong>Jamais le public</strong>, jamais les autres équipes.</td></tr>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <h3>Saisie des scores</h3>
+      <div class="tablewrap"><table>
+        <tr><th>Situation</th><th>Comportement</th></tr>
+        <tr><td>Qui saisit ?</td><td>Le capitaine <strong>ou le staff</strong> de chaque équipe, chacun pour son camp. Le site détermine lui-même le camp de la personne connectée : <strong>il est techniquement impossible de saisir pour l'adversaire</strong>.</td></tr>
+        <tr><td>Ce qui est saisi</td><td>Le score complet de <strong>chaque manche</strong> (ex. 3-1, 0-2, 4-2, 1-0) — indispensable au départage par délta de buts.</td></tr>
+        <tr><td>Saisie impossible (mauvais BO)</td><td>Le site refuse toute saisie incohérente : vainqueur non net, manche jouée après la décision, égalité dans une manche.</td></tr>
+        <tr><td>Première équipe à saisir</td><td>L'autre équipe a <strong>3 minutes</strong> pour contre-saisir. Une équipe peut corriger sa propre saisie tant que rien n'est validé.</td></tr>
+        <tr><td>Les deux saisies concordent</td><td><strong>Résultat validé automatiquement</strong>, bracket avancé dans la seconde : le vainqueur apparaît dans son match suivant, le perdant descend chez les losers, tout le monde le voit en direct.</td></tr>
+        <tr><td>Les deux saisies divergent</td><td><strong>Litige automatique</strong> : match gelé, admins notifiés.</td></tr>
+        <tr><td>3 minutes écoulées sans contre-saisie</td><td>La saisie unique est <strong>retenue</strong> et les admins sont <strong>notifiés</strong> (contrôle a posteriori possible).</td></tr>
+        <tr><td>Contre-saisie en retard, mais avant le traitement de l'échéance</td><td><strong>Acceptée et traitée normalement</strong> (règle d'équité) — concordance ou litige, comme si elle était à l'heure.</td></tr>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <h3>Litiges</h3>
+      <div class="tablewrap"><table>
+        <tr><th>Situation</th><th>Comportement</th></tr>
+        <tr><td>Litige automatique (scores divergents) ou manuel (bouton, ex. erreur de saisie)</td><td><strong>Gel total du match</strong> : plus aucune action d'équipe possible. Admins notifiés immédiatement.</td></tr>
+        <tr><td>Instruction</td><td>Les capitaines uploadent les <strong>captures d'écran de chaque manche</strong> (visibles des équipes concernées et des admins uniquement).</td></tr>
+        <tr><td>Résolution</td><td>L'admin impose le score depuis la console (« force-score ») avec un <strong>texte de résolution visible des équipes</strong>. Le match se termine, le bracket repart. La décision est journalisée — l'identité de l'admin n'apparaît jamais publiquement.</td></tr>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <h3>Forfaits, abandons, disqualifications</h3>
+      <div class="tablewrap"><table>
+        <tr><th>Situation</th><th>Comportement</th></tr>
+        <tr><td>Forfait d'une équipe sur un match</td><td>Toujours <strong>validé par un admin</strong> (avec motif). Score conventionnel : <strong>3-0 en BO5, 4-0 en BO7</strong> (manches 1-0), compté dans le délta des deux camps — le vainqueur du forfait n'est pas pénalisé au départage.</td></tr>
+        <tr><td>Double forfait (les deux équipes absentes)</td><td>Les <strong>deux équipes sont éliminées</strong>, délta conventionnel négatif chacune. L'adversaire du match suivant est <strong>qualifié d'office</strong> — sans score conventionnel (un match non joué ne compte pas dans son délta, l'équité du départage est préservée).</td></tr>
+        <tr><td>Équipe qui abandonne / est disqualifiée en cours de tournoi</td><td>Bouton console dédié : tous ses matchs restants passent en forfait conventionnel <strong>en cascade automatique</strong> (jour 2 : plus besoin d'attendre 5 minutes de check-in à chaque phase pour une équipe partie). Son <strong>placement est figé</strong> au stade atteint, son délta n'est plus modifié.</td></tr>
+        <tr><td>Équipe absente avant le premier match</td><td>Remplacement possible par la <strong>liste d'attente</strong> (bouton console). Personne en liste d'attente → la place devient un bye.</td></tr>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <h3>Cast et public</h3>
+      <div class="tablewrap"><table>
+        <tr><th>Situation</th><th>Comportement</th></tr>
+        <tr><td>Match casté</td><td><strong>1 match par phase</strong>, choisi par l'admin. Badge « EN STREAM » + lien direct vers le stream sur le bracket public. Le cast se cale sur le check-in (pas de différé).</td></tr>
+        <tr><td>Ce que voit le public</td><td>Le bracket en direct (rafraîchi toutes les ~15 s), les scores manche par manche, les statuts (en cours, terminé, forfait, qualifié d'office), les équipes et leurs rosters avec liens trackers. <strong>Jamais</strong> : les codes de room, les données personnelles, l'identité des admins qui décident.</td></tr>
+        <tr><td>Coût de l'affluence</td><td>Le bracket public est servi par un cache : que 10 ou 2 000 personnes regardent, la charge et le coût restent les mêmes.</td></tr>
+      </table></div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 6. INTÉGRITÉ ══════════════ -->
+  <section>
+    <h2 class="display">6 · Intégrité et sécurité</h2>
+    <div class="card">
+      <ul>
+        <li><strong>Le camp d'un joueur est déterminé par le serveur</strong>, jamais par ce que son navigateur prétend : impossible de check-in ou de saisir un score pour l'équipe adverse.</li>
+        <li>Une personne staff des <strong>deux</strong> équipes d'un match (cas possible : une structure avec deux équipes inscrites) ne peut saisir pour <strong>aucune</strong> des deux — un admin tranche.</li>
+        <li>Anti-mensonge MMR : comptes vérifiés obligatoires + lien tracker de chaque joueur visible publiquement — les équipes adverses peuvent vérifier elles-mêmes, ce qui décharge les admins.</li>
+        <li>Signalements smurf existants montrés aux admins de compétition <strong>en agrégat anonymisé</strong> — jamais l'identité des signaleurs.</li>
+        <li><strong>Toutes les actions admin sont journalisées</strong> (validation, litige, forfait, sanction, disqualification, lancement de phase…) — audit complet, mais aucune identité d'admin dans les pages publiques.</li>
+        <li>Données personnelles (âges, MMR déclarés, identifiants Discord/Epic) : réservées aux admins, jamais dans les documents publics. Dates de naissance chiffrées côté serveur ; seul l'âge calculé est utilisé.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ══════════════ 7. CLASSEMENT ══════════════ -->
+  <section>
+    <h2 class="display">7 · Classement d'un Qualif et points de circuit</h2>
+    <div class="card">
+      <ul>
+        <li>Le bracket donne le <strong>groupe d'élimination</strong> (1er, 2e, 3e, 4e, 5-6, 7-8, 9-12, 13-16, 17-24, 25-32) ; à l'intérieur d'un groupe, le départage est : <strong>délta de buts</strong> (normalisé par match réellement joué — une équipe passée par un bye n'est pas avantagée ni pénalisée) → <strong>buts marqués</strong> → <strong>face-à-face</strong> s'il a eu lieu → <strong>décision admin</strong> (interface dédiée, journalisée).</li>
+        <li>Moins de 32 équipes → les places sont <strong>compressées de 1 à N</strong> : deux Qualifs de tailles différentes paient la même performance relative au même prix. Pas de contestation possible au cutline.</li>
+        <li>La <strong>clôture d'un Qualif est bloquée</strong> tant qu'une égalité nécessitant un arbitrage n'est pas tranchée : aucun classement partiel ou faux n'est jamais publié.</li>
+        <li>Classement de circuit : <strong>3 meilleurs résultats sur 4</strong>. Cutline top-16 départagée par : meilleur placement unique du circuit → délta cumulé → résultat du Qualif le plus récent.</li>
+        <li>Forfait d'un qualifié LAN → <strong>repêchage en cascade</strong> (17e, puis 18e, etc.).</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ══════════════ 8. RÔLES ══════════════ -->
+  <section>
+    <h2 class="display">8 · Qui voit quoi, qui peut quoi</h2>
+    <div class="card">
+      <div class="tablewrap"><table>
+        <tr><th>Rôle</th><th>Accès</th></tr>
+        <tr><td>Public / visiteur</td><td>Page du circuit (format, barème, classement), fiche de chaque Qualif, équipes inscrites et rosters (pseudos + trackers), bracket en direct, pages de match (scores, statuts, stream).</td></tr>
+        <tr><td>Joueur inscrit</td><td>Idem public + sa page de match avec la room de SON match, le statut de son inscription, ses créneaux au calendrier, son salon Discord d'équipe.</td></tr>
+        <tr><td>Capitaine</td><td>Idem joueur + check-in général et de match, saisie des scores, ouverture de litige.</td></tr>
+        <tr><td>Staff d'équipe / direction de structure</td><td>Suivi des inscriptions de la structure, saisie des scores et litiges (pas le check-in — capitaine seul).</td></tr>
+        <tr><td>Admin de compétition <em>(rôle scopé, nommé par Aedral)</em></td><td>File de validation (MMR, trackers, âges, drapeaux, dérogations), console live (phases, rooms de tous les matchs, forfaits, force-score, litiges, cast, disqualification, waitlist), registre des sanctions, éditeur de règlement. <strong>Aucun accès</strong> au reste de l'administration du site.</td></tr>
+        <tr><td>Admin Aedral (Matt)</td><td>Tout ce qui précède, partout.</td></tr>
+      </table></div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 9. ÉTAT DU CHANTIER ══════════════ -->
+  <section>
+    <h2 class="display">9 · État du chantier</h2>
+    <div class="card">
+      <h3><span class="tag tag-green">En place et testé</span></h3>
+      <ul>
+        <li>Inscriptions de bout en bout : wizard, gate comptes vérifiés, règles MMR et drapeaux, règlement versionné avec acceptation tracée, refus automatiques (sanctions), file de validation admin complète (dossier par équipe), waitlist, conservation des points (noyau 2/3), notifications, créneaux calendrier automatiques, salons Discord privés par équipe.</li>
+        <li>Registre des sanctions gradué (warn / exclusion / ban) avec historique et effet à l'inscription.</li>
+        <li>Seeding aléatoire réordonnable + publication du bracket (moteur de tournoi testé sur toutes les tailles de 4 à 32, forfaits, double forfait, abandon, remplacement, belle).</li>
+        <li>Bracket public professionnel en direct sur la fiche de chaque Qualif (+ page du circuit avec classement et cutline).</li>
+        <li>Cœur du jour de match, <strong>vérifié par un test automatisé qui déroule un tournoi entier</strong> : lancement de phase partiel, rooms générées, check-ins, saisie des deux camps, validation automatique sur accord, litige automatique sur désaccord, force-score, échéances (check-in expiré, saisie unique), forfaits validés, cast — avec propagation instantanée du bracket.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3><span class="tag tag-blue">En construction (avant le tournoi test)</span></h3>
+      <ul>
+        <li>Les <strong>écrans</strong> du jour de match : console live pour les admins et page de match pour les joueurs (la mécanique serveur ci-dessus est prête ; il reste l'interface).</li>
+        <li>Check-in général 14 h 30 (mécanique en cours de câblage), disqualification et remplacement waitlist en un clic dans la console.</li>
+        <li>Upload des captures d'écran de litige.</li>
+        <li>Retrait d'inscription par l'équipe elle-même + application des exclusions.</li>
+        <li>Clôture d'un Qualif : écriture automatique des points au classement du circuit, arbitrage des égalités par glisser-déposer.</li>
+        <li>Fil de discussion par match (capitaines + staff + admins) — les salons Discord d'équipe couvrent le besoin en attendant.</li>
+        <li>Moteur <strong>simple élimination</strong> pour le tournoi test en ligne prévu avant la Legends.</li>
+      </ul>
+      <p style="margin-top:12px;"><em>Un tournoi test grandeur nature est prévu une fois l'ensemble terminé — il servira de répétition générale (admins, capitaines, Discord) avant l'ouverture des inscriptions le 12 septembre.</em></p>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+  <p class="label" style="text-align:center;">Legends Springs Cup · organisée par SPRINGS E-SPORT · hébergée sur aedral.com — document non indexé, à diffusion interne</p>
+
+</div>
+</body>
+</html>
