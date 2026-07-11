@@ -388,8 +388,15 @@ export interface CompetitionMatch {
   /** Créateur de la room = équipe du haut du bracket (spec §8). */
   roomHost: 'a' | 'b';
   scores: {
-    a: number[];                   // buts par manche
-    b: number[];
+    /**
+     * SAISIES des deux camps (spec §9) : chaque capitaine/staff saisit le score
+     * COMPLET de chaque manche ({a,b} — sans les buts adverses, la détection de
+     * divergence serait impossible). [] = pas encore saisi. Le résultat retenu
+     * est TOUJOURS `final`, écrit par la progression (moteur advanceMatch) —
+     * jamais par la saisie directement.
+     */
+    a: Array<{ a: number; b: number }>;
+    b: Array<{ a: number; b: number }>;
     aSubmittedAt: Date | string | null;
     bSubmittedAt: Date | string | null;
     counterDeadline: Date | string | null;  // +3 min après la 1re saisie complète
