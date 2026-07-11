@@ -78,8 +78,8 @@ export default function ValorantIdentityBadge({
         <span
           className="inline-flex items-center gap-1 tag"
           title={subtle
-            ? "Compte Riot non lié, le rang Valorant affiché n'est pas vérifié."
-            : "Ce joueur joue à Valorant mais n'a pas lié son compte Riot. Son rang n'est pas vérifiable."}
+            ? "Rang Valorant non vérifié."
+            : "Rang Valorant non vérifié — la vérification par connexion Riot n'est pas encore disponible sur Aedral."}
           style={{
             background: subtle ? 'transparent' : 'rgba(255,85,85,0.10)',
             color: subtle ? 'var(--s-text-muted)' : '#ff8a8a',
@@ -103,9 +103,9 @@ export default function ValorantIdentityBadge({
       >
         <ShieldAlert size={16} style={{ color: '#ff8a8a', flexShrink: 0, marginTop: 2 }} />
         <div className="text-xs" style={{ color: '#ff8a8a' }}>
-          <strong>Compte Riot non lié.</strong>
+          <strong>Rang Valorant non vérifié.</strong>
           <br />
-          Ce joueur dit pratiquer Valorant mais n&apos;a lié aucun compte Riot, son rang n&apos;est pas vérifiable. À considérer avec prudence pour le recrutement.
+          La vérification par connexion Riot n&apos;est pas encore disponible sur Aedral — le rang affiché n&apos;est pas confirmé.
         </div>
       </div>
     );

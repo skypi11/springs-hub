@@ -14,6 +14,7 @@ import { track } from '@/lib/analytics';
 import { countries } from '@/lib/countries';
 import { RL_PLATFORMS, getRLPlatformMeta, type RLPlatform } from '@/lib/rl-platform';
 import { ALL_GAME_DEFS } from '@/lib/games-registry';
+import { VALORANT_VERIFICATION_PAUSED } from '@/lib/account-verification';
 import type { SpringsUser } from '@/types';
 
 // ─── Storage clés ─────────────────────────────────────────────────────────
@@ -482,17 +483,17 @@ function StepGames({ data, update }: { data: WizardData; update: (p: Partial<Wiz
           </div>
         </div>
       )}
-      {/* Config Valorant minimale, rang optionnel (peut être laissé vide,
-          tu pourras lier ton compte Riot dans Discord puis activer la sync
-          auto plus tard, ou saisir manuellement dans Settings). */}
+      {/* Config Valorant : vérification en pause (Discord a coupé les comptes
+          Riot de son API OAuth en juillet 2026). Rien à saisir — la connexion
+          Riot directe la rétablira. */}
       {data.games.includes('valorant') && (
         <div className="p-4 space-y-3" style={{ background: 'rgba(255,70,85,0.04)', border: '1px solid rgba(255,70,85,0.15)' }}>
           <div className="flex items-center gap-2">
             <span className="tag" style={{ fontSize: '12px', background: 'rgba(255,70,85,0.10)', color: '#FF6B78', borderColor: 'rgba(255,70,85,0.25)' }}>VAL</span>
-            <span className="t-label" style={{ color: '#FF6B78' }}>Rang synchronisé automatiquement</span>
+            <span className="t-label" style={{ color: '#FF6B78' }}>Vérification en pause</span>
           </div>
           <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-            Ton rang Valorant est récupéré automatiquement depuis ton compte Riot — pas de saisie manuelle, donc impossible de mentir. Lie ton compte Riot dans ton Discord (Connexions → Riot Games), reconnecte-toi sur Aedral, et on te proposera de le vérifier en 1 clic juste après.
+            {VALORANT_VERIFICATION_PAUSED} Rien à configurer ici pour l&apos;instant.
           </p>
         </div>
       )}

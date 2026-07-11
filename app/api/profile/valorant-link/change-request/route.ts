@@ -1,24 +1,18 @@
 // POST /api/profile/valorant-link/change-request
-// Le joueur demande à changer le compte Riot (Valorant) vérifié lié à son profil.
-// Pré-requis : il a déjà mis à jour SA connexion Discord Riot pour pointer vers le
-// nouveau compte (et s'est reconnecté à Aedral). On capture ce nouveau compte
-// comme "requested". L'admin valide/refuse via /admin/valorant-link-changes.
-//
-// Miroir de rl-epic-link/change-request (anti-mensonge). Le compte Valorant est
-// verrouillé sur le PUUID (valorantPuuid) ; le sync refuse de basculer seul.
+// EN PAUSE (juillet 2026). Le changement de compte Valorant exigeait de capturer
+// le nouveau compte via la connexion Riot de Discord — que Discord a supprimée de
+// son API OAuth (« no replacement »). Sans elle, plus aucune bascule possible.
+// La route renvoie un message « en pause » ; le flux sera rétabli avec la
+// connexion Riot directe (RSO). L'UI masque déjà le bouton côté Settings.
 //
 // Body : { reason: string }
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { clampString } from '@/lib/validation';
-import { pickValorantRiotId, type DiscordConnection } from '@/lib/discord-connections';
-import { fetchValorantAccountByPuuid } from '@/lib/valorant-henrikdev';
-import { isValidPuuid, formatRiotId } from '@/lib/valorant-identity';
-import { sendAdminAlert } from '@/lib/admin-discord-alert';
+import { isValidPuuid } from '@/lib/valorant-identity';
 
 export async function POST(req: NextRequest) {
   try {
@@ -49,78 +43,13 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    const riot = pickValorantRiotId(user.discordConnections as DiscordConnection[] | undefined);
-    if (!riot) {
-      return NextResponse.json({
-        error: 'On ne voit aucune connexion Riot sur ton Discord. Lie ton nouveau compte Riot à ton Discord, reconnecte-toi à Aedral, puis refais la demande.',
-      }, { status: 400 });
-    }
-    if (!isValidPuuid(riot.puuid)) {
-      return NextResponse.json({
-        error: 'Connexion Riot invalide (identifiant manquant). Relie ton compte Riot à Discord puis reconnecte-toi.',
-      }, { status: 400 });
-    }
-    if (riot.puuid === currentPuuid) {
-      return NextResponse.json({
-        error: 'La connexion Riot sur ton Discord est la MÊME que ton compte vérifié actuel. Pour changer : sur Discord, retire cette connexion et lie le nouveau compte, reconnecte-toi, puis reviens.',
-      }, { status: 400 });
-    }
-
-    // Résout le RiotID complet du nouveau compte (Discord renvoie parfois le name
-    // sans le tag). Si HenrikDev échoue, on garde ce qu'on a (l'admin tranchera).
-    let requestedName = riot.name;
-    let requestedTag = riot.tag;
-    if (!requestedTag) {
-      const acc = await fetchValorantAccountByPuuid(riot.puuid);
-      if (acc.ok) {
-        requestedName = acc.data.name;
-        requestedTag = acc.data.tag;
-      }
-    }
-
-    // Bloque plusieurs demandes pending en parallèle pour le même user.
-    // limit(1) suffit (collection mono-jeu, contrairement à RL qui mixe Epic+Steam
-    // dans rl_link_change_requests et doit donc filtrer par platform).
-    const pending = await db.collection('valorant_link_change_requests')
-      .where('userUid', '==', uid)
-      .where('status', '==', 'pending')
-      .limit(1).get();
-    if (!pending.empty) {
-      return NextResponse.json({
-        error: 'Tu as déjà une demande de changement de compte Riot en attente. Patiente, l\'admin va la traiter.',
-      }, { status: 409 });
-    }
-
-    const currentRiotId = formatRiotId(user.valorantRiotName as string, user.valorantRiotTag as string);
-    const requestedRiotId = formatRiotId(requestedName, requestedTag);
-
-    const reqRef = db.collection('valorant_link_change_requests').doc();
-    await reqRef.set({
-      userUid: uid,
-      userName: (user.displayName as string) || (user.discordUsername as string) || '',
-      currentPuuid,
-      currentRiotId,
-      currentRank: (user.valorantRank as string) || '',
-      requestedPuuid: riot.puuid,
-      requestedRiotId,
-      // name/tag séparés pour permettre le re-sync du rang à l'approbation admin.
-      requestedName,
-      requestedTag,
-      reason,
-      status: 'pending',
-      createdAt: FieldValue.serverTimestamp(),
-    });
-
-    await sendAdminAlert(db, {
-      title: '🔁 Demande de changement de compte Riot (Valorant)',
-      description: `**${(user.displayName as string) || uid}** demande à changer son compte Riot vérifié.\n\n`
-        + `**Actuel** : \`${currentRiotId || currentPuuid.slice(0, 12) + '…'}\`\n`
-        + `**Nouveau** : \`${requestedRiotId || riot.puuid.slice(0, 12) + '…'}\`\n\n`
-        + `Raison : ${reason}\n\n`
-        + `[Voir la demande →](https://aedral.com/admin/valorant-link-changes)`,
-    });
-
-    return NextResponse.json({ ok: true, requestId: reqRef.id });
+    // Changement EN PAUSE : capturer le nouveau compte exigeait la connexion Riot
+    // de Discord, supprimée en juillet 2026. Aucune bascule possible jusqu'à la
+    // connexion Riot directe (RSO). L'UI masque le bouton ; ce garde-fou couvre un
+    // appel direct — et n'instruit jamais de « relier son Riot à Discord ».
+    return NextResponse.json({
+      error: 'Le changement de compte Valorant est en pause jusqu\'à la connexion Riot directe (« Se connecter avec Riot »).',
+    }, { status: 409 });
   } catch (err) {
     captureApiError('API valorant-link/change-request POST error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });

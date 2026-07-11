@@ -5,6 +5,8 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { pickValorantRiotId, type DiscordConnection } from '@/lib/discord-connections';
 import { fetchValorantMmr, fetchValorantAccountByPuuid } from '@/lib/valorant-henrikdev';
+import { isValidPuuid } from '@/lib/valorant-identity';
+import { VALORANT_VERIFICATION_PAUSED } from '@/lib/account-verification';
 
 // Traduit un status HenrikDev en message user-friendly. Détecte 401/403
 // (API key manquante/invalide) pour aider Matt à diagnostiquer la config env.
@@ -56,28 +58,37 @@ export async function POST(req: NextRequest) {
     const data = userSnap.data()!;
     const connections = data.discordConnections as DiscordConnection[] | undefined;
     const riotId = pickValorantRiotId(connections);
-    if (!riotId) {
-      return NextResponse.json({
-        error: 'Aucun compte Riot lié dans ton Discord. Va dans Discord → Paramètres → Connexions → Riot Games, lie ton compte, puis reconnecte-toi sur Aedral.',
-      }, { status: 400 });
+    const lockedPuuid = (data.valorantPuuid as string) || '';
+
+    // Source de vérité du sync = le PUUID VÉRIFIÉ stocké, INDÉPENDANT de Discord
+    // (qui a supprimé les comptes Riot de son API OAuth en juillet 2026). Résidu
+    // pré-coupure : si rien n'est encore verrouillé mais qu'une connexion Riot
+    // Discord subsiste, elle sert au tout premier lien.
+    const syncPuuid = isValidPuuid(lockedPuuid) ? lockedPuuid : (riotId?.puuid ?? '');
+    if (!isValidPuuid(syncPuuid)) {
+      // Plus aucune façon de vérifier via Discord → message « en pause », jamais
+      // « lie ton Riot à Discord » (devenu impossible).
+      return NextResponse.json({ error: VALORANT_VERIFICATION_PAUSED }, { status: 400 });
     }
 
-    // Verrouillage anti-changement furtif : si un compte est déjà verrouillé et que
-    // la connection Discord pointe vers un AUTRE compte, on refuse le sync. Le
-    // changement légitime passe par une demande validée par un admin.
-    const lockedPuuid = (data.valorantPuuid as string) || '';
-    if (lockedPuuid && riotId.puuid !== lockedPuuid) {
+    // Garde anti-changement furtif (résiduelle) : compte verrouillé + une connexion
+    // Discord encore présente pointant AILLEURS → refus, passe par une demande admin.
+    if (isValidPuuid(lockedPuuid) && riotId && isValidPuuid(riotId.puuid) && riotId.puuid !== lockedPuuid) {
       return NextResponse.json({
-        error: 'Ta connexion Riot sur Discord pointe vers un autre compte que celui vérifié sur ton profil. Pour changer de compte vérifié, fais une demande de changement (validée par un admin) depuis tes paramètres.',
+        error: 'Le compte Riot détecté diffère de ton compte vérifié. Pour en changer, fais une demande (validée par un admin) depuis tes paramètres.',
         needsChangeRequest: true,
       }, { status: 409 });
     }
 
-    // Résolution name+tag via PUUID si Discord ne nous a pas donné le tag
-    let resolvedName = riotId.name;
-    let resolvedTag = riotId.tag;
-    if (!resolvedTag) {
-      const acc = await fetchValorantAccountByPuuid(riotId.puuid);
+    // Résolution name+tag via le PUUID (source de vérité). On réutilise un RiotID
+    // Discord complet s'il correspond, sinon on interroge HenrikDev by-puuid.
+    let resolvedName: string;
+    let resolvedTag: string;
+    if (riotId?.name && riotId?.tag && riotId.puuid === syncPuuid) {
+      resolvedName = riotId.name;
+      resolvedTag = riotId.tag;
+    } else {
+      const acc = await fetchValorantAccountByPuuid(syncPuuid);
       if (!acc.ok) {
         return NextResponse.json({
           error: errorMessageForHenrikStatus(acc.status, 'résolution du RiotID'),
@@ -102,8 +113,8 @@ export async function POST(req: NextRequest) {
           valorantRiotTag: resolvedTag,
         };
         // 1er sync = verrouillage initial (le mismatch est déjà bloqué plus haut).
-        if (!lockedPuuid) {
-          updates.valorantPuuid = riotId.puuid;
+        if (!isValidPuuid(lockedPuuid)) {
+          updates.valorantPuuid = syncPuuid;
           updates.valorantPuuidLinkedAt = FieldValue.serverTimestamp();
         }
         await userRef.update(updates);
@@ -130,8 +141,8 @@ export async function POST(req: NextRequest) {
       valorantRiotTag: resolvedTag,
     };
     // 1er sync = verrouillage initial (le mismatch est déjà bloqué plus haut).
-    if (!lockedPuuid) {
-      updates.valorantPuuid = riotId.puuid;
+    if (!isValidPuuid(lockedPuuid)) {
+      updates.valorantPuuid = syncPuuid;
       updates.valorantPuuidLinkedAt = FieldValue.serverTimestamp();
     }
     await userRef.update(updates);

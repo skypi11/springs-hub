@@ -902,7 +902,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     ) : (
                       <div className="text-xs p-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', color: 'var(--s-text-muted)' }}>
                         {isOwner
-                          ? 'Rang non synchronisé. Lie ton compte Riot dans Discord puis synchronise depuis Paramètres → Jeux.'
+                          ? 'Rang Valorant non synchronisé — la vérification par connexion Riot arrive (Discord a coupé l’accès aux comptes Riot).'
                           : 'Rang non synchronisé.'}
                       </div>
                     )}

@@ -14,13 +14,27 @@ import { pickValorantRiotId } from '@/lib/discord-connections';
 
 export type VerifyGame = 'rocket_league' | 'valorant';
 
+// Message unique (DRY) pour l'état « vérif Valorant en pause ». Discord a retiré
+// les comptes Riot de son API OAuth (juillet 2026, « no replacement ») : on ne
+// peut plus capter le compte Riot via Discord, donc plus aucune façon de vérifier
+// un compte Valorant tant que la connexion Riot directe (RSO) n'est pas en place.
+// Interim = pause (pas de saisie manuelle, décision Matt). Utilisé par le nudge,
+// Settings, l'onboarding et le profil pour ne dire nulle part « lie ton Riot à
+// Discord » (devenu impossible).
+export const VALORANT_VERIFICATION_PAUSED =
+  "Vérification Valorant en pause : Discord a coupé l'accès aux comptes Riot. La connexion « Se connecter avec Riot » arrive pour la rétablir.";
+
 export type VerifyAction =
   // 1-clic : la preuve est déjà dans le Discord du user, un POST suffit.
   | { kind: 'oneClickEpic'; apiPath: '/api/profile/rl-epic-link'; accountName: string }
   | { kind: 'oneClickValorant'; apiPath: '/api/profile/sync-valorant-rank'; accountName: string }
   | { kind: 'confirmSteam'; apiPath: '/api/profile/rl-steam-link'; accountName: string }
   // Pas de connection Discord du jeu → il faut la lier en amont (étape manuelle).
-  | { kind: 'linkInDiscord'; what: string };
+  // Valable pour RL (Epic/Steam) : ces connexions Discord marchent toujours.
+  | { kind: 'linkInDiscord'; what: string }
+  // Valorant uniquement : plus AUCUNE action possible (Discord a coupé Riot). En
+  // attente de la connexion Riot directe (RSO). Informatif, jamais actionnable.
+  | { kind: 'valorantPaused' };
 
 export type VerifyItem = {
   game: VerifyGame;
@@ -57,10 +71,13 @@ export function getVerificationItems(user: SpringsUser | null): VerifyItem[] {
     if (!verified) {
       const riot = pickValorantRiotId(user.discordConnections);
       if (riot) {
+        // Cas résiduel : un compte Riot capté AVANT la coupure Discord et encore
+        // stocké → le 1-clic fonctionne toujours pour lui.
         const name = riot.tag ? `${riot.name}#${riot.tag}` : (riot.name || 'compte Riot');
         action = { kind: 'oneClickValorant', apiPath: '/api/profile/sync-valorant-rank', accountName: name };
       } else {
-        action = { kind: 'linkInDiscord', what: 'Riot' };
+        // Plus de connexion Riot captable via Discord → rien à faire, en pause.
+        action = { kind: 'valorantPaused' };
       }
     }
     items.push({ game: 'valorant', label: 'Valorant', verified, action });
@@ -83,7 +100,11 @@ export function getVerificationSummary(user: SpringsUser | null): VerificationSu
   const items = getVerificationItems(user);
   const verifiable = items.length;
   const verified = items.filter(i => i.verified).length;
-  const oneClickReady = items.filter(i => i.action && i.action.kind !== 'linkInDiscord').length;
+  const oneClickReady = items.filter(i =>
+    i.action?.kind === 'oneClickEpic'
+    || i.action?.kind === 'oneClickValorant'
+    || i.action?.kind === 'confirmSteam',
+  ).length;
   return {
     verifiable,
     verified,

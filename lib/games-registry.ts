@@ -190,7 +190,7 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
       'free', 'aim_trainer', 'lineups', 'custom_game',
       'vod_review', 'mental_checkin', 'warmup_routine',
     ],
-    accountSourceLabel: 'Compte Riot (capturé via ta connexion Discord, PUUID vérifié)',
+    accountSourceLabel: 'Compte Riot vérifié (PUUID, rang synchronisé)',
     // PNG Valorant a déjà un canal alpha propre (channels=4 hasAlpha=true).
     logoIsTransparent: true,
   },
