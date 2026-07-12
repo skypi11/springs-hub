@@ -25,10 +25,12 @@ const ALLOWED: Record<string, string> = {
 async function loadContext(req: NextRequest, params: Promise<{ id: string; matchId: string }>) {
   const { id, matchId } = await params;
   const db = getAdminDb();
-  const compSnap = await db.collection('competitions').doc(id).get();
-  if (!compSnap.exists) return { error: 404 as const };
+  // Auth AVANT toute lecture : pas d'oracle d'existence 401/404 sur les
+  // compétitions masquées (review Lot 4).
   const uid = await verifyAuth(req);
   if (!uid) return { error: 401 as const };
+  const compSnap = await db.collection('competitions').doc(id).get();
+  if (!compSnap.exists) return { error: 404 as const };
   if (isCompetitionHidden(compSnap.data()!) && !(await canViewHiddenCompetition(db, uid))) {
     return { error: 404 as const };
   }

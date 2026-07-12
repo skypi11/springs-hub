@@ -372,6 +372,19 @@ describe('computePlacements — tiebreakResolutions', () => {
     const resolved = computePlacements(b, { W1: ['fantome1', 'fantome2', 'fantome3'] });
     expect(resolved.filter(p => p.group === 'W1' && p.needsAdminTiebreak)).toHaveLength(2);
   });
+
+  it('review Lot 4 : une résolution sur un groupe SANS égalité est ignorée (pas d\'override d\'un ordre décidé)', () => {
+    // Tournoi joué normalement : tous les groupes sont départagés par le moteur.
+    const b = playOut(genFlat(4), 51);
+    const before = computePlacements(b);
+    expect(before.every(p => !p.needsAdminTiebreak)).toBe(true);
+    const w1 = before.filter(p => p.group === 'W1').map(p => p.teamId);
+    if (w1.length >= 2) {
+      const after = computePlacements(b, { W1: [...w1].reverse() });
+      // L'ordre moteur est conservé : la « résolution » n'a aucun effet.
+      expect(after.filter(p => p.group === 'W1').map(p => p.teamId)).toEqual(w1);
+    }
+  });
 });
 
 // ── Retrait & remplacement ──────────────────────────────────────────────────

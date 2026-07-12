@@ -93,7 +93,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // FRAIS dans sa transaction — une contre-saisie, une correction ou un
       // litige arrivés dans la fenêtre annulent la finalisation périmée
       // (règle de course archi §5, blocker de la review adversariale).
-      const r = await applyMatchOutcome(db, id, o.matchId, toEngineOutcome(o.outcome), { validatedBy: 'auto', autoGuard: true });
+      let r;
+      try {
+        r = await applyMatchOutcome(db, id, o.matchId, toEngineOutcome(o.outcome), { validatedBy: 'auto', autoGuard: true });
+      } catch (err) {
+        // Compétition clôturée entre la décision et l'application : no-op.
+        if (err instanceof Error && err.message === 'competition_not_live') continue;
+        throw err;
+      }
       if (r.changedMatchIds.length === 0) continue;   // no-op (déjà fait / état périmé) : ni trace ni notif
       processed.push({ matchId: o.matchId, transition: o.kind === 'repair' ? 'agreement_repaired' : 'single_entry_finalized' });
       if (o.kind === 'deadline') {

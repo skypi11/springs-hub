@@ -349,7 +349,11 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
                 }} />
             ))}
             {data.unresolvedTiebreaks.map(tb => (
-              <TiebreakCard key={tb.group} tb={tb} registrations={data.registrations} busy={busy !== null}
+              // Clé = groupe + composition : si le groupe change côté serveur
+              // (retrait, correction), la carte se REMONTE avec l'ordre frais
+              // au lieu de garder un état de drag périmé (review Lot 4).
+              <TiebreakCard key={`${tb.group}:${tb.teams.map(t => t.registrationId).join('|')}`}
+                tb={tb} registrations={data.registrations} busy={busy !== null}
                 onResolve={order => action(
                   { action: 'resolve_tiebreak', group: tb.group, order },
                   'Égalité arbitrée — l\'ordre du groupe est fixé.',
@@ -1111,6 +1115,7 @@ function ForceScoreModal({ m, onClose, onSubmit }: {
   const needed = Math.ceil(m.bo / 2);
   const [games, setGames] = useState<Game[]>(Array.from({ length: needed }, () => ({ a: 0, b: 0 })));
   const [resolution, setResolution] = useState('');
+  const [sent, setSent] = useState(false);   // anti double-submit (review Lot 4)
   const wins = winsOf(games);
   const valid = (wins.a === needed || wins.b === needed) && games.every(g => g.a !== g.b);
   const clamp = (v: string) => Math.max(0, Math.min(99, Number(v) || 0));
@@ -1165,8 +1170,8 @@ function ForceScoreModal({ m, onClose, onSubmit }: {
           placeholder="Résolution visible des équipes (ex. captures vérifiées)"
           value={resolution} onChange={e => setResolution(e.target.value)} />
         <div className="flex flex-wrap items-center gap-3">
-          <button className="btn-springs btn-primary bevel-sm" disabled={!valid}
-            onClick={() => onSubmit(games, resolution.trim() || null)}>
+          <button className="btn-springs btn-primary bevel-sm" disabled={!valid || sent}
+            onClick={() => { setSent(true); onSubmit(games, resolution.trim() || null); }}>
             Imposer le score
           </button>
           {!valid && <span style={{ fontSize: 13, color: 'var(--s-text-muted)' }}>Vainqueur net à {needed} manches requis.</span>}
@@ -1180,6 +1185,7 @@ function ForfeitModal({ m, preset, onClose, onSubmit }: {
   m: ConsoleMatch; preset?: 'a' | 'b' | 'both'; onClose: () => void; onSubmit: (team: 'a' | 'b' | 'both', reason: string | null) => void;
 }) {
   const [team, setTeam] = useState<'a' | 'b' | 'both'>(preset ?? 'a');
+  const [sent, setSent] = useState(false);   // anti double-submit (review Lot 4)
   const [reason, setReason] = useState('');
   return (
     <ModalShell m={m} onClose={onClose}>
@@ -1203,7 +1209,8 @@ function ForfeitModal({ m, preset, onClose, onSubmit }: {
         <textarea className="settings-input bevel-sm w-full" rows={2}
           placeholder="Motif (visible des équipes)"
           value={reason} onChange={e => setReason(e.target.value)} />
-        <button className="btn-springs btn-primary bevel-sm" onClick={() => onSubmit(team, reason.trim() || null)}>
+        <button className="btn-springs btn-primary bevel-sm" disabled={sent}
+          onClick={() => { setSent(true); onSubmit(team, reason.trim() || null); }}>
           Valider le forfait
         </button>
       </div>
@@ -1215,6 +1222,7 @@ function CastModal({ m, onClose, onSubmit }: {
   m: ConsoleMatch; onClose: () => void; onSubmit: (featured: boolean, streamUrl: string | null) => void;
 }) {
   const [streamUrl, setStreamUrl] = useState(m.cast?.streamUrl ?? '');
+  const [sent, setSent] = useState(false);   // anti double-submit (review Lot 4)
   return (
     <ModalShell m={m} onClose={onClose}>
       <div className="space-y-3 text-sm">
@@ -1224,11 +1232,13 @@ function CastModal({ m, onClose, onSubmit }: {
         <input className="settings-input bevel-sm w-full" placeholder="https://twitch.tv/…"
           value={streamUrl} onChange={e => setStreamUrl(e.target.value)} />
         <div className="flex items-center gap-3">
-          <button className="btn-springs btn-secondary bevel-sm" onClick={() => onSubmit(true, streamUrl.trim() || null)}>
+          <button className="btn-springs btn-secondary bevel-sm" disabled={sent}
+            onClick={() => { setSent(true); onSubmit(true, streamUrl.trim() || null); }}>
             Mettre en stream
           </button>
           {m.cast?.featured && (
-            <button className="btn-springs btn-ghost text-sm" onClick={() => onSubmit(false, null)}>
+            <button className="btn-springs btn-ghost text-sm" disabled={sent}
+              onClick={() => { setSent(true); onSubmit(false, null); }}>
               Retirer le cast
             </button>
           )}
@@ -1245,6 +1255,7 @@ function ReplaceModal({ team, waitlisted, onClose, onSubmit }: {
   onSubmit: (newRegistrationId: string | null) => void;
 }) {
   const [choice, setChoice] = useState<string | null>(waitlisted[0]?.registrationId ?? null);
+  const [sent, setSent] = useState(false);   // anti double-submit (review Lot 4)
   return (
     <ModalShell heading={`Remplacer ${team.name}`} onClose={onClose}>
       <div className="space-y-3 text-sm">
@@ -1266,7 +1277,8 @@ function ReplaceModal({ team, waitlisted, onClose, onSubmit }: {
             <span style={{ color: 'var(--s-text-dim)' }}>Personne — le siège devient un bye</span>
           </label>
         </div>
-        <button className="btn-springs btn-primary bevel-sm" onClick={() => onSubmit(choice)}>
+        <button className="btn-springs btn-primary bevel-sm" disabled={sent}
+          onClick={() => { setSent(true); onSubmit(choice); }}>
           Remplacer
         </button>
       </div>

@@ -247,7 +247,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (resolution?.kind === 'agreement') {
         // autoGuard : la progression re-valide l'accord sur le doc frais dans
         // SA transaction (une correction divergente peut arriver entre-temps).
-        await applyMatchOutcome(db, id, matchId, toEngineOutcome(resolution.outcome), { validatedBy: 'auto', autoGuard: true });
+        try {
+          await applyMatchOutcome(db, id, matchId, toEngineOutcome(resolution.outcome), { validatedBy: 'auto', autoGuard: true });
+        } catch (err) {
+          if (err instanceof Error && err.message === 'competition_not_live') {
+            return NextResponse.json({ error: 'La compétition est clôturée — le bracket est figé.' }, { status: 409 });
+          }
+          throw err;
+        }
       } else if (resolution?.kind === 'mismatch') {
         // Attendu (pas de fire-and-forget en serverless — la fonction peut
         // être gelée dès la réponse envoyée).

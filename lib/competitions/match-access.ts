@@ -24,10 +24,13 @@ export interface MatchAccess {
   canCheckin: boolean;
   /** Capitaine OU staff (spec §9) — vaut aussi pour ouvrir un litige. */
   canSubmitScores: boolean;
+  /** Staff des DEUX camps : aucun camp, aucune écriture (ambigu — un admin
+   *  tranche), mais LECTEUR légitime des vues du match (fil, spec §10). */
+  dualStaff: boolean;
 }
 
 const NO_ACCESS: MatchAccess = {
-  side: null, isCaptain: false, isStaff: false, canCheckin: false, canSubmitScores: false,
+  side: null, isCaptain: false, isStaff: false, canCheckin: false, canSubmitScores: false, dualStaff: false,
 };
 
 interface SideInvolvement {
@@ -86,7 +89,7 @@ export async function getMatchSideForUser(
   let side: 'a' | 'b' | null = null;
   if (a.rostered) side = 'a';
   else if (b.rostered) side = 'b';
-  else if (a.staff && b.staff) return NO_ACCESS;      // staff des deux camps → ambigu
+  else if (a.staff && b.staff) return { ...NO_ACCESS, dualStaff: true };  // staff des deux camps → ambigu
   else if (a.staff || a.captain) side = 'a';
   else if (b.staff || b.captain) side = 'b';
 
@@ -100,5 +103,6 @@ export async function getMatchSideForUser(
     isStaff,
     canCheckin: isCaptain,
     canSubmitScores: isCaptain || isStaff,
+    dualStaff: false,
   };
 }

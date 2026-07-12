@@ -512,22 +512,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: (e as Error).message }, { status: 409 });
       }
 
-      await oldRef.update({ status: 'withdrawn', updatedAt: FieldValue.serverTimestamp() });
+      // Les statuts d'inscription ont basculé DANS la transaction moteur
+      // (applyEngineOp, blocker review Lot 4) — ici uniquement le best-effort.
       try {
         await removeRegistrationFromCalendar(db, { competitionId: id, teamId: oldSnap.data()!.teamId as string });
       } catch (e) { captureApiError('Console replace_team calendar cleanup (old)', e); }
 
       if (newSnap) {
         const n = newSnap.data()!;
-        await newSnap.ref.update({
-          status: 'approved',
-          // Repêchée après ouverture du check-in général : à confirmer aussi.
-          ...(comp.status === 'live' && n.generalCheckin == null
-            ? { generalCheckin: { done: false, byUid: null, at: null } } : {}),
-          // Salons Discord : à provisionner via le bouton existant si besoin.
-          ...(n.discord?.provisioningStatus === 'none' ? { 'discord.provisioningStatus': 'queued' } : {}),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
         try {
           await syncRegistrationToCalendar(db, {
             competitionId: id, comp, teamId: n.teamId as string, structureId: n.structureId as string,
@@ -566,6 +558,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         || new Set(order).size !== order.length) {
         return NextResponse.json({ error: 'Arbitrage invalide (groupe et ordre complet requis).' }, { status: 400 });
       }
+      // Le groupe doit avoir une VRAIE égalité irrésolue par le moteur (review
+      // Lot 4 : la décision admin est le DERNIER critère de la spec §11, pas un
+      // override d'un ordre déjà décidé) et l'ordre doit couvrir exactement ses
+      // équipes — sinon refus explicite (pas de toast de succès mensonger).
+      const matchesSnap = await db.collection('competition_matches').where('competitionId', '==', id).get();
+      try {
+        const bracket = reconstructBracket({
+          withdrawn: Array.isArray(comp.withdrawn) ? (comp.withdrawn as string[]) : [],
+          bo: comp.format.bo,
+          forfeitScore: comp.format.forfeitScore ?? { games: 3, goalsPerGame: 1 },
+          matches: matchesSnap.docs.map(d => ({ id: (d.data().id as string) ?? d.id, ...(d.data() as MatchDoc) })),
+          kind: comp.format?.kind === 'single_elim' ? 'single_elim' : 'double_elim',
+        });
+        // Sans aucune résolution : l'état BRUT du moteur pour ce groupe.
+        const raw = computePlacements(bracket);
+        const groupRows = raw.filter(p => p.group === group);
+        if (!groupRows.some(p => p.needsAdminTiebreak)) {
+          return NextResponse.json({ error: 'Ce groupe n\'a pas (ou plus) d\'égalité à arbitrer — recharge la console.' }, { status: 409 });
+        }
+        const groupTeams = new Set(groupRows.map(p => p.teamId));
+        if (order.length !== groupTeams.size || !order.every(t => groupTeams.has(t))) {
+          return NextResponse.json({ error: 'Le groupe a changé depuis l\'affichage (retrait, correction) — recharge la console.' }, { status: 409 });
+        }
+      } catch (e) {
+        if (e instanceof ConsoleError) throw e;
+        return NextResponse.json({ error: 'Bracket illisible — recharge la console.' }, { status: 409 });
+      }
       await db.runTransaction(async tx => {
         const snap = await tx.get(db.collection('competitions').doc(id));
         if (!snap.exists) throw new ConsoleError(404, 'Compétition introuvable.');
@@ -596,13 +615,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await audit(db, uid, 'competition_closed', id, comp, {
         teamCount: result.finalPlacements.length,
         podium: result.finalPlacements.slice(0, 3).map(p => `${p.placement}. ${p.name}`),
+        ...(result.unlinked.length > 0 ? { unlinked: result.unlinked } : {}),
       });
-      return NextResponse.json({ ok: true, finalPlacements: result.finalPlacements });
+      return NextResponse.json({ ok: true, finalPlacements: result.finalPlacements, unlinked: result.unlinked });
     }
 
     return NextResponse.json({ error: 'Action inconnue.' }, { status: 400 });
   } catch (err) {
     if (err instanceof ConsoleError) return NextResponse.json({ error: err.msg }, { status: err.status });
+    if (err instanceof Error && err.message === 'competition_not_live') {
+      return NextResponse.json({ error: 'La compétition n\'est plus en jeu (clôturée ?) — le bracket est figé.' }, { status: 409 });
+    }
     captureApiError('API Admin/Competitions/Console POST error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }

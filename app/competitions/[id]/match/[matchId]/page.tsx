@@ -9,7 +9,7 @@
 // cryptique) ; les équipes sont nommées en NOM COMPLET partout.
 // Budget or : le CTA du bloc-action + le countdown urgent (<2 min) accolé.
 
-import { use, useEffect, useMemo, useState } from 'react';
+import { use, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, apiPublic, apiForm, ApiError } from '@/lib/api-client';
@@ -565,7 +565,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string; ma
 
       {/* C bis — Fil du match (participants + admins, spec §10) */}
       {involved && (
-        <MatchThread competitionId={id} matchId={matchId}
+        <MatchThread competitionId={id} matchId={matchId} active={!done}
           nameA={m.teamAInfo?.name ?? 'Équipe A'} nameB={m.teamBInfo?.name ?? 'Équipe B'} />
       )}
 
@@ -593,16 +593,19 @@ interface ThreadMessage {
   createdAt: string | null;
 }
 
-function MatchThread({ competitionId, matchId, nameA, nameB }: {
+function MatchThread({ competitionId, matchId, nameA, nameB, active }: {
   competitionId: string;
   matchId: string;
   nameA: string;
   nameB: string;
+  /** Match encore vivant : cadence le polling (un match terminé ne bouge plus). */
+  active: boolean;
 }) {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const listRef = useRef<HTMLDivElement | null>(null);
   const { data } = useQuery({
     queryKey: ['match-thread', competitionId, matchId],
     queryFn: () => api<{ messages: ThreadMessage[]; canPost: boolean }>(
@@ -613,7 +616,16 @@ function MatchThread({ competitionId, matchId, nameA, nameB }: {
   // frais quand il revient (même logique que le reste de la page).
   useWorkerInterval(() => {
     queryClient.invalidateQueries({ queryKey: ['match-thread', competitionId, matchId] });
-  }, 8_000, true);
+  }, 8_000, active);
+
+  // Les derniers messages vivent EN BAS : coller la vue au bas du fil à
+  // chaque nouveau message (review Lot 4 — sans ça, le conteneur restait
+  // ancré en haut et les nouveaux messages arrivaient hors champ).
+  const messageCount = data?.messages?.length ?? 0;
+  useEffect(() => {
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messageCount]);
 
   const send = async () => {
     const body = draft.trim();
@@ -651,7 +663,7 @@ function MatchThread({ competitionId, matchId, nameA, nameB }: {
             (retard, room, remplacement de dernière minute).
           </p>
         ) : (
-          <div className="space-y-2" style={{ maxHeight: 320, overflowY: 'auto' }}>
+          <div ref={listRef} className="space-y-2" style={{ maxHeight: 320, overflowY: 'auto' }}>
             {messages.map(msg => (
               <div key={msg.id} className="text-sm" style={{ lineHeight: 1.45 }}>
                 <span className="font-semibold" style={{
@@ -677,7 +689,8 @@ function MatchThread({ competitionId, matchId, nameA, nameB }: {
               value={draft}
               onChange={e => setDraft(e.target.value)}
               onKeyDown={e => {
-                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+                // isComposing : ne pas envoyer pendant une composition IME.
+                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); }
               }}
             />
             <button className="btn-springs btn-secondary bevel-sm text-sm" disabled={sending || !draft.trim()}

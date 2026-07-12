@@ -207,6 +207,12 @@ async function applyEngineOp(
     ]);
     if (!compSnap.exists) throw new Error('competition_not_found');
     const comp = compSnap.data()!;
+    // Garde de statut DANS la transaction (review Lot 4) : une op moteur après
+    // la clôture corromprait un classement déjà figé (participations écrites,
+    // finalPlacements publiés). Le check doit vivre ICI — un retry de
+    // transaction après conflit avec close relit le doc frais et doit
+    // re-décider ; un check pré-transactionnel ne couvrirait pas ce chemin.
+    if (comp.status !== 'live') throw new Error('competition_not_live');
     const cfg: CompetitionEngineConfig = {
       bo: comp.format?.bo,
       forfeitScore: comp.format?.forfeitScore ?? { games: 3, goalsPerGame: 1 },
@@ -338,6 +344,32 @@ async function applyEngineOp(
 
     if (op.op === 'withdraw' && !before.withdrawn.includes(op.registrationId)) {
       tx.update(compRef, { withdrawn: FieldValue.arrayUnion(op.registrationId) });
+    }
+
+    // Repêchage : les statuts d'inscription basculent DANS la même transaction
+    // que le siège (blocker review Lot 4 — un crash entre le swap moteur et un
+    // update séparé laissait l'équipe promue 'waitlisted' assise dans le
+    // bracket : zéro point à la clôture + circuit_team purgée comme non-promue).
+    if (op.op === 'replace') {
+      const regById = new Map(regSnaps.filter(s => s.exists).map(s => [s.id, s]));
+      const oldSnap = regById.get(op.oldRegistrationId);
+      if (oldSnap) {
+        tx.update(oldSnap.ref, { status: 'withdrawn', updatedAt: FieldValue.serverTimestamp() });
+      }
+      if (op.newRegistrationId) {
+        const newSnap = regById.get(op.newRegistrationId);
+        if (newSnap) {
+          const n = newSnap.data()!;
+          tx.update(newSnap.ref, {
+            status: 'approved',
+            // Repêchée après ouverture du check-in général : à confirmer aussi.
+            ...(n.generalCheckin == null ? { generalCheckin: { done: false, byUid: null, at: null } } : {}),
+            // Salons Discord : à provisionner via le bouton existant si besoin.
+            ...(n.discord?.provisioningStatus === 'none' ? { 'discord.provisioningStatus': 'queued' } : {}),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        }
+      }
     }
 
     return {

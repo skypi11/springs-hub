@@ -25,10 +25,12 @@ const MAX_BODY = 500;
 async function loadContext(req: NextRequest, params: Promise<{ id: string; matchId: string }>) {
   const { id, matchId } = await params;
   const db = getAdminDb();
-  const compSnap = await db.collection('competitions').doc(id).get();
-  if (!compSnap.exists) return { error: 404 as const };
+  // Auth AVANT toute lecture : un anonyme reçoit 401 que la compétition existe
+  // ou non — pas d'oracle d'existence sur les compéts masquées (review Lot 4).
   const uid = await verifyAuth(req);
   if (!uid) return { error: 401 as const };
+  const compSnap = await db.collection('competitions').doc(id).get();
+  if (!compSnap.exists) return { error: 404 as const };
   if (isCompetitionHidden(compSnap.data()!) && !(await canViewHiddenCompetition(db, uid))) {
     return { error: 404 as const };
   }
@@ -44,13 +46,19 @@ async function loadContext(req: NextRequest, params: Promise<{ id: string; match
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string; matchId: string }> }) {
-  const blocked = await checkRateLimit(limiters.read, rateLimitKey(req));
+  // Limiter par UID (pas par IP) : à la LAN ou en LAN-party, des dizaines de
+  // joueurs partagent la même IP — un bucket IP les 429-erait en chaîne
+  // (review Lot 4). L'anonyme n'atteint jamais la lecture (401 au contexte).
+  const preUid = await verifyAuth(req);
+  const blocked = await checkRateLimit(limiters.read, rateLimitKey(req, preUid ?? undefined));
   if (blocked) return blocked;
   try {
     const ctx = await loadContext(req, params);
     if ('error' in ctx) return NextResponse.json({ error: 'not_found' }, { status: ctx.error });
     const { ref, isAdmin, access } = ctx;
-    if (!isAdmin && !access.side) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+    // Lecture : un camp, le staff des DEUX camps (lecteur légitime spec §10,
+    // même s'il ne peut pas écrire), ou un admin.
+    if (!isAdmin && !access.side && !access.dualStaff) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
 
     const snap = await ref.collection('messages')
       .orderBy('createdAt', 'asc').limitToLast(MAX_MESSAGES).get();

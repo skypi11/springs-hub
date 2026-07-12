@@ -171,6 +171,11 @@ async function run() {
     r.status === 200 && r.json?.status === 'live' && r.json?.matchCount === 8,
     JSON.stringify({ s: r.status, mc: r.json?.matchCount }));
 
+  // Blocker review Lot 4 : dévalider une équipe ASSISE dans le bracket la
+  // laisserait jouer sans jamais recevoir ses points — refus explicite.
+  r = await api('POST', `/api/admin/competitions/${COMP}/registrations`, { action: 'unapprove', registrationId: regId(1) });
+  check('unapprove refusé après publication du bracket → 409', r.status === 409, String(r.status));
+
   console.log('— Structure single matérialisée…');
   const gf = await matchRef('GF').get();
   const p3 = await matchRef('P3').get();
@@ -283,6 +288,13 @@ async function run() {
     JSON.stringify({ s: r.status, n: standings.length, top: standings[0]?.totalPoints }));
   r = await api('POST', `/api/admin/competitions/${COMP}/console`, { action: 'close_competition' });
   check('double clôture → 409', r.status === 409, String(r.status));
+  // Review Lot 4 : le bracket est FIGÉ après clôture — une DQ tardive
+  // corromprait un classement déjà écrit (garde DANS la tx moteur).
+  r = await api('POST', `/api/admin/competitions/${COMP}/console`, { action: 'withdraw_team', registrationId: fp[1].registrationId, reason: 'Test post-clôture.' });
+  check('withdraw_team après clôture → 409 (bracket figé)', r.status === 409, String(r.status));
+  // Review Lot 4 : pas d'arbitrage sur un groupe sans égalité irrésolue.
+  r = await api('POST', `/api/admin/competitions/${COMP}/console`, { action: 'resolve_tiebreak', group: 'W1', order: [fp[4].registrationId, fp[5].registrationId] });
+  check('resolve_tiebreak sans égalité → 409', r.status === 409, String(r.status));
 }
 
 await cleanup(); // préventif

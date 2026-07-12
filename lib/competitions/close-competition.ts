@@ -18,7 +18,14 @@ import { captureApiError } from '@/lib/sentry';
 import type { FinalPlacement } from '@/types/competitions';
 
 export type CloseResult =
-  | { ok: true; finalPlacements: FinalPlacement[] }
+  | {
+      ok: true;
+      finalPlacements: FinalPlacement[];
+      /** Équipes CLASSÉES d'une compét de circuit sans identité circuit (pas de
+       *  circuitTeamId) : leurs points n'ont pas pu être écrits — à signaler,
+       *  jamais avalé en silence (review Lot 4). */
+      unlinked: string[];
+    }
   | { ok: false; code: 'not_found' | 'already_closed' | 'invalid_status' | 'bracket_not_published' | 'not_finished' | 'tiebreak_required'; tiebreakGroups?: string[] };
 
 export async function closeCompetition(
@@ -98,18 +105,23 @@ export async function closeCompetition(
       })
       .sort((a, b) => a.placement - b.placement);
 
-    // Circuit : participations à écrire + claims des non-promues à purger.
+    // Circuit : participations à écrire + claims à purger. L'ÉLIGIBILITÉ
+    // DÉRIVE DU BRACKET (review Lot 4, blocker) : toute équipe CLASSÉE reçoit
+    // sa participation, quel que soit le statut de son inscription — une
+    // promue restée 'waitlisted' par un crash, ou une DQ 'withdrawn' (R5-4 :
+    // placement au groupe atteint), garde ses points. La purge ne touche QUE
+    // les équipes HORS classement (waitlisted jamais promues, pending,
+    // retraits d'avant-bracket au claim déjà libéré → no-op).
     // Toutes les LECTURES circuit_teams d'abord, puis les écritures.
+    const placedRegIds = new Set(finalPlacements.map(p => p.registrationId));
     const participationWrites: Array<{ ctRef: FirebaseFirestore.DocumentReference; entry: Record<string, unknown> }> = [];
     const claimReleases: Array<{ ctRef: FirebaseFirestore.DocumentReference; regId: string }> = [];
+    const unlinked: string[] = [];
     if (circuitId) {
       for (const p of finalPlacements) {
         const reg = regs.get(p.registrationId);
         const ctId = (reg?.circuitTeamId as string | null) ?? null;
-        // Toute équipe CLASSÉE reçoit sa participation — y compris une équipe
-        // retirée en cours de tournoi (R5-4 : placement au groupe atteint,
-        // délta figé, points de la place). Statut 'withdrawn' ≠ hors classement.
-        if (ctId && (reg?.status === 'approved' || reg?.status === 'withdrawn')) {
+        if (ctId) {
           participationWrites.push({
             ctRef: db.collection('circuit_teams').doc(ctId),
             entry: {
@@ -121,11 +133,16 @@ export async function closeCompetition(
               goalsFor: p.goalsFor,
             },
           });
+        } else {
+          // Classée mais sans identité circuit (unapprove d'avant la garde,
+          // conflit d'identité jamais arbitré…) : ses points n'iraient nulle
+          // part — remonté à l'appelant, jamais avalé en silence.
+          unlinked.push(`${p.placement}. ${p.name}`);
         }
       }
       for (const [regId, reg] of regs) {
         const ctId = (reg.circuitTeamId as string | null) ?? null;
-        if (ctId && (reg.status === 'waitlisted' || reg.status === 'pending')) {
+        if (ctId && !placedRegIds.has(regId)) {
           claimReleases.push({ ctRef: db.collection('circuit_teams').doc(ctId), regId });
         }
       }
@@ -181,9 +198,13 @@ export async function closeCompetition(
       }));
     });
 
-    return { ok: true, finalPlacements };
+    return { ok: true, finalPlacements, unlinked };
   });
 
+  if (result.ok && result.unlinked.length > 0) {
+    captureApiError('closeCompetition unlinked placements', new Error(
+      `${competitionId} : équipes classées sans identité circuit — ${result.unlinked.join(' · ')}`));
+  }
   if (result.ok && notifPayloads.length > 0) {
     try {
       await createNotifications(db, notifPayloads);

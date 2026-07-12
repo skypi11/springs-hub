@@ -895,6 +895,12 @@ async function unapprove(db: FirebaseFirestore.Firestore, ctx: ActionContext) {
       if (!regNow.exists || (regData?.status !== 'approved' && regData?.status !== 'waitlisted')) {
         throw new Error('state_changed');
       }
+      // Bracket publié = l'équipe y est ASSISE (blocker review Lot 4) : la
+      // dévalider la laisserait jouer et se classer SANS jamais recevoir ses
+      // points à la clôture (status pending + claim circuit libéré). Miroir de
+      // la garde de withdrawRegistration : après publication, tout passe par
+      // la console (retrait R5-4 / remplacement).
+      if (compNow.data()?.bracketMaterializedAt) throw new Error('bracket_published');
       const wasApproved = regData?.status === 'approved';
       await releaseCircuitClaim(db, tx, id, registrationId, regData?.circuitTeamId ?? null);
       tx.update(regRef, { status: 'pending', circuitTeamId: null, review: null });
@@ -906,6 +912,9 @@ async function unapprove(db: FirebaseFirestore.Firestore, ctx: ActionContext) {
   } catch (err) {
     if (err instanceof Error && err.message === 'state_changed') {
       return NextResponse.json({ error: 'L\'inscription a changé d\'état entre-temps. Recharge la liste.' }, { status: 409 });
+    }
+    if (err instanceof Error && err.message === 'bracket_published') {
+      return NextResponse.json({ error: 'Le bracket est publié — un retrait passe par la console (disqualification ou remplacement).' }, { status: 409 });
     }
     throw err;
   }

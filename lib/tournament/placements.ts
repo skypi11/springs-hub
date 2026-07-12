@@ -451,13 +451,19 @@ export function computePlacements(
   const placements: Placement[] = [];
   let nextPlace = 1;
   for (const group of groups) {
+    const engineRanked = rankWithinGroup(bracket, group.teams, stats);
     const resolution = tiebreakResolutions?.[group.key];
+    // Une résolution ne s'applique QUE si le départage automatique a échoué
+    // (review Lot 4 : sinon un admin pourrait inverser un ordre déjà décidé
+    // par le délta/les buts/le face-à-face — la décision admin est le DERNIER
+    // critère de la spec §11, pas un override général).
     const resolutionValid = !!resolution
+      && engineRanked.some(r => r.needsAdminTiebreak)
       && resolution.length === group.teams.length
       && group.teams.every(t => resolution.includes(t));
     const ranked = resolutionValid
       ? resolution!.map(teamId => ({ teamId, needsAdminTiebreak: false }))
-      : rankWithinGroup(bracket, group.teams, stats);
+      : engineRanked;
     for (const r of ranked) {
       placements.push({
         teamId: r.teamId,
