@@ -15,11 +15,12 @@
 
 import type {
   Bracket,
+  BracketKind,
   BoConfig,
   PureMatch,
   PureMatchStatus,
 } from '@/lib/tournament';
-import { generateDoubleElim } from '@/lib/tournament';
+import { generateDoubleElim, generateSingleElim } from '@/lib/tournament';
 import type { CompetitionMatch, MatchSource, MatchStatus } from '@/types/competitions';
 
 export interface TeamDisplay {
@@ -151,6 +152,9 @@ export function reconstructBracket(input: {
   bo: BoConfig;
   forfeitScore: { games: number; goalsPerGame: number };
   matches: Array<{ id: string } & MatchDoc>;
+  /** Format du bracket. Absent (docs d'avant le multi-format) : inféré de la
+   *  présence d'une grande finale — un double élim en a TOUJOURS une. */
+  kind?: BracketKind;
 }): Bracket {
   // Taille = nombre de sièges du round 1 winners (robuste aux byes ET aux
   // sièges vidés, contrairement au comptage des équipes présentes).
@@ -160,7 +164,14 @@ export function reconstructBracket(input: {
     throw new Error(`Bracket incohérent : ${size} sièges round 1 (attendu puissance de 2 ≥ 4).`);
   }
   const winnersRounds = Math.log2(size);
-  const losersRounds = 2 * (winnersRounds - 1);
+  const kind: BracketKind = input.kind
+    ?? (input.matches.some(m => m.bracket === 'grand_final') ? 'double_elim' : 'single_elim');
+  // Rondes losers : formule structurelle en double élim (robuste même face à
+  // des docs partiels — comportement historique conservé, review), dérivées
+  // des docs en simple élim (1 avec petite finale, 0 sans).
+  const losersRounds = kind === 'double_elim'
+    ? 2 * (winnersRounds - 1)
+    : input.matches.reduce((max, m) => (m.bracket === 'losers' && m.round > max ? m.round : max), 0);
 
   // `teams` par seed (index 0 = seed 1) : lu depuis les sources 'seed' du round
   // 1 winners. Un siège void (bye ou vidé par replaceTeam) → '' à sa place. La
@@ -186,6 +197,7 @@ export function reconstructBracket(input: {
   const order = orderIds(input.matches.map(d => ({ id: d.id, bracket: d.bracket, round: d.round, slot: d.slot })));
 
   return {
+    kind,
     teams,
     size,
     winnersRounds,
@@ -258,12 +270,19 @@ export function materializeBracket(input: {
   forfeitScore: { games: number; goalsPerGame: number };
   phasePlan?: Array<{ phase: number; rounds: Array<{ bracket: PureMatch['bracket']; round: number }> }>;
   registrations: Record<string, { display: TeamDisplay; rosterUids: string[] }>;
+  /** Format (défaut double élim — comportement historique du Lot 2). */
+  kind?: BracketKind;
+  /** Petite finale (simple élim uniquement). */
+  thirdPlace?: boolean;
 }): MaterializedBracket {
-  const bracket = generateDoubleElim(input.seeding, {
+  const opts = {
     bo: input.bo,
     forfeitScore: input.forfeitScore,
     phasePlan: input.phasePlan,
-  });
+  };
+  const bracket = input.kind === 'single_elim'
+    ? generateSingleElim(input.seeding, { ...opts, thirdPlace: input.thirdPlace })
+    : generateDoubleElim(input.seeding, opts);
 
   const infoOf = (regId: string | null): TeamDisplay | null =>
     regId ? input.registrations[regId]?.display ?? null : null;

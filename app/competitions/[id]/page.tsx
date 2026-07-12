@@ -307,12 +307,14 @@ export default function CompetitionPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
               <p style={{ color: 'var(--s-text-muted)' }}>Bracket</p>
-              <p className="font-semibold">Double élimination</p>
+              <p className="font-semibold">
+                {comp.format?.kind === 'single_elim' ? 'Simple élimination' : 'Double élimination'}
+              </p>
             </div>
             <div>
               <p style={{ color: 'var(--s-text-muted)' }}>Matchs</p>
               <p className="font-semibold">
-                BO{comp.format?.bo?.default ?? 5} · finales BO{comp.format?.bo?.grandFinal ?? 7}
+                BO{comp.format?.bo?.default ?? 5} · {comp.format?.kind === 'single_elim' ? 'finale' : 'finales'} BO{comp.format?.bo?.grandFinal ?? 7}
               </p>
             </div>
             <div>

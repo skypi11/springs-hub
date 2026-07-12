@@ -87,6 +87,55 @@ export function buildLegendsPhasePlan(): PhasePlanEntry[] {
   ];
 }
 
+// ── Préréglage « Tournoi en ligne — simple élimination » ────────────────────
+// Pour les tournois hors circuit (dont le tournoi test avant la Legends) :
+// BO5 partout, finale BO7, pas de petite finale par défaut. Tout éditable.
+export const SINGLE_ELIM_FORMAT: CompetitionFormat = {
+  kind: 'single_elim',
+  maxTeams: 16,
+  bo: {
+    default: 5,
+    overrides: [],
+    grandFinal: 7,   // en simple élim : BO de la FINALE
+  },
+  bracketReset: false,
+  thirdPlace: false,
+  forfeitScore: { games: 3, goalsPerGame: 1 },
+};
+
+// Plan de phases simple élim : une phase par ronde, libellés par profondeur.
+// Comme le plan Legends, le rattachement se fait par ronde ABSOLUE d'un arbre
+// de `size = nextPowerOfTwo(maxTeams)` : si N final donne moins de rondes, les
+// premières phases ne matchent rien et sont ignorées — prévoir d'ajuster le
+// plan (éditable) si le champ réel est bien plus petit que maxTeams.
+export function buildSingleElimPhasePlan(maxTeams: number, thirdPlace = false): PhasePlanEntry[] {
+  let size = 1;
+  while (size < Math.max(4, Math.min(32, maxTeams))) size *= 2;
+  const rounds = Math.log2(size);
+  const labelOf = (fromEnd: number): string => {
+    if (fromEnd === 0) return 'Finale';
+    if (fromEnd === 1) return 'Demi-finales';
+    if (fromEnd === 2) return 'Quarts';
+    if (fromEnd === 3) return 'Huitièmes';
+    return 'Seizièmes';
+  };
+  const plan: PhasePlanEntry[] = [];
+  for (let r = 1; r <= rounds; r++) {
+    const isFinal = r === rounds;
+    // La petite finale (losers round 1) se joue avec la finale — seulement si
+    // elle est activée (la validation refuse un plan qui la cite sans elle).
+    plan.push({
+      phase: r,
+      day: 1,
+      label: `P${r} — ${labelOf(rounds - r)}${isFinal && thirdPlace ? ' + petite finale' : ''}`,
+      rounds: isFinal && thirdPlace
+        ? [{ bracket: 'winners', round: r }, { bracket: 'losers', round: 1 }]
+        : [{ bracket: 'winners', round: r }],
+    });
+  }
+  return plan;
+}
+
 // Ordre de départage cutline top-16 (spec §11) : meilleur placement unique du
 // circuit → délta cumulé sur les Qualifs comptés → résultat du plus récent.
 export const LEGENDS_TIE_BREAKERS = ['best_placement', 'goal_diff_total', 'latest_event'] as const;

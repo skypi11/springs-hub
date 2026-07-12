@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { Status } from 'brackets-model';
 import {
   generateDoubleElim,
+  generateSingleElim,
   advanceMatch,
   isTerminal,
   type Bracket,
@@ -380,3 +381,86 @@ describe('adaptBracketForViewer — invariants publics', () => {
     }
   });
 });
+
+// ── Simple élimination ───────────────────────────────────────────────────────
+
+const SINGLE_BO: BoConfig = { default: 5, overrides: [], grandFinal: 7 };
+function genSingle(n: number, thirdPlace = false): Bracket {
+  return generateSingleElim(teams(n), { bo: SINGLE_BO, forfeitScore: FORFEIT, thirdPlace });
+}
+
+describe('adaptBracketForViewer — simple élimination', () => {
+  it('stage single_elimination inféré (pas de grande finale), arbre en groupe 1', () => {
+    const out = adaptBracketForViewer(publicDocs(genSingle(8)));
+    const [stage] = out.data.stages;
+    expect(stage.type).toBe('single_elimination');
+    expect(stage.settings.size).toBe(8);
+    expect((stage.settings as { consolationFinal?: boolean }).consolationFinal).toBe(false);
+    expect(out.data.matches).toHaveLength(7);
+    expect(out.data.matches.every(m => m.group_id === 1)).toBe(true);
+  });
+
+  it('petite finale : groupe 2, consolationFinal true, number 1', () => {
+    const out = adaptBracketForViewer(publicDocs(genSingle(8, true)));
+    expect((out.data.stages[0].settings as { consolationFinal?: boolean }).consolationFinal).toBe(true);
+    const p3 = out.data.matches.find(m => m.id === 'P3');
+    expect(p3).toBeDefined();
+    expect(p3!.group_id).toBe(2);
+    expect(p3!.number).toBe(1);
+    // Elle arrive APRÈS tout l'arbre (splitBy positionnel du viewer).
+    const groups = out.data.matches.map(m => Number(m.group_id));
+    expect(groups).toEqual([...groups].sort((a, b) => a - b));
+  });
+
+  it('petite finale terminale sans jeu (walkover/annulée) : omise du rendu', () => {
+    // Double forfait des deux demies → P3 annulée (personne à y envoyer).
+    let b = genSingle(8, true);
+    b = playRound1(b);
+    b = advanceMatch(b, 'W2-1', { type: 'forfeit', team: 'both' });
+    b = advanceMatch(b, 'W2-2', { type: 'forfeit', team: 'both' });
+    const out = adaptBracketForViewer(publicDocs(b));
+    expect(out.data.matches.find(m => m.id === 'P3')).toBeUndefined();
+    expect((out.data.stages[0].settings as { consolationFinal?: boolean }).consolationFinal).toBe(false);
+  });
+
+  it('hints sans préfixe WB/LB : « Vainqueur demi 2 », « Perdant demi 1 » sur la petite finale', () => {
+    let b = genSingle(8, true);
+    b = playRound1(b);
+    const out = adaptBracketForViewer(publicDocs(b));
+    const final = out.decorations['W3-1'];
+    expect(final?.hints?.side1).toBe('Vainqueur demi 1');
+    expect(final?.hints?.side2).toBe('Vainqueur demi 2');
+    const p3 = out.decorations['P3'];
+    expect(p3?.hints?.side1).toBe('Perdant demi 1');
+    expect(p3?.hints?.side2).toBe('Perdant demi 2');
+  });
+
+  it.each([4, 5, 11, 16, 23, 32])('%i équipes : données cohérentes, champion result=win en finale', n => {
+    for (const thirdPlace of [false, true]) {
+      const bracket = genSingle(n, thirdPlace);
+      const out = adaptBracketForViewer(publicDocs(bracket));
+      expect(out.data.participants).toHaveLength(n);
+      for (const m of out.data.matches) {
+        expect([Status.Locked, Status.Waiting, Status.Ready, Status.Running, Status.Completed]).toContain(m.status);
+      }
+      const done = playAll(bracket, () => 'a');
+      const outDone = adaptBracketForViewer(publicDocs(done));
+      const final = outDone.data.matches.find(m => m.id === `W${bracket.winnersRounds}-1`);
+      expect(final?.opponent1?.result).toBe('win');
+      const json = JSON.stringify(outDone);
+      expect(json).not.toMatch(/discord_\d/);
+    }
+  });
+});
+
+/** Joue toutes les rencontres jouables du round 1 (camp A gagne). */
+function playRound1(bracket: Bracket): Bracket {
+  let b = bracket;
+  for (const id of b.order) {
+    const m = b.matches[id];
+    if (m.round === 1 && m.bracket === 'winners' && !isTerminal(m) && m.teamA && m.teamB) {
+      b = advanceMatch(b, id, { type: 'winner', winner: 'a', scores: winScores(m.bo) });
+    }
+  }
+  return b;
+}

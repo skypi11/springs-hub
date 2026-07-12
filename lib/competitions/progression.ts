@@ -231,6 +231,7 @@ async function applyEngineOp(
       bo: cfg.bo,
       forfeitScore: cfg.forfeitScore,
       matches: docs.map(d => ({ id: d.id, ...d.data })),
+      kind: comp.format?.kind === 'single_elim' ? 'single_elim' : 'double_elim',
     });
 
     // Garde d'idempotence : un outcome sur un pivot déjà terminal = déjà

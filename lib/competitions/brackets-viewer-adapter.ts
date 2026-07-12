@@ -112,14 +112,29 @@ function positionOf(src: PublicMatchSource | undefined): number | undefined {
 }
 
 // Libellé français d'un match amont, calqué sur les étiquettes de cartes
-// (FR_STRINGS du wrapper) : « finale WB », « demi WB 2 », « WB 1.3 »…
-function matchLabel(ref: string, winnersRounds: number, losersRounds: number): string {
+// (FR_STRINGS du wrapper). Double élim : « finale WB », « demi WB 2 »,
+// « WB 1.3 »… Simple élim (un seul arbre, pas de préfixe) : « finale »,
+// « demi 2 », « quart 1 », « match 1.3 ».
+function matchLabel(
+  ref: string,
+  winnersRounds: number,
+  losersRounds: number,
+  single: boolean,
+): string {
   if (ref === 'GF') return 'grande finale';
+  if (ref === 'P3') return 'petite finale';
   const m = /^([WL])(\d+)-(\d+)$/.exec(ref);
   if (!m) return ref;
-  const side = m[1] === 'W' ? 'WB' : 'LB';
   const round = Number(m[2]);
   const slot = Number(m[3]);
+  if (single) {
+    const fromEnd = winnersRounds - round;
+    if (fromEnd === 0) return 'finale';
+    if (fromEnd === 1) return `demi ${slot}`;
+    if (fromEnd === 2) return `quart ${slot}`;
+    return `match ${round}.${slot}`;
+  }
+  const side = m[1] === 'W' ? 'WB' : 'LB';
   const last = m[1] === 'W' ? winnersRounds : losersRounds;
   if (round === last) return `finale ${side}`;
   if (round === last - 1) return `demi ${side} ${slot}`;
@@ -134,10 +149,11 @@ function sourceHint(
   src: PublicMatchSource | undefined,
   winnersRounds: number,
   losersRounds: number,
+  single: boolean,
 ): string | undefined {
   if (!src || (src.type !== 'winner_of' && src.type !== 'loser_of')) return undefined;
   const prefix = src.type === 'winner_of' ? 'Vainqueur' : 'Perdant';
-  return `${prefix} ${matchLabel(src.ref, winnersRounds, losersRounds)}`;
+  return `${prefix} ${matchLabel(src.ref, winnersRounds, losersRounds, single)}`;
 }
 
 function viewerStatus(m: PublicBracketMatch): Status {
@@ -194,16 +210,24 @@ function opponentOf(m: PublicBracketMatch, side: 'a' | 'b'): ParticipantResult |
 }
 
 /**
- * Convertit les matchs publics d'une compétition double élim en données
- * viewer + logos + décorations. Pur et déterministe : testé en Vitest sur du
- * vrai output moteur (generateDoubleElim → pureMatchToDoc → adapter).
+ * Convertit les matchs publics d'une compétition (double OU simple élim, le
+ * format est inféré de la présence d'une grande finale) en données viewer +
+ * logos + décorations. Pur et déterministe : testé en Vitest sur du vrai
+ * output moteur (generate* → pureMatchToDoc → adapter).
  */
 export function adaptBracketForViewer(input: PublicBracketMatch[]): AdaptedBracket {
+  // Un double élim généré comporte TOUJOURS une grande finale ; son absence
+  // signe un simple élim (même inférence que reconstructBracket).
+  const single = !input.some(m => m.bracket === 'grand_final');
+
   const matches = [...input]
-    // Reset (GF round 2) terminal SANS jeu (annulé par double forfait en GF,
-    // walkover d'une GF elle-même walkover…) : jamais affiché — la condition
-    // de masquage du viewer ne couvre pas ces fins dégénérées.
+    // Reset (GF round 2) et petite finale terminaux SANS jeu (annulés par un
+    // double forfait amont, walkovers dégénérés…) : jamais affichés — la
+    // condition de masquage du viewer ne couvre pas ces fins, et une
+    // « petite finale » réglée sans se jouer n'est pas un match à montrer.
     .filter(m => !(m.bracket === 'grand_final' && m.round === 2
+      && (m.status === 'cancelled' || m.status === 'walkover')))
+    .filter(m => !(single && m.bracket === 'losers'
       && (m.status === 'cancelled' || m.status === 'walkover')))
     .sort(
       (x, y) =>
@@ -220,8 +244,9 @@ export function adaptBracketForViewer(input: PublicBracketMatch[]): AdaptedBrack
     throw new Error(`Bracket incohérent : ${size} sièges round 1 (attendu puissance de 2 ≥ 4).`);
   }
   const winnersRounds = Math.log2(size);
-  const losersRounds = 2 * (winnersRounds - 1);
+  const losersRounds = single ? 1 : 2 * (winnersRounds - 1);
   const hasReset = matches.some(m => m.bracket === 'grand_final' && m.round === 2);
+  const hasConsolation = single && matches.some(m => m.bracket === 'losers');
 
   const participants: Participant[] = [];
   const images: AdaptedBracket['images'] = [];
@@ -258,6 +283,8 @@ export function adaptBracketForViewer(input: PublicBracketMatch[]): AdaptedBrack
       opponent1: opponentOf(m, 'a'),
       opponent2: opponentOf(m, 'b'),
     });
+    // (Simple élim : la petite finale — bracket losers — atterrit en groupe 2,
+    // que le viewer lit comme la « consolation final » du single_elimination.)
 
     const live =
       m.status === 'live' || m.status === 'awaiting_scores' || m.status === 'score_review';
@@ -265,8 +292,8 @@ export function adaptBracketForViewer(input: PublicBracketMatch[]): AdaptedBrack
       m.status === 'completed' || m.status === 'walkover' || m.status === 'cancelled';
     const stream = m.cast?.featured && !concluded ? (m.cast.streamUrl ?? '') : null;
     let hints: MatchDecoration['hints'];
-    const hintA = !m.teamA && !m.voidA ? sourceHint(m.sourceA, winnersRounds, losersRounds) : undefined;
-    const hintB = !m.teamB && !m.voidB ? sourceHint(m.sourceB, winnersRounds, losersRounds) : undefined;
+    const hintA = !m.teamA && !m.voidA ? sourceHint(m.sourceA, winnersRounds, losersRounds, single) : undefined;
+    const hintB = !m.teamB && !m.voidB ? sourceHint(m.sourceB, winnersRounds, losersRounds, single) : undefined;
     if (hintA || hintB) {
       hints = {};
       if (hintA) hints.side1 = hintA;
@@ -277,19 +304,33 @@ export function adaptBracketForViewer(input: PublicBracketMatch[]): AdaptedBrack
     }
   }
 
-  const stage: Stage = {
-    id: 0,
-    tournament_id: 0,
-    name: '',
-    type: 'double_elimination',
-    number: 1,
-    settings: {
-      size,
-      grandFinal: hasReset ? 'double' : 'simple',
-      matchesChildCount: 0,
-      skipFirstRound: false,
-    },
-  };
+  const stage: Stage = single
+    ? {
+        id: 0,
+        tournament_id: 0,
+        name: '',
+        type: 'single_elimination',
+        number: 1,
+        settings: {
+          size,
+          consolationFinal: hasConsolation,
+          matchesChildCount: 0,
+          skipFirstRound: false,
+        },
+      }
+    : {
+        id: 0,
+        tournament_id: 0,
+        name: '',
+        type: 'double_elimination',
+        number: 1,
+        settings: {
+          size,
+          grandFinal: hasReset ? 'double' : 'simple',
+          matchesChildCount: 0,
+          skipFirstRound: false,
+        },
+      };
 
   return {
     data: { stages: [stage], matches: viewerMatches, matchGames: [], participants },

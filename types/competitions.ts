@@ -176,19 +176,25 @@ export type CompetitionStatus =
   | 'archived';
 
 export interface CompetitionFormat {
-  kind: 'double_elim';             // extensible : d'autres formats plus tard
+  kind: 'double_elim' | 'single_elim';
   maxTeams: number;                // 32
   /**
    * BO exprimé EN RELATIF à la fin de chaque bracket (archi §2) : les numéros
    * absolus de rounds changent avec N. Legends : défaut BO5, 2 dernières rondes
    * winners + 2 dernières rondes losers en BO7, grande finale (+ reset) BO7.
+   * En simple élim : `grandFinal` = BO de la FINALE (sauf override winners
+   * explicite roundsFromEnd 1), pas d'overrides `losers`.
    */
   bo: {
     default: number;
     overrides: Array<{ bracket: 'winners' | 'losers'; roundsFromEnd: number; bo: number }>;
     grandFinal: number;
   };
+  /** Double élim uniquement (toujours false en simple élim). */
   bracketReset: boolean;
+  /** Simple élim uniquement : petite finale (3e place) entre les perdants des
+   *  demies. Absent/false en double élim. */
+  thirdPlace?: boolean;
   /**
    * Score conventionnel d'un forfait (spec §11) : `games` manches gagnées
    * `goalsPerGame`-0 en BO5 → délta ±3 ; BO7 dérivé (4 manches).

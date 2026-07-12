@@ -396,11 +396,15 @@ export default function CircuitPage() {
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
                   <div>
                     <p className="t-label-soft">Bracket</p>
-                    <p className="font-semibold">Double élimination</p>
+                    <p className="font-semibold">
+                      {format?.kind === 'single_elim' ? 'Simple élimination' : 'Double élimination'}
+                    </p>
                   </div>
                   <div>
                     <p className="t-label-soft">Matchs</p>
-                    <p className="font-semibold">BO{format?.bo?.default ?? 5} · finales BO{format?.bo?.grandFinal ?? 7}</p>
+                    <p className="font-semibold">
+                      BO{format?.bo?.default ?? 5} · {format?.kind === 'single_elim' ? 'finale' : 'finales'} BO{format?.bo?.grandFinal ?? 7}
+                    </p>
                   </div>
                   <div>
                     <p className="t-label-soft">Roster</p>

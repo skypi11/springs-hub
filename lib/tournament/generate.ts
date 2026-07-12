@@ -1,7 +1,7 @@
-// Génération d'un bracket double élimination 4→32 équipes (archi §3).
-// Pur et déterministe : mêmes équipes → même bracket. Le seeding (aléatoire,
-// modifiable par l'admin) se fait EN AMONT : ce module reçoit la liste finale
-// ordonnée par seed.
+// Génération d'un bracket double OU simple élimination 4→32 équipes
+// (archi §3). Pur et déterministe : mêmes équipes → même bracket. Le seeding
+// (aléatoire, modifiable par l'admin) se fait EN AMONT : ce module reçoit la
+// liste finale ordonnée par seed.
 
 import type {
   Bracket,
@@ -174,6 +174,7 @@ export function generateDoubleElim(
     { type: 'loser_of', ref: 'GF' }));
 
   const bracket: Bracket = {
+    kind: 'double_elim',
     teams: [...teamIds],
     size,
     winnersRounds,
@@ -185,10 +186,106 @@ export function generateDoubleElim(
     withdrawn: [],
   };
 
-  // Placement des équipes réelles au round 1 + résolution des byes (les seeds
-  // au-delà de N sont void, la propagation gère les walkovers en cascade).
-  for (const id of order) {
-    const m = matches[id];
+  seedAndResolve(bracket, teamIds);
+  attachPhasePlan(bracket, opts.phasePlan);
+  return bracket;
+}
+
+/**
+ * Génère un bracket SIMPLE élimination : l'arbre winners seul (la dernière
+ * ronde est la finale), plus une petite finale optionnelle `P3` (portée par le
+ * bracket `losers`, round 1 — perdants des deux demi-finales). Byes, forfaits,
+ * retraits et remplacements passent par la même propagation que le double élim.
+ *
+ * BO : les overrides `winners` s'appliquent normalement ; la FINALE prend
+ * `bo.grandFinal` sauf override explicite (roundsFromEnd 1) — même modèle
+ * mental pour l'admin que le double élim (« BO par défaut + BO de finale »).
+ * La petite finale joue en `bo.default`.
+ */
+export function generateSingleElim(
+  teamIds: string[],
+  opts: {
+    bo: BoConfig;
+    forfeitScore: { games: number; goalsPerGame: number };
+    phasePlan?: PhasePlanEntryLike[];
+    thirdPlace?: boolean;
+  },
+): Bracket {
+  const n = teamIds.length;
+  if (n < MIN_TEAMS || n > MAX_TEAMS) {
+    throw new Error(`Nombre d'équipes hors bornes : ${n} (attendu ${MIN_TEAMS}–${MAX_TEAMS}).`);
+  }
+  if (new Set(teamIds).size !== n) {
+    throw new Error('Équipes en double dans le seeding.');
+  }
+
+  const size = nextPowerOfTwo(n);
+  const winnersRounds = Math.log2(size);
+  const thirdPlace = opts.thirdPlace === true;
+  const totals = { winners: winnersRounds, losers: 0 };
+
+  const matches: Record<string, PureMatch> = {};
+  const order: string[] = [];
+  const add = (m: PureMatch) => { matches[m.id] = m; order.push(m.id); };
+
+  const seeds = seedOrder(size);
+  for (let r = 1; r <= winnersRounds; r++) {
+    const count = size / 2 ** r;
+    for (let s = 1; s <= count; s++) {
+      const id = `W${r}-${s}`;
+      const override = boForRound(opts.bo, 'winners', r, totals);
+      // La finale (dernière ronde) : override explicite prioritaire, sinon le
+      // BO « de finale » de la config (grandFinal — même champ que le double).
+      const hasExplicitOverride = opts.bo.overrides.some(
+        o => o.bracket === 'winners' && o.roundsFromEnd === winnersRounds - r + 1);
+      const bo = r === winnersRounds && !hasExplicitOverride ? opts.bo.grandFinal : override;
+      if (r === 1) {
+        const seedA = seeds[(s - 1) * 2];
+        const seedB = seeds[(s - 1) * 2 + 1];
+        add(makeMatch(id, 'winners', r, s, bo,
+          { type: 'seed', ref: seedA },
+          { type: 'seed', ref: seedB }));
+      } else {
+        add(makeMatch(id, 'winners', r, s, bo,
+          { type: 'winner_of', ref: `W${r - 1}-${s * 2 - 1}` },
+          { type: 'winner_of', ref: `W${r - 1}-${s * 2}` }));
+      }
+    }
+  }
+
+  // Petite finale : perdants des deux demi-finales (il faut au moins 2 rondes).
+  if (thirdPlace && winnersRounds >= 2) {
+    const semi = winnersRounds - 1;
+    add(makeMatch('P3', 'losers', 1, 1, opts.bo.default,
+      { type: 'loser_of', ref: `W${semi}-1` },
+      { type: 'loser_of', ref: `W${semi}-2` }));
+  }
+
+  const bracket: Bracket = {
+    kind: 'single_elim',
+    teams: [...teamIds],
+    size,
+    winnersRounds,
+    losersRounds: thirdPlace && winnersRounds >= 2 ? 1 : 0,
+    bo: opts.bo,
+    forfeitScore: opts.forfeitScore,
+    matches,
+    order,
+    withdrawn: [],
+  };
+
+  seedAndResolve(bracket, teamIds);
+  attachPhasePlan(bracket, opts.phasePlan);
+  return bracket;
+}
+
+// ── Étapes communes de génération ───────────────────────────────────────────
+
+/** Placement des équipes réelles au round 1 + résolution des byes (les seeds
+ *  au-delà de N sont void, la propagation gère les walkovers en cascade). */
+function seedAndResolve(bracket: Bracket, teamIds: string[]): void {
+  for (const id of bracket.order) {
+    const m = bracket.matches[id];
     if (m.sourceA.type === 'seed') {
       const t = teamIds[m.sourceA.ref - 1];
       if (t) m.teamA = t; else m.voidA = true;
@@ -199,19 +296,18 @@ export function generateDoubleElim(
     }
   }
   resolveInitialVoids(bracket);
+}
 
-  // Rattachement au plan de phases (bracket+round → phase). Les rondes
-  // inexistantes pour N < 32 sont simplement ignorées par le plan.
-  if (opts.phasePlan) {
-    for (const entry of opts.phasePlan) {
-      for (const pr of entry.rounds) {
-        for (const id of order) {
-          const m = matches[id];
-          if (m.bracket === pr.bracket && m.round === pr.round) m.phase = entry.phase;
-        }
+/** Rattachement au plan de phases (bracket+round → phase). Les rondes
+ *  inexistantes pour N < 32 sont simplement ignorées par le plan. */
+function attachPhasePlan(bracket: Bracket, phasePlan?: PhasePlanEntryLike[]): void {
+  if (!phasePlan) return;
+  for (const entry of phasePlan) {
+    for (const pr of entry.rounds) {
+      for (const id of bracket.order) {
+        const m = bracket.matches[id];
+        if (m.bracket === pr.bracket && m.round === pr.round) m.phase = entry.phase;
       }
     }
   }
-
-  return bracket;
 }

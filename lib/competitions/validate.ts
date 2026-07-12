@@ -215,6 +215,23 @@ export function validateCompetitionPayload(body: unknown): ValidationResult<Comp
   const schedule = validateSchedule(b.schedule);
   if (!schedule.ok) return schedule;
 
+  // Cohérence FORMAT ↔ PLAN DE PHASES (review adversariale : un plan double
+  // élim collé sur un simple élim rangeait la petite finale en début de jour).
+  // En simple élim : pas de grand_final, losers limité au round 1 (petite
+  // finale) et seulement si elle est activée.
+  if (format.value.kind === 'single_elim') {
+    for (const entry of schedule.value.phasePlan) {
+      for (const round of entry.rounds) {
+        if (round.bracket === 'grand_final') {
+          return err('Plan de phases incompatible : pas de grande finale en simple élimination.');
+        }
+        if (round.bracket === 'losers' && (round.round > 1 || format.value.thirdPlace !== true)) {
+          return err('Plan de phases incompatible : en simple élimination, le bracket losers ne porte que la petite finale (activée).');
+        }
+      }
+    }
+  }
+
   // Snowflake Discord : chiffres uniquement (17-20), optionnel en draft.
   const discordGuildId = typeof b.discordGuildId === 'string' ? b.discordGuildId.trim() : '';
   if (discordGuildId && !/^\d{17,20}$/.test(discordGuildId)) {
@@ -241,7 +258,10 @@ function validateFormat(input: unknown): ValidationResult<CompetitionFormat> {
   if (typeof input !== 'object' || input === null) return err('Format invalide.');
   const f = input as Record<string, unknown>;
 
-  if (f.kind !== 'double_elim') return err('Seul le format double élimination est supporté pour l’instant.');
+  if (f.kind !== 'double_elim' && f.kind !== 'single_elim') {
+    return err('Format non supporté (double ou simple élimination).');
+  }
+  const kind = f.kind;
 
   const maxTeams = asInt(f.maxTeams);
   if (maxTeams === null || maxTeams < 4 || maxTeams > 32) {
@@ -254,19 +274,29 @@ function validateFormat(input: unknown): ValidationResult<CompetitionFormat> {
   const boGrandFinal = asInt(bo.grandFinal);
   const isValidBo = (n: number | null): n is number => n !== null && n % 2 === 1 && n >= 1 && n <= 9;
   if (!isValidBo(boDefault)) return err('BO par défaut invalide (impair, 1-9).');
-  if (!isValidBo(boGrandFinal)) return err('BO de grande finale invalide (impair, 1-9).');
+  // En simple élim, `grandFinal` est le BO de la FINALE (même champ, même règle).
+  if (!isValidBo(boGrandFinal)) return err('BO de finale invalide (impair, 1-9).');
 
   const rawOverrides = Array.isArray(bo.overrides) ? bo.overrides as unknown[] : [];
   if (rawOverrides.length > 8) return err('Trop de règles BO spécifiques (max 8).');
   const overrides: CompetitionFormat['bo']['overrides'] = [];
+  const seenOverrides = new Set<string>();
   for (const o of rawOverrides) {
     if (typeof o !== 'object' || o === null) return err('Règle BO invalide.');
     const ov = o as Record<string, unknown>;
     if (ov.bracket !== 'winners' && ov.bracket !== 'losers') return err('Règle BO : bracket invalide.');
+    if (kind === 'single_elim' && ov.bracket === 'losers') {
+      return err('Règle BO : pas de bracket losers en simple élimination.');
+    }
     const roundsFromEnd = asInt(ov.roundsFromEnd);
     if (roundsFromEnd === null || roundsFromEnd < 1 || roundsFromEnd > 10) return err('Règle BO : ronde invalide.');
     const boValue = asInt(ov.bo);
     if (!isValidBo(boValue)) return err('Règle BO : valeur invalide (impair, 1-9).');
+    // Deux règles sur la même ronde = résolution silencieuse premier-gagne
+    // dans le moteur (review) : on refuse plutôt que de laisser deviner.
+    const dupKey = `${ov.bracket}:${roundsFromEnd}`;
+    if (seenOverrides.has(dupKey)) return err('Règle BO en doublon : une seule règle par ronde.');
+    seenOverrides.add(dupKey);
     overrides.push({ bracket: ov.bracket, roundsFromEnd, bo: boValue });
   }
 
@@ -277,10 +307,13 @@ function validateFormat(input: unknown): ValidationResult<CompetitionFormat> {
   return {
     ok: true,
     value: {
-      kind: 'double_elim',
+      kind,
       maxTeams,
       bo: { default: boDefault, overrides, grandFinal: boGrandFinal },
-      bracketReset: f.bracketReset === true,
+      // Reset = double élim ; petite finale = simple élim. Chacun forcé à
+      // false hors de son format (jamais de champ orphelin en base).
+      bracketReset: kind === 'double_elim' && f.bracketReset === true,
+      thirdPlace: kind === 'single_elim' && f.thirdPlace === true,
       forfeitScore,
     },
   };

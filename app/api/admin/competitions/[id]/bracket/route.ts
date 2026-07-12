@@ -209,9 +209,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         forfeitScore: comp.format.forfeitScore,
         phasePlan: comp.schedule?.phasePlan,
         registrations,
+        kind: comp.format.kind,
+        thirdPlace: comp.format.thirdPlace === true,
       });
 
-      // Écriture batchée (63 matchs + ~32 ACL pour 32 équipes → < 500).
+      // Écriture batchée (63 matchs + ~32 ACL pour 32 équipes en double élim,
+      // N−1 (+petite finale) en simple élim → < 500).
       const aclByMatch = new Map(acls.map(a => [a.matchId, a.participantUids]));
       let batch = db.batch();
       let ops = 0;

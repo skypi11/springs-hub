@@ -1,7 +1,7 @@
-// Types du moteur de bracket double élimination — PURS, aucune I/O (archi §3).
-// Ce module est le cœur critique du jour de tournoi : toute la logique est
-// testée en Vitest, la matérialisation Firestore (competition_matches) est une
-// couche séparée qui consomme ces structures.
+// Types du moteur de bracket (double ET simple élimination) — PURS, aucune
+// I/O (archi §3). Ce module est le cœur critique du jour de tournoi : toute la
+// logique est testée en Vitest, la matérialisation Firestore
+// (competition_matches) est une couche séparée qui consomme ces structures.
 //
 // Vocabulaire :
 // - « void » : un côté de match qui ne recevra JAMAIS d'équipe (bye de
@@ -17,6 +17,11 @@
 //   score conventionnel à l'adversaire mais fige le délta du retiré.
 
 export type BracketSide = 'winners' | 'losers' | 'grand_final';
+
+/** Format du bracket. En simple élimination : uniquement des matchs winners
+ *  (l'arbre) + éventuellement une petite finale `P3` portée par le bracket
+ *  `losers` round 1 (mappée « consolation final » côté viewer). Pas de GF/GFR. */
+export type BracketKind = 'double_elim' | 'single_elim';
 
 export type MatchSource =
   | { type: 'seed'; ref: number }               // position de seed (1-based)
@@ -71,13 +76,15 @@ export interface PhasePlanRound { bracket: BracketSide; round: number }
 export interface PhasePlanEntryLike { phase: number; rounds: PhasePlanRound[] }
 
 export interface Bracket {
+  kind: BracketKind;
   /** Équipes par seed (index 0 = seed 1). */
   teams: string[];
   /** Taille nominale du bracket (puissance de 2 : 4, 8, 16 ou 32). */
   size: number;
   /** Nombre de rondes winners (log2(size)). */
   winnersRounds: number;
-  /** Nombre de rondes losers (2·(winnersRounds − 1)). */
+  /** Rondes losers : 2·(winnersRounds − 1) en double élim ; 1 en simple élim
+   *  avec petite finale (`P3`), 0 sinon. */
   losersRounds: number;
   bo: BoConfig;
   /** Score conventionnel de forfait : le nombre de manches est TOUJOURS dérivé

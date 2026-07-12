@@ -39,6 +39,10 @@ const FR_STRINGS = {
     'double-elimination-final': 'Finale {{matchPrefix}}',
     'grand-final-single': 'Grande finale',
     'grand-final': 'Grande finale {{roundNumber}}',
+    // Simple élimination (« standard bracket » côté viewer).
+    'standard-bracket-semi-final': 'Demi {{matchNumber}}',
+    'standard-bracket-final': 'Finale',
+    'consolation-final': 'Petite finale',
   },
   'match-status': {
     locked: 'Verrouillé',
@@ -74,13 +78,17 @@ const FR_STRINGS = {
 };
 
 // En-têtes de rondes — mêmes libellés que l'ancienne vue (validés) : le
-// contexte winners/losers est déjà porté par le titre de section.
+// contexte winners/losers est déjà porté par le titre de section. En simple
+// élim (« single-bracket »), même échelle de profondeur que le winners.
 const customRoundName: NonNullable<Config['customRoundName']> = info => {
   if (info.groupType === 'final-group') {
+    // Groupe finale : grande finale + reset en double élim, petite finale
+    // (consolation) en simple élim.
+    if (info.finalType === 'consolation-final') return 'Petite finale';
     return info.roundNumber === 2 ? 'Belle (reset)' : 'Grande finale';
   }
   const { roundNumber, roundCount } = info;
-  if (info.groupType === 'winner-bracket') {
+  if (info.groupType === 'winner-bracket' || info.groupType === 'single-bracket') {
     if (roundNumber === roundCount) return 'Finale';
     if (roundNumber === roundCount - 1) return 'Demi-finales';
     if (roundNumber === roundCount - 2) return 'Quarts';

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   generateDoubleElim,
+  generateSingleElim,
   advanceMatch,
   replaceTeam,
   computePlacements,
@@ -233,5 +234,81 @@ describe('materializeBracket', () => {
     });
     const w11 = acls.find(a => a.matchId === 'W1-1'); // seed 1 présent, seed 32 absent
     expect(w11?.participantUids).toHaveLength(3);
+  });
+
+  it('kind single_elim : arbre seul (N−1 matchs), petite finale sur demande', () => {
+    const ids = teams(16);
+    const base = {
+      competitionId: 'comp1', seeding: ids, bo: LEGENDS_BO, forfeitScore: FORFEIT,
+      registrations: regs(ids), kind: 'single_elim' as const,
+    };
+    const { matches } = materializeBracket(base);
+    expect(matches).toHaveLength(15);
+    expect(matches.find(m => m.id === 'GF')).toBeUndefined();
+    expect(matches.find(m => m.id === 'P3')).toBeUndefined();
+    const withP3 = materializeBracket({ ...base, thirdPlace: true });
+    expect(withP3.matches).toHaveLength(16);
+    expect(withP3.matches.find(m => m.id === 'P3')).toBeDefined();
+  });
+});
+
+// ── Simple élimination : round-trip + reconstruction + progression ──────────
+
+describe('bracket-store — simple élimination', () => {
+  const SINGLE_BO: BoConfig = { default: 5, overrides: [], grandFinal: 7 };
+  function genSingle(n: number, thirdPlace = false): Bracket {
+    return generateSingleElim(teams(n), { bo: SINGLE_BO, forfeitScore: FORFEIT, thirdPlace });
+  }
+
+  it('round-trip fidèle pour toutes les tailles, avec et sans petite finale', () => {
+    for (let n = 4; n <= 32; n++) {
+      for (const thirdPlace of [false, true]) {
+        const b = genSingle(n, thirdPlace);
+        for (const id of b.order) {
+          const original = b.matches[id];
+          const doc = pureMatchToDoc('comp1', original, { a: null, b: null });
+          const back = docToPureMatch({ id, ...doc });
+          expect(back, `${n} équipes, P3=${thirdPlace}, match ${id}`).toEqual(original);
+        }
+      }
+    }
+  });
+
+  it('reconstruit un bracket single identique — kind inféré sans grande finale', () => {
+    for (const n of [4, 11, 16, 27, 32]) {
+      for (const thirdPlace of [false, true]) {
+        const b = genSingle(n, thirdPlace);
+        const rebuilt = reconstructBracket({
+          withdrawn: b.withdrawn, bo: SINGLE_BO, forfeitScore: FORFEIT,
+          matches: serializeAll(b),
+        });
+        expect(rebuilt.kind, `${n} équipes`).toBe('single_elim');
+        expect(rebuilt.losersRounds).toBe(b.losersRounds);
+        expect(rebuilt.matches).toEqual(b.matches);
+        expect(rebuilt.order).toEqual(b.order);
+      }
+    }
+  });
+
+  it('progression identique sur le bracket single reconstruit (champion + placements)', () => {
+    const b = genSingle(16, true);
+    const rand = mulberry32(17);
+    let live = b;
+    for (let k = 0; k < 6; k++) {
+      const playable = live.order.map(id => live.matches[id])
+        .filter(m => m.status === 'pending' && m.teamA !== null && m.teamB !== null);
+      if (playable.length === 0) break;
+      const m = playable[0];
+      const winner: 'a' | 'b' = rand() < 0.5 ? 'a' : 'b';
+      live = advanceMatch(live, m.id, { type: 'winner', winner, scores: scoresFor(winner, m.bo, rand) });
+    }
+    const rebuilt = reconstructBracket({
+      withdrawn: live.withdrawn, bo: SINGLE_BO, forfeitScore: FORFEIT,
+      matches: serializeAll(live), kind: 'single_elim',
+    });
+    const finishedOriginal = playOut(live, 55);
+    const finishedRebuilt = playOut(rebuilt, 55);
+    expect(championOf(finishedRebuilt)).toBe(championOf(finishedOriginal));
+    expect(computePlacements(finishedRebuilt)).toEqual(computePlacements(finishedOriginal));
   });
 });

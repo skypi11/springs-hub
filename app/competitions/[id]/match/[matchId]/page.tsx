@@ -78,8 +78,13 @@ const STATUS_FR: Record<string, string> = {
   cancelled: 'Non joué',
 };
 
-function bracketLabel(bracket: string, round: number): string {
+function bracketLabel(bracket: string, round: number, single: boolean): string {
   if (bracket === 'grand_final') return round === 2 ? 'Belle (reset)' : 'Grande finale';
+  if (single) {
+    // Simple élim : un seul arbre (pas de préfixe Winners) ; le bracket
+    // `losers` n'y porte que la petite finale.
+    return bracket === 'losers' ? 'Petite finale' : `Tour ${round}`;
+  }
   return `${bracket === 'winners' ? 'Winners' : 'Losers'} · tour ${round}`;
 }
 
@@ -124,6 +129,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string; ma
     queryFn: async () => {
       const res = await (user ? api : apiPublic)<{ competition: {
         name: string; game: string;
+        format?: { kind?: string } | null;
         schedule?: { days?: Array<{ date?: string; startsAt?: string }> } | null;
       } }>(`/api/competitions/${id}`);
       return res.competition;
@@ -256,7 +262,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string; ma
           <ChevronLeft size={15} /> {compData?.name ?? 'Compétition'}
         </Link>
         <span style={{ color: 'var(--s-text-muted)' }}>·</span>
-        <span style={{ color: 'var(--s-text-dim)' }}>{bracketLabel(m.bracket, m.round)}</span>
+        <span style={{ color: 'var(--s-text-dim)' }}>{bracketLabel(m.bracket, m.round, compData?.format?.kind === 'single_elim')}</span>
         <span style={{ color: 'var(--s-text-muted)' }}>·</span>
         <span className="t-mono" style={{ fontSize: 13, color: 'var(--s-text-muted)' }}>BO{m.bo}</span>
         {matchDay && (

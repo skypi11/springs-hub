@@ -16,6 +16,8 @@ import {
   LEGENDS_ROSTER,
   LEGENDS_CHECKIN,
   buildLegendsPhasePlan,
+  SINGLE_ELIM_FORMAT,
+  buildSingleElimPhasePlan,
 } from '@/lib/competitions/defaults';
 import type { PhasePlanEntry } from '@/types/competitions';
 import type { AdminCircuit, AdminCompetition } from './types';
@@ -58,13 +60,51 @@ export default function CompetitionForm({
   const [isDevComp, setIsDevComp] = useState(initial?.isDev ?? false);
 
   // ── Format ──
+  const [kind, setKind] = useState<'double_elim' | 'single_elim'>(
+    initial?.format?.kind === 'single_elim' ? 'single_elim' : 'double_elim',
+  );
   const [maxTeams, setMaxTeams] = useState(initial?.format?.maxTeams ?? LEGENDS_FORMAT.maxTeams);
   const [boDefault, setBoDefault] = useState(initial?.format?.bo?.default ?? LEGENDS_FORMAT.bo.default);
   const [boGrandFinal, setBoGrandFinal] = useState(initial?.format?.bo?.grandFinal ?? LEGENDS_FORMAT.bo.grandFinal);
   const [bracketReset, setBracketReset] = useState(initial?.format?.bracketReset ?? true);
+  const [thirdPlace, setThirdPlace] = useState(initial?.format?.thirdPlace ?? false);
   const [overrides, setOverrides] = useState<BoOverride[]>(
     (initial?.format?.bo?.overrides as BoOverride[] | undefined) ?? LEGENDS_FORMAT.bo.overrides.map(o => ({ ...o })),
   );
+
+  // Changer de type de bracket réinitialise ce qui n'a pas de sens dans
+  // l'autre format : règles BO losers, reset, petite finale — et le PLAN DE
+  // PHASES (un plan double élim collé sur un simple élim rangerait la petite
+  // finale au début du jour 1, attrapé en review adversariale).
+  function switchKind(next: 'double_elim' | 'single_elim') {
+    setKind(next);
+    if (next === 'single_elim') {
+      setOverrides(prev => prev.filter(o => o.bracket !== 'losers'));
+      setBracketReset(false);
+      setPhasePlan(buildSingleElimPhasePlan(maxTeams, thirdPlace));
+    } else {
+      setThirdPlace(false);
+      setPhasePlan(buildLegendsPhasePlan());
+    }
+    toast.info('Plan de phases réinitialisé pour ce format.');
+  }
+
+  // En simple élim, le plan dépend de la taille de l'arbre et de la petite
+  // finale : le suivre à chaque changement (la validation refuse un plan
+  // incohérent avec le format).
+  function changeMaxTeams(next: number) {
+    setMaxTeams(next);
+    if (kind === 'single_elim' && next >= 4 && next <= 32) {
+      setPhasePlan(buildSingleElimPhasePlan(next, thirdPlace));
+    }
+  }
+
+  function changeThirdPlace(next: boolean) {
+    setThirdPlace(next);
+    if (kind === 'single_elim') {
+      setPhasePlan(buildSingleElimPhasePlan(maxTeams, next));
+    }
+  }
 
   // ── Éligibilité ──
   const [requireVerified, setRequireVerified] = useState(initial?.eligibility?.requireVerifiedAccounts ?? true);
@@ -112,6 +152,8 @@ export default function CompetitionForm({
   const [discordGuildId, setDiscordGuildId] = useState(initial?.discord?.guildId ?? '');
 
   function applyLegendsPreset() {
+    setKind('double_elim');
+    setThirdPlace(false);
     setMaxTeams(LEGENDS_FORMAT.maxTeams);
     setBoDefault(LEGENDS_FORMAT.bo.default);
     setBoGrandFinal(LEGENDS_FORMAT.bo.grandFinal);
@@ -132,6 +174,30 @@ export default function CompetitionForm({
     setScoreCounterMinutes(LEGENDS_CHECKIN.scoreCounterMinutes);
     setPhasePlan(buildLegendsPhasePlan());
     toast.success('Préréglage Legends Qualif appliqué. Reste à saisir nom, dates et circuit.');
+  }
+
+  // Tournoi en ligne hors circuit : simple élim BO5 / finale BO7, 1 journée,
+  // comptes vérifiés exigés, ni MMR ni âge minimum.
+  function applySingleElimPreset() {
+    setKind('single_elim');
+    setMaxTeams(SINGLE_ELIM_FORMAT.maxTeams);
+    setBoDefault(SINGLE_ELIM_FORMAT.bo.default);
+    setBoGrandFinal(SINGLE_ELIM_FORMAT.bo.grandFinal);
+    setBracketReset(false);
+    setThirdPlace(SINGLE_ELIM_FORMAT.thirdPlace === true);
+    setOverrides(SINGLE_ELIM_FORMAT.bo.overrides.map(o => ({ ...o })));
+    setRequireVerified(true);
+    setMinAge('');
+    setMmrEnabled(false);
+    setStarters(LEGENDS_ROSTER.starters);
+    setSubsMax(LEGENDS_ROSTER.subsMax);
+    setWaitlist(true);
+    setGeneralCheckinMinutes(LEGENDS_CHECKIN.generalCheckinMinutes);
+    setMatchCheckinMinutes(LEGENDS_CHECKIN.matchCheckinMinutes);
+    setScoreCounterMinutes(LEGENDS_CHECKIN.scoreCounterMinutes);
+    setDays([{ date: '', startsAt: '15:00', endsAt: '22:00' }]);
+    setPhasePlan(buildSingleElimPhasePlan(SINGLE_ELIM_FORMAT.maxTeams));
+    toast.success('Préréglage tournoi en ligne appliqué. Reste à saisir nom et dates.');
   }
 
   // Ouverture J-14 / fermeture J-3 par rapport au premier jour de compétition
@@ -162,10 +228,15 @@ export default function CompetitionForm({
       game: 'rocket_league',
       circuitId: circuitId || null,
       format: {
-        kind: 'double_elim',
+        kind,
         maxTeams,
-        bo: { default: boDefault, overrides, grandFinal: boGrandFinal },
-        bracketReset,
+        bo: {
+          default: boDefault,
+          overrides: kind === 'single_elim' ? overrides.filter(o => o.bracket !== 'losers') : overrides,
+          grandFinal: boGrandFinal,
+        },
+        bracketReset: kind === 'double_elim' && bracketReset,
+        thirdPlace: kind === 'single_elim' && thirdPlace,
       },
       eligibility: {
         requireVerifiedAccounts: requireVerified,
@@ -208,11 +279,16 @@ export default function CompetitionForm({
 
   return (
     <div className="panel bevel">
-      <div className="panel-header flex items-center justify-between">
+      <div className="panel-header flex items-center justify-between gap-2 flex-wrap">
         <span className="t-sub">{initial ? `Éditer — ${initial.name}` : 'Nouvelle compétition'}</span>
-        <button type="button" className="btn-springs btn-secondary bevel-sm text-sm" onClick={applyLegendsPreset}>
-          Préréglage Legends Qualif
-        </button>
+        <div className="flex items-center gap-2">
+          <button type="button" className="btn-springs btn-secondary bevel-sm text-sm" onClick={applyLegendsPreset}>
+            Préréglage Legends Qualif
+          </button>
+          <button type="button" className="btn-springs btn-secondary bevel-sm text-sm" onClick={applySingleElimPreset}>
+            Préréglage tournoi en ligne
+          </button>
+        </div>
       </div>
       <div className="panel-body space-y-6">
 
@@ -256,12 +332,20 @@ export default function CompetitionForm({
 
         {/* Format */}
         <div>
-          <label className="t-label block mb-3">Format — double élimination</label>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <label className="t-label block mb-3">Format</label>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div>
+              <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Type de bracket</label>
+              <select className="settings-input w-full" value={kind}
+                onChange={e => switchKind(e.target.value as 'double_elim' | 'single_elim')}>
+                <option value="double_elim">Double élimination</option>
+                <option value="single_elim">Simple élimination</option>
+              </select>
+            </div>
             <div>
               <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Équipes max</label>
               <input type="number" min={4} max={32} className="settings-input w-full"
-                value={maxTeams} onChange={e => setMaxTeams(Number(e.target.value))} />
+                value={maxTeams} onChange={e => changeMaxTeams(Number(e.target.value))} />
             </div>
             <div>
               <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>BO par défaut</label>
@@ -271,14 +355,20 @@ export default function CompetitionForm({
               </select>
             </div>
             <div>
-              <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Grande finale</label>
+              <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>
+                {kind === 'double_elim' ? 'Grande finale' : 'Finale'}
+              </label>
               <select className="settings-input w-full" value={boGrandFinal}
                 onChange={e => setBoGrandFinal(Number(e.target.value))}>
                 {BO_CHOICES.map(n => <option key={n} value={n}>BO{n}</option>)}
               </select>
             </div>
             <div className="flex items-end pb-1">
-              <Switch label="Bracket reset" value={bracketReset} onChange={setBracketReset} />
+              {kind === 'double_elim' ? (
+                <Switch label="Bracket reset" value={bracketReset} onChange={setBracketReset} />
+              ) : (
+                <Switch label="Petite finale (3e place)" value={thirdPlace} onChange={changeThirdPlace} />
+              )}
             </div>
           </div>
 
@@ -291,8 +381,8 @@ export default function CompetitionForm({
                 <div key={i} className="flex flex-wrap items-center gap-2">
                   <select className="settings-input" value={o.bracket}
                     onChange={e => setOverrides(prev => prev.map((p, j) => j === i ? { ...p, bracket: e.target.value as 'winners' | 'losers' } : p))}>
-                    <option value="winners">Winners</option>
-                    <option value="losers">Losers</option>
+                    <option value="winners">{kind === 'single_elim' ? 'Arbre' : 'Winners'}</option>
+                    {kind === 'double_elim' && <option value="losers">Losers</option>}
                   </select>
                   <input type="number" min={1} max={10} className="settings-input w-20"
                     value={o.roundsFromEnd}

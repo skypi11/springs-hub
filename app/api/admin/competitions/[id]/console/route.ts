@@ -86,6 +86,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           bo: comp.format.bo,
           forfeitScore: comp.format.forfeitScore ?? { games: 3, goalsPerGame: 1 },
           matches: docs.map(d => ({ id: d.id, ...(d.data as MatchDoc) })),
+          kind: comp.format?.kind === 'single_elim' ? 'single_elim' : 'double_elim',
         });
         finished = isFinished(bracket);
         adminDecision = needsAdminDecision(bracket);
