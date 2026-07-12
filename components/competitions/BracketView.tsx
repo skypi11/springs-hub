@@ -13,10 +13,11 @@
 
 import { useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, apiPublic } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
 import TournamentBracket from '@/components/competitions/TournamentBracket';
+import { useWorkerInterval } from '@/components/competitions/useWorkerInterval';
 import type { PublicBracketMatch } from '@/lib/competitions/brackets-viewer-adapter';
 
 export default function BracketView({ competitionId, gameColor, competitionStatus }: {
@@ -32,15 +33,22 @@ export default function BracketView({ competitionId, gameColor, competitionStatu
   );
   // Une compét terminée/archivée ne bouge plus → inutile de poller.
   const concluded = competitionStatus === 'finished' || competitionStatus === 'archived';
+  const queryClient = useQueryClient();
   const { data, isError } = useQuery({
     queryKey: ['competition-bracket', competitionId, !!user],
     queryFn: () => (user ? api : apiPublic)<{ matches: PublicBracketMatch[] }>(`/api/competitions/${competitionId}/matches`),
-    refetchInterval: concluded ? false : 15_000,   // rafraîchissement live le jour de match
     staleTime: 10_000,
     // Le flip anonyme→connecté change la queryKey (!!user) : on garde le
     // bracket affiché pendant le refetch au lieu de re-flasher « Chargement ».
     placeholderData: keepPreviousData,
   });
+  // Rafraîchissement live cadencé par Web Worker (archi §5) : un spectateur
+  // alt-tabbé le jour de match retrouve un bracket à jour — refetchInterval
+  // se met en pause quand l'onglet passe en arrière-plan. L'API est cachée
+  // CDN (s-maxage 10 s) : la cadence ne coûte pas de lectures Firestore.
+  useWorkerInterval(() => {
+    queryClient.invalidateQueries({ queryKey: ['competition-bracket', competitionId] });
+  }, 15_000, !concluded);
   // null = chargement ; [] = erreur ou vide.
   const matches = useMemo(
     () => data?.matches ?? (isError ? [] : null),

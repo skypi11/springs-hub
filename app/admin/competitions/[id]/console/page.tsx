@@ -23,6 +23,7 @@ import { useConfirm } from '@/components/ui/ConfirmModal';
 import TeamCrest from '@/components/competitions/TeamCrest';
 import GlanceStat from '@/components/competitions/GlanceStat';
 import GameRow from '@/components/competitions/GameRow';
+import { useWorkerInterval } from '@/components/competitions/useWorkerInterval';
 import { ChevronDown, ChevronLeft, Copy, Radio } from 'lucide-react';
 
 interface Game { a: number; b: number }
@@ -161,15 +162,17 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
     } catch { /* blip réseau : on garde le dernier état */ }
   }, [id]);
 
+  const active = !!firebaseUser && authorized;
   useEffect(() => {
-    if (!firebaseUser || !authorized) return;
-    load();
-    const poll = setInterval(load, 10_000);
-    const tick = setInterval(() => {
-      api(`/api/competitions/${id}/tick`, { method: 'POST' }).catch(() => null);
-    }, 30_000);
-    return () => { clearInterval(poll); clearInterval(tick); };
-  }, [firebaseUser, authorized, id, load]);
+    if (active) load();
+  }, [active, load]);
+  // Cadence via Web Worker (archi §5) : le polling ET le tick des échéances
+  // continuent à pleine vitesse quand l'admin est alt-tabbé (Discord, stream) —
+  // un setInterval du thread principal serait étranglé à 1/min en arrière-plan.
+  useWorkerInterval(load, 10_000, active);
+  useWorkerInterval(() => {
+    api(`/api/competitions/${id}/tick`, { method: 'POST' }).catch(() => null);
+  }, 30_000, active);
 
   async function action(body: Record<string, unknown>, okMsg: string) {
     setBusy(String(body.action));

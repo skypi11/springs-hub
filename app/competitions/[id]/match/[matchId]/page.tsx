@@ -18,6 +18,7 @@ import { useToast } from '@/components/ui/Toast';
 import { getGameColor, getGameColorRgb, getGameBannerUrl } from '@/lib/games-registry';
 import TeamCrest from '@/components/competitions/TeamCrest';
 import GameRow from '@/components/competitions/GameRow';
+import { useWorkerInterval } from '@/components/competitions/useWorkerInterval';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ChevronLeft, Copy, Radio, ShieldAlert, ShieldCheck } from 'lucide-react';
 
@@ -139,9 +140,15 @@ export default function MatchPage({ params }: { params: Promise<{ id: string; ma
   const { data, isError } = useQuery({
     queryKey: ['competition-match', id, matchId, !!user],
     queryFn: () => (user ? api : apiPublic)<MatchPayload>(`/api/competitions/${id}/matches/${matchId}`),
-    refetchInterval: 10_000,
     staleTime: 5_000,
   });
+  // Rafraîchissement cadencé par Web Worker (archi §5) plutôt que
+  // refetchInterval : React Query met son intervalle en pause quand l'onglet
+  // est en arrière-plan — or le capitaine est alt-tabbé DANS Rocket League
+  // pendant tout le match, et doit retrouver un état frais en revenant.
+  useWorkerInterval(() => {
+    queryClient.invalidateQueries({ queryKey: ['competition-match', id, matchId] });
+  }, 10_000, true);
 
   const m = data?.match;
   const access = data?.access;
@@ -166,14 +173,13 @@ export default function MatchPage({ params }: { params: Promise<{ id: string; ma
     return { label, time: day.startsAt ?? null };
   }, [compData]);
 
-  // Tick opportuniste : tient les deadlines vivantes même console fermée.
-  useEffect(() => {
-    if (!user || !m) return;
-    if (m.status !== 'checkin' && m.status !== 'score_review') return;
-    const fire = () => { api(`/api/competitions/${id}/tick`, { method: 'POST' }).catch(() => null); };
-    const t = setInterval(fire, 30_000);
-    return () => clearInterval(t);
-  }, [user, m, id]);
+  // Tick opportuniste : tient les deadlines vivantes même console fermée —
+  // cadencé par Web Worker pour survivre à l'onglet en arrière-plan (le
+  // capitaine est en jeu, pas sur la page, pile quand la deadline tombe).
+  const tickActive = !!user && (m?.status === 'checkin' || m?.status === 'score_review');
+  useWorkerInterval(() => {
+    api(`/api/competitions/${id}/tick`, { method: 'POST' }).catch(() => null);
+  }, 30_000, tickActive);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['competition-match', id, matchId] });
 
