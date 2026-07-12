@@ -17,7 +17,9 @@ const API_KEY = 'AIzaSyBx4Goq8VR1I2MFf9L2wJm2TBaV-l_cCps';
 const P = 'e2e_se';
 const ADMIN_UID = `discord_${P}_admin`;
 const COMP = `${P}-comp`;
+const CIRCUIT = `${P}-circuit`;
 const TEAM_COUNT = 6; // size 8, 2 byes → 7 matchs d'arbre + petite finale
+const ctId = i => `${P}-ct${i}`;
 
 function parseSA(raw) {
   try { return JSON.parse(raw); } catch {
@@ -72,9 +74,19 @@ async function setup() {
     discordId: '999999999999999911', games: [], isDev: true, createdAt: Timestamp.now(),
   });
   await db.collection('aedral_admins').doc(ADMIN_UID).set({ addedBy: 'e2e', addedAt: FieldValue.serverTimestamp() });
+  // Circuit rattaché : la clôture doit écrire les participations + purger les
+  // claims des waitlisted jamais promues (Lot 4A).
+  await db.collection('circuits').doc(CIRCUIT).set({
+    name: 'TEST E2E Circuit SE', game: 'rocket_league',
+    competitionIds: [COMP],
+    pointsScale: { 1: 40, 2: 34, 3: 30, 4: 26, 5: 24, 6: 22, 7: 20, 8: 19 },
+    bestResultsCount: 3, lanTeamCount: 4,
+    tieBreakers: ['best_placement', 'goal_diff_total', 'latest_event'],
+    status: 'active', isDev: true, createdAt: Timestamp.now(),
+  });
   await db.collection('competitions').doc(COMP).set({
     name: 'TEST E2E Simple élim — ne pas toucher',
-    game: 'rocket_league', circuitId: null,
+    game: 'rocket_league', circuitId: CIRCUIT,
     format: {
       kind: 'single_elim', maxTeams: 16, thirdPlace: true,
       bo: { default: 5, overrides: [], grandFinal: 7 },
@@ -92,13 +104,27 @@ async function setup() {
     discord: null, status: 'draft', isDev: true, approvedCount: TEAM_COUNT, createdAt: Timestamp.now(),
   });
   const batch = db.batch();
-  for (let i = 1; i <= TEAM_COUNT; i++) {
+  // 6 validées + 1 waitlisted jamais promue (sa claim doit être purgée à la
+  // clôture) — chacune avec sa circuit_team + claim (pattern de l'approbation).
+  for (let i = 1; i <= TEAM_COUNT + 1; i++) {
+    const waitlisted = i === TEAM_COUNT + 1;
     batch.set(db.collection('competition_registrations').doc(regId(i)), {
       competitionId: COMP, structureId: `${P}-struct`, teamId: `team${i}`,
       name: `SE Team ${i}`, tag: `SE${i}`, logoUrl: null,
       captainUid: `discord_${P}_cap${i}`,
       rosterUids: [`discord_${P}_cap${i}`, `discord_${P}_p${i}b`, `discord_${P}_p${i}c`],
-      status: 'approved', createdAt: Timestamp.now(),
+      status: waitlisted ? 'waitlisted' : 'approved',
+      circuitTeamId: ctId(i), createdAt: Timestamp.now(),
+    });
+    batch.set(db.collection('circuit_teams').doc(ctId(i)), {
+      id: ctId(i), circuitId: CIRCUIT, name: `SE Team ${i}`, tag: `SE${i}`,
+      participations: [], createdAt: Timestamp.now(),
+    });
+    batch.set(db.collection('circuit_teams').doc(ctId(i)).collection('private').doc('state'), {
+      claims: { [COMP]: regId(i) },
+      rosterByCompetition: waitlisted ? {} : {
+        [COMP]: { registrationId: regId(i), rosterUids: [], starterUids: [], approvedAt: Timestamp.now() },
+      },
     });
   }
   await batch.commit();
@@ -114,6 +140,12 @@ async function cleanup() {
   }
   const regs = await db.collection('competition_registrations').where('competitionId', '==', COMP).get();
   for (const d of regs.docs) await d.ref.delete();
+  const cts = await db.collection('circuit_teams').where('circuitId', '==', CIRCUIT).get();
+  for (const d of cts.docs) {
+    await d.ref.collection('private').doc('state').delete();
+    await d.ref.delete();
+  }
+  await db.collection('circuits').doc(CIRCUIT).delete();
   await db.collection('competitions').doc(COMP).delete();
   const notifs = await db.collection('notifications').where('metadata.competitionId', '==', COMP).get();
   for (const d of notifs.docs) await d.ref.delete();
@@ -216,6 +248,41 @@ async function run() {
   const champ = (await matchRef('W3-1').get()).data();
   check('champion = vainqueur de la finale (winner a, non retiré)',
     champ.winner === 'a' && champ.teamA !== dqTarget);
+
+  console.log('— Clôture du Qualif (Lot 4A)…');
+  r = await api('POST', `/api/admin/competitions/${COMP}/console`, { action: 'close_competition' });
+  const compClosed = (await db.collection('competitions').doc(COMP).get()).data();
+  const fp = compClosed.finalPlacements ?? [];
+  check('clôture → finished + classement final écrit (places 1→6 uniques)',
+    r.status === 200 && compClosed.status === 'finished' && fp.length === 6
+    && new Set(fp.map(p => p.placement)).size === 6 && fp[0].placement === 1,
+    JSON.stringify({ s: r.status, st: compClosed?.status, n: fp.length }));
+  check('points du barème sur la place compressée (1er → 40 pts)',
+    fp[0].points === 40 && fp.every(p => typeof p.points === 'number'),
+    JSON.stringify(fp.slice(0, 2)));
+  check('champion du bracket = 1er du classement final',
+    fp[0].registrationId === champ.teamA);
+  // Participations écrites sur les circuit_teams des validées (pas la retirée ?
+  // si : la retirée est classée aussi — elle a un placement, R5-4).
+  const champCt = (await db.collection('circuit_teams').doc(
+    ctId(Number(fp[0].registrationId.slice(-1)))).get()).data();
+  check('participation écrite sur la circuit_team du champion (points + délta)',
+    champCt.participations.length === 1 && champCt.participations[0].competitionId === COMP
+    && champCt.participations[0].points === 40,
+    JSON.stringify(champCt?.participations));
+  // La waitlisted jamais promue : claim purgée → team orpheline supprimée.
+  const wlCt = await db.collection('circuit_teams').doc(ctId(TEAM_COUNT + 1)).get();
+  const wlState = await db.collection('circuit_teams').doc(ctId(TEAM_COUNT + 1)).collection('private').doc('state').get();
+  check('claim de la waitlisted purgée à la clôture (team orpheline supprimée)',
+    !wlCt.exists && !wlState.exists, JSON.stringify({ ct: wlCt.exists, st: wlState.exists }));
+  // Le classement du circuit (page publique) reflète les points.
+  r = await api('GET', `/api/competitions/circuit/${CIRCUIT}`);
+  const standings = r.json?.standings ?? [];
+  check('classement du circuit servi avec les points de la Qualif',
+    r.status === 200 && standings.length === 6 && standings[0].totalPoints === 40,
+    JSON.stringify({ s: r.status, n: standings.length, top: standings[0]?.totalPoints }));
+  r = await api('POST', `/api/admin/competitions/${COMP}/console`, { action: 'close_competition' });
+  check('double clôture → 409', r.status === 409, String(r.status));
 }
 
 await cleanup(); // préventif

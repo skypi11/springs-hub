@@ -86,7 +86,10 @@ export type AdminAuditAction =
   | 'competition_checkin_reopened'
   | 'competition_general_checkin_opened'
   | 'competition_team_withdrawn'
-  | 'competition_team_replaced';
+  | 'competition_team_replaced'
+  // Moteur de compétitions — Lot 4 (clôture)
+  | 'competition_tiebreak_resolved'
+  | 'competition_closed';
 
 export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event' | 'competition' | 'circuit';
 

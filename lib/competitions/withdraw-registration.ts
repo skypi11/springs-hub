@@ -12,9 +12,37 @@ import { createNotifications, type NotificationPayload } from '@/lib/notificatio
 import { captureApiError } from '@/lib/sentry';
 
 /**
+ * Calcul PUR de la libération d'un claim circuit : à partir des snapshots du
+ * doc `circuit_teams` et de son `private/state`, retourne les écritures à
+ * appliquer (état nettoyé, ou suppression si la team devient orpheline —
+ * aucune participation, aucun claim, aucun roster). Null si rien à faire.
+ * Séparé de la transaction pour être utilisable dans une clôture qui doit
+ * faire TOUTES ses lectures avant TOUTES ses écritures (contrainte Firestore).
+ */
+export function computeClaimRelease(
+  ctData: FirebaseFirestore.DocumentData | undefined,
+  stateData: FirebaseFirestore.DocumentData | undefined,
+  competitionId: string,
+  registrationId: string,
+): { orphan: boolean; state: { claims: Record<string, string>; rosterByCompetition: Record<string, unknown> } } | null {
+  if (!ctData) return null;
+  const claims = { ...((stateData?.claims as Record<string, string>) ?? {}) };
+  const rosters = { ...((stateData?.rosterByCompetition as Record<string, unknown>) ?? {}) };
+  if (claims[competitionId] === registrationId) delete claims[competitionId];
+  if ((rosters[competitionId] as { registrationId?: string } | undefined)?.registrationId === registrationId) {
+    delete rosters[competitionId];
+  }
+  const participations = (ctData.participations as unknown[] | undefined) ?? [];
+  const orphan = participations.length === 0
+    && Object.keys(claims).length === 0
+    && Object.keys(rosters).length === 0;
+  return { orphan, state: { claims, rosterByCompetition: rosters } };
+}
+
+/**
  * Libère la réservation d'identité circuit d'une inscription (claim atomique
  * `circuit_teams/{id}/private/state`) — et supprime la circuit_team devenue
- * orpheline (aucune participation, aucun claim). Appelée DANS une transaction.
+ * orpheline. Appelée DANS une transaction, avant toute écriture de celle-ci.
  */
 export async function releaseCircuitClaim(
   db: Firestore,
@@ -27,25 +55,13 @@ export async function releaseCircuitClaim(
   const ctRef = db.collection('circuit_teams').doc(circuitTeamId);
   const stateRef = ctRef.collection('private').doc('state');
   const [ctSnap, stateSnap] = await Promise.all([tx.get(ctRef), tx.get(stateRef)]);
-  if (!ctSnap.exists) return;
-
-  const claims = { ...((stateSnap.data()?.claims as Record<string, string>) ?? {}) };
-  const rosters = { ...((stateSnap.data()?.rosterByCompetition as Record<string, unknown>) ?? {}) };
-  if (claims[competitionId] === registrationId) delete claims[competitionId];
-  if ((rosters[competitionId] as { registrationId?: string } | undefined)?.registrationId === registrationId) {
-    delete rosters[competitionId];
-  }
-
-  const participations = (ctSnap.data()?.participations as unknown[] | undefined) ?? [];
-  const orphan = participations.length === 0
-    && Object.keys(claims).length === 0
-    && Object.keys(rosters).length === 0;
-
-  if (orphan) {
+  const release = computeClaimRelease(ctSnap.data(), stateSnap.data(), competitionId, registrationId);
+  if (!release) return;
+  if (release.orphan) {
     tx.delete(stateRef);
     tx.delete(ctRef);
   } else {
-    tx.set(stateRef, { claims, rosterByCompetition: rosters });
+    tx.set(stateRef, release.state);
   }
 }
 

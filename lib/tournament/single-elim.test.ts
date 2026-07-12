@@ -332,6 +332,48 @@ describe('championOf / isFinished (simple élim)', () => {
   });
 });
 
+// ── Arbitrage admin des égalités (Lot 4) ────────────────────────────────────
+
+describe('computePlacements — tiebreakResolutions', () => {
+  // Un double forfait R5-1 laisse deux équipes parfaitement ex-aequo (délta
+  // conventionnel identique, zéro but, pas de face-à-face joué).
+  function tiedBracket() {
+    let b = genFlat(4);
+    const rand = mulberry32(41);
+    b = advanceMatch(b, 'W1-1', { type: 'forfeit', team: 'both' });
+    b = advanceMatch(b, 'W1-2', { type: 'winner', winner: 'a', scores: scoresFor('a', 5, rand) });
+    // W2-1 : walkover du vainqueur de W1-2 (côté W1-1 void) → champion connu.
+    return b;
+  }
+
+  it('sans résolution : le paquet ex-aequo du groupe est flaggé needsAdminTiebreak', () => {
+    // Groupe W1 = les deux double-forfaitaires (parfaitement ex-aequo) + le
+    // perdant réel de l'autre demie (stats distinctes, pas flaggé).
+    const placements = computePlacements(tiedBracket());
+    const group = placements.filter(p => p.group === 'W1');
+    expect(group).toHaveLength(3);
+    expect(group.filter(p => p.needsAdminTiebreak)).toHaveLength(2);
+  });
+
+  it('une résolution couvrant exactement le groupe impose l\'ordre et lève les flags', () => {
+    const b = tiedBracket();
+    const group = computePlacements(b).filter(p => p.group === 'W1').map(p => p.teamId);
+    const reversed = [...group].reverse();
+    const resolved = computePlacements(b, { W1: reversed });
+    const after = resolved.filter(p => p.group === 'W1');
+    expect(after.map(p => p.teamId)).toEqual(reversed);
+    expect(after.every(p => !p.needsAdminTiebreak)).toBe(true);
+    // Les autres groupes ne bougent pas.
+    expect(resolved.find(p => p.group === 'champion')).toBeDefined();
+  });
+
+  it('une résolution périmée (équipes différentes) est ignorée', () => {
+    const b = tiedBracket();
+    const resolved = computePlacements(b, { W1: ['fantome1', 'fantome2', 'fantome3'] });
+    expect(resolved.filter(p => p.group === 'W1' && p.needsAdminTiebreak)).toHaveLength(2);
+  });
+});
+
 // ── Retrait & remplacement ──────────────────────────────────────────────────
 
 describe('withdrawTeam / replaceTeam (simple élim)', () => {

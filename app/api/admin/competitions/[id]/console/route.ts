@@ -16,8 +16,9 @@ import { sendCompetitionChannelMessage } from '@/lib/discord-competition';
 import { toFlowState, toIso, flowConfigOf, generateRoomCredentials, toEngineOutcome } from '@/lib/competitions/match-flow-server';
 import { applyMatchOutcome, applyWithdraw, applyReplacement } from '@/lib/competitions/progression';
 import { reconstructBracket, type MatchDoc } from '@/lib/competitions/bracket-store';
-import { isFinished, needsAdminDecision } from '@/lib/tournament';
+import { isFinished, needsAdminDecision, computePlacements, computeTeamStats, type Placement } from '@/lib/tournament';
 import { syncRegistrationToCalendar, removeRegistrationFromCalendar } from '@/lib/competitions/calendar-sync';
+import { closeCompetition } from '@/lib/competitions/close-competition';
 
 // Console live admin (archi §7) — jour de match. Lecture : admins de
 // compétition (un admin Aedral complet l'est automatiquement, spec §6).
@@ -79,6 +80,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // État global du bracket (clôture possible ? décision admin requise ?).
     let finished = false;
     let adminDecision = false;
+    let placements: Placement[] | null = null;
+    let unresolvedTiebreaks: Array<{
+      group: string;
+      teams: Array<{ registrationId: string; tied: boolean; goalDiff: number; goalsFor: number }>;
+    }> = [];
     if (docs.length > 0 && comp.format?.bo) {
       try {
         const bracket = reconstructBracket({
@@ -90,6 +96,32 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         });
         finished = isFinished(bracket);
         adminDecision = needsAdminDecision(bracket);
+        // Clôture (Lot 4) : placements provisoires + égalités à arbitrer,
+        // calculés dès que le tournoi est fini (l'arbitrage précède l'écriture
+        // des points — archi §4, aucun point sur des places non uniques).
+        if (finished) {
+          const resolutions = (comp.tiebreakResolutions as Record<string, string[]> | undefined) ?? undefined;
+          placements = computePlacements(bracket, resolutions);
+          const stats = computeTeamStats(bracket);
+          const byGroup = new Map<string, typeof placements>();
+          for (const p of placements) {
+            if (!p.needsAdminTiebreak) continue;
+            const g = byGroup.get(p.group) ?? [];
+            g.push(p);
+            byGroup.set(p.group, g);
+          }
+          unresolvedTiebreaks = [...byGroup.keys()].map(group => ({
+            group,
+            // L'admin arbitre le groupe ENTIER (il voit les stats) — ordre
+            // provisoire du moteur comme point de départ.
+            teams: placements!.filter(p => p.group === group).map(p => ({
+              registrationId: p.teamId,
+              tied: p.needsAdminTiebreak,
+              goalDiff: Math.round((stats.get(p.teamId)?.normalizedDiff ?? 0) * 100) / 100,
+              goalsFor: stats.get(p.teamId)?.goalsFor ?? 0,
+            })),
+          }));
+        }
       } catch {
         // Bracket incohérent : la console reste utilisable, les flags à false.
       }
@@ -129,6 +161,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       registrations,
       finished,
       needsAdminDecision: adminDecision,
+      // Clôture (Lot 4) : classement provisoire + égalités à arbitrer, et le
+      // classement FINAL écrit si la compétition est déjà clôturée.
+      placements: placements?.map(p => ({
+        registrationId: p.teamId, placement: p.placement, group: p.group,
+      })) ?? null,
+      unresolvedTiebreaks,
+      finalPlacements: (comp.finalPlacements as unknown[] | undefined) ?? null,
     });
   } catch (err) {
     captureApiError('API Admin/Competitions/Console GET error', err);
@@ -514,6 +553,51 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         changedMatchIds: result.changedMatchIds,
       });
       return NextResponse.json({ ok: true, ...result });
+    }
+
+    // Arbitrage d'une égalité de placement (Lot 4B, spec §11 « sinon décision
+    // admin ») : l'admin fixe l'ordre COMPLET d'un groupe d'élimination. La
+    // validité (groupe existant, équipes exactes) est re-vérifiée à la clôture
+    // — une résolution périmée y est simplement ignorée et re-signalée.
+    if (action === 'resolve_tiebreak') {
+      const group = typeof body.group === 'string' ? body.group.trim() : '';
+      const order = Array.isArray(body.order) ? (body.order as unknown[]).filter((x): x is string => typeof x === 'string') : [];
+      if (!group || !/^[A-Za-z0-9_]{1,24}$/.test(group) || order.length < 2 || order.length > 32
+        || new Set(order).size !== order.length) {
+        return NextResponse.json({ error: 'Arbitrage invalide (groupe et ordre complet requis).' }, { status: 400 });
+      }
+      await db.runTransaction(async tx => {
+        const snap = await tx.get(db.collection('competitions').doc(id));
+        if (!snap.exists) throw new ConsoleError(404, 'Compétition introuvable.');
+        if (snap.data()!.status !== 'live') throw new ConsoleError(409, 'La compétition n\'est plus en jeu.');
+        const existing = (snap.data()!.tiebreakResolutions as Record<string, string[]> | undefined) ?? {};
+        tx.update(snap.ref, { tiebreakResolutions: { ...existing, [group]: order } });
+      });
+      await audit(db, uid, 'competition_tiebreak_resolved', id, comp, { group, order });
+      return NextResponse.json({ ok: true });
+    }
+
+    // Clôture du Qualif (Lot 4A, archi §4) : l'unique écriture du classement
+    // final et des points de circuit. Refusée tant qu'une égalité reste à
+    // arbitrer ou qu'aucun champion mécanique n'existe.
+    if (action === 'close_competition') {
+      const result = await closeCompetition(db, { competitionId: id });
+      if (!result.ok) {
+        const messages: Record<string, string> = {
+          not_found: 'Compétition introuvable.',
+          already_closed: 'Compétition déjà clôturée.',
+          invalid_status: 'La compétition n\'est pas en jeu — rien à clôturer.',
+          bracket_not_published: 'Aucun bracket publié.',
+          not_finished: 'Le bracket n\'est pas terminé — le titre doit être décidé avant la clôture.',
+          tiebreak_required: `Égalité(s) à arbitrer avant la clôture : ${result.tiebreakGroups?.join(', ') ?? ''}.`,
+        };
+        return NextResponse.json({ error: messages[result.code] }, { status: result.code === 'not_found' ? 404 : 409 });
+      }
+      await audit(db, uid, 'competition_closed', id, comp, {
+        teamCount: result.finalPlacements.length,
+        podium: result.finalPlacements.slice(0, 3).map(p => `${p.placement}. ${p.name}`),
+      });
+      return NextResponse.json({ ok: true, finalPlacements: result.finalPlacements });
     }
 
     return NextResponse.json({ error: 'Action inconnue.' }, { status: 400 });

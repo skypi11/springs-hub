@@ -432,7 +432,17 @@ export function rankWithinGroup(
  * intra-groupe peut encore bouger tant que le groupe se remplit. Cohérent
  * avec l'archi §4 : la clôture n'écrit les points que sur des places uniques.
  */
-export function computePlacements(bracket: Bracket): Placement[] {
+export function computePlacements(
+  bracket: Bracket,
+  /**
+   * Arbitrages admin des égalités (Lot 4, spec §11 « sinon décision admin ») :
+   * clé = groupe d'élimination, valeur = ordre COMPLET décidé pour ce groupe.
+   * Une résolution n'est appliquée que si elle couvre EXACTEMENT les équipes
+   * du groupe (même ensemble) — sinon elle est ignorée (périmée : un retrait
+   * ou une correction a changé le groupe depuis l'arbitrage).
+   */
+  tiebreakResolutions?: Record<string, string[]>,
+): Placement[] {
   const stats = computeTeamStats(bracket);
   const groups = bracket.kind === 'single_elim'
     ? eliminationGroupsSingle(bracket)
@@ -441,7 +451,13 @@ export function computePlacements(bracket: Bracket): Placement[] {
   const placements: Placement[] = [];
   let nextPlace = 1;
   for (const group of groups) {
-    const ranked = rankWithinGroup(bracket, group.teams, stats);
+    const resolution = tiebreakResolutions?.[group.key];
+    const resolutionValid = !!resolution
+      && resolution.length === group.teams.length
+      && group.teams.every(t => resolution.includes(t));
+    const ranked = resolutionValid
+      ? resolution!.map(teamId => ({ teamId, needsAdminTiebreak: false }))
+      : rankWithinGroup(bracket, group.teams, stats);
     for (const r of ranked) {
       placements.push({
         teamId: r.teamId,

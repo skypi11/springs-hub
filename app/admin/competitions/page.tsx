@@ -339,7 +339,7 @@ export default function AdminCompetitionsPage() {
                 onClick={() => setView({ kind: 'registrations', competition: c })}>
                 <ClipboardCheck size={13} /> Inscriptions
               </button>
-              {(c.status === 'live' || c.status === 'seeding') && (
+              {(c.status === 'live' || c.status === 'seeding' || c.status === 'finished') && (
                 <Link href={`/admin/competitions/${c.id}/console`}
                   className="btn-springs btn-secondary bevel-sm text-sm flex items-center gap-1">
                   <Radio size={13} /> Console

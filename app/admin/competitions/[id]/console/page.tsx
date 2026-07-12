@@ -24,7 +24,15 @@ import TeamCrest from '@/components/competitions/TeamCrest';
 import GlanceStat from '@/components/competitions/GlanceStat';
 import GameRow from '@/components/competitions/GameRow';
 import { useWorkerInterval } from '@/components/competitions/useWorkerInterval';
-import { ChevronDown, ChevronLeft, Copy, Radio } from 'lucide-react';
+import { ChevronDown, ChevronLeft, Copy, GripVertical, Radio } from 'lucide-react';
+import {
+  DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface Game { a: number; b: number }
 type Side = { name: string; tag: string; logoUrl: string | null } | null;
@@ -62,6 +70,16 @@ interface ConsoleRegistration {
   generalCheckin: { done: boolean; at: string | null } | null;
 }
 
+interface TiebreakGroup {
+  group: string;
+  teams: Array<{ registrationId: string; tied: boolean; goalDiff: number; goalsFor: number }>;
+}
+
+interface FinalPlacementRow {
+  registrationId: string; name: string; tag: string;
+  placement: number; points: number | null; goalDiff: number; goalsFor: number;
+}
+
 interface ConsoleData {
   competition: {
     id: string; name: string; status: string;
@@ -75,6 +93,9 @@ interface ConsoleData {
   registrations: ConsoleRegistration[];
   finished: boolean;
   needsAdminDecision: boolean;
+  placements: Array<{ registrationId: string; placement: number | null; group: string }> | null;
+  unresolvedTiebreaks: TiebreakGroup[];
+  finalPlacements: FinalPlacementRow[] | null;
 }
 
 const STATUS_FR: Record<string, string> = {
@@ -307,11 +328,13 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
 
       {/* Zone À TRANCHER — l'unique héros */}
       <div id="a-trancher" className="con-anchor">
-        {decisions.length > 0 ? (
+        {decisions.length > 0 || data.unresolvedTiebreaks.length > 0 ? (
           <section className="con-decide bevel">
             <div className="flex items-baseline gap-2" style={{ padding: '16px 20px' }}>
               <span className="font-display" style={{ fontSize: 22, letterSpacing: '0.03em' }}>À TRANCHER</span>
-              <span className="font-display" style={{ fontSize: 22, color: 'var(--s-gold)' }}>— {decisions.length}</span>
+              <span className="font-display" style={{ fontSize: 22, color: 'var(--s-gold)' }}>
+                — {decisions.length + data.unresolvedTiebreaks.length}
+              </span>
             </div>
             {decisions.map(d => (
               <DecisionRow key={d.m ? `${d.kind}-${d.m.id}` : 'title'} d={d} competitionId={id} busy={busy !== null}
@@ -325,13 +348,41 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
                   else if (phases.length > 0) scrollToId(`phase-${phases[phases.length - 1].phase}`);
                 }} />
             ))}
+            {data.unresolvedTiebreaks.map(tb => (
+              <TiebreakCard key={tb.group} tb={tb} registrations={data.registrations} busy={busy !== null}
+                onResolve={order => action(
+                  { action: 'resolve_tiebreak', group: tb.group, order },
+                  'Égalité arbitrée — l\'ordre du groupe est fixé.',
+                )} />
+            ))}
+          </section>
+        ) : data.competition.status === 'finished' && data.finalPlacements ? (
+          <ClosedSummary placements={data.finalPlacements} />
+        ) : data.finished && data.competition.status === 'live' ? (
+          <section className="con-decide bevel" style={{ padding: '16px 20px' }}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-display" style={{ fontSize: 22, letterSpacing: '0.03em' }}>BRACKET RÉSOLU</p>
+                <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>
+                  Toutes les places sont uniques. La clôture écrit le classement final
+                  {data.placements ? ` (${data.placements.length} équipes)` : ''} et les points au circuit — irréversible.
+                </p>
+              </div>
+              <button className="btn-springs btn-primary bevel-sm" disabled={busy !== null}
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: 'Clôturer le Qualif',
+                    message: 'Le classement final et les points de circuit seront écrits, la compétition passe en « Terminée ». Cette action ne se rejoue pas.',
+                    confirmLabel: 'Clôturer',
+                  });
+                  if (ok) action({ action: 'close_competition' }, 'Compétition clôturée — classement final écrit.');
+                }}>
+                Clôturer le Qualif
+              </button>
+            </div>
           </section>
         ) : (
-          <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>
-            {data.finished
-              ? 'Bracket intégralement résolu — clôture et points de circuit au Lot 4.'
-              : 'Rien en attente de décision.'}
-          </p>
+          <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>Rien en attente de décision.</p>
         )}
       </div>
 
@@ -909,6 +960,113 @@ function TeamRowLine({ r, prefix, children }: { r: ConsoleRegistration; prefix?:
         {r.name} <span style={{ color: 'var(--s-text-muted)' }}>[{r.tag}]{r.seed ? ` · seed ${r.seed}` : ''}</span>
       </span>
       {children && <span className="flex items-center gap-2 flex-shrink-0">{children}</span>}
+    </div>
+  );
+}
+
+// ── Arbitrage d'égalité + clôture (Lot 4) ────────────────────────────────────
+
+/** Carte « égalité à arbitrer » : l'admin fixe l'ordre COMPLET du groupe par
+ *  glisser-déposer (spec §11 — le départage automatique a épuisé ses critères).
+ *  L'ordre proposé au départ est celui du moteur (stats à l'appui). */
+function TiebreakCard({ tb, registrations, busy, onResolve }: {
+  tb: TiebreakGroup;
+  registrations: ConsoleRegistration[];
+  busy: boolean;
+  onResolve: (order: string[]) => void;
+}) {
+  const [order, setOrder] = useState<string[]>(() => tb.teams.map(t => t.registrationId));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const byId = new Map(tb.teams.map(t => [t.registrationId, t]));
+  const regOf = (rid: string) => registrations.find(r => r.registrationId === rid);
+  const onDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    setOrder(prev => arrayMove(prev, prev.indexOf(String(active.id)), prev.indexOf(String(over.id))));
+  };
+  return (
+    <div className="con-decide-row" style={{ display: 'block' }}>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <div>
+          <p className="t-sub">Égalité à arbitrer — groupe {tb.group}</p>
+          <p style={{ fontSize: 12.5, color: 'var(--s-text-dim)' }}>
+            Délta, buts et face-à-face n&apos;ont pas suffi : fixe l&apos;ordre du groupe (glisser-déposer),
+            la clôture attribuera les places dans cet ordre.
+          </p>
+        </div>
+        <button className="btn-springs btn-primary bevel-sm text-sm" disabled={busy}
+          onClick={() => onResolve(order)}>
+          Valider cet ordre
+        </button>
+      </div>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={order} strategy={verticalListSortingStrategy}>
+          <div>
+            {order.map((rid, i) => {
+              const t = byId.get(rid);
+              const reg = regOf(rid);
+              return (
+                <SortableTeamRow key={rid} id={rid}>
+                  <span className="t-mono flex-shrink-0" style={{ fontSize: 12, color: 'var(--s-text-dim)', width: 18 }}>{i + 1}.</span>
+                  <TeamCrest url={reg?.logoUrl ?? null} tag={reg?.tag ?? '?'} name={reg?.name ?? rid} size={24} />
+                  <span className="flex-1 min-w-0 truncate text-sm">{reg?.name ?? rid}</span>
+                  {t?.tied && <span className="tag tag-gold" style={{ fontSize: 9 }}>ex aequo</span>}
+                  <span className="t-mono flex-shrink-0" style={{ fontSize: 12, color: 'var(--s-text-dim)' }}>
+                    {t ? `${t.goalDiff >= 0 ? '+' : ''}${t.goalDiff} · ${t.goalsFor} buts` : ''}
+                  </span>
+                </SortableTeamRow>
+              );
+            })}
+          </div>
+        </SortableContext>
+      </DndContext>
+    </div>
+  );
+}
+
+function SortableTeamRow({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform), transition,
+        opacity: isDragging ? 0.6 : 1,
+        borderBottom: '1px solid var(--s-border)',
+        background: isDragging ? 'var(--s-elevated)' : 'transparent',
+      }}
+      className="flex items-center gap-3 py-2">
+      <button type="button" {...attributes} {...listeners} className="flex-shrink-0 cursor-grab"
+        style={{ color: 'var(--s-text-muted)' }} aria-label="Réordonner">
+        <GripVertical size={15} />
+      </button>
+      {children}
+    </div>
+  );
+}
+
+/** Compétition clôturée : le classement final écrit, tel quel. */
+function ClosedSummary({ placements }: { placements: FinalPlacementRow[] }) {
+  return (
+    <div className="panel bevel">
+      <div className="panel-header"><span className="t-sub">Classement final — points écrits au circuit</span></div>
+      <div className="panel-body" style={{ paddingTop: 8 }}>
+        {placements.map(p => (
+          <div key={p.registrationId} className="flex items-center gap-3 py-1.5 text-sm"
+            style={{ borderBottom: '1px solid var(--s-border)' }}>
+            <span className="t-mono flex-shrink-0 text-right" style={{ width: 26, color: p.placement <= 3 ? 'var(--s-gold)' : 'var(--s-text-dim)' }}>
+              {p.placement}.
+            </span>
+            <span className="flex-1 min-w-0 truncate">{p.name} <span style={{ color: 'var(--s-text-muted)' }}>[{p.tag}]</span></span>
+            {p.points !== null && <span className="t-mono flex-shrink-0" style={{ fontSize: 12.5 }}>{p.points} pts</span>}
+            <span className="t-mono flex-shrink-0" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>
+              {p.goalDiff >= 0 ? '+' : ''}{p.goalDiff}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

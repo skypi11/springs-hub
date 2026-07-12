@@ -154,6 +154,20 @@ export interface Competition {
   /** Bracket matérialisé (competition_matches écrits) — pose au `publish`. */
   bracketMaterializedAt?: Date | string | null;
   /**
+   * Arbitrages admin des égalités de placement (Lot 4, spec §11) : clé =
+   * groupe d'élimination du moteur (« W1 », « L3 »…), valeur = ordre complet
+   * décidé pour ce groupe (registrationId). Ignoré si le groupe a changé
+   * depuis (retrait, correction) — la clôture re-flag alors l'égalité.
+   */
+  tiebreakResolutions?: Record<string, string[]>;
+  /**
+   * Classement FINAL, écrit une seule fois à la clôture (archi §4 : places
+   * toutes uniques, points du barème circuit — null hors circuit). Public-safe
+   * (registrationId + dénormalisations, aucun uid).
+   */
+  finalPlacements?: FinalPlacement[];
+  closedAt?: Date | string | null;
+  /**
    * Compétition de TEST : invisible du public (fiche + bracket + futures listes)
    * comme un brouillon, MÊME une fois publiée en 'live'. Visible uniquement des
    * admins compét et des comptes du bac à sable. Même logique que `users.isDev`.
@@ -164,6 +178,17 @@ export interface Competition {
   createdAt: Date | string;
   // PAS de createdBy : doc public, uid/snowflake interdits (archi §8) —
   // l'auteur est tracé dans admin_audit_logs.
+}
+
+/** Une ligne du classement final d'une compétition clôturée. */
+export interface FinalPlacement {
+  registrationId: string;
+  name: string;
+  tag: string;
+  placement: number;           // place compressée 1→N
+  points: number | null;       // barème circuit — null hors circuit
+  goalDiff: number;            // délta normalisé du tournoi (départage §11)
+  goalsFor: number;
 }
 
 export type CompetitionStatus =
