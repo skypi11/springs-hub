@@ -1,0 +1,391 @@
+{
+  "survived": [
+    {
+      "title": "Close pendant la fenêtre non-transactionnelle de replace_team : l'équipe repêchée perd ses points ET sa circuit_team peut être SUPPRIMÉE",
+      "file": "lib/competitions/close-competition.ts",
+      "line": 112,
+      "severity": "blocker",
+      "description": "replace_team (console route l.509→530) est un commit en DEUX étapes non atomiques : (1) applyReplacement commit sa transaction — la nouvelle équipe est désormais ASSISE dans le bracket — puis (2) newSnap.ref.update({status:'approved'}) dans un write séparé. Scénario exact : applyReplacement commit, puis la fonction Vercel crash/timeout (ou un déploiement passe) avant l'étape 2 → la reg promue reste status 'waitlisted' indéfiniment, tout en jouant dans le bracket. L'admin clôture plus tard (ou en course directe : close s'exécute entre les deux étapes). Dans closeCompetition, cette équipe A un placement (elle est dans le bracket), mais : (a) ligne 112, le filtre `reg?.status === 'approved' || reg?.status === 'withdrawn'` la rejette → AUCUNE participation écrite, zéro point de circuit malgré son placement ; (b) ligne 128, `status === 'waitlisted'` la fait entrer dans claimReleases → computeClaimRelease supprime son claim + son rosterByCompetition, et si sa circuit_team a été créée à ce Qualif (participations=[]), orphan=true → tx.delete de la circuit_team ET du state (l.156-158). La clôture étant idempotente-une-fois (already_closed), les points ne sont JAMAIS récupérables et la circuit_team est détruite pendant que finalPlacements affiche l'équipe au classement.",
+      "suggestion": "Rendre la promotion atomique : passer le flip waitlisted→approved (et old→withdrawn) DANS la transaction d'applyReplacement (applyEngineOp lit déjà toutes les regs via tx.getAll — il suffit d'ajouter les 2 tx.update). À défaut, dans closeCompetition, dériver l'éligibilité participation du BRACKET (l'équipe est placée) plutôt que du seul reg.status, et ne purger un claim waitlisted que si l'équipe n'apparaît pas dans les placements.",
+      "dimension": "cloture-tx",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "CONFIRMÉ par lecture du code ET par exécution d'un probe (fichier temporaire __probe-replace-close.test.ts, supprimé après run).\n\n1) La fenêtre non-atomique est réelle : dans app/api/admin/competitions/[id]/console/route.ts (action replace_team, ~l.509-530), applyReplacement (lib/competitions/progre"
+        },
+        {
+          "refuted": true,
+          "reasoning": "Le mécanisme décrit existe bien dans le code (replace_team = applyReplacement tx puis 2 updates de statut séparés, console/route.ts l.509-530 ; et close-competition.ts l.112/l.128 traiterait mal une reg 'waitlisted' assise dans le bracket). Mais les DEUX affirmations qui en font un blocker sont faus"
+        }
+      ]
+    },
+    {
+      "title": "unapprove sans garde bracket publié → équipe classée silencieusement privée de ses points circuit",
+      "file": "app/api/admin/competitions/[id]/registrations/route.ts",
+      "line": 883,
+      "severity": "blocker",
+      "description": "withdrawRegistration refuse explicitement après bracketMaterializedAt (withdraw-registration.ts:99), mais `unapprove` n'a AUCUNE garde de statut compétition : seul le statut de l'inscription est vérifié (approved|waitlisted). Scénario exact : bracket publié, compétition live ; l'admin clique « Annuler la validation » sur une équipe approuvée (bouton disponible dans RegistrationsPanel, aucun refus serveur) → status='pending', circuitTeamId=null, claim circuit libéré (l. 899-900), approvedCount décrémenté — mais l'équipe RESTE dans le bracket (competition_matches référencent la registrationId). L'équipe joue, finit 2e. À la clôture, close-competition.ts:112 filtre `ctId && (status==='approved'||'withdrawn')` : status='pending' et ctId=null → AUCUNE participation écrite, AUCUN warning (pas de Sentry, rien dans CloseResult), alors que finalPlacements affiche bien « 2e, 34 pts ». Le classement circuit et la cutline LAN sont faux en silence. Double défaut : (a) unapprove doit être refusé dès bracketMaterializedAt, (b) la clôture doit remonter (erreur ou au minimum alerte) toute équipe CLASSÉE d'une compét de circuit sans participation écrite.",
+      "suggestion": "Dans unapprove : relire la compétition dans la transaction et throw si `bracketMaterializedAt` (miroir de withdraw-registration.ts:99). Dans closeCompetition : pour une compét de circuit, collecter les finalPlacements dont la reg n'a pas produit de participationWrite et les renvoyer dans CloseResult (bloquer ou exiger confirmation admin), + captureApiError.",
+      "dimension": "points-metier",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "CONFIRMÉ — le finding est réel, prouvé statiquement ET par exécution d'un test probe (supprimé après run).\n\nPreuves statiques (code tel qu'écrit) :\n1. `app/api/admin/competitions/[id]/registrations/route.ts` : `unapprove` (l.883-905) ne vérifie QUE le statut de l'inscription (`approved|waitlisted`)."
+        },
+        {
+          "refuted": false,
+          "reasoning": "Finding CONFIRMÉ, non réfutable. (1) Code : unapprove (registrations/route.ts:883-930) n'a aucune garde bracketMaterializedAt — il lit pourtant compNow dans la transaction (l.893) mais uniquement pour approvedCount ; withdraw-registration.ts:99 refuse explicitement le même geste après publication ('"
+        }
+      ]
+    },
+    {
+      "title": "withdraw_team (DQ) sans garde comp.status : commit possible APRÈS la clôture, y compris via retry de sa propre transaction en course avec close",
+      "file": "app/api/admin/competitions/[id]/console/route.ts",
+      "line": 456,
+      "severity": "major",
+      "description": "applyEngineOp (progression.ts l.208) ne vérifie que compSnap.exists — jamais comp.status. Le handler withdraw_team ne le vérifie pas non plus (contrairement à resolve_tiebreak l.572 et à close). Scénario exact : bracket fini, admin A clique « Clôturer » pendant qu'admin B DQ le champion (triche découverte). Les deux tx lisent compRef + tous les matchs → Firestore les sérialise. Si close commit d'abord, la tx d'applyWithdraw CONFLIT → retry automatique → relit comp (status='finished') → aucune garde → commit quand même : comp.withdrawn reçoit l'équipe (arrayUnion l.340), la reg passe 'withdrawn' (l.472, hors transaction en plus). Résultat : le bracket public reconstruit (withdrawn inclus) et l'onglet console divergent du classement figé — finalPlacements et les participations arrayUnion déjà écrites sur les circuit_teams ne sont jamais recalculées (already_closed). Même trou pour un withdraw_team lancé froidement des heures après la clôture. (force_score/reopen_checkin sont de facto protégés par leurs gardes par-match terminal ; replace_team par le refus moteur « match joué » — seul withdraw_team passe.)",
+      "suggestion": "Ajouter dans la transaction d'applyEngineOp (ou au minimum dans le handler withdraw_team) le rejet si comp.status !== 'live' — la re-validation DANS la tx est indispensable pour couvrir le chemin retry-après-conflit, un check pré-transactionnel ne suffit pas.",
+      "dimension": "cloture-tx",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "CONFIRMÉ (non réfuté), preuve par lecture exhaustive + test probe exécuté puis supprimé.\n\nChaîne vérifiée, maillon par maillon — aucune garde ne bloque un withdraw_team après clôture :\n1. Handler `withdraw_team` (app/api/admin/competitions/[id]/console/route.ts l.456-481) : vérifie uniquement reg.ex"
+        },
+        {
+          "refuted": true,
+          "reasoning": "Le fait technique est exact (ni le handler withdraw_team route.ts:456-481 ni applyEngineOp progression.ts:208 ne vérifient comp.status, et le bouton « Retirer » reste visible dans la console après clôture — panel Équipes non conditionné). Mais l'IMPACT annoncé (« major », divergence bracket public/c"
+        }
+      ]
+    },
+    {
+      "title": "resolve_tiebreak permet d'inverser un ordre NON ex-aequo — la résolution s'applique à n'importe quel groupe au set correspondant",
+      "file": "lib/tournament/placements.ts",
+      "line": 454,
+      "severity": "major",
+      "description": "computePlacements applique une résolution dès que `resolution.length === group.teams.length && group.teams.every(...)` — sans jamais vérifier que le groupe contenait un `needsAdminTiebreak`. Côté route (console/route.ts:562-575), resolve_tiebreak ne valide que le regex du nom de groupe, l'absence de doublons et status==='live' : ni que le groupe existe, ni qu'il figure dans unresolvedTiebreaks. Scénario exact : simple élim 8 équipes, groupe W1 (4 perdants de quarts) intégralement départagé par le délta normalisé (zéro égalité) ; un admin compét POST `{action:'resolve_tiebreak', group:'W1', order:[inversé]}` → 200 OK, et à la clôture les places 5-8 sont inversées (24 pts ↔ 19 pts au barème Legends) sans blocage, sans mention dans le classement, avec pour seule trace une ligne d'audit `competition_tiebreak_resolved` que rien ne distingue d'un arbitrage légitime. La décision tranchée « résolution = groupe ENTIER » couvre l'ordonnancement complet d'un groupe QUI A une égalité ; réécrire l'ordre sportif d'un groupe sans égalité n'est ni voulu ni documenté (spec §11 : l'admin décide « sinon », en dernier recours).",
+      "suggestion": "À la clôture ET au GET console : n'appliquer une résolution que si `rankWithinGroup` du groupe produit au moins un needsAdminTiebreak (recalculer sans résolution d'abord). Côté route : refuser resolve_tiebreak si le groupe n'est pas dans unresolvedTiebreaks recalculés serveur.",
+      "dimension": "points-metier",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "CONFIRMÉ par exécution d'un probe test (lib/tournament/__probe.test.ts, supprimé après run, 2/2 verts). Preuve : simple élim 8 équipes entièrement jouée, groupe W1 (perdants de quarts) avec 4 déltas normalisés TOUS distincts (-3/-6/-9/-12) et zéro needsAdminTiebreak vérifié ; computePlacements(b, {W"
+        },
+        {
+          "refuted": true,
+          "reasoning": "Le mécanisme décrit est techniquement exact (computePlacements applique une résolution dès que l'ensemble d'équipes correspond, sans exiger un needsAdminTiebreak ; la route ne vérifie que regex/doublons/status live — vérifié lignes placements.ts:454-460 et console/route.ts:562-577). Mais le finding "
+        }
+      ]
+    },
+    {
+      "title": "GET du fil rate-limité par IP seulement (bucket `read` partagé) — 429 garanti à la LAN sur IP partagée",
+      "file": "app/api/competitions/[id]/matches/[matchId]/thread/route.ts",
+      "line": 47,
+      "severity": "major",
+      "description": "Le GET fait `checkRateLimit(limiters.read, rateLimitKey(req))` AVANT verifyAuth, donc la clé est toujours `ip:X` (rateLimitKey sans uid). `limiters.read` = 60 req/min, et ce bucket `springs:read:ip:X` est PARTAGÉ avec tous les autres endpoints qui utilisent limiters.read sur la même IP. Le client MatchThread polle toutes les 8 s (useWorkerInterval, page.tsx:614) = 7,5 req/min/onglet, plus les autres polls de la page de match. Scénario exact : LAN du 21-22/11 (ou n'importe quel bootcamp/NAT d'école) — 8+ personnes derrière la même IP publique ouvrent leur page de match → le quota 60/min IP est consommé collectivement → 429 « Trop de requêtes » en boucle pour des utilisateurs légitimes AUTHENTIFIÉS, le jour où le fil sert le plus. Même défaut probable sur les autres GET du jour de match qui suivent ce pattern.",
+      "suggestion": "Dans le GET, faire verifyAuth d'abord (il est de toute façon requis) et rate-limiter par `rateLimitKey(req, uid)` — le POST fait déjà exactement ça (ligne 80-82). Garder la clé IP uniquement pour le trafic non authentifié rejeté.",
+      "dimension": "thread-secu",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "CONFIRMÉ par exécution. (1) thread/route.ts:47 : le GET fait bien checkRateLimit(limiters.read, rateLimitKey(req)) AVANT verifyAuth (qui est dans loadContext, appelé ligne 50) → clé toujours `ip:X` (lib/rate-limit.ts:54-57). (2) limiters.read = slidingWindow 60/min, préfixe unique `springs:read` par"
+        },
+        {
+          "refuted": false,
+          "reasoning": "Finding CONFIRMÉ par lecture du code. (1) thread/route.ts:47 rate-limite le GET par IP avant verifyAuth (rateLimitKey sans uid → `ip:X` même pour les authentifiés), contrairement au POST du même fichier qui fait verifyAuth puis clé uid (lignes 80-82). (2) Le bucket `springs:read` 60/min est partagé "
+        }
+      ]
+    },
+    {
+      "title": "resolve_tiebreak sur un groupe modifié côté serveur : toast de SUCCÈS + la carte d'égalité réapparaît identique, sans aucune explication — l'admin tourne en boucle",
+      "file": "app/admin/competitions/[id]/console/page.tsx",
+      "line": 353,
+      "severity": "major",
+      "description": "Chaîne complète vérifiée : le POST `resolve_tiebreak` ne compare JAMAIS l'ordre soumis à la composition actuelle du groupe (route console l. 562-578 : regex + unicité + longueur, c'est tout) → il répond `{ok:true}` → la console toaste « Égalité arbitrée — l'ordre du groupe est fixé. » → `load()` refait le GET → `computePlacements(bracket, resolutions)` IGNORE la résolution (set non exact, décision assumée côté moteur) → `needsAdminTiebreak` reste vrai → `unresolvedTiebreaks` contient toujours le groupe → la même carte se ré-affiche. Scénario : l'admin arbitre pendant qu'un force_score/withdraw change le groupe (fenêtre de 10 s de staleness du poll, ou carte déjà désynchronisée par le finding précédent). Résultat : succès affiché, problème non résolu, ZÉRO message expliquant pourquoi la carte est revenue. Combiné au state figé (finding 1), la carte ré-affichée montre toujours l'ancien ordre → re-valider renvoie le même payload invalide : boucle infinie sans issue visible.",
+      "suggestion": "Côté serveur : dans la transaction de `resolve_tiebreak`, recalculer les placements et rejeter en 409 (« Le groupe a changé depuis ton affichage — recharge ») si `order` n'est pas le set exact du groupe actuel. Côté client, à défaut : après `load()`, si `tb.group` figure encore dans `unresolvedTiebreaks`, remplacer le toast succès par un toast d'avertissement explicite.",
+      "dimension": "ui-console",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "CONFIRMÉ — le finding est réel dans le code tel qu'écrit, prouvé par lecture statique de chaque maillon + un test probe exécuté (2/2 verts, fichier __probe supprimé après exécution, arbre git propre).\n\nPreuves maillon par maillon :\n1. SERVEUR (app/api/admin/competitions/[id]/console/route.ts l.562-5"
+        },
+        {
+          "refuted": true,
+          "reasoning": "RÉFUTÉ — le scénario déclencheur n'existe pas dans cette machine d'états, et le pire cas théorique est déjà couvert par un garde-fou explicite.\n\n1) La fenêtre de course invoquée est irréalisable. Les cartes d'égalité n'existent QUE si le bracket est FINI : dans le GET console (app/api/admin/competit"
+        }
+      ]
+    },
+    {
+      "title": "MatchThread : aucun auto-scroll — le conteneur (maxHeight 320, ordre asc) reste ancré en HAUT, les nouveaux messages ET son propre message envoyé arrivent hors-champ en bas",
+      "file": "app/competitions/[id]/match/[matchId]/page.tsx",
+      "line": 654,
+      "severity": "major",
+      "description": "Les messages sont rendus du plus ancien au plus récent dans un div `maxHeight: 320, overflowY: 'auto'` sans ref ni gestion de `scrollTop`. Scénario exact : le fil dépasse ~8 messages → (1) à l'ouverture de la page, le capitaine voit les messages les plus VIEUX (le scroll natif démarre en haut) et doit deviner qu'il faut scroller en bas ; (2) le poll worker 8 s injecte un nouveau message admin (« changez de room ») en bas du conteneur : rien ne bouge à l'écran, aucun indicateur — un message urgent le jour de match est raté ; (3) après « Envoyer », le refetch ajoute le propre message de l'auteur en bas, invisible : combiné au draft vidé immédiatement (l. 626), l'auteur a l'impression que son message a disparu.",
+      "suggestion": "Ref sur le conteneur + effet sur `messages.length` : scroll au fond au premier rendu et après envoi de son propre message ; pour les messages entrants, ne scroller que si l'utilisateur était déjà à ≤~40 px du bas, sinon afficher une pastille « nouveaux messages ↓ » cliquable.",
+      "dimension": "ui-console",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "CONFIRMÉ — le finding est réel, non exagéré, et ne contredit aucune décision tranchée.\n\nPreuves (code tel qu'écrit) :\n1. C:\\Users\\mattm\\springs-hub\\app\\competitions\\[id]\\match\\[matchId]\\page.tsx — grep `useRef|scrollTop|scrollIntoView|overflowY|maxHeight` sur TOUT le fichier ne matche QUE la ligne 6"
+        },
+        {
+          "refuted": false,
+          "reasoning": "Le finding est CONFIRMÉ, factuellement et en impact réel.\n\nVérification factuelle (app/competitions/[id]/match/[matchId]/page.tsx:654 + route thread) :\n1. L'API renvoie bien les messages en ordre ASCENDANT (`orderBy('createdAt', 'asc').limitToLast(100)`, route.ts:55-56) → le plus récent est en BAS.\n"
+        }
+      ]
+    },
+    {
+      "title": "Modales console (ForceScore / Forfeit / Cast / Replace) : le bouton de soumission ignore `busy` — double-clic = double POST concurrent, succès puis erreur incompréhensible",
+      "file": "app/admin/competitions/[id]/console/page.tsx",
+      "line": 1206,
+      "severity": "major",
+      "description": "Le `busy` global est correctement consommé par les CTA inline (« Valider cet ordre » l. 1000, « Clôturer » l. 371 — et React 18 flushant les events discrets de façon synchrone, le 2e clic d'un double-clic voit bien le bouton disabled). MAIS les quatre modales n'en tiennent pas compte : « Valider le forfait » (l. 1206, aucun `disabled`), « Imposer le score » (l. 1168, `disabled={!valid}` seulement), « Mettre en stream »/« Retirer le cast » (l. 1227/1231), « Remplacer » (l. 1269). Scénario : double-clic sur « Valider le forfait » → deux POST `validate_forfeit` partent en parallèle (la modale ne ferme qu'au retour du 1er `ok`). Le 2e est rejeté par l'autoGuard serveur (état devenu terminal) → l'admin voit un toast succès IMMÉDIATEMENT suivi d'un toast « Action impossible » sur la même action, et croit que le forfait a échoué. Pas de corruption (le serveur tient), mais un signal faux au pire moment.",
+      "suggestion": "Propager `busy` aux modales (elles reçoivent déjà tout le reste par props) et l'appliquer en `disabled` sur les quatre boutons de soumission, ou passer chaque `onSubmit` en garde locale `submitting` comme le fait déjà `send()` du MatchThread.",
+      "dimension": "ui-console",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "CONFIRMÉ — le finding est exact sur toutes ses affirmations, preuve par probe Vitest 5/5 (fichier lib/__probe_console_modal_busy.test.ts, supprimé après exécution, arbre git propre).\n\nFaits vérifiés dans C:\\Users\\mattm\\springs-hub\\app\\admin\\competitions\\[id]\\console\\page.tsx :\n1. Les 4 modales ne re"
+        },
+        {
+          "refuted": true,
+          "reasoning": "Le mécanisme décrit est exact (les 4 boutons de soumission des modales — page.tsx l.1168/1206/1227-1231/1269 — n'appliquent pas `busy`, un double-clic dans la fenêtre de latence produit bien 2 POST concurrents), mais la sévérité « major » est exagérée : le scénario de nuisance annoncé (« erreur inco"
+        }
+      ]
+    },
+    {
+      "title": "MatchThread : polling worker 8 s avec `enabled=true` permanent — jamais coupé sur match terminé ni en arrière-plan, par construction NON étranglé par le navigateur",
+      "file": "app/competitions/[id]/match/[matchId]/page.tsx",
+      "line": 616,
+      "severity": "major",
+      "description": "Pas de fuite mémoire au démontage (le hook `useWorkerInterval` terminate bien le worker dans son cleanup, vérifié l. 35-38) — mais tant que la page reste montée, `useWorkerInterval(..., 8_000, true)` tourne pour toujours : l'argument `enabled` est codé en dur à `true`, alors que la raison d'être du worker est justement d'ÉCHAPPER au throttling des onglets en arrière-plan. Scénario exact : un capitaine consulte le fil d'un match terminé depuis 3 semaines et laisse l'onglet ouvert derrière Rocket League toute la nuit → 10 800 GET /thread (chacun : doc compétition + doc match + `getMatchSideForUser` (rosters/staff) + jusqu'à 100 docs messages) pour un fil qui ne bougera plus jamais. Coût Firestore gratuit gaspillé, et contention sur `limiters.read` : ses propres 429 peuvent ensuite faire échouer des refetchs légitimes ailleurs sur la page (le GET thread partage la clé de rate-limit lecture).",
+      "suggestion": "Passer `enabled` sur une condition réelle : match non terminal (`!TERMINAL.has(m.status)`) — le composant parent a le statut — éventuellement ET `document.visibilityState === 'visible' || match actif` (on ne garde le poll en arrière-plan QUE pendant qu'un match est en jeu, le cas d'usage revendiqué par le commentaire du hook). Idem pour la console : `active` ne coupe jamais le poll 10 s + tick 30 s quand `status === 'finished'`.",
+      "dimension": "ui-console",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "CONFIRMÉ — le finding est réel, prouvé par lecture du code + probe exécutée (fichier __probe supprimé après run).\n\nPreuves statiques (code tel qu'écrit) :\n1. `app/competitions/[id]/match/[matchId]/page.tsx` l. 614-616 : `useWorkerInterval(() => queryClient.invalidateQueries(...), 8_000, true)` — `en"
+        },
+        {
+          "refuted": true,
+          "reasoning": "Les faits techniques sont exacts (vérifiés : `useWorkerInterval(..., 8_000, true)` l.616 et `..., 10_000, true` l.151 dans app/competitions/[id]/match/[matchId]/page.tsx ; console `active = !!firebaseUser && authorized` jamais coupé sur finished), mais les DEUX mécanismes d'impact qui fondent la sév"
+        }
+      ]
+    },
+    {
+      "title": "Purge des claims à la clôture limitée à waitlisted|pending : les regs 'withdrawn' détentrices d'un claim laissent des circuit_teams zombies",
+      "file": "lib/competitions/close-competition.ts",
+      "line": 128,
+      "severity": "minor",
+      "description": "Ni withdraw_team (console l.472) ni replace_team (l.515) ne libèrent le claim ni ne nullent circuitTeamId de la reg sortante (contrairement à withdrawRegistration pré-publication, reject et unapprove qui le font). À la clôture, la boucle l.126-131 ne purge que 'waitlisted'|'pending' → le claim d'une reg 'withdrawn' survit pour toujours. Scénario exact : équipe nouvelle sur le circuit, approuvée (circuit_team créée, claims[compId]=regId), remplacée par la waitlist avant le round 1 → reg 'withdrawn', hors bracket → pas de placement, pas de participation, pas de purge. La circuit_team reste avec participations=[] et un claim mort : jamais éligible orphan (claims non vide), elle traîne dans le circuit (rangée fantôme potentielle dans les listes d'équipes/standings) et fausse le comptage. Le commentaire d'intention (« purge des claims des waitlisted jamais promues ») rate ce cas.",
+      "suggestion": "À la clôture, purger AUSSI les claims des regs 'withdrawn' qui n'apparaissent pas dans les placements (leur ct n'a pas reçu de participation dans cette tx) — ou libérer le claim au moment du withdraw_team/replace_team comme le font déjà reject/unapprove.",
+      "dimension": "cloture-tx",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "CONFIRMÉ par lecture + exécution d'un probe (supprimé après run). (1) Code : console route l.472/l.515 posent status='withdrawn' sans releaseCircuitClaim ni null de circuitTeamId (contrairement à withdrawRegistration l.101, reject l.818, unapprove l.899) ; close-competition.ts l.128 ne purge que wai"
+        },
+        {
+          "refuted": true,
+          "reasoning": "La mécanique décrite est exacte, mais les DEUX impacts concrets annoncés sont faux — et à l'angle « vrai problème en prod pour ce projet », il n'y en a pas.\n\nCE QUI EST VRAI (vérifié) : `replace_team` (app/api/admin/competitions/[id]/console/route.ts:515) passe la reg sortante à 'withdrawn' sans lib"
+        }
+      ]
+    },
+    {
+      "title": "Arrondi 2 décimales AVANT cumul + comparaison float stricte : le tiebreak goal_diff_total du circuit peut s'inverser",
+      "file": "lib/competitions/close-competition.ts",
+      "line": 95,
+      "severity": "minor",
+      "description": "La participation stocke `Math.round(normalizedDiff*100)/100` ; computeCircuitStandings SOMME ces valeurs arrondies (goalDiffCounted, standings.ts:75) puis compare en `!==` strict (standings.ts:100). Deux effets concrets à égalité de points (donc sur la cutline LAN) : (1) inversion par arrondi — équipe A : déltas normalisés réels 0.335 et 0.331 → stockés 0.34+0.33=0.67 ; équipe B : 0.334 et 0.334 → stockés 0.33+0.33=0.66 ; en réel B (0.668) > A (0.666), mais A gagne le tiebreak. (2) fausse inégalité IEEE — 0.34+0.33=0.6699999999999999 ≠ 0.67 stocké d'une seule participation : deux équipes mathématiquement ex-aequo ne tombent jamais sur le tiebreaker suivant (latest_event), l'une gagne sur un artefact binaire. Intra-Qualif, computePlacements utilise bien la précision pleine — c'est la frontière participation (arrondi de PERSISTANCE, pas d'affichage) qui dégrade la chaîne.",
+      "suggestion": "Persister normalizedDiff en précision pleine (ou en centièmes ENTIERS : `Math.round(nd*100)`) dans participations et n'arrondir qu'à l'affichage ; dans standings.ts comparer avec un epsilon ou sur les entiers centièmes.",
+      "dimension": "points-metier",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "CONFIRMÉ par exécution (probe Vitest temporaire, supprimée après run). Chaîne vérifiée dans le code tel qu'écrit : `normalizedDiff = goalDiff/matchesCounted` (lib/tournament/placements.ts:70 — rationnels arbitraires type 1/3), persistance arrondie `Math.round(nd*100)/100` (lib/competitions/close-com"
+        },
+        {
+          "refuted": false,
+          "reasoning": "NON RÉFUTÉ — le mécanisme est réel, atteignable avec la config Legends réelle, et invérifiable par un humain dans la boucle. Vérifications faites :\n\n1) Chaîne de code confirmée : close-competition.ts:95 persiste `Math.round(st.normalizedDiff*100)/100` (normalizedDiff = goalDiff/matchesCounted, place"
+        }
+      ]
+    },
+    {
+      "title": "Place au-delà du barème → 0 point silencieux : aucun garde-fou taille du barème vs maxTeams des Qualifs",
+      "file": "lib/competitions/close-competition.ts",
+      "line": 94,
+      "severity": "minor",
+      "description": "`pointsScale[String(p.placement)] ?? 0` : toute place hors barème vaut 0 sans distinction d'un vrai 0 ni warning. Pour le préréglage Legends (32 places, maxTeams 32) c'est inatteignable, mais validatePointsScale accepte 2 à 64 entrées et RIEN ne lie la taille du barème au maxTeams des Qualifs du circuit (créés indépendamment) : un circuit custom avec barème 8 places + Qualif 16 équipes donne 0 point aux places 9-16, participations écrites avec points:0 — les équipes apparaissent au classement (playedCount compté) avec 0 pt, indiscernables d'une vraie place à 0. Aucun signal ni à la création du circuit/de la Qualif, ni à la clôture. C'est peut-être le comportement voulu (« hors barème = 0 ») mais il n'est documenté nulle part (archi §4 et spec §11 supposent un barème couvrant toutes les places).",
+      "suggestion": "Au rattachement d'une compétition à un circuit (ou à la publication du bracket) : refuser ou avertir si `format.maxTeams > Object.keys(pointsScale).length`. À la clôture : remonter dans CloseResult le nombre de places servies hors barème.",
+      "dimension": "points-metier",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "CONFIRMÉ par exécution (probe temporaire `lib/competitions/__probe_points_scale.test.ts`, 3/3 verts, supprimé après). Chaque affirmation du finding est vraie dans le code tel qu'écrit :\n\n1. **La combinaison est atteignable.** `validatePointsScale` (lib/competitions/validate.ts:145-172) accepte 2 à 6"
+        },
+        {
+          "refuted": true,
+          "reasoning": "Faits techniques exacts (pas de garde barème↔maxTeams, hors-barème→0) mais impact prod nul pour CE projet. (1) Le seul circuit réel (Legends) est créé via le préréglage 1-clic : barème 32 places / maxTeams 32, mismatch inatteignable — admis par le finding lui-même. Le scénario exige qu'un admin Aedr"
+        }
+      ]
+    },
+    {
+      "title": "Claim circuit jamais purgé pour une reg approved absente du bracket publié (approve possible pendant live)",
+      "file": "lib/competitions/close-competition.ts",
+      "line": 126,
+      "severity": "minor",
+      "description": "La purge de clôture ne couvre que status 'waitlisted' | 'pending' (l. 128). Or `approve` n'a pas non plus de garde sur le statut de la compétition : une inscription restée pending peut être approuvée APRÈS publication du bracket (registrations/route.ts:501 ne vérifie que le statut de la reg ; approvedCount < maxTeams redevient vrai après un withdraw). Scénario : bracket publié 8 équipes, une équipe DQ (withdraw_team) libère le compteur, l'admin approuve par erreur une pending tardive → claim posé + rosterByCompetition écrit sur circuit_teams/private/state (l. 702-714) alors que l'équipe n'est PAS dans le bracket et ne jouera jamais. À la clôture : pas de placement → pas de participation (correct), mais status='approved' → le claim et le roster de référence ne sont JAMAIS purgés. Conséquence au Qualif suivant : la règle d'identité « noyau 2/3 sur la précédente participation APPROUVÉE » compare contre un roster fantôme d'une équipe qui n'a jamais joué, et la circuit_team ne peut pas devenir orpheline (claims non vides).",
+      "suggestion": "Garde symétrique sur approve : refuser si bracketMaterializedAt (le repêchage passe par replace_team). Et à la clôture, étendre la purge aux regs 'approved' dont la registrationId n'apparaît dans aucun placement du bracket.",
+      "dimension": "points-metier",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "CONFIRMÉ par exécution (probe Vitest temporaire, créée puis supprimée) + lecture de code. (1) Côté approve — app/api/admin/competitions/[id]/registrations/route.ts : AUCUNE garde sur l'état de la compétition (grep `bracketMaterializedAt|comp.status` = 0 occurrence dans tout le fichier) ; `approve` n"
+        },
+        {
+          "refuted": true,
+          "reasoning": "RÉFUTÉ — le scénario déclencheur est mécaniquement impossible, et la variante résiduelle n'a pas d'impact production réel pour ce projet.\n\n1) Le mécanisme central du finding est FAUX. Le scénario dit : « bracket publié 8 équipes, une équipe DQ (withdraw_team) libère le compteur → approvedCount < max"
+        }
+      ]
+    },
+    {
+      "title": "Oracle 401/404 : un non-authentifié peut confirmer l'existence d'une compétition masquée (draft/isDev)",
+      "file": "app/api/competitions/[id]/matches/[matchId]/thread/route.ts",
+      "line": 28,
+      "severity": "minor",
+      "description": "loadContext lit `competitions/{id}` AVANT verifyAuth : compét inexistante → 404, compét existante (y compris masquée) → 401. Scénario exact : un attaquant SANS compte probe `POST/GET /api/competitions/{slug-deviné}/matches/x/thread` et distingue par le status code quelles compétitions draft/isDev existent (noms de circuits non annoncés, compétitions de test). Le gate canViewHiddenCompetition arrive trop tard pour masquer l'existence aux non-connectés. Fuite d'existence seulement (aucune donnée), d'où minor.",
+      "suggestion": "Inverser : verifyAuth d'abord (401 uniforme pour tout non-authentifié, quel que soit l'id), puis le fetch compét + gate hidden → 404. C'est aussi le prérequis du fix rate-limit ci-dessus.",
+      "dimension": "thread-secu",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "CONFIRMÉ par exécution (probe Vitest temporaire, supprimée après run) sur les vrais handlers de C:\\Users\\mattm\\springs-hub\\app\\api\\competitions\\[id]\\matches\\[matchId]\\thread\\route.ts avec verifyAuth mocké à null (non authentifié) : GET compét inexistante → 404, GET compét existante draft/hidden → 40"
+        },
+        {
+          "refuted": true,
+          "reasoning": "Le finding est techniquement à moitié vrai mais son scénario d'exploitation est impossible et son impact production nul pour ce projet. Preuves :\n\n1. **La moitié POST du finding est factuellement fausse.** Dans app/api/competitions/[id]/matches/[matchId]/thread/route.ts, le POST appelle `verifyAuth`"
+        }
+      ]
+    },
+    {
+      "title": "Staff des deux camps : ne peut même pas LIRE le fil (403), alors que la spec §10 le rend lecteur légitime",
+      "file": "lib/competitions/match-access.ts",
+      "line": 89,
+      "severity": "minor",
+      "description": "`getMatchSideForUser` retourne NO_ACCESS (side=null) pour un staff des deux camps, et le GET du thread exige `access.side` (route.ts:53). L'anti double-camp est la bonne décision pour l'ÉCRITURE (scores, et par extension le post — ambiguïté du camp affiché). Mais la LECTURE n'a aucune ambiguïté : spec §10 dit le fil visible des capitaines/staff des 2 équipes. Scénario exact : une structure inscrit 2 équipes (autorisé), elles se rencontrent en bracket (probable dès les winners), le dirigeant/fondateur — qui a pourtant tous les droits staff sur les DEUX équipes — reçoit « Accès refusé » sur le fil du match de ses propres équipes, pendant que les deux capitaines coordonnent le retard/la room sans lui.",
+      "suggestion": "Dans le GET uniquement, accorder la lecture si `a.staff||b.staff` même en cas de double-camp (ex. exposer un flag `involvedBothSides` dans MatchAccess) ; garder le refus d'écriture (side null) intact.",
+      "dimension": "thread-secu",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "CONFIRMÉ par exécution d'un test probe (4/4 assertions, fichier __probe supprimé après). Preuves : (1) Prémisse du scénario VALIDE — docs/legends-springs-cup-spec.md §2 ligne 28 : « Pas de limite d'équipes par structure », et le commentaire de lib/competitions/match-access.ts:12-13 l'affirme lui-mêm"
+        },
+        {
+          "refuted": true,
+          "reasoning": "Techniquement exact mais sans impact production réel. (1) UX réelle : le fil n'est rendu que si `involved` (page.tsx:567) — le staff double-camp ne voit jamais « Accès refusé », il voit la page de match publique sans la section fil ; le 403 API n'est atteignable qu'en forgeant la requête. (2) Le ref"
+        }
+      ]
+    },
+    {
+      "title": "Fenêtre limitToLast(100) sans cap d'écriture total : un capitaine peut noyer les messages d'un litige hors de la vue admin",
+      "file": "app/api/competitions/[id]/matches/[matchId]/thread/route.ts",
+      "line": 55,
+      "severity": "minor",
+      "description": "Le POST n'a aucun cap sur le nombre total de messages du thread (seul le rate limit 20/30s borne la cadence) et le GET ne sert que les 100 derniers. Scénario exact : pendant un litige, le capitaine A poste 100 messages de bourrage en ~2 min 30 (20 par 30 s, dans les clous du rate limit) → les messages du capitaine B documentant le litige (« ils ont refusé la room à 21h04 ») sortent définitivement de la fenêtre servie — y compris pour les admins, qui lisent le fil par la même API. Les docs restent en base mais aucune UI ne les montre. Impact modération/arbitrage plutôt que sécurité pure.",
+      "suggestion": "Cap dur par thread (ex. 300 messages, transaction sur un compteur dénormalisé comme approvedCount ailleurs) OU pagination admin (cursor `startAfter`) pour que les admins puissent remonter tout l'historique. Le cap est le plus simple : au-delà, 403 « fil saturé, contactez un admin ».",
+      "dimension": "thread-secu",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "CONFIRMÉ par exécution d'un probe (lib/competitions/__probe-thread-flood.test.ts, supprimé après run, 1/1 vert) qui exerce les VRAIS handlers GET/POST de app/api/competitions/[id]/matches/[matchId]/thread/route.ts avec un Firestore in-memory reproduisant la sémantique limitToLast. Preuves : (1) le c"
+        },
+        {
+          "refuted": true,
+          "reasoning": "Techniquement exact (aucun cap total, GET limitToLast(100), chat 20/30s vérifiés dans app/api/competitions/[id]/matches/[matchId]/thread/route.ts et lib/rate-limit.ts:40) mais RÉFUTÉ à l'angle impact — le scénario ne cause pas de vrai problème de prod pour CE projet. (1) La fonction probatoire d'un "
+        }
+      ]
+    },
+    {
+      "title": "MatchThread : Enter envoie sans garde `isComposing` — envoi accidentel pendant la composition IME, et aucun moyen d'insérer un retour à la ligne sur mobile",
+      "file": "app/competitions/[id]/match/[matchId]/page.tsx",
+      "line": 680,
+      "severity": "minor",
+      "description": "`onKeyDown` : `if (e.key === 'Enter' && !e.shiftKey) { preventDefault(); send(); }`. Deux problèmes concrets : (1) pendant une composition IME (et certaines confirmations de suggestion Android/Gboard), la validation du candidat émet un keydown Enter avec `isComposing=true` → le message part tronqué en pleine frappe ; (2) sur mobile il n'existe pas de Shift+Enter : un capitaine sur téléphone (cas nominal le jour de match) ne peut PAS écrire de message multi-lignes, chaque Enter du clavier virtuel envoie — alors que le textarea fait `rows={2}` et que le POST accepte des messages multi-lignes (`whiteSpace: pre-wrap` au rendu).",
+      "suggestion": "Ajouter `if (e.nativeEvent.isComposing) return;` en tête du handler, et n'activer le raccourci Enter-envoi que sur pointeur fin/desktop (`matchMedia('(pointer: fine)')` ou détection tactile) — sur mobile, seul le bouton Envoyer envoie.",
+      "dimension": "ui-console",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "CONFIRMÉ, non réfuté. Preuves obtenues par probe exécuté (lib/__probe_ime_enter.test.ts, 4/4 verts, supprimé après exécution) :\n\n1. Le code est exactement tel que décrit — C:\\Users\\mattm\\springs-hub\\app\\competitions\\[id]\\match\\[matchId]\\page.tsx:679-681 : `onKeyDown={e => { if (e.key === 'Enter' && "
+        },
+        {
+          "refuted": true,
+          "reasoning": "Le code est bien tel que décrit (app/competitions/[id]/match/[matchId]/page.tsx:680, aucun `isComposing` nulle part dans le repo), mais sous l'angle impact-production pour CE projet, le finding ne tient pas comme problème réel :\n\n1) Scénario IME : la base utilisateurs d'Aedral est ~135 comptes, scèn"
+        }
+      ]
+    },
+    {
+      "title": "Console : les modales portent un SNAPSHOT de match figé — le poll 10 s rafraîchit la liste mais jamais la modale ouverte (litige déjà résolu affiché comme ouvert)",
+      "file": "app/admin/competitions/[id]/console/page.tsx",
+      "line": 174,
+      "severity": "minor",
+      "description": "`forceScoreFor`/`forfeitFor`/`castFor`/`replaceFor` stockent l'objet `ConsoleMatch` entier au moment du clic. Scénario : l'admin ouvre « Imposer un score » sur un litige ; pendant qu'il saisit, un co-admin tranche le même litige → au poll suivant `data.matches` est à jour mais la modale rend toujours son snapshot (« Résout le litige en cours », l. 1121) ; l'admin soumet, l'autoGuard serveur rejette (état frais re-validé en transaction), toast générique « Action impossible. » sans dire pourquoi, et `action()` fait `load()` mais laisse la modale ouverte sur des données mortes. Le serveur protège l'intégrité, mais l'UI ne dit jamais « ce match a changé sous toi ».",
+      "suggestion": "Stocker uniquement l'ID du match dans le state des modales et re-dériver `m` depuis `data.matches` à chaque rendu (fermer la modale avec un toast explicite si le match n'est plus dans un état compatible : `disputeOpen`/`awaiting_forfeit_validation` disparu).",
+      "dimension": "ui-console",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "CONFIRMÉ (non réfuté) — le mécanisme décrit est réel dans le code tel qu'écrit, prouvé par trace + probe exécutée puis supprimée.\n\nPreuves par trace (app/admin/competitions/[id]/console/page.tsx) :\n1. Snapshot figé : l. 174-177 — `forceScoreFor`/`forfeitFor`/`castFor` stockent l'objet `ConsoleMatch`"
+        },
+        {
+          "refuted": true,
+          "reasoning": "Le mécanisme décrit est réel (les modales stockent bien l'objet `ConsoleMatch` au clic — page.tsx l.174-177 — et le poll 10 s ne les rafraîchit pas ; sur échec la modale reste ouverte, `if (ok) setXxxFor(null)` l.527/538/548). Mais le récit d'impact est exagéré et son élément central est factuelleme"
+        }
+      ]
+    }
+  ],
+  "killed": [
+    {
+      "title": "Participation silencieusement sautée si le doc circuit_team est absent : perte de points sans aucune trace",
+      "severity": "minor",
+      "dimension": "cloture-tx"
+    },
+    {
+      "title": "resolve_tiebreak accepté tournoi non fini / groupe inexistant — le commentaire « périmée → ignorée » est faux pour le cas coïncidence",
+      "severity": "minor",
+      "dimension": "points-metier"
+    },
+    {
+      "title": "isCompetitionAdmin non scopé par compétition : tout membre de competition_admins lit/écrit dans les fils de TOUTES les compétitions — à confirmer comme voulu",
+      "severity": "minor",
+      "dimension": "thread-secu"
+    },
+    {
+      "title": "TiebreakCard : state `order` figé au mount — une équipe ajoutée au groupe par le serveur devient INVISIBLE, une équipe retirée reste en rangée fantôme, et l'ordre envoyé est périmé",
+      "severity": "major",
+      "dimension": "ui-console"
+    },
+    {
+      "title": "Console : `load()` avale toutes les erreurs — session expirée ou 403 = console silencieusement figée sur l'état d'il y a des heures, jour de match",
+      "severity": "minor",
+      "dimension": "ui-console"
+    }
+  ]
+}
