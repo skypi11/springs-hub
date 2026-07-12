@@ -262,14 +262,14 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
-      // Fil de discussion du match : capitaines/staff des 2 équipes + admins.
-      // Lecture client temps réel via l'ACL ; écriture via API rate-limitée.
+      // Fil de discussion du match : servi UNIQUEMENT par l'API (Lot 4C).
+      // Deny-all volontaire : (1) l'ACL statique (participantUids = roster)
+      // exclurait le staff non-aligné que la spec §10 inclut — seule la
+      // résolution LIVE côté serveur (getMatchSideForUser) est correcte ;
+      // (2) les docs portent authorUid (modération) — une lecture client
+      // exposerait des snowflakes aux équipes adverses (archi §8).
       match /messages/{messageId} {
-        allow read: if isCompetitionAdmin() || (
-          request.auth != null &&
-          request.auth.uid in get(/databases/$(database)/documents/competition_matches/$(id)/private/acl).data.participantUids
-        );
-        allow write: if false;
+        allow read, write: if false;
       }
     }
 

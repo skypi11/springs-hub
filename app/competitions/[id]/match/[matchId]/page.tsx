@@ -563,6 +563,12 @@ export default function MatchPage({ params }: { params: Promise<{ id: string; ma
         </div>
       )}
 
+      {/* C bis — Fil du match (participants + admins, spec §10) */}
+      {involved && (
+        <MatchThread competitionId={id} matchId={matchId}
+          nameA={m.teamAInfo?.name ?? 'Équipe A'} nameB={m.teamBInfo?.name ?? 'Équipe B'} />
+      )}
+
       {/* D — Alignements */}
       {(data?.rosters?.a?.length || data?.rosters?.b?.length) ? (
         <div className="panel bevel">
@@ -573,6 +579,118 @@ export default function MatchPage({ params }: { params: Promise<{ id: string; ma
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+// ── Fil du match — primitive « thread attaché à un objet », 1re instance ─────
+
+interface ThreadMessage {
+  id: string;
+  side: 'a' | 'b' | 'admin';
+  authorName: string;
+  body: string;
+  createdAt: string | null;
+}
+
+function MatchThread({ competitionId, matchId, nameA, nameB }: {
+  competitionId: string;
+  matchId: string;
+  nameA: string;
+  nameB: string;
+}) {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const { data } = useQuery({
+    queryKey: ['match-thread', competitionId, matchId],
+    queryFn: () => api<{ messages: ThreadMessage[]; canPost: boolean }>(
+      `/api/competitions/${competitionId}/matches/${matchId}/thread`),
+    staleTime: 4_000,
+  });
+  // Cadence Web Worker : le capitaine est alt-tabbé en jeu, le fil doit être
+  // frais quand il revient (même logique que le reste de la page).
+  useWorkerInterval(() => {
+    queryClient.invalidateQueries({ queryKey: ['match-thread', competitionId, matchId] });
+  }, 8_000, true);
+
+  const send = async () => {
+    const body = draft.trim();
+    if (!body || sending) return;
+    setSending(true);
+    try {
+      await api(`/api/competitions/${competitionId}/matches/${matchId}/thread`, {
+        method: 'POST', body: { body },
+      });
+      setDraft('');
+      queryClient.invalidateQueries({ queryKey: ['match-thread', competitionId, matchId] });
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'Message impossible à envoyer.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const messages = data?.messages ?? [];
+  const labelOf = (msg: ThreadMessage) =>
+    msg.side === 'admin' ? 'Admin' : msg.side === 'a' ? nameA : nameB;
+  const hhmm = (iso: string | null) => {
+    if (!iso) return '';
+    const t = Date.parse(iso);
+    return Number.isNaN(t) ? '' : new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(t);
+  };
+
+  return (
+    <div className="panel bevel">
+      <div className="panel-header"><span className="t-sub">Fil du match</span></div>
+      <div className="panel-body space-y-3">
+        {messages.length === 0 ? (
+          <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>
+            Aucun message. Visible des deux équipes et des admins — coordonnez-vous ici
+            (retard, room, remplacement de dernière minute).
+          </p>
+        ) : (
+          <div className="space-y-2" style={{ maxHeight: 320, overflowY: 'auto' }}>
+            {messages.map(msg => (
+              <div key={msg.id} className="text-sm" style={{ lineHeight: 1.45 }}>
+                <span className="font-semibold" style={{
+                  color: msg.side === 'admin' ? 'var(--s-gold)' : 'var(--s-text)',
+                }}>
+                  {msg.authorName}
+                </span>
+                <span style={{ color: 'var(--s-text-muted)', fontSize: 12 }}>
+                  {' '}· {labelOf(msg)}{msg.createdAt ? ` · ${hhmm(msg.createdAt)}` : ''}
+                </span>
+                <p style={{ color: 'var(--s-text)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{msg.body}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        {data?.canPost ? (
+          <div className="flex items-end gap-2">
+            <textarea
+              className="settings-input flex-1"
+              rows={2}
+              maxLength={500}
+              placeholder="Message aux deux équipes et aux admins…"
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+              }}
+            />
+            <button className="btn-springs btn-secondary bevel-sm text-sm" disabled={sending || !draft.trim()}
+              onClick={send}>
+              Envoyer
+            </button>
+          </div>
+        ) : data ? (
+          <p style={{ fontSize: 12.5, color: 'var(--s-text-muted)' }}>
+            Lecture seule — seuls le capitaine, le staff et les admins écrivent.
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

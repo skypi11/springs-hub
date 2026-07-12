@@ -146,6 +146,8 @@ async function cleanup() {
   }
   const ms = await db.collection('competition_matches').where('competitionId', '==', COMP).get();
   for (const d of ms.docs) {
+    const msgs = await d.ref.collection('messages').get();
+    for (const p of msgs.docs) await p.ref.delete();
     const priv = await d.ref.collection('private').get();
     for (const p of priv.docs) await p.ref.delete();
     await d.ref.delete();
@@ -286,6 +288,21 @@ async function run() {
     console.log('  ⚠ jambe R2 sautée (R2_SECRET_ACCESS_KEY absent en local — secret « Sensitive » Vercel).');
     console.log('    Preuve complète : E2E_BASE_URL=https://preview.aedral.com + VERCEL_AUTOMATION_BYPASS_SECRET.');
   }
+
+  // Fil du match (Lot 4C) : capitaines/staff des 2 camps + admins, via l'API.
+  console.log('— Fil du match…');
+  r = await apiAs(w12.capA, 'POST', `/api/competitions/${COMP}/matches/W1-2/thread`, { body: 'On est prêts, room recréée dans 2 min.' });
+  check('message envoyé par le capitaine A', r.status === 200, String(r.status));
+  r = await apiAs(w12.capB, 'GET', `/api/competitions/${COMP}/matches/W1-2/thread`);
+  check('le camp B lit le fil : camp de l\'auteur exposé, JAMAIS son uid',
+    r.status === 200 && r.json.messages?.length === 1 && r.json.messages[0].side === 'a'
+    && !JSON.stringify(r.json).includes('discord_'), JSON.stringify(r.json?.messages));
+  r = await api('POST', `/api/competitions/${COMP}/matches/W1-2/thread`, { body: 'Un admin regarde le litige.' });
+  check('message admin accepté (camp « admin »)', r.status === 200);
+  r = await apiAs(w11.capA, 'POST', `/api/competitions/${COMP}/matches/W1-2/thread`, { body: 'intrus' });
+  check('capitaine étranger au match → 403', r.status === 403, String(r.status));
+  const anonThread = await fetch(`${BASE}/api/competitions/${COMP}/matches/W1-2/thread`, { headers: bypassHeaders });
+  check('fil interdit sans authentification', anonThread.status === 401 || anonThread.status === 404, String(anonThread.status));
   r = await api('POST', `/api/admin/competitions/${COMP}/console`, { action: 'force_score', matchId: 'W1-2', games: WIN_B, resolution: 'Captures vérifiées : victoire B.' });
   const resolved = (await matchRef('W1-2').get()).data();
   check('force-score → completed + litige résolu (admin, pas d\'uid public)', r.status === 200 && resolved.status === 'completed' && resolved.winner === 'b' && resolved.dispute?.resolvedBy === 'admin' && resolved.scores.validatedBy === 'admin');
