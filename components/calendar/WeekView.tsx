@@ -916,8 +916,8 @@ export default function WeekView({
                         <button type="button"
                           onClick={() => remindMutation.mutate(avail.team.id)}
                           disabled={remindMutation.isPending}
-                          className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bevel-sm text-xs font-semibold transition-opacity duration-150 hover:opacity-90 disabled:opacity-60"
-                          style={{ color: 'var(--s-gold)', background: 'rgba(255,184,0,0.10)', border: '1px solid rgba(255,184,0,0.35)' }}
+                          className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bevel-sm text-xs font-semibold transition-colors duration-150 bg-[var(--s-elevated)] hover:bg-[var(--s-hover)] disabled:opacity-60"
+                          style={{ color: 'var(--s-gold)', border: '1px solid var(--s-border)' }}
                           title="Poster dans le salon Discord un rappel aux joueurs sans dispo cette semaine">
                           {remindMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Bell size={13} />}
                           Relancer les dispos sur Discord

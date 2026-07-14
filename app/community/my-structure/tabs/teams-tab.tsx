@@ -346,8 +346,8 @@ export function TeamsTab(props: TeamsTabProps) {
                   <button type="button"
                     onClick={() => handleRemindAvailability(team.id)}
                     disabled={teamActionLoading === team.id}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bevel-sm text-xs font-semibold flex-shrink-0 transition-opacity duration-150 hover:opacity-90 disabled:opacity-60"
-                    style={{ color: 'var(--s-gold)', background: 'rgba(255,184,0,0.10)', border: '1px solid rgba(255,184,0,0.35)' }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bevel-sm text-xs font-semibold flex-shrink-0 transition-colors duration-150 bg-[var(--s-elevated)] hover:bg-[var(--s-hover)] disabled:opacity-60"
+                    style={{ color: 'var(--s-gold)', border: '1px solid var(--s-border)' }}
                     title="Poster dans le salon Discord un rappel aux joueurs sans dispo cette semaine">
                     <Bell size={13} />
                     <span>Relancer les dispos</span>
