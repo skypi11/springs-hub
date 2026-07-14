@@ -1,7 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import {
-  AlertCircle, Archive, ArchiveRestore, ChevronDown, ChevronUp, Crown, Eye,
+  AlertCircle, Archive, ArchiveRestore, Bell, ChevronDown, ChevronUp, Crown, Eye,
   Gamepad2, GripVertical, ImageIcon, Loader2, MessageSquare, Settings,
   Plus, Save, Search, Tag, Trash2, UploadCloud,
 } from 'lucide-react';
@@ -109,6 +109,7 @@ export interface TeamsTabProps {
   handleUpdateTeamStaff: (teamId: string, staffIds: string[], staffRoles: Record<string, 'coach' | 'manager'>) => void;
   handleDeleteTeam: (teamId: string, teamName: string) => void;
   handleUpdateTeamDiscordChannel: (teamId: string, channelId: string | null, channelName: string | null) => void;
+  handleRemindAvailability: (teamId: string) => void;
   reorderTeamsInGroup: (groupKey: string, fromTeamId: string, toTeamId: string) => void;
   reorderGroups: (fromGroupKey: string, toGroupKey: string) => void;
   moveTeamToGroup: (teamId: string, targetGroupKey: string, beforeTeamId: string | null) => void;
@@ -136,7 +137,7 @@ export function TeamsTab(props: TeamsTabProps) {
     handleCreateTeam, handleArchiveTeam, handleSetCaptain,
     handleUpdateTeamLogo, handleUpdateTeamLabel,
     handleUpdateTeamRoster, handleUpdateTeamStaff,
-    handleDeleteTeam, handleUpdateTeamDiscordChannel,
+    handleDeleteTeam, handleUpdateTeamDiscordChannel, handleRemindAvailability,
     reorderTeamsInGroup, reorderGroups, moveTeamToGroup, dndSensors,
   } = props;
 
@@ -397,6 +398,16 @@ export function TeamsTab(props: TeamsTabProps) {
                           style={{ color: 'var(--s-text)' }}>
                           <MessageSquare size={12} />
                           <span>{team.discordChannelId ? 'Modifier le salon Discord' : 'Configurer le salon Discord'}</span>
+                        </button>
+                      )}
+                      {!isArchived && team.discordChannelId && (
+                        <button type="button"
+                          onClick={() => { setTeamMenuOpen(null); setTeamMenuRect(null); handleRemindAvailability(team.id); }}
+                          disabled={teamActionLoading === team.id}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-[var(--s-hover)] text-left"
+                          style={{ color: 'var(--s-text)' }}>
+                          <Bell size={12} />
+                          <span>Relancer les dispos sur Discord</span>
                         </button>
                       )}
                       {!isArchived ? (
