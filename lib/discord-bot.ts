@@ -612,6 +612,63 @@ export async function postRecruitmentEmbed(channelId: string, input: Recruitment
   return data.id as string;
 }
 
+// ---------- Rappel de disponibilités ----------
+
+export interface AvailabilityReminderInput {
+  /** Ligne de mentions (déclenche le ping) — de buildReminderMessage. */
+  content: string;
+  /** IDs Discord à autoriser au ping (allowed_mentions). */
+  pingUserIds: string[];
+  embedTitle: string;
+  embedDescription: string;
+  siteUrl: string;
+  thumbnailUrl?: string | null;
+}
+
+/**
+ * Poste un rappel de dispos dans le salon d'une équipe. Le `content` porte les
+ * mentions (seul moyen de PING sur Discord — un embed ne ping pas), filtrées
+ * par `allowed_mentions.users` (on ne peut pinger que les IDs listés).
+ * Retourne l'ID du message, ou lève en cas d'échec réseau/permission.
+ */
+export async function postAvailabilityReminder(
+  channelId: string,
+  input: AvailabilityReminderInput,
+): Promise<string> {
+  const embed: Record<string, unknown> = {
+    color: 0xffb800,
+    title: input.embedTitle.slice(0, 256),
+    description: input.embedDescription.slice(0, 2000),
+    url: input.siteUrl,
+    footer: { text: 'Aedral · disponibilités' },
+    timestamp: new Date().toISOString(),
+  };
+  if (input.thumbnailUrl && /^https:\/\//.test(input.thumbnailUrl)) {
+    embed.thumbnail = { url: input.thumbnailUrl };
+  }
+  const allowedMentions: Record<string, unknown> = { parse: [] };
+  if (input.pingUserIds.length > 0) allowedMentions.users = input.pingUserIds.slice(0, 40);
+
+  const res = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bot ${botToken()}`,
+    },
+    body: JSON.stringify({
+      content: input.content.slice(0, 2000),
+      embeds: [embed],
+      allowed_mentions: allowedMentions,
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Discord post availability reminder failed: ${res.status} ${body.slice(0, 300)}`);
+  }
+  const data = await res.json();
+  return data.id as string;
+}
+
 // ---------- Signalement de rang (Lot 5, anti-mensonge) ----------
 
 // Envoie un DM au joueur dont le rang vient d'être contesté par un admin.

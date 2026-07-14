@@ -73,6 +73,12 @@ export const PLAN_LIMITS = {
     // Hosting tournois white-label : organiser ses propres tournois avec
     // branding de la structure (vs branding Aedral). Phase 3+ feature.
     whiteLabelTournaments: false,
+    // Rappel AUTOMATIQUE hebdo des dispos par le bot (post dimanche dans le
+    // salon d'équipe). GRATUIT au lancement (l'adoption des dispos EST le
+    // problème n°1 — la gater se tirerait une balle dans le pied) mais
+    // gate-ready : le jour du pricing, passer free→false suffit à en faire un
+    // levier Pro. Le bouton manuel de relance, lui, reste gratuit pour toujours.
+    autoAvailabilityReminder: true,
   },
   pro: {
     storageBytes: UPLOAD_LIMITS.STRUCTURE_STORAGE_QUOTA_BYTES_PREMIUM, // 5 GB
@@ -83,6 +89,7 @@ export const PLAN_LIMITS = {
     interactiveDiscordButtons: true,
     advancedAnalytics: true,
     whiteLabelTournaments: true,
+    autoAvailabilityReminder: true,
   },
 } as const satisfies Record<StructurePlan, Record<string, unknown>>;
 

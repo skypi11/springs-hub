@@ -35,6 +35,7 @@ export default function TeamDetailDrawer({
   team,
   initialTab,
   canEditConfig,
+  canRemind,
   userContext,
 }: {
   open: boolean;
@@ -43,6 +44,7 @@ export default function TeamDetailDrawer({
   team: DrawerTeam | null;
   initialTab: DrawerTab;
   canEditConfig: boolean;
+  canRemind: boolean;
   userContext: UserContext;
 }) {
   const [visible, setVisible] = useState(false);
@@ -184,6 +186,7 @@ export default function TeamDetailDrawer({
                   structureId={structureId}
                   teamId={team.id}
                   canEditConfig={canEditConfig}
+                  canRemind={canRemind}
                 />
               )}
               {tab === 'todos' && (
