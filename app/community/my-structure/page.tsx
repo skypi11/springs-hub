@@ -870,6 +870,25 @@ export default function MyStructurePage() {
     setTeamActionLoading(null);
   }
 
+  // Relance manuelle des dispos : poste dans le salon Discord de l'équipe un
+  // rappel aux joueurs sans dispo cette semaine (cooldown 2 h côté serveur).
+  async function handleRemindAvailability(teamId: string) {
+    if (!activeStructure) return;
+    setTeamActionLoading(teamId);
+    try {
+      const r = await api<{ ok: boolean; missingCount?: number }>(
+        `/api/structures/${activeStructure.id}/availability-reminder`,
+        { method: 'POST', body: { teamId } },
+      );
+      toast.success(r.missingCount
+        ? `Relance envoyée à ${r.missingCount} joueur${r.missingCount > 1 ? 's' : ''} sur Discord.`
+        : 'Relance envoyée.');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Relance impossible');
+    }
+    setTeamActionLoading(null);
+  }
+
   // Helper JSX : un bloc de config Discord (un par scope structure/jeu/staff).
   // État "replié" = résumé + bouton "Modifier". État "déplié" = 2 selects + Save.
   function renderDiscordConfigBlock(opts: {
@@ -1831,6 +1850,7 @@ export default function MyStructurePage() {
               handleUpdateTeamStaff={handleUpdateTeamStaff}
               handleDeleteTeam={handleDeleteTeam}
               handleUpdateTeamDiscordChannel={handleUpdateTeamDiscordChannel}
+              handleRemindAvailability={handleRemindAvailability}
               reorderTeamsInGroup={reorderTeamsInGroup}
               reorderGroups={reorderGroups}
               moveTeamToGroup={moveTeamToGroup}
