@@ -1122,6 +1122,7 @@ export default function MyStructurePage() {
     subIds: t.subs.map(p => p.uid),
     staffIds: t.staff.map(p => p.uid),
     staffRoles: t.staffRoles ?? {},
+    discordChannelId: t.discordChannelId ?? null,
   }));
 
   const toggle = (key: string) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }));

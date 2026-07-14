@@ -15,7 +15,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { isDirigeant, type UserContext } from '@/lib/event-permissions';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Loader2, Users, Check, CalendarClock, SlidersHorizontal } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Users, Check, CalendarClock, SlidersHorizontal, Bell } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
@@ -227,6 +227,22 @@ export default function WeekView({
     ),
     enabled: !!firebaseUser && !!selectedTeamId,
     retry: false,
+  });
+
+  // Relance manuelle des dispos, au plus près du moment où le staff constate
+  // les cases vides (retour Matt : c'est ICI qu'il faut le bouton, pas dans
+  // le menu « Gérer »). Poste dans le salon Discord de l'équipe ; cooldown 2 h
+  // côté serveur.
+  const remindToast = useToast();
+  const remindMutation = useMutation({
+    mutationFn: (teamId: string) => api<{ ok: boolean; missingCount?: number }>(
+      `/api/structures/${structureId}/availability-reminder`,
+      { method: 'POST', body: { teamId } },
+    ),
+    onSuccess: (r) => remindToast.success(r.missingCount
+      ? `Relance envoyée à ${r.missingCount} joueur${r.missingCount > 1 ? 's' : ''} sur Discord.`
+      : 'Relance envoyée.'),
+    onError: (err: Error) => remindToast.error(err instanceof ApiError ? err.message : 'Relance impossible'),
   });
 
   // La semaine affichée fait-elle partie des 2 semaines couvertes par les dispos ?
@@ -882,8 +898,10 @@ export default function WeekView({
                   )}
                 </div>
 
-                {/* Configuration consensus, accessible aux admin structure
-                    + manager de cette équipe précise. Validé Matt 2026-05-25. */}
+                {/* Relance des dispos + configuration consensus, accessibles aux
+                    admin structure + manager de cette équipe précise. Le bouton
+                    de relance vit ICI (retour Matt) : le staff voit les cases
+                    vides et relance dans la foulée. */}
                 {(() => {
                   const selectedTeam = teams.find(t => t.id === selectedTeamId);
                   const myStaffRole = firebaseUser
@@ -893,12 +911,25 @@ export default function WeekView({
                   const canEditConsensus = isAdmin || myStaffRole === 'manager';
                   if (!canEditConsensus || !avail) return null;
                   return (
-                    <ConsensusConfigInline
-                      structureId={structureId}
-                      teamId={avail.team.id}
-                      initialMinPlayers={avail.team.minPlayersForMatch}
-                      initialMinDurationMinutes={avail.team.minMatchDurationMinutes}
-                    />
+                    <>
+                      {selectedTeam?.discordChannelId && (
+                        <button type="button"
+                          onClick={() => remindMutation.mutate(avail.team.id)}
+                          disabled={remindMutation.isPending}
+                          className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bevel-sm text-xs font-semibold transition-colors duration-150 bg-[var(--s-elevated)] hover:bg-[var(--s-hover)]"
+                          style={{ color: 'var(--s-text-dim)', border: '1px solid var(--s-border)' }}
+                          title="Poster dans le salon Discord un rappel aux joueurs sans dispo cette semaine">
+                          {remindMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Bell size={13} />}
+                          Relancer les dispos sur Discord
+                        </button>
+                      )}
+                      <ConsensusConfigInline
+                        structureId={structureId}
+                        teamId={avail.team.id}
+                        initialMinPlayers={avail.team.minPlayersForMatch}
+                        initialMinDurationMinutes={avail.team.minMatchDurationMinutes}
+                      />
+                    </>
                   );
                 })()}
               </div>
