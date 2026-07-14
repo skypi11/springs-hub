@@ -5,6 +5,8 @@ import { createNotifications, type NotificationPayload } from '@/lib/notificatio
 import { sendTodoDM } from '@/lib/discord-bot';
 import { TODO_TYPE_META, type TodoType } from '@/lib/todos';
 import { captureApiError } from '@/lib/sentry';
+import { runWeeklyAvailabilityReminders } from '@/lib/availability-reminder-server';
+import { parisYmd, isoDayOfWeek } from '@/lib/availability';
 
 // GET /api/cron/todos-reminders
 // Vercel Cron 1x/jour (Hobby plan impose 1 run/jour max). Pour chaque exercice !done :
@@ -183,11 +185,27 @@ export async function GET(req: NextRequest) {
     // ne coupe pas la fonction trop tôt (Promise.all tolère les throws grâce au .catch).
     await Promise.all(dmTasks);
 
+    // Passe HEBDO des rappels de dispos, GREFFÉE ici (Vercel Hobby plafonne à
+    // 2 crons quotidiens, tous deux pris — même pattern que les syncs greffés
+    // sur expire-invitations). Ne s'exécute que le DIMANCHE, pour relancer les
+    // joueurs sans dispo sur la SEMAINE QUI SUIT. Best-effort : un échec ici ne
+    // doit pas faire échouer les rappels d'exercices.
+    let availability: { teamsScanned: number; posted: number; skipped: number } | null = null;
+    try {
+      const todayYmd = parisYmd(new Date());
+      if (isoDayOfWeek(todayYmd) === 7) {
+        availability = await runWeeklyAvailabilityReminders(db, { origin: req.nextUrl.origin, todayYmd });
+      }
+    } catch (err) {
+      captureApiError('cron availability reminders (grafted) error', err);
+    }
+
     return NextResponse.json({
       ok: true,
       scanned: snap.size,
       reminders: remindersCount,
       overdue: overdueCount,
+      availability,
     });
   } catch (err) {
     captureApiError('API cron todos-reminders error', err);

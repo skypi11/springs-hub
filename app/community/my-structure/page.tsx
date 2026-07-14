@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import CalendarSection from '@/components/calendar/CalendarSection';
 import TeamDetailDrawer, { type DrawerTab, type DrawerTeam } from '@/components/calendar/TeamDetailDrawer';
+import { isResponsableForGame } from '@/lib/structure-permissions';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
 import type { UserContext } from '@/lib/event-permissions';
@@ -101,7 +102,7 @@ export default function MyStructurePage() {
   const [teamMenuRect, setTeamMenuRect] = useState<{ top: number; right: number } | null>(null);
   const [captainPickerOpen, setCaptainPickerOpen] = useState<string | null>(null);
   // Drawer détail équipe (Dispos + Exercices), ouvert via chips des cards équipe
-  const [drawerState, setDrawerState] = useState<{ team: DrawerTeam; tab: DrawerTab; canEditConfig: boolean } | null>(null);
+  const [drawerState, setDrawerState] = useState<{ team: DrawerTeam; tab: DrawerTab; canEditConfig: boolean; canRemind: boolean } | null>(null);
   const [inviteLinks, setInviteLinks] = useState<InviteLink[]>([]);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
   const [directInvites, setDirectInvites] = useState<DirectInvite[]>([]);
@@ -227,7 +228,12 @@ export default function MyStructurePage() {
           id: t.id, name: t.name, game: t.game,
           players: t.players, subs: t.subs, staff: t.staff,
         };
-        setDrawerState({ team: drawerTeam, tab: 'todos', canEditConfig: isFounder || isCoFounder });
+        // Relance dispos : mêmes droits que le serveur (dirigeant OU responsable
+        // du jeu OU manager de CETTE équipe), distinct de canEditConfig (dirigeant).
+        const remindCtx = { uid: firebaseUser.uid, structure: activeStructure as never };
+        const canRemind = isFounder || isCoFounder || isResponsableForGame(remindCtx, t.game)
+          || (t.staff.some(st => st.uid === firebaseUser.uid) && t.staffRoles?.[firebaseUser.uid] === 'manager');
+        setDrawerState({ team: drawerTeam, tab: 'todos', canEditConfig: isFounder || isCoFounder, canRemind });
       }
     }
 
@@ -1895,7 +1901,10 @@ export default function MyStructurePage() {
                   id: t.id, name: t.name, game: t.game,
                   players: t.players, subs: t.subs, staff: t.staff,
                 };
-                setDrawerState({ team: drawerTeam, tab: 'todos', canEditConfig: isDirigeantOfActive });
+                const remindCtx = { uid: firebaseUser?.uid ?? '', structure: s as never };
+                const canRemind = isDirigeantOfActive || isResponsableForGame(remindCtx, t.game)
+                  || (t.staff.some(st => st.uid === firebaseUser?.uid) && !!firebaseUser && t.staffRoles?.[firebaseUser.uid] === 'manager');
+                setDrawerState({ team: drawerTeam, tab: 'todos', canEditConfig: isDirigeantOfActive, canRemind });
               }}
             />
           </div>
@@ -1928,6 +1937,7 @@ export default function MyStructurePage() {
         team={drawerState?.team ?? null}
         initialTab={drawerState?.tab ?? 'availability'}
         canEditConfig={drawerState?.canEditConfig ?? false}
+        canRemind={drawerState?.canRemind ?? false}
         userContext={userContext}
       />
     </div>

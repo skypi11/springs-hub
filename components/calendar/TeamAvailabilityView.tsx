@@ -13,6 +13,7 @@ import {
   Users,
   LayoutGrid,
   User,
+  Bell,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
@@ -141,10 +142,14 @@ export default function TeamAvailabilityView({
   structureId,
   teamId,
   canEditConfig,
+  canRemind,
 }: {
   structureId: string;
   teamId: string;
   canEditConfig: boolean;
+  /** Peut déclencher une relance Discord des dispos (dirigeant / responsable du
+   *  jeu / manager de l'équipe) — plus large que canEditConfig (dirigeant). */
+  canRemind: boolean;
 }) {
   const { firebaseUser } = useAuth();
   const toast = useToast();
@@ -201,6 +206,21 @@ export default function TeamAvailabilityView({
   });
   const savingConfig = saveConfigMutation.isPending;
   const saveConfig = () => saveConfigMutation.mutate();
+
+  // Relance manuelle des dispos : poste dans le salon Discord de l'équipe un
+  // rappel aux joueurs sans dispo sur la semaine en cours. Cooldown serveur 2 h.
+  const remindMutation = useMutation({
+    mutationFn: () => api<{ ok: boolean; missingCount?: number }>(
+      `/api/structures/${structureId}/availability-reminder`,
+      { method: 'POST', body: { teamId } },
+    ),
+    onSuccess: (r) => {
+      toast.success(r.missingCount
+        ? `Relance envoyée à ${r.missingCount} joueur${r.missingCount > 1 ? 's' : ''} sur Discord.`
+        : 'Relance envoyée.');
+    },
+    onError: (err: Error) => toast.error(err.message || 'Relance impossible'),
+  });
 
   // Grille unifiée pour la semaine courante affichée.
   // 2 comptes par slot (validé Matt 2026-05-25) :
@@ -283,17 +303,29 @@ export default function TeamAvailabilityView({
 
   return (
     <div className="space-y-5">
-      {/* ═══ Config dirigeant ═══ */}
-      {canEditConfig && (
+      {/* ═══ Barre d'actions staff ═══ */}
+      {(canEditConfig || canRemind) && (
         <div>
-          <button type="button" onClick={() => setConfigOpen(v => !v)}
-            className="flex items-center gap-1.5 t-label transition-opacity duration-150 hover:opacity-80"
-            style={{ fontSize: '12px', color: 'var(--s-text-muted)', cursor: 'pointer' }}>
-            <SettingsIcon size={12} />
-            CONFIGURATION DU MATCHING
-            {configOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-          </button>
-          {configOpen && (
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            {canEditConfig ? (
+              <button type="button" onClick={() => setConfigOpen(v => !v)}
+                className="flex items-center gap-1.5 t-label transition-opacity duration-150 hover:opacity-80"
+                style={{ fontSize: '12px', color: 'var(--s-text-muted)', cursor: 'pointer' }}>
+                <SettingsIcon size={12} />
+                CONFIGURATION DU MATCHING
+                {configOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              </button>
+            ) : <span />}
+            {canRemind && (
+              <button type="button" onClick={() => remindMutation.mutate()} disabled={remindMutation.isPending}
+                className="btn-springs btn-secondary bevel-sm flex items-center gap-1.5 text-sm"
+                title="Poster dans le salon Discord un rappel aux joueurs sans dispo cette semaine">
+                {remindMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Bell size={13} />}
+                Relancer les dispos
+              </button>
+            )}
+          </div>
+          {canEditConfig && configOpen && (
             <div className="mt-2 p-4 bevel-sm" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
               <div className="grid grid-cols-2 gap-3">
                 <div>
