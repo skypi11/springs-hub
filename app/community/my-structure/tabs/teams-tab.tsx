@@ -338,7 +338,21 @@ export function TeamsTab(props: TeamsTabProps) {
               })()}
             </div>
             {canManageTeam && (
-              <div className="relative">
+              <div className="relative flex items-center gap-2">
+                {/* Relancer les dispos : action de COORDINATION (pas de l'admin) →
+                    bouton visible à côté de « Gérer », pas enterré dans le menu.
+                    Uniquement si un salon Discord est lié (là où poster). */}
+                {!isArchived && team.discordChannelId && (
+                  <button type="button"
+                    onClick={() => handleRemindAvailability(team.id)}
+                    disabled={teamActionLoading === team.id}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bevel-sm text-xs font-semibold flex-shrink-0 transition-colors duration-150 bg-[var(--s-elevated)] hover:bg-[var(--s-hover)]"
+                    style={{ color: 'var(--s-text-dim)', border: '1px solid var(--s-border)' }}
+                    title="Poster dans le salon Discord un rappel aux joueurs sans dispo cette semaine">
+                    <Bell size={13} />
+                    <span>Relancer les dispos</span>
+                  </button>
+                )}
                 <button type="button"
                   onClick={(e) => {
                     if (menuOpen) {
@@ -398,16 +412,6 @@ export function TeamsTab(props: TeamsTabProps) {
                           style={{ color: 'var(--s-text)' }}>
                           <MessageSquare size={12} />
                           <span>{team.discordChannelId ? 'Modifier le salon Discord' : 'Configurer le salon Discord'}</span>
-                        </button>
-                      )}
-                      {!isArchived && team.discordChannelId && (
-                        <button type="button"
-                          onClick={() => { setTeamMenuOpen(null); setTeamMenuRect(null); handleRemindAvailability(team.id); }}
-                          disabled={teamActionLoading === team.id}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-[var(--s-hover)] text-left"
-                          style={{ color: 'var(--s-text)' }}>
-                          <Bell size={12} />
-                          <span>Relancer les dispos sur Discord</span>
                         </button>
                       )}
                       {!isArchived ? (

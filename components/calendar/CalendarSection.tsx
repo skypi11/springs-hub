@@ -119,6 +119,7 @@ export type Team = {
   staffIds?: string[];
   staffRoles?: Record<string, 'coach' | 'manager'>;
   captainId?: string | null;
+  discordChannelId?: string | null;
 };
 
 // Rôles structure, utilisés pour dériver l'audience staff côté client
