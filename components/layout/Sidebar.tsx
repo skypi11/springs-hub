@@ -22,7 +22,7 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { user, isAdmin, loading, signInWithDiscord, signOut } = useAuth();
+  const { user, isAdmin, isCompetitionAdmin, loading, signInWithDiscord, signOut } = useAuth();
   const [isMac, setIsMac] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -297,13 +297,16 @@ export default function Sidebar() {
           )}
         </Link>
 
-        {/* Admin */}
-        {isAdmin && (
+        {/* Admin — admins Aedral complets ET admins de compétition (rôle scopé,
+            spec Legends §6). L'admin compét n'accède qu'à /admin/competitions :
+            on pointe le lien directement dessus (le layout admin l'y redirige
+            de toute façon, et les routes API re-vérifient côté serveur). */}
+        {(isAdmin || isCompetitionAdmin) && (
           <>
             <div className="px-3 py-2 mt-4">
               <span className="t-label" style={{ color: 'var(--s-gold)' }}>Admin</span>
             </div>
-            <Link href="/admin"
+            <Link href={isAdmin ? '/admin' : '/admin/competitions'}
               className="flex items-center gap-3 px-3 py-2.5 transition-all duration-150"
               style={{
                 background: pathname.startsWith('/admin') ? 'rgba(255,184,0,0.08)' : 'transparent',
@@ -311,7 +314,7 @@ export default function Sidebar() {
                 borderLeft: pathname.startsWith('/admin') ? '3px solid var(--s-gold)' : '3px solid transparent',
               }}>
               <Swords size={17} style={{ flexShrink: 0 }} />
-              <span className="font-medium text-sm">Panel Admin</span>
+              <span className="font-medium text-sm">{isAdmin ? 'Panel Admin' : 'Compétitions'}</span>
             </Link>
           </>
         )}
@@ -383,11 +386,13 @@ export default function Sidebar() {
                 <p className="text-xs truncate" style={{ color: 'var(--s-text-muted)' }}>
                   {isAdmin
                     ? 'Admin Aedral'
-                    : user.structureRole === 'fondateur'
-                      ? 'Fondateur'
-                      : user.structureRole === 'co_fondateur'
-                        ? 'Co-fondateur'
-                        : 'Joueur'}
+                    : isCompetitionAdmin
+                      ? 'Admin compétitions'
+                      : user.structureRole === 'fondateur'
+                        ? 'Fondateur'
+                        : user.structureRole === 'co_fondateur'
+                          ? 'Co-fondateur'
+                          : 'Joueur'}
                 </p>
               </div>
               <NotificationsBell />
