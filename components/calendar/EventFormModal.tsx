@@ -20,12 +20,14 @@
  * elle reçoit tout via props.
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Loader2, Plus, Users, Save, Swords, Gamepad2, Trophy } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { track } from '@/lib/analytics';
 import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/ui/ConfirmModal';
 import Portal from '@/components/ui/Portal';
+import ModalBackdrop from '@/components/ui/ModalBackdrop';
 import DateTimePicker from '@/components/ui/DateTimePicker';
 import type {
   UserContext,
@@ -96,6 +98,7 @@ export default function EventFormModal({
   onCreated,
 }: Props) {
   const toast = useToast();
+  const confirm = useConfirm();
   const isEditMode = !!existingEvent;
 
   // Pré-remplissage en mode édition : on lit l'event existant. En mode création,
@@ -157,6 +160,11 @@ export default function EventFormModal({
     }
     return {};
   });
+
+  // Ce pré-remplissage est posé à l'init du state : l'effet de pré-cochage plus
+  // bas ne doit pas l'écraser à son premier passage, sinon la sélection issue du
+  // créneau cliqué est perdue et tout le staff se retrouve coché.
+  const keepInitialStaffSelection = useRef(!!initialStaffUserIds?.length);
 
   // Qui peut créer un événement scope='staff' : dirigeants + managers (pas les coachs).
   const canCreateStaffEvent = isDirigeant(userContext) || userContext.isManager;
@@ -226,8 +234,34 @@ export default function EventFormModal({
     return { team, entries: order };
   }, [scope, selectedTeamIds, teams]);
 
-  // Quand le roster change, tout pré-cocher par défaut.
+  // Clés PRIMITIVES : ce sont elles, et jamais l'identité des objets dérivés, qui
+  // pilotent les effets de pré-cochage ci-dessous. Le parent reconstruit ses props
+  // à chaque render (my-structure re-render toutes les 60 s pour ses comptes à
+  // rebours) : re-seeder sur l'identité de `singleTeamRoster`/`staffAudienceGroups`
+  // recochait tout le monde sous les doigts de l'utilisateur, à contenu identique.
+  const rosterKey = singleTeamRoster
+    ? `${singleTeamRoster.team.id}:${singleTeamRoster.entries.map(e => e.uid).join(',')}`
+    : '';
+  // Les capitaines sont hors clé : ils ne sont jamais pré-cochés (cf. effet).
+  const staffKey = scope === 'staff'
+    ? [
+        ...staffAudienceGroups.dirigeants,
+        ...staffAudienceGroups.managers,
+        ...staffAudienceGroups.coaches,
+      ].join(',')
+    : '';
+
+  // Le re-seed est filtré par ces refs plutôt qu'en réduisant le tableau de deps :
+  // supprimer la règle des deps exhaustives ferait sortir tout le composant du
+  // React Compiler, ce qui éteindrait en silence les autres règles react-hooks
+  // sur ce fichier.
+  const seededRosterKey = useRef<string | null>(null);
+  const seededStaffKey = useRef<string | null>(null);
+
+  // Quand l'utilisateur choisit une équipe, tout pré-cocher par défaut.
   useEffect(() => {
+    if (seededRosterKey.current === rosterKey) return;
+    seededRosterKey.current = rosterKey;
     if (!singleTeamRoster) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- seed mutable checkbox state when the derived roster changes (intentional reset, not pure derived render value)
       setPlayerSelection({});
@@ -236,13 +270,23 @@ export default function EventFormModal({
     const next: Record<string, boolean> = {};
     for (const e of singleTeamRoster.entries) next[e.uid] = true;
     setPlayerSelection(next);
-  }, [singleTeamRoster]);
+  }, [rosterKey, singleTeamRoster]);
 
-  // Quand on passe en scope='staff', pré-cocher tout le monde par défaut.
+  // Quand on passe en scope='staff', pré-cocher le staff par défaut. Les capitaines
+  // restent décochés : ils ne sont pas staff, ils s'invitent au cas par cas
+  // (cf. StaffAudience dans lib/event-permissions.ts, validé Matt 2026-05-25).
   useEffect(() => {
+    const key = `${scope}:${staffKey}`;
+    if (seededStaffKey.current === key) return;
+    seededStaffKey.current = key;
     if (scope !== 'staff') {
+      keepInitialStaffSelection.current = false;
       // eslint-disable-next-line react-hooks/set-state-in-effect -- seed mutable checkbox state when scope/staff groups change (intentional reset, not pure derived render value)
-      setStaffSelection({});
+      setStaffSelection(prev => (Object.keys(prev).length === 0 ? prev : {}));
+      return;
+    }
+    if (keepInitialStaffSelection.current) {
+      keepInitialStaffSelection.current = false;
       return;
     }
     const next: Record<string, boolean> = {};
@@ -250,7 +294,7 @@ export default function EventFormModal({
     for (const uid of staffAudienceGroups.managers) next[uid] = true;
     for (const uid of staffAudienceGroups.coaches) next[uid] = true;
     setStaffSelection(next);
-  }, [scope, staffAudienceGroups]);
+  }, [scope, staffKey, staffAudienceGroups]);
 
   // Les équipes dispos au ciblage :
   //   - dirigeant → toutes
@@ -264,6 +308,42 @@ export default function EventFormModal({
 
   function toggleTeam(id: string) {
     setSelectedTeamIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }
+
+  // Empreinte des champs saisis. Le premier render porte l'état vierge : les props
+  // d'init ne bougent pas tant que la modale est montée (le parent la démonte pour
+  // la fermer), donc la comparer suffit à savoir s'il y a une saisie à perdre.
+  const formFingerprint = JSON.stringify([
+    title, type, description, location, startsAt, endsAt, scope, selectedTeamIds,
+    game, adversaire, adversaireLogoUrl, resultat, gameHostedBy, gameName,
+    gamePassword, gameFormat, tournoiNom, tournoiFormat, tournoiUrl,
+    tournoiInscriptionUrl, tournoiReglementUrl, markDone,
+  ]);
+  // Snapshot du premier render via useState : lire/écrire une ref pendant le render
+  // est interdit (React Compiler + rendu concurrent), l'initialiseur de useState est
+  // le seul moyen légal de figer cette valeur.
+  const [pristineFingerprint] = useState(formFingerprint);
+  const isDirty = formFingerprint !== pristineFingerprint;
+
+  // Sans ce garde, Escape pendant la confirmation ferme la confirmation ET en
+  // redemande une aussitôt (les deux écoutent Escape).
+  const closeConfirmPending = useRef(false);
+
+  async function requestClose() {
+    if (submitting || closeConfirmPending.current) return;
+    if (!isDirty) return onClose();
+    closeConfirmPending.current = true;
+    const ok = await confirm({
+      title: 'Fermer sans enregistrer',
+      message: isEditMode
+        ? 'Tes modifications ne sont pas enregistrées, elles seront perdues.'
+        : "L'événement n'est pas créé, ta saisie sera perdue.",
+      confirmLabel: 'Fermer',
+      cancelLabel: 'Continuer la saisie',
+      variant: 'danger',
+    });
+    closeConfirmPending.current = false;
+    if (ok) onClose();
   }
 
   async function handleSubmit() {
@@ -416,11 +496,9 @@ export default function EventFormModal({
 
   return (
     <Portal>
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.75)' }} onClick={onClose}>
+    <ModalBackdrop onClose={requestClose}>
       <div className="bevel relative w-full max-w-2xl max-h-[90vh] overflow-y-auto"
-        style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}
-        onClick={e => e.stopPropagation()}>
+        style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
         <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), var(--s-gold)50, transparent 70%)' }} />
         <div className="p-6 space-y-4">
           <h2 className="font-display text-2xl">
@@ -722,7 +800,7 @@ export default function EventFormModal({
                       <Users size={12} style={{ color: 'var(--s-text-dim)' }} />
                       <span className="t-label">Invités staff</span>
                       <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                        {checkedCount}/{total}
+                        {checkedCount} sélectionné{checkedCount > 1 ? 's' : ''}
                       </span>
                     </div>
                     {total > 0 && (
@@ -1037,7 +1115,7 @@ export default function EventFormModal({
           )}
 
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className="btn-springs btn-secondary bevel-sm">
+            <button type="button" onClick={requestClose} className="btn-springs btn-secondary bevel-sm">
               Annuler
             </button>
             <button type="button" onClick={handleSubmit} disabled={submitting}
@@ -1054,7 +1132,7 @@ export default function EventFormModal({
           </div>
         </div>
       </div>
-    </div>
+    </ModalBackdrop>
     </Portal>
   );
 }

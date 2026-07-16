@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -984,6 +984,58 @@ export default function MyStructurePage() {
     setSaving(false);
   }
 
+  // ─── Props mémoïsées du calendrier ───────────────────────────────────
+  // Hooks : obligatoirement au-dessus des retours anticipés ci-dessous, donc
+  // loin de leur point d'usage (le rendu de l'onglet CALENDRIER).
+  // `now` re-render la page toutes les 60 s : sans mémoïsation, ces props
+  // repartent avec une identité neuve et EventFormModal recoche tout le roster
+  // sous les doigts de l'utilisateur. `teams` et `activeStructure` sont des
+  // states, leur identité ne bouge qu'à un vrai rechargement de données.
+
+  const calendarTeams = useMemo(() => teams.map(t => ({
+    id: t.id,
+    name: t.name,
+    game: t.game,
+    logoUrl: t.logoUrl,
+    label: t.label ?? '',
+    order: t.order ?? 0,
+    groupOrder: t.groupOrder ?? 0,
+    playerIds: t.players.map(p => p.uid),
+    subIds: t.subs.map(p => p.uid),
+    staffIds: t.staff.map(p => p.uid),
+    staffRoles: t.staffRoles ?? {},
+    discordChannelId: t.discordChannelId ?? null,
+  })), [teams]);
+
+  const structureRoles = useMemo(() => ({
+    founderId: activeStructure?.founderId ?? '',
+    coFounderIds: activeStructure?.coFounderIds,
+    managerIds: activeStructure?.managerIds,
+    coachIds: activeStructure?.coachIds,
+  }), [activeStructure]);
+
+  // Contexte user pour le calendrier (dérivé des données déjà chargées).
+  const userContext: UserContext = useMemo(() => {
+    const myMemberRole = firebaseUser && activeStructure
+      ? activeStructure.members.find(m => m.userId === firebaseUser.uid)?.role
+      : undefined;
+    return {
+      uid: firebaseUser?.uid ?? '',
+      isFounder: !!firebaseUser && activeStructure?.founderId === firebaseUser.uid,
+      isCoFounder: !!firebaseUser && (activeStructure?.coFounderIds ?? []).includes(firebaseUser.uid),
+      isManager: myMemberRole === 'manager'
+        || (!!firebaseUser && (activeStructure?.managerIds ?? []).includes(firebaseUser.uid)),
+      isCoach: myMemberRole === 'coach'
+        || (!!firebaseUser && (activeStructure?.coachIds ?? []).includes(firebaseUser.uid)),
+      staffedTeamIds: firebaseUser
+        ? teams.filter(t => t.staff.some(st => st.uid === firebaseUser.uid)).map(t => t.id)
+        : [],
+      captainOfTeamIds: firebaseUser
+        ? teams.filter(t => t.captainId === firebaseUser.uid).map(t => t.id)
+        : [],
+    };
+  }, [activeStructure, firebaseUser, teams]);
+
   // ─── Loading / empty states ──────────────────────────────────────────
 
   if (authLoading || loading) {
@@ -1084,14 +1136,6 @@ export default function MyStructurePage() {
   const transferTargetName = transferTargetMember?.displayName || transferTargetMember?.discordUsername || 'le nouveau fondateur';
   const isTransferTarget = !!firebaseUser && transferPending?.toUid === firebaseUser.uid;
 
-  // Contexte user pour le calendrier (derivé des données déjà chargées).
-  const myMemberRole = firebaseUser ? s.members.find(m => m.userId === firebaseUser.uid)?.role : undefined;
-  const staffedTeamIds = firebaseUser
-    ? teams.filter(t => t.staff.some(st => st.uid === firebaseUser.uid)).map(t => t.id)
-    : [];
-  const captainOfTeamIds = firebaseUser
-    ? teams.filter(t => t.captainId === firebaseUser.uid).map(t => t.id)
-    : [];
   // Vue scopée sur ÉQUIPES pour les rôles "limités" (coach + capitaine) :
   // n'affiche que les équipes où l'utilisateur est staff ou capitaine.
   // Modèle A : le RESPONSABLE (managerOfActive) voit TOUTES les équipes comme un
@@ -1101,29 +1145,6 @@ export default function MyStructurePage() {
     !teamScopeActive ||
     team.staff.some(st => st.uid === firebaseUser?.uid) ||
     team.captainId === firebaseUser?.uid;
-  const userContext: UserContext = {
-    uid: firebaseUser?.uid ?? '',
-    isFounder: isFounderOfActive,
-    isCoFounder: isCoFounderOfActive,
-    isManager: myMemberRole === 'manager' || (firebaseUser ? (s.managerIds ?? []).includes(firebaseUser.uid) : false),
-    isCoach: myMemberRole === 'coach' || (firebaseUser ? (s.coachIds ?? []).includes(firebaseUser.uid) : false),
-    staffedTeamIds,
-    captainOfTeamIds,
-  };
-  const calendarTeams = teams.map(t => ({
-    id: t.id,
-    name: t.name,
-    game: t.game,
-    logoUrl: t.logoUrl,
-    label: t.label ?? '',
-    order: t.order ?? 0,
-    groupOrder: t.groupOrder ?? 0,
-    playerIds: t.players.map(p => p.uid),
-    subIds: t.subs.map(p => p.uid),
-    staffIds: t.staff.map(p => p.uid),
-    staffRoles: t.staffRoles ?? {},
-    discordChannelId: t.discordChannelId ?? null,
-  }));
 
   const toggle = (key: string) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }));
 
@@ -1898,12 +1919,7 @@ export default function MyStructurePage() {
             members={s.members}
             teams={calendarTeams}
             userContext={userContext}
-            structureRoles={{
-              founderId: s.founderId,
-              coFounderIds: s.coFounderIds,
-              managerIds: s.managerIds,
-              coachIds: s.coachIds,
-            }}
+            structureRoles={structureRoles}
           />
         </div>
         )}

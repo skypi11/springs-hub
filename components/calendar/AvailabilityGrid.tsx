@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Save, Copy, Check } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Loader2, Copy, Check, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api-client';
@@ -17,6 +17,15 @@ export const AVAILABILITY_QUERY_KEY = ['availability', 'me'] as const;
 
 // Jours affichés en colonnes
 const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+
+const AUTOSAVE_DELAY_MS = 2000;
+
+const WEEKS = ['current', 'next'] as const;
+type Which = (typeof WEEKS)[number];
+
+// pending = saisie locale pas encore partie · saving = requête en vol ·
+// saved = confirmé par le serveur · error = rien n'a été écrit.
+type SaveStatus = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
 
 // Plage horaire globale pour l'axe Y : 8h → 02h (18h × 2 = 36 slots).
 // Tous les jours ont désormais le même horaire (cf. DAY_SCHEDULES).
@@ -78,6 +87,8 @@ export type ApiResponse = {
   next: WeekData;
 };
 
+type SaveResponse = { weeks?: WeekData[] };
+
 export default function AvailabilityGrid() {
   const { firebaseUser } = useAuth();
   const toast = useToast();
@@ -93,76 +104,178 @@ export default function AvailabilityGrid() {
   // État local des slots (Set de strings) par semaine, permet l'édition sans rerequests
   const [currentSet, setCurrentSet] = useState<Set<string>>(new Set());
   const [nextSet, setNextSet] = useState<Set<string>>(new Set());
-  const [currentDirty, setCurrentDirty] = useState(false);
-  const [nextDirty, setNextDirty] = useState(false);
+  const [status, setStatus] = useState<Record<Which, SaveStatus>>({ current: 'idle', next: 'idle' });
+
+  // Miroirs synchrones de la saisie : l'auto-save part d'un timer ou du démontage,
+  // hors cycle de rendu, et doit lire le dernier état coché.
+  const setsRef = useRef<Record<Which, Set<string>>>({ current: new Set(), next: new Set() });
+  // dirty = modifié localement, pas encore envoyé · inFlight = envoyé, pas encore confirmé.
+  // Tant que l'un des deux est levé sur une semaine, la resync serveur ne doit PAS y
+  // toucher : réinjecter une valeur serveur périmée est ce qui effaçait la saisie.
+  const dirtyRef = useRef<Record<Which, boolean>>({ current: false, next: false });
+  const inFlightRef = useRef<Record<Which, boolean>>({ current: false, next: false });
+  const mondaysRef = useRef<Record<Which, string>>({ current: '', next: '' });
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
+  const flushRef = useRef<() => void>(() => {});
 
   // Sync du state local d'édition avec les données serveur (initial + refetch)
   useEffect(() => {
     if (!data) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- resync volontaire du state local d'édition à chaque (re)fetch React Query ; le serveur reste la source de vérité
-    setCurrentSet(new Set(data.current.slots));
-    setNextSet(new Set(data.next.slots));
-    setCurrentDirty(false);
-    setNextDirty(false);
+    for (const which of WEEKS) {
+      // Une semaine avec de la saisie en attente garde aussi SA date : si les
+      // semaines ont glissé (bascule du lundi pendant la saisie), un refus serveur
+      // vaut mieux qu'une écriture de créneaux dans la mauvaise semaine.
+      if (dirtyRef.current[which] || inFlightRef.current[which]) continue;
+      mondaysRef.current[which] = data[which].mondayYmd;
+      const slots = new Set(data[which].slots);
+      setsRef.current[which] = slots;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- resync volontaire du state local d'édition à chaque (re)fetch React Query ; le serveur reste la source de vérité pour les semaines sans saisie en attente
+      if (which === 'current') setCurrentSet(slots); else setNextSet(slots);
+    }
   }, [data]);
 
-  const saveMutation = useMutation({
-    mutationFn: ({ which, mondayYmd, slots }: { which: 'current' | 'next'; mondayYmd: string; slots: string[] }) =>
-      api<{ slots: string[] }>('/api/availability/me', {
-        method: 'PUT',
-        body: { mondayYmd, slots },
-      }).then((d) => ({ which, slots: d.slots ?? [] })),
-    onSuccess: ({ which, slots }) => {
-      if (which === 'current') {
-        setCurrentSet(new Set(slots));
-        setCurrentDirty(false);
-      } else {
-        setNextSet(new Set(slots));
-        setNextDirty(false);
+  function markStatus(list: Which[], value: SaveStatus) {
+    if (!mountedRef.current || list.length === 0) return;
+    setStatus(prev => {
+      const out = { ...prev };
+      for (const w of list) out[w] = value;
+      return out;
+    });
+  }
+
+  function schedule() {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      flushRef.current();
+    }, AUTOSAVE_DELAY_MS);
+  }
+
+  // Recale le state local + le cache sur ce que le serveur a réellement écrit
+  // (il refuse les slots invalides et réinjecte les jours passés figés).
+  function applyServerWeeks(weeks: WeekData[]) {
+    const fresh = qc.getQueryData<ApiResponse>(AVAILABILITY_QUERY_KEY);
+    for (const w of weeks) {
+      const which: Which | null = !fresh ? null
+        : w.mondayYmd === fresh.current.mondayYmd ? 'current'
+        : w.mondayYmd === fresh.next.mondayYmd ? 'next'
+        : null;
+      if (!which) continue;
+      // Le joueur a re-coché pendant l'envoi : sa saisie est plus fraîche que la réponse.
+      if (dirtyRef.current[which]) continue;
+      const slots = new Set(w.slots);
+      setsRef.current[which] = slots;
+      if (mountedRef.current) {
+        if (which === 'current') setCurrentSet(slots); else setNextSet(slots);
       }
-      // Synchronise le cache (pour le résumé du collapsible) sans refetch
-      qc.setQueryData<ApiResponse>(AVAILABILITY_QUERY_KEY, (prev) => {
-        if (!prev) return prev;
-        const week = which === 'current' ? { ...prev.current, slots } : prev.current;
-        const nextW = which === 'next' ? { ...prev.next, slots } : prev.next;
-        return { ...prev, current: week, next: nextW };
-      });
-      toast.success('Dispos enregistrées');
-    },
-    onError: (err: Error) => toast.error(err.message || 'Erreur'),
+    }
+    // Le cache alimente le résumé de MES DISPOS, qui reste monté quand la grille est repliée.
+    qc.setQueryData<ApiResponse>(AVAILABILITY_QUERY_KEY, (prev) => {
+      if (!prev) return prev;
+      let out = prev;
+      for (const w of weeks) {
+        if (w.mondayYmd === prev.current.mondayYmd) out = { ...out, current: { ...out.current, slots: w.slots } };
+        else if (w.mondayYmd === prev.next.mondayYmd) out = { ...out, next: { ...out.next, slots: w.slots } };
+      }
+      return out;
+    });
+  }
+
+  function flush() {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    // Une semaine déjà en vol n'est pas renvoyée en parallèle : deux écritures
+    // concurrentes sur le même doc peuvent atterrir dans le désordre. La fin du vol
+    // réarme l'envoi si elle est encore dirty.
+    const sending = WEEKS.filter(w => dirtyRef.current[w] && !inFlightRef.current[w] && mondaysRef.current[w]);
+    if (sending.length === 0) return;
+
+    for (const w of sending) {
+      dirtyRef.current[w] = false;
+      inFlightRef.current[w] = true;
+    }
+    markStatus(sending, 'saving');
+
+    api<SaveResponse>('/api/availability/me', {
+      method: 'PUT',
+      body: {
+        weeks: sending.map(w => ({
+          mondayYmd: mondaysRef.current[w],
+          slots: Array.from(setsRef.current[w]),
+        })),
+      },
+    }).then(
+      // Deux arguments plutôt qu'un .catch() : un throw du handler de succès ne doit
+      // pas être rapporté comme un échec d'enregistrement.
+      (res) => {
+        for (const w of sending) inFlightRef.current[w] = false;
+        applyServerWeeks(res.weeks ?? []);
+        // Un 200 = la transaction serveur a écrit toutes les semaines envoyées.
+        markStatus(sending.filter(w => !dirtyRef.current[w]), 'saved');
+        if (WEEKS.some(w => dirtyRef.current[w])) {
+          // Démonté : plus aucun rendu ne réarmera le timer, on renvoie tout de suite.
+          if (mountedRef.current) schedule(); else flush();
+        }
+      },
+      (err: Error) => {
+        // Rien n'a été écrit : la saisie repasse "à envoyer" pour que la resync
+        // serveur ne l'écrase pas, et on ne réarme pas de retry automatique
+        // (un payload refusé boucherait la boucle toutes les 2 s).
+        for (const w of sending) {
+          inFlightRef.current[w] = false;
+          dirtyRef.current[w] = true;
+        }
+        markStatus(sending, 'error');
+        toast.error(err.message || "Tes dispos n'ont pas pu être enregistrées.");
+      },
+    );
+  }
+
+  useEffect(() => {
+    flushRef.current = flush;
   });
 
-  const saving = saveMutation.isPending ? saveMutation.variables?.which ?? null : null;
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      // Replier MES DISPOS démonte la grille : sans ce flush, une saisie de moins
+      // de 2 s partirait avec le composant.
+      flushRef.current();
+    };
+  }, []);
 
-  function save(which: 'current' | 'next') {
-    if (!data) return;
-    const week = which === 'current' ? data.current : data.next;
-    const set = which === 'current' ? currentSet : nextSet;
-    saveMutation.mutate({ which, mondayYmd: week.mondayYmd, slots: Array.from(set) });
+  function commit(which: Which, slots: Set<string>) {
+    setsRef.current[which] = slots;
+    if (which === 'current') setCurrentSet(slots); else setNextSet(slots);
+    dirtyRef.current[which] = true;
+    markStatus([which], 'pending');
+    schedule();
+  }
+
+  function toggle(which: Which, slot: string) {
+    const slots = new Set(setsRef.current[which]);
+    if (slots.has(slot)) slots.delete(slot);
+    else slots.add(slot);
+    commit(which, slots);
   }
 
   function copyFromPrevious() {
     if (!data) return;
-    const prev = new Set(data.previous.slots);
     // Décaler vers la semaine courante (+7 jours)
-    const shifted = shiftSlots(prev, 7);
+    const shifted = shiftSlots(new Set(data.previous.slots), 7);
     // Merger avec les slots past déjà figés (slots dont la date < today), on ne doit pas les écraser
     // (l'API les réinjecte de toute façon, mais visuellement on veut voir la fusion)
-    const next = new Set<string>();
-    for (const s of currentSet) {
-      const dayYmd = s.slice(0, 10);
-      if (data.today && dayYmd < data.today) next.add(s); // garde past
+    const merged = new Set<string>();
+    for (const s of setsRef.current.current) {
+      if (data.today && s.slice(0, 10) < data.today) merged.add(s);
     }
-    for (const s of shifted) next.add(s);
-    setCurrentSet(next);
-    setCurrentDirty(true);
+    for (const s of shifted) merged.add(s);
+    commit('current', merged);
   }
 
   function copyFromCurrent() {
-    if (!data) return;
-    const shifted = shiftSlots(currentSet, 7);
-    setNextSet(shifted);
-    setNextDirty(true);
+    commit('next', shiftSlots(setsRef.current.current, 7));
   }
 
   if (loading || !data) {
@@ -181,7 +294,7 @@ export default function AvailabilityGrid() {
       {/* Intro */}
       <div className="bevel p-5 animate-fade-in" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
         <p className="text-base" style={{ color: 'var(--s-text-dim)' }}>
-          Indique quand tu es dispo pour jouer. Chaque case = 30 minutes. Le staff de ton équipe verra ces créneaux pour proposer des matchs et entraînements.
+          Indique quand tu es dispo pour jouer. Chaque case = 30 minutes. Le staff de ton équipe verra ces créneaux pour proposer des matchs et entraînements. Tes modifications sont enregistrées automatiquement, il n&apos;y a rien à valider.
         </p>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 text-sm" style={{ color: 'var(--s-text-muted)' }}>
           <span className="flex items-center gap-2">
@@ -193,7 +306,7 @@ export default function AvailabilityGrid() {
             Non dispo
           </span>
           <span style={{ color: 'var(--s-text-dim)' }}>
-            · Clique ou <strong style={{ color: 'var(--s-text)' }}>glisse</strong> pour sélectionner plusieurs créneaux à la fois
+            · Clique une case pour la cocher. À la souris, <strong style={{ color: 'var(--s-text)' }}>clic maintenu + glissé</strong> en coche plusieurs d&apos;un coup.
           </span>
         </div>
       </div>
@@ -206,18 +319,9 @@ export default function AvailabilityGrid() {
           title="SEMAINE COURANTE"
           weekGrid={currentGrid}
           slots={currentSet}
-          onToggle={(slot) => {
-            setCurrentSet(prev => {
-              const next = new Set(prev);
-              if (next.has(slot)) next.delete(slot);
-              else next.add(slot);
-              return next;
-            });
-            setCurrentDirty(true);
-          }}
-          dirty={currentDirty}
-          saving={saving === 'current'}
-          onSave={() => save('current')}
+          onToggle={(slot) => toggle('current', slot)}
+          status={status.current}
+          onRetry={() => flushRef.current()}
           copyLabel={data.previous.slots.length > 0 ? 'Copier semaine précédente' : null}
           onCopy={copyFromPrevious}
           today={data.today}
@@ -227,23 +331,48 @@ export default function AvailabilityGrid() {
           title="SEMAINE SUIVANTE"
           weekGrid={nextGrid}
           slots={nextSet}
-          onToggle={(slot) => {
-            setNextSet(prev => {
-              const next = new Set(prev);
-              if (next.has(slot)) next.delete(slot);
-              else next.add(slot);
-              return next;
-            });
-            setNextDirty(true);
-          }}
-          dirty={nextDirty}
-          saving={saving === 'next'}
-          onSave={() => save('next')}
+          onToggle={(slot) => toggle('next', slot)}
+          status={status.next}
+          onRetry={() => flushRef.current()}
           copyLabel={currentSet.size > 0 ? 'Copier semaine courante' : null}
           onCopy={copyFromCurrent}
           today={data.today}
         />
       </div>
+    </div>
+  );
+}
+
+// ─── Indicateur d'auto-save ──────────────────────────────────────────────────
+
+function SaveIndicator({ status, onRetry }: { status: SaveStatus; onRetry: () => void }) {
+  if (status === 'idle') return null;
+
+  if (status === 'error') {
+    return (
+      <div className="flex items-center gap-2" style={{ fontSize: '13px' }}>
+        <AlertTriangle size={14} style={{ color: '#ef4444' }} />
+        <span style={{ color: 'var(--s-text)' }}>Enregistrement impossible</span>
+        <button type="button" onClick={onRetry}
+          className="btn-springs bevel-sm px-3 py-1"
+          style={{
+            fontSize: '13px',
+            background: 'transparent',
+            border: '1px solid var(--s-border)',
+            color: 'var(--s-text-dim)',
+            cursor: 'pointer',
+          }}>
+          Réessayer
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2" style={{ fontSize: '13px', color: 'var(--s-text-dim)' }}>
+      {status === 'saving' && <Loader2 size={14} className="animate-spin" />}
+      {status === 'saved' && <Check size={14} />}
+      {status === 'pending' ? 'Modifications en attente' : status === 'saving' ? 'Enregistrement…' : 'Enregistré'}
     </div>
   );
 }
@@ -255,9 +384,8 @@ function WeekPanel({
   weekGrid,
   slots,
   onToggle,
-  dirty,
-  saving,
-  onSave,
+  status,
+  onRetry,
   copyLabel,
   onCopy,
   today,
@@ -266,9 +394,8 @@ function WeekPanel({
   weekGrid: WeekGrid;
   slots: Set<string>;
   onToggle: (slot: string) => void;
-  dirty: boolean;
-  saving: boolean;
-  onSave: () => void;
+  status: SaveStatus;
+  onRetry: () => void;
   copyLabel: string | null;
   onCopy: () => void;
   today: string;
@@ -316,38 +443,24 @@ function WeekPanel({
   return (
     <div className="bevel animate-fade-in-d1 relative overflow-hidden" style={{
       background: 'var(--s-surface)',
-      border: dirty ? '1px solid rgba(255,184,0,0.35)' : '1px solid var(--s-border)',
-      boxShadow: dirty ? '0 0 0 1px rgba(255,184,0,0.15), 0 0 24px rgba(255,184,0,0.08)' : 'none',
-      transition: 'border-color 200ms, box-shadow 200ms',
+      border: '1px solid var(--s-border)',
     }}>
       <div className="h-[3px]" style={{
-        background: dirty
-          ? 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.4), transparent 70%)'
-          : 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.4), transparent 70%)',
-        transition: 'background 200ms',
+        background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.4), transparent 70%)',
       }} />
       <div className="p-5">
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
           <div>
-            <h3 className="font-display text-2xl flex items-center gap-2" style={{ letterSpacing: '0.03em' }}>
+            <h3 className="font-display text-2xl" style={{ letterSpacing: '0.03em' }}>
               {title}
-              {dirty && (
-                <span className="t-label px-2 py-0.5 bevel-sm animate-pulse" style={{
-                  fontSize: '12px',
-                  background: 'rgba(255,184,0,0.15)',
-                  border: '1px solid rgba(255,184,0,0.4)',
-                  color: 'var(--s-gold)',
-                }}>
-                  NON SAUVEGARDÉ
-                </span>
-              )}
             </h3>
             <p className="t-mono mt-1.5" style={{ fontSize: '13px', color: 'var(--s-text-dim)' }}>
               {rangeLabel} · {countSelected} créneaux sélectionnés
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
+            <SaveIndicator status={status} onRetry={onRetry} />
             {copyLabel && (
               <button type="button" onClick={onCopy}
                 className="btn-springs bevel-sm flex items-center gap-2 px-4 py-2"
@@ -362,20 +475,6 @@ function WeekPanel({
                 <Copy size={14} /> {copyLabel}
               </button>
             )}
-            <button type="button" onClick={onSave}
-              disabled={!dirty || saving}
-              className="btn-springs bevel-sm flex items-center gap-2 px-5 py-2"
-              style={{
-                fontSize: '13px',
-                background: dirty ? 'var(--s-gold)' : 'transparent',
-                border: `1px solid ${dirty ? 'var(--s-gold)' : 'var(--s-border)'}`,
-                color: dirty ? '#000' : 'var(--s-text-muted)',
-                cursor: dirty && !saving ? 'pointer' : 'not-allowed',
-                fontWeight: 600,
-              }}>
-              {saving ? <Loader2 size={14} className="animate-spin" /> : dirty ? <Save size={14} /> : <Check size={14} />}
-              {saving ? 'Enregistrement…' : dirty ? 'Enregistrer' : 'À jour'}
-            </button>
           </div>
         </div>
 
