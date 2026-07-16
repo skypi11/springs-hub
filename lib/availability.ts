@@ -185,6 +185,78 @@ export function validSlotsForWeek(mondayYmd: string): Set<string> {
   return out;
 }
 
+// ─── Validation d'un PUT de dispos (partagée par la route) ──────────────
+
+// Garde-fou anti-abus. La vraie valeur max théorique est 7 jours × 36 slots/jour
+// (schedule 8h → 2h du matin = 18h × 2 slots/30min) = 252. On laisse une marge
+// pour absorber une éventuelle extension future du schedule sans re-deploy.
+export const MAX_SLOTS_PER_WEEK = 400;
+
+// L'auto-save du client n'envoie que courante + suivante ; la 3e place est la
+// marge, pas une invitation à écrire tout le calendrier en une requête.
+export const MAX_WEEKS_PER_REQUEST = 3;
+
+export type WeekSlotsValidation =
+  | { ok: true; mondayYmd: string; slots: string[] }
+  | { ok: false; error: string };
+
+/**
+ * Valide une semaine de dispos issue d'un payload client (`{mondayYmd, slots}`).
+ * `slots` en sortie est nettoyé : slots inconnus retirés, doublons retirés, trié,
+ * et jours déjà passés retirés si c'est la semaine courante.
+ */
+export function validateWeekSlots(raw: unknown, todayYmd: string): WeekSlotsValidation {
+  const week = (raw ?? {}) as { mondayYmd?: unknown; slots?: unknown };
+  const mondayYmd = typeof week.mondayYmd === 'string' ? week.mondayYmd : null;
+
+  if (!mondayYmd || !/^\d{4}-\d{2}-\d{2}$/.test(mondayYmd)) {
+    return { ok: false, error: 'mondayYmd invalide.' };
+  }
+  if (getMondayYmd(mondayYmd) !== mondayYmd) {
+    return { ok: false, error: 'La date doit être un lundi.' };
+  }
+  if (!Array.isArray(week.slots)) {
+    return { ok: false, error: 'slots requis (array).' };
+  }
+  if (week.slots.length > MAX_SLOTS_PER_WEEK) {
+    return { ok: false, error: 'Trop de slots.' };
+  }
+
+  const currentMonday = getMondayYmd(todayYmd);
+  if (mondayYmd < currentMonday) {
+    return { ok: false, error: 'Les semaines passées ne peuvent pas être modifiées.' };
+  }
+
+  const valid = validSlotsForWeek(mondayYmd);
+  const cleaned = new Set<string>();
+  for (const s of week.slots) {
+    if (typeof s !== 'string') continue;
+    if (!valid.has(s)) continue;
+    // Sur la semaine courante, les jours révolus sont en lecture seule.
+    if (mondayYmd === currentMonday && s.slice(0, 10) < todayYmd) continue;
+    cleaned.add(s);
+  }
+
+  return { ok: true, mondayYmd, slots: Array.from(cleaned).sort() };
+}
+
+/**
+ * Fusionne les slots validés avec les slots des jours passés déjà en base :
+ * sur la semaine courante, ce que le joueur a déclaré avant aujourd'hui est figé
+ * et ne doit jamais être effacé par une écriture.
+ */
+export function mergeFrozenPastSlots(
+  mondayYmd: string,
+  todayYmd: string,
+  cleaned: string[],
+  existing: string[],
+): string[] {
+  const frozen = mondayYmd === getMondayYmd(todayYmd)
+    ? existing.filter(s => s.slice(0, 10) < todayYmd)
+    : [];
+  return Array.from(new Set([...frozen, ...cleaned])).sort();
+}
+
 // ─── Matching : blocs continus où N+ joueurs sont dispos ────────────────
 
 /** True si `b` est le slot 30min immédiatement après `a`. */

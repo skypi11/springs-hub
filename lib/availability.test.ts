@@ -15,6 +15,9 @@ import {
   formatSlotTime,
   formatSlotRange,
   formatBlockRange,
+  validateWeekSlots,
+  mergeFrozenPastSlots,
+  MAX_SLOTS_PER_WEEK,
 } from './availability';
 
 // ─── Helpers date / string ──────────────────────────────────────────────
@@ -371,5 +374,148 @@ describe('formatBlockRange', () => {
         playerIds: ['p1', 'p2', 'p3'],
       }),
     ).toBe('20:00-22:00');
+  });
+});
+
+// ─── Validation d'un PUT de dispos ──────────────────────────────────────
+
+// Semaines de référence : lundi 13/07/2026 (courante si today = jeudi 16/07),
+// lundi 20/07/2026 (suivante), lundi 06/07/2026 (passée).
+const MONDAY = '2026-07-13';
+const NEXT_MONDAY = '2026-07-20';
+const TODAY = '2026-07-16';
+
+describe('validateWeekSlots', () => {
+  it('rejects a malformed mondayYmd', () => {
+    expect(validateWeekSlots({ mondayYmd: '13/07/2026', slots: [] }, TODAY))
+      .toEqual({ ok: false, error: 'mondayYmd invalide.' });
+    expect(validateWeekSlots({ slots: [] }, TODAY))
+      .toEqual({ ok: false, error: 'mondayYmd invalide.' });
+    expect(validateWeekSlots(null, TODAY))
+      .toEqual({ ok: false, error: 'mondayYmd invalide.' });
+  });
+
+  it('rejects a date that is not a monday', () => {
+    expect(validateWeekSlots({ mondayYmd: '2026-07-14', slots: [] }, TODAY))
+      .toEqual({ ok: false, error: 'La date doit être un lundi.' });
+  });
+
+  it('rejects a missing slots array', () => {
+    expect(validateWeekSlots({ mondayYmd: MONDAY }, TODAY))
+      .toEqual({ ok: false, error: 'slots requis (array).' });
+  });
+
+  it('rejects too many slots', () => {
+    const slots = Array.from({ length: MAX_SLOTS_PER_WEEK + 1 }, (_, i) => `slot${i}`);
+    expect(validateWeekSlots({ mondayYmd: MONDAY, slots }, TODAY))
+      .toEqual({ ok: false, error: 'Trop de slots.' });
+  });
+
+  it('rejects a past week', () => {
+    expect(validateWeekSlots({ mondayYmd: '2026-07-06', slots: [] }, TODAY))
+      .toEqual({ ok: false, error: 'Les semaines passées ne peuvent pas être modifiées.' });
+  });
+
+  it('keeps valid slots, deduped and sorted', () => {
+    const res = validateWeekSlots(
+      { mondayYmd: NEXT_MONDAY, slots: ['2026-07-21T20:30', '2026-07-20T20:00', '2026-07-21T20:30'] },
+      TODAY,
+    );
+    expect(res).toEqual({
+      ok: true,
+      mondayYmd: NEXT_MONDAY,
+      slots: ['2026-07-20T20:00', '2026-07-21T20:30'],
+    });
+  });
+
+  it('drops slots that do not belong to the week or to the schedule', () => {
+    const res = validateWeekSlots(
+      {
+        mondayYmd: NEXT_MONDAY,
+        slots: [
+          '2026-07-20T20:00',  // valide
+          '2026-07-20T07:30',  // avant 8h
+          '2026-08-03T20:00',  // autre semaine
+          '2026-07-20T20:15',  // pas aligné sur 30min
+          42,                  // pas une string
+        ],
+      },
+      TODAY,
+    );
+    expect(res).toEqual({ ok: true, mondayYmd: NEXT_MONDAY, slots: ['2026-07-20T20:00'] });
+  });
+
+  it("keeps sunday's after-midnight slots, which are dated on the next monday", () => {
+    // Piège : "2026-07-20T01:30" est le dimanche soir de la semaine du 13/07,
+    // pas le lundi 20/07 (cf. generateDaySlots).
+    const res = validateWeekSlots(
+      { mondayYmd: MONDAY, slots: ['2026-07-20T00:00', '2026-07-20T01:30', '2026-07-20T02:00'] },
+      TODAY,
+    );
+    expect(res).toEqual({
+      ok: true,
+      mondayYmd: MONDAY,
+      slots: ['2026-07-20T00:00', '2026-07-20T01:30'], // 02:00 hors plage
+    });
+  });
+
+  it('drops past days on the current week but keeps today', () => {
+    const res = validateWeekSlots(
+      {
+        mondayYmd: MONDAY,
+        slots: ['2026-07-13T20:00', '2026-07-15T20:00', '2026-07-16T20:00', '2026-07-18T20:00'],
+      },
+      TODAY,
+    );
+    expect(res).toEqual({
+      ok: true,
+      mondayYmd: MONDAY,
+      slots: ['2026-07-16T20:00', '2026-07-18T20:00'],
+    });
+  });
+
+  it('keeps every day of a future week', () => {
+    const res = validateWeekSlots(
+      { mondayYmd: NEXT_MONDAY, slots: ['2026-07-20T20:00', '2026-07-26T20:00'] },
+      TODAY,
+    );
+    expect(res).toEqual({
+      ok: true,
+      mondayYmd: NEXT_MONDAY,
+      slots: ['2026-07-20T20:00', '2026-07-26T20:00'],
+    });
+  });
+});
+
+describe('mergeFrozenPastSlots', () => {
+  it('keeps the past slots already stored on the current week', () => {
+    expect(mergeFrozenPastSlots(
+      MONDAY,
+      TODAY,
+      ['2026-07-16T20:00'],
+      ['2026-07-13T21:00', '2026-07-14T20:00', '2026-07-17T20:00'],
+    )).toEqual(['2026-07-13T21:00', '2026-07-14T20:00', '2026-07-16T20:00']);
+  });
+
+  it('never resurrects a stored slot of a day still to come', () => {
+    expect(mergeFrozenPastSlots(MONDAY, TODAY, [], ['2026-07-18T20:00'])).toEqual([]);
+  });
+
+  it('ignores stored slots on a future week', () => {
+    expect(mergeFrozenPastSlots(
+      NEXT_MONDAY,
+      TODAY,
+      ['2026-07-21T20:00'],
+      ['2026-07-20T20:00'],
+    )).toEqual(['2026-07-21T20:00']);
+  });
+
+  it('dedupes and sorts', () => {
+    expect(mergeFrozenPastSlots(
+      MONDAY,
+      TODAY,
+      ['2026-07-16T20:00', '2026-07-16T20:00'],
+      ['2026-07-14T20:00'],
+    )).toEqual(['2026-07-14T20:00', '2026-07-16T20:00']);
   });
 });

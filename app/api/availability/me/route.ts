@@ -8,13 +8,10 @@ import {
   getMondayYmd,
   getIsoWeekId,
   parisYmd,
-  validSlotsForWeek,
+  mergeFrozenPastSlots,
+  validateWeekSlots,
+  MAX_WEEKS_PER_REQUEST,
 } from '@/lib/availability';
-
-// Garde-fou anti-abus. La vraie valeur max théorique est 7 jours × 36 slots/jour
-// (schedule 8h → 2h du matin = 18h × 2 slots/30min) = 252. On laisse une marge
-// pour absorber une éventuelle extension future du schedule sans re-deploy.
-const MAX_SLOTS_PER_WEEK = 400;
 
 // GET /api/availability/me
 // Renvoie mes dispos pour 3 semaines : précédente (lecture seule, pour le bouton
@@ -62,8 +59,11 @@ export async function GET(req: NextRequest) {
 }
 
 // PUT /api/availability/me
-// Upsert mes dispos pour une semaine donnée.
-// Body: { mondayYmd: "YYYY-MM-DD", slots: string[] }
+// Upsert mes dispos sur une ou plusieurs semaines.
+// Body: { weeks: [{ mondayYmd: "YYYY-MM-DD", slots: string[] }] }
+//   ou  { mondayYmd: "YYYY-MM-DD", slots: string[] }  (contrat mono-semaine historique)
+// Les semaines partent dans une transaction unique : l'auto-save du client envoie
+// courante + suivante, jamais l'une sans l'autre.
 export async function PUT(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
@@ -72,72 +72,67 @@ export async function PUT(req: NextRequest) {
     const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
     if (blocked) return blocked;
 
-    const body = await req.json();
-    const mondayYmd = typeof body.mondayYmd === 'string' ? body.mondayYmd : null;
-    const slots = Array.isArray(body.slots) ? body.slots : null;
+    const body = (await req.json()) as Record<string, unknown> | null;
+    const multi = Array.isArray(body?.weeks);
+    const rawWeeks: unknown[] = multi ? (body!.weeks as unknown[]) : [body];
 
-    if (!mondayYmd || !/^\d{4}-\d{2}-\d{2}$/.test(mondayYmd)) {
-      return NextResponse.json({ error: 'mondayYmd invalide.' }, { status: 400 });
+    if (rawWeeks.length === 0) {
+      return NextResponse.json({ error: 'weeks requis (array non vide).' }, { status: 400 });
     }
-    if (getMondayYmd(mondayYmd) !== mondayYmd) {
-      return NextResponse.json({ error: "La date doit être un lundi." }, { status: 400 });
-    }
-    if (!slots) {
-      return NextResponse.json({ error: 'slots requis (array).' }, { status: 400 });
-    }
-    if (slots.length > MAX_SLOTS_PER_WEEK) {
-      return NextResponse.json({ error: 'Trop de slots.' }, { status: 400 });
+    if (rawWeeks.length > MAX_WEEKS_PER_REQUEST) {
+      return NextResponse.json({ error: 'Trop de semaines.' }, { status: 400 });
     }
 
-    // Semaine passée (antérieure à la semaine courante) → refusée.
     const todayYmd = parisYmd(new Date());
-    const currentMonday = getMondayYmd(todayYmd);
-    if (mondayYmd < currentMonday) {
-      return NextResponse.json({ error: "Les semaines passées ne peuvent pas être modifiées." }, { status: 400 });
+    const parsed: { mondayYmd: string; weekId: string; slots: string[] }[] = [];
+    const seenWeeks = new Set<string>();
+
+    for (const raw of rawWeeks) {
+      const week = validateWeekSlots(raw, todayYmd);
+      if (!week.ok) return NextResponse.json({ error: week.error }, { status: 400 });
+      // Deux entrées sur la même semaine viseraient le même doc dans la transaction.
+      if (seenWeeks.has(week.mondayYmd)) {
+        return NextResponse.json({ error: 'Semaine en double.' }, { status: 400 });
+      }
+      seenWeeks.add(week.mondayYmd);
+      parsed.push({
+        mondayYmd: week.mondayYmd,
+        weekId: getIsoWeekId(week.mondayYmd),
+        slots: week.slots,
+      });
     }
 
-    // Validation : tous les slots doivent être valides pour cette semaine.
-    const valid = validSlotsForWeek(mondayYmd);
-    const cleaned: string[] = [];
-    const seen = new Set<string>();
-    for (const s of slots) {
-      if (typeof s !== 'string') continue;
-      if (!valid.has(s)) continue;
-      if (seen.has(s)) continue;
-      seen.add(s);
-      cleaned.push(s);
-    }
-    cleaned.sort();
-
-    // Filtre supplémentaire : si c'est la semaine courante, on interdit l'édition
-    // des slots appartenant à un jour passé (< todayYmd).
-    const filtered = mondayYmd === currentMonday
-      ? cleaned.filter(s => s.slice(0, 10) >= todayYmd)
-      : cleaned;
-
-    // Merge avec l'existant : on ne touche PAS aux slots des jours passés
-    // pour la semaine courante (ils restent figés en lecture seule).
     const db = getAdminDb();
-    const weekId = getIsoWeekId(mondayYmd);
-    const ref = db.collection('user_availability').doc(`${uid}_${weekId}`);
-    const existingSnap = await ref.get();
-    const existing = existingSnap.exists ? (existingSnap.data()!.slots as string[] ?? []) : [];
+    const refs = parsed.map(p => db.collection('user_availability').doc(`${uid}_${p.weekId}`));
 
-    const frozenPastSlots = mondayYmd === currentMonday
-      ? existing.filter(s => s.slice(0, 10) < todayYmd)
-      : [];
+    const saved = await db.runTransaction(async (tx) => {
+      const snaps = await tx.getAll(...refs);
+      const merged = parsed.map((p, i) => ({
+        ...p,
+        slots: mergeFrozenPastSlots(
+          p.mondayYmd,
+          todayYmd,
+          p.slots,
+          snaps[i].exists ? ((snaps[i].data()!.slots as string[] | undefined) ?? []) : [],
+        ),
+      }));
+      merged.forEach((m, i) => {
+        tx.set(refs[i], {
+          userId: uid,
+          isoWeek: m.weekId,
+          weekStart: m.mondayYmd,
+          slots: m.slots,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: false });
+      });
+      return merged;
+    });
 
-    const merged = Array.from(new Set([...frozenPastSlots, ...filtered])).sort();
-
-    await ref.set({
-      userId: uid,
-      isoWeek: weekId,
-      weekStart: mondayYmd,
-      slots: merged,
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: false });
-
-    return NextResponse.json({ success: true, slots: merged });
+    // `slots` = ce qui est réellement en base après fusion des jours figés ; le
+    // client se recale dessus.
+    return multi
+      ? NextResponse.json({ success: true, weeks: saved })
+      : NextResponse.json({ success: true, weeks: saved, slots: saved[0].slots });
   } catch (err) {
     captureApiError('API availability/me PUT error', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
