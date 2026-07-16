@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   User, Globe, Gamepad2, Search, Loader2, ChevronLeft, ChevronRight,
@@ -89,13 +89,20 @@ export default function OnboardingWizard({ onClose }: { onClose: () => void }) {
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(data)); } catch { /* noop */ }
   }, [data]);
 
+  // `data.dateOfBirth` est LU comme garde au moment du fetch, mais ne doit pas
+  // re-déclencher l'effet : le mettre en dépendance relancerait la requête dès
+  // que le champ repasse à vide (l'utilisateur efface sa date → elle revient).
+  // La ref permet de lire la valeur fraîche sans en dépendre.
+  const dateOfBirthRef = useRef(data.dateOfBirth);
+  useEffect(() => { dateOfBirthRef.current = data.dateOfBirth; }, [data.dateOfBirth]);
+
   // La date de naissance vit dans user_secrets (server-only) : le user de
   // /api/auth/me ne la porte plus, seul le flag hasDateOfBirth subsiste. Un
   // profil incomplet (pays, jeu…) mais dont la date est déjà enregistrée ne
   // doit pas la re-saisir : on la récupère via le retour owner de GET
   // /api/profile, qui l'injecte depuis user_secrets.
   useEffect(() => {
-    if (!user?.uid || !user.hasDateOfBirth || data.dateOfBirth) return;
+    if (!user?.uid || !user.hasDateOfBirth || dateOfBirthRef.current) return;
     let cancelled = false;
     api<{ dateOfBirth?: string }>(`/api/profile?uid=${encodeURIComponent(user.uid)}`)
       .then(profile => {
@@ -105,7 +112,6 @@ export default function OnboardingWizard({ onClose }: { onClose: () => void }) {
       })
       .catch(() => { /* pré-remplissage best-effort, la saisie manuelle reste possible */ });
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- uniquement au montage / changement de user, pas à chaque frappe
   }, [user?.uid, user?.hasDateOfBirth]);
 
   const update = (patch: Partial<WizardData>) => {
@@ -181,10 +187,14 @@ export default function OnboardingWizard({ onClose }: { onClose: () => void }) {
       toast.success('Bienvenue sur Aedral');
       onClose();
       router.push('/');
+      setSaving(false);
     } catch (err) {
       if (err instanceof ApiError) setStepError(err.message);
       else setStepError('Erreur réseau. Réessaie.');
-    } finally {
+      // Pas de `finally` : le React Compiler ne sait pas encore abaisser un
+      // TryStatement avec finalizer et sortait TOUT le composant de l'analyse
+      // (donc plus aucune règle react-hooks appliquée ici). Les deux chemins
+      // de sortie relâchent le flag explicitement — même ordre qu'avant.
       setSaving(false);
     }
   };

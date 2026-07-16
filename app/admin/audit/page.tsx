@@ -2,7 +2,7 @@
 
 import AdminContentSkeleton from '@/components/admin/AdminContentSkeleton';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
 import {
@@ -103,26 +103,47 @@ export default function AdminAuditPage() {
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  async function loadLogs() {
+  // loadLogs est appelé depuis l'effet ci-dessous : tout setState doit donc rester
+  // dans une callback asynchrone (.then/.catch/.finally), jamais dans le corps
+  // synchrone. Le passage à `loading = true` est porté par les handlers (filtres,
+  // Rafraîchir) ; au montage il vient déjà du useState initial.
+  const loadLogs = useCallback(() => {
     if (!firebaseUser) return;
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set('limit', '200');
-      if (sourceFilter !== 'all') params.set('source', sourceFilter);
-      if (actionFilter) params.set('action', actionFilter);
-      const data = await api<{ logs?: AuditLog[] }>(`/api/admin/audit?${params.toString()}`);
-      setLogs(data.logs ?? []);
-    } catch (err) {
-      console.error('[Admin/Audit] load error:', err);
-    }
-    setLoading(false);
-  }
+    const params = new URLSearchParams();
+    params.set('limit', '200');
+    if (sourceFilter !== 'all') params.set('source', sourceFilter);
+    if (actionFilter) params.set('action', actionFilter);
+    return api<{ logs?: AuditLog[] }>(`/api/admin/audit?${params.toString()}`)
+      .then(data => { setLogs(data.logs ?? []); })
+      .catch(err => { console.error('[Admin/Audit] load error:', err); })
+      .finally(() => { setLoading(false); });
+  }, [firebaseUser, sourceFilter, actionFilter]);
 
   useEffect(() => {
     if (firebaseUser && isAdmin) loadLogs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firebaseUser, isAdmin, sourceFilter, actionFilter]);
+  }, [firebaseUser, isAdmin, loadLogs]);
+
+  // Changer un filtre / cliquer Rafraîchir relance loadLogs (via l'effet pour les
+  // filtres, directement pour Rafraîchir) : ces handlers rebasculent le skeleton.
+  // Le garde-fou firebaseUser reproduit celui de loadLogs, sinon loading resterait
+  // bloqué à true sur un retour anticipé.
+  function refresh() {
+    if (!firebaseUser) return;
+    setLoading(true);
+    loadLogs();
+  }
+
+  function changeSourceFilter(value: 'all' | 'admin' | 'structure') {
+    if (value === sourceFilter) return;
+    setSourceFilter(value);
+    setLoading(true);
+  }
+
+  function changeActionFilter(value: string) {
+    if (value === actionFilter) return;
+    setActionFilter(value);
+    setLoading(true);
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -192,7 +213,7 @@ export default function AdminAuditPage() {
         </div>
         <button
           type="button"
-          onClick={loadLogs}
+          onClick={refresh}
           className="tag tag-neutral"
           style={{ cursor: 'pointer', padding: '6px 12px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
         >
@@ -236,7 +257,7 @@ export default function AdminAuditPage() {
           ]).map(f => (
             <button
               key={f.value}
-              onClick={() => setSourceFilter(f.value)}
+              onClick={() => changeSourceFilter(f.value)}
               className="tag transition-all duration-150"
               style={{
                 background: sourceFilter === f.value ? 'rgba(255,184,0,0.15)' : 'transparent',
@@ -267,7 +288,7 @@ export default function AdminAuditPage() {
           </div>
           <select
             value={actionFilter}
-            onChange={e => setActionFilter(e.target.value)}
+            onChange={e => changeActionFilter(e.target.value)}
             className="text-sm px-3 py-1.5 bevel-sm"
             style={{
               background: 'var(--s-elevated)',

@@ -16,7 +16,7 @@
 //   /api/admin/announce-templates       → liste/crée templates (GET, POST)
 //   /api/admin/announce-templates/[id]  → édite/supprime (PATCH, DELETE)
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
@@ -82,21 +82,29 @@ export default function AdminAnnouncePage() {
   const [savingTpl, setSavingTpl] = useState(false);
   const [lastSent, setLastSent] = useState<SendResponse | null>(null);
 
-  async function loadChannels() {
+  const loadChannels = useCallback(async () => {
     if (!firebaseUser) return;
     setLoadingChannels(true);
     setChannelsErr('');
     try {
       const res = await api<{ channels: BroadcastChannel[] }>('/api/admin/discord-broadcast');
       setChannels(res.channels);
+      // Auto-sélectionne #annonces au chargement, si rien d'autre n'est déjà choisi.
+      // Le updater fonctionnel lit la sélection courante sans en dépendre : on ne
+      // ré-impose jamais #annonces à un admin qui a choisi (ou vidé) le channel.
+      setChannelId(prev => {
+        if (prev) return prev;
+        const annonces = res.channels.find(c => /annonce/i.test(c.name));
+        return annonces ? annonces.id : prev;
+      });
     } catch (err) {
       setChannelsErr(err instanceof ApiError ? err.message : 'Erreur réseau');
     } finally {
       setLoadingChannels(false);
     }
-  }
+  }, [firebaseUser]);
 
-  async function loadTemplates() {
+  const loadTemplates = useCallback(async () => {
     if (!firebaseUser) return;
     setLoadingTemplates(true);
     try {
@@ -107,24 +115,14 @@ export default function AdminAnnouncePage() {
     } finally {
       setLoadingTemplates(false);
     }
-  }
+  }, [firebaseUser]);
 
   useEffect(() => {
     if (firebaseUser && isAdmin) {
       loadChannels();
       loadTemplates();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firebaseUser, isAdmin]);
-
-  // Auto-sélectionne #annonces une fois les channels chargés (si rien d'autre choisi)
-  useEffect(() => {
-    if (channels && !channelId) {
-      const annonces = channels.find(c => /annonce/i.test(c.name));
-      if (annonces) setChannelId(annonces.id);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channels]);
+  }, [firebaseUser, isAdmin, loadChannels, loadTemplates]);
 
   function applyTemplate(tplId: string) {
     setSelectedTemplateId(tplId);

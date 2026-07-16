@@ -118,20 +118,20 @@ export default function AdminExercicesPage() {
     setDetailLoadingId(null);
   }
 
-  async function load() {
-    if (!firebaseUser) return;
-    setLoading(true);
-    try {
-      setData(await api<ExercicesData>('/api/admin/exercices'));
-    } catch (err) {
-      console.error('[Admin/Exercices] load error:', err);
-    }
-    setLoading(false);
-  }
-
+  // Chargement initial. Pas de setLoading(true) ici : `loading` vaut déjà true à
+  // ce stade. Le layout admin ne monte cette page qu'une fois firebaseUser et
+  // isAdmin résolus, et la démonte (donc remet l'état à loading=true/data=null)
+  // dès que l'un des deux change — l'effet ne peut pas rejouer sur un état chargé.
   useEffect(() => {
-    if (firebaseUser && isAdmin) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!firebaseUser || !isAdmin) return;
+    (async () => {
+      try {
+        setData(await api<ExercicesData>('/api/admin/exercices'));
+      } catch (err) {
+        console.error('[Admin/Exercices] load error:', err);
+      }
+      setLoading(false);
+    })();
   }, [firebaseUser, isAdmin]);
 
   if (loading || !data) {

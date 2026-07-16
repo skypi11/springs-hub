@@ -2,7 +2,7 @@
 
 import AdminContentSkeleton from '@/components/admin/AdminContentSkeleton';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
@@ -148,9 +148,12 @@ export default function AdminCalendarPage() {
     setDetailLoadingId(null);
   }
 
-  async function load() {
+  // Fetch pur : ne lève jamais le drapeau `loading` lui-même, pour ne pas faire de
+  // setState synchrone dans l'effet ci-dessous (cascade de rendus). Passer à l'état
+  // chargement appartient à ce qui invalide la donnée : l'état initial au montage,
+  // les changements de filtre, et `reload()` sur le chemin des mutations.
+  const load = useCallback(async () => {
     if (!firebaseUser) return;
-    setLoading(true);
     try {
       const params = new URLSearchParams();
       params.set('when', when);
@@ -163,12 +166,46 @@ export default function AdminCalendarPage() {
       console.error('[Admin/Calendar] load error:', err);
     }
     setLoading(false);
+  }, [firebaseUser, when, typeFilter, statusFilter]);
+
+  // L'IIFE async est nécessaire : l'analyse du compilateur ne modélise pas les
+  // `await`, elle signale tout setState atteignable depuis un appel direct dans un
+  // effet. Ici tous les setState de `load` sont post-await (aucune cascade de
+  // rendus) — ne pas « simplifier » en `void load()`, ça rallume la règle.
+  useEffect(() => {
+    if (!firebaseUser || !isAdmin) return;
+    void (async () => { await load(); })();
+  }, [firebaseUser, isAdmin, load]);
+
+  // Chemin handler : rebasculer au squelette appartient à l'action utilisateur.
+  // La garde `firebaseUser` reproduit celle de `load` AVANT setLoading(true) —
+  // sans elle, un retour anticipé laisserait le squelette bloqué à true.
+  async function reload() {
+    if (!firebaseUser) return;
+    setLoading(true);
+    await load();
   }
 
-  useEffect(() => {
-    if (firebaseUser && isAdmin) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firebaseUser, isAdmin, when, typeFilter, statusFilter]);
+  // Changer un filtre invalide la donnée : on affiche le squelette tout de suite.
+  // Le no-op si la valeur est déjà active est essentiel — sans lui, `loading`
+  // resterait bloqué à true (l'état ne change pas, donc l'effet ne refetch pas).
+  function changeWhen(value: 'upcoming' | 'past' | 'all') {
+    if (value === when) return;
+    setLoading(true);
+    setWhen(value);
+  }
+
+  function changeTypeFilter(value: string) {
+    if (value === typeFilter) return;
+    setLoading(true);
+    setTypeFilter(value);
+  }
+
+  function changeStatusFilter(value: string) {
+    if (value === statusFilter) return;
+    setLoading(true);
+    setStatusFilter(value);
+  }
 
   async function handleStatusAction(eventId: string, action: 'cancel' | 'terminate' | 'reopen', title: string) {
     const LABELS: Record<string, { title: string; message: string; confirmLabel: string; success: string; variant?: 'danger' }> = {
@@ -183,7 +220,7 @@ export default function AdminCalendarPage() {
     try {
       await api('/api/admin/calendar', { method: 'POST', body: { eventId, action } });
       toast.success(conf.success);
-      await load();
+      await reload();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
@@ -220,7 +257,7 @@ export default function AdminCalendarPage() {
       });
       toast.success('Événement modifié');
       setEditEvent(null);
-      await load();
+      await reload();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
@@ -239,7 +276,7 @@ export default function AdminCalendarPage() {
     try {
       await api(`/api/admin/calendar?eventId=${encodeURIComponent(eventId)}`, { method: 'DELETE' });
       toast.success('Événement supprimé');
-      await load();
+      await reload();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
     }
@@ -280,7 +317,7 @@ export default function AdminCalendarPage() {
             { value: 'past',     label: 'Passés' },
             { value: 'all',      label: 'Tous' },
           ] as const).map(f => (
-            <button key={f.value} onClick={() => setWhen(f.value)}
+            <button key={f.value} onClick={() => changeWhen(f.value)}
               className="tag transition-all duration-150"
               style={{
                 background: when === f.value ? 'rgba(255,184,0,0.15)' : 'transparent',
@@ -294,7 +331,7 @@ export default function AdminCalendarPage() {
         </div>
         <div className="divider" style={{ width: '1px', height: '20px' }} />
         <div className="flex gap-1 flex-wrap">
-          <button onClick={() => setTypeFilter('')}
+          <button onClick={() => changeTypeFilter('')}
             className="tag transition-all duration-150"
             style={{
               background: !typeFilter ? 'rgba(255,184,0,0.15)' : 'transparent',
@@ -305,7 +342,7 @@ export default function AdminCalendarPage() {
             Tous types
           </button>
           {Object.entries(TYPE_META).map(([k, meta]) => (
-            <button key={k} onClick={() => setTypeFilter(k)}
+            <button key={k} onClick={() => changeTypeFilter(k)}
               className="tag transition-all duration-150"
               style={{
                 background: typeFilter === k ? `${meta.color}20` : 'transparent',
@@ -325,7 +362,7 @@ export default function AdminCalendarPage() {
             { value: 'completed', label: 'Terminés' },
             { value: 'cancelled', label: 'Annulés' },
           ].map(f => (
-            <button key={f.value} onClick={() => setStatusFilter(f.value)}
+            <button key={f.value} onClick={() => changeStatusFilter(f.value)}
               className="tag transition-all duration-150"
               style={{
                 background: statusFilter === f.value ? 'rgba(255,184,0,0.15)' : 'transparent',

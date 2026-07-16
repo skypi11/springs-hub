@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, useRef, use } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -85,6 +85,13 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const profileUid = profile?.uid ?? '';
   const isOwner = !!firebaseUser?.uid && !!profileUid && firebaseUser.uid === profileUid;
 
+  // Le chargement du profil ne doit se redéclencher QUE sur un changement d'uid
+  // (ou de route), jamais sur une nouvelle identité mémoire de l'objet User du
+  // SDK Firebase (refresh de token, etc.) qui provoquerait un refetch complet.
+  // On lit donc l'objet via une ref au moment du fetch, sans en dépendre.
+  const firebaseUserRef = useRef(firebaseUser);
+  useEffect(() => { firebaseUserRef.current = firebaseUser; }, [firebaseUser]);
+
   useEffect(() => {
     async function load() {
       try {
@@ -98,7 +105,8 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         // empêche l'affichage de la card Valorant + lien tracker.gg pour
         // un user qui a son Riot en "Masqué" (cas légitime de visibilité
         // privée mais qui doit quand même nous afficher nos propres infos).
-        const token = firebaseUser ? await firebaseUser.getIdToken() : null;
+        const fbUser = firebaseUserRef.current;
+        const token = fbUser ? await fbUser.getIdToken() : null;
         const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
         const res = await fetch(`/api/profile?${queryKey}=${encodeURIComponent(id)}`, { headers });
         if (!res.ok) {
@@ -160,7 +168,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
       setLoading(false);
     }
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, firebaseUser?.uid]);
 
   // Canonicalisation URL : si l'URL contient un uid legacy (discord_*) mais que

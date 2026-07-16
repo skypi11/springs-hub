@@ -2,7 +2,7 @@
 
 import AdminContentSkeleton from '@/components/admin/AdminContentSkeleton';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
@@ -67,9 +67,12 @@ export default function AdminTeamsPage() {
   const [editTeam, setEditTeam] = useState<{ id: string; name: string; label: string } | null>(null);
   const [savingTeam, setSavingTeam] = useState(false);
 
-  async function load() {
+  // Fetch pur : ne lève jamais le drapeau `loading` lui-même, pour ne pas faire
+  // de setState synchrone dans l'effet ci-dessous (cascade de rendus). Passer à
+  // l'état chargement appartient à ce qui invalide la donnée : l'état initial au
+  // montage, et les actions utilisateur (changement de filtre, sauvegarde).
+  const fetchTeams = useCallback(async () => {
     if (!firebaseUser) return;
-    setLoading(true);
     try {
       const params = new URLSearchParams();
       if (gameFilter) params.set('game', gameFilter);
@@ -82,12 +85,31 @@ export default function AdminTeamsPage() {
       console.error('[Admin/Teams] load error:', err);
     }
     setLoading(false);
+  }, [firebaseUser, gameFilter, statusFilter]);
+
+  // L'IIFE async est nécessaire : l'analyse du compilateur ne modélise pas les
+  // `await`, elle signale tout setState atteignable depuis un appel direct dans
+  // un effet. Ici tous les setState de fetchTeams sont post-await (aucune cascade
+  // de rendus) — ne pas « simplifier » en `void fetchTeams()`, ça rallume la règle.
+  useEffect(() => {
+    if (!firebaseUser || !isAdmin) return;
+    void (async () => { await fetchTeams(); })();
+  }, [firebaseUser, isAdmin, fetchTeams]);
+
+  // Changer de filtre invalide la donnée : on affiche le squelette tout de suite.
+  // Le no-op si la valeur est déjà active est essentiel — sans lui, `loading`
+  // resterait bloqué à true (l'état ne change pas, donc l'effet ne refetch pas).
+  function changeStatusFilter(value: string) {
+    if (value === statusFilter) return;
+    setLoading(true);
+    setStatusFilter(value);
   }
 
-  useEffect(() => {
-    if (firebaseUser && isAdmin) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firebaseUser, isAdmin, gameFilter, statusFilter]);
+  function changeGameFilter(value: string) {
+    if (value === gameFilter) return;
+    setLoading(true);
+    setGameFilter(value);
+  }
 
   async function handleTeamEditSave() {
     if (!editTeam) return;
@@ -101,7 +123,8 @@ export default function AdminTeamsPage() {
         method: 'POST',
         body: { teamId: editTeam.id, action: 'edit', name: editTeam.name, label: editTeam.label },
       });
-      await load();
+      setLoading(true);
+      await fetchTeams();
       setEditTeam(null);
       toast.success('Équipe modifiée');
     } catch (err) {
@@ -204,7 +227,7 @@ export default function AdminTeamsPage() {
             { value: 'archived', label: 'Archivées' },
             { value: '', label: 'Toutes' },
           ].map(f => (
-            <button key={f.value} onClick={() => setStatusFilter(f.value)}
+            <button key={f.value} onClick={() => changeStatusFilter(f.value)}
               className="tag transition-all duration-150"
               style={{
                 background: statusFilter === f.value ? 'rgba(255,184,0,0.15)' : 'transparent',
@@ -226,7 +249,7 @@ export default function AdminTeamsPage() {
           ].map(f => {
             const active = gameFilter === f.value;
             return (
-              <button key={f.value} onClick={() => setGameFilter(f.value)}
+              <button key={f.value} onClick={() => changeGameFilter(f.value)}
                 className="tag transition-all duration-150"
                 style={{
                   background: active ? `rgba(${f.colorRgb}, 0.15)` : 'transparent',

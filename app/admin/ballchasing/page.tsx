@@ -2,6 +2,7 @@
 
 import AdminContentSkeleton from '@/components/admin/AdminContentSkeleton';
 import { useState, useEffect } from 'react';
+import type { User } from 'firebase/auth';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
 import { getStructureHref } from '@/lib/structure-slug';
@@ -42,27 +43,29 @@ function formatNextReset(weekStartIso: string): string {
 
 export default function AdminBallchasingPage() {
   const { firebaseUser, isAdmin } = useAuth();
-  const [data, setData] = useState<Data | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  async function load() {
-    if (!firebaseUser) return;
-    setLoading(true);
-    try {
-      setData(await api<Data>('/api/admin/ballchasing'));
-    } catch (err) {
-      console.error('[Admin/Ballchasing] load error:', err);
-    }
-    setLoading(false);
-  }
+  // On retient POUR QUI les données ont été chargées : si l'identité change
+  // (déconnexion puis reconnexion), elles redeviennent obsolètes et le squelette
+  // réapparaît tout seul, sans repasser par un setState synchrone dans l'effet.
+  const [loaded, setLoaded] = useState<{ owner: User; data: Data } | null>(null);
 
   useEffect(() => {
-    if (firebaseUser && isAdmin) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!firebaseUser || !isAdmin) return;
+    const owner = firebaseUser;
+    let cancelled = false;
+    (async () => {
+      try {
+        const fresh = await api<Data>('/api/admin/ballchasing');
+        if (!cancelled) setLoaded({ owner, data: fresh });
+      } catch (err) {
+        console.error('[Admin/Ballchasing] load error:', err);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [firebaseUser, isAdmin]);
 
   if (!firebaseUser || !isAdmin) return null;
-  if (loading || !data) return <AdminContentSkeleton />;
+  const data = loaded && loaded.owner === firebaseUser ? loaded.data : null;
+  if (!data) return <AdminContentSkeleton />;
 
   const globalBarColor = data.global.pct >= 100 ? '#ef4444' : data.global.pct > 75 ? 'var(--s-gold)' : 'var(--s-green)';
   const resetLabel = formatNextReset(data.weekStartIso);

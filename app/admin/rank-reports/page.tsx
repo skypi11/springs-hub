@@ -2,7 +2,7 @@
 
 import AdminContentSkeleton from '@/components/admin/AdminContentSkeleton';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
@@ -65,7 +65,10 @@ export default function AdminRankReportsPage() {
   const [actingId, setActingId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'pending' | 'all'>('pending');
 
-  async function load() {
+  // useCallback : l'identité de `load` ne change QUE si `firebaseUser` change,
+  // ce qui permet de la déclarer honnêtement dans les deps de l'effet ci-dessous
+  // sans modifier la cadence de déclenchement (cf. commentaire de l'effet).
+  const load = useCallback(async () => {
     if (!firebaseUser) return;
     setLoading(true);
     try {
@@ -75,12 +78,14 @@ export default function AdminRankReportsPage() {
       console.error('[admin/rank-reports] load', err);
     }
     setLoading(false);
-  }
+  }, [firebaseUser]);
 
+  // `load` est une fonction de `firebaseUser` : l'effet se redéclenche donc
+  // exactement quand `firebaseUser` ou `isAdmin` change — cadence identique à
+  // l'ancienne version qui omettait `load` des deps.
   useEffect(() => {
     if (firebaseUser && isAdmin) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firebaseUser, isAdmin]);
+  }, [firebaseUser, isAdmin, load]);
 
   async function resolve(id: string, resolution: 'resolved' | 'dismissed') {
     setActingId(id);
