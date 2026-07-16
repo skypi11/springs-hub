@@ -6,7 +6,7 @@
 // le dirigeant voit AVANT de soumettre ce que les admins verront à la
 // validation. Rien n'est refusé automatiquement sauf le registre des bans.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
@@ -81,9 +81,15 @@ export default function InscriptionPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState<string[] | null>(null); // flags renvoyés
 
+  // `router` ne sert qu'à la redirection au moment du chargement : le lire via une
+  // ref garde le chargement unique post-auth (une identité de router neuve ne doit
+  // pas refetch le contexte et réinitialiser les choix du wizard en cours).
+  const routerRef = useRef(router);
+  useEffect(() => { routerRef.current = router; }, [router]);
+
   useEffect(() => {
     if (authLoading) return;
-    if (!firebaseUser) { router.replace(`/competitions/${params.id}`); return; }
+    if (!firebaseUser) { routerRef.current.replace(`/competitions/${params.id}`); return; }
     let cancelled = false;
     api<WizardContext>(`/api/competitions/${params.id}/register`)
       .then(res => {
@@ -101,7 +107,6 @@ export default function InscriptionPage() {
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- chargement unique post-auth
   }, [authLoading, firebaseUser, params.id]);
 
   const structure = ctx?.structures.find(s => s.id === structureId) ?? null;
@@ -227,9 +232,12 @@ export default function InscriptionPage() {
       setSubmitted(res.flags ?? []);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Erreur réseau.');
-    } finally {
-      setSubmitting(false);
     }
+    // Équivalent d'un `finally` : le try ne sort jamais par return/throw (le catch
+    // avale tout sans relancer), donc on retombe toujours ici. Le `finally` est le
+    // seul motif de bailout du React Compiler sur ce composant — sans lui, toutes
+    // les règles react-hooks s'éteignaient en silence sur tout le fichier.
+    setSubmitting(false);
   }
 
   // ── Rendus d'état ──────────────────────────────────────────────────────────

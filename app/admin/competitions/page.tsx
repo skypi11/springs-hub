@@ -6,7 +6,7 @@
 
 import AdminContentSkeleton from '@/components/admin/AdminContentSkeleton';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
@@ -55,6 +55,13 @@ export default function AdminCompetitionsPage() {
   const toast = useToast();
   const confirm = useConfirm();
 
+  // La valeur du contexte Toast est recréée à chaque render du provider (donc
+  // à chaque toast affiché). On la lit via une ref pour que `load` ne dépende
+  // que de firebaseUser/isAdmin : si `toast` était une dep, un toast d'erreur
+  // recréerait `load`, relancerait l'effet de chargement, et bouclerait.
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; }, [toast]);
+
   const [circuits, setCircuits] = useState<AdminCircuit[]>([]);
   const [competitions, setCompetitions] = useState<AdminCompetition[]>([]);
   const [compAdmins, setCompAdmins] = useState<CompetitionAdminEntry[]>([]);
@@ -67,7 +74,7 @@ export default function AdminCompetitionsPage() {
   const [allUsers, setAllUsers] = useState<Array<{ uid: string; displayName: string; discordUsername: string; isAdmin: boolean }> | null>(null);
   const [addingUid, setAddingUid] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!firebaseUser) return;
     setLoading(true);
     try {
@@ -85,15 +92,14 @@ export default function AdminCompetitionsPage() {
       setCompAdmins(adminsData.admins ?? []);
     } catch (err) {
       console.error('[admin/competitions] load', err);
-      toast.error(err instanceof ApiError ? err.message : 'Erreur de chargement.');
+      toastRef.current.error(err instanceof ApiError ? err.message : 'Erreur de chargement.');
     }
     setLoading(false);
-  }
+  }, [firebaseUser, isAdmin]);
 
   useEffect(() => {
     if (firebaseUser && (isAdmin || isCompetitionAdmin)) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firebaseUser, isAdmin, isCompetitionAdmin]);
+  }, [firebaseUser, isAdmin, isCompetitionAdmin, load]);
 
   const circuitNames = useMemo(() => {
     const map: Record<string, string> = {};

@@ -5,7 +5,7 @@
 // admins de compétition. Un ban/exclusion actif = refus auto à l'inscription ;
 // un warn est informatif (notif + DM). Révocation horodatée, jamais de delete.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
@@ -56,6 +56,13 @@ export default function SanctionsPanel() {
   const toast = useToast();
   const confirm = useConfirm();
 
+  // `useToast` renvoie une identité neuve à chaque rendu du provider (donc à
+  // chaque toast affiché n'importe où dans l'app). La lire par ref garde `load`
+  // stable : sans ça, l'effet de montage rechargerait tout le registre à chaque
+  // toast. Jamais lue pendant le rendu — uniquement dans `load`.
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; }, [toast]);
+
   const [sanctions, setSanctions] = useState<SanctionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -74,12 +81,15 @@ export default function SanctionsPanel() {
       const d = await api<{ sanctions: SanctionRow[] }>('/api/admin/competition-sanctions');
       setSanctions(d.sanctions ?? []);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Erreur de chargement.');
+      toastRef.current.error(err instanceof ApiError ? err.message : 'Erreur de chargement.');
     }
     setLoading(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useEffect(() => { load(); }, [load]);
+  // IIFE : un effet ne peut pas être `async`. Appelée telle quelle, `load` est
+  // opaque pour le compilateur, qui suppose alors un setState synchrone en effet
+  // (ils sont tous derrière l'`await`). Le timing est identique : `load()` part
+  // au même instant, la promesse est ignorée comme avant.
+  useEffect(() => { (async () => { await load(); })(); }, [load]);
 
   const activeCount = useMemo(() => sanctions.filter(s => s.active).length, [sanctions]);
 
@@ -116,7 +126,11 @@ export default function SanctionsPanel() {
       await load();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Erreur réseau.');
-    } finally { setSaving(false); }
+    }
+    // Hors du `try` plutôt qu'en `finally` : le catch ne relance jamais, donc ce
+    // point est atteint sur les deux chemins. Un `finally` fait silencieusement
+    // sortir TOUT le composant du React Compiler (construction non supportée).
+    setSaving(false);
   }
 
   async function revoke(s: SanctionRow) {

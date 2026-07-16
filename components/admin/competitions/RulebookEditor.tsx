@@ -33,6 +33,12 @@ export default function RulebookEditor({
     ? `circuitId=${encodeURIComponent(scope.circuitId)}`
     : `competitionId=${encodeURIComponent(scope.competitionId)}`;
 
+  // `useToast()` renvoie un objet recréé à chaque render du provider (donc à
+  // chaque toast affiché n'importe où). Le lire via une ref garde le chargement
+  // déclenché par le seul scope, sans mentir sur les deps de l'effet.
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; }, [toast]);
+
   useEffect(() => {
     let cancelled = false;
     api<{ rulebook: { markdown: string; version: number } | null }>(`/api/admin/rulebooks?${scopeQuery}`)
@@ -43,10 +49,9 @@ export default function RulebookEditor({
           setVersion(res.rulebook.version);
         }
       })
-      .catch(err => toast.error(err instanceof ApiError ? err.message : 'Erreur de chargement.'))
+      .catch(err => toastRef.current.error(err instanceof ApiError ? err.message : 'Erreur de chargement.'))
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- chargement unique par scope
   }, [scopeQuery]);
 
   async function publish() {
@@ -55,6 +60,10 @@ export default function RulebookEditor({
       return;
     }
     setSaving(true);
+    // Pas de `finally` ici : un bloc `finally` fait silencieusement sortir tout
+    // le composant du React Compiler (aucun diagnostic émis). Le `catch` ne
+    // relance rien et ne sort pas de la fonction, donc les deux chemins tombent
+    // sur le `setSaving(false)` ci-dessous — comportement identique.
     try {
       const res = await api<{ version: number }>('/api/admin/rulebooks', {
         method: 'POST',
@@ -64,9 +73,8 @@ export default function RulebookEditor({
       toast.success(`Règlement publié (version ${res.version}).`);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Erreur réseau.');
-    } finally {
-      setSaving(false);
     }
+    setSaving(false);
   }
 
   return (

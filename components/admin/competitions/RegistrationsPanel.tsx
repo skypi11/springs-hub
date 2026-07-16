@@ -15,7 +15,7 @@
 // Formulaires INLINE dans la rangée dépliée — pas de dropdown/modal absolu
 // dans un panel .bevel (le clip-path clippe, piège documenté).
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
@@ -189,6 +189,16 @@ export default function RegistrationsPanel({
   const toast = useToast();
   const confirm = useConfirm();
 
+  // `useToast()` renvoie un objet recréé à CHAQUE render du ToastProvider (il
+  // n'est pas mémoïsé), donc à chaque toast affiché ou expiré. Le mettre en
+  // dépendance de `load` rechargerait la file à chaque toast — et bouclerait
+  // si le chargement échoue (erreur → toast → nouvelle identité → recharge →
+  // erreur…). La ref laisse lire le toast courant sans en dépendre : les
+  // méthodes déléguent toutes au `show` stable du provider, donc appeler la
+  // dernière identité connue est strictement équivalent.
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; }, [toast]);
+
   const [data, setData] = useState<RegistrationsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -209,10 +219,9 @@ export default function RegistrationsPanel({
       const d = await api<RegistrationsResponse>(`/api/admin/competitions/${competition.id}/registrations`);
       setData(d);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Erreur de chargement.');
+      toastRef.current.error(err instanceof ApiError ? err.message : 'Erreur de chargement.');
     }
     setLoading(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [competition.id]);
 
   useEffect(() => { load(); }, [load]);
