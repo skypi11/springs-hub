@@ -60,20 +60,17 @@ export default function AdminUploadsPage() {
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'total' | 'docs' | 'replays' | 'quota'>('total');
 
-  async function load() {
-    if (!firebaseUser) return;
-    setLoading(true);
-    try {
-      setData(await api<UploadsData>('/api/admin/uploads'));
-    } catch (err) {
-      console.error('[Admin/Uploads] load error:', err);
-    }
-    setLoading(false);
-  }
-
   useEffect(() => {
-    if (firebaseUser && isAdmin) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!firebaseUser || !isAdmin) return;
+    void (async () => {
+      setLoading(true);
+      try {
+        setData(await api<UploadsData>('/api/admin/uploads'));
+      } catch (err) {
+        console.error('[Admin/Uploads] load error:', err);
+      }
+      setLoading(false);
+    })();
   }, [firebaseUser, isAdmin]);
 
   if (loading || !data) {

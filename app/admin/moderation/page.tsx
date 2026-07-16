@@ -90,6 +90,8 @@ const ACTION_LABELS: Record<string, string> = {
   structure_orphaned: 'Structure orpheline',
 };
 
+const MODERATION_ENDPOINT = '/api/admin/moderation';
+
 function formatDate(iso: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -106,20 +108,33 @@ export default function AdminModerationPage() {
   const [tab, setTab] = useState<'banned' | 'structures' | 'logs'>('banned');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // Rechargement déclenché par une action admin : on réaffiche le skeleton le
+  // temps du refetch. Appelée depuis un handler, donc le setState y est légal.
   async function load() {
     if (!firebaseUser) return;
     setLoading(true);
     try {
-      setData(await api<ModerationData>('/api/admin/moderation'));
+      setData(await api<ModerationData>(MODERATION_ENDPOINT));
     } catch (err) {
       console.error('[Admin/Moderation] load error:', err);
     }
     setLoading(false);
   }
 
+  // Chargement initial. Le fetch est inline (et non extrait dans une fonction
+  // appelée ici) car un effet ne doit pas déclencher de setState synchrone :
+  // ici tous les setState suivent un await. Pas de setLoading(true) non plus,
+  // `loading` vaut déjà true tant qu'aucun chargement n'est allé au bout.
   useEffect(() => {
-    if (firebaseUser && isAdmin) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!firebaseUser || !isAdmin) return;
+    (async () => {
+      try {
+        setData(await api<ModerationData>(MODERATION_ENDPOINT));
+      } catch (err) {
+        console.error('[Admin/Moderation] load error:', err);
+      }
+      setLoading(false);
+    })();
   }, [firebaseUser, isAdmin]);
 
   async function handleUnban(uid: string, name: string) {

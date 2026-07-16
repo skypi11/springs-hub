@@ -2,7 +2,7 @@
 
 import AdminContentSkeleton from '@/components/admin/AdminContentSkeleton';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
@@ -117,9 +117,8 @@ export default function AdminUsersPage() {
       toast.success(data.message ?? 'Sessions révoquées.');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Erreur serveur.');
-    } finally {
-      setMassLoading(null);
     }
+    setMassLoading(null);
   }
 
   async function handleMassSyncDiscord() {
@@ -139,27 +138,42 @@ export default function AdminUsersPage() {
       if (data.partial) toast.info(msg); else toast.success(msg);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Erreur serveur.');
-    } finally {
-      setMassLoading(null);
     }
+    setMassLoading(null);
   }
 
-  async function loadUsers() {
-    if (!firebaseUser) return;
-    setUsersLoading(true);
+  // Appel réseau pur : n'écrit AUCUN state, pour que l'effet de montage et les
+  // handlers partagent la même logique sans setState synchrone dans l'effet.
+  // Renvoie null si la requête a échoué (la liste courante est alors conservée).
+  const fetchUsersData = useCallback(async (): Promise<UserEntry[] | null> => {
     try {
       const data = await api<{ users?: UserEntry[] }>('/api/admin/users');
-      setUsers(data.users ?? []);
+      return data.users ?? [];
     } catch (err) {
       console.error('[Admin/Users] load error:', err);
+      return null;
     }
-    setUsersLoading(false);
-  }
+  }, []);
 
+  // Rechargement après une action admin : repasse explicitement par le skeleton.
+  const loadUsers = useCallback(async () => {
+    if (!firebaseUser) return;
+    setUsersLoading(true);
+    const next = await fetchUsersData();
+    if (next) setUsers(next);
+    setUsersLoading(false);
+  }, [firebaseUser, fetchUsersData]);
+
+  // Chargement initial. Le drapeau de chargement vaut déjà true au montage, on
+  // ne le relève donc pas ici (ce serait un setState synchrone dans l'effet).
   useEffect(() => {
-    if (firebaseUser && isAdmin) loadUsers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firebaseUser, isAdmin]);
+    if (!firebaseUser || !isAdmin) return;
+    (async () => {
+      const next = await fetchUsersData();
+      if (next) setUsers(next);
+      setUsersLoading(false);
+    })();
+  }, [firebaseUser, isAdmin, fetchUsersData]);
 
   async function handleUserAction(userId: string, action: string, extra?: Record<string, unknown>) {
     setUserActionLoading(`${userId}_${action}`);

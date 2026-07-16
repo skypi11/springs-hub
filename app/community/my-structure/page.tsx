@@ -46,6 +46,22 @@ import { PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 
 
+// Groupes d'équipes repliés, persistés par structure (clé scopée par structureId
+// pour que deux structures gardent des préférences indépendantes). La préférence
+// est réécrite en localStorage à chaque toggle par TeamsTab : la relire au moment
+// où l'on sélectionne une structure suffit, pas besoin d'un effet de sync.
+function readCollapsedTeamGroups(structureId: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(`my-structure:teamGroupsCollapsed:${structureId}`);
+    if (!raw) return new Set();
+    const arr: unknown = JSON.parse(raw);
+    if (!Array.isArray(arr)) return new Set();
+    return new Set(arr.filter((x): x is string => typeof x === 'string'));
+  } catch {
+    return new Set();
+  }
+}
+
 export default function MyStructurePage() {
   const { firebaseUser, loading: authLoading } = useAuth();
   const toast = useToast();
@@ -155,54 +171,10 @@ export default function MyStructurePage() {
     return () => clearInterval(t);
   }, []);
 
-  // Si le tab actif n'est pas visible pour le rôle de l'user sur la structure active,
-  // on rabat sur le premier tab visible. Calculé ici pour rester au niveau hooks top-level.
-  useEffect(() => {
-    if (!activeStructure || !firebaseUser) return;
-    const isFounder = activeStructure.founderId === firebaseUser.uid;
-    const isCoFounder = (activeStructure.coFounderIds ?? []).includes(firebaseUser.uid);
-    const isDirigeant = isFounder || isCoFounder;
-    const isManager = !isDirigeant && (activeStructure.managerIds ?? []).includes(firebaseUser.uid);
-    const isCoach = !isDirigeant && !isManager && (activeStructure.coachIds ?? []).includes(firebaseUser.uid);
-    // Staff d'équipe (coach/manager assigné via sub_teams.staffIds) sans rôle
-    // structure-wide : voit les mêmes onglets qu'un coach structure mais scopé
-    // à ses équipes (via teamScopeActive). Sans ça, ces coachs tombaient sur
-    // ['calendar'] et perdaient l'accès à membres/todos/replays.
-    const isTeamStaff = !isDirigeant && !isManager && !isCoach
-      && teams.some(t => t.staff.some(st => st.uid === firebaseUser.uid));
-    // Replays masqués si aucun jeu de la structure ne supporte le parsing
-    // (typiquement structure 100% Valorant/TM, sans RL).
-    const hasReplaySupport = (activeStructure.games ?? []).some(g => gameHasFeature(g, 'replayParsing'));
-    const base: DashboardTab[] = isDirigeant
-      ? ['general', 'teams', 'recruitment', 'members', 'calendar', 'todos', 'replays', 'documents']
-      : isManager
-      ? ['teams', 'members', 'calendar', 'todos', 'replays']
-      : isCoach || isTeamStaff
-      ? ['members', 'calendar', 'todos', 'replays']
-      : ['calendar'];
-    const visible = hasReplaySupport ? base : base.filter(t => t !== 'replays');
-    if (!visible.includes(tab)) setTab(visible[0]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStructure?.id, firebaseUser?.uid, teams.length]);
-
-  // Hydrate la liste des groupes repliés depuis localStorage à chaque changement
-  // de structure active. Clé scopée par structureId pour que deux structures
-  // gardent des préférences indépendantes.
-  useEffect(() => {
-    if (!activeStructure?.id) { setCollapsedTeamGroups(new Set()); return; }
-    try {
-      const raw = localStorage.getItem(`my-structure:teamGroupsCollapsed:${activeStructure.id}`);
-      if (raw) {
-        const arr = JSON.parse(raw);
-        if (Array.isArray(arr)) setCollapsedTeamGroups(new Set(arr.filter(x => typeof x === 'string')));
-        else setCollapsedTeamGroups(new Set());
-      } else {
-        setCollapsedTeamGroups(new Set());
-      }
-    } catch {
-      setCollapsedTeamGroups(new Set());
-    }
-  }, [activeStructure?.id]);
+  // NB : le rabat de l'onglet actif sur le premier onglet visible n'est PAS un
+  // effet — il est dérivé au rendu (`effectiveTab`, plus bas, à côté de
+  // `visibleTabs`). Les deux se calculent à partir des mêmes données, un effet
+  // n'apporterait qu'un rendu intermédiaire sur le mauvais onglet.
 
   // Consommation du deep-link : applique tab / team / todo une fois les données prêtes,
   // puis nettoie l'URL pour éviter de réouvrir au prochain changement de state.
@@ -247,8 +219,23 @@ export default function MyStructurePage() {
       url.searchParams.delete('todo');
       window.history.replaceState({}, '', url.toString());
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStructure?.id, firebaseUser?.uid, teams.length]);
+    // Effet one-shot : `deepLinkRef.current.consumed` garde le corps, les
+    // rendus supplémentaires induits par ces deps ne font que ressortir.
+  }, [activeStructure, firebaseUser, teams]);
+
+  // Invalide le cache des salons/rôles Discord, évite d'afficher ceux d'un autre
+  // serveur. Appelé aux deux seuls endroits où la cible change en cours de session :
+  // `selectStructure` (changement de structure) et `handleDisconnectDiscord`
+  // (le bot quitte le serveur). La connexion du bot, elle, passe par une
+  // redirection complète vers Discord : la page remonte avec un cache déjà vide.
+  function resetDiscordConfigCache() {
+    setDiscordChannels(null);
+    setDiscordChannelsError(null);
+    setDiscordRoles(null);
+    setDiscordRolesError(null);
+    setTeamDiscordEdit(null);
+    setDiscordConfigExpanded({});
+  }
 
   async function loadStructures() {
     if (!firebaseUser) return;
@@ -267,9 +254,20 @@ export default function MyStructurePage() {
         // refresh complet. On met à jour l'objet sans toucher aux champs
         // d'édition en cours (donc setActiveStructure, pas selectStructure).
         const updated = fresh.find(x => x.id === activeStructure.id);
-        if (updated) setActiveStructure(updated);
+        if (updated) {
+          // Le bot a changé de serveur depuis une autre session : le cache des
+          // salons/rôles pointe encore sur l'ancienne guilde, on le jette.
+          if (updated.discordIntegration?.guildId !== activeStructure.discordIntegration?.guildId) {
+            resetDiscordConfigCache();
+          }
+          setActiveStructure(updated);
+        }
         else if (fresh.length > 0) selectStructure(fresh[0]);
-        else setActiveStructure(null);
+        else {
+          setActiveStructure(null);
+          setCollapsedTeamGroups(new Set());
+          resetDiscordConfigCache();
+        }
       }
       setPlayerStructures(playerData.structures ?? []);
     } catch (err) {
@@ -461,6 +459,10 @@ export default function MyStructurePage() {
 
   function selectStructure(s: MyStructure) {
     setActiveStructure(s);
+    // Préférences et caches scopés à la structure : semés ici (au changement de
+    // structure) plutôt que resynchronisés depuis un effet sur `activeStructure.id`.
+    setCollapsedTeamGroups(readCollapsedTeamGroups(s.id));
+    resetDiscordConfigCache();
     setEditDesc(s.description || '');
     setEditLogoUrl(s.logoUrl || '');
     setEditCoverFocus(s.coverFocus ?? null);
@@ -683,14 +685,20 @@ export default function MyStructurePage() {
     setTeamActionLoading(null);
   }
 
+  // `loadStructures` est recréée à chaque rendu (elle lit firebaseUser et
+  // activeStructure) : la mettre en dépendance relancerait le chargement à chaque
+  // rendu. On la lit via une ref pour que la garde ne dépende QUE de l'état d'auth,
+  // tout en appelant toujours la version du rendu courant (cf. ModalBackdrop).
+  const loadStructuresRef = useRef(loadStructures);
+  useEffect(() => { loadStructuresRef.current = loadStructures; });
+
   useEffect(() => {
     if (!authLoading && !firebaseUser) {
       router.push('/');
       return;
     }
-    if (firebaseUser) loadStructures();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- garde d'auth : ne (re)charger qu'au changement d'état d'auth ; loadStructures/router stables et volontairement omis
-  }, [authLoading, firebaseUser]);
+    if (firebaseUser) void loadStructuresRef.current();
+  }, [authLoading, firebaseUser, router]);
 
   // Retour du flow Discord install : on lit ?discord=... dans l'URL, on affiche
   // un toast, puis on nettoie la query string pour ne pas re-déclencher au refresh.
@@ -751,17 +759,6 @@ export default function MyStructurePage() {
       window.removeEventListener('resize', close);
     };
   }, [teamMenuOpen]);
-
-  // Invalide le cache des salons quand la structure active change ou que le bot
-  // est (dé)connecté, évite d'afficher les salons d'un autre serveur.
-  useEffect(() => {
-    setDiscordChannels(null);
-    setDiscordChannelsError(null);
-    setDiscordRoles(null);
-    setDiscordRolesError(null);
-    setTeamDiscordEdit(null);
-    setDiscordConfigExpanded({});
-  }, [activeStructure?.id, activeStructure?.discordIntegration?.guildId]);
 
   async function loadDiscordChannels(force = false) {
     if (!activeStructure || !firebaseUser) return;
@@ -948,6 +945,7 @@ export default function MyStructurePage() {
         method: 'DELETE',
       });
       setActiveStructure({ ...activeStructure, discordIntegration: null });
+      resetDiscordConfigCache();
       await loadStructures();
       toast.success('Discord déconnecté.');
     } catch (err) {
@@ -1121,6 +1119,14 @@ export default function MyStructurePage() {
     ? ['teams', 'calendar']
     : ['calendar'];
   const visibleTabs: DashboardTab[] = hasReplaySupportActive ? baseTabs : baseTabs.filter(t => t !== 'replays');
+  // Onglet réellement affiché : si `tab` n'est pas ouvert au rôle courant (rôle
+  // révoqué, deep-link vers un onglet interdit…), on rabat sur le premier onglet
+  // visible. Dérivé du même `visibleTabs` que la TabBar, donc jamais désynchronisé.
+  // Sans utilisateur on garde `tab` tel quel : les rôles ne sont pas connus, tout
+  // est faux, et la page part de toute façon en redirection vers l'accueil.
+  const effectiveTab: DashboardTab = !firebaseUser || visibleTabs.includes(tab)
+    ? tab
+    : visibleTabs[0];
   const myDepartureIso = firebaseUser ? s.coFounderDepartures?.[firebaseUser.uid] : null;
   const myDepartureRemainingMs = myDepartureIso ? Math.max(0, new Date(myDepartureIso).getTime() + DEPARTURE_NOTICE_MS - now) : null;
 
@@ -1732,12 +1738,12 @@ export default function MyStructurePage() {
         {/* L'aperçu public (carte annuaire) vit désormais DANS l'onglet Général
             (colonne droite, general-tab.tsx) : affiché ici au-dessus de la TabBar,
             il faisait sauter la nav à chaque changement d'onglet. */}
-        <TabBar active={tab} onChange={setTab} visible={visibleTabs} />
+        <TabBar active={effectiveTab} onChange={setTab} visible={visibleTabs} />
 
         {/* ═══ Dashboard, layout dynamique par onglet ═══ */}
 
         {/* ═══ GÉNÉRAL ═══ */}
-        {tab === 'general' && (
+        {effectiveTab === 'general' && (
           <GeneralTab
             s={s}
             activeStructure={activeStructure}
@@ -1772,7 +1778,7 @@ export default function MyStructurePage() {
         )}
 
         {/* ═══ RECRUTEMENT ═══ */}
-        {tab === 'recruitment' && (
+        {effectiveTab === 'recruitment' && (
           <div className="animate-fade-in space-y-6">
             <RecruitmentTab
               s={s}
@@ -1811,7 +1817,7 @@ export default function MyStructurePage() {
         )}
 
         {/* ═══ ÉQUIPES ═══ */}
-        {tab === 'teams' && (
+        {effectiveTab === 'teams' && (
           <div className="animate-fade-in space-y-6">
             <TeamsTab
               s={s}
@@ -1882,7 +1888,7 @@ export default function MyStructurePage() {
         )}
 
         {/* ═══ MEMBRES ═══ */}
-        {tab === 'members' && (
+        {effectiveTab === 'members' && (
           <div className="animate-fade-in space-y-6">
             <MembersTab
               s={s}
@@ -1907,7 +1913,7 @@ export default function MyStructurePage() {
 
 
         {/* ═══ CALENDRIER ═══ */}
-        {tab === 'calendar' && (
+        {effectiveTab === 'calendar' && (
         <div className="animate-fade-in-d3 space-y-6">
           {/* Note (2026-05-26) : l'ancien panneau "Dispos/Exercices/Replays par équipe"
               a été retiré, doublon avec l'onglet Calendrier (heatmap dispos),
@@ -1925,7 +1931,7 @@ export default function MyStructurePage() {
         )}
 
         {/* ═══ EXERCICES (cross-teams) ═══ */}
-        {tab === 'todos' && (
+        {effectiveTab === 'todos' && (
           <div className="animate-fade-in-d3">
             <CrossTeamTodosPanel
               structureId={s.id}
@@ -1948,7 +1954,7 @@ export default function MyStructurePage() {
         )}
 
         {/* ═══ REPLAYS (cross-équipes) ═══ */}
-        {tab === 'replays' && firebaseUser && (
+        {effectiveTab === 'replays' && firebaseUser && (
           <div className="animate-fade-in-d3">
             <ReplaysTab
               structureId={s.id}
@@ -1960,7 +1966,7 @@ export default function MyStructurePage() {
         )}
 
         {/* ═══ DOCUMENTS ═══ */}
-        {tab === 'documents' && isDirigeantOfActive && (
+        {effectiveTab === 'documents' && isDirigeantOfActive && (
           <div className="animate-fade-in-d3">
             <DocumentsExplorer structureId={s.id} />
           </div>

@@ -2,7 +2,7 @@
 
 import AdminContentSkeleton from '@/components/admin/AdminContentSkeleton';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
@@ -56,21 +56,27 @@ export default function AdminNotificationsPage() {
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
 
-  async function load() {
+  // Le drapeau `loading` est posé par l'APPELANT, pas ici : au montage il vaut
+  // déjà true (état initial), et après un envoi c'est handleSend qui le
+  // repositionne. Garder le setLoading(true) ici en ferait un setState
+  // synchrone dans l'effet ci-dessous (cascade de rendus).
+  const refresh = useCallback(async () => {
     if (!firebaseUser) return;
-    setLoading(true);
     try {
       setData(await api<NotifData>('/api/admin/notifications'));
     } catch (err) {
       console.error('[Admin/Notifications] load error:', err);
     }
     setLoading(false);
-  }
+  }, [firebaseUser]);
 
+  // refresh() ne pose aucun setState avant son premier await, donc aucune
+  // cascade de rendus — mais l'analyse du compilateur ne suit pas la frontière
+  // du await à travers un appel nommé. L'IIFE la lui rend visible. Le fetch
+  // démarre toujours de façon synchrone : le timing est inchangé.
   useEffect(() => {
-    if (firebaseUser && isAdmin) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firebaseUser, isAdmin]);
+    if (firebaseUser && isAdmin) void (async () => { await refresh(); })();
+  }, [firebaseUser, isAdmin, refresh]);
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
@@ -88,7 +94,8 @@ export default function AdminNotificationsPage() {
       });
       setResult({ ok: true, text: `${json.sent} notif(s) envoyée(s)` });
       setTitle(''); setMessage(''); setLink('');
-      load();
+      setLoading(true);
+      refresh();
     } catch (err) {
       setResult({ ok: false, text: err instanceof ApiError ? err.message : 'Erreur réseau' });
     }

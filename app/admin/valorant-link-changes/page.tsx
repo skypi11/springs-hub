@@ -2,7 +2,7 @@
 
 import AdminContentSkeleton from '@/components/admin/AdminContentSkeleton';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
@@ -46,22 +46,28 @@ export default function AdminValorantLinkChangesPage() {
   const [actingId, setActingId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'pending' | 'all'>('pending');
 
-  async function load() {
-    if (!firebaseUser) return;
-    setLoading(true);
+  /** IO pur : renvoie les demandes, ou null si la requête a échoué. */
+  const fetchRequests = useCallback(async (): Promise<ChangeRequest[] | null> => {
+    if (!firebaseUser) return null;
     try {
       const data = await api<{ requests?: ChangeRequest[] }>('/api/admin/valorant-link-changes');
-      setRequests(data.requests ?? []);
+      return data.requests ?? [];
     } catch (err) {
       console.error('[admin/valorant-link-changes] load', err);
+      return null;
     }
+  }, [firebaseUser]);
+
+  /** Applique le résultat d'un fetch : sur échec, on garde la liste précédente. */
+  const applyRows = useCallback((rows: ChangeRequest[] | null) => {
+    if (rows !== null) setRequests(rows);
     setLoading(false);
-  }
+  }, []);
 
   useEffect(() => {
-    if (firebaseUser && isAdmin) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firebaseUser, isAdmin]);
+    if (!firebaseUser || !isAdmin) return;
+    fetchRequests().then(applyRows);
+  }, [firebaseUser, isAdmin, fetchRequests, applyRows]);
 
   async function decide(r: ChangeRequest, decision: 'approve' | 'reject') {
     const ok = await confirm({
@@ -82,12 +88,12 @@ export default function AdminValorantLinkChangesPage() {
         body: { decision },
       });
       toast.success(decision === 'approve' ? 'Changement appliqué.' : 'Demande refusée.');
-      await load();
+      setLoading(true);
+      applyRows(await fetchRequests());
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Erreur réseau.');
-    } finally {
-      setActingId(null);
     }
+    setActingId(null);
   }
 
   const visible = useMemo(

@@ -37,20 +37,18 @@ export default function AdminDevPage() {
   const [data, setData] = useState<DevData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function load() {
-    if (!firebaseUser) return;
-    setLoading(true);
-    try {
-      setData(await api<DevData>('/api/admin/dev'));
-    } catch (err) {
-      console.error('[Admin/Dev] load error:', err);
-    }
-    setLoading(false);
-  }
-
   useEffect(() => {
+    async function load() {
+      if (!firebaseUser) return;
+      setLoading(true);
+      try {
+        setData(await api<DevData>('/api/admin/dev'));
+      } catch (err) {
+        console.error('[Admin/Dev] load error:', err);
+      }
+      setLoading(false);
+    }
     if (firebaseUser && isAdmin) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firebaseUser, isAdmin]);
 
   if (loading || !data) {

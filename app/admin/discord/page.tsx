@@ -35,8 +35,9 @@ function pct(a: number, b: number): string {
 
 export default function AdminDiscordPage() {
   const { firebaseUser, isAdmin } = useAuth();
+  // Le squelette s'affiche tant que `data` est null : pas besoin d'un flag
+  // `loading` séparé, il ne pouvait être false qu'avec des données en main.
   const [data, setData] = useState<DiscordData | null>(null);
-  const [loading, setLoading] = useState(true);
 
   const [webhookUrl, setWebhookUrl] = useState('');
   const [message, setMessage] = useState('Test depuis Aedral, si tu vois ce message, le webhook marche.');
@@ -47,19 +48,6 @@ export default function AdminDiscordPage() {
   const [alertChannel, setAlertChannel] = useState('');
   const [savingChannel, setSavingChannel] = useState(false);
   const [channelSaved, setChannelSaved] = useState(false);
-
-  async function load() {
-    if (!firebaseUser) return;
-    setLoading(true);
-    try {
-      const d = await api<DiscordData>('/api/admin/discord');
-      setData(d);
-      setAlertChannel(d.alertChannelId ?? '');
-    } catch (err) {
-      console.error('[Admin/Discord] load error:', err);
-    }
-    setLoading(false);
-  }
 
   async function handleSaveChannel() {
     if (!firebaseUser) return;
@@ -79,8 +67,16 @@ export default function AdminDiscordPage() {
   }
 
   useEffect(() => {
-    if (firebaseUser && isAdmin) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!firebaseUser || !isAdmin) return;
+    (async () => {
+      try {
+        const d = await api<DiscordData>('/api/admin/discord');
+        setData(d);
+        setAlertChannel(d.alertChannelId ?? '');
+      } catch (err) {
+        console.error('[Admin/Discord] load error:', err);
+      }
+    })();
   }, [firebaseUser, isAdmin]);
 
   async function handleTest(e: React.FormEvent) {
@@ -100,7 +96,7 @@ export default function AdminDiscordPage() {
     setSending(false);
   }
 
-  if (loading || !data) {
+  if (!data) {
     return (
       <AdminContentSkeleton />
     );

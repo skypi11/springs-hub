@@ -91,6 +91,38 @@ const defaultForm: FormData = {
 
 type SteamLinked = NonNullable<NonNullable<ReturnType<typeof useAuth>['user']>['steamLinked']>;
 
+// Validation du formulaire. Fonction PURE de `form`, sortie du composant :
+// son identité est stable, donc l'auto-save peut l'appeler sans avoir à la
+// déclarer en dépendance (avant, `validate()` était recréée à chaque render,
+// ce qui obligeait à désactiver exhaustive-deps sur l'effet d'auto-save).
+function validateForm(form: FormData): string | null {
+  if (!form.displayName.trim()) return 'Le pseudo est obligatoire.';
+  if (!form.country) return 'Le pays est obligatoire.';
+  if (!form.dateOfBirth) return 'La date de naissance est obligatoire.';
+  if (form.games.length === 0) return 'Sélectionne au moins un jeu.';
+  if (form.games.includes('rocket_league')) {
+    if (!form.rlPlatform) {
+      return 'Sélectionne ta plateforme principale pour Rocket League.';
+    }
+    // Epic & Steam passent par la liaison vérifiée (pas de saisie d'ID manuelle),
+    // donc on n'exige l'ID que pour les plateformes à saisie libre (PSN/Xbox/Switch…).
+    // Sans ce garde, un joueur Epic/Steam non encore vérifié aurait rlPlatformId=''
+    // → save bloqué en boucle sur un champ qui n'existe plus dans l'UI.
+    if (form.rlPlatform !== 'epic' && form.rlPlatform !== 'steam' && !form.rlPlatformId.trim()) {
+      return `Ton ${getRLPlatformMeta(form.rlPlatform).idLabel} est obligatoire pour Rocket League.`;
+    }
+  }
+  if (form.games.includes('trackmania') && !form.pseudoTM.trim()) {
+    return 'Le pseudo Ubisoft/Nadeo est obligatoire pour Trackmania.';
+  }
+  if (form.dateOfBirth) {
+    const birth = new Date(form.dateOfBirth);
+    const age = Math.floor((Date.now() - birth.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    if (age < 13) return 'Tu dois avoir au moins 13 ans pour t\'inscrire.';
+  }
+  return null;
+}
+
 export default function SettingsPage() {
   const { user, firebaseUser, isAdmin, loading: authLoading, signOut, signInWithDiscord, refreshProfile } = useAuth();
   const router = useRouter();
@@ -110,6 +142,13 @@ export default function SettingsPage() {
   const [requestingSteamChange, setRequestingSteamChange] = useState(false);
   // Compte Riot Valorant vérifié (verrouillé sur le PUUID, miroir Epic RL).
   const [valorantLinked, setValorantLinked] = useState<{ puuid: string; riotId: string } | null>(null);
+  // useToast() renvoie un objet recréé à chaque render du ToastProvider (donc à
+  // chaque toast affiché ailleurs sur la page). Le déclarer en dépendance de
+  // l'effet de montage ci-dessous le ferait rejouer à chaque toast (re-parse de
+  // l'URL, section réinitialisée). On le lit via une ref : l'effet ne tourne
+  // qu'au montage, où la ref porte déjà le toast de ce render.
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; });
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
@@ -133,7 +172,7 @@ export default function SettingsPage() {
     }
     // Toasts post-redirect Steam OpenID
     if (params.get('steam_linked') === '1') {
-      toast.success('Compte Steam lié avec succès. Ton SteamID64 est maintenant utilisé pour tracker.gg.');
+      toastRef.current.success('Compte Steam lié avec succès. Ton SteamID64 est maintenant utilisé pour tracker.gg.');
       // Nettoie l'URL
       const cleanUrl = window.location.pathname;
       window.history.replaceState({}, '', cleanUrl);
@@ -147,11 +186,10 @@ export default function SettingsPage() {
         already_linked: 'Ce compte Steam est déjà lié à un autre profil Aedral.',
         server_error: 'Erreur serveur pendant la liaison Steam. Réessaie.',
       };
-      toast.error(errLabel[steamErr] ?? `Erreur Steam : ${steamErr}`);
+      toastRef.current.error(errLabel[steamErr] ?? `Erreur Steam : ${steamErr}`);
       const cleanUrl = window.location.pathname;
       window.history.replaceState({}, '', cleanUrl);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const completion = checkProfileCompletion(user);
   const [form, setForm] = useState<FormData>(defaultForm);
@@ -540,21 +578,26 @@ export default function SettingsPage() {
 
   // ── Auto-save 2s après dernière modif ──
   // IMPORTANT : placé AVANT les early returns ci-dessous pour respecter la
-  // règle des hooks (même nombre de hooks à chaque render). validate() et
-  // handleSave() sont des function declarations donc hoisted dans le scope
-  // du composant → accessibles dans ce closure.
+  // règle des hooks (même nombre de hooks à chaque render). handleSave() est
+  // une function declaration donc hoisted dans le scope du composant →
+  // accessible dans ce closure.
+  // handleSave est recréée à chaque render : la déclarer en dépendance
+  // relancerait le timer 2s à chaque render (l'auto-save ne partirait jamais).
+  // On la lit donc via une ref tenue à jour (cf. components/ui/ModalBackdrop),
+  // ce qui rend les deps ci-dessous honnêtes.
+  const handleSaveRef = useRef(handleSave);
+  useEffect(() => { handleSaveRef.current = handleSave; });
   // Conditions pour auto-save :
   // - loaded : on n'essaie pas de save avant que le profil soit chargé
   // - dirty : il y a des modifs non sauvées
   // - !saving : pas déjà en cours
-  // - validate() === null : pas d'erreur de validation (sinon on attend que
-  //   l'user corrige ou clique manuellement sur Save pour voir l'erreur)
+  // - validateForm(form) === null : pas d'erreur de validation (sinon on attend
+  //   que l'user corrige ou clique manuellement sur Save pour voir l'erreur)
   useEffect(() => {
     if (!loaded || !dirty || saving) return;
-    if (validate() !== null) return;
-    const t = setTimeout(() => { handleSave(); }, 2000);
+    if (validateForm(form) !== null) return;
+    const t = setTimeout(() => { handleSaveRef.current(); }, 2000);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, dirty, form, saving]);
 
   if (!authLoading && !firebaseUser) {
@@ -588,36 +631,8 @@ export default function SettingsPage() {
     if (saved) setSaved(false);
   }
 
-  function validate(): string | null {
-    if (!form.displayName.trim()) return 'Le pseudo est obligatoire.';
-    if (!form.country) return 'Le pays est obligatoire.';
-    if (!form.dateOfBirth) return 'La date de naissance est obligatoire.';
-    if (form.games.length === 0) return 'Sélectionne au moins un jeu.';
-    if (form.games.includes('rocket_league')) {
-      if (!form.rlPlatform) {
-        return 'Sélectionne ta plateforme principale pour Rocket League.';
-      }
-      // Epic & Steam passent par la liaison vérifiée (pas de saisie d'ID manuelle),
-      // donc on n'exige l'ID que pour les plateformes à saisie libre (PSN/Xbox/Switch…).
-      // Sans ce garde, un joueur Epic/Steam non encore vérifié aurait rlPlatformId=''
-      // → save bloqué en boucle sur un champ qui n'existe plus dans l'UI.
-      if (form.rlPlatform !== 'epic' && form.rlPlatform !== 'steam' && !form.rlPlatformId.trim()) {
-        return `Ton ${getRLPlatformMeta(form.rlPlatform).idLabel} est obligatoire pour Rocket League.`;
-      }
-    }
-    if (form.games.includes('trackmania') && !form.pseudoTM.trim()) {
-      return 'Le pseudo Ubisoft/Nadeo est obligatoire pour Trackmania.';
-    }
-    if (form.dateOfBirth) {
-      const birth = new Date(form.dateOfBirth);
-      const age = Math.floor((Date.now() - birth.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-      if (age < 13) return 'Tu dois avoir au moins 13 ans pour t\'inscrire.';
-    }
-    return null;
-  }
-
   async function handleSave() {
-    const err = validate();
+    const err = validateForm(form);
     if (err) {
       setError(err);
       return;

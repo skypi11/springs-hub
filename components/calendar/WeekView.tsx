@@ -87,6 +87,48 @@ const STAFF_ROLE_LABELS: Record<StaffRoleKind, string> = {
   responsable: 'Responsable',
 };
 
+// Rôles staff affichables dans l'overlay de la vue Semaine (validé Matt Q3) :
+// Coach équipe + Manager équipe + Coach structure, pas les responsables ni les
+// dirigeants (ils ont leur vue dédiée, onglet STAFF). Constante de module :
+// jamais mutée, donc identité stable, donc dépendance honnête pour les memos.
+const RELEVANT_STAFF_ROLES: ReadonlySet<StaffRoleKind> = new Set<StaffRoleKind>([
+  'coach_team', 'manager_team', 'coach_structure',
+]);
+
+// ─── Préférences UI persistées (localStorage), lectures PURES ───────────
+// Aucune écriture, aucun effet de bord : utilisables dans un initialiseur
+// paresseux de useState et dans l'ajustement d'état au changement de structure.
+//
+// `fallback` est renvoyé quand rien n'est stocké, que la valeur est invalide ou
+// que le storage est indisponible. Ce paramètre reproduit À L'IDENTIQUE l'ancien
+// comportement des effets, qui ne touchaient à l'état QUE lorsqu'une valeur
+// exploitable était trouvée — et laissaient donc la valeur courante en place
+// sinon (y compris en changeant de structure).
+function readConsensusVisible(key: string, fallback: boolean): boolean {
+  try {
+    if (localStorage.getItem(key) === 'false') return false;
+  } catch { /* SSR / storage indisponible */ }
+  return fallback;
+}
+
+// Index du jour courant dans la grille, 0 si la semaine affichée ne le contient
+// pas (le jour 0 = lundi est alors le repli, comme avant).
+function todayIndexIn(days: { gridYmd: string }[], todayYmd: string): number {
+  const i = days.findIndex(d => d.gridYmd === todayYmd);
+  return i >= 0 ? i : 0;
+}
+
+function readStaffSelection(key: string, fallback: Set<string>): Set<string> {
+  try {
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      const arr = JSON.parse(stored) as string[];
+      if (Array.isArray(arr)) return new Set(arr);
+    }
+  } catch { /* SSR ou parse fail */ }
+  return fallback;
+}
+
 type Props = {
   structureId: string;
   events: CalendarEvent[];        // déjà filtrés par le filtre équipe
@@ -129,18 +171,33 @@ export default function WeekView({
   // de 6), pastille de cette couleur dans le coin haut-droit de chaque slot
   // où il est dispo. Permet de voir IMMÉDIATEMENT qui est dispo (manager vs
   // coach, etc.) sans avoir à survoler.
-  const [selectedStaffUids, setSelectedStaffUids] = useState<Set<string>>(() => new Set());
+  const consensusKey = `aedral_week_consensus_visible_${structureId}`;
+  const staffPickerKey = `aedral_week_staff_selection_${structureId}`;
+
+  const [selectedStaffUids, setSelectedStaffUids] = useState<Set<string>>(
+    () => readStaffSelection(staffPickerKey, new Set()),
+  );
   const [staffPickerOpen, setStaffPickerOpen] = useState(false);
   // Toggle pour masquer la heatmap consensus (utile quand on regarde uniquement
   // les pastilles staff sans être pollué par le fond coloré).
-  const [consensusVisible, setConsensusVisible] = useState(true);
-  const consensusKey = `aedral_week_consensus_visible_${structureId}`;
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(consensusKey);
-      if (stored === 'false') setConsensusVisible(false);
-    } catch { /* SSR */ }
-  }, [consensusKey]);
+  const [consensusVisible, setConsensusVisible] = useState(
+    () => readConsensusVisible(consensusKey, true),
+  );
+
+  // Changement de structure SANS remontage : /community/my-structure échange
+  // `activeStructure` en place (selectStructure), et CalendarSection n'est pas
+  // keyée sur l'id → `structureId` change alors que ce composant reste monté.
+  // Les préférences étant stockées par structure, il faut les relire sous les
+  // nouvelles clés. Pattern React officiel « ajuster l'état quand une prop
+  // change » (guardé, donc pas de boucle) : remplace les deux effets de restore
+  // à l'identique, sans la frame parasite affichée avec la valeur précédente.
+  const [prefsStructureId, setPrefsStructureId] = useState(structureId);
+  if (prefsStructureId !== structureId) {
+    setPrefsStructureId(structureId);
+    setConsensusVisible(readConsensusVisible(consensusKey, consensusVisible));
+    setSelectedStaffUids(readStaffSelection(staffPickerKey, selectedStaffUids));
+  }
+
   function toggleConsensus() {
     setConsensusVisible(prev => {
       const next = !prev;
@@ -148,16 +205,6 @@ export default function WeekView({
       return next;
     });
   }
-  const staffPickerKey = `aedral_week_staff_selection_${structureId}`;
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(staffPickerKey);
-      if (stored) {
-        const arr = JSON.parse(stored) as string[];
-        if (Array.isArray(arr)) setSelectedStaffUids(new Set(arr));
-      }
-    } catch { /* SSR ou parse fail */ }
-  }, [staffPickerKey]);
   const persistStaffSelection = (next: Set<string>) => {
     try { localStorage.setItem(staffPickerKey, JSON.stringify(Array.from(next))); } catch { /* noop */ }
   };
@@ -204,11 +251,18 @@ export default function WeekView({
   // Jour sélectionné en mode mobile (index 0..6 dans grid.days).
   // Reset au jour courant à chaque changement de semaine pour éviter de tomber
   // sur un jour passé ou hors-grille.
-  const [mobileDayIdx, setMobileDayIdx] = useState(0);
-  useEffect(() => {
-    const todayIdx = grid.days.findIndex(d => d.gridYmd === todayYmd);
-    setMobileDayIdx(todayIdx >= 0 ? todayIdx : 0);
-  }, [grid, todayYmd]);
+  //
+  // Clé primitive plutôt que l'identité de `grid` : `grid` est memoïsé sur
+  // exactement (weekMonday, todayYmd), donc la clé change aux mêmes instants,
+  // mais elle ne peut pas déclencher un reset parasite si le cache du memo est
+  // relâché. Même pattern « ajuster l'état quand une prop change » que ci-dessus.
+  const weekDayResetKey = `${weekMonday}|${todayYmd}`;
+  const [mobileDayIdx, setMobileDayIdx] = useState(() => todayIndexIn(grid.days, todayYmd));
+  const [prevWeekDayResetKey, setPrevWeekDayResetKey] = useState(weekDayResetKey);
+  if (prevWeekDayResetKey !== weekDayResetKey) {
+    setPrevWeekDayResetKey(weekDayResetKey);
+    setMobileDayIdx(todayIndexIn(grid.days, todayYmd));
+  }
   // Jours affichés : tous (desktop) ou juste le sélectionné (mobile).
   const displayedDays = isWide ? grid.days : [grid.days[mobileDayIdx] ?? grid.days[0]];
 
@@ -273,13 +327,10 @@ export default function WeekView({
     return map;
   }, [avail, availWeek, weekMonday, selectedPlayerUids]);
 
-  // Dispos staff par slot (overlay bleu clair), filtré sur Coach équipe +
-  // Manager équipe + Coach structure (validé Matt Q3, pas les responsables
-  // ni dirigeants). Les responsables ont leur propre vue dédiée (onglet STAFF).
-  const RELEVANT_STAFF_ROLES = new Set<StaffRoleKind>(['coach_team', 'manager_team', 'coach_structure']);
+  // Dispos staff par slot (overlay bleu clair), filtré sur RELEVANT_STAFF_ROLES
+  // (constante de module, cf. plus haut).
   const relevantStaff = useMemo(
     () => avail ? avail.staff.filter(s => RELEVANT_STAFF_ROLES.has(s.role)) : [],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [avail],
   );
   // Couleur attribuée à chaque staff sélectionné (par index dans la liste
