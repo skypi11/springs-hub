@@ -58,6 +58,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const batch = db.batch();
     batch.update(ref, {
       ...toFirestoreCompetition(payload),
+      // Flag test éditable tant que la compét est en brouillon (hors schéma
+      // de validation partagé). Ne s'écrit que si explicitement fourni.
+      ...(typeof body.isDev === 'boolean' ? { isDev: body.isDev } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
     if (payload.circuitId !== oldCircuitId) {

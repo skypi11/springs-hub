@@ -100,7 +100,7 @@ export const GAMES_REGISTRY: Record<GameId, GameDef> = {
     color: '#0081FF',
     colorLight: '#3FA0FF',
     colorRgb: '0,129,255',
-    logoUrl: '/games/rocket-league.png',
+    logoUrl: '/logorocket.png',
     bannerUrl: '/rocket-league.webp',
     roster: { titulaires: 3, remplacants: 2, allowSolo: false },
     features: {

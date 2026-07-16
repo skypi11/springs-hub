@@ -498,3 +498,33 @@ export async function sendCompetitionDM(
   const data = await res.json();
   return { ok: true, messageId: data.id as string };
 }
+
+/**
+ * Message embed dans un SALON (ex. salon texte privé d'une équipe — spec §7-§8 :
+ * pings de match, lancement des check-ins). Même format visuel que les DM de
+ * compétition. Best-effort côté appelant — jamais bloquant pour l'action.
+ */
+export async function sendCompetitionChannelMessage(
+  channelId: string,
+  input: { title: string; message: string; link?: string | null },
+): Promise<{ ok: true; messageId: string } | { ok: false; reason: string }> {
+  const description = input.message.slice(0, 3800)
+    + (input.link ? `\n\n[Ouvrir sur Aedral →](${input.link})` : '');
+  const embed = {
+    color: 0xffb800,
+    title: input.title.slice(0, 256),
+    description,
+    footer: { text: 'Aedral · compétitions' },
+    timestamp: new Date().toISOString(),
+  };
+  const res = await discordFetch(`/channels/${channelId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ embeds: [embed] }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    return { ok: false, reason: `post_${res.status}: ${body.slice(0, 150)}` };
+  }
+  const data = await res.json();
+  return { ok: true, messageId: data.id as string };
+}

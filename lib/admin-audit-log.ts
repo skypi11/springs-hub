@@ -62,6 +62,9 @@ export type AdminAuditAction =
   | 'competition_ban_added'
   | 'competition_ban_revoked'
   | 'rulebook_published'
+  // Sanctions graduées (warn / exclusion / ban unifiés — competition_sanctions)
+  | 'competition_sanction_added'
+  | 'competition_sanction_revoked'
   // Moteur de compétitions — Lot 1 (file de validation, provisioning Discord)
   | 'competition_registration_approved'
   | 'competition_registration_rejected'
@@ -69,7 +72,24 @@ export type AdminAuditAction =
   | 'competition_discord_provisioned'
   // Bac à sable de test compétitions (données fictives isDev)
   | 'competition_sandbox_seeded'
-  | 'competition_sandbox_cleaned';
+  | 'competition_sandbox_cleaned'
+  // Moteur de compétitions — Lot 2 (seeding + matérialisation du bracket)
+  | 'competition_seeding_opened'
+  | 'competition_seeding_shuffled'
+  | 'competition_seeding_reordered'
+  | 'competition_bracket_published'
+  // Moteur de compétitions — Lot 3 (jour de match : console live)
+  | 'competition_phase_launched'
+  | 'competition_forfeit_validated'
+  | 'competition_score_forced'
+  | 'competition_cast_set'
+  | 'competition_checkin_reopened'
+  | 'competition_general_checkin_opened'
+  | 'competition_team_withdrawn'
+  | 'competition_team_replaced'
+  // Moteur de compétitions — Lot 4 (clôture)
+  | 'competition_tiebreak_resolved'
+  | 'competition_closed';
 
 export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event' | 'competition' | 'circuit';
 

@@ -228,8 +228,13 @@ service cloud.firestore {
     }
 
     // Compétitions — configuration publique (format, planning, statut).
+    // Défense en profondeur (review Lot 3) : une compétition MASQUÉE (brouillon
+    // ou test isDev) n'est pas lisible en lecture directe non plus — le gate
+    // API (isCompetitionHidden) est doublé au niveau des rules. Les admins
+    // lisent via l'API (Admin SDK, bypass rules).
     match /competitions/{id} {
-      allow read: if true;
+      allow read: if resource.data.status != 'draft'
+                  && (!('isDev' in resource.data) || resource.data.isDev != true);
       allow write: if false;
     }
 
@@ -244,8 +249,11 @@ service cloud.firestore {
 
     // Matchs — bracket live public (onSnapshot pendant l'événement). Aucun
     // uid dans le doc public : ACL, room et litiges en sous-collections.
+    // `hidden` est dénormalisé depuis la compétition à la matérialisation
+    // (publish) : les matchs d'une compétition de test restent invisibles en
+    // lecture directe (défense en profondeur, review Lot 3).
     match /competition_matches/{id} {
-      allow read: if true;
+      allow read: if !('hidden' in resource.data) || resource.data.hidden != true;
       allow write: if false;
 
       // room (nom/mdp), acl (participantUids/staffUids), dispute (keys R2) :
@@ -254,14 +262,14 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
-      // Fil de discussion du match : capitaines/staff des 2 équipes + admins.
-      // Lecture client temps réel via l'ACL ; écriture via API rate-limitée.
+      // Fil de discussion du match : servi UNIQUEMENT par l'API (Lot 4C).
+      // Deny-all volontaire : (1) l'ACL statique (participantUids = roster)
+      // exclurait le staff non-aligné que la spec §10 inclut — seule la
+      // résolution LIVE côté serveur (getMatchSideForUser) est correcte ;
+      // (2) les docs portent authorUid (modération) — une lecture client
+      // exposerait des snowflakes aux équipes adverses (archi §8).
       match /messages/{messageId} {
-        allow read: if isCompetitionAdmin() || (
-          request.auth != null &&
-          request.auth.uid in get(/databases/$(database)/documents/competition_matches/$(id)/private/acl).data.participantUids
-        );
-        allow write: if false;
+        allow read, write: if false;
       }
     }
 
@@ -274,7 +282,16 @@ service cloud.firestore {
 
     // Registre des bans de compétition (joueurs + structures) — DENY-ALL :
     // consulté à l'inscription côté serveur, géré via API admin compét.
+    // @deprecated remplacé par competition_sanctions (vide en prod, 0 doc).
     match /competition_bans/{id} {
+      allow read, write: if false;
+    }
+
+    // Registre unifié des sanctions de compétition (warn / exclusion / ban) —
+    // DENY-ALL : consulté à l'inscription + à la validation côté serveur, géré
+    // via API admin compét. La visibilité côté équipe passe par des notifs/API
+    // filtrées, jamais par une lecture client (invariant §8 : aucun uid public).
+    match /competition_sanctions/{id} {
       allow read, write: if false;
     }
 

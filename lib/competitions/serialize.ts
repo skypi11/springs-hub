@@ -47,6 +47,8 @@ export function serializeCompetition(id: string, data: FirebaseFirestore.Documen
     schedule: data.schedule ?? null,
     discord: data.discord ?? null,
     status: data.status ?? 'draft',
+    isDev: data.isDev === true,
+    bracketMaterializedAt: data.bracketMaterializedAt?.toDate?.()?.toISOString() ?? null,
     createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
   };
 }
@@ -60,6 +62,8 @@ export function serializeCircuit(id: string, data: FirebaseFirestore.DocumentDat
     pointsScale: data.pointsScale ?? {},
     bestResultsCount: data.bestResultsCount ?? 0,
     lanTeamCount: data.lanTeamCount ?? 0,
+    prizePool: data.prizePool ?? null,
+    organizer: data.organizer ?? null,
     tieBreakers: data.tieBreakers ?? [],
     status: data.status ?? 'draft',
     createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,

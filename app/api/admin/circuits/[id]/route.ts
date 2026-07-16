@@ -44,9 +44,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // Le statut et competitionIds ne passent pas par ce PATCH : le statut
     // évolue avec les lots suivants, competitionIds est maintenu par le CRUD
     // compétitions (arrayUnion/arrayRemove).
-    const { name, game, pointsScale, bestResultsCount, lanTeamCount, tieBreakers } = validated.value;
+    const { name, game, pointsScale, bestResultsCount, lanTeamCount, prizePool, organizer, tieBreakers } = validated.value;
     await ref.update({
-      name, game, pointsScale, bestResultsCount, lanTeamCount, tieBreakers,
+      name, game, pointsScale, bestResultsCount, lanTeamCount, prizePool, organizer, tieBreakers,
       updatedAt: FieldValue.serverTimestamp(),
     });
 

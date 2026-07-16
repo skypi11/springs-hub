@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth, isCompetitionAdmin } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { notifyAdminsOfNewRegistration } from '@/lib/competitions/registration-notify';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { clampString, LIMITS } from '@/lib/validation';
@@ -8,8 +9,9 @@ import { isDirigeant, isResponsableForGame } from '@/lib/structure-permissions';
 import { computeAge } from '@/lib/age';
 import { computeRefMmr, computeMmrFlags, analyzeLineups } from '@/lib/competitions/mmr';
 import { isGuildMember } from '@/lib/discord-competition';
-import { getActiveCompetitionBans } from '@/lib/competitions/bans';
+import { getBlockingSanctions } from '@/lib/competitions/sanctions';
 import { getRulebookForCompetition } from '@/lib/competitions/rulebooks';
+import { isCompetitionHidden } from '@/lib/competitions/visibility';
 import { buildTrackerGgUrl, type RLPlatform } from '@/lib/rl-platform';
 import type { RegistrationFlag } from '@/types/competitions';
 
@@ -65,49 +67,82 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!compSnap.exists) return NextResponse.json({ error: 'not_found' }, { status: 404 });
     const comp = compSnap.data()!;
     const requesterIsCompAdmin = await isCompetitionAdmin(uid);
-    // Droit de tester le wizard sur une compétition en DRAFT : admins compét
-    // et comptes du bac à sable. Le flag est renvoyé au client (`canTestDraft`)
-    // pour que le wizard ne bloque pas sur la fenêtre fermée.
+    // Droit de tester le wizard sur une compétition MASQUÉE (brouillon OU test
+    // isDev, même publiée) : admins compét et comptes du bac à sable. Le flag
+    // (`canTestDraft`) est renvoyé au client pour qu'il ne bloque pas sur la
+    // fenêtre. Une compét masquée est un 404 pour tout le monde d'autre — sinon
+    // un user lambda verrait/inscrirait dans une compét de test (revue Lot 2).
     const canTestDraft = requesterIsCompAdmin || (await isSandboxUser(db, uid));
-    if (comp.status === 'draft' && !canTestDraft) {
+    if (isCompetitionHidden(comp) && !canTestDraft) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 });
     }
 
-    // Structures où l'utilisateur peut inscrire une équipe pour CE jeu :
-    // dirigeant (fondateur/co-fondateur) ou responsable scopé sur le jeu.
-    const [foundedSnap, coFoundedSnap, managedSnap] = await Promise.all([
+    // Qui peut inscrire une équipe pour CE jeu (spec §4 + précision Matt 04/07) :
+    //  - dirigeant / responsable(jeu)          → TOUTES les équipes du jeu de la structure
+    //  - manager d'ÉQUIPE (sub_teams.staffRoles[uid]==='manager') → SES équipes uniquement
+    // Le coach d'équipe et le capitaine n'inscrivent pas (l'inscription fige un roster,
+    // c'est une action de gestion d'équipe réservée manager+).
+    const [foundedSnap, coFoundedSnap, respSnap, staffedTeamsSnap] = await Promise.all([
       db.collection('structures').where('founderId', '==', uid).get(),
       db.collection('structures').where('coFounderIds', 'array-contains', uid).get(),
       db.collection('structures').where('managerIds', 'array-contains', uid).get(),
+      db.collection('sub_teams').where('staffIds', 'array-contains', uid).get(),
     ]);
-    const structuresById = new Map<string, FirebaseFirestore.DocumentData>();
-    for (const snap of [foundedSnap, coFoundedSnap, managedSnap]) {
-      for (const doc of snap.docs) structuresById.set(doc.id, doc.data());
-    }
 
-    const eligible: Array<{ id: string; data: FirebaseFirestore.DocumentData }> = [];
-    for (const [sid, data] of structuresById) {
-      if (data.status !== 'active') continue;
-      const ctx = { uid, structure: data as never };
-      if (isDirigeant(ctx) || isResponsableForGame(ctx, comp.game)) {
-        eligible.push({ id: sid, data });
+    // Structures où l'user est dirigeant ou responsable du jeu → accès à toutes les équipes.
+    const adminStructures = new Map<string, FirebaseFirestore.DocumentData>();
+    for (const snap of [foundedSnap, coFoundedSnap, respSnap]) {
+      for (const doc of snap.docs) {
+        const data = doc.data();
+        if (data.status !== 'active') continue;
+        const rctx = { uid, structure: data as never };
+        if (isDirigeant(rctx) || isResponsableForGame(rctx, comp.game)) adminStructures.set(doc.id, data);
       }
     }
 
-    // Équipes du jeu (non archivées) + inscriptions existantes de ces équipes
-    const structures = await Promise.all(eligible.map(async ({ id: sid, data }) => {
-      const teamsSnap = await db.collection('sub_teams')
-        .where('structureId', '==', sid)
-        .where('game', '==', comp.game)
-        .get();
-      const teams = teamsSnap.docs
-        .filter(d => (d.data().status ?? 'active') !== 'archived')
-        .map(d => ({
-          id: d.id,
-          name: (d.data().name as string) ?? '',
-          playerIds: (d.data().playerIds as string[]) ?? [],
-          subIds: (d.data().subIds as string[]) ?? [],
-        }));
+    // Équipes du jeu où l'user est MANAGER d'équipe (staffRoles==='manager', pas coach).
+    const managedByStructure = new Map<string, Set<string>>();
+    for (const d of staffedTeamsSnap.docs) {
+      const t = d.data();
+      if (t.game !== comp.game || (t.status ?? 'active') === 'archived') continue;
+      if (((t.staffRoles as Record<string, string> | undefined)?.[uid] ?? 'coach') !== 'manager') continue;
+      const sid = t.structureId as string;
+      if (!managedByStructure.has(sid)) managedByStructure.set(sid, new Set());
+      managedByStructure.get(sid)!.add(d.id);
+    }
+
+    // Structures où l'user est UNIQUEMENT manager d'équipe (pas déjà admin) : à charger.
+    const managerOnlyIds = [...managedByStructure.keys()].filter(id => !adminStructures.has(id));
+    const managerOnlySnaps = await Promise.all(managerOnlyIds.map(id => db.collection('structures').doc(id).get()));
+    const structuresData = new Map(adminStructures);
+    for (const s of managerOnlySnaps) {
+      if (s.exists && s.data()!.status === 'active') structuresData.set(s.id, s.data()!);
+    }
+
+    // Équipes du jeu (non archivées) + inscriptions existantes de ces équipes.
+    const structures = (await Promise.all([...structuresData.entries()].map(async ([sid, data]) => {
+      const isAdmin = adminStructures.has(sid);
+      let teamDocs: Array<{ id: string; data: FirebaseFirestore.DocumentData }>;
+      if (isAdmin) {
+        const teamsSnap = await db.collection('sub_teams')
+          .where('structureId', '==', sid)
+          .where('game', '==', comp.game)
+          .get();
+        teamDocs = teamsSnap.docs
+          .filter(d => (d.data().status ?? 'active') !== 'archived')
+          .map(d => ({ id: d.id, data: d.data() }));
+      } else {
+        // Manager d'équipe : seulement ses équipes managées.
+        const ids = [...(managedByStructure.get(sid) ?? [])];
+        const snaps = await Promise.all(ids.map(tid => db.collection('sub_teams').doc(tid).get()));
+        teamDocs = snaps.filter(s => s.exists).map(s => ({ id: s.id, data: s.data()! }));
+      }
+      const teams = teamDocs.map(({ id: tid, data: t }) => ({
+        id: tid,
+        name: (t.name as string) ?? '',
+        playerIds: (t.playerIds as string[]) ?? [],
+        subIds: (t.subIds as string[]) ?? [],
+      }));
 
       // Membres enrichis (une passe, sans doublon). `ageStatus` prévient le
       // dirigeant AVANT la soumission qu'une dérogation sera demandée (mineur
@@ -145,21 +180,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         teams,
         members,
       };
-    }));
+    // On garde les structures où l'user est dirigeant/responsable même sans équipe
+    // du jeu (le wizard affiche « crée ton équipe d'abord »). On ne retire QUE les
+    // structures où l'user est seulement manager d'équipe et n'en a aucune ici.
+    }))).filter(s => s.teams.length > 0 || adminStructures.has(s.id));
 
     // Inscriptions existantes de l'utilisateur sur cette compétition (pour
     // afficher l'état au lieu du wizard)
     const allTeamIds = structures.flatMap(s => s.teams.map(t => t.id));
+    const regSnaps = await Promise.all(
+      allTeamIds.map(teamId => db.collection('competition_registrations').doc(`${id}_${teamId}`).get()),
+    );
     const existing: Array<{ teamId: string; status: string; name: string }> = [];
-    for (const teamId of allTeamIds) {
-      const regSnap = await db.collection('competition_registrations').doc(`${id}_${teamId}`).get();
-      if (regSnap.exists) {
-        const r = regSnap.data()!;
-        if (r.status !== 'withdrawn' && r.status !== 'rejected') {
-          existing.push({ teamId, status: r.status, name: r.name ?? '' });
-        }
+    regSnaps.forEach((regSnap, i) => {
+      if (!regSnap.exists) return;
+      const r = regSnap.data()!;
+      if (r.status !== 'withdrawn' && r.status !== 'rejected') {
+        existing.push({ teamId: allTeamIds[i], status: r.status, name: r.name ?? '' });
       }
-    }
+    });
 
     const rulebook = await getRulebookForCompetition(db, {
       id,
@@ -213,11 +252,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const requesterIsCompAdmin = await isCompetitionAdmin(uid);
     const state = windowState(comp, new Date());
-    // Les admins compét ET les comptes fictifs du bac à sable peuvent tester
-    // le flux sur une compétition en draft (previews pré-publication, tournoi
-    // fantôme, tests d'inscription impersonés) — le public, jamais.
-    const adminTestBypass = comp.status === 'draft'
-      && (requesterIsCompAdmin || await isSandboxUser(db, uid));
+    const canTest = requesterIsCompAdmin || (await isSandboxUser(db, uid));
+    // Compétition MASQUÉE (brouillon OU test isDev, même publiée) : seuls les
+    // testeurs peuvent la voir ET s'y inscrire. Sinon un user lambda pourrait
+    // injecter une VRAIE inscription (snapshot réel : âges, MMR, identités)
+    // dans une compét de test publiée en 'registration' (revue Lot 2).
+    if (isCompetitionHidden(comp) && !canTest) {
+      return NextResponse.json({ error: 'Compétition introuvable.' }, { status: 404 });
+    }
+    // Les testeurs bypassent la fenêtre sur une compét masquée (previews,
+    // tournoi fantôme, tests d'inscription impersonés).
+    const adminTestBypass = isCompetitionHidden(comp) && canTest;
     if (!adminTestBypass && state !== 'open') {
       const msg = state === 'before'
         ? 'Les inscriptions ne sont pas encore ouvertes.'
@@ -227,23 +272,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: msg }, { status: 409 });
     }
 
-    // ── Structure + autorisation ──
+    // ── Structure + équipe + autorisation ──
     const structureId = typeof body.structureId === 'string' ? body.structureId : '';
     const teamId = typeof body.teamId === 'string' ? body.teamId : '';
     if (!structureId || !teamId) return NextResponse.json({ error: 'Équipe requise.' }, { status: 400 });
 
-    const structSnap = await db.collection('structures').doc(structureId).get();
+    const [structSnap, teamSnap] = await Promise.all([
+      db.collection('structures').doc(structureId).get(),
+      db.collection('sub_teams').doc(teamId).get(),
+    ]);
     if (!structSnap.exists || structSnap.data()?.status !== 'active') {
       return NextResponse.json({ error: 'Structure introuvable ou inactive.' }, { status: 404 });
     }
     const structure = structSnap.data()!;
-    const ctx = { uid, structure: structure as never };
-    if (!isDirigeant(ctx) && !isResponsableForGame(ctx, comp.game)) {
-      return NextResponse.json({ error: 'Seul un dirigeant ou responsable de la structure peut inscrire une équipe.' }, { status: 403 });
-    }
-
-    // ── Équipe + roster sélectionné ──
-    const teamSnap = await db.collection('sub_teams').doc(teamId).get();
     if (!teamSnap.exists) return NextResponse.json({ error: 'Équipe introuvable.' }, { status: 404 });
     const team = teamSnap.data()!;
     if (team.structureId !== structureId || team.game !== comp.game) {
@@ -251,6 +292,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
     if ((team.status ?? 'active') === 'archived') {
       return NextResponse.json({ error: 'Cette équipe est archivée.' }, { status: 400 });
+    }
+
+    // Autorisation (précision Matt 04/07) : dirigeant / responsable(jeu) peuvent
+    // inscrire n'importe quelle équipe ; le MANAGER d'équipe (staffRoles==='manager')
+    // uniquement CELLE dont il est le staff. Coach d'équipe et capitaine exclus
+    // (l'inscription fige un roster = action de gestion réservée manager+).
+    const ctx = { uid, structure: structure as never };
+    const teamStaffIds = Array.isArray(team.staffIds) ? (team.staffIds as string[]) : [];
+    const isTeamManager = teamStaffIds.includes(uid)
+      && (((team.staffRoles as Record<string, string> | undefined)?.[uid]) ?? 'coach') === 'manager';
+    if (!isDirigeant(ctx) && !isResponsableForGame(ctx, comp.game) && !isTeamManager) {
+      return NextResponse.json({ error: 'Seul un dirigeant, un responsable ou le manager de cette équipe peut l\'inscrire.' }, { status: 403 });
     }
 
     const starters = comp.roster?.starters ?? 3;
@@ -292,12 +345,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
     }
 
-    // ── Bans actifs : refus automatique avec motif (spec §5) ──
-    const activeBans = await getActiveCompetitionBans(db, { uids: rosterUids, structureId });
-    if (activeBans.length > 0) {
-      const labels = activeBans.map(b => `${b.targetLabel} (${b.reason})`).join(' · ');
+    // ── Sanctions bloquantes : refus automatique avec motif (spec §5) ──
+    // Ban (global) OU exclusion scopée à CETTE compétition / son circuit. Le
+    // warn ne bloque jamais. L'historique/registre est unifié (competition_sanctions).
+    const blocking = await getBlockingSanctions(db, {
+      uids: rosterUids, structureId, teamId, competitionId: id, circuitId: (comp.circuitId as string | null) ?? null,
+    });
+    if (blocking.length > 0) {
+      const labels = blocking.map(b => `${b.targetLabel} (${b.reason})`).join(' · ');
       return NextResponse.json(
-        { error: `Inscription refusée — au registre des bans : ${labels}`, bans: activeBans.map(b => ({ label: b.targetLabel, reason: b.reason })) },
+        { error: `Inscription refusée — sanction active : ${labels}`, bans: blocking.map(b => ({ label: b.targetLabel, reason: b.reason })) },
         { status: 403 },
       );
     }
@@ -502,6 +559,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         createdAt: FieldValue.serverTimestamp(),
       });
     });
+
+    // Prévient les admins qu'une inscription attend validation (in-app ; le
+    // compteur « à valider » sur /admin/competitions complète). Best-effort —
+    // ne casse jamais l'inscription si la notif échoue.
+    try {
+      await notifyAdminsOfNewRegistration(db, {
+        competitionId: id,
+        competitionName: (comp.name as string) ?? '',
+        teamName: displayName,
+        excludeUid: uid,
+      });
+    } catch (err) {
+      console.error('[competitions/register] admin notify failed:', err);
+    }
 
     return NextResponse.json({ success: true, flags: Array.from(flags) });
   } catch (err) {

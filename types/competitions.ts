@@ -32,6 +32,18 @@ export interface Circuit {
   pointsScale: Record<string, number>;
   bestResultsCount: number;        // 3 : seuls les 3 meilleurs résultats comptent
   lanTeamCount: number;            // 16 : cutline LAN
+  /**
+   * Dotation du circuit — remise à la LAN finale (spec §1 : 1 200 € cash, aucun
+   * cashprize sur les Qualifs). Attribut du CIRCUIT, pas d'une Qualif : la
+   * fiche circuit l'affiche comme argument d'inscription. null = pas de dotation
+   * annoncée. `note` = mention libre ("Remis à la LAN finale").
+   */
+  prizePool?: { amount: number; currency: string; note?: string } | null;
+  /** Structure organisatrice de la compétition (organisateur légal — ex. Springs
+   *  E-Sport pour la Legends Cup). Aedral n'est que l'hébergeur : une compétition
+   *  appartient à l'orga qui la porte. `name` affiché sur la vitrine, `logoUrl`
+   *  optionnel (crest). null = pas d'organisateur déclaré. Public-safe (pas d'uid). */
+  organizer?: { name: string; logoUrl?: string | null } | null;
   /** Ordre des clés de départage cutline (spec §11). */
   tieBreakers: CircuitTieBreaker[];
   /** Rôle Discord « Participant » commun aux compétitions du circuit (spec §7),
@@ -126,9 +138,57 @@ export interface Competition {
    * personnelle. Absent = 0.
    */
   approvedCount?: number;
+  /**
+   * Ordre de seed (statut 'seeding') : registrationId par place, index 0 =
+   * seed 1. Aléatoire à l'ouverture du seeding, réordonnable par l'admin avant
+   * publication (spec §2). Figé à la matérialisation du bracket. Public-safe
+   * (registrationId = `${compId}_${teamId}`, aucun snowflake).
+   */
+  seeding?: string[];
+  /**
+   * Équipes retirées en cours de tournoi (withdrawTeam, R5-4) — nécessaire à la
+   * reconstruction du bracket pur (lib/competitions/bracket-store). Initialisé
+   * à [] à la publication.
+   */
+  withdrawn?: string[];
+  /** Bracket matérialisé (competition_matches écrits) — pose au `publish`. */
+  bracketMaterializedAt?: Date | string | null;
+  /**
+   * Arbitrages admin des égalités de placement (Lot 4, spec §11) : clé =
+   * groupe d'élimination du moteur (« W1 », « L3 »…), valeur = ordre complet
+   * décidé pour ce groupe (registrationId). Ignoré si le groupe a changé
+   * depuis (retrait, correction) — la clôture re-flag alors l'égalité.
+   */
+  tiebreakResolutions?: Record<string, string[]>;
+  /**
+   * Classement FINAL, écrit une seule fois à la clôture (archi §4 : places
+   * toutes uniques, points du barème circuit — null hors circuit). Public-safe
+   * (registrationId + dénormalisations, aucun uid).
+   */
+  finalPlacements?: FinalPlacement[];
+  closedAt?: Date | string | null;
+  /**
+   * Compétition de TEST : invisible du public (fiche + bracket + futures listes)
+   * comme un brouillon, MÊME une fois publiée en 'live'. Visible uniquement des
+   * admins compét et des comptes du bac à sable. Même logique que `users.isDev`.
+   * Permet à Matt de dérouler tout le cycle (seeding → publish → bracket) sur
+   * une compét de test sans fuite publique. Absent/false = compét réelle.
+   */
+  isDev?: boolean;
   createdAt: Date | string;
   // PAS de createdBy : doc public, uid/snowflake interdits (archi §8) —
   // l'auteur est tracé dans admin_audit_logs.
+}
+
+/** Une ligne du classement final d'une compétition clôturée. */
+export interface FinalPlacement {
+  registrationId: string;
+  name: string;
+  tag: string;
+  placement: number;           // place compressée 1→N
+  points: number | null;       // barème circuit — null hors circuit
+  goalDiff: number;            // délta normalisé du tournoi (départage §11)
+  goalsFor: number;
 }
 
 export type CompetitionStatus =
@@ -141,19 +201,25 @@ export type CompetitionStatus =
   | 'archived';
 
 export interface CompetitionFormat {
-  kind: 'double_elim';             // extensible : d'autres formats plus tard
+  kind: 'double_elim' | 'single_elim';
   maxTeams: number;                // 32
   /**
    * BO exprimé EN RELATIF à la fin de chaque bracket (archi §2) : les numéros
    * absolus de rounds changent avec N. Legends : défaut BO5, 2 dernières rondes
    * winners + 2 dernières rondes losers en BO7, grande finale (+ reset) BO7.
+   * En simple élim : `grandFinal` = BO de la FINALE (sauf override winners
+   * explicite roundsFromEnd 1), pas d'overrides `losers`.
    */
   bo: {
     default: number;
     overrides: Array<{ bracket: 'winners' | 'losers'; roundsFromEnd: number; bo: number }>;
     grandFinal: number;
   };
+  /** Double élim uniquement (toujours false en simple élim). */
   bracketReset: boolean;
+  /** Simple élim uniquement : petite finale (3e place) entre les perdants des
+   *  demies. Absent/false en double élim. */
+  thirdPlace?: boolean;
   /**
    * Score conventionnel d'un forfait (spec §11) : `games` manches gagnées
    * `goalsPerGame`-0 en BO5 → délta ±3 ; BO7 dérivé (4 manches).
@@ -178,8 +244,10 @@ export interface CompetitionEligibility {
 }
 
 export interface CompetitionSchedule {
-  /** Jours de compétition (dates ISO "YYYY-MM-DD", heure de début par jour). */
-  days: Array<{ date: string; startsAt: string }>;   // startsAt "15:00"
+  /** Jours de compétition (dates ISO "YYYY-MM-DD", heure de début + fin par jour).
+   *  `endsAt` (optionnel, rétrocompat) sert à poser la durée dans le calendrier
+   *  des équipes à la validation d'une inscription. */
+  days: Array<{ date: string; startsAt: string; endsAt?: string }>;   // "15:00" → "22:00"
   /**
    * Plan des phases : quelles rondes de quel bracket se jouent dans quelle
    * phase, dans l'ordre. Ajustable par l'admin (spec §2).
@@ -319,6 +387,26 @@ export interface CompetitionMatch {
   bo: number;
   teamA: string | null;            // registrationId, null = TBD
   teamB: string | null;
+  /**
+   * Un côté « void » ne recevra JAMAIS d'équipe (bye de seeding, double forfait
+   * en amont, slot de waitlist vide). Distinct de `teamA === null` (= TBD, une
+   * équipe arrive plus tard). Fidèle au moteur pur (lib/tournament) pour
+   * permettre la reconstruction exacte du bracket au Lot 3.
+   */
+  voidA: boolean;
+  voidB: boolean;
+  /**
+   * Le score conventionnel d'un forfait compte-t-il dans les stats de départage
+   * de chaque camp ? (forfait simple : oui des deux côtés ; cascade de retrait :
+   * non pour le retiré). Fidèle au moteur.
+   */
+  statsCountA: boolean;
+  statsCountB: boolean;
+  /** Nom/tag/logo dénormalisés pour le rendu du bracket public en onSnapshot
+   *  (le client ne peut pas lire `competition_registrations`, deny-all). Figés
+   *  à l'inscription — jamais de donnée personnelle. Null si côté TBD/void. */
+  teamAInfo: { name: string; tag: string; logoUrl: string | null } | null;
+  teamBInfo: { name: string; tag: string; logoUrl: string | null } | null;
   sourceA: MatchSource;
   sourceB: MatchSource;
   status: MatchStatus;
@@ -331,13 +419,23 @@ export interface CompetitionMatch {
   /** Créateur de la room = équipe du haut du bracket (spec §8). */
   roomHost: 'a' | 'b';
   scores: {
-    a: number[];                   // buts par manche
-    b: number[];
+    /**
+     * SAISIES des deux camps (spec §9) : chaque capitaine/staff saisit le score
+     * COMPLET de chaque manche ({a,b} — sans les buts adverses, la détection de
+     * divergence serait impossible). [] = pas encore saisi. Le résultat retenu
+     * est TOUJOURS `final`, écrit par la progression (moteur advanceMatch) —
+     * jamais par la saisie directement.
+     */
+    a: Array<{ a: number; b: number }>;
+    b: Array<{ a: number; b: number }>;
     aSubmittedAt: Date | string | null;
     bSubmittedAt: Date | string | null;
     counterDeadline: Date | string | null;  // +3 min après la 1re saisie complète
     final: Array<{ a: number; b: number }> | null;
-    validatedBy: string | null;    // uid admin si force-score, 'auto' si concordance
+    /** Qui a validé le score : 'auto' (concordance) | 'admin' (force-score).
+     *  JAMAIS un uid — ce doc est en lecture PUBLIQUE (invariant §8) ;
+     *  l'identité de l'admin est tracée dans admin_audit_logs. */
+    validatedBy: 'auto' | 'admin' | null;
   };
   /** Buts marqués/encaissés — le délta seul ne suffit pas au départage (archi §2). */
   stats: {
@@ -347,14 +445,16 @@ export interface CompetitionMatch {
   forfeit: {
     team: 'a' | 'b' | 'both';
     requestedAt: Date | string;
-    validatedBy: string | null;
+    /** 'admin' (validé) — JAMAIS un uid (doc public §8, admin dans audit log). */
+    validatedBy: 'admin' | null;
     reason: string | null;
   } | null;
   dispute: {
     openedBy: 'a' | 'b' | 'admin' | 'auto';
     openedAt: Date | string;
     auto: boolean;                 // scores discordants = litige automatique
-    resolvedBy: string | null;
+    /** 'admin' — JAMAIS un uid (doc public §8, admin tracé dans audit log). */
+    resolvedBy: 'admin' | null;
     resolution: string | null;
   } | null;
   cast: { featured: boolean; streamUrl: string | null } | null;
@@ -381,26 +481,56 @@ export type MatchStatus =
   | 'walkover'                     // état terminal — adversaire d'un double forfait
   | 'cancelled';                   // état terminal — ex. reset non joué
 
-// ── Bans & admins de compétition ────────────────────────────────────────────
+// ── Sanctions & admins de compétition ───────────────────────────────────────
 
 /**
- * Collection `competition_bans` — registre des bans joueurs ET structures.
- * Lecture deny-all (servie via API admin compét). Consulté automatiquement à
- * l'inscription : refus auto + motif affiché (spec §5).
+ * Échelle de modération graduée (validée Matt 08/07) — une seule collection
+ * `competition_sanctions` avec discriminant `type` :
+ *  - `warn`      : avertissement. AUCUN blocage. Notif in-app + DM Discord au
+ *                  staff/dirigeants avec le motif. Cumulable (escalade MANUELLE).
+ *  - `exclusion` : retrait d'UN tournoi ou d'UN circuit (scope). Bloque la
+ *                  réinscription à ce scope. Effet branché au Lot 3 (retrait).
+ *  - `ban`       : refuse l'inscription à TOUTE compétition (scope global).
  */
-export interface CompetitionBan {
+export type SanctionType = 'warn' | 'exclusion' | 'ban';
+
+/** Cible : un joueur, une structure entière, ou une équipe (sub_team) précise. */
+export type SanctionTargetType = 'user' | 'structure' | 'team';
+
+/** Portée : globale (ban), ou limitée à une compétition / un circuit (exclusion). */
+export type SanctionScope =
+  | { kind: 'global' }
+  | { kind: 'competition'; competitionId: string }
+  | { kind: 'circuit'; circuitId: string };
+
+/**
+ * Collection `competition_sanctions` — registre unifié (warn / exclusion / ban).
+ * Lecture deny-all (Admin SDK only, servie via API admin compét). Jamais de
+ * delete : une sanction levée est RÉVOQUÉE (horodatée), l'historique fait foi
+ * (c'est lui qui rend l'escalade manuelle juste). Consultée à l'inscription
+ * pour le refus auto (ban global + exclusion scopée), jamais le warn (§5).
+ */
+export interface CompetitionSanction {
   id: string;
-  targetType: 'user' | 'structure';
-  targetId: string;                // uid ou structureId
-  targetLabel: string;             // displayName / nom structure au moment du ban
-  reason: string;
-  /** null = permanent. */
+  type: SanctionType;
+  targetType: SanctionTargetType;
+  targetId: string;                // uid | structureId | teamId (sub_team)
+  targetLabel: string;             // dénormalisé (lisible même si la cible disparaît)
+  scope: SanctionScope;
+  /** Motif type (liste fermée UI) pour la cohérence + les stats ; null si libre seul. */
+  reasonCode: string | null;
+  reason: string;                  // motif libre (obligatoire, complète le code)
+  /** Contexte d'émission (compétition depuis laquelle l'admin a sanctionné). */
+  competitionId: string | null;
+  /** null = permanent (warn/ban) ; daté = sanction temporaire (exclusion). */
   expiresAt: Date | string | null;
   createdBy: string;
   createdAt: Date | string;
-  /** Ban levé manuellement (on garde l'historique, jamais de delete). */
+  /** Sanction levée manuellement (on garde l'historique, jamais de delete). */
   revokedAt: Date | string | null;
   revokedBy: string | null;
+  /** Notif in-app + DM Discord envoyés (best-effort) au staff/dirigeants. */
+  notified: boolean;
 }
 
 /**

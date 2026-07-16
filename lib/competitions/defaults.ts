@@ -63,9 +63,13 @@ export const LEGENDS_CHECKIN = {
 
 // Plan de phases par défaut pour un double élim 32 équipes sur 2 jours
 // (découpage validé de la spec §2 — « un full-winner joue 3 matchs le jour 1 »).
-// N=32 : winners WR1→WR5, losers LR1→LR8, grande finale (+ reset pré-créé).
-// Le plan reste ajustable par l'admin ; pour N < 32 le générateur de bracket
-// (Lot 2) recalera les rondes réellement existantes.
+// N=32 : winners WR1→WR5, losers LR1→LR8, grande finale + reset (P11).
+// Le rattachement se fait par NUMÉRO DE RONDE ABSOLU (generate.ts) : les
+// rondes inexistantes sont simplement ignorées. Comme les byes ne réduisent
+// PAS le nombre de rondes (size = nextPowerOfTwo(N)), ce plan est correct pour
+// tout N ∈ [17, 32] (winnersRounds = 5), le profil des Qualifs Legends. Pour
+// N ≤ 16 (size ≤ 16, moins de rondes) les libellés seraient décalés : prévoir
+// alors un plan dérivé de la taille effective. Le plan reste ajustable admin.
 export function buildLegendsPhasePlan(): PhasePlanEntry[] {
   return [
     { phase: 1, day: 1, label: 'P1 — WR1', rounds: [{ bracket: 'winners', round: 1 }] },
@@ -78,8 +82,58 @@ export function buildLegendsPhasePlan(): PhasePlanEntry[] {
     { phase: 8, day: 2, label: 'P8 — LR7', rounds: [{ bracket: 'losers', round: 7 }] },
     { phase: 9, day: 2, label: 'P9 — Finale WB', rounds: [{ bracket: 'winners', round: 5 }] },
     { phase: 10, day: 2, label: 'P10 — Finale LB', rounds: [{ bracket: 'losers', round: 8 }] },
-    { phase: 11, day: 2, label: 'P11 — Grande finale (+ reset)', rounds: [{ bracket: 'grand_final', round: 1 }] },
+    // Le reset pré-créé est grand_final round 2 : il partage la phase de la GF.
+    { phase: 11, day: 2, label: 'P11 — Grande finale (+ reset)', rounds: [{ bracket: 'grand_final', round: 1 }, { bracket: 'grand_final', round: 2 }] },
   ];
+}
+
+// ── Préréglage « Tournoi en ligne — simple élimination » ────────────────────
+// Pour les tournois hors circuit (dont le tournoi test avant la Legends) :
+// BO5 partout, finale BO7, pas de petite finale par défaut. Tout éditable.
+export const SINGLE_ELIM_FORMAT: CompetitionFormat = {
+  kind: 'single_elim',
+  maxTeams: 16,
+  bo: {
+    default: 5,
+    overrides: [],
+    grandFinal: 7,   // en simple élim : BO de la FINALE
+  },
+  bracketReset: false,
+  thirdPlace: false,
+  forfeitScore: { games: 3, goalsPerGame: 1 },
+};
+
+// Plan de phases simple élim : une phase par ronde, libellés par profondeur.
+// Comme le plan Legends, le rattachement se fait par ronde ABSOLUE d'un arbre
+// de `size = nextPowerOfTwo(maxTeams)` : si N final donne moins de rondes, les
+// premières phases ne matchent rien et sont ignorées — prévoir d'ajuster le
+// plan (éditable) si le champ réel est bien plus petit que maxTeams.
+export function buildSingleElimPhasePlan(maxTeams: number, thirdPlace = false): PhasePlanEntry[] {
+  let size = 1;
+  while (size < Math.max(4, Math.min(32, maxTeams))) size *= 2;
+  const rounds = Math.log2(size);
+  const labelOf = (fromEnd: number): string => {
+    if (fromEnd === 0) return 'Finale';
+    if (fromEnd === 1) return 'Demi-finales';
+    if (fromEnd === 2) return 'Quarts';
+    if (fromEnd === 3) return 'Huitièmes';
+    return 'Seizièmes';
+  };
+  const plan: PhasePlanEntry[] = [];
+  for (let r = 1; r <= rounds; r++) {
+    const isFinal = r === rounds;
+    // La petite finale (losers round 1) se joue avec la finale — seulement si
+    // elle est activée (la validation refuse un plan qui la cite sans elle).
+    plan.push({
+      phase: r,
+      day: 1,
+      label: `P${r} — ${labelOf(rounds - r)}${isFinal && thirdPlace ? ' + petite finale' : ''}`,
+      rounds: isFinal && thirdPlace
+        ? [{ bracket: 'winners', round: r }, { bracket: 'losers', round: 1 }]
+        : [{ bracket: 'winners', round: r }],
+    });
+  }
+  return plan;
 }
 
 // Ordre de départage cutline top-16 (spec §11) : meilleur placement unique du
@@ -89,4 +143,6 @@ export const LEGENDS_TIE_BREAKERS = ['best_placement', 'goal_diff_total', 'lates
 export const LEGENDS_CIRCUIT = {
   bestResultsCount: 3,
   lanTeamCount: 16,
+  // Dotation Legends : 1 200 € cash, remis à la LAN uniquement (spec §1).
+  prizePool: { amount: 1200, currency: 'EUR', note: 'Remis à la LAN finale' },
 };

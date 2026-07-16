@@ -7,12 +7,15 @@ import { clampString } from '@/lib/validation';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { createNotifications, type NotificationPayload } from '@/lib/notifications';
 import { sendCompetitionDM, deprovisionRegistration } from '@/lib/discord-competition';
+import { releaseCircuitClaim } from '@/lib/competitions/withdraw-registration';
 import {
   resolveCircuitIdentity,
   circuitTeamSlug,
   type IdentityCandidate,
   type IdentityResolution,
 } from '@/lib/competitions/identity';
+import { syncRegistrationToCalendar, removeRegistrationFromCalendar } from '@/lib/competitions/calendar-sync';
+import { getSanctionsFor } from '@/lib/competitions/sanctions';
 
 // File de validation des inscriptions (spec Legends §4, archi §2 + §7).
 //
@@ -227,9 +230,45 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .get();
 
     const activeStatuses = new Set(['pending', 'approved', 'waitlisted']);
-    // Méta joueurs : roster actifs + inscripteurs + reviewers (une seule passe).
-    const metaUids = Array.from(new Set(
-      regsSnap.docs.flatMap(d => {
+    const structureIds = Array.from(new Set(regsSnap.docs.map(d => d.data().structureId as string).filter(Boolean)));
+    const teamIds = Array.from(new Set(regsSnap.docs.map(d => d.data().teamId as string).filter(Boolean)));
+    const allRosterUids = Array.from(new Set(regsSnap.docs.flatMap(d => (d.data().rosterUids as string[] | undefined) ?? [])));
+
+    // 1) Structures + équipes (bloc « Staff & direction » — lecture LIVE, le
+    //    snapshot d'inscription ne fige PAS le staff).
+    const [structureSnaps, teamSnaps] = await Promise.all([
+      structureIds.length ? db.getAll(...structureIds.map(sid => db.collection('structures').doc(sid))) : Promise.resolve([] as FirebaseFirestore.DocumentSnapshot[]),
+      teamIds.length ? db.getAll(...teamIds.map(tid => db.collection('sub_teams').doc(tid))) : Promise.resolve([] as FirebaseFirestore.DocumentSnapshot[]),
+    ]);
+    const structuresById = new Map<string, { name: string; slug: string | null; founderId: string; coFounderIds: string[]; managerIds: string[] }>();
+    for (const s of structureSnaps) {
+      if (!s.exists) continue;
+      const d = s.data()!;
+      structuresById.set(s.id, {
+        name: (d.name as string) ?? '', slug: (d.slug as string) || null,
+        founderId: (d.founderId as string) ?? '', coFounderIds: (d.coFounderIds as string[]) ?? [], managerIds: (d.managerIds as string[]) ?? [],
+      });
+    }
+    const teamsById = new Map<string, { staffIds: string[]; staffRoles: Record<string, string>; captainId: string | null }>();
+    for (const t of teamSnaps) {
+      if (!t.exists) continue;
+      const d = t.data()!;
+      teamsById.set(t.id, { staffIds: (d.staffIds as string[]) ?? [], staffRoles: (d.staffRoles as Record<string, string>) ?? {}, captainId: (d.captainId as string) ?? null });
+    }
+
+    // 2) Méta joueurs : roster actifs + inscripteurs + reviewers + STAFF/DIRIGEANTS.
+    const staffUids = new Set<string>();
+    for (const s of structuresById.values()) {
+      if (s.founderId) staffUids.add(s.founderId);
+      s.coFounderIds.forEach(u => u && staffUids.add(u));
+      s.managerIds.forEach(u => u && staffUids.add(u));
+    }
+    for (const t of teamsById.values()) {
+      t.staffIds.forEach(u => u && staffUids.add(u));
+      if (t.captainId) staffUids.add(t.captainId);
+    }
+    const metaUids = Array.from(new Set([
+      ...regsSnap.docs.flatMap(d => {
         const r = d.data();
         return [
           ...(activeStatuses.has(r.status) ? ((r.rosterUids as string[] | undefined) ?? []) : []),
@@ -237,33 +276,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           r.review?.by as string | undefined,
         ].filter(Boolean) as string[];
       }),
-    ));
+      ...staffUids,
+    ]));
 
-    const structureIds = Array.from(new Set(
-      regsSnap.docs.map(d => d.data().structureId as string).filter(Boolean),
-    ));
-
-    const [meta, circuitCtx, structureSnaps] = await Promise.all([
+    // 3) Méta + contexte circuit + historique des sanctions (par cibles de la compét).
+    const [meta, circuitCtx, sanctionRecords] = await Promise.all([
       loadPlayerMeta(db, metaUids),
       comp.circuitId ? loadCircuitContext(db, comp.circuitId as string) : Promise.resolve(null),
-      structureIds.length > 0
-        ? db.getAll(...structureIds.map(sid => db.collection('structures').doc(sid)))
-        : Promise.resolve([] as FirebaseFirestore.DocumentSnapshot[]),
+      getSanctionsFor(db, { uids: allRosterUids, structureIds, teamIds }),
     ]);
 
-    const structuresById = new Map<string, { name: string; slug: string | null }>();
-    structureSnaps.forEach(s => {
-      if (s.exists) {
-        structuresById.set(s.id, {
-          name: (s.data()?.name as string) ?? '',
-          slug: (s.data()?.slug as string) || null,
-        });
-      }
-    });
-
-    // displayName des créateurs/reviewers — tous présents dans la méta.
+    // displayName des créateurs/reviewers/staff — tous présents dans la méta.
     const names = new Map<string, string>();
     for (const uid of metaUids) names.set(uid, meta.get(uid)?.displayName ?? uid);
+    const nameOf = (u: string) => ({ uid: u, displayName: names.get(u) ?? u, discordUsername: meta.get(u)?.discordUsername ?? null, slug: meta.get(u)?.slug ?? null });
 
     const registrations = regsSnap.docs.map(d => {
       const r = d.data();
@@ -302,6 +328,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       const structureInfo = structuresById.get(r.structureId as string);
       const createdByMeta = meta.get(r.createdBy as string);
 
+      // Staff & direction (LIVE) : dirigeant + responsables de la structure,
+      // staff de l'équipe (manager/coach), capitaine désigné (distinct de
+      // l'inscripteur). Null-safe si l'équipe a été archivée depuis l'inscription.
+      const teamInfo = teamsById.get(r.teamId as string);
+      const staff = {
+        founder: structureInfo?.founderId ? nameOf(structureInfo.founderId) : null,
+        coFounders: (structureInfo?.coFounderIds ?? []).map(nameOf),
+        responsables: (structureInfo?.managerIds ?? []).map(nameOf),
+        teamManagers: (teamInfo?.staffIds ?? []).filter(u => (teamInfo!.staffRoles[u] ?? 'coach') === 'manager').map(nameOf),
+        teamCoaches: (teamInfo?.staffIds ?? []).filter(u => (teamInfo!.staffRoles[u] ?? 'coach') === 'coach').map(nameOf),
+        captain: teamInfo?.captainId ? nameOf(teamInfo.captainId) : null,
+      };
+
+      // Historique des sanctions visant cette inscription (joueurs du roster,
+      // structure, équipe) — fonde l'escalade manuelle à la validation.
+      const regRosterUids = new Set((r.rosterUids as string[] | undefined) ?? []);
+      const sanctions = sanctionRecords.filter(s =>
+        (s.targetType === 'user' && regRosterUids.has(s.targetId))
+        || (s.targetType === 'structure' && s.targetId === r.structureId)
+        || (s.targetType === 'team' && s.targetId === r.teamId));
+
       return {
         id: d.id,
         teamId: r.teamId ?? '',
@@ -319,6 +366,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         createdByDiscordUsername: createdByMeta?.discordUsername ?? null,
         createdByOnDiscordGuild: (r.createdByOnDiscordGuild as boolean | null) ?? null,
         captainUid: r.captainUid ?? '',
+        staff,
+        sanctions,
+        adminNotes: (r.adminNotes as string) ?? '',
         roster,
         computed: r.computed ?? { worstLineupAvg: null, worstLineupGap: null, flags: [] },
         review: r.review
@@ -409,6 +459,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Inscription introuvable.' }, { status: 404 });
     }
     const reg = regSnap.data()!;
+
+    // Notes admin internes (jamais vues par l'équipe) — édition simple.
+    if (action === 'set_notes') {
+      const notes = clampString(body.notes, 2000);
+      await regRef.update({ adminNotes: notes });
+      return NextResponse.json({ success: true });
+    }
 
     if (action === 'approve') {
       return await approve(db, { id, comp, regRef, registrationId, reg, adminUid: uid, body });
@@ -723,6 +780,18 @@ async function approve(db: FirebaseFirestore.Firestore, ctx: ActionContext) {
     reason: null,
   });
 
+  // Créneaux au calendrier de l'équipe (retour Matt 07/07) : uniquement si
+  // VALIDÉE (pas liste d'attente). Best-effort — n'échoue jamais l'approbation.
+  if (finalStatus === 'approved') {
+    try {
+      await syncRegistrationToCalendar(db, {
+        competitionId: id, comp, teamId: reg.teamId as string, structureId: reg.structureId as string,
+      });
+    } catch (err) {
+      console.error('[competitions/registrations] calendar sync on approve failed:', err);
+    }
+  }
+
   return NextResponse.json({ success: true, status: finalStatus, circuitTeamId: finalCircuitTeamId });
 }
 
@@ -798,6 +867,14 @@ async function reject(db: FirebaseFirestore.Firestore, ctx: ActionContext) {
     reason,
   });
 
+  // Retire les créneaux calendrier posés à une éventuelle validation antérieure
+  // (idempotent : no-op si l'équipe n'avait jamais été validée). Best-effort.
+  try {
+    await removeRegistrationFromCalendar(db, { competitionId: id, teamId: reg.teamId as string });
+  } catch (err) {
+    console.error('[competitions/registrations] calendar cleanup on reject failed:', err);
+  }
+
   return NextResponse.json({ success: true, status: 'rejected' });
 }
 
@@ -818,6 +895,12 @@ async function unapprove(db: FirebaseFirestore.Firestore, ctx: ActionContext) {
       if (!regNow.exists || (regData?.status !== 'approved' && regData?.status !== 'waitlisted')) {
         throw new Error('state_changed');
       }
+      // Bracket publié = l'équipe y est ASSISE (blocker review Lot 4) : la
+      // dévalider la laisserait jouer et se classer SANS jamais recevoir ses
+      // points à la clôture (status pending + claim circuit libéré). Miroir de
+      // la garde de withdrawRegistration : après publication, tout passe par
+      // la console (retrait R5-4 / remplacement).
+      if (compNow.data()?.bracketMaterializedAt) throw new Error('bracket_published');
       const wasApproved = regData?.status === 'approved';
       await releaseCircuitClaim(db, tx, id, registrationId, regData?.circuitTeamId ?? null);
       tx.update(regRef, { status: 'pending', circuitTeamId: null, review: null });
@@ -829,6 +912,9 @@ async function unapprove(db: FirebaseFirestore.Firestore, ctx: ActionContext) {
   } catch (err) {
     if (err instanceof Error && err.message === 'state_changed') {
       return NextResponse.json({ error: 'L\'inscription a changé d\'état entre-temps. Recharge la liste.' }, { status: 409 });
+    }
+    if (err instanceof Error && err.message === 'bracket_published') {
+      return NextResponse.json({ error: 'Le bracket est publié — un retrait passe par la console (disqualification ou remplacement).' }, { status: 409 });
     }
     throw err;
   }
@@ -842,6 +928,13 @@ async function unapprove(db: FirebaseFirestore.Firestore, ctx: ActionContext) {
     metadata: { registrationId, teamName: reg.name ?? '' },
   });
 
+  // L'équipe n'est plus validée → retirer ses créneaux du calendrier. Best-effort.
+  try {
+    await removeRegistrationFromCalendar(db, { competitionId: id, teamId: reg.teamId as string });
+  } catch (err) {
+    console.error('[competitions/registrations] calendar cleanup on unapprove failed:', err);
+  }
+
   return NextResponse.json({ success: true, status: 'pending' });
 }
 
@@ -850,38 +943,6 @@ async function unapprove(db: FirebaseFirestore.Firestore, ctx: ActionContext) {
 // (aucune participation close, aucun claim, aucun roster) — pas de fantômes.
 // Appelée DANS une transaction : les gets précèdent tous les writes de
 // l'appelant (contrat Firestore respecté par ordre d'appel).
-async function releaseCircuitClaim(
-  db: FirebaseFirestore.Firestore,
-  tx: FirebaseFirestore.Transaction,
-  competitionId: string,
-  registrationId: string,
-  circuitTeamId: string | null,
-): Promise<void> {
-  if (!circuitTeamId) return;
-  const ctRef = db.collection('circuit_teams').doc(circuitTeamId);
-  const stateRef = ctRef.collection('private').doc('state');
-  const [ctSnap, stateSnap] = await Promise.all([tx.get(ctRef), tx.get(stateRef)]);
-  if (!ctSnap.exists) return;
-
-  const claims = { ...((stateSnap.data()?.claims as Record<string, string>) ?? {}) };
-  const rosters = { ...((stateSnap.data()?.rosterByCompetition as Record<string, unknown>) ?? {}) };
-  if (claims[competitionId] === registrationId) delete claims[competitionId];
-  if ((rosters[competitionId] as { registrationId?: string } | undefined)?.registrationId === registrationId) {
-    delete rosters[competitionId];
-  }
-
-  const participations = (ctSnap.data()?.participations as unknown[] | undefined) ?? [];
-  const orphan = participations.length === 0
-    && Object.keys(claims).length === 0
-    && Object.keys(rosters).length === 0;
-
-  if (orphan) {
-    tx.delete(stateRef);
-    tx.delete(ctRef);
-  } else {
-    tx.set(stateRef, { claims, rosterByCompetition: rosters });
-  }
-}
 
 // ── Notifications de décision (in-app garanties + DM best-effort) ───────────
 

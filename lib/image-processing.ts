@@ -55,6 +55,25 @@ export async function processBanner(
     .toBuffer();
 }
 
+// Traite un logo « libre » (wordmark large, icône…) : conserve le RATIO et la
+// TRANSPARENCE (alpha PNG → alpha webp), borne les deux dimensions à maxSize.
+// Contrairement à processSquareImage (crop carré), ne rogne jamais — pensé pour
+// les logos d'organisateur de compétition, souvent des wordmarks larges.
+export async function processContainedLogo(
+  input: Buffer,
+  maxSize = 640,
+  quality = 88
+): Promise<Buffer> {
+  return await sharp(input, { failOn: 'error' })
+    .rotate()
+    .resize(maxSize, maxSize, {
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    .webp({ quality, effort: 4 })
+    .toBuffer();
+}
+
 // Vérifie qu'un buffer est bien une image valide décodable (anti-upload malveillant).
 // Renvoie { width, height, format } si OK, null sinon.
 export async function probeImage(

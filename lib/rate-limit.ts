@@ -35,6 +35,9 @@ export const limiters = {
   admin: makeLimiter('admin', 120, '1 m'),
   // Lectures coûteuses (listes paginées, stats externes)
   read: makeLimiter('read', 60, '1 m'),
+  // Fil de discussion de match (Lot 4C) : cadence conversation — plus souple
+  // que `write`, borné pour empêcher le flood d'un capitaine énervé.
+  chat: makeLimiter('chat', 20, '30 s'),
 };
 
 // Récupère l'IP du client, Vercel met x-forwarded-for, fallback sur x-real-ip

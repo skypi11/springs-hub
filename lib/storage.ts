@@ -207,6 +207,10 @@ export const StorageKeys = {
     `structures/${structureId}/todo-screenshots/${todoId}/${stepId}-${version}.webp`,
   structureDocument: (structureId: string, documentId: string, filename: string) =>
     `structures/${structureId}/documents/${documentId}/${sanitizeFilename(filename)}`,
+  // Logo d'organisateur de compétition (admin). Découplé d'un circuit précis
+  // (l'upload peut précéder la création du circuit), d'où une clé versionnée globale.
+  competitionOrganizerLogo: (version: number) =>
+    `competitions/organizer-logos/${version}.webp`,
   // Préfixes pour calculs de quota
   structurePrefix: (structureId: string) => `structures/${structureId}/`,
   structureDocumentsPrefix: (structureId: string) => `structures/${structureId}/documents/`,

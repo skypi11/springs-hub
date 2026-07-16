@@ -16,6 +16,8 @@ export interface AdminCircuit {
   pointsScale: Record<string, number>;
   bestResultsCount: number;
   lanTeamCount: number;
+  prizePool: { amount: number; currency: string; note?: string } | null;
+  organizer: { name: string; logoUrl?: string | null } | null;
   tieBreakers: string[];
   status: string;
   createdAt: string | null;
@@ -33,6 +35,10 @@ export interface AdminCompetition {
   schedule: CompetitionSchedule | null;
   discord: { guildId: string; participantRoleId: string | null; categoryId: string | null } | null;
   status: string;
+  isDev?: boolean;
+  bracketMaterializedAt?: string | null;
+  /** Inscriptions en attente de validation (signal « à valider » sur la carte admin). */
+  pendingCount?: number;
   createdAt: string | null;
 }
 

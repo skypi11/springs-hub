@@ -6,15 +6,16 @@
 // le dirigeant voit AVANT de soumettre ce que les admins verront à la
 // validation. Rien n'est refusé automatiquement sauf le registre des bans.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
-import { ChevronLeft, ChevronRight, ShieldCheck, ShieldAlert, ArrowRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ShieldCheck, ShieldAlert, ArrowRight, Check } from 'lucide-react';
 import { api, ApiError } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import GameTag from '@/components/games/GameTag';
+import { getGameColor, getGameColorRgb } from '@/lib/games-registry';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { computeRefMmr, computeMmrFlags, analyzeLineups } from '@/lib/competitions/mmr';
 import type { CompetitionEligibility } from '@/types/competitions';
@@ -55,6 +56,11 @@ const REG_STATUS_LABELS: Record<string, string> = {
   waitlisted: "Liste d'attente",
 };
 
+// Ambre « attention » : signale ce qui sera examiné à la validation (compte non
+// vérifié, âge, flags MMR, inscription déjà là). PAS de l'or — l'or reste réservé
+// au CTA (btn-primary). Même ambre que la pastille « liste d'attente ».
+const WARN = '#ffb46b';
+
 export default function InscriptionPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -75,9 +81,15 @@ export default function InscriptionPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState<string[] | null>(null); // flags renvoyés
 
+  // `router` ne sert qu'à la redirection au moment du chargement : le lire via une
+  // ref garde le chargement unique post-auth (une identité de router neuve ne doit
+  // pas refetch le contexte et réinitialiser les choix du wizard en cours).
+  const routerRef = useRef(router);
+  useEffect(() => { routerRef.current = router; }, [router]);
+
   useEffect(() => {
     if (authLoading) return;
-    if (!firebaseUser) { router.replace(`/competitions/${params.id}`); return; }
+    if (!firebaseUser) { routerRef.current.replace(`/competitions/${params.id}`); return; }
     let cancelled = false;
     api<WizardContext>(`/api/competitions/${params.id}/register`)
       .then(res => {
@@ -95,7 +107,6 @@ export default function InscriptionPage() {
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- chargement unique post-auth
   }, [authLoading, firebaseUser, params.id]);
 
   const structure = ctx?.structures.find(s => s.id === structureId) ?? null;
@@ -221,16 +232,19 @@ export default function InscriptionPage() {
       setSubmitted(res.flags ?? []);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Erreur réseau.');
-    } finally {
-      setSubmitting(false);
     }
+    // Équivalent d'un `finally` : le try ne sort jamais par return/throw (le catch
+    // avale tout sans relancer), donc on retombe toujours ici. Le `finally` est le
+    // seul motif de bailout du React Compiler sur ce composant — sans lui, toutes
+    // les règles react-hooks s'éteignaient en silence sur tout le fichier.
+    setSubmitting(false);
   }
 
   // ── Rendus d'état ──────────────────────────────────────────────────────────
 
   if (authLoading || loading) {
     return (
-      <div className="px-4 sm:px-8 py-8 max-w-3xl mx-auto space-y-4">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-4">
         <Skeleton className="h-8 w-1/2" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -239,7 +253,7 @@ export default function InscriptionPage() {
 
   if (loadError || !ctx || !comp) {
     return (
-      <div className="px-4 sm:px-8 py-8 max-w-3xl mx-auto">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         <p className="t-body" style={{ color: 'var(--s-text-dim)' }}>{loadError || 'Compétition introuvable.'}</p>
       </div>
     );
@@ -247,7 +261,7 @@ export default function InscriptionPage() {
 
   if (submitted !== null) {
     return (
-      <div className="px-4 sm:px-8 py-8 max-w-3xl mx-auto space-y-4 animate-fade-in">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-4 animate-fade-in">
         <div className="panel bevel">
           <div className="panel-body space-y-3">
             <h1 className="font-display text-2xl" style={{ letterSpacing: '0.03em' }}>INSCRIPTION ENVOYÉE</h1>
@@ -272,7 +286,7 @@ export default function InscriptionPage() {
   const registrationBlocked = comp.windowState !== 'open' && !(ctx.canTestDraft && comp.status === 'draft');
   if (registrationBlocked) {
     return (
-      <div className="px-4 sm:px-8 py-8 max-w-3xl mx-auto">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         <p className="t-body" style={{ color: 'var(--s-text-dim)' }}>
           {comp.windowState === 'before' && 'Les inscriptions ne sont pas encore ouvertes.'}
           {comp.windowState === 'closed' && 'Les inscriptions sont fermées.'}
@@ -284,7 +298,7 @@ export default function InscriptionPage() {
 
   if (ctx.structures.length === 0) {
     return (
-      <div className="px-4 sm:px-8 py-8 max-w-3xl mx-auto space-y-3">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-3">
         <p className="t-body" style={{ color: 'var(--s-text-dim)' }}>
           L&apos;inscription se fait par un dirigeant ou responsable d&apos;une structure
           avec une équipe {comp.game === 'rocket_league' ? 'Rocket League' : ''} sur Aedral.
@@ -297,17 +311,48 @@ export default function InscriptionPage() {
   }
 
   const existingForTeam = ctx.existingRegistrations.find(r => r.teamId === teamId);
+  const color = getGameColor(comp.game);
+  const colorRgb = getGameColorRgb(comp.game);
+  const stepLabels = ctx.rulebook ? ['Équipe', 'Roster', 'Règlement', 'Récap'] : ['Équipe', 'Roster', 'Récap'];
+  // step 1..4 avec l'étape 3 (règlement) sautée s'il n'y a pas de règlement.
+  const currentIndex = ctx.rulebook ? step - 1 : (step === 4 ? 2 : step - 1);
 
   return (
-    <div className="px-4 sm:px-8 py-8 max-w-3xl mx-auto space-y-6 animate-fade-in">
-      <div>
-        <div className="flex flex-wrap items-center gap-2 mb-1">
+    <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-6 animate-fade-in">
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
           <GameTag gameId={comp.game} size="sm" />
-          <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>{comp.name}</span>
+          <Link href={`/competitions/${comp.id}`} className="text-sm hover:underline" style={{ color: 'var(--s-text-dim)' }}>
+            {comp.name}
+          </Link>
+          <span className="text-sm" style={{ color: 'var(--s-text-muted)' }}>· Inscription</span>
         </div>
-        <h1 className="font-display text-2xl" style={{ letterSpacing: '0.03em' }}>
-          INSCRIPTION — ÉTAPE {step === 4 && !ctx.rulebook ? 3 : step}/{ctx.rulebook ? 4 : 3}
-        </h1>
+        {/* Stepper — occupe la largeur, situe la progression sans le « ÉTAPE X/Y » */}
+        <div className="flex items-center gap-2">
+          {stepLabels.map((label, i) => {
+            const done = i < currentIndex;
+            const active = i === currentIndex;
+            return (
+              <div key={label} className="flex items-center gap-2 flex-1 min-w-0">
+                <span className="flex items-center justify-center flex-shrink-0" style={{
+                  width: 26, height: 26, fontSize: '13px', fontWeight: 600,
+                  background: active ? color : done ? `rgba(${colorRgb},0.15)` : 'var(--s-elevated)',
+                  color: active ? '#000' : done ? color : 'var(--s-text-muted)',
+                  border: `1px solid ${active || done ? `rgba(${colorRgb},0.5)` : 'var(--s-border)'}`,
+                }}>
+                  {done ? <Check size={14} /> : i + 1}
+                </span>
+                <span className="text-sm truncate" style={{
+                  color: active ? 'var(--s-text)' : 'var(--s-text-dim)',
+                  fontWeight: active ? 600 : 400,
+                }}>{label}</span>
+                {i < stepLabels.length - 1 && (
+                  <span className="flex-1 h-px" style={{ background: 'var(--s-border)', minWidth: 12 }} />
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Étape 1 — équipe */}
@@ -317,7 +362,7 @@ export default function InscriptionPage() {
             {ctx.structures.length > 1 && (
               <div>
                 <label className="t-label block mb-2">Structure</label>
-                <select className="settings-input w-full" value={structureId}
+                <select className="settings-input w-full max-w-md" value={structureId}
                   onChange={e => {
                     setStructureId(e.target.value);
                     setTeamId('');
@@ -338,7 +383,7 @@ export default function InscriptionPage() {
                     Aucune équipe pour ce jeu. Crée-la d&apos;abord dans ta structure.
                   </p>
                 ) : (
-                  <select className="settings-input w-full" value={teamId}
+                  <select className="settings-input w-full max-w-md" value={teamId}
                     onChange={e => { setTeamId(e.target.value); setAssignment({}); }}>
                     <option value="">Choisir…</option>
                     {structure.teams.map(t => (
@@ -351,13 +396,13 @@ export default function InscriptionPage() {
               </div>
             )}
             {existingForTeam && (
-              <p className="text-sm" style={{ color: 'var(--s-gold)' }}>
+              <p className="text-sm" style={{ color: WARN }}>
                 Cette équipe a déjà une inscription : {REG_STATUS_LABELS[existingForTeam.status] ?? existingForTeam.status}.
               </p>
             )}
             <div>
               <label className="t-label block mb-2">Nom d&apos;équipe affiché</label>
-              <input className="settings-input w-full" value={displayName} maxLength={50}
+              <input className="settings-input w-full max-w-md" value={displayName} maxLength={50}
                 onChange={e => setDisplayName(e.target.value)} />
               <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
                 Il identifie l&apos;équipe sur tout le circuit : le changer entre deux
@@ -403,13 +448,13 @@ export default function InscriptionPage() {
                             cursor: blocked ? 'not-allowed' : 'pointer',
                             minWidth: '92px', textAlign: 'center',
                             background: role === r
-                              ? (r === 'titulaire' ? 'rgba(0,129,255,0.15)' : 'rgba(255,255,255,0.12)')
+                              ? (r === 'titulaire' ? `rgba(${colorRgb},0.15)` : 'rgba(255,255,255,0.12)')
                               : 'transparent',
                             borderColor: role === r
-                              ? (r === 'titulaire' ? 'rgba(0,129,255,0.5)' : 'rgba(255,255,255,0.35)')
+                              ? (r === 'titulaire' ? `rgba(${colorRgb},0.5)` : 'rgba(255,255,255,0.35)')
                               : 'var(--s-border)',
                             color: role === r
-                              ? (r === 'titulaire' ? '#4fb3ff' : 'var(--s-text)')
+                              ? (r === 'titulaire' ? color : 'var(--s-text)')
                               : 'var(--s-text-muted)',
                           }}>
                           {r === 'titulaire' ? 'Titulaire' : 'Remplaçant'}
@@ -417,26 +462,29 @@ export default function InscriptionPage() {
                       ))}
                     </span>
                     <span className="flex items-center gap-2 flex-1 min-w-0">
+                      <PlayerAvatar url={m.avatarUrl} name={m.displayName} size={24} />
                       <span className="text-sm font-semibold truncate">{m.displayName}</span>
                       {m.verified ? (
-                        <ShieldCheck size={14} style={{ color: '#33ff66', flexShrink: 0 }} aria-label="Compte vérifié" />
+                        <ShieldCheck size={14} style={{ color: 'var(--s-text-dim)', flexShrink: 0 }} aria-label="Compte vérifié" />
                       ) : (
-                        <ShieldAlert size={14} style={{ color: 'var(--s-gold)', flexShrink: 0 }} aria-label="Compte non vérifié" />
+                        <ShieldAlert size={14} style={{ color: WARN, flexShrink: 0 }} aria-label="Compte non vérifié" />
                       )}
                       {/* Âge : informatif, jamais bloquant — la dérogation se
-                          joue à la validation (spec §4). */}
+                          joue à la validation (spec §4). Même style d'alerte que
+                          le compte non vérifié (or, text-xs, icône bouclier). */}
                       {m.ageStatus !== 'ok' && (
-                        <span className="flex items-center gap-1 text-xs flex-shrink-0" style={{ color: 'var(--s-gold)' }}>
+                        <span className="flex items-center gap-1 text-xs flex-shrink-0" style={{ color: WARN }}>
                           <ShieldAlert size={13} aria-hidden />
                           {m.ageStatus === 'under'
-                            ? 'Mineur — dérogation demandée à la validation'
-                            : 'Âge non renseigné — dérogation demandée à la validation'}
+                            ? 'Mineur · dérogation à la validation'
+                            : 'Âge non renseigné · dérogation à la validation'}
                         </span>
                       )}
                     </span>
                     {blocked ? (
-                      <span className="text-sm" style={{ color: 'var(--s-gold)' }}>
-                        Compte non vérifié — requis pour être aligné
+                      <span className="flex items-center gap-1 text-xs flex-shrink-0" style={{ color: WARN }}>
+                        <ShieldAlert size={13} aria-hidden />
+                        Compte non vérifié · requis pour être aligné
                       </span>
                     ) : mmrRules && role ? (
                       <span className="flex items-center gap-2">
@@ -472,7 +520,7 @@ export default function InscriptionPage() {
                   sur les trackers : déclare juste.
                 </p>
                 {liveMmr?.complete && liveMmr.analysis && (
-                  <p style={{ color: liveMmr.flags.length ? 'var(--s-gold)' : 'var(--s-text-dim)' }}>
+                  <p style={{ color: liveMmr.flags.length ? WARN : 'var(--s-text-dim)' }}>
                     Compositions possibles : moyenne la plus haute {liveMmr.analysis.worstLineupAvg} (limite {mmrRules.maxAvg}) ·
                     écart le plus grand {liveMmr.analysis.worstLineupGap} (limite {mmrRules.maxGap}).
                     {liveMmr.flags.length > 0
@@ -500,7 +548,7 @@ export default function InscriptionPage() {
             </Link>
           </div>
           <div className="panel-body space-y-4">
-            <div className="prose-springs text-sm max-w-none overflow-y-auto px-1"
+            <div className="prose-springs text-sm max-w-3xl overflow-y-auto px-1"
               style={{ maxHeight: '420px', border: '1px solid var(--s-border)', padding: '16px' }}>
               <ReactMarkdown>{ctx.rulebook.markdown}</ReactMarkdown>
             </div>
@@ -536,17 +584,18 @@ export default function InscriptionPage() {
                     <span className="tag tag-neutral" style={{ minWidth: '86px', textAlign: 'center' }}>
                       {assignment[uid] === 'titulaire' ? 'Titulaire' : 'Remplaçant'}
                     </span>
+                    <PlayerAvatar url={m?.avatarUrl} name={m?.displayName ?? uid} size={22} />
                     <span className="font-semibold flex-1 min-w-0 truncate">{m?.displayName ?? uid}</span>
                     {mmrRules && ref != null && <span className="t-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>réf {ref}</span>}
                     {!m?.verified && (
-                      <span className="text-xs" style={{ color: 'var(--s-gold)' }}>compte non vérifié</span>
+                      <span className="text-xs" style={{ color: WARN }}>compte non vérifié</span>
                     )}
                   </div>
                 );
               })}
             </div>
             {liveMmr && liveMmr.flags.length > 0 && (
-              <p className="text-sm" style={{ color: 'var(--s-gold)' }}>
+              <p className="text-sm" style={{ color: WARN }}>
                 L&apos;inscription partira avec des points à vérifier : {liveMmr.flags.map(flagLabel).join(' · ')}.
                 Les admins trancheront à la validation.
               </p>
@@ -577,6 +626,24 @@ export default function InscriptionPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Avatar joueur compact, fallback initiale (les URLs Discord peuvent 404 — hash
+// périmé, bug connu). Coins biseautés, jamais rond (DA).
+function PlayerAvatar({ url, name, size = 24 }: { url?: string | null; name: string; size?: number }) {
+  const [broken, setBroken] = useState(false);
+  const initial = (name || '?').trim().charAt(0).toUpperCase();
+  return (
+    <span className="flex items-center justify-center flex-shrink-0 bevel-sm overflow-hidden"
+      style={{ width: size, height: size, background: 'var(--s-elevated)' }}>
+      {url && !broken ? (
+        // eslint-disable-next-line @next/next/no-img-element -- avatars Discord/R2 hors remotePatterns
+        <img src={url} alt="" width={size} height={size} style={{ width: size, height: size, objectFit: 'cover' }} onError={() => setBroken(true)} />
+      ) : (
+        <span className="font-display" style={{ fontSize: Math.round(size * 0.44), color: 'var(--s-text-dim)', lineHeight: 1 }}>{initial}</span>
+      )}
+    </span>
   );
 }
 

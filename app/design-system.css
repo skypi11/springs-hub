@@ -118,6 +118,63 @@
   color: var(--s-text-dim);
 }
 
+/* ── REGISTRATIONS CONSOLE — vue dépliée « Le Dossier » (panel admin) ───
+   Un PUITS recessé (fond --s-bg) qui matérialise « tu as ouvert le dossier »
+   (depth-cue), 4 zones : verdict-héros lifted / roster / contacts|contexte /
+   modération quiet. Zoner/sectionner n'est PAS de la déco — c'est la structure
+   qui manquait. Zéro accent bar, zéro glow ; le seul or reste le CTA Valider. */
+.reg-well {
+  background: var(--s-bg);
+  border-top: 1px solid var(--s-border);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.reg-card { background: var(--s-surface); border: 1px solid var(--s-border); }
+.reg-verdict { background: var(--s-elevated); }        /* le seul héros = lifted */
+.reg-verdict-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  padding: 16px;
+  align-items: center;
+}
+.reg-team-name {
+  font-size: 22px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--s-text);
+  line-height: 1.05;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reg-eligibility {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+  text-align: right;
+  min-width: 260px;
+}
+.reg-c-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.reg-quiet-link {
+  font-size: 12px;
+  color: var(--s-text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.reg-quiet-link:hover { color: var(--s-text); text-decoration: underline; }
+@media (max-width: 900px) {
+  .reg-verdict-grid { grid-template-columns: 1fr; }
+  .reg-eligibility { align-items: flex-start; text-align: left; min-width: 0; }
+  .reg-c-grid { grid-template-columns: 1fr; }
+}
+
 /* ── BEVELED CARD — coins biseautés signature Springs ────────────────── */
 .bevel {
   clip-path: polygon(
@@ -461,4 +518,264 @@
   border-left: 3px solid var(--s-gold);
   padding-left: 0.8em; margin: 0.5em 0;
   color: var(--s-text-dim); font-style: italic;
+}
+
+/* ── BRACKET — vue de tournoi (brackets-viewer thémé Aedral) ──────────────
+   Le rendu de l'arbre (colonnes, connecteurs, hover, multi-formats) vient de
+   brackets-viewer (écosystème brackets-manager) ; ici on ne fait que le
+   ramener aux tokens Aedral. Préfixe .aedral-bracket : gagne en spécificité
+   sur le CSS vendor quel que soit l'ordre d'injection Next. La couleur
+   d'accent (--bv-accent) est posée inline par TournamentBracket (couleur du
+   jeu). Le scroll horizontal vit dans .brackets-viewer (overflow vendor,
+   assumé — c'est aussi la cible de la restauration de scroll du wrapper) —
+   la PAGE ne scrolle jamais.
+   TODO (avant le premier format round robin) : la table .round-robin vendor
+   n'est pas thémée (gris #a7a7a7 hardcodé) — couvrir table/th/h2 à ce
+   moment-là. */
+.aedral-bracket { max-width: 100%; }
+.aedral-bracket .brackets-viewer {
+  --primary-background: transparent;
+  --secondary-background: var(--s-elevated);
+  --match-background: var(--s-surface);
+  --font-color: var(--s-text);
+  --win-color: var(--bv-accent, var(--s-gold));
+  --loss-color: var(--s-text-muted);
+  /* hints/labels : text-dim (≈ AA sur surface) — muted ne passait pas le contraste */
+  --label-color: var(--s-text-dim);
+  --hint-color: var(--s-text-dim);
+  --connector-color: rgba(255, 255, 255, 0.18);
+  --border-color: var(--s-border);
+  --border-hover-color: rgba(255, 255, 255, 0.28);
+  --border-selected-color: rgba(255, 255, 255, 0.28);
+  --text-size: 13px;
+  --round-margin: 44px;
+  --match-width: 236px;
+  --match-horizontal-padding: 10px;
+  --match-vertical-padding: 7px;
+  --match-border-radius: 0;                 /* DA : pas de coins arrondis */
+  --participant-image-size: 18px;
+  font-family: var(--font-outfit), system-ui, sans-serif;
+  background: transparent;
+  /* padding bas ≥ 14px : les badges (EN STREAM) débordent de 9px sous la
+     dernière carte, DANS ce scroller */
+  padding: 4px 2px 14px;
+  min-width: 100%;
+}
+/* Titre de stage : toujours créé par le viewer — on rend name:'' → masqué. */
+.aedral-bracket .brackets-viewer h1 { display: none; }
+/* Titres de section (Winners bracket / Losers bracket) — DA display. */
+.aedral-bracket .brackets-viewer .bracket h2 {
+  font-family: var(--font-bebas), system-ui, sans-serif;
+  text-transform: uppercase;
+  font-size: 19px; letter-spacing: 0.05em;
+  color: var(--s-text); margin: 18px 0 10px;
+}
+.aedral-bracket .brackets-viewer .bracket:first-of-type h2 { margin-top: 4px; }
+/* En-têtes de ronde (Quarts, Demi-finales…) — bande neutre, pas de fond. */
+.aedral-bracket .brackets-viewer h3 {
+  background: transparent;
+  font-size: 12px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--s-text-muted);
+  padding: 4px 0 8px;
+}
+/* Étiquettes de match (WB 1.2 · BO5) : 12px minimum (règle lisibilité). */
+.aedral-bracket .brackets-viewer .opponents > span {
+  font-size: 12px; background: var(--s-bg); border-radius: 0;
+}
+.aedral-bracket .brackets-viewer .participant .name > span { font-size: 12px; }
+.aedral-bracket .brackets-viewer .participant .name > img { border-radius: 0; }
+.aedral-bracket .brackets-viewer .participant.win .result { font-weight: 700; }
+.aedral-bracket .brackets-viewer .participant.hover { background: var(--s-hover) !important; }
+/* Badges Aedral greffés après render (EN STREAM / EN COURS) — posés sur le
+   bord BAS de la carte pour ne pas croiser les étiquettes du bord haut.
+   PIÈGE : le vendor style `.opponents > span { position:absolute; top:-10px }`
+   — sans un `top: auto` PLUS SPÉCIFIQUE, un badge <span> se retrouve étiré de
+   top à bottom (le « gros carré noir »). Les <a> (EN STREAM avec lien) n'y
+   étaient pas sujets, d'où le bug asymétrique. */
+.aedral-bracket .brackets-viewer .opponents > .bv-flag {
+  position: absolute; top: auto; left: auto; bottom: -9px; right: 8px; z-index: 1;
+  width: auto; height: auto;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.06em; line-height: 1;
+  padding: 2px 7px 3px;
+  background: var(--s-bg); border: 1px solid var(--s-border); border-radius: 0;
+  color: var(--s-gold); text-decoration: none;
+}
+.aedral-bracket .brackets-viewer .opponents > a.bv-flag:hover {
+  border-color: color-mix(in srgb, var(--s-gold) 45%, transparent);
+}
+.aedral-bracket .bv-live .opponents {
+  border-color: color-mix(in srgb, var(--bv-accent, var(--s-gold)) 55%, transparent);
+}
+/* Bracket cliquable (page de match) — affordance sur les cartes. */
+.bv-clickable .brackets-viewer .opponents { cursor: pointer; }
+
+/* ── FEUILLE DE MATCH — extension du langage « Le Dossier » ──────────────
+   Page /competitions/[id]/match/[matchId]. Puits recessé (--s-bg) = zone
+   privée « Ton match » ; UN bloc-action lifted (--s-elevated) qui suit la
+   machine d'états. Zéro accent bar ici, zéro glow ; l'or vit dans le CTA
+   du bloc-action et dans le countdown urgent accolé. */
+.match-well {
+  background: var(--s-bg);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 180px; /* amortit les mutations du bloc-action au polling */
+}
+.match-action {
+  background: var(--s-elevated);
+  border: 1px solid var(--s-border);
+  padding: 16px 20px;
+}
+.match-rows > * + * { border-top: 1px solid var(--s-border); }
+.match-countdown {
+  font-family: var(--font-bebas), system-ui, sans-serif;
+  font-size: 32px;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--s-text);
+}
+.match-countdown.is-urgent { color: var(--s-gold); }
+.match-stepper {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--s-elevated);
+  border: 1px solid var(--s-border);
+  color: var(--s-text);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.match-stepper:hover:not(:disabled) { background: var(--s-hover); }
+.match-stepper:disabled { color: var(--s-text-muted); cursor: default; }
+.match-score-input {
+  appearance: textfield;
+  -moz-appearance: textfield;
+  width: 56px;
+  height: 40px;
+  text-align: center;
+  background: var(--s-surface);
+  border: 1px solid var(--s-border);
+  color: var(--s-text);
+  font-family: var(--font-bebas), system-ui, sans-serif;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.match-score-input::-webkit-outer-spin-button,
+.match-score-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.match-score-input:focus { outline: none; border-color: rgba(255,255,255,0.25); }
+@keyframes match-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.match-live-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  animation: match-pulse 1.6s ease-in-out infinite; /* carré — jamais d'arrondi */
+}
+/* Lien quiet partagé (copie de .reg-quiet-link, hors bloc Dossier). */
+.quiet-link {
+  font-size: 12px;
+  color: var(--s-text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.quiet-link:hover { color: var(--s-text); text-decoration: underline; }
+
+/* ── CONSOLE LIVE ADMIN — extension « Le Dossier » (jour de match) ──────
+   Même grammaire que .reg-* : puits recessé --s-bg, UN héros lifted
+   --s-elevated (« À trancher »), rangées denses à colonnes fixes, actions
+   rares en quiet-links. Or = registre « décision admin » uniquement.
+   Zéro accent bar, zéro glow. */
+.con-bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--s-surface);
+  border: 1px solid var(--s-border);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  padding: 12px 20px;
+}
+@media (max-width: 699px) {
+  .con-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.con-anchor { scroll-margin-top: 76px; }
+.con-decide { background: var(--s-elevated); border: 1px solid var(--s-border); }
+.con-decide-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: center;
+  padding: 14px 20px;
+  border-top: 1px solid var(--s-border);
+}
+@media (max-width: 900px) {
+  .con-decide-row { grid-template-columns: 1fr; }
+}
+.con-well {
+  background: var(--s-bg);
+  border-top: 1px solid var(--s-border);
+  padding: 4px 20px 12px;
+}
+/* Rangée de match — colonnes fixes balayables verticalement : id | dot |
+   équipe A | score | équipe B | statut | check-in | room | action | chevron */
+.con-row {
+  display: grid;
+  grid-template-columns: 52px 10px minmax(0, 1fr) 84px minmax(0, 1fr) 128px 64px 176px 92px 28px;
+  column-gap: 12px;
+  align-items: center;
+  min-height: 44px;
+  border-bottom: 1px solid var(--s-border);
+  cursor: pointer;
+}
+.con-row > * { min-width: 0; }
+@media (max-width: 1279px) {
+  .con-row { grid-template-columns: 52px 10px minmax(0, 1fr) 84px minmax(0, 1fr) 128px 92px 28px; }
+  .con-row .con-col-xl { display: none; } /* check-in + room → dépli */
+}
+@media (max-width: 899px) {
+  .con-row { grid-template-columns: 10px minmax(0, 1fr) 72px minmax(0, 1fr) 28px; }
+  .con-row .con-col-lg { display: none; } /* id + statut + action → dépli */
+}
+.con-row-quiet { color: var(--s-text-dim); }
+.con-card { background: var(--s-surface); border: 1px solid var(--s-border); padding: 16px; }
+/* Chip room — l'info qu'on dicte en vocal : lisible, bordée, copiable. */
+.con-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  padding: 3px 8px;
+  background: var(--s-elevated);
+  border: 1px solid var(--s-border);
+  color: var(--s-text);
+  cursor: pointer;
+  max-width: 100%;
+}
+.con-chip:hover { background: var(--s-hover); }
+/* Pips check-in — plein = fait, contour = attendu (title = nom complet). */
+.con-pip { width: 8px; height: 8px; display: inline-block; flex-shrink: 0; }
+.con-pip-done { background: var(--s-green); }
+.con-pip-wait { border: 1px solid var(--s-text-muted); }
+/* Option sélectionnable de modale (forfait / remplacement) — remplace les
+   radios natives ; l'input reste en sr-only pour le clavier. */
+.con-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--s-border);
+  cursor: pointer;
+}
+.con-option[data-checked='true'] {
+  background: var(--s-elevated);
+  border-color: rgba(255, 255, 255, 0.18);
 }

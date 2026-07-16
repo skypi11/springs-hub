@@ -164,8 +164,83 @@ describe('validateCompetitionPayload', () => {
     expect(validateCompetitionPayload(badBo).ok).toBe(false);
 
     const badKind = competitionBody();
-    (badKind.format as { kind: string }).kind = 'single_elim';
+    (badKind.format as { kind: string }).kind = 'round_robin';
     expect(validateCompetitionPayload(badKind).ok).toBe(false);
+  });
+
+  it('accepte le simple élim : reset forcé à false, petite finale conservée, pas d\'override losers', () => {
+    const single = competitionBody();
+    (single.format as Record<string, unknown>).kind = 'single_elim';
+    (single.format as Record<string, unknown>).thirdPlace = true;
+    (single.format as Record<string, unknown>).bracketReset = true;   // ignoré hors double élim
+    (single.format.bo as { overrides: unknown[] }).overrides = [
+      { bracket: 'winners', roundsFromEnd: 1, bo: 7 },
+    ];
+    (single.schedule as Record<string, unknown>).phasePlan = [
+      { phase: 1, day: 1, label: 'P1', rounds: [{ bracket: 'winners', round: 1 }] },
+      { phase: 2, day: 1, label: 'P2', rounds: [{ bracket: 'winners', round: 2 }, { bracket: 'losers', round: 1 }] },
+    ];
+    const res = validateCompetitionPayload(single);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.value.format.kind).toBe('single_elim');
+      expect(res.value.format.bracketReset).toBe(false);
+      expect(res.value.format.thirdPlace).toBe(true);
+    }
+
+    const badOverride = competitionBody();
+    (badOverride.format as Record<string, unknown>).kind = 'single_elim';
+    (badOverride.format.bo as { overrides: unknown[] }).overrides = [
+      { bracket: 'losers', roundsFromEnd: 1, bo: 7 },
+    ];
+    expect(validateCompetitionPayload(badOverride).ok).toBe(false);
+  });
+
+  it('double élim : la petite finale est forcée à false', () => {
+    const dbl = competitionBody();
+    (dbl.format as Record<string, unknown>).thirdPlace = true;
+    const res = validateCompetitionPayload(dbl);
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.value.format.thirdPlace).toBe(false);
+  });
+
+  it('review : plan de phases double élim refusé sur un format simple élim', () => {
+    // Le fixture garde le plan Legends (LR1→LR8 + grand_final) : basculer le
+    // kind seul doit être refusé — pas de petite finale rangée en début de jour.
+    const single = competitionBody();
+    (single.format as Record<string, unknown>).kind = 'single_elim';
+    (single.format as Record<string, unknown>).thirdPlace = true;
+    (single.format.bo as { overrides: unknown[] }).overrides = [];
+    const res = validateCompetitionPayload(single);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toContain('Plan de phases');
+
+    // Un plan single conforme passe (winners + petite finale en dernière phase).
+    const ok = competitionBody();
+    (ok.format as Record<string, unknown>).kind = 'single_elim';
+    (ok.format as Record<string, unknown>).thirdPlace = true;
+    (ok.format.bo as { overrides: unknown[] }).overrides = [];
+    (ok.schedule as Record<string, unknown>).phasePlan = [
+      { phase: 1, day: 1, label: 'P1', rounds: [{ bracket: 'winners', round: 1 }] },
+      { phase: 2, day: 1, label: 'P2', rounds: [{ bracket: 'winners', round: 2 }, { bracket: 'losers', round: 1 }] },
+    ];
+    expect(validateCompetitionPayload(ok).ok).toBe(true);
+
+    // Petite finale au plan SANS thirdPlace : refusé aussi.
+    const noP3 = structuredClone(ok);
+    (noP3.format as Record<string, unknown>).thirdPlace = false;
+    expect(validateCompetitionPayload(noP3).ok).toBe(false);
+  });
+
+  it('review : deux règles BO sur la même ronde → refus explicite', () => {
+    const dup = competitionBody();
+    (dup.format.bo as { overrides: unknown[] }).overrides = [
+      { bracket: 'winners', roundsFromEnd: 1, bo: 7 },
+      { bracket: 'winners', roundsFromEnd: 1, bo: 9 },
+    ];
+    const res = validateCompetitionPayload(dup);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toContain('doublon');
   });
 
   it('rejette une fenêtre d’inscription inversée', () => {

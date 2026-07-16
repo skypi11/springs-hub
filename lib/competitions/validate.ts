@@ -44,8 +44,40 @@ export interface CircuitPayload {
   pointsScale: Record<string, number>;
   bestResultsCount: number;
   lanTeamCount: number;
+  prizePool: { amount: number; currency: string; note?: string } | null;
+  organizer: { name: string; logoUrl: string | null } | null;
   tieBreakers: CircuitTieBreaker[];
   status: CircuitStatus;
+}
+
+// Organisateur optionnel (la structure qui porte la compétition — Aedral n'est
+// que l'hébergeur). name requis s'il est fourni ; logoUrl optionnel (URL /public
+// ou http). Public-safe (pas d'uid).
+function validateOrganizer(input: unknown): ValidationResult<CircuitPayload['organizer']> {
+  if (input === null || input === undefined) return { ok: true, value: null };
+  if (typeof input !== 'object') return err('Organisateur invalide.');
+  const o = input as Record<string, unknown>;
+  const name = clampString(o.name, 60);
+  if (!name) return { ok: true, value: null };
+  const raw = typeof o.logoUrl === 'string' ? o.logoUrl.trim() : '';
+  const logoUrl = raw && (raw.startsWith('http') || raw.startsWith('/')) ? clampString(raw, 500) : null;
+  return { ok: true, value: { name, logoUrl } };
+}
+
+// Dotation optionnelle du circuit. null (ou absent) = pas de dotation.
+const PRIZE_CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'CAD'] as const;
+function validatePrizePool(input: unknown): ValidationResult<CircuitPayload['prizePool']> {
+  if (input === null || input === undefined) return { ok: true, value: null };
+  if (typeof input !== 'object') return err('Dotation invalide.');
+  const p = input as Record<string, unknown>;
+  const amount = asInt(p.amount);
+  if (amount === null || amount < 0 || amount > 10_000_000) return err('Montant de dotation invalide.');
+  if (amount === 0) return { ok: true, value: null }; // 0 = pas de dotation
+  const currency = typeof p.currency === 'string' && PRIZE_CURRENCIES.includes(p.currency as (typeof PRIZE_CURRENCIES)[number])
+    ? p.currency
+    : 'EUR';
+  const note = clampString(p.note, 80);
+  return { ok: true, value: { amount, currency, ...(note ? { note } : {}) } };
 }
 
 export function validateCircuitPayload(body: unknown): ValidationResult<CircuitPayload> {
@@ -72,6 +104,12 @@ export function validateCircuitPayload(body: unknown): ValidationResult<CircuitP
     return err("Nombre d'équipes qualifiées invalide (2-64).");
   }
 
+  const prizePool = validatePrizePool(b.prizePool);
+  if (!prizePool.ok) return prizePool;
+
+  const organizer = validateOrganizer(b.organizer);
+  if (!organizer.ok) return organizer;
+
   // L'ordre des clés de départage est figé au Lot 0 (celui de la spec). On
   // accepte le tableau du client uniquement s'il est une permutation valide.
   const tb = Array.isArray(b.tieBreakers) ? (b.tieBreakers as unknown[]) : [];
@@ -93,6 +131,8 @@ export function validateCircuitPayload(body: unknown): ValidationResult<CircuitP
       pointsScale: scale.value,
       bestResultsCount,
       lanTeamCount,
+      prizePool: prizePool.value,
+      organizer: organizer.value,
       tieBreakers,
       status,
     },
@@ -175,6 +215,23 @@ export function validateCompetitionPayload(body: unknown): ValidationResult<Comp
   const schedule = validateSchedule(b.schedule);
   if (!schedule.ok) return schedule;
 
+  // Cohérence FORMAT ↔ PLAN DE PHASES (review adversariale : un plan double
+  // élim collé sur un simple élim rangeait la petite finale en début de jour).
+  // En simple élim : pas de grand_final, losers limité au round 1 (petite
+  // finale) et seulement si elle est activée.
+  if (format.value.kind === 'single_elim') {
+    for (const entry of schedule.value.phasePlan) {
+      for (const round of entry.rounds) {
+        if (round.bracket === 'grand_final') {
+          return err('Plan de phases incompatible : pas de grande finale en simple élimination.');
+        }
+        if (round.bracket === 'losers' && (round.round > 1 || format.value.thirdPlace !== true)) {
+          return err('Plan de phases incompatible : en simple élimination, le bracket losers ne porte que la petite finale (activée).');
+        }
+      }
+    }
+  }
+
   // Snowflake Discord : chiffres uniquement (17-20), optionnel en draft.
   const discordGuildId = typeof b.discordGuildId === 'string' ? b.discordGuildId.trim() : '';
   if (discordGuildId && !/^\d{17,20}$/.test(discordGuildId)) {
@@ -201,7 +258,10 @@ function validateFormat(input: unknown): ValidationResult<CompetitionFormat> {
   if (typeof input !== 'object' || input === null) return err('Format invalide.');
   const f = input as Record<string, unknown>;
 
-  if (f.kind !== 'double_elim') return err('Seul le format double élimination est supporté pour l’instant.');
+  if (f.kind !== 'double_elim' && f.kind !== 'single_elim') {
+    return err('Format non supporté (double ou simple élimination).');
+  }
+  const kind = f.kind;
 
   const maxTeams = asInt(f.maxTeams);
   if (maxTeams === null || maxTeams < 4 || maxTeams > 32) {
@@ -214,19 +274,29 @@ function validateFormat(input: unknown): ValidationResult<CompetitionFormat> {
   const boGrandFinal = asInt(bo.grandFinal);
   const isValidBo = (n: number | null): n is number => n !== null && n % 2 === 1 && n >= 1 && n <= 9;
   if (!isValidBo(boDefault)) return err('BO par défaut invalide (impair, 1-9).');
-  if (!isValidBo(boGrandFinal)) return err('BO de grande finale invalide (impair, 1-9).');
+  // En simple élim, `grandFinal` est le BO de la FINALE (même champ, même règle).
+  if (!isValidBo(boGrandFinal)) return err('BO de finale invalide (impair, 1-9).');
 
   const rawOverrides = Array.isArray(bo.overrides) ? bo.overrides as unknown[] : [];
   if (rawOverrides.length > 8) return err('Trop de règles BO spécifiques (max 8).');
   const overrides: CompetitionFormat['bo']['overrides'] = [];
+  const seenOverrides = new Set<string>();
   for (const o of rawOverrides) {
     if (typeof o !== 'object' || o === null) return err('Règle BO invalide.');
     const ov = o as Record<string, unknown>;
     if (ov.bracket !== 'winners' && ov.bracket !== 'losers') return err('Règle BO : bracket invalide.');
+    if (kind === 'single_elim' && ov.bracket === 'losers') {
+      return err('Règle BO : pas de bracket losers en simple élimination.');
+    }
     const roundsFromEnd = asInt(ov.roundsFromEnd);
     if (roundsFromEnd === null || roundsFromEnd < 1 || roundsFromEnd > 10) return err('Règle BO : ronde invalide.');
     const boValue = asInt(ov.bo);
     if (!isValidBo(boValue)) return err('Règle BO : valeur invalide (impair, 1-9).');
+    // Deux règles sur la même ronde = résolution silencieuse premier-gagne
+    // dans le moteur (review) : on refuse plutôt que de laisser deviner.
+    const dupKey = `${ov.bracket}:${roundsFromEnd}`;
+    if (seenOverrides.has(dupKey)) return err('Règle BO en doublon : une seule règle par ronde.');
+    seenOverrides.add(dupKey);
     overrides.push({ bracket: ov.bracket, roundsFromEnd, bo: boValue });
   }
 
@@ -237,10 +307,13 @@ function validateFormat(input: unknown): ValidationResult<CompetitionFormat> {
   return {
     ok: true,
     value: {
-      kind: 'double_elim',
+      kind,
       maxTeams,
       bo: { default: boDefault, overrides, grandFinal: boGrandFinal },
-      bracketReset: f.bracketReset === true,
+      // Reset = double élim ; petite finale = simple élim. Chacun forcé à
+      // false hors de son format (jamais de champ orphelin en base).
+      bracketReset: kind === 'double_elim' && f.bracketReset === true,
+      thirdPlace: kind === 'single_elim' && f.thirdPlace === true,
       forfeitScore,
     },
   };
@@ -323,7 +396,20 @@ function validateSchedule(input: unknown): ValidationResult<CompetitionSchedule>
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(startsAt)) {
       return err(`Heure de début invalide : « ${startsAt || '?'} » (format HH:MM).`);
     }
-    days.push({ date, startsAt });
+    // Heure de fin optionnelle (rétrocompat) : sert à poser la durée dans le
+    // calendrier des équipes. Si fournie, doit être après le début.
+    const endsAtRaw = typeof day.endsAt === 'string' ? day.endsAt.trim() : '';
+    let endsAt: string | undefined;
+    if (endsAtRaw) {
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(endsAtRaw)) {
+        return err(`Heure de fin invalide : « ${endsAtRaw} » (format HH:MM).`);
+      }
+      if (endsAtRaw <= startsAt) {
+        return err(`L'heure de fin doit être après le début (jour ${days.length + 1}).`);
+      }
+      endsAt = endsAtRaw;
+    }
+    days.push(endsAt ? { date, startsAt, endsAt } : { date, startsAt });
   }
   for (let i = 1; i < days.length; i++) {
     if (days[i].date <= days[i - 1].date) return err('Les journées doivent être en ordre chronologique.');

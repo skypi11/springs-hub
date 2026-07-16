@@ -6,16 +6,17 @@
 
 import AdminContentSkeleton from '@/components/admin/AdminContentSkeleton';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
-import { Trophy, Plus, Pencil, Trash2, UserMinus, ScrollText, ClipboardCheck } from 'lucide-react';
+import Link from 'next/link';
+import { Trophy, Plus, Pencil, Trash2, UserMinus, ScrollText, ClipboardCheck, Radio } from 'lucide-react';
 import GameTag from '@/components/games/GameTag';
 import CircuitForm from '@/components/admin/competitions/CircuitForm';
 import CompetitionForm from '@/components/admin/competitions/CompetitionForm';
-import BansPanel, { type CompetitionBanRow } from '@/components/admin/competitions/BansPanel';
+import SanctionsPanel from '@/components/admin/competitions/SanctionsPanel';
 import RulebookEditor, { type RulebookScope } from '@/components/admin/competitions/RulebookEditor';
 import RegistrationsPanel from '@/components/admin/competitions/RegistrationsPanel';
 import SandboxPanel from '@/components/admin/competitions/SandboxPanel';
@@ -54,10 +55,16 @@ export default function AdminCompetitionsPage() {
   const toast = useToast();
   const confirm = useConfirm();
 
+  // La valeur du contexte Toast est recréée à chaque render du provider (donc
+  // à chaque toast affiché). On la lit via une ref pour que `load` ne dépende
+  // que de firebaseUser/isAdmin : si `toast` était une dep, un toast d'erreur
+  // recréerait `load`, relancerait l'effet de chargement, et bouclerait.
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; }, [toast]);
+
   const [circuits, setCircuits] = useState<AdminCircuit[]>([]);
   const [competitions, setCompetitions] = useState<AdminCompetition[]>([]);
   const [compAdmins, setCompAdmins] = useState<CompetitionAdminEntry[]>([]);
-  const [bans, setBans] = useState<CompetitionBanRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<View>({ kind: 'list' });
 
@@ -67,14 +74,13 @@ export default function AdminCompetitionsPage() {
   const [allUsers, setAllUsers] = useState<Array<{ uid: string; displayName: string; discordUsername: string; isAdmin: boolean }> | null>(null);
   const [addingUid, setAddingUid] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!firebaseUser) return;
     setLoading(true);
     try {
-      const [circuitsData, compsData, bansData, adminsData] = await Promise.all([
+      const [circuitsData, compsData, adminsData] = await Promise.all([
         api<{ circuits: AdminCircuit[] }>('/api/admin/circuits'),
         api<{ competitions: AdminCompetition[] }>('/api/admin/competitions'),
-        api<{ bans: CompetitionBanRow[] }>('/api/admin/competition-bans'),
         // Nomination réservée aux admins Aedral : la route 403 un admin compét,
         // on ne l'appelle pas pour lui.
         isAdmin
@@ -83,19 +89,17 @@ export default function AdminCompetitionsPage() {
       ]);
       setCircuits(circuitsData.circuits ?? []);
       setCompetitions(compsData.competitions ?? []);
-      setBans(bansData.bans ?? []);
       setCompAdmins(adminsData.admins ?? []);
     } catch (err) {
       console.error('[admin/competitions] load', err);
-      toast.error(err instanceof ApiError ? err.message : 'Erreur de chargement.');
+      toastRef.current.error(err instanceof ApiError ? err.message : 'Erreur de chargement.');
     }
     setLoading(false);
-  }
+  }, [firebaseUser, isAdmin]);
 
   useEffect(() => {
     if (firebaseUser && (isAdmin || isCompetitionAdmin)) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firebaseUser, isAdmin, isCompetitionAdmin]);
+  }, [firebaseUser, isAdmin, isCompetitionAdmin, load]);
 
   const circuitNames = useMemo(() => {
     const map: Record<string, string> = {};
@@ -331,10 +335,22 @@ export default function AdminCompetitionsPage() {
                 </p>
               </div>
               <span className="tag tag-neutral">{STATUS_LABELS[c.status] ?? c.status}</span>
-              <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
+              {(c.pendingCount ?? 0) > 0 && (
+                <span className="tag" style={{ color: '#ffb46b', borderColor: 'rgba(255,180,107,0.4)', background: 'rgba(255,180,107,0.08)' }}>
+                  {c.pendingCount} à valider
+                </span>
+              )}
+              <button type="button"
+                className={`btn-springs text-sm flex items-center gap-1 ${(c.pendingCount ?? 0) > 0 ? 'btn-secondary bevel-sm' : 'btn-ghost'}`}
                 onClick={() => setView({ kind: 'registrations', competition: c })}>
                 <ClipboardCheck size={13} /> Inscriptions
               </button>
+              {(c.status === 'live' || c.status === 'seeding' || c.status === 'finished') && (
+                <Link href={`/admin/competitions/${c.id}/console`}
+                  className="btn-springs btn-secondary bevel-sm text-sm flex items-center gap-1">
+                  <Radio size={13} /> Console
+                </Link>
+              )}
               <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
                 onClick={() => setView({ kind: 'rulebook', scope: { competitionId: c.id }, label: c.name })}>
                 <ScrollText size={13} /> Règlement
@@ -357,8 +373,8 @@ export default function AdminCompetitionsPage() {
         </div>
       </div>
 
-      {/* Registre des bans — géré par les admins de compétition (rôle scopé inclus) */}
-      <BansPanel bans={bans} onChanged={load} />
+      {/* Registre des sanctions (warn / exclusion / ban) — admins de compétition */}
+      <SanctionsPanel />
 
       {/* Bac à sable de test — admins Aedral uniquement (création de comptes fictifs) */}
       {isAdmin && <SandboxPanel competitions={competitions} />}

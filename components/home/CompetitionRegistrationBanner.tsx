@@ -16,6 +16,7 @@ interface OpenCompetition {
   id: string;
   name: string;
   game: string;
+  circuitId: string | null;
   closesAt: string | null;
   isDraft: boolean;
 }
@@ -44,7 +45,7 @@ export default function CompetitionRegistrationBanner() {
       {competitions.map(c => (
         <Link
           key={c.id}
-          href={`/competitions/${c.id}`}
+          href={c.circuitId ? `/competitions/circuit/${c.circuitId}` : `/competitions/${c.id}`}
           className="flex flex-wrap items-center gap-3 px-4 py-3 bevel-sm group transition-colors"
           style={{
             background: 'var(--s-surface)',

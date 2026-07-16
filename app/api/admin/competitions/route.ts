@@ -21,9 +21,21 @@ export async function GET(req: NextRequest) {
     }
 
     const db = getAdminDb();
-    const snap = await db.collection('competitions').get();
+    // Inscriptions EN ATTENTE par compétition (signal « à valider » sur chaque
+    // carte). Une seule requête status==pending (index simple auto) groupée en
+    // mémoire : les pending sont un ensemble petit et transitoire (validés/refusés
+    // ensuite) — pas d'index composite ni de compteur dénormalisé à maintenir.
+    const [snap, pendingSnap] = await Promise.all([
+      db.collection('competitions').get(),
+      db.collection('competition_registrations').where('status', '==', 'pending').get(),
+    ]);
+    const pendingByComp = new Map<string, number>();
+    for (const d of pendingSnap.docs) {
+      const cid = d.data().competitionId as string | undefined;
+      if (cid) pendingByComp.set(cid, (pendingByComp.get(cid) ?? 0) + 1);
+    }
     const competitions = snap.docs
-      .map(d => serializeCompetition(d.id, d.data()))
+      .map(d => ({ ...serializeCompetition(d.id, d.data()), pendingCount: pendingByComp.get(d.id) ?? 0 }))
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 
     return NextResponse.json({ competitions });
@@ -73,6 +85,9 @@ export async function POST(req: NextRequest) {
     batch.set(ref, {
       ...toFirestoreCompetition(payload),
       status: 'draft',
+      // Compétition de test (invisible du public même publiée) — flag simple
+      // hors schéma de validation partagé, écrit à la création uniquement.
+      isDev: body.isDev === true,
       createdAt: FieldValue.serverTimestamp(),
     });
     if (payload.circuitId) {

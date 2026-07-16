@@ -8,45 +8,15 @@ import { api } from '@/lib/api-client';
 import { SkeletonText } from '@/components/ui/Skeleton';
 import ConnectedDashboard from '@/components/home/ConnectedDashboard';
 import VisitorLanding from '@/components/landing/VisitorLanding';
+import GameTag from '@/components/games/GameTag';
+import { ACTIVE_LEGACY_COMPETITIONS } from '@/lib/legacy-competitions';
+import { getGameBannerUrl, getGameColor } from '@/lib/games-registry';
 
 type PublicStats = {
   structures: number;
   players: number;
   recruitingPlayers: number;
 };
-
-const competitions = [
-  {
-    id: 'rl-s2',
-    game: 'Rocket League',
-    tag: 'RL',
-    tagClass: 'tag-blue',
-    name: 'SPRINGS LEAGUE SERIES S2',
-    format: 'Ligue · 3v3 · Round Robin · BO7',
-    status: 'En cours',
-    date: 'Saison 2026',
-    teams: '32 équipes',
-    prize: '1 600€',
-    accent: '#0081FF',
-    bgImage: '/rocket-league.webp',
-    href: 'https://springs-esport.vercel.app/rocket-league/',
-  },
-  {
-    id: 'tm-monthly',
-    game: 'Trackmania',
-    tag: 'TM',
-    tagClass: 'tag-green',
-    name: 'MONTHLY CUP',
-    format: 'Cup · Solo · Qualifications + Finale',
-    status: 'Mensuel',
-    date: 'Chaque mois',
-    teams: 'Solo',
-    prize: null,
-    accent: '#00D936',
-    bgImage: '/tm.webp',
-    href: 'https://springs-esport.vercel.app/trackmania/cup.html?cup=monthly',
-  },
-];
 
 type PillarId = 'structures' | 'players' | 'competitions';
 type Pillar = {
@@ -107,7 +77,7 @@ export default function HomePage() {
   const statsByPillar: Record<PillarId, number | null> = {
     structures: stats?.structures ?? null,
     players: stats?.players ?? null,
-    competitions: competitions.length,
+    competitions: ACTIVE_LEGACY_COMPETITIONS.length,
   };
 
   // Mode visiteur : landing full-bleed dédiée
@@ -129,43 +99,44 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {competitions.map((comp) => (
-              <a key={comp.id} href={comp.href} target="_blank" rel="noopener noreferrer"
-                className="comp-card bevel group block" style={{ minHeight: '240px' }}>
-                <div className="comp-card-bg" style={{ backgroundImage: `url(${comp.bgImage})` }} />
-                <div className="comp-card-overlay" />
-                <div className="absolute top-0 left-0 right-0 h-[3px] z-[2]"
-                  style={{ background: `linear-gradient(90deg, ${comp.accent}, ${comp.accent}60, transparent 70%)` }} />
-                <div className="comp-card-content p-7 flex flex-col h-full" style={{ minHeight: '240px' }}>
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-2">
-                      <span className={`tag ${comp.tagClass}`}>{comp.tag}</span>
-                      <span className="t-label" style={{ color: 'rgba(255,255,255,0.5)' }}>{comp.game}</span>
+            {ACTIVE_LEGACY_COMPETITIONS.map((comp) => {
+              const bg = getGameBannerUrl(comp.gameId);
+              const accent = getGameColor(comp.gameId);
+              return (
+                <a key={comp.id} href={comp.href} target="_blank" rel="noopener noreferrer"
+                  className="comp-card bevel group block" style={{ minHeight: '240px' }}>
+                  {bg && <div className="comp-card-bg" style={{ backgroundImage: `url(${bg})` }} />}
+                  <div className="comp-card-overlay" />
+                  <div className="absolute top-0 left-0 right-0 h-[3px] z-[2]"
+                    style={{ background: `linear-gradient(90deg, ${accent}, ${accent}60, transparent 70%)` }} />
+                  <div className="comp-card-content p-7 flex flex-col h-full" style={{ minHeight: '240px' }}>
+                    <div className="flex items-center justify-between mb-6">
+                      <GameTag gameId={comp.gameId} size="sm" />
+                      <span className="tag tag-neutral">{comp.statusLabel}</span>
                     </div>
-                    <span className="status status-live">{comp.status}</span>
-                  </div>
-                  <h3 className="font-display mb-5" style={{ fontSize: '2rem', letterSpacing: '0.03em', color: '#fff' }}>
-                    {comp.name}
-                  </h3>
-                  <div className="flex items-center gap-x-5 gap-y-1.5 mb-auto flex-wrap">
-                    <span className="t-mono" style={{ color: 'rgba(255,255,255,0.5)' }}>{comp.format}</span>
-                    <span className="t-mono" style={{ color: 'rgba(255,255,255,0.5)' }}>{comp.teams}</span>
-                    <span className="t-mono" style={{ color: 'rgba(255,255,255,0.5)' }}>{comp.date}</span>
-                    {comp.prize && (
-                      <span className="t-mono flex items-center gap-1.5 font-bold" style={{ color: 'var(--s-gold)' }}>
-                        <Trophy size={11} /> {comp.prize}
+                    <h3 className="font-display mb-5" style={{ fontSize: '2rem', letterSpacing: '0.03em', color: '#fff' }}>
+                      {comp.name}
+                    </h3>
+                    <div className="flex items-center gap-x-5 gap-y-1.5 mb-auto flex-wrap">
+                      <span className="t-mono" style={{ color: 'rgba(255,255,255,0.5)' }}>{comp.format}</span>
+                      {comp.teams && <span className="t-mono" style={{ color: 'rgba(255,255,255,0.5)' }}>{comp.teams}</span>}
+                      <span className="t-mono" style={{ color: 'rgba(255,255,255,0.5)' }}>{comp.edition}</span>
+                      {comp.prize && (
+                        <span className="t-mono flex items-center gap-1.5 font-bold" style={{ color: 'var(--s-gold)' }}>
+                          <Trophy size={11} /> {comp.prize}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-end mt-6">
+                      <span className="btn-springs btn-secondary bevel-sm transition-all group-hover:border-[rgba(255,255,255,0.4)]"
+                        style={{ padding: '7px 16px', fontSize: '12px', borderColor: 'rgba(255,255,255,0.2)' }}>
+                        Ouvrir <ExternalLink size={11} />
                       </span>
-                    )}
+                    </div>
                   </div>
-                  <div className="flex items-center justify-end mt-6">
-                    <span className="btn-springs btn-secondary bevel-sm transition-all group-hover:border-[rgba(255,255,255,0.4)]"
-                      style={{ padding: '7px 16px', fontSize: '12px', borderColor: 'rgba(255,255,255,0.2)' }}>
-                      Ouvrir <ExternalLink size={11} />
-                    </span>
-                  </div>
-                </div>
-              </a>
-            ))}
+                </a>
+              );
+            })}
           </div>
         </section>
 

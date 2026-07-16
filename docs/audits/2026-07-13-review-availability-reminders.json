@@ -1,0 +1,186 @@
+{
+  "survived": [
+    {
+      "title": "Relance manuelle: cooldown 2h en check-then-act non atomique → double post au double-clic",
+      "file": "app/api/structures/[id]/availability-reminder/route.ts",
+      "line": 57,
+      "severity": "major",
+      "description": "Le cooldown lit lastAvailabilityReminderAt (ligne 57), compare à Date.now() (ligne 58), et n'écrit le nouveau timestamp qu'APRÈS un post réussi (ligne 80). Aucun verrou atomique entre la lecture et l'écriture. Le rate-limiter en amont est limiters.write = 30 requêtes/minute (lib/rate-limit.ts:33), donc il ne bloque pas deux clics rapprochés. Scénario : le staff double-clique sur « Relancer les dispos », ou deux membres du staff cliquent en même temps → les deux requêtes lisent le même lastAvailabilityReminderAt (ancien/absent), passent toutes les deux le test de cooldown, postent toutes les deux le rappel avec @mentions dans le salon = double ping des joueurs. Le cooldown de 2h ne protège que les tentatives séparées de >quelques ms, pas la rafale concurrente qu'il est censé bloquer.",
+      "suggestion": "Poser le cooldown de façon atomique AVANT le post via une transaction Firestore (lire lastAvailabilityReminderAt, rejeter si <2h, sinon écrire serverTimestamp puis poster) — ou au minimum écrire un timestamp de réservation avant l'appel Discord, quitte à le corriger si le post échoue.",
+      "dimension": "discord-spam",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "Confirmed in the code as written. app/api/structures/[id]/availability-reminder/route.ts implements the cooldown as a check-then-act with no atomicity: line 57 reads lastAvailabilityReminderAt (from the doc snapshot fetched at line 35), line 58 compares to Date.now(), and the new timestamp is writte"
+        },
+        {
+          "refuted": true,
+          "reasoning": "The TOCTOU race is real in the code (read at line 57, check 58-61, write only after post at line 80, wide window spanning the Discord POST), but the \"major\" severity is exaggerated and the primary vector is already covered.\n\n(1) The double-click case — literally what the cooldown comment targets (\"d"
+        }
+      ]
+    },
+    {
+      "title": "Le bouton \"Relancer les dispos\" est gaté dirigeants-only, alors que l'endpoint est censé servir responsables et managers d'équipe",
+      "file": "app/community/my-structure/page.tsx",
+      "line": 1905,
+      "severity": "major",
+      "description": "L'endpoint POST /api/structures/[id]/availability-reminder autorise explicitement (route.ts l.15 + l.44-49) : dirigeant OU responsable du jeu de l'équipe OU manager de l'équipe (staffRoles[uid]==='manager'). Mais l'unique point d'entrée UI, TeamAvailabilityView, n'affiche le bouton (et donc la mutation) que si `canEditConfig` (TeamAvailabilityView.tsx l.303/313). Or `canEditConfig` est câblé partout à `isFounder || isCoFounder` / `isDirigeantOfActive` (page.tsx l.232 et l.1905), c'est-à-dire dirigeants UNIQUEMENT. Scénario concret : un Responsable RL (dans structure.managerIds, scope rocket_league) ou un manager d'une équipe (sub_teams.staffRoles[uid]='manager') ouvre le drawer de l'équipe → aucun bouton « Relancer les dispos », alors que ce sont précisément les gens qui gèrent le calendrier au quotidien et que le serveur les accepterait. La fonctionnalité est de facto dirigeant-only, en contradiction avec l'intention documentée du endpoint. La branche serveur responsable/team-manager est du code mort côté produit.",
+      "suggestion": "Passer à TeamAvailabilityView (ou au bouton relance) un flag `canRemind` distinct de `canEditConfig`, calculé côté page avec la même logique que le serveur (isDirigeant OU isResponsableForGame(team.game) OU manager d'équipe de CETTE équipe), plutôt que de réutiliser le gate dirigeant-only de la config matching.",
+      "dimension": "permissions",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "CONFIRMED, not refuted. Verified in code: (1) In TeamAvailabilityView.tsx the \"Relancer les dispos\" button (lines 313-318) sits entirely inside `{canEditConfig && (...)}` (opened line 303, closed line 353), so it is hidden whenever canEditConfig is false. (2) It is the sole UI caller of POST /api/st"
+        },
+        {
+          "refuted": false,
+          "reasoning": "Confirmed accurate. The \"Relancer les dispos\" button only renders inside `{canEditConfig && ...}` (TeamAvailabilityView.tsx:303-319), TeamAvailabilityView is mounted only by TeamDetailDrawer (grep confirms CalendarSection uses StaffAvailabilityView which ignores canEditConfig), and both setDrawerSta"
+        }
+      ]
+    },
+    {
+      "title": "Salon supprimé / bot retiré: retenté chaque dimanche + Sentry hebdomadaire, pas de distinction erreur permanente vs transitoire",
+      "file": "lib/availability-reminder-server.ts",
+      "line": 82,
+      "severity": "minor",
+      "description": "Quand le post échoue (salon supprimé, bot expulsé, Missing Access, 429 non géré — postAvailabilityReminder ne lit aucun Retry-After), remindTeamAvailability renvoie post_failed et lastAutoReminderWeekId n'est PAS posé (posé uniquement si res.posted, ligne 151). Conséquence : une équipe dont le salon est mort est re-scannée et re-tentée à CHAQUE cron dominical, et chaque échec appelle captureApiError (ligne 83) → bruit Sentry hebdomadaire permanent pour des salons définitivement cassés. Aucune désambiguïsation entre un 429/5xx transitoire (à réessayer) et un 404 Unknown Channel / 403 Missing Access (permanent, à ne plus retenter jusqu'à reconfiguration).",
+      "suggestion": "Sur 404/403 (channel/permission définitivement invalide), marquer l'équipe (ex. discordChannelId à null ou flag reminderChannelBroken) pour la sortir du scan et notifier le staff plutôt que de retenter + logger indéfiniment ; ne re-tenter automatiquement que les échecs transitoires (429/5xx), et gérer le Retry-After dans postAvailabilityReminder.",
+      "dimension": "discord-spam",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "Confirmed against the real code. lib/availability-reminder-server.ts sets lastAutoReminderWeekId only inside `if (res.posted)` (lines 151-156); post_failed (line 84) hits the else branch (157) and never marks the week, so a team with a deleted salon / expelled bot is re-scanned and re-attempted ever"
+        },
+        {
+          "refuted": true,
+          "reasoning": "Code facts are accurate (post_failed doesn't set lastAutoReminderWeekId → weekly re-scan; captureApiError per failure; no Retry-After / permanent-vs-transient handling), but the finding is exaggerated and misfiled for the discord-spam dimension, and below the bar of a real prod problem for this proj"
+        }
+      ]
+    },
+    {
+      "title": "Aucun gate sur le statut de structure : une structure suspended / deletion_scheduled / pending continue de recevoir les rappels (cron ET manuel)",
+      "file": "lib/availability-reminder-server.ts",
+      "line": 138,
+      "severity": "minor",
+      "description": "Le cron calcule `allowed = !!data && !optedOut && gated` (l.136-138) sans jamais regarder `structure.status`. De même, la route manuelle utilise les helpers bruts isDirigeant/isResponsable (route.ts l.44-45) et non les variantes `can*` qui gatent sur `isWritable` (status !== 'suspended'). C'est incohérent avec le résolveur canonique du calendrier `resolveUserContext` (event-context.ts l.28-34) qui retourne null pour suspended/pending_validation/rejected — donc tout le reste du calendrier refuse ces structures, mais le rappel de dispos passe. Scénario concret : un admin suspend une structure (violation) ; le dimanche suivant le bot continue de pinger dans Discord tous les joueurs de ses équipes ayant un salon configuré, et un dirigeant de la structure suspendue peut toujours déclencher une relance manuelle. Idem pour une structure deletion_scheduled dont on notifie encore les membres.",
+      "suggestion": "Ajouter un filtre de statut : côté cron, exiger `data.status === 'active'` (ou au moins exclure suspended/deletion_scheduled/pending_validation) dans resolveStructure ; côté route manuelle, exclure les statuts non-writable (aligner sur isWritable / resolveUserContext).",
+      "dimension": "permissions",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "Finding confirmed by reading the code. CRON: resolveStructure (availability-reminder-server.ts l.128-142) computes allowed = !!data && !optedOut && gated (l.138) and never reads data.status; the sub_teams scan only skips team-level status 'archived' (l.111), never the parent structure status. So sus"
+        },
+        {
+          "refuted": true,
+          "reasoning": "Finding is technically accurate (cron resolveStructure l.136-138 and manual route l.44-45 skip structure.status / isWritable, unlike resolveUserContext event-context.ts l.28-34) but its production impact is negligible, not a blocker/major. Reasons: (1) The bot posts ONLY in the structure's own Disco"
+        }
+      ]
+    },
+    {
+      "title": "Traitement séquentiel par équipe (post + update awaités en série) : risque de timeout mid-loop avec couverture partielle silencieuse",
+      "file": "lib/availability-reminder-server.ts",
+      "line": 146,
+      "severity": "minor",
+      "description": "La boucle `for (const team of candidates)` fait, en série et awaité, un resolveStructure (get structures) + remindTeamAvailability (2× getAll + 1 POST Discord avec backoff 429) + 1 update du verrou, équipe par équipe. Scénario : quelques centaines d'équipes actives avec salon → la somme des latences Discord (POST + backoff sur 429 rate-limit) dépasse le maxDuration 300s. La fonction est coupée en plein milieu : les équipes traitées avant la coupure ont posté ET reçu leur verrou lastAutoReminderWeekId, celles d'après n'ont rien reçu pour CETTE semaine (le dimanche suivant a un weekId différent, donc elles ne rattrapent jamais la semaine manquée). Aucune erreur remontée puisque la fonction est tuée par la plateforme. Best-effort de conception, mais la coupure est invisible et non reprise.",
+      "suggestion": "Batcher les updates de verrou, paralléliser par petits lots (p-limit), et/ou poser une deadline interne (comme le provisioning Discord du Lot 1) qui arrête proprement et logue combien d'équipes restaient à traiter.",
+      "dimension": "cron-dates",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "Mechanism verified in code as written. availability-reminder-server.ts:146 is a fully sequential awaited loop: await resolveStructure (147) + await remindTeamAvailability (148, which does 2 getAll + a POST with 429 backoff) + await update of the per-team lock (155). The lock lastAutoReminderWeekId i"
+        },
+        {
+          "refuted": true,
+          "reasoning": "Mechanism is technically real but impact is exaggerated for this project. The timeout requires \"quelques centaines d'équipes\" posting in one run; the platform has ~137 users total (=a few dozen sub_teams, only a subset with discordChannelId + gated + actually missing dispos). Per-team cost is ~0.5-1"
+        }
+      ]
+    },
+    {
+      "title": "Fenêtre de double-ping si l'update du verrou échoue après un post réussi",
+      "file": "lib/availability-reminder-server.ts",
+      "line": 155,
+      "severity": "minor",
+      "description": "Le verrou lastAutoReminderWeekId n'est écrit qu'APRÈS un post réussi, via un `.update()` best-effort dont l'échec est avalé (catch vide). Scénario : POST Discord OK (les joueurs sont pingés), puis l'update échoue (contention d'écriture, quota, ou doc modifié transitoirement). Le verrou pour target.weekId n'est jamais posé. Si la passe est ré-invoquée le même dimanche (re-trigger manuel de l'endpoint cron, ou monitoring qui rappelle l'URL), target.weekId est identique, le team n'est pas dans alreadySent → l'équipe est re-postée = double ping-storm dans le salon, exactement ce que le verrou est censé empêcher. Le commentaire l'assume (« protection, pas invariant ») mais la brèche est réelle et silencieuse. NB : Vercel Cron ne retry pas automatiquement en cas d'échec, donc le vecteur principal est une invocation manuelle/dupliquée, pas un retry plateforme.",
+      "suggestion": "Poser le verrou de façon transactionnelle avant/avec le post, ou au minimum logguer (Sentry) l'échec de l'update du verrou pour rendre la brèche visible plutôt que muette.",
+      "dimension": "cron-dates",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "Le finding est correct dans le code tel qu'écrit — je n'arrive pas à le réfuter honnêtement (angle correctness).\n\nVérification ligne par ligne (lib/availability-reminder-server.ts:146-160) :\n- L.151-156 : le verrou `lastAutoReminderWeekId` n'est écrit qu'APRÈS `res.posted === true`, via `.update()` "
+        },
+        {
+          "refuted": true,
+          "reasoning": "Code mechanics confirmed (lock written post-success, empty catch line 156), but the finding is refuted on impact for this project. (1) Its primary vector — \"monitoring qui rappelle l'URL\" — is invalid: the cron endpoint is gated by Authorization: Bearer $CRON_SECRET (route.ts:41-44), so any probe wi"
+        }
+      ]
+    },
+    {
+      "title": "Auto (semaine suivante) et manuel (semaine en cours) peuvent double-poster dans le même salon à quelques minutes d'intervalle",
+      "file": "app/api/structures/[id]/availability-reminder/route.ts",
+      "line": 57,
+      "severity": "minor",
+      "description": "Les deux verrous sont indépendants et ne se voient pas : l'auto pose `lastAutoReminderWeekId` (par semaine cible), le manuel ne regarde que `lastAvailabilityReminderAt` (cooldown 2h). Scénario : dimanche 18h00 le cron poste le ping auto (semaine suivante) ; le staff clique « Relancer » à 18h03 → deuxième post avec @mentions 3 minutes après le premier (libellés de semaine différents, en cours vs suivante). Deux salves de mentions coup sur coup dans le salon. Faible car les semaines diffèrent, mais c'est du bruit évitable un dimanche.",
+      "suggestion": "Faire regarder au cooldown manuel aussi `lastAutoReminderWeekId`/un timestamp auto récent (ou poser un `lastAvailabilityReminderAt` commun sur les deux chemins) pour espacer d'au moins X minutes tout post dans un même salon.",
+      "dimension": "data-logic",
+      "survived": true,
+      "refutations": [
+        {
+          "refuted": false,
+          "reasoning": "Confirmed in code as written. Manual route (route.ts:57-58, 80) gates and stamps only `lastAvailabilityReminderAt`; the auto cron pass (availability-reminder-server.ts:113, 155) gates and stamps only `lastAutoReminderWeekId`. Neither path reads the other's field, and the auto post never sets `lastAv"
+        },
+        {
+          "refuted": true,
+          "reasoning": "MÉCANIQUE CONFIRMÉE mais IMPACT NÉGLIGEABLE → réfuté sur l'angle impact/prod.\n\nLa description est techniquement exacte : l'auto (ligne 155) ne pose que `lastAutoReminderWeekId`, le manuel (ligne 57) ne lit que `lastAvailabilityReminderAt`, donc un post auto n'arme pas le cooldown manuel. Les deux ve"
+        }
+      ]
+    }
+  ],
+  "killed": [
+    {
+      "title": "Auto cron: verrou lastAutoReminderWeekId non atomique, posé APRÈS le post → ping-storm en double",
+      "severity": "major",
+      "dimension": "discord-spam"
+    },
+    {
+      "title": "embedDescription et content non cappés à la source: displayName utilisateur non borné peut tronquer le CTA / casser une mention",
+      "severity": "minor",
+      "dimension": "discord-spam"
+    },
+    {
+      "title": "Scan sub_teams limit(2000) sans orderBy : troncature silencieuse + couverture non déterministe",
+      "severity": "major",
+      "dimension": "cron-dates"
+    },
+    {
+      "title": "resolveStructure met en cache allowed=false sur erreur transitoire/systémique → skip silencieux, cron reporté en succès",
+      "severity": "minor",
+      "dimension": "cron-dates"
+    },
+    {
+      "title": "Le lien de relance retombe sur une section repliée, sans cibler la BONNE semaine",
+      "severity": "major",
+      "dimension": "data-logic"
+    },
+    {
+      "title": "Un joueur GÉNUINEMENT indispo (0 créneau volontaire) est pingé publiquement à vie, sans échappatoire",
+      "severity": "major",
+      "dimension": "data-logic"
+    },
+    {
+      "title": "La relance manuelle ignore le garde-fou équipe archivée ET l'opt-out de structure",
+      "severity": "minor",
+      "dimension": "data-logic"
+    },
+    {
+      "title": "Relance manuelle un vendredi/dimanche : cible une semaine quasi terminée",
+      "severity": "minor",
+      "dimension": "data-logic"
+    }
+  ]
+}
