@@ -460,7 +460,6 @@ function WeekPanel({
             </p>
           </div>
           <div className="flex items-center gap-4">
-            <SaveIndicator status={status} onRetry={onRetry} />
             {copyLabel && (
               <button type="button" onClick={onCopy}
                 className="btn-springs bevel-sm flex items-center gap-2 px-4 py-2"
@@ -476,6 +475,14 @@ function WeekPanel({
               </button>
             )}
           </div>
+        </div>
+
+        {/* État de sauvegarde. Hauteur RÉSERVÉE, et hors du header en flex-wrap :
+            son apparition ne doit jamais décaler la grille. Sinon, un clic maintenu
+            sur une case voit la grille glisser sous le curseur et peint la voisine
+            (constaté au test : 1 clic → 2 créneaux). */}
+        <div className="mb-3 flex items-center" style={{ minHeight: 22 }}>
+          <SaveIndicator status={status} onRetry={onRetry} />
         </div>
 
         {/* Grid */}
