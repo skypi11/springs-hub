@@ -340,8 +340,11 @@ export async function POST(req: NextRequest) {
         const memberDoc = memberSnap.docs[0];
         const memberData = memberDoc.data();
 
-        // Un fondateur ne peut pas quitter
-        if (memberData.role === 'fondateur') {
+        // Un fondateur ne peut pas quitter — on lit structure.founderId (SOURCE DE
+        // VÉRITÉ), pas le champ legacy structure_members.role qui peut être
+        // désynchronisé.
+        const leaveStructSnap = await db.collection('structures').doc(structureId).get();
+        if (leaveStructSnap.exists && leaveStructSnap.data()!.founderId === uid) {
           return NextResponse.json({ error: 'Le fondateur ne peut pas quitter sa structure. Transfère la propriété d\'abord.' }, { status: 400 });
         }
 

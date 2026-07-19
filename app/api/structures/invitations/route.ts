@@ -428,8 +428,10 @@ export async function POST(req: NextRequest) {
         }
         const memberData = snap.data()!;
 
-        // Ne pas pouvoir retirer le fondateur
-        if (memberData.role === 'fondateur') {
+        // Ne pas pouvoir retirer le fondateur — on s'appuie sur structure.founderId
+        // (SOURCE DE VÉRITÉ), pas sur le champ legacy structure_members.role qui
+        // peut être désynchronisé.
+        if (memberData.userId === structureData.founderId) {
           return NextResponse.json({ error: 'Impossible de retirer le fondateur' }, { status: 400 });
         }
 
