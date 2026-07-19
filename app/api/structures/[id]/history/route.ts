@@ -81,6 +81,8 @@ export async function GET(
         avatarUrl: u.avatarUrl || '',
         discordAvatar: u.discordAvatar || '',
         country: u.country || '',
+        // Cf. §2.2 : sans slug, le lien profil expose le snowflake Discord.
+        slug: (u.slug as string) || '',
         game: data.game || '',
         role: data.role || 'joueur',
         joinReason: data.joinReason || 'other',

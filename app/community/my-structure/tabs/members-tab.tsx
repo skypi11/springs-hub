@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Clock, Loader2, User, UserPlus, Users } from 'lucide-react';
+import { Clock, Loader2, Search, User, UserPlus, Users } from 'lucide-react';
 import MemberActionsMenu from '@/components/structure/MemberActionsMenu';
 import StaffGamesScopeModal from '@/components/structure/StaffGamesScopeModal';
 import { getProfileHref } from '@/lib/user-slug';
@@ -10,12 +10,24 @@ import {
   computeMemberRole, groupAffiliations, PRIMARY_ROLE_LABELS,
   type MemberRoleTeam,
 } from '@/lib/member-role';
+import {
+  filterSortMembers, memberGroupOf,
+  type MemberGroup, type MemberSort,
+} from '@/lib/member-filter';
 import type { DashboardTab, MyStructure, TeamData, HistoryItem } from '../types';
 import {
   DEPARTURE_NOTICE_MS, PRIMARY_ROLE_ORDER, PRIMARY_ROLE_COLORS,
 } from '../constants';
 import GameTag from '@/components/games/GameTag';
 import { isKnownGame } from '@/lib/games-registry';
+
+// Chips de filtre par famille de rôle (3 groupes plutôt que 9 rôles — voir lib/member-filter).
+const ROLE_GROUP_CHIPS: { key: MemberGroup; label: string }[] = [
+  { key: 'all', label: 'Tous' },
+  { key: 'direction', label: 'Direction' },
+  { key: 'staff', label: 'Staff' },
+  { key: 'joueurs', label: 'Joueurs' },
+];
 
 // Tab Membres complet, extrait de page.tsx pour réduire la taille du fichier orchestrateur.
 // Comprend : bannière "sans équipe" (dirigeants only), liste des membres avec actions,
@@ -62,6 +74,13 @@ export function MembersTab(props: MembersTabProps) {
     role: 'manager' | 'coach';
   } | null>(null);
 
+  // Recherche/tri de la liste des membres (état local, éphémère). La barre
+  // n'apparaît qu'au-delà d'un petit seuil (inutile sur un roster minuscule).
+  const [memberSearch, setMemberSearch] = useState('');
+  const [roleGroup, setRoleGroup] = useState<MemberGroup>('all');
+  const [sortKey, setSortKey] = useState<MemberSort>('role');
+  const MEMBERS_TOOLBAR_MIN = 8;
+
   // ─── Bannière "sans équipe" (dirigeants only) ────────────────────────────
   const renderUnassignedBanner = () => {
     if (!isDirigeantOfActive) return null;
@@ -102,7 +121,7 @@ export function MembersTab(props: MembersTabProps) {
             const daysSince = m.joinedAt ? Math.floor((now - m.joinedAt) / (24 * 60 * 60 * 1000)) : null;
             return (
               <div key={m.id} className="flex items-center gap-3 px-5 py-3">
-                <Link href={getProfileHref({ uid: m.userId, slug: (m as { slug?: string }).slug })} className="flex items-center gap-3 flex-1 min-w-0">
+                <Link href={getProfileHref({ uid: m.userId, slug: m.slug ?? undefined })} className="flex items-center gap-3 flex-1 min-w-0">
                   {avatar ? (
                     <div className="w-8 h-8 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                       <Image src={avatar} alt={m.displayName} fill className="object-cover" unoptimized />
@@ -155,6 +174,32 @@ export function MembersTab(props: MembersTabProps) {
       status: t.status,
     }));
 
+    // Lignes enrichies (rôle dérivé + champs de recherche), puis filtrées/triées.
+    // Client-side : ~150 membres max, le payload est déjà chargé entier.
+    const rows = s.members.map(m => {
+      const derived = computeMemberRole({
+        userId: m.userId,
+        founderId: s.founderId,
+        coFounderIds: s.coFounderIds ?? [],
+        managerIds: s.managerIds ?? [],
+        coachIds: s.coachIds ?? [],
+        teams: roleTeams,
+      });
+      return {
+        m, derived,
+        displayName: m.displayName,
+        discordUsername: m.discordUsername,
+        joinedAt: m.joinedAt,
+        primary: derived.primary,
+        roleOrder: PRIMARY_ROLE_ORDER.indexOf(derived.primary),
+        teamNames: derived.affiliations.map(a => a.teamName),
+      };
+    });
+    const visible = filterSortMembers(rows, { q: memberSearch, group: roleGroup, sort: sortKey });
+    const showToolbar = s.members.length > MEMBERS_TOOLBAR_MIN;
+    const groupCounts = { direction: 0, staff: 0, joueurs: 0 };
+    for (const r of rows) groupCounts[memberGroupOf(r.primary)]++;
+
     return (
       <div className="bevel relative overflow-hidden" style={{ background: 'var(--s-surface)', border: '1px solid var(--s-border)' }}>
         <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, var(--s-gold), rgba(255,184,0,0.3), transparent 70%)' }} />
@@ -176,23 +221,51 @@ export function MembersTab(props: MembersTabProps) {
               <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>Aucun membre.</p>
             </div>
           ) : (
-            <div className="divide-y" style={{ borderColor: 'var(--s-border)' }}>
-              {[...s.members]
-                .map(m => ({
-                  m,
-                  derived: computeMemberRole({
-                    userId: m.userId,
-                    founderId: s.founderId,
-                    coFounderIds: s.coFounderIds ?? [],
-                    managerIds: s.managerIds ?? [],
-                    coachIds: s.coachIds ?? [],
-                    teams: roleTeams,
-                  }),
-                }))
-                .sort((a, b) =>
-                  PRIMARY_ROLE_ORDER.indexOf(a.derived.primary) - PRIMARY_ROLE_ORDER.indexOf(b.derived.primary)
-                )
-                .map(({ m, derived }) => {
+            <>
+              {showToolbar && (
+                <div className="px-5 py-3 flex items-center gap-2 flex-wrap" style={{ borderBottom: '1px solid var(--s-border)' }}>
+                  <div className="flex-1 relative min-w-[180px]">
+                    <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--s-text-muted)' }} />
+                    <input type="text" value={memberSearch} onChange={e => setMemberSearch(e.target.value)}
+                      placeholder="Rechercher un membre, une équipe..."
+                      className="settings-input has-icon-sm w-full text-sm" />
+                  </div>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {ROLE_GROUP_CHIPS.map(chip => {
+                      const active = roleGroup === chip.key;
+                      const count = chip.key === 'all' ? rows.length : groupCounts[chip.key];
+                      return (
+                        <button key={chip.key} type="button" onClick={() => setRoleGroup(chip.key)}
+                          className="tag transition-all duration-150"
+                          style={{
+                            background: active ? 'rgba(255,255,255,0.08)' : 'transparent',
+                            color: active ? 'var(--s-text)' : 'var(--s-text-muted)',
+                            borderColor: active ? 'rgba(255,255,255,0.2)' : 'var(--s-border)',
+                            cursor: 'pointer', padding: '4px 10px', fontSize: '12px',
+                          }}>
+                          {chip.label} · {count}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <select value={sortKey} onChange={e => setSortKey(e.target.value as MemberSort)}
+                    className="settings-input text-sm" style={{ width: 'auto' }} aria-label="Trier les membres">
+                    <option value="role">Trier : rôle</option>
+                    <option value="name">Trier : nom (A-Z)</option>
+                    <option value="recent">Trier : arrivée récente</option>
+                  </select>
+                </div>
+              )}
+              {visible.length === 0 ? (
+                <div className="p-6 text-center">
+                  <Search size={20} className="mx-auto mb-2" style={{ color: 'var(--s-text-muted)' }} />
+                  <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                    Aucun membre ne correspond{memberSearch ? ` à « ${memberSearch} »` : ''}.
+                  </p>
+                </div>
+              ) : (
+              <div className="divide-y" style={{ borderColor: 'var(--s-border)' }}>
+                {visible.map(({ m, derived }) => {
                   const avatar = m.avatarUrl || m.discordAvatar;
                   const primaryLabel = PRIMARY_ROLE_LABELS[derived.primary];
                   const affiliationBadges = groupAffiliations(derived.affiliations);
@@ -218,7 +291,7 @@ export function MembersTab(props: MembersTabProps) {
                       style={{ background: 'transparent' }}
                       onMouseEnter={e => (e.currentTarget.style.background = 'var(--s-elevated)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                      <Link href={getProfileHref({ uid: m.userId, slug: (m as { slug?: string }).slug })} className="flex items-center gap-3 flex-1 min-w-0">
+                      <Link href={getProfileHref({ uid: m.userId, slug: m.slug ?? undefined })} className="flex items-center gap-3 flex-1 min-w-0">
                         {avatar ? (
                           <div className="w-8 h-8 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                             <Image src={avatar} alt={m.displayName} fill className="object-cover" unoptimized />
@@ -291,7 +364,9 @@ export function MembersTab(props: MembersTabProps) {
                     </div>
                   );
                 })}
-            </div>
+              </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -345,7 +420,7 @@ export function MembersTab(props: MembersTabProps) {
                     style={{ background: 'transparent' }}
                     onMouseEnter={e => (e.currentTarget.style.background = 'var(--s-elevated)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                    <Link href={getProfileHref({ uid: h.userId, slug: (h as { slug?: string }).slug })} className="flex items-center gap-3 flex-1 min-w-0">
+                    <Link href={getProfileHref({ uid: h.userId, slug: h.slug ?? undefined })} className="flex items-center gap-3 flex-1 min-w-0">
                       {avatar ? (
                         <div className="w-8 h-8 relative flex-shrink-0 overflow-hidden" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
                           <Image src={avatar} alt={h.displayName} fill className="object-cover" unoptimized />

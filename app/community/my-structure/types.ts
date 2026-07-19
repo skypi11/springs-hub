@@ -32,6 +32,8 @@ export type HistoryItem = {
   avatarUrl: string;
   discordAvatar: string;
   country: string;
+  /** Slug public pour le lien profil (évite d'exposer le snowflake Discord). */
+  slug?: string | null;
   game: string;
   role: string;
   joinReason: string;
@@ -71,6 +73,8 @@ export type Member = {
   avatarUrl: string;
   country: string;
   joinedAt?: number | null;
+  /** Slug public pour le lien profil (évite d'exposer le snowflake Discord). */
+  slug?: string | null;
 };
 
 export type MyStructure = {

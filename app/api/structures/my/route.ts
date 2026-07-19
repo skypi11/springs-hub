@@ -214,6 +214,9 @@ export async function GET(req: NextRequest) {
           discordAvatar: u?.discordAvatar || '',
           avatarUrl: u?.avatarUrl || '',
           country: u?.country || '',
+          // Slug pour le lien profil public : sans lui, getProfileHref retombe
+          // sur /profile/discord_<snowflake> et EXPOSE le snowflake Discord (§2.2).
+          slug: (u?.slug as string) || '',
         };
       });
 
