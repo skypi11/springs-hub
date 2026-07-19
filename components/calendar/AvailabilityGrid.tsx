@@ -567,26 +567,28 @@ function WeekPanel({
           <SaveIndicator status={status} onRetry={onRetry} />
         </div>
 
-        {/* Guide de sélection par plage (mobile). Hauteur RÉSERVÉE et guidage
-            TOUJOURS présent : le bloc ne doit pas apparaître/disparaître entre
-            le 1er et le 2e tap, sinon la grille glisse sous le doigt et le 2e
-            tap tombe sur la mauvaise case (même piège que l'indicateur de save). */}
+        {/* Guide de sélection par plage (mobile). Les DEUX états ont une hauteur
+            FIXE identique (40px) + nowrap : le texte ne peut jamais passer sur 2
+            lignes selon la largeur du téléphone, donc le bloc ne change JAMAIS de
+            hauteur entre le 1er et le 2e tap. Sinon la grille glisse sous le doigt
+            et le 2e tap tombe sur la mauvaise case (bug remonté par Matt : un
+            minHeight ne suffit pas, un écran étroit fait wrapper le texte idle). */}
         {isNarrow && (
-          <div className="mb-3" style={{ minHeight: 40 }}>
+          <div className="mb-3">
             {anchor ? (
-              <div className="flex items-center justify-between gap-2 px-3 py-2 bevel-sm"
-                style={{ background: 'rgba(255,184,0,0.10)', border: '1px solid rgba(255,184,0,0.35)', fontSize: '13px', color: 'var(--s-gold)' }}>
-                <span>Touche la fin de la plage</span>
+              <div className="flex items-center justify-between gap-2 px-3 bevel-sm"
+                style={{ height: 40, background: 'rgba(255,184,0,0.10)', border: '1px solid rgba(255,184,0,0.35)', fontSize: '13px', color: 'var(--s-gold)', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Touche la fin de la plage</span>
                 <button type="button" onClick={() => setAnchor(null)}
-                  className="flex items-center gap-1"
+                  className="flex items-center gap-1 flex-shrink-0"
                   style={{ color: 'var(--s-text-dim)', cursor: 'pointer' }}>
                   <X size={13} /> Annuler
                 </button>
               </div>
             ) : (
-              <div className="flex items-center px-3 py-2 bevel-sm"
-                style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', fontSize: '13px', color: 'var(--s-text-muted)' }}>
-                Touche le début d&apos;une plage, puis la fin.
+              <div className="flex items-center px-3 bevel-sm"
+                style={{ height: 40, background: 'var(--s-elevated)', border: '1px solid var(--s-border)', fontSize: '13px', color: 'var(--s-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Touche le début puis la fin d&apos;une plage.</span>
               </div>
             )}
           </div>
