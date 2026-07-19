@@ -33,6 +33,10 @@ interface Props {
   // soit une fonction par replay (vue bibliothèque cross-équipes : on vérifie
   // l'autorisation par teamId du replay via canUploadReplay).
   canEdit: boolean | ((item: ReplayListItem) => boolean);
+  // Droit de lancer le parsing EN MASSE (« Parser tous »). Réservé au dirigeant
+  // (batch-forward est dirigeant-only côté serveur) — sinon le bouton finit en 403.
+  // Défaut false : ne jamais montrer une action vouée à l'échec.
+  canBatchParse?: boolean;
   onChanged: () => void;   // parent recharge après suppression / edit
   emptyLabel?: string;
   showEventLink?: boolean; // affiche pill "Event" dans la liste bibliothèque
@@ -66,6 +70,7 @@ export default function ReplayList({
   currentUid,
   canDeleteAny,
   canEdit,
+  canBatchParse = false,
   onChanged,
   emptyLabel,
   showEventLink,
@@ -87,11 +92,6 @@ export default function ReplayList({
   // Helper : résout canEdit (boolean ou fonction par item)
   const checkCanEdit = (item: ReplayListItem): boolean =>
     typeof canEdit === 'function' ? canEdit(item) : canEdit;
-  // Pour le bouton global "Parser tous" : vrai dès qu'on peut éditer au moins 1 replay
-  // (équivalent à l'ancien comportement qui prenait canEdit global).
-  const canEditAny = typeof canEdit === 'function'
-    ? items.some(it => canEdit(it))
-    : canEdit;
 
   const launchBatch = useCallback(async () => {
     setBatchLoading(true);
@@ -162,7 +162,7 @@ export default function ReplayList({
     <>
     {/* Bouton "activer pour tous", visible si au moins 1 replay à processer
         et si le caller a le droit de upload (proxy raisonnable pour le batch). */}
-    {canEditAny && batchCandidates.length > 0 && (
+    {canBatchParse && batchCandidates.length > 0 && (
       <div className="flex justify-end mb-2">
         <button type="button"
           onClick={launchBatch}

@@ -24,7 +24,7 @@ export function computeVisibleTabs(f: TabVisibilityFlags): DashboardTab[] {
     : f.isCoach || f.isTeamStaff
     ? ['members', 'calendar', 'todos', 'replays']
     : f.captainOnly
-    ? ['teams', 'calendar']
+    ? ['teams', 'calendar', 'replays']
     : ['calendar'];
   if (f.isDirigeant || f.isResponsable || f.isTeamManager) {
     const ti = base.indexOf('teams');

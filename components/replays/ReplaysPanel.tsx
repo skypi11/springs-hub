@@ -120,6 +120,7 @@ export default function ReplaysPanel({
           currentUid={currentUid}
           canDeleteAny={canDeleteAny}
           canEdit={canUpload}
+          canBatchParse={canDeleteAny}
           onChanged={load}
           emptyLabel={mode === 'event' ? 'Aucun replay attaché à cet event.' : 'Aucun replay dans la bibliothèque.'}
           showEventLink={mode === 'library'}

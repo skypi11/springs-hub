@@ -121,6 +121,15 @@ export function ReplaysTab({ structureId, teams, userContext, currentUid }: Prop
     return obj;
   }, [teams]);
 
+  // Le filtre par équipe ne propose que les équipes qui ONT des replays visibles.
+  // Le serveur a déjà filtré par accès (un capitaine ne reçoit que ses équipes),
+  // donc on ne liste jamais « Toutes les équipes (12) » pour quelqu'un qui n'en
+  // voit qu'une (§2.16).
+  const teamsWithReplays = useMemo(() => {
+    const ids = new Set(allReplays.map(r => r.teamId));
+    return teams.filter(t => ids.has(t.id));
+  }, [teams, allReplays]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -169,8 +178,8 @@ export function ReplaysTab({ structureId, teams, userContext, currentUid }: Prop
           value={teamFilter}
           onChange={setTeamFilter}
           options={[
-            { value: 'all', label: `Toutes les équipes (${teams.length})` },
-            ...[...teams].sort((a, b) => {
+            { value: 'all', label: `Toutes les équipes (${teamsWithReplays.length})` },
+            ...[...teamsWithReplays].sort((a, b) => {
               const ga = a.groupOrder ?? 0, gb = b.groupOrder ?? 0;
               if (ga !== gb) return ga - gb;
               const lc = (a.label ?? '').localeCompare(b.label ?? '');
@@ -222,6 +231,7 @@ export function ReplaysTab({ structureId, teams, userContext, currentUid }: Prop
           // Fine-grained par replay : même règle que pour l'upload (staff struct,
           // staff de l'équipe, capitaine de l'équipe), cohérent avec le check API.
           canEdit={(item) => canUploadReplay(userContext, item.teamId)}
+          canBatchParse={isDirigeant(userContext)}
           onChanged={reload}
           showEventLink
           eventTitlesById={eventTitlesById}
