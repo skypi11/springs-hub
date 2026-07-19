@@ -45,12 +45,17 @@ export default function TodoTemplatesManager({
   templates,
   onClose,
   onChanged,
+  isDirigeant = false,
 }: {
   structureId: string;
   currentUid: string;
   templates: TodoTemplateUi[];
   onClose: () => void;
   onChanged: () => void;
+  /** Un dirigeant peut supprimer le template d'un autre (ménage : coach parti).
+   *  Défaut false : sans cette info, on ne montre Supprimer qu'au propriétaire —
+   *  jamais un bouton qui finirait en 403 (§2.7). */
+  isDirigeant?: boolean;
 }) {
   const personal = templates.filter(t => t.scope === 'personal');
   const structure = templates.filter(t => t.scope === 'structure');
@@ -71,7 +76,7 @@ export default function TodoTemplatesManager({
         >
           <div className="panel-header flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="t-heading" style={{ fontSize: '18px' }}>Templates de exercices</span>
+              <span className="t-heading" style={{ fontSize: '18px' }}>Templates d&apos;exercices</span>
               <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
                 ({templates.length})
               </span>
@@ -106,10 +111,11 @@ export default function TodoTemplatesManager({
             <TemplateGroup
               label="MES TEMPLATES (perso)"
               icon={<UserIcon size={12} style={{ color: 'var(--s-gold)' }} />}
-              empty="Aucun template personnel. Clique « Nouveau template » en haut à droite, ou enregistre un exercice existant comme template."
+              empty="Aucun template personnel. Clique « Nouveau template » en haut à droite, ou enregistre un exercice existant comme template. Tu pourras le partager avec la structure à tout moment."
               templates={personal}
               structureId={structureId}
               currentUid={currentUid}
+              isDirigeant={isDirigeant}
               editingId={editingId}
               setEditingId={setEditingId}
               onChanged={onChanged}
@@ -119,10 +125,11 @@ export default function TodoTemplatesManager({
             <TemplateGroup
               label="PARTAGÉS DE LA STRUCTURE"
               icon={<Users size={12} style={{ color: 'var(--s-gold)' }} />}
-              empty="Aucun template partagé. Crée-en un et coche « partager avec la structure » pour que le staff en bénéficie."
+              empty="Aucun template partagé. Crée-en un en « Partagé », ou partage un de tes templates perso avec le bouton « Partager à la structure »."
               templates={structure}
               structureId={structureId}
               currentUid={currentUid}
+              isDirigeant={isDirigeant}
               editingId={editingId}
               setEditingId={setEditingId}
               onChanged={onChanged}
@@ -260,6 +267,7 @@ function TemplateGroup({
   templates,
   structureId,
   currentUid,
+  isDirigeant,
   editingId,
   setEditingId,
   onChanged,
@@ -270,6 +278,7 @@ function TemplateGroup({
   templates: TodoTemplateUi[];
   structureId: string;
   currentUid: string;
+  isDirigeant: boolean;
   editingId: string | null;
   setEditingId: (id: string | null) => void;
   onChanged: () => void;
@@ -292,6 +301,7 @@ function TemplateGroup({
               template={t}
               structureId={structureId}
               currentUid={currentUid}
+              isDirigeant={isDirigeant}
               editing={editingId === t.id}
               onStartEdit={() => setEditingId(t.id)}
               onCancelEdit={() => setEditingId(null)}
@@ -308,6 +318,7 @@ function TemplateRow({
   template,
   structureId,
   currentUid,
+  isDirigeant,
   editing,
   onStartEdit,
   onCancelEdit,
@@ -316,6 +327,7 @@ function TemplateRow({
   template: TodoTemplateUi;
   structureId: string;
   currentUid: string;
+  isDirigeant: boolean;
   editing: boolean;
   onStartEdit: () => void;
   onCancelEdit: () => void;
@@ -402,7 +414,9 @@ function TemplateRow({
                 border: '1px solid var(--s-border)',
                 color: 'var(--s-text-dim)',
               }}>
-              {TODO_TYPE_META[template.type].short.toUpperCase()}
+              {template.steps && template.steps.length > 1
+                ? `${template.steps.length} ÉTAPES`
+                : TODO_TYPE_META[template.type].short.toUpperCase()}
             </span>
             {!isOwner && (
               <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
@@ -421,33 +435,42 @@ function TemplateRow({
             </p>
           )}
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           {isOwner && (
             <>
+              {/* Action à forte valeur → bouton TEXTE (avant : icône nue 12px que
+                  le coach ne trouvait pas — §3.2). Neutre dans les 2 états : l'état
+                  « partagé » est déjà signalé par le groupe (« PARTAGÉS DE LA
+                  STRUCTURE »), inutile d'y consacrer de l'or (DA « or rare »). */}
+              <button type="button" onClick={toggleShare} disabled={!!busy}
+                className="bevel-sm flex items-center gap-1.5 px-2 py-1 text-xs transition-colors"
+                style={{
+                  background: 'var(--s-surface)',
+                  border: '1px solid var(--s-border)',
+                  color: 'var(--s-text-dim)',
+                  cursor: busy ? 'wait' : 'pointer',
+                }}>
+                {busy === 'share' ? <Loader2 size={12} className="animate-spin" /> : <Share2 size={12} />}
+                <span>{template.scope === 'structure' ? 'Rendre perso' : 'Partager à la structure'}</span>
+              </button>
               <button type="button" onClick={onStartEdit}
                 className="p-1.5 transition-colors"
                 style={{ color: 'var(--s-text-dim)', cursor: 'pointer' }}
                 aria-label="Éditer">
                 <Edit2 size={12} />
               </button>
-              <button type="button" onClick={toggleShare} disabled={!!busy}
-                className="p-1.5 transition-colors"
-                style={{
-                  color: template.scope === 'structure' ? 'var(--s-gold)' : 'var(--s-text-dim)',
-                  cursor: busy ? 'wait' : 'pointer',
-                }}
-                aria-label={template.scope === 'structure' ? 'Retirer du partage' : 'Partager'}
-                title={template.scope === 'structure' ? 'Retirer du partage' : 'Partager avec la structure'}>
-                {busy === 'share' ? <Loader2 size={12} className="animate-spin" /> : <Share2 size={12} />}
-              </button>
             </>
           )}
-          <button type="button" onClick={remove} disabled={!!busy}
-            className="p-1.5 transition-colors"
-            style={{ color: '#ff5555', opacity: 0.7, cursor: busy ? 'wait' : 'pointer' }}
-            aria-label="Supprimer">
-            {busy === 'delete' ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-          </button>
+          {/* Supprimer : propriétaire OU dirigeant (ménage). Sinon caché — on ne
+              montre jamais une action vouée au 403 (§2.7). */}
+          {(isOwner || isDirigeant) && (
+            <button type="button" onClick={remove} disabled={!!busy}
+              className="p-1.5 transition-colors"
+              style={{ color: '#ff5555', opacity: 0.7, cursor: busy ? 'wait' : 'pointer' }}
+              aria-label="Supprimer">
+              {busy === 'delete' ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+            </button>
+          )}
         </div>
       </div>
     </div>

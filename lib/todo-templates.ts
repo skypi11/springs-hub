@@ -12,9 +12,24 @@ import {
   type TrainingPackItem,
   type ExerciseStep,
 } from '@/lib/todos';
+import { getStructurePlan, getLimit } from '@/lib/plan-limits';
 
 export const TEMPLATE_NAME_MAX = 60;
-export const TEMPLATE_MAX_PER_SCOPE = 50; // hard cap par scope (perso ou structure)
+export const TEMPLATE_MAX_PER_SCOPE = 50; // hard cap PERSO par (owner, scope) — anti-spam, pas freemium
+
+/**
+ * Cap de templates PARTAGÉS (scope=structure) d'une structure, dérivé du plan
+ * freemium (free vs pro, cf. lib/plan-limits `maxSharedTemplates`).
+ *
+ * SOURCE UNIQUE, volontairement : les DEUX chemins qui font naître un template
+ * partagé — création directe (POST) ET promotion perso→structure (PATCH share) —
+ * doivent l'appeler. C'est la duplication de ce calcul qui avait créé le trou
+ * §2.1 (la promotion utilisait un 50 en dur et ignorait le plan → cap free
+ * contournable en 2 clics).
+ */
+export function sharedTemplateCap(structure: Record<string, unknown> | null | undefined): number {
+  return getLimit(getStructurePlan(structure), 'maxSharedTemplates');
+}
 
 export type TemplateScope = 'personal' | 'structure';
 export const TEMPLATE_SCOPES: readonly TemplateScope[] = ['personal', 'structure'];

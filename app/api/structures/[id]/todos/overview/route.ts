@@ -63,7 +63,10 @@ export async function GET(
         teams: [], users: [], todos: [],
         counts: { overdue: 0, dueToday: 0, dueThisWeek: 0, doneLast7d: 0, pendingTotal: 0 },
         canSeeAll: false,
-        isDirigeant: false,
+        // Un dirigeant reste dirigeant même sans aucune équipe (consommé par le
+        // gestionnaire de templates pour autoriser le ménage des templates d'un
+        // membre parti) — ne pas figer à false ici.
+        isDirigeant: dirigeant,
       });
     }
 

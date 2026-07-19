@@ -561,6 +561,7 @@ export default function CrossTeamTodosPanel({
           structureId={structureId}
           currentUid={firebaseUser.uid}
           templates={templates.templates}
+          isDirigeant={data?.isDirigeant ?? false}
           onClose={() => setShowTemplatesManager(false)}
           onChanged={() => templates.reload()}
         />

@@ -7,7 +7,7 @@ import { resolveUserContext } from '@/lib/event-context';
 import { resolveStructureId } from '@/lib/resolve-structure-id';
 import { hasAnyStaffAccess } from '@/lib/event-permissions';
 import { validateCreateTemplate, TEMPLATE_MAX_PER_SCOPE } from '@/lib/todo-templates';
-import { getStructurePlan, getLimit } from '@/lib/plan-limits';
+import { checkSharedTemplateCap } from '@/lib/todo-templates-server';
 
 function tsMs(v: unknown): number | null {
   if (!v) return null;
@@ -98,8 +98,9 @@ export async function GET(
 
 // POST /api/structures/[id]/todo-templates
 // Crée un template (personal ou structure). Tout staff peut créer.
-// Hard cap : TEMPLATE_MAX_PER_SCOPE templates par (owner, scope) pour les perso,
-// TEMPLATE_MAX_PER_SCOPE pour toute la structure pour les structure.
+// Hard cap : PERSO = TEMPLATE_MAX_PER_SCOPE par (owner, scope), anti-spam.
+// STRUCTURE = cap freemium dérivé du plan (checkSharedTemplateCap, 15 free / 50 pro),
+// MÊME helper que la promotion perso→structure (source unique, cf. §2.1).
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -133,29 +134,26 @@ export async function POST(
     }
     const { scope, name, type, titleTemplate, descriptionTemplate, config, steps } = validation.value;
 
-    // Hard cap : compte les templates existants du même scope/owner.
-    // Le cap STRUCTURE dépend du plan freemium (free=15, pro=50). Le cap PERSO
-    // reste à TEMPLATE_MAX_PER_SCOPE (limite anti-spam, pas freemium).
-    const countQuery = scope === 'personal'
-      ? db.collection('structure_todo_templates')
-          .where('structureId', '==', structureId)
-          .where('ownerId', '==', uid)
-          .where('scope', '==', 'personal')
-      : db.collection('structure_todo_templates')
-          .where('structureId', '==', structureId)
-          .where('scope', '==', 'structure');
-
-    let cap = TEMPLATE_MAX_PER_SCOPE;
+    // Hard cap. Le cap STRUCTURE dépend du plan freemium (free vs pro) et passe
+    // par le MÊME helper que la promotion perso→structure (source unique, cf.
+    // bug §2.1). Le cap PERSO reste TEMPLATE_MAX_PER_SCOPE (anti-spam, pas freemium).
     if (scope === 'structure') {
-      const plan = getStructurePlan(resolved.structure as Record<string, unknown>);
-      cap = getLimit(plan, 'maxSharedTemplates');
-    }
-    const existing = await countQuery.limit(cap + 1).get();
-    if (existing.size >= cap) {
-      const upgradeHint = scope === 'structure' ? ' Passe en Pro pour augmenter la limite.' : '';
-      return NextResponse.json({
-        error: `Limite atteinte (${cap} templates max dans ce scope).${upgradeHint}`,
-      }, { status: 400 });
+      const capCheck = await checkSharedTemplateCap(db, structureId, resolved.structure as Record<string, unknown>);
+      if (!capCheck.ok) {
+        return NextResponse.json({ error: capCheck.error }, { status: 400 });
+      }
+    } else {
+      const existing = await db.collection('structure_todo_templates')
+        .where('structureId', '==', structureId)
+        .where('ownerId', '==', uid)
+        .where('scope', '==', 'personal')
+        .limit(TEMPLATE_MAX_PER_SCOPE + 1)
+        .get();
+      if (existing.size >= TEMPLATE_MAX_PER_SCOPE) {
+        return NextResponse.json({
+          error: `Limite atteinte (${TEMPLATE_MAX_PER_SCOPE} templates personnels max).`,
+        }, { status: 400 });
+      }
     }
 
     const now = FieldValue.serverTimestamp();

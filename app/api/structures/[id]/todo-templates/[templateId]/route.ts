@@ -6,7 +6,8 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { resolveStructureId } from '@/lib/resolve-structure-id';
 import { isDirigeant, hasAnyStaffAccess } from '@/lib/event-permissions';
-import { validateUpdateTemplate, TEMPLATE_MAX_PER_SCOPE, TEMPLATE_SCOPES } from '@/lib/todo-templates';
+import { validateUpdateTemplate, TEMPLATE_SCOPES } from '@/lib/todo-templates';
+import { checkSharedTemplateCap } from '@/lib/todo-templates-server';
 import { TODO_TYPES, type TodoType } from '@/lib/todos';
 
 // PATCH /api/structures/[id]/todo-templates/[templateId]
@@ -68,19 +69,19 @@ export async function PATCH(
         // idempotent : pas d'erreur, mais rien à faire
         return NextResponse.json({ success: true, scope: newScope });
       }
-      // Si on bascule → structure, vérifier le cap structure.
+      // Si on bascule → structure, vérifier le cap PARTAGÉ dérivé du plan (free
+      // vs pro). Même helper que la création : c'est ce point unique qui empêche
+      // le contournement du cap free (bug §2.1 — avant, ce chemin ignorait le plan).
       if (newScope === 'structure') {
-        const count = await db.collection('structure_todo_templates')
-          .where('structureId', '==', structureId)
-          .where('scope', '==', 'structure')
-          .limit(TEMPLATE_MAX_PER_SCOPE + 1)
-          .get();
-        if (count.size >= TEMPLATE_MAX_PER_SCOPE) {
-          return NextResponse.json({
-            error: `Limite atteinte (${TEMPLATE_MAX_PER_SCOPE} templates structure max).`,
-          }, { status: 400 });
+        const capCheck = await checkSharedTemplateCap(db, structureId, resolved.structure as Record<string, unknown>);
+        if (!capCheck.ok) {
+          return NextResponse.json({ error: capCheck.error }, { status: 400 });
         }
       }
+      // Sens inverse (structure→personal) : PAS de contrôle du cap perso anti-spam
+      // volontairement — bloquer le retrait d'un partage sur son PROPRE template
+      // (déjà possédé) parce qu'on a 50 perso serait une pire UX qu'un léger
+      // dépassement anti-spam. Réversibilité > cap.
       await ref.update({ scope: newScope, updatedAt: FieldValue.serverTimestamp() });
       return NextResponse.json({ success: true, scope: newScope });
     }

@@ -4,6 +4,7 @@ import {
   validateUpdateTemplate,
   cleanTemplateConfig,
   compareTemplates,
+  sharedTemplateCap,
   TEMPLATE_NAME_MAX,
   type TodoTemplate,
 } from '@/lib/todo-templates';
@@ -236,5 +237,24 @@ describe('compareTemplates', () => {
     const c = template({ id: 'c', updatedAt: 150 });
     const sorted = [a, b, c].sort(compareTemplates).map(t => t.id);
     expect(sorted).toEqual(['b', 'c', 'a']);
+  });
+});
+
+describe('sharedTemplateCap (freemium — source unique création + promotion)', () => {
+  it('structure free (plan absent) → 15', () => {
+    expect(sharedTemplateCap({ name: 'S' })).toBe(15);
+  });
+  it('structure null/undefined → 15 (défaut free)', () => {
+    expect(sharedTemplateCap(null)).toBe(15);
+    expect(sharedTemplateCap(undefined)).toBe(15);
+  });
+  it('plan free explicite → 15', () => {
+    expect(sharedTemplateCap({ plan: 'free' })).toBe(15);
+  });
+  it('plan pro → 50', () => {
+    expect(sharedTemplateCap({ plan: 'pro' })).toBe(50);
+  });
+  it('legacy premium:true → 50 (normalisé vers pro)', () => {
+    expect(sharedTemplateCap({ premium: true })).toBe(50);
   });
 });
