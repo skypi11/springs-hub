@@ -1,0 +1,42 @@
+name: Rappels quotidiens (filet de secours cron)
+
+# Pourquoi : les crons Vercel Hobby sont best-effort (déclenchés « dans l'heure »,
+# parfois zappés — constaté le 19/07/2026 : le cron 18h n'a pas firé). Ce workflow
+# tape le MÊME endpoint que le cron Vercel, en filet de sécurité. L'endpoint est
+# IDEMPOTENT (reminder24hSentAt sur les exos, lastAutoReminderWeekId sur les dispos)
+# → si le cron Vercel a déjà tourné, ce run ne fait que des no-ops. Aucun risque de
+# double-envoi. On tourne à 17:15 UTC (après la fenêtre 16:00-17:00 du cron Vercel)
+# pour n'agir que si Vercel a manqué son tour, tout en livrant le jour même.
+
+on:
+  schedule:
+    - cron: '15 17 * * *'   # 17:15 UTC = 19:15 Paris (été) — backup après la fenêtre Vercel
+  workflow_dispatch: {}      # bouton « Run workflow » manuel dans l'onglet Actions
+
+# Un seul run à la fois (évite un chevauchement si un run traîne).
+concurrency:
+  group: cron-reminders
+  cancel-in-progress: false
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Déclenche /api/cron/todos-reminders (dispos + exos)
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::Secret CRON_SECRET manquant dans les secrets GitHub du repo."
+            exit 1
+          fi
+          code=$(curl -sS -o /tmp/out.json -w "%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            https://aedral.com/api/cron/todos-reminders)
+          echo "HTTP $code"
+          cat /tmp/out.json || true
+          echo ""
+          if [ "$code" != "200" ]; then
+            echo "::error::L'endpoint cron a répondu $code (attendu 200)."
+            exit 1
+          fi
