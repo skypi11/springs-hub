@@ -80,7 +80,11 @@ export default function ReplayList({
   const toast = useToast();
   const confirm = useConfirm();
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [statsForId, setStatsForId] = useState<{ id: string; title: string; eventId: string | null } | null>(null);
+  // canTrigger = l'utilisateur peut-il déclencher un parsing sur CE replay ?
+  // C'est exactement checkCanEdit(item) (canUploadReplay == canTriggerParse) —
+  // on le fige à l'ouverture pour que le drawer explique à un joueur en lecture
+  // seule pourquoi le replay reste non analysé (sinon le hint est du code mort).
+  const [statsForId, setStatsForId] = useState<{ id: string; title: string; eventId: string | null; canTrigger: boolean } | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
 
   // Replays sans ballchasingId connu côté client → candidats au batch forward.
@@ -285,7 +289,7 @@ export default function ReplayList({
                   {canShowStats && (
                     <IconButton
                       title="Voir les stats détaillées"
-                      onClick={() => setStatsForId({ id: item.id, title: item.title, eventId: item.eventId ?? null })}
+                      onClick={() => setStatsForId({ id: item.id, title: item.title, eventId: item.eventId ?? null, canTrigger: checkCanEdit(item) })}
                     >
                       <BarChart3 size={13} />
                     </IconButton>
@@ -317,6 +321,7 @@ export default function ReplayList({
         replayId={statsForId.id}
         replayTitle={statsForId.title}
         eventId={statsForId.eventId}
+        canTrigger={statsForId.canTrigger}
         onClose={() => setStatsForId(null)}
       />
     )}

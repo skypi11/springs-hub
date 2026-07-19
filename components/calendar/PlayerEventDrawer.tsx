@@ -108,17 +108,17 @@ export default function PlayerEventDrawer({
   const linkedTodos = (todosQuery.data?.todos ?? []).filter(t => t.eventId === event.id);
 
   // Fetch les replays liés à cet event (filtre serveur via eventId).
-  // Le user doit avoir accès aux replays de l'équipe (étape A : élargissement
-  // permissions aux player/sub). Si pas d'accès → array vide silencieux.
-  const teamIdForReplays = (event.target?.scope === 'teams' && event.target.teamIds?.[0]) || '';
+  // On NE restreint PAS à teamIds[0] : le serveur scope déjà par eventId + les
+  // équipes accessibles au viewer (allowedTeamIds), donc un joueur d'une équipe
+  // ciblée non-première voit bien les replays de SON équipe, et le staff voit
+  // ceux de toutes les équipes de l'event (avant, borné à la 1ère équipe).
+  const eventHasTeams = event.target?.scope === 'teams' && (event.target.teamIds?.length ?? 0) > 0;
   const replaysQuery = useQuery({
-    queryKey: ['event-replays', event.structureId, event.id, teamIdForReplays] as const,
-    queryFn: () => {
-      const params = new URLSearchParams({ eventId: event.id });
-      if (teamIdForReplays) params.set('teamId', teamIdForReplays);
-      return api<{ replays: ReplayItem[] }>(`/api/structures/${event.structureId}/replays?${params.toString()}`);
-    },
-    enabled: !!teamIdForReplays,
+    queryKey: ['event-replays', event.structureId, event.id] as const,
+    queryFn: () => api<{ replays: ReplayItem[] }>(
+      `/api/structures/${event.structureId}/replays?eventId=${encodeURIComponent(event.id)}`,
+    ),
+    enabled: eventHasTeams,
     staleTime: 30_000,
   });
   const eventReplays = replaysQuery.data?.replays ?? [];
@@ -336,7 +336,7 @@ export default function PlayerEventDrawer({
           {/* Replays de cet event, téléchargeables (permissions élargies aux
               membres de l'équipe). Section affichée uniquement si l'event a
               une équipe associée (les replays sont scopés par équipe). */}
-          {teamIdForReplays && (
+          {eventHasTeams && (
             <section>
               <div className="t-label mb-2 flex items-center gap-1.5" style={{ color: 'var(--s-text)' }}>
                 <Film size={11} style={{ color: 'var(--s-gold)' }} />

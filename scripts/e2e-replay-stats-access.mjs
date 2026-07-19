@@ -27,6 +27,15 @@ const TEAM_A = `${P}-teamA`;
 const TEAM_B = `${P}-teamB`;
 const EVENT = `${P}-event`;
 const REPLAY = `${P}-replay`;
+// Régression fix #5 (review Lot B) : event scope='structure' portant un replay
+// de l'équipe A → le joueur de A doit accéder à /meta (avant : 403).
+const EVENT_STRUCT = `${P}-eventStruct`;
+const REPLAY_STRUCT = `${P}-replayStruct`;
+// Régression fix #3 : event multi-équipes [A,B], replay de l'équipe B (2e de la
+// liste) → le joueur de B doit lister ses replays sans passer teamId (avant, le
+// client envoyait teamId=teamIds[0]=A → 403).
+const EVENT_MULTI = `${P}-eventMulti`;
+const REPLAY_MULTI_B = `${P}-replayMultiB`;
 
 function parseSA(raw) { try { return JSON.parse(raw); } catch { return JSON.parse(raw.replace(/"private_key":\s*"([^"]+)"/, (_m, k) => `"private_key": "${k.replace(/\r?\n/g, '\\n')}"`)); } }
 if (!getApps().length) initializeApp({ credential: cert(parseSA(process.env.FIREBASE_SERVICE_ACCOUNT)) });
@@ -93,6 +102,28 @@ async function setup() {
     title: 'game1.replay', sizeBytes: 1024, uploadedBy: FOUNDER,
     ballchasingStatus: 'manual', ballchasingUploadedAt: null, createdAt: Timestamp.now(),
   });
+  // Fix #5 : event scope='structure' (pas 'teams') portant un replay de l'équipe A.
+  batch.set(db.collection('structure_events').doc(EVENT_STRUCT), {
+    structureId: STRUCT, title: 'Bilan général', type: 'match',
+    target: { scope: 'structure' },
+    startsAt: Timestamp.now(), createdAt: Timestamp.now(),
+  });
+  batch.set(db.collection('replays').doc(REPLAY_STRUCT), {
+    structureId: STRUCT, eventId: EVENT_STRUCT, teamId: TEAM_A, status: 'ready',
+    title: 'struct.replay', sizeBytes: 1024, uploadedBy: FOUNDER,
+    ballchasingStatus: 'manual', ballchasingUploadedAt: null, createdAt: Timestamp.now(),
+  });
+  // Fix #3 : event multi-équipes [A,B] avec un replay de l'équipe B (2e de la liste).
+  batch.set(db.collection('structure_events').doc(EVENT_MULTI), {
+    structureId: STRUCT, title: 'Scrim commun', type: 'scrim',
+    target: { scope: 'teams', teamIds: [TEAM_A, TEAM_B] },
+    startsAt: Timestamp.now(), createdAt: Timestamp.now(),
+  });
+  batch.set(db.collection('replays').doc(REPLAY_MULTI_B), {
+    structureId: STRUCT, eventId: EVENT_MULTI, teamId: TEAM_B, status: 'ready',
+    title: 'multiB.replay', sizeBytes: 1024, uploadedBy: FOUNDER,
+    ballchasingStatus: 'manual', ballchasingUploadedAt: null, createdAt: Timestamp.now(),
+  });
   await batch.commit();
 }
 
@@ -103,8 +134,8 @@ async function replayUploadedAt() {
 
 async function cleanup() {
   for (const id of [TEAM_A, TEAM_B]) await db.collection('sub_teams').doc(id).delete().catch(() => {});
-  await db.collection('structure_events').doc(EVENT).delete().catch(() => {});
-  await db.collection('replays').doc(REPLAY).delete().catch(() => {});
+  for (const id of [EVENT, EVENT_STRUCT, EVENT_MULTI]) await db.collection('structure_events').doc(id).delete().catch(() => {});
+  for (const id of [REPLAY, REPLAY_STRUCT, REPLAY_MULTI_B]) await db.collection('replays').doc(id).delete().catch(() => {});
   await db.collection('structures').doc(STRUCT).delete().catch(() => {});
   for (const uid of [FOUNDER, PLAYER_A, PLAYER_B]) await db.collection('structure_members').doc(`${STRUCT}_${uid}_rocket_league`).delete().catch(() => {});
   for (const uid of [FOUNDER, PLAYER_A, PLAYER_B, OUTSIDER]) await db.collection('users').doc(uid).delete().catch(() => {});
@@ -140,6 +171,28 @@ async function run() {
   // ── Dirigeant : lit tout (non-régression) ──
   r = await get(FOUNDER, metaPath);
   check('dirigeant → meta 200', r.status === 200, `${r.status}`);
+
+  // ── Fix #5 : event scope='structure' portant un replay de l'équipe du joueur ──
+  const metaStructPath = `/api/events/${EVENT_STRUCT}/meta`;
+  r = await get(PLAYER_A, metaStructPath);
+  check('joueur (équipe A) → meta d\'un event scope=structure avec replay de son équipe : 200 (avant : 403)',
+    r.status === 200, `${r.status} ${r.json?.error}`);
+  r = await get(PLAYER_B, metaStructPath);
+  check('joueur (équipe B, aucun replay sur cet event) → meta scope=structure 403 (pas d\'ouverture large)',
+    r.status === 403, `${r.status}`);
+  r = await get(OUTSIDER, metaStructPath);
+  check('non-membre → meta scope=structure refusé (403/404)', r.status === 403 || r.status === 404, `${r.status}`);
+
+  // ── Fix #3 : event multi-équipes [A,B], replay de l'équipe B (2e), liste SANS teamId ──
+  const multiListPath = `/api/structures/${STRUCT}/replays?eventId=${EVENT_MULTI}`;
+  r = await get(PLAYER_B, multiListPath);
+  const bReplays = Array.isArray(r.json?.replays) ? r.json.replays : [];
+  check('joueur (équipe B) → liste event multi-équipes sans teamId : voit le replay de SON équipe (avant : 403)',
+    r.status === 200 && bReplays.some(x => x.id === REPLAY_MULTI_B), `${r.status} [${bReplays.map(x => x.id).join(',')}]`);
+  r = await get(PLAYER_A, multiListPath);
+  const aReplays = Array.isArray(r.json?.replays) ? r.json.replays : [];
+  check('joueur (équipe A) → même liste : ne voit PAS le replay de l\'équipe B (scoping intact)',
+    r.status === 200 && !aReplays.some(x => x.id === REPLAY_MULTI_B), `${r.status} [${aReplays.map(x => x.id).join(',')}]`);
 
   // ── Sans auth ──
   const anon = await fetch(`${BASE}${metaPath}`);

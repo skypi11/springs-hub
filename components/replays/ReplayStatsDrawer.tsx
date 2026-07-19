@@ -217,7 +217,29 @@ function DrawerBody({
   // match complet est dispo via le toggle, ou via le bouton "Stats du match"
   // qui ouvre la page dédiée /community/event/[id]/stats dans un nouvel onglet.
   const hasMultipleParsed = !!aggregated && aggregated.parsedCount >= 2;
+  const hasParsedSiblings = !!aggregated && aggregated.parsedCount >= 1;
   const [view, setView] = useState<'single' | 'all'>('single');
+
+  // Vue "match complet" : empile chaque replay parsé (le replay cliqué est
+  // entouré d'une bordure or + scroll-into-view) puis la moyenne du match.
+  // Extraite car réutilisée à la fois dans la vue 'all' (replay courant prêt)
+  // ET dans les états non prêts du replay courant — on ne jette jamais les
+  // stats des replays voisins déjà reçues (elles sont fetchées indépendamment).
+  const parsedMatchView = aggregated && hasParsedSiblings ? (
+    <div className="space-y-8">
+      {aggregated.replays.map((r, idx) => (
+        <ReplayCard
+          key={r.replayId}
+          index={idx + 1}
+          total={aggregated.replays.length}
+          title={r.title}
+          stats={r.stats}
+          focused={r.replayId === focusedReplayId}
+        />
+      ))}
+      <AggregatedSection aggregated={aggregated} />
+    </div>
+  ) : null;
 
   if (state.kind === 'loading' || state.kind === 'pending') {
     return (
@@ -233,41 +255,20 @@ function DrawerBody({
     );
   }
 
-  if (state.kind === 'disabled') {
+  // Le replay courant n'est pas (ou plus) analysable. On affiche le bandeau
+  // explicatif, MAIS si l'event a d'autres replays parsés on montre leurs stats
+  // + la moyenne du match en dessous — sinon c'est un cul-de-sac (le fetch
+  // agrégé, indépendant du replay courant, avait déjà les données).
+  if (state.kind !== 'ready') {
+    const notice = <NonReadyNotice state={state} canTrigger={canTrigger} />;
+    if (!parsedMatchView) return notice;
     return (
-      <div className="text-sm py-8 text-center" style={{ color: 'var(--s-text-muted)' }}>
-        Stats détaillées indisponibles (intégration ballchasing désactivée côté serveur).
-      </div>
-    );
-  }
-
-  if (state.kind === 'not_parsed') {
-    return (
-      <div className="text-sm py-8 text-center" style={{ color: 'var(--s-text-muted)' }}>
-        Ce replay n&apos;a pas encore été analysé.
-        {!canTrigger && (
-          <div className="mt-1" style={{ color: 'var(--s-text-dim)' }}>
-            Un membre du staff peut lancer l&apos;analyse.
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (state.kind === 'quota_exceeded') {
-    return (
-      <div className="text-sm py-8 text-center" style={{ color: 'var(--s-text-muted)' }}>
-        {state.error || 'Quota d’analyse hebdomadaire atteint pour la structure.'}
-      </div>
-    );
-  }
-
-  if (state.kind === 'failed') {
-    return (
-      <div className="flex items-start gap-2 text-sm p-4 bevel-sm"
-        style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444' }}>
-        <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
-        <span>{state.error}</span>
+      <div className="space-y-6">
+        {notice}
+        <div className="t-label" style={{ color: 'var(--s-text-muted)' }}>
+          Autres replays du match ({aggregated!.parsedCount})
+        </div>
+        {parsedMatchView}
       </div>
     );
   }
@@ -295,26 +296,51 @@ function DrawerBody({
         />
       )}
 
-      {view === 'all' && aggregated && (
-        <>
-          {/* Empile chaque replay parsé. Le replay correspondant au clic est
-              entouré d'une bordure or et fait un scroll-into-view au mount. */}
-          {aggregated.replays.map((r, idx) => (
-            <ReplayCard
-              key={r.replayId}
-              index={idx + 1}
-              total={aggregated.replays.length}
-              title={r.title}
-              stats={r.stats}
-              focused={r.replayId === focusedReplayId}
-            />
-          ))}
-          {/* Moyenne du match en bas */}
-          <AggregatedSection aggregated={aggregated} />
-        </>
-      )}
+      {view === 'all' && parsedMatchView}
     </div>
   );
+}
+
+// Bandeau des états non prêts d'un replay (feature off / pas encore analysé /
+// quota atteint / échec). Extrait de DrawerBody pour pouvoir l'afficher aussi
+// AU-DESSUS des stats des replays voisins parsés (au lieu d'un early-return sec).
+function NonReadyNotice({ state, canTrigger }: { state: FetchState; canTrigger: boolean }) {
+  if (state.kind === 'disabled') {
+    return (
+      <div className="text-sm py-8 text-center" style={{ color: 'var(--s-text-muted)' }}>
+        Stats détaillées indisponibles (intégration ballchasing désactivée côté serveur).
+      </div>
+    );
+  }
+  if (state.kind === 'not_parsed') {
+    return (
+      <div className="text-sm py-8 text-center" style={{ color: 'var(--s-text-muted)' }}>
+        Ce replay n&apos;a pas encore été analysé.
+        {!canTrigger && (
+          <div className="mt-1" style={{ color: 'var(--s-text-dim)' }}>
+            Un membre du staff peut lancer l&apos;analyse.
+          </div>
+        )}
+      </div>
+    );
+  }
+  if (state.kind === 'quota_exceeded') {
+    return (
+      <div className="text-sm py-8 text-center" style={{ color: 'var(--s-text-muted)' }}>
+        {state.error || 'Quota d’analyse hebdomadaire atteint pour la structure.'}
+      </div>
+    );
+  }
+  if (state.kind === 'failed') {
+    return (
+      <div className="flex items-start gap-2 text-sm p-4 bevel-sm"
+        style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444' }}>
+        <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+        <span>{state.error}</span>
+      </div>
+    );
+  }
+  return null;
 }
 
 // Carte d'un replay dans la vue "match complet", wrap StatsBlock + highlight

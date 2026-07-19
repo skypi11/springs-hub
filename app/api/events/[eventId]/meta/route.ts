@@ -3,7 +3,7 @@ import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
-import { canViewEventReplayStats } from '@/lib/replay-permissions';
+import { canViewEventReplayStats, canViewReplayStats } from '@/lib/replay-permissions';
 import type { TeamRef } from '@/lib/event-permissions';
 
 // GET /api/events/[eventId]/meta
@@ -38,7 +38,27 @@ export async function GET(
     if (!resolved) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
     const target = (data.target ?? { scope: 'structure' }) as { scope: string; teamIds?: string[] };
     if (!canViewEventReplayStats(resolved.context, target, resolved.teams as TeamRef[])) {
-      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+      // Alignement avec /replay-stats-agg (§3.4) : cette route sert au joueur les
+      // replays de SES équipes quel que soit le scope de l'event. Si l'event est
+      // loggé en scope='structure'/'game' mais porte un replay d'une équipe du
+      // joueur, la garde ci-dessus renvoyait 403 alors que les stats sont bien
+      // lisibles → page cassée. On accorde donc l'accès si (et seulement si) une
+      // équipe accessible au joueur a réellement un replay sur cet event.
+      const teams = resolved.teams as TeamRef[];
+      const allowedTeamIds = new Set(
+        teams.filter(t => canViewReplayStats(resolved.context, t.id, t)).map(t => t.id),
+      );
+      let granted = false;
+      if (allowedTeamIds.size > 0) {
+        // Requête mono-champ (eventId) → pas d'index composite requis ; filtre
+        // status/teamId en mémoire (un event a peu de replays).
+        const repSnap = await db.collection('replays').where('eventId', '==', eventId).limit(50).get();
+        granted = repSnap.docs.some(d => {
+          const r = d.data();
+          return r.status === 'ready' && allowedTeamIds.has(r.teamId as string);
+        });
+      }
+      if (!granted) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
     }
 
     return NextResponse.json({
