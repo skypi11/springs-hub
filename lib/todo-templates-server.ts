@@ -33,7 +33,7 @@ export async function checkSharedTemplateCap(
       // Mène par l'action GRATUITE et actionnable (retirer un template existant),
       // comme le message frère du stockage — pas un cul-de-sac « Pro » alors
       // qu'aucun parcours d'achat n'existe. Le Pro est mentionné au futur.
-      error: `Limite atteinte : ${cap} templates partagés pour la structure. Retire un template partagé existant pour faire de la place. Une future version Pro permettra d'en partager davantage.`,
+      error: `Limite atteinte : ${cap} templates partagés pour la structure. Retire un template partagé existant pour faire de la place. Une future version premium permettra d'en partager davantage.`,
     };
   }
   return { ok: true, cap };
