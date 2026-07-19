@@ -25,6 +25,21 @@ export function memberGroupOf(primary: PrimaryRole): Exclude<MemberGroup, 'all'>
   return GROUP_OF[primary];
 }
 
+/**
+ * Un membre a-t-il vocation à apparaître dans la bannière « SANS ÉQUIPE »
+ * (recrues à placer) ? NON s'il fait partie du staff structurel (fondateur,
+ * co-fondateur, responsable, coach structure) — il n'a pas à être « placé » —
+ * ou s'il est déjà assigné à une équipe active. Bug remonté : un responsable
+ * polluait la bannière.
+ */
+export function isPlaceableMember(
+  userId: string,
+  structuralStaffUids: ReadonlySet<string>,
+  assignedUids: ReadonlySet<string>,
+): boolean {
+  return !structuralStaffUids.has(userId) && !assignedUids.has(userId);
+}
+
 // Forme minimale attendue par le filtre/tri. `roleOrder` = index dans
 // PRIMARY_ROLE_ORDER, fourni par l'appelant (garde le helper agnostique de
 // l'emplacement de la constante) ; `teamNames` = noms d'équipes pour la recherche.

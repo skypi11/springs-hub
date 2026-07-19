@@ -11,7 +11,7 @@ import {
   type MemberRoleTeam,
 } from '@/lib/member-role';
 import {
-  filterSortMembers, memberGroupOf,
+  filterSortMembers, memberGroupOf, isPlaceableMember,
   type MemberGroup, type MemberSort,
 } from '@/lib/member-filter';
 import type { DashboardTab, MyStructure, TeamData, HistoryItem } from '../types';
@@ -92,8 +92,18 @@ export function MembersTab(props: MembersTabProps) {
       for (const p of t.staff) assignedUids.add(p.uid);
       if (t.captainId) assignedUids.add(t.captainId);
     }
+    // Le staff STRUCTUREL (fondateur, co-fondateurs, responsables, coachs
+    // structure) n'a pas vocation à être « placé en équipe » → jamais dans cette
+    // bannière (bug remonté : un responsable la polluait). On s'appuie sur les
+    // rôles structurels, fiables, pas sur le champ `m.role` stocké.
+    const structuralStaff = new Set<string>([
+      s.founderId,
+      ...(s.coFounderIds ?? []),
+      ...(s.managerIds ?? []),
+      ...(s.coachIds ?? []),
+    ].filter(Boolean));
     const unassigned = s.members.filter(m =>
-      m.role !== 'fondateur' && m.role !== 'co_fondateur' && !assignedUids.has(m.userId)
+      isPlaceableMember(m.userId, structuralStaff, assignedUids)
     );
     if (unassigned.length === 0) return null;
     const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;

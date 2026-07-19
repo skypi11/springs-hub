@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { filterSortMembers, memberGroupOf, type FilterableMember } from '@/lib/member-filter';
+import { filterSortMembers, memberGroupOf, isPlaceableMember, type FilterableMember } from '@/lib/member-filter';
 
 function m(overrides: Partial<FilterableMember> = {}): FilterableMember {
   return {
@@ -79,5 +79,25 @@ describe('filterSortMembers', () => {
     const snapshot = [...input];
     filterSortMembers(input, { q: '', group: 'all', sort: 'name' });
     expect(input).toEqual(snapshot);
+  });
+});
+
+describe('isPlaceableMember (bannière « sans équipe »)', () => {
+  const staff = new Set(['founder', 'cofo', 'resp', 'coachStruct']);
+  const assigned = new Set(['joueurEnEquipe']);
+
+  it('exclut le staff structurel (fondateur/co-fondateur/responsable/coach structure)', () => {
+    expect(isPlaceableMember('founder', staff, assigned)).toBe(false);
+    expect(isPlaceableMember('cofo', staff, assigned)).toBe(false);
+    expect(isPlaceableMember('resp', staff, assigned)).toBe(false); // le bug remonté
+    expect(isPlaceableMember('coachStruct', staff, assigned)).toBe(false);
+  });
+
+  it('exclut un joueur déjà en équipe', () => {
+    expect(isPlaceableMember('joueurEnEquipe', staff, assigned)).toBe(false);
+  });
+
+  it('inclut une recrue sans équipe et sans rôle structurel', () => {
+    expect(isPlaceableMember('recrue', staff, assigned)).toBe(true);
   });
 });
