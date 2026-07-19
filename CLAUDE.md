@@ -58,6 +58,7 @@ Cette exception est la **seule** raison légitime de toucher au repo vieux site 
 ### Variables d'environnement OAuth/API
 - `DISCORD_CLIENT_ID` + `DISCORD_CLIENT_SECRET` : OAuth app Discord (login user via "Se connecter avec Discord"), scope `identify connections`
 - `DISCORD_BOT_CLIENT_ID` + `DISCORD_BOT_CLIENT_SECRET` + `DISCORD_BOT_TOKEN` : bot Aedral (install dans Discord des structures + envoi des messages events/todos/recrutement)
+- `DISCORD_PUBLIC_KEY` : Public Key de l'app Discord Aedral (Dev Portal → General Information). Sert à vérifier la signature Ed25519 des interactions Discord (boutons de présence sur les events, `/api/discord/interactions`). **Requis pour que les boutons apparaissent** (gate serveur) et pour enregistrer l'« Interactions Endpoint URL ». Public, pas un secret — mais un `.trim()` est appliqué (copier-coller avec \n final = panne silencieuse sinon). Voir mémoire `project_discord_presence_buttons`.
 - `STEAM_WEB_API_KEY` (optionnel) : enrichissement pseudo/avatar pour les users qui lient Steam via OpenID. Gratuit à demander sur `https://steamcommunity.com/dev/apikey` (1 min). Sans cette clé, le linkage Steam fonctionne quand même mais on stocke uniquement le SteamID64 (pas le pseudo ni l'avatar Steam).
 
 ### Discord Developer Portal — 2 apps distinctes
