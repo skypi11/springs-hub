@@ -21,6 +21,10 @@ concurrency:
 jobs:
   trigger:
     runs-on: ubuntu-latest
+    # Le secret CRON_SECRET est stocké au niveau de l'environnement GitHub
+    # « Production » (pas en secret de repo) → il faut référencer cet environnement
+    # pour y accéder. Aucune règle de protection dessus, donc pas de gate.
+    environment: Production
     steps:
       - name: Déclenche /api/cron/todos-reminders (dispos + exos)
         env:
