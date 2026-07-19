@@ -41,6 +41,8 @@ type FetchState =
   | { kind: 'loading' }
   | { kind: 'disabled' }
   | { kind: 'pending' }
+  | { kind: 'not_parsed' }         // pas encore analysé, et rien n'est en cours
+  | { kind: 'quota_exceeded'; error?: string }
   | { kind: 'failed'; error: string }
   | { kind: 'ready'; stats: CachedStats };
 
@@ -72,12 +74,17 @@ export default function ReplayStatsDrawer({
   replayTitle,
   eventId,
   onClose,
+  canTrigger = true,
 }: {
   structureId: string;
   replayId: string;
   replayTitle: string;
   eventId: string | null;
   onClose: () => void;
+  /** L'utilisateur peut-il déclencher un parsing ? false pour un joueur (lecture
+   *  seule) → on n'affiche pas « analyse en cours » sur un replay non parsé, mais
+   *  « pas encore analysé, un membre du staff peut lancer l'analyse ». */
+  canTrigger?: boolean;
 }) {
   const [state, setState] = useState<FetchState>({ kind: 'loading' });
   const [aggregated, setAggregated] = useState<AggResponse | null>(null);
@@ -89,7 +96,7 @@ export default function ReplayStatsDrawer({
     const fetchOnce = async () => {
       try {
         const res = await api<{
-          state: 'disabled' | 'pending' | 'failed' | 'ready';
+          state: 'disabled' | 'pending' | 'not_parsed' | 'quota_exceeded' | 'failed' | 'ready';
           stats?: CachedStats;
           error?: string;
         }>(`/api/structures/${structureId}/replays/${replayId}/stats`);
@@ -98,9 +105,15 @@ export default function ReplayStatsDrawer({
           setState({ kind: 'ready', stats: res.stats });
         } else if (res.state === 'disabled') {
           setState({ kind: 'disabled' });
+        } else if (res.state === 'not_parsed') {
+          // Rien n'est en cours → pas de re-poll (ne PAS retomber dans 'pending').
+          setState({ kind: 'not_parsed' });
+        } else if (res.state === 'quota_exceeded') {
+          setState({ kind: 'quota_exceeded', error: res.error });
         } else if (res.state === 'failed') {
           setState({ kind: 'failed', error: res.error || 'Erreur ballchasing' });
         } else {
+          // 'pending' : un parsing est réellement en cours → on re-poll.
           setState({ kind: 'pending' });
           timer = setTimeout(fetchOnce, 8000);
         }
@@ -180,7 +193,7 @@ export default function ReplayStatsDrawer({
 
         {/* Body scroll */}
         <div className="flex-1 overflow-y-auto p-6">
-          <DrawerBody state={state} aggregated={aggregated} focusedReplayId={replayId} />
+          <DrawerBody state={state} aggregated={aggregated} focusedReplayId={replayId} canTrigger={canTrigger} />
         </div>
       </aside>
     </Portal>
@@ -191,10 +204,12 @@ function DrawerBody({
   state,
   aggregated,
   focusedReplayId,
+  canTrigger,
 }: {
   state: FetchState;
   aggregated: AggResponse | null;
   focusedReplayId: string;
+  canTrigger: boolean;
 }) {
   // Mode "single" = juste le replay courant. Mode "all" = empilage de tous
   // les replays parsés + moyenne. Default = 'single' : le drawer est pour la
@@ -222,6 +237,27 @@ function DrawerBody({
     return (
       <div className="text-sm py-8 text-center" style={{ color: 'var(--s-text-muted)' }}>
         Stats détaillées indisponibles (intégration ballchasing désactivée côté serveur).
+      </div>
+    );
+  }
+
+  if (state.kind === 'not_parsed') {
+    return (
+      <div className="text-sm py-8 text-center" style={{ color: 'var(--s-text-muted)' }}>
+        Ce replay n&apos;a pas encore été analysé.
+        {!canTrigger && (
+          <div className="mt-1" style={{ color: 'var(--s-text-dim)' }}>
+            Un membre du staff peut lancer l&apos;analyse.
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (state.kind === 'quota_exceeded') {
+    return (
+      <div className="text-sm py-8 text-center" style={{ color: 'var(--s-text-muted)' }}>
+        {state.error || 'Quota d’analyse hebdomadaire atteint pour la structure.'}
       </div>
     );
   }

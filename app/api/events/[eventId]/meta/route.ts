@@ -3,7 +3,8 @@ import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
-import { canDownloadReplay } from '@/lib/replay-permissions';
+import { canViewEventReplayStats } from '@/lib/replay-permissions';
+import type { TeamRef } from '@/lib/event-permissions';
 
 // GET /api/events/[eventId]/meta
 // Fetch les méta d'un event (titre, type, dates, adversaire, structureId)
@@ -31,10 +32,12 @@ export async function GET(
     const data = snap.data()!;
     const structureId = data.structureId as string;
 
-    // Auth : doit avoir accès aux replays de la structure (= staff/équipe)
+    // Auth : staff/capitaine (accès calendrier) OU joueur d'une des équipes
+    // ciblées par l'event (lecture des stats, §3.4). Lecture seule, zéro quota.
     const resolved = await resolveUserContext(db, uid, structureId);
     if (!resolved) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
-    if (!canDownloadReplay(resolved.context)) {
+    const target = (data.target ?? { scope: 'structure' }) as { scope: string; teamIds?: string[] };
+    if (!canViewEventReplayStats(resolved.context, target, resolved.teams as TeamRef[])) {
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
     }
 

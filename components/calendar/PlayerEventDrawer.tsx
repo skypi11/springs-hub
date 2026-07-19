@@ -375,6 +375,13 @@ export default function PlayerEventDrawer({
                   ))}
                 </ul>
               )}
+              {eventReplays.length > 0 && (
+                <Link href={`/community/event/${event.id}/stats`} target="_blank"
+                  className="inline-flex items-center gap-1.5 mt-2 text-xs transition-colors"
+                  style={{ color: 'var(--s-gold)' }}>
+                  Voir les stats du match <ExternalLink size={10} />
+                </Link>
+              )}
             </section>
           )}
 

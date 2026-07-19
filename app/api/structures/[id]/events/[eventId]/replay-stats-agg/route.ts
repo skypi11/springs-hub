@@ -5,8 +5,8 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { resolveStructureId } from '@/lib/resolve-structure-id';
-import { canDownloadReplay } from '@/lib/replay-permissions';
-import { isStaff } from '@/lib/event-permissions';
+import { canViewReplayStats } from '@/lib/replay-permissions';
+import type { TeamRef } from '@/lib/event-permissions';
 import { getReplay, isBallchasingConfigured, BallchasingApiError } from '@/lib/ballchasing';
 
 // Sur Vercel Hobby (10s default), 5 fetch ballchasing en parallèle peuvent
@@ -38,9 +38,6 @@ export async function GET(
     }
     const resolved = await resolveUserContext(db, uid, structureId);
     if (!resolved) return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
-    if (!canDownloadReplay(resolved.context)) {
-      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
-    }
 
     const snap = await db.collection('replays')
       .where('structureId', '==', structureId)
@@ -48,14 +45,15 @@ export async function GET(
       .where('status', '==', 'ready')
       .get();
 
-    // Filtre périmètre : staff voit tout, sinon doit avoir accès à l'équipe.
+    // Périmètre de LECTURE par équipe (même règle que la liste et la page stats) :
+    // dirigeant, staff/coach SCOPÉ SUR LE JEU, capitaine, ou joueur/sub de l'équipe.
+    // Remplace l'ancien `isStaff → toutes les équipes` qui fuitait entre jeux (§2.14)
+    // et n'incluait pas les joueurs. Pas de garde globale : un user sans équipe
+    // visible obtient totalCount 0, pas un 403. Lecture pure → zéro quota.
     const ctx = resolved.context;
     const allowedTeamIds = new Set<string>();
-    if (isStaff(ctx)) {
-      for (const t of resolved.teams) allowedTeamIds.add(t.id);
-    } else {
-      for (const id of ctx.staffedTeamIds) allowedTeamIds.add(id);
-      for (const id of ctx.captainOfTeamIds ?? []) allowedTeamIds.add(id);
+    for (const t of resolved.teams) {
+      if (canViewReplayStats(ctx, t.id, t as TeamRef)) allowedTeamIds.add(t.id);
     }
 
     // Classifie les replays en 3 buckets :

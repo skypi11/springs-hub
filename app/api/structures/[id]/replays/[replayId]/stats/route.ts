@@ -5,8 +5,8 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { resolveUserContext } from '@/lib/event-context';
 import { resolveStructureId } from '@/lib/resolve-structure-id';
-import { canDownloadReplay } from '@/lib/replay-permissions';
-import { isDirigeant, isStaffOfTeam, isCoachForTeam } from '@/lib/event-permissions';
+import { canViewReplayStats, canTriggerParse } from '@/lib/replay-permissions';
+import type { TeamRef } from '@/lib/event-permissions';
 import { downloadBuffer } from '@/lib/storage';
 import {
   getReplay,
@@ -60,25 +60,19 @@ export async function GET(
 
     const resolved = await resolveUserContext(db, uid, structureId);
     if (!resolved) return NextResponse.json({ error: 'Structure introuvable' }, { status: 404 });
-    if (!canDownloadReplay(resolved.context)) {
-      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
-    }
 
-    // Périmètre scopé par jeu (2026-05-30) : dirigeant voit tout, sinon il faut
-    // un rôle qui couvre cette équipe-là (manager/coach scopé sur le jeu de la
-    // team, staff explicite, ou capitaine).
+    // Périmètre de LECTURE des stats, scopé par jeu (§3.4) : dirigeant, staff/coach
+    // scopé sur le jeu de la team, capitaine, OU joueur/sub de l'équipe. Un joueur
+    // peut LIRE les stats déjà parsées de SON équipe.
     const teamId = data.teamId as string;
     const ctx = resolved.context;
-    if (!isDirigeant(ctx)) {
-      const captainTeams = new Set(ctx.captainOfTeamIds ?? []);
-      const hasTeamAccess =
-        isStaffOfTeam(ctx, teamId) ||
-        isCoachForTeam(ctx, teamId) ||
-        captainTeams.has(teamId);
-      if (!hasTeamAccess) {
-        return NextResponse.json({ error: 'Équipe hors périmètre' }, { status: 403 });
-      }
+    const team = resolved.teams.find(t => t.id === teamId) as TeamRef | undefined;
+    if (!canViewReplayStats(ctx, teamId, team)) {
+      return NextResponse.json({ error: 'Équipe hors périmètre' }, { status: 403 });
     }
+    // Déclencher un parsing consomme le quota hebdo de la structure → réservé à
+    // ceux qui peuvent uploader (staff + capitaine). JAMAIS un joueur simple.
+    const mayTrigger = canTriggerParse(ctx, teamId);
 
     const bcStatus = typeof data.ballchasingStatus === 'string' ? data.ballchasingStatus : null;
     let bcId = typeof data.ballchasingId === 'string' ? data.ballchasingId : '';
@@ -116,6 +110,11 @@ export async function GET(
         bcStatus === 'manual'
       );
     if (needsLazyForward) {
+      // Un joueur (lecture seule) ne DÉCLENCHE aucun parsing : il consommerait le
+      // quota de la structure. On renvoie juste l'état, sans rien lancer (§3.4).
+      if (!mayTrigger) {
+        return NextResponse.json({ state: bcStatus === 'pending' ? 'pending' : 'not_parsed' });
+      }
       // Check quota AVANT de tenter le forward (évite spending API pour rien)
       const quota = await checkBallchasingQuota(db, structureId);
       if (!quota.ok) {
