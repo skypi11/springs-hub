@@ -2,6 +2,8 @@
 // Le token du bot n'est JAMAIS exposé au client, ces fonctions sont appelées
 // depuis les Route Handlers Next.js (runtime serveur).
 
+import { buildPresenceComponents } from '@/lib/discord-interactions';
+
 const DISCORD_API = 'https://discord.com/api/v10';
 
 function botToken(): string {
@@ -121,6 +123,10 @@ const EVENT_LABELS: Record<string, string> = {
 };
 
 export interface EventEmbedInput {
+  // Id de l'event : si fourni, une action row de boutons de présence
+  // (Présent/Peut-être/Absent) est jointe au message. Les clics arrivent sur
+  // /api/discord/interactions et écrivent la présence via writePresence.
+  eventId?: string | null;
   title: string;
   type: string;
   description?: string | null;
@@ -265,6 +271,9 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
 
   const content = mentionsLine || undefined;
 
+  // Boutons de présence (Présent/Peut-être/Absent) si on connaît l'eventId.
+  const components = input.eventId ? buildPresenceComponents(input.eventId) : undefined;
+
   const res = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
     method: 'POST',
     headers: {
@@ -274,6 +283,7 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
     body: JSON.stringify({
       ...(content ? { content } : {}),
       embeds: [embed],
+      ...(components ? { components } : {}),
       allowed_mentions: allowedMentions,
     }),
   });

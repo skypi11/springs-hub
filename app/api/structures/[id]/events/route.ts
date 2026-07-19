@@ -533,6 +533,7 @@ export async function POST(
               const thumbnailUrl = teamLogoUrl || structureLogoUrl;
 
               const messageId = await postEventEmbed(channelId, {
+                eventId: markDoneImmediately ? null : eventRef.id,
                 title: title.trim(),
                 type,
                 description: description?.trim() ?? '',
@@ -563,6 +564,7 @@ export async function POST(
         if (target.scope === 'structure' && integration?.structureChannelId) {
           try {
             const messageId = await postEventEmbed(integration.structureChannelId, {
+              eventId: markDoneImmediately ? null : eventRef.id,
               title: title.trim(),
               type,
               description: description?.trim() ?? '',
@@ -593,6 +595,7 @@ export async function POST(
         if (target.scope === 'staff' && integration?.staffChannelId) {
           try {
             const messageId = await postEventEmbed(integration.staffChannelId, {
+              eventId: markDoneImmediately ? null : eventRef.id,
               title: title.trim(),
               type,
               description: description?.trim() ?? '',
@@ -624,6 +627,7 @@ export async function POST(
           if (cfg?.channelId) {
             try {
               const messageId = await postEventEmbed(cfg.channelId, {
+                eventId: markDoneImmediately ? null : eventRef.id,
                 title: title.trim(),
                 type,
                 description: description?.trim() ?? '',
