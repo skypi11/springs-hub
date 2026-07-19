@@ -271,8 +271,13 @@ export async function postEventEmbed(channelId: string, input: EventEmbedInput):
 
   const content = mentionsLine || undefined;
 
-  // Boutons de présence (Présent/Peut-être/Absent) si on connaît l'eventId.
-  const components = input.eventId ? buildPresenceComponents(input.eventId) : undefined;
+  // Boutons de présence (Présent/Peut-être/Absent) : seulement si on connaît
+  // l'eventId ET que l'endpoint d'interactions est configuré (DISCORD_PUBLIC_KEY).
+  // Sinon les boutons apparaîtraient mais échoueraient au clic (401) tant que
+  // l'URL d'interactions Discord n'est pas branchée → on ne les montre pas.
+  const components = input.eventId && process.env.DISCORD_PUBLIC_KEY
+    ? buildPresenceComponents(input.eventId)
+    : undefined;
 
   const res = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
     method: 'POST',
