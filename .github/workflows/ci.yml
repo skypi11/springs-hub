@@ -1,0 +1,38 @@
+name: CI
+
+# Signal indépendant que la branche compile et passe les tests, à chaque push
+# et chaque PR. Utile en soi, et d'autant plus que le webhook Vercel du projet
+# est capricieux (un push peut ne PAS déclencher de déploiement) : ce workflow
+# confirme au moins que le code est vert.
+#
+# NB : ne lance PAS les e2e `scripts/e2e-*.mjs` — ils requièrent le secret
+# FIREBASE_SERVICE_ACCOUNT, un serveur en cours d'exécution, et touchent la base
+# Firebase PARTAGÉE avec la prod. Ils restent lancés à la main en local.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: npm test
