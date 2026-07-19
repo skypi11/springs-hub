@@ -17,6 +17,7 @@ import {
   formatBlockRange,
   validateWeekSlots,
   mergeFrozenPastSlots,
+  slotsBetween,
   MAX_SLOTS_PER_WEEK,
 } from './availability';
 
@@ -517,5 +518,54 @@ describe('mergeFrozenPastSlots', () => {
       ['2026-07-16T20:00', '2026-07-16T20:00'],
       ['2026-07-14T20:00'],
     )).toEqual(['2026-07-14T20:00', '2026-07-16T20:00']);
+  });
+});
+
+// ─── Sélection par plage (grille mobile) ────────────────────────────────
+
+describe('slotsBetween', () => {
+  const col = [
+    '2026-07-20T16:00',
+    '2026-07-20T16:30',
+    '2026-07-20T17:00',
+    '2026-07-20T17:30',
+    '2026-07-20T18:00',
+  ];
+
+  it('returns the inclusive range anchor → target (downward)', () => {
+    expect(slotsBetween(col, '2026-07-20T16:30', '2026-07-20T17:30')).toEqual([
+      '2026-07-20T16:30', '2026-07-20T17:00', '2026-07-20T17:30',
+    ]);
+  });
+
+  it('is order-independent (anchor below target)', () => {
+    expect(slotsBetween(col, '2026-07-20T17:30', '2026-07-20T16:30')).toEqual([
+      '2026-07-20T16:30', '2026-07-20T17:00', '2026-07-20T17:30',
+    ]);
+  });
+
+  it('returns a single cell when anchor === target', () => {
+    expect(slotsBetween(col, '2026-07-20T17:00', '2026-07-20T17:00')).toEqual(['2026-07-20T17:00']);
+  });
+
+  it('spans the full column', () => {
+    expect(slotsBetween(col, '2026-07-20T16:00', '2026-07-20T18:00')).toEqual(col);
+  });
+
+  it('returns [] when the anchor is no longer in the column (hidden after collapse)', () => {
+    // Ancre à 08:00 hors de la vue soirée → l'appelant doit ré-armer l'ancre.
+    expect(slotsBetween(col, '2026-07-20T08:00', '2026-07-20T17:00')).toEqual([]);
+  });
+
+  it('returns [] when the target is absent', () => {
+    expect(slotsBetween(col, '2026-07-20T16:00', '2026-07-20T23:00')).toEqual([]);
+  });
+
+  it('works on a real evening slice of the axis (crosses midnight in full view)', () => {
+    // Vue complète : 23:30 (même jour) → 00:30 (lendemain), contiguïté visuelle.
+    const late = ['2026-07-20T23:00', '2026-07-20T23:30', '2026-07-21T00:00', '2026-07-21T00:30'];
+    expect(slotsBetween(late, '2026-07-20T23:30', '2026-07-21T00:30')).toEqual([
+      '2026-07-20T23:30', '2026-07-21T00:00', '2026-07-21T00:30',
+    ]);
   });
 });

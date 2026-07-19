@@ -357,6 +357,25 @@ export function findMatchBlocks(input: AvailabilityInput): MatchBlock[] {
   return blocks;
 }
 
+// ─── Sélection par plage (grille mobile) ────────────────────────────────
+
+/**
+ * À partir d'une liste ordonnée de slots (une COLONNE de jour telle qu'affichée
+ * de haut en bas, cellules passées exclues) et de deux slots présents dans la
+ * liste (ancre + cible), renvoie la sous-plage INCLUSIVE entre les deux, dans
+ * l'ordre. L'ordre des arguments est indifférent (ancre au-dessus ou en-dessous
+ * de la cible). Si l'un des deux est absent (ex. ancre devenue invisible après
+ * un repli de la grille), renvoie [] — l'appelant ré-arme alors l'ancre.
+ */
+export function slotsBetween(orderedSlots: string[], a: string, b: string): string[] {
+  const ia = orderedSlots.indexOf(a);
+  const ib = orderedSlots.indexOf(b);
+  if (ia < 0 || ib < 0) return [];
+  const lo = Math.min(ia, ib);
+  const hi = Math.max(ia, ib);
+  return orderedSlots.slice(lo, hi + 1);
+}
+
 // ─── Helpers d'affichage (côté front) ───────────────────────────────────
 
 /** Libellé court d'un slot "2026-04-14T20:00" → "20:00". */

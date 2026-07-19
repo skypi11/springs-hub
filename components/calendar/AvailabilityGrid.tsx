@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Copy, Check, AlertTriangle } from 'lucide-react';
+import { Loader2, Copy, Check, AlertTriangle, ChevronsUpDown, ChevronsDownUp, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api-client';
 import {
   addDays,
   generateWeekGrid,
+  slotsBetween,
   type DayGrid,
   type WeekGrid,
 } from '@/lib/availability';
@@ -51,6 +52,14 @@ function buildTimeAxis(): { hh: string; mm: string; label: string }[] {
 }
 
 const TIME_AXIS = buildTimeAxis();
+
+// Vue « soirée » par défaut : 16h → 00h (16 lignes) au lieu des 36 de la
+// journée complète. La saisie de dispos amateur se fait le soir ; 36 lignes à
+// taper sur mobile = pénible (retour Matt). Le bouton « Afficher toute la
+// journée » révèle l'axe complet (08h → 01h30) pour les rares dispos de jour.
+const EVENING_START_IDX = TIME_AXIS.findIndex(a => a.hh === '16' && a.mm === '00');
+const EVENING_END_IDX = TIME_AXIS.findIndex(a => a.hh === '00' && a.mm === '00'); // exclusif → dernière ligne = 23:30
+const TIME_AXIS_EVENING = TIME_AXIS.slice(EVENING_START_IDX, EVENING_END_IDX);
 
 // Pour une journée donnée (gridYmd + sa plage horaire), retourne la chaîne de slot
 // qui correspond à une heure de l'axe Y, ou null si ce créneau n'est pas valide ce jour-là.
@@ -105,6 +114,8 @@ export default function AvailabilityGrid() {
   const [currentSet, setCurrentSet] = useState<Set<string>>(new Set());
   const [nextSet, setNextSet] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState<Record<Which, SaveStatus>>({ current: 'idle', next: 'idle' });
+  // Vue soirée (16h→00h) par défaut, partagée par les deux semaines. Toggle en tête.
+  const [showFullDay, setShowFullDay] = useState(false);
 
   // Miroirs synchrones de la saisie : l'auto-save part d'un timer ou du démontage,
   // hors cycle de rendu, et doit lire le dernier état coché.
@@ -260,6 +271,15 @@ export default function AvailabilityGrid() {
     commit(which, slots);
   }
 
+  // Sélection par plage (tap mobile) : ajoute OU retire toute une plage d'un
+  // coup, sans dépendre de l'état individuel de chaque case (≠ toggle).
+  function setRange(which: Which, slotList: string[], selected: boolean) {
+    if (slotList.length === 0) return;
+    const slots = new Set(setsRef.current[which]);
+    for (const s of slotList) { if (selected) slots.add(s); else slots.delete(s); }
+    commit(which, slots);
+  }
+
   function copyFromPrevious() {
     if (!data) return;
     // Décaler vers la semaine courante (+7 jours)
@@ -306,9 +326,27 @@ export default function AvailabilityGrid() {
             Non dispo
           </span>
           <span style={{ color: 'var(--s-text-dim)' }}>
-            · Clique une case pour la cocher. À la souris, <strong style={{ color: 'var(--s-text)' }}>clic maintenu + glissé</strong> en coche plusieurs d&apos;un coup.
+            · À la souris, <strong style={{ color: 'var(--s-text)' }}>clic maintenu + glissé</strong> coche plusieurs cases d&apos;un coup. Sur mobile, <strong style={{ color: 'var(--s-text)' }}>touche le début puis la fin</strong> d&apos;une plage.
           </span>
         </div>
+      </div>
+
+      {/* Bascule vue soirée (16h→00h) / journée complète, partagée par les deux
+          semaines. Placée au-dessus des grilles, là où on décide de l'amplitude. */}
+      <div className="flex justify-end -mb-2">
+        <button type="button"
+          onClick={() => setShowFullDay(v => !v)}
+          className="btn-springs bevel-sm flex items-center gap-2 px-3 py-2"
+          style={{
+            fontSize: '13px',
+            background: 'transparent',
+            border: '1px solid var(--s-border)',
+            color: 'var(--s-text-dim)',
+            cursor: 'pointer',
+          }}>
+          {showFullDay ? <ChevronsDownUp size={14} /> : <ChevronsUpDown size={14} />}
+          {showFullDay ? 'Réduire aux soirées (16h–00h)' : 'Afficher toute la journée'}
+        </button>
       </div>
 
       {/* Stack par défaut, 2 colonnes côte à côte à partir de 1700px (au-dessous,
@@ -320,6 +358,8 @@ export default function AvailabilityGrid() {
           weekGrid={currentGrid}
           slots={currentSet}
           onToggle={(slot) => toggle('current', slot)}
+          onSetRange={(list, selected) => setRange('current', list, selected)}
+          showFullDay={showFullDay}
           status={status.current}
           onRetry={() => flushRef.current()}
           copyLabel={data.previous.slots.length > 0 ? 'Copier semaine précédente' : null}
@@ -332,6 +372,8 @@ export default function AvailabilityGrid() {
           weekGrid={nextGrid}
           slots={nextSet}
           onToggle={(slot) => toggle('next', slot)}
+          onSetRange={(list, selected) => setRange('next', list, selected)}
+          showFullDay={showFullDay}
           status={status.next}
           onRetry={() => flushRef.current()}
           copyLabel={currentSet.size > 0 ? 'Copier semaine courante' : null}
@@ -384,6 +426,8 @@ function WeekPanel({
   weekGrid,
   slots,
   onToggle,
+  onSetRange,
+  showFullDay,
   status,
   onRetry,
   copyLabel,
@@ -394,6 +438,8 @@ function WeekPanel({
   weekGrid: WeekGrid;
   slots: Set<string>;
   onToggle: (slot: string) => void;
+  onSetRange: (slotList: string[], selected: boolean) => void;
+  showFullDay: boolean;
   status: SaveStatus;
   onRetry: () => void;
   copyLabel: string | null;
@@ -427,6 +473,42 @@ function WeekPanel({
       window.removeEventListener('touchend', onUp);
     };
   }, []);
+
+  // Axe Y visible : soirée (16h→00h) par défaut, journée complète si déplié.
+  const visibleAxis = showFullDay ? TIME_AXIS : TIME_AXIS_EVENING;
+
+  // Sélection par plage au tap (mobile) : ancre = 1er tap, la plage se confirme
+  // au 2e tap dans la même colonne. On ne stocke QUE l'ancre ; l'intent (cocher
+  // ou décocher) se déduit de l'état de la case ancre au moment de confirmer.
+  const [anchor, setAnchor] = useState<{ gridYmd: string; slot: string } | null>(null);
+
+  // Pour chaque jour, la colonne de slots SÉLECTIONNABLES (non passés) dans
+  // l'ordre visible top→bottom : base de slotsBetween pour la plage.
+  const orderedSlotsByDay = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const day of weekGrid.days) {
+      const arr: string[] = [];
+      for (const axis of visibleAxis) {
+        const slot = slotForCell(day, axis.hh, axis.mm);
+        if (!slot) continue;
+        if (day.isPast || slot.slice(0, 10) < today) continue;
+        arr.push(slot);
+      }
+      map[day.gridYmd] = arr;
+    }
+    return map;
+  }, [weekGrid, visibleAxis, today]);
+
+  function handleTap(gridYmd: string, slot: string) {
+    // Pas d'ancre, ou ancre dans une autre colonne → (ré)arme sur cette case.
+    if (!anchor || anchor.gridYmd !== gridYmd) { setAnchor({ gridYmd, slot }); return; }
+    const range = slotsBetween(orderedSlotsByDay[gridYmd] ?? [], anchor.slot, slot);
+    // Ancre devenue invisible (repli de la grille entre les deux taps) → ré-arme.
+    if (range.length === 0) { setAnchor({ gridYmd, slot }); return; }
+    // Intent : si la case ancre est déjà cochée, la plage se DÉcoche, sinon elle se coche.
+    onSetRange(range, !slots.has(anchor.slot));
+    setAnchor(null);
+  }
 
   const monday = new Date(weekGrid.mondayYmd + 'T12:00:00');
   const sunday = new Date(addDays(weekGrid.mondayYmd, 6) + 'T12:00:00');
@@ -485,6 +567,31 @@ function WeekPanel({
           <SaveIndicator status={status} onRetry={onRetry} />
         </div>
 
+        {/* Guide de sélection par plage (mobile). Hauteur RÉSERVÉE et guidage
+            TOUJOURS présent : le bloc ne doit pas apparaître/disparaître entre
+            le 1er et le 2e tap, sinon la grille glisse sous le doigt et le 2e
+            tap tombe sur la mauvaise case (même piège que l'indicateur de save). */}
+        {isNarrow && (
+          <div className="mb-3" style={{ minHeight: 40 }}>
+            {anchor ? (
+              <div className="flex items-center justify-between gap-2 px-3 py-2 bevel-sm"
+                style={{ background: 'rgba(255,184,0,0.10)', border: '1px solid rgba(255,184,0,0.35)', fontSize: '13px', color: 'var(--s-gold)' }}>
+                <span>Touche la fin de la plage</span>
+                <button type="button" onClick={() => setAnchor(null)}
+                  className="flex items-center gap-1"
+                  style={{ color: 'var(--s-text-dim)', cursor: 'pointer' }}>
+                  <X size={13} /> Annuler
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center px-3 py-2 bevel-sm"
+                style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', fontSize: '13px', color: 'var(--s-text-muted)' }}>
+                Touche le début d&apos;une plage, puis la fin.
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Grid */}
         <div className="overflow-x-auto">
           <table className="border-collapse" style={{
@@ -516,7 +623,7 @@ function WeekPanel({
               </tr>
             </thead>
             <tbody>
-              {TIME_AXIS.map((axis, rowIdx) => {
+              {visibleAxis.map((axis, rowIdx) => {
                 const isHourStart = axis.mm === '00';
                 const ROW_HEIGHT = 22;
                 return (
@@ -556,36 +663,49 @@ function WeekPanel({
                     const isSelected = slots.has(slot);
                     const slotDayYmd = slot.slice(0, 10);
                     const isPast = day.isPast || slotDayYmd < today;
+                    // Case « armée » : 1er tap d'une plage (mobile). Look distinct
+                    // (anneau or 2px, fond léger) pour marquer le changement de
+                    // couleur entre le début et la confirmation de la plage.
+                    const isArmed = isNarrow && !isPast
+                      && anchor?.gridYmd === day.gridYmd && anchor.slot === slot;
+
+                    const bg = isPast
+                      ? (isSelected ? 'rgba(255,184,0,0.10)' : 'rgba(255,255,255,0.02)')
+                      : isArmed
+                        ? 'rgba(255,184,0,0.18)'
+                        : isSelected
+                          ? 'rgba(255,184,0,0.40)'
+                          : 'var(--s-elevated)';
+                    const shadow = isArmed
+                      ? 'inset 0 0 0 2px var(--s-gold)'
+                      : (!isPast && isSelected ? 'inset 0 0 0 1px rgba(255,184,0,0.55)' : 'none');
 
                     return (
                       <td key={day.gridYmd}
-                        onMouseDown={(e) => {
+                        // Mobile : sélection par tap (ancre → confirmation de plage).
+                        // Desktop : clic maintenu + glissé. Handlers exclusifs pour
+                        // qu'un tap synthétique ne déclenche pas le drag.
+                        onClick={isNarrow ? () => { if (!isPast) handleTap(day.gridYmd, slot); } : undefined}
+                        onMouseDown={!isNarrow ? (e) => {
                           if (isPast) return;
                           e.preventDefault();
-                          const intent = isSelected ? 'remove' : 'add';
-                          dragModeRef.current = intent;
+                          dragModeRef.current = isSelected ? 'remove' : 'add';
                           setDragActive(true);
                           onToggle(slot);
-                        }}
-                        onMouseEnter={() => {
+                        } : undefined}
+                        onMouseEnter={!isNarrow ? () => {
                           if (isPast) return;
                           const mode = dragModeRef.current;
                           if (!mode) return;
                           const shouldAdd = mode === 'add';
                           if (shouldAdd && !isSelected) onToggle(slot);
                           else if (!shouldAdd && isSelected) onToggle(slot);
-                        }}
+                        } : undefined}
                         style={{
                           width: isNarrow ? 'auto' : '76px',
                           height: `${ROW_HEIGHT}px`,
-                          background: isPast
-                            ? (isSelected ? 'rgba(255,184,0,0.10)' : 'rgba(255,255,255,0.02)')
-                            : isSelected
-                              ? 'rgba(255,184,0,0.40)'
-                              : 'var(--s-elevated)',
-                          boxShadow: !isPast && isSelected
-                            ? 'inset 0 0 0 1px rgba(255,184,0,0.55)'
-                            : 'none',
+                          background: bg,
+                          boxShadow: shadow,
                           borderLeft: '1px solid var(--s-bg)',
                           borderRight: '1px solid var(--s-bg)',
                           borderTop: isHourStart
