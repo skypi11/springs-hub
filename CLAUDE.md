@@ -578,8 +578,17 @@ function scheduleReload() {
 - **Typage** : TypeScript strict, interfaces dans `types/`
 - Pas de `console.log` en production
 
+### Tests (MAJ 18/07 — infra de test de composant AJOUTÉE)
+- **`npm run verify`** = `tsc --noEmit && eslint . && vitest run` — le garde-fou à lancer AVANT tout push. (`npm run typecheck` = tsc seul.)
+- **Vitest à 2 projets** (`vitest.config.ts`) :
+  - **`node`** : `lib/**/*.test.ts` — logique PURE (comportement historique inchangé). C'est là que va toute lib testable (pattern `lib/tournament`, `lib/competitions/*`).
+  - **`dom`** : `**/*.test.tsx` en jsdom + `@testing-library/react` — **teste le COMPORTEMENT CLIENT** (un clic peint UNE case, une modale ne se ferme pas au mauvais moment…). Ajouté le 18/07 après le chantier UX : les 3 pertes de données étaient invisibles à la couche `node`. Setup = `vitest.setup.ts` (matchers jest-dom + cleanup). 1er exemple : `components/ui/ModalBackdrop.test.tsx`. **Écrire un test `dom` pour tout fix de bug client** (importer `describe/it/expect/vi` de `vitest`, `render/screen/fireEvent` de `@testing-library/react`).
+  - Rappel toujours vrai : jsdom N'EST PAS un vrai navigateur (pas de layout/getBoundingClientRect fiable) → pour les bugs de mise en page/mobile, l'œil Playwright à 390px reste indispensable.
+- **e2e** : `scripts/e2e-*.mjs` — flux serveur réels contre Firebase (jamais dans le CI : secrets + DB partagée prod ; lancés à la main, cleanup en `finally`).
+- **CI GitHub** (`.github/workflows/ci.yml`) : rejoue tsc + eslint + vitest à chaque push/PR = signal INDÉPENDANT que le code est vert (précieux, cf. webhook Vercel capricieux). `gh` n'est pas installé en local — voir le statut dans l'onglet Actions GitHub.
+
 ## Déploiement
-- Push sur `main` → Vercel redéploie automatiquement
+- Push sur `main` → Vercel redéploie automatiquement — **⚠️ webhook FLAKY (juillet 2026)** : plusieurs pushes n'ont déclenché AUCUN build. RÉFLEXE : après un push en prod, vérifier qu'un déploiement du bon SHA existe ; sinon `vercel deploy --prod --yes` (CLI authentifié `skypi11`). Voir mémoire `project_vercel_hobby_limits`.
 - Toujours push après chaque modification (sans demander confirmation)
 
 ---
