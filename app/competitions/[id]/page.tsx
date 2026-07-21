@@ -19,6 +19,19 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { getGameColor, getGameColorRgb, getGameBannerUrl } from '@/lib/games-registry';
 import type { CompetitionEligibility, CompetitionFormat, CompetitionSchedule } from '@/types/competitions';
 
+// Une ligne du classement final servie au public (FinalPlacement + logo joint
+// côté serveur depuis l'inscription). Aucun uid, public-safe (archi §4).
+interface FinalPlacementPublic {
+  registrationId: string;
+  name: string;
+  tag: string;
+  placement: number;
+  points: number | null;
+  goalDiff: number;
+  goalsFor: number;
+  logoUrl: string | null;
+}
+
 interface PublicCompetition {
   competition: {
     id: string;
@@ -36,6 +49,8 @@ interface PublicCompetition {
     bracketMaterializedAt: string | null;
     prizePool: { amount?: number; currency?: string } | number | null;
     isDev: boolean;
+    finalPlacements: FinalPlacementPublic[] | null;
+    closedAt: string | null;
   };
   teams: Array<{
     teamId: string;
@@ -279,6 +294,12 @@ export default function CompetitionPage() {
         </div>
       )}
 
+      {/* Classement final — headline quand la compétition est clôturée. Placé
+          AVANT le bracket : le résultat prime, le bracket reste en complément. */}
+      {comp.status === 'finished' && comp.finalPlacements && comp.finalPlacements.length > 0 && (
+        <FinalStandings placements={comp.finalPlacements} />
+      )}
+
       {/* Bracket — affiché dès qu'il est publié ; sinon, une fois la compétition
           en seeding/en cours, on indique qu'il arrive (jamais en phase d'inscription
           où ce serait prématuré). */}
@@ -404,6 +425,54 @@ export default function CompetitionPage() {
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Classement final d'une compétition clôturée : podium en or (1er surligné),
+// crest + nom, points (masqués hors circuit) et delta de buts. Or réservé au
+// podium (1-3) — DA Aedral. Rendu simple en rangées à dividers (grammaire n3).
+function FinalStandings({ placements }: { placements: FinalPlacementPublic[] }) {
+  const anyPoints = placements.some(p => p.points !== null);
+  return (
+    <div className="panel bevel">
+      <div className="panel-header flex items-center gap-2">
+        <Trophy size={15} style={{ color: 'var(--s-gold)' }} />
+        <span className="t-sub">Classement final</span>
+      </div>
+      <div className="panel-body p-0">
+        {placements.map((p) => {
+          const isFirst = p.placement === 1;
+          const isPodium = p.placement <= 3;
+          return (
+            <div key={p.registrationId} className="flex items-center gap-3 px-4 py-2.5"
+              style={{
+                borderBottom: '1px solid var(--s-border)',
+                background: isFirst ? 'rgba(255,184,0,0.06)' : undefined,
+              }}>
+              <span className="t-mono text-right flex-shrink-0"
+                style={{ width: 26, fontSize: 15, fontWeight: 700, color: isPodium ? 'var(--s-gold)' : 'var(--s-text-dim)' }}>
+                {p.placement}
+              </span>
+              <TeamCrest url={p.logoUrl} tag={p.tag} name={p.name} size={26} />
+              <span className="flex-1 min-w-0 truncate text-sm">
+                <span style={{ fontWeight: isPodium ? 600 : 400 }}>{p.name}</span>
+                <span style={{ color: 'var(--s-text-muted)' }}> [{p.tag}]</span>
+              </span>
+              {anyPoints && (
+                <span className="t-mono flex-shrink-0 text-sm"
+                  style={{ color: p.points ? 'var(--s-text)' : 'var(--s-text-muted)', width: 56, textAlign: 'right' }}>
+                  {p.points ?? 0} pts
+                </span>
+              )}
+              <span className="t-mono flex-shrink-0"
+                style={{ fontSize: 12, width: 34, textAlign: 'right', color: 'var(--s-text-muted)' }}>
+                {p.goalDiff >= 0 ? '+' : ''}{p.goalDiff}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

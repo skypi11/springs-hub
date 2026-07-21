@@ -125,6 +125,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
 
+    // Classement final (compét clôturée) : déjà public-safe (registrationId +
+    // dénormalisations, aucun uid — archi §4). On le mappe EXPLICITEMENT (jamais
+    // de spread brut sur un doc) et on l'enrichit du logo d'équipe via les
+    // inscriptions (regsSnap déjà chargé), pour un rendu public avec crests.
+    const logoByRegId = new Map<string, string | null>();
+    for (const d of regsSnap.docs) logoByRegId.set(d.id, (d.data().logoUrl as string) ?? null);
+    const finalPlacements = Array.isArray(comp.finalPlacements)
+      ? (comp.finalPlacements as Array<Record<string, unknown>>).map(p => ({
+          registrationId: (p.registrationId as string) ?? '',
+          name: (p.name as string) ?? '',
+          tag: (p.tag as string) ?? '',
+          placement: typeof p.placement === 'number' ? p.placement : 0,
+          points: typeof p.points === 'number' ? p.points : null,
+          goalDiff: typeof p.goalDiff === 'number' ? p.goalDiff : 0,
+          goalsFor: typeof p.goalsFor === 'number' ? p.goalsFor : 0,
+          logoUrl: logoByRegId.get(p.registrationId as string) ?? null,
+        }))
+      : null;
+
     return NextResponse.json({
       competition: {
         id,
@@ -148,6 +167,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         bracketMaterializedAt: comp.bracketMaterializedAt?.toDate?.()?.toISOString() ?? null,
         prizePool: comp.prizePool ?? null,
         isDev: comp.isDev === true,
+        // Classement final (null tant que la compét n'est pas clôturée).
+        finalPlacements,
+        closedAt: comp.closedAt?.toDate?.()?.toISOString() ?? null,
       },
       teams,
       waitlistedCount: waitlisted,
