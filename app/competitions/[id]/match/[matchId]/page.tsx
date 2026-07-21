@@ -19,6 +19,7 @@ import { getGameColor, getGameColorRgb, getGameBannerUrl } from '@/lib/games-reg
 import TeamCrest from '@/components/competitions/TeamCrest';
 import GameRow from '@/components/competitions/GameRow';
 import { useWorkerInterval } from '@/components/competitions/useWorkerInterval';
+import { normalizeGameRows, isScoreValid } from '@/lib/competitions/match-score';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ChevronLeft, Copy, Radio, ShieldAlert, ShieldCheck } from 'lucide-react';
 
@@ -933,18 +934,21 @@ function ScoreEntryForm({ bo, teamA, teamB, mySide, color, initial, busy, alread
   hideDispute?: boolean;
 }) {
   const needed = Math.ceil(bo / 2);
-  const [games, setGames] = useState<Game[]>(initial.length > 0 ? initial : Array.from({ length: needed }, () => ({ a: 0, b: 0 })));
+  // Rangées AUTO-GÉRÉES (helper pur, partagé avec la console) : le formulaire
+  // montre toujours le bon nombre de manches, un 2-1 ouvre la manche suivante,
+  // un score impossible (4-0 en BO5) ne peut pas être construit.
+  const [games, setGames] = useState<Game[]>(() => normalizeGameRows(initial, bo));
 
   const wins = useMemo(() => {
     const w = { a: 0, b: 0 };
     for (const g of games) { if (g.a > g.b) w.a++; else if (g.b > g.a) w.b++; }
     return w;
   }, [games]);
-  const valid = (wins.a === needed || wins.b === needed) && games.every(g => g.a !== g.b);
+  const valid = isScoreValid(games, bo);
 
   const setVal = (i: number, side: 'a' | 'b', v: number) => {
     const clamped = Math.max(0, Math.min(99, v));
-    setGames(gs => gs.map((x, j) => (j === i ? { ...x, [side]: clamped } : x)));
+    setGames(gs => normalizeGameRows(gs.map((x, j) => (j === i ? { ...x, [side]: clamped } : x)), bo));
   };
 
   return (
@@ -971,19 +975,12 @@ function ScoreEntryForm({ bo, teamA, teamB, mySide, color, initial, busy, alread
               <Stepper value={g.a} onChange={v => setVal(i, 'a', v)} label={`Buts ${teamA.name}, manche ${i + 1}`} />
               <span className="text-center" style={{ color: 'var(--s-text-muted)' }}>–</span>
               <Stepper value={g.b} onChange={v => setVal(i, 'b', v)} label={`Buts ${teamB.name}, manche ${i + 1}`} />
-              {games.length > needed ? (
-                <button className="quiet-link justify-self-end" onClick={() => setGames(gs => gs.filter((_, j) => j !== i))}>
-                  Retirer
-                </button>
-              ) : <span />}
+              <span />
             </div>
             {/* mobile : deux lignes */}
             <div className="sm:hidden space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="t-label-soft">Manche {i + 1}</span>
-                {games.length > needed && (
-                  <button className="quiet-link" onClick={() => setGames(gs => gs.filter((_, j) => j !== i))}>Retirer</button>
-                )}
               </div>
               <div className="flex items-center gap-2">
                 <Stepper value={g.a} onChange={v => setVal(i, 'a', v)} label={`Buts ${teamA.name}, manche ${i + 1}`} />
@@ -1007,11 +1004,6 @@ function ScoreEntryForm({ bo, teamA, teamB, mySide, color, initial, busy, alread
       </p>
 
       <div className="flex flex-wrap items-center gap-3">
-        {games.length < bo && (
-          <button className="btn-springs btn-ghost text-sm" onClick={() => setGames(gs => [...gs, { a: 0, b: 0 }])}>
-            Ajouter une manche
-          </button>
-        )}
         <button className="btn-springs btn-primary bevel-sm" disabled={busy || !valid} onClick={() => onSubmit(games)}>
           {alreadySubmitted ? 'Corriger le score' : 'Envoyer le score'}
         </button>

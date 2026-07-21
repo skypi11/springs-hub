@@ -24,6 +24,7 @@ import TeamCrest from '@/components/competitions/TeamCrest';
 import GlanceStat from '@/components/competitions/GlanceStat';
 import GameRow from '@/components/competitions/GameRow';
 import { useWorkerInterval } from '@/components/competitions/useWorkerInterval';
+import { winsOf, normalizeGameRows, isScoreValid, winsNeeded } from '@/lib/competitions/match-score';
 import { ChevronDown, ChevronLeft, Copy, GripVertical, Radio } from 'lucide-react';
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
@@ -142,11 +143,6 @@ const nameOf = (m: ConsoleMatch, side: 'a' | 'b') => {
   const isVoid = side === 'a' ? m.voidA : m.voidB;
   if (isVoid) return 'BYE';
   return info?.name ?? 'À déterminer';
-};
-const winsOf = (games: Game[]) => {
-  const w = { a: 0, b: 0 };
-  for (const g of games) { if (g.a > g.b) w.a++; else if (g.b > g.a) w.b++; }
-  return w;
 };
 const matchOrder = (a: ConsoleMatch, b: ConsoleMatch) => {
   const rank: Record<string, number> = { winners: 0, losers: 1, grand_final: 2 };
@@ -529,6 +525,7 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
               `Score imposé — ${nameOf(forceScoreFor, 'a')} vs ${nameOf(forceScoreFor, 'b')}.`,
             );
             if (ok) setForceScoreFor(null);
+            return ok;
           }} />
       )}
       {forfeitFor && (
@@ -1110,15 +1107,19 @@ function ModalShell({ heading, m, onClose, children }: {
 }
 
 function ForceScoreModal({ m, onClose, onSubmit }: {
-  m: ConsoleMatch; onClose: () => void; onSubmit: (games: Game[], resolution: string | null) => void;
+  m: ConsoleMatch; onClose: () => void; onSubmit: (games: Game[], resolution: string | null) => Promise<boolean>;
 }) {
-  const needed = Math.ceil(m.bo / 2);
-  const [games, setGames] = useState<Game[]>(Array.from({ length: needed }, () => ({ a: 0, b: 0 })));
+  const needed = winsNeeded(m.bo);
+  // Rangées AUTO-GÉRÉES (helper pur) : impossible de construire un 4-0 en BO5,
+  // et un 2-1 fait apparaître la manche suivante tout seul.
+  const [games, setGames] = useState<Game[]>(() => normalizeGameRows([], m.bo));
   const [resolution, setResolution] = useState('');
   const [sent, setSent] = useState(false);   // anti double-submit (review Lot 4)
   const wins = winsOf(games);
-  const valid = (wins.a === needed || wins.b === needed) && games.every(g => g.a !== g.b);
+  const valid = isScoreValid(games, m.bo);
   const clamp = (v: string) => Math.max(0, Math.min(99, Number(v) || 0));
+  const editCell = (i: number, side: 'a' | 'b', raw: string) =>
+    setGames(gs => normalizeGameRows(gs.map((x, j) => j === i ? { ...x, [side]: clamp(raw) } : x), m.bo));
 
   return (
     <ModalShell m={m} onClose={onClose}>
@@ -1144,15 +1145,10 @@ function ForceScoreModal({ m, onClose, onSubmit }: {
             <span className="t-label-soft">Manche {i + 1}</span>
             <input type="number" min={0} max={99} value={g.a} className="settings-input bevel-sm" style={{ width: 64, textAlign: 'center' }}
               aria-label={`Buts ${nameOf(m, 'a')}, manche ${i + 1}`}
-              onChange={e => setGames(gs => gs.map((x, j) => j === i ? { ...x, a: clamp(e.target.value) } : x))} />
-            <div className="flex items-center gap-2">
-              <input type="number" min={0} max={99} value={g.b} className="settings-input bevel-sm" style={{ width: 64, textAlign: 'center' }}
-                aria-label={`Buts ${nameOf(m, 'b')}, manche ${i + 1}`}
-                onChange={e => setGames(gs => gs.map((x, j) => j === i ? { ...x, b: clamp(e.target.value) } : x))} />
-              {games.length > needed && (
-                <button className="quiet-link" onClick={() => setGames(gs => gs.filter((_, j) => j !== i))}>Retirer</button>
-              )}
-            </div>
+              onChange={e => editCell(i, 'a', e.target.value)} />
+            <input type="number" min={0} max={99} value={g.b} className="settings-input bevel-sm" style={{ width: 64, textAlign: 'center' }}
+              aria-label={`Buts ${nameOf(m, 'b')}, manche ${i + 1}`}
+              onChange={e => editCell(i, 'b', e.target.value)} />
           </div>
         ))}
         {/* Totaux live */}
@@ -1161,17 +1157,19 @@ function ForceScoreModal({ m, onClose, onSubmit }: {
           <span style={{ color: 'var(--s-text-muted)' }}> — </span>
           <span style={{ color: wins.b > wins.a ? 'var(--s-blue)' : 'var(--s-text-dim)' }}>{wins.b}</span>
         </p>
-        {games.length < m.bo && (
-          <button className="btn-springs btn-ghost text-sm" onClick={() => setGames(gs => [...gs, { a: 0, b: 0 }])}>
-            Ajouter une manche
-          </button>
-        )}
         <textarea className="settings-input bevel-sm w-full" rows={2}
           placeholder="Résolution visible des équipes (ex. captures vérifiées)"
           value={resolution} onChange={e => setResolution(e.target.value)} />
         <div className="flex flex-wrap items-center gap-3">
           <button className="btn-springs btn-primary bevel-sm" disabled={!valid || sent}
-            onClick={() => { setSent(true); onSubmit(games, resolution.trim() || null); }}>
+            onClick={async () => {
+              setSent(true);
+              // On ne réinitialise `sent` QUE si l'imposition échoue (le toast d'erreur
+              // s'affiche déjà via action()) : sinon le bouton restait grisé à vie et
+              // le refus paraissait « silencieux » (retour Matt 21/07).
+              const ok = await onSubmit(games, resolution.trim() || null);
+              if (!ok) setSent(false);
+            }}>
             Imposer le score
           </button>
           {!valid && <span style={{ fontSize: 13, color: 'var(--s-text-muted)' }}>Vainqueur net à {needed} manches requis.</span>}
