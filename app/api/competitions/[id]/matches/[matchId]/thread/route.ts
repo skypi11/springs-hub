@@ -70,7 +70,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         authorName: (m.authorName as string) ?? '',
         body: (m.body as string) ?? '',
         createdAt: m.createdAt?.toDate?.()?.toISOString() ?? null,
-        // Jamais d'authorUid dans la réponse (archi §8).
+        // Nonce client renvoyé pour retirer l'optimiste correspondant (pas de
+        // PII — random généré côté client). Jamais d'authorUid (archi §8).
+        clientNonce: (m.clientNonce as string) ?? null,
       };
     });
     return NextResponse.json({
@@ -106,6 +108,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const bodyJson = await req.json().catch(() => ({}));
     const body = typeof bodyJson.body === 'string' ? bodyJson.body.trim().slice(0, MAX_BODY) : '';
     if (!body) return NextResponse.json({ error: 'Message vide.' }, { status: 400 });
+    // Nonce client (écho optimiste) : borné, sans caractère de contrôle.
+    const clientNonce = typeof bodyJson.clientNonce === 'string' && bodyJson.clientNonce.length <= 64
+      ? bodyJson.clientNonce
+      : null;
 
     const userSnap = await db.collection('users').doc(uid).get();
     const authorName = (userSnap.data()?.displayName as string)
@@ -117,6 +123,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       authorUid: uid,        // modération/audit — jamais servi (rules deny-all)
       authorName,
       body,
+      ...(clientNonce ? { clientNonce } : {}),
       createdAt: FieldValue.serverTimestamp(),
     });
     return NextResponse.json({ ok: true });

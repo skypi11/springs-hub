@@ -20,6 +20,7 @@ import TeamCrest from '@/components/competitions/TeamCrest';
 import GameRow from '@/components/competitions/GameRow';
 import { useWorkerInterval } from '@/components/competitions/useWorkerInterval';
 import { normalizeGameRows, isScoreValid } from '@/lib/competitions/match-score';
+import { mergeThread, threadPostSide } from '@/lib/competitions/match-thread';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ChevronLeft, Copy, Radio, ShieldAlert, ShieldCheck } from 'lucide-react';
 
@@ -227,6 +228,8 @@ export default function MatchPage({ params }: { params: Promise<{ id: string; ma
   const needed = Math.ceil(m.bo / 2);
   const myEntry = mySide ? m.scores[mySide] : [];
   const otherEntry = mySide ? m.scores[mySide === 'a' ? 'b' : 'a'] : [];
+  // Camp d'écriture dans le fil (helper pur, miroir exact de la logique serveur).
+  const postSideForThread = threadPostSide(access ?? null, data?.isAdmin === true);
 
   // Manche décisive : celle où le vainqueur atteint `needed`.
   const decisiveIndex = (() => {
@@ -461,11 +464,19 @@ export default function MatchPage({ params }: { params: Promise<{ id: string; ma
                       <GameRow key={i} index={i} game={g} teamAName={nameA} teamBName={nameB} color={color} />
                     ))}
                   </div>
-                  <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>
-                    {otherEntry.length > 0
-                      ? 'Les deux saisies sont là — résolution en cours.'
-                      : "En attente de la saisie de l'équipe adverse."}
-                  </p>
+                  {otherEntry.length > 0 ? (
+                    <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>Les deux saisies sont là — résolution en cours.</p>
+                  ) : counterCd ? (
+                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                      <div className="min-w-0">
+                        <span className="t-label-soft">Contre-saisie de l&apos;adversaire</span>
+                        <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>Sans réponse à 0:00, ta saisie est retenue.</p>
+                      </div>
+                      <span className={`match-countdown ${counterCd.seconds < 120 ? 'is-urgent' : ''}`}>{counterCd.label}</span>
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>En attente de la saisie de l&apos;équipe adverse.</p>
+                  )}
                   <div className="flex flex-wrap items-center gap-3">
                     {access?.canSubmitScores && (
                       <ResubmitButton m={m} mySide={mySide} color={color} busy={busy}
@@ -567,7 +578,8 @@ export default function MatchPage({ params }: { params: Promise<{ id: string; ma
       {/* C bis — Fil du match (participants + admins, spec §10) */}
       {involved && (
         <MatchThread competitionId={id} matchId={matchId} active={!done}
-          nameA={m.teamAInfo?.name ?? 'Équipe A'} nameB={m.teamBInfo?.name ?? 'Équipe B'} />
+          teamAInfo={m.teamAInfo} teamBInfo={m.teamBInfo}
+          postSide={postSideForThread} myName={user?.displayName ?? 'Toi'} color={color} />
       )}
 
       {/* D — Alignements */}
@@ -592,13 +604,18 @@ interface ThreadMessage {
   authorName: string;
   body: string;
   createdAt: string | null;
+  clientNonce?: string;
 }
 
-function MatchThread({ competitionId, matchId, nameA, nameB, active }: {
+function MatchThread({ competitionId, matchId, teamAInfo, teamBInfo, postSide, myName, color, active }: {
   competitionId: string;
   matchId: string;
-  nameA: string;
-  nameB: string;
+  teamAInfo: Side;
+  teamBInfo: Side;
+  /** Camp d'écriture du lecteur (miroir serveur) — null = lecture seule. */
+  postSide: 'a' | 'b' | 'admin' | null;
+  myName: string;
+  color: string;
   /** Match encore vivant : cadence le polling (un match terminé ne bouge plus). */
   active: boolean;
 }) {
@@ -606,6 +623,7 @@ function MatchThread({ competitionId, matchId, nameA, nameB, active }: {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [pending, setPending] = useState<ThreadMessage[]>([]);
   const listRef = useRef<HTMLDivElement | null>(null);
   const { data } = useQuery({
     queryKey: ['match-thread', competitionId, matchId],
@@ -619,10 +637,13 @@ function MatchThread({ competitionId, matchId, nameA, nameB, active }: {
     queryClient.invalidateQueries({ queryKey: ['match-thread', competitionId, matchId] });
   }, 8_000, active);
 
-  // Les derniers messages vivent EN BAS : coller la vue au bas du fil à
-  // chaque nouveau message (review Lot 4 — sans ça, le conteneur restait
-  // ancré en haut et les nouveaux messages arrivaient hors champ).
-  const messageCount = data?.messages?.length ?? 0;
+  // Fil affiché = messages serveur + optimistes non encore confirmés (dédup par
+  // nonce, helper pur partagé/testé) — plus d'attente ~2 s (retour Matt).
+  const messages = useMemo(() => mergeThread(data?.messages ?? [], pending), [data?.messages, pending]);
+
+  // Les derniers messages vivent EN BAS : coller la vue au bas du fil à chaque
+  // nouveau message (review Lot 4 — sans ça le conteneur restait ancré en haut).
+  const messageCount = messages.length;
   useEffect(() => {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -630,28 +651,53 @@ function MatchThread({ competitionId, matchId, nameA, nameB, active }: {
 
   const send = async () => {
     const body = draft.trim();
-    if (!body || sending) return;
+    if (!body || sending || !postSide) return;
+    // Affichage OPTIMISTE : le message apparaît tout de suite (nonce client), puis
+    // le refetch le remplace par le vrai (le serveur renvoie le nonce → pas de
+    // doublon), ou on le retire en cas d'échec.
+    const nonce = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random()}`;
+    const optimistic: ThreadMessage = { id: `optimistic-${nonce}`, side: postSide, authorName: myName, body, createdAt: new Date().toISOString(), clientNonce: nonce };
+    setPending(p => [...p, optimistic]);
+    setDraft('');
     setSending(true);
     try {
       await api(`/api/competitions/${competitionId}/matches/${matchId}/thread`, {
-        method: 'POST', body: { body },
+        method: 'POST', body: { body, clientNonce: nonce },
       });
-      setDraft('');
-      queryClient.invalidateQueries({ queryKey: ['match-thread', competitionId, matchId] });
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : 'Message impossible à envoyer.');
-    } finally {
+      setPending(p => p.filter(x => x.clientNonce !== nonce));       // rollback l'optimiste
+      setDraft(d => (d === '' ? body : d));                          // ne pas écraser un nouveau brouillon
       setSending(false);
+      return;
     }
+    setSending(false);
+    // POST réussi : le refetch est HORS du try qui gate le rollback — un échec de
+    // rafraîchissement ne doit ni afficher d'erreur ni remettre en boîte un
+    // message déjà envoyé (le prochain worker-tick rafraîchira de toute façon).
+    try {
+      await queryClient.invalidateQueries({ queryKey: ['match-thread', competitionId, matchId] });
+    } catch { /* non bloquant */ }
+    setPending(p => p.filter(x => x.clientNonce !== nonce));         // filet (la dédup nonce l'a déjà masqué)
   };
 
-  const messages = data?.messages ?? [];
   const labelOf = (msg: ThreadMessage) =>
-    msg.side === 'admin' ? 'Admin' : msg.side === 'a' ? nameA : nameB;
+    msg.side === 'admin' ? 'Admin' : msg.side === 'a' ? (teamAInfo?.name ?? 'Équipe A') : (teamBInfo?.name ?? 'Équipe B');
   const hhmm = (iso: string | null) => {
     if (!iso) return '';
     const t = Date.parse(iso);
     return Number.isNaN(t) ? '' : new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(t);
+  };
+  // Pseudo coloré par camp : le tien à la couleur du jeu, l'adversaire en
+  // neutre, l'admin en or (autorité). Le crest lève toute ambiguïté d'équipe.
+  const nameColor = (msg: ThreadMessage) =>
+    msg.side === 'admin' ? 'var(--s-gold)' : msg.side === postSide ? color : 'var(--s-text)';
+  const crestOf = (msg: ThreadMessage) => {
+    if (msg.side === 'admin') return <ShieldCheck size={16} style={{ color: 'var(--s-gold)' }} />;
+    const info = msg.side === 'a' ? teamAInfo : teamBInfo;
+    return info ? <TeamCrest url={info.logoUrl} tag={info.tag} name={info.name} size={16} /> : null;
   };
 
   return (
@@ -666,16 +712,15 @@ function MatchThread({ competitionId, matchId, nameA, nameB, active }: {
         ) : (
           <div ref={listRef} className="space-y-2" style={{ maxHeight: 320, overflowY: 'auto' }}>
             {messages.map(msg => (
-              <div key={msg.id} className="text-sm" style={{ lineHeight: 1.45 }}>
-                <span className="font-semibold" style={{
-                  color: msg.side === 'admin' ? 'var(--s-gold)' : 'var(--s-text)',
-                }}>
-                  {msg.authorName}
-                </span>
-                <span style={{ color: 'var(--s-text-muted)', fontSize: 12 }}>
-                  {' '}· {labelOf(msg)}{msg.createdAt ? ` · ${hhmm(msg.createdAt)}` : ''}
-                </span>
-                <p style={{ color: 'var(--s-text)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{msg.body}</p>
+              <div key={msg.id} className="flex items-start gap-2 text-sm" style={{ lineHeight: 1.45 }}>
+                <span className="flex-shrink-0" style={{ marginTop: 2 }}>{crestOf(msg)}</span>
+                <div className="min-w-0">
+                  <span className="font-semibold" style={{ color: nameColor(msg) }}>{msg.authorName}</span>
+                  <span style={{ color: 'var(--s-text-muted)', fontSize: 12 }}>
+                    {' '}· {labelOf(msg)}{msg.createdAt ? ` · ${hhmm(msg.createdAt)}` : ''}
+                  </span>
+                  <p style={{ color: 'var(--s-text)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{msg.body}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -767,9 +812,12 @@ function CheckinAction({ m, mySide, canCheckin, busy, countdown, color, onChecki
           ) : null}
         </div>
         {countdown && (
-          <span className={`match-countdown ${countdown.seconds < 120 ? 'is-urgent' : ''}`}>
-            {countdown.label}
-          </span>
+          <div className="text-center sm:text-right">
+            <p className="t-label-soft" style={{ color: 'var(--s-text-muted)' }}>Temps restant</p>
+            <span className={`match-countdown ${countdown.seconds < 120 ? 'is-urgent' : ''}`} style={{ fontSize: 44 }}>
+              {countdown.label}
+            </span>
+          </div>
         )}
       </div>
     </div>
@@ -957,34 +1005,37 @@ function ScoreEntryForm({ bo, teamA, teamB, mySide, color, initial, busy, alread
         Buts de chaque manche, dans l&apos;ordre. Vainqueur à {needed} manches (BO{bo}).
       </p>
 
-      {/* En-têtes de colonnes NOMMÉES */}
-      <div className="hidden sm:grid grid-cols-[64px_1fr_16px_1fr_auto] items-end gap-2">
+      {/* En-têtes de colonnes NOMMÉES — équipe A · Manche · équipe B (label centré) */}
+      <div className="hidden sm:grid grid-cols-[1fr_88px_1fr] items-end gap-3">
+        <div className="flex justify-end"><ColumnHead team={teamA} mine={mySide === 'a'} color={color} /></div>
         <span />
-        <ColumnHead team={teamA} mine={mySide === 'a'} color={color} />
-        <span />
-        <ColumnHead team={teamB} mine={mySide === 'b'} color={color} />
-        <span />
+        <div className="flex justify-start"><ColumnHead team={teamB} mine={mySide === 'b'} color={color} /></div>
       </div>
 
       <div className="space-y-2">
         {games.map((g, i) => (
           <div key={i}>
-            {/* sm+ : une ligne */}
-            <div className="hidden sm:grid grid-cols-[64px_1fr_16px_1fr_auto] items-center gap-2">
-              <span className="t-label-soft">Manche {i + 1}</span>
-              <Stepper value={g.a} onChange={v => setVal(i, 'a', v)} label={`Buts ${teamA.name}, manche ${i + 1}`} />
-              <span className="text-center" style={{ color: 'var(--s-text-muted)' }}>–</span>
-              <Stepper value={g.b} onChange={v => setVal(i, 'b', v)} label={`Buts ${teamB.name}, manche ${i + 1}`} />
-              <span />
+            {/* sm+ : une ligne — saisie A · Manche N centré · saisie B */}
+            <div className="hidden sm:grid grid-cols-[1fr_88px_1fr] items-center gap-3">
+              <div className="flex justify-end">
+                <Stepper value={g.a} onChange={v => setVal(i, 'a', v)} label={`Buts ${teamA.name}, manche ${i + 1}`} />
+              </div>
+              <span className="t-label-soft text-center whitespace-nowrap">Manche {i + 1}</span>
+              <div className="flex justify-start">
+                <Stepper value={g.b} onChange={v => setVal(i, 'b', v)} label={`Buts ${teamB.name}, manche ${i + 1}`} />
+              </div>
             </div>
-            {/* mobile : deux lignes */}
-            <div className="sm:hidden space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="t-label-soft">Manche {i + 1}</span>
+            {/* mobile : une ligne PAR équipe (nom + stepper). Deux steppers côte à
+                côte (144px chacun) débordaient le puits et rognaient les boutons de
+                bord à ≤390px (review) — empilés, chaque stepper est atteignable. */}
+            <div className="sm:hidden space-y-2">
+              <span className="t-label-soft block text-center">Manche {i + 1}</span>
+              <div className="flex items-center gap-2">
+                <span className="flex-1 min-w-0 truncate text-sm" style={{ color: mySide === 'a' ? color : 'var(--s-text-dim)' }}>{teamA.name}</span>
+                <Stepper value={g.a} onChange={v => setVal(i, 'a', v)} label={`Buts ${teamA.name}, manche ${i + 1}`} />
               </div>
               <div className="flex items-center gap-2">
-                <Stepper value={g.a} onChange={v => setVal(i, 'a', v)} label={`Buts ${teamA.name}, manche ${i + 1}`} />
-                <span style={{ color: 'var(--s-text-muted)' }}>–</span>
+                <span className="flex-1 min-w-0 truncate text-sm" style={{ color: mySide === 'b' ? color : 'var(--s-text-dim)' }}>{teamB.name}</span>
                 <Stepper value={g.b} onChange={v => setVal(i, 'b', v)} label={`Buts ${teamB.name}, manche ${i + 1}`} />
               </div>
             </div>

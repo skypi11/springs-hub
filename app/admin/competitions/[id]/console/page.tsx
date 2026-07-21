@@ -148,12 +148,34 @@ const matchOrder = (a: ConsoleMatch, b: ConsoleMatch) => {
   const rank: Record<string, number> = { winners: 0, losers: 1, grand_final: 2 };
   return (rank[a.bracket] ?? 3) - (rank[b.bracket] ?? 3) || a.round - b.round || a.slot - b.slot;
 };
-const hhmm = (iso: string | null) => {
-  if (!iso) return null;
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return null;
-  return new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(t);
-};
+// Décompte vivant (check-in, contre-saisie) — l'horloge vit dans un effet
+// (règle react-hooks/purity, même pattern que useCountdown de la page match).
+// Registre neutre : JAMAIS d'or dans la console hors « À trancher ».
+function ConsoleCountdown({ deadline, label }: { deadline: string | null; label: string }) {
+  const [ms, setMs] = useState<number | null>(null);
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- abonnement à l'horloge
+       (système externe) : valeur immédiate puis tick 1 s. */
+    if (!deadline) { setMs(null); return; }
+    const target = Date.parse(deadline);
+    if (Number.isNaN(target)) { setMs(null); return; }
+    const update = () => setMs(Math.max(0, target - Date.now()));
+    update();
+    /* eslint-enable react-hooks/set-state-in-effect */
+    const t = setInterval(update, 1000);
+    return () => clearInterval(t);
+  }, [deadline]);
+  if (ms === null) return null;
+  const s = Math.floor(ms / 1000);
+  return (
+    <span className="inline-flex items-baseline gap-1.5">
+      <span className="t-label-soft" style={{ color: 'var(--s-text-muted)' }}>{label}</span>
+      <span className="t-mono" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--s-text)' }}>
+        {Math.floor(s / 60)}:{String(s % 60).padStart(2, '0')}
+      </span>
+    </span>
+  );
+}
 
 export default function CompetitionConsolePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -464,7 +486,7 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
           onCast={m => setCastFor(m)}
           onReopen={m => action({ action: 'reopen_checkin', matchId: m.id }, `Check-in relancé — ${nameOf(m, 'a')} vs ${nameOf(m, 'b')}.`)}
           onCopyRoom={(m, room) => {
-            navigator.clipboard?.writeText(`${room.name} / ${room.password}`)
+            navigator.clipboard?.writeText(`Salon : ${room.name} · Mot de passe : ${room.password}`)
               .then(() => toast.info(`Room de ${nameOf(m, 'a')} vs ${nameOf(m, 'b')} copiée.`)).catch(() => null);
           }}
         />
@@ -749,7 +771,6 @@ function ConsoleRow({ m, competitionId, room, busy, expanded, onToggle, onLaunch
   const wins = winsOf(m.scores.final ?? []);
   const stop = (e: React.MouseEvent) => e.stopPropagation();
   const showRoomChip = room && ['checkin', 'ready', 'live'].includes(m.status);
-  const counterAt = m.status === 'score_review' ? hhmm(m.scores.counterDeadline) : null;
 
   const statusLabel = m.forfeit
     ? (m.forfeit.team === 'both' ? 'Double forfait' : `Forfait — ${nameOf(m, m.forfeit.team)}`)
@@ -792,25 +813,29 @@ function ConsoleRow({ m, competitionId, room, busy, expanded, onToggle, onLaunch
           }}>{nameOf(m, 'b')}</span>
         </span>
         <span className="con-col-lg t-label-soft" style={isDecision(m) ? { color: 'var(--s-text)' } : undefined}>
-          {statusLabel}
-          {counterAt && <span className="block t-mono" style={{ fontSize: 12 }}>avant {counterAt}</span>}
+          <span className="block">{statusLabel}</span>
+          {m.status === 'checkin' && m.checkin?.deadline && (
+            <span className="block mt-0.5"><ConsoleCountdown deadline={m.checkin.deadline} label="reste" /></span>
+          )}
+          {m.status === 'score_review' && m.scores.counterDeadline && (
+            <span className="block mt-0.5"><ConsoleCountdown deadline={m.scores.counterDeadline} label="contre-saisie" /></span>
+          )}
         </span>
-        <span className="con-col-xl flex items-center gap-2">
+        {/* Check-in : deux pastilles (A gauche, B droite) — pas de tag inline
+            qui débordait sur la colonne room (retour Matt). Détail nommé au dépli. */}
+        <span className="con-col-xl flex items-center gap-1.5 overflow-hidden">
           {m.checkin && !terminal && (['a', 'b'] as const).map(s => (
-            <span key={s} className="flex items-center gap-1" title={`${nameOf(m, s)} — check-in ${m.checkin![s].done ? 'fait' : 'attendu'}`}>
-              <span className="t-mono" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>
-                {(s === 'a' ? m.teamAInfo?.tag : m.teamBInfo?.tag) ?? s.toUpperCase()}
-              </span>
-              <span className={`con-pip ${m.checkin![s].done ? 'con-pip-done' : 'con-pip-wait'}`} />
-            </span>
+            <span key={s} className={`con-pip ${m.checkin![s].done ? 'con-pip-done' : 'con-pip-wait'}`}
+              title={`${nameOf(m, s)} — check-in ${m.checkin![s].done ? 'fait' : 'attendu'}`} />
           ))}
         </span>
         <span className="con-col-xl min-w-0" onClick={stop}>
           {showRoomChip && (
             <button className="con-chip bevel-sm" onClick={() => onCopyRoom(room!)}
-              title={`${room!.name} · ${room!.password}`}
+              title={`Salon : ${room!.name} · Mot de passe : ${room!.password}`}
               aria-label={`Copier la room de ${nameOf(m, 'a')} vs ${nameOf(m, 'b')}`}>
-              <span className="truncate">{room!.name} · {room!.password}</span>
+              <span className="truncate">{room!.name}</span>
+              <span className="flex-shrink-0" style={{ color: 'var(--s-text-muted)' }}>· {room!.password}</span>
               <Copy size={12} style={{ flexShrink: 0 }} />
             </button>
           )}
@@ -845,7 +870,6 @@ function RowDossier({ m, competitionId, room, busy, onForceScore, onForfeit, onC
   onCopyRoom: (room: { name: string; password: string }) => void;
 }) {
   const terminal = TERMINAL.has(m.status);
-  const counterAt = m.status === 'score_review' ? hhmm(m.scores.counterDeadline) : null;
 
   const entryCol = (side: 'a' | 'b') => {
     const games = m.scores[side];
@@ -889,18 +913,43 @@ function RowDossier({ m, competitionId, room, busy, onForceScore, onForfeit, onC
             {entryCol('b')}
           </>
         )}
-        <div className="space-y-2 text-sm min-w-0" style={{ color: 'var(--s-text-dim)' }}>
+        <div className="space-y-3 text-sm min-w-0" style={{ color: 'var(--s-text-dim)' }}>
           {room && (
-            <button className="con-chip bevel-sm w-full" onClick={() => onCopyRoom(room)} title={`${room.name} · ${room.password}`}>
-              <span className="truncate">{room.name} · {room.password}</span>
-              <Copy size={12} style={{ flexShrink: 0 }} />
-            </button>
+            <div className="space-y-1.5">
+              {([['Salon', room.name], ['Mot de passe', room.password]] as const).map(([lbl, val]) => (
+                <div key={lbl} className="flex items-baseline gap-2">
+                  <span className="t-label-soft flex-shrink-0" style={{ width: 88 }}>{lbl}</span>
+                  <span className="t-mono truncate" style={{ fontSize: 14, color: 'var(--s-text)' }}>{val}</span>
+                </div>
+              ))}
+              <button className="con-chip bevel-sm" onClick={() => onCopyRoom(room)}>
+                <Copy size={12} style={{ flexShrink: 0 }} />
+                <span>Copier salon + mot de passe</span>
+              </button>
+              <p style={{ fontSize: 12 }}>Room créée par {nameOf(m, m.roomHost)}</p>
+            </div>
           )}
-          {room && (
-            <p style={{ fontSize: 12 }}>Room créée par {nameOf(m, m.roomHost)}</p>
+          {/* Check-in nommé — compense l'absence de tag dans la rangée dense. */}
+          {m.checkin && !terminal && ['checkin', 'ready', 'live', 'awaiting_forfeit_validation'].includes(m.status) && (
+            <div className="space-y-1">
+              {(['a', 'b'] as const).map(s => (
+                <div key={s} className="flex items-center gap-2">
+                  <span className={`con-pip ${m.checkin![s].done ? 'con-pip-done' : 'con-pip-wait'}`} />
+                  <span className="truncate" style={{ fontSize: 12.5, color: 'var(--s-text)' }}>{nameOf(m, s)}</span>
+                  <span className="ml-auto flex-shrink-0" style={{ fontSize: 12, color: m.checkin![s].done ? 'var(--s-green)' : 'var(--s-text-muted)' }}>
+                    {m.checkin![s].done ? 'Présente' : 'Attendue'}
+                  </span>
+                </div>
+              ))}
+              {m.status === 'checkin' && m.checkin.deadline && (
+                <ConsoleCountdown deadline={m.checkin.deadline} label="Check-in — reste" />
+              )}
+            </div>
+          )}
+          {m.status === 'score_review' && m.scores.counterDeadline && (
+            <ConsoleCountdown deadline={m.scores.counterDeadline} label="Contre-saisie — reste" />
           )}
           <p className="t-mono" style={{ fontSize: 12 }}>BO{m.bo}</p>
-          {counterAt && <p className="t-mono" style={{ fontSize: 12 }}>Contre-saisie ouverte jusqu&apos;à {counterAt}.</p>}
           {m.cast?.featured && (
             m.cast.streamUrl
               ? <a href={m.cast.streamUrl} target="_blank" rel="noopener noreferrer" className="hover:underline block truncate">En stream — {m.cast.streamUrl}</a>
@@ -1015,8 +1064,9 @@ function TiebreakCard({ tb, registrations, busy, onResolve }: {
                   <TeamCrest url={reg?.logoUrl ?? null} tag={reg?.tag ?? '?'} name={reg?.name ?? rid} size={24} />
                   <span className="flex-1 min-w-0 truncate text-sm">{reg?.name ?? rid}</span>
                   {t?.tied && <span className="tag tag-gold" style={{ fontSize: 9 }}>ex aequo</span>}
-                  <span className="t-mono flex-shrink-0" style={{ fontSize: 12, color: 'var(--s-text-dim)' }}>
-                    {t ? `${t.goalDiff >= 0 ? '+' : ''}${t.goalDiff} · ${t.goalsFor} buts` : ''}
+                  <span className="t-mono flex-shrink-0" style={{ fontSize: 12, color: 'var(--s-text-dim)' }}
+                    title="Différence de buts moyenne par match · buts marqués">
+                    {t ? `${t.goalDiff >= 0 ? '+' : ''}${t.goalDiff}/match · ${t.goalsFor} buts` : ''}
                   </span>
                 </SortableTeamRow>
               );
@@ -1050,10 +1100,19 @@ function SortableTeamRow({ id, children }: { id: string; children: React.ReactNo
 
 /** Compétition clôturée : le classement final écrit, tel quel. */
 function ClosedSummary({ placements }: { placements: FinalPlacementRow[] }) {
+  const anyPoints = placements.some(p => p.points !== null);
   return (
     <div className="panel bevel">
-      <div className="panel-header"><span className="t-sub">Classement final — points écrits au circuit</span></div>
+      <div className="panel-header"><span className="t-sub">Classement final{anyPoints ? ' — points écrits au circuit' : ''}</span></div>
       <div className="panel-body" style={{ paddingTop: 8 }}>
+        {/* Labels : le delta est une diff. de buts MOYENNE par match (départage). */}
+        <div className="flex items-center gap-3 py-1.5" style={{ borderBottom: '1px solid var(--s-border)' }}>
+          <span className="flex-shrink-0" style={{ width: 26 }} />
+          <span className="flex-1 t-label-soft">Équipe</span>
+          {anyPoints && <span className="t-label-soft flex-shrink-0" style={{ width: 48, textAlign: 'right' }}>Points</span>}
+          <span className="t-label-soft flex-shrink-0" style={{ width: 72, textAlign: 'right' }}
+            title="Différence de buts moyenne par match (critère de départage)">Diff/match</span>
+        </div>
         {placements.map(p => (
           <div key={p.registrationId} className="flex items-center gap-3 py-1.5 text-sm"
             style={{ borderBottom: '1px solid var(--s-border)' }}>
@@ -1061,8 +1120,13 @@ function ClosedSummary({ placements }: { placements: FinalPlacementRow[] }) {
               {p.placement}.
             </span>
             <span className="flex-1 min-w-0 truncate">{p.name} <span style={{ color: 'var(--s-text-muted)' }}>[{p.tag}]</span></span>
-            {p.points !== null && <span className="t-mono flex-shrink-0" style={{ fontSize: 12.5 }}>{p.points} pts</span>}
-            <span className="t-mono flex-shrink-0" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>
+            {anyPoints && (
+              <span className="t-mono flex-shrink-0" style={{ width: 48, textAlign: 'right', fontSize: 12.5, color: p.points ? 'var(--s-text)' : 'var(--s-text-muted)' }}>
+                {p.points ?? 0} pts
+              </span>
+            )}
+            <span className="t-mono flex-shrink-0" style={{ width: 72, textAlign: 'right', fontSize: 12, color: 'var(--s-text-muted)' }}
+              title="Différence de buts moyenne par match">
               {p.goalDiff >= 0 ? '+' : ''}{p.goalDiff}
             </span>
           </div>
@@ -1127,28 +1191,31 @@ function ForceScoreModal({ m, onClose, onSubmit }: {
         {m.dispute && m.dispute.resolvedBy === null && (
           <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>Résout le litige en cours.</p>
         )}
-        {/* Colonnes NOMMÉES */}
-        <div className="grid grid-cols-[72px_1fr_1fr] items-end gap-2">
+        {/* Colonnes NOMMÉES — saisie A · Manche N centré · saisie B (retour Matt) */}
+        <div className="grid grid-cols-[1fr_72px_1fr] items-end gap-2">
+          <div className="flex items-center gap-2 min-w-0 justify-end">
+            {m.teamAInfo && !m.voidA && <TeamCrest url={m.teamAInfo.logoUrl} tag={m.teamAInfo.tag} name={m.teamAInfo.name} size={24} />}
+            <span className="font-semibold line-clamp-2 text-right" style={{ fontSize: 13, color: 'var(--s-text)' }}>{nameOf(m, 'a')}</span>
+          </div>
           <span />
-          {(['a', 'b'] as const).map(s => {
-            const info = s === 'a' ? m.teamAInfo : m.teamBInfo;
-            return (
-              <div key={s} className="flex items-center gap-2 min-w-0">
-                {info && <TeamCrest url={info.logoUrl} tag={info.tag} name={info.name} size={24} />}
-                <span className="font-semibold line-clamp-2" style={{ fontSize: 13, color: 'var(--s-text)' }}>{nameOf(m, s)}</span>
-              </div>
-            );
-          })}
+          <div className="flex items-center gap-2 min-w-0 justify-start">
+            {m.teamBInfo && !m.voidB && <TeamCrest url={m.teamBInfo.logoUrl} tag={m.teamBInfo.tag} name={m.teamBInfo.name} size={24} />}
+            <span className="font-semibold line-clamp-2" style={{ fontSize: 13, color: 'var(--s-text)' }}>{nameOf(m, 'b')}</span>
+          </div>
         </div>
         {games.map((g, i) => (
-          <div key={i} className="grid grid-cols-[72px_1fr_1fr] items-center gap-2">
-            <span className="t-label-soft">Manche {i + 1}</span>
-            <input type="number" min={0} max={99} value={g.a} className="settings-input bevel-sm" style={{ width: 64, textAlign: 'center' }}
-              aria-label={`Buts ${nameOf(m, 'a')}, manche ${i + 1}`}
-              onChange={e => editCell(i, 'a', e.target.value)} />
-            <input type="number" min={0} max={99} value={g.b} className="settings-input bevel-sm" style={{ width: 64, textAlign: 'center' }}
-              aria-label={`Buts ${nameOf(m, 'b')}, manche ${i + 1}`}
-              onChange={e => editCell(i, 'b', e.target.value)} />
+          <div key={i} className="grid grid-cols-[1fr_72px_1fr] items-center gap-2">
+            <div className="flex justify-end">
+              <input type="number" min={0} max={99} value={g.a} className="settings-input bevel-sm" style={{ width: 64, textAlign: 'center' }}
+                aria-label={`Buts ${nameOf(m, 'a')}, manche ${i + 1}`}
+                onChange={e => editCell(i, 'a', e.target.value)} />
+            </div>
+            <span className="t-label-soft text-center">Manche {i + 1}</span>
+            <div className="flex justify-start">
+              <input type="number" min={0} max={99} value={g.b} className="settings-input bevel-sm" style={{ width: 64, textAlign: 'center' }}
+                aria-label={`Buts ${nameOf(m, 'b')}, manche ${i + 1}`}
+                onChange={e => editCell(i, 'b', e.target.value)} />
+            </div>
           </div>
         ))}
         {/* Totaux live */}

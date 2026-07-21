@@ -68,19 +68,37 @@ et agréable à utiliser**.
 
 ## Phasage proposé
 
-- **Lot 1 — bugs** (correctness, rapide) — EN COURS :
+- **Lot 1 — bugs** (correctness) — ✅ **CLÔTURÉ** :
   - ✅ saisie de score (rangées auto + validation BO + fin de l'échec muet) — commit 83e1c23.
-  - ⏳ **RESTE** : timer de contre-saisie 3 min pas affiché (1bis) ; « Manche N » centré
-    dans la modale ; séparation/simplification **code salon vs mot de passe** + fix
-    chevauchement ; **compte à rebours du check-in** plus visible ; **fil de match**
-    instantané + pseudos colorés ; clarté du **delta à décimales** au classement.
+  - ✅ **1bis timer de contre-saisie** : le serveur posait déjà `counterDeadline` +
+    `score_review` au 1er submit ; le manque était l'AFFICHAGE — la vue de l'équipe
+    qui a saisi en premier (`actionKind === 'submitted'`) montre désormais le décompte,
+    et la console affiche un décompte VIVANT (`ConsoleCountdown`) sur `checkin`/`score_review`.
+  - ✅ **« Manche N » centré** entre les 2 saisies (grilles `[1fr_…_1fr]`) dans
+    `ForceScoreModal` (console) ET `ScoreEntryForm` (page match).
+  - ✅ **code salon vs mot de passe** : au dépli dossier, 2 lignes labellisées
+    « Salon » / « Mot de passe » + bouton copier (texte copié labellisé) ; chip de
+    rangée = nom puis mot de passe en muted.
+  - ✅ **chevauchement pastille/room** : cellule check-in = 2 pastilles (A/B) +
+    `overflow-hidden`, tags retirés de la rangée (détail nommé au dépli).
+  - ✅ **compte à rebours du check-in** : page match agrandi (44px + label « Temps
+    restant ») ; console = `ConsoleCountdown`.
+  - ✅ **fil de match instantané** : optimistic UI par **nonce client** (le serveur
+    renvoie le nonce → écho instantané même pour un texte répété, pas de doublon),
+    rollback + garde de brouillon ; pseudos différenciés par équipe (crest + couleur
+    mine/adverse/admin). Logique pure `lib/competitions/match-thread.ts` (14 tests).
+  - ✅ **delta lisible** : labellisé « Diff/match » + `title` explicatif (le nombre est
+    une diff. de buts MOYENNE par match) dans `ClosedSummary`, `FinalStandings` (fiche
+    publique) et `TiebreakCard`. Reste TODO produit : **une démo rattachée à un circuit**
+    (avec `pointsScale`) pour montrer les vrais points de barème.
+  - Review adversariale 5 lentilles + contre-vérification (18 agents) : 0 blocker/major,
+    6 findings mineurs corrigés (garde brouillon, nonce anti-doublon, mobile
+    `ScoreEntryForm` empilé A/B, alignement en-tête `FinalStandings`).
 
-  Reprise après /clear : lire CE doc + `docs/legends-cup-architecture.md` +
-  `docs/legends-springs-cup-spec.md`, puis attaquer le RESTE du Lot 1. La console est
-  `app/admin/competitions/[id]/console/page.tsx`, la page match
+  La console est `app/admin/competitions/[id]/console/page.tsx`, la page match
   `app/competitions/[id]/match/[matchId]/page.tsx`, le helper de score
-  `lib/competitions/match-score.ts`. Démo re-seedée : `demo-single-elim`
-  (`node --env-file=.env.local scripts/seed-demo-single-elim.mjs`).
+  `lib/competitions/match-score.ts`, le fil `lib/competitions/match-thread.ts`. Démo
+  re-seedée : `demo-single-elim` (`node --env-file=.env.local scripts/seed-demo-single-elim.mjs`).
 - **Lot 2 — bracket dans la console** + sélection de match → panneau de détail.
 - **Lot 3 — inspection des équipes** depuis la console (clic → compo/roster/staff).
 - **Lot 4 — cohésion control-room** (mise en page finale, agréable).

@@ -442,6 +442,16 @@ function FinalStandings({ placements }: { placements: FinalPlacementPublic[] }) 
         <span className="t-sub">Classement final</span>
       </div>
       <div className="panel-body p-0">
+        {/* En-têtes de colonnes : le delta est une diff. de buts MOYENNE par
+            match (départage) — sans label, le « +4.5 » était illisible (retour Matt). */}
+        <div className="flex items-center gap-3 px-4 py-2" style={{ borderBottom: '1px solid var(--s-border)' }}>
+          {/* Spacer = rang (26) + gap (12) + crest (26) : aligne « Équipe » sur les noms. */}
+          <span className="flex-shrink-0" style={{ width: 64 }} aria-hidden="true" />
+          <span className="flex-1 t-label-soft">Équipe</span>
+          {anyPoints && <span className="t-label-soft flex-shrink-0" style={{ width: 56, textAlign: 'right' }}>Points</span>}
+          <span className="t-label-soft flex-shrink-0" style={{ width: 72, textAlign: 'right' }}
+            title="Différence de buts moyenne par match (critère de départage)">Diff/match</span>
+        </div>
         {placements.map((p) => {
           const isFirst = p.placement === 1;
           const isPodium = p.placement <= 3;
@@ -467,7 +477,8 @@ function FinalStandings({ placements }: { placements: FinalPlacementPublic[] }) 
                 </span>
               )}
               <span className="t-mono flex-shrink-0"
-                style={{ fontSize: 12, width: 34, textAlign: 'right', color: 'var(--s-text-muted)' }}>
+                style={{ fontSize: 12, width: 72, textAlign: 'right', color: 'var(--s-text-muted)' }}
+                title="Différence de buts moyenne par match">
                 {p.goalDiff >= 0 ? '+' : ''}{p.goalDiff}
               </span>
             </div>
