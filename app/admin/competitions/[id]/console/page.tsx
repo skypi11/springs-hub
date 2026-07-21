@@ -236,7 +236,11 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [bracketOpen, setBracketOpen] = useState(true);
   const detailRef = useRef<HTMLDivElement | null>(null);
-  const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
+  // Dépliage du dossier d'équipe SUR PLACE (pas de modale) — DEUX états SÉPARÉS :
+  // l'équipe se déplie LÀ où on clique (rail OU liste), jamais forcée d'un côté à
+  // l'autre, et un seul clic ne la montre jamais aux deux endroits (retour Matt).
+  const [railTeamId, setRailTeamId] = useState<string | null>(null);
+  const [listTeamId, setListTeamId] = useState<string | null>(null);
   const [dossiers, setDossiers] = useState<Record<string, TeamDossier> | null>(null);
   const [dossiersLoading, setDossiersLoading] = useState(false);
 
@@ -247,14 +251,10 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
     } catch { /* blip réseau : on garde le dernier état */ }
   }, [id]);
 
-  // Dépliage du dossier d'une équipe (compo/roster/staff) SUR PLACE — pas de
-  // modale (retour Matt : garder la page visible). Cliquer replie si déjà ouvert.
-  // Données chargées À LA DEMANDE au 1er clic puis mises en cache par équipe.
-  const toggleTeamDetail = useCallback(async (regId: string | null) => {
-    if (!regId) return;
-    setExpandedTeamId(prev => (prev === regId ? null : regId));
-    // Garde PAR ÉQUIPE : un fetch en vol ou cette équipe déjà en cache → rien ;
-    // sinon on (re)charge tout, ce qui dé-périme aussi le bloc Staff (LIVE serveur).
+  // Chargement À LA DEMANDE des dossiers (roster/staff/MMR), cache par équipe.
+  // Garde PAR ÉQUIPE : fetch en vol ou équipe déjà en cache → rien ; sinon on
+  // (re)charge tout, ce qui dé-périme aussi le bloc Staff (LIVE serveur).
+  const ensureDossiers = useCallback(async (regId: string) => {
     if (dossiersLoading || dossiers?.[regId]) return;
     setDossiersLoading(true);
     try {
@@ -268,6 +268,16 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
       setDossiersLoading(false);
     }
   }, [id, dossiers, dossiersLoading, toast]);
+  const toggleRailTeam = useCallback((regId: string | null) => {
+    if (!regId) return;
+    setRailTeamId(prev => (prev === regId ? null : regId));
+    void ensureDossiers(regId);
+  }, [ensureDossiers]);
+  const toggleListTeam = useCallback((regId: string | null) => {
+    if (!regId) return;
+    setListTeamId(prev => (prev === regId ? null : regId));
+    void ensureDossiers(regId);
+  }, [ensureDossiers]);
 
   const active = !!firebaseUser && authorized;
   useEffect(() => {
@@ -375,9 +385,6 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
   const livePhase = phases.find(p => p.matches.some(m => EN_JEU.has(m.status) || isDecision(m)));
   // Match sélectionné dans le bracket — relu FRAIS à chaque poll (statut à jour).
   const selectedMatch = selectedMatchId ? data.matches.find(m => m.id === selectedMatchId) ?? null : null;
-  // Le rail est le propriétaire du dossier d'une équipe DU match sélectionné :
-  // la liste Équipes n'en re-déplie pas un doublon (review).
-  const isTeamInRail = (regId: string) => !!selectedMatch && (selectedMatch.teamA === regId || selectedMatch.teamB === regId);
 
   const scrollToId = (anchor: string) => {
     document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth' });
@@ -532,8 +539,8 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
           <div ref={detailRef} className="con-controlroom-rail">
             {selectedMatch ? (
               <ConsoleSelectedMatch m={selectedMatch} competitionId={id} room={data.rooms[selectedMatch.id] ?? null} busy={busy !== null} stacked
-                expandedTeamId={expandedTeamId} dossiers={dossiers} dossiersLoading={dossiersLoading}
-                onOpenTeam={toggleTeamDetail} onCollapseTeam={() => setExpandedTeamId(null)}
+                expandedTeamId={railTeamId} dossiers={dossiers} dossiersLoading={dossiersLoading}
+                onOpenTeam={toggleRailTeam} onCollapseTeam={() => setRailTeamId(null)}
                 onClose={() => setSelectedMatchId(null)}
                 onLaunch={() => launchMatches([selectedMatch], `${nameOf(selectedMatch, 'a')} vs ${nameOf(selectedMatch, 'b')} — lancé.`)}
                 onForceScore={() => setForceScoreFor(selectedMatch)}
@@ -657,9 +664,9 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
           {approved.length > 0 && (
             <TeamGroup label={`Validées — ${approved.length}`}>
               {approved.map(r => (
-                <TeamRowLine key={r.registrationId} r={r} onOpen={() => toggleTeamDetail(r.registrationId)}
-                  expanded={expandedTeamId === r.registrationId && !isTeamInRail(r.registrationId)} dossier={dossiers?.[r.registrationId] ?? null}
-                  loading={dossiersLoading} onCollapse={() => setExpandedTeamId(null)}>
+                <TeamRowLine key={r.registrationId} r={r} onOpen={() => toggleListTeam(r.registrationId)}
+                  expanded={listTeamId === r.registrationId} dossier={dossiers?.[r.registrationId] ?? null}
+                  loading={dossiersLoading} onCollapse={() => setListTeamId(null)}>
                   <button className="quiet-link" disabled={busy !== null} onClick={() => setReplaceFor(r)}>Remplacer</button>
                   <span style={{ color: 'var(--s-text-muted)', fontSize: 12 }}>·</span>
                   <button className="quiet-link" disabled={busy !== null}
@@ -681,9 +688,9 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
           {waitlisted.length > 0 && (
             <TeamGroup label={`Liste d'attente — ${waitlisted.length}`}>
               {waitlisted.map((r, i) => (
-                <TeamRowLine key={r.registrationId} r={r} prefix={`n° ${i + 1}`} onOpen={() => toggleTeamDetail(r.registrationId)}
-                  expanded={expandedTeamId === r.registrationId && !isTeamInRail(r.registrationId)} dossier={dossiers?.[r.registrationId] ?? null}
-                  loading={dossiersLoading} onCollapse={() => setExpandedTeamId(null)} />
+                <TeamRowLine key={r.registrationId} r={r} prefix={`n° ${i + 1}`} onOpen={() => toggleListTeam(r.registrationId)}
+                  expanded={listTeamId === r.registrationId} dossier={dossiers?.[r.registrationId] ?? null}
+                  loading={dossiersLoading} onCollapse={() => setListTeamId(null)} />
               ))}
             </TeamGroup>
           )}
