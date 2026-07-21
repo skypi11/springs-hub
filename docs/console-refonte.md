@@ -12,12 +12,18 @@ et agréable à utiliser**.
 ## Retours bruts (source de vérité)
 
 ### Bugs de correctness
-1. **Saisie / imposition de score cassée** (modale « Imposer le score » / `ForceScoreModal`,
-   et probablement le `ScoreEntryForm` partagé de la page match) :
-   - on peut **ajouter des manches alors que le match est déjà plié** (ex. 3-0 en BO5) ;
-   - un **2-1 n'ajoute pas automatiquement la rangée suivante** (alors qu'il faut une 3e manche) ;
-   - un **4-0 en BO5** (score impossible, max 3 manches gagnées) est **accepté au clic**
-     sur « Imposer le score » mais **échoue en SILENCE** (aucun message d'erreur).
+1. ✅ **FAIT (commit 83e1c23)** — Saisie / imposition de score (modale « Imposer le
+   score » / `ForceScoreModal` + `ScoreEntryForm` de la page match, logique mutualisée
+   dans `lib/competitions/match-score.ts`, 14 tests) :
+   - rangées auto-gérées (4-0 en BO5 impossible à construire, 2-1 ouvre la manche suivante) ;
+   - fin de l'échec silencieux (`sent` réinitialisé sur échec côté console).
+1bis. **Timer de contre-saisie PAS AFFICHÉ** (retour Matt 21/07, à investiguer) : quand
+   UNE équipe a rentré son score, il devrait y avoir un **compte à rebours de 3 min**
+   pour que l'autre équipe saisisse aussi — Matt dit qu'il ne s'affiche pas. Voir le bloc
+   `counter && otherSubmitted && !alreadySubmitted` dans `ScoreEntryForm`
+   (`app/competitions/[id]/match/[matchId]/page.tsx`) + comment `counter`/`otherSubmitted`
+   sont calculés côté page. Vérifier aussi que la deadline de contre-saisie est bien posée
+   serveur au 1er submit.
 2. **Chevauchement visuel** : dans les rangées de phase, le point/pastille de check-in
    se **chevauche avec le code de room**.
 3. **Fil du match** :
@@ -31,6 +37,12 @@ et agréable à utiliser**.
 6. **Impossible de cliquer une équipe** dans la console pour voir sa composition /
    roster / staff.
 7. **Compte à rebours du check-in pas assez visible.**
+
+### Détails de mise en page (retours Matt 21/07)
+- Dans la modale d'imposition de score, le libellé **« Manche N » doit être CENTRÉ
+  entre les deux saisies** (aujourd'hui à gauche) → grille `[1fr_auto_1fr]` :
+  `[saisie A] [Manche N] [saisie B]`. Concerne `ForceScoreModal` (console) et,
+  par cohérence, `ScoreEntryForm` (page match).
 
 ### Clarté (à traiter aussi)
 8. Le nombre affiché au classement final (`-0.33`, `+4.5`…) est le **delta de buts
@@ -56,10 +68,19 @@ et agréable à utiliser**.
 
 ## Phasage proposé
 
-- **Lot 1 — bugs** (correctness, rapide) : saisie de score (rangées auto + validation
-  BO + fin de l'échec muet), séparation/simplification code salon vs mot de passe,
-  compte à rebours visible, fil instantané + pseudos colorés, fix chevauchement,
-  clarté du delta au classement.
+- **Lot 1 — bugs** (correctness, rapide) — EN COURS :
+  - ✅ saisie de score (rangées auto + validation BO + fin de l'échec muet) — commit 83e1c23.
+  - ⏳ **RESTE** : timer de contre-saisie 3 min pas affiché (1bis) ; « Manche N » centré
+    dans la modale ; séparation/simplification **code salon vs mot de passe** + fix
+    chevauchement ; **compte à rebours du check-in** plus visible ; **fil de match**
+    instantané + pseudos colorés ; clarté du **delta à décimales** au classement.
+
+  Reprise après /clear : lire CE doc + `docs/legends-cup-architecture.md` +
+  `docs/legends-springs-cup-spec.md`, puis attaquer le RESTE du Lot 1. La console est
+  `app/admin/competitions/[id]/console/page.tsx`, la page match
+  `app/competitions/[id]/match/[matchId]/page.tsx`, le helper de score
+  `lib/competitions/match-score.ts`. Démo re-seedée : `demo-single-elim`
+  (`node --env-file=.env.local scripts/seed-demo-single-elim.mjs`).
 - **Lot 2 — bracket dans la console** + sélection de match → panneau de détail.
 - **Lot 3 — inspection des équipes** depuis la console (clic → compo/roster/staff).
 - **Lot 4 — cohésion control-room** (mise en page finale, agréable).
