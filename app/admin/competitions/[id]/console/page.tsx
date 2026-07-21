@@ -14,7 +14,7 @@
 //   chiffre vainqueur de manche).
 // - NEUTRE = on attend les joueurs. VERT = fait. DIM = archive.
 
-import { use, useCallback, useEffect, useMemo, useState } from 'react';
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
@@ -23,8 +23,11 @@ import { useConfirm } from '@/components/ui/ConfirmModal';
 import TeamCrest from '@/components/competitions/TeamCrest';
 import GlanceStat from '@/components/competitions/GlanceStat';
 import GameRow from '@/components/competitions/GameRow';
+import TournamentBracket from '@/components/competitions/TournamentBracket';
 import { useWorkerInterval } from '@/components/competitions/useWorkerInterval';
 import { winsOf, normalizeGameRows, isScoreValid, winsNeeded } from '@/lib/competitions/match-score';
+import type { PublicBracketMatch } from '@/lib/competitions/brackets-viewer-adapter';
+import { getGameColor } from '@/lib/games-registry';
 import { ChevronDown, ChevronLeft, Copy, GripVertical, Radio } from 'lucide-react';
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
@@ -52,6 +55,8 @@ interface ConsoleMatch {
   voidB: boolean;
   teamAInfo: Side;
   teamBInfo: Side;
+  sourceA: { type: string; ref: number | string | null } | null;
+  sourceB: { type: string; ref: number | string | null } | null;
   roomHost: 'a' | 'b';
   checkin: { deadline: string | null; a: { done: boolean }; b: { done: boolean } } | null;
   scores: { a: Game[]; b: Game[]; counterDeadline: string | null; final: Game[] | null; validatedBy: string | null };
@@ -84,6 +89,7 @@ interface FinalPlacementRow {
 interface ConsoleData {
   competition: {
     id: string; name: string; status: string;
+    game: string;
     phasePlan: Array<{ phase: number; day: number; label: string }>;
     checkinMinutes: number;
     generalCheckinMinutes: number;
@@ -193,6 +199,9 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
   const [forfeitFor, setForfeitFor] = useState<{ m: ConsoleMatch; preset?: 'a' | 'b' | 'both' } | null>(null);
   const [castFor, setCastFor] = useState<ConsoleMatch | null>(null);
   const [replaceFor, setReplaceFor] = useState<ConsoleRegistration | null>(null);
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+  const [bracketOpen, setBracketOpen] = useState(true);
+  const detailRef = useRef<HTMLDivElement | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -255,6 +264,29 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
     return out;
   }, [data]);
 
+  // Matchs du bracket (PublicBracketMatch) dérivés des matchs console — même
+  // topologie + sources ; le viewer déduplique ses re-renders par JSON.
+  const bracketMatches = useMemo<PublicBracketMatch[]>(() => (data?.matches ?? []).map(m => ({
+    id: m.id,
+    bracket: m.bracket as 'winners' | 'losers' | 'grand_final',
+    round: m.round, slot: m.slot, bo: m.bo,
+    teamA: m.teamA, teamB: m.teamB, voidA: m.voidA, voidB: m.voidB,
+    teamAInfo: m.teamAInfo, teamBInfo: m.teamBInfo,
+    // Sources du serveur = union discriminée conforme au runtime (produites par
+    // l'adaptateur) ; le type transporté est large → cast au point de mapping.
+    sourceA: (m.sourceA ?? undefined) as PublicBracketMatch['sourceA'],
+    sourceB: (m.sourceB ?? undefined) as PublicBracketMatch['sourceB'],
+    status: m.status, winner: m.winner,
+    scores: m.scores.final ? { final: m.scores.final } : { final: null },
+    forfeit: m.forfeit ? { team: m.forfeit.team } : null,
+    cast: m.cast,
+  })), [data?.matches]);
+
+  // Défilement doux vers le panneau de détail à la sélection d'un match.
+  useEffect(() => {
+    if (selectedMatchId) detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [selectedMatchId]);
+
   if (!firebaseUser || !authorized) {
     return (
       <div className="px-8 py-8">
@@ -282,6 +314,8 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
   const enJeuCount = data.matches.filter(m => EN_JEU.has(m.status)).length;
   const doneCount = data.matches.filter(m => TERMINAL.has(m.status)).length;
   const livePhase = phases.find(p => p.matches.some(m => EN_JEU.has(m.status) || isDecision(m)));
+  // Match sélectionné dans le bracket — relu FRAIS à chaque poll (statut à jour).
+  const selectedMatch = selectedMatchId ? data.matches.find(m => m.id === selectedMatchId) ?? null : null;
 
   const scrollToId = (anchor: string) => {
     document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth' });
@@ -407,6 +441,47 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
           <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>Rien en attente de décision.</p>
         )}
       </div>
+
+      {/* SALLE DE CONTRÔLE — bracket interactif + détail du match sélectionné.
+          Le bracket n'apparaît qu'une fois publié (matchs matérialisés). */}
+      {bracketMatches.length > 0 && (
+        <div className="space-y-4">
+          <div className="panel bevel con-anchor">
+            <div className="panel-header flex items-center justify-between gap-3 cursor-pointer" onClick={() => setBracketOpen(o => !o)}>
+              <span className="t-sub">Bracket</span>
+              <span className="flex items-center gap-2 flex-shrink-0">
+                <span style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>Clique un match pour agir</span>
+                <ChevronDown size={15} style={{ color: 'var(--s-text-muted)', transform: bracketOpen ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
+              </span>
+            </div>
+            {bracketOpen && (
+              <div className="panel-body">
+                <TournamentBracket matches={bracketMatches} gameColor={getGameColor(data.competition.game)}
+                  onMatchClick={mid => {
+                    setSelectedMatchId(mid);
+                    // Éviter le dossier affiché deux fois : replie la ligne de phase du match sélectionné.
+                    setExpandedRows(prev => { if (!prev.has(mid)) return prev; const n = new Set(prev); n.delete(mid); return n; });
+                  }} />
+              </div>
+            )}
+          </div>
+          {selectedMatch && (
+            <div ref={detailRef}>
+              <ConsoleSelectedMatch m={selectedMatch} competitionId={id} room={data.rooms[selectedMatch.id] ?? null} busy={busy !== null}
+                onClose={() => setSelectedMatchId(null)}
+                onLaunch={() => launchMatches([selectedMatch], `${nameOf(selectedMatch, 'a')} vs ${nameOf(selectedMatch, 'b')} — lancé.`)}
+                onForceScore={() => setForceScoreFor(selectedMatch)}
+                onForfeit={() => setForfeitFor({ m: selectedMatch })}
+                onCast={() => setCastFor(selectedMatch)}
+                onReopen={() => action({ action: 'reopen_checkin', matchId: selectedMatch.id }, `Check-in relancé — ${nameOf(selectedMatch, 'a')} vs ${nameOf(selectedMatch, 'b')}.`)}
+                onCopyRoom={room => {
+                  navigator.clipboard?.writeText(`Salon : ${room.name} · Mot de passe : ${room.password}`)
+                    .then(() => toast.info(`Room de ${nameOf(selectedMatch, 'a')} vs ${nameOf(selectedMatch, 'b')} copiée.`)).catch(() => null);
+                }} />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Check-in général — jamais dominant */}
       <div className="panel bevel">
@@ -986,6 +1061,55 @@ function RowDossier({ m, competitionId, room, busy, onForceScore, onForfeit, onC
         )}
         <Link href={`/competitions/${competitionId}/match/${m.id}`} className="quiet-link">Ouvrir la page du match</Link>
       </div>
+    </div>
+  );
+}
+
+// Panneau « match sélectionné » (Lot 2) — en-tête faceoff + lancer/fermer, puis
+// le dossier complet réutilisé (RowDossier). Sélection depuis le bracket.
+function ConsoleSelectedMatch({ m, competitionId, room, busy, onClose, onLaunch, onForceScore, onForfeit, onCast, onReopen, onCopyRoom }: {
+  m: ConsoleMatch;
+  competitionId: string;
+  room: { name: string; password: string } | null;
+  busy: boolean;
+  onClose: () => void;
+  onLaunch: () => void;
+  onForceScore: () => void;
+  onForfeit: () => void;
+  onCast: () => void;
+  onReopen: () => void;
+  onCopyRoom: (room: { name: string; password: string }) => void;
+}) {
+  const launchable = m.status === 'pending' && !!m.teamA && !!m.teamB && !m.voidA && !m.voidB;
+  const statusLabel = m.forfeit
+    ? (m.forfeit.team === 'both' ? 'Double forfait' : `Forfait — ${nameOf(m, m.forfeit.team)}`)
+    : STATUS_FR[m.status] ?? m.status;
+  return (
+    <div className="panel bevel">
+      <div className="panel-header flex items-start justify-between gap-3">
+        <div className="min-w-0 flex items-center gap-3">
+          <span className="flex items-center gap-1.5 flex-shrink-0">
+            {m.teamAInfo && !m.voidA && <TeamCrest url={m.teamAInfo.logoUrl} tag={m.teamAInfo.tag} name={m.teamAInfo.name} size={28} />}
+            {m.teamBInfo && !m.voidB && <TeamCrest url={m.teamBInfo.logoUrl} tag={m.teamBInfo.tag} name={m.teamBInfo.name} size={28} />}
+          </span>
+          <div className="min-w-0">
+            <p className="font-display line-clamp-1" style={{ fontSize: 18, letterSpacing: '0.03em' }}>
+              {nameOf(m, 'a').toUpperCase()} <span style={{ color: 'var(--s-text-muted)' }}>vs</span> {nameOf(m, 'b').toUpperCase()}
+            </p>
+            {/* BO vit déjà dans le dossier ci-dessous — pas de doublon ici. */}
+            <p className="t-mono" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>{m.id} · {statusLabel}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          {launchable && (
+            // Neutre (pas d'or) : l'or console est réservé à « À trancher ».
+            <button className="btn-springs btn-secondary bevel-sm text-sm" disabled={busy} onClick={onLaunch}>Lancer</button>
+          )}
+          <button onClick={onClose} className="quiet-link">Fermer</button>
+        </div>
+      </div>
+      <RowDossier m={m} competitionId={competitionId} room={room} busy={busy}
+        onForceScore={onForceScore} onForfeit={onForfeit} onCast={onCast} onReopen={onReopen} onCopyRoom={onCopyRoom} />
     </div>
   );
 }

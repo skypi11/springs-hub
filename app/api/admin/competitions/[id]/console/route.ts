@@ -151,6 +151,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({
       competition: {
         id, name: comp.name ?? id, status: comp.status ?? 'draft',
+        game: (comp.game as string) ?? 'rocket_league',
         phasePlan: comp.schedule?.phasePlan ?? [],
         checkinMinutes: flowConfigOf(comp).matchCheckinMinutes,
         generalCheckinMinutes: (comp.schedule?.generalCheckinMinutes as number) ?? 20,
@@ -646,6 +647,9 @@ function serializeConsoleMatch(engineId: string, m: FirebaseFirestore.DocumentDa
     voidB: m.voidB === true,
     teamAInfo: m.teamAInfo ?? null,
     teamBInfo: m.teamBInfo ?? null,
+    // Provenances publiques (seed / match amont) — hints du bracket, aucune PII.
+    sourceA: m.sourceA ?? null,
+    sourceB: m.sourceB ?? null,
     roomHost: m.roomHost ?? 'a',
     checkin: m.checkin
       ? {

@@ -99,7 +99,19 @@ et agréable à utiliser**.
   `app/competitions/[id]/match/[matchId]/page.tsx`, le helper de score
   `lib/competitions/match-score.ts`, le fil `lib/competitions/match-thread.ts`. Démo
   re-seedée : `demo-single-elim` (`node --env-file=.env.local scripts/seed-demo-single-elim.mjs`).
-- **Lot 2 — bracket dans la console** + sélection de match → panneau de détail.
+- **Lot 2 — bracket dans la console + sélection → panneau de détail : ✅ FAIT.**
+  Section « Bracket » repliable (composant `TournamentBracket` réutilisé, rendu
+  après « À trancher », apparaît dès le bracket publié) ; clic sur un match →
+  `ConsoleSelectedMatch` (en-tête faceoff + Lancer/Fermer + dossier `RowDossier`
+  réutilisé avec toutes les actions) ; `selectedMatch` relu frais à chaque poll ;
+  défilement doux vers le panneau. Serveur : `game` + `sourceA/sourceB` au payload.
+  Review adversariale 4 lentilles (11 agents) : 0 blocker/major, 4 correctifs
+  cosmétiques (Lancer neutre, badges bracket en bleu dans la console via override
+  scopé `.con-anchor`, BO dé-dupliqué, anti-double-dossier bracket↔ligne).
+  **Reste pour Lot 4** : rail de droite (le détail est pour l'instant pleine
+  largeur sous le bracket) + fusion/allègement des phases (aujourd'hui conservées
+  en dessous). NB : le viewer `brackets-viewer` est un SINGLETON → une seule
+  instance rendue (la console en rend une, comme la fiche sur sa page).
 - **Lot 3 — inspection des équipes** depuis la console (clic → compo/roster/staff).
 - **Lot 4 — cohésion control-room** (mise en page finale, agréable).
 

@@ -609,6 +609,16 @@
 }
 /* Bracket cliquable (page de match) — affordance sur les cartes. */
 .bv-clickable .brackets-viewer .opponents { cursor: pointer; }
+/* Console admin : l'or est STRICTEMENT réservé à « À trancher » (invariant
+   console codé). Les badges EN COURS / EN STREAM du bracket y passent au BLEU
+   « ça joue » ; la fiche publique garde l'or (aucune contrainte de registre là).
+   `.con-anchor` = ancêtre console-only du panneau bracket. */
+.con-anchor .aedral-bracket .brackets-viewer .opponents > .bv-flag {
+  color: var(--s-blue);
+}
+.con-anchor .aedral-bracket .brackets-viewer .opponents > a.bv-flag:hover {
+  border-color: color-mix(in srgb, var(--s-blue) 45%, transparent);
+}
 
 /* ── FEUILLE DE MATCH — extension du langage « Le Dossier » ──────────────
    Page /competitions/[id]/match/[matchId]. Puits recessé (--s-bg) = zone
