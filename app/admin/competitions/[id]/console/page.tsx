@@ -20,6 +20,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
+import ModalBackdrop from '@/components/ui/ModalBackdrop';
 import TeamCrest from '@/components/competitions/TeamCrest';
 import GlanceStat from '@/components/competitions/GlanceStat';
 import GameRow from '@/components/competitions/GameRow';
@@ -28,7 +29,7 @@ import { useWorkerInterval } from '@/components/competitions/useWorkerInterval';
 import { winsOf, normalizeGameRows, isScoreValid, winsNeeded } from '@/lib/competitions/match-score';
 import type { PublicBracketMatch } from '@/lib/competitions/brackets-viewer-adapter';
 import { getGameColor } from '@/lib/games-registry';
-import { ChevronDown, ChevronLeft, Copy, GripVertical, Radio } from 'lucide-react';
+import { ChevronDown, ChevronLeft, Copy, GripVertical, Radio, ShieldCheck } from 'lucide-react';
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -74,6 +75,37 @@ interface ConsoleRegistration {
   status: 'approved' | 'waitlisted' | 'withdrawn';
   seed: number | null;
   generalCheckin: { done: boolean; at: string | null } | null;
+}
+
+// Dossier d'équipe (Lot 3) — sous-ensemble « jour de match » de la réponse de
+// /api/admin/competitions/[id]/registrations (roster + staff & direction).
+// Les champs de validation (MMR, dérogations, smurf) sont ignorés ici.
+interface DossierPlayer {
+  uid: string;
+  role: string;                       // 'titulaire' | 'remplacant'
+  displayName: string;
+  slug: string | null;
+  discordUsername: string | null;
+  trackerUrl: string | null;
+  verified: boolean;
+}
+interface DossierStaffMember { uid: string; displayName: string; discordUsername: string | null; slug: string | null }
+interface TeamDossier {
+  id: string;                         // registrationId
+  name: string;
+  tag: string;
+  logoUrl: string | null;
+  status: string;
+  captainUid: string;
+  roster: DossierPlayer[];
+  staff: {
+    founder: DossierStaffMember | null;
+    coFounders: DossierStaffMember[];
+    responsables: DossierStaffMember[];
+    teamManagers: DossierStaffMember[];
+    teamCoaches: DossierStaffMember[];
+    captain: DossierStaffMember | null;
+  };
 }
 
 interface TiebreakGroup {
@@ -202,6 +234,9 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [bracketOpen, setBracketOpen] = useState(true);
   const detailRef = useRef<HTMLDivElement | null>(null);
+  const [teamModalId, setTeamModalId] = useState<string | null>(null);
+  const [dossiers, setDossiers] = useState<Record<string, TeamDossier> | null>(null);
+  const [dossiersLoading, setDossiersLoading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -209,6 +244,29 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
       setData(d);
     } catch { /* blip réseau : on garde le dernier état */ }
   }, [id]);
+
+  // Dossiers d'équipe (Lot 3) — chargés À LA DEMANDE au 1er clic sur une équipe,
+  // puis gardés en cache (données de validation lourdes, inutiles au chargement).
+  const openTeamDossier = useCallback(async (regId: string | null) => {
+    if (!regId) return;
+    setTeamModalId(regId);
+    // Garde PAR ÉQUIPE (pas « un dossier chargé »): un fetch en vol ou cette
+    // équipe déjà en cache → on ne refait rien ; sinon (équipe inscrite après le
+    // 1er fetch, ou 1re ouverture) on (re)charge tout — ce qui dé-périme aussi
+    // le bloc Staff qui est LIVE côté serveur (review Lot 3).
+    if (dossiersLoading || dossiers?.[regId]) return;
+    setDossiersLoading(true);
+    try {
+      const res = await api<{ registrations: TeamDossier[] }>(`/api/admin/competitions/${id}/registrations`);
+      const map: Record<string, TeamDossier> = {};
+      for (const r of res.registrations) map[r.id] = r;
+      setDossiers(map);
+    } catch {
+      toast.error('Compositions indisponibles pour le moment.');
+    } finally {
+      setDossiersLoading(false);
+    }
+  }, [id, dossiers, dossiersLoading, toast]);
 
   const active = !!firebaseUser && authorized;
   useEffect(() => {
@@ -468,6 +526,7 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
           {selectedMatch && (
             <div ref={detailRef}>
               <ConsoleSelectedMatch m={selectedMatch} competitionId={id} room={data.rooms[selectedMatch.id] ?? null} busy={busy !== null}
+                onOpenTeam={openTeamDossier}
                 onClose={() => setSelectedMatchId(null)}
                 onLaunch={() => launchMatches([selectedMatch], `${nameOf(selectedMatch, 'a')} vs ${nameOf(selectedMatch, 'b')} — lancé.`)}
                 onForceScore={() => setForceScoreFor(selectedMatch)}
@@ -574,7 +633,7 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
           {approved.length > 0 && (
             <TeamGroup label={`Validées — ${approved.length}`}>
               {approved.map(r => (
-                <TeamRowLine key={r.registrationId} r={r}>
+                <TeamRowLine key={r.registrationId} r={r} onOpen={() => openTeamDossier(r.registrationId)}>
                   <button className="quiet-link" disabled={busy !== null} onClick={() => setReplaceFor(r)}>Remplacer</button>
                   <span style={{ color: 'var(--s-text-muted)', fontSize: 12 }}>·</span>
                   <button className="quiet-link" disabled={busy !== null}
@@ -596,7 +655,7 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
           {waitlisted.length > 0 && (
             <TeamGroup label={`Liste d'attente — ${waitlisted.length}`}>
               {waitlisted.map((r, i) => (
-                <TeamRowLine key={r.registrationId} r={r} prefix={`n° ${i + 1}`} />
+                <TeamRowLine key={r.registrationId} r={r} prefix={`n° ${i + 1}`} onOpen={() => openTeamDossier(r.registrationId)} />
               ))}
             </TeamGroup>
           )}
@@ -656,6 +715,10 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
             );
             if (ok) setReplaceFor(null);
           }} />
+      )}
+      {teamModalId && (
+        <TeamDossierModal dossier={dossiers?.[teamModalId] ?? null} loading={dossiersLoading}
+          onClose={() => setTeamModalId(null)} />
       )}
     </div>
   );
@@ -1065,13 +1128,41 @@ function RowDossier({ m, competitionId, room, busy, onForceScore, onForfeit, onC
   );
 }
 
-// Panneau « match sélectionné » (Lot 2) — en-tête faceoff + lancer/fermer, puis
-// le dossier complet réutilisé (RowDossier). Sélection depuis le bracket.
-function ConsoleSelectedMatch({ m, competitionId, room, busy, onClose, onLaunch, onForceScore, onForfeit, onCast, onReopen, onCopyRoom }: {
+// Équipe cliquable de l'en-tête (Lot 3) — ouvre son dossier (compo/staff). Non
+// cliquable si BYE / équipe pas encore connue.
+function SelectedTeamButton({ m, side, onOpenTeam }: {
+  m: ConsoleMatch; side: 'a' | 'b'; onOpenTeam: (regId: string) => void;
+}) {
+  const info = side === 'a' ? m.teamAInfo : m.teamBInfo;
+  const isVoid = side === 'a' ? m.voidA : m.voidB;
+  const regId = side === 'a' ? m.teamA : m.teamB;
+  const name = nameOf(m, side);
+  const content = (
+    <>
+      {info && !isVoid && <TeamCrest url={info.logoUrl} tag={info.tag} name={info.name} size={26} />}
+      <span className="font-display line-clamp-1" style={{ fontSize: 17, letterSpacing: '0.03em' }}>{name.toUpperCase()}</span>
+    </>
+  );
+  if (!regId || isVoid || !info) {
+    return <span className="inline-flex items-center gap-1.5 min-w-0" style={{ color: 'var(--s-text-muted)' }}>{content}</span>;
+  }
+  return (
+    <button type="button" onClick={() => onOpenTeam(regId)} title={`Voir la compo de ${name}`}
+      className="inline-flex items-center gap-1.5 min-w-0 hover:underline"
+      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--s-text)' }}>
+      {content}
+    </button>
+  );
+}
+
+// Panneau « match sélectionné » (Lot 2) — en-tête faceoff (équipes cliquables,
+// Lot 3) + lancer/fermer, puis le dossier complet réutilisé (RowDossier).
+function ConsoleSelectedMatch({ m, competitionId, room, busy, onOpenTeam, onClose, onLaunch, onForceScore, onForfeit, onCast, onReopen, onCopyRoom }: {
   m: ConsoleMatch;
   competitionId: string;
   room: { name: string; password: string } | null;
   busy: boolean;
+  onOpenTeam: (regId: string) => void;
   onClose: () => void;
   onLaunch: () => void;
   onForceScore: () => void;
@@ -1087,18 +1178,14 @@ function ConsoleSelectedMatch({ m, competitionId, room, busy, onClose, onLaunch,
   return (
     <div className="panel bevel">
       <div className="panel-header flex items-start justify-between gap-3">
-        <div className="min-w-0 flex items-center gap-3">
-          <span className="flex items-center gap-1.5 flex-shrink-0">
-            {m.teamAInfo && !m.voidA && <TeamCrest url={m.teamAInfo.logoUrl} tag={m.teamAInfo.tag} name={m.teamAInfo.name} size={28} />}
-            {m.teamBInfo && !m.voidB && <TeamCrest url={m.teamBInfo.logoUrl} tag={m.teamBInfo.tag} name={m.teamBInfo.name} size={28} />}
-          </span>
-          <div className="min-w-0">
-            <p className="font-display line-clamp-1" style={{ fontSize: 18, letterSpacing: '0.03em' }}>
-              {nameOf(m, 'a').toUpperCase()} <span style={{ color: 'var(--s-text-muted)' }}>vs</span> {nameOf(m, 'b').toUpperCase()}
-            </p>
-            {/* BO vit déjà dans le dossier ci-dessous — pas de doublon ici. */}
-            <p className="t-mono" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>{m.id} · {statusLabel}</p>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            <SelectedTeamButton m={m} side="a" onOpenTeam={onOpenTeam} />
+            <span style={{ color: 'var(--s-text-muted)', fontSize: 13 }}>vs</span>
+            <SelectedTeamButton m={m} side="b" onOpenTeam={onOpenTeam} />
           </div>
+          {/* BO vit déjà dans le dossier ci-dessous — pas de doublon ici. */}
+          <p className="t-mono mt-1" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>{m.id} · {statusLabel}</p>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
           {launchable && (
@@ -1114,6 +1201,106 @@ function ConsoleSelectedMatch({ m, competitionId, room, busy, onClose, onLaunch,
   );
 }
 
+// Dossier d'équipe (Lot 3) — modale « compo / roster / staff » ouverte depuis la
+// console (panneau de détail ou liste Équipes). Lecture seule : la validation
+// (approve/reject, MMR, dérogations) reste dans l'onglet Inscriptions.
+function TeamDossierModal({ dossier, loading, onClose }: {
+  dossier: TeamDossier | null;
+  loading: boolean;
+  onClose: () => void;
+}) {
+  const staffLine = (label: string, members: DossierStaffMember[]) => {
+    if (members.length === 0) return null;
+    return (
+      <div className="flex items-baseline gap-2 text-sm">
+        <span className="t-label-soft flex-shrink-0" style={{ width: 100 }}>{label}</span>
+        <span className="min-w-0" style={{ color: 'var(--s-text)', overflowWrap: 'anywhere' }}>
+          {members.map((mem, i) => (
+            <span key={mem.uid}>
+              {i > 0 && <span style={{ color: 'var(--s-text-muted)' }}>, </span>}
+              {mem.slug
+                ? <a href={`/profile/${mem.slug}`} target="_blank" rel="noopener noreferrer" className="hover:underline">{mem.displayName}</a>
+                : mem.displayName}
+              {mem.discordUsername && <span className="t-mono" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}> · {mem.discordUsername}</span>}
+            </span>
+          ))}
+        </span>
+      </div>
+    );
+  };
+  const roster = dossier
+    ? [...dossier.roster].sort((a, b) => (a.role === b.role ? 0 : a.role === 'titulaire' ? -1 : 1))
+    : [];
+  const hasStaff = !!dossier && (
+    !!dossier.staff.founder || dossier.staff.coFounders.length > 0 || dossier.staff.responsables.length > 0
+    || dossier.staff.teamManagers.length > 0 || dossier.staff.teamCoaches.length > 0
+  );
+  return (
+    <ModalBackdrop onClose={onClose}>
+      <div className="panel bevel w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="panel-header flex items-start justify-between gap-3">
+          {dossier ? (
+            <div className="flex items-center gap-2 min-w-0">
+              <TeamCrest url={dossier.logoUrl} tag={dossier.tag} name={dossier.name} size={32} />
+              <div className="min-w-0">
+                <p className="font-display line-clamp-1" style={{ fontSize: 18, letterSpacing: '0.03em' }}>{dossier.name.toUpperCase()}</p>
+                <p className="t-mono" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>[{dossier.tag}]</p>
+              </div>
+            </div>
+          ) : <span className="t-sub">Composition</span>}
+          <button onClick={onClose} className="quiet-link flex-shrink-0">Fermer</button>
+        </div>
+        <div className="panel-body space-y-4">
+          {!dossier ? (
+            <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>{loading ? 'Chargement…' : 'Composition indisponible.'}</p>
+          ) : (
+            <>
+              <div>
+                <p className="t-label-soft mb-1">Roster</p>
+                {roster.length > 0 ? (
+                  <div>
+                    {roster.map(p => (
+                      <div key={p.uid} className="flex items-center gap-2 py-1.5 text-sm" style={{ borderBottom: '1px solid var(--s-border)' }}>
+                        <span className="con-pip flex-shrink-0" style={{
+                          background: p.role === 'titulaire' ? 'var(--s-text)' : 'transparent',
+                          border: p.role === 'titulaire' ? 'none' : '1px solid var(--s-text-muted)',
+                        }} />
+                        {/* Groupe nom (flex-1, tronque en premier) */}
+                        <span className="flex items-center gap-1.5 min-w-0 flex-1">
+                          {p.slug
+                            ? <a href={`/profile/${p.slug}`} target="_blank" rel="noopener noreferrer" className="truncate hover:underline" style={{ color: p.role === 'titulaire' ? 'var(--s-text)' : 'var(--s-text-dim)' }}>{p.displayName}</a>
+                            : <span className="truncate" style={{ color: p.role === 'titulaire' ? 'var(--s-text)' : 'var(--s-text-dim)' }}>{p.displayName}</span>}
+                          {p.verified && <ShieldCheck size={12} style={{ color: 'var(--s-text-dim)', flexShrink: 0 }} aria-label="Compte vérifié" />}
+                          {p.uid === dossier.captainUid && <span className="t-label-soft flex-shrink-0">Capitaine</span>}
+                        </span>
+                        {/* Groupe contact (borné + tronqué → jamais de scroll horizontal) */}
+                        <span className="flex items-center gap-2 min-w-0" style={{ maxWidth: '45%' }}>
+                          {p.discordUsername && <span className="t-mono truncate" style={{ fontSize: 12, minWidth: 0, color: 'var(--s-text-muted)' }}>{p.discordUsername}</span>}
+                          {p.trackerUrl && <a href={p.trackerUrl} target="_blank" rel="noopener noreferrer" className="quiet-link flex-shrink-0">Tracker</a>}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : <p style={{ fontSize: 13, color: 'var(--s-text-muted)' }}>Roster non communiqué.</p>}
+              </div>
+              {hasStaff && (
+                <div className="space-y-1">
+                  <p className="t-label-soft mb-1">Staff & direction</p>
+                  {staffLine('Dirigeant', dossier.staff.founder ? [dossier.staff.founder] : [])}
+                  {staffLine('Co-fondateurs', dossier.staff.coFounders)}
+                  {staffLine('Responsables', dossier.staff.responsables)}
+                  {staffLine('Managers', dossier.staff.teamManagers)}
+                  {staffLine('Coachs', dossier.staff.teamCoaches)}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </ModalBackdrop>
+  );
+}
+
 // ── Équipes ──────────────────────────────────────────────────────────────────
 
 function TeamGroup({ label, children }: { label: string; children: React.ReactNode }) {
@@ -1125,14 +1312,27 @@ function TeamGroup({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-function TeamRowLine({ r, prefix, children }: { r: ConsoleRegistration; prefix?: string; children?: React.ReactNode }) {
+function TeamRowLine({ r, prefix, onOpen, children }: { r: ConsoleRegistration; prefix?: string; onOpen?: () => void; children?: React.ReactNode }) {
+  const teamContent = (
+    <>
+      <TeamCrest url={r.logoUrl} tag={r.tag} name={r.name} size={26} />
+      <span className="flex-1 min-w-0 truncate text-left" style={{ color: 'var(--s-text)' }}>
+        {r.name} <span style={{ color: 'var(--s-text-muted)' }}>[{r.tag}]{r.seed ? ` · seed ${r.seed}` : ''}</span>
+      </span>
+    </>
+  );
   return (
     <div className="flex items-center gap-3 py-2 text-sm" style={{ borderBottom: '1px solid var(--s-border)' }}>
       {prefix && <span className="t-mono flex-shrink-0" style={{ fontSize: 12, color: 'var(--s-text-dim)' }}>{prefix}</span>}
-      <TeamCrest url={r.logoUrl} tag={r.tag} name={r.name} size={26} />
-      <span className="flex-1 min-w-0 truncate" style={{ color: 'var(--s-text)' }}>
-        {r.name} <span style={{ color: 'var(--s-text-muted)' }}>[{r.tag}]{r.seed ? ` · seed ${r.seed}` : ''}</span>
-      </span>
+      {onOpen ? (
+        <button type="button" onClick={onOpen} title={`Voir la compo de ${r.name}`}
+          className="flex-1 min-w-0 flex items-center gap-3 hover:underline"
+          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+          {teamContent}
+        </button>
+      ) : (
+        <span className="flex-1 min-w-0 flex items-center gap-3">{teamContent}</span>
+      )}
       {children && <span className="flex items-center gap-2 flex-shrink-0">{children}</span>}
     </div>
   );

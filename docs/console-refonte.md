@@ -112,8 +112,21 @@ et agréable à utiliser**.
   largeur sous le bracket) + fusion/allègement des phases (aujourd'hui conservées
   en dessous). NB : le viewer `brackets-viewer` est un SINGLETON → une seule
   instance rendue (la console en rend une, comme la fiche sur sa page).
-- **Lot 3 — inspection des équipes** depuis la console (clic → compo/roster/staff).
-- **Lot 4 — cohésion control-room** (mise en page finale, agréable).
+- **Lot 3 — inspection des équipes depuis la console : ✅ FAIT.** Équipes
+  cliquables dans le panneau de détail (les 2 équipes en tête) ET dans la liste
+  « Équipes » (validées + liste d'attente) → `TeamDossierModal` (lecture seule,
+  via `ModalBackdrop`) : roster (titulaires/remplaçants, capitaine badgé, vérifié,
+  lien profil, pseudo Discord, Tracker) + « Staff & direction » (dirigeant,
+  co-fondateurs, responsables, managers, coachs). Données via l'endpoint admin
+  existant `/registrations` (zéro nouvel endpoint), chargées à la demande + cache
+  par équipe (refetch si l'équipe manque → dé-périme aussi le staff LIVE).
+  Review 3 lentilles (9 agents) : 0 blocker/major, 2 correctifs (cache per-équipe
+  au lieu de « un dossier chargé bloque tout », anti-débordement horizontal du
+  pseudo Discord dans la modale).
+- **Lot 4 — cohésion control-room** (mise en page finale, agréable) : rail de
+  droite pour le panneau de détail + fusion/allègement des phases (aujourd'hui
+  bracket + panneau + phases coexistent). Reste aussi une passe extraction (la
+  console `page.tsx` fait ~1680 lignes).
 
 Toujours lire `docs/legends-springs-cup-spec.md` + `docs/legends-cup-architecture.md`
 avant de toucher au module. La console est `app/admin/competitions/[id]/console/page.tsx`,
