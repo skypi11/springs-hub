@@ -717,6 +717,23 @@
   .con-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .con-anchor { scroll-margin-top: 76px; }
+/* Salle de contrôle (Lot 4) — bracket + rail de détail. La bascule 2 colonnes
+   dépend de la LARGEUR RÉELLE disponible (container query), PAS du viewport : la
+   sidebar (260px) + le nav admin (240px) + les paddings mangent ~668px, donc un
+   breakpoint viewport `lg` (1024px) écraserait le bracket à ~200px (review Lot 4).
+   Le rail ne colle QUE quand on est en 2 colonnes. */
+.con-controlroom { container-type: inline-size; }
+.con-controlroom-grid {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+}
+.con-controlroom-rail { min-width: 0; }
+@container (min-width: 760px) {
+  .con-controlroom-grid { grid-template-columns: minmax(0, 1fr) minmax(320px, 380px); }
+  .con-controlroom-rail { position: sticky; top: 76px; }
+}
 .con-decide { background: var(--s-elevated); border: 1px solid var(--s-border); }
 .con-decide-row {
   display: grid;

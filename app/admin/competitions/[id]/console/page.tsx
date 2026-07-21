@@ -500,11 +500,13 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
         )}
       </div>
 
-      {/* SALLE DE CONTRÔLE — bracket interactif + détail du match sélectionné.
-          Le bracket n'apparaît qu'une fois publié (matchs matérialisés). */}
+      {/* SALLE DE CONTRÔLE (Lot 4) — bracket (centre) + rail de détail du match
+          sélectionné (droite, collant sur grand écran ; empilé sous le bracket
+          sinon). N'apparaît qu'une fois le bracket publié (matchs matérialisés). */}
       {bracketMatches.length > 0 && (
-        <div className="space-y-4">
-          <div className="panel bevel con-anchor">
+        <div className="con-controlroom">
+        <div className="con-controlroom-grid">
+          <div className="panel bevel con-anchor min-w-0">
             <div className="panel-header flex items-center justify-between gap-3 cursor-pointer" onClick={() => setBracketOpen(o => !o)}>
               <span className="t-sub">Bracket</span>
               <span className="flex items-center gap-2 flex-shrink-0">
@@ -523,9 +525,9 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
               </div>
             )}
           </div>
-          {selectedMatch && (
-            <div ref={detailRef}>
-              <ConsoleSelectedMatch m={selectedMatch} competitionId={id} room={data.rooms[selectedMatch.id] ?? null} busy={busy !== null}
+          <div ref={detailRef} className="con-controlroom-rail">
+            {selectedMatch ? (
+              <ConsoleSelectedMatch m={selectedMatch} competitionId={id} room={data.rooms[selectedMatch.id] ?? null} busy={busy !== null} stacked
                 onOpenTeam={openTeamDossier}
                 onClose={() => setSelectedMatchId(null)}
                 onLaunch={() => launchMatches([selectedMatch], `${nameOf(selectedMatch, 'a')} vs ${nameOf(selectedMatch, 'b')} — lancé.`)}
@@ -537,8 +539,17 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
                   navigator.clipboard?.writeText(`Salon : ${room.name} · Mot de passe : ${room.password}`)
                     .then(() => toast.info(`Room de ${nameOf(selectedMatch, 'a')} vs ${nameOf(selectedMatch, 'b')} copiée.`)).catch(() => null);
                 }} />
-            </div>
-          )}
+            ) : (
+              <div className="panel bevel">
+                <div className="panel-body">
+                  <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>
+                    Sélectionne un match dans le bracket pour voir son détail (check-in, room, scores, litige) et agir sans changer de page.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
         </div>
       )}
 
@@ -596,14 +607,22 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
         )}
       </div>
 
-      {/* Phases */}
+      {/* Phases — secondaires une fois le bracket publié (repliées par défaut) :
+          la salle de contrôle ci-dessus est la vue principale ; les phases ne
+          servent plus qu'au lancement groupé et à la liste. */}
+      {phases.length > 0 && bracketMatches.length > 0 && (
+        <p className="t-label-soft" style={{ paddingLeft: 2 }}>Lancement &amp; liste par phase</p>
+      )}
       {phases.map(p => (
         <PhaseSection key={String(p.phase)} p={p} competitionId={id} rooms={data.rooms} busy={busy !== null}
+          bracketPublished={bracketMatches.length > 0}
           override={phaseOverride.get(String(p.phase))}
           onToggle={() => setPhaseOverride(prev => {
             const next = new Map(prev);
             const cur = next.get(String(p.phase));
-            const isOpen = cur ?? defaultPhaseOpen(p.matches);
+            // Même défaut que le rendu (PhaseSection.open) : sinon le 1er clic sur
+            // une phase active repliée par le bracket est mort (review Lot 4).
+            const isOpen = cur ?? (bracketMatches.length > 0 ? false : defaultPhaseOpen(p.matches));
             next.set(String(p.phase), !isOpen);
             return next;
           })}
@@ -826,12 +845,15 @@ function defaultPhaseOpen(matches: ConsoleMatch[]): boolean {
   return anyAlive || anyLaunchable;
 }
 
-function PhaseSection({ p, competitionId, rooms, busy, override, onToggle, expandedRows, onToggleRow, onLaunchPhase, onLaunchOne, onForceScore, onForfeit, onCast, onReopen, onCopyRoom }: {
+function PhaseSection({ p, competitionId, rooms, busy, override, bracketPublished, onToggle, expandedRows, onToggleRow, onLaunchPhase, onLaunchOne, onForceScore, onForfeit, onCast, onReopen, onCopyRoom }: {
   p: { phase: number | null; label: string; matches: ConsoleMatch[] };
   competitionId: string;
   rooms: Record<string, { name: string; password: string }>;
   busy: boolean;
   override: boolean | undefined;
+  /** Bracket publié → la salle de contrôle est la vue principale, la phase se
+   *  replie par défaut (elle ne sert plus qu'au lancement groupé + liste). */
+  bracketPublished: boolean;
   onToggle: () => void;
   expandedRows: Set<string>;
   onToggleRow: (mid: string) => void;
@@ -843,7 +865,7 @@ function PhaseSection({ p, competitionId, rooms, busy, override, onToggle, expan
   onReopen: (m: ConsoleMatch) => void;
   onCopyRoom: (m: ConsoleMatch, room: { name: string; password: string }) => void;
 }) {
-  const open = override ?? defaultPhaseOpen(p.matches);
+  const open = override ?? (bracketPublished ? false : defaultPhaseOpen(p.matches));
   const allDone = p.matches.every(m => TERMINAL.has(m.status));
   const launchable = p.matches.filter(m => m.status === 'pending' && m.teamA && m.teamB && !m.voidA && !m.voidB);
   const inPlay = p.matches.filter(m => EN_JEU.has(m.status)).length;
@@ -996,11 +1018,13 @@ function ConsoleRow({ m, competitionId, room, busy, expanded, onToggle, onLaunch
   );
 }
 
-function RowDossier({ m, competitionId, room, busy, onForceScore, onForfeit, onCast, onReopen, onCopyRoom }: {
+function RowDossier({ m, competitionId, room, busy, stacked = false, onForceScore, onForfeit, onCast, onReopen, onCopyRoom }: {
   m: ConsoleMatch;
   competitionId: string;
   room: { name: string; password: string } | null;
   busy: boolean;
+  /** true = colonne unique (rail de détail étroit) ; false = 3 colonnes (dépli de rangée large). */
+  stacked?: boolean;
   onForceScore: () => void;
   onForfeit: () => void;
   onCast: () => void;
@@ -1035,9 +1059,9 @@ function RowDossier({ m, competitionId, room, busy, onForceScore, onForfeit, onC
 
   return (
     <div className="con-card bevel-sm my-2">
-      <div className="grid md:grid-cols-3 gap-4">
+      <div className={stacked ? 'grid grid-cols-1 gap-4' : 'grid md:grid-cols-3 gap-4'}>
         {terminal && m.scores.final ? (
-          <div className="md:col-span-2 min-w-0">
+          <div className={stacked ? 'min-w-0' : 'md:col-span-2 min-w-0'}>
             <p className="t-label-soft pb-1.5" style={{ borderBottom: '1px solid var(--s-border)' }}>Résultat</p>
             <div className="match-rows">
               {m.scores.final.map((g, i) => (
@@ -1156,12 +1180,15 @@ function SelectedTeamButton({ m, side, onOpenTeam }: {
 }
 
 // Panneau « match sélectionné » (Lot 2) — en-tête faceoff (équipes cliquables,
-// Lot 3) + lancer/fermer, puis le dossier complet réutilisé (RowDossier).
-function ConsoleSelectedMatch({ m, competitionId, room, busy, onOpenTeam, onClose, onLaunch, onForceScore, onForfeit, onCast, onReopen, onCopyRoom }: {
+// Lot 3) + lancer/fermer, puis le dossier complet réutilisé (RowDossier). Sur le
+// rail de droite (Lot 4) : `stacked` = dossier en colonne unique + en-tête qui
+// s'empile.
+function ConsoleSelectedMatch({ m, competitionId, room, busy, stacked = false, onOpenTeam, onClose, onLaunch, onForceScore, onForfeit, onCast, onReopen, onCopyRoom }: {
   m: ConsoleMatch;
   competitionId: string;
   room: { name: string; password: string } | null;
   busy: boolean;
+  stacked?: boolean;
   onOpenTeam: (regId: string) => void;
   onClose: () => void;
   onLaunch: () => void;
@@ -1177,8 +1204,8 @@ function ConsoleSelectedMatch({ m, competitionId, room, busy, onOpenTeam, onClos
     : STATUS_FR[m.status] ?? m.status;
   return (
     <div className="panel bevel">
-      <div className="panel-header flex items-start justify-between gap-3">
-        <div className="min-w-0">
+      <div className="panel-header flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap min-w-0">
             <SelectedTeamButton m={m} side="a" onOpenTeam={onOpenTeam} />
             <span style={{ color: 'var(--s-text-muted)', fontSize: 13 }}>vs</span>
@@ -1195,7 +1222,7 @@ function ConsoleSelectedMatch({ m, competitionId, room, busy, onOpenTeam, onClos
           <button onClick={onClose} className="quiet-link">Fermer</button>
         </div>
       </div>
-      <RowDossier m={m} competitionId={competitionId} room={room} busy={busy}
+      <RowDossier m={m} competitionId={competitionId} room={room} busy={busy} stacked={stacked}
         onForceScore={onForceScore} onForfeit={onForfeit} onCast={onCast} onReopen={onReopen} onCopyRoom={onCopyRoom} />
     </div>
   );

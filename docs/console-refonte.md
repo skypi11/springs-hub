@@ -123,10 +123,20 @@ et agréable à utiliser**.
   Review 3 lentilles (9 agents) : 0 blocker/major, 2 correctifs (cache per-équipe
   au lieu de « un dossier chargé bloque tout », anti-débordement horizontal du
   pseudo Discord dans la modale).
-- **Lot 4 — cohésion control-room** (mise en page finale, agréable) : rail de
-  droite pour le panneau de détail + fusion/allègement des phases (aujourd'hui
-  bracket + panneau + phases coexistent). Reste aussi une passe extraction (la
-  console `page.tsx` fait ~1680 lignes).
+- **Lot 4 — cohésion control-room : ✅ FAIT.** Disposition « salle de contrôle » :
+  bracket (gauche) + **rail de détail collant** (droite) en 2 colonnes, via une
+  **container query** (`.con-controlroom` / `.con-controlroom-grid`, seuil 760px de
+  LARGEUR RÉELLE — pas le viewport : la sidebar + le nav admin mangent ~668px, donc
+  un breakpoint `lg` écrasait le bracket ; 1-col empilé en dessous). `RowDossier`
+  gagne un prop `stacked` (colonne unique dans le rail, DRY). Les **phases se
+  replient par défaut** une fois le bracket publié (secondaires « Lancement & liste
+  par phase », bouton « Lancer (N) » toujours accessible). Review 3 lentilles
+  (6 agents) : 1 MAJOR (bascule 2-col au mauvais breakpoint → container query) +
+  1 minor (1er clic mort sur phase repliée → `onToggle` aligné sur `bracketPublished`).
+  **Reste (optionnel)** : passe d'EXTRACTION (la console `page.tsx` fait ~1700 lignes
+  → sortir RowDossier / PhaseSection / modales dans `components/…`).
+- **TODO produit** (hors console) : rattacher une démo à un **circuit** (avec
+  `pointsScale`) pour montrer les vrais points de barème au classement final.
 
 Toujours lire `docs/legends-springs-cup-spec.md` + `docs/legends-cup-architecture.md`
 avant de toucher au module. La console est `app/admin/competitions/[id]/console/page.tsx`,
