@@ -20,7 +20,6 @@ import { useAuth } from '@/context/AuthContext';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
-import ModalBackdrop from '@/components/ui/ModalBackdrop';
 import TeamCrest from '@/components/competitions/TeamCrest';
 import GlanceStat from '@/components/competitions/GlanceStat';
 import GameRow from '@/components/competitions/GameRow';
@@ -88,6 +87,9 @@ interface DossierPlayer {
   discordUsername: string | null;
   trackerUrl: string | null;
   verified: boolean;
+  declaredCurrentMmr: number;         // MMR actuel déclaré
+  declaredPeakMmr: number;            // pic déclaré
+  refMmr: number;                     // référence de seed (blend 70/30, cf lib/competitions/mmr)
 }
 interface DossierStaffMember { uid: string; displayName: string; discordUsername: string | null; slug: string | null }
 interface TeamDossier {
@@ -234,7 +236,7 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [bracketOpen, setBracketOpen] = useState(true);
   const detailRef = useRef<HTMLDivElement | null>(null);
-  const [teamModalId, setTeamModalId] = useState<string | null>(null);
+  const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [dossiers, setDossiers] = useState<Record<string, TeamDossier> | null>(null);
   const [dossiersLoading, setDossiersLoading] = useState(false);
 
@@ -245,15 +247,14 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
     } catch { /* blip réseau : on garde le dernier état */ }
   }, [id]);
 
-  // Dossiers d'équipe (Lot 3) — chargés À LA DEMANDE au 1er clic sur une équipe,
-  // puis gardés en cache (données de validation lourdes, inutiles au chargement).
-  const openTeamDossier = useCallback(async (regId: string | null) => {
+  // Dépliage du dossier d'une équipe (compo/roster/staff) SUR PLACE — pas de
+  // modale (retour Matt : garder la page visible). Cliquer replie si déjà ouvert.
+  // Données chargées À LA DEMANDE au 1er clic puis mises en cache par équipe.
+  const toggleTeamDetail = useCallback(async (regId: string | null) => {
     if (!regId) return;
-    setTeamModalId(regId);
-    // Garde PAR ÉQUIPE (pas « un dossier chargé »): un fetch en vol ou cette
-    // équipe déjà en cache → on ne refait rien ; sinon (équipe inscrite après le
-    // 1er fetch, ou 1re ouverture) on (re)charge tout — ce qui dé-périme aussi
-    // le bloc Staff qui est LIVE côté serveur (review Lot 3).
+    setExpandedTeamId(prev => (prev === regId ? null : regId));
+    // Garde PAR ÉQUIPE : un fetch en vol ou cette équipe déjà en cache → rien ;
+    // sinon on (re)charge tout, ce qui dé-périme aussi le bloc Staff (LIVE serveur).
     if (dossiersLoading || dossiers?.[regId]) return;
     setDossiersLoading(true);
     try {
@@ -374,6 +375,9 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
   const livePhase = phases.find(p => p.matches.some(m => EN_JEU.has(m.status) || isDecision(m)));
   // Match sélectionné dans le bracket — relu FRAIS à chaque poll (statut à jour).
   const selectedMatch = selectedMatchId ? data.matches.find(m => m.id === selectedMatchId) ?? null : null;
+  // Le rail est le propriétaire du dossier d'une équipe DU match sélectionné :
+  // la liste Équipes n'en re-déplie pas un doublon (review).
+  const isTeamInRail = (regId: string) => !!selectedMatch && (selectedMatch.teamA === regId || selectedMatch.teamB === regId);
 
   const scrollToId = (anchor: string) => {
     document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth' });
@@ -528,7 +532,8 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
           <div ref={detailRef} className="con-controlroom-rail">
             {selectedMatch ? (
               <ConsoleSelectedMatch m={selectedMatch} competitionId={id} room={data.rooms[selectedMatch.id] ?? null} busy={busy !== null} stacked
-                onOpenTeam={openTeamDossier}
+                expandedTeamId={expandedTeamId} dossiers={dossiers} dossiersLoading={dossiersLoading}
+                onOpenTeam={toggleTeamDetail} onCollapseTeam={() => setExpandedTeamId(null)}
                 onClose={() => setSelectedMatchId(null)}
                 onLaunch={() => launchMatches([selectedMatch], `${nameOf(selectedMatch, 'a')} vs ${nameOf(selectedMatch, 'b')} — lancé.`)}
                 onForceScore={() => setForceScoreFor(selectedMatch)}
@@ -652,7 +657,9 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
           {approved.length > 0 && (
             <TeamGroup label={`Validées — ${approved.length}`}>
               {approved.map(r => (
-                <TeamRowLine key={r.registrationId} r={r} onOpen={() => openTeamDossier(r.registrationId)}>
+                <TeamRowLine key={r.registrationId} r={r} onOpen={() => toggleTeamDetail(r.registrationId)}
+                  expanded={expandedTeamId === r.registrationId && !isTeamInRail(r.registrationId)} dossier={dossiers?.[r.registrationId] ?? null}
+                  loading={dossiersLoading} onCollapse={() => setExpandedTeamId(null)}>
                   <button className="quiet-link" disabled={busy !== null} onClick={() => setReplaceFor(r)}>Remplacer</button>
                   <span style={{ color: 'var(--s-text-muted)', fontSize: 12 }}>·</span>
                   <button className="quiet-link" disabled={busy !== null}
@@ -674,7 +681,9 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
           {waitlisted.length > 0 && (
             <TeamGroup label={`Liste d'attente — ${waitlisted.length}`}>
               {waitlisted.map((r, i) => (
-                <TeamRowLine key={r.registrationId} r={r} prefix={`n° ${i + 1}`} onOpen={() => openTeamDossier(r.registrationId)} />
+                <TeamRowLine key={r.registrationId} r={r} prefix={`n° ${i + 1}`} onOpen={() => toggleTeamDetail(r.registrationId)}
+                  expanded={expandedTeamId === r.registrationId && !isTeamInRail(r.registrationId)} dossier={dossiers?.[r.registrationId] ?? null}
+                  loading={dossiersLoading} onCollapse={() => setExpandedTeamId(null)} />
               ))}
             </TeamGroup>
           )}
@@ -734,10 +743,6 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
             );
             if (ok) setReplaceFor(null);
           }} />
-      )}
-      {teamModalId && (
-        <TeamDossierModal dossier={dossiers?.[teamModalId] ?? null} loading={dossiersLoading}
-          onClose={() => setTeamModalId(null)} />
       )}
     </div>
   );
@@ -1126,14 +1131,21 @@ function RowDossier({ m, competitionId, room, busy, stacked = false, onForceScor
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2 pt-3 mt-3" style={{ borderTop: '1px solid var(--s-border)' }}>
-        {!terminal && m.teamA && m.teamB && (
+        {!terminal && m.teamA && m.teamB && (stacked ? (
+          // Rail (control-room) : les 2 actions du jour de match en BOUTONS visibles.
+          <>
+            <button className="btn-springs btn-secondary bevel-sm text-sm" disabled={busy} onClick={onForceScore}>Imposer un score</button>
+            <button className="btn-springs btn-secondary bevel-sm text-sm" disabled={busy} onClick={onForfeit}>Déclarer un forfait</button>
+          </>
+        ) : (
+          // Rangée de phase dense : liens quiet.
           <>
             <button className="quiet-link" disabled={busy} onClick={onForceScore}>Imposer un score</button>
             <span style={{ color: 'var(--s-text-muted)', fontSize: 12 }}>·</span>
             <button className="quiet-link" disabled={busy} onClick={onForfeit}>Déclarer un forfait</button>
             <span style={{ color: 'var(--s-text-muted)', fontSize: 12 }}>·</span>
           </>
-        )}
+        ))}
         {!terminal && (
           <>
             <button className="quiet-link" disabled={busy} onClick={onCast}>Mettre en stream</button>
@@ -1154,8 +1166,8 @@ function RowDossier({ m, competitionId, room, busy, stacked = false, onForceScor
 
 // Équipe cliquable de l'en-tête (Lot 3) — ouvre son dossier (compo/staff). Non
 // cliquable si BYE / équipe pas encore connue.
-function SelectedTeamButton({ m, side, onOpenTeam }: {
-  m: ConsoleMatch; side: 'a' | 'b'; onOpenTeam: (regId: string) => void;
+function SelectedTeamButton({ m, side, expanded, onOpenTeam }: {
+  m: ConsoleMatch; side: 'a' | 'b'; expanded: boolean; onOpenTeam: (regId: string) => void;
 }) {
   const info = side === 'a' ? m.teamAInfo : m.teamBInfo;
   const isVoid = side === 'a' ? m.voidA : m.voidB;
@@ -1171,10 +1183,11 @@ function SelectedTeamButton({ m, side, onOpenTeam }: {
     return <span className="inline-flex items-center gap-1.5 min-w-0" style={{ color: 'var(--s-text-muted)' }}>{content}</span>;
   }
   return (
-    <button type="button" onClick={() => onOpenTeam(regId)} title={`Voir la compo de ${name}`}
-      className="inline-flex items-center gap-1.5 min-w-0 hover:underline"
+    <button type="button" onClick={() => onOpenTeam(regId)} title={expanded ? `Replier ${name}` : `Voir la compo de ${name}`}
+      className="inline-flex items-center gap-1 min-w-0 hover:underline"
       style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--s-text)' }}>
       {content}
+      <ChevronDown size={13} style={{ color: 'var(--s-text-muted)', flexShrink: 0, transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
     </button>
   );
 }
@@ -1183,13 +1196,17 @@ function SelectedTeamButton({ m, side, onOpenTeam }: {
 // Lot 3) + lancer/fermer, puis le dossier complet réutilisé (RowDossier). Sur le
 // rail de droite (Lot 4) : `stacked` = dossier en colonne unique + en-tête qui
 // s'empile.
-function ConsoleSelectedMatch({ m, competitionId, room, busy, stacked = false, onOpenTeam, onClose, onLaunch, onForceScore, onForfeit, onCast, onReopen, onCopyRoom }: {
+function ConsoleSelectedMatch({ m, competitionId, room, busy, stacked = false, expandedTeamId, dossiers, dossiersLoading, onOpenTeam, onCollapseTeam, onClose, onLaunch, onForceScore, onForfeit, onCast, onReopen, onCopyRoom }: {
   m: ConsoleMatch;
   competitionId: string;
   room: { name: string; password: string } | null;
   busy: boolean;
   stacked?: boolean;
+  expandedTeamId: string | null;
+  dossiers: Record<string, TeamDossier> | null;
+  dossiersLoading: boolean;
   onOpenTeam: (regId: string) => void;
+  onCollapseTeam: () => void;
   onClose: () => void;
   onLaunch: () => void;
   onForceScore: () => void;
@@ -1202,14 +1219,16 @@ function ConsoleSelectedMatch({ m, competitionId, room, busy, stacked = false, o
   const statusLabel = m.forfeit
     ? (m.forfeit.team === 'both' ? 'Double forfait' : `Forfait — ${nameOf(m, m.forfeit.team)}`)
     : STATUS_FR[m.status] ?? m.status;
+  // Équipe dépliée SI c'est l'une des deux du match courant.
+  const expandedHere = expandedTeamId && (expandedTeamId === m.teamA || expandedTeamId === m.teamB) ? expandedTeamId : null;
   return (
     <div className="panel bevel">
       <div className="panel-header flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap min-w-0">
-            <SelectedTeamButton m={m} side="a" onOpenTeam={onOpenTeam} />
+            <SelectedTeamButton m={m} side="a" expanded={expandedTeamId === m.teamA} onOpenTeam={onOpenTeam} />
             <span style={{ color: 'var(--s-text-muted)', fontSize: 13 }}>vs</span>
-            <SelectedTeamButton m={m} side="b" onOpenTeam={onOpenTeam} />
+            <SelectedTeamButton m={m} side="b" expanded={expandedTeamId === m.teamB} onOpenTeam={onOpenTeam} />
           </div>
           {/* BO vit déjà dans le dossier ci-dessous — pas de doublon ici. */}
           <p className="t-mono mt-1" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>{m.id} · {statusLabel}</p>
@@ -1222,18 +1241,25 @@ function ConsoleSelectedMatch({ m, competitionId, room, busy, stacked = false, o
           <button onClick={onClose} className="quiet-link">Fermer</button>
         </div>
       </div>
+      {expandedHere && (
+        <TeamDetail dossier={dossiers?.[expandedHere] ?? null} loading={dossiersLoading} onClose={onCollapseTeam} />
+      )}
       <RowDossier m={m} competitionId={competitionId} room={room} busy={busy} stacked={stacked}
         onForceScore={onForceScore} onForfeit={onForfeit} onCast={onCast} onReopen={onReopen} onCopyRoom={onCopyRoom} />
     </div>
   );
 }
 
-// Dossier d'équipe (Lot 3) — modale « compo / roster / staff » ouverte depuis la
-// console (panneau de détail ou liste Équipes). Lecture seule : la validation
-// (approve/reject, MMR, dérogations) reste dans l'onglet Inscriptions.
-function TeamDossierModal({ dossier, loading, onClose }: {
+// Dossier d'équipe DÉPLIÉ SUR PLACE (retour Matt : plus de modale — on garde la
+// page visible). Rendu inline dans le rail de détail ET dans la liste Équipes,
+// en colonne unique. Roster enrichi (rôle, contact Discord, vérifié, capitaine,
+// MMR actuel/peak/réf) + staff & direction. Lecture seule.
+function TeamDetail({ dossier, loading, showTeamName = true, onClose }: {
   dossier: TeamDossier | null;
   loading: boolean;
+  /** Affiche « · {nom} » à côté de « Roster » — utile dans le rail (désambiguïse
+   *  A vs B), inutile dans la liste où la ligne au-dessus montre déjà le nom. */
+  showTeamName?: boolean;
   onClose: () => void;
 }) {
   const staffLine = (label: string, members: DossierStaffMember[]) => {
@@ -1262,69 +1288,65 @@ function TeamDossierModal({ dossier, loading, onClose }: {
     !!dossier.staff.founder || dossier.staff.coFounders.length > 0 || dossier.staff.responsables.length > 0
     || dossier.staff.teamManagers.length > 0 || dossier.staff.teamCoaches.length > 0
   );
+  const hasMmr = (p: DossierPlayer) => p.declaredCurrentMmr > 0 || p.declaredPeakMmr > 0 || p.refMmr > 0;
   return (
-    <ModalBackdrop onClose={onClose}>
-      <div className="panel bevel w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="panel-header flex items-start justify-between gap-3">
-          {dossier ? (
-            <div className="flex items-center gap-2 min-w-0">
-              <TeamCrest url={dossier.logoUrl} tag={dossier.tag} name={dossier.name} size={32} />
-              <div className="min-w-0">
-                <p className="font-display line-clamp-1" style={{ fontSize: 18, letterSpacing: '0.03em' }}>{dossier.name.toUpperCase()}</p>
-                <p className="t-mono" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>[{dossier.tag}]</p>
-              </div>
+    <div className="con-card bevel-sm my-2 space-y-4">
+      {!dossier ? (
+        <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>{loading ? 'Chargement…' : 'Composition indisponible.'}</p>
+      ) : (
+        <>
+          <div>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <p className="t-label-soft min-w-0 truncate">Roster{showTeamName ? ` · ${dossier.name}` : ''}</p>
+              <button onClick={onClose} className="quiet-link flex-shrink-0">Réduire</button>
             </div>
-          ) : <span className="t-sub">Composition</span>}
-          <button onClick={onClose} className="quiet-link flex-shrink-0">Fermer</button>
-        </div>
-        <div className="panel-body space-y-4">
-          {!dossier ? (
-            <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>{loading ? 'Chargement…' : 'Composition indisponible.'}</p>
-          ) : (
-            <>
+            {roster.length > 0 ? (
               <div>
-                <p className="t-label-soft mb-1">Roster</p>
-                {roster.length > 0 ? (
-                  <div>
-                    {roster.map(p => (
-                      <div key={p.uid} className="flex items-center gap-2 py-1.5 text-sm" style={{ borderBottom: '1px solid var(--s-border)' }}>
-                        <span className="con-pip flex-shrink-0" style={{
-                          background: p.role === 'titulaire' ? 'var(--s-text)' : 'transparent',
-                          border: p.role === 'titulaire' ? 'none' : '1px solid var(--s-text-muted)',
-                        }} />
-                        {/* Groupe nom (flex-1, tronque en premier) */}
-                        <span className="flex items-center gap-1.5 min-w-0 flex-1">
-                          {p.slug
-                            ? <a href={`/profile/${p.slug}`} target="_blank" rel="noopener noreferrer" className="truncate hover:underline" style={{ color: p.role === 'titulaire' ? 'var(--s-text)' : 'var(--s-text-dim)' }}>{p.displayName}</a>
-                            : <span className="truncate" style={{ color: p.role === 'titulaire' ? 'var(--s-text)' : 'var(--s-text-dim)' }}>{p.displayName}</span>}
-                          {p.verified && <ShieldCheck size={12} style={{ color: 'var(--s-text-dim)', flexShrink: 0 }} aria-label="Compte vérifié" />}
-                          {p.uid === dossier.captainUid && <span className="t-label-soft flex-shrink-0">Capitaine</span>}
-                        </span>
-                        {/* Groupe contact (borné + tronqué → jamais de scroll horizontal) */}
-                        <span className="flex items-center gap-2 min-w-0" style={{ maxWidth: '45%' }}>
-                          {p.discordUsername && <span className="t-mono truncate" style={{ fontSize: 12, minWidth: 0, color: 'var(--s-text-muted)' }}>{p.discordUsername}</span>}
-                          {p.trackerUrl && <a href={p.trackerUrl} target="_blank" rel="noopener noreferrer" className="quiet-link flex-shrink-0">Tracker</a>}
-                        </span>
+                {roster.map(p => (
+                  <div key={p.uid} className="py-1.5" style={{ borderBottom: '1px solid var(--s-border)' }}>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="con-pip flex-shrink-0" style={{
+                        background: p.role === 'titulaire' ? 'var(--s-text)' : 'transparent',
+                        border: p.role === 'titulaire' ? 'none' : '1px solid var(--s-text-muted)',
+                      }} />
+                      <span className="flex items-center gap-1.5 min-w-0 flex-1">
+                        {p.slug
+                          ? <a href={`/profile/${p.slug}`} target="_blank" rel="noopener noreferrer" className="truncate hover:underline" style={{ color: p.role === 'titulaire' ? 'var(--s-text)' : 'var(--s-text-dim)' }}>{p.displayName}</a>
+                          : <span className="truncate" style={{ color: p.role === 'titulaire' ? 'var(--s-text)' : 'var(--s-text-dim)' }}>{p.displayName}</span>}
+                        {p.verified && <ShieldCheck size={12} style={{ color: 'var(--s-text-dim)', flexShrink: 0 }} aria-label="Compte vérifié" />}
+                        {p.uid === dossier.captainUid && <span className="t-label-soft flex-shrink-0">Capitaine</span>}
+                      </span>
+                      <span className="flex items-center gap-2 min-w-0" style={{ maxWidth: '45%' }}>
+                        {p.discordUsername && <span className="t-mono truncate" style={{ fontSize: 12, minWidth: 0, color: 'var(--s-text-muted)' }}>{p.discordUsername}</span>}
+                        {p.trackerUrl && <a href={p.trackerUrl} target="_blank" rel="noopener noreferrer" className="quiet-link flex-shrink-0">Tracker</a>}
+                      </span>
+                    </div>
+                    {/* Ligne MMR — seulement si le jeu en a (RL / Valorant). */}
+                    {hasMmr(p) && (
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pl-4 mt-0.5 t-mono" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>
+                        <span>Actuel <span style={{ color: 'var(--s-text-dim)' }}>{p.declaredCurrentMmr || '—'}</span></span>
+                        <span>Peak <span style={{ color: 'var(--s-text-dim)' }}>{p.declaredPeakMmr || '—'}</span></span>
+                        <span title="Référence utilisée au seed (blend 70 % actuel / 30 % peak)">Réf <span style={{ color: 'var(--s-text-dim)' }}>{p.refMmr || '—'}</span></span>
                       </div>
-                    ))}
+                    )}
                   </div>
-                ) : <p style={{ fontSize: 13, color: 'var(--s-text-muted)' }}>Roster non communiqué.</p>}
+                ))}
               </div>
-              {hasStaff && (
-                <div className="space-y-1">
-                  <p className="t-label-soft mb-1">Staff & direction</p>
-                  {staffLine('Dirigeant', dossier.staff.founder ? [dossier.staff.founder] : [])}
-                  {staffLine('Co-fondateurs', dossier.staff.coFounders)}
-                  {staffLine('Responsables', dossier.staff.responsables)}
-                  {staffLine('Managers', dossier.staff.teamManagers)}
-                  {staffLine('Coachs', dossier.staff.teamCoaches)}
-                </div>
-              )}
-            </>
+            ) : <p style={{ fontSize: 13, color: 'var(--s-text-muted)' }}>Roster non communiqué.</p>}
+          </div>
+          {hasStaff && (
+            <div className="space-y-1">
+              <p className="t-label-soft mb-1">Staff & direction</p>
+              {staffLine('Dirigeant', dossier.staff.founder ? [dossier.staff.founder] : [])}
+              {staffLine('Co-fondateurs', dossier.staff.coFounders)}
+              {staffLine('Responsables', dossier.staff.responsables)}
+              {staffLine('Managers', dossier.staff.teamManagers)}
+              {staffLine('Coachs', dossier.staff.teamCoaches)}
+            </div>
           )}
-        </div>
-      </div>
-    </ModalBackdrop>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -1339,7 +1361,16 @@ function TeamGroup({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-function TeamRowLine({ r, prefix, onOpen, children }: { r: ConsoleRegistration; prefix?: string; onOpen?: () => void; children?: React.ReactNode }) {
+function TeamRowLine({ r, prefix, onOpen, expanded = false, dossier = null, loading = false, onCollapse, children }: {
+  r: ConsoleRegistration;
+  prefix?: string;
+  onOpen?: () => void;
+  expanded?: boolean;
+  dossier?: TeamDossier | null;
+  loading?: boolean;
+  onCollapse?: () => void;
+  children?: React.ReactNode;
+}) {
   const teamContent = (
     <>
       <TeamCrest url={r.logoUrl} tag={r.tag} name={r.name} size={26} />
@@ -1349,18 +1380,26 @@ function TeamRowLine({ r, prefix, onOpen, children }: { r: ConsoleRegistration; 
     </>
   );
   return (
-    <div className="flex items-center gap-3 py-2 text-sm" style={{ borderBottom: '1px solid var(--s-border)' }}>
-      {prefix && <span className="t-mono flex-shrink-0" style={{ fontSize: 12, color: 'var(--s-text-dim)' }}>{prefix}</span>}
-      {onOpen ? (
-        <button type="button" onClick={onOpen} title={`Voir la compo de ${r.name}`}
-          className="flex-1 min-w-0 flex items-center gap-3 hover:underline"
-          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
-          {teamContent}
-        </button>
-      ) : (
-        <span className="flex-1 min-w-0 flex items-center gap-3">{teamContent}</span>
+    <div style={{ borderBottom: '1px solid var(--s-border)' }}>
+      <div className="flex items-center gap-3 py-2 text-sm">
+        {prefix && <span className="t-mono flex-shrink-0" style={{ fontSize: 12, color: 'var(--s-text-dim)' }}>{prefix}</span>}
+        {onOpen ? (
+          <button type="button" onClick={onOpen} title={expanded ? `Replier ${r.name}` : `Voir la compo de ${r.name}`}
+            className="flex-1 min-w-0 flex items-center gap-3 hover:underline"
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+            {teamContent}
+            <ChevronDown size={14} style={{ color: 'var(--s-text-muted)', flexShrink: 0, transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
+          </button>
+        ) : (
+          <span className="flex-1 min-w-0 flex items-center gap-3">{teamContent}</span>
+        )}
+        {children && <span className="flex items-center gap-2 flex-shrink-0">{children}</span>}
+      </div>
+      {expanded && (
+        <div className="pb-1">
+          <TeamDetail dossier={dossier} loading={loading} showTeamName={false} onClose={onCollapse ?? (() => {})} />
+        </div>
       )}
-      {children && <span className="flex items-center gap-2 flex-shrink-0">{children}</span>}
     </div>
   );
 }
