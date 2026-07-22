@@ -112,17 +112,15 @@ et agréable à utiliser**.
   largeur sous le bracket) + fusion/allègement des phases (aujourd'hui conservées
   en dessous). NB : le viewer `brackets-viewer` est un SINGLETON → une seule
   instance rendue (la console en rend une, comme la fiche sur sa page).
-- **Lot 3 — inspection des équipes depuis la console : ✅ FAIT.** Équipes
-  cliquables dans le panneau de détail (les 2 équipes en tête) ET dans la liste
-  « Équipes » (validées + liste d'attente) → `TeamDossierModal` (lecture seule,
-  via `ModalBackdrop`) : roster (titulaires/remplaçants, capitaine badgé, vérifié,
+- **Lot 3 — inspection des équipes depuis la console : ✅ FAIT** (puis refondu, voir
+  « Retours Matt » ci-dessous). Équipes cliquables dans le panneau de détail (les 2
+  équipes en tête) ET dans la liste « Équipes » (validées + liste d'attente) →
+  dossier lecture seule : roster (titulaires/remplaçants, capitaine badgé, vérifié,
   lien profil, pseudo Discord, Tracker) + « Staff & direction » (dirigeant,
   co-fondateurs, responsables, managers, coachs). Données via l'endpoint admin
   existant `/registrations` (zéro nouvel endpoint), chargées à la demande + cache
-  par équipe (refetch si l'équipe manque → dé-périme aussi le staff LIVE).
-  Review 3 lentilles (9 agents) : 0 blocker/major, 2 correctifs (cache per-équipe
-  au lieu de « un dossier chargé bloque tout », anti-débordement horizontal du
-  pseudo Discord dans la modale).
+  par équipe. **La MODALE initiale (`TeamDossierModal`/`ModalBackdrop`) a été
+  remplacée par un DÉPLIAGE SUR PLACE `TeamDetail`** (retours Matt).
 - **Lot 4 — cohésion control-room : ✅ FAIT.** Disposition « salle de contrôle » :
   bracket (gauche) + **rail de détail collant** (droite) en 2 colonnes, via une
   **container query** (`.con-controlroom` / `.con-controlroom-grid`, seuil 760px de
@@ -133,11 +131,29 @@ et agréable à utiliser**.
   par phase », bouton « Lancer (N) » toujours accessible). Review 3 lentilles
   (6 agents) : 1 MAJOR (bascule 2-col au mauvais breakpoint → container query) +
   1 minor (1er clic mort sur phase repliée → `onToggle` aligné sur `bracketPublished`).
-  **Reste (optionnel)** : passe d'EXTRACTION (la console `page.tsx` fait ~1700 lignes
-  → sortir RowDossier / PhaseSection / modales dans `components/…`).
-- **TODO produit** (hors console) : rattacher une démo à un **circuit** (avec
-  `pointsScale`) pour montrer les vrais points de barème au classement final.
+- **Retours Matt post-Lot-4 (22/07) : ✅ FAITS + EN PROD** (commits a4f49c8, f4c28cd) :
+  - **Modale d'équipe → DÉPLIAGE SUR PLACE** (la modale était mal centrée + masquait
+    la page). Composant `TeamDetail` (con-card inline, colonne unique) rendu dans le
+    rail (sous le faceoff) ET dans la liste Équipes. Chevron d'état, re-clic replie.
+  - **Roster enrichi** : + contact Discord, Tracker, et **ligne MMR Actuel/Peak/Réf**
+    par joueur (`refMmr` = blend 70/30 de seed, affichée si le jeu en a).
+  - **Actions plus visibles** dans le rail : « Imposer un score » / « Déclarer un
+    forfait » en BOUTONS (prop `stacked` de `RowDossier`) ; liens quiet ailleurs.
+  - **Fix** : deux états d'expansion SÉPARÉS `railTeamId`/`listTeamId` (l'équipe se
+    déplie LÀ où on clique — un état partagé la forçait dans le rail).
+
+## Reprise après /clear
+
+Le chantier console est **complet et en prod**. Il ne reste que de l'OPTIONNEL :
+1. **Extraction** : `app/admin/competitions/[id]/console/page.tsx` ≈ **1750 lignes** →
+   sortir `RowDossier` / `PhaseSection` / `ConsoleSelectedMatch` / `TeamDetail` / les
+   modales dans `components/…`. Pure hygiène, invisible utilisateur, à faire à froid.
+2. **TODO produit** : rattacher une démo à un **circuit** (avec `pointsScale`) pour voir
+   les vrais points de barème au classement final (`demo-single-elim` est hors circuit).
+3. Matt doit **valider visuellement en prod** le rail étroit + le dépliage à sa résolution.
 
 Toujours lire `docs/legends-springs-cup-spec.md` + `docs/legends-cup-architecture.md`
 avant de toucher au module. La console est `app/admin/competitions/[id]/console/page.tsx`,
-les actions POSTent vers `app/api/admin/competitions/[id]/console/route.ts`.
+les actions POSTent vers `app/api/admin/competitions/[id]/console/route.ts`. **Piège
+Playwright** : l'auth admin headless (custom token + cookie `aedral_auth`) n'établit PAS
+`isAdmin` côté client → l'admin layout rebondit vers `/`. Contrôle visuel = Matt en prod.
