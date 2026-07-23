@@ -10,10 +10,12 @@ import {
   generateSwissNextRound,
   canGenerateSwissRound,
   currentSwissRound,
+  isSwissStuck,
   swissBlocker,
   swissDefaultRounds,
   advanceMatch,
   withdrawTeam,
+  replaceTeam,
   isConcluded,
   isSwissFinished,
   computeSwissPlacements,
@@ -52,6 +54,17 @@ function mulberry32(seed: number): () => number {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+/** Joue le match (winner, loser) : 3 manches 1-0. */
+function play(b: Bracket, winner: string, loser: string): Bracket {
+  const id = b.order.find(mid => {
+    const m = b.matches[mid];
+    return (m.teamA === winner && m.teamB === loser) || (m.teamA === loser && m.teamB === winner);
+  });
+  if (!id) throw new Error(`Match introuvable : ${winner} vs ${loser}`);
+  const side: 'a' | 'b' = b.matches[id].teamA === winner ? 'a' : 'b';
+  return advanceMatch(b, id, { type: 'winner', winner: side, scores: sweep(side) });
 }
 
 /** Joue tous les matchs pending de la ronde courante (vainqueur tiré au PRNG). */
@@ -245,5 +258,91 @@ describe('retrait en cours de suisse (R5-4)', () => {
     }
     // 7 restantes → 3 matchs + 1 bye.
     expect(round2).toHaveLength(4);
+  });
+});
+
+// ── Régressions de la review adversariale (24/07) ───────────────────────────
+
+describe('régressions review — bye backtracké + soupape stuck', () => {
+  it('n=5, 4 rondes : AUCUN tournoi ne jette, tous finissent proprement (bye backtracké)', () => {
+    // Avant le fix, le bye figé avant Monrad rendait certains tournois
+    // « inappariables » alors qu'un autre porteur de bye débloquait tout.
+    for (let seed = 1; seed <= 40; seed++) {
+      const rand = mulberry32(seed);
+      let b = gen(5, 4);
+      let guard = 0;
+      for (;;) {
+        b = playCurrentRound(b, rand);
+        if (isSwissFinished(b)) break;
+        expect(canGenerateSwissRound(b)).toBe(true);
+        b = generateSwissNextRound(b); // ne doit JAMAIS jeter
+        if (++guard > 10) throw new Error('boucle');
+      }
+      // Fini = toutes les rondes, OU coincé structurel (soupape) — dans les
+      // deux cas les placements sont numérotés et la clôture possible.
+      const placements = computeSwissPlacements(b);
+      expect(placements.every(p => p.placement !== null)).toBe(true);
+    }
+  });
+
+  it('n=6, 5 rondes : un coincement structurel (séquences K3,3) devient CLÔTURABLE', () => {
+    // rounds ≤ n−1 n'exclut pas l'impasse (matchings séquentiels ≠
+    // 1-factorisation). L'invariant : jamais d'état zombie — soit on génère,
+    // soit isSwissFinished passe true (soupape isSwissStuck).
+    let sawStuck = false;
+    for (let seed = 1; seed <= 60; seed++) {
+      const rand = mulberry32(seed * 7);
+      let b = gen(6, 5);
+      let guard = 0;
+      for (;;) {
+        b = playCurrentRound(b, rand);
+        if (isSwissFinished(b)) {
+          if (currentSwissRound(b) < 5) {
+            sawStuck = true;
+            expect(isSwissStuck(b)).toBe(true);
+            expect(canGenerateSwissRound(b)).toBe(false);
+          }
+          break;
+        }
+        b = generateSwissNextRound(b);
+        if (++guard > 10) throw new Error('boucle');
+      }
+      expect(computeSwissPlacements(b).every(p => p.placement !== null)).toBe(true);
+    }
+    // Le scénario coincé DOIT exister sur 60 graines (sinon le test ne prouve
+    // rien — la review l'a construit à la main, le PRNG le trouve aussi).
+    expect(sawStuck).toBe(true);
+  });
+
+  it('retraits massifs : moins de 2 actives → coincé, clôturable au classement courant', () => {
+    const rand = mulberry32(11);
+    let b = gen(4, 3);
+    b = playCurrentRound(b, rand);
+    b = withdrawTeam(b, 't1');
+    b = withdrawTeam(b, 't2');
+    b = withdrawTeam(b, 't3');
+    expect(isConcluded(b)).toBe(true);
+    expect(canGenerateSwissRound(b)).toBe(false);
+    expect(isSwissStuck(b)).toBe(true);
+    expect(isSwissFinished(b)).toBe(true); // la SOUPAPE : plus jamais « live à jamais »
+    const placements = computeSwissPlacements(b);
+    expect(placements).toHaveLength(4);
+    expect(placements.every(p => p.placement !== null)).toBe(true);
+  });
+
+  it('un walkover de siège vidé compte comme bye : pas de second tour gratuit prioritaire', () => {
+    // n=6 : R1 = t1-t4, t2-t5, t3-t6. Le siège de t6 est vidé → t3 gagne par
+    // walkover (tour gratuit). À la ronde 2 (5 actives), le bye d'appariement
+    // ne doit PAS aller à t3 : les perdants sans tour gratuit passent avant.
+    let b = gen(6, 3);
+    b = replaceTeam(b, 't6', null);
+    b = play(b, 't1', 't4');
+    b = play(b, 't2', 't5');
+    b = generateSwissNextRound(b);
+    const round2 = b.order.filter(id => b.matches[id].round === 2).map(id => b.matches[id]);
+    const byeMatch = round2.find(m => m.voidB && m.teamB === null);
+    expect(byeMatch).toBeDefined();
+    expect(byeMatch!.teamA).not.toBe('t3');
+    expect(['t4', 't5']).toContain(byeMatch!.teamA); // un perdant sans tour gratuit
   });
 });

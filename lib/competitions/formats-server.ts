@@ -130,8 +130,10 @@ export const FORMAT_ENGINES: Record<FormatKind, FormatEngine> = {
     buildDefaultPhasePlan: format =>
       buildSwissPhasePlan(format.swissRounds ?? swissDefaultRounds(format.maxTeams)),
     canGenerateNextRound: canGenerateSwissRound,
-    generateNextRound: (bracket, _format, phasePlan) =>
-      generateSwissNextRound(bracket, { phasePlan }),
+    // Le barème du FORMAT pilote l'ordre d'appariement — le même classement
+    // que celui affiché (review adversariale).
+    generateNextRound: (bracket, format, phasePlan) =>
+      generateSwissNextRound(bracket, { phasePlan, points: format.points ?? DEFAULT_RR_POINTS }),
   },
 };
 

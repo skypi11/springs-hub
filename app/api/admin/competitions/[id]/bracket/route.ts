@@ -36,7 +36,9 @@ function feasibilityBlocker(
   const kind = kindOf(format);
   if (kind === 'round_robin') return roundRobinBlocker(approvedCount, format?.groupCount ?? 1);
   if (kind === 'swiss') {
-    return swissBlocker(approvedCount, format?.swissRounds ?? swissDefaultRounds(format?.maxTeams ?? approvedCount));
+    // Fallback IDENTIQUE au générateur (rondes par défaut sur l'effectif
+    // RÉEL, pas sur maxTeams) — jamais deux verdicts divergents.
+    return swissBlocker(approvedCount, format?.swissRounds ?? swissDefaultRounds(approvedCount));
   }
   return null;
 }

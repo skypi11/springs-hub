@@ -25,6 +25,7 @@ export {
   generateSwissNextRound,
   canGenerateSwissRound,
   currentSwissRound,
+  isSwissStuck,
   swissBlocker,
   swissDefaultRounds,
   SWISS_MIN_TEAMS,

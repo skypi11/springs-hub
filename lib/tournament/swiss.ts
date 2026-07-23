@@ -26,6 +26,7 @@ import type { Bracket, BoConfig, PhasePlanEntryLike, PureMatch } from './types';
 import { attachPhasePlan } from './generate';
 import { isConcluded } from './placements';
 import { computeSwissStandings } from './swiss-standings';
+import type { RoundRobinPoints } from './round-robin-standings';
 
 export const SWISS_MIN_TEAMS = 4;
 export const SWISS_MAX_TEAMS = 64;
@@ -165,29 +166,115 @@ function pairKey(a: string, b: string): string {
   return [a, b].sort().join('|');
 }
 
+/** Budget de nœuds du backtracking (garde-fou : worst case théorique
+ *  exponentiel ; en pratique n ≤ 64 et arêtes interdites rares — jamais
+ *  approché. Dépassé : on renonce (null) → la soupape `isSwissStuck` prend
+ *  le relais plutôt qu'une route qui ne répond plus). */
+const PAIRING_NODE_BUDGET = 200_000;
+
 /** Appariement MONRAD avec backtracking : la première équipe de l'ordre est
  *  appariée à la plus proche jamais rencontrée ; si l'aval se coince (que
  *  des re-matchs), on remonte essayer l'adversaire suivant. Renvoie null si
- *  AUCUN appariement complet sans re-match n'existe. */
-function pairMonrad(ordered: string[], played: Set<string>): Array<[string, string]> | null {
+ *  AUCUN appariement complet sans re-match n'existe (ou budget épuisé). */
+function pairMonrad(ordered: string[], played: Set<string>, budget: { nodes: number }): Array<[string, string]> | null {
   if (ordered.length === 0) return [];
+  if (budget.nodes <= 0) return null;
   const [first, ...rest] = ordered;
   for (let i = 0; i < rest.length; i++) {
+    budget.nodes -= 1;
     if (played.has(pairKey(first, rest[i]))) continue;
-    const sub = pairMonrad([...rest.slice(0, i), ...rest.slice(i + 1)], played);
+    const sub = pairMonrad([...rest.slice(0, i), ...rest.slice(i + 1)], played, budget);
     if (sub) return [[first, rest[i]], ...sub];
   }
   return null;
 }
 
-/** La ronde suivante peut-elle être générée ? (tous les matchs terminaux,
- *  rondes restantes, au moins 2 équipes actives). */
+/**
+ * Recherche COMPLÈTE d'un appariement de ronde : le choix du BYE fait partie
+ * du backtracking (review adversariale, blocker : un bye figé avant Monrad
+ * pouvait rendre l'appariement « impossible » alors qu'un autre porteur de
+ * bye le débloquait). Ordre d'essai : candidates SANS bye antérieur du bas
+ * du classement vers le haut, puis en dernier recours celles qui en ont déjà
+ * un (double bye tracé par l'appelant). Effectif pair : pas de bye. Renvoie
+ * null si AUCUNE combinaison (bye, appariement) sans re-match n'existe.
+ */
+function findSwissPairing(
+  standingsOrder: string[],
+  played: Set<string>,
+  alreadyByed: Set<string>,
+): { pairs: Array<[string, string]>; byeTeam: string | null } | null {
+  const budget = { nodes: PAIRING_NODE_BUDGET };
+  if (standingsOrder.length % 2 === 0) {
+    const pairs = pairMonrad(standingsOrder, played, budget);
+    return pairs ? { pairs, byeTeam: null } : null;
+  }
+  const fromBottom = [...standingsOrder].reverse();
+  const candidates = [
+    ...fromBottom.filter(t => !alreadyByed.has(t)),
+    ...fromBottom.filter(t => alreadyByed.has(t)),
+  ];
+  for (const byeTeam of candidates) {
+    const pairs = pairMonrad(standingsOrder.filter(t => t !== byeTeam), played, budget);
+    if (pairs) return { pairs, byeTeam };
+  }
+  return null;
+}
+
+/** État d'appariement dérivé du bracket (paires jouées + byes reçus + ordre
+ *  du classement restreint aux actives). `points` : le barème du FORMAT —
+ *  l'appariement doit suivre le même classement que celui affiché (review
+ *  adversariale : un barème custom changerait l'ordre Monrad). */
+function pairingState(bracket: Bracket, points?: RoundRobinPoints): {
+  standingsOrder: string[];
+  played: Set<string>;
+  alreadyByed: Set<string>;
+} {
+  const active = activeTeams(bracket);
+  const standingsOrder = computeSwissStandings(bracket, points)
+    .map(r => r.teamId)
+    .filter(t => active.includes(t));
+  for (const t of active) {
+    if (!standingsOrder.includes(t)) standingsOrder.push(t);
+  }
+  const played = new Set<string>();
+  for (const id of bracket.order) {
+    const m = bracket.matches[id];
+    if (m.teamA && m.teamB) played.add(pairKey(m.teamA, m.teamB));
+  }
+  return { standingsOrder, played, alreadyByed: byeTeams(bracket) };
+}
+
+/** La ronde suivante peut-elle être générée ? Tous les matchs terminaux,
+ *  rondes restantes, ET un appariement sans re-match RÉELLEMENT possible
+ *  (review adversariale : l'ancienne version ne testait pas l'appariabilité
+ *  — le bouton console s'affichait puis échouait en boucle). */
 export function canGenerateSwissRound(bracket: Bracket): boolean {
   if (bracket.kind !== 'swiss') return false;
   if (!isConcluded(bracket)) return false;
   const current = currentSwissRound(bracket);
   if (current >= (bracket.swissRounds ?? 0)) return false;
-  return activeTeams(bracket).length >= 2;
+  const state = pairingState(bracket);
+  if (state.standingsOrder.length < 2) return false;
+  return findSwissPairing(state.standingsOrder, state.played, state.alreadyByed) !== null;
+}
+
+/**
+ * SOUPAPE (review adversariale, blocker) : le suisse est COINCÉ — tous les
+ * matchs terminaux, des rondes restaient prévues, mais plus AUCUNE ronde ne
+ * pourra jamais être appariée (moins de 2 actives après retraits, ou aucun
+ * appariement sans re-match — les matchings séquentiels ne prolongent pas
+ * toujours en 1-factorisation). Sans cette sortie, la compétition resterait
+ * `live` à jamais : `isSwissFinished` intègre ce cas, la clôture au
+ * classement courant devient possible par le flux normal (auditée).
+ */
+export function isSwissStuck(bracket: Bracket): boolean {
+  if (bracket.kind !== 'swiss') return false;
+  if (!bracket.swissRounds) return false;
+  if (!isConcluded(bracket)) return false;
+  if (currentSwissRound(bracket) >= bracket.swissRounds) return false;
+  const state = pairingState(bracket);
+  if (state.standingsOrder.length < 2) return true;
+  return findSwissPairing(state.standingsOrder, state.played, state.alreadyByed) === null;
 }
 
 /** Dernière ronde existante (0 si aucune — jamais le cas en pratique). */
@@ -205,14 +292,18 @@ function activeTeams(bracket: Bracket): string[] {
   return bracket.teams.filter(t => t && !bracket.withdrawn.includes(t));
 }
 
-/** Équipes ayant déjà reçu un bye (walkover à côté void dans une ronde). */
+/** Équipes ayant déjà reçu une victoire par walkover (bye d'appariement côté
+ *  B void, OU siège vidé par replaceTeam — les DEUX côtés comptent : une
+ *  victoire gratuite est une victoire gratuite, elle ne doit pas ouvrir droit
+ *  à un bye d'appariement en plus — review adversariale). */
 function byeTeams(bracket: Bracket): Set<string> {
   const out = new Set<string>();
   for (const id of bracket.order) {
     const m = bracket.matches[id];
-    if (m.bracket === 'swiss' && m.voidB && m.teamA && m.status === 'walkover') {
-      out.add(m.teamA);
-    }
+    if (m.bracket !== 'swiss' || m.status !== 'walkover' || !m.winner) continue;
+    if (!m.voidA && !m.voidB) continue;
+    const winner = m.winner === 'a' ? m.teamA : m.teamB;
+    if (winner) out.add(winner);
   }
   return out;
 }
@@ -225,7 +316,7 @@ function byeTeams(bracket: Bracket): Set<string> {
  */
 export function generateSwissNextRound(
   bracket: Bracket,
-  opts?: { phasePlan?: PhasePlanEntryLike[] },
+  opts?: { phasePlan?: PhasePlanEntryLike[]; points?: RoundRobinPoints },
 ): Bracket {
   if (bracket.kind !== 'swiss') {
     throw new Error(`Bracket ${bracket.kind} : génération de ronde réservée au suisse.`);
@@ -240,39 +331,18 @@ export function generateSwissNextRound(
   }
 
   const next = structuredClone(bracket);
-  const active = activeTeams(next);
-  if (active.length < 2) {
-    throw new Error('Moins de deux équipes encore en lice : aucune ronde à apparier.');
+  const state = pairingState(next, opts?.points);
+  if (state.standingsOrder.length < 2) {
+    throw new Error('Moins de deux équipes encore en lice : aucune ronde à apparier — la compétition peut être clôturée au classement courant.');
   }
 
-  // Ordre du classement courant, restreint aux équipes actives.
-  const standingsOrder = computeSwissStandings(next)
-    .map(r => r.teamId)
-    .filter(t => active.includes(t));
-  // Équipes actives absentes du classement (défensif — ne devrait pas
-  // arriver, tout le monde joue la ronde 1) : ajoutées en fin d'ordre.
-  for (const t of active) {
-    if (!standingsOrder.includes(t)) standingsOrder.push(t);
+  // Recherche COMPLÈTE (bye backtracké inclus) : null = structurellement
+  // coincé — `isSwissFinished` accepte alors la clôture au classement courant.
+  const found = findSwissPairing(state.standingsOrder, state.played, state.alreadyByed);
+  if (!found) {
+    throw new Error('Appariement impossible sans re-match : la compétition peut être clôturée au classement courant.');
   }
-
-  // Bye : la moins bien classée sans bye antérieur (à défaut, la dernière).
-  let byeTeam: string | null = null;
-  if (standingsOrder.length % 2 === 1) {
-    const already = byeTeams(next);
-    const candidates = [...standingsOrder].reverse();
-    byeTeam = candidates.find(t => !already.has(t)) ?? candidates[0];
-  }
-  const toPair = standingsOrder.filter(t => t !== byeTeam);
-
-  const played = new Set<string>();
-  for (const id of next.order) {
-    const m = next.matches[id];
-    if (m.teamA && m.teamB) played.add(pairKey(m.teamA, m.teamB));
-  }
-  const pairs = pairMonrad(toPair, played);
-  if (!pairs) {
-    throw new Error('Appariement impossible sans re-match : réduire le nombre de rondes ou trancher à la main.');
-  }
+  const { pairs, byeTeam } = found;
 
   const round = current + 1;
   const seedOf = new Map(next.teams.map((t, i) => [t, i + 1]));

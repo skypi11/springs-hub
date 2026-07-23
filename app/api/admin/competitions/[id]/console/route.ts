@@ -673,21 +673,52 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const aclByMatch = new Map(acls.map(a => [a.matchId, a.participantUids]));
       // Même flag de visibilité que le publish (rules défense en profondeur).
       const hidden = comp.isDev === true;
-      let batch = db.batch();
-      let ops = 0;
-      const flush = async () => { if (ops > 0) { await batch.commit(); batch = db.batch(); ops = 0; } };
-      for (const { id: matchKey, doc } of newDocs) {
-        const matchRef = refOf(matchKey);
-        batch.set(matchRef, { id: matchKey, ...doc, hidden, updatedAt: FieldValue.serverTimestamp() });
-        ops += 1;
-        const uids = aclByMatch.get(matchKey);
-        if (uids && uids.length > 0) {
-          batch.set(matchRef.collection('private').doc('acl'), { participantUids: uids, staffUids: [] });
-          ops += 1;
+      // Écriture en TRANSACTION avec re-validation de l'état frais (review
+      // adversariale, TOCTOU) : un retrait concurrent entre la lecture et
+      // l'écriture aurait apparié une équipe DQ ; un rejeu tardif aurait
+      // écrasé un match de la nouvelle ronde déjà lancé. Une ronde ≤ 40
+      // matchs ×2 docs = loin sous la limite de 500 writes.
+      const withdrawnAtRead = JSON.stringify(
+        [...(Array.isArray(comp.withdrawn) ? (comp.withdrawn as string[]) : [])].sort());
+      try {
+        await db.runTransaction(async tx => {
+          const [freshComp, ...freshNew] = await Promise.all([
+            tx.get(compRef),
+            ...newDocs.map(({ id: matchKey }) => tx.get(refOf(matchKey))),
+          ]);
+          const fresh = freshComp.data();
+          if (!fresh || fresh.status !== 'live') throw new Error('competition_not_live');
+          const withdrawnNow = JSON.stringify(
+            [...(Array.isArray(fresh.withdrawn) ? (fresh.withdrawn as string[]) : [])].sort());
+          if (withdrawnNow !== withdrawnAtRead) {
+            throw new Error('state_changed');
+          }
+          for (const snap of freshNew) {
+            const status = snap.exists ? (snap.data()!.status as string) : 'pending';
+            // Rejeu concurrent bénin (mêmes docs pending) : on réécrit à
+            // l'identique. Un doc déjà AVANCÉ (check-in lancé, joué…) ne doit
+            // jamais être écrasé.
+            if (snap.exists && status !== 'pending') throw new Error('round_already_started');
+          }
+          for (const { id: matchKey, doc } of newDocs) {
+            const matchRef = refOf(matchKey);
+            tx.set(matchRef, { id: matchKey, ...doc, hidden, updatedAt: FieldValue.serverTimestamp() });
+            const uids = aclByMatch.get(matchKey);
+            if (uids && uids.length > 0) {
+              tx.set(matchRef.collection('private').doc('acl'), { participantUids: uids, staffUids: [] });
+            }
+          }
+        });
+      } catch (e) {
+        const msg = (e as Error).message;
+        if (msg === 'state_changed') {
+          return NextResponse.json({ error: 'Un retrait est survenu pendant l\'appariement — recharge la console et relance.' }, { status: 409 });
         }
-        if (ops >= 400) await flush();
+        if (msg === 'round_already_started') {
+          return NextResponse.json({ error: 'La ronde a déjà été générée et lancée — recharge la console.' }, { status: 409 });
+        }
+        throw e;
       }
-      await flush();
 
       const round = after.matches[newIds[0]]?.round ?? 0;
       await audit(db, uid, 'competition_round_generated', id, comp, { round, matches: newIds.length });

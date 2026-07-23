@@ -22,6 +22,9 @@
 import type { Bracket, Placement, PureMatch } from './types';
 import { computeTeamStats, isConcluded } from './placements';
 import { DEFAULT_RR_POINTS, type RoundRobinPoints } from './round-robin-standings';
+// Import croisé swiss ↔ swiss-standings assumé : résolu à l'APPEL uniquement
+// (aucune exécution top-level dans les deux modules) — ESM le supporte.
+import { isSwissStuck } from './swiss';
 
 export interface SwissStandingRow {
   teamId: string;
@@ -296,9 +299,13 @@ export function computeSwissStandings(
   }));
 }
 
-/** Le suisse est fini : tous les matchs terminaux ET toutes les rondes
- *  générées. `swissRounds` absent → jamais fini (fail-safe : mieux vaut une
- *  clôture bloquée qu'un classement figé après la ronde 1). */
+/** Le suisse est fini : tous les matchs terminaux ET (toutes les rondes
+ *  générées OU tournoi structurellement COINCÉ — `isSwissStuck`, la SOUPAPE
+ *  de la review adversariale : retraits massifs ou appariement sans re-match
+ *  devenu impossible → la clôture au classement courant doit rester possible,
+ *  sinon la compétition reste `live` à jamais). `swissRounds` absent → jamais
+ *  fini (fail-safe : mieux vaut une clôture bloquée qu'un classement figé
+ *  après la ronde 1). */
 export function isSwissFinished(bracket: Bracket): boolean {
   if (bracket.kind !== 'swiss') return false;
   if (!isConcluded(bracket)) return false;
@@ -309,7 +316,8 @@ export function isSwissFinished(bracket: Bracket): boolean {
     const m = bracket.matches[id];
     if (m.round > maxRound) maxRound = m.round;
   }
-  return maxRound >= total;
+  if (maxRound >= total) return true;
+  return isSwissStuck(bracket);
 }
 
 /**
