@@ -10,8 +10,10 @@
 // fois, une deuxième clôture répond `already_closed`.
 
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
-import { computePlacements, computeTeamStats, isFinished, type Placement } from '@/lib/tournament';
+import { computeTeamStats, type Placement } from '@/lib/tournament';
+import { engineFor, kindOf } from '@/lib/competitions/formats-server';
 import { reconstructBracket, type MatchDoc } from '@/lib/competitions/bracket-store';
+import type { CompetitionFormat } from '@/types/competitions';
 import { computeClaimRelease } from '@/lib/competitions/withdraw-registration';
 import { createNotifications, type NotificationPayload } from '@/lib/notifications';
 import { captureApiError } from '@/lib/sentry';
@@ -58,20 +60,25 @@ export async function closeCompetition(
     if (comp.status !== 'live') return { ok: false, code: 'invalid_status' };
     if (!comp.bracketMaterializedAt) return { ok: false, code: 'bracket_not_published' };
 
+    // Routage par kind via la registry de formats (formats-server) : le
+    // prédicat de fin et le calcul des placements sont ceux du format —
+    // élims : champion mécanique ; round robin : tous les matchs terminaux.
+    const format = comp.format as CompetitionFormat;
+    const engine = engineFor(kindOf(format));
     const bracket = reconstructBracket({
       withdrawn: Array.isArray(comp.withdrawn) ? (comp.withdrawn as string[]) : [],
-      bo: comp.format.bo,
-      forfeitScore: comp.format.forfeitScore ?? { games: 3, goalsPerGame: 1 },
+      bo: format.bo,
+      forfeitScore: format.forfeitScore ?? { games: 3, goalsPerGame: 1 },
       matches: matchSnaps.filter(s => s.exists).map(s => ({
         id: (s.data()!.id as string) ?? s.id,
         ...(s.data() as MatchDoc),
       })),
-      kind: comp.format?.kind === 'single_elim' ? 'single_elim' : 'double_elim',
+      kind: kindOf(format),
     });
-    if (!isFinished(bracket)) return { ok: false, code: 'not_finished' };
+    if (!engine.isFinished(bracket)) return { ok: false, code: 'not_finished' };
 
     const resolutions = (comp.tiebreakResolutions as Record<string, string[]> | undefined) ?? undefined;
-    const placements = computePlacements(bracket, resolutions);
+    const placements = engine.computePlacements(bracket, format, resolutions);
     const unresolved = [...new Set(placements.filter(p => p.needsAdminTiebreak).map(p => p.group))];
     if (unresolved.length > 0) return { ok: false, code: 'tiebreak_required', tiebreakGroups: unresolved };
 

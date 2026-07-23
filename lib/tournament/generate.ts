@@ -299,8 +299,9 @@ function seedAndResolve(bracket: Bracket, teamIds: string[]): void {
 }
 
 /** Rattachement au plan de phases (bracket+round → phase). Les rondes
- *  inexistantes pour N < 32 sont simplement ignorées par le plan. */
-function attachPhasePlan(bracket: Bracket, phasePlan?: PhasePlanEntryLike[]): void {
+ *  inexistantes pour N < 32 sont simplement ignorées par le plan. Partagé
+ *  avec le moteur round robin (round-robin.ts). */
+export function attachPhasePlan(bracket: Bracket, phasePlan?: PhasePlanEntryLike[]): void {
   if (!phasePlan) return;
   for (const entry of phasePlan) {
     for (const pr of entry.rounds) {

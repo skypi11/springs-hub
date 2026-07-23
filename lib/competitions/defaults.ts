@@ -136,6 +136,53 @@ export function buildSingleElimPhasePlan(maxTeams: number, thirdPlace = false): 
   return plan;
 }
 
+// ── Préréglage « Ligue / poules — round robin » ─────────────────────────────
+// Chaque équipe affronte toutes les autres de sa poule ; classement par
+// points (3/1/0 par défaut). BO identique sur tous les matchs de poule
+// (`bo.default` — pas d'overrides par ronde, refusés par la validation ;
+// `grandFinal` est forcé à la même valeur, aucun match n'est « une finale »).
+export const ROUND_ROBIN_FORMAT: CompetitionFormat = {
+  kind: 'round_robin',
+  maxTeams: 8,
+  bo: { default: 5, overrides: [], grandFinal: 5 },
+  bracketReset: false,
+  groupCount: 1,
+  doubleRound: false,
+  points: { win: 3, draw: 1, loss: 0 },
+  forfeitScore: { games: 3, goalsPerGame: 1 },
+};
+
+/** Journées d'un round robin pour `teamCount` équipes en `groupCount` poules
+ *  (la plus grande poule dicte le nombre de journées d'un leg ; ×2 en
+ *  aller-retour). Partagé avec buildRoundRobinPhasePlan et les résumés. */
+export function roundRobinMatchdays(teamCount: number, groupCount: number, doubleRound: boolean): number {
+  const poolSize = Math.ceil(Math.max(2, teamCount) / Math.max(1, groupCount));
+  const legDays = poolSize % 2 === 0 ? poolSize - 1 : poolSize;
+  return doubleRound ? legDays * 2 : legDays;
+}
+
+// Plan de phases round robin : une phase par JOURNÉE (jour 1 par défaut,
+// ajustable admin). Comme les autres builders, calculé sur maxTeams : si le
+// champ réel est plus petit, les journées inexistantes ne matchent rien et
+// sont ignorées par attachPhasePlan — symétrique des élims.
+export function buildRoundRobinPhasePlan(
+  teamCount: number,
+  groupCount: number,
+  doubleRound: boolean,
+): PhasePlanEntry[] {
+  const days = roundRobinMatchdays(teamCount, groupCount, doubleRound);
+  const plan: PhasePlanEntry[] = [];
+  for (let d = 1; d <= days; d++) {
+    plan.push({
+      phase: d,
+      day: 1,
+      label: `J${d}`,
+      rounds: [{ bracket: 'round_robin', round: d }],
+    });
+  }
+  return plan;
+}
+
 // Ordre de départage cutline top-16 (spec §11) : meilleur placement unique du
 // circuit → délta cumulé sur les Qualifs comptés → résultat du plus récent.
 export const LEGENDS_TIE_BREAKERS = ['best_placement', 'goal_diff_total', 'latest_event'] as const;

@@ -20,7 +20,7 @@ import type {
   PureMatch,
   PureMatchStatus,
 } from '@/lib/tournament';
-import { generateDoubleElim, generateSingleElim } from '@/lib/tournament';
+import { generateDoubleElim, generateRoundRobin, generateSingleElim } from '@/lib/tournament';
 import type { CompetitionMatch, MatchSource, MatchStatus } from '@/types/competitions';
 
 export interface TeamDisplay {
@@ -79,6 +79,9 @@ export function pureMatchToDoc(
     bracket: m.bracket,
     round: m.round,
     slot: m.slot,
+    // Poule (round robin) : sérialisée uniquement quand elle existe —
+    // Firestore rejette `undefined`, les matchs d'arbre n'ont pas le champ.
+    ...(m.group !== undefined ? { group: m.group } : {}),
     phase: m.phase,
     bo: m.bo,
     teamA: m.teamA,
@@ -153,9 +156,15 @@ export function reconstructBracket(input: {
   forfeitScore: { games: number; goalsPerGame: number };
   matches: Array<{ id: string } & MatchDoc>;
   /** Format du bracket. Absent (docs d'avant le multi-format) : inféré de la
-   *  présence d'une grande finale — un double élim en a TOUJOURS une. */
+   *  présence d'une grande finale — un double élim en a TOUJOURS une — ou de
+   *  matchs `round_robin` (jamais mélangés à un arbre). */
   kind?: BracketKind;
 }): Bracket {
+  // Round robin : reconstruction dédiée — les notions d'arbre (round 1
+  // winners, puissance de 2, rondes losers) n'existent pas.
+  if (input.kind === 'round_robin' || input.matches.some(m => m.bracket === 'round_robin')) {
+    return reconstructRoundRobin(input);
+  }
   // Taille = nombre de sièges du round 1 winners (robuste aux byes ET aux
   // sièges vidés, contrairement au comptage des équipes présentes).
   const w1 = input.matches.filter(m => m.bracket === 'winners' && m.round === 1);
@@ -210,6 +219,56 @@ export function reconstructBracket(input: {
   };
 }
 
+/** Reconstruction ROUND ROBIN : `teams` par seed depuis les sources `seed` de
+ *  TOUS les matchs (chaque équipe y apparaît — un siège vidé par replaceTeam
+ *  reste '' à sa place), poules et journées dérivées des docs eux-mêmes. Les
+ *  docs restent l'unique source de vérité de la progression (invariant du
+ *  module). */
+function reconstructRoundRobin(input: {
+  withdrawn: string[];
+  bo: BoConfig;
+  forfeitScore: { games: number; goalsPerGame: number };
+  matches: Array<{ id: string } & MatchDoc>;
+}): Bracket {
+  const rrMatches = input.matches.filter(m => m.bracket === 'round_robin');
+  if (rrMatches.length === 0) {
+    throw new Error('Round robin incohérent : aucun match de poule.');
+  }
+  const bySeed = new Map<number, string>();
+  let maxSeed = 0;
+  for (const m of rrMatches) {
+    for (const [src, team, isVoid] of [
+      [m.sourceA, m.teamA, m.voidA] as const,
+      [m.sourceB, m.teamB, m.voidB] as const,
+    ]) {
+      if (src.type !== 'seed') continue;
+      if (src.ref > maxSeed) maxSeed = src.ref;
+      if (!isVoid && team) bySeed.set(src.ref, team);
+    }
+  }
+  const teams: string[] = [];
+  for (let s = 1; s <= maxSeed; s++) teams.push(bySeed.get(s) ?? '');
+
+  const matches: Record<string, PureMatch> = {};
+  for (const doc of rrMatches) matches[doc.id] = docToPureMatch(doc);
+  const order = orderIds(rrMatches.map(d => ({ id: d.id, bracket: d.bracket, round: d.round, slot: d.slot })));
+
+  return {
+    kind: 'round_robin',
+    teams,
+    size: maxSeed,
+    winnersRounds: 0,
+    losersRounds: 0,
+    groups: rrMatches.reduce((max, m) => Math.max(max, m.group ?? 1), 1),
+    matchdays: rrMatches.reduce((max, m) => Math.max(max, m.round), 0),
+    bo: input.bo,
+    forfeitScore: input.forfeitScore,
+    matches,
+    order,
+    withdrawn: [...input.withdrawn],
+  };
+}
+
 export function docToPureMatch(doc: { id: string } & MatchDoc): PureMatch {
   const final = doc.scores?.final ?? null;
   return {
@@ -217,6 +276,7 @@ export function docToPureMatch(doc: { id: string } & MatchDoc): PureMatch {
     bracket: doc.bracket,
     round: doc.round,
     slot: doc.slot,
+    ...(doc.group !== undefined ? { group: doc.group } : {}),
     bo: doc.bo,
     phase: doc.phase,
     sourceA: mapSourceToPure(doc.sourceA),
@@ -234,9 +294,11 @@ export function docToPureMatch(doc: { id: string } & MatchDoc): PureMatch {
   };
 }
 
-// Reproduit l'ordre de création de generateDoubleElim : bracket (winners <
-// losers < grand_final), puis round croissant, puis slot croissant.
-const BRACKET_RANK: Record<PureMatch['bracket'], number> = { winners: 0, losers: 1, grand_final: 2 };
+// Reproduit l'ordre de création des générateurs : bracket (winners < losers <
+// grand_final), puis round croissant, puis slot croissant. En round robin le
+// bracket est homogène — l'ordre est (journée, slot global), déterministe par
+// construction (slots globaux, jamais deux matchs au même (round, slot)).
+const BRACKET_RANK: Record<PureMatch['bracket'], number> = { winners: 0, losers: 1, grand_final: 2, round_robin: 3 };
 function orderIds(ms: Array<{ id: string; bracket: PureMatch['bracket']; round: number; slot: number }>): string[] {
   return [...ms]
     .sort((a, b) =>
@@ -274,15 +336,21 @@ export function materializeBracket(input: {
   kind?: BracketKind;
   /** Petite finale (simple élim uniquement). */
   thirdPlace?: boolean;
+  /** Round robin uniquement : nombre de poules (défaut 1). */
+  groups?: number;
+  /** Round robin uniquement : aller-retour. */
+  doubleRound?: boolean;
 }): MaterializedBracket {
   const opts = {
     bo: input.bo,
     forfeitScore: input.forfeitScore,
     phasePlan: input.phasePlan,
   };
-  const bracket = input.kind === 'single_elim'
-    ? generateSingleElim(input.seeding, { ...opts, thirdPlace: input.thirdPlace })
-    : generateDoubleElim(input.seeding, opts);
+  const bracket = input.kind === 'round_robin'
+    ? generateRoundRobin(input.seeding, { ...opts, groups: input.groups, doubleRound: input.doubleRound })
+    : input.kind === 'single_elim'
+      ? generateSingleElim(input.seeding, { ...opts, thirdPlace: input.thirdPlace })
+      : generateDoubleElim(input.seeding, opts);
 
   const infoOf = (regId: string | null): TeamDisplay | null =>
     regId ? input.registrations[regId]?.display ?? null : null;

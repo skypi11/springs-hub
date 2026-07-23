@@ -36,6 +36,8 @@ function asInt(v: unknown): number | null {
   return v;
 }
 
+const isValidBo = (n: number | null): n is number => n !== null && n % 2 === 1 && n >= 1 && n <= 9;
+
 // ── Circuits ────────────────────────────────────────────────────────────────
 
 export interface CircuitPayload {
@@ -218,7 +220,9 @@ export function validateCompetitionPayload(body: unknown): ValidationResult<Comp
   // Cohérence FORMAT ↔ PLAN DE PHASES (review adversariale : un plan double
   // élim collé sur un simple élim rangeait la petite finale en début de jour).
   // En simple élim : pas de grand_final, losers limité au round 1 (petite
-  // finale) et seulement si elle est activée.
+  // finale) et seulement si elle est activée. En round robin : uniquement des
+  // journées `round_robin` — et réciproquement, jamais de journée de poule
+  // dans un plan d'arbre.
   if (format.value.kind === 'single_elim') {
     for (const entry of schedule.value.phasePlan) {
       for (const round of entry.rounds) {
@@ -228,6 +232,21 @@ export function validateCompetitionPayload(body: unknown): ValidationResult<Comp
         if (round.bracket === 'losers' && (round.round > 1 || format.value.thirdPlace !== true)) {
           return err('Plan de phases incompatible : en simple élimination, le bracket losers ne porte que la petite finale (activée).');
         }
+      }
+    }
+  }
+  if (format.value.kind === 'round_robin') {
+    for (const entry of schedule.value.phasePlan) {
+      for (const round of entry.rounds) {
+        if (round.bracket !== 'round_robin') {
+          return err('Plan de phases incompatible : un round robin ne contient que des journées de poule.');
+        }
+      }
+    }
+  } else {
+    for (const entry of schedule.value.phasePlan) {
+      if (entry.rounds.some(r => r.bracket === 'round_robin')) {
+        return err('Plan de phases incompatible : journée de poule dans un format à élimination.');
       }
     }
   }
@@ -258,10 +277,11 @@ function validateFormat(input: unknown): ValidationResult<CompetitionFormat> {
   if (typeof input !== 'object' || input === null) return err('Format invalide.');
   const f = input as Record<string, unknown>;
 
-  if (f.kind !== 'double_elim' && f.kind !== 'single_elim') {
-    return err('Format non supporté (double ou simple élimination).');
+  if (f.kind !== 'double_elim' && f.kind !== 'single_elim' && f.kind !== 'round_robin') {
+    return err('Format non supporté (double élimination, simple élimination ou round robin).');
   }
   const kind = f.kind;
+  if (kind === 'round_robin') return validateRoundRobinFormat(f);
 
   const maxTeams = asInt(f.maxTeams);
   if (maxTeams === null || maxTeams < 4 || maxTeams > 32) {
@@ -272,7 +292,6 @@ function validateFormat(input: unknown): ValidationResult<CompetitionFormat> {
   if (!bo) return err('Configuration BO manquante.');
   const boDefault = asInt(bo.default);
   const boGrandFinal = asInt(bo.grandFinal);
-  const isValidBo = (n: number | null): n is number => n !== null && n % 2 === 1 && n >= 1 && n <= 9;
   if (!isValidBo(boDefault)) return err('BO par défaut invalide (impair, 1-9).');
   // En simple élim, `grandFinal` est le BO de la FINALE (même champ, même règle).
   if (!isValidBo(boGrandFinal)) return err('BO de finale invalide (impair, 1-9).');
@@ -315,6 +334,70 @@ function validateFormat(input: unknown): ValidationResult<CompetitionFormat> {
       bracketReset: kind === 'double_elim' && f.bracketReset === true,
       thirdPlace: kind === 'single_elim' && f.thirdPlace === true,
       forfeitScore,
+    },
+  };
+}
+
+// Bornes du moteur round robin (lib/tournament/round-robin.ts) : 4-64 équipes,
+// poules de 2 à 20 — miroir de RR_MIN/MAX_TEAMS et RR_MAX_POOL_SIZE.
+function validateRoundRobinFormat(f: Record<string, unknown>): ValidationResult<CompetitionFormat> {
+  const maxTeams = asInt(f.maxTeams);
+  if (maxTeams === null || maxTeams < 4 || maxTeams > 64) {
+    return err("Nombre max d'équipes invalide (4-64 en round robin).");
+  }
+
+  const bo = (typeof f.bo === 'object' && f.bo !== null) ? f.bo as Record<string, unknown> : null;
+  if (!bo) return err('Configuration BO manquante.');
+  const boDefault = asInt(bo.default);
+  if (!isValidBo(boDefault)) return err('BO par défaut invalide (impair, 1-9).');
+  // Un match de poule n'est jamais « une finale » : pas de règles BO par
+  // ronde ni de BO de finale — refusés plutôt qu'ignorés en silence.
+  const rawOverrides = Array.isArray(bo.overrides) ? bo.overrides as unknown[] : [];
+  if (rawOverrides.length > 0) {
+    return err('Pas de règles BO par ronde en round robin (BO unique pour tous les matchs de poule).');
+  }
+
+  const groupCount = f.groupCount === undefined ? 1 : asInt(f.groupCount);
+  if (groupCount === null || groupCount < 1 || groupCount > 16) {
+    return err('Nombre de poules invalide (1-16).');
+  }
+  if (groupCount > Math.floor(maxTeams / 2)) {
+    return err(`Trop de poules : ${groupCount} pour ${maxTeams} équipes (minimum 2 équipes par poule).`);
+  }
+  if (Math.ceil(maxTeams / groupCount) > 20) {
+    return err(`Poule trop grande : ${Math.ceil(maxTeams / groupCount)} équipes (maximum 20 — augmenter le nombre de poules).`);
+  }
+
+  let points = { win: 3, draw: 1, loss: 0 };
+  if (f.points !== undefined && f.points !== null) {
+    if (typeof f.points !== 'object') return err('Barème de points invalide.');
+    const p = f.points as Record<string, unknown>;
+    const win = asInt(p.win);
+    const draw = asInt(p.draw);
+    const loss = asInt(p.loss);
+    if (win === null || win < 0 || win > 10) return err('Points par victoire invalides (0-10).');
+    if (draw === null || draw < 0 || draw > 10) return err('Points par nul invalides (0-10).');
+    if (loss === null || loss < 0 || loss > 10) return err('Points par défaite invalides (0-10).');
+    if (win <= loss) return err('Barème incohérent : la victoire doit rapporter plus que la défaite.');
+    if (draw > win || draw < loss) return err('Barème incohérent : le nul doit se situer entre la défaite et la victoire.');
+    points = { win, draw, loss };
+  }
+
+  return {
+    ok: true,
+    value: {
+      kind: 'round_robin',
+      maxTeams,
+      // `grandFinal` est structurellement requis par BoConfig : forcé au BO
+      // par défaut (aucun match ne le lit en round robin — jamais de valeur
+      // mensongère en base).
+      bo: { default: boDefault, overrides: [], grandFinal: boDefault },
+      bracketReset: false,
+      thirdPlace: false,
+      groupCount,
+      doubleRound: f.doubleRound === true,
+      points,
+      forfeitScore: { games: Math.ceil(boDefault / 2), goalsPerGame: 1 },
     },
   };
 }
@@ -455,7 +538,7 @@ function validatePhasePlan(input: unknown, dayCount: number): ValidationResult<P
     for (const r of rawRounds) {
       if (typeof r !== 'object' || r === null) return err(`Phase ${phase} : ronde invalide.`);
       const round = r as Record<string, unknown>;
-      if (round.bracket !== 'winners' && round.bracket !== 'losers' && round.bracket !== 'grand_final') {
+      if (round.bracket !== 'winners' && round.bracket !== 'losers' && round.bracket !== 'grand_final' && round.bracket !== 'round_robin') {
         return err(`Phase ${phase} : bracket invalide.`);
       }
       const num = asInt(round.round);

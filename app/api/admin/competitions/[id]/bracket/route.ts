@@ -6,7 +6,16 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { materializeBracket, type TeamDisplay } from '@/lib/competitions/bracket-store';
-import { MIN_TEAMS, MAX_TEAMS } from '@/lib/tournament';
+import { MIN_TEAMS, MAX_TEAMS, RR_MIN_TEAMS, RR_MAX_TEAMS } from '@/lib/tournament';
+import { kindOf } from '@/lib/competitions/formats-server';
+
+/** Bornes moteur du format : arbre 4-32, round robin 4-64 (aucune contrainte
+ *  de puissance de 2 en poules). */
+function teamBounds(format: { kind?: string } | null | undefined): { min: number; max: number } {
+  return kindOf(format) === 'round_robin'
+    ? { min: RR_MIN_TEAMS, max: RR_MAX_TEAMS }
+    : { min: MIN_TEAMS, max: MAX_TEAMS };
+}
 
 // Seeding + matérialisation du bracket (archi §3, spec §2). Admins de
 // compétition (rôle scopé) : le seeding fait partie de leur périmètre.
@@ -82,18 +91,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const status = (comp.status as string) ?? 'draft';
     const materialized = !!comp.bracketMaterializedAt;
 
+    const bounds = teamBounds(comp.format);
     return NextResponse.json({
       status,
       approvedCount: approved.length,
-      minTeams: MIN_TEAMS,
-      maxTeams: MAX_TEAMS,
+      minTeams: bounds.min,
+      maxTeams: bounds.max,
       seeding,
       // Ouverture du seeding depuis les statuts pré-live, avec assez d'équipes.
       canOpenSeeding: ['draft', 'registration', 'validation'].includes(status)
-        && approved.length >= MIN_TEAMS && approved.length <= MAX_TEAMS,
+        && approved.length >= bounds.min && approved.length <= bounds.max,
       canEditSeeding: status === 'seeding',
       canPublish: status === 'seeding' && !materialized
-        && approved.length >= MIN_TEAMS && approved.length <= MAX_TEAMS,
+        && approved.length >= bounds.min && approved.length <= bounds.max,
       materialized,
     });
   } catch (err) {
@@ -131,11 +141,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (!['draft', 'registration', 'validation'].includes(status)) {
         return NextResponse.json({ error: 'Le seeding ne peut s\'ouvrir que depuis une compétition en inscriptions ou validation.' }, { status: 409 });
       }
-      if (approved.length < MIN_TEAMS) {
-        return NextResponse.json({ error: `Il faut au moins ${MIN_TEAMS} équipes validées pour seeder (actuellement ${approved.length}).` }, { status: 409 });
+      const bounds = teamBounds(comp.format);
+      if (approved.length < bounds.min) {
+        return NextResponse.json({ error: `Il faut au moins ${bounds.min} équipes validées pour seeder (actuellement ${approved.length}).` }, { status: 409 });
       }
-      if (approved.length > MAX_TEAMS) {
-        return NextResponse.json({ error: `Le format accepte au plus ${MAX_TEAMS} équipes (${approved.length} validées) : retire des équipes ou passe-les en liste d'attente.` }, { status: 409 });
+      if (approved.length > bounds.max) {
+        return NextResponse.json({ error: `Le format accepte au plus ${bounds.max} équipes (${approved.length} validées) : retire des équipes ou passe-les en liste d'attente.` }, { status: 409 });
       }
       const seeding = shuffle(approved.map(r => r.registrationId));
       await compRef.update({ status: 'seeding', seeding, bracketMaterializedAt: null, updatedAt: FieldValue.serverTimestamp() });
@@ -211,6 +222,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         registrations,
         kind: comp.format.kind,
         thirdPlace: comp.format.thirdPlace === true,
+        groups: comp.format.groupCount ?? 1,
+        doubleRound: comp.format.doubleRound === true,
       });
 
       // Écriture batchée (63 matchs + ~32 ACL pour 32 équipes en double élim,

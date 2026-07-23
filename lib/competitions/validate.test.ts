@@ -12,6 +12,7 @@ import {
   LEGENDS_CHECKIN,
   LEGENDS_TIE_BREAKERS,
   buildLegendsPhasePlan,
+  buildRoundRobinPhasePlan,
 } from './defaults';
 
 // Payload circuit complet et valide (préréglage Legends).
@@ -310,5 +311,85 @@ describe('validateCompetitionPayload', () => {
     const res = validateCompetitionPayload(bo7);
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.value.format.forfeitScore).toEqual({ games: 4, goalsPerGame: 1 });
+  });
+});
+
+describe('validateCompetitionPayload — format round robin', () => {
+  function rrBody(formatOverrides: Record<string, unknown> = {}, planTeams = 8, planGroups = 1) {
+    return competitionBody({
+      format: {
+        kind: 'round_robin',
+        maxTeams: 8,
+        bo: { default: 5, overrides: [], grandFinal: 5 },
+        groupCount: 1,
+        doubleRound: false,
+        points: { win: 3, draw: 1, loss: 0 },
+        ...formatOverrides,
+      },
+      schedule: {
+        days: [{ date: '2026-09-26', startsAt: '15:00' }],
+        phasePlan: buildRoundRobinPhasePlan(planTeams, planGroups, false),
+        ...LEGENDS_CHECKIN,
+      },
+    });
+  }
+
+  it('accepte un round robin valide et normalise le format', () => {
+    const res = validateCompetitionPayload(rrBody());
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.value.format.kind).toBe('round_robin');
+      expect(res.value.format.groupCount).toBe(1);
+      expect(res.value.format.points).toEqual({ win: 3, draw: 1, loss: 0 });
+      // Pas de champ d'arbre orphelin, grandFinal aligné sur le BO par défaut.
+      expect(res.value.format.bracketReset).toBe(false);
+      expect(res.value.format.thirdPlace).toBe(false);
+      expect(res.value.format.bo.grandFinal).toBe(5);
+      expect(res.value.format.forfeitScore).toEqual({ games: 3, goalsPerGame: 1 });
+    }
+  });
+
+  it('accepte 64 équipes en poules (au-delà de la borne des arbres)', () => {
+    const res = validateCompetitionPayload(rrBody({ maxTeams: 64, groupCount: 8 }, 64, 8));
+    expect(res.ok).toBe(true);
+  });
+
+  it('refuse les règles BO par ronde (BO unique en poules)', () => {
+    const res = validateCompetitionPayload(rrBody({
+      bo: { default: 5, overrides: [{ bracket: 'winners', roundsFromEnd: 1, bo: 7 }], grandFinal: 7 },
+    }));
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toContain('BO');
+  });
+
+  it('refuse une poule de moins de 2 équipes et une poule trop grande', () => {
+    expect(validateCompetitionPayload(rrBody({ groupCount: 5 })).ok).toBe(false);       // 8/5 → poule de 1
+    expect(validateCompetitionPayload(rrBody({ maxTeams: 42, groupCount: 2 }, 42, 2)).ok).toBe(false); // poule de 21
+  });
+
+  it('refuse un barème incohérent (défaite ≥ victoire, nul hors bornes)', () => {
+    expect(validateCompetitionPayload(rrBody({ points: { win: 1, draw: 1, loss: 1 } })).ok).toBe(false);
+    expect(validateCompetitionPayload(rrBody({ points: { win: 3, draw: 4, loss: 0 } })).ok).toBe(false);
+  });
+
+  it('refuse un plan de phases d\'arbre sur un round robin, et inversement', () => {
+    const treePlanOnRR = competitionBody({
+      format: {
+        kind: 'round_robin',
+        maxTeams: 8,
+        bo: { default: 5, overrides: [], grandFinal: 5 },
+        groupCount: 1,
+      },
+    });
+    expect(validateCompetitionPayload(treePlanOnRR).ok).toBe(false); // plan Legends (winners/losers)
+
+    const rrPlanOnTree = competitionBody({
+      schedule: {
+        days: [{ date: '2026-09-26', startsAt: '15:00' }],
+        phasePlan: buildRoundRobinPhasePlan(8, 1, false),
+        ...LEGENDS_CHECKIN,
+      },
+    });
+    expect(validateCompetitionPayload(rrPlanOnTree).ok).toBe(false); // journées de poule sur un double élim
   });
 });

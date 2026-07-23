@@ -16,12 +16,14 @@
 //   élimine les deux équipes (R5-1) ; la cascade de retrait (R5-4) donne le
 //   score conventionnel à l'adversaire mais fige le délta du retiré.
 
-export type BracketSide = 'winners' | 'losers' | 'grand_final';
+export type BracketSide = 'winners' | 'losers' | 'grand_final' | 'round_robin';
 
 /** Format du bracket. En simple élimination : uniquement des matchs winners
  *  (l'arbre) + éventuellement une petite finale `P3` portée par le bracket
- *  `losers` round 1 (mappée « consolation final » côté viewer). Pas de GF/GFR. */
-export type BracketKind = 'double_elim' | 'single_elim';
+ *  `losers` round 1 (mappée « consolation final » côté viewer). Pas de GF/GFR.
+ *  En round robin : uniquement des matchs `round_robin` (poules, toutes les
+ *  équipes posées dès la génération — aucun `winner_of`/`loser_of`). */
+export type BracketKind = 'double_elim' | 'single_elim' | 'round_robin';
 
 export type MatchSource =
   | { type: 'seed'; ref: number }               // position de seed (1-based)
@@ -38,10 +40,12 @@ export type PureMatchStatus =
 export interface GameScore { a: number; b: number }
 
 export interface PureMatch {
-  id: string;                    // "W2-3" | "L5-1" | "GF" | "GFR"
+  id: string;                    // "W2-3" | "L5-1" | "GF" | "GFR" | "R3-2" (RR : journée 3, slot 2)
   bracket: BracketSide;
-  round: number;                 // 1-based dans son bracket (GF/GFR : 1 et 2)
-  slot: number;                  // 1-based, haut → bas
+  round: number;                 // 1-based dans son bracket (GF/GFR : 1 et 2 ; RR : journée)
+  slot: number;                  // 1-based, haut → bas (RR : GLOBAL dans la journée, toutes poules)
+  /** Round robin uniquement : poule 1-based. Absent sur les matchs d'arbre. */
+  group?: number;
   bo: number;
   phase: number | null;          // rattachement au phasePlan (null = hors plan)
   sourceA: MatchSource;
@@ -79,13 +83,20 @@ export interface Bracket {
   kind: BracketKind;
   /** Équipes par seed (index 0 = seed 1). */
   teams: string[];
-  /** Taille nominale du bracket (puissance de 2 : 4, 8, 16 ou 32). */
+  /** Taille nominale : puissance de 2 (4→32) pour les élims ; effectif RÉEL
+   *  d'équipes en round robin (aucune contrainte de puissance de 2). */
   size: number;
-  /** Nombre de rondes winners (log2(size)). */
+  /** Nombre de rondes winners (log2(size)). 0 en round robin (sans objet). */
   winnersRounds: number;
   /** Rondes losers : 2·(winnersRounds − 1) en double élim ; 1 en simple élim
-   *  avec petite finale (`P3`), 0 sinon. */
+   *  avec petite finale (`P3`), 0 sinon. 0 en round robin. */
   losersRounds: number;
+  /** Round robin uniquement : nombre de poules (1 = ligue simple). */
+  groups?: number;
+  /** Round robin uniquement : journées au total (legs compris). */
+  matchdays?: number;
+  /** Round robin uniquement : true = aller-retour (chaque paire joue 2 fois). */
+  doubleRound?: boolean;
   bo: BoConfig;
   /** Score conventionnel de forfait : le nombre de manches est TOUJOURS dérivé
    *  du BO du match (ceil(bo/2), soit 3 en BO5 / 4 en BO7), chaque manche

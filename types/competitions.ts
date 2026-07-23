@@ -200,9 +200,13 @@ export type CompetitionStatus =
   | 'finished'       // terminé, standings écrits
   | 'archived';
 
+/** Format d'une étape de tournoi. Source de vérité des formats disponibles :
+ *  la registry `lib/competitions/formats.ts` (fiche déclarative par format). */
+export type FormatKind = 'double_elim' | 'single_elim' | 'round_robin';
+
 export interface CompetitionFormat {
-  kind: 'double_elim' | 'single_elim';
-  maxTeams: number;                // 32
+  kind: FormatKind;
+  maxTeams: number;                // 32 (élims) / 64 (round robin)
   /**
    * BO exprimé EN RELATIF à la fin de chaque bracket (archi §2) : les numéros
    * absolus de rounds changent avec N. Legends : défaut BO5, 2 dernières rondes
@@ -220,11 +224,43 @@ export interface CompetitionFormat {
   /** Simple élim uniquement : petite finale (3e place) entre les perdants des
    *  demies. Absent/false en double élim. */
   thirdPlace?: boolean;
+  /** Round robin uniquement : nombre de poules (défaut 1 = ligue simple). */
+  groupCount?: number;
+  /** Round robin uniquement : aller-retour (chaque paire joue deux fois). */
+  doubleRound?: boolean;
+  /** Round robin uniquement : barème d'un match de poule (défaut 3/1/0 —
+   *  `draw` prêt pour les jeux à match nul, aucun chemin de nul en RL). */
+  points?: { win: number; draw: number; loss: number };
   /**
    * Score conventionnel d'un forfait (spec §11) : `games` manches gagnées
    * `goalsPerGame`-0 en BO5 → délta ±3 ; BO7 dérivé (4 manches).
    */
   forfeitScore: { games: number; goalsPerGame: number };
+}
+
+// ── Séquence de phases (décision A, docs/registry-formats-design.md §2) ─────
+// Un tournoi = une liste ordonnée d'ÉTAPES DE FORMAT (« stages » — à ne pas
+// confondre avec le phasePlan, découpage TEMPOREL des rondes d'UNE étape).
+// Une compétition existante = un tournoi à une seule étape de son format.
+// Types posés dès le socle ; le runtime multi-étapes est un chantier suivant.
+
+/** Stratégie de seeding d'une étape (brique TRANSVERSE de première classe —
+ *  design §4) : manuelle, aléatoire, par MMR de référence (computeRefMmr) ou
+ *  par classement circuit (standings). */
+export type SeedingStrategy = 'manual' | 'random' | 'mmr' | 'circuit';
+
+/** Transfert vers l'étape suivante : les `advanceCount` premiers du classement
+ *  de l'étape passent, re-seedés selon `reseed`. Absent sur la dernière étape. */
+export interface StageTransfer {
+  advanceCount: number;
+  reseed: SeedingStrategy;
+}
+
+/** Une étape de tournoi : son format, sa config, son transfert éventuel. */
+export interface TournamentStage {
+  kind: FormatKind;
+  format: CompetitionFormat;
+  transfer?: StageTransfer;
 }
 
 export interface CompetitionEligibility {
@@ -261,8 +297,8 @@ export interface CompetitionSchedule {
 export interface PhasePlanEntry {
   phase: number;                     // 1-based, ordre de lancement
   day: number;                       // 1-based, index dans schedule.days
-  label: string;                     // "P2 — WR2 + LR1"
-  rounds: Array<{ bracket: 'winners' | 'losers' | 'grand_final'; round: number }>;
+  label: string;                     // "P2 — WR2 + LR1" | "J3" (RR : journée)
+  rounds: Array<{ bracket: 'winners' | 'losers' | 'grand_final' | 'round_robin'; round: number }>;
 }
 
 // ── Inscriptions ────────────────────────────────────────────────────────────
@@ -380,9 +416,11 @@ export interface RegistrationRosterEntry {
 export interface CompetitionMatch {
   id: string;
   competitionId: string;
-  bracket: 'winners' | 'losers' | 'grand_final';
-  round: number;
-  slot: number;                    // position dans la ronde
+  bracket: 'winners' | 'losers' | 'grand_final' | 'round_robin';
+  round: number;                   // ronde d'arbre, ou journée en round robin
+  slot: number;                    // position dans la ronde (RR : global journée)
+  /** Round robin uniquement : poule 1-based. Absent sur les matchs d'arbre. */
+  group?: number;
   phase: number | null;            // rattachement au phasePlan
   bo: number;
   teamA: string | null;            // registrationId, null = TBD

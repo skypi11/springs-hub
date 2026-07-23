@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   generateDoubleElim,
   generateSingleElim,
+  generateRoundRobin,
   advanceMatch,
   replaceTeam,
+  withdrawTeam,
   computePlacements,
   computeTeamStats,
   championOf,
@@ -310,5 +312,119 @@ describe('bracket-store — simple élimination', () => {
     const finishedRebuilt = playOut(rebuilt, 55);
     expect(championOf(finishedRebuilt)).toBe(championOf(finishedOriginal));
     expect(computePlacements(finishedRebuilt)).toEqual(computePlacements(finishedOriginal));
+  });
+});
+
+// ── Round robin : round-trip + reconstruction + progression ─────────────────
+
+describe('bracket-store — round robin', () => {
+  const RR_BO: BoConfig = { default: 5, overrides: [], grandFinal: 5 };
+  function genRR(n: number, groups = 1, doubleRound = false): Bracket {
+    return generateRoundRobin(teams(n), { bo: RR_BO, forfeitScore: FORFEIT, groups, doubleRound });
+  }
+  function roundTrip(bracket: Bracket): Bracket {
+    const docs = bracket.order.map(id => ({
+      id,
+      ...pureMatchToDoc('comp-rr', bracket.matches[id], { a: null, b: null }),
+    }));
+    return reconstructBracket({
+      withdrawn: [...bracket.withdrawn],
+      bo: bracket.bo,
+      forfeitScore: bracket.forfeitScore,
+      matches: docs,
+      kind: 'round_robin',
+    });
+  }
+
+  it('round-trip fidèle : tailles 4→12 × poules 1→3 × aller-retour', () => {
+    for (let n = 4; n <= 12; n++) {
+      for (const groups of [1, 2, 3]) {
+        if (groups > Math.floor(n / 2)) continue;
+        for (const doubleRound of [false, true]) {
+          const b = genRR(n, groups, doubleRound);
+          const back = roundTrip(b);
+          expect(back.kind).toBe('round_robin');
+          expect(back.size).toBe(b.size);
+          expect(back.teams).toEqual(b.teams);
+          expect(back.groups).toBe(b.groups);
+          expect(back.matchdays).toBe(b.matchdays);
+          expect(back.order).toEqual(b.order);
+          for (const id of b.order) {
+            expect(back.matches[id]).toEqual(b.matches[id]);
+          }
+        }
+      }
+    }
+  });
+
+  it('la poule survit à la sérialisation (champ group) et jamais sur un arbre', () => {
+    const rr = genRR(8, 2);
+    const doc = pureMatchToDoc('comp-rr', rr.matches[rr.order[0]], { a: null, b: null });
+    expect(doc.group).toBe(1);
+    const elim = gen(4);
+    const elimDoc = pureMatchToDoc('comp-elim', elim.matches[elim.order[0]], { a: null, b: null });
+    expect('group' in elimDoc).toBe(false);
+  });
+
+  it('round-trip après progression (résultat + retrait en cascade)', () => {
+    let b = genRR(6, 2);
+    b = advanceMatch(b, b.order[0], {
+      type: 'winner',
+      winner: 'a',
+      scores: [{ a: 2, b: 0 }, { a: 2, b: 1 }, { a: 2, b: 0 }],
+    });
+    const withdrawnTeam = b.matches[b.order[1]].teamA!;
+    b = withdrawTeam(b, withdrawnTeam);
+    const docs = b.order.map(id => ({
+      id,
+      ...pureMatchToDoc('comp-rr', b.matches[id], { a: null, b: null }),
+    }));
+    const back = reconstructBracket({
+      withdrawn: [...b.withdrawn],
+      bo: b.bo,
+      forfeitScore: b.forfeitScore,
+      matches: docs,
+      kind: 'round_robin',
+    });
+    for (const id of b.order) {
+      expect(back.matches[id]).toEqual(b.matches[id]);
+    }
+  });
+
+  it('reconstruction inférée sans kind explicite (matchs round_robin présents)', () => {
+    const b = genRR(5);
+    const docs = b.order.map(id => ({
+      id,
+      ...pureMatchToDoc('comp-rr', b.matches[id], { a: null, b: null }),
+    }));
+    const back = reconstructBracket({
+      withdrawn: [],
+      bo: b.bo,
+      forfeitScore: b.forfeitScore,
+      matches: docs,
+    });
+    expect(back.kind).toBe('round_robin');
+    expect(back.size).toBe(5);
+  });
+
+  it('materializeBracket route le round robin (docs + poule sérialisée)', () => {
+    const registrations: Record<string, { display: { name: string; tag: string; logoUrl: string | null }; rosterUids: string[] }> = {};
+    for (const t of teams(8)) {
+      registrations[t] = { display: { name: t, tag: t.toUpperCase(), logoUrl: null }, rosterUids: [`u_${t}`] };
+    }
+    const { matches, acls } = materializeBracket({
+      competitionId: 'comp-rr',
+      seeding: teams(8),
+      bo: RR_BO,
+      forfeitScore: FORFEIT,
+      registrations,
+      kind: 'round_robin',
+      groups: 2,
+    });
+    expect(matches).toHaveLength(12); // 2 poules de 4 → 2 × C(4,2)
+    expect(matches.every(m => m.doc.bracket === 'round_robin')).toBe(true);
+    expect(matches.every(m => typeof m.doc.group === 'number')).toBe(true);
+    // Toutes les équipes connues d'avance → une ACL par match.
+    expect(acls).toHaveLength(12);
   });
 });

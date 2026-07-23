@@ -21,13 +21,12 @@ import {
   advanceMatch,
   withdrawTeam,
   replaceTeam,
-  isFinished,
-  needsAdminDecision,
   type Bracket,
   type BoConfig,
   type GameScore,
   type MatchOutcome,
 } from '@/lib/tournament';
+import { engineFor, kindOf } from '@/lib/competitions/formats-server';
 import { reconstructBracket, type MatchDoc, type TeamDisplay } from '@/lib/competitions/bracket-store';
 import { expectedAutoOutcome, sameOutcome, type FlowOutcome } from '@/lib/competitions/match-flow';
 import { toFlowState } from '@/lib/competitions/match-flow-server';
@@ -232,12 +231,16 @@ async function applyEngineOp(
       rosterByReg.set(s.id, Array.isArray(r.rosterUids) ? (r.rosterUids as string[]) : []);
     }
 
+    // Prédicats de fin routés par la registry de formats : élims = champion
+    // mécanique (isFinished/needsAdminDecision) ; round robin = tous les
+    // matchs terminaux, jamais de « décision admin » pour un champion.
+    const engine = engineFor(kindOf(comp.format));
     const before = reconstructBracket({
       withdrawn: Array.isArray(comp.withdrawn) ? (comp.withdrawn as string[]) : [],
       bo: cfg.bo,
       forfeitScore: cfg.forfeitScore,
       matches: docs.map(d => ({ id: d.id, ...d.data })),
-      kind: comp.format?.kind === 'single_elim' ? 'single_elim' : 'double_elim',
+      kind: kindOf(comp.format),
     });
 
     // Garde d'idempotence : un outcome sur un pivot déjà terminal = déjà
@@ -246,7 +249,7 @@ async function applyEngineOp(
       const pivot = before.matches[op.matchId];
       if (!pivot) throw new Error('match_not_found');
       if (pivot.status === 'completed' || pivot.status === 'walkover' || pivot.status === 'cancelled') {
-        return { changedMatchIds: [], finished: isFinished(before), needsAdminDecision: needsAdminDecision(before) };
+        return { changedMatchIds: [], finished: engine.isFinished(before), needsAdminDecision: engine.needsAdminDecision(before) };
       }
       // Garde des finalisations AUTO : re-valider la décision sur le doc frais.
       if (extra?.autoGuard) {
@@ -257,7 +260,7 @@ async function applyEngineOp(
         if (!expected || !outcomeMatchesFlow(op.outcome, expected)) {
           // L'état a bougé depuis la décision (litige, correction, contre-
           // saisie) : finalisation périmée abandonnée.
-          return { changedMatchIds: [], finished: isFinished(before), needsAdminDecision: needsAdminDecision(before) };
+          return { changedMatchIds: [], finished: engine.isFinished(before), needsAdminDecision: engine.needsAdminDecision(before) };
         }
       }
     }
@@ -374,8 +377,8 @@ async function applyEngineOp(
 
     return {
       changedMatchIds: patches.map(p => p.matchId),
-      finished: isFinished(after),
-      needsAdminDecision: needsAdminDecision(after),
+      finished: engine.isFinished(after),
+      needsAdminDecision: engine.needsAdminDecision(after),
     };
   });
 }

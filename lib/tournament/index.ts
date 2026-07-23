@@ -4,6 +4,21 @@
 
 export * from './types';
 export { generateDoubleElim, generateSingleElim, seedOrder, boForRound, MIN_TEAMS, MAX_TEAMS } from './generate';
+export {
+  generateRoundRobin,
+  snakePools,
+  RR_MIN_TEAMS,
+  RR_MAX_TEAMS,
+  RR_MAX_POOL_SIZE,
+  type RoundRobinOptions,
+} from './round-robin';
+export {
+  computeRoundRobinStandings,
+  computeRoundRobinPlacements,
+  DEFAULT_RR_POINTS,
+  type RoundRobinPoints,
+  type PoolStandingRow,
+} from './round-robin-standings';
 export { advanceMatch, withdrawTeam, replaceTeam, forfeitScores, isTerminal } from './advance';
 export {
   computeTeamStats,
