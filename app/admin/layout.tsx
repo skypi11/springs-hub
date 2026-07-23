@@ -25,7 +25,7 @@ type DashboardBadges = {
 };
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { isAdmin, isCompetitionAdmin, loading: authLoading, firebaseUser } = useAuth();
+  const { isAdmin, isCompetitionAdmin, loading: authLoading, profileEnriched, firebaseUser } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -34,17 +34,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // le re-vérifient de toute façon côté serveur.
   const compAdminOnly = !isAdmin && isCompetitionAdmin;
   const allowed = isAdmin || isCompetitionAdmin;
+  // Au HARD REFRESH, `loading` retombe à false dès que Firebase Auth répond,
+  // AVANT que /api/auth/me ait posé isAdmin (course — retour Matt : « quand
+  // je refresh le panel, ça me ramène à l'accueil »). Tant que la qualité
+  // d'admin n'est pas CONNUE (profileEnriched), on attend au lieu d'éjecter.
+  const adminessKnown = profileEnriched || allowed;
 
   useEffect(() => {
     if (authLoading) return;
-    if (!firebaseUser || !allowed) {
+    if (!firebaseUser) {
+      router.replace('/');
+      return;
+    }
+    if (!adminessKnown) return;
+    if (!allowed) {
       router.replace('/');
       return;
     }
     if (compAdminOnly && !pathname.startsWith('/admin/competitions')) {
       router.replace('/admin/competitions');
     }
-  }, [authLoading, allowed, compAdminOnly, firebaseUser, router, pathname]);
+  }, [authLoading, allowed, adminessKnown, compAdminOnly, firebaseUser, router, pathname]);
 
   // Même queryKey que le dashboard → React Query déduplique le fetch et les
   // badges se rafraîchissent quand l'admin clique "marquer comme vu".
@@ -71,7 +81,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
     : {};
 
-  if (authLoading) {
+  // Loader tant que Firebase répond, OU tant que la qualité d'admin n'est pas
+  // connue au hard refresh (même course que le useEffect ci-dessus — sans ça,
+  // le return null d'en dessous flashait puis le redirect éjectait un admin).
+  if (authLoading || (firebaseUser && !adminessKnown)) {
     return (
       <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-6 lg:py-8 flex items-center justify-center">
         <Loader2 size={24} className="animate-spin" style={{ color: 'var(--s-text-dim)' }} />
