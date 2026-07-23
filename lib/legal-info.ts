@@ -63,6 +63,12 @@ export const LEGAL_INFO = {
       location: 'Discord Inc., San Francisco, États-Unis',
     },
     {
+      name: 'Riot Games',
+      purpose: 'Authentification Riot (RSO « Se connecter avec Riot », scope openid) pour la vérification d\'identité de jeu (Valorant / League of Legends)',
+      url: 'https://www.riotgames.com',
+      location: 'Riot Games Inc., Los Angeles, États-Unis',
+    },
+    {
       name: 'Sentry',
       purpose: 'Monitoring technique (erreurs applicatives)',
       url: 'https://sentry.io',
@@ -83,5 +89,5 @@ export const LEGAL_INFO = {
   ],
 
   // Dernière mise à jour du document (format YYYY-MM-DD)
-  lastUpdated: '2026-05-31',
+  lastUpdated: '2026-07-23',
 } as const;

@@ -57,6 +57,19 @@ export default function ConfidentialitePage() {
             </p>
           </SubBlock>
 
+          <SubBlock title="À la connexion via Riot (« Se connecter avec Riot »)">
+            <ul className="text-sm space-y-1 pl-4" style={{ color: 'var(--s-text-dim)', listStyle: 'disc' }}>
+              <li>Deux identifiants uniquement : le <strong style={{ color: 'var(--s-text)' }}>PUUID</strong> (identifiant Riot permanent, qui ne change pas même si vous renommez votre compte) et le <strong style={{ color: 'var(--s-text)' }}>RiotID</strong> (pseudo#tag)</li>
+              <li>Scope demandé : <code className="t-mono" style={{ color: 'var(--s-text)' }}>openid</code> uniquement — aucun accès aux données de match, aux statistiques de jeu ni à aucune API Riot restreinte</li>
+              <li>Finalités strictes : afficher votre identité Riot vérifiée sur votre propre profil, et vérifier votre éligibilité (lutte anti-smurf) pour les compétitions communautaires auxquelles vous choisissez de participer</li>
+              <li>Le PUUID sert d&apos;ancre immuable : un changement de pseudo ne peut ni casser ni usurper la vérification. Changer le compte Riot lié nécessite une validation manuelle par un administrateur</li>
+              <li>Vous pouvez délier votre compte Riot à tout moment depuis vos paramètres</li>
+            </ul>
+            <p className="text-xs mt-2" style={{ color: 'var(--s-text-muted)' }}>
+              Votre mot de passe Riot n&apos;est jamais vu par Aedral : la validation se fait sur <code className="t-mono">riotgames.com</code> et l&apos;échange de jetons a lieu entièrement côté serveur. Ces identifiants ne sont <strong style={{ color: 'var(--s-text)' }}>jamais vendus ni partagés</strong> et ne sont obtenus que via votre propre connexion — jamais en interrogeant d&apos;autres joueurs.
+            </p>
+          </SubBlock>
+
           <SubBlock title="Profil utilisateur (renseigné librement)">
             <ul className="text-sm space-y-1 pl-4" style={{ color: 'var(--s-text-dim)', listStyle: 'disc' }}>
               <li>Pseudo affiché, pays, date de naissance (seul l&apos;âge calculé est public)</li>
@@ -111,6 +124,7 @@ export default function ConfidentialitePage() {
             <li><strong style={{ color: 'var(--s-text)' }}>Sécurité</strong> : détecter les abus, bannir les comportements malveillants, auditer les actions sensibles.</li>
             <li><strong style={{ color: 'var(--s-text)' }}>Communication communautaire</strong> : afficher les profils publics, annuaires, classements.</li>
             <li><strong style={{ color: 'var(--s-text)' }}>Amélioration technique</strong> : monitoring d&apos;erreurs anonymisé via Sentry.</li>
+            <li><strong style={{ color: 'var(--s-text)' }}>Intégrité compétitive</strong> : vérifier l&apos;identité des comptes de jeu liés (Epic, Steam, Riot) pour lutter contre le smurf et garantir l&apos;équité des compétitions communautaires.</li>
           </ul>
           <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
             <strong style={{ color: 'var(--s-text)' }}>Aucune donnée n&apos;est vendue ni partagée avec des tiers commerciaux.</strong>
@@ -131,6 +145,7 @@ export default function ConfidentialitePage() {
           <dl className="text-sm space-y-2">
             <DurationLine label="Profil actif" value="Tant que votre compte existe." />
             <DurationLine label="Après suppression de compte" value="Profil effacé immédiatement ; retrait de toutes les équipes et structures." />
+            <DurationLine label="Identifiants Riot (PUUID, RiotID)" value="Conservés tant que le lien reste actif ; supprimés lorsque vous déliez votre compte Riot ou supprimez votre compte." />
             <DurationLine label="Journaux d'audit" value="3 ans maximum (obligation légale d'intégrité + lutte contre la fraude)." />
             <DurationLine label="Logs techniques Sentry" value="90 jours maximum." />
             <DurationLine label="Événements PostHog (mesure d'usage)" value="1 an maximum. Désactivable à tout moment depuis Paramètres → Compte → Vie privée." />
