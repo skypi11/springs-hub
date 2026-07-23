@@ -125,13 +125,27 @@ partir de ces descripteurs → extensible à l'infini, self-service, gate-friend
 
 Répartition modèles : **moteurs → Fable 5** (cœur algo), **refonte création → Opus 4.8** (UI/DA/UX).
 
-## 6. Décisions à prendre avec Matt
+## 6. Décisions validées (Matt, 23/07)
 
-1. **Couverture cible v1** : on vise quels formats en priorité ? (reco : round
-   robin + poules→playoff d'abord — le plus demandé en esport ; Suisse ensuite ;
-   FFA pour débloquer TM.)
-2. **1v1 / solo** : on l'inclut (pour un TM Monthly Cup natif) ou on reste
-   équipe d'abord ?
-3. **Taille max** : jusqu'à combien d'équipes viser au-delà de 32 ?
-4. **Registry d'abord** : on cadre le descripteur de config ensemble avant de
-   lancer le round robin sur Fable ?
+1. **Priorité v1** : **round robin + poules→playoff d'abord**, **Suisse** ensuite. ✅
+2. **Multi-phases GÉNÉRIQUE = objectif confirmé** : pouvoir composer *n'importe
+   quelle* combinaison (suisse → bracket, round robin → bracket, etc.). C'est
+   l'étape 5 et la raison d'être de la construction en briques composables + du
+   concept de « phase » déjà présent (`phasePlan`). À garder en ligne de mire
+   **dès le design** des moteurs : chaque moteur doit pouvoir être une phase
+   alimentée par le top-N de la précédente, avec re-seeding entre les deux.
+3. **1v1 / solo : PAS prioritaire** — on reste **équipe** d'abord (le gros des
+   compètes esport). Le 1v1 Rocket League existe mais s'ajoutera facilement plus
+   tard (le moteur d'arbre gère déjà 2 « participants » par match, équipe ou solo).
+   **Trackmania = chantier À PART** (FFA / course, points F1) — hors périmètre
+   immédiat, donc le FFA sort de la priorité v1.
+4. **Taille max : viser 128** (64 = minimum acquis d'office). `MAX_TEAMS = 32`
+   n'est qu'un **garde-fou** — le moteur (`nextPowerOfTwo` + `seedOrder` récursif,
+   generate.ts) marche déjà pour toute puissance de 2. Passer à 64/128 = relever la
+   constante + étendre les property tests + **ajouter les libellés de rondes
+   au-delà de « Seizièmes »** (`TournamentBracket.tsx` s'arrête à roundCount-4 →
+   manque « Trente-deuxièmes »… ; cosmétique). **256 possible** mais nécessite une
+   passe d'**affichage** (bracket de 256 = visuellement énorme) + un œil sur le coût
+   Firestore (~255 matchs simple élim / ~510 double). Pas un gros chantier.
+5. **Démarrage** : cadrer la **registry de formats** ensemble (Opus), puis
+   **round robin** sur Fable.
