@@ -46,6 +46,8 @@ interface ConsoleMatch {
   bracket: string;
   round: number;
   slot: number;
+  /** Round robin : poule 1-based — sans lui, le bracket fusionne les poules. */
+  group?: number;
   phase: number | null;
   bo: number;
   status: string;
@@ -339,8 +341,11 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
   // topologie + sources ; le viewer déduplique ses re-renders par JSON.
   const bracketMatches = useMemo<PublicBracketMatch[]>(() => (data?.matches ?? []).map(m => ({
     id: m.id,
-    bracket: m.bracket as 'winners' | 'losers' | 'grand_final',
+    bracket: m.bracket as PublicBracketMatch['bracket'],
     round: m.round, slot: m.slot, bo: m.bo,
+    // Poule (round robin) : sans lui, l'adaptateur fusionne tout en « Poule 1 »
+    // (bug attrapé par Matt sur la démo).
+    ...(typeof m.group === 'number' ? { group: m.group } : {}),
     teamA: m.teamA, teamB: m.teamB, voidA: m.voidA, voidB: m.voidB,
     teamAInfo: m.teamAInfo, teamBInfo: m.teamBInfo,
     // Sources du serveur = union discriminée conforme au runtime (produites par

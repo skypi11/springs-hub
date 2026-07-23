@@ -577,6 +577,28 @@
 .aedral-bracket .brackets-viewer .round-robin h2:first-of-type { margin-top: 4px; }
 /* Suisse : groupe unique — le titre « Poule 1 » serait faux, masqué. */
 .bv-groups-swiss .brackets-viewer .round-robin h2 { display: none; }
+/* Layout des groupes : le vendor EMPILE les journées verticalement et centre
+   le tout (colonne unique + grand vide à droite — retour Matt). On aligne sur
+   la logique du bracket : chaque poule = une rangée pleine largeur, ses
+   journées en COLONNES côte à côte ; le scroll horizontal vit déjà dans
+   .brackets-viewer. */
+.aedral-bracket .brackets-viewer .round-robin {
+  justify-content: flex-start;
+  row-gap: 12px;
+}
+.aedral-bracket .brackets-viewer .round-robin .group {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  column-gap: var(--round-margin);
+  margin-right: 0;
+}
+.aedral-bracket .brackets-viewer .round-robin .group h2 {
+  flex-basis: 100%;
+  text-align: left;
+}
+.aedral-bracket .brackets-viewer .round-robin .round { margin: 0; }
 /* En-têtes de ronde (Quarts, Demi-finales…) — bande neutre, pas de fond. */
 .aedral-bracket .brackets-viewer h3 {
   background: transparent;
