@@ -529,9 +529,9 @@
    jeu). Le scroll horizontal vit dans .brackets-viewer (overflow vendor,
    assumé — c'est aussi la cible de la restauration de scroll du wrapper) —
    la PAGE ne scrolle jamais.
-   TODO (avant le premier format round robin) : la table .round-robin vendor
-   n'est pas thémée (gris #a7a7a7 hardcodé) — couvrir table/th/h2 à ce
-   moment-là. */
+   Stage round_robin (poules + suisse) : conteneur vendor .round-robin —
+   thémé ci-dessous (la ranking TABLE native reste désactivée côté wrapper,
+   StandingsTable fait foi). */
 .aedral-bracket { max-width: 100%; }
 .aedral-bracket .brackets-viewer {
   --primary-background: transparent;
@@ -563,14 +563,20 @@
 }
 /* Titre de stage : toujours créé par le viewer — on rend name:'' → masqué. */
 .aedral-bracket .brackets-viewer h1 { display: none; }
-/* Titres de section (Winners bracket / Losers bracket) — DA display. */
-.aedral-bracket .brackets-viewer .bracket h2 {
+/* Titres de section (Winners bracket / Losers bracket / Poule N) — DA display.
+   Le stage round_robin rend ses groupes dans .round-robin (pas .bracket) :
+   mêmes règles pour les deux conteneurs. */
+.aedral-bracket .brackets-viewer .bracket h2,
+.aedral-bracket .brackets-viewer .round-robin h2 {
   font-family: var(--font-bebas), system-ui, sans-serif;
   text-transform: uppercase;
   font-size: 19px; letter-spacing: 0.05em;
   color: var(--s-text); margin: 18px 0 10px;
 }
 .aedral-bracket .brackets-viewer .bracket:first-of-type h2 { margin-top: 4px; }
+.aedral-bracket .brackets-viewer .round-robin h2:first-of-type { margin-top: 4px; }
+/* Suisse : groupe unique — le titre « Poule 1 » serait faux, masqué. */
+.bv-groups-swiss .brackets-viewer .round-robin h2 { display: none; }
 /* En-têtes de ronde (Quarts, Demi-finales…) — bande neutre, pas de fond. */
 .aedral-bracket .brackets-viewer h3 {
   background: transparent;

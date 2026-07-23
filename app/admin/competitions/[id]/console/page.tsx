@@ -134,6 +134,8 @@ interface ConsoleData {
   registrations: ConsoleRegistration[];
   finished: boolean;
   needsAdminDecision: boolean;
+  /** Formats à génération incrémentale (suisse) : la ronde suivante est appariable. */
+  canGenerateNextRound: boolean;
   placements: Array<{ registrationId: string; placement: number | null; group: string }> | null;
   unresolvedTiebreaks: TiebreakGroup[];
   finalPlacements: FinalPlacementRow[] | null;
@@ -503,6 +505,21 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
                   if (ok) action({ action: 'close_competition' }, 'Compétition clôturée — classement final écrit.');
                 }}>
                 Clôturer le Qualif
+              </button>
+            </div>
+          </section>
+        ) : data.canGenerateNextRound && data.competition.status === 'live' ? (
+          <section className="con-decide bevel" style={{ padding: '16px 20px' }}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-display" style={{ fontSize: 22, letterSpacing: '0.03em' }}>RONDE TERMINÉE</p>
+                <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>
+                  Tous les matchs sont réglés. La ronde suivante s&apos;apparie sur le classement courant — les matchs créés se lancent ensuite comme d&apos;habitude.
+                </p>
+              </div>
+              <button className="btn-springs btn-primary bevel-sm" disabled={busy !== null}
+                onClick={() => action({ action: 'generate_next_round' }, 'Ronde suivante appariée — lance ses matchs quand tu veux.')}>
+                Apparier la ronde suivante
               </button>
             </div>
           </section>

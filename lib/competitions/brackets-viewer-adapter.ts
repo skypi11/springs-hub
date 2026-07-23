@@ -36,13 +36,16 @@ export type PublicMatchSource =
   | { type: 'bye'; ref: null };
 
 /** Match tel que servi par l'API publique du bracket. `round_robin` et
- *  `swiss` sont acceptés en ENTRÉE (les docs peuvent en porter) mais pas
- *  encore rendus — garde explicite dans adaptBracketForViewer. */
+ *  `swiss` sont rendus via le stage round_robin NATIF du viewer (sections par
+ *  poule, colonnes par journée/ronde — un suisse est visuellement une poule
+ *  unique dont les rondes naissent au fil des résultats). */
 export interface PublicBracketMatch {
   id: string;                               // clé moteur ("W1-1", "L2-3", "GF", "GFR", "R3-2", "S2-1")
   bracket: 'winners' | 'losers' | 'grand_final' | 'round_robin' | 'swiss';
   round: number;
   slot: number;
+  /** Round robin uniquement : poule 1-based. */
+  group?: number;
   bo: number;
   teamA: string | null;                     // registrationId (public, pas un uid)
   teamB: string | null;
@@ -220,11 +223,12 @@ function opponentOf(m: PublicBracketMatch, side: 'a' | 'b'): ParticipantResult |
  * output moteur (generate* → pureMatchToDoc → adapter).
  */
 export function adaptBracketForViewer(input: PublicBracketMatch[]): AdaptedBracket {
-  // Round robin / suisse : pas encore d'adaptateur de vue (le viewer les rend
-  // nativement — passe suivante). Échec EXPLICITE plutôt qu'un rendu à moitié
-  // faux : le wrapper TournamentBracket catch → état d'erreur propre.
+  // Round robin / suisse : stage round_robin natif du viewer (sections par
+  // poule, colonnes par journée/ronde). Le classement, lui, vient de NOTRE
+  // table (StandingsTable + API standings) — la ranking table du viewer est
+  // désactivée : son tri figé divergerait du classement officiel (review).
   if (input.some(m => m.bracket === 'round_robin' || m.bracket === 'swiss')) {
-    throw new Error('Affichage à venir : les brackets round robin et suisse n\'ont pas encore d\'adaptateur de vue.');
+    return adaptGroupStageForViewer(input);
   }
   // Un double élim généré comporte TOUJOURS une grande finale ; son absence
   // signe un simple élim (même inférence que reconstructBracket).
@@ -341,6 +345,87 @@ export function adaptBracketForViewer(input: PublicBracketMatch[]): AdaptedBrack
           skipFirstRound: false,
         },
       };
+
+  return {
+    data: { stages: [stage], matches: viewerMatches, matchGames: [], participants },
+    images,
+    decorations,
+  };
+}
+
+/**
+ * Round robin / suisse → stage round_robin du viewer : `group_id` = poule
+ * (suisse : groupe unique 1), `round_id` = journée/ronde, `number` RENUMÉROTÉ
+ * 1..k dans (groupe, ronde) — nos slots sont globaux par journée, des numéros
+ * troués dans une poule seraient illisibles. Aucun `winner_of`/`loser_of` :
+ * pas de hints d'origine ; les décorations live/stream s'appliquent
+ * normalement. Un bye suisse (côté B void) s'affiche BYE nativement.
+ */
+function adaptGroupStageForViewer(input: PublicBracketMatch[]): AdaptedBracket {
+  const groupMatches = input
+    .filter(m => m.bracket === 'round_robin' || m.bracket === 'swiss')
+    .sort((x, y) => (x.group ?? 1) - (y.group ?? 1) || x.round - y.round || x.slot - y.slot);
+  if (groupMatches.length !== input.length) {
+    // Jamais produit par les moteurs (un bracket est homogène) — docs
+    // incohérents : échec visible plutôt qu'un rendu partiel faux.
+    throw new Error('Bracket incohérent : matchs de poule et d\'arbre mélangés.');
+  }
+
+  const participants: Participant[] = [];
+  const images: AdaptedBracket['images'] = [];
+  const seen = new Set<string>();
+  const collect = (regId: string | null, info: PublicBracketMatch['teamAInfo']): void => {
+    if (!regId || seen.has(regId)) return;
+    seen.add(regId);
+    participants.push({ id: regId, tournament_id: 0, name: info?.name || info?.tag || 'Équipe' });
+    if (info?.logoUrl) images.push({ participantId: regId, imageUrl: info.logoUrl });
+  };
+
+  const viewerMatches: Match[] = [];
+  const decorations: AdaptedBracket['decorations'] = {};
+  const numberInCell = new Map<string, number>(); // "group|round" → prochain numéro
+
+  let groupCount = 1;
+  for (const m of groupMatches) {
+    collect(m.teamA, m.teamAInfo);
+    collect(m.teamB, m.teamBInfo);
+    const group = m.group ?? 1;
+    if (group > groupCount) groupCount = group;
+
+    const cell = `${group}|${m.round}`;
+    const number = (numberInCell.get(cell) ?? 0) + 1;
+    numberInCell.set(cell, number);
+
+    viewerMatches.push({
+      id: m.id,
+      stage_id: 0,
+      group_id: group,
+      round_id: m.round,
+      number,
+      child_count: m.bo,
+      status: viewerStatus(m),
+      opponent1: opponentOf(m, 'a'),
+      opponent2: opponentOf(m, 'b'),
+    });
+
+    const live =
+      m.status === 'live' || m.status === 'awaiting_scores' || m.status === 'score_review';
+    const concluded =
+      m.status === 'completed' || m.status === 'walkover' || m.status === 'cancelled';
+    const stream = m.cast?.featured && !concluded ? (m.cast.streamUrl ?? '') : null;
+    if (live || stream !== null) {
+      decorations[m.id] = { live, stream };
+    }
+  }
+
+  const stage: Stage = {
+    id: 0,
+    tournament_id: 0,
+    name: '',
+    type: 'round_robin',
+    number: 1,
+    settings: { size: participants.length, groupCount },
+  };
 
   return {
     data: { stages: [stage], matches: viewerMatches, matchGames: [], participants },

@@ -17,6 +17,7 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { api, apiPublic } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
 import TournamentBracket from '@/components/competitions/TournamentBracket';
+import StandingsTable, { type StandingsGroup } from '@/components/competitions/StandingsTable';
 import { useWorkerInterval } from '@/components/competitions/useWorkerInterval';
 import type { PublicBracketMatch } from '@/lib/competitions/brackets-viewer-adapter';
 
@@ -48,12 +49,29 @@ export default function BracketView({ competitionId, gameColor, competitionStatu
   // CDN (s-maxage 10 s) : la cadence ne coûte pas de lectures Firestore.
   useWorkerInterval(() => {
     queryClient.invalidateQueries({ queryKey: ['competition-bracket', competitionId] });
+    queryClient.invalidateQueries({ queryKey: ['competition-standings', competitionId] });
   }, 15_000, !concluded);
   // null = chargement ; [] = erreur ou vide.
   const matches = useMemo(
     () => data?.matches ?? (isError ? [] : null),
     [data, isError],
   );
+
+  // Round robin / suisse : le CLASSEMENT accompagne la grille des matchs —
+  // servi par l'API dédiée (fonctions pures du moteur, la table du viewer est
+  // désactivée). Requête activée seulement quand les matchs le révèlent.
+  const isGroupStage = useMemo(
+    () => (matches ?? []).some(m => m.bracket === 'round_robin' || m.bracket === 'swiss'),
+    [matches],
+  );
+  const { data: standings } = useQuery({
+    queryKey: ['competition-standings', competitionId, !!user],
+    queryFn: () => (user ? api : apiPublic)<{ kind: 'round_robin' | 'swiss'; groups: StandingsGroup[] }>(
+      `/api/competitions/${competitionId}/standings`),
+    staleTime: 10_000,
+    enabled: isGroupStage,
+    placeholderData: keepPreviousData,
+  });
 
   // On ne blanke le bracket QUE si on n'a jamais rien reçu : un blip réseau
   // (refetch 15 s échoué) garde le dernier bracket affiché (React Query
@@ -69,5 +87,15 @@ export default function BracketView({ competitionId, gameColor, competitionStatu
     return <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>Le bracket n&apos;est pas encore publié.</p>;
   }
 
-  return <TournamentBracket matches={matches} gameColor={gameColor} onMatchClick={openMatch} />;
+  return (
+    <div className="space-y-6">
+      <TournamentBracket matches={matches} gameColor={gameColor} onMatchClick={openMatch} />
+      {isGroupStage && standings && standings.groups.length > 0 && (
+        <div>
+          <p className="t-label mb-3" style={{ color: 'var(--s-text-dim)' }}>Classement</p>
+          <StandingsTable kind={standings.kind} groups={standings.groups} />
+        </div>
+      )}
+    </div>
+  );
 }

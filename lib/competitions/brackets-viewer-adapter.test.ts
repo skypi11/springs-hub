@@ -3,6 +3,9 @@ import { Status } from 'brackets-model';
 import {
   generateDoubleElim,
   generateSingleElim,
+  generateRoundRobin,
+  generateSwiss,
+  generateSwissNextRound,
   advanceMatch,
   isTerminal,
   type Bracket,
@@ -464,3 +467,83 @@ function playRound1(bracket: Bracket): Bracket {
   }
   return b;
 }
+
+// ── Stage round_robin natif : poules et suisse ──────────────────────────────
+
+describe('adaptBracketForViewer — round robin (poules)', () => {
+  const RR_BO: BoConfig = { default: 5, overrides: [], grandFinal: 5 };
+
+  it('2 poules de 4 : stage round_robin, group_id = poule, round_id = journée, numbers renumérotés', () => {
+    const b = generateRoundRobin(teams(8), { bo: RR_BO, forfeitScore: FORFEIT, groups: 2 });
+    const adapted = adaptBracketForViewer(publicDocs(b));
+    expect(adapted.data.stages).toHaveLength(1);
+    expect(adapted.data.stages[0].type).toBe('round_robin');
+    expect((adapted.data.stages[0].settings as { groupCount?: number }).groupCount).toBe(2);
+    expect(adapted.data.matches).toHaveLength(12); // 2 × C(4,2)
+    expect(adapted.data.participants).toHaveLength(8);
+
+    const groupIds = new Set(adapted.data.matches.map(m => m.group_id));
+    expect([...groupIds].sort()).toEqual([1, 2]);
+    // Numbers contigus 1..k DANS chaque (groupe, ronde) — jamais les slots
+    // globaux troués de la journée.
+    const byCell = new Map<string, number[]>();
+    for (const m of adapted.data.matches) {
+      const key = `${m.group_id}|${m.round_id}`;
+      const arr = byCell.get(key) ?? [];
+      arr.push(m.number);
+      byCell.set(key, arr);
+    }
+    for (const numbers of byCell.values()) {
+      expect([...numbers].sort((a, b) => a - b)).toEqual(
+        Array.from({ length: numbers.length }, (_, i) => i + 1));
+    }
+  });
+
+  it('résultats et décorations passent comme en élimination', () => {
+    let b = generateRoundRobin(teams(4), { bo: RR_BO, forfeitScore: FORFEIT });
+    b = advanceMatch(b, b.order[0], { type: 'winner', winner: 'a', scores: winScores(5) });
+    const docs = publicDocs(b);
+    // Un match en cours + un casté (décorations greffées après render).
+    docs[1] = { ...docs[1], status: 'live' };
+    docs[2] = { ...docs[2], cast: { featured: true, streamUrl: 'https://twitch.tv/aedral' } };
+    const adapted = adaptBracketForViewer(docs);
+
+    const done = adapted.data.matches.find(m => m.id === b.order[0])!;
+    expect(done.status).toBe(Status.Completed);
+    expect(done.opponent1?.result).toBe('win');
+    expect(done.opponent1?.score).toBe(3);
+    expect(adapted.decorations[docs[1].id]).toMatchObject({ live: true });
+    expect(adapted.decorations[docs[2].id]).toMatchObject({ stream: 'https://twitch.tv/aedral' });
+  });
+
+  it('refuse un mélange incohérent poule + arbre', () => {
+    const rr = publicDocs(generateRoundRobin(teams(4), { bo: RR_BO, forfeitScore: FORFEIT }));
+    const elim = publicDocs(gen(4));
+    expect(() => adaptBracketForViewer([...rr, ...elim])).toThrow(/mélangés/);
+  });
+});
+
+describe('adaptBracketForViewer — suisse', () => {
+  const SW_BO: BoConfig = { default: 5, overrides: [], grandFinal: 5 };
+
+  it('groupe unique, une colonne par ronde générée, bye affiché BYE (opponent null)', () => {
+    let b = generateSwiss(teams(7), { bo: SW_BO, forfeitScore: FORFEIT, rounds: 3 });
+    for (const id of [...b.order]) {
+      const m = b.matches[id];
+      if (m.status !== 'pending') continue;
+      b = advanceMatch(b, id, { type: 'winner', winner: 'a', scores: winScores(5) });
+    }
+    b = generateSwissNextRound(b);
+    const adapted = adaptBracketForViewer(publicDocs(b));
+
+    expect(adapted.data.stages[0].type).toBe('round_robin');
+    expect((adapted.data.stages[0].settings as { groupCount?: number }).groupCount).toBe(1);
+    expect(new Set(adapted.data.matches.map(m => m.group_id)).size).toBe(1);
+    // Deux rondes générées → round_id 1 et 2 uniquement (les rondes futures
+    // n'existent pas encore — génération incrémentale).
+    expect([...new Set(adapted.data.matches.map(m => m.round_id))].sort()).toEqual([1, 2]);
+    // Le bye : opponent2 null (côté void) → « BYE » natif viewer.
+    const byes = adapted.data.matches.filter(m => m.opponent2 === null);
+    expect(byes.length).toBeGreaterThanOrEqual(1);
+  });
+});

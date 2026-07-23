@@ -66,6 +66,9 @@ const FR_STRINGS = {
   common: {
     bye: 'BYE',
     'best-of-x': 'BO{{x}}',
+    // Titres de section du stage round_robin (poules ; masqué en suisse via
+    // .bv-groups-swiss — un suisse est un groupe unique sans titre utile).
+    'group-name': 'Poule {{groupNumber}}',
     'group-name-winner-bracket': 'Winners bracket',
     'group-name-loser-bracket': 'Losers bracket',
     'round-name': 'Tour {{roundNumber}}',
@@ -80,6 +83,18 @@ const FR_STRINGS = {
 // En-têtes de rondes — mêmes libellés que l'ancienne vue (validés) : le
 // contexte winners/losers est déjà porté par le titre de section. En simple
 // élim (« single-bracket »), même échelle de profondeur que le winners.
+// Stage round_robin : « Journée N » (poules) / « Ronde N » (suisse) — le
+// wrapper choisit la closure selon le kind détecté (roundCount vaut 0 dans ce
+// mode, ne pas s'appuyer dessus).
+function makeRoundName(groupLabel: 'Journée' | 'Ronde' | null): NonNullable<Config['customRoundName']> {
+  return (info, t) => {
+    if (info.groupType === 'round-robin') {
+      return `${groupLabel ?? 'Journée'} ${info.roundNumber}`;
+    }
+    return customRoundName(info, t);
+  };
+}
+
 const customRoundName: NonNullable<Config['customRoundName']> = info => {
   if (info.groupType === 'final-group') {
     // Groupe finale : grande finale + reset en double élim, petite finale
@@ -187,15 +202,15 @@ export default function TournamentBracket({ matches, gameColor, onMatchClick }: 
   // mauvais conteneur si deux instances montent par erreur.
   const instanceClass = 'bv-' + useId().replace(/[^a-zA-Z0-9_-]/g, '');
 
-  // Round robin / suisse : pas encore d'adaptateur de vue (l'adaptateur jette
-  // une garde explicite). Rendu dédié CALME — jamais l'exception dans le corps
-  // de l'effet, qui démonterait la fiche publique ET la console jusqu'à
-  // l'error boundary (review adversariale, blocker).
-  const isUnsupportedView = matches.some(m => m.bracket === 'round_robin' || m.bracket === 'swiss');
+  // Round robin / suisse : stage round_robin natif (sections par poule,
+  // colonnes par journée/ronde). Le classement vit dans StandingsTable — la
+  // ranking table du viewer est désactivée (tri figé ≠ classement officiel).
+  const isGroupStage = matches.some(m => m.bracket === 'round_robin' || m.bracket === 'swiss');
+  const isSwiss = matches.some(m => m.bracket === 'swiss');
 
   useEffect(() => {
     const root = rootRef.current;
-    if (!root || matches.length === 0 || isUnsupportedView) return;
+    if (!root || matches.length === 0) return;
 
     const seq = ++seqRef.current;
     let disposed = false;
@@ -223,10 +238,14 @@ export default function TournamentBracket({ matches, gameColor, onMatchClick }: 
       await window.bracketsViewer.render(adapted.data, {
         selector: `.${instanceClass}`,
         clear: true,
-        customRoundName,
+        customRoundName: isGroupStage ? makeRoundName(isSwiss ? 'Ronde' : 'Journée') : customRoundName,
         onMatchClick: match => { onMatchClickRef.current?.(String(match.id)); },
-        showSlotsOrigin: true,               // préfixes « #seed » du round 1 winners
+        // Groupes : pas de préfixes « #seed » (tout le monde est connu, du
+        // bruit sur chaque carte) ni de ranking table native (StandingsTable
+        // fait foi — tri figé du viewer ≠ classement officiel).
+        showSlotsOrigin: !isGroupStage,
         showLowerBracketSlotsOrigin: false,  // provenances servies par NOS hints (décorations)
+        showRankingTable: false,
         showPopoverOnMatchLabelClick: false,
         separatedChildCountLabel: true,
         highlightParticipantOnHover: true,
@@ -251,23 +270,19 @@ export default function TournamentBracket({ matches, gameColor, onMatchClick }: 
         retryTimerRef.current = null;
       }
     };
-  }, [matches, instanceClass, retryTick, isUnsupportedView]);
-
-  if (isUnsupportedView) {
-    return (
-      <div className="aedral-bracket">
-        <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-          L&apos;affichage des poules et des rondes arrive bientôt. Les matchs et le classement restent gérés normalement — passe par la console ou la page de match.
-        </p>
-      </div>
-    );
-  }
+  }, [matches, instanceClass, retryTick, isGroupStage, isSwiss]);
 
   // Le conteneur reste TOUJOURS monté, même en échec : le poll suivant (ou le
   // retour du réseau) retente le rendu dans le même div — un échec transitoire
   // ne condamne pas le bracket jusqu'au reload (review adversariale).
+  const classes = [
+    'aedral-bracket',
+    onMatchClick ? 'bv-clickable' : '',
+    isGroupStage ? 'bv-groups' : '',
+    isSwiss ? 'bv-groups-swiss' : '',
+  ].filter(Boolean).join(' ');
   return (
-    <div className={onMatchClick ? 'aedral-bracket bv-clickable' : 'aedral-bracket'}
+    <div className={classes}
       style={{ '--bv-accent': gameColor } as React.CSSProperties}>
       {failed && (
         <p className="text-sm mb-2" style={{ color: 'var(--s-text-dim)' }}>
