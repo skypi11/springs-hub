@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest';
 import {
   generateRoundRobin,
   snakePools,
+  roundRobinBlocker,
   advanceMatch,
   withdrawTeam,
   replaceTeam,
@@ -338,5 +339,27 @@ describe('replaceTeam en round robin (avant le premier match joué)', () => {
     let b = gen(6);
     b = advanceMatch(b, b.order[0], { type: 'winner', winner: 'a', scores: sweep('a') });
     expect(() => replaceTeam(b, 't5', 'x')).toThrow();
+  });
+});
+
+// ── Régression review : faisabilité pour l'effectif RÉEL ────────────────────
+
+describe('roundRobinBlocker — source unique des règles de faisabilité', () => {
+  it('signale exactement ce que generateRoundRobin refuserait', () => {
+    // Le scénario du blocker : format « 4 poules » validé sur maxTeams=16,
+    // mais seulement 6 équipes inscrites → la route doit refuser AVANT le
+    // générateur, avec le même message.
+    expect(roundRobinBlocker(6, 4)).toContain('Trop de poules');
+    expect(roundRobinBlocker(3, 1)).toContain('hors bornes');
+    expect(roundRobinBlocker(65, 8)).toContain('hors bornes');
+    expect(roundRobinBlocker(42, 2)).toContain('Poule trop grande');
+    expect(roundRobinBlocker(6, 0)).toContain('poules invalide');
+    expect(roundRobinBlocker(8, 2)).toBeNull();
+    expect(roundRobinBlocker(64, 8)).toBeNull();
+  });
+
+  it('generateRoundRobin jette le même message (jamais de divergence)', () => {
+    expect(() => generateRoundRobin(teams(6), { bo: BO, forfeitScore: FORFEIT, groups: 4 }))
+      .toThrow(roundRobinBlocker(6, 4)!);
   });
 });

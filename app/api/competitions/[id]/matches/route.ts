@@ -68,6 +68,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         bracket: m.bracket ?? 'winners',
         round: m.round ?? 1,
         slot: m.slot ?? 1,
+        // Poule (round robin) — numéro public, aucune PII.
+        ...(typeof m.group === 'number' ? { group: m.group } : {}),
         bo: m.bo ?? 5,
         teamA: m.teamA ?? null,
         teamB: m.teamB ?? null,

@@ -253,6 +253,17 @@ function reconstructRoundRobin(input: {
   for (const doc of rrMatches) matches[doc.id] = docToPureMatch(doc);
   const order = orderIds(rrMatches.map(d => ({ id: d.id, bracket: d.bracket, round: d.round, slot: d.slot })));
 
+  // Aller-retour inféré des docs eux-mêmes (round-trip identitaire) : une
+  // paire de SEEDS qui se rencontre deux fois signe le double round — les
+  // sources seed sont immuables, robustes aux replaceTeam/sièges vidés.
+  const pairCounts = new Map<string, number>();
+  for (const m of rrMatches) {
+    if (m.sourceA.type !== 'seed' || m.sourceB.type !== 'seed') continue;
+    const key = [m.sourceA.ref, m.sourceB.ref].sort((a, b) => a - b).join('|');
+    pairCounts.set(key, (pairCounts.get(key) ?? 0) + 1);
+  }
+  const doubleRound = [...pairCounts.values()].some(c => c >= 2);
+
   return {
     kind: 'round_robin',
     teams,
@@ -261,6 +272,7 @@ function reconstructRoundRobin(input: {
     losersRounds: 0,
     groups: rrMatches.reduce((max, m) => Math.max(max, m.group ?? 1), 1),
     matchdays: rrMatches.reduce((max, m) => Math.max(max, m.round), 0),
+    doubleRound,
     bo: input.bo,
     forfeitScore: input.forfeitScore,
     matches,

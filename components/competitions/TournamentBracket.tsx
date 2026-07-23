@@ -187,19 +187,27 @@ export default function TournamentBracket({ matches, gameColor, onMatchClick }: 
   // mauvais conteneur si deux instances montent par erreur.
   const instanceClass = 'bv-' + useId().replace(/[^a-zA-Z0-9_-]/g, '');
 
+  // Round robin : pas encore d'adaptateur de vue (l'adaptateur jette une garde
+  // explicite). Rendu dédié CALME — jamais l'exception dans le corps de
+  // l'effet, qui démonterait la fiche publique ET la console jusqu'à l'error
+  // boundary (review adversariale, blocker).
+  const isRoundRobin = matches.some(m => m.bracket === 'round_robin');
+
   useEffect(() => {
     const root = rootRef.current;
-    if (!root || matches.length === 0) return;
-
-    const adapted = adaptBracketForViewer(matches);
-    const payload = JSON.stringify(adapted);
-    // Polling sans changement réel → pas de re-render (préserve le scroll et
-    // évite le flash toutes les 15 s).
-    if (payload === renderedRef.current) return;
+    if (!root || matches.length === 0 || isRoundRobin) return;
 
     const seq = ++seqRef.current;
     let disposed = false;
     (async () => {
+      // L'adaptation vit DANS la promesse : un throw (garde de format, docs
+      // incohérents) tombe dans le .catch → état d'échec propre, jamais un
+      // démontage React par exception d'effet (review adversariale).
+      const adapted = adaptBracketForViewer(matches);
+      const payload = JSON.stringify(adapted);
+      // Polling sans changement réel → pas de re-render (préserve le scroll
+      // et évite le flash toutes les 15 s).
+      if (payload === renderedRef.current) return;
       await ensureViewer();
       if (disposed || seq !== seqRef.current || !rootRef.current) return;
       // ParticipantImage type participantId en number, mais le viewer associe
@@ -243,7 +251,17 @@ export default function TournamentBracket({ matches, gameColor, onMatchClick }: 
         retryTimerRef.current = null;
       }
     };
-  }, [matches, instanceClass, retryTick]);
+  }, [matches, instanceClass, retryTick, isRoundRobin]);
+
+  if (isRoundRobin) {
+    return (
+      <div className="aedral-bracket">
+        <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+          L&apos;affichage des poules arrive bientôt. Les matchs et le classement restent gérés normalement — passe par la console ou la page de match.
+        </p>
+      </div>
+    );
+  }
 
   // Le conteneur reste TOUJOURS monté, même en échec : le poll suivant (ou le
   // retour du réseau) retente le rendu dans le même div — un échec transitoire

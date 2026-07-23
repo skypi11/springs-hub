@@ -522,7 +522,12 @@ function validateSchedule(input: unknown): ValidationResult<CompetitionSchedule>
 
 function validatePhasePlan(input: unknown, dayCount: number): ValidationResult<PhasePlanEntry[]> {
   const raw = Array.isArray(input) ? input as unknown[] : [];
-  if (raw.length < 1 || raw.length > 30) return err('Le plan de phases doit compter entre 1 et 30 phases.');
+  // Borne 40 : un round robin aller-retour à poule de 20 (RR_MAX_POOL_SIZE)
+  // fait 38 journées = 38 phases — la borne historique de 30 rejetait le plan
+  // par défaut de configs pourtant validées (review adversariale). Sans
+  // danger pour les arbres (8 rondes max) : une phase qui ne matche rien est
+  // ignorée par attachPhasePlan.
+  if (raw.length < 1 || raw.length > 40) return err('Le plan de phases doit compter entre 1 et 40 phases.');
   const plan: PhasePlanEntry[] = [];
   for (const p of raw) {
     if (typeof p !== 'object' || p === null) return err('Phase invalide dans le plan.');
@@ -542,7 +547,9 @@ function validatePhasePlan(input: unknown, dayCount: number): ValidationResult<P
         return err(`Phase ${phase} : bracket invalide.`);
       }
       const num = asInt(round.round);
-      if (num === null || num < 1 || num > 20) return err(`Phase ${phase} : numéro de ronde invalide.`);
+      // 40 : les journées d'un round robin aller-retour montent à 38 (les
+      // rondes d'arbre plafonnent à 8) — même élargissement que ci-dessus.
+      if (num === null || num < 1 || num > 40) return err(`Phase ${phase} : numéro de ronde invalide.`);
       rounds.push({ bracket: round.bracket, round: num });
     }
     plan.push({ phase, day, label: label || `P${phase}`, rounds });

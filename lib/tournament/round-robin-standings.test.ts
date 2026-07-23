@@ -9,6 +9,7 @@ import {
   generateDoubleElim,
   advanceMatch,
   replaceTeam,
+  withdrawTeam,
   computeRoundRobinStandings,
   computeRoundRobinPlacements,
   type Bracket,
@@ -269,5 +270,64 @@ describe('computeRoundRobinPlacements — compression 1→N', () => {
     const resolved = computeRoundRobinPlacements(b, undefined, { rank1: ['t3', 't1', 't2'] });
     expect(resolved.slice(0, 3).map(p => p.teamId)).toEqual(['t3', 't1', 't2']);
     expect(resolved.slice(0, 3).map(p => p.placement)).toEqual([1, 2, 3]);
+  });
+});
+
+// ── Régressions de la review adversariale (23/07) ───────────────────────────
+
+describe('régressions review — placements inter-poules', () => {
+  it('R5-4 : une équipe retirée ne gagne JAMAIS un départage per-match (dénominateur réduit)', () => {
+    // Poule 1 : t1 gagne 2 matchs puis est retirée (3 pts/match sur 2 matchs
+    // comptés) ; poule 2 : t3 est 2e net à 2 pts/match sur 3 matchs. Sans la
+    // garde, le retrait AVANTAGERAIT t1 au groupe rank2.
+    let b = gen(8, 2); // poules {t1,t4,t5,t8} et {t2,t3,t6,t7}
+    b = play(b, 't1', 't5');
+    b = play(b, 't1', 't8');
+    b = withdrawTeam(b, 't1'); // le match t1-t4 restant → forfait crédité à t4
+    b = play(b, 't4', 't5');
+    b = play(b, 't4', 't8');
+    b = play(b, 't5', 't8');
+    for (const [w, l] of [['t2', 't3'], ['t2', 't6'], ['t2', 't7'], ['t3', 't6'], ['t3', 't7'], ['t6', 't7']] as const) {
+      b = play(b, w, l);
+    }
+    const placements = computeRoundRobinPlacements(b);
+    const rank2 = placements.filter(p => p.group === 'rank2').map(p => p.teamId);
+    expect(rank2).toContain('t1');
+    expect(rank2).toContain('t3');
+    // t3 (non retirée) passe DEVANT t1 (retirée) malgré le per-match de t1.
+    expect(rank2.indexOf('t3')).toBeLessThan(rank2.indexOf('t1'));
+  });
+
+  it('un paquet multi-rang FUSIONNE avec les rangs couverts des autres poules (jamais de sur-classement structurel)', () => {
+    // 10 équipes, 2 poules de 5 : {t1,t4,t5,t8,t9} et {t2,t3,t6,t7,t10}.
+    // Poule 1 : t1 net 1er, triangle parfait t4/t5/t8 (rangs 2-4), t9 dernier.
+    // Poule 2 : classement net. Les rangs 2/3/4 de la poule 2 doivent rejoindre
+    // le groupe du paquet (plages chevauchantes) — pas rester structurellement
+    // en dessous du dernier du paquet.
+    let b = gen(10, 2);
+    b = play(b, 't1', 't4');
+    b = play(b, 't1', 't5');
+    b = play(b, 't1', 't8');
+    b = play(b, 't1', 't9');
+    b = play(b, 't4', 't5');   // triangle parfait (mêmes scores 3-0, 1 but)
+    b = play(b, 't5', 't8');
+    b = play(b, 't8', 't4');
+    b = play(b, 't4', 't9');
+    b = play(b, 't5', 't9');
+    b = play(b, 't8', 't9');
+    for (const [w, l] of [['t2', 't3'], ['t2', 't6'], ['t2', 't7'], ['t2', 't10'], ['t3', 't6'], ['t3', 't7'], ['t3', 't10'], ['t6', 't7'], ['t6', 't10'], ['t7', 't10']] as const) {
+      b = play(b, w, l);
+    }
+    const placements = computeRoundRobinPlacements(b);
+    // Le paquet {t4,t5,t8} occupe les rangs 2-4 → le groupe fusionné rank2
+    // inclut AUSSI t3 (2e), t6 (3e) et t7 (4e) de la poule 2.
+    const rank2 = placements.filter(p => p.group === 'rank2').map(p => p.teamId);
+    for (const t of ['t4', 't5', 't8', 't3', 't6', 't7']) {
+      expect(rank2).toContain(t);
+    }
+    expect(placements.some(p => p.group === 'rank3' || p.group === 'rank4')).toBe(false);
+    // Compression totale intacte : 10 places, rank5 = {t9, t10}.
+    expect(placements).toHaveLength(10);
+    expect(placements.filter(p => p.group === 'rank5').map(p => p.teamId).sort()).toEqual(['t10', 't9']);
   });
 });

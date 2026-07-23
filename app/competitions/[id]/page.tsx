@@ -17,6 +17,7 @@ import RegistrationStatusPill from '@/components/competitions/RegistrationStatus
 import OrganizerCredit from '@/components/competitions/OrganizerCredit';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { getGameColor, getGameColorRgb, getGameBannerUrl } from '@/lib/games-registry';
+import { FORMAT_DEFS, isFormatKind } from '@/lib/competitions/formats';
 import type { CompetitionEligibility, CompetitionFormat, CompetitionSchedule } from '@/types/competitions';
 
 // Une ligne du classement final servie au public (FinalPlacement + logo joint
@@ -327,15 +328,19 @@ export default function CompetitionPage() {
         <div className="panel-body">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
-              <p style={{ color: 'var(--s-text-muted)' }}>Bracket</p>
+              <p style={{ color: 'var(--s-text-muted)' }}>Format</p>
               <p className="font-semibold">
-                {comp.format?.kind === 'single_elim' ? 'Simple élimination' : 'Double élimination'}
+                {/* Libellé servi par la registry de formats — plus jamais un
+                    round robin affiché « Double élimination ». */}
+                {isFormatKind(comp.format?.kind) ? FORMAT_DEFS[comp.format!.kind].label : 'Double élimination'}
               </p>
             </div>
             <div>
               <p style={{ color: 'var(--s-text-muted)' }}>Matchs</p>
               <p className="font-semibold">
-                BO{comp.format?.bo?.default ?? 5} · {comp.format?.kind === 'single_elim' ? 'finale' : 'finales'} BO{comp.format?.bo?.grandFinal ?? 7}
+                {comp.format?.kind === 'round_robin'
+                  ? `BO${comp.format?.bo?.default ?? 5} sur tous les matchs`
+                  : `BO${comp.format?.bo?.default ?? 5} · ${comp.format?.kind === 'single_elim' ? 'finale' : 'finales'} BO${comp.format?.bo?.grandFinal ?? 7}`}
               </p>
             </div>
             <div>

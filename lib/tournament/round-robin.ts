@@ -43,6 +43,31 @@ export interface RoundRobinOptions {
   doubleRound?: boolean;
 }
 
+/**
+ * Faisabilité d'un round robin pour un EFFECTIF RÉEL d'équipes : renvoie null
+ * si jouable, sinon le message d'erreur exact que lèverait generateRoundRobin.
+ * SOURCE UNIQUE des règles — consommée par le générateur (throw) ET par la
+ * route bracket (gardes canOpenSeeding/canPublish + 409 actionnable) : la
+ * validation de format ne connaît que le MAX théorique, or le champ réel est
+ * presque toujours plus petit (review adversariale : publish 500 sinon).
+ */
+export function roundRobinBlocker(teamCount: number, groups: number): string | null {
+  if (teamCount < RR_MIN_TEAMS || teamCount > RR_MAX_TEAMS) {
+    return `Nombre d'équipes hors bornes : ${teamCount} (attendu ${RR_MIN_TEAMS}–${RR_MAX_TEAMS}).`;
+  }
+  if (!Number.isInteger(groups) || groups < 1) {
+    return `Nombre de poules invalide : ${groups}.`;
+  }
+  if (groups > Math.floor(teamCount / 2)) {
+    return `Trop de poules : ${groups} pour ${teamCount} équipes (minimum 2 équipes par poule).`;
+  }
+  const maxPoolSize = Math.ceil(teamCount / groups);
+  if (maxPoolSize > RR_MAX_POOL_SIZE) {
+    return `Poule trop grande : ${maxPoolSize} équipes (maximum ${RR_MAX_POOL_SIZE} — augmenter le nombre de poules).`;
+  }
+  return null;
+}
+
 /** Répartition SERPENTINE des seeds en G poules : 1..G en tête de chaque
  *  poule, puis G+1..2G en ordre inverse, etc. — les têtes de série sont
  *  séparées et les poules équilibrées (tailles ⌈n/G⌉ / ⌊n/G⌋). Exposée pour
@@ -99,23 +124,12 @@ function circleRounds(poolSize: number): Array<Array<[number, number]>> {
  */
 export function generateRoundRobin(teamIds: string[], opts: RoundRobinOptions): Bracket {
   const n = teamIds.length;
-  if (n < RR_MIN_TEAMS || n > RR_MAX_TEAMS) {
-    throw new Error(`Nombre d'équipes hors bornes : ${n} (attendu ${RR_MIN_TEAMS}–${RR_MAX_TEAMS}).`);
-  }
   if (new Set(teamIds).size !== n) {
     throw new Error('Équipes en double dans le seeding.');
   }
   const groups = opts.groups ?? 1;
-  if (!Number.isInteger(groups) || groups < 1) {
-    throw new Error(`Nombre de poules invalide : ${groups}.`);
-  }
-  if (groups > Math.floor(n / 2)) {
-    throw new Error(`Trop de poules : ${groups} pour ${n} équipes (minimum 2 équipes par poule).`);
-  }
-  const maxPoolSize = Math.ceil(n / groups);
-  if (maxPoolSize > RR_MAX_POOL_SIZE) {
-    throw new Error(`Poule trop grande : ${maxPoolSize} équipes (maximum ${RR_MAX_POOL_SIZE} — augmenter le nombre de poules).`);
-  }
+  const blocker = roundRobinBlocker(n, groups);
+  if (blocker) throw new Error(blocker);
   const doubleRound = opts.doubleRound === true;
 
   const pools = snakePools(n, groups);

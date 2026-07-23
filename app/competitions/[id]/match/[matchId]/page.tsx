@@ -82,6 +82,9 @@ const STATUS_FR: Record<string, string> = {
 };
 
 function bracketLabel(bracket: string, round: number, single: boolean): string {
+  // Round robin : le round est une JOURNÉE de poule — jamais un tour d'arbre
+  // (le libellé « Losers · tour N » serait mensonger).
+  if (bracket === 'round_robin') return `Journée ${round}`;
   if (bracket === 'grand_final') return round === 2 ? 'Belle (reset)' : 'Grande finale';
   if (single) {
     // Simple élim : un seul arbre (pas de préfixe Winners) ; le bracket

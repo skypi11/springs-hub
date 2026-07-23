@@ -7,6 +7,7 @@ export { generateDoubleElim, generateSingleElim, seedOrder, boForRound, MIN_TEAM
 export {
   generateRoundRobin,
   snakePools,
+  roundRobinBlocker,
   RR_MIN_TEAMS,
   RR_MAX_TEAMS,
   RR_MAX_POOL_SIZE,

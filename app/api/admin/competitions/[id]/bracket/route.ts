@@ -6,7 +6,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { materializeBracket, type TeamDisplay } from '@/lib/competitions/bracket-store';
-import { MIN_TEAMS, MAX_TEAMS, RR_MIN_TEAMS, RR_MAX_TEAMS } from '@/lib/tournament';
+import { MIN_TEAMS, MAX_TEAMS, RR_MIN_TEAMS, RR_MAX_TEAMS, roundRobinBlocker } from '@/lib/tournament';
 import { kindOf } from '@/lib/competitions/formats-server';
 
 /** Bornes moteur du format : arbre 4-32, round robin 4-64 (aucune contrainte
@@ -15,6 +15,20 @@ function teamBounds(format: { kind?: string } | null | undefined): { min: number
   return kindOf(format) === 'round_robin'
     ? { min: RR_MIN_TEAMS, max: RR_MAX_TEAMS }
     : { min: MIN_TEAMS, max: MAX_TEAMS };
+}
+
+/**
+ * Blocage de faisabilité pour l'EFFECTIF RÉEL d'équipes validées (round robin
+ * uniquement) : la validation de format ne connaît que le max théorique — un
+ * champ de 6 équipes en « 4 poules » doit être refusé ICI, proprement, pas en
+ * 500 au moment où generateRoundRobin jette (review adversariale, blocker).
+ */
+function feasibilityBlocker(
+  format: { kind?: string; groupCount?: number } | null | undefined,
+  approvedCount: number,
+): string | null {
+  if (kindOf(format) !== 'round_robin') return null;
+  return roundRobinBlocker(approvedCount, format?.groupCount ?? 1);
 }
 
 // Seeding + matérialisation du bracket (archi §3, spec §2). Admins de
@@ -92,18 +106,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const materialized = !!comp.bracketMaterializedAt;
 
     const bounds = teamBounds(comp.format);
+    const feasibility = feasibilityBlocker(comp.format, approved.length);
     return NextResponse.json({
       status,
       approvedCount: approved.length,
       minTeams: bounds.min,
       maxTeams: bounds.max,
       seeding,
-      // Ouverture du seeding depuis les statuts pré-live, avec assez d'équipes.
+      // Ouverture du seeding depuis les statuts pré-live, avec assez d'équipes
+      // ET une répartition en poules jouable (round robin).
       canOpenSeeding: ['draft', 'registration', 'validation'].includes(status)
-        && approved.length >= bounds.min && approved.length <= bounds.max,
+        && approved.length >= bounds.min && approved.length <= bounds.max
+        && feasibility === null,
       canEditSeeding: status === 'seeding',
       canPublish: status === 'seeding' && !materialized
-        && approved.length >= bounds.min && approved.length <= bounds.max,
+        && approved.length >= bounds.min && approved.length <= bounds.max
+        && feasibility === null,
+      // Message actionnable pour l'UI quand la répartition en poules bloque.
+      feasibilityError: feasibility,
       materialized,
     });
   } catch (err) {
@@ -148,6 +168,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (approved.length > bounds.max) {
         return NextResponse.json({ error: `Le format accepte au plus ${bounds.max} équipes (${approved.length} validées) : retire des équipes ou passe-les en liste d'attente.` }, { status: 409 });
       }
+      const feasibility = feasibilityBlocker(comp.format, approved.length);
+      if (feasibility) {
+        return NextResponse.json({ error: `${feasibility} Ajuste le nombre de poules du format ou le champ d'équipes.` }, { status: 409 });
+      }
       const seeding = shuffle(approved.map(r => r.registrationId));
       await compRef.update({ status: 'seeding', seeding, bracketMaterializedAt: null, updatedAt: FieldValue.serverTimestamp() });
       await audit(db, uid, 'competition_seeding_opened', id, comp, { teams: seeding.length });
@@ -187,8 +211,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     // ── publish ──
     if (action === 'publish') {
-      if (approved.length < MIN_TEAMS || approved.length > MAX_TEAMS) {
+      // Mêmes bornes que le GET et open_seeding (teamBounds par kind — un
+      // round robin monte à 64) + faisabilité de la répartition en poules
+      // sur l'effectif réel : jamais un 500 du générateur au dernier clic.
+      const bounds = teamBounds(comp.format);
+      if (approved.length < bounds.min || approved.length > bounds.max) {
         return NextResponse.json({ error: `Nombre d'équipes validées hors format (${approved.length}).` }, { status: 409 });
+      }
+      const feasibility = feasibilityBlocker(comp.format, approved.length);
+      if (feasibility) {
+        return NextResponse.json({ error: `${feasibility} Ajuste le nombre de poules du format ou le champ d'équipes.` }, { status: 409 });
       }
       // Le seeding stocké doit correspondre EXACTEMENT aux équipes validées
       // (aucune validation/retrait survenu entre-temps sans re-seed).
@@ -199,10 +231,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: 'Le seeding ne correspond plus aux équipes validées (validation ou retrait entre-temps). Re-seed avant de publier.' }, { status: 409 });
       }
 
-      // Anti-double-matérialisation : aucun match ne doit déjà exister.
-      const existing = await db.collection('competition_matches').where('competitionId', '==', id).limit(1).get();
+      // Anti-double-matérialisation — avec REPRISE : un gros bracket (round
+      // robin 33-64 équipes → docs + ACL > 400 ops) s'écrit en plusieurs
+      // batchs ; un crash entre deux commits laisserait des matchs orphelins
+      // SANS `bracketMaterializedAt` (posé par le DERNIER batch, avec le
+      // statut). Dans ce cas précis : purge puis re-matérialisation — jamais
+      // de cul-de-sac « des matchs existent déjà » sur une publication qui
+      // n'a jamais abouti (review adversariale). Un bracket réellement publié
+      // (bracketMaterializedAt posé) reste intouchable : le statut a quitté
+      // 'seeding', on ne repasse jamais ici.
+      const existing = await db.collection('competition_matches').where('competitionId', '==', id).select().get();
       if (!existing.empty) {
-        return NextResponse.json({ error: 'Des matchs existent déjà pour cette compétition.' }, { status: 409 });
+        if (comp.bracketMaterializedAt) {
+          return NextResponse.json({ error: 'Des matchs existent déjà pour cette compétition.' }, { status: 409 });
+        }
+        let purge = db.batch();
+        let purgeOps = 0;
+        for (const doc of existing.docs) {
+          purge.delete(doc.ref.collection('private').doc('acl'));
+          purge.delete(doc.ref);
+          purgeOps += 2;
+          if (purgeOps >= 400) { await purge.commit(); purge = db.batch(); purgeOps = 0; }
+        }
+        if (purgeOps > 0) await purge.commit();
       }
 
       const registrations: Record<string, { display: TeamDisplay; rosterUids: string[] }> = {};

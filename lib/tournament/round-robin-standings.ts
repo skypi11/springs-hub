@@ -312,15 +312,24 @@ export function computeRoundRobinStandings(
 /**
  * Placements COMPRESSÉS 1→N d'un round robin, même contrat que
  * `computePlacements` (placements.ts) : `placement` numéroté UNIQUEMENT sur
- * un bracket conclu (sinon null), groupes + flags fiables en cours de poule,
- * `tiebreakResolutions` par clé de groupe (appliquée seulement si le
- * départage automatique a échoué ET qu'elle couvre exactement le groupe).
+ * un bracket conclu (sinon null), `tiebreakResolutions` par clé de groupe
+ * (appliquée seulement si le départage automatique a échoué ET qu'elle
+ * couvre exactement le groupe). ⚠️ Contrairement aux arbres, les groupes
+ * `rank{K}` FLUCTUENT tant que la poule se joue (le classement se recalcule
+ * à chaque score) : ils ne deviennent stables qu'à la conclusion — n'arbitrer
+ * les égalités qu'à ce moment (le flux console le fait déjà : l'arbitrage
+ * n'est proposé que sur un bracket fini).
  *
- * Groupes de placement `rank{K}` : le bloc d'équipes occupant les rangs
- * K..K+len−1 de sa poule (bloc de 1 si le rang est net ; paquet entier au
- * MEILLEUR rang commun si l'égalité intra-poule est irrésolue). Les blocs de
- * même rang de toutes les poules fusionnent, départagés par valeurs PAR
- * MATCH (tailles de poules potentiellement inégales).
+ * Groupes de placement `rank{K}` : chaque poule produit des BLOCS de rangs
+ * (bloc de 1 si le rang est net ; paquet entier sur la plage de rangs qu'il
+ * occupe si l'égalité intra-poule est irrésolue). Les blocs de toutes les
+ * poules dont les PLAGES DE RANGS se chevauchent fusionnent en un seul
+ * groupe (clé = meilleur rang couvert) : un paquet 2-3 de la poule A rejoint
+ * le 2e ET le 3e de la poule B — jamais de sur-classement structurel d'un
+ * rang qu'un paquet « mange » (review adversariale). Départage dans le
+ * groupe par valeurs PAR MATCH (tailles de poules potentiellement inégales) ;
+ * une équipe RETIRÉE (R5-4) passe toujours derrière les non-retirées de son
+ * groupe — son dénominateur réduit ne lui gagne jamais un départage.
  */
 export function computeRoundRobinPlacements(
   bracket: Bracket,
@@ -330,34 +339,56 @@ export function computeRoundRobinPlacements(
   assertRoundRobin(bracket);
   const finished = isConcluded(bracket);
 
-  // Blocs intra-poule : `blockStart` (posé par rankPool, jamais re-deviné)
-  // regroupe chaque paquet irrésolu au MEILLEUR rang commun ; une équipe au
-  // rang net forme un bloc de 1. Les blocs de même rang de toutes les poules
-  // fusionnent dans le groupe `rank{K}` (K = blockStart + 1).
+  // Blocs intra-poule : `blockStart` (posé par rankPool, jamais re-deviné) →
+  // plage de rangs [start, end] 1-based, puis FUSION par balayage des plages
+  // qui se chevauchent entre poules.
   interface Entry { row: RankedLine; blockFlagged: boolean }
-  const groups = new Map<number, Entry[]>(); // rangStart 1-based → entrées
+  interface Block { start: number; end: number; entries: Entry[] }
+  const blocks: Block[] = [];
   for (const ranked of rankAllPools(bracket, points).values()) {
+    const byStart = new Map<number, RankedLine[]>();
     for (const line of ranked) {
-      const rankStart = line.blockStart + 1;
-      const arr = groups.get(rankStart) ?? [];
-      arr.push({ row: line, blockFlagged: line.needsAdminTiebreak });
-      groups.set(rankStart, arr);
+      const arr = byStart.get(line.blockStart) ?? [];
+      arr.push(line);
+      byStart.set(line.blockStart, arr);
+    }
+    for (const [start, lines] of byStart) {
+      blocks.push({
+        start: start + 1,
+        end: start + lines.length,
+        entries: lines.map(line => ({ row: line, blockFlagged: line.needsAdminTiebreak })),
+      });
+    }
+  }
+  blocks.sort((a, b) => a.start - b.start || a.end - b.end);
+  const merged: Block[] = [];
+  for (const blk of blocks) {
+    const last = merged[merged.length - 1];
+    if (last && blk.start <= last.end) {
+      last.end = Math.max(last.end, blk.end);
+      last.entries.push(...blk.entries);
+    } else {
+      merged.push({ start: blk.start, end: blk.end, entries: [...blk.entries] });
     }
   }
 
   const teamStats = computeTeamStats(bracket);
+  const withdrawn = new Set(bracket.withdrawn);
   const placements: Placement[] = [];
   let nextPlace = 1;
 
-  for (const rankStart of [...groups.keys()].sort((a, b) => a - b)) {
-    const entries = groups.get(rankStart)!;
-    const groupKey = `rank${rankStart}`;
+  for (const block of merged) {
+    const entries = block.entries;
+    const groupKey = `rank${block.start}`;
 
-    // Départage inter-poules par valeurs PAR MATCH.
+    // Départage inter-poules par valeurs PAR MATCH — les retirées derrière
+    // TOUTES les non-retirées (R5-4 : un dénominateur réduit par le retrait
+    // ne gagne jamais un départage).
     const perMatch = (e: Entry) => {
       const st = teamStats.get(e.row.teamId);
       const played = e.row.played || 1;
       return {
+        wd: withdrawn.has(e.row.teamId) ? 1 : 0,
         points: e.row.points / played,
         diff: st?.normalizedDiff ?? 0,
         goals: e.row.goalsFor / played,
@@ -366,12 +397,13 @@ export function computeRoundRobinPlacements(
     const sorted = [...entries].sort((x, y) => {
       const kx = perMatch(x);
       const ky = perMatch(y);
-      return ky.points - kx.points || ky.diff - kx.diff || ky.goals - kx.goals ||
-        x.row.teamId.localeCompare(y.row.teamId);
+      return kx.wd - ky.wd || ky.points - kx.points || ky.diff - kx.diff ||
+        ky.goals - kx.goals || x.row.teamId.localeCompare(y.row.teamId);
     });
 
     // Flags : paquet intra-poule irrésolu (propagé), ou égalité stricte
-    // per-match entre équipes du groupe (pas de face-à-face inter-poules).
+    // per-match entre équipes de MÊME statut de retrait (pas de face-à-face
+    // inter-poules ; retiré vs non-retiré est déjà tranché).
     const flags = sorted.map(e => e.blockFlagged);
     let a = 0;
     while (a < sorted.length) {
@@ -379,7 +411,7 @@ export function computeRoundRobinPlacements(
       const ka = perMatch(sorted[a]);
       while (b < sorted.length) {
         const kb = perMatch(sorted[b]);
-        if (kb.points !== ka.points || kb.diff !== ka.diff || kb.goals !== ka.goals) break;
+        if (kb.wd !== ka.wd || kb.points !== ka.points || kb.diff !== ka.diff || kb.goals !== ka.goals) break;
         b += 1;
       }
       if (b - a > 1) for (let k = a; k < b; k++) flags[k] = true;

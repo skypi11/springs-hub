@@ -348,6 +348,9 @@ describe('bracket-store — round robin', () => {
           expect(back.teams).toEqual(b.teams);
           expect(back.groups).toBe(b.groups);
           expect(back.matchdays).toBe(b.matchdays);
+          // Régression review : l'aller-retour est inféré des paires de seeds
+          // — le round-trip doit être identitaire sur doubleRound aussi.
+          expect(back.doubleRound).toBe(b.doubleRound);
           expect(back.order).toEqual(b.order);
           for (const id of b.order) {
             expect(back.matches[id]).toEqual(b.matches[id]);

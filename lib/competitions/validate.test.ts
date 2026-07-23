@@ -164,8 +164,10 @@ describe('validateCompetitionPayload', () => {
     (badBo.format.bo as { default: number }).default = 4;
     expect(validateCompetitionPayload(badBo).ok).toBe(false);
 
+    // « swiss » : format PAS ENCORE supporté (round_robin l'est désormais —
+    // couvert par son propre describe plus bas).
     const badKind = competitionBody();
-    (badKind.format as { kind: string }).kind = 'round_robin';
+    (badKind.format as { kind: string }).kind = 'swiss';
     expect(validateCompetitionPayload(badKind).ok).toBe(false);
   });
 
@@ -391,5 +393,27 @@ describe('validateCompetitionPayload — format round robin', () => {
       },
     });
     expect(validateCompetitionPayload(rrPlanOnTree).ok).toBe(false); // journées de poule sur un double élim
+  });
+});
+
+describe('régressions review — plan de phases round robin', () => {
+  it('accepte le plan par défaut d\'un aller-retour à poule de 20 (38 journées)', () => {
+    const plan = buildRoundRobinPhasePlan(20, 1, true);
+    expect(plan).toHaveLength(38); // au-delà des anciennes bornes 30/20
+    const res = validateCompetitionPayload(competitionBody({
+      format: {
+        kind: 'round_robin',
+        maxTeams: 20,
+        bo: { default: 5, overrides: [], grandFinal: 5 },
+        groupCount: 1,
+        doubleRound: true,
+      },
+      schedule: {
+        days: [{ date: '2026-09-26', startsAt: '15:00' }],
+        phasePlan: plan,
+        ...LEGENDS_CHECKIN,
+      },
+    }));
+    expect(res.ok).toBe(true);
   });
 });

@@ -16,7 +16,8 @@ import { sendCompetitionChannelMessage } from '@/lib/discord-competition';
 import { toFlowState, toIso, flowConfigOf, generateRoomCredentials, toEngineOutcome } from '@/lib/competitions/match-flow-server';
 import { applyMatchOutcome, applyWithdraw, applyReplacement } from '@/lib/competitions/progression';
 import { reconstructBracket, type MatchDoc } from '@/lib/competitions/bracket-store';
-import { isFinished, needsAdminDecision, computePlacements, computeTeamStats, type Placement } from '@/lib/tournament';
+import { engineFor, kindOf } from '@/lib/competitions/formats-server';
+import { computeTeamStats, type Placement } from '@/lib/tournament';
 import { syncRegistrationToCalendar, removeRegistrationFromCalendar } from '@/lib/competitions/calendar-sync';
 import { closeCompetition } from '@/lib/competitions/close-competition';
 
@@ -87,21 +88,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }> = [];
     if (docs.length > 0 && comp.format?.bo) {
       try {
+        // Prédicats et placements routés par la registry de formats : un round
+        // robin est « fini » quand tous ses matchs sont terminaux (jamais de
+        // champion mécanique, jamais de « décision admin » pour un titre).
+        const engine = engineFor(kindOf(comp.format));
         const bracket = reconstructBracket({
           withdrawn: Array.isArray(comp.withdrawn) ? (comp.withdrawn as string[]) : [],
           bo: comp.format.bo,
           forfeitScore: comp.format.forfeitScore ?? { games: 3, goalsPerGame: 1 },
           matches: docs.map(d => ({ id: d.id, ...(d.data as MatchDoc) })),
-          kind: comp.format?.kind === 'single_elim' ? 'single_elim' : 'double_elim',
+          kind: kindOf(comp.format),
         });
-        finished = isFinished(bracket);
-        adminDecision = needsAdminDecision(bracket);
+        finished = engine.isFinished(bracket);
+        adminDecision = engine.needsAdminDecision(bracket);
         // Clôture (Lot 4) : placements provisoires + égalités à arbitrer,
         // calculés dès que le tournoi est fini (l'arbitrage précède l'écriture
         // des points — archi §4, aucun point sur des places non uniques).
         if (finished) {
           const resolutions = (comp.tiebreakResolutions as Record<string, string[]> | undefined) ?? undefined;
-          placements = computePlacements(bracket, resolutions);
+          placements = engine.computePlacements(bracket, comp.format, resolutions);
           const stats = computeTeamStats(bracket);
           const byGroup = new Map<string, typeof placements>();
           for (const p of placements) {
@@ -565,15 +570,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // équipes — sinon refus explicite (pas de toast de succès mensonger).
       const matchesSnap = await db.collection('competition_matches').where('competitionId', '==', id).get();
       try {
+        const engine = engineFor(kindOf(comp.format));
         const bracket = reconstructBracket({
           withdrawn: Array.isArray(comp.withdrawn) ? (comp.withdrawn as string[]) : [],
           bo: comp.format.bo,
           forfeitScore: comp.format.forfeitScore ?? { games: 3, goalsPerGame: 1 },
           matches: matchesSnap.docs.map(d => ({ id: (d.data().id as string) ?? d.id, ...(d.data() as MatchDoc) })),
-          kind: comp.format?.kind === 'single_elim' ? 'single_elim' : 'double_elim',
+          kind: kindOf(comp.format),
         });
         // Sans aucune résolution : l'état BRUT du moteur pour ce groupe.
-        const raw = computePlacements(bracket);
+        const raw = engine.computePlacements(bracket, comp.format);
         const groupRows = raw.filter(p => p.group === group);
         if (!groupRows.some(p => p.needsAdminTiebreak)) {
           return NextResponse.json({ error: 'Ce groupe n\'a pas (ou plus) d\'égalité à arbitrer — recharge la console.' }, { status: 409 });
@@ -638,6 +644,8 @@ function serializeConsoleMatch(engineId: string, m: FirebaseFirestore.DocumentDa
     bracket: m.bracket ?? 'winners',
     round: m.round ?? 1,
     slot: m.slot ?? 1,
+    // Poule (round robin) — absent sur les matchs d'arbre.
+    ...(typeof m.group === 'number' ? { group: m.group } : {}),
     phase: m.phase ?? null,
     bo: m.bo ?? 5,
     status: m.status ?? 'pending',
