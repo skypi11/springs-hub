@@ -235,18 +235,21 @@ export function validateCompetitionPayload(body: unknown): ValidationResult<Comp
       }
     }
   }
-  if (format.value.kind === 'round_robin') {
+  if (format.value.kind === 'round_robin' || format.value.kind === 'swiss') {
+    const only = format.value.kind;
     for (const entry of schedule.value.phasePlan) {
       for (const round of entry.rounds) {
-        if (round.bracket !== 'round_robin') {
-          return err('Plan de phases incompatible : un round robin ne contient que des journées de poule.');
+        if (round.bracket !== only) {
+          return err(only === 'swiss'
+            ? 'Plan de phases incompatible : un suisse ne contient que des rondes suisses.'
+            : 'Plan de phases incompatible : un round robin ne contient que des journées de poule.');
         }
       }
     }
   } else {
     for (const entry of schedule.value.phasePlan) {
-      if (entry.rounds.some(r => r.bracket === 'round_robin')) {
-        return err('Plan de phases incompatible : journée de poule dans un format à élimination.');
+      if (entry.rounds.some(r => r.bracket === 'round_robin' || r.bracket === 'swiss')) {
+        return err('Plan de phases incompatible : journée de poule ou ronde suisse dans un format à élimination.');
       }
     }
   }
@@ -277,11 +280,12 @@ function validateFormat(input: unknown): ValidationResult<CompetitionFormat> {
   if (typeof input !== 'object' || input === null) return err('Format invalide.');
   const f = input as Record<string, unknown>;
 
-  if (f.kind !== 'double_elim' && f.kind !== 'single_elim' && f.kind !== 'round_robin') {
-    return err('Format non supporté (double élimination, simple élimination ou round robin).');
+  if (f.kind !== 'double_elim' && f.kind !== 'single_elim' && f.kind !== 'round_robin' && f.kind !== 'swiss') {
+    return err('Format non supporté (double élimination, simple élimination, round robin ou suisse).');
   }
   const kind = f.kind;
   if (kind === 'round_robin') return validateRoundRobinFormat(f);
+  if (kind === 'swiss') return validateSwissFormat(f);
 
   const maxTeams = asInt(f.maxTeams);
   if (maxTeams === null || maxTeams < 4 || maxTeams > 32) {
@@ -396,6 +400,65 @@ function validateRoundRobinFormat(f: Record<string, unknown>): ValidationResult<
       thirdPlace: false,
       groupCount,
       doubleRound: f.doubleRound === true,
+      points,
+      forfeitScore: { games: Math.ceil(boDefault / 2), goalsPerGame: 1 },
+    },
+  };
+}
+
+// Bornes du moteur suisse (lib/tournament/swiss.ts) : 4-64 équipes, 1-12
+// rondes, rondes ≤ équipes − 1 (au-delà, re-matchs inévitables) — miroir de
+// SWISS_MIN/MAX_TEAMS, SWISS_MAX_ROUNDS et swissBlocker.
+function validateSwissFormat(f: Record<string, unknown>): ValidationResult<CompetitionFormat> {
+  const maxTeams = asInt(f.maxTeams);
+  if (maxTeams === null || maxTeams < 4 || maxTeams > 64) {
+    return err("Nombre max d'équipes invalide (4-64 en suisse).");
+  }
+
+  const bo = (typeof f.bo === 'object' && f.bo !== null) ? f.bo as Record<string, unknown> : null;
+  if (!bo) return err('Configuration BO manquante.');
+  const boDefault = asInt(bo.default);
+  if (!isValidBo(boDefault)) return err('BO par défaut invalide (impair, 1-9).');
+  const rawOverrides = Array.isArray(bo.overrides) ? bo.overrides as unknown[] : [];
+  if (rawOverrides.length > 0) {
+    return err('Pas de règles BO par ronde en suisse (BO unique pour tous les matchs).');
+  }
+
+  // Défaut ⌈log2(maxTeams)⌉ — même règle que swissDefaultRounds.
+  const swissRounds = f.swissRounds === undefined
+    ? Math.max(1, Math.ceil(Math.log2(Math.max(2, maxTeams))))
+    : asInt(f.swissRounds);
+  if (swissRounds === null || swissRounds < 1 || swissRounds > 12) {
+    return err('Nombre de rondes invalide (1-12).');
+  }
+  if (swissRounds > maxTeams - 1) {
+    return err(`Trop de rondes : ${swissRounds} pour ${maxTeams} équipes (maximum ${maxTeams - 1} sans re-match).`);
+  }
+
+  let points = { win: 3, draw: 1, loss: 0 };
+  if (f.points !== undefined && f.points !== null) {
+    if (typeof f.points !== 'object') return err('Barème de points invalide.');
+    const p = f.points as Record<string, unknown>;
+    const win = asInt(p.win);
+    const draw = asInt(p.draw);
+    const loss = asInt(p.loss);
+    if (win === null || win < 0 || win > 10) return err('Points par victoire invalides (0-10).');
+    if (draw === null || draw < 0 || draw > 10) return err('Points par nul invalides (0-10).');
+    if (loss === null || loss < 0 || loss > 10) return err('Points par défaite invalides (0-10).');
+    if (win <= loss) return err('Barème incohérent : la victoire doit rapporter plus que la défaite.');
+    if (draw > win || draw < loss) return err('Barème incohérent : le nul doit se situer entre la défaite et la victoire.');
+    points = { win, draw, loss };
+  }
+
+  return {
+    ok: true,
+    value: {
+      kind: 'swiss',
+      maxTeams,
+      bo: { default: boDefault, overrides: [], grandFinal: boDefault },
+      bracketReset: false,
+      thirdPlace: false,
+      swissRounds,
       points,
       forfeitScore: { games: Math.ceil(boDefault / 2), goalsPerGame: 1 },
     },
@@ -543,7 +606,7 @@ function validatePhasePlan(input: unknown, dayCount: number): ValidationResult<P
     for (const r of rawRounds) {
       if (typeof r !== 'object' || r === null) return err(`Phase ${phase} : ronde invalide.`);
       const round = r as Record<string, unknown>;
-      if (round.bracket !== 'winners' && round.bracket !== 'losers' && round.bracket !== 'grand_final' && round.bracket !== 'round_robin') {
+      if (round.bracket !== 'winners' && round.bracket !== 'losers' && round.bracket !== 'grand_final' && round.bracket !== 'round_robin' && round.bracket !== 'swiss') {
         return err(`Phase ${phase} : bracket invalide.`);
       }
       const num = asInt(round.round);

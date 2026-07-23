@@ -17,6 +17,7 @@ import {
   LEGENDS_FORMAT,
   ROUND_ROBIN_FORMAT,
   SINGLE_ELIM_FORMAT,
+  SWISS_FORMAT,
   roundRobinMatchdays,
 } from './defaults';
 
@@ -122,6 +123,14 @@ function summarizeRoundRobin(format: CompetitionFormat, teamCount: number): stri
   return `${plural(n, 'équipe')} en ${poolLabel}${legLabel} — ${plural(matches, 'match')} sur ${plural(days, 'journée')} (BO${format.bo.default}).`;
 }
 
+function summarizeSwiss(format: CompetitionFormat, teamCount: number): string {
+  const n = Math.max(2, teamCount);
+  const rounds = Math.max(1, format.swissRounds ?? 1);
+  const perRound = Math.floor(n / 2);
+  const bye = n % 2 === 1 ? ' (+ 1 bye par ronde)' : '';
+  return `${plural(n, 'équipe')} — système suisse, ${plural(rounds, 'ronde')}, ${perRound} matchs par ronde${bye} (BO${format.bo.default}).`;
+}
+
 // ── Fiches ──────────────────────────────────────────────────────────────────
 
 export const FORMAT_DEFS: Record<FormatKind, FormatDef> = {
@@ -221,10 +230,39 @@ export const FORMAT_DEFS: Record<FormatKind, FormatDef> = {
     },
     summarize: summarizeRoundRobin,
   },
+  swiss: {
+    kind: 'swiss',
+    label: 'Système suisse',
+    description: 'À chaque ronde, les équipes de scores voisins s\'affrontent — sans re-match, personne n\'est éliminé. Départage un grand champ en peu de rondes.',
+    configFields: [
+      { key: 'maxTeams', label: 'Équipes max', level: 'essential', type: 'number', min: 4, max: 64, default: SWISS_FORMAT.maxTeams },
+      { key: 'swissRounds', label: 'Nombre de rondes', help: 'Les rondes s\'apparient au fil des résultats. Conseillé : assez de rondes pour départager un vainqueur (log2 du nombre d\'équipes).', level: 'essential', type: 'number', min: 1, max: 12, default: SWISS_FORMAT.swissRounds ?? 4 },
+      { key: 'bo.default', label: 'BO des matchs', level: 'essential', type: 'number', min: 1, max: 9, default: SWISS_FORMAT.bo.default },
+      { key: 'points.win', label: 'Points par victoire', level: 'advanced', type: 'number', min: 0, max: 10, default: SWISS_FORMAT.points?.win ?? 3 },
+      { key: 'points.loss', label: 'Points par défaite', level: 'advanced', type: 'number', min: 0, max: 10, default: SWISS_FORMAT.points?.loss ?? 0 },
+    ],
+    presets: [
+      {
+        id: 'swiss-16',
+        label: 'Suisse 16 équipes',
+        description: 'Quatre rondes appariées au score, classement par points puis Buchholz.',
+        format: SWISS_FORMAT,
+      },
+    ],
+    capabilities: {
+      producesWinner: false,
+      producesRanking: true,
+      canBeGroupStage: true,
+      canBeFinalStage: true,
+      supportsPools: false,
+      supportsMmrSeeding: true,
+    },
+    summarize: summarizeSwiss,
+  },
 };
 
 /** Ordre des fiches dans les pickers (élims d'abord — l'historique du site). */
-export const FORMAT_KINDS: FormatKind[] = ['double_elim', 'single_elim', 'round_robin'];
+export const FORMAT_KINDS: FormatKind[] = ['double_elim', 'single_elim', 'round_robin', 'swiss'];
 
 export function isFormatKind(value: unknown): value is FormatKind {
   return typeof value === 'string' && (FORMAT_KINDS as string[]).includes(value);

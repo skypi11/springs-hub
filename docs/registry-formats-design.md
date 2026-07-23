@@ -131,3 +131,41 @@ Appliquée à l'entrée d'une phase (seeding initial) ET au transfert entre phas
   viewer sert juste à la grille des matchs.
 - BO : `boForRound` (distance à la fin d'un arbre) n'a pas de sens en RR → `bo.default`
   pour tous les matchs de poule.
+
+## 8. Moteur SUISSE — décisions de design (cadré 23/07, session Fable 5)
+
+Le Suisse est un TROISIÈME modèle, distinct de l'arbre et du round robin :
+les appariements de la ronde N+1 dépendent des RÉSULTATS des rondes 1..N
+(scores voisins, jamais de re-match). Conséquences structurelles :
+
+- **Génération INCRÉMENTALE des rondes** : `generateSwiss` ne produit que la
+  ronde 1 (appariement « slide » par seed : 1 vs n/2+1, 2 vs n/2+2…) ;
+  `generateSwissNextRound(bracket)` calcule et AJOUTE la ronde suivante quand
+  la précédente est terminale. La matérialisation Firestore suit : le publish
+  n'écrit que la ronde 1, une action console `generate_next_round` écrit les
+  docs de chaque ronde suivante (start.gg/Battlefy fonctionnent ainsi — on ne
+  peut pas apparier des résultats qui n'existent pas).
+- **Appariement Monrad avec backtracking** : ordre du classement courant
+  (points puis départages), chaque équipe appariée à la plus proche non déjà
+  rencontrée ; si le glouton se coince (que des re-matchs), retour arrière —
+  un appariement valide est TOUJOURS trouvé s'il en existe un. La variante
+  « fold par groupe de score » pourra devenir un réglage plus tard.
+- **Bye (effectif impair)** : l'équipe la moins bien classée SANS bye
+  antérieur reçoit un match de bye (teamA posée, côté B void → walkover, même
+  modèle que les byes d'arbre). Au classement suisse, une victoire par
+  walkover VAUT les points d'une victoire (sans stats de manches/buts) —
+  sémantique DIFFÉRENTE du round robin (siège vidé = match exclu), documentée
+  dans swiss-standings.
+- **Nombre de rondes** : `format.swissRounds`, défaut ⌈log2(maxTeams)⌉,
+  bornes 1-12. Porté par `Bracket.swissRounds` (posé à la génération ET à la
+  reconstruction depuis le format — sans lui, un bracket suisse n'est JAMAIS
+  « fini », fail-safe bruyant plutôt que clôture prématurée).
+- **Départages** : points → Buchholz (somme des points des adversaires
+  rencontrés) → face-à-face s'il a eu lieu → diff de manches → diff de buts →
+  buts marqués → arbitrage admin. Classement GLOBAL (pas de poules) ;
+  placements par blocs contigus comme le RR (groupes `rank{K}`).
+- **Ids** : `S{ronde}-{slot}` (slot global par ronde). `BracketSide` et
+  `BracketKind` += `'swiss'`. Sources : ronde 1 = `seed`/`seed` ; rondes
+  suivantes = `seed`/`seed` AUSSI (les équipes sont connues au moment de la
+  génération de la ronde — la reconstruction des `teams[]` lit la ronde 1 où
+  tout le monde apparaît, bye compris).

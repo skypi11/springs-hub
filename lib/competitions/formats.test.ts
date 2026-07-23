@@ -72,14 +72,16 @@ describe('routage kindOf / engineFor', () => {
     expect(kindOf({ kind: 'round_robin' })).toBe('round_robin');
     expect(kindOf({ kind: 'single_elim' })).toBe('single_elim');
     expect(kindOf({ kind: 'double_elim' })).toBe('double_elim');
+    expect(kindOf({ kind: 'swiss' })).toBe('swiss');
     expect(kindOf({})).toBe('double_elim');
     expect(kindOf(null)).toBe('double_elim');
-    expect(kindOf({ kind: 'swiss' })).toBe('double_elim');
+    expect(kindOf({ kind: 'gauntlet' })).toBe('double_elim');
   });
 
   it('isFormatKind filtre les valeurs inconnues', () => {
     expect(isFormatKind('round_robin')).toBe(true);
-    expect(isFormatKind('swiss')).toBe(false);
+    expect(isFormatKind('swiss')).toBe(true);
+    expect(isFormatKind('gauntlet')).toBe(false);
     expect(isFormatKind(42)).toBe(false);
   });
 

@@ -20,7 +20,7 @@ import type {
   PureMatch,
   PureMatchStatus,
 } from '@/lib/tournament';
-import { generateDoubleElim, generateRoundRobin, generateSingleElim } from '@/lib/tournament';
+import { generateDoubleElim, generateRoundRobin, generateSingleElim, generateSwiss } from '@/lib/tournament';
 import type { CompetitionMatch, MatchSource, MatchStatus } from '@/types/competitions';
 
 export interface TeamDisplay {
@@ -157,13 +157,20 @@ export function reconstructBracket(input: {
   matches: Array<{ id: string } & MatchDoc>;
   /** Format du bracket. Absent (docs d'avant le multi-format) : inféré de la
    *  présence d'une grande finale — un double élim en a TOUJOURS une — ou de
-   *  matchs `round_robin` (jamais mélangés à un arbre). */
+   *  matchs `round_robin`/`swiss` (jamais mélangés à un arbre). */
   kind?: BracketKind;
+  /** Suisse uniquement : nombre TOTAL de rondes (depuis `format.swissRounds`).
+   *  Les docs ne connaissent que les rondes DÉJÀ générées — sans cette info,
+   *  le bracket reconstruit n'est jamais « fini » (fail-safe documenté). */
+  swissRounds?: number;
 }): Bracket {
-  // Round robin : reconstruction dédiée — les notions d'arbre (round 1
-  // winners, puissance de 2, rondes losers) n'existent pas.
+  // Round robin / suisse : reconstructions dédiées — les notions d'arbre
+  // (round 1 winners, puissance de 2, rondes losers) n'existent pas.
   if (input.kind === 'round_robin' || input.matches.some(m => m.bracket === 'round_robin')) {
     return reconstructRoundRobin(input);
+  }
+  if (input.kind === 'swiss' || input.matches.some(m => m.bracket === 'swiss')) {
+    return reconstructSwiss(input);
   }
   // Taille = nombre de sièges du round 1 winners (robuste aux byes ET aux
   // sièges vidés, contrairement au comptage des équipes présentes).
@@ -281,6 +288,57 @@ function reconstructRoundRobin(input: {
   };
 }
 
+/** Reconstruction SUISSE : `teams` par seed depuis les sources `seed` de tous
+ *  les matchs (la ronde 1 couvre tout le monde, bye compris — et chaque ronde
+ *  suivante reporte les seeds). Seules les rondes DÉJÀ GÉNÉRÉES existent en
+ *  docs : le total prévu vient de `input.swissRounds` (format). */
+function reconstructSwiss(input: {
+  withdrawn: string[];
+  bo: BoConfig;
+  forfeitScore: { games: number; goalsPerGame: number };
+  matches: Array<{ id: string } & MatchDoc>;
+  swissRounds?: number;
+}): Bracket {
+  const swissMatches = input.matches.filter(m => m.bracket === 'swiss');
+  if (swissMatches.length === 0) {
+    throw new Error('Suisse incohérent : aucun match de ronde.');
+  }
+  const bySeed = new Map<number, string>();
+  let maxSeed = 0;
+  for (const m of swissMatches) {
+    for (const [src, team, isVoid] of [
+      [m.sourceA, m.teamA, m.voidA] as const,
+      [m.sourceB, m.teamB, m.voidB] as const,
+    ]) {
+      if (src.type !== 'seed') continue;
+      if (src.ref > maxSeed) maxSeed = src.ref;
+      if (!isVoid && team) bySeed.set(src.ref, team);
+    }
+  }
+  const teams: string[] = [];
+  for (let s = 1; s <= maxSeed; s++) teams.push(bySeed.get(s) ?? '');
+
+  const matches: Record<string, PureMatch> = {};
+  for (const doc of swissMatches) matches[doc.id] = docToPureMatch(doc);
+  const order = orderIds(swissMatches.map(d => ({ id: d.id, bracket: d.bracket, round: d.round, slot: d.slot })));
+
+  return {
+    kind: 'swiss',
+    teams,
+    size: maxSeed,
+    winnersRounds: 0,
+    losersRounds: 0,
+    ...(input.swissRounds !== undefined
+      ? { swissRounds: input.swissRounds, matchdays: input.swissRounds }
+      : {}),
+    bo: input.bo,
+    forfeitScore: input.forfeitScore,
+    matches,
+    order,
+    withdrawn: [...input.withdrawn],
+  };
+}
+
 export function docToPureMatch(doc: { id: string } & MatchDoc): PureMatch {
   const final = doc.scores?.final ?? null;
   return {
@@ -310,7 +368,7 @@ export function docToPureMatch(doc: { id: string } & MatchDoc): PureMatch {
 // grand_final), puis round croissant, puis slot croissant. En round robin le
 // bracket est homogène — l'ordre est (journée, slot global), déterministe par
 // construction (slots globaux, jamais deux matchs au même (round, slot)).
-const BRACKET_RANK: Record<PureMatch['bracket'], number> = { winners: 0, losers: 1, grand_final: 2, round_robin: 3 };
+const BRACKET_RANK: Record<PureMatch['bracket'], number> = { winners: 0, losers: 1, grand_final: 2, round_robin: 3, swiss: 4 };
 function orderIds(ms: Array<{ id: string; bracket: PureMatch['bracket']; round: number; slot: number }>): string[] {
   return [...ms]
     .sort((a, b) =>
@@ -352,17 +410,23 @@ export function materializeBracket(input: {
   groups?: number;
   /** Round robin uniquement : aller-retour. */
   doubleRound?: boolean;
+  /** Suisse uniquement : nombre total de rondes. Le publish ne matérialise
+   *  que la RONDE 1 — les suivantes naissent par `materializeMatches` au fil
+   *  des résultats (action console `generate_next_round`). */
+  swissRounds?: number;
 }): MaterializedBracket {
   const opts = {
     bo: input.bo,
     forfeitScore: input.forfeitScore,
     phasePlan: input.phasePlan,
   };
-  const bracket = input.kind === 'round_robin'
-    ? generateRoundRobin(input.seeding, { ...opts, groups: input.groups, doubleRound: input.doubleRound })
-    : input.kind === 'single_elim'
-      ? generateSingleElim(input.seeding, { ...opts, thirdPlace: input.thirdPlace })
-      : generateDoubleElim(input.seeding, opts);
+  const bracket = input.kind === 'swiss'
+    ? generateSwiss(input.seeding, { ...opts, rounds: input.swissRounds })
+    : input.kind === 'round_robin'
+      ? generateRoundRobin(input.seeding, { ...opts, groups: input.groups, doubleRound: input.doubleRound })
+      : input.kind === 'single_elim'
+        ? generateSingleElim(input.seeding, { ...opts, thirdPlace: input.thirdPlace })
+        : generateDoubleElim(input.seeding, opts);
 
   const infoOf = (regId: string | null): TeamDisplay | null =>
     regId ? input.registrations[regId]?.display ?? null : null;
@@ -373,6 +437,35 @@ export function materializeBracket(input: {
   const acls: MaterializedBracket['acls'] = [];
   for (const id of bracket.order) {
     const m = bracket.matches[id];
+    matches.push({ id, doc: pureMatchToDoc(input.competitionId, m, { a: infoOf(m.teamA), b: infoOf(m.teamB) }) });
+    const participantUids = [...rosterOf(m.teamA), ...rosterOf(m.teamB)];
+    if (participantUids.length > 0) acls.push({ matchId: id, participantUids });
+  }
+  return { matches, acls };
+}
+
+/**
+ * Sérialise un SOUS-ENSEMBLE de matchs d'un bracket déjà en base — la brique
+ * des formats à GÉNÉRATION INCRÉMENTALE (suisse : `generateSwissNextRound`
+ * produit la ronde N+1, la console écrit ses docs via cette fonction). Même
+ * shape de sortie que `materializeBracket` (docs + ACL).
+ */
+export function materializeMatches(input: {
+  competitionId: string;
+  bracket: Bracket;
+  matchIds: string[];
+  registrations: Record<string, { display: TeamDisplay; rosterUids: string[] }>;
+}): MaterializedBracket {
+  const infoOf = (regId: string | null): TeamDisplay | null =>
+    regId ? input.registrations[regId]?.display ?? null : null;
+  const rosterOf = (regId: string | null): string[] =>
+    regId ? input.registrations[regId]?.rosterUids ?? [] : [];
+
+  const matches: MaterializedBracket['matches'] = [];
+  const acls: MaterializedBracket['acls'] = [];
+  for (const id of input.matchIds) {
+    const m = input.bracket.matches[id];
+    if (!m) throw new Error(`Match inconnu dans le bracket : ${id}.`);
     matches.push({ id, doc: pureMatchToDoc(input.competitionId, m, { a: infoOf(m.teamA), b: infoOf(m.teamB) }) });
     const participantUids = [...rosterOf(m.teamA), ...rosterOf(m.teamB)];
     if (participantUids.length > 0) acls.push({ matchId: id, participantUids });

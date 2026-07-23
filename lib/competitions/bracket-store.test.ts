@@ -3,6 +3,8 @@ import {
   generateDoubleElim,
   generateSingleElim,
   generateRoundRobin,
+  generateSwiss,
+  generateSwissNextRound,
   advanceMatch,
   replaceTeam,
   withdrawTeam,
@@ -18,6 +20,7 @@ import {
   docToPureMatch,
   reconstructBracket,
   materializeBracket,
+  materializeMatches,
   type MatchDoc,
 } from './bracket-store';
 
@@ -429,5 +432,104 @@ describe('bracket-store — round robin', () => {
     expect(matches.every(m => typeof m.doc.group === 'number')).toBe(true);
     // Toutes les équipes connues d'avance → une ACL par match.
     expect(acls).toHaveLength(12);
+  });
+});
+
+// ── Suisse : round-trip + reconstruction + génération incrémentale ──────────
+
+describe('bracket-store — suisse', () => {
+  const SWISS_BO: BoConfig = { default: 5, overrides: [], grandFinal: 5 };
+  function genSwiss(n: number, rounds: number): Bracket {
+    return generateSwiss(teams(n), { bo: SWISS_BO, forfeitScore: FORFEIT, rounds });
+  }
+  function docsOf(bracket: Bracket) {
+    return bracket.order.map(id => ({
+      id,
+      ...pureMatchToDoc('comp-sw', bracket.matches[id], { a: null, b: null }),
+    }));
+  }
+  function roundTrip(bracket: Bracket): Bracket {
+    return reconstructBracket({
+      withdrawn: [...bracket.withdrawn],
+      bo: bracket.bo,
+      forfeitScore: bracket.forfeitScore,
+      matches: docsOf(bracket),
+      kind: 'swiss',
+      swissRounds: bracket.swissRounds,
+    });
+  }
+
+  it('round-trip fidèle ronde 1 (pair et impair, bye compris)', () => {
+    for (const n of [4, 7, 8, 13, 16]) {
+      const b = genSwiss(n, 3);
+      const back = roundTrip(b);
+      expect(back.kind).toBe('swiss');
+      expect(back.size).toBe(n);
+      expect(back.teams).toEqual(b.teams);
+      expect(back.swissRounds).toBe(3);
+      expect(back.order).toEqual(b.order);
+      for (const id of b.order) {
+        expect(back.matches[id]).toEqual(b.matches[id]);
+      }
+    }
+  });
+
+  it('round-trip après une ronde jouée + génération de la suivante', () => {
+    let b = genSwiss(8, 3);
+    for (const id of [...b.order]) {
+      b = advanceMatch(b, id, {
+        type: 'winner', winner: 'a',
+        scores: [{ a: 1, b: 0 }, { a: 1, b: 0 }, { a: 1, b: 0 }],
+      });
+    }
+    b = generateSwissNextRound(b);
+    const back = roundTrip(b);
+    expect(back.order).toEqual(b.order);
+    for (const id of b.order) {
+      expect(back.matches[id]).toEqual(b.matches[id]);
+    }
+    // Sans swissRounds (config manquante) : jamais « fini » — fail-safe.
+    const noRounds = reconstructBracket({
+      withdrawn: [], bo: b.bo, forfeitScore: b.forfeitScore,
+      matches: docsOf(b), kind: 'swiss',
+    });
+    expect(noRounds.swissRounds).toBeUndefined();
+  });
+
+  it('materializeBracket route le suisse (ronde 1 seule) et materializeMatches ajoute la ronde 2', () => {
+    const registrations: Record<string, { display: { name: string; tag: string; logoUrl: string | null }; rosterUids: string[] }> = {};
+    for (const t of teams(8)) {
+      registrations[t] = { display: { name: t, tag: t.toUpperCase(), logoUrl: null }, rosterUids: [`u_${t}`] };
+    }
+    const { matches, acls } = materializeBracket({
+      competitionId: 'comp-sw',
+      seeding: teams(8),
+      bo: SWISS_BO,
+      forfeitScore: FORFEIT,
+      registrations,
+      kind: 'swiss',
+      swissRounds: 3,
+    });
+    expect(matches).toHaveLength(4); // ronde 1 SEULE
+    expect(matches.every(m => m.doc.bracket === 'swiss')).toBe(true);
+    expect(acls).toHaveLength(4);
+
+    // Ronde 2 générée puis matérialisée en APPEND.
+    let b = genSwiss(8, 3);
+    for (const id of [...b.order]) {
+      b = advanceMatch(b, id, {
+        type: 'winner', winner: 'a',
+        scores: [{ a: 1, b: 0 }, { a: 1, b: 0 }, { a: 1, b: 0 }],
+      });
+    }
+    const after = generateSwissNextRound(b);
+    const newIds = after.order.filter(id => !b.matches[id]);
+    expect(newIds).toHaveLength(4);
+    const appended = materializeMatches({
+      competitionId: 'comp-sw', bracket: after, matchIds: newIds, registrations,
+    });
+    expect(appended.matches).toHaveLength(4);
+    expect(appended.matches.every(m => m.doc.round === 2)).toBe(true);
+    expect(appended.acls).toHaveLength(4);
   });
 });

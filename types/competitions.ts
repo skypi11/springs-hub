@@ -202,7 +202,7 @@ export type CompetitionStatus =
 
 /** Format d'une étape de tournoi. Source de vérité des formats disponibles :
  *  la registry `lib/competitions/formats.ts` (fiche déclarative par format). */
-export type FormatKind = 'double_elim' | 'single_elim' | 'round_robin';
+export type FormatKind = 'double_elim' | 'single_elim' | 'round_robin' | 'swiss';
 
 export interface CompetitionFormat {
   kind: FormatKind;
@@ -228,9 +228,12 @@ export interface CompetitionFormat {
   groupCount?: number;
   /** Round robin uniquement : aller-retour (chaque paire joue deux fois). */
   doubleRound?: boolean;
-  /** Round robin uniquement : barème d'un match de poule (défaut 3/1/0 —
-   *  `draw` prêt pour les jeux à match nul, aucun chemin de nul en RL). */
+  /** Round robin + suisse : barème d'un match (défaut 3/1/0 — `draw` prêt
+   *  pour les jeux à match nul, aucun chemin de nul en RL). */
   points?: { win: number; draw: number; loss: number };
+  /** Suisse uniquement : nombre total de rondes (défaut ⌈log2(maxTeams)⌉).
+   *  Les rondes sont générées INCRÉMENTALEMENT (console, ronde par ronde). */
+  swissRounds?: number;
   /**
    * Score conventionnel d'un forfait (spec §11) : `games` manches gagnées
    * `goalsPerGame`-0 en BO5 → délta ±3 ; BO7 dérivé (4 manches).
@@ -298,7 +301,7 @@ export interface PhasePlanEntry {
   phase: number;                     // 1-based, ordre de lancement
   day: number;                       // 1-based, index dans schedule.days
   label: string;                     // "P2 — WR2 + LR1" | "J3" (RR : journée)
-  rounds: Array<{ bracket: 'winners' | 'losers' | 'grand_final' | 'round_robin'; round: number }>;
+  rounds: Array<{ bracket: 'winners' | 'losers' | 'grand_final' | 'round_robin' | 'swiss'; round: number }>;
 }
 
 // ── Inscriptions ────────────────────────────────────────────────────────────
@@ -416,9 +419,9 @@ export interface RegistrationRosterEntry {
 export interface CompetitionMatch {
   id: string;
   competitionId: string;
-  bracket: 'winners' | 'losers' | 'grand_final' | 'round_robin';
-  round: number;                   // ronde d'arbre, ou journée en round robin
-  slot: number;                    // position dans la ronde (RR : global journée)
+  bracket: 'winners' | 'losers' | 'grand_final' | 'round_robin' | 'swiss';
+  round: number;                   // ronde d'arbre, journée (RR) ou ronde (suisse)
+  slot: number;                    // position dans la ronde (RR/suisse : global)
   /** Round robin uniquement : poule 1-based. Absent sur les matchs d'arbre. */
   group?: number;
   phase: number | null;            // rattachement au phasePlan

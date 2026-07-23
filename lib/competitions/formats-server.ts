@@ -7,15 +7,21 @@
 // if/else éparpillés — ajouter un format = ajouter son entrée.
 
 import {
+  canGenerateSwissRound,
   computePlacements,
   computeRoundRobinPlacements,
+  computeSwissPlacements,
   DEFAULT_RR_POINTS,
   generateDoubleElim,
   generateRoundRobin,
   generateSingleElim,
+  generateSwiss,
+  generateSwissNextRound,
   isConcluded,
   isFinished,
+  isSwissFinished,
   needsAdminDecision,
+  swissDefaultRounds,
   type Bracket,
   type PhasePlanEntryLike,
   type Placement,
@@ -25,6 +31,7 @@ import {
   buildLegendsPhasePlan,
   buildRoundRobinPhasePlan,
   buildSingleElimPhasePlan,
+  buildSwissPhasePlan,
 } from './defaults';
 
 export interface FormatEngine {
@@ -52,6 +59,15 @@ export interface FormatEngine {
   ): Placement[];
   /** Plan de phases par défaut du préréglage (ajustable admin). */
   buildDefaultPhasePlan(format: CompetitionFormat): PhasePlanEntry[];
+  /**
+   * Formats à GÉNÉRATION INCRÉMENTALE (suisse) : la prochaine ronde
+   * peut-elle être appariée ? (tous les matchs terminaux + rondes
+   * restantes). Absent = le format matérialise tout au publish.
+   */
+  canGenerateNextRound?(bracket: Bracket): boolean;
+  /** Calcule et AJOUTE la ronde suivante (nouveau bracket — la console écrit
+   *  ensuite les nouveaux docs via `materializeMatches`). */
+  generateNextRound?(bracket: Bracket, format: CompetitionFormat, phasePlan?: PhasePlanEntryLike[]): Bracket;
 }
 
 export const FORMAT_ENGINES: Record<FormatKind, FormatEngine> = {
@@ -97,6 +113,26 @@ export const FORMAT_ENGINES: Record<FormatKind, FormatEngine> = {
     buildDefaultPhasePlan: format =>
       buildRoundRobinPhasePlan(format.maxTeams, format.groupCount ?? 1, format.doubleRound === true),
   },
+  swiss: {
+    generate: (seeding, format, phasePlan) =>
+      generateSwiss(seeding, {
+        bo: format.bo,
+        forfeitScore: format.forfeitScore,
+        phasePlan,
+        rounds: format.swissRounds ?? swissDefaultRounds(seeding.length),
+      }),
+    // Fini = tous les matchs terminaux ET toutes les rondes générées
+    // (bracket.swissRounds — jamais fini s'il manque, fail-safe documenté).
+    isFinished: isSwissFinished,
+    needsAdminDecision: () => false,
+    computePlacements: (bracket, format, resolutions) =>
+      computeSwissPlacements(bracket, format.points ?? DEFAULT_RR_POINTS, resolutions),
+    buildDefaultPhasePlan: format =>
+      buildSwissPhasePlan(format.swissRounds ?? swissDefaultRounds(format.maxTeams)),
+    canGenerateNextRound: canGenerateSwissRound,
+    generateNextRound: (bracket, _format, phasePlan) =>
+      generateSwissNextRound(bracket, { phasePlan }),
+  },
 };
 
 /** Engine d'un format — kind legacy absent/inconnu : double élim (comportement
@@ -108,6 +144,6 @@ export function engineFor(kind: FormatKind | undefined | null): FormatEngine {
 /** Kind d'une compétition telle que stockée (docs legacy sans kind → double élim). */
 export function kindOf(format: { kind?: string } | null | undefined): FormatKind {
   const kind = format?.kind;
-  if (kind === 'single_elim' || kind === 'round_robin' || kind === 'double_elim') return kind;
+  if (kind === 'single_elim' || kind === 'round_robin' || kind === 'swiss' || kind === 'double_elim') return kind;
   return 'double_elim';
 }

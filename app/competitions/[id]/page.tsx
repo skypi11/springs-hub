@@ -338,7 +338,7 @@ export default function CompetitionPage() {
             <div>
               <p style={{ color: 'var(--s-text-muted)' }}>Matchs</p>
               <p className="font-semibold">
-                {comp.format?.kind === 'round_robin'
+                {comp.format?.kind === 'round_robin' || comp.format?.kind === 'swiss'
                   ? `BO${comp.format?.bo?.default ?? 5} sur tous les matchs`
                   : `BO${comp.format?.bo?.default ?? 5} · ${comp.format?.kind === 'single_elim' ? 'finale' : 'finales'} BO${comp.format?.bo?.grandFinal ?? 7}`}
               </p>

@@ -241,6 +241,7 @@ async function applyEngineOp(
       forfeitScore: cfg.forfeitScore,
       matches: docs.map(d => ({ id: d.id, ...d.data })),
       kind: kindOf(comp.format),
+      swissRounds: typeof comp.format?.swissRounds === 'number' ? comp.format.swissRounds : undefined,
     });
 
     // Garde d'idempotence : un outcome sur un pivot déjà terminal = déjà

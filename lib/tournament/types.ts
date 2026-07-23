@@ -16,14 +16,16 @@
 //   élimine les deux équipes (R5-1) ; la cascade de retrait (R5-4) donne le
 //   score conventionnel à l'adversaire mais fige le délta du retiré.
 
-export type BracketSide = 'winners' | 'losers' | 'grand_final' | 'round_robin';
+export type BracketSide = 'winners' | 'losers' | 'grand_final' | 'round_robin' | 'swiss';
 
 /** Format du bracket. En simple élimination : uniquement des matchs winners
  *  (l'arbre) + éventuellement une petite finale `P3` portée par le bracket
  *  `losers` round 1 (mappée « consolation final » côté viewer). Pas de GF/GFR.
  *  En round robin : uniquement des matchs `round_robin` (poules, toutes les
- *  équipes posées dès la génération — aucun `winner_of`/`loser_of`). */
-export type BracketKind = 'double_elim' | 'single_elim' | 'round_robin';
+ *  équipes posées dès la génération — aucun `winner_of`/`loser_of`).
+ *  En suisse : matchs `swiss`, RONDES GÉNÉRÉES INCRÉMENTALEMENT (la ronde
+ *  N+1 n'existe qu'une fois la ronde N terminée — generateSwissNextRound). */
+export type BracketKind = 'double_elim' | 'single_elim' | 'round_robin' | 'swiss';
 
 export type MatchSource =
   | { type: 'seed'; ref: number }               // position de seed (1-based)
@@ -93,10 +95,14 @@ export interface Bracket {
   losersRounds: number;
   /** Round robin uniquement : nombre de poules (1 = ligue simple). */
   groups?: number;
-  /** Round robin uniquement : journées au total (legs compris). */
+  /** Round robin : journées au total (legs compris). Suisse : rondes prévues. */
   matchdays?: number;
   /** Round robin uniquement : true = aller-retour (chaque paire joue 2 fois). */
   doubleRound?: boolean;
+  /** Suisse uniquement : nombre TOTAL de rondes prévues. Posé à la génération
+   *  ET à la reconstruction (depuis `format.swissRounds`) — absent, un suisse
+   *  n'est JAMAIS « fini » (fail-safe contre une clôture prématurée). */
+  swissRounds?: number;
   bo: BoConfig;
   /** Score conventionnel de forfait : le nombre de manches est TOUJOURS dérivé
    *  du BO du match (ceil(bo/2), soit 3 en BO5 / 4 en BO7), chaque manche

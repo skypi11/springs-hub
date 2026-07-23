@@ -35,12 +35,12 @@ export type PublicMatchSource =
   | { type: 'loser_of'; ref: string }
   | { type: 'bye'; ref: null };
 
-/** Match tel que servi par l'API publique du bracket. `round_robin` est
- *  accepté en ENTRÉE (les docs peuvent en porter) mais pas encore rendu —
- *  garde explicite dans adaptBracketForViewer, adaptateur de poules à venir. */
+/** Match tel que servi par l'API publique du bracket. `round_robin` et
+ *  `swiss` sont acceptés en ENTRÉE (les docs peuvent en porter) mais pas
+ *  encore rendus — garde explicite dans adaptBracketForViewer. */
 export interface PublicBracketMatch {
-  id: string;                               // clé moteur ("W1-1", "L2-3", "GF", "GFR", "R3-2")
-  bracket: 'winners' | 'losers' | 'grand_final' | 'round_robin';
+  id: string;                               // clé moteur ("W1-1", "L2-3", "GF", "GFR", "R3-2", "S2-1")
+  bracket: 'winners' | 'losers' | 'grand_final' | 'round_robin' | 'swiss';
   round: number;
   slot: number;
   bo: number;
@@ -84,9 +84,9 @@ export interface AdaptedBracket {
   decorations: Record<string, MatchDecoration>;
 }
 
-// `round_robin` jamais atteint (garde d'entrée d'adaptBracketForViewer) —
-// présent pour le typage de l'index.
-const GROUP_IDS = { winners: 1, losers: 2, grand_final: 3, round_robin: 4 } as const;
+// `round_robin`/`swiss` jamais atteints (garde d'entrée d'adaptBracketForViewer)
+// — présents pour le typage de l'index.
+const GROUP_IDS = { winners: 1, losers: 2, grand_final: 3, round_robin: 4, swiss: 5 } as const;
 
 // Ids de ronde globalement croissants dans l'ordre winners → losers → GF :
 // splitBy ordonne les clés numériques en croissant, l'ordre visuel en dépend.
@@ -220,12 +220,11 @@ function opponentOf(m: PublicBracketMatch, side: 'a' | 'b'): ParticipantResult |
  * output moteur (generate* → pureMatchToDoc → adapter).
  */
 export function adaptBracketForViewer(input: PublicBracketMatch[]): AdaptedBracket {
-  // Round robin : pas encore d'adaptateur de vue (le viewer le rend
-  // nativement, stage `round_robin` + notre table de classement — passe
-  // suivante). Échec EXPLICITE plutôt qu'un rendu à moitié faux : le wrapper
-  // TournamentBracket catch → état d'erreur propre.
-  if (input.some(m => m.bracket === 'round_robin')) {
-    throw new Error('Affichage des poules à venir : le bracket round robin n\'a pas encore d\'adaptateur de vue.');
+  // Round robin / suisse : pas encore d'adaptateur de vue (le viewer les rend
+  // nativement — passe suivante). Échec EXPLICITE plutôt qu'un rendu à moitié
+  // faux : le wrapper TournamentBracket catch → état d'erreur propre.
+  if (input.some(m => m.bracket === 'round_robin' || m.bracket === 'swiss')) {
+    throw new Error('Affichage à venir : les brackets round robin et suisse n\'ont pas encore d\'adaptateur de vue.');
   }
   // Un double élim généré comporte TOUJOURS une grande finale ; son absence
   // signe un simple élim (même inférence que reconstructBracket).

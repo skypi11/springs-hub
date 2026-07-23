@@ -20,6 +20,24 @@ export {
   type RoundRobinPoints,
   type PoolStandingRow,
 } from './round-robin-standings';
+export {
+  generateSwiss,
+  generateSwissNextRound,
+  canGenerateSwissRound,
+  currentSwissRound,
+  swissBlocker,
+  swissDefaultRounds,
+  SWISS_MIN_TEAMS,
+  SWISS_MAX_TEAMS,
+  SWISS_MAX_ROUNDS,
+  type SwissOptions,
+} from './swiss';
+export {
+  computeSwissStandings,
+  computeSwissPlacements,
+  isSwissFinished,
+  type SwissStandingRow,
+} from './swiss-standings';
 export { advanceMatch, withdrawTeam, replaceTeam, forfeitScores, isTerminal } from './advance';
 export {
   computeTeamStats,

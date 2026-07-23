@@ -74,6 +74,7 @@ export async function closeCompetition(
         ...(s.data() as MatchDoc),
       })),
       kind: kindOf(format),
+      swissRounds: typeof format?.swissRounds === 'number' ? format.swissRounds : undefined,
     });
     if (!engine.isFinished(bracket)) return { ok: false, code: 'not_finished' };
 

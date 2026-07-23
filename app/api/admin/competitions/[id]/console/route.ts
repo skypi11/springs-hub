@@ -15,9 +15,10 @@ import { createNotifications, type NotificationPayload } from '@/lib/notificatio
 import { sendCompetitionChannelMessage } from '@/lib/discord-competition';
 import { toFlowState, toIso, flowConfigOf, generateRoomCredentials, toEngineOutcome } from '@/lib/competitions/match-flow-server';
 import { applyMatchOutcome, applyWithdraw, applyReplacement } from '@/lib/competitions/progression';
-import { reconstructBracket, type MatchDoc } from '@/lib/competitions/bracket-store';
+import { reconstructBracket, materializeMatches, type MatchDoc, type TeamDisplay } from '@/lib/competitions/bracket-store';
 import { engineFor, kindOf } from '@/lib/competitions/formats-server';
 import { computeTeamStats, type Placement } from '@/lib/tournament';
+import type { CompetitionFormat } from '@/types/competitions';
 import { syncRegistrationToCalendar, removeRegistrationFromCalendar } from '@/lib/competitions/calendar-sync';
 import { closeCompetition } from '@/lib/competitions/close-competition';
 
@@ -81,6 +82,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // État global du bracket (clôture possible ? décision admin requise ?).
     let finished = false;
     let adminDecision = false;
+    let canGenerateNextRound = false;
     let placements: Placement[] | null = null;
     let unresolvedTiebreaks: Array<{
       group: string;
@@ -98,9 +100,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           forfeitScore: comp.format.forfeitScore ?? { games: 3, goalsPerGame: 1 },
           matches: docs.map(d => ({ id: d.id, ...(d.data as MatchDoc) })),
           kind: kindOf(comp.format),
+          swissRounds: typeof comp.format?.swissRounds === 'number' ? comp.format.swissRounds : undefined,
         });
         finished = engine.isFinished(bracket);
         adminDecision = engine.needsAdminDecision(bracket);
+        // Formats à génération incrémentale (suisse) : la ronde suivante
+        // est-elle appariable ? (tous les matchs terminaux + rondes restantes)
+        canGenerateNextRound = comp.status === 'live'
+          && (engine.canGenerateNextRound?.(bracket) ?? false);
         // Clôture (Lot 4) : placements provisoires + égalités à arbitrer,
         // calculés dès que le tournoi est fini (l'arbitrage précède l'écriture
         // des points — archi §4, aucun point sur des places non uniques).
@@ -167,6 +174,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       registrations,
       finished,
       needsAdminDecision: adminDecision,
+      canGenerateNextRound,
       // Clôture (Lot 4) : classement provisoire + égalités à arbitrer, et le
       // classement FINAL écrit si la compétition est déjà clôturée.
       placements: placements?.map(p => ({
@@ -577,6 +585,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           forfeitScore: comp.format.forfeitScore ?? { games: 3, goalsPerGame: 1 },
           matches: matchesSnap.docs.map(d => ({ id: (d.data().id as string) ?? d.id, ...(d.data() as MatchDoc) })),
           kind: kindOf(comp.format),
+          swissRounds: typeof comp.format?.swissRounds === 'number' ? comp.format.swissRounds : undefined,
         });
         // Sans aucune résolution : l'état BRUT du moteur pour ce groupe.
         const raw = engine.computePlacements(bracket, comp.format);
@@ -606,6 +615,85 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Clôture du Qualif (Lot 4A, archi §4) : l'unique écriture du classement
     // final et des points de circuit. Refusée tant qu'une égalité reste à
     // arbitrer ou qu'aucun champion mécanique n'existe.
+    // ── generate_next_round (formats à génération incrémentale : suisse) ──
+    // La ronde N+1 s'apparie sur les résultats des rondes 1..N — elle ne peut
+    // naître qu'une fois tous les matchs terminaux. Idempotent par
+    // construction : ids déterministes S{r}-{s}, un double clic réécrit les
+    // mêmes docs à l'identique (mêmes standings → mêmes appariements).
+    if (action === 'generate_next_round') {
+      if (comp.status !== 'live') {
+        return NextResponse.json({ error: 'La compétition n\'est pas en jeu.' }, { status: 409 });
+      }
+      const engine = engineFor(kindOf(comp.format));
+      if (!engine.generateNextRound || !engine.canGenerateNextRound) {
+        return NextResponse.json({ error: 'Ce format matérialise toutes ses rondes à la publication.' }, { status: 409 });
+      }
+      const matchesSnap = await db.collection('competition_matches').where('competitionId', '==', id).get();
+      const before = reconstructBracket({
+        withdrawn: Array.isArray(comp.withdrawn) ? (comp.withdrawn as string[]) : [],
+        bo: comp.format.bo,
+        forfeitScore: comp.format.forfeitScore ?? { games: 3, goalsPerGame: 1 },
+        matches: matchesSnap.docs.map(d => ({ id: (d.data().id as string) ?? d.id, ...(d.data() as MatchDoc) })),
+        kind: kindOf(comp.format),
+        swissRounds: typeof comp.format?.swissRounds === 'number' ? comp.format.swissRounds : undefined,
+      });
+      if (!engine.canGenerateNextRound(before)) {
+        return NextResponse.json({ error: 'Ronde en cours ou toutes les rondes jouées — rien à apparier.' }, { status: 409 });
+      }
+      let after;
+      try {
+        after = engine.generateNextRound(before, comp.format as CompetitionFormat, comp.schedule?.phasePlan);
+      } catch (e) {
+        // Erreurs moteur actionnables (re-match inévitable…) — jamais un 500.
+        return NextResponse.json({ error: (e as Error).message }, { status: 409 });
+      }
+      const newIds = after.order.filter(mid => !before.matches[mid]);
+      if (newIds.length === 0) {
+        return NextResponse.json({ error: 'Aucun nouveau match à créer.' }, { status: 409 });
+      }
+
+      // Display + rosters (ACL privées) depuis les inscriptions de la compét.
+      const regsSnap = await db.collection('competition_registrations')
+        .where('competitionId', '==', id).get();
+      const regsForDocs: Record<string, { display: TeamDisplay; rosterUids: string[] }> = {};
+      for (const doc of regsSnap.docs) {
+        const r = doc.data();
+        regsForDocs[doc.id] = {
+          display: {
+            name: (r.name as string) ?? doc.id,
+            tag: (r.tag as string) ?? '',
+            logoUrl: (r.logoUrl as string | null) ?? null,
+          },
+          rosterUids: Array.isArray(r.rosterUids) ? (r.rosterUids as string[]) : [],
+        };
+      }
+      const { matches: newDocs, acls } = materializeMatches({
+        competitionId: id, bracket: after, matchIds: newIds, registrations: regsForDocs,
+      });
+      const aclByMatch = new Map(acls.map(a => [a.matchId, a.participantUids]));
+      // Même flag de visibilité que le publish (rules défense en profondeur).
+      const hidden = comp.isDev === true;
+      let batch = db.batch();
+      let ops = 0;
+      const flush = async () => { if (ops > 0) { await batch.commit(); batch = db.batch(); ops = 0; } };
+      for (const { id: matchKey, doc } of newDocs) {
+        const matchRef = refOf(matchKey);
+        batch.set(matchRef, { id: matchKey, ...doc, hidden, updatedAt: FieldValue.serverTimestamp() });
+        ops += 1;
+        const uids = aclByMatch.get(matchKey);
+        if (uids && uids.length > 0) {
+          batch.set(matchRef.collection('private').doc('acl'), { participantUids: uids, staffUids: [] });
+          ops += 1;
+        }
+        if (ops >= 400) await flush();
+      }
+      await flush();
+
+      const round = after.matches[newIds[0]]?.round ?? 0;
+      await audit(db, uid, 'competition_round_generated', id, comp, { round, matches: newIds.length });
+      return NextResponse.json({ success: true, round, matchCount: newIds.length });
+    }
+
     if (action === 'close_competition') {
       const result = await closeCompetition(db, { competitionId: id });
       if (!result.ok) {

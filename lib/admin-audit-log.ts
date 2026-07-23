@@ -89,7 +89,9 @@ export type AdminAuditAction =
   | 'competition_team_replaced'
   // Moteur de compétitions — Lot 4 (clôture)
   | 'competition_tiebreak_resolved'
-  | 'competition_closed';
+  | 'competition_closed'
+  // Formats à génération incrémentale (suisse) : ronde suivante appariée
+  | 'competition_round_generated';
 
 export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event' | 'competition' | 'circuit';
 

@@ -183,6 +183,36 @@ export function buildRoundRobinPhasePlan(
   return plan;
 }
 
+// ── Préréglage « Système suisse » ───────────────────────────────────────────
+// Rondes générées INCRÉMENTALEMENT (la ronde N+1 s'apparie sur les résultats
+// des rondes 1..N — action console « generate_next_round »). BO unique,
+// classement par points + Buchholz.
+export const SWISS_FORMAT: CompetitionFormat = {
+  kind: 'swiss',
+  maxTeams: 16,
+  bo: { default: 5, overrides: [], grandFinal: 5 },
+  bracketReset: false,
+  swissRounds: 4,                       // ⌈log2(16)⌉
+  points: { win: 3, draw: 1, loss: 0 },
+  forfeitScore: { games: 3, goalsPerGame: 1 },
+};
+
+// Plan de phases suisse : une phase par RONDE (jour 1 par défaut, ajustable
+// admin). Chaque ronde matérialisée au fil des résultats se rattache à sa
+// phase via attachPhasePlan au moment de sa génération.
+export function buildSwissPhasePlan(rounds: number): PhasePlanEntry[] {
+  const plan: PhasePlanEntry[] = [];
+  for (let r = 1; r <= rounds; r++) {
+    plan.push({
+      phase: r,
+      day: 1,
+      label: `Ronde ${r}`,
+      rounds: [{ bracket: 'swiss', round: r }],
+    });
+  }
+  return plan;
+}
+
 // Ordre de départage cutline top-16 (spec §11) : meilleur placement unique du
 // circuit → délta cumulé sur les Qualifs comptés → résultat du plus récent.
 export const LEGENDS_TIE_BREAKERS = ['best_placement', 'goal_diff_total', 'latest_event'] as const;

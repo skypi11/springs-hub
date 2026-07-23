@@ -187,15 +187,15 @@ export default function TournamentBracket({ matches, gameColor, onMatchClick }: 
   // mauvais conteneur si deux instances montent par erreur.
   const instanceClass = 'bv-' + useId().replace(/[^a-zA-Z0-9_-]/g, '');
 
-  // Round robin : pas encore d'adaptateur de vue (l'adaptateur jette une garde
-  // explicite). Rendu dédié CALME — jamais l'exception dans le corps de
-  // l'effet, qui démonterait la fiche publique ET la console jusqu'à l'error
-  // boundary (review adversariale, blocker).
-  const isRoundRobin = matches.some(m => m.bracket === 'round_robin');
+  // Round robin / suisse : pas encore d'adaptateur de vue (l'adaptateur jette
+  // une garde explicite). Rendu dédié CALME — jamais l'exception dans le corps
+  // de l'effet, qui démonterait la fiche publique ET la console jusqu'à
+  // l'error boundary (review adversariale, blocker).
+  const isUnsupportedView = matches.some(m => m.bracket === 'round_robin' || m.bracket === 'swiss');
 
   useEffect(() => {
     const root = rootRef.current;
-    if (!root || matches.length === 0 || isRoundRobin) return;
+    if (!root || matches.length === 0 || isUnsupportedView) return;
 
     const seq = ++seqRef.current;
     let disposed = false;
@@ -251,13 +251,13 @@ export default function TournamentBracket({ matches, gameColor, onMatchClick }: 
         retryTimerRef.current = null;
       }
     };
-  }, [matches, instanceClass, retryTick, isRoundRobin]);
+  }, [matches, instanceClass, retryTick, isUnsupportedView]);
 
-  if (isRoundRobin) {
+  if (isUnsupportedView) {
     return (
       <div className="aedral-bracket">
         <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-          L&apos;affichage des poules arrive bientôt. Les matchs et le classement restent gérés normalement — passe par la console ou la page de match.
+          L&apos;affichage des poules et des rondes arrive bientôt. Les matchs et le classement restent gérés normalement — passe par la console ou la page de match.
         </p>
       </div>
     );

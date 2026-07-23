@@ -13,6 +13,7 @@ import {
   LEGENDS_TIE_BREAKERS,
   buildLegendsPhasePlan,
   buildRoundRobinPhasePlan,
+  buildSwissPhasePlan,
 } from './defaults';
 
 // Payload circuit complet et valide (préréglage Legends).
@@ -164,10 +165,10 @@ describe('validateCompetitionPayload', () => {
     (badBo.format.bo as { default: number }).default = 4;
     expect(validateCompetitionPayload(badBo).ok).toBe(false);
 
-    // « swiss » : format PAS ENCORE supporté (round_robin l'est désormais —
-    // couvert par son propre describe plus bas).
+    // « gauntlet » : format réellement inconnu (round_robin ET swiss sont
+    // désormais supportés — couverts par leurs describe dédiés plus bas).
     const badKind = competitionBody();
-    (badKind.format as { kind: string }).kind = 'swiss';
+    (badKind.format as { kind: string }).kind = 'gauntlet';
     expect(validateCompetitionPayload(badKind).ok).toBe(false);
   });
 
@@ -415,5 +416,70 @@ describe('régressions review — plan de phases round robin', () => {
       },
     }));
     expect(res.ok).toBe(true);
+  });
+});
+
+describe('validateCompetitionPayload — format suisse', () => {
+  function swissBody(formatOverrides: Record<string, unknown> = {}, planRounds = 4) {
+    return competitionBody({
+      format: {
+        kind: 'swiss',
+        maxTeams: 16,
+        bo: { default: 5, overrides: [], grandFinal: 5 },
+        swissRounds: 4,
+        points: { win: 3, draw: 1, loss: 0 },
+        ...formatOverrides,
+      },
+      schedule: {
+        days: [{ date: '2026-09-26', startsAt: '15:00' }],
+        phasePlan: buildSwissPhasePlan(planRounds),
+        ...LEGENDS_CHECKIN,
+      },
+    });
+  }
+
+  it('accepte un suisse valide et normalise le format', () => {
+    const res = validateCompetitionPayload(swissBody());
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.value.format.kind).toBe('swiss');
+      expect(res.value.format.swissRounds).toBe(4);
+      expect(res.value.format.bracketReset).toBe(false);
+      expect(res.value.format.bo.grandFinal).toBe(5);
+    }
+  });
+
+  it('rondes par défaut = ⌈log2(maxTeams)⌉ si absentes', () => {
+    const res = validateCompetitionPayload(swissBody({ swissRounds: undefined }));
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.value.format.swissRounds).toBe(4);
+  });
+
+  it('refuse trop de rondes pour le champ et les overrides BO', () => {
+    expect(validateCompetitionPayload(swissBody({ maxTeams: 4, swissRounds: 5 }, 5)).ok).toBe(false);
+    expect(validateCompetitionPayload(swissBody({
+      bo: { default: 5, overrides: [{ bracket: 'winners', roundsFromEnd: 1, bo: 7 }], grandFinal: 7 },
+    })).ok).toBe(false);
+  });
+
+  it('refuse un plan d\'arbre sur un suisse, et des rondes suisses sur un arbre', () => {
+    const treePlanOnSwiss = competitionBody({
+      format: {
+        kind: 'swiss',
+        maxTeams: 16,
+        bo: { default: 5, overrides: [], grandFinal: 5 },
+        swissRounds: 4,
+      },
+    });
+    expect(validateCompetitionPayload(treePlanOnSwiss).ok).toBe(false); // plan Legends
+
+    const swissPlanOnTree = competitionBody({
+      schedule: {
+        days: [{ date: '2026-09-26', startsAt: '15:00' }],
+        phasePlan: buildSwissPhasePlan(4),
+        ...LEGENDS_CHECKIN,
+      },
+    });
+    expect(validateCompetitionPayload(swissPlanOnTree).ok).toBe(false);
   });
 });

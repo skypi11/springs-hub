@@ -6,29 +6,39 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { materializeBracket, type TeamDisplay } from '@/lib/competitions/bracket-store';
-import { MIN_TEAMS, MAX_TEAMS, RR_MIN_TEAMS, RR_MAX_TEAMS, roundRobinBlocker } from '@/lib/tournament';
+import {
+  MIN_TEAMS, MAX_TEAMS,
+  RR_MIN_TEAMS, RR_MAX_TEAMS, roundRobinBlocker,
+  SWISS_MIN_TEAMS, SWISS_MAX_TEAMS, swissBlocker, swissDefaultRounds,
+} from '@/lib/tournament';
 import { kindOf } from '@/lib/competitions/formats-server';
 
-/** Bornes moteur du format : arbre 4-32, round robin 4-64 (aucune contrainte
- *  de puissance de 2 en poules). */
+/** Bornes moteur du format : arbre 4-32 ; round robin et suisse 4-64 (aucune
+ *  contrainte de puissance de 2). */
 function teamBounds(format: { kind?: string } | null | undefined): { min: number; max: number } {
-  return kindOf(format) === 'round_robin'
-    ? { min: RR_MIN_TEAMS, max: RR_MAX_TEAMS }
-    : { min: MIN_TEAMS, max: MAX_TEAMS };
+  const kind = kindOf(format);
+  if (kind === 'round_robin') return { min: RR_MIN_TEAMS, max: RR_MAX_TEAMS };
+  if (kind === 'swiss') return { min: SWISS_MIN_TEAMS, max: SWISS_MAX_TEAMS };
+  return { min: MIN_TEAMS, max: MAX_TEAMS };
 }
 
 /**
  * Blocage de faisabilité pour l'EFFECTIF RÉEL d'équipes validées (round robin
- * uniquement) : la validation de format ne connaît que le max théorique — un
- * champ de 6 équipes en « 4 poules » doit être refusé ICI, proprement, pas en
- * 500 au moment où generateRoundRobin jette (review adversariale, blocker).
+ * et suisse) : la validation de format ne connaît que le max théorique — un
+ * champ de 6 équipes en « 4 poules », ou 5 rondes suisses pour 4 équipes,
+ * doit être refusé ICI, proprement, pas en 500 au moment où le générateur
+ * jette (review adversariale, blocker).
  */
 function feasibilityBlocker(
-  format: { kind?: string; groupCount?: number } | null | undefined,
+  format: { kind?: string; groupCount?: number; swissRounds?: number; maxTeams?: number } | null | undefined,
   approvedCount: number,
 ): string | null {
-  if (kindOf(format) !== 'round_robin') return null;
-  return roundRobinBlocker(approvedCount, format?.groupCount ?? 1);
+  const kind = kindOf(format);
+  if (kind === 'round_robin') return roundRobinBlocker(approvedCount, format?.groupCount ?? 1);
+  if (kind === 'swiss') {
+    return swissBlocker(approvedCount, format?.swissRounds ?? swissDefaultRounds(format?.maxTeams ?? approvedCount));
+  }
+  return null;
 }
 
 // Seeding + matérialisation du bracket (archi §3, spec §2). Admins de
@@ -275,6 +285,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         thirdPlace: comp.format.thirdPlace === true,
         groups: comp.format.groupCount ?? 1,
         doubleRound: comp.format.doubleRound === true,
+        swissRounds: typeof comp.format.swissRounds === 'number' ? comp.format.swissRounds : undefined,
       });
 
       // Écriture batchée (63 matchs + ~32 ACL pour 32 équipes en double élim,
