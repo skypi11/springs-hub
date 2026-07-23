@@ -8,6 +8,7 @@ import { kindOf } from '@/lib/competitions/formats-server';
 import {
   computeRoundRobinStandings,
   computeSwissStandings,
+  isConcluded,
   DEFAULT_RR_POINTS,
 } from '@/lib/tournament';
 
@@ -69,7 +70,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const snap = await db.collection('competition_matches').where('competitionId', '==', id).get();
     if (snap.empty) {
-      return NextResponse.json({ kind, groups: [] });
+      return NextResponse.json({ kind, concluded: false, groups: [] });
     }
 
     const docs = snap.docs.map(d => ({ id: (d.data().id as string) ?? d.id, ...(d.data() as MatchDoc) }));
@@ -133,7 +134,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       groups = [{ group: 1, rows: computeSwissStandings(bracket, points).map(toRow) }];
     }
 
-    const res = NextResponse.json({ kind, groups });
+    // `concluded` : tous les matchs existants terminaux — les marqueurs
+    // d'égalité ne s'affichent qu'à ce moment (en cours de poule, l'ordre
+    // fluctue à chaque score, « à arbitrer » serait du bruit).
+    const res = NextResponse.json({ kind, concluded: isConcluded(bracket), groups });
     // Même politique de cache que /matches : le CDN absorbe les spectateurs.
     res.headers.set(
       'Cache-Control',

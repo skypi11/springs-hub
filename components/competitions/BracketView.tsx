@@ -66,7 +66,7 @@ export default function BracketView({ competitionId, gameColor, competitionStatu
   );
   const { data: standings } = useQuery({
     queryKey: ['competition-standings', competitionId, !!user],
-    queryFn: () => (user ? api : apiPublic)<{ kind: 'round_robin' | 'swiss'; groups: StandingsGroup[] }>(
+    queryFn: () => (user ? api : apiPublic)<{ kind: 'round_robin' | 'swiss'; concluded: boolean; groups: StandingsGroup[] }>(
       `/api/competitions/${competitionId}/standings`),
     staleTime: 10_000,
     enabled: isGroupStage,
@@ -93,7 +93,7 @@ export default function BracketView({ competitionId, gameColor, competitionStatu
       {isGroupStage && standings && standings.groups.length > 0 && (
         <div>
           <p className="t-label mb-3" style={{ color: 'var(--s-text-dim)' }}>Classement</p>
-          <StandingsTable kind={standings.kind} groups={standings.groups} />
+          <StandingsTable kind={standings.kind} concluded={standings.concluded} groups={standings.groups} />
         </div>
       )}
     </div>
