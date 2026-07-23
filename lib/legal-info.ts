@@ -69,6 +69,12 @@ export const LEGAL_INFO = {
       location: 'Riot Games Inc., Los Angeles, États-Unis',
     },
     {
+      name: 'Steam (Valve)',
+      purpose: 'Authentification Steam (OpenID) et enrichissement pseudo/avatar pour fiabiliser le lien vers les statistiques Rocket League',
+      url: 'https://store.steampowered.com',
+      location: 'Valve Corporation, Bellevue (WA), États-Unis',
+    },
+    {
       name: 'Sentry',
       purpose: 'Monitoring technique (erreurs applicatives)',
       url: 'https://sentry.io',

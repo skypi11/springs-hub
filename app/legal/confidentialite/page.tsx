@@ -50,7 +50,8 @@ export default function ConfidentialitePage() {
           <SubBlock title="À la connexion via Discord">
             <ul className="text-sm space-y-1 pl-4" style={{ color: 'var(--s-text-dim)', listStyle: 'disc' }}>
               <li>Identifiant Discord (snowflake), pseudo Discord, avatar</li>
-              <li>Scope demandé : <code className="t-mono" style={{ color: 'var(--s-text)' }}>identify</code> uniquement (aucun accès aux serveurs, messages privés ou email Discord)</li>
+              <li>Scopes demandés : <code className="t-mono" style={{ color: 'var(--s-text)' }}>identify</code> et <code className="t-mono" style={{ color: 'var(--s-text)' }}>connections</code> — aucun accès à vos serveurs, à vos messages privés ni à votre email Discord</li>
+              <li>Le scope <code className="t-mono" style={{ color: 'var(--s-text)' }}>connections</code> récupère la liste des comptes que vous avez liés à votre profil Discord (comptes de jeu et réseaux : Epic Games, Steam, PlayStation, Xbox, Nintendo, Twitch, YouTube, etc.), afin de vous permettre de les afficher sur votre profil Aedral. Chaque compte dispose d&apos;un réglage de visibilité individuel (affiché ou masqué sur votre profil public) et peut être retiré à tout moment</li>
             </ul>
             <p className="text-xs mt-2" style={{ color: 'var(--s-text-muted)' }}>
               Votre mot de passe Discord et votre 2FA ne sont jamais vus par Aedral : la validation se fait sur <code className="t-mono">discord.com</code>.
@@ -67,6 +68,17 @@ export default function ConfidentialitePage() {
             </ul>
             <p className="text-xs mt-2" style={{ color: 'var(--s-text-muted)' }}>
               Votre mot de passe Riot n&apos;est jamais vu par Aedral : la validation se fait sur <code className="t-mono">riotgames.com</code> et l&apos;échange de jetons a lieu entièrement côté serveur. Ces identifiants ne sont <strong style={{ color: 'var(--s-text)' }}>jamais vendus ni partagés</strong> et ne sont obtenus que via votre propre connexion — jamais en interrogeant d&apos;autres joueurs.
+            </p>
+          </SubBlock>
+
+          <SubBlock title="À la liaison Steam (pour Rocket League)">
+            <ul className="text-sm space-y-1 pl-4" style={{ color: 'var(--s-text-dim)', listStyle: 'disc' }}>
+              <li>Si vous jouez à Rocket League sur Steam, vous pouvez lier votre compte via <strong style={{ color: 'var(--s-text)' }}>Steam OpenID</strong>. Nous récupérons alors votre <strong style={{ color: 'var(--s-text)' }}>SteamID64</strong> (identifiant Steam permanent) et, si la clé API Steam est configurée, votre pseudo et votre avatar Steam</li>
+              <li>Finalité unique : fiabiliser le lien vers vos statistiques (tracker.gg) pour qu&apos;il ne casse pas lorsque vous changez de pseudo Steam</li>
+              <li>Vous pouvez délier votre compte Steam à tout moment depuis vos paramètres</li>
+            </ul>
+            <p className="text-xs mt-2" style={{ color: 'var(--s-text-muted)' }}>
+              Votre mot de passe Steam n&apos;est jamais vu par Aedral : la validation se fait sur <code className="t-mono">steamcommunity.com</code>.
             </p>
           </SubBlock>
 
@@ -146,6 +158,7 @@ export default function ConfidentialitePage() {
             <DurationLine label="Profil actif" value="Tant que votre compte existe." />
             <DurationLine label="Après suppression de compte" value="Profil effacé immédiatement ; retrait de toutes les équipes et structures." />
             <DurationLine label="Identifiants Riot (PUUID, RiotID)" value="Conservés tant que le lien reste actif ; supprimés lorsque vous déliez votre compte Riot ou supprimez votre compte." />
+            <DurationLine label="Comptes de jeu liés (Steam, connexions Discord)" value="Conservés tant que le lien reste actif ; supprimés lorsque vous les dissociez ou supprimez votre compte." />
             <DurationLine label="Journaux d'audit" value="3 ans maximum (obligation légale d'intégrité + lutte contre la fraude)." />
             <DurationLine label="Logs techniques Sentry" value="90 jours maximum." />
             <DurationLine label="Événements PostHog (mesure d'usage)" value="1 an maximum. Désactivable à tout moment depuis Paramètres → Compte → Vie privée." />
