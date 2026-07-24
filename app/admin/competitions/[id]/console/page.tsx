@@ -24,6 +24,7 @@ import TeamCrest from '@/components/competitions/TeamCrest';
 import GlanceStat from '@/components/competitions/GlanceStat';
 import GameRow from '@/components/competitions/GameRow';
 import TournamentBracket from '@/components/competitions/TournamentBracket';
+import StandingsTable, { type StandingsGroup } from '@/components/competitions/StandingsTable';
 import { useWorkerInterval } from '@/components/competitions/useWorkerInterval';
 import { winsOf, normalizeGameRows, isScoreValid, winsNeeded } from '@/lib/competitions/match-score';
 import type { PublicBracketMatch } from '@/lib/competitions/brackets-viewer-adapter';
@@ -128,8 +129,15 @@ interface ConsoleStageMeta {
   stage: number;
   kind: string;
   label: string;
-  maxTeams: number;
+  maxTeams: number | null;
   transfer: { advanceCount: number; reseed: string } | null;
+}
+
+interface ConsoleStandings {
+  kind: 'round_robin' | 'swiss';
+  concluded: boolean;
+  groups: StandingsGroup[];
+  stages?: Array<{ stage: number; kind: 'round_robin' | 'swiss'; label: string; concluded: boolean; groups: StandingsGroup[] }>;
 }
 
 interface ConsoleData {
@@ -261,11 +269,19 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
   const [listTeamId, setListTeamId] = useState<string | null>(null);
   const [dossiers, setDossiers] = useState<Record<string, TeamDossier> | null>(null);
   const [dossiersLoading, setDossiersLoading] = useState(false);
+  // Classement (RR/suisse) — même source officielle que la fiche publique
+  // (/standings : ordre figé des étapes closes, arbitrages appliqués). null =
+  // pas de classement pour ce format (élims pures : 404 avalé).
+  const [standings, setStandings] = useState<ConsoleStandings | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const d = await api<ConsoleData>(`/api/admin/competitions/${id}/console`);
+      const [d, s] = await Promise.all([
+        api<ConsoleData>(`/api/admin/competitions/${id}/console`),
+        api<ConsoleStandings>(`/api/competitions/${id}/standings`).catch(() => null),
+      ]);
       setData(d);
+      setStandings(s);
     } catch { /* blip réseau : on garde le dernier état */ }
   }, [id]);
 
@@ -617,6 +633,31 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
                     // Éviter le dossier affiché deux fois : replie la ligne de phase du match sélectionné.
                     setExpandedRows(prev => { if (!prev.has(mid)) return prev; const n = new Set(prev); n.delete(mid); return n; });
                   }} />
+                {/* Classement (RR/suisse) — même source officielle que la fiche
+                    (ordre figé des étapes closes, arbitrages appliqués) : la
+                    salle de contrôle n'oblige jamais à changer de page. */}
+                {(() => {
+                  if (!standings) return null;
+                  const entries = Array.isArray(standings.stages) && standings.stages.length > 0
+                    ? [...standings.stages].sort((a, b) => b.stage - a.stage)
+                    : standings.groups.length > 0
+                      ? [{ stage: 1, kind: standings.kind, label: '', concluded: standings.concluded, groups: standings.groups }]
+                      : [];
+                  if (entries.length === 0) return null;
+                  const multi = (data.stages ?? []).length > 1;
+                  return (
+                    <div className="space-y-4" style={{ marginTop: 16 }}>
+                      {entries.map(s => (
+                        <div key={s.stage}>
+                          <p className="t-label-soft" style={{ marginBottom: 8 }}>
+                            {multi && s.label ? `Classement — ${s.label}` : 'Classement'}
+                          </p>
+                          <StandingsTable kind={s.kind} concluded={s.concluded} groups={s.groups} />
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
