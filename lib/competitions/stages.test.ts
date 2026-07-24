@@ -526,3 +526,26 @@ describe('computeStageAdvance — reseed mmr/circuit via seedRank (design §10)'
     }
   });
 });
+
+describe('isStageTransferStuck — neutralisation de la stratégie au dry-run (review seeding)', () => {
+  it('transfert reseed mmr + génération infaisable → stuck (la soupape couvre les nouvelles stratégies)', () => {
+    const { placements, stats } = playedGroupStage();
+    expect(isStageTransferStuck({
+      transfer: { advanceCount: 4, reseed: 'mmr' },
+      placements, stats,
+      withdrawn: [],
+      tiebreakResolutions: {},
+      nextStage: { kind: 'single_elim', format: seFormat(4) },
+      generateNext: () => { throw new Error('poules infaisables'); },
+    })).toBe(true);
+    // Et un transfert mmr SAIN n'est jamais une impasse.
+    expect(isStageTransferStuck({
+      transfer: { advanceCount: 4, reseed: 'circuit' },
+      placements, stats,
+      withdrawn: [],
+      tiebreakResolutions: {},
+      nextStage: { kind: 'single_elim', format: seFormat(4) },
+      generateNext: seeding => generateSingleElim(seeding, { bo: BO1, forfeitScore: FORFEIT }),
+    })).toBe(false);
+  });
+});

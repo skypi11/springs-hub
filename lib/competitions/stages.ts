@@ -326,13 +326,16 @@ export function isStageTransferStuck(input: {
 }): boolean {
   const adv = computeStageAdvance({
     stage: 0, // sans objet pour un dry-run
-    transfer: input.transfer,
+    // L'ORDRE n'importe pas pour la faisabilité : la stratégie est neutralisée
+    // ('standings') — sans ça, un reseed 'mmr'/'circuit' sortait en
+    // reseed_unsupported AVANT le test de génération et la soupape était
+    // morte pour ces transferts (review adversariale, compétition briquée).
+    transfer: { ...input.transfer, reseed: 'standings' },
     placements: input.placements,
     stats: input.stats,
     withdrawn: input.withdrawn,
     tiebreakResolutions: input.tiebreakResolutions,
     nextStageMinTeams: teamBoundsForKind(input.nextStage.kind).min,
-    // L'ordre n'importe pas pour la faisabilité — identité pour 'random'.
     shuffle: xs => xs,
   });
   if (!adv.ok) return adv.code === 'not_enough_teams';

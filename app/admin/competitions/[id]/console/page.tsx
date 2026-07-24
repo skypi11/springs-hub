@@ -613,9 +613,10 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
 
       {/* SEEDING (design §10c) — pilotage du cycle seeding → publication sans
           script : stratégies (aléatoire / MMR / circuit), réordonnancement
-          manuel, publication. Disparaît une fois le bracket publié. */}
-      {bracketMatches.length === 0
-        && ['draft', 'registration', 'validation', 'seeding'].includes(data.competition.status) && (
+          manuel, publication. Visible sur tout statut pré-live — y compris
+          après un publish crashé à mi-course (des matchs partiels existent
+          mais le statut est resté seeding : re-cliquer Publier répare). */}
+      {['draft', 'registration', 'validation', 'seeding'].includes(data.competition.status) && (
         <SeedingPanel competitionId={id} onPublished={load} />
       )}
 

@@ -129,14 +129,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const bounds = teamBounds(comp.format);
     const feasibility = feasibilityBlocker(comp.format, approved.length);
+    // Le seeding STOCKÉ diverge des validées (validation/retrait depuis le
+    // dernier seed) : le publish refusera — le GET le dit AVANT le clic
+    // (review adversariale : la liste « réparée » masquait la divergence).
+    const seedingStale = status === 'seeding' && (
+      storedSeeding.length !== approved.length
+      || new Set(storedSeeding).size !== storedSeeding.length
+      || !storedSeeding.every(rid => byId.has(rid))
+    );
     return NextResponse.json({
       status,
       approvedCount: approved.length,
       minTeams: bounds.min,
       maxTeams: bounds.max,
       seeding,
-      // Stratégies disponibles (design §10b) — 'circuit' exige un circuit.
-      strategies: { random: true, mmr: true, circuit: circuitRanks !== null },
+      // Stratégies disponibles (design §10b) — 'circuit' exige un circuit AVEC
+      // des résultats (un classement vide donnerait un ordre 100 % MMR
+      // étiqueté « circuit » : mensonger).
+      strategies: { random: true, mmr: true, circuit: circuitRanks !== null && circuitRanks.size > 0 },
       // Ouverture du seeding depuis les statuts pré-live, avec assez d'équipes
       // ET une répartition en poules jouable (round robin).
       canOpenSeeding: ['draft', 'registration', 'validation'].includes(status)
@@ -145,7 +155,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       canEditSeeding: status === 'seeding',
       canPublish: status === 'seeding' && !materialized
         && approved.length >= bounds.min && approved.length <= bounds.max
-        && feasibility === null,
+        && feasibility === null
+        && !seedingStale,
+      seedingStale,
       // Message actionnable pour l'UI quand la répartition en poules bloque.
       feasibilityError: feasibility,
       materialized,
@@ -206,14 +218,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (status !== 'seeding') {
       return NextResponse.json({ error: 'Action réservée au statut seeding.' }, { status: 409 });
     }
-    if (comp.bracketMaterializedAt) {
-      return NextResponse.json({ error: 'Le bracket est déjà publié : le seeding est figé.' }, { status: 409 });
-    }
+
+    // Écriture du seeding en TRANSACTION COURTE (review adversariale) : les
+    // gates statut/verrou sont re-lus FRAIS — un seed_by/reorder concurrent
+    // d'un publish ne peut plus écraser le seeding d'un bracket matérialisé
+    // (le verrou bracketMaterializedAt est posé en TÊTE du publish).
+    const writeSeeding = async (seeding: string[]) => {
+      try {
+        await db.runTransaction(async tx => {
+          const fresh = (await tx.get(compRef)).data();
+          if (!fresh || fresh.status !== 'seeding') throw new Error('not_seeding');
+          if (fresh.bracketMaterializedAt) throw new Error('materialized');
+          tx.update(compRef, { seeding, updatedAt: FieldValue.serverTimestamp() });
+        });
+        return null;
+      } catch (e) {
+        const msg = (e as Error).message;
+        if (msg === 'not_seeding') return 'La compétition n\'est plus en seeding.';
+        if (msg === 'materialized') return 'Le bracket est déjà publié : le seeding est figé.';
+        throw e;
+      }
+    };
 
     // ── shuffle ──
     if (action === 'shuffle') {
       const seeding = shuffle(approved.map(r => r.registrationId));
-      await compRef.update({ seeding, updatedAt: FieldValue.serverTimestamp() });
+      const blocked = await writeSeeding(seeding);
+      if (blocked) return NextResponse.json({ error: blocked }, { status: 409 });
       await audit(db, uid, 'competition_seeding_shuffled', id, comp, {});
       return NextResponse.json({ success: true, seeding });
     }
@@ -236,9 +267,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         if (!ranks) {
           return NextResponse.json({ error: 'Seeding par classement de circuit : cette compétition n\'est pas rattachée à un circuit valide.' }, { status: 409 });
         }
+        if (ranks.size === 0) {
+          // Aucun résultat enregistré (cas nominal du Qualif 1) : un ordre
+          // 100 % MMR étiqueté « circuit » serait mensonger — refus actionnable.
+          return NextResponse.json({ error: 'Aucun résultat de circuit encore enregistré — utilise le seeding par MMR.' }, { status: 409 });
+        }
         seeding = orderByCircuitRank(approved, ranks);
       }
-      await compRef.update({ seeding, updatedAt: FieldValue.serverTimestamp() });
+      const blocked = await writeSeeding(seeding);
+      if (blocked) return NextResponse.json({ error: blocked }, { status: 409 });
       await audit(db, uid, 'competition_seeding_strategy', id, comp, { strategy });
       return NextResponse.json({ success: true, seeding, strategy });
     }
@@ -253,7 +290,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         || ![...orderSet].every(rid => approvedIds.has(rid))) {
         return NextResponse.json({ error: 'L\'ordre ne correspond pas exactement aux équipes validées. Recharge la liste.' }, { status: 409 });
       }
-      await compRef.update({ seeding: order, updatedAt: FieldValue.serverTimestamp() });
+      const blocked = await writeSeeding(order);
+      if (blocked) return NextResponse.json({ error: blocked }, { status: 409 });
       await audit(db, uid, 'competition_seeding_reordered', id, comp, {});
       return NextResponse.json({ success: true, seeding: order });
     }
@@ -280,20 +318,53 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: 'Le seeding ne correspond plus aux équipes validées (validation ou retrait entre-temps). Re-seed avant de publier.' }, { status: 409 });
       }
 
-      // Anti-double-matérialisation — avec REPRISE : un gros bracket (round
-      // robin 33-64 équipes → docs + ACL > 400 ops) s'écrit en plusieurs
-      // batchs ; un crash entre deux commits laisserait des matchs orphelins
-      // SANS `bracketMaterializedAt` (posé par le DERNIER batch, avec le
-      // statut). Dans ce cas précis : purge puis re-matérialisation — jamais
-      // de cul-de-sac « des matchs existent déjà » sur une publication qui
-      // n'a jamais abouti (review adversariale). Un bracket réellement publié
-      // (bracketMaterializedAt posé) reste intouchable : le statut a quitté
-      // 'seeding', on ne repasse jamais ici.
+      // VERROU TRANSACTIONNEL (review adversariale) : la garde ci-dessus est
+      // un pré-check sur snapshot — la vraie fenêtre se ferme ICI. La
+      // transaction re-lit la compétition ET les inscriptions du seeding
+      // FRAÎCHES (lookups par doc id — jamais de .where en transaction),
+      // vérifie le compteur dénormalisé (attrape un approve ADDITIONNEL),
+      // puis pose `bracketMaterializedAt` AVANT toute écriture de match :
+      // approve / unapprove / retrait sont gatés dessus — un concurrent ne
+      // peut plus faire diverger le bracket des inscriptions validées. Le
+      // statut ne passe 'live' qu'au DERNIER batch : un crash au milieu se
+      // répare en re-cliquant Publier (purge + re-matérialisation ci-dessous).
+      try {
+        await db.runTransaction(async tx => {
+          const fresh = (await tx.get(compRef)).data();
+          if (!fresh || fresh.status !== 'seeding') throw new Error('not_seeding');
+          const freshSeeding = (fresh.seeding as string[] | undefined) ?? [];
+          if (JSON.stringify(freshSeeding) !== JSON.stringify(stored)) throw new Error('seeding_changed');
+          const regSnaps = await tx.getAll(
+            ...stored.map(rid => db.collection('competition_registrations').doc(rid)));
+          for (const s of regSnaps) {
+            if (!s.exists || s.data()!.status !== 'approved') throw new Error('regs_changed');
+          }
+          if (((fresh.approvedCount as number) ?? 0) !== stored.length) throw new Error('regs_changed');
+          tx.update(compRef, {
+            bracketMaterializedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        });
+      } catch (e) {
+        const msg = (e as Error).message;
+        if (msg === 'not_seeding') {
+          return NextResponse.json({ error: 'La compétition n\'est plus en seeding.' }, { status: 409 });
+        }
+        if (msg === 'seeding_changed') {
+          return NextResponse.json({ error: 'Le seeding a changé pendant la publication — recharge et relance.' }, { status: 409 });
+        }
+        if (msg === 'regs_changed') {
+          return NextResponse.json({ error: 'Le seeding ne correspond plus aux équipes validées (validation ou retrait entre-temps). Re-seed avant de publier.' }, { status: 409 });
+        }
+        throw e;
+      }
+
+      // Reprise après crash mi-publication : le statut est resté 'seeding'
+      // (il ne passe live qu'au dernier batch) → les matchs partiels sont
+      // purgés puis re-matérialisés. Jamais un bracket LIVE ici : le gate
+      // statut en amont l'exclut.
       const existing = await db.collection('competition_matches').where('competitionId', '==', id).select().get();
       if (!existing.empty) {
-        if (comp.bracketMaterializedAt) {
-          return NextResponse.json({ error: 'Des matchs existent déjà pour cette compétition.' }, { status: 409 });
-        }
         let purge = db.batch();
         let purgeOps = 0;
         for (const doc of existing.docs) {
@@ -356,7 +427,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         ...(stagesOf({ format: comp.format, stages: comp.stages }).length > 1
           ? { currentStage: 1, stageResults: [] }
           : {}),
-        bracketMaterializedAt: FieldValue.serverTimestamp(),
+        // bracketMaterializedAt : posé par le VERROU transactionnel en tête.
         updatedAt: FieldValue.serverTimestamp(),
       });
       ops++;

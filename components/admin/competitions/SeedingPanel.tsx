@@ -33,6 +33,8 @@ interface BracketState {
   canOpenSeeding: boolean;
   canEditSeeding: boolean;
   canPublish: boolean;
+  /** Le seeding stocké diverge des validées — re-seed requis avant publication. */
+  seedingStale: boolean;
   feasibilityError: string | null;
   materialized: boolean;
 }
@@ -46,12 +48,19 @@ export default function SeedingPanel({ competitionId, onPublished }: {
   const toast = useToast();
   const confirm = useConfirm();
   const [state, setState] = useState<BracketState | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
       setState(await api<BracketState>(`/api/admin/competitions/${competitionId}/bracket`));
-    } catch { /* blip réseau : on garde le dernier état */ }
+      setLoadFailed(false);
+    } catch {
+      // On garde le dernier état s'il existe ; sinon état d'erreur visible
+      // avec bouton Recharger (review : jamais un panneau silencieusement
+      // absent).
+      setLoadFailed(true);
+    }
   }, [competitionId]);
   useEffect(() => { load(); }, [load]);
 
@@ -64,13 +73,26 @@ export default function SeedingPanel({ competitionId, onPublished }: {
       return true;
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : 'Action impossible.');
+      // Un 409 signifie que l'état serveur a bougé (c'est la raison du
+      // refus) : recharger, sinon le panneau reste sur une liste périmée.
+      await load();
       return false;
     } finally {
       setBusy(false);
     }
   }, [competitionId, load, toast]);
 
-  if (!state) return null;
+  if (!state) {
+    if (!loadFailed) return null;
+    return (
+      <div className="panel bevel">
+        <div className="panel-body flex items-center justify-between gap-3">
+          <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>Le seeding n&apos;a pas pu être chargé.</p>
+          <button className="btn-springs btn-secondary bevel-sm text-sm" onClick={load}>Recharger</button>
+        </div>
+      </div>
+    );
+  }
   const editable = state.canEditSeeding && !state.materialized;
 
   // Réordonnancement manuel ↑/↓ — l'API exige la permutation complète.
@@ -96,6 +118,11 @@ export default function SeedingPanel({ competitionId, onPublished }: {
       <div className="panel-body space-y-4">
         {state.feasibilityError && (
           <p className="text-sm" style={{ color: 'var(--s-text)' }}>{state.feasibilityError}</p>
+        )}
+        {state.seedingStale && (
+          <p className="text-sm" style={{ color: 'var(--s-text)' }}>
+            Les équipes validées ont changé depuis le dernier seeding — ré-ordonne (Par MMR ou Aléatoire) avant de publier.
+          </p>
         )}
         {!editable && !state.canOpenSeeding && (
           <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>

@@ -630,7 +630,15 @@ async function approve(db: FirebaseFirestore.Firestore, ctx: ActionContext) {
       const maxTeams = (compNow.data()?.format?.maxTeams as number | undefined) ?? 0;
       const waitlistEnabled = compNow.data()?.registration?.waitlist === true;
 
-      if (approvedCount < maxTeams) {
+      // Bracket matérialisé (ou publication EN COURS — le verrou est posé en
+      // tête du publish, review adversariale) : plus JAMAIS de validation
+      // directe (une équipe « validée » pendant la fenêtre de publication
+      // était notifiée mais absente du bracket). La WAITLIST reste ouverte :
+      // c'est la source du repêchage (replace_team) avant le round 1.
+      if (compNow.data()?.bracketMaterializedAt) {
+        if (!waitlistEnabled) throw new Error('bracket_published');
+        finalStatus = 'waitlisted';
+      } else if (approvedCount < maxTeams) {
         finalStatus = 'approved';
       } else if (waitlistEnabled) {
         finalStatus = 'waitlisted';
@@ -738,6 +746,7 @@ async function approve(db: FirebaseFirestore.Firestore, ctx: ActionContext) {
         state_changed: 'L\'inscription a changé d\'état entre-temps. Recharge la liste.',
         competition_full: 'La compétition est complète et la liste d\'attente est désactivée.',
         still_full: 'Toujours aucune place disponible : l\'inscription reste en liste d\'attente.',
+        bracket_published: 'Le bracket est publié : plus de validation directe — le repêchage passe par la liste d\'attente.',
         circuit_team_missing: 'L\'équipe de circuit ciblée n\'existe plus. Recharge la liste.',
         circuit_team_claimed: 'Une autre inscription vient d\'être rattachée à cette équipe de circuit.',
         circuit_team_id_taken: 'Conflit de nom d\'équipe de circuit : recharge la liste et arbitre le rattachement.',
