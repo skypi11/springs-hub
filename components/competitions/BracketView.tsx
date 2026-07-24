@@ -21,10 +21,20 @@ import StandingsTable, { type StandingsGroup } from '@/components/competitions/S
 import { useWorkerInterval } from '@/components/competitions/useWorkerInterval';
 import type { PublicBracketMatch } from '@/lib/competitions/brackets-viewer-adapter';
 
-export default function BracketView({ competitionId, gameColor, competitionStatus }: {
+interface StageStandingsEntry {
+  stage: number;
+  kind: 'round_robin' | 'swiss';
+  label: string;
+  concluded: boolean;
+  groups: StandingsGroup[];
+}
+
+export default function BracketView({ competitionId, gameColor, competitionStatus, stageLabels }: {
   competitionId: string;
   gameColor: string;
   competitionStatus?: string;
+  /** Multi-étapes : libellés des étapes (fiche → sélecteur du bracket). */
+  stageLabels?: Record<number, string>;
 }) {
   const { user } = useAuth();
   const router = useRouter();
@@ -66,12 +76,30 @@ export default function BracketView({ competitionId, gameColor, competitionStatu
   );
   const { data: standings } = useQuery({
     queryKey: ['competition-standings', competitionId, !!user],
-    queryFn: () => (user ? api : apiPublic)<{ kind: 'round_robin' | 'swiss'; concluded: boolean; groups: StandingsGroup[] }>(
-      `/api/competitions/${competitionId}/standings`),
+    queryFn: () => (user ? api : apiPublic)<{
+      kind: 'round_robin' | 'swiss'; concluded: boolean; groups: StandingsGroup[];
+      stages?: StageStandingsEntry[]; currentStage?: number;
+    }>(`/api/competitions/${competitionId}/standings`),
     staleTime: 10_000,
     enabled: isGroupStage,
     placeholderData: keepPreviousData,
   });
+  // Multi-étapes : une table PAR ÉTAPE à classement (la plus récente d'abord —
+  // une étape close est servie dans l'ordre de son classement figé). Réponse
+  // d'avant le multi-étapes (sans `stages`) : table unique, comme avant.
+  const standingsStages: StageStandingsEntry[] = useMemo(() => {
+    if (!standings) return [];
+    if (Array.isArray(standings.stages) && standings.stages.length > 0) {
+      return [...standings.stages].sort((a, b) => b.stage - a.stage);
+    }
+    return standings.groups.length > 0
+      ? [{ stage: 1, kind: standings.kind, label: '', concluded: standings.concluded, groups: standings.groups }]
+      : [];
+  }, [standings]);
+  const multiStage = useMemo(
+    () => new Set((matches ?? []).map(m => m.stage ?? 1)).size > 1,
+    [matches],
+  );
 
   // On ne blanke le bracket QUE si on n'a jamais rien reçu : un blip réseau
   // (refetch 15 s échoué) garde le dernier bracket affiché (React Query
@@ -89,13 +117,15 @@ export default function BracketView({ competitionId, gameColor, competitionStatu
 
   return (
     <div className="space-y-6">
-      <TournamentBracket matches={matches} gameColor={gameColor} onMatchClick={openMatch} />
-      {isGroupStage && standings && standings.groups.length > 0 && (
-        <div>
-          <p className="t-label mb-3" style={{ color: 'var(--s-text-dim)' }}>Classement</p>
-          <StandingsTable kind={standings.kind} concluded={standings.concluded} groups={standings.groups} />
+      <TournamentBracket matches={matches} gameColor={gameColor} onMatchClick={openMatch} stageLabels={stageLabels} />
+      {isGroupStage && standingsStages.map(s => (
+        <div key={s.stage}>
+          <p className="t-label mb-3" style={{ color: 'var(--s-text-dim)' }}>
+            {multiStage && s.label ? `Classement — ${s.label}` : 'Classement'}
+          </p>
+          <StandingsTable kind={s.kind} concluded={s.concluded} groups={s.groups} />
         </div>
-      )}
+      ))}
     </div>
   );
 }

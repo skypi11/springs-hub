@@ -27,6 +27,7 @@ import {
   type MatchOutcome,
 } from '@/lib/tournament';
 import { engineFor, kindOf } from '@/lib/competitions/formats-server';
+import { currentStageOf, formatOfStage, parseStageMatchId, stageMatchId, stageOfMatch } from '@/lib/competitions/stages';
 import { reconstructBracket, type MatchDoc, type TeamDisplay } from '@/lib/competitions/bracket-store';
 import { expectedAutoOutcome, sameOutcome, type FlowOutcome } from '@/lib/competitions/match-flow';
 import { toFlowState } from '@/lib/competitions/match-flow-server';
@@ -212,9 +213,20 @@ async function applyEngineOp(
     // transaction après conflit avec close relit le doc frais et doit
     // re-décider ; un check pré-transactionnel ne couvrirait pas ce chemin.
     if (comp.status !== 'live') throw new Error('competition_not_live');
+
+    // Multi-étapes (design §9c) : toute op moteur vit dans UNE étape — celle
+    // du match pivot (préfixe d'id), l'étape COURANTE pour un retrait, l'étape
+    // 1 pour un remplacement waitlist (la route refuse au-delà). BO,
+    // forfeitScore et engine se lisent sur le format de CETTE étape.
+    const stage = op.op === 'outcome'
+      ? parseStageMatchId(op.matchId).stage
+      : op.op === 'withdraw'
+        ? currentStageOf(comp)
+        : 1;
+    const stageFormat = formatOfStage(comp, stage);
     const cfg: CompetitionEngineConfig = {
-      bo: comp.format?.bo,
-      forfeitScore: comp.format?.forfeitScore ?? { games: 3, goalsPerGame: 1 },
+      bo: stageFormat?.bo,
+      forfeitScore: stageFormat?.forfeitScore ?? { games: 3, goalsPerGame: 1 },
     };
     if (!cfg.bo) throw new Error('format_bo_missing');
 
@@ -234,20 +246,39 @@ async function applyEngineOp(
     // Prédicats de fin routés par la registry de formats : élims = champion
     // mécanique (isFinished/needsAdminDecision) ; round robin = tous les
     // matchs terminaux, jamais de « décision admin » pour un champion.
-    const engine = engineFor(kindOf(comp.format));
+    const engine = engineFor(kindOf(stageFormat));
     const before = reconstructBracket({
       withdrawn: Array.isArray(comp.withdrawn) ? (comp.withdrawn as string[]) : [],
       bo: cfg.bo,
       forfeitScore: cfg.forfeitScore,
       matches: docs.map(d => ({ id: d.id, ...d.data })),
-      kind: kindOf(comp.format),
-      swissRounds: typeof comp.format?.swissRounds === 'number' ? comp.format.swissRounds : undefined,
+      kind: kindOf(stageFormat),
+      swissRounds: typeof stageFormat?.swissRounds === 'number' ? stageFormat.swissRounds : undefined,
+      stage,
     });
+    // Ids moteur NUS dans le bracket reconstruit — le pivot public (préfixé
+    // pour une étape ≥ 2) se traduit une fois ici.
+    const pivotEngineId = op.op === 'outcome' ? parseStageMatchId(op.matchId).engineId : null;
+
+    // Retrait d'une équipe déjà éliminée à une étape ANTÉRIEURE : son
+    // classement d'étape est figé (stageResults) et elle ne siège pas dans
+    // l'étape courante — statut d'inscription + registre `withdrawn`
+    // uniquement, jamais de cascade moteur (withdrawTeam la refuserait).
+    if (op.op === 'withdraw' && !before.teams.includes(op.registrationId)) {
+      if (!(Array.isArray(comp.withdrawn) ? (comp.withdrawn as string[]) : []).includes(op.registrationId)) {
+        tx.update(compRef, { withdrawn: FieldValue.arrayUnion(op.registrationId) });
+      }
+      return {
+        changedMatchIds: [],
+        finished: engine.isFinished(before),
+        needsAdminDecision: engine.needsAdminDecision(before),
+      };
+    }
 
     // Garde d'idempotence : un outcome sur un pivot déjà terminal = déjà
     // appliqué par une requête concurrente → no-op silencieux.
     if (op.op === 'outcome') {
-      const pivot = before.matches[op.matchId];
+      const pivot = before.matches[pivotEngineId!];
       if (!pivot) throw new Error('match_not_found');
       if (pivot.status === 'completed' || pivot.status === 'walkover' || pivot.status === 'cancelled') {
         return { changedMatchIds: [], finished: engine.isFinished(before), needsAdminDecision: engine.needsAdminDecision(before) };
@@ -267,14 +298,18 @@ async function applyEngineOp(
     }
 
     let after: Bracket;
-    if (op.op === 'outcome') after = advanceMatch(before, op.matchId, op.outcome);
+    if (op.op === 'outcome') after = advanceMatch(before, pivotEngineId!, op.outcome);
     else if (op.op === 'withdraw') after = withdrawTeam(before, op.registrationId);
     else after = replaceTeam(before, op.oldRegistrationId, op.newRegistrationId);
 
     const patches = computeProgressionPatches(before, after, regId =>
       regId ? infoByReg.get(regId) ?? null : null);
 
-    const docByEngineId = new Map(docs.map(d => [d.id, d]));
+    // Docs de l'ÉTAPE, indexés par id moteur NU (deux étapes peuvent partager
+    // les mêmes ids nus — jamais de patch cross-étape).
+    const docByEngineId = new Map(docs
+      .filter(d => stageOfMatch(d.data as { stage?: number | null }) === stage)
+      .map(d => [parseStageMatchId(d.id).engineId, d]));
     // Statuts « jour de match » actifs : un changement d'équipe sur un tel
     // match (remplacement waitlist…) doit purger les traces du camp sortant.
     const ACTIVE = new Set(['checkin', 'ready', 'live', 'awaiting_scores', 'score_review', 'disputed', 'awaiting_forfeit_validation']);
@@ -294,7 +329,7 @@ async function applyEngineOp(
       if (f.status) update.status = f.status;
       if ('final' in f) { update['scores.final'] = f.final; update.stats = f.stats; }
       if (f.final) {
-        const isPivot = op.op === 'outcome' && p.matchId === op.matchId;
+        const isPivot = op.op === 'outcome' && p.matchId === pivotEngineId;
         update['scores.validatedBy'] = isPivot ? (extra?.validatedBy ?? 'auto') : 'auto';
       }
       if (f.forfeitTeam) {
@@ -325,7 +360,7 @@ async function applyEngineOp(
       // terminal avec un litige encore ouvert (review adversariale) — les
       // finalisations auto sur litige ouvert sont déjà no-opées par la garde,
       // ce chemin ne concerne donc que les décisions admin.
-      if (op.op === 'outcome' && p.matchId === op.matchId) {
+      if (op.op === 'outcome' && p.matchId === pivotEngineId) {
         update['scores.counterDeadline'] = null;
         const disputeOpen = !!raw.dispute && raw.dispute.resolvedBy == null;
         if (disputeOpen) {
@@ -377,7 +412,9 @@ async function applyEngineOp(
     }
 
     return {
-      changedMatchIds: patches.map(p => p.matchId),
+      // Ids PUBLICS (préfixés pour une étape ≥ 2) — cohérents avec les clés
+      // des docs, l'audit log et les fetchs client.
+      changedMatchIds: patches.map(p => stageMatchId(stage, p.matchId)),
       finished: engine.isFinished(after),
       needsAdminDecision: engine.needsAdminDecision(after),
     };

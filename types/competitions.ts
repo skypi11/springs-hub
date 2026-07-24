@@ -158,8 +158,21 @@ export interface Competition {
    * groupe d'élimination du moteur (« W1 », « L3 »…), valeur = ordre complet
    * décidé pour ce groupe (registrationId). Ignoré si le groupe a changé
    * depuis (retrait, correction) — la clôture re-flag alors l'égalité.
+   * Multi-étapes (design §9c) : s'applique à l'étape COURANTE ; archivé dans
+   * `stageResults` au passage d'étape, puis remis à `{}`.
    */
   tiebreakResolutions?: Record<string, string[]>;
+  /**
+   * Séquence d'étapes de format (design §9a) — présent = tournoi multi-étapes
+   * (poules→playoff…). Absent = mono-étape dérivée de `format` (TOUT
+   * l'existant). INVARIANT : `stages[0].format === format`.
+   */
+  stages?: TournamentStage[];
+  /** Étape ACTIVE (1-based, absent = 1). Posée au publish, incrémentée par
+   *  l'action console `advance_stage`. Une seule étape jouable à la fois. */
+  currentStage?: number;
+  /** Résultats figés des étapes closes, dans l'ordre (design §9c). */
+  stageResults?: StageResult[];
   /**
    * Classement FINAL, écrit une seule fois à la clôture (archi §4 : places
    * toutes uniques, points du barème circuit — null hors circuit). Public-safe
@@ -248,22 +261,58 @@ export interface CompetitionFormat {
 // Types posés dès le socle ; le runtime multi-étapes est un chantier suivant.
 
 /** Stratégie de seeding d'une étape (brique TRANSVERSE de première classe —
- *  design §4) : manuelle, aléatoire, par MMR de référence (computeRefMmr) ou
- *  par classement circuit (standings). */
-export type SeedingStrategy = 'manual' | 'random' | 'mmr' | 'circuit';
+ *  design §4) : par classement de l'étape précédente (le défaut des
+ *  transferts), manuelle, aléatoire, par MMR de référence (computeRefMmr) ou
+ *  par classement circuit (standings). Runtime v1 : `standings` et `random`
+ *  aux transferts — `manual`/`mmr`/`circuit` refusés à la validation (jamais
+ *  ignorés en silence), chantier seeding suivant. */
+export type SeedingStrategy = 'standings' | 'manual' | 'random' | 'mmr' | 'circuit';
 
 /** Transfert vers l'étape suivante : les `advanceCount` premiers du classement
- *  de l'étape passent, re-seedés selon `reseed`. Absent sur la dernière étape. */
+ *  de l'étape passent, re-seedés selon `reseed`. Absent sur la dernière étape.
+ *  Les équipes RETIRÉES ne se qualifient jamais (place figée R5-4, mais pas de
+ *  qualification) : les suivantes au classement sont repêchées. */
 export interface StageTransfer {
   advanceCount: number;
   reseed: SeedingStrategy;
 }
 
-/** Une étape de tournoi : son format, sa config, son transfert éventuel. */
+/** Une étape de tournoi : son format, sa config, son transfert éventuel.
+ *  INVARIANT (design §9a) : `stages[0].format === competition.format` — le
+ *  format top-level EST l'étape 1, tout le code existant reste juste. */
 export interface TournamentStage {
   kind: FormatKind;
   format: CompetitionFormat;
+  /** Nom d'étape affiché (« Poules », « Phase finale ») — défaut : label du format. */
+  name?: string;
   transfer?: StageTransfer;
+}
+
+/**
+ * Résultat FIGÉ d'une étape close (posé par l'action console `advance_stage`,
+ * design §9c) : placements compressés complets + stats BRUTES par équipe (pour
+ * le cumul du classement final), qualifiées dans l'ordre de seed de l'étape
+ * suivante, arbitrages archivés. Public-safe (registrationId uniquement).
+ */
+export interface StageResult {
+  stage: number;                   // 1-based — étape close
+  placements: StageResultPlacement[];
+  /** registrationId qualifiées, DANS L'ORDRE DE SEED de l'étape suivante. */
+  advanced: string[];
+  /** Arbitrages admin de l'étape, archivés au passage (le champ plat
+   *  `tiebreakResolutions` est remis à zéro pour l'étape suivante). */
+  tiebreakResolutions: Record<string, string[]>;
+  closedAt: Date | string;
+}
+
+/** Stats BRUTES (non normalisées — le cumul multi-étapes se fait à la clôture). */
+export interface StageResultPlacement {
+  registrationId: string;
+  placement: number;               // place compressée dans l'étape (1→N, unique)
+  goalDiff: number;                // délta BRUT cumulé sur l'étape
+  goalsFor: number;
+  goalsAgainst: number;
+  matchesCounted: number;
 }
 
 export interface CompetitionEligibility {
@@ -301,6 +350,9 @@ export interface PhasePlanEntry {
   phase: number;                     // 1-based, ordre de lancement
   day: number;                       // 1-based, index dans schedule.days
   label: string;                     // "P2 — WR2 + LR1" | "J3" (RR : journée)
+  /** Étape de format (1-based, absent = 1). Les entries des étapes ≥ 2 sont
+   *  ajoutées par `advance_stage` (phases offsettées, jamais de collision). */
+  stage?: number;
   rounds: Array<{ bracket: 'winners' | 'losers' | 'grand_final' | 'round_robin' | 'swiss'; round: number }>;
 }
 
@@ -424,6 +476,9 @@ export interface CompetitionMatch {
   slot: number;                    // position dans la ronde (RR/suisse : global)
   /** Round robin uniquement : poule 1-based. Absent sur les matchs d'arbre. */
   group?: number;
+  /** Étape de format (1-based, absent = 1 — tous les docs d'avant le
+   *  multi-étapes). Les ids des étapes ≥ 2 sont préfixés `E{n}_` (design §9b). */
+  stage?: number;
   phase: number | null;            // rattachement au phasePlan
   bo: number;
   teamA: string | null;            // registrationId, null = TBD

@@ -11,6 +11,7 @@ import type {
   CompetitionFormat,
   CompetitionSchedule,
   PhasePlanEntry,
+  TournamentStage,
 } from '@/types/competitions';
 
 export type ValidationResult<T> =
@@ -180,6 +181,8 @@ export interface CompetitionPayload {
   game: (typeof SUPPORTED_GAMES)[number];
   circuitId: string | null;
   format: CompetitionFormat;
+  /** Séquence d'étapes (design §9d) — null = mono-étape (tout l'existant). */
+  stages: TournamentStage[] | null;
   eligibility: CompetitionEligibility;
   roster: { starters: number; subsMax: number };
   registration: { opensAt: string; closesAt: string; waitlist: boolean };
@@ -204,6 +207,9 @@ export function validateCompetitionPayload(body: unknown): ValidationResult<Comp
 
   const format = validateFormat(b.format);
   if (!format.ok) return format;
+
+  const stages = validateStages(b.stages, format.value);
+  if (!stages.ok) return stages;
 
   const eligibility = validateEligibility(b.eligibility);
   if (!eligibility.ok) return eligibility;
@@ -267,6 +273,7 @@ export function validateCompetitionPayload(body: unknown): ValidationResult<Comp
       game: b.game as (typeof SUPPORTED_GAMES)[number],
       circuitId,
       format: format.value,
+      stages: stages.value,
       eligibility: eligibility.value,
       roster: roster.value,
       registration: registration.value,
@@ -274,6 +281,126 @@ export function validateCompetitionPayload(body: unknown): ValidationResult<Comp
       discordGuildId,
     },
   };
+}
+
+// ── Séquence d'étapes (multi-étapes, design §9d) ─────────────────────────────
+
+// Bornes moteur en littéraux MIROIR (comme le reste de ce module, partagé
+// client — jamais d'import des moteurs) : effectif minimum 4 pour tous les
+// formats ; budget d'écriture ATOMIQUE d'un passage d'étape ≤ 200 matchs
+// (docs + ACL ≤ ~400 writes, sous la limite de 500 d'une transaction — le
+// publish de l'étape 1, lui, est batché avec reprise, pas concerné).
+const STAGE_MIN_TEAMS = 4;
+const STAGE_MAX_COUNT = 4;
+const STAGE_MAX_ATOMIC_MATCHES = 200;
+const STAGE_RESEEDS = ['standings', 'random'] as const;
+
+function nextPow2(n: number): number {
+  let p = 1;
+  while (p < n) p *= 2;
+  return p;
+}
+
+/** Nombre de matchs matérialisés à l'ENTRÉE d'une étape de `teamCount`
+ *  équipes (miroir déclaratif des générateurs — le suisse ne matérialise que
+ *  sa ronde 1, les rondes suivantes naissent par appariement incrémental). */
+export function estimateStageEntryMatches(format: CompetitionFormat, teamCount: number): number {
+  const kind = format.kind;
+  if (kind === 'swiss') return Math.ceil(teamCount / 2);
+  if (kind === 'round_robin') {
+    const groups = Math.max(1, format.groupCount ?? 1);
+    const legs = format.doubleRound === true ? 2 : 1;
+    const base = Math.floor(teamCount / groups);
+    const extra = teamCount % groups;
+    let total = 0;
+    for (let g = 0; g < groups; g++) {
+      const size = base + (g < extra ? 1 : 0);
+      total += (size * (size - 1)) / 2;
+    }
+    return total * legs;
+  }
+  const size = nextPow2(Math.max(2, teamCount));
+  if (kind === 'single_elim') return size - 1 + (format.thirdPlace === true ? 1 : 0);
+  // Double élim : winners (size−1) + losers (size−2) + GF + reset pré-créé.
+  return 2 * size;
+}
+
+/**
+ * Valide la séquence d'étapes. null/absent = mono-étape. Sinon 2-4 étapes :
+ * chaque format validé par le validateur de son kind, transfert obligatoire
+ * sauf sur la dernière, `maxTeams` de l'étape N+1 = `advanceCount` du
+ * transfert (l'effectif d'entrée est EXACT — la faisabilité poules/rondes de
+ * l'étape suivante est ainsi vérifiée à la saisie, jamais au clic).
+ * INVARIANT : `stages[0].format` = format top-level (validé identique).
+ */
+export function validateStages(
+  input: unknown,
+  topFormat: CompetitionFormat,
+): ValidationResult<TournamentStage[] | null> {
+  if (input === null || input === undefined) return { ok: true, value: null };
+  if (!Array.isArray(input)) return err('Étapes invalides.');
+  if (input.length === 1) return err('Une seule étape : ne pas envoyer de séquence (format simple).');
+  if (input.length < 2 || input.length > STAGE_MAX_COUNT) {
+    return err(`Le tournoi doit compter entre 2 et ${STAGE_MAX_COUNT} étapes.`);
+  }
+
+  const stages: TournamentStage[] = [];
+  for (let i = 0; i < input.length; i++) {
+    const raw = input[i];
+    if (typeof raw !== 'object' || raw === null) return err(`Étape ${i + 1} invalide.`);
+    const s = raw as Record<string, unknown>;
+    const format = validateFormat(s.format);
+    if (!format.ok) return err(`Étape ${i + 1} : ${format.error}`);
+    const name = clampString(s.name, 40);
+
+    const isLast = i === input.length - 1;
+    let transfer: TournamentStage['transfer'];
+    if (isLast) {
+      if (s.transfer !== undefined && s.transfer !== null) {
+        return err('La dernière étape ne peut pas avoir de transfert.');
+      }
+    } else {
+      if (typeof s.transfer !== 'object' || s.transfer === null) {
+        return err(`Étape ${i + 1} : transfert vers l'étape suivante requis (nombre de qualifiées).`);
+      }
+      const t = s.transfer as Record<string, unknown>;
+      const advanceCount = asInt(t.advanceCount);
+      if (advanceCount === null || advanceCount < STAGE_MIN_TEAMS) {
+        return err(`Étape ${i + 1} : nombre de qualifiées invalide (minimum ${STAGE_MIN_TEAMS}).`);
+      }
+      if (advanceCount > format.value.maxTeams) {
+        return err(`Étape ${i + 1} : ${advanceCount} qualifiées pour ${format.value.maxTeams} équipes au plus.`);
+      }
+      if (!STAGE_RESEEDS.includes(t.reseed as (typeof STAGE_RESEEDS)[number])) {
+        return err(`Étape ${i + 1} : re-seeding invalide (classement ou aléatoire).`);
+      }
+      transfer = { advanceCount, reseed: t.reseed as (typeof STAGE_RESEEDS)[number] };
+    }
+
+    stages.push({
+      kind: format.value.kind,
+      format: format.value,
+      ...(name ? { name } : {}),
+      ...(transfer ? { transfer } : {}),
+    });
+  }
+
+  // Cohérences croisées inter-étapes.
+  if (JSON.stringify(stages[0].format) !== JSON.stringify(topFormat)) {
+    return err('Le format de la compétition doit être celui de la première étape (invariant multi-étapes).');
+  }
+  for (let i = 1; i < stages.length; i++) {
+    const advanceCount = stages[i - 1].transfer!.advanceCount;
+    if (stages[i].format.maxTeams !== advanceCount) {
+      return err(`Étape ${i + 1} : son nombre d'équipes (${stages[i].format.maxTeams}) doit égaler les qualifiées de l'étape précédente (${advanceCount}).`);
+    }
+    const entryMatches = estimateStageEntryMatches(stages[i].format, advanceCount);
+    if (entryMatches > STAGE_MAX_ATOMIC_MATCHES) {
+      return err(`Étape ${i + 1} : trop de matchs à créer d'un coup (${entryMatches}, maximum ${STAGE_MAX_ATOMIC_MATCHES}) — réduis les qualifiées ou découpe en poules plus petites.`);
+    }
+  }
+
+  return { ok: true, value: stages };
 }
 
 function validateFormat(input: unknown): ValidationResult<CompetitionFormat> {

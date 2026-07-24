@@ -114,6 +114,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         bracket: match.bracket ?? 'winners',
         round: match.round ?? 1,
         slot: match.slot ?? 1,
+        // Étape de format (multi-étapes) — absent = étape 1.
+        stage: typeof match.stage === 'number' ? match.stage : 1,
         phase: match.phase ?? null,
         bo: match.bo ?? 5,
         status: match.status ?? 'pending',

@@ -21,6 +21,7 @@ import type {
   PureMatchStatus,
 } from '@/lib/tournament';
 import { generateDoubleElim, generateRoundRobin, generateSingleElim, generateSwiss } from '@/lib/tournament';
+import { parseStageMatchId, stageMatchId, stageOfMatch } from './stages';
 import type { CompetitionMatch, MatchSource, MatchStatus } from '@/types/competitions';
 
 export interface TeamDisplay {
@@ -163,31 +164,45 @@ export function reconstructBracket(input: {
    *  Les docs ne connaissent que les rondes DÉJÀ générées — sans cette info,
    *  le bracket reconstruit n'est jamais « fini » (fail-safe documenté). */
   swissRounds?: number;
+  /**
+   * Étape de format à reconstruire (1-based, défaut 1 — design §9b) : un
+   * bracket pur = UNE étape. Les docs sont filtrés sur `doc.stage ?? 1` et les
+   * ids/refs des étapes ≥ 2 sont dé-préfixés (`E{n}_`) — le moteur pur ignore
+   * les étapes. Les docs d'avant le multi-étapes n'ont pas le champ : le
+   * défaut 1 les garde tous (comportement historique inchangé).
+   */
+  stage?: number;
 }): Bracket {
+  const stage = input.stage ?? 1;
+  const stageDocs = input.matches.filter(m => stageOfMatch(m) === stage);
+  const input2 = {
+    ...input,
+    matches: stage === 1 ? stageDocs : stageDocs.map(m => stripStageFromDoc(m)),
+  };
   // Round robin / suisse : reconstructions dédiées — les notions d'arbre
   // (round 1 winners, puissance de 2, rondes losers) n'existent pas.
-  if (input.kind === 'round_robin' || input.matches.some(m => m.bracket === 'round_robin')) {
-    return reconstructRoundRobin(input);
+  if (input2.kind === 'round_robin' || input2.matches.some(m => m.bracket === 'round_robin')) {
+    return reconstructRoundRobin(input2);
   }
-  if (input.kind === 'swiss' || input.matches.some(m => m.bracket === 'swiss')) {
-    return reconstructSwiss(input);
+  if (input2.kind === 'swiss' || input2.matches.some(m => m.bracket === 'swiss')) {
+    return reconstructSwiss(input2);
   }
   // Taille = nombre de sièges du round 1 winners (robuste aux byes ET aux
   // sièges vidés, contrairement au comptage des équipes présentes).
-  const w1 = input.matches.filter(m => m.bracket === 'winners' && m.round === 1);
+  const w1 = input2.matches.filter(m => m.bracket === 'winners' && m.round === 1);
   const size = w1.length * 2;
   if (size < 4 || (size & (size - 1)) !== 0) {
     throw new Error(`Bracket incohérent : ${size} sièges round 1 (attendu puissance de 2 ≥ 4).`);
   }
   const winnersRounds = Math.log2(size);
-  const kind: BracketKind = input.kind
-    ?? (input.matches.some(m => m.bracket === 'grand_final') ? 'double_elim' : 'single_elim');
+  const kind: BracketKind = input2.kind
+    ?? (input2.matches.some(m => m.bracket === 'grand_final') ? 'double_elim' : 'single_elim');
   // Rondes losers : formule structurelle en double élim (robuste même face à
   // des docs partiels — comportement historique conservé, review), dérivées
   // des docs en simple élim (1 avec petite finale, 0 sans).
   const losersRounds = kind === 'double_elim'
     ? 2 * (winnersRounds - 1)
-    : input.matches.reduce((max, m) => (m.bracket === 'losers' && m.round > max ? m.round : max), 0);
+    : input2.matches.reduce((max, m) => (m.bracket === 'losers' && m.round > max ? m.round : max), 0);
 
   // `teams` par seed (index 0 = seed 1) : lu depuis les sources 'seed' du round
   // 1 winners. Un siège void (bye ou vidé par replaceTeam) → '' à sa place. La
@@ -209,8 +224,8 @@ export function reconstructBracket(input: {
   for (let s = 1; s <= maxOccupied; s++) teams.push(bySeed.get(s) ?? '');
 
   const matches: Record<string, PureMatch> = {};
-  for (const doc of input.matches) matches[doc.id] = docToPureMatch(doc);
-  const order = orderIds(input.matches.map(d => ({ id: d.id, bracket: d.bracket, round: d.round, slot: d.slot })));
+  for (const doc of input2.matches) matches[doc.id] = docToPureMatch(doc);
+  const order = orderIds(input2.matches.map(d => ({ id: d.id, bracket: d.bracket, round: d.round, slot: d.slot })));
 
   return {
     kind,
@@ -218,11 +233,27 @@ export function reconstructBracket(input: {
     size,
     winnersRounds,
     losersRounds,
-    bo: input.bo,
-    forfeitScore: input.forfeitScore,
+    bo: input2.bo,
+    forfeitScore: input2.forfeitScore,
     matches,
     order,
-    withdrawn: [...input.withdrawn],
+    withdrawn: [...input2.withdrawn],
+  };
+}
+
+/** Dé-préfixe un doc d'étape ≥ 2 : id `E{n}_X` → `X`, refs `winner_of`/
+ *  `loser_of` dé-préfixées de même — le bracket pur reconstruit est identique
+ *  à celui d'une étape 1 (round-trip testé). */
+function stripStageFromDoc(doc: { id: string } & MatchDoc): { id: string } & MatchDoc {
+  const stripRef = (src: MatchSource): MatchSource =>
+    src.type === 'winner_of' || src.type === 'loser_of'
+      ? { type: src.type, ref: parseStageMatchId(src.ref).engineId }
+      : src;
+  return {
+    ...doc,
+    id: parseStageMatchId(doc.id).engineId,
+    sourceA: stripRef(doc.sourceA),
+    sourceB: stripRef(doc.sourceB),
   };
 }
 
@@ -447,28 +478,47 @@ export function materializeBracket(input: {
 /**
  * Sérialise un SOUS-ENSEMBLE de matchs d'un bracket déjà en base — la brique
  * des formats à GÉNÉRATION INCRÉMENTALE (suisse : `generateSwissNextRound`
- * produit la ronde N+1, la console écrit ses docs via cette fonction). Même
- * shape de sortie que `materializeBracket` (docs + ACL).
+ * produit la ronde N+1, la console écrit ses docs via cette fonction) ET des
+ * étapes suivantes du multi-étapes (`advance_stage` matérialise tout le
+ * bracket de l'étape N+1). Même shape de sortie que `materializeBracket`.
+ *
+ * `stage` ≥ 2 (design §9b) : ids et refs `winner_of`/`loser_of` préfixés
+ * `E{stage}_`, champ `stage` posé sur les docs — les `matchIds` d'entrée
+ * restent les ids MOTEUR nus (ceux de `bracket.order`).
  */
 export function materializeMatches(input: {
   competitionId: string;
   bracket: Bracket;
   matchIds: string[];
   registrations: Record<string, { display: TeamDisplay; rosterUids: string[] }>;
+  stage?: number;
 }): MaterializedBracket {
+  const stage = input.stage ?? 1;
   const infoOf = (regId: string | null): TeamDisplay | null =>
     regId ? input.registrations[regId]?.display ?? null : null;
   const rosterOf = (regId: string | null): string[] =>
     regId ? input.registrations[regId]?.rosterUids ?? [] : [];
+  const prefixRef = (src: MatchSource): MatchSource =>
+    src.type === 'winner_of' || src.type === 'loser_of'
+      ? { type: src.type, ref: stageMatchId(stage, src.ref) }
+      : src;
 
   const matches: MaterializedBracket['matches'] = [];
   const acls: MaterializedBracket['acls'] = [];
   for (const id of input.matchIds) {
     const m = input.bracket.matches[id];
     if (!m) throw new Error(`Match inconnu dans le bracket : ${id}.`);
-    matches.push({ id, doc: pureMatchToDoc(input.competitionId, m, { a: infoOf(m.teamA), b: infoOf(m.teamB) }) });
+    const raw = pureMatchToDoc(input.competitionId, m, { a: infoOf(m.teamA), b: infoOf(m.teamB) });
+    const doc: MatchDoc = stage === 1 ? raw : {
+      ...raw,
+      stage,
+      sourceA: prefixRef(raw.sourceA),
+      sourceB: prefixRef(raw.sourceB),
+    };
+    const publicId = stageMatchId(stage, id);
+    matches.push({ id: publicId, doc });
     const participantUids = [...rosterOf(m.teamA), ...rosterOf(m.teamB)];
-    if (participantUids.length > 0) acls.push({ matchId: id, participantUids });
+    if (participantUids.length > 0) acls.push({ matchId: publicId, participantUids });
   }
   return { matches, acls };
 }

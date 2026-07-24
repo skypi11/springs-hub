@@ -13,6 +13,10 @@ export function toFirestoreCompetition(payload: CompetitionPayload) {
     game: payload.game,
     circuitId: payload.circuitId,
     format: payload.format,
+    // Multi-étapes : présent uniquement si le payload en porte — l'absence ne
+    // touche pas un champ `stages` existant (la route PATCH resynchronise ou
+    // refuse explicitement, jamais de corruption silencieuse).
+    ...(payload.stages ? { stages: payload.stages } : {}),
     eligibility: payload.eligibility,
     roster: payload.roster,
     registration: {
@@ -48,6 +52,14 @@ export function serializeCompetition(id: string, data: FirebaseFirestore.Documen
     discord: data.discord ?? null,
     status: data.status ?? 'draft',
     isDev: data.isDev === true,
+    stages: data.stages ?? null,
+    currentStage: typeof data.currentStage === 'number' ? data.currentStage : 1,
+    stageResults: Array.isArray(data.stageResults)
+      ? data.stageResults.map((r: FirebaseFirestore.DocumentData) => ({
+          ...r,
+          closedAt: r.closedAt?.toDate?.()?.toISOString() ?? null,
+        }))
+      : null,
     bracketMaterializedAt: data.bracketMaterializedAt?.toDate?.()?.toISOString() ?? null,
     createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
   };

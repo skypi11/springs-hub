@@ -12,7 +12,7 @@
 // arrive par la variable CSS --bv-accent (couleur du jeu).
 
 import 'brackets-viewer/dist/brackets-viewer.min.css';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Config, ParticipantImage } from 'brackets-viewer';
 import {
   adaptBracketForViewer,
@@ -177,12 +177,32 @@ function decorate(root: HTMLElement, decorations: AdaptedBracket['decorations'])
   }
 }
 
-export default function TournamentBracket({ matches, gameColor, onMatchClick }: {
+export default function TournamentBracket({ matches, gameColor, onMatchClick, stageLabels }: {
   matches: PublicBracketMatch[];
   gameColor: string;
   /** Clic sur un match (id = clé moteur "W1-1") — ex. navigation vers sa page. */
   onMatchClick?: (matchId: string) => void;
+  /** Multi-étapes : libellés des étapes pour le sélecteur (défaut « Étape N »). */
+  stageLabels?: Record<number, string>;
 }) {
+  // MULTI-ÉTAPES (design §9e) : le viewer est un SINGLETON à état partagé —
+  // une seule instance rendue à la fois. Le wrapper gère donc la sélection
+  // d'étape en interne : une étape affichée à la fois, sélecteur au-dessus.
+  // Défaut = la plus haute étape présente (la plus récente), et on la suit
+  // quand une nouvelle étape apparaît au polling — sauf choix explicite.
+  const stagesPresent = useMemo(
+    () => [...new Set(matches.map(m => m.stage ?? 1))].sort((a, b) => a - b),
+    [matches],
+  );
+  const [userStage, setUserStage] = useState<number | null>(null);
+  const selectedStage = userStage !== null && stagesPresent.includes(userStage)
+    ? userStage
+    : stagesPresent[stagesPresent.length - 1] ?? 1;
+  const stageMatches = useMemo(
+    () => matches.filter(m => (m.stage ?? 1) === selectedStage),
+    [matches, selectedStage],
+  );
+
   const rootRef = useRef<HTMLDivElement>(null);
   const seqRef = useRef(0);
   const renderedRef = useRef<string>('');
@@ -205,12 +225,12 @@ export default function TournamentBracket({ matches, gameColor, onMatchClick }: 
   // Round robin / suisse : stage round_robin natif (sections par poule,
   // colonnes par journée/ronde). Le classement vit dans StandingsTable — la
   // ranking table du viewer est désactivée (tri figé ≠ classement officiel).
-  const isGroupStage = matches.some(m => m.bracket === 'round_robin' || m.bracket === 'swiss');
-  const isSwiss = matches.some(m => m.bracket === 'swiss');
+  const isGroupStage = stageMatches.some(m => m.bracket === 'round_robin' || m.bracket === 'swiss');
+  const isSwiss = stageMatches.some(m => m.bracket === 'swiss');
 
   useEffect(() => {
     const root = rootRef.current;
-    if (!root || matches.length === 0) return;
+    if (!root || stageMatches.length === 0) return;
 
     const seq = ++seqRef.current;
     let disposed = false;
@@ -218,7 +238,7 @@ export default function TournamentBracket({ matches, gameColor, onMatchClick }: 
       // L'adaptation vit DANS la promesse : un throw (garde de format, docs
       // incohérents) tombe dans le .catch → état d'échec propre, jamais un
       // démontage React par exception d'effet (review adversariale).
-      const adapted = adaptBracketForViewer(matches);
+      const adapted = adaptBracketForViewer(stageMatches);
       const payload = JSON.stringify(adapted);
       // Polling sans changement réel → pas de re-render (préserve le scroll
       // et évite le flash toutes les 15 s).
@@ -270,7 +290,7 @@ export default function TournamentBracket({ matches, gameColor, onMatchClick }: 
         retryTimerRef.current = null;
       }
     };
-  }, [matches, instanceClass, retryTick, isGroupStage, isSwiss]);
+  }, [stageMatches, instanceClass, retryTick, isGroupStage, isSwiss]);
 
   // Le conteneur reste TOUJOURS monté, même en échec : le poll suivant (ou le
   // retour du réseau) retente le rendu dans le même div — un échec transitoire
@@ -284,6 +304,28 @@ export default function TournamentBracket({ matches, gameColor, onMatchClick }: 
   return (
     <div className={classes}
       style={{ '--bv-accent': gameColor } as React.CSSProperties}>
+      {stagesPresent.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          {stagesPresent.map(n => {
+            const active = n === selectedStage;
+            return (
+              <button key={n} type="button" onClick={() => setUserStage(n)}
+                className="bevel-sm"
+                style={{
+                  padding: '6px 14px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: active ? 'var(--s-text)' : 'var(--s-text-dim)',
+                  background: active ? 'var(--s-elevated)' : 'transparent',
+                  border: `1px solid ${active ? 'rgba(255,255,255,0.18)' : 'var(--s-border)'}`,
+                  cursor: 'pointer',
+                }}>
+                {stageLabels?.[n] ?? `Étape ${n}`}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {failed && (
         <p className="text-sm mb-2" style={{ color: 'var(--s-text-dim)' }}>
           Le bracket n&apos;a pas pu être affiché. Nouvelle tentative au prochain rafraîchissement.

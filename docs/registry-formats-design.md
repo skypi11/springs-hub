@@ -132,6 +132,90 @@ Appliquée à l'entrée d'une phase (seeding initial) ET au transfert entre phas
 - BO : `boForRound` (distance à la fin d'un arbre) n'a pas de sens en RR → `bo.default`
   pour tous les matchs de poule.
 
+## 9. RUNTIME MULTI-ÉTAPES — design d'implémentation (cadré 25/07, session Fable 5)
+
+Concrétisation de la décision A (§2) : poules→playoff, suisse→bracket, etc.
+Contrat suivi par le build — les invariants ci-dessous ne se re-débattent pas.
+
+### 9a. Modèle de données (rétrocompat totale)
+
+- `Competition.stages?: TournamentStage[]` — présent = tournoi multi-étapes.
+  Absent = mono-étape (TOUT l'existant). Helper unique `stagesOf(comp)` :
+  absent → `[{ kind: kindOf(format), format }]`.
+- **INVARIANT : `stages[0].format === comp.format`** (l'étape 1 EST le format
+  top-level). Conséquence : tout le code existant qui lit `comp.format` pour
+  l'étape 1 (bornes publish, faisabilité, BO, seeding) reste juste sans
+  branche. Les étapes suivantes se lisent par `formatOfStage(comp, n)`.
+- `Competition.currentStage?: number` (1-based, absent = 1) — l'étape ACTIVE.
+  Posé à 1 au publish, incrémenté par `advance_stage`. Une seule étape est
+  jouable à la fois.
+- `Competition.stageResults?: StageResult[]` — FIGÉ à chaque passage d'étape :
+  `{ stage, placements (compressés, complets), advanced (ordre de seed de
+  l'étape suivante), tiebreakResolutions (archivées), closedAt }`. Public-safe
+  (registrationId uniquement). Sert : classement final concaténé sans
+  recomputation, affichage des résultats d'étape, idempotence.
+- `CompetitionMatch.stage?: number` (1-based, absent = 1 — tous les docs
+  existants).
+
+### 9b. Ids de match — préfixe d'étape au niveau du PONT
+
+- Étape 1 : ids moteur NUS (`W1-1`, `R2-3`…) — zéro changement pour l'existant.
+- Étape N ≥ 2 : `E{N}_{engineId}` (ex. `E2_W1-1`). Le préfixe est appliqué par
+  `bracket-store` à la sérialisation (ids ET refs `winner_of`/`loser_of` — les
+  docs publics restent auto-cohérents) et retiré à la reconstruction. **Les
+  moteurs purs ignorent les étapes.** Aucune collision possible entre étapes,
+  même de même kind (RR→RR).
+- Toute reconstruction se fait PAR ÉTAPE : filtrer les docs sur
+  `doc.stage ?? 1` AVANT `reconstructBracket` — un bracket pur = une étape.
+
+### 9c. Runtime
+
+- Statut compétition inchangé : `live` couvre toutes les étapes.
+- `tiebreakResolutions` reste PLAT et s'applique à l'étape COURANTE ; archivé
+  dans `stageResults` au passage, puis remis à `{}`. Zéro changement du
+  mécanisme resolve_tiebreak.
+- **Action console `advance_stage`** (pattern transactionnel identique à
+  `generate_next_round`) : gates (live + étape courante finie via
+  `engineFor(kind étape)` + AUCUNE égalité irrésolue — le seed et le
+  classement doivent raconter la même histoire), placements figés, top
+  `transfer.advanceCount` re-seedé (`standings` = ordre du classement — défaut ;
+  `random`), génération `engineFor(next.kind).generate(...)`, matérialisation
+  préfixée en transaction (re-check status/currentStage/withdrawn frais, docs
+  neufs non avancés), `currentStage++`, phasePlan étendu (entries par défaut de
+  l'étape suivante, phases offsettées), notifs qualifiés/éliminés best-effort.
+- `generate_next_round` (suisse) opère sur l'étape COURANTE (un suisse peut
+  être une étape).
+- Retrait (`withdraw_team`) : cascade moteur sur l'étape courante si l'équipe
+  y siège ; une équipe déjà éliminée à une étape antérieure = statut
+  d'inscription + `withdrawn` seulement (son placement d'étape est déjà figé).
+- **Clôture** : exige `currentStage` = dernière étape + finie + résolue.
+  Placements finaux = placements de l'étape finale (1..K) ++ éliminés des
+  étapes antérieures à LEUR placement d'étape (alignés par construction : les
+  éliminés de l'étape m sont classés advanceCount+1..M). `goalDiff`/`goalsFor`
+  des FinalPlacement = CUMUL de toutes les étapes jouées par l'équipe.
+- `SeedingStrategy` += `'standings'` (défaut des transferts). `mmr`/`circuit`
+  = chantier seeding (suivant) ; `manual` au transfert = non supporté v1
+  (refusé à la validation, jamais ignoré en silence).
+
+### 9d. Validation & création
+
+- Payload compétition : champ `stages[]` OPTIONNEL — chaque étape validée par
+  le validateur de son kind, transferts : `advanceCount` ≥ 2, dans les bornes
+  du format SUIVANT (min/max moteur), dernière étape sans transfert, étapes
+  intermédiaires avec transfert obligatoire, 2-4 étapes (1 = ne pas envoyer le
+  champ). Cohérence `stages[0].format` ↔ `format` imposée serveur.
+- Le phasePlan de CRÉATION ne couvre que l'étape 1 (validé contre elle) ; les
+  entries des étapes suivantes naissent à l'`advance_stage`
+  (`buildDefaultPhasePlan` du format, offsettées). L'UI de création n'expose
+  pas encore les stages (refonte Opus) — création via API/scripts en attendant.
+
+### 9e. Vue publique
+
+- `/api/competitions/[id]/matches` expose `stage` ; `/standings` sert le
+  classement PAR ÉTAPE. La fiche affiche UN ONGLET PAR ÉTAPE (« Poules » /
+  « Phase finale ») — une seule instance du viewer montée à la fois (piège
+  singleton brackets-viewer respecté). Résultats d'étape close = stageResults.
+
 ## 8. Moteur SUISSE — décisions de design (cadré 23/07, session Fable 5)
 
 Le Suisse est un TROISIÈME modèle, distinct de l'arbre et du round robin :

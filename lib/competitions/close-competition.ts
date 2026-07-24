@@ -12,8 +12,15 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { computeTeamStats, type Placement } from '@/lib/tournament';
 import { engineFor, kindOf } from '@/lib/competitions/formats-server';
+import {
+  computeMultiStageFinalOrder,
+  cumulativeTeamStats,
+  currentStageOf,
+  formatOfStage,
+  stagesOf,
+} from '@/lib/competitions/stages';
 import { reconstructBracket, type MatchDoc } from '@/lib/competitions/bracket-store';
-import type { CompetitionFormat } from '@/types/competitions';
+import type { StageResult } from '@/types/competitions';
 import { computeClaimRelease } from '@/lib/competitions/withdraw-registration';
 import { createNotifications, type NotificationPayload } from '@/lib/notifications';
 import { captureApiError } from '@/lib/sentry';
@@ -28,7 +35,14 @@ export type CloseResult =
        *  jamais avalé en silence (review Lot 4). */
       unlinked: string[];
     }
-  | { ok: false; code: 'not_found' | 'already_closed' | 'invalid_status' | 'bracket_not_published' | 'not_finished' | 'tiebreak_required'; tiebreakGroups?: string[] };
+  | {
+      ok: false;
+      code: 'not_found' | 'already_closed' | 'invalid_status' | 'bracket_not_published'
+        | 'not_finished' | 'tiebreak_required'
+        // Multi-étapes : il reste des étapes à jouer / résultats d'étape corrompus.
+        | 'stage_not_last' | 'stage_data_invalid';
+      tiebreakGroups?: string[];
+    };
 
 export async function closeCompetition(
   db: Firestore,
@@ -60,10 +74,16 @@ export async function closeCompetition(
     if (comp.status !== 'live') return { ok: false, code: 'invalid_status' };
     if (!comp.bracketMaterializedAt) return { ok: false, code: 'bracket_not_published' };
 
+    // Multi-étapes (design §9c) : la clôture n'opère que sur la DERNIÈRE
+    // étape — les étapes intermédiaires se ferment par `advance_stage`.
+    const stages = stagesOf(comp);
+    const cur = currentStageOf(comp);
+    if (cur < stages.length) return { ok: false, code: 'stage_not_last' };
+
     // Routage par kind via la registry de formats (formats-server) : le
-    // prédicat de fin et le calcul des placements sont ceux du format —
-    // élims : champion mécanique ; round robin : tous les matchs terminaux.
-    const format = comp.format as CompetitionFormat;
+    // prédicat de fin et le calcul des placements sont ceux du format de
+    // l'étape finale — élims : champion mécanique ; RR : matchs terminaux.
+    const format = formatOfStage(comp, cur);
     const engine = engineFor(kindOf(format));
     const bracket = reconstructBracket({
       withdrawn: Array.isArray(comp.withdrawn) ? (comp.withdrawn as string[]) : [],
@@ -75,6 +95,7 @@ export async function closeCompetition(
       })),
       kind: kindOf(format),
       swissRounds: typeof format?.swissRounds === 'number' ? format.swissRounds : undefined,
+      stage: cur,
     });
     if (!engine.isFinished(bracket)) return { ok: false, code: 'not_finished' };
 
@@ -87,6 +108,11 @@ export async function closeCompetition(
     const regs = new Map<string, FirebaseFirestore.DocumentData>();
     for (const s of regSnaps) if (s.exists) regs.set(s.id, s.data()!);
 
+    // Ordre final : mono-étape = placements du bracket (comportement
+    // historique intact) ; multi-étapes = étape finale ++ éliminées des
+    // étapes closes à leur classement d'étape (stageResults), recompressé.
+    const stageResults = (Array.isArray(comp.stageResults) ? comp.stageResults : []) as StageResult[];
+
     // Barème du circuit (place compressée → points) — hors circuit : pas de
     // points, le classement final reste sur la compétition.
     const circuitId = (comp.circuitId as string | null) ?? null;
@@ -96,19 +122,40 @@ export async function closeCompetition(
       pointsScale = (circuitSnap.data()?.pointsScale as Record<string, number> | undefined) ?? null;
     }
 
-    const finalPlacements: FinalPlacement[] = placements
+    const lastStagePlaced = placements
       .filter((p): p is Placement & { placement: number } => p.placement !== null)
-      .map(p => {
-        const reg = regs.get(p.teamId);
-        const st = stats.get(p.teamId);
+      .map(p => ({ teamId: p.teamId, placement: p.placement }));
+    let orderedFinal: Array<{ registrationId: string; placement: number }>;
+    if (stages.length === 1) {
+      orderedFinal = lastStagePlaced.map(p => ({ registrationId: p.teamId, placement: p.placement }));
+    } else {
+      try {
+        orderedFinal = computeMultiStageFinalOrder(stageResults, lastStagePlaced);
+      } catch (e) {
+        // Résultats d'étape incohérents (doublon, qualifiée absente) : refus
+        // net — jamais un classement final faux (l'erreur remonte à Sentry).
+        captureApiError('closeCompetition multi-stage final order', e);
+        return { ok: false, code: 'stage_data_invalid' };
+      }
+    }
+
+    const finalPlacements: FinalPlacement[] = orderedFinal
+      .map(({ registrationId, placement }) => {
+        const reg = regs.get(registrationId);
+        // Stats : mono-étape = celles du bracket (comportement historique) ;
+        // multi-étapes = CUMUL étapes closes (stats brutes figées) + finale.
+        const st = stats.get(registrationId);
+        const cum = stages.length === 1
+          ? { goalDiff: st ? Math.round(st.normalizedDiff * 100) / 100 : 0, goalsFor: st?.goalsFor ?? 0 }
+          : cumulativeTeamStats(registrationId, stageResults, stats);
         return {
-          registrationId: p.teamId,
-          name: (reg?.name as string) ?? p.teamId,
+          registrationId,
+          name: (reg?.name as string) ?? registrationId,
           tag: (reg?.tag as string) ?? '',
-          placement: p.placement,
-          points: pointsScale ? pointsScale[String(p.placement)] ?? 0 : null,
-          goalDiff: st ? Math.round(st.normalizedDiff * 100) / 100 : 0,
-          goalsFor: st?.goalsFor ?? 0,
+          placement,
+          points: pointsScale ? pointsScale[String(placement)] ?? 0 : null,
+          goalDiff: cum.goalDiff,
+          goalsFor: cum.goalsFor,
         };
       })
       .sort((a, b) => a.placement - b.placement);

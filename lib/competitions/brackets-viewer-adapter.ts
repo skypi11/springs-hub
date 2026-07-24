@@ -27,6 +27,7 @@
 
 import { Status } from 'brackets-model';
 import type { Match, MatchGame, Participant, ParticipantResult, Stage } from 'brackets-model';
+import { parseStageMatchId } from './stage-ids';
 
 /** Sources publiques d'un côté de match (seed ou match amont — jamais de PII). */
 export type PublicMatchSource =
@@ -46,6 +47,9 @@ export interface PublicBracketMatch {
   slot: number;
   /** Round robin uniquement : poule 1-based. */
   group?: number;
+  /** Étape de format (multi-étapes) — absent = étape 1. L'adaptateur exige des
+   *  matchs d'UNE seule étape : le wrapper TournamentBracket filtre. */
+  stage?: number;
   bo: number;
   teamA: string | null;                     // registrationId (public, pas un uid)
   teamB: string | null;
@@ -123,11 +127,14 @@ function positionOf(src: PublicMatchSource | undefined): number | undefined {
 // « WB 1.3 »… Simple élim (un seul arbre, pas de préfixe) : « finale »,
 // « demi 2 », « quart 1 », « match 1.3 ».
 function matchLabel(
-  ref: string,
+  rawRef: string,
   winnersRounds: number,
   losersRounds: number,
   single: boolean,
 ): string {
+  // Multi-étapes : les refs d'une étape ≥ 2 sont préfixées (`E2_W1-2`) — le
+  // libellé se lit sur l'id moteur nu (l'étape est déjà le contexte affiché).
+  const ref = parseStageMatchId(rawRef).engineId;
   if (ref === 'GF') return 'grande finale';
   if (ref === 'P3') return 'petite finale';
   const m = /^([WL])(\d+)-(\d+)$/.exec(ref);

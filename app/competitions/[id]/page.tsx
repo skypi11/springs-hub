@@ -43,6 +43,15 @@ interface PublicCompetition {
     circuitName: string | null;
     organizer: { name: string; logoUrl?: string | null } | null;
     format: CompetitionFormat | null;
+    /** Multi-étapes : métas publiques des étapes (null = mono-étape). */
+    stages: Array<{
+      stage: number;
+      kind: string;
+      name: string | null;
+      format: CompetitionFormat | null;
+      transfer: { advanceCount: number; reseed: string } | null;
+    }> | null;
+    currentStage: number;
     roster: { starters: number; subsMax: number } | null;
     eligibility: CompetitionEligibility | null;
     registration: { opensAt: string | null; closesAt: string | null; waitlist: boolean };
@@ -308,7 +317,13 @@ export default function CompetitionPage() {
         <div className="panel bevel">
           <div className="panel-header"><span className="t-sub">Bracket</span></div>
           <div className="panel-body">
-            <BracketView competitionId={comp.id} gameColor={color} competitionStatus={comp.status} />
+            <BracketView competitionId={comp.id} gameColor={color} competitionStatus={comp.status}
+              stageLabels={comp.stages
+                ? Object.fromEntries(comp.stages.map(s => [
+                    s.stage,
+                    s.name ?? (isFormatKind(s.kind) ? FORMAT_DEFS[s.kind].label : `Étape ${s.stage}`),
+                  ]))
+                : undefined} />
           </div>
         </div>
       ) : (comp.status === 'seeding' || comp.status === 'live') ? (
@@ -331,16 +346,30 @@ export default function CompetitionPage() {
               <p style={{ color: 'var(--s-text-muted)' }}>Format</p>
               <p className="font-semibold">
                 {/* Libellé servi par la registry de formats — plus jamais un
-                    round robin affiché « Double élimination ». */}
-                {isFormatKind(comp.format?.kind) ? FORMAT_DEFS[comp.format!.kind].label : 'Double élimination'}
+                    round robin affiché « Double élimination ». Multi-étapes :
+                    la séquence complète (« Poules → Élimination directe »). */}
+                {comp.stages && comp.stages.length > 1
+                  ? comp.stages
+                      .map(s => s.name ?? (isFormatKind(s.kind) ? FORMAT_DEFS[s.kind].label : `Étape ${s.stage}`))
+                      .join(' → ')
+                  : isFormatKind(comp.format?.kind) ? FORMAT_DEFS[comp.format!.kind].label : 'Double élimination'}
               </p>
+              {comp.stages && comp.stages.length > 1 && comp.stages[0].transfer && (
+                <p className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                  Top {comp.stages[0].transfer.advanceCount} qualifiées
+                </p>
+              )}
             </div>
             <div>
               <p style={{ color: 'var(--s-text-muted)' }}>Matchs</p>
               <p className="font-semibold">
-                {comp.format?.kind === 'round_robin' || comp.format?.kind === 'swiss'
-                  ? `BO${comp.format?.bo?.default ?? 5} sur tous les matchs`
-                  : `BO${comp.format?.bo?.default ?? 5} · ${comp.format?.kind === 'single_elim' ? 'finale' : 'finales'} BO${comp.format?.bo?.grandFinal ?? 7}`}
+                {comp.stages && comp.stages.length > 1
+                  ? comp.stages
+                      .map(s => `BO${s.format?.bo?.default ?? 5}`)
+                      .join(' puis ')
+                  : comp.format?.kind === 'round_robin' || comp.format?.kind === 'swiss'
+                    ? `BO${comp.format?.bo?.default ?? 5} sur tous les matchs`
+                    : `BO${comp.format?.bo?.default ?? 5} · ${comp.format?.kind === 'single_elim' ? 'finale' : 'finales'} BO${comp.format?.bo?.grandFinal ?? 7}`}
               </p>
             </div>
             <div>

@@ -48,6 +48,8 @@ interface ConsoleMatch {
   slot: number;
   /** Round robin : poule 1-based — sans lui, le bracket fusionne les poules. */
   group?: number;
+  /** Étape de format (multi-étapes) — 1 par défaut. */
+  stage?: number;
   phase: number | null;
   bo: number;
   status: string;
@@ -122,6 +124,14 @@ interface FinalPlacementRow {
   placement: number; points: number | null; goalDiff: number; goalsFor: number;
 }
 
+interface ConsoleStageMeta {
+  stage: number;
+  kind: string;
+  label: string;
+  maxTeams: number;
+  transfer: { advanceCount: number; reseed: string } | null;
+}
+
 interface ConsoleData {
   competition: {
     id: string; name: string; status: string;
@@ -138,6 +148,10 @@ interface ConsoleData {
   needsAdminDecision: boolean;
   /** Formats à génération incrémentale (suisse) : la ronde suivante est appariable. */
   canGenerateNextRound: boolean;
+  /** Multi-étapes : séquence d'étapes, étape active, passage possible. */
+  stages: ConsoleStageMeta[];
+  currentStage: number;
+  canAdvanceStage: boolean;
   placements: Array<{ registrationId: string; placement: number | null; group: string }> | null;
   unresolvedTiebreaks: TiebreakGroup[];
   finalPlacements: FinalPlacementRow[] | null;
@@ -346,6 +360,8 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
     // Poule (round robin) : sans lui, l'adaptateur fusionne tout en « Poule 1 »
     // (bug attrapé par Matt sur la démo).
     ...(typeof m.group === 'number' ? { group: m.group } : {}),
+    // Étape (multi-étapes) : le viewer affiche une étape à la fois.
+    ...(typeof m.stage === 'number' ? { stage: m.stage } : {}),
     teamA: m.teamA, teamB: m.teamB, voidA: m.voidA, voidB: m.voidB,
     teamAInfo: m.teamAInfo, teamBInfo: m.teamBInfo,
     // Sources du serveur = union discriminée conforme au runtime (produites par
@@ -513,6 +529,51 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
               </button>
             </div>
           </section>
+        ) : data.canAdvanceStage && data.competition.status === 'live' ? (
+          (() => {
+            // Passage d'étape (multi-étapes) : aperçu des qualifiées depuis les
+            // placements provisoires — le serveur re-vérifie tout (retraits,
+            // arbitrages) au moment de l'action.
+            const curMeta = data.stages.find(s => s.stage === data.currentStage);
+            const nextMeta = data.stages.find(s => s.stage === data.currentStage + 1);
+            const advanceCount = curMeta?.transfer?.advanceCount ?? 0;
+            const nameOfReg = (rid: string) =>
+              data.registrations.find(r => r.registrationId === rid)?.name ?? rid;
+            const withdrawnSet = new Set(data.competition.withdrawn);
+            const preview = (data.placements ?? [])
+              .filter(p => p.placement !== null && !withdrawnSet.has(p.registrationId))
+              .sort((a, b) => (a.placement as number) - (b.placement as number))
+              .slice(0, advanceCount)
+              .map(p => nameOfReg(p.registrationId));
+            return (
+              <section className="con-decide bevel" style={{ padding: '16px 20px' }}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-display" style={{ fontSize: 22, letterSpacing: '0.03em' }}>ÉTAPE TERMINÉE</p>
+                    <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>
+                      {curMeta?.label ?? 'L\'étape en cours'} est réglée. Les {advanceCount} premières passent en {nextMeta?.label ?? 'étape suivante'} — le classement de l&apos;étape est figé au passage.
+                    </p>
+                    {preview.length > 0 && (
+                      <p style={{ fontSize: 13, color: 'var(--s-text-dim)', marginTop: 4 }}>
+                        Qualifiées : {preview.join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                  <button className="btn-springs btn-primary bevel-sm" disabled={busy !== null}
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: 'Lancer l\'étape suivante',
+                        message: `Le classement de ${curMeta?.label ?? 'l\'étape'} sera figé et le tableau de ${nextMeta?.label ?? 'l\'étape suivante'} créé avec les ${advanceCount} qualifiées. Cette action ne se rejoue pas.`,
+                        confirmLabel: 'Lancer',
+                      });
+                      if (ok) action({ action: 'advance_stage' }, 'Étape suivante lancée — ses matchs se lancent comme d\'habitude.');
+                    }}>
+                    Lancer l&apos;étape suivante
+                  </button>
+                </div>
+              </section>
+            );
+          })()
         ) : data.canGenerateNextRound && data.competition.status === 'live' ? (
           <section className="con-decide bevel" style={{ padding: '16px 20px' }}>
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -550,6 +611,7 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
             {bracketOpen && (
               <div className="panel-body">
                 <TournamentBracket matches={bracketMatches} gameColor={getGameColor(data.competition.game)}
+                  stageLabels={Object.fromEntries((data.stages ?? []).map(s => [s.stage, s.label]))}
                   onMatchClick={mid => {
                     setSelectedMatchId(mid);
                     // Éviter le dossier affiché deux fois : replie la ligne de phase du match sélectionné.

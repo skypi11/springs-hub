@@ -3,6 +3,7 @@ import {
   validateCircuitPayload,
   validateCompetitionPayload,
   validatePointsScale,
+  estimateStageEntryMatches,
 } from './validate';
 import {
   LEGENDS_POINTS_SCALE,
@@ -481,5 +482,129 @@ describe('validateCompetitionPayload — format suisse', () => {
       },
     });
     expect(validateCompetitionPayload(swissPlanOnTree).ok).toBe(false);
+  });
+});
+
+describe('validateStages — séquence multi-étapes (design §9d)', () => {
+  const rrFormat = (maxTeams = 8, groupCount = 2) => ({
+    kind: 'round_robin', maxTeams,
+    bo: { default: 5, overrides: [], grandFinal: 5 },
+    groupCount, doubleRound: false,
+  });
+  const seFormat = (maxTeams = 4) => ({
+    kind: 'single_elim', maxTeams,
+    bo: { default: 5, overrides: [], grandFinal: 7 },
+    thirdPlace: true,
+  });
+  const twoStageBody = (overrides: Record<string, unknown> = {}): Record<string, unknown> => competitionBody({
+    format: rrFormat(),
+    stages: [
+      { format: rrFormat(), name: 'Poules', transfer: { advanceCount: 4, reseed: 'standings' } },
+      { format: seFormat() },
+    ],
+    schedule: {
+      days: [
+        { date: '2026-09-26', startsAt: '15:00' },
+        { date: '2026-09-27', startsAt: '15:00' },
+      ],
+      phasePlan: buildRoundRobinPhasePlan(8, 2, false),
+      generalCheckinMinutes: 20,
+      matchCheckinMinutes: 5,
+      scoreCounterMinutes: 3,
+    },
+    ...overrides,
+  });
+
+  it('accepte un poules→playoff valide : stages canoniques, invariant format = étape 1', () => {
+    const res = validateCompetitionPayload(twoStageBody());
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.value.stages).toHaveLength(2);
+    expect(res.value.stages![0].kind).toBe('round_robin');
+    expect(res.value.stages![0].name).toBe('Poules');
+    expect(res.value.stages![0].transfer).toEqual({ advanceCount: 4, reseed: 'standings' });
+    expect(res.value.stages![1].kind).toBe('single_elim');
+    expect(res.value.stages![1].transfer).toBeUndefined();
+    // Invariant §9a : le format top-level EST l'étape 1 (formes canoniques).
+    expect(JSON.stringify(res.value.stages![0].format)).toBe(JSON.stringify(res.value.format));
+  });
+
+  it('mono-étape : stages absent → null (rétrocompat totale)', () => {
+    const res = validateCompetitionPayload(competitionBody());
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.value.stages).toBe(null);
+  });
+
+  it('rejette les séquences incohérentes', () => {
+    // Dernière étape avec transfert.
+    const lastWithTransfer = twoStageBody();
+    (lastWithTransfer.stages as Array<Record<string, unknown>>)[1].transfer = { advanceCount: 2, reseed: 'standings' };
+    expect(validateCompetitionPayload(lastWithTransfer).ok).toBe(false);
+
+    // Étape intermédiaire sans transfert.
+    const noTransfer = twoStageBody();
+    delete (noTransfer.stages as Array<Record<string, unknown>>)[0].transfer;
+    expect(validateCompetitionPayload(noTransfer).ok).toBe(false);
+
+    // maxTeams de l'étape 2 ≠ advanceCount du transfert.
+    const mismatch = twoStageBody();
+    (mismatch.stages as Array<Record<string, unknown>>)[1] = { format: seFormat(8) };
+    expect(validateCompetitionPayload(mismatch).ok).toBe(false);
+
+    // Une seule étape envoyée en séquence.
+    const single = twoStageBody({ stages: [{ format: rrFormat() }] });
+    expect(validateCompetitionPayload(single).ok).toBe(false);
+
+    // Re-seeding non supporté au transfert (jamais ignoré en silence).
+    const manual = twoStageBody();
+    ((manual.stages as Array<Record<string, unknown>>)[0].transfer as Record<string, unknown>).reseed = 'manual';
+    expect(validateCompetitionPayload(manual).ok).toBe(false);
+
+    // Format top-level ≠ étape 1.
+    const divergent = twoStageBody({ format: rrFormat(8, 1) });
+    expect(validateCompetitionPayload(divergent).ok).toBe(false);
+  });
+
+  it('borne le budget d\'écriture atomique du passage d\'étape (≤ 200 matchs)', () => {
+    // Suisse 64 → top 32 en round robin 2 poules de 16 : 2 × C(16,2) = 240
+    // matchs d'un coup — passe les validateurs de format mais dépasse la
+    // limite transactionnelle → refus À LA SAISIE, jamais au clic.
+    const swiss64 = {
+      kind: 'swiss', maxTeams: 64,
+      bo: { default: 5, overrides: [], grandFinal: 5 },
+      swissRounds: 6,
+    };
+    const big = twoStageBody({
+      format: swiss64,
+      stages: [
+        { format: swiss64, transfer: { advanceCount: 32, reseed: 'standings' } },
+        { format: rrFormat(32, 2) },
+      ],
+      schedule: {
+        days: [{ date: '2026-09-26', startsAt: '15:00' }],
+        phasePlan: [{ phase: 1, day: 1, label: 'R1', rounds: [{ bracket: 'swiss', round: 1 }] }],
+        generalCheckinMinutes: 20,
+        matchCheckinMinutes: 5,
+        scoreCounterMinutes: 3,
+      },
+    });
+    const res = validateCompetitionPayload(big);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toMatch(/trop de matchs/i);
+  });
+
+  it('estimateStageEntryMatches : miroir déclaratif des générateurs', () => {
+    const bo = { default: 5, overrides: [], grandFinal: 5 };
+    const base = { bo, bracketReset: false, forfeitScore: { games: 3, goalsPerGame: 1 } };
+    // Simple élim 4 + petite finale : 3 + 1.
+    expect(estimateStageEntryMatches({ ...base, kind: 'single_elim', maxTeams: 4, thirdPlace: true } as never, 4)).toBe(4);
+    // Double élim 8 : 2 × 8 (winners 7 + losers 6 + GF + reset).
+    expect(estimateStageEntryMatches({ ...base, kind: 'double_elim', maxTeams: 8 } as never, 8)).toBe(16);
+    // RR 8 en 2 poules de 4 : 2 × 6.
+    expect(estimateStageEntryMatches({ ...base, kind: 'round_robin', maxTeams: 8, groupCount: 2 } as never, 8)).toBe(12);
+    // RR 32 en 2 poules de 16 : 2 × 120.
+    expect(estimateStageEntryMatches({ ...base, kind: 'round_robin', maxTeams: 32, groupCount: 2 } as never, 32)).toBe(240);
+    // Suisse : ronde 1 seule.
+    expect(estimateStageEntryMatches({ ...base, kind: 'swiss', maxTeams: 8, swissRounds: 3 } as never, 8)).toBe(4);
   });
 });

@@ -20,6 +20,8 @@ interface BracketMatch {
   bracket: string;
   round: number;
   slot: number;
+  /** Étape de format (multi-étapes) — absent = étape 1. */
+  stage?: number;
   bo: number;
   teamA: string | null;
   teamB: string | null;
@@ -70,6 +72,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         slot: m.slot ?? 1,
         // Poule (round robin) — numéro public, aucune PII.
         ...(typeof m.group === 'number' ? { group: m.group } : {}),
+        // Étape de format (multi-étapes) — numéro public, aucune PII.
+        ...(typeof m.stage === 'number' ? { stage: m.stage } : {}),
         bo: m.bo ?? 5,
         teamA: m.teamA ?? null,
         teamB: m.teamB ?? null,

@@ -154,6 +154,26 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         circuitName,
         organizer,
         format: comp.format ?? null,
+        // Multi-étapes (design §9e) : métas publiques des étapes (aucune PII)
+        // + résultats figés des étapes closes (registrationId uniquement).
+        stages: Array.isArray(comp.stages)
+          ? (comp.stages as Array<Record<string, unknown>>).map((s, i) => ({
+              stage: i + 1,
+              kind: (s.kind as string) ?? 'double_elim',
+              name: (s.name as string) ?? null,
+              format: s.format ?? null,
+              transfer: s.transfer ?? null,
+            }))
+          : null,
+        currentStage: typeof comp.currentStage === 'number' ? comp.currentStage : 1,
+        stageResults: Array.isArray(comp.stageResults)
+          ? (comp.stageResults as Array<Record<string, unknown>>).map(r => ({
+              stage: (r.stage as number) ?? 0,
+              placements: r.placements ?? [],
+              advanced: r.advanced ?? [],
+              closedAt: (r.closedAt as { toDate?: () => Date } | undefined)?.toDate?.()?.toISOString() ?? null,
+            }))
+          : null,
         roster: comp.roster ?? null,
         eligibility: comp.eligibility ?? null,
         registration: {

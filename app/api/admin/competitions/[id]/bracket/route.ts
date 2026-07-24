@@ -6,20 +6,14 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { materializeBracket, type TeamDisplay } from '@/lib/competitions/bracket-store';
-import {
-  MIN_TEAMS, MAX_TEAMS,
-  RR_MIN_TEAMS, RR_MAX_TEAMS, roundRobinBlocker,
-  SWISS_MIN_TEAMS, SWISS_MAX_TEAMS, swissBlocker, swissDefaultRounds,
-} from '@/lib/tournament';
+import { roundRobinBlocker, swissBlocker, swissDefaultRounds } from '@/lib/tournament';
 import { kindOf } from '@/lib/competitions/formats-server';
+import { stagesOf, teamBoundsForKind } from '@/lib/competitions/stages';
 
 /** Bornes moteur du format : arbre 4-32 ; round robin et suisse 4-64 (aucune
- *  contrainte de puissance de 2). */
+ *  contrainte de puissance de 2). Source unique : stages.teamBoundsForKind. */
 function teamBounds(format: { kind?: string } | null | undefined): { min: number; max: number } {
-  const kind = kindOf(format);
-  if (kind === 'round_robin') return { min: RR_MIN_TEAMS, max: RR_MAX_TEAMS };
-  if (kind === 'swiss') return { min: SWISS_MIN_TEAMS, max: SWISS_MAX_TEAMS };
-  return { min: MIN_TEAMS, max: MAX_TEAMS };
+  return teamBoundsForKind(kindOf(format));
 }
 
 /**
@@ -314,6 +308,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       batch.update(compRef, {
         status: 'live',
         withdrawn: [],
+        // Multi-étapes : le publish matérialise TOUJOURS l'étape 1
+        // (comp.format === stages[0].format — invariant §9a).
+        ...(stagesOf({ format: comp.format, stages: comp.stages }).length > 1
+          ? { currentStage: 1, stageResults: [] }
+          : {}),
         bracketMaterializedAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });

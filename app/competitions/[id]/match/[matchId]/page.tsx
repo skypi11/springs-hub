@@ -37,8 +37,10 @@ interface RosterPlayer {
 interface MatchPayload {
   match: {
     id: string;
-    bracket: 'winners' | 'losers' | 'grand_final';
+    bracket: 'winners' | 'losers' | 'grand_final' | 'round_robin' | 'swiss';
     round: number;
+    /** Étape de format (multi-étapes) — 1 par défaut. */
+    stage: number;
     bo: number;
     status: string;
     teamA: string | null;
@@ -137,6 +139,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string; ma
       const res = await (user ? api : apiPublic)<{ competition: {
         name: string; game: string;
         format?: { kind?: string } | null;
+        stages?: Array<{ stage: number; kind: string; name: string | null }> | null;
         schedule?: { days?: Array<{ date?: string; startsAt?: string }> } | null;
       } }>(`/api/competitions/${id}`);
       return res.competition;
@@ -276,7 +279,18 @@ export default function MatchPage({ params }: { params: Promise<{ id: string; ma
           <ChevronLeft size={15} /> {compData?.name ?? 'Compétition'}
         </Link>
         <span style={{ color: 'var(--s-text-muted)' }}>·</span>
-        <span style={{ color: 'var(--s-text-dim)' }}>{bracketLabel(m.bracket, m.round, compData?.format?.kind === 'single_elim')}</span>
+        <span style={{ color: 'var(--s-text-dim)' }}>
+          {(() => {
+            // Multi-étapes : le kind (et le libellé) viennent de l'ÉTAPE du
+            // match — un « Tour 1 » de phase finale n'est pas celui des poules.
+            const stageMeta = compData?.stages?.find(s => s.stage === (m.stage ?? 1));
+            const single = (stageMeta?.kind ?? compData?.format?.kind) === 'single_elim';
+            const label = bracketLabel(m.bracket, m.round, single);
+            return (compData?.stages?.length ?? 0) > 1 && stageMeta?.name
+              ? `${stageMeta.name} · ${label}`
+              : label;
+          })()}
+        </span>
         <span style={{ color: 'var(--s-text-muted)' }}>·</span>
         <span className="t-mono" style={{ fontSize: 13, color: 'var(--s-text-muted)' }}>BO{m.bo}</span>
         {matchDay && (

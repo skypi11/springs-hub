@@ -42,6 +42,26 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       );
     }
 
+    // Multi-étapes (design §9d) : un PATCH sans `stages` sur une compétition
+    // qui en a (formulaire d'avant la refonte création) ne doit JAMAIS créer
+    // de divergence stages[0] ≠ format. Même kind → resynchronisation de
+    // l'étape 1 sur le nouveau format ; kind différent → refus explicite.
+    // `clearStages: true` (hors schéma, comme isDev) repasse en mono-étape.
+    const existingStages = Array.isArray(existing.stages) ? existing.stages : null;
+    let resyncedStages: typeof payload.stages = null;
+    const clearStages = body.clearStages === true;
+    if (existingStages && !payload.stages && !clearStages) {
+      const firstKind = existingStages[0]?.format?.kind;
+      if (firstKind !== payload.format.kind) {
+        return NextResponse.json(
+          { error: 'Cette compétition est multi-étapes : changer le format de la première étape exige de renvoyer toute la séquence (stages).' },
+          { status: 409 },
+        );
+      }
+      resyncedStages = existingStages.map((s, i) =>
+        i === 0 ? { ...s, kind: payload.format.kind, format: payload.format } : s);
+    }
+
     // Changement de circuit : cohérence de jeu + maintien des deux côtés du
     // lien dénormalisé (competitionIds sur l'ancien ET le nouveau circuit).
     const oldCircuitId = (existing.circuitId as string | null) ?? null;
@@ -58,6 +78,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const batch = db.batch();
     batch.update(ref, {
       ...toFirestoreCompetition(payload),
+      ...(resyncedStages ? { stages: resyncedStages } : {}),
+      ...(clearStages ? { stages: FieldValue.delete(), currentStage: FieldValue.delete() } : {}),
       // Flag test éditable tant que la compét est en brouillon (hors schéma
       // de validation partagé). Ne s'écrit que si explicitement fourni.
       ...(typeof body.isDev === 'boolean' ? { isDev: body.isDev } : {}),

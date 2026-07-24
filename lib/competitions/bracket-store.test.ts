@@ -533,3 +533,102 @@ describe('bracket-store — suisse', () => {
     expect(appended.acls).toHaveLength(4);
   });
 });
+
+describe('bracket-store — multi-étapes (stage ≥ 2, design §9b)', () => {
+  const regs = (ids: string[]) => Object.fromEntries(ids.map((id, i) => [id, {
+    display: { name: `Team ${i + 1}`, tag: `T${i + 1}`, logoUrl: null },
+    rosterUids: [`u${i}a`, `u${i}b`],
+  }]));
+  const BO1: BoConfig = { default: 1, overrides: [], grandFinal: 1 };
+  const FF1 = { games: 1, goalsPerGame: 1 };
+
+  it('materializeMatches stage 2 : ids, refs et ACL préfixés E2_, champ stage posé', () => {
+    const ids = teams(4);
+    const bracket = generateSingleElim(ids, { bo: BO1, forfeitScore: FF1, thirdPlace: true });
+    const { matches, acls } = materializeMatches({
+      competitionId: 'comp-ms', bracket, matchIds: bracket.order, registrations: regs(ids), stage: 2,
+    });
+    expect(matches.map(m => m.id).sort()).toEqual(['E2_P3', 'E2_W1-1', 'E2_W1-2', 'E2_W2-1']);
+    for (const m of matches) expect(m.doc.stage).toBe(2);
+    // Refs aval préfixées : la finale référence les demies par leur id PUBLIC.
+    const final = matches.find(m => m.id === 'E2_W2-1')!;
+    expect(final.doc.sourceA).toEqual({ type: 'winner_of', ref: 'E2_W1-1' });
+    expect(final.doc.sourceB).toEqual({ type: 'winner_of', ref: 'E2_W1-2' });
+    // Refs de seed inchangées (numéros, pas des ids).
+    const semi = matches.find(m => m.id === 'E2_W1-1')!;
+    expect(semi.doc.sourceA).toEqual({ type: 'seed', ref: 1 });
+    // ACL par id public.
+    expect(acls.every(a => a.matchId.startsWith('E2_'))).toBe(true);
+  });
+
+  it('sans stage (ou stage 1) : comportement historique inchangé, ids nus', () => {
+    const ids = teams(4);
+    const bracket = generateSingleElim(ids, { bo: BO1, forfeitScore: FF1 });
+    const bare = materializeMatches({
+      competitionId: 'comp-ms', bracket, matchIds: bracket.order, registrations: regs(ids),
+    });
+    const explicit = materializeMatches({
+      competitionId: 'comp-ms', bracket, matchIds: bracket.order, registrations: regs(ids), stage: 1,
+    });
+    expect(bare.matches.map(m => m.id)).toEqual(['W1-1', 'W1-2', 'W2-1']);
+    expect(explicit).toEqual(bare);
+    expect(bare.matches.every(m => m.doc.stage === undefined)).toBe(true);
+  });
+
+  it('round-trip : deux étapes mêlées en base, chaque reconstruction est fidèle à son étape', () => {
+    // Étape 1 : round robin 6 équipes matérialisé (docs sans champ stage).
+    const rrIds = teams(6);
+    const rr = generateRoundRobin(rrIds, { bo: BO1, forfeitScore: FF1, groups: 1 });
+    const stage1 = materializeBracket({
+      competitionId: 'comp-ms', seeding: rrIds, bo: BO1, forfeitScore: FF1,
+      registrations: regs(rrIds), kind: 'round_robin', groups: 1,
+    });
+    // Étape 2 : simple élim des 4 premières, matérialisée stage 2.
+    const seIds = rrIds.slice(0, 4);
+    const se = generateSingleElim(seIds, { bo: BO1, forfeitScore: FF1, thirdPlace: true });
+    const stage2 = materializeMatches({
+      competitionId: 'comp-ms', bracket: se, matchIds: se.order, registrations: regs(rrIds), stage: 2,
+    });
+
+    const allDocs = [...stage1.matches, ...stage2.matches].map(({ id, doc }) => ({ id, ...doc }));
+
+    // Reconstruction étape 1 : ne voit QUE les matchs de poule.
+    const rec1 = reconstructBracket({
+      withdrawn: [], bo: BO1, forfeitScore: FF1, matches: allDocs, kind: 'round_robin', stage: 1,
+    });
+    expect(rec1.kind).toBe('round_robin');
+    expect(rec1.order).toEqual(rr.order);
+    expect(rec1.teams).toEqual(rr.teams);
+
+    // Reconstruction étape 2 : identique au bracket source (ids moteur nus).
+    const rec2 = reconstructBracket({
+      withdrawn: [], bo: BO1, forfeitScore: FF1, matches: allDocs, kind: 'single_elim', stage: 2,
+    });
+    expect(rec2.kind).toBe('single_elim');
+    expect(rec2.order).toEqual(se.order);
+    expect(rec2.teams).toEqual(se.teams);
+    expect(rec2.matches['W2-1'].sourceA).toEqual({ type: 'winner_of', ref: 'W1-1' });
+
+    // La progression moteur fonctionne sur l'étape reconstruite (pivot nu).
+    const advanced = advanceMatch(rec2, 'W1-1', { type: 'winner', winner: 'a', scores: [{ a: 1, b: 0 }] });
+    expect(advanced.matches['W1-1'].status).toBe('completed');
+    expect(advanced.matches['W2-1'].teamA).toBe(rec2.matches['W1-1'].teamA);
+  });
+
+  it('reconstruction sans option stage sur des docs mêlés = étape 1 seule (fail-safe rétrocompat)', () => {
+    const rrIds = teams(4);
+    const stage1 = materializeBracket({
+      competitionId: 'comp-ms', seeding: rrIds, bo: BO1, forfeitScore: FF1,
+      registrations: regs(rrIds), kind: 'round_robin', groups: 1,
+    });
+    const se = generateSingleElim(rrIds, { bo: BO1, forfeitScore: FF1 });
+    const stage2 = materializeMatches({
+      competitionId: 'comp-ms', bracket: se, matchIds: se.order, registrations: regs(rrIds), stage: 2,
+    });
+    const allDocs = [...stage1.matches, ...stage2.matches].map(({ id, doc }) => ({ id, ...doc }));
+    const rec = reconstructBracket({
+      withdrawn: [], bo: BO1, forfeitScore: FF1, matches: allDocs, kind: 'round_robin',
+    });
+    expect(rec.order.every(id => id.startsWith('R'))).toBe(true);
+  });
+});

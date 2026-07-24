@@ -91,7 +91,9 @@ export type AdminAuditAction =
   | 'competition_tiebreak_resolved'
   | 'competition_closed'
   // Formats à génération incrémentale (suisse) : ronde suivante appariée
-  | 'competition_round_generated';
+  | 'competition_round_generated'
+  // Multi-étapes : passage d'étape (placements figés + étape suivante lancée)
+  | 'competition_stage_advanced';
 
 export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event' | 'competition' | 'circuit';
 

@@ -17,8 +17,18 @@ import { toFlowState, toIso, flowConfigOf, generateRoomCredentials, toEngineOutc
 import { applyMatchOutcome, applyWithdraw, applyReplacement } from '@/lib/competitions/progression';
 import { reconstructBracket, materializeMatches, type MatchDoc, type TeamDisplay } from '@/lib/competitions/bracket-store';
 import { engineFor, kindOf } from '@/lib/competitions/formats-server';
+import {
+  computeStageAdvance,
+  currentStageOf,
+  formatOfStage,
+  stageLabelOf,
+  stageOfMatch,
+  stagesOf,
+  teamBoundsForKind,
+} from '@/lib/competitions/stages';
 import { computeTeamStats, type Placement } from '@/lib/tournament';
-import type { CompetitionFormat } from '@/types/competitions';
+import type { CompetitionFormat, PhasePlanEntry } from '@/types/competitions';
+import { randomInt } from 'node:crypto';
 import { syncRegistrationToCalendar, removeRegistrationFromCalendar } from '@/lib/competitions/calendar-sync';
 import { closeCompetition } from '@/lib/competitions/close-competition';
 
@@ -79,41 +89,52 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
 
-    // État global du bracket (clôture possible ? décision admin requise ?).
+    // État global du bracket de l'ÉTAPE COURANTE (clôture possible ? passage
+    // d'étape possible ? décision admin requise ?).
+    const stages = stagesOf(comp);
+    const cur = currentStageOf(comp);
+    const stageFormat = formatOfStage(comp, cur);
     let finished = false;
     let adminDecision = false;
     let canGenerateNextRound = false;
+    let canAdvanceStage = false;
     let placements: Placement[] | null = null;
     let unresolvedTiebreaks: Array<{
       group: string;
       teams: Array<{ registrationId: string; tied: boolean; goalDiff: number; goalsFor: number }>;
     }> = [];
-    if (docs.length > 0 && comp.format?.bo) {
+    if (docs.length > 0 && stageFormat?.bo) {
       try {
         // Prédicats et placements routés par la registry de formats : un round
         // robin est « fini » quand tous ses matchs sont terminaux (jamais de
         // champion mécanique, jamais de « décision admin » pour un titre).
-        const engine = engineFor(kindOf(comp.format));
+        const engine = engineFor(kindOf(stageFormat));
         const bracket = reconstructBracket({
           withdrawn: Array.isArray(comp.withdrawn) ? (comp.withdrawn as string[]) : [],
-          bo: comp.format.bo,
-          forfeitScore: comp.format.forfeitScore ?? { games: 3, goalsPerGame: 1 },
+          bo: stageFormat.bo,
+          forfeitScore: stageFormat.forfeitScore ?? { games: 3, goalsPerGame: 1 },
           matches: docs.map(d => ({ id: d.id, ...(d.data as MatchDoc) })),
-          kind: kindOf(comp.format),
-          swissRounds: typeof comp.format?.swissRounds === 'number' ? comp.format.swissRounds : undefined,
+          kind: kindOf(stageFormat),
+          swissRounds: typeof stageFormat?.swissRounds === 'number' ? stageFormat.swissRounds : undefined,
+          stage: cur,
         });
-        finished = engine.isFinished(bracket);
+        const stageFinished = engine.isFinished(bracket);
         adminDecision = engine.needsAdminDecision(bracket);
+        // « Fini » côté console = CLÔTURABLE : dernière étape terminée. Une
+        // étape intermédiaire terminée ouvre le PASSAGE d'étape, pas la clôture.
+        finished = stageFinished && cur === stages.length;
+        canAdvanceStage = comp.status === 'live' && stageFinished && cur < stages.length;
         // Formats à génération incrémentale (suisse) : la ronde suivante
         // est-elle appariable ? (tous les matchs terminaux + rondes restantes)
         canGenerateNextRound = comp.status === 'live'
           && (engine.canGenerateNextRound?.(bracket) ?? false);
         // Clôture (Lot 4) : placements provisoires + égalités à arbitrer,
-        // calculés dès que le tournoi est fini (l'arbitrage précède l'écriture
-        // des points — archi §4, aucun point sur des places non uniques).
-        if (finished) {
+        // calculés dès que l'ÉTAPE est finie — l'arbitrage précède aussi bien
+        // la clôture que le passage d'étape (le seed de l'étape suivante et le
+        // classement doivent raconter la même histoire, design §9c).
+        if (stageFinished) {
           const resolutions = (comp.tiebreakResolutions as Record<string, string[]> | undefined) ?? undefined;
-          placements = engine.computePlacements(bracket, comp.format, resolutions);
+          placements = engine.computePlacements(bracket, stageFormat, resolutions);
           const stats = computeTeamStats(bracket);
           const byGroup = new Map<string, typeof placements>();
           for (const p of placements) {
@@ -175,6 +196,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       finished,
       needsAdminDecision: adminDecision,
       canGenerateNextRound,
+      // Multi-étapes (design §9) : métas d'étapes + étape courante + résultats
+      // figés — l'UI groupe les matchs par `stage` et affiche le CTA de
+      // passage quand l'étape courante est terminée.
+      stages: stages.map((s, i) => ({
+        stage: i + 1,
+        kind: s.kind,
+        label: stageLabelOf(s),
+        maxTeams: s.format.maxTeams,
+        transfer: s.transfer ?? null,
+      })),
+      currentStage: cur,
+      stageResults: Array.isArray(comp.stageResults)
+        ? (comp.stageResults as Array<Record<string, unknown>>).map(r => ({
+            ...r,
+            closedAt: toIso(r.closedAt),
+          }))
+        : [],
+      canAdvanceStage,
       // Clôture (Lot 4) : classement provisoire + égalités à arbitrer, et le
       // classement FINAL écrit si la compétition est déjà clôturée.
       placements: placements?.map(p => ({
@@ -498,6 +537,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // Repêchage waitlist AVANT le round 1 (spec §8) — le moteur refuse dès
       // qu'un match du bracket est joué. newRegistrationId null = personne en
       // liste d'attente → le siège devient un bye.
+      // Multi-étapes : étape 1 uniquement — une waitlistée n'a pas joué les
+      // étapes précédentes, elle ne peut pas s'asseoir dans une phase finale.
+      if (currentStageOf(comp) > 1) {
+        return NextResponse.json({ error: 'Le repêchage par la liste d\'attente n\'existe qu\'avant la première étape.' }, { status: 409 });
+      }
       const oldRegistrationId = String(body.oldRegistrationId ?? '');
       const newRegistrationId = body.newRegistrationId ? String(body.newRegistrationId) : null;
       if (!oldRegistrationId) return NextResponse.json({ error: 'Paramètres invalides.' }, { status: 400 });
@@ -578,17 +622,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // équipes — sinon refus explicite (pas de toast de succès mensonger).
       const matchesSnap = await db.collection('competition_matches').where('competitionId', '==', id).get();
       try {
-        const engine = engineFor(kindOf(comp.format));
+        // Multi-étapes : les égalités s'arbitrent sur l'ÉTAPE COURANTE (celles
+        // des étapes closes sont archivées dans stageResults — design §9c).
+        const cur = currentStageOf(comp);
+        const stageFormat = formatOfStage(comp, cur);
+        const engine = engineFor(kindOf(stageFormat));
         const bracket = reconstructBracket({
           withdrawn: Array.isArray(comp.withdrawn) ? (comp.withdrawn as string[]) : [],
-          bo: comp.format.bo,
-          forfeitScore: comp.format.forfeitScore ?? { games: 3, goalsPerGame: 1 },
+          bo: stageFormat.bo,
+          forfeitScore: stageFormat.forfeitScore ?? { games: 3, goalsPerGame: 1 },
           matches: matchesSnap.docs.map(d => ({ id: (d.data().id as string) ?? d.id, ...(d.data() as MatchDoc) })),
-          kind: kindOf(comp.format),
-          swissRounds: typeof comp.format?.swissRounds === 'number' ? comp.format.swissRounds : undefined,
+          kind: kindOf(stageFormat),
+          swissRounds: typeof stageFormat?.swissRounds === 'number' ? stageFormat.swissRounds : undefined,
+          stage: cur,
         });
         // Sans aucune résolution : l'état BRUT du moteur pour ce groupe.
-        const raw = engine.computePlacements(bracket, comp.format);
+        const raw = engine.computePlacements(bracket, stageFormat);
         const groupRows = raw.filter(p => p.group === group);
         if (!groupRows.some(p => p.needsAdminTiebreak)) {
           return NextResponse.json({ error: 'Ce groupe n\'a pas (ou plus) d\'égalité à arbitrer — recharge la console.' }, { status: 409 });
@@ -624,25 +673,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (comp.status !== 'live') {
         return NextResponse.json({ error: 'La compétition n\'est pas en jeu.' }, { status: 409 });
       }
-      const engine = engineFor(kindOf(comp.format));
+      // Multi-étapes : la génération incrémentale opère sur l'ÉTAPE COURANTE
+      // (un suisse peut être une étape — design §9c).
+      const cur = currentStageOf(comp);
+      const stageFormat = formatOfStage(comp, cur);
+      const engine = engineFor(kindOf(stageFormat));
       if (!engine.generateNextRound || !engine.canGenerateNextRound) {
         return NextResponse.json({ error: 'Ce format matérialise toutes ses rondes à la publication.' }, { status: 409 });
       }
       const matchesSnap = await db.collection('competition_matches').where('competitionId', '==', id).get();
       const before = reconstructBracket({
         withdrawn: Array.isArray(comp.withdrawn) ? (comp.withdrawn as string[]) : [],
-        bo: comp.format.bo,
-        forfeitScore: comp.format.forfeitScore ?? { games: 3, goalsPerGame: 1 },
+        bo: stageFormat.bo,
+        forfeitScore: stageFormat.forfeitScore ?? { games: 3, goalsPerGame: 1 },
         matches: matchesSnap.docs.map(d => ({ id: (d.data().id as string) ?? d.id, ...(d.data() as MatchDoc) })),
-        kind: kindOf(comp.format),
-        swissRounds: typeof comp.format?.swissRounds === 'number' ? comp.format.swissRounds : undefined,
+        kind: kindOf(stageFormat),
+        swissRounds: typeof stageFormat?.swissRounds === 'number' ? stageFormat.swissRounds : undefined,
+        stage: cur,
       });
       if (!engine.canGenerateNextRound(before)) {
         return NextResponse.json({ error: 'Ronde en cours ou toutes les rondes jouées — rien à apparier.' }, { status: 409 });
       }
       let after;
       try {
-        after = engine.generateNextRound(before, comp.format as CompetitionFormat, comp.schedule?.phasePlan);
+        after = engine.generateNextRound(before, stageFormat as CompetitionFormat, comp.schedule?.phasePlan);
       } catch (e) {
         // Erreurs moteur actionnables (re-match inévitable…) — jamais un 500.
         return NextResponse.json({ error: (e as Error).message }, { status: 409 });
@@ -668,7 +722,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         };
       }
       const { matches: newDocs, acls } = materializeMatches({
-        competitionId: id, bracket: after, matchIds: newIds, registrations: regsForDocs,
+        competitionId: id, bracket: after, matchIds: newIds, registrations: regsForDocs, stage: cur,
       });
       const aclByMatch = new Map(acls.map(a => [a.matchId, a.participantUids]));
       // Même flag de visibilité que le publish (rules défense en profondeur).
@@ -688,6 +742,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           ]);
           const fresh = freshComp.data();
           if (!fresh || fresh.status !== 'live') throw new Error('competition_not_live');
+          // Un passage d'étape concurrent rendrait la ronde appariée caduque.
+          if (currentStageOf(fresh) !== cur) throw new Error('state_changed');
           const withdrawnNow = JSON.stringify(
             [...(Array.isArray(fresh.withdrawn) ? (fresh.withdrawn as string[]) : [])].sort());
           if (withdrawnNow !== withdrawnAtRead) {
@@ -725,6 +781,214 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ success: true, round, matchCount: newIds.length });
     }
 
+    // ── advance_stage (multi-étapes, design §9c) : clôt l'étape courante
+    // (placements figés dans stageResults), qualifie le top-N re-seedé et
+    // matérialise le bracket de l'étape suivante — en transaction, avec
+    // re-validation de l'état frais (même règle de course que
+    // generate_next_round : retrait, arbitrage ou rejeu concurrents = 409).
+    if (action === 'advance_stage') {
+      if (comp.status !== 'live') {
+        return NextResponse.json({ error: 'La compétition n\'est pas en jeu.' }, { status: 409 });
+      }
+      const stages = stagesOf(comp);
+      const cur = currentStageOf(comp);
+      if (cur >= stages.length) {
+        return NextResponse.json({ error: 'Aucune étape suivante — clôture la compétition.' }, { status: 409 });
+      }
+      const curStage = stages[cur - 1];
+      const nextStage = stages[cur];
+      if (!curStage.transfer) {
+        return NextResponse.json({ error: 'Étape courante sans règle de transfert — configuration incohérente.' }, { status: 409 });
+      }
+
+      const withdrawn = Array.isArray(comp.withdrawn) ? (comp.withdrawn as string[]) : [];
+      const stageFormat = curStage.format;
+      const engine = engineFor(kindOf(stageFormat));
+      const matchesSnap = await db.collection('competition_matches').where('competitionId', '==', id).get();
+      let bracket;
+      try {
+        bracket = reconstructBracket({
+          withdrawn,
+          bo: stageFormat.bo,
+          forfeitScore: stageFormat.forfeitScore ?? { games: 3, goalsPerGame: 1 },
+          matches: matchesSnap.docs.map(d => ({ id: (d.data().id as string) ?? d.id, ...(d.data() as MatchDoc) })),
+          kind: kindOf(stageFormat),
+          swissRounds: typeof stageFormat?.swissRounds === 'number' ? stageFormat.swissRounds : undefined,
+          stage: cur,
+        });
+      } catch {
+        return NextResponse.json({ error: 'Bracket illisible — recharge la console.' }, { status: 409 });
+      }
+      if (!engine.isFinished(bracket)) {
+        return NextResponse.json({ error: 'L\'étape en cours n\'est pas terminée — tous les matchs doivent être réglés.' }, { status: 409 });
+      }
+
+      const resolutions = (comp.tiebreakResolutions as Record<string, string[]> | undefined) ?? {};
+      const adv = computeStageAdvance({
+        stage: cur,
+        transfer: curStage.transfer,
+        placements: engine.computePlacements(bracket, stageFormat, resolutions),
+        stats: computeTeamStats(bracket),
+        withdrawn,
+        tiebreakResolutions: resolutions,
+        nextStageMinTeams: teamBoundsForKind(nextStage.kind).min,
+        // Fisher-Yates CSPRNG (reseed 'random') — même source que le seeding.
+        shuffle: xs => {
+          const a = [...xs];
+          for (let i = a.length - 1; i > 0; i--) {
+            const j = randomInt(i + 1);
+            [a[i], a[j]] = [a[j], a[i]];
+          }
+          return a;
+        },
+      });
+      if (!adv.ok) {
+        return NextResponse.json(
+          { error: adv.error, ...(adv.tiebreakGroups ? { tiebreakGroups: adv.tiebreakGroups } : {}) },
+          { status: 409 },
+        );
+      }
+
+      // Plan de phases de l'étape suivante : entries par défaut du format,
+      // phases offsettées (jamais de collision de groupement console), jour
+      // clampé au planning existant — ajustage fin = refonte création.
+      const existingPlan = (comp.schedule?.phasePlan as PhasePlanEntry[] | undefined) ?? [];
+      const phaseOffset = existingPlan.reduce((m, e) => Math.max(m, e.phase), 0);
+      const dayUsed = existingPlan.reduce((m, e) => Math.max(m, e.day), 1);
+      const dayMax = Array.isArray(comp.schedule?.days) ? Math.max(1, comp.schedule.days.length) : 1;
+      const nextEngine = engineFor(kindOf(nextStage.format));
+      const newEntries: PhasePlanEntry[] = nextEngine.buildDefaultPhasePlan(nextStage.format).map(e => ({
+        ...e,
+        phase: e.phase + phaseOffset,
+        day: Math.min(dayUsed + e.day, dayMax),
+        stage: cur + 1,
+        label: `${stageLabelOf(nextStage)} — ${e.label}`.slice(0, 60),
+      }));
+
+      let nextBracket;
+      try {
+        nextBracket = nextEngine.generate(adv.advanced, nextStage.format, newEntries);
+      } catch (e) {
+        // Erreurs moteur actionnables (faisabilité poules…) — jamais un 500.
+        return NextResponse.json({ error: (e as Error).message }, { status: 409 });
+      }
+
+      // Display + rosters (ACL privées) depuis les inscriptions de la compét.
+      const regsSnap = await db.collection('competition_registrations')
+        .where('competitionId', '==', id).get();
+      const regsForDocs: Record<string, { display: TeamDisplay; rosterUids: string[] }> = {};
+      for (const doc of regsSnap.docs) {
+        const r = doc.data();
+        regsForDocs[doc.id] = {
+          display: {
+            name: (r.name as string) ?? doc.id,
+            tag: (r.tag as string) ?? '',
+            logoUrl: (r.logoUrl as string | null) ?? null,
+          },
+          rosterUids: Array.isArray(r.rosterUids) ? (r.rosterUids as string[]) : [],
+        };
+      }
+      const { matches: newDocs, acls } = materializeMatches({
+        competitionId: id, bracket: nextBracket, matchIds: nextBracket.order,
+        registrations: regsForDocs, stage: cur + 1,
+      });
+      // Garde runtime miroir de la validation (limite des 500 writes d'une
+      // transaction) — un état qui l'atteint est refusé, jamais tronqué.
+      if (newDocs.length > 200) {
+        return NextResponse.json({ error: `Étape suivante trop grande pour un lancement atomique (${newDocs.length} matchs).` }, { status: 409 });
+      }
+      const aclByMatch = new Map(acls.map(a => [a.matchId, a.participantUids]));
+      const hidden = comp.isDev === true;
+
+      const withdrawnAtRead = JSON.stringify([...withdrawn].sort());
+      const resolutionsAtRead = JSON.stringify(resolutions);
+      const stageResultDoc = { ...adv.stageResult, closedAt: Timestamp.now() };
+      try {
+        await db.runTransaction(async tx => {
+          const [freshComp, ...freshNew] = await Promise.all([
+            tx.get(compRef),
+            ...newDocs.map(({ id: matchKey }) => tx.get(refOf(matchKey))),
+          ]);
+          const fresh = freshComp.data();
+          if (!fresh || fresh.status !== 'live') throw new Error('competition_not_live');
+          if (currentStageOf(fresh) !== cur) throw new Error('stage_already_advanced');
+          const withdrawnNow = JSON.stringify(
+            [...(Array.isArray(fresh.withdrawn) ? (fresh.withdrawn as string[]) : [])].sort());
+          if (withdrawnNow !== withdrawnAtRead) throw new Error('state_changed');
+          // Un arbitrage concurrent changerait le classement → l'ordre de seed.
+          const resolutionsNow = JSON.stringify((fresh.tiebreakResolutions as Record<string, string[]> | undefined) ?? {});
+          if (resolutionsNow !== resolutionsAtRead) throw new Error('state_changed');
+          for (const snap of freshNew) {
+            const status = snap.exists ? (snap.data()!.status as string) : 'pending';
+            if (snap.exists && status !== 'pending') throw new Error('stage_already_started');
+          }
+          for (const { id: matchKey, doc } of newDocs) {
+            const matchRef = refOf(matchKey);
+            tx.set(matchRef, { id: matchKey, ...doc, hidden, updatedAt: FieldValue.serverTimestamp() });
+            const uids = aclByMatch.get(matchKey);
+            if (uids && uids.length > 0) {
+              tx.set(matchRef.collection('private').doc('acl'), { participantUids: uids, staffUids: [] });
+            }
+          }
+          const freshResults = Array.isArray(fresh.stageResults) ? fresh.stageResults : [];
+          tx.update(compRef, {
+            currentStage: cur + 1,
+            stageResults: [...freshResults, stageResultDoc],
+            // Les arbitrages de l'étape close sont archivés dans son résultat ;
+            // le champ plat repart vide pour l'étape suivante (design §9c).
+            tiebreakResolutions: {},
+            'schedule.phasePlan': [...existingPlan, ...newEntries],
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        });
+      } catch (e) {
+        const msg = (e as Error).message;
+        if (msg === 'stage_already_advanced') {
+          return NextResponse.json({ error: 'L\'étape suivante a déjà été lancée — recharge la console.' }, { status: 409 });
+        }
+        if (msg === 'state_changed') {
+          return NextResponse.json({ error: 'Un retrait ou un arbitrage est survenu pendant le passage — recharge la console et relance.' }, { status: 409 });
+        }
+        if (msg === 'stage_already_started') {
+          return NextResponse.json({ error: 'Des matchs de l\'étape suivante ont déjà été lancés — recharge la console.' }, { status: 409 });
+        }
+        throw e;
+      }
+
+      // Notifs best-effort : qualifiées et éliminées (jamais bloquant).
+      try {
+        const compName = (comp.name as string) ?? id;
+        const advancedSet = new Set(adv.advanced);
+        const payloads: NotificationPayload[] = [];
+        for (const p of adv.stageResult.placements) {
+          const reg = regsSnap.docs.find(d => d.id === p.registrationId)?.data();
+          if (!reg) continue;
+          const qualified = advancedSet.has(p.registrationId);
+          const title = qualified ? 'Qualification' : 'Fin de parcours';
+          const message = qualified
+            ? `${reg.name ?? 'Ton équipe'} se qualifie pour ${stageLabelOf(nextStage)} — ${compName}.`
+            : `${reg.name ?? 'Ton équipe'} termine ${p.placement}e de ${stageLabelOf(curStage)} — ${compName}.`;
+          for (const ruid of (reg.rosterUids as string[] | undefined) ?? []) {
+            payloads.push({
+              userId: ruid, type: 'competition_registration', title, message,
+              link: `/competitions/${id}`, metadata: { competitionId: id },
+            });
+          }
+        }
+        await createNotifications(db, payloads);
+      } catch (e) {
+        captureApiError('Console advance_stage notifications', e);
+      }
+
+      await audit(db, uid, 'competition_stage_advanced', id, comp, {
+        fromStage: cur, toStage: cur + 1,
+        advanced: adv.advanced, matches: newDocs.length,
+      });
+      return NextResponse.json({
+        success: true, stage: cur + 1, advanced: adv.advanced, matchCount: newDocs.length,
+      });
+    }
+
     if (action === 'close_competition') {
       const result = await closeCompetition(db, { competitionId: id });
       if (!result.ok) {
@@ -735,6 +999,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           bracket_not_published: 'Aucun bracket publié.',
           not_finished: 'Le bracket n\'est pas terminé — le titre doit être décidé avant la clôture.',
           tiebreak_required: `Égalité(s) à arbitrer avant la clôture : ${result.tiebreakGroups?.join(', ') ?? ''}.`,
+          stage_not_last: 'Le tournoi a encore des étapes à jouer — lance l\'étape suivante avant de clôturer.',
+          stage_data_invalid: 'Résultats d\'étape incohérents — contacte le support (rien n\'a été écrit).',
         };
         return NextResponse.json({ error: messages[result.code] }, { status: result.code === 'not_found' ? 404 : 409 });
       }
@@ -765,6 +1031,8 @@ function serializeConsoleMatch(engineId: string, m: FirebaseFirestore.DocumentDa
     slot: m.slot ?? 1,
     // Poule (round robin) — absent sur les matchs d'arbre.
     ...(typeof m.group === 'number' ? { group: m.group } : {}),
+    // Étape de format (multi-étapes) — absent = étape 1.
+    stage: stageOfMatch(m as { stage?: number | null }),
     phase: m.phase ?? null,
     bo: m.bo ?? 5,
     status: m.status ?? 'pending',
