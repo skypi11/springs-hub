@@ -206,6 +206,9 @@ export default function TournamentBracket({ matches, gameColor, onMatchClick, st
   const rootRef = useRef<HTMLDivElement>(null);
   const seqRef = useRef(0);
   const renderedRef = useRef<string>('');
+  /** Étape du DOM actuellement rendu — le scroll sauvegardé n'est valable que
+   *  pour elle (jamais restauré d'une étape sur l'autre). */
+  const renderedStageRef = useRef<number | null>(null);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Ref : le viewer capture le callback au render DOM — la ref évite de
   // re-rendre le bracket quand seule l'identité du callback change (assignée
@@ -251,9 +254,16 @@ export default function TournamentBracket({ matches, gameColor, onMatchClick, st
       window.bracketsViewer.setParticipantImages(adapted.images as unknown as ParticipantImage[]);
       // Le re-render vide puis reconstruit le DOM : sans sauvegarde, le
       // navigateur clampe le scroll à 0 pendant le vide — précisément le jour
-      // de match, quand l'admin regarde la droite du bracket.
-      const scrollLeft = rootRef.current.scrollLeft;
-      const scrollTop = rootRef.current.scrollTop;
+      // de match, quand l'admin regarde la droite du bracket. Le scroll ne se
+      // restaure QUE sur la même étape : hérité d'une autre, il ouvrirait la
+      // vue au mauvais endroit (review adversariale).
+      const sameStage = renderedStageRef.current === selectedStage;
+      const scrollLeft = sameStage ? rootRef.current.scrollLeft : 0;
+      const scrollTop = sameStage ? rootRef.current.scrollTop : 0;
+      // Le DOM va être invalidé : la dedup l'est aussi — sans ce reset, un
+      // échec de rendu (switch d'étape, chunk perdu) laisserait un conteneur
+      // vide que le payload inchangé ne re-rendrait JAMAIS (review, prouvé).
+      renderedRef.current = '';
       rootRef.current.replaceChildren();
       await window.bracketsViewer.render(adapted.data, {
         selector: `.${instanceClass}`,
@@ -276,6 +286,7 @@ export default function TournamentBracket({ matches, gameColor, onMatchClick, st
       rootRef.current.scrollLeft = scrollLeft;
       rootRef.current.scrollTop = scrollTop;
       renderedRef.current = payload;
+      renderedStageRef.current = selectedStage;
       setFailed(false);
     })().catch(() => {
       if (!disposed && seq === seqRef.current) {
@@ -290,7 +301,7 @@ export default function TournamentBracket({ matches, gameColor, onMatchClick, st
         retryTimerRef.current = null;
       }
     };
-  }, [stageMatches, instanceClass, retryTick, isGroupStage, isSwiss]);
+  }, [stageMatches, selectedStage, instanceClass, retryTick, isGroupStage, isSwiss]);
 
   // Le conteneur reste TOUJOURS monté, même en échec : le poll suivant (ou le
   // retour du réseau) retente le rendu dans le même div — un échec transitoire
@@ -309,7 +320,10 @@ export default function TournamentBracket({ matches, gameColor, onMatchClick, st
           {stagesPresent.map(n => {
             const active = n === selectedStage;
             return (
-              <button key={n} type="button" onClick={() => setUserStage(n)}
+              // Cliquer la DERNIÈRE étape = revenir au mode « suivre » (une
+              // nouvelle étape lancée au polling reprend le focus — review).
+              <button key={n} type="button"
+                onClick={() => setUserStage(n === stagesPresent[stagesPresent.length - 1] ? null : n)}
                 className="bevel-sm"
                 style={{
                   padding: '6px 14px',

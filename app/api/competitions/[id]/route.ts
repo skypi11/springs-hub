@@ -166,11 +166,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             }))
           : null,
         currentStage: typeof comp.currentStage === 'number' ? comp.currentStage : 1,
+        // Mapping EXPLICITE champ par champ (jamais de pass-through brut sur
+        // un doc servi au public — même règle que finalPlacements plus bas) :
+        // un champ ajouté demain aux stageResults ne fuit pas par accident.
         stageResults: Array.isArray(comp.stageResults)
           ? (comp.stageResults as Array<Record<string, unknown>>).map(r => ({
               stage: (r.stage as number) ?? 0,
-              placements: r.placements ?? [],
-              advanced: r.advanced ?? [],
+              placements: Array.isArray(r.placements)
+                ? (r.placements as Array<Record<string, unknown>>).map(p => ({
+                    registrationId: String(p.registrationId ?? ''),
+                    placement: typeof p.placement === 'number' ? p.placement : 0,
+                    goalDiff: typeof p.goalDiff === 'number' ? p.goalDiff : 0,
+                    goalsFor: typeof p.goalsFor === 'number' ? p.goalsFor : 0,
+                    goalsAgainst: typeof p.goalsAgainst === 'number' ? p.goalsAgainst : 0,
+                    matchesCounted: typeof p.matchesCounted === 'number' ? p.matchesCounted : 0,
+                  }))
+                : [],
+              advanced: Array.isArray(r.advanced) ? (r.advanced as unknown[]).map(String) : [],
               closedAt: (r.closedAt as { toDate?: () => Date } | undefined)?.toDate?.()?.toISOString() ?? null,
             }))
           : null,

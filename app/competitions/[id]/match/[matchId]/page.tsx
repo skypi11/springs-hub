@@ -21,6 +21,7 @@ import GameRow from '@/components/competitions/GameRow';
 import { useWorkerInterval } from '@/components/competitions/useWorkerInterval';
 import { normalizeGameRows, isScoreValid } from '@/lib/competitions/match-score';
 import { mergeThread, threadPostSide } from '@/lib/competitions/match-thread';
+import { FORMAT_DEFS, isFormatKind } from '@/lib/competitions/formats';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ChevronLeft, Copy, Radio, ShieldAlert, ShieldCheck } from 'lucide-react';
 
@@ -286,9 +287,12 @@ export default function MatchPage({ params }: { params: Promise<{ id: string; ma
             const stageMeta = compData?.stages?.find(s => s.stage === (m.stage ?? 1));
             const single = (stageMeta?.kind ?? compData?.format?.kind) === 'single_elim';
             const label = bracketLabel(m.bracket, m.round, single);
-            return (compData?.stages?.length ?? 0) > 1 && stageMeta?.name
-              ? `${stageMeta.name} · ${label}`
-              : label;
+            if ((compData?.stages?.length ?? 0) <= 1 || !stageMeta) return label;
+            // Même fallback que les pills du bracket et la fiche (review) :
+            // nom choisi, sinon label du format — jamais un contexte absent.
+            const stageName = stageMeta.name
+              ?? (isFormatKind(stageMeta.kind) ? FORMAT_DEFS[stageMeta.kind].label : `Étape ${m.stage ?? 1}`);
+            return `${stageName} · ${label}`;
           })()}
         </span>
         <span style={{ color: 'var(--s-text-muted)' }}>·</span>

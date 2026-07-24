@@ -551,7 +551,7 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
                   <div>
                     <p className="font-display" style={{ fontSize: 22, letterSpacing: '0.03em' }}>ÉTAPE TERMINÉE</p>
                     <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>
-                      {curMeta?.label ?? 'L\'étape en cours'} est réglée. Les {advanceCount} premières passent en {nextMeta?.label ?? 'étape suivante'} — le classement de l&apos;étape est figé au passage.
+                      {curMeta?.label ?? 'L\'étape en cours'} est réglée. Les {preview.length > 0 ? preview.length : advanceCount} premières (hors retraits) passent en {nextMeta?.label ?? 'étape suivante'} — le classement de l&apos;étape est figé au passage.
                     </p>
                     {preview.length > 0 && (
                       <p style={{ fontSize: 13, color: 'var(--s-text-dim)', marginTop: 4 }}>

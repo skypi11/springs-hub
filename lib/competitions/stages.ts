@@ -271,7 +271,62 @@ export function computeMultiStageFinalOrder(
     }
   }
 
+  // Défense COMPLÈTE (review adversariale) : toute qualifiée de TOUTE étape
+  // close doit finir classée quelque part — un stageResult abîmé (écriture
+  // partielle) ne doit jamais faire disparaître une équipe en silence, avec
+  // toutes les suivantes qui remontent d'une place (points de barème décalés).
+  for (const result of sortedResults) {
+    for (const regId of result.advanced) {
+      if (!seen.has(regId)) {
+        throw new Error(`Classement final incohérent : ${regId} qualifiée à l'étape ${result.stage} mais absente de toute la suite.`);
+      }
+    }
+  }
+
   return order.map((registrationId, i) => ({ registrationId, placement: i + 1 }));
+}
+
+// ── Soupape « transfert impossible » (review adversariale — miroir isSwissStuck) ──
+
+/**
+ * Une étape FINIE et entièrement arbitrée dont le transfert est
+ * STRUCTURELLEMENT impossible (trop de retraits pour l'effectif minimum de
+ * l'étape suivante, ou génération infaisable — répartition en poules…) ne
+ * doit JAMAIS briquer une compétition `live` : elle devient CLÔTURABLE au
+ * classement concaténé courant (l'étape courante est traitée comme finale).
+ *
+ * `stuck` UNIQUEMENT sur `not_enough_teams` ou échec de génération — une
+ * égalité à arbitrer ou une étape non réglée ne sont pas des impasses.
+ */
+export function isStageTransferStuck(input: {
+  transfer: StageTransfer;
+  placements: Placement[];
+  stats: Map<string, TeamStats>;
+  withdrawn: string[];
+  tiebreakResolutions: Record<string, string[]>;
+  nextStage: TournamentStage;
+  /** Générateur de l'étape suivante (engineFor(kind).generate) — injecté pour
+   *  garder ce module sans dépendance aux moteurs concrets au call-site. */
+  generateNext: (seeding: string[]) => unknown;
+}): boolean {
+  const adv = computeStageAdvance({
+    stage: 0, // sans objet pour un dry-run
+    transfer: input.transfer,
+    placements: input.placements,
+    stats: input.stats,
+    withdrawn: input.withdrawn,
+    tiebreakResolutions: input.tiebreakResolutions,
+    nextStageMinTeams: teamBoundsForKind(input.nextStage.kind).min,
+    // L'ordre n'importe pas pour la faisabilité — identité pour 'random'.
+    shuffle: xs => xs,
+  });
+  if (!adv.ok) return adv.code === 'not_enough_teams';
+  try {
+    input.generateNext(adv.advanced);
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 /** Stats cumulées d'une équipe sur tout le tournoi : étapes closes (brutes,

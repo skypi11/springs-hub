@@ -365,7 +365,13 @@ export default function CompetitionPage() {
               <p className="font-semibold">
                 {comp.stages && comp.stages.length > 1
                   ? comp.stages
-                      .map(s => `BO${s.format?.bo?.default ?? 5}`)
+                      // Étape à arbre : le BO de la finale fait partie du
+                      // format (review — « BO5 puis BO5 » mentait sur une
+                      // finale BO7).
+                      .map(s => (s.kind === 'single_elim' || s.kind === 'double_elim')
+                        && s.format?.bo?.grandFinal && s.format.bo.grandFinal !== s.format.bo.default
+                        ? `BO${s.format.bo.default} (finale BO${s.format.bo.grandFinal})`
+                        : `BO${s.format?.bo?.default ?? 5}`)
                       .join(' puis ')
                   : comp.format?.kind === 'round_robin' || comp.format?.kind === 'swiss'
                     ? `BO${comp.format?.bo?.default ?? 5} sur tous les matchs`

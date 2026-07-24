@@ -26,6 +26,7 @@ import {
   cumulativeTeamStats,
   currentStageOf,
   formatOfStage,
+  isStageTransferStuck,
   parseStageMatchId,
   stageAt,
   stageLabelOf,
@@ -398,5 +399,81 @@ describe('computeMultiStageFinalOrder + cumulativeTeamStats — tournoi complet 
     expect(() => computeMultiStageFinalOrder([sr], [
       { teamId: 'x', placement: 1 },
     ])).toThrow(/qualifiée mais absente|en double/);
+  });
+});
+
+describe('correctifs review adversariale — défense complète + soupape', () => {
+  const srp = (registrationId: string, placement: number) => ({
+    registrationId, placement, goalDiff: 0, goalsFor: 0, goalsAgainst: 0, matchesCounted: 0,
+  });
+
+  it('une qualifiée d\'une étape ANTÉRIEURE absente de toute la suite → throw (jamais d\'omission silencieuse)', () => {
+    // s1 qualifie a..d ; s2 (corrompu) ne classe que a,b,c — d a disparu.
+    const s1: StageResult = {
+      stage: 1,
+      placements: [srp('a', 1), srp('b', 2), srp('c', 3), srp('d', 4), srp('e', 5), srp('f', 6)],
+      advanced: ['a', 'b', 'c', 'd'],
+      tiebreakResolutions: {}, closedAt: '',
+    };
+    const s2: StageResult = {
+      stage: 2,
+      placements: [srp('a', 1), srp('b', 2), srp('c', 3)],
+      advanced: ['a', 'b'],
+      tiebreakResolutions: {}, closedAt: '',
+    };
+    expect(() => computeMultiStageFinalOrder([s1, s2], [
+      { teamId: 'a', placement: 1 },
+      { teamId: 'b', placement: 2 },
+    ])).toThrow(/absente de toute la suite/);
+  });
+
+  it('isStageTransferStuck : trop de retraits = impasse ; transfert sain = pas d\'impasse', () => {
+    const { placements, stats } = (() => {
+      const bracket = playAll(generateRoundRobin(TEAMS8, { bo: BO1, forfeitScore: FORFEIT, groups: 1 }));
+      return { placements: computeRoundRobinPlacements(bracket, DEFAULT_RR_POINTS), stats: computeTeamStats(bracket) };
+    })();
+    const nextStage: TournamentStage = { kind: 'single_elim', format: seFormat(4) };
+    const generateNext = (seeding: string[]) =>
+      generateSingleElim(seeding, { bo: BO1, forfeitScore: FORFEIT, thirdPlace: true });
+
+    // 5 retraits → 3 qualifiables < 4 : impasse (la clôture prend le relais).
+    expect(isStageTransferStuck({
+      transfer: { advanceCount: 4, reseed: 'standings' },
+      placements, stats,
+      withdrawn: ['t1', 't2', 't3', 't4', 't5'],
+      tiebreakResolutions: {},
+      nextStage,
+      generateNext,
+    })).toBe(true);
+
+    // Champ complet : transfert possible, pas d'impasse.
+    expect(isStageTransferStuck({
+      transfer: { advanceCount: 4, reseed: 'standings' },
+      placements, stats,
+      withdrawn: [],
+      tiebreakResolutions: {},
+      nextStage,
+      generateNext,
+    })).toBe(false);
+
+    // Génération infaisable (le générateur jette) : impasse aussi.
+    expect(isStageTransferStuck({
+      transfer: { advanceCount: 4, reseed: 'standings' },
+      placements, stats,
+      withdrawn: [],
+      tiebreakResolutions: {},
+      nextStage,
+      generateNext: () => { throw new Error('répartition impossible'); },
+    })).toBe(true);
+
+    // reseed 'random' au dry-run : la faisabilité s'évalue sans source d'aléa.
+    expect(isStageTransferStuck({
+      transfer: { advanceCount: 4, reseed: 'random' },
+      placements, stats,
+      withdrawn: [],
+      tiebreakResolutions: {},
+      nextStage,
+      generateNext,
+    })).toBe(false);
   });
 });

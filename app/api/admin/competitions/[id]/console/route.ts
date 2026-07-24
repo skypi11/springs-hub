@@ -21,6 +21,7 @@ import {
   computeStageAdvance,
   currentStageOf,
   formatOfStage,
+  isStageTransferStuck,
   stageLabelOf,
   stageOfMatch,
   stagesOf,
@@ -154,6 +155,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
               goalsFor: stats.get(p.teamId)?.goalsFor ?? 0,
             })),
           }));
+          // SOUPAPE (design §9c, review adversariale) : étape intermédiaire
+          // finie et arbitrée mais transfert STRUCTURELLEMENT impossible
+          // (retraits massifs, génération infaisable) → le CTA bascule sur la
+          // clôture au classement courant — jamais de compétition briquée.
+          if (canAdvanceStage && unresolvedTiebreaks.length === 0) {
+            const transfer = stages[cur - 1]?.transfer;
+            const nextStage = stages[cur];
+            const stuck = !transfer || !nextStage || isStageTransferStuck({
+              transfer,
+              placements,
+              stats,
+              withdrawn: Array.isArray(comp.withdrawn) ? (comp.withdrawn as string[]) : [],
+              tiebreakResolutions: (comp.tiebreakResolutions as Record<string, string[]> | undefined) ?? {},
+              nextStage,
+              generateNext: seeding => engineFor(kindOf(nextStage.format)).generate(seeding, nextStage.format),
+            });
+            if (stuck) {
+              canAdvanceStage = false;
+              finished = true;
+            }
+          }
         }
       } catch {
         // Bracket incohérent : la console reste utilisable, les flags à false.
@@ -203,7 +225,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         stage: i + 1,
         kind: s.kind,
         label: stageLabelOf(s),
-        maxTeams: s.format.maxTeams,
+        // Tolérance doc abîmé (review) : la console ne crash JAMAIS sur un
+        // format absent — même règle que `stageFormat?.bo` plus haut.
+        maxTeams: s.format?.maxTeams ?? null,
         transfer: s.transfer ?? null,
       })),
       currentStage: cur,
@@ -621,10 +645,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // override d'un ordre déjà décidé) et l'ordre doit couvrir exactement ses
       // équipes — sinon refus explicite (pas de toast de succès mensonger).
       const matchesSnap = await db.collection('competition_matches').where('competitionId', '==', id).get();
+      // Multi-étapes : les égalités s'arbitrent sur l'ÉTAPE COURANTE (celles
+      // des étapes closes sont archivées dans stageResults — design §9c).
+      // `cur` est capturé ICI et re-vérifié FRAIS dans la transaction : sans
+      // cette garde, un arbitrage soumis depuis une console chargée avant un
+      // advance_stage concurrent polluerait les résolutions de l'étape
+      // suivante — et pourrait s'y appliquer en silence (review adversariale,
+      // les clés de groupe `rank{K}` sont communes à tous les formats).
+      const curAtRead = currentStageOf(comp);
       try {
-        // Multi-étapes : les égalités s'arbitrent sur l'ÉTAPE COURANTE (celles
-        // des étapes closes sont archivées dans stageResults — design §9c).
-        const cur = currentStageOf(comp);
+        const cur = curAtRead;
         const stageFormat = formatOfStage(comp, cur);
         const engine = engineFor(kindOf(stageFormat));
         const bracket = reconstructBracket({
@@ -654,6 +684,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const snap = await tx.get(db.collection('competitions').doc(id));
         if (!snap.exists) throw new ConsoleError(404, 'Compétition introuvable.');
         if (snap.data()!.status !== 'live') throw new ConsoleError(409, 'La compétition n\'est plus en jeu.');
+        if (currentStageOf(snap.data()!) !== curAtRead) {
+          throw new ConsoleError(409, 'L\'étape a changé pendant l\'arbitrage — recharge la console.');
+        }
         const existing = (snap.data()!.tiebreakResolutions as Record<string, string[]> | undefined) ?? {};
         tx.update(snap.ref, { tiebreakResolutions: { ...existing, [group]: order } });
       });
@@ -1001,6 +1034,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           tiebreak_required: `Égalité(s) à arbitrer avant la clôture : ${result.tiebreakGroups?.join(', ') ?? ''}.`,
           stage_not_last: 'Le tournoi a encore des étapes à jouer — lance l\'étape suivante avant de clôturer.',
           stage_data_invalid: 'Résultats d\'étape incohérents — contacte le support (rien n\'a été écrit).',
+          state_changed: 'L\'état a changé pendant la clôture (passage d\'étape concurrent) — recharge la console et relance.',
         };
         return NextResponse.json({ error: messages[result.code] }, { status: result.code === 'not_found' ? 404 : 409 });
       }

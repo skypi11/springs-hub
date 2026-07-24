@@ -4,7 +4,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { isCompetitionHidden, canViewHiddenCompetition } from '@/lib/competitions/visibility';
 import { reconstructBracket, type MatchDoc } from '@/lib/competitions/bracket-store';
-import { kindOf } from '@/lib/competitions/formats-server';
+import { engineFor, kindOf } from '@/lib/competitions/formats-server';
 import { currentStageOf, stageLabelOf, stagesOf } from '@/lib/competitions/stages';
 import {
   computeRoundRobinStandings,
@@ -129,14 +129,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       };
     };
 
-    // Une étape close est réordonnée selon son classement FIGÉ (arbitrages
-    // archivés) : rang local recalculé dans la poule, plus aucune « égalité ».
-    const applyFrozenOrder = (
+    // Une étape TRANCHÉE est réordonnée selon son classement officiel : rang
+    // local recalculé dans la poule, plus aucune « égalité ». Trois sources
+    // d'ordre officiel, par priorité (review adversariale — la table publique
+    // ne doit JAMAIS contredire le podium) :
+    // 1. étape close par advance_stage : placements figés du stageResult ;
+    // 2. compétition clôturée : finalPlacements (l'étape finale n'a pas de
+    //    stageResult — close_competition n'en écrit pas) ;
+    // 3. étape courante conclue avec arbitrages posés : placements du moteur
+    //    AVEC les résolutions (même primitive que la console et la clôture).
+    const applyOfficialOrder = (
       groups: Array<{ group: number; rows: StandingRow[] }>,
-      frozen: StageResult | undefined,
+      placementOf: Map<string, number> | null,
     ) => {
-      if (!frozen) return groups;
-      const placementOf = new Map(frozen.placements.map(p => [p.registrationId, p.placement]));
+      if (!placementOf || placementOf.size === 0) return groups;
       return groups.map(g => ({
         group: g.group,
         rows: [...g.rows]
@@ -146,6 +152,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           .map((r, i) => ({ ...r, rank: i + 1, needsAdminTiebreak: false })),
       }));
     };
+    const finished = comp.status === 'finished' || comp.status === 'archived';
+    const finalPlacementOf = finished && Array.isArray(comp.finalPlacements)
+      ? new Map((comp.finalPlacements as Array<{ registrationId?: string; placement?: number }>)
+          .filter(p => typeof p.registrationId === 'string' && typeof p.placement === 'number')
+          .map(p => [p.registrationId as string, p.placement as number]))
+      : null;
+    const liveResolutions = (comp.tiebreakResolutions as Record<string, string[]> | undefined) ?? {};
 
     const stageStandings: StageStandings[] = [];
     for (let n = 1; n <= Math.min(cur, stages.length); n++) {
@@ -182,7 +195,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       } else {
         groups = [{ group: 1, rows: computeSwissStandings(bracket, points).map(toRow) }];
       }
-      const frozen = n < cur ? stageResults.find(r => r.stage === n) : undefined;
+      // Ordre officiel de l'étape, par priorité (cf. applyOfficialOrder).
+      const concluded = isConcluded(bracket);
+      let placementOf: Map<string, number> | null = null;
+      if (n < cur) {
+        const frozen = stageResults.find(r => r.stage === n);
+        if (frozen) placementOf = new Map(frozen.placements.map(p => [p.registrationId, p.placement]));
+      } else if (finalPlacementOf) {
+        placementOf = finalPlacementOf;
+      } else if (concluded && Object.keys(liveResolutions).length > 0) {
+        // Étape courante conclue, arbitrages posés mais pas encore consommés
+        // (advance/clôture à venir) : la table publique reflète l'arbitrage.
+        const placed = engineFor(kind).computePlacements(bracket, st.format, liveResolutions);
+        if (placed.length > 0 && placed.every(p => p.placement !== null && !p.needsAdminTiebreak)) {
+          placementOf = new Map(placed.map(p => [p.teamId, p.placement as number]));
+        }
+      }
       stageStandings.push({
         stage: n,
         kind,
@@ -190,8 +218,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         // `concluded` : tous les matchs de l'étape terminaux — les marqueurs
         // d'égalité ne s'affichent qu'à ce moment (en cours, l'ordre fluctue
         // à chaque score, « à arbitrer » serait du bruit).
-        concluded: isConcluded(bracket),
-        groups: applyFrozenOrder(groups, frozen),
+        concluded,
+        groups: applyOfficialOrder(groups, placementOf),
       });
     }
 

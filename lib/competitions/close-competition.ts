@@ -17,6 +17,7 @@ import {
   cumulativeTeamStats,
   currentStageOf,
   formatOfStage,
+  isStageTransferStuck,
   stagesOf,
 } from '@/lib/competitions/stages';
 import { reconstructBracket, type MatchDoc } from '@/lib/competitions/bracket-store';
@@ -39,8 +40,9 @@ export type CloseResult =
       ok: false;
       code: 'not_found' | 'already_closed' | 'invalid_status' | 'bracket_not_published'
         | 'not_finished' | 'tiebreak_required'
-        // Multi-étapes : il reste des étapes à jouer / résultats d'étape corrompus.
-        | 'stage_not_last' | 'stage_data_invalid';
+        // Multi-étapes : il reste des étapes à jouer / résultats d'étape
+        // corrompus / l'état a changé pendant la clôture (course bénigne).
+        | 'stage_not_last' | 'stage_data_invalid' | 'state_changed';
       tiebreakGroups?: string[];
     };
 
@@ -76,28 +78,42 @@ export async function closeCompetition(
 
     // Multi-étapes (design §9c) : la clôture n'opère que sur la DERNIÈRE
     // étape — les étapes intermédiaires se ferment par `advance_stage`.
+    // SOUPAPE (review adversariale, miroir isSwissStuck) : une étape
+    // intermédiaire finie dont le transfert est STRUCTURELLEMENT impossible
+    // (trop de retraits, génération infaisable) devient clôturable au
+    // classement concaténé courant — jamais de compétition `live` briquée.
     const stages = stagesOf(comp);
     const cur = currentStageOf(comp);
-    if (cur < stages.length) return { ok: false, code: 'stage_not_last' };
 
     // Routage par kind via la registry de formats (formats-server) : le
     // prédicat de fin et le calcul des placements sont ceux du format de
-    // l'étape finale — élims : champion mécanique ; RR : matchs terminaux.
+    // l'étape courante — élims : champion mécanique ; RR : matchs terminaux.
     const format = formatOfStage(comp, cur);
     const engine = engineFor(kindOf(format));
-    const bracket = reconstructBracket({
-      withdrawn: Array.isArray(comp.withdrawn) ? (comp.withdrawn as string[]) : [],
-      bo: format.bo,
-      forfeitScore: format.forfeitScore ?? { games: 3, goalsPerGame: 1 },
-      matches: matchSnaps.filter(s => s.exists).map(s => ({
-        id: (s.data()!.id as string) ?? s.id,
-        ...(s.data() as MatchDoc),
-      })),
-      kind: kindOf(format),
-      swissRounds: typeof format?.swissRounds === 'number' ? format.swissRounds : undefined,
-      stage: cur,
-    });
-    if (!engine.isFinished(bracket)) return { ok: false, code: 'not_finished' };
+    let bracket;
+    try {
+      bracket = reconstructBracket({
+        withdrawn: Array.isArray(comp.withdrawn) ? (comp.withdrawn as string[]) : [],
+        bo: format.bo,
+        forfeitScore: format.forfeitScore ?? { games: 3, goalsPerGame: 1 },
+        matches: matchSnaps.filter(s => s.exists).map(s => ({
+          id: (s.data()!.id as string) ?? s.id,
+          ...(s.data() as MatchDoc),
+        })),
+        kind: kindOf(format),
+        swissRounds: typeof format?.swissRounds === 'number' ? format.swissRounds : undefined,
+        stage: cur,
+      });
+    } catch {
+      // Course bénigne (review adversariale) : un advance_stage concurrent a
+      // incrémenté currentStage entre le listing des refs et la transaction —
+      // les docs de la nouvelle étape ne sont pas dans le lot. 409 actionnable,
+      // jamais un 500 : recharger la console et relancer suffit.
+      return { ok: false, code: 'state_changed' };
+    }
+    if (!engine.isFinished(bracket)) {
+      return { ok: false, code: cur < stages.length ? 'stage_not_last' : 'not_finished' };
+    }
 
     const resolutions = (comp.tiebreakResolutions as Record<string, string[]> | undefined) ?? undefined;
     const placements = engine.computePlacements(bracket, format, resolutions);
@@ -105,6 +121,24 @@ export async function closeCompetition(
     if (unresolved.length > 0) return { ok: false, code: 'tiebreak_required', tiebreakGroups: unresolved };
 
     const stats = computeTeamStats(bracket);
+
+    if (cur < stages.length) {
+      const transfer = stages[cur - 1].transfer;
+      const nextStage = stages[cur];
+      const stuck = !transfer || isStageTransferStuck({
+        transfer,
+        placements,
+        stats,
+        withdrawn: Array.isArray(comp.withdrawn) ? (comp.withdrawn as string[]) : [],
+        tiebreakResolutions: resolutions ?? {},
+        nextStage,
+        generateNext: seeding => engineFor(kindOf(nextStage.format)).generate(seeding, nextStage.format),
+      });
+      // Transfert possible → la clôture n'a pas sa place, l'admin doit lancer
+      // l'étape suivante. Impossible → on clôt ICI, l'étape courante fait foi.
+      if (!stuck) return { ok: false, code: 'stage_not_last' };
+    }
+
     const regs = new Map<string, FirebaseFirestore.DocumentData>();
     for (const s of regSnaps) if (s.exists) regs.set(s.id, s.data()!);
 
