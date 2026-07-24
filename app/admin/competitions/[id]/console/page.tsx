@@ -25,6 +25,7 @@ import GlanceStat from '@/components/competitions/GlanceStat';
 import GameRow from '@/components/competitions/GameRow';
 import TournamentBracket from '@/components/competitions/TournamentBracket';
 import StandingsTable, { type StandingsGroup } from '@/components/competitions/StandingsTable';
+import SeedingPanel from '@/components/admin/competitions/SeedingPanel';
 import { useWorkerInterval } from '@/components/competitions/useWorkerInterval';
 import { winsOf, normalizeGameRows, isScoreValid, winsNeeded } from '@/lib/competitions/match-score';
 import type { PublicBracketMatch } from '@/lib/competitions/brackets-viewer-adapter';
@@ -609,6 +610,14 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
           <p style={{ fontSize: 13, color: 'var(--s-text-dim)' }}>Rien en attente de décision.</p>
         )}
       </div>
+
+      {/* SEEDING (design §10c) — pilotage du cycle seeding → publication sans
+          script : stratégies (aléatoire / MMR / circuit), réordonnancement
+          manuel, publication. Disparaît une fois le bracket publié. */}
+      {bracketMatches.length === 0
+        && ['draft', 'registration', 'validation', 'seeding'].includes(data.competition.status) && (
+        <SeedingPanel competitionId={id} onPublished={load} />
+      )}
 
       {/* SALLE DE CONTRÔLE (Lot 4) — bracket (centre) + rail de détail du match
           sélectionné (droite, collant sur grand écran ; empilé sous le bracket

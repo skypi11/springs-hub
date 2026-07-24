@@ -9,6 +9,8 @@ import { materializeBracket, type TeamDisplay } from '@/lib/competitions/bracket
 import { roundRobinBlocker, swissBlocker, swissDefaultRounds } from '@/lib/tournament';
 import { kindOf } from '@/lib/competitions/formats-server';
 import { stagesOf, teamBoundsForKind } from '@/lib/competitions/stages';
+import { mmrSeedValue, orderByCircuitRank, orderByMmr, type SeedableTeam } from '@/lib/competitions/seeding';
+import { circuitRankByTeamId } from '@/lib/competitions/seeding-server';
 
 /** Bornes moteur du format : arbre 4-32 ; round robin et suisse 4-64 (aucune
  *  contrainte de puissance de 2). Source unique : stages.teamBoundsForKind. */
@@ -46,9 +48,7 @@ function feasibilityBlocker(
 // La publication est one-shot : elle quitte 'seeding', donc n'écrase jamais un
 // bracket dont des matchs ont progressé.
 
-interface ApprovedReg {
-  registrationId: string;
-  name: string;
+interface ApprovedReg extends SeedableTeam {
   tag: string;
   logoUrl: string | null;
   rosterUids: string[];
@@ -67,6 +67,12 @@ async function loadApproved(db: FirebaseFirestore.Firestore, competitionId: stri
       tag: (r.tag as string) ?? '',
       logoUrl: (r.logoUrl as string | null) ?? null,
       rosterUids: (r.rosterUids as string[]) ?? [],
+      // Données de seeding (design §10) — figées au submit par le serveur.
+      worstLineupAvg: typeof r.computed?.worstLineupAvg === 'number' ? r.computed.worstLineupAvg : null,
+      rosterRefMmrs: Array.isArray(r.roster)
+        ? (r.roster as Array<{ refMmr?: number }>).map(p => (typeof p.refMmr === 'number' ? p.refMmr : 0))
+        : [],
+      circuitTeamId: (r.circuitTeamId as string | null) ?? null,
     };
   });
 }
@@ -103,9 +109,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const ordered = storedSeeding.filter(rid => byId.has(rid));
     for (const r of approved) if (!ordered.includes(r.registrationId)) ordered.push(r.registrationId);
 
+    // Rangs circuit pour l'affichage du panneau Seeding (design §10c) — null
+    // hors circuit ou circuit introuvable, jamais bloquant en lecture.
+    const circuitRanks = typeof comp.circuitId === 'string' && comp.circuitId
+      ? await circuitRankByTeamId(db, comp.circuitId)
+      : null;
     const seeding = ordered.map((rid, i) => {
       const r = byId.get(rid)!;
-      return { registrationId: rid, name: r.name, tag: r.tag, logoUrl: r.logoUrl, seed: i + 1 };
+      return {
+        registrationId: rid, name: r.name, tag: r.tag, logoUrl: r.logoUrl, seed: i + 1,
+        // Valeurs de seed affichées à l'admin (jamais publiques — route admin).
+        mmrSeed: mmrSeedValue(r),
+        circuitRank: (r.circuitTeamId ? circuitRanks?.get(r.circuitTeamId) : undefined) ?? null,
+      };
     });
 
     const status = (comp.status as string) ?? 'draft';
@@ -119,6 +135,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       minTeams: bounds.min,
       maxTeams: bounds.max,
       seeding,
+      // Stratégies disponibles (design §10b) — 'circuit' exige un circuit.
+      strategies: { random: true, mmr: true, circuit: circuitRanks !== null },
       // Ouverture du seeding depuis les statuts pré-live, avec assez d'équipes
       // ET une répartition en poules jouable (round robin).
       canOpenSeeding: ['draft', 'registration', 'validation'].includes(status)
@@ -198,6 +216,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await compRef.update({ seeding, updatedAt: FieldValue.serverTimestamp() });
       await audit(db, uid, 'competition_seeding_shuffled', id, comp, {});
       return NextResponse.json({ success: true, seeding });
+    }
+
+    // ── seed_by : stratégie de seeding (design §10b) ──
+    if (action === 'seed_by') {
+      const strategy = String(body.strategy ?? '');
+      if (!['random', 'mmr', 'circuit'].includes(strategy)) {
+        return NextResponse.json({ error: 'Stratégie de seeding invalide.' }, { status: 400 });
+      }
+      let seeding: string[];
+      if (strategy === 'random') {
+        seeding = shuffle(approved.map(r => r.registrationId));
+      } else if (strategy === 'mmr') {
+        // Seed 1 = compo la plus forte (worstLineupAvg serveur, anti-smurf).
+        seeding = orderByMmr(approved);
+      } else {
+        const circuitId = typeof comp.circuitId === 'string' && comp.circuitId ? comp.circuitId : null;
+        const ranks = circuitId ? await circuitRankByTeamId(db, circuitId) : null;
+        if (!ranks) {
+          return NextResponse.json({ error: 'Seeding par classement de circuit : cette compétition n\'est pas rattachée à un circuit valide.' }, { status: 409 });
+        }
+        seeding = orderByCircuitRank(approved, ranks);
+      }
+      await compRef.update({ seeding, updatedAt: FieldValue.serverTimestamp() });
+      await audit(db, uid, 'competition_seeding_strategy', id, comp, { strategy });
+      return NextResponse.json({ success: true, seeding, strategy });
     }
 
     // ── reorder ──

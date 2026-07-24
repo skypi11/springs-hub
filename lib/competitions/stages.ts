@@ -113,6 +113,11 @@ export interface StageAdvanceInput {
   /** Requis pour reseed 'random' — injecté (CSPRNG en route, déterministe en
    *  test). Jamais de Math.random ici (module pur). */
   shuffle?: (xs: string[]) => string[];
+  /** Requis pour reseed 'mmr' / 'circuit' (design §10) : rang de seed par
+   *  registrationId (0 = la plus forte), construit par la route via
+   *  lib/competitions/seeding. Les qualifiées sans rang restent dans l'ordre
+   *  du classement, après les rangées. */
+  seedRank?: Map<string, number>;
 }
 
 export type StageAdvanceResult =
@@ -185,11 +190,21 @@ export function computeStageAdvance(input: StageAdvanceInput): StageAdvanceResul
       || !advanced.every(t => advancedByRank.includes(t))) {
       return { ok: false, code: 'reseed_unsupported', error: 'Re-seeding aléatoire invalide (permutation attendue).' };
     }
+  } else if (input.transfer.reseed === 'mmr' || input.transfer.reseed === 'circuit') {
+    // Rang de seed fourni par la route (MMR de référence / classement du
+    // circuit — design §10). Tri STABLE : les sans-rang gardent l'ordre du
+    // classement de l'étape, après les rangées.
+    const rank = input.seedRank;
+    if (!rank) {
+      return { ok: false, code: 'reseed_unsupported', error: `Re-seeding « ${input.transfer.reseed} » sans rangs de seed fournis.` };
+    }
+    advanced = [...advancedByRank].sort((a, b) =>
+      (rank.get(a) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b) ?? Number.MAX_SAFE_INTEGER));
   } else {
     return {
       ok: false,
       code: 'reseed_unsupported',
-      error: `Stratégie de re-seeding « ${input.transfer.reseed} » non prise en charge au transfert (v1 : classement ou aléatoire).`,
+      error: `Stratégie de re-seeding « ${input.transfer.reseed} » non prise en charge au transfert.`,
     };
   }
 

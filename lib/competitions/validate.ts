@@ -208,7 +208,7 @@ export function validateCompetitionPayload(body: unknown): ValidationResult<Comp
   const format = validateFormat(b.format);
   if (!format.ok) return format;
 
-  const stages = validateStages(b.stages, format.value);
+  const stages = validateStages(b.stages, format.value, circuitId);
   if (!stages.ok) return stages;
 
   const eligibility = validateEligibility(b.eligibility);
@@ -293,7 +293,9 @@ export function validateCompetitionPayload(body: unknown): ValidationResult<Comp
 const STAGE_MIN_TEAMS = 4;
 const STAGE_MAX_COUNT = 4;
 const STAGE_MAX_ATOMIC_MATCHES = 200;
-const STAGE_RESEEDS = ['standings', 'random'] as const;
+// 'manual' reste refusé au transfert (pas d'UI de réordonnancement à ce
+// moment du flux) ; 'circuit' exige une compétition rattachée à un circuit.
+const STAGE_RESEEDS = ['standings', 'random', 'mmr', 'circuit'] as const;
 
 function nextPow2(n: number): number {
   let p = 1;
@@ -336,6 +338,7 @@ export function estimateStageEntryMatches(format: CompetitionFormat, teamCount: 
 export function validateStages(
   input: unknown,
   topFormat: CompetitionFormat,
+  circuitId: string | null = null,
 ): ValidationResult<TournamentStage[] | null> {
   if (input === null || input === undefined) return { ok: true, value: null };
   if (!Array.isArray(input)) return err('Étapes invalides.');
@@ -372,7 +375,10 @@ export function validateStages(
         return err(`Étape ${i + 1} : ${advanceCount} qualifiées pour ${format.value.maxTeams} équipes au plus.`);
       }
       if (!STAGE_RESEEDS.includes(t.reseed as (typeof STAGE_RESEEDS)[number])) {
-        return err(`Étape ${i + 1} : re-seeding invalide (classement ou aléatoire).`);
+        return err(`Étape ${i + 1} : re-seeding invalide (classement, aléatoire, MMR ou circuit).`);
+      }
+      if (t.reseed === 'circuit' && !circuitId) {
+        return err(`Étape ${i + 1} : re-seeding par classement de circuit réservé aux compétitions de circuit.`);
       }
       transfer = { advanceCount, reseed: t.reseed as (typeof STAGE_RESEEDS)[number] };
     }

@@ -93,7 +93,9 @@ export type AdminAuditAction =
   // Formats à génération incrémentale (suisse) : ronde suivante appariée
   | 'competition_round_generated'
   // Multi-étapes : passage d'étape (placements figés + étape suivante lancée)
-  | 'competition_stage_advanced';
+  | 'competition_stage_advanced'
+  // Seeding par stratégie (aléatoire / MMR / classement circuit — design §10)
+  | 'competition_seeding_strategy';
 
 export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event' | 'competition' | 'circuit';
 

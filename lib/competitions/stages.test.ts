@@ -477,3 +477,52 @@ describe('correctifs review adversariale — défense complète + soupape', () =
     })).toBe(false);
   });
 });
+
+describe('computeStageAdvance — reseed mmr/circuit via seedRank (design §10)', () => {
+  const base = () => {
+    const { placements, stats } = playedGroupStage();
+    return {
+      stage: 1,
+      placements,
+      stats,
+      withdrawn: [] as string[],
+      tiebreakResolutions: {},
+      nextStageMinTeams: 4,
+    };
+  };
+
+  it('reseed mmr : les qualifiées du classement, ordonnées par le rang de seed fourni', () => {
+    // Classement : t1..t8. Rang MMR inversé sur le top-4 : t4 la plus forte.
+    const seedRank = new Map([['t4', 0], ['t3', 1], ['t2', 2], ['t1', 3], ['t5', 4]]);
+    const res = computeStageAdvance({
+      ...base(),
+      transfer: { advanceCount: 4, reseed: 'mmr' },
+      seedRank,
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    // La QUALIFICATION reste au classement (top-4 = t1..t4) — seul l'ORDRE de
+    // seed change. t5 (rangée mais non qualifiée) n'entre jamais.
+    expect(res.advanced).toEqual(['t4', 't3', 't2', 't1']);
+  });
+
+  it('qualifiées sans rang : après les rangées, dans l\'ordre du classement (tri stable)', () => {
+    const seedRank = new Map([['t3', 0]]);
+    const res = computeStageAdvance({
+      ...base(),
+      transfer: { advanceCount: 4, reseed: 'circuit' },
+      seedRank,
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.advanced).toEqual(['t3', 't1', 't2', 't4']);
+  });
+
+  it('reseed mmr/circuit sans seedRank fourni → refus explicite', () => {
+    for (const reseed of ['mmr', 'circuit'] as const) {
+      const res = computeStageAdvance({ ...base(), transfer: { advanceCount: 4, reseed } });
+      expect(res.ok).toBe(false);
+      if (!res.ok) expect(res.code).toBe('reseed_unsupported');
+    }
+  });
+});

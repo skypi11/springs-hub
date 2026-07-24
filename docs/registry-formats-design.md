@@ -216,6 +216,51 @@ Contrat suivi par le build — les invariants ci-dessous ne se re-débattent pas
   « Phase finale ») — une seule instance du viewer montée à la fois (piège
   singleton brackets-viewer respecté). Résultats d'étape close = stageResults.
 
+## 10. SEEDING MMR / CIRCUIT — design d'implémentation (cadré 24/07, session Fable 5)
+
+Concrétisation de l'axe B (§4) : le seeding devient une stratégie de première
+classe — le différenciateur prouvé face aux 4 concurrents (seeding manuel /
+rangs périmés / zéro anti-smurf).
+
+### 10a. Valeur de seed d'une équipe
+
+- **MMR** : `registration.computed.worstLineupAvg` — déjà calculé SERVEUR à la
+  soumission (moyenne de la compo alignable la PLUS FORTE, spec §3) : c'est la
+  force attendue en tournoi, cohérente avec l'anti-smurf. Fallback si absent :
+  moyenne des `roster[].refMmr` ; sinon 0 (fin de liste). Départages : moyenne
+  du roster complet, puis nom (stable, auditable).
+- **Circuit** : rang au classement du circuit de la compétition
+  (`computeCircuitStandings`, participations réelles, tiebreakers §11).
+  Inscriptions sans identité circuit ou jamais classées : APRÈS les classées,
+  ordonnées par valeur MMR puis nom. Compétition hors circuit : stratégie
+  REFUSÉE (jamais de fallback silencieux).
+- **Seed 1 = la plus forte** — `seedOrder` du moteur étale les têtes de série
+  (1 vs dernier, 2 vs avant-dernier…).
+
+### 10b. Points d'application
+
+- **Seeding initial** (statut `seeding`) : action route bracket
+  `seed_by { strategy: 'random' | 'mmr' | 'circuit' }` — réordonne
+  `comp.seeding`, l'admin garde le réordonnancement manuel par-dessus, la
+  stratégie est journalisée dans l'audit log.
+- **Transferts multi-étapes** : `StageTransfer.reseed` accepte désormais
+  `'mmr'` et `'circuit'` — `advance_stage` fournit un `seedRank`
+  (Map registrationId → rang) à `computeStageAdvance`, qui ordonne les
+  qualifiées par ce rang. `'standings'` reste le défaut. Un reseed `circuit`
+  sur une compétition devenue hors circuit = 409 actionnable.
+- La lib pure vit dans `lib/competitions/seeding.ts` (zéro I/O, testée).
+
+### 10c. UI console — panneau Seeding (NOUVEAU)
+
+Constat du scouting : AUCUNE UI de seeding n'existait (open_seeding/shuffle/
+reorder/publish pilotés par scripts uniquement — un admin ne pouvait pas
+publier un bracket sans dev). La console gagne un panneau « Seeding » quand
+`status === 'seeding'` : liste ordonnée (crest, nom, valeur MMR / points
+circuit), boutons de stratégie (Aléatoire / Par MMR / Par classement du
+circuit si `circuitId`), réordonnancement manuel ↑/↓, CTA « Publier le
+bracket » (bornes + faisabilité servies par le GET bracket existant). DA
+sobre niveau 2 — le polish visuel appartient à la passe Opus.
+
 ## 8. Moteur SUISSE — décisions de design (cadré 23/07, session Fable 5)
 
 Le Suisse est un TROISIÈME modèle, distinct de l'arbre et du round robin :

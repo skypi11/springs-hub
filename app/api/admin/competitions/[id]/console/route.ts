@@ -28,6 +28,8 @@ import {
   teamBoundsForKind,
 } from '@/lib/competitions/stages';
 import { computeTeamStats, type Placement } from '@/lib/tournament';
+import { orderByCircuitRank, orderByMmr, seedRankOf, type SeedableTeam } from '@/lib/competitions/seeding';
+import { circuitRankByTeamId } from '@/lib/competitions/seeding-server';
 import type { CompetitionFormat, PhasePlanEntry } from '@/types/competitions';
 import { randomInt } from 'node:crypto';
 import { syncRegistrationToCalendar, removeRegistrationFromCalendar } from '@/lib/competitions/calendar-sync';
@@ -856,6 +858,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: 'L\'étape en cours n\'est pas terminée — tous les matchs doivent être réglés.' }, { status: 409 });
       }
 
+      // Inscriptions chargées ICI (avant le transfert) : elles servent au
+      // re-seeding MMR/circuit ET aux displays/ACL de la matérialisation.
+      const regsSnap = await db.collection('competition_registrations')
+        .where('competitionId', '==', id).get();
+
+      // Re-seeding MMR / classement circuit (design §10) : rang de seed
+      // construit depuis les inscriptions (worstLineupAvg figé au submit) ou
+      // le classement du circuit à l'instant du passage (tracé dans l'audit).
+      let seedRank: Map<string, number> | undefined;
+      if (curStage.transfer.reseed === 'mmr' || curStage.transfer.reseed === 'circuit') {
+        const seedables: SeedableTeam[] = regsSnap.docs.map(d => {
+          const r = d.data();
+          return {
+            registrationId: d.id,
+            name: (r.name as string) ?? d.id,
+            worstLineupAvg: typeof r.computed?.worstLineupAvg === 'number' ? r.computed.worstLineupAvg : null,
+            rosterRefMmrs: Array.isArray(r.roster)
+              ? (r.roster as Array<{ refMmr?: number }>).map(p => (typeof p.refMmr === 'number' ? p.refMmr : 0))
+              : [],
+            circuitTeamId: (r.circuitTeamId as string | null) ?? null,
+          };
+        });
+        if (curStage.transfer.reseed === 'mmr') {
+          seedRank = seedRankOf(orderByMmr(seedables));
+        } else {
+          const circuitId = (comp.circuitId as string | null) ?? null;
+          const ranks = circuitId ? await circuitRankByTeamId(db, circuitId) : null;
+          if (!ranks) {
+            return NextResponse.json({ error: 'Re-seeding par classement de circuit : cette compétition n\'est pas rattachée à un circuit valide.' }, { status: 409 });
+          }
+          seedRank = seedRankOf(orderByCircuitRank(seedables, ranks));
+        }
+      }
+
       const resolutions = (comp.tiebreakResolutions as Record<string, string[]> | undefined) ?? {};
       const adv = computeStageAdvance({
         stage: cur,
@@ -874,6 +910,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           }
           return a;
         },
+        seedRank,
       });
       if (!adv.ok) {
         return NextResponse.json(
@@ -906,9 +943,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: (e as Error).message }, { status: 409 });
       }
 
-      // Display + rosters (ACL privées) depuis les inscriptions de la compét.
-      const regsSnap = await db.collection('competition_registrations')
-        .where('competitionId', '==', id).get();
+      // Display + rosters (ACL privées) depuis les inscriptions déjà chargées.
       const regsForDocs: Record<string, { display: TeamDisplay; rosterUids: string[] }> = {};
       for (const doc of regsSnap.docs) {
         const r = doc.data();
@@ -1015,6 +1050,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
       await audit(db, uid, 'competition_stage_advanced', id, comp, {
         fromStage: cur, toStage: cur + 1,
+        reseed: curStage.transfer.reseed,
         advanced: adv.advanced, matches: newDocs.length,
       });
       return NextResponse.json({
