@@ -149,6 +149,8 @@ interface ConsoleData {
     checkinMinutes: number;
     generalCheckinMinutes: number;
     withdrawn: string[];
+    /** Serveur Discord branché — ouvre le nettoyage de fin de tournoi. */
+    discordConfigured?: boolean;
   };
   matches: ConsoleMatch[];
   rooms: Record<string, { name: string; password: string }>;
@@ -522,7 +524,12 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
             ))}
           </section>
         ) : data.competition.status === 'finished' && data.finalPlacements ? (
-          <ClosedSummary placements={data.finalPlacements} />
+          <div className="space-y-4">
+            <ClosedSummary placements={data.finalPlacements} />
+            {data.competition.discordConfigured && (
+              <DiscordCleanupCard competitionId={id} />
+            )}
+          </div>
         ) : data.finished && data.competition.status === 'live' ? (
           <section className="con-decide bevel" style={{ padding: '16px 20px' }}>
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1631,6 +1638,54 @@ function SortableTeamRow({ id, children }: { id: string; children: React.ReactNo
 }
 
 /** Compétition clôturée : le classement final écrit, tel quel. */
+/** Nettoyage Discord de fin de tournoi — sur action, jamais automatique : des
+ *  équipes peuvent vouloir relire leurs échanges. Seul ce que le bot a créé
+ *  est supprimé (un salon existant de l'organisateur n'est jamais touché). */
+function DiscordCleanupCard({ competitionId }: { competitionId: string }) {
+  const toast = useToast();
+  const confirm = useConfirm();
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<{ channels: number; roles: number; categories: number } | null>(null);
+
+  return (
+    <div className="panel bevel">
+      <div className="panel-header"><span className="t-sub">Discord</span></div>
+      <div className="panel-body flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm" style={{ color: 'var(--s-text-dim)', maxWidth: 560 }}>
+          {done
+            ? `Nettoyé : ${done.channels} salons, ${done.roles} rôles, ${done.categories} catégorie${done.categories > 1 ? 's' : ''}.`
+            : 'Les salons et rôles d’équipe restent en place tant que tu ne les retires pas. Un salon d’annonces que tu avais toi-même choisi n’est jamais supprimé.'}
+        </p>
+        {!done && (
+          <button className="btn-springs btn-secondary bevel-sm text-sm" disabled={busy}
+            onClick={async () => {
+              const ok = await confirm({
+                title: 'Nettoyer les salons du tournoi',
+                message: 'Les salons et rôles d’équipe créés par le bot, ainsi que la catégorie du tournoi, seront supprimés du serveur Discord. Les messages qu’ils contiennent seront perdus.',
+                confirmLabel: 'Nettoyer',
+                variant: 'danger',
+              });
+              if (!ok) return;
+              setBusy(true);
+              try {
+                const res = await api<{ report: { channels: number; roles: number; categories: number } }>(
+                  `/api/admin/competitions/${competitionId}/discord-cleanup`, { method: 'POST' });
+                setDone(res.report);
+                toast.success('Salons du tournoi nettoyés.');
+              } catch (e) {
+                toast.error(e instanceof ApiError ? e.message : 'Nettoyage impossible.');
+              } finally {
+                setBusy(false);
+              }
+            }}>
+            {busy ? 'Nettoyage…' : 'Nettoyer les salons'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ClosedSummary({ placements }: { placements: FinalPlacementRow[] }) {
   const anyPoints = placements.some(p => p.points !== null);
   return (

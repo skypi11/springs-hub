@@ -28,12 +28,51 @@ function botToken(): string {
 // Permission bits (API v10). Nombres < 2^31 → pas de BigInt (cible < ES2020,
 // piège documenté — mémoire project_discord_avatar_refresh).
 const PERM = {
+  MANAGE_CHANNELS: 1 << 4,
+  ADMINISTRATOR: 1 << 3,
+  MANAGE_GUILD: 1 << 5,
   VIEW_CHANNEL: 1 << 10,
   SEND_MESSAGES: 1 << 11,
+  MANAGE_MESSAGES: 1 << 13,
+  EMBED_LINKS: 1 << 14,
+  ATTACH_FILES: 1 << 15,
   READ_MESSAGE_HISTORY: 1 << 16,
   CONNECT: 1 << 20,
   SPEAK: 1 << 21,
+  MUTE_MEMBERS: 1 << 22,
+  MANAGE_ROLES: 1 << 28,
 } as const;
+
+/**
+ * Ce que le bot accorde dans les salons qu'il crée. Aucune de ces valeurs
+ * n'est réglable : exposer les quarante cases de Discord reviendrait à
+ * déplacer le travail sur l'organisateur au lieu de le lui épargner. Il
+ * choisit QUI a accès ; le QUOI est ce tableau, affiché tel quel à l'écran.
+ */
+export const CHANNEL_GRANTS = {
+  /** Joueurs de l'équipe — salon texte. Les fichiers sont autorisés : une
+   *  capture de score ou de litige doit pouvoir se poster ici, sinon la preuve
+   *  repart en DM et se perd. */
+  playersText: PERM.VIEW_CHANNEL + PERM.SEND_MESSAGES + PERM.READ_MESSAGE_HISTORY
+    + PERM.ATTACH_FILES + PERM.EMBED_LINKS,
+  playersVoice: PERM.VIEW_CHANNEL + PERM.CONNECT + PERM.SPEAK,
+  /** Staff de l'organisateur : comme les joueurs, plus la modération. */
+  staffText: PERM.VIEW_CHANNEL + PERM.SEND_MESSAGES + PERM.READ_MESSAGE_HISTORY
+    + PERM.ATTACH_FILES + PERM.EMBED_LINKS + PERM.MANAGE_MESSAGES,
+  staffVoice: PERM.VIEW_CHANNEL + PERM.CONNECT + PERM.SPEAK + PERM.MUTE_MEMBERS,
+} as const;
+
+/** Un bitfield de permissions Discord peut dépasser 2^53 : le test passe par
+ *  BigInt, sinon les bits bas se perdent à la conversion en nombre. */
+function hasPermissionBit(permissions: string | undefined, bit: number): boolean {
+  if (!permissions) return false;
+  try {
+    const mask = BigInt(bit);
+    return (BigInt(permissions) & mask) === mask;
+  } catch {
+    return false;
+  }
+}
 
 const MAX_RETRIES = 4;
 const MAX_RETRY_WAIT_MS = 15_000;
@@ -119,11 +158,22 @@ export async function createCategory(guildId: string, name: string): Promise<str
  */
 export async function createTeamChannel(
   guildId: string,
-  opts: { name: string; type: 0 | 2; categoryId: string | null; teamRoleId: string },
+  opts: {
+    name: string;
+    type: 0 | 2;
+    categoryId: string | null;
+    teamRoleId: string;
+    /** Rôles du staff de l'organisateur : sans eux, seuls les administrateurs
+     *  du serveur voyaient les salons d'équipe — un modérateur n'y avait aucun
+     *  accès, et devait tout refaire à la main. */
+    staffRoleIds?: string[];
+  },
 ): Promise<string> {
-  const allow = opts.type === 0
-    ? PERM.VIEW_CHANNEL + PERM.SEND_MESSAGES + PERM.READ_MESSAGE_HISTORY
-    : PERM.VIEW_CHANNEL + PERM.CONNECT + PERM.SPEAK;
+  const isText = opts.type === 0;
+  const teamAllow = isText ? CHANNEL_GRANTS.playersText : CHANNEL_GRANTS.playersVoice;
+  const staffAllow = isText ? CHANNEL_GRANTS.staffText : CHANNEL_GRANTS.staffVoice;
+  const staffRoleIds = (opts.staffRoleIds ?? []).filter(id => id && id !== opts.teamRoleId && id !== guildId);
+
   const res = await discordFetch(`/guilds/${guildId}/channels`, {
     method: 'POST',
     headers: AUDIT_REASON,
@@ -133,13 +183,107 @@ export async function createTeamChannel(
       parent_id: opts.categoryId ?? undefined,
       permission_overwrites: [
         { id: guildId, type: 0, deny: String(PERM.VIEW_CHANNEL), allow: '0' },
-        { id: opts.teamRoleId, type: 0, allow: String(allow), deny: '0' },
+        { id: opts.teamRoleId, type: 0, allow: String(teamAllow), deny: '0' },
+        ...staffRoleIds.map(id => ({ id, type: 0, allow: String(staffAllow), deny: '0' })),
       ],
     }),
   });
   if (!res.ok) throw await discordError(res, 'Discord create channel failed');
   const data = await res.json();
   return data.id as string;
+}
+
+/**
+ * Salon d'annonces du tournoi : VISIBLE de tout le serveur (c'est le but), mais
+ * seuls le bot et le staff y écrivent — un salon d'annonces où tout le monde
+ * répond devient vite illisible.
+ */
+export async function createAnnounceChannel(
+  guildId: string,
+  opts: { name: string; categoryId: string | null; staffRoleIds?: string[] },
+): Promise<string> {
+  const staffRoleIds = (opts.staffRoleIds ?? []).filter(id => id && id !== guildId);
+  const res = await discordFetch(`/guilds/${guildId}/channels`, {
+    method: 'POST',
+    headers: AUDIT_REASON,
+    body: JSON.stringify({
+      name: opts.name.slice(0, 100),
+      type: 0,
+      parent_id: opts.categoryId ?? undefined,
+      permission_overwrites: [
+        {
+          id: guildId,
+          type: 0,
+          allow: String(PERM.VIEW_CHANNEL + PERM.READ_MESSAGE_HISTORY),
+          deny: String(PERM.SEND_MESSAGES),
+        },
+        ...staffRoleIds.map(id => ({
+          id, type: 0,
+          allow: String(CHANNEL_GRANTS.staffText),
+          deny: '0',
+        })),
+      ],
+    }),
+  });
+  if (!res.ok) throw await discordError(res, 'Discord create announce channel failed');
+  const data = await res.json();
+  return data.id as string;
+}
+
+/**
+ * Salon privé du staff : ni les joueurs ni le reste du serveur n'y ont accès.
+ * Sert aux alertes du jour J (litige ouvert, forfait à valider) — sans lui,
+ * un litige n'existe que dans la console, et deux équipes attendent pendant
+ * que personne ne regarde.
+ */
+export async function createStaffChannel(
+  guildId: string,
+  opts: { name: string; categoryId: string | null; staffRoleIds?: string[] },
+): Promise<string> {
+  const staffRoleIds = (opts.staffRoleIds ?? []).filter(id => id && id !== guildId);
+  const res = await discordFetch(`/guilds/${guildId}/channels`, {
+    method: 'POST',
+    headers: AUDIT_REASON,
+    body: JSON.stringify({
+      name: opts.name.slice(0, 100),
+      type: 0,
+      parent_id: opts.categoryId ?? undefined,
+      permission_overwrites: [
+        { id: guildId, type: 0, deny: String(PERM.VIEW_CHANNEL), allow: '0' },
+        ...staffRoleIds.map(id => ({ id, type: 0, allow: String(CHANNEL_GRANTS.staffText), deny: '0' })),
+      ],
+    }),
+  });
+  if (!res.ok) throw await discordError(res, 'Discord create staff channel failed');
+  const data = await res.json();
+  return data.id as string;
+}
+
+/** Discord refuse au-delà de 50 salons dans une même catégorie. Une Qualif à
+ *  32 équipes en texte + vocal en demande 64 : sans débordement, le
+ *  provisioning casserait au 51e, le jour du tournoi. */
+export const MAX_CHANNELS_PER_CATEGORY = 50;
+
+/** Salons déjà rangés dans une catégorie (pour savoir quand déborder). */
+export async function countChannelsInCategory(guildId: string, categoryId: string): Promise<number> {
+  const res = await discordFetch(`/guilds/${guildId}/channels`);
+  if (!res.ok) return 0;
+  const channels = await res.json() as Array<{ parent_id?: string | null }>;
+  return channels.filter(c => c.parent_id === categoryId).length;
+}
+
+/** Supprime un salon (nettoyage de fin de tournoi). 404 = déjà supprimé. */
+export async function deleteChannel(channelId: string): Promise<boolean> {
+  const res = await discordFetch(`/channels/${channelId}`, { method: 'DELETE', headers: AUDIT_REASON });
+  return res.ok || res.status === 404;
+}
+
+/** Supprime un rôle (nettoyage de fin de tournoi). 404 = déjà supprimé. */
+export async function deleteGuildRole(guildId: string, roleId: string): Promise<boolean> {
+  const res = await discordFetch(`/guilds/${guildId}/roles/${roleId}`, {
+    method: 'DELETE', headers: AUDIT_REASON,
+  });
+  return res.ok || res.status === 404;
 }
 
 /**
@@ -199,14 +343,127 @@ export async function isGuildMember(guildId: string, discordUserId: string): Pro
   return null;
 }
 
+// ── Contrôle d'accès au serveur ─────────────────────────────────────────────
+
+export interface GuildAccessReport {
+  guildId: string;
+  /** null quand le bot n'est pas (ou plus) sur le serveur. */
+  guildName: string | null;
+  botPresent: boolean;
+  /** L'utilisateur est propriétaire ou administrateur DE CE SERVEUR. */
+  userManages: boolean;
+  /** Ce qui manque, en clair, pour affichage — jamais un code d'erreur brut. */
+  problems: string[];
+  botCanManageRoles: boolean;
+  botCanManageChannels: boolean;
+  /** Position du rôle le plus haut du bot : il ne peut attribuer que des rôles
+   *  situés SOUS lui dans la liste du serveur. */
+  botHighestPosition: number;
+}
+
+interface GuildRoleRaw { id: string; name: string; position: number; permissions?: string }
+
+/**
+ * Qui a le droit de faire quoi sur ce serveur — le garde-fou de la
+ * configuration Discord d'une compétition.
+ *
+ * Sans lui, n'importe quel ID de serveur où le bot est présent était
+ * acceptable : on pouvait faire créer rôles et salons sur le Discord d'une
+ * AUTRE structure. La règle est désormais : seul le propriétaire ou un
+ * administrateur du serveur peut le désigner. Vérifié ici, donc côté serveur,
+ * donc incontournable — et rejoué au provisioning, les droits ayant pu changer.
+ */
+export async function describeGuildAccess(
+  guildId: string,
+  discordUserId: string,
+): Promise<GuildAccessReport> {
+  const report: GuildAccessReport = {
+    guildId,
+    guildName: null,
+    botPresent: false,
+    userManages: false,
+    problems: [],
+    botCanManageRoles: false,
+    botCanManageChannels: false,
+    botHighestPosition: 0,
+  };
+
+  const guildRes = await discordFetch(`/guilds/${guildId}`);
+  if (!guildRes.ok) {
+    report.problems.push(guildRes.status === 404
+      ? "Le bot Aedral n'est pas sur ce serveur — invite-le d'abord."
+      : `Serveur illisible (erreur ${guildRes.status}).`);
+    return report;
+  }
+  const guild = await guildRes.json() as { name?: string; owner_id?: string };
+  report.botPresent = true;
+  report.guildName = guild.name ?? null;
+
+  const rolesRes = await discordFetch(`/guilds/${guildId}/roles`);
+  const roles: GuildRoleRaw[] = rolesRes.ok ? await rolesRes.json() : [];
+  const roleById = new Map(roles.map(r => [r.id, r]));
+
+  // L'utilisateur : propriétaire, ou porteur d'un rôle Administrator.
+  if (guild.owner_id && guild.owner_id === discordUserId) {
+    report.userManages = true;
+  } else {
+    const memberRes = await discordFetch(`/guilds/${guildId}/members/${discordUserId}`);
+    if (memberRes.status === 404) {
+      report.problems.push("Tu n'es pas membre de ce serveur.");
+    } else if (!memberRes.ok) {
+      report.problems.push(`Impossible de vérifier tes droits (erreur ${memberRes.status}).`);
+    } else {
+      const member = await memberRes.json() as { roles?: string[] };
+      const admin = (member.roles ?? []).some(id =>
+        hasPermissionBit(roleById.get(id)?.permissions, PERM.ADMINISTRATOR));
+      if (admin) report.userManages = true;
+      else report.problems.push("Tu n'es pas administrateur de ce serveur.");
+    }
+  }
+
+  // Le bot : ses permissions cumulées et sa position dans la hiérarchie.
+  const botRes = await discordFetch(`/guilds/${guildId}/members/@me`);
+  if (botRes.ok) {
+    const bot = await botRes.json() as { roles?: string[] };
+    // Le rôle @everyone (id = guildId) compte dans le cumul.
+    const botRoles = [guildId, ...(bot.roles ?? [])]
+      .map(id => roleById.get(id))
+      .filter((r): r is GuildRoleRaw => !!r);
+    const isAdministrator = botRoles.some(r => hasPermissionBit(r.permissions, PERM.ADMINISTRATOR));
+    report.botCanManageRoles = isAdministrator
+      || botRoles.some(r => hasPermissionBit(r.permissions, PERM.MANAGE_ROLES));
+    report.botCanManageChannels = isAdministrator
+      || botRoles.some(r => hasPermissionBit(r.permissions, PERM.MANAGE_CHANNELS));
+    report.botHighestPosition = botRoles.reduce((max, r) => Math.max(max, r.position ?? 0), 0);
+  }
+
+  if (!report.botCanManageRoles) {
+    report.problems.push("Le bot n'a pas la permission « Gérer les rôles » sur ce serveur.");
+  }
+  if (!report.botCanManageChannels) {
+    report.problems.push("Le bot n'a pas la permission « Gérer les salons » sur ce serveur.");
+  }
+  // Un bot placé tout en bas de la liste ne peut attribuer aucun rôle : le
+  // piège classique, invisible jusqu'au jour du tournoi.
+  if (report.botCanManageRoles && report.botHighestPosition === 0) {
+    report.problems.push('Le rôle du bot est tout en bas de la liste : remonte-le, sinon il ne pourra donner aucun rôle.');
+  }
+
+  return report;
+}
+
 // ── Orchestration idempotente ───────────────────────────────────────────────
 
 export interface CompetitionDiscordShared {
   guildId: string;
   participantRoleId: string;
-  /** null quand la compétition ne veut pas de salons d'équipe : il n'y a alors
-   *  aucune catégorie à créer sur le serveur de l'organisateur. */
+  /** null quand la compétition ne veut aucun salon créé par le bot : il n'y a
+   *  alors aucune catégorie à poser sur le serveur de l'organisateur. */
   categoryId: string | null;
+  /** Salon public du tournoi (créé ou désigné). null = pas d'annonces. */
+  announceChannelId: string | null;
+  /** Salon privé du staff pour les alertes du jour J. */
+  staffChannelId: string | null;
 }
 
 /**
@@ -229,9 +486,15 @@ export async function ensureCompetitionShared(
     participantRoleId: string | null;
     categoryId: string | null;
     participantRoleLabel: string;   // "Participant · Legends Springs Cup"
-    categoryLabel: string;          // nom de la compétition
+    categoryLabel: string;          // nom de la catégorie (réglable)
     /** Salons privés par équipe : sans eux, pas de catégorie à créer. */
     teamChannels?: boolean;
+    /** Salon d'annonces à créer (le bot le range dans la catégorie du tournoi
+     *  et le laisse visible de tout le serveur). */
+    announce?: { create: boolean; name: string; existingId: string | null };
+    /** Salon privé du staff pour les alertes du jour J. */
+    staffChannel?: { create: boolean; name: string; existingId: string | null };
+    staffRoleIds?: string[];
   },
 ): Promise<CompetitionDiscordShared> {
   const compRef = db.collection('competitions').doc(competitionId);
@@ -255,15 +518,40 @@ export async function ensureCompetitionShared(
     await compRef.update({ 'discord.participantRoleId': participantRoleId });
   }
 
-  // Catégorie : elle n'existe que pour ranger les salons d'équipe. Si
-  // l'organisateur n'en veut pas, le bot ne crée rien sur son serveur.
+  // Catégorie : elle range les salons du tournoi. Si l'organisateur ne veut ni
+  // salons d'équipe ni salons créés par le bot, rien n'est créé chez lui.
+  const needsCategory = input.teamChannels !== false
+    || input.announce?.create === true
+    || input.staffChannel?.create === true;
   let categoryId = input.categoryId;
-  if (!categoryId && input.teamChannels !== false) {
+  if (!categoryId && needsCategory) {
     categoryId = await createCategory(input.guildId, input.categoryLabel);
     await compRef.update({ 'discord.categoryId': categoryId });
   }
 
-  return { guildId: input.guildId, participantRoleId, categoryId };
+  // Salon d'annonces : créé à la demande, sinon celui que l'organisateur a
+  // désigné. Rangé dans la catégorie du tournoi, visible de tout le serveur.
+  let announceChannelId = input.announce?.existingId ?? null;
+  if (!announceChannelId && input.announce?.create) {
+    announceChannelId = await createAnnounceChannel(input.guildId, {
+      name: input.announce.name,
+      categoryId,
+      staffRoleIds: input.staffRoleIds,
+    });
+    await compRef.update({ 'discord.options.announceChannelId': announceChannelId });
+  }
+
+  let staffChannelId = input.staffChannel?.existingId ?? null;
+  if (!staffChannelId && input.staffChannel?.create) {
+    staffChannelId = await createStaffChannel(input.guildId, {
+      name: input.staffChannel.name,
+      categoryId,
+      staffRoleIds: input.staffRoleIds,
+    });
+    await compRef.update({ 'discord.options.staffChannelId': staffChannelId });
+  }
+
+  return { guildId: input.guildId, participantRoleId, categoryId, announceChannelId, staffChannelId };
 }
 
 export interface ProvisionRegistrationInput {
@@ -312,7 +600,20 @@ export async function provisionRegistration(
   db: Firestore,
   shared: CompetitionDiscordShared,
   input: ProvisionRegistrationInput,
-  opts: { deadlineAtMs?: number; teamChannels?: boolean } = {},
+  opts: {
+    deadlineAtMs?: number;
+    teamChannels?: boolean;
+    /** Salon vocal en plus du texte (désactivé par défaut : deux salons par
+     *  équipe saturent vite une catégorie, et la plupart des équipes ont déjà
+     *  leur vocal). */
+    voiceChannels?: boolean;
+    staffRoleIds?: string[];
+    /** Catégorie à utiliser pour CETTE équipe (débordement au-delà de 50). */
+    categoryId?: string | null;
+    /** Message posté à la création du salon : une équipe qui débarque dans un
+     *  salon vide ne sait pas à quoi il sert. */
+    welcome?: { title: string; message: string; link?: string | null };
+  } = {},
 ): Promise<ProvisionResult> {
   const regRef = db.collection('competition_registrations').doc(input.registrationId);
   const warnings: string[] = [];
@@ -335,27 +636,45 @@ export async function provisionRegistration(
   // quand même créé et assigné (il sert aux mentions et aux permissions), et
   // les messages qui visaient le salon d'équipe sont simplement sautés côté
   // appelant (`if (channelId)` partout).
-  const wantsChannels = opts.teamChannels !== false && shared.categoryId !== null;
+  const categoryId = opts.categoryId !== undefined ? opts.categoryId : shared.categoryId;
+  const wantsChannels = opts.teamChannels !== false && categoryId !== null;
   let textChannelId = input.discord.textChannelId;
   if (!textChannelId && wantsChannels) {
     if (pastDeadline()) return bailPartial();
     textChannelId = await createTeamChannel(shared.guildId, {
       name: textChannelName(input.teamName),
       type: 0,
-      categoryId: shared.categoryId,
+      categoryId,
       teamRoleId: roleId,
+      staffRoleIds: opts.staffRoleIds,
     });
     await regRef.update({ 'discord.textChannelId': textChannelId });
+
+    // Message d'accueil, une seule fois : à la création du salon. Best-effort,
+    // une panne d'envoi ne doit pas faire échouer le provisioning.
+    if (opts.welcome) {
+      try {
+        await sendCompetitionChannelMessage(textChannelId, {
+          title: opts.welcome.title,
+          message: opts.welcome.message,
+          link: opts.welcome.link ?? null,
+          mentionRoleId: roleId,
+        });
+      } catch {
+        warnings.push("Message d'accueil non envoyé dans le salon de l'équipe");
+      }
+    }
   }
 
   let voiceChannelId = input.discord.voiceChannelId;
-  if (!voiceChannelId && wantsChannels) {
+  if (!voiceChannelId && wantsChannels && opts.voiceChannels === true) {
     if (pastDeadline()) return bailPartial();
     voiceChannelId = await createTeamChannel(shared.guildId, {
       name: input.teamName,
       type: 2,
-      categoryId: shared.categoryId,
+      categoryId,
       teamRoleId: roleId,
+      staffRoleIds: opts.staffRoleIds,
     });
     await regRef.update({ 'discord.voiceChannelId': voiceChannelId });
   }
@@ -537,7 +856,16 @@ export async function sendCompetitionDM(
  */
 export async function sendCompetitionChannelMessage(
   channelId: string,
-  input: { title: string; message: string; link?: string | null },
+  input: {
+    title: string;
+    message: string;
+    link?: string | null;
+    /** Rôle à mentionner. INDISPENSABLE pour réveiller les joueurs : une
+     *  mention placée dans un embed n'envoie aucune notification — seul le
+     *  `content` du message ping. Les messages de check-in passaient donc
+     *  totalement inaperçus. */
+    mentionRoleId?: string | null;
+  },
 ): Promise<{ ok: true; messageId: string } | { ok: false; reason: string }> {
   const description = input.message.slice(0, 3800)
     + (input.link ? `\n\n[Ouvrir sur Aedral →](${input.link})` : '');
@@ -550,7 +878,15 @@ export async function sendCompetitionChannelMessage(
   };
   const res = await discordFetch(`/channels/${channelId}/messages`, {
     method: 'POST',
-    body: JSON.stringify({ embeds: [embed] }),
+    body: JSON.stringify({
+      embeds: [embed],
+      ...(input.mentionRoleId
+        ? {
+            content: `<@&${input.mentionRoleId}>`,
+            allowed_mentions: { roles: [input.mentionRoleId] },
+          }
+        : {}),
+    }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');

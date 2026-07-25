@@ -213,15 +213,33 @@ export interface FinalPlacement {
  * équipe, d'autres ont déjà un rôle en place.
  */
 export interface CompetitionDiscordOptions {
-  /** Salon texte + vocal privés par équipe validée (défaut : true — le
-   *  comportement historique). */
+  /** Salon texte privé par équipe validée (défaut : true). */
   teamChannels: boolean;
+  /** Salon vocal en plus du texte. Décoché par défaut : deux salons par équipe
+   *  saturent une catégorie Discord (50 max) et la plupart des équipes ont
+   *  déjà leur vocal. */
+  teamVoiceChannels: boolean;
+  /** Nom de la catégorie qui range les salons du tournoi. null = nom de la
+   *  compétition. */
+  categoryName: string | null;
+  /** Rôles du serveur qui accèdent aux salons d'équipe (staff, arbitres,
+   *  modération de l'organisateur). Sans eux, seuls les administrateurs du
+   *  serveur y voient quelque chose. */
+  staffRoleIds: string[];
   /** Nom du rôle donné aux participants. null = dérivé du nom de la
    *  compétition (ou du circuit, qui partage son rôle entre ses étapes). */
   participantRoleName: string | null;
   /** Salon où le bot annonce ce qui concerne tout le monde (bracket publié,
-   *  message de l'organisateur). null = le bot n'annonce rien en public. */
+   *  message de l'organisateur). Rempli par le bot s'il le crée. */
   announceChannelId: string | null;
+  /** Créer le salon d'annonces plutôt qu'en désigner un existant. */
+  createAnnounceChannel: boolean;
+  announceChannelName: string | null;
+  /** Salon PRIVÉ du staff : le bot y signale les litiges et les forfaits à
+   *  valider le jour J. Sans lui, un litige n'existe que dans la console. */
+  staffChannelId: string | null;
+  createStaffChannel: boolean;
+  staffChannelName: string | null;
 }
 
 export type CompetitionStatus =

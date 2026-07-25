@@ -6,6 +6,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { validateCompetitionPayload } from '@/lib/competitions/validate';
 import { toFirestoreCompetition } from '@/lib/competitions/serialize';
+import { guildBlocker } from '@/lib/competitions/discord-guard';
 
 // Édition/suppression d'une compétition — admins Aedral complets uniquement.
 // Au Lot 0 tout vit en draft : les transitions de statut (publication,
@@ -60,6 +61,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
       resyncedStages = existingStages.map((s, i) =>
         i === 0 ? { ...s, kind: payload.format.kind, format: payload.format } : s);
+    }
+
+    // Serveur Discord : re-vérifié dès qu'il change (les droits de l'auteur
+    // ont pu bouger, et on ne s'installe jamais sur le serveur d'autrui).
+    const previousGuildId = (existing.discord?.guildId as string | undefined) ?? '';
+    if (payload.discordGuildId && payload.discordGuildId !== previousGuildId) {
+      const guildIssue = await guildBlocker(uid, payload.discordGuildId);
+      if (guildIssue) return NextResponse.json({ error: guildIssue }, { status: 403 });
     }
 
     // Changement de circuit : cohérence de jeu + maintien des deux côtés du

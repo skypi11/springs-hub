@@ -192,6 +192,55 @@ describe('validateCompetitionPayload', () => {
     expect(validateCompetitionPayload(tooSmall).ok).toBe(false);
   });
 
+  // Réglages Discord : le bot agit sur le serveur de quelqu'un, les entrées
+  // doivent être propres avant d'y toucher (les DROITS, eux, sont vérifiés
+  // côté route — lib/competitions/discord-guard).
+  describe('réglages Discord', () => {
+    it('absents : comportement historique (salons créés, aucune annonce)', () => {
+      const res = validateCompetitionPayload(competitionBody());
+      expect(res.ok).toBe(true);
+      if (res.ok) {
+        expect(res.value.discordOptions.teamChannels).toBe(true);
+        expect(res.value.discordOptions.teamVoiceChannels).toBe(false);
+        expect(res.value.discordOptions.announceChannelId).toBeNull();
+        expect(res.value.discordOptions.staffRoleIds).toEqual([]);
+      }
+    });
+
+    it('nettoie et dédoublonne les rôles staff', () => {
+      const body = competitionBody() as Record<string, unknown>;
+      body.discordOptions = {
+        teamChannels: true,
+        staffRoleIds: ['123456789012345678', '123456789012345678', '987654321098765432'],
+        categoryName: '  Legends  ',
+      };
+      const res = validateCompetitionPayload(body);
+      expect(res.ok).toBe(true);
+      if (res.ok) {
+        expect(res.value.discordOptions.staffRoleIds).toEqual(['123456789012345678', '987654321098765432']);
+        expect(res.value.discordOptions.categoryName).toBe('Legends');
+      }
+    });
+
+    it('refuse un identifiant qui n’est pas un snowflake', () => {
+      const bad = competitionBody() as Record<string, unknown>;
+      bad.discordOptions = { announceChannelId: 'salon-annonces' };
+      expect(validateCompetitionPayload(bad).ok).toBe(false);
+
+      const badRole = competitionBody() as Record<string, unknown>;
+      badRole.discordOptions = { staffRoleIds: ['staff'] };
+      expect(validateCompetitionPayload(badRole).ok).toBe(false);
+    });
+
+    it('refuse une liste de rôles staff démesurée', () => {
+      const body = competitionBody() as Record<string, unknown>;
+      body.discordOptions = {
+        staffRoleIds: Array.from({ length: 11 }, (_, i) => String(100000000000000000 + i)),
+      };
+      expect(validateCompetitionPayload(body).ok).toBe(false);
+    });
+  });
+
   it('accepte le simple élim : reset forcé à false, petite finale conservée, pas d\'override losers', () => {
     const single = competitionBody();
     (single.format as Record<string, unknown>).kind = 'single_elim';

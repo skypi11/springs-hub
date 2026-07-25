@@ -40,6 +40,9 @@ function asInt(v: unknown): number | null {
 
 const isValidBo = (n: number | null): n is number => n !== null && n % 2 === 1 && n >= 1 && n <= 9;
 
+/** Identifiant Discord (serveur, salon, rôle). */
+const SNOWFLAKE = /^\d{17,20}$/;
+
 // ── Circuits ────────────────────────────────────────────────────────────────
 
 export interface CircuitPayload {
@@ -275,18 +278,39 @@ export function validateCompetitionPayload(body: unknown): ValidationResult<Comp
 function validateDiscordOptions(input: unknown): ValidationResult<CompetitionDiscordOptions> {
   const defaults: CompetitionDiscordOptions = {
     teamChannels: true,
+    teamVoiceChannels: false,
+    categoryName: null,
+    staffRoleIds: [],
     participantRoleName: null,
     announceChannelId: null,
+    createAnnounceChannel: false,
+    announceChannelName: null,
+    staffChannelId: null,
+    createStaffChannel: false,
+    staffChannelName: null,
   };
   if (input === null || input === undefined) return { ok: true, value: defaults };
   if (typeof input !== 'object') return err('Réglages Discord invalides.');
   const o = input as Record<string, unknown>;
 
-  const announceRaw = typeof o.announceChannelId === 'string' ? o.announceChannelId.trim() : '';
-  if (announceRaw && !/^\d{17,20}$/.test(announceRaw)) {
-    return err("ID de salon d'annonces invalide (snowflake attendu).");
+  const snowflake = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+  const announceId = snowflake(o.announceChannelId);
+  if (announceId && !SNOWFLAKE.test(announceId)) {
+    return err("Salon d'annonces invalide.");
   }
-  const roleName = clampString(o.participantRoleName, 90); // limite Discord : 100
+  const staffChannelId = snowflake(o.staffChannelId);
+  if (staffChannelId && !SNOWFLAKE.test(staffChannelId)) {
+    return err('Salon du staff invalide.');
+  }
+
+  const rawRoles = Array.isArray(o.staffRoleIds) ? o.staffRoleIds as unknown[] : [];
+  if (rawRoles.length > 10) return err('Trop de rôles staff (10 maximum).');
+  const staffRoleIds: string[] = [];
+  for (const r of rawRoles) {
+    const id = snowflake(r);
+    if (!SNOWFLAKE.test(id)) return err('Rôle staff invalide.');
+    if (!staffRoleIds.includes(id)) staffRoleIds.push(id);
+  }
 
   return {
     ok: true,
@@ -294,8 +318,16 @@ function validateDiscordOptions(input: unknown): ValidationResult<CompetitionDis
       // Le défaut reste « oui » : ne pas cocher ne doit pas priver une
       // compétition existante de ses salons.
       teamChannels: o.teamChannels !== false,
-      participantRoleName: roleName || null,
-      announceChannelId: announceRaw || null,
+      teamVoiceChannels: o.teamVoiceChannels === true,
+      categoryName: clampString(o.categoryName, 90) || null,
+      staffRoleIds,
+      participantRoleName: clampString(o.participantRoleName, 90) || null,  // limite Discord : 100
+      announceChannelId: announceId || null,
+      createAnnounceChannel: o.createAnnounceChannel === true,
+      announceChannelName: clampString(o.announceChannelName, 90) || null,
+      staffChannelId: staffChannelId || null,
+      createStaffChannel: o.createStaffChannel === true,
+      staffChannelName: clampString(o.staffChannelName, 90) || null,
     },
   };
 }

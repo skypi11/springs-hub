@@ -34,6 +34,7 @@ import type { CompetitionFormat, PhasePlanEntry, TournamentStage } from '@/types
 import TournamentTypeStep from './create/TournamentTypeStep';
 import StagesEditor from './create/StagesEditor';
 import ScheduleBoard, { type ScheduleDay } from './create/ScheduleBoard';
+import DiscordSettings, { type DiscordSettingsValue } from './create/DiscordSettings';
 import type { AdminCircuit, AdminCompetition } from './types';
 
 interface FormState {
@@ -59,11 +60,23 @@ interface FormState {
   generalCheckinMinutes: number;
   matchCheckinMinutes: number;
   scoreCounterMinutes: number;
-  discordGuildId: string;
-  teamChannels: boolean;
-  participantRoleName: string;
-  announceChannelId: string;
+  discord: DiscordSettingsValue;
 }
+
+const EMPTY_DISCORD: DiscordSettingsValue = {
+  guildId: '',
+  teamChannels: true,
+  teamVoiceChannels: false,
+  categoryName: '',
+  staffRoleIds: [],
+  participantRoleName: '',
+  announceChannelId: '',
+  createAnnounceChannel: false,
+  announceChannelName: '',
+  staffChannelId: '',
+  createStaffChannel: false,
+  staffChannelName: '',
+};
 
 export default function CompetitionForm({ initial, circuits, onCancel, onSaved }: {
   initial: AdminCompetition | null;
@@ -342,57 +355,12 @@ function CompetitionFormBody({ form, setForm, initial, circuits, saving, onCance
 
         <div className="divider" />
 
-        {/* Discord */}
-        <div>
-          <label className="t-label-soft block mb-3">Discord</label>
-          <div className="max-w-md">
-            <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Serveur (ID de guilde)</label>
-            <input className="settings-input w-full" value={form.discordGuildId}
-              placeholder="Optionnel en brouillon"
-              onChange={e => patch({ discordGuildId: e.target.value })} />
-            <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
-              Le bot doit déjà être invité sur ce serveur.
-            </p>
-          </div>
-
-          {form.discordGuildId.trim() !== '' && (
-            <div className="mt-4 space-y-4">
-              <div>
-                <Switch label="Créer un salon par équipe" value={form.teamChannels}
-                  onChange={v => patch({ teamChannels: v })} />
-                <p className="text-xs mt-1 px-2" style={{ color: 'var(--s-text-muted)' }}>
-                  Un salon texte et un vocal privés par équipe validée, rangés dans une
-                  catégorie au nom du tournoi. Décoché, le bot ne crée aucun salon — le
-                  rôle d&apos;équipe est quand même attribué.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
-                <div>
-                  <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Nom du rôle participant</label>
-                  <input className="settings-input w-full" value={form.participantRoleName}
-                    maxLength={90}
-                    placeholder={`Participant · ${form.name.trim() || 'nom du tournoi'}`}
-                    onChange={e => patch({ participantRoleName: e.target.value })} />
-                  <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
-                    Donné à chaque joueur d&apos;une équipe validée. Sur un circuit, le rôle est
-                    partagé par toutes ses étapes.
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Salon d&apos;annonces (ID)</label>
-                  <input className="settings-input w-full" value={form.announceChannelId}
-                    placeholder="Aucun"
-                    onChange={e => patch({ announceChannelId: e.target.value })} />
-                  <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
-                    Le bot y annonce ce qui concerne tout le monde, à commencer par la
-                    publication du bracket. Vide : aucune annonce publique.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        <DiscordSettings
+          value={form.discord}
+          competitionName={form.name.trim()}
+          teamCount={form.stages[0].format.maxTeams}
+          onChange={discord => patch({ discord })}
+        />
 
         {/* Récapitulatif + enregistrement */}
         <div className="flex flex-wrap items-center gap-3 pt-2" style={{ borderTop: '1px solid var(--s-border)' }}>
@@ -452,10 +420,7 @@ function stateFromPreset(preset: CreationPreset, circuits: AdminCircuit[]): Form
     days: Array.from({ length: preset.dayCount }, () => ({ date: '', startsAt: '15:00', endsAt: '22:00' })),
     dayByPhase: spreadOverDays(blocks, preset.dayCount),
     ...preset.checkin,
-    discordGuildId: '',
-    teamChannels: true,
-    participantRoleName: '',
-    announceChannelId: '',
+    discord: { ...EMPTY_DISCORD },
   };
 }
 
@@ -497,12 +462,23 @@ function stateFromCompetition(comp: AdminCompetition): FormState {
     generalCheckinMinutes: comp.schedule?.generalCheckinMinutes ?? LEGENDS_CHECKIN.generalCheckinMinutes,
     matchCheckinMinutes: comp.schedule?.matchCheckinMinutes ?? LEGENDS_CHECKIN.matchCheckinMinutes,
     scoreCounterMinutes: comp.schedule?.scoreCounterMinutes ?? LEGENDS_CHECKIN.scoreCounterMinutes,
-    discordGuildId: comp.discord?.guildId ?? '',
-    // Absent = comportement historique : salons d'équipe créés, rôle dérivé du
-    // nom, aucune annonce publique.
-    teamChannels: comp.discord?.options?.teamChannels !== false,
-    participantRoleName: comp.discord?.options?.participantRoleName ?? '',
-    announceChannelId: comp.discord?.options?.announceChannelId ?? '',
+    // Options absentes = comportement historique : salons d'équipe créés, rôle
+    // dérivé du nom, aucune annonce publique.
+    discord: {
+      ...EMPTY_DISCORD,
+      guildId: comp.discord?.guildId ?? '',
+      teamChannels: comp.discord?.options?.teamChannels !== false,
+      teamVoiceChannels: comp.discord?.options?.teamVoiceChannels === true,
+      categoryName: comp.discord?.options?.categoryName ?? '',
+      staffRoleIds: comp.discord?.options?.staffRoleIds ?? [],
+      participantRoleName: comp.discord?.options?.participantRoleName ?? '',
+      announceChannelId: comp.discord?.options?.announceChannelId ?? '',
+      createAnnounceChannel: comp.discord?.options?.createAnnounceChannel === true,
+      announceChannelName: comp.discord?.options?.announceChannelName ?? '',
+      staffChannelId: comp.discord?.options?.staffChannelId ?? '',
+      createStaffChannel: comp.discord?.options?.createStaffChannel === true,
+      staffChannelName: comp.discord?.options?.staffChannelName ?? '',
+    },
   };
 }
 
@@ -544,11 +520,19 @@ function buildPayload(form: FormState, phasePlan: PhasePlanEntry[], initial: Adm
       matchCheckinMinutes: form.matchCheckinMinutes,
       scoreCounterMinutes: form.scoreCounterMinutes,
     },
-    discordGuildId: form.discordGuildId,
+    discordGuildId: form.discord.guildId,
     discordOptions: {
-      teamChannels: form.teamChannels,
-      participantRoleName: form.participantRoleName.trim() || null,
-      announceChannelId: form.announceChannelId.trim() || null,
+      teamChannels: form.discord.teamChannels,
+      teamVoiceChannels: form.discord.teamVoiceChannels,
+      categoryName: form.discord.categoryName.trim() || null,
+      staffRoleIds: form.discord.staffRoleIds,
+      participantRoleName: form.discord.participantRoleName.trim() || null,
+      announceChannelId: form.discord.announceChannelId.trim() || null,
+      createAnnounceChannel: form.discord.createAnnounceChannel,
+      announceChannelName: form.discord.announceChannelName.trim() || null,
+      staffChannelId: form.discord.staffChannelId.trim() || null,
+      createStaffChannel: form.discord.createStaffChannel,
+      staffChannelName: form.discord.staffChannelName.trim() || null,
     },
     isDev: form.isDev,
   };

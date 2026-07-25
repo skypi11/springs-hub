@@ -6,6 +6,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { validateCompetitionPayload } from '@/lib/competitions/validate';
 import { toFirestoreCompetition, serializeCompetition } from '@/lib/competitions/serialize';
+import { guildBlocker } from '@/lib/competitions/discord-guard';
 
 // Compétitions du moteur (Legends Qualifs = 4 instances). Lecture ouverte aux
 // admins de compétition, mutations réservées aux admins Aedral complets
@@ -61,6 +62,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: validated.error }, { status: 400 });
     }
     const payload = validated.value;
+
+    // Serveur Discord : réservé à qui l'administre (voir lib/competitions/discord-guard).
+    if (payload.discordGuildId) {
+      const blocked = await guildBlocker(uid, payload.discordGuildId);
+      if (blocked) return NextResponse.json({ error: blocked }, { status: 403 });
+    }
 
     const db = getAdminDb();
 

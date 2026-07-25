@@ -78,6 +78,8 @@ export type AdminAuditAction =
   | 'competition_seeding_shuffled'
   | 'competition_seeding_reordered'
   | 'competition_bracket_published'
+  // Nettoyage Discord de fin de tournoi (action explicite de l'organisateur)
+  | 'competition_discord_cleanup'
   // Moteur de compétitions — Lot 3 (jour de match : console live)
   | 'competition_phase_launched'
   | 'competition_forfeit_validated'

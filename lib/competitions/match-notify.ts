@@ -5,6 +5,7 @@
 
 import type { Firestore } from 'firebase-admin/firestore';
 import { createNotifications, type NotificationPayload } from '@/lib/notifications';
+import { sendCompetitionChannelMessage } from '@/lib/discord-competition';
 
 export type MatchAlertKind =
   | 'dispute_auto'         // scores divergents → litige automatique (spec §9)
@@ -45,5 +46,25 @@ export async function notifyMatchAlert(
     await createNotifications(db, payloads);
   } catch {
     // Best-effort : une notif ratée ne bloque jamais le jour de match.
+  }
+
+  // Salon staff Discord : c'est là que l'alerte a une chance d'être VUE le jour
+  // J. Sans lui, un litige n'existe que dans la console — si personne ne la
+  // regarde, deux équipes attendent sans que le staff le sache.
+  try {
+    const compSnap = await db.collection('competitions').doc(competitionId).get();
+    const channelId = compSnap.data()?.discord?.options?.staffChannelId as string | undefined;
+    if (!channelId) return;
+    const staffRoleIds = (compSnap.data()?.discord?.options?.staffRoleIds as string[] | undefined) ?? [];
+    await sendCompetitionChannelMessage(channelId, {
+      title: TITLES[kind],
+      message: `${competitionName} — match ${matchLabel}. À traiter dans la console.`,
+      link: `https://aedral.com/admin/competitions/${competitionId}/console`,
+      // Une alerte silencieuse n'alerte personne : on mentionne le premier rôle
+      // staff déclaré (les suivants voient le salon de toute façon).
+      mentionRoleId: staffRoleIds[0] ?? null,
+    });
+  } catch {
+    // Discord indisponible : la notif in-app est déjà partie, on n'insiste pas.
   }
 }

@@ -5,9 +5,13 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import {
+  countChannelsInCategory,
+  createCategory,
   ensureCompetitionShared,
+  MAX_CHANNELS_PER_CATEGORY,
   provisionRegistration,
 } from '@/lib/discord-competition';
+import { guildBlocker } from '@/lib/competitions/discord-guard';
 
 // Provisioning Discord d'une compétition (archi §6) — bouton console
 // « Provisionner ». L'approbation ne parle JAMAIS à Discord : elle pose
@@ -80,22 +84,70 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const circuitSnap = await db.collection('circuits').doc(comp.circuitId as string).get();
         circuitName = (circuitSnap.data()?.name as string) ?? null;
       }
+      // Le serveur est-il toujours administré par la personne qui lance le
+      // provisioning ? Les droits ont pu changer depuis la création.
+      const guildIssue = await guildBlocker(uid, guildId);
+      if (guildIssue) return NextResponse.json({ error: guildIssue }, { status: 403 });
+
       // Réglages de l'organisateur (absents = comportement historique).
       const discordOptions = (comp.discord?.options ?? {}) as {
         teamChannels?: boolean;
+        teamVoiceChannels?: boolean;
+        categoryName?: string | null;
+        staffRoleIds?: string[];
         participantRoleName?: string | null;
+        announceChannelId?: string | null;
+        createAnnounceChannel?: boolean;
+        announceChannelName?: string | null;
+        staffChannelId?: string | null;
+        createStaffChannel?: boolean;
+        staffChannelName?: string | null;
       };
       const teamChannels = discordOptions.teamChannels !== false;
+      const staffRoleIds = Array.isArray(discordOptions.staffRoleIds) ? discordOptions.staffRoleIds : [];
+      const competitionName = (comp.name as string) || 'Compétition';
       const shared = await ensureCompetitionShared(db, id, {
         guildId,
         circuitId: (comp.circuitId as string | null) ?? null,
         participantRoleId: (comp.discord?.participantRoleId as string | null) ?? null,
         categoryId: (comp.discord?.categoryId as string | null) ?? null,
         participantRoleLabel: discordOptions.participantRoleName?.trim()
-          || `Participant · ${circuitName ?? (comp.name as string) ?? 'Compétition'}`,
-        categoryLabel: (comp.name as string) || 'Compétition',
+          || `Participant · ${circuitName ?? competitionName}`,
+        categoryLabel: discordOptions.categoryName?.trim() || competitionName,
         teamChannels,
+        staffRoleIds,
+        announce: {
+          create: discordOptions.createAnnounceChannel === true,
+          name: discordOptions.announceChannelName?.trim() || 'annonces',
+          existingId: discordOptions.announceChannelId ?? null,
+        },
+        staffChannel: {
+          create: discordOptions.createStaffChannel === true,
+          name: discordOptions.staffChannelName?.trim() || 'staff-tournoi',
+          existingId: discordOptions.staffChannelId ?? null,
+        },
       });
+
+      // Débordement de catégorie : Discord refuse au-delà de 50 salons dans
+      // une même catégorie — 32 équipes en texte + vocal en demandent 64. On
+      // compte ce qui existe déjà, et on ouvre une catégorie de plus quand la
+      // suivante ne tiendrait pas (jamais un échec au 51e salon, en plein
+      // tournoi).
+      const channelsPerTeam = teamChannels ? (discordOptions.teamVoiceChannels === true ? 2 : 1) : 0;
+      let activeCategoryId = shared.categoryId;
+      let categoryUsed = activeCategoryId
+        ? await countChannelsInCategory(guildId, activeCategoryId)
+        : 0;
+      let overflowIndex = 1;
+      const categoryBaseName = discordOptions.categoryName?.trim() || competitionName;
+      const categoryWithRoom = async (): Promise<string | null> => {
+        if (!activeCategoryId || channelsPerTeam === 0) return activeCategoryId;
+        if (categoryUsed + channelsPerTeam <= MAX_CHANNELS_PER_CATEGORY) return activeCategoryId;
+        overflowIndex += 1;
+        activeCategoryId = await createCategory(guildId, `${categoryBaseName} (${overflowIndex})`.slice(0, 100));
+        categoryUsed = 0;
+        return activeCategoryId;
+      };
 
       // Équipes validées pas encore provisionnées ('none' inclus : approuvées
       // avant la configuration du serveur Discord).
@@ -140,7 +192,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               textChannelId: (r.discord?.textChannelId as string | null) ?? null,
               voiceChannelId: (r.discord?.voiceChannelId as string | null) ?? null,
             },
-          }, { deadlineAtMs, teamChannels });
+          }, {
+            deadlineAtMs,
+            teamChannels,
+            voiceChannels: discordOptions.teamVoiceChannels === true,
+            staffRoleIds,
+            categoryId: await categoryWithRoom(),
+            // Un salon vide ne dit rien à personne : le bot pose le cadre dès
+            // sa création.
+            welcome: {
+              title: competitionName,
+              message: 'Votre salon d’équipe pour le tournoi. Le staff vous contactera ici : codes de room, litiges, informations de dernière minute. Check-in et horaires sur votre page de tournoi.',
+              link: `https://aedral.com/competitions/${id}`,
+            },
+          });
+          // Suivi du remplissage de la catégorie courante (une équipe traitée
+          // en partiel a pu créer ses salons avant de s'arrêter).
+          categoryUsed += channelsPerTeam;
           if (result.status === 'done') report.done += 1;
           else report.partial += 1;
           report.teams.push({ name: (r.name as string) ?? '', status: result.status, warnings: result.warnings });

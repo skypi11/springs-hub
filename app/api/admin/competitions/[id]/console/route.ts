@@ -210,6 +210,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         id, name: comp.name ?? id, status: comp.status ?? 'draft',
         game: (comp.game as string) ?? 'rocket_league',
         phasePlan: comp.schedule?.phasePlan ?? [],
+        // Un serveur est-il branché ? (pilote le nettoyage de fin de tournoi)
+        discordConfigured: !!comp.discord?.guildId,
         checkinMinutes: flowConfigOf(comp).matchCheckinMinutes,
         generalCheckinMinutes: (comp.schedule?.generalCheckinMinutes as number) ?? 20,
         withdrawn: Array.isArray(comp.withdrawn) ? comp.withdrawn : [],
@@ -355,6 +357,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               if (channelId) {
                 discordPosts.push(sendCompetitionChannelMessage(channelId, {
                   title, message, link: `https://aedral.com/competitions/${id}`,
+                  // Sans mention, le message ne notifie personne : l'équipe
+                  // découvre son match en ouvrant Discord par hasard.
+                  mentionRoleId: (reg.discord?.roleId as string | undefined) ?? null,
                 }).catch(() => null));
               }
             }
