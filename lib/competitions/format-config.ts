@@ -82,12 +82,16 @@ export function normalizeFormat(format: CompetitionFormat): CompetitionFormat {
   // Réglages propres à un format : présents seulement là où ils ont un sens,
   // pour ne jamais écrire de champ orphelin en base.
   if (kind === 'round_robin') {
-    next.groupCount = Math.max(1, format.groupCount ?? 1);
+    // Le nombre de poules suit l'effectif : passer un tournoi de 8 à 64
+    // équipes sans relever les poules donnerait une poule de 64, refusée.
+    next.groupCount = poolCountFor(format.maxTeams, Math.max(1, format.groupCount ?? 1));
     next.doubleRound = format.doubleRound === true;
     next.points = format.points ?? { win: 3, draw: 1, loss: 0 };
     delete next.swissRounds;
   } else if (kind === 'swiss') {
-    next.swissRounds = format.swissRounds ?? swissDefaultRounds(format.maxTeams);
+    // Au-delà de N−1 rondes, des re-matchs deviennent inévitables.
+    const wanted = format.swissRounds ?? swissDefaultRounds(format.maxTeams);
+    next.swissRounds = Math.max(1, Math.min(wanted, Math.max(2, format.maxTeams) - 1));
     next.points = format.points ?? { win: 3, draw: 1, loss: 0 };
     delete next.groupCount;
     delete next.doubleRound;
@@ -125,11 +129,9 @@ export function switchFormatKind(format: CompetitionFormat, nextKind: FormatKind
   if (nextKind === 'swiss') {
     // Les rondes suivent la nouvelle taille de champ, sinon le préréglage
     // (4 rondes pour 16 équipes) resterait collé à un champ de 64.
-    carried.swissRounds = Math.min(swissDefaultRounds(carried.maxTeams), carried.maxTeams - 1);
+    carried.swissRounds = swissDefaultRounds(carried.maxTeams);
   }
-  if (nextKind === 'round_robin') {
-    carried.groupCount = poolCountFor(carried.maxTeams, base.groupCount ?? 1);
-  }
+  // Poules et bornes de rondes : `normalizeFormat` s'en charge.
   return normalizeFormat(carried);
 }
 

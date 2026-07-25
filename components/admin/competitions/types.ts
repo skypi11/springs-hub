@@ -6,6 +6,7 @@ import type {
   CompetitionEligibility,
   CompetitionFormat,
   CompetitionSchedule,
+  TournamentStage,
 } from '@/types/competitions';
 
 export interface AdminCircuit {
@@ -29,6 +30,10 @@ export interface AdminCompetition {
   game: string;
   circuitId: string | null;
   format: CompetitionFormat | null;
+  /** Séquence d'étapes (null = tournoi à une seule étape). Servie par l'API
+   *  depuis le Lot multi-étapes : sans elle, le formulaire d'édition renvoyait
+   *  un payload sans `stages` et le serveur devait deviner (resync ou 409). */
+  stages: TournamentStage[] | null;
   eligibility: CompetitionEligibility | null;
   roster: { starters: number; subsMax: number } | null;
   registration: { opensAt: string | null; closesAt: string | null; waitlist: boolean } | null;

@@ -72,6 +72,19 @@ describe('normalizeFormat', () => {
     }
   });
 
+  it('changer l’effectif ajuste les poules et les rondes plutôt que de produire une config refusée', () => {
+    // Une ligue de 8 poussée à 64 : sans relèvement des poules, ce serait une
+    // poule unique de 64 (maximum 20).
+    const grown = setConfigValue(defaultFormatFor('round_robin'), 'maxTeams', 64);
+    expect(grown.groupCount).toBeGreaterThanOrEqual(4);
+    expectAccepted(grown, 'poules 64');
+
+    // Un suisse ramené à 4 équipes ne peut plus tenir 4 rondes sans re-match.
+    const shrunk = setConfigValue(defaultFormatFor('swiss'), 'maxTeams', 4);
+    expect(shrunk.swissRounds).toBeLessThanOrEqual(3);
+    expectAccepted(shrunk, 'suisse 4');
+  });
+
   it('ne laisse aucun réglage orphelin d’un autre format', () => {
     const orphan = {
       ...defaultFormatFor('double_elim'),

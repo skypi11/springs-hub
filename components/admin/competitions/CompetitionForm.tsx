@@ -1,51 +1,61 @@
 'use client';
 
-// Formulaire de création/édition d'une compétition (Lot 0 Legends Cup).
-// « Préréglage Legends Qualif » remplit format, éligibilité, roster, fenêtres
-// et plan de phases conformes à la spec — il reste à saisir le nom, les dates
-// et le circuit. Validation partagée avec le serveur (lib/competitions/validate.ts).
+// Création et édition d'une compétition.
+//
+// Parcours : on choisit d'abord un type de tournoi (préréglage complet), puis
+// on ajuste sur un seul écran. L'ancien formulaire posait ses trente champs à
+// plat et ne connaissait que deux formats en dur ; ici les réglages viennent
+// de la registry (lib/competitions/formats), donc les quatre formats et le
+// multi-étapes sont créables, et ajouter un format à la plateforme n'oblige
+// plus à retoucher cet écran.
+//
+// Le tournoi est TOUJOURS une liste d'étapes en interne (une seule le plus
+// souvent) : c'est ce qui garantit l'invariant « étape 1 = format de la
+// compétition », et ce qui permet d'éditer un tournoi à poules sans que le
+// serveur ait à deviner.
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { Switch } from '@/components/ui/Switch';
 import { validateCompetitionPayload } from '@/lib/competitions/validate';
-import {
-  LEGENDS_FORMAT,
-  LEGENDS_ELIGIBILITY,
-  LEGENDS_ROSTER,
-  LEGENDS_CHECKIN,
-  buildLegendsPhasePlan,
-  SINGLE_ELIM_FORMAT,
-  buildSingleElimPhasePlan,
-} from '@/lib/competitions/defaults';
-import type { PhasePlanEntry } from '@/types/competitions';
+import { LEGENDS_CHECKIN } from '@/lib/competitions/defaults';
+import { buildPlanBlocks, blocksToPhasePlan, spreadOverDays, type PlanBlock } from '@/lib/competitions/schedule-plan';
+import { normalizeFormat } from '@/lib/competitions/format-config';
+import type { CreationPreset } from '@/lib/competitions/creation-presets';
+import type { CompetitionFormat, PhasePlanEntry, TournamentStage } from '@/types/competitions';
+import TournamentTypeStep from './create/TournamentTypeStep';
+import StagesEditor from './create/StagesEditor';
+import ScheduleBoard, { type ScheduleDay } from './create/ScheduleBoard';
 import type { AdminCircuit, AdminCompetition } from './types';
 
-type BoOverride = { bracket: 'winners' | 'losers'; roundsFromEnd: number; bo: number };
-
-const BO_CHOICES = [1, 3, 5, 7, 9];
-
-function isoToLocalInput(iso: string | null | undefined): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+interface FormState {
+  name: string;
+  circuitId: string;
+  isDev: boolean;
+  stages: TournamentStage[];
+  requireVerified: boolean;
+  minAge: string;
+  mmrEnabled: boolean;
+  weightCurrent: number;
+  maxAvg: number;
+  maxGap: number;
+  maxPlayer: number;
+  starters: number;
+  subsMax: number;
+  opensAt: string;
+  closesAt: string;
+  waitlist: boolean;
+  days: ScheduleDay[];
+  /** Journée de chaque bloc du déroulé (même ordre que les blocs). */
+  dayByPhase: number[];
+  generalCheckinMinutes: number;
+  matchCheckinMinutes: number;
+  scoreCounterMinutes: number;
+  discordGuildId: string;
 }
 
-function localInputToIso(v: string): string {
-  if (!v) return '';
-  const d = new Date(v);
-  return isNaN(d.getTime()) ? '' : d.toISOString();
-}
-
-export default function CompetitionForm({
-  initial,
-  circuits,
-  onCancel,
-  onSaved,
-}: {
+export default function CompetitionForm({ initial, circuits, onCancel, onSaved }: {
   initial: AdminCompetition | null;
   circuits: AdminCircuit[];
   onCancel: () => void;
@@ -53,354 +63,189 @@ export default function CompetitionForm({
 }) {
   const toast = useToast();
   const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<FormState | null>(initial ? stateFromCompetition(initial) : null);
 
-  // ── Base ──
-  const [name, setName] = useState(initial?.name ?? '');
-  const [circuitId, setCircuitId] = useState(initial?.circuitId ?? '');
-  const [isDevComp, setIsDevComp] = useState(initial?.isDev ?? false);
-
-  // ── Format ──
-  const [kind, setKind] = useState<'double_elim' | 'single_elim'>(
-    initial?.format?.kind === 'single_elim' ? 'single_elim' : 'double_elim',
-  );
-  const [maxTeams, setMaxTeams] = useState(initial?.format?.maxTeams ?? LEGENDS_FORMAT.maxTeams);
-  const [boDefault, setBoDefault] = useState(initial?.format?.bo?.default ?? LEGENDS_FORMAT.bo.default);
-  const [boGrandFinal, setBoGrandFinal] = useState(initial?.format?.bo?.grandFinal ?? LEGENDS_FORMAT.bo.grandFinal);
-  const [bracketReset, setBracketReset] = useState(initial?.format?.bracketReset ?? true);
-  const [thirdPlace, setThirdPlace] = useState(initial?.format?.thirdPlace ?? false);
-  const [overrides, setOverrides] = useState<BoOverride[]>(
-    (initial?.format?.bo?.overrides as BoOverride[] | undefined) ?? LEGENDS_FORMAT.bo.overrides.map(o => ({ ...o })),
-  );
-
-  // Changer de type de bracket réinitialise ce qui n'a pas de sens dans
-  // l'autre format : règles BO losers, reset, petite finale — et le PLAN DE
-  // PHASES (un plan double élim collé sur un simple élim rangerait la petite
-  // finale au début du jour 1, attrapé en review adversariale).
-  function switchKind(next: 'double_elim' | 'single_elim') {
-    setKind(next);
-    if (next === 'single_elim') {
-      setOverrides(prev => prev.filter(o => o.bracket !== 'losers'));
-      setBracketReset(false);
-      setPhasePlan(buildSingleElimPhasePlan(maxTeams, thirdPlace));
-    } else {
-      setThirdPlace(false);
-      setPhasePlan(buildLegendsPhasePlan());
-    }
-    toast.info('Plan de phases réinitialisé pour ce format.');
+  if (!form) {
+    return (
+      <TournamentTypeStep
+        onCancel={onCancel}
+        onPick={preset => setForm(stateFromPreset(preset, circuits))}
+      />
+    );
   }
 
-  // En simple élim, le plan dépend de la taille de l'arbre et de la petite
-  // finale : le suivre à chaque changement (la validation refuse un plan
-  // incohérent avec le format).
-  function changeMaxTeams(next: number) {
-    setMaxTeams(next);
-    if (kind === 'single_elim' && next >= 4 && next <= 64) {
-      setPhasePlan(buildSingleElimPhasePlan(next, thirdPlace));
-    }
-  }
-
-  function changeThirdPlace(next: boolean) {
-    setThirdPlace(next);
-    if (kind === 'single_elim') {
-      setPhasePlan(buildSingleElimPhasePlan(maxTeams, next));
-    }
-  }
-
-  // ── Éligibilité ──
-  const [requireVerified, setRequireVerified] = useState(initial?.eligibility?.requireVerifiedAccounts ?? true);
-  // En ÉDITION, minAge null (« aucun âge minimum ») doit rester vide — le
-  // défaut 16 ne s'applique qu'à la création (review adversariale Lot 0).
-  const [minAge, setMinAge] = useState<string>(
-    initial
-      ? (initial.eligibility?.minAge != null ? String(initial.eligibility.minAge) : '')
-      : String(LEGENDS_ELIGIBILITY.minAge),
+  return (
+    <CompetitionFormBody
+      form={form}
+      setForm={setForm}
+      initial={initial}
+      circuits={circuits}
+      saving={saving}
+      onCancel={onCancel}
+      onRestart={() => setForm(null)}
+      onSubmit={async payload => {
+        setSaving(true);
+        try {
+          if (initial) {
+            await api(`/api/admin/competitions/${initial.id}`, { method: 'PATCH', body: payload });
+            toast.success('Compétition enregistrée.');
+          } else {
+            await api('/api/admin/competitions', { method: 'POST', body: payload });
+            toast.success('Compétition créée en brouillon.');
+          }
+          onSaved();
+        } catch (err) {
+          toast.error(err instanceof ApiError ? err.message : 'Erreur réseau.');
+        } finally {
+          setSaving(false);
+        }
+      }}
+    />
   );
-  const initialMmr = initial ? initial.eligibility?.mmr ?? null : LEGENDS_ELIGIBILITY.mmr;
-  const [mmrEnabled, setMmrEnabled] = useState(initialMmr !== null);
-  const [weightCurrent, setWeightCurrent] = useState(initialMmr?.weightCurrent ?? 0.7);
-  const [maxAvg, setMaxAvg] = useState(initialMmr?.maxAvg ?? 1850);
-  const [maxGap, setMaxGap] = useState(initialMmr?.maxGap ?? 150);
-  const [maxPlayer, setMaxPlayer] = useState(initialMmr?.maxPlayer ?? 1900);
+}
 
-  // ── Roster ──
-  const [starters, setStarters] = useState(initial?.roster?.starters ?? LEGENDS_ROSTER.starters);
-  const [subsMax, setSubsMax] = useState(initial?.roster?.subsMax ?? LEGENDS_ROSTER.subsMax);
+function CompetitionFormBody({ form, setForm, initial, circuits, saving, onCancel, onRestart, onSubmit }: {
+  form: FormState;
+  setForm: (next: FormState) => void;
+  initial: AdminCompetition | null;
+  circuits: AdminCircuit[];
+  saving: boolean;
+  onCancel: () => void;
+  /** Retour à l'écran de choix du type de tournoi (création seulement). */
+  onRestart: () => void;
+  onSubmit: (payload: Record<string, unknown>) => void;
+}) {
+  const patch = (values: Partial<FormState>) => setForm({ ...form, ...values });
 
-  // ── Inscriptions ──
-  const [opensAt, setOpensAt] = useState(isoToLocalInput(initial?.registration?.opensAt));
-  const [closesAt, setClosesAt] = useState(isoToLocalInput(initial?.registration?.closesAt));
-  const [waitlist, setWaitlist] = useState(initial?.registration?.waitlist ?? true);
+  const blocks = useMemo(() => buildPlanBlocks(form.stages[0].format), [form.stages]);
+  // Le déroulé se réaligne tout seul quand le format change (le nombre de
+  // blocs bouge) : jamais de plan qui décrit un tournoi qui n'existe plus.
+  const dayByPhase = fitAssignment(form.dayByPhase, blocks, form.days.length);
+  const phasePlan = blocksToPhasePlan(blocks, dayByPhase);
 
-  // ── Planning ──
-  const [days, setDays] = useState<Array<{ date: string; startsAt: string; endsAt?: string }>>(
-    initial?.schedule?.days ?? [{ date: '', startsAt: '15:00', endsAt: '22:00' }, { date: '', startsAt: '15:00', endsAt: '22:00' }],
+  const payload = buildPayload(form, phasePlan, initial);
+  const check = validateCompetitionPayload(payload);
+
+  const totalMatches = form.stages.reduce(
+    (sum, s) => sum + buildPlanBlocks(s.format).reduce((n, b) => n + b.matchCount, 0),
+    0,
   );
-  const [generalCheckinMinutes, setGeneralCheckinMinutes] = useState(
-    initial?.schedule?.generalCheckinMinutes ?? LEGENDS_CHECKIN.generalCheckinMinutes,
-  );
-  const [matchCheckinMinutes, setMatchCheckinMinutes] = useState(
-    initial?.schedule?.matchCheckinMinutes ?? LEGENDS_CHECKIN.matchCheckinMinutes,
-  );
-  const [scoreCounterMinutes, setScoreCounterMinutes] = useState(
-    initial?.schedule?.scoreCounterMinutes ?? LEGENDS_CHECKIN.scoreCounterMinutes,
-  );
-  const [phasePlan, setPhasePlan] = useState<PhasePlanEntry[]>(
-    initial?.schedule?.phasePlan ?? buildLegendsPhasePlan(),
-  );
-
-  // ── Discord ──
-  const [discordGuildId, setDiscordGuildId] = useState(initial?.discord?.guildId ?? '');
-
-  function applyLegendsPreset() {
-    setKind('double_elim');
-    setThirdPlace(false);
-    setMaxTeams(LEGENDS_FORMAT.maxTeams);
-    setBoDefault(LEGENDS_FORMAT.bo.default);
-    setBoGrandFinal(LEGENDS_FORMAT.bo.grandFinal);
-    setBracketReset(LEGENDS_FORMAT.bracketReset);
-    setOverrides(LEGENDS_FORMAT.bo.overrides.map(o => ({ ...o })));
-    setRequireVerified(LEGENDS_ELIGIBILITY.requireVerifiedAccounts);
-    setMinAge(String(LEGENDS_ELIGIBILITY.minAge));
-    setMmrEnabled(true);
-    setWeightCurrent(LEGENDS_ELIGIBILITY.mmr!.weightCurrent);
-    setMaxAvg(LEGENDS_ELIGIBILITY.mmr!.maxAvg);
-    setMaxGap(LEGENDS_ELIGIBILITY.mmr!.maxGap);
-    setMaxPlayer(LEGENDS_ELIGIBILITY.mmr!.maxPlayer);
-    setStarters(LEGENDS_ROSTER.starters);
-    setSubsMax(LEGENDS_ROSTER.subsMax);
-    setWaitlist(true);
-    setGeneralCheckinMinutes(LEGENDS_CHECKIN.generalCheckinMinutes);
-    setMatchCheckinMinutes(LEGENDS_CHECKIN.matchCheckinMinutes);
-    setScoreCounterMinutes(LEGENDS_CHECKIN.scoreCounterMinutes);
-    setPhasePlan(buildLegendsPhasePlan());
-    toast.success('Préréglage Legends Qualif appliqué. Reste à saisir nom, dates et circuit.');
-  }
-
-  // Tournoi en ligne hors circuit : simple élim BO5 / finale BO7, 1 journée,
-  // comptes vérifiés exigés, ni MMR ni âge minimum.
-  function applySingleElimPreset() {
-    setKind('single_elim');
-    setMaxTeams(SINGLE_ELIM_FORMAT.maxTeams);
-    setBoDefault(SINGLE_ELIM_FORMAT.bo.default);
-    setBoGrandFinal(SINGLE_ELIM_FORMAT.bo.grandFinal);
-    setBracketReset(false);
-    setThirdPlace(SINGLE_ELIM_FORMAT.thirdPlace === true);
-    setOverrides(SINGLE_ELIM_FORMAT.bo.overrides.map(o => ({ ...o })));
-    setRequireVerified(true);
-    setMinAge('');
-    setMmrEnabled(false);
-    setStarters(LEGENDS_ROSTER.starters);
-    setSubsMax(LEGENDS_ROSTER.subsMax);
-    setWaitlist(true);
-    setGeneralCheckinMinutes(LEGENDS_CHECKIN.generalCheckinMinutes);
-    setMatchCheckinMinutes(LEGENDS_CHECKIN.matchCheckinMinutes);
-    setScoreCounterMinutes(LEGENDS_CHECKIN.scoreCounterMinutes);
-    setDays([{ date: '', startsAt: '15:00', endsAt: '22:00' }]);
-    setPhasePlan(buildSingleElimPhasePlan(SINGLE_ELIM_FORMAT.maxTeams));
-    toast.success('Préréglage tournoi en ligne appliqué. Reste à saisir nom et dates.');
-  }
-
-  // Ouverture J-14 / fermeture J-3 par rapport au premier jour de compétition
-  // (spec §4). Fermeture à 23:59 le soir, ouverture à midi.
-  function fillRegistrationWindow() {
-    const first = days[0]?.date;
-    if (!first || isNaN(new Date(first).getTime())) {
-      toast.error("Renseigne d'abord la date du jour 1.");
-      return;
-    }
-    const day1 = new Date(`${first}T00:00`);
-    const opens = new Date(day1);
-    opens.setDate(opens.getDate() - 14);
-    opens.setHours(12, 0, 0, 0);
-    const closes = new Date(day1);
-    closes.setDate(closes.getDate() - 3);
-    closes.setHours(23, 59, 0, 0);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const toLocal = (d: Date) =>
-      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    setOpensAt(toLocal(opens));
-    setClosesAt(toLocal(closes));
-  }
-
-  async function save() {
-    const payload = {
-      name,
-      game: 'rocket_league',
-      circuitId: circuitId || null,
-      format: {
-        kind,
-        maxTeams,
-        bo: {
-          default: boDefault,
-          overrides: kind === 'single_elim' ? overrides.filter(o => o.bracket !== 'losers') : overrides,
-          grandFinal: boGrandFinal,
-        },
-        bracketReset: kind === 'double_elim' && bracketReset,
-        thirdPlace: kind === 'single_elim' && thirdPlace,
-      },
-      eligibility: {
-        requireVerifiedAccounts: requireVerified,
-        minAge: minAge.trim() === '' ? null : Number(minAge),
-        mmr: mmrEnabled ? { weightCurrent, maxAvg, maxGap, maxPlayer } : null,
-      },
-      roster: { starters, subsMax },
-      registration: {
-        opensAt: localInputToIso(opensAt),
-        closesAt: localInputToIso(closesAt),
-        waitlist,
-      },
-      schedule: { days, phasePlan, generalCheckinMinutes, matchCheckinMinutes, scoreCounterMinutes },
-      discordGuildId,
-      isDev: isDevComp,
-    };
-    const check = validateCompetitionPayload(payload);
-    if (!check.ok) {
-      toast.error(check.error);
-      return;
-    }
-    setSaving(true);
-    try {
-      if (initial) {
-        await api(`/api/admin/competitions/${initial.id}`, { method: 'PATCH', body: payload });
-        toast.success('Compétition enregistrée.');
-      } else {
-        await api('/api/admin/competitions', { method: 'POST', body: payload });
-        toast.success('Compétition créée en brouillon.');
-      }
-      onSaved();
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
   const selectableCircuits = circuits.filter(c => c.game === 'rocket_league');
 
   return (
     <div className="panel bevel">
       <div className="panel-header flex items-center justify-between gap-2 flex-wrap">
-        <span className="t-sub">{initial ? `Éditer — ${initial.name}` : 'Nouvelle compétition'}</span>
-        <div className="flex items-center gap-2">
-          <button type="button" className="btn-springs btn-secondary bevel-sm text-sm" onClick={applyLegendsPreset}>
-            Préréglage Legends Qualif
+        <span className="t-sub">{initial ? `Éditer — ${initial.name}` : 'Nouveau tournoi'}</span>
+        {!initial && (
+          <button type="button" className="btn-springs btn-ghost text-sm" onClick={onRestart}>
+            Changer de format
           </button>
-          <button type="button" className="btn-springs btn-secondary bevel-sm text-sm" onClick={applySingleElimPreset}>
-            Préréglage tournoi en ligne
-          </button>
-        </div>
+        )}
       </div>
-      <div className="panel-body space-y-6">
 
-        {/* Base */}
+      <div className="panel-body space-y-6">
+        {/* Identité */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="t-label block mb-2">Nom</label>
-            <input
-              className="settings-input w-full"
-              value={name}
-              onChange={e => setName(e.target.value)}
+            <label className="t-label-soft block mb-2">Nom</label>
+            <input className="settings-input w-full" value={form.name} maxLength={80}
               placeholder="Legends Qualifier #1"
-              maxLength={80}
-            />
+              onChange={e => patch({ name: e.target.value })} />
           </div>
           <div>
-            <label className="t-label block mb-2">Circuit</label>
-            <select
-              className="settings-input w-full"
-              value={circuitId}
-              onChange={e => setCircuitId(e.target.value)}
-            >
+            <label className="t-label-soft block mb-2">Circuit</label>
+            <select className="settings-input w-full" value={form.circuitId}
+              onChange={e => patch({ circuitId: e.target.value })}>
               <option value="">Aucun (tournoi isolé)</option>
-              {selectableCircuits.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
+              {selectableCircuits.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
         </div>
 
         <div>
-          <Switch label="Compétition de test (invisible du public)" value={isDevComp} onChange={setIsDevComp} />
+          <Switch label="Compétition de test (invisible du public)" value={form.isDev}
+            onChange={v => patch({ isDev: v })} />
           <p className="text-xs mt-1 px-2" style={{ color: 'var(--s-text-muted)' }}>
-            Réservée au bac à sable : elle reste masquée du public (fiche, bracket,
-            listes) même une fois publiée, seuls toi et les comptes de test la voient.
-            Coche pour tester le cycle complet sans rien exposer.
+            Reste masquée même une fois publiée : fiche, bracket et listes. Pour dérouler
+            le cycle complet sans rien exposer.
           </p>
         </div>
 
         <div className="divider" />
 
-        {/* Format */}
-        <div>
-          <label className="t-label block mb-3">Format</label>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div>
-              <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Type de bracket</label>
-              <select className="settings-input w-full" value={kind}
-                onChange={e => switchKind(e.target.value as 'double_elim' | 'single_elim')}>
-                <option value="double_elim">Double élimination</option>
-                <option value="single_elim">Simple élimination</option>
-              </select>
+        {/* Format et étapes */}
+        <StagesEditor
+          stages={form.stages}
+          hasCircuit={form.circuitId !== ''}
+          onChange={stages => patch({ stages })}
+        />
+
+        <div className="divider" />
+
+        {/* Déroulé */}
+        <div className="space-y-3">
+          <ScheduleBoard
+            blocks={blocks}
+            dayByPhase={dayByPhase}
+            days={form.days}
+            onDayByPhaseChange={next => patch({ dayByPhase: next })}
+            onDaysChange={next => patch({ days: next, dayByPhase: fitAssignment(dayByPhase, blocks, next.length) })}
+            onAutoSpread={() => patch({ dayByPhase: spreadOverDays(blocks, form.days.length) })}
+          />
+          {form.stages.length > 1 && (
+            <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+              Ce déroulé couvre l’étape 1. Les journées des étapes suivantes s’ajoutent
+              au moment du passage d’étape, quand les qualifiées sont connues.
+            </p>
+          )}
+        </div>
+
+        <div className="divider" />
+
+        {/* Inscriptions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <label className="t-label-soft">Inscriptions</label>
+              <button type="button" className="quiet-link text-sm"
+                onClick={() => {
+                  const range = registrationWindow(form.days[0]?.date);
+                  if (range) patch(range);
+                }}>
+                Calculer J-14 → J-3
+              </button>
             </div>
-            <div>
-              <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Équipes max</label>
-              <input type="number" min={4} max={64} className="settings-input w-full"
-                value={maxTeams} onChange={e => changeMaxTeams(Number(e.target.value))} />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Ouverture</label>
+                <input type="datetime-local" className="settings-input w-full" value={form.opensAt}
+                  onChange={e => patch({ opensAt: e.target.value })} />
+              </div>
+              <div>
+                <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Fermeture</label>
+                <input type="datetime-local" className="settings-input w-full" value={form.closesAt}
+                  onChange={e => patch({ closesAt: e.target.value })} />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>BO par défaut</label>
-              <select className="settings-input w-full" value={boDefault}
-                onChange={e => setBoDefault(Number(e.target.value))}>
-                {BO_CHOICES.map(n => <option key={n} value={n}>BO{n}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>
-                {kind === 'double_elim' ? 'Grande finale' : 'Finale'}
-              </label>
-              <select className="settings-input w-full" value={boGrandFinal}
-                onChange={e => setBoGrandFinal(Number(e.target.value))}>
-                {BO_CHOICES.map(n => <option key={n} value={n}>BO{n}</option>)}
-              </select>
-            </div>
-            <div className="flex items-end pb-1">
-              {kind === 'double_elim' ? (
-                <Switch label="Bracket reset" value={bracketReset} onChange={setBracketReset} />
-              ) : (
-                <Switch label="Petite finale (3e place)" value={thirdPlace} onChange={changeThirdPlace} />
-              )}
+            <div className="mt-2">
+              <Switch label="Liste d'attente au-delà du cap" value={form.waitlist}
+                onChange={v => patch({ waitlist: v })} />
             </div>
           </div>
 
-          <div className="mt-4">
-            <label className="block text-sm mb-2" style={{ color: 'var(--s-text-dim)' }}>
-              BO spécifiques (comptés depuis la fin du bracket : 1 = finale, 2 = demi)
-            </label>
-            <div className="space-y-2">
-              {overrides.map((o, i) => (
-                <div key={i} className="flex flex-wrap items-center gap-2">
-                  <select className="settings-input" value={o.bracket}
-                    onChange={e => setOverrides(prev => prev.map((p, j) => j === i ? { ...p, bracket: e.target.value as 'winners' | 'losers' } : p))}>
-                    <option value="winners">{kind === 'single_elim' ? 'Arbre' : 'Winners'}</option>
-                    {kind === 'double_elim' && <option value="losers">Losers</option>}
-                  </select>
-                  <input type="number" min={1} max={10} className="settings-input w-20"
-                    value={o.roundsFromEnd}
-                    onChange={e => setOverrides(prev => prev.map((p, j) => j === i ? { ...p, roundsFromEnd: Number(e.target.value) } : p))} />
-                  <select className="settings-input" value={o.bo}
-                    onChange={e => setOverrides(prev => prev.map((p, j) => j === i ? { ...p, bo: Number(e.target.value) } : p))}>
-                    {BO_CHOICES.map(n => <option key={n} value={n}>BO{n}</option>)}
-                  </select>
-                  <button type="button" className="btn-springs btn-ghost text-sm"
-                    onClick={() => setOverrides(prev => prev.filter((_, j) => j !== i))}>
-                    Retirer
-                  </button>
-                </div>
-              ))}
-              <button type="button" className="btn-springs btn-ghost text-sm"
-                onClick={() => setOverrides(prev => [...prev, { bracket: 'winners', roundsFromEnd: 1, bo: 7 }])}>
-                Ajouter une règle BO
-              </button>
+          <div>
+            <label className="t-label-soft block mb-3">Roster</label>
+            <div className="flex items-center gap-4">
+              <div>
+                <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Titulaires</label>
+                <input type="number" min={1} max={10} className="settings-input" style={{ width: 96 }}
+                  value={form.starters} onChange={e => patch({ starters: Number(e.target.value) })} />
+              </div>
+              <div>
+                <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Remplaçants max</label>
+                <input type="number" min={0} max={10} className="settings-input" style={{ width: 96 }}
+                  value={form.subsMax} onChange={e => patch({ subsMax: Number(e.target.value) })} />
+              </div>
             </div>
           </div>
         </div>
@@ -409,14 +254,18 @@ export default function CompetitionForm({
 
         {/* Éligibilité */}
         <div>
-          <label className="t-label block mb-3">Éligibilité</label>
+          <label className="t-label-soft block mb-3">Éligibilité</label>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Switch label="Comptes vérifiés obligatoires" value={requireVerified} onChange={setRequireVerified} />
+              <Switch label="Comptes vérifiés obligatoires" value={form.requireVerified}
+                onChange={v => patch({ requireVerified: v })} />
               <div className="flex items-center gap-3 px-2">
                 <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>Âge minimum</span>
-                <input type="number" min={0} max={99} className="settings-input w-24"
-                  value={minAge} onChange={e => setMinAge(e.target.value)} placeholder="aucun" />
+                {/* Largeur en style inline : `.settings-input` fixe width:100%
+                    et gagne sur les utilitaires Tailwind (piège du repo). */}
+                <input type="number" min={0} max={99} className="settings-input" placeholder="aucun"
+                  style={{ width: 96 }}
+                  value={form.minAge} onChange={e => patch({ minAge: e.target.value })} />
               </div>
               <p className="text-xs px-2" style={{ color: 'var(--s-text-muted)' }}>
                 Un joueur sous l&apos;âge minimum ne bloque pas l&apos;inscription : elle passe
@@ -424,28 +273,28 @@ export default function CompetitionForm({
               </p>
             </div>
             <div>
-              <Switch label="Règles MMR" value={mmrEnabled} onChange={setMmrEnabled} />
-              {mmrEnabled && (
+              <Switch label="Plafond MMR" value={form.mmrEnabled} onChange={v => patch({ mmrEnabled: v })} />
+              {form.mmrEnabled && (
                 <div className="grid grid-cols-2 gap-3 mt-2 px-2">
                   <div>
                     <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Poids MMR actuel (0-1)</label>
                     <input type="number" min={0} max={1} step={0.05} className="settings-input w-full"
-                      value={weightCurrent} onChange={e => setWeightCurrent(Number(e.target.value))} />
+                      value={form.weightCurrent} onChange={e => patch({ weightCurrent: Number(e.target.value) })} />
                   </div>
                   <div>
                     <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Moyenne max (toute compo)</label>
                     <input type="number" min={0} className="settings-input w-full"
-                      value={maxAvg} onChange={e => setMaxAvg(Number(e.target.value))} />
+                      value={form.maxAvg} onChange={e => patch({ maxAvg: Number(e.target.value) })} />
                   </div>
                   <div>
                     <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Écart max</label>
                     <input type="number" min={0} className="settings-input w-full"
-                      value={maxGap} onChange={e => setMaxGap(Number(e.target.value))} />
+                      value={form.maxGap} onChange={e => patch({ maxGap: Number(e.target.value) })} />
                   </div>
                   <div>
                     <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Plafond individuel</label>
                     <input type="number" min={0} className="settings-input w-full"
-                      value={maxPlayer} onChange={e => setMaxPlayer(Number(e.target.value))} />
+                      value={form.maxPlayer} onChange={e => patch({ maxPlayer: Number(e.target.value) })} />
                   </div>
                 </div>
               )}
@@ -455,161 +304,223 @@ export default function CompetitionForm({
 
         <div className="divider" />
 
-        {/* Roster + inscriptions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="t-label block mb-3">Roster</label>
-            <div className="flex items-center gap-4">
-              <div>
-                <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Titulaires</label>
-                <input type="number" min={1} max={10} className="settings-input w-24"
-                  value={starters} onChange={e => setStarters(Number(e.target.value))} />
-              </div>
-              <div>
-                <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Remplaçants max</label>
-                <input type="number" min={0} max={10} className="settings-input w-24"
-                  value={subsMax} onChange={e => setSubsMax(Number(e.target.value))} />
-              </div>
-            </div>
-          </div>
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <label className="t-label">Inscriptions</label>
-              <button type="button" className="btn-springs btn-ghost text-sm" onClick={fillRegistrationWindow}>
-                Calculer J-14 → J-3
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Ouverture</label>
-                <input type="datetime-local" className="settings-input w-full"
-                  value={opensAt} onChange={e => setOpensAt(e.target.value)} />
-              </div>
-              <div>
-                <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Fermeture</label>
-                <input type="datetime-local" className="settings-input w-full"
-                  value={closesAt} onChange={e => setClosesAt(e.target.value)} />
-              </div>
-            </div>
-            <div className="mt-2">
-              <Switch label="Liste d'attente au-delà du cap" value={waitlist} onChange={setWaitlist} />
-            </div>
-          </div>
-        </div>
-
-        <div className="divider" />
-
-        {/* Planning */}
+        {/* Jour de match */}
         <div>
-          <label className="t-label block mb-3">Planning</label>
-          <div className="space-y-2">
-            {days.map((d, i) => (
-              <div key={i} className="flex flex-wrap items-center gap-2">
-                <span className="text-sm w-14" style={{ color: 'var(--s-text-dim)' }}>Jour {i + 1}</span>
-                <input type="date" className="settings-input"
-                  value={d.date}
-                  onChange={e => setDays(prev => prev.map((p, j) => j === i ? { ...p, date: e.target.value } : p))} />
-                <input type="time" className="settings-input" aria-label={`Début jour ${i + 1}`}
-                  value={d.startsAt}
-                  onChange={e => setDays(prev => prev.map((p, j) => j === i ? { ...p, startsAt: e.target.value } : p))} />
-                <span className="text-sm" style={{ color: 'var(--s-text-muted)' }}>→</span>
-                <input type="time" className="settings-input" aria-label={`Fin jour ${i + 1}`}
-                  value={d.endsAt ?? ''}
-                  onChange={e => setDays(prev => prev.map((p, j) => j === i ? { ...p, endsAt: e.target.value } : p))} />
-                {days.length > 1 && (
-                  <button type="button" className="btn-springs btn-ghost text-sm"
-                    onClick={() => {
-                      // Retirer un jour recale les phases qui pointaient dessus
-                      // sur le dernier jour restant, sinon la validation refuse
-                      // le plan (« jour hors planning ») sans issue dans l'UI.
-                      const newLength = days.length - 1;
-                      setDays(prev => prev.filter((_, j) => j !== i));
-                      setPhasePlan(prev => prev.map(p => (
-                        p.day > newLength ? { ...p, day: newLength } : p
-                      )));
-                    }}>
-                    Retirer
-                  </button>
-                )}
-              </div>
-            ))}
-            <button type="button" className="btn-springs btn-ghost text-sm"
-              onClick={() => setDays(prev => [...prev, { date: '', startsAt: '15:00', endsAt: '22:00' }])}>
-              Ajouter un jour
-            </button>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 mt-4 max-w-lg">
+          <label className="t-label-soft block mb-3">Jour de match</label>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl">
             <div>
               <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Check-in général (min)</label>
               <input type="number" min={5} max={120} className="settings-input w-full"
-                value={generalCheckinMinutes} onChange={e => setGeneralCheckinMinutes(Number(e.target.value))} />
+                value={form.generalCheckinMinutes}
+                onChange={e => patch({ generalCheckinMinutes: Number(e.target.value) })} />
             </div>
             <div>
               <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Check-in match (min)</label>
               <input type="number" min={1} max={60} className="settings-input w-full"
-                value={matchCheckinMinutes} onChange={e => setMatchCheckinMinutes(Number(e.target.value))} />
+                value={form.matchCheckinMinutes}
+                onChange={e => patch({ matchCheckinMinutes: Number(e.target.value) })} />
             </div>
             <div>
               <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Contre-saisie score (min)</label>
               <input type="number" min={1} max={60} className="settings-input w-full"
-                value={scoreCounterMinutes} onChange={e => setScoreCounterMinutes(Number(e.target.value))} />
+                value={form.scoreCounterMinutes}
+                onChange={e => patch({ scoreCounterMinutes: Number(e.target.value) })} />
             </div>
           </div>
 
-          <div className="mt-4">
-            <label className="block text-sm mb-2" style={{ color: 'var(--s-text-dim)' }}>
-              Plan de phases ({phasePlan.length})
-            </label>
-            <div style={{ border: '1px solid var(--s-border)' }}>
-              {phasePlan.map(p => (
-                <div key={p.phase} className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 text-sm"
-                  style={{ borderBottom: '1px solid var(--s-border)', color: 'var(--s-text-dim)' }}>
-                  <span>{p.label}</span>
-                  <select
-                    className="settings-input"
-                    style={{ padding: '4px 8px' }}
-                    value={Math.min(p.day, days.length)}
-                    onChange={e => setPhasePlan(prev => prev.map(x => (
-                      x.phase === p.phase ? { ...x, day: Number(e.target.value) } : x
-                    )))}
-                  >
-                    {days.map((_, di) => (
-                      <option key={di + 1} value={di + 1}>Jour {di + 1}</option>
-                    ))}
-                  </select>
-                </div>
-              ))}
-            </div>
+          <div className="max-w-md mt-4">
+            <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Serveur Discord (ID de guilde)</label>
+            <input className="settings-input w-full" value={form.discordGuildId}
+              placeholder="Optionnel en brouillon"
+              onChange={e => patch({ discordGuildId: e.target.value })} />
             <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
-              Généré par le préréglage (nominal 32 équipes). Le déroulé réel suit le
-              bracket effectif le jour du tournoi.
+              Le bot doit déjà être invité sur ce serveur pour créer les salons d&apos;équipe.
             </p>
           </div>
         </div>
 
-        <div className="divider" />
-
-        {/* Discord */}
-        <div className="max-w-md">
-          <label className="t-label block mb-2">Serveur Discord (ID de guilde)</label>
-          <input className="settings-input w-full" value={discordGuildId}
-            onChange={e => setDiscordGuildId(e.target.value)} placeholder="Optionnel en brouillon" />
-          <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
-            Le serveur SPRINGS E-SPORT pour la Legends Cup. Le bot doit y être invité
-            avant le provisioning des salons d&apos;équipe.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3 pt-2">
-          <button type="button" className="btn-springs btn-primary bevel-sm" onClick={save} disabled={saving}>
-            {saving ? 'Enregistrement…' : initial ? 'Enregistrer' : 'Créer la compétition'}
-          </button>
-          <button type="button" className="btn-springs btn-ghost" onClick={onCancel} disabled={saving}>
-            Annuler
-          </button>
+        {/* Récapitulatif + enregistrement */}
+        <div className="flex flex-wrap items-center gap-3 pt-2" style={{ borderTop: '1px solid var(--s-border)' }}>
+          <div className="flex-1 min-w-[240px] pt-3">
+            <p className="t-mono" style={{ fontSize: 12, color: 'var(--s-text-muted)' }}>
+              {form.stages[0].format.maxTeams} équipes · {totalMatches} matchs ·{' '}
+              {form.days.length === 1 ? '1 jour' : `${form.days.length} jours`}
+              {form.stages.length > 1 ? ` · ${form.stages.length} étapes` : ''}
+            </p>
+            {!check.ok && (
+              <p className="text-sm mt-1" style={{ color: 'var(--s-text)' }}>{check.error}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-3 pt-3">
+            <button type="button" className="btn-springs btn-ghost" onClick={onCancel} disabled={saving}>
+              Annuler
+            </button>
+            <button type="button" className="btn-springs btn-primary bevel-sm"
+              disabled={saving || !check.ok}
+              onClick={() => onSubmit(payload)}>
+              {saving ? 'Enregistrement…' : initial ? 'Enregistrer' : 'Créer le tournoi'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
+}
+
+// ── État ────────────────────────────────────────────────────────────────────
+
+function stateFromPreset(preset: CreationPreset, circuits: AdminCircuit[]): FormState {
+  const blocks = buildPlanBlocks(preset.format);
+  const stages: TournamentStage[] = preset.stages
+    ? preset.stages.map(s => ({ ...s }))
+    : [{ kind: preset.format.kind, format: preset.format }];
+  // Le préréglage Legends vise un circuit : s'il n'en existe qu'un, autant le
+  // pré-sélectionner plutôt que de le faire chercher.
+  const circuitId = preset.wantsCircuit && circuits.length === 1 ? circuits[0].id : '';
+  return {
+    name: '',
+    circuitId,
+    isDev: false,
+    stages,
+    requireVerified: preset.eligibility.requireVerifiedAccounts,
+    minAge: preset.eligibility.minAge != null ? String(preset.eligibility.minAge) : '',
+    mmrEnabled: preset.eligibility.mmr !== null,
+    weightCurrent: preset.eligibility.mmr?.weightCurrent ?? 0.7,
+    maxAvg: preset.eligibility.mmr?.maxAvg ?? 1850,
+    maxGap: preset.eligibility.mmr?.maxGap ?? 150,
+    maxPlayer: preset.eligibility.mmr?.maxPlayer ?? 1900,
+    starters: preset.roster.starters,
+    subsMax: preset.roster.subsMax,
+    opensAt: '',
+    closesAt: '',
+    waitlist: true,
+    days: Array.from({ length: preset.dayCount }, () => ({ date: '', startsAt: '15:00', endsAt: '22:00' })),
+    dayByPhase: spreadOverDays(blocks, preset.dayCount),
+    ...preset.checkin,
+    discordGuildId: '',
+  };
+}
+
+function stateFromCompetition(comp: AdminCompetition): FormState {
+  const format = normalizeFormat((comp.format ?? {}) as CompetitionFormat);
+  const stages: TournamentStage[] = comp.stages?.length
+    ? comp.stages.map(s => ({ ...s }))
+    : [{ kind: format.kind, format }];
+  const days: ScheduleDay[] = comp.schedule?.days?.length
+    ? comp.schedule.days.map(d => ({ ...d }))
+    : [{ date: '', startsAt: '15:00', endsAt: '22:00' }];
+  const blocks = buildPlanBlocks(stages[0].format);
+  const stored = comp.schedule?.phasePlan ?? [];
+  // On repart des journées enregistrées quand le plan correspond encore au
+  // format ; sinon (format retouché hors formulaire) on répartit à neuf.
+  const dayByPhase = stored.length === blocks.length
+    ? blocks.map((b, i) => stored[i]?.day ?? 1)
+    : spreadOverDays(blocks, days.length);
+
+  return {
+    name: comp.name ?? '',
+    circuitId: comp.circuitId ?? '',
+    isDev: comp.isDev === true,
+    stages,
+    requireVerified: comp.eligibility?.requireVerifiedAccounts ?? true,
+    minAge: comp.eligibility?.minAge != null ? String(comp.eligibility.minAge) : '',
+    mmrEnabled: (comp.eligibility?.mmr ?? null) !== null,
+    weightCurrent: comp.eligibility?.mmr?.weightCurrent ?? 0.7,
+    maxAvg: comp.eligibility?.mmr?.maxAvg ?? 1850,
+    maxGap: comp.eligibility?.mmr?.maxGap ?? 150,
+    maxPlayer: comp.eligibility?.mmr?.maxPlayer ?? 1900,
+    starters: comp.roster?.starters ?? 3,
+    subsMax: comp.roster?.subsMax ?? 2,
+    opensAt: isoToLocalInput(comp.registration?.opensAt),
+    closesAt: isoToLocalInput(comp.registration?.closesAt),
+    waitlist: comp.registration?.waitlist ?? true,
+    days,
+    dayByPhase,
+    generalCheckinMinutes: comp.schedule?.generalCheckinMinutes ?? LEGENDS_CHECKIN.generalCheckinMinutes,
+    matchCheckinMinutes: comp.schedule?.matchCheckinMinutes ?? LEGENDS_CHECKIN.matchCheckinMinutes,
+    scoreCounterMinutes: comp.schedule?.scoreCounterMinutes ?? LEGENDS_CHECKIN.scoreCounterMinutes,
+    discordGuildId: comp.discord?.guildId ?? '',
+  };
+}
+
+function buildPayload(form: FormState, phasePlan: PhasePlanEntry[], initial: AdminCompetition | null) {
+  const multi = form.stages.length > 1;
+  return {
+    name: form.name,
+    game: 'rocket_league',
+    circuitId: form.circuitId || null,
+    // Invariant multi-étapes : le format de la compétition EST celui de
+    // l'étape 1 — une seule source, aucune divergence possible.
+    format: form.stages[0].format,
+    stages: multi ? form.stages : null,
+    // Repasser un tournoi à étapes en tournoi simple doit EFFACER la séquence
+    // enregistrée : sans ce drapeau, le serveur la conserverait.
+    ...(initial?.stages?.length && !multi ? { clearStages: true } : {}),
+    eligibility: {
+      requireVerifiedAccounts: form.requireVerified,
+      minAge: form.minAge.trim() === '' ? null : Number(form.minAge),
+      mmr: form.mmrEnabled
+        ? {
+            weightCurrent: form.weightCurrent,
+            maxAvg: form.maxAvg,
+            maxGap: form.maxGap,
+            maxPlayer: form.maxPlayer,
+          }
+        : null,
+    },
+    roster: { starters: form.starters, subsMax: form.subsMax },
+    registration: {
+      opensAt: localInputToIso(form.opensAt),
+      closesAt: localInputToIso(form.closesAt),
+      waitlist: form.waitlist,
+    },
+    schedule: {
+      days: form.days,
+      phasePlan,
+      generalCheckinMinutes: form.generalCheckinMinutes,
+      matchCheckinMinutes: form.matchCheckinMinutes,
+      scoreCounterMinutes: form.scoreCounterMinutes,
+    },
+    discordGuildId: form.discordGuildId,
+    isDev: form.isDev,
+  };
+}
+
+/** Aligne les journées sur les blocs courants : un changement de format fait
+ *  varier leur nombre, et un plan qui ne décrit plus le tournoi serait refusé
+ *  à l'enregistrement sans que rien ne l'explique à l'écran. */
+function fitAssignment(current: number[], blocks: PlanBlock[], dayCount: number): number[] {
+  const days = Math.max(1, dayCount);
+  if (current.length !== blocks.length) return spreadOverDays(blocks, days);
+  return current.map(d => Math.min(Math.max(1, d), days));
+}
+
+/** Ouverture J-14 à midi, fermeture J-3 à 23:59 (spec §4). */
+function registrationWindow(firstDay: string | undefined): { opensAt: string; closesAt: string } | null {
+  if (!firstDay || isNaN(new Date(firstDay).getTime())) return null;
+  const day1 = new Date(`${firstDay}T00:00`);
+  const opens = new Date(day1);
+  opens.setDate(opens.getDate() - 14);
+  opens.setHours(12, 0, 0, 0);
+  const closes = new Date(day1);
+  closes.setDate(closes.getDate() - 3);
+  closes.setHours(23, 59, 0, 0);
+  return { opensAt: toLocalInput(opens), closesAt: toLocalInput(closes) };
+}
+
+function toLocalInput(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function isoToLocalInput(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? '' : toLocalInput(d);
+}
+
+function localInputToIso(v: string): string {
+  if (!v) return '';
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? '' : d.toISOString();
 }
