@@ -935,6 +935,12 @@ function RegistrationRowView({
                 </tbody>
               </table>
             </div>
+            {/* Dérogation admin au roster lock (spec §4) : remplacement,
+                échange de rôles, capitanat — re-vérifications serveur
+                complètes, tout journalisé. Inline (pattern reg-well). */}
+            {(reg.status === 'approved' || reg.status === 'waitlisted') && (
+              <RosterEditor reg={reg} competitionId={competitionId} showMmr={showMmr} onDone={onReload} />
+            )}
           </section>
 
           {/* ── ZONE C · CONTACTS | CONTEXTE ── */}
@@ -1276,6 +1282,195 @@ function SanctionForm({ target, competitionId, competitionName, contextStructure
           Annuler
         </button>
       </div>
+    </div>
+  );
+}
+
+// ── Édition du roster (dérogation admin au roster lock — spec §4) ────────────
+// Trois opérations, une par envoi, re-vérifiées serveur (membre de l'équipe,
+// anti-doublon, sanctions, compte vérifié, âge/dérogation, MMR déclarés).
+// Le rôle du remplaçant est HÉRITÉ du sortant — les effectifs ne bougent pas.
+
+interface RosterOptionMember {
+  uid: string;
+  displayName: string;
+  verified: boolean;
+  ageStatus: 'ok' | 'under' | 'unknown';
+}
+
+function RosterEditor({ reg, competitionId, showMmr, onDone }: {
+  reg: RegistrationRow;
+  competitionId: string;
+  showMmr: boolean;
+  onDone: () => void;
+}) {
+  const toast = useToast();
+  const [mode, setMode] = useState<'replace' | 'swap' | 'captain' | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [outUid, setOutUid] = useState('');
+  const [inUid, setInUid] = useState('');
+  const [members, setMembers] = useState<RosterOptionMember[] | null>(null);
+  const [curMmr, setCurMmr] = useState('');
+  const [peakMmr, setPeakMmr] = useState('');
+  const [derogNote, setDerogNote] = useState('');
+  const [swapA, setSwapA] = useState('');
+  const [swapB, setSwapB] = useState('');
+  const [newCaptain, setNewCaptain] = useState('');
+
+  const titulaires = reg.roster.filter(p => p.role === 'titulaire');
+  const remplacants = reg.roster.filter(p => p.role === 'remplacant');
+  const selectedMember = members?.find(m => m.uid === inUid) ?? null;
+  const needsDerog = selectedMember !== null && selectedMember.ageStatus !== 'ok';
+
+  const openReplace = async () => {
+    setMode('replace');
+    setOutUid(''); setInUid(''); setCurMmr(''); setPeakMmr(''); setDerogNote('');
+    setMembers(null);
+    try {
+      const r = await api<{ members: RosterOptionMember[] }>(
+        `/api/admin/competitions/${competitionId}/registrations?rosterOptionsFor=${encodeURIComponent(reg.id)}`);
+      setMembers(r.members);
+    } catch {
+      toast.error('Membres de l\'équipe introuvables — recharge la liste.');
+      setMembers([]);
+    }
+  };
+
+  const submit = async (change: Record<string, unknown>, okMsg: string) => {
+    setBusy(true);
+    try {
+      await api(`/api/admin/competitions/${competitionId}/registrations`, {
+        method: 'POST', body: { action: 'change_roster', registrationId: reg.id, change },
+      });
+      toast.success(okMsg);
+      setMode(null);
+      onDone();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : 'Changement impossible.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const selectCls = 'settings-input text-sm';
+  const labelCls = 't-label-soft block mb-1';
+
+  return (
+    <div className="px-3 pb-3">
+      <div className="flex flex-wrap items-center gap-2 pt-2" style={{ borderTop: '1px solid var(--s-border)' }}>
+        <span className="t-label-soft">Roster (dérogation admin)</span>
+        <button type="button" className="reg-quiet-link" disabled={busy}
+          onClick={() => (mode === 'replace' ? setMode(null) : openReplace())}>
+          Remplacer un joueur
+        </button>
+        <button type="button" className="reg-quiet-link" disabled={busy}
+          onClick={() => { setMode(mode === 'swap' ? null : 'swap'); setSwapA(''); setSwapB(''); }}>
+          Échanger les rôles
+        </button>
+        <button type="button" className="reg-quiet-link" disabled={busy}
+          onClick={() => { setMode(mode === 'captain' ? null : 'captain'); setNewCaptain(''); }}>
+          Changer le capitaine
+        </button>
+      </div>
+
+      {mode === 'replace' && (
+        <div className="mt-2 flex flex-wrap items-end gap-3">
+          <div>
+            <label className={labelCls}>Joueur sortant</label>
+            <select className={selectCls} value={outUid} onChange={e => setOutUid(e.target.value)}>
+              <option value="">—</option>
+              {reg.roster.map(p => (
+                <option key={p.uid} value={p.uid}>{p.displayName} ({p.role === 'titulaire' ? 'titulaire' : 'remplaçant'})</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>Joueur entrant (membre de l&apos;équipe)</label>
+            <select className={selectCls} value={inUid} onChange={e => setInUid(e.target.value)} disabled={members === null}>
+              <option value="">{members === null ? 'Chargement…' : members.length === 0 ? 'Aucun membre disponible' : '—'}</option>
+              {(members ?? []).map(m => (
+                <option key={m.uid} value={m.uid}>
+                  {m.displayName}{m.verified ? '' : ' · non vérifié'}{m.ageStatus === 'under' ? ' · mineur' : m.ageStatus === 'unknown' ? ' · âge inconnu' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          {showMmr && (
+            <>
+              <div>
+                <label className={labelCls}>MMR actuel</label>
+                <input className={selectCls} style={{ width: 90 }} inputMode="numeric" value={curMmr}
+                  onChange={e => setCurMmr(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="1500" />
+              </div>
+              <div>
+                <label className={labelCls}>Peak</label>
+                <input className={selectCls} style={{ width: 90 }} inputMode="numeric" value={peakMmr}
+                  onChange={e => setPeakMmr(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="1600" />
+              </div>
+            </>
+          )}
+          {needsDerog && (
+            <div className="w-full">
+              <label className={labelCls}>Note de dérogation (mineur / âge inconnu — obligatoire)</label>
+              <input className={`${selectCls} w-full`} value={derogNote} maxLength={500}
+                onChange={e => setDerogNote(e.target.value)}
+                placeholder="Accord parental vérifié le… / pièce fournie…" />
+            </div>
+          )}
+          <button type="button" className="btn-springs btn-secondary bevel-sm text-sm"
+            disabled={busy || !outUid || !inUid || (showMmr && (!curMmr || !peakMmr)) || (needsDerog && derogNote.trim().length < 3)}
+            onClick={() => submit({
+              op: 'replace', outUid, inUid,
+              ...(showMmr ? { declaredCurrentMmr: Number(curMmr), declaredPeakMmr: Number(peakMmr) } : {}),
+              ...(derogNote.trim() ? { derogationNote: derogNote.trim() } : {}),
+            }, 'Roster modifié — le joueur entrant hérite du rôle du sortant.')}>
+            Remplacer
+          </button>
+        </div>
+      )}
+
+      {mode === 'swap' && (
+        <div className="mt-2 flex flex-wrap items-end gap-3">
+          <div>
+            <label className={labelCls}>Titulaire</label>
+            <select className={selectCls} value={swapA} onChange={e => setSwapA(e.target.value)}>
+              <option value="">—</option>
+              {titulaires.map(p => <option key={p.uid} value={p.uid}>{p.displayName}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>Remplaçant</label>
+            <select className={selectCls} value={swapB} onChange={e => setSwapB(e.target.value)}>
+              <option value="">—</option>
+              {remplacants.map(p => <option key={p.uid} value={p.uid}>{p.displayName}</option>)}
+            </select>
+          </div>
+          <button type="button" className="btn-springs btn-secondary bevel-sm text-sm"
+            disabled={busy || !swapA || !swapB}
+            onClick={() => submit({ op: 'swap_roles', uidA: swapA, uidB: swapB }, 'Rôles échangés.')}>
+            Échanger
+          </button>
+        </div>
+      )}
+
+      {mode === 'captain' && (
+        <div className="mt-2 flex flex-wrap items-end gap-3">
+          <div>
+            <label className={labelCls}>Nouveau capitaine (pilote check-in et scores)</label>
+            <select className={selectCls} value={newCaptain} onChange={e => setNewCaptain(e.target.value)}>
+              <option value="">—</option>
+              {reg.roster.filter(p => p.uid !== reg.captainUid).map(p => (
+                <option key={p.uid} value={p.uid}>{p.displayName}</option>
+              ))}
+            </select>
+          </div>
+          <button type="button" className="btn-springs btn-secondary bevel-sm text-sm"
+            disabled={busy || !newCaptain}
+            onClick={() => submit({ op: 'set_captain', uid: newCaptain }, 'Capitanat transféré.')}>
+            Transférer
+          </button>
+        </div>
+      )}
     </div>
   );
 }

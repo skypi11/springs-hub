@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth, isCompetitionAdmin } from '@/lib/firebase-admin';
-import { Timestamp } from 'firebase-admin/firestore';
+import { FieldPath, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { clampString } from '@/lib/validation';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { createNotifications, type NotificationPayload } from '@/lib/notifications';
-import { sendCompetitionDM, deprovisionRegistration } from '@/lib/discord-competition';
+import {
+  sendCompetitionDM, deprovisionRegistration,
+  isGuildMember, addMemberRole, removeMemberRole,
+} from '@/lib/discord-competition';
 import { releaseCircuitClaim } from '@/lib/competitions/withdraw-registration';
+import { applyRosterChange, recomputeRegistrationComputed, type RosterChangeOp } from '@/lib/competitions/roster-change';
+import { getBlockingSanctions } from '@/lib/competitions/sanctions';
+import { computeAge } from '@/lib/age';
+import { computeRefMmr } from '@/lib/competitions/mmr';
+import { buildTrackerGgUrl, type RLPlatform } from '@/lib/rl-platform';
+import type { RegistrationRosterEntry } from '@/types/competitions';
 import {
   resolveCircuitIdentity,
   circuitTeamSlug,
@@ -224,6 +233,48 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const compSnap = await db.collection('competitions').doc(id).get();
     if (!compSnap.exists) return NextResponse.json({ error: 'Compétition introuvable.' }, { status: 404 });
     const comp = compSnap.data()!;
+
+    // Sélecteur du changement de roster (dérogation admin) : membres de
+    // l'ÉQUIPE sur Aedral (même règle que le wizard) hors roster actuel, avec
+    // le minimum utile au choix. Court-circuit léger — le pipeline complet de
+    // la file n'est pas rejoué pour ça.
+    const rosterOptionsFor = req.nextUrl.searchParams.get('rosterOptionsFor');
+    if (rosterOptionsFor) {
+      const regSnap = await db.collection('competition_registrations').doc(rosterOptionsFor).get();
+      if (!regSnap.exists || regSnap.data()?.competitionId !== id) {
+        return NextResponse.json({ error: 'Inscription introuvable.' }, { status: 404 });
+      }
+      const reg = regSnap.data()!;
+      const teamSnap = await db.collection('sub_teams').doc(reg.teamId as string).get();
+      const team = teamSnap.data();
+      const currentUids = new Set((reg.rosterUids as string[] | undefined) ?? []);
+      const candidateUids = Array.from(new Set([
+        ...((team?.playerIds as string[] | undefined) ?? []),
+        ...((team?.subIds as string[] | undefined) ?? []),
+      ])).filter(u => u && !currentUids.has(u));
+      const [userSnaps, secretSnaps] = await Promise.all([
+        candidateUids.length
+          ? db.getAll(...candidateUids.map(u => db.collection('users').doc(u)))
+          : Promise.resolve([] as FirebaseFirestore.DocumentSnapshot[]),
+        candidateUids.length
+          ? db.getAll(...candidateUids.map(u => db.collection('user_secrets').doc(u)))
+          : Promise.resolve([] as FirebaseFirestore.DocumentSnapshot[]),
+      ]);
+      const minAge = (comp.eligibility?.minAge as number | null) ?? null;
+      const members = candidateUids.map((u, i) => {
+        const ud = userSnaps[i]?.exists ? userSnaps[i].data()! : ({} as FirebaseFirestore.DocumentData);
+        const age = computeAge((secretSnaps[i]?.data()?.dateOfBirth as string | undefined) ?? '');
+        return {
+          uid: u,
+          displayName: (ud.displayName as string) || (ud.discordUsername as string) || u,
+          verified: !!(ud.rlEpicId || ud.rlSteamId),
+          // Jamais l'âge exact ici — un statut suffit au choix (même règle que
+          // le wizard côté structure).
+          ageStatus: minAge === null ? 'ok' : age === null ? 'unknown' : age < minAge ? 'under' : 'ok',
+        };
+      });
+      return NextResponse.json({ members, mmrRequired: !!comp.eligibility?.mmr });
+    }
 
     const regsSnap = await db.collection('competition_registrations')
       .where('competitionId', '==', id)
@@ -475,6 +526,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
     if (action === 'unapprove') {
       return await unapprove(db, { id, comp, regRef, registrationId, reg, adminUid: uid });
+    }
+    if (action === 'change_roster') {
+      return await changeRoster(db, { id, comp, regRef, registrationId, reg, adminUid: uid, body });
     }
     return NextResponse.json({ error: 'Action invalide.' }, { status: 400 });
   } catch (err) {
@@ -945,6 +999,408 @@ async function unapprove(db: FirebaseFirestore.Firestore, ctx: ActionContext) {
   }
 
   return NextResponse.json({ success: true, status: 'pending' });
+}
+
+// ── change_roster ───────────────────────────────────────────────────────────
+// DÉROGATION ADMIN au roster lock (spec §4 : lock TOTAL côté structure) —
+// cas type : titulaire malade la veille ou en cours de tournoi. Trois
+// opérations (replace / swap_roles / set_captain), une par appel, toutes
+// journalisées. Le remplacement REJOUE les checks du wizard (l'approve ne les
+// rejoue pas — c'est ici que la barrière vit) : membre de l'équipe Aedral,
+// anti-doublon dans la compétition, sanctions, compte vérifié, âge/dérogation,
+// MMR déclarés. L'accès aux pages de match se re-résout automatiquement
+// (match-access relit le registration LIVE) ; l'ACL privée des matchs non
+// terminaux est alignée par cohérence (défense en profondeur).
+
+// Statuts « jour de match » actifs — un changement pendant un match en cours
+// est refusé (même ensemble que la progression).
+const ACTIVE_MATCH_STATUSES = new Set([
+  'checkin', 'ready', 'live', 'awaiting_scores', 'score_review', 'disputed', 'awaiting_forfeit_validation',
+]);
+
+async function changeRoster(db: FirebaseFirestore.Firestore, ctx: ActionContext) {
+  const { id, comp, regRef, registrationId, reg, adminUid, body } = ctx;
+
+  if (reg.status !== 'approved' && reg.status !== 'waitlisted') {
+    return NextResponse.json({ error: 'Seule une inscription validée ou en liste d\'attente peut être modifiée.' }, { status: 409 });
+  }
+  const compStatus = (comp.status as string) ?? 'draft';
+  if (compStatus === 'finished' || compStatus === 'archived') {
+    return NextResponse.json({ error: 'Compétition clôturée — le roster est figé définitivement.' }, { status: 409 });
+  }
+
+  const rawChange = (body?.change ?? null) as Record<string, unknown> | null;
+  const op = rawChange?.op;
+  if (op !== 'replace' && op !== 'swap_roles' && op !== 'set_captain') {
+    return NextResponse.json({ error: 'Opération de roster invalide.' }, { status: 400 });
+  }
+  const roster = Array.isArray(reg.roster) ? (reg.roster as RegistrationRosterEntry[]) : [];
+  if (roster.length === 0) {
+    return NextResponse.json({ error: 'Inscription sans roster.' }, { status: 409 });
+  }
+
+  // Matchs de l'équipe : un match ACTIF bloque tout changement (le camp, les
+  // saisies et la room appartiennent au roster en place). Refs apprises HORS
+  // transaction (ids immuables), re-lues fraîches DEDANS.
+  const [asA, asB] = await Promise.all([
+    db.collection('competition_matches').where('competitionId', '==', id).where('teamA', '==', registrationId).get(),
+    db.collection('competition_matches').where('competitionId', '==', id).where('teamB', '==', registrationId).get(),
+  ]);
+  const teamMatchDocs = [...asA.docs, ...asB.docs];
+  const activeNow = teamMatchDocs.find(d => ACTIVE_MATCH_STATUSES.has((d.data().status as string) ?? 'pending'));
+  if (activeNow) {
+    return NextResponse.json({ error: 'Un match de l\'équipe est en cours — termine-le (ou tranche-le) avant de modifier le roster.' }, { status: 409 });
+  }
+  const nonTerminalRefs = teamMatchDocs
+    .filter(d => !['completed', 'walkover', 'cancelled'].includes((d.data().status as string) ?? 'pending'))
+    .map(d => d.ref);
+
+  // ── Construction de l'opération (replace : snapshot entrant façon wizard) ──
+  let change: RosterChangeOp;
+  let derogationNote: string | null = null;
+  let inMeta: { uid: string; displayName: string; discordId: string } | null = null;
+  const outUid = typeof rawChange?.outUid === 'string' ? rawChange.outUid : '';
+
+  if (op === 'set_captain') {
+    const uid = typeof rawChange?.uid === 'string' ? rawChange.uid : '';
+    change = { op: 'set_captain', uid };
+  } else if (op === 'swap_roles') {
+    change = {
+      op: 'swap_roles',
+      uidA: typeof rawChange?.uidA === 'string' ? rawChange.uidA : '',
+      uidB: typeof rawChange?.uidB === 'string' ? rawChange.uidB : '',
+    };
+  } else {
+    const inUid = typeof rawChange?.inUid === 'string' ? rawChange.inUid : '';
+    if (!outUid || !inUid) return NextResponse.json({ error: 'Joueurs sortant et entrant requis.' }, { status: 400 });
+
+    // Le remplaçant doit faire partie de l'ÉQUIPE sur Aedral (spec §4 — même
+    // règle que le wizard) : c'est aussi ce qui alimente le sélecteur admin.
+    const teamSnap = await db.collection('sub_teams').doc(reg.teamId as string).get();
+    const team = teamSnap.data();
+    const teamMembers = new Set([
+      ...((team?.playerIds as string[] | undefined) ?? []),
+      ...((team?.subIds as string[] | undefined) ?? []),
+    ]);
+    if (!teamMembers.has(inUid)) {
+      return NextResponse.json({ error: 'Le joueur entrant doit faire partie de l\'équipe sur Aedral (roster de l\'équipe dans la structure).' }, { status: 409 });
+    }
+
+    // Anti-doublon : pas déjà dans une inscription active de la compétition.
+    const overlap = await db.collection('competition_registrations')
+      .where('competitionId', '==', id)
+      .where('rosterUids', 'array-contains', inUid)
+      .get();
+    const clash = overlap.docs.find(d =>
+      d.id !== registrationId && ['pending', 'approved', 'waitlisted'].includes((d.data().status as string) ?? ''));
+    if (clash) {
+      return NextResponse.json({ error: `Ce joueur figure déjà dans l'inscription de ${clash.data().name ?? 'une autre équipe'}.` }, { status: 409 });
+    }
+
+    // Sanctions bloquantes (mêmes règles que le wizard — refus net avec motif).
+    const blocking = await getBlockingSanctions(db, {
+      uids: [inUid], structureId: (reg.structureId as string) ?? null, teamId: (reg.teamId as string) ?? null,
+      competitionId: id, circuitId: (comp.circuitId as string | null) ?? null,
+    });
+    if (blocking.length > 0) {
+      return NextResponse.json({ error: `Sanction active sur le joueur entrant : ${blocking.map(b => b.reason).join(' · ')}.` }, { status: 409 });
+    }
+
+    // Snapshot du joueur entrant — MÊME forme que le wizard (source de vérité).
+    const [userSnap, secretSnap] = await Promise.all([
+      db.collection('users').doc(inUid).get(),
+      db.collection('user_secrets').doc(inUid).get(),
+    ]);
+    if (!userSnap.exists) return NextResponse.json({ error: 'Joueur entrant introuvable.' }, { status: 404 });
+    const u = userSnap.data()!;
+    const age = computeAge((secretSnap.data()?.dateOfBirth as string | undefined) ?? '');
+    const epicId = (u.rlEpicId as string) || null;
+    const steamId = (u.rlSteamId as string) || null;
+    const verified = !!epicId || !!steamId;
+    if (comp.eligibility?.requireVerifiedAccounts === true && !verified) {
+      return NextResponse.json({ error: 'Le joueur entrant n\'a pas de compte vérifié (Epic ou Steam) — vérification obligatoire sur cette compétition.' }, { status: 409 });
+    }
+    let trackerUrl: string | null = null;
+    if (epicId && u.rlEpicName) trackerUrl = buildTrackerGgUrl('epic', u.rlEpicName as string);
+    else if (steamId) trackerUrl = buildTrackerGgUrl('steam', steamId);
+    else if (u.rlPlatform && u.rlPlatformId) trackerUrl = buildTrackerGgUrl(u.rlPlatform as RLPlatform, u.rlPlatformId as string);
+
+    // Mineur / âge inconnu : dérogation admin note obligatoire (même circuit
+    // que l'approve — jamais de refus automatique, jamais de silence).
+    const minAge = (comp.eligibility?.minAge as number | null) ?? null;
+    derogationNote = clampString(rawChange?.derogationNote, 500) || null;
+    if (minAge !== null && (age === null || age < minAge) && (!derogationNote || derogationNote.length < 3)) {
+      return NextResponse.json({
+        error: age === null
+          ? 'Âge du joueur entrant inconnu — une note de dérogation est requise.'
+          : `Joueur entrant mineur (${age} ans, minimum ${minAge}) — une note de dérogation est requise.`,
+        needsDerogationFor: [inUid],
+      }, { status: 422 });
+    }
+
+    // MMR déclarés (mêmes bornes que le wizard : entier 0-5000, peak ≥ actuel).
+    const mmrRules = comp.eligibility?.mmr ?? null;
+    let declaredCurrentMmr = 0;
+    let declaredPeakMmr = 0;
+    let refMmr = 0;
+    if (mmrRules) {
+      const cur = rawChange?.declaredCurrentMmr;
+      const peak = rawChange?.declaredPeakMmr;
+      const valid = (v: unknown) => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 5000;
+      if (!valid(cur) || !valid(peak)) {
+        return NextResponse.json({ error: 'MMR déclaré du joueur entrant invalide (entier 0-5000).' }, { status: 400 });
+      }
+      if ((peak as number) < (cur as number)) {
+        return NextResponse.json({ error: 'Le peak MMR ne peut pas être inférieur au MMR actuel.' }, { status: 400 });
+      }
+      declaredCurrentMmr = cur as number;
+      declaredPeakMmr = peak as number;
+      refMmr = computeRefMmr(declaredCurrentMmr, declaredPeakMmr, (mmrRules.weightCurrent as number) ?? 0.7);
+    }
+
+    // Adhésion au Discord de la compétition — best-effort, jamais bloquant.
+    let onDiscordGuild: boolean | null = null;
+    const guildId = (comp.discord?.guildId as string | undefined) ?? null;
+    const discordId = (u.discordId as string) || inUid.replace('discord_', '');
+    if (guildId) {
+      try { onDiscordGuild = await isGuildMember(guildId, discordId); } catch { /* indéterminé */ }
+    }
+
+    const entry: RegistrationRosterEntry = {
+      uid: inUid,
+      role: 'remplacant', // écrasé par le rôle HÉRITÉ du sortant (lib pure)
+      displayName: (u.displayName as string) || (u.discordUsername as string) || inUid,
+      declaredCurrentMmr,
+      declaredPeakMmr,
+      refMmr,
+      epicId,
+      epicName: (u.rlEpicName as string) || null,
+      steamId,
+      trackerUrl,
+      discordId,
+      discordUsername: (u.discordUsername as string) || null,
+      country: (u.country as string) || null,
+      age,
+      verified,
+      onDiscordGuild,
+    };
+    inMeta = { uid: inUid, displayName: entry.displayName, discordId };
+    change = { op: 'replace', outUid, entry };
+  }
+
+  // Application PURE + recalcul du bloc computed (drapeaux MMR/âge/Discord).
+  const applied = applyRosterChange(roster, change);
+  if (!applied.ok) return NextResponse.json({ error: applied.error }, { status: 409 });
+  const starters = (comp.roster?.starters as number | undefined) ?? 3;
+  const computed = op === 'set_captain'
+    ? null // le snapshot ne change pas
+    : recomputeRegistrationComputed({
+        roster: applied.roster,
+        mmrRules: (comp.eligibility?.mmr as { weightCurrent: number; maxAvg: number; maxGap: number; maxPlayer: number } | null) ?? null,
+        minAge: (comp.eligibility?.minAge as number | null) ?? null,
+        starters,
+        createdByOffGuild: reg.createdByOnDiscordGuild === false,
+      });
+  const newRosterUids = applied.roster.map(r => r.uid);
+  const rosterUidsAtRead = JSON.stringify((reg.rosterUids as string[] | undefined) ?? []);
+
+  // ── Transaction : re-validation fraîche + écriture atomique ──
+  try {
+    await db.runTransaction(async tx => {
+      const compRef = db.collection('competitions').doc(id);
+      const [regNow, compNow, ...matchSnaps] = await Promise.all([
+        tx.get(regRef), tx.get(compRef), ...nonTerminalRefs.map(r => tx.get(r)),
+      ]);
+      const regData = regNow.data();
+      if (!regNow.exists || (regData?.status !== 'approved' && regData?.status !== 'waitlisted')) {
+        throw new Error('state_changed');
+      }
+      // Doc réécrit / roster déjà modifié entre la lecture et la transaction
+      // (TOCTOU — toutes les décisions ci-dessus ont été prises sur `reg`).
+      const createdAtNow = regData?.createdAt as Timestamp | undefined;
+      const createdAtRead = reg.createdAt as Timestamp | undefined;
+      if (!createdAtNow || !createdAtRead || !createdAtNow.isEqual(createdAtRead)) {
+        throw new Error('state_changed');
+      }
+      if (JSON.stringify((regData?.rosterUids as string[] | undefined) ?? []) !== rosterUidsAtRead) {
+        throw new Error('state_changed');
+      }
+      const compStatusNow = (compNow.data()?.status as string) ?? 'draft';
+      if (compStatusNow === 'finished' || compStatusNow === 'archived') throw new Error('competition_closed');
+      // Un match lancé entre la lecture et la transaction : refus (le camp
+      // appartient au roster en place).
+      for (const snap of matchSnaps) {
+        if (snap.exists && ACTIVE_MATCH_STATUSES.has((snap.data()!.status as string) ?? 'pending')) {
+          throw new Error('match_active');
+        }
+      }
+
+      const update: Record<string, unknown> = {
+        updatedAt: FieldValue.serverTimestamp(),
+        // Trace publique-safe (uids joueurs déjà présents dans le doc — jamais
+        // l'identité de l'admin ici, l'audit log la porte).
+        rosterChanges: FieldValue.arrayUnion({
+          at: Timestamp.now(),
+          op,
+          ...(op === 'replace' && inMeta ? { outUid, inUid: inMeta.uid } : {}),
+          ...(op === 'swap_roles' && change.op === 'swap_roles' ? { uidA: change.uidA, uidB: change.uidB } : {}),
+          ...(op === 'set_captain' && change.op === 'set_captain' ? { uid: change.uid } : {}),
+        }),
+      };
+      if (op === 'set_captain' && change.op === 'set_captain') {
+        update.captainUid = change.uid;
+      } else {
+        update.roster = applied.roster;
+        update.rosterUids = newRosterUids;
+        if (computed) update.computed = computed;
+        // Remplacer LE capitaine-joueur : le pilotage check-in/scores suit le
+        // siège (hérité comme le rôle) — jamais un capitaine hors roster par
+        // cette voie. Un captainUid inscripteur hors roster (dirigeant) n'est
+        // pas concerné (outUid ≠ captainUid).
+        if (op === 'replace' && inMeta && ((regData?.captainUid as string) ?? '') === outUid) {
+          update.captainUid = inMeta.uid;
+        }
+      }
+      if (derogationNote && inMeta) {
+        update['review.derogations'] = FieldValue.arrayUnion({ uid: inMeta.uid, note: derogationNote });
+      }
+      tx.update(regRef, update);
+
+      // Copie du roster dans l'état privé du circuit (base de la règle noyau
+      // au prochain Qualif) — lookup par doc id, jamais de .where en tx.
+      const circuitTeamId = (regData?.circuitTeamId as string | null) ?? null;
+      if (op !== 'set_captain' && regData?.status === 'approved' && circuitTeamId) {
+        const stateRef = db.collection('circuit_teams').doc(circuitTeamId).collection('private').doc('state');
+        tx.set(stateRef, {
+          rosterByCompetition: {
+            [id]: {
+              registrationId,
+              rosterUids: newRosterUids,
+              starterUids: applied.roster.filter(r => r.role === 'titulaire').map(r => r.uid),
+            },
+          },
+        }, { mergeFields: [new FieldPath('rosterByCompetition', id)] });
+      }
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '';
+    if (msg === 'state_changed') {
+      return NextResponse.json({ error: 'L\'inscription a changé entre-temps. Recharge la liste.' }, { status: 409 });
+    }
+    if (msg === 'competition_closed') {
+      return NextResponse.json({ error: 'Compétition clôturée — le roster est figé définitivement.' }, { status: 409 });
+    }
+    if (msg === 'match_active') {
+      return NextResponse.json({ error: 'Un match de l\'équipe vient d\'être lancé — termine-le avant de modifier le roster.' }, { status: 409 });
+    }
+    throw err;
+  }
+
+  // ── Effets best-effort (jamais bloquants — l'inscription fait foi) ──
+  const outEntry = roster.find(r => r.uid === outUid) ?? null;
+
+  // ACL privées des matchs non terminaux : alignées par cohérence (l'autorité
+  // d'accès reste la résolution LIVE du registration — défense en profondeur).
+  if (op === 'replace' && inMeta) {
+    try {
+      const batch = db.batch();
+      for (const ref of nonTerminalRefs) {
+        batch.set(ref.collection('private').doc('acl'),
+          { participantUids: FieldValue.arrayRemove(outUid) }, { merge: true });
+      }
+      await batch.commit();
+      const batch2 = db.batch();
+      for (const ref of nonTerminalRefs) {
+        batch2.set(ref.collection('private').doc('acl'),
+          { participantUids: FieldValue.arrayUnion(inMeta.uid) }, { merge: true });
+      }
+      await batch2.commit();
+    } catch (err) {
+      console.error('[change_roster] ACL sync failed:', err);
+    }
+
+    // Discord : l'entrant gagne le rôle d'équipe (accès salons privés) + le
+    // rôle Participant du circuit ; le sortant perd le rôle d'équipe SEUL
+    // (le rôle Participant est commun au circuit — jamais retiré ici).
+    try {
+      const guildId = (comp.discord?.guildId as string | undefined) ?? null;
+      const teamRoleId = (reg.discord?.roleId as string | undefined) ?? null;
+      if (guildId && teamRoleId) {
+        await addMemberRole(guildId, inMeta.discordId, teamRoleId);
+        const circuitId = (comp.circuitId as string | null) ?? null;
+        if (circuitId) {
+          const circuitSnap = await db.collection('circuits').doc(circuitId).get();
+          const participantRoleId = (circuitSnap.data()?.discord?.participantRoleId as string | undefined) ?? null;
+          if (participantRoleId) await addMemberRole(guildId, inMeta.discordId, participantRoleId);
+        }
+        if (outEntry) await removeMemberRole(guildId, outEntry.discordId, teamRoleId);
+      }
+    } catch (err) {
+      console.error('[change_roster] Discord role sync failed:', err);
+    }
+  }
+
+  // Calendrier : dérivé de la sub_team LIVE — resync idempotente par sécurité.
+  if (reg.status === 'approved') {
+    try {
+      await syncRegistrationToCalendar(db, {
+        competitionId: id, comp, teamId: reg.teamId as string, structureId: reg.structureId as string,
+      });
+    } catch (err) {
+      console.error('[change_roster] calendar resync failed:', err);
+    }
+  }
+
+  // Notifications sobres — le roster concerné doit toujours savoir.
+  try {
+    const compName = (comp.name as string) ?? id;
+    const payloads: NotificationPayload[] = [];
+    if (op === 'replace' && inMeta) {
+      payloads.push({
+        userId: inMeta.uid, type: 'competition_registration',
+        title: 'Ajout au roster',
+        message: `Tu rejoins le roster de ${reg.name ?? 'ton équipe'} sur ${compName} (décision de l'organisation).`,
+        link: `/competitions/${id}`, metadata: { competitionId: id },
+      });
+      payloads.push({
+        userId: outUid, type: 'competition_registration',
+        title: 'Retrait du roster',
+        message: `Tu quittes le roster de ${reg.name ?? 'ton équipe'} sur ${compName} (décision de l'organisation).`,
+        link: `/competitions/${id}`, metadata: { competitionId: id },
+      });
+    }
+    if (op === 'set_captain' && change.op === 'set_captain') {
+      payloads.push({
+        userId: change.uid, type: 'competition_registration',
+        title: 'Capitanat transféré',
+        message: `Tu pilotes désormais le check-in et la saisie des scores de ${reg.name ?? 'ton équipe'} sur ${compName}.`,
+        link: `/competitions/${id}`, metadata: { competitionId: id },
+      });
+    }
+    await createNotifications(db, payloads);
+  } catch (err) {
+    console.error('[change_roster] notifications failed:', err);
+  }
+
+  await writeAdminAuditLog(db, {
+    action: 'competition_roster_changed',
+    adminUid,
+    targetType: 'competition',
+    targetId: id,
+    targetLabel: (comp.name as string) ?? id,
+    metadata: {
+      registrationId, teamName: reg.name ?? '', op,
+      ...(op === 'replace' && inMeta ? {
+        outUid, inUid: inMeta.uid,
+        declaredMmr: change.op === 'replace' ? `${change.entry.declaredCurrentMmr}/${change.entry.declaredPeakMmr}` : '',
+        ...(derogationNote ? { derogationNote } : {}),
+      } : {}),
+      ...(op === 'swap_roles' && change.op === 'swap_roles' ? { uidA: change.uidA, uidB: change.uidB } : {}),
+      ...(op === 'set_captain' && change.op === 'set_captain' ? { newCaptainUid: change.uid } : {}),
+    },
+  });
+
+  return NextResponse.json({ success: true });
 }
 
 // Libère la réservation d'identité circuit d'une inscription (reject /

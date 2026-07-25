@@ -95,7 +95,9 @@ export type AdminAuditAction =
   // Multi-étapes : passage d'étape (placements figés + étape suivante lancée)
   | 'competition_stage_advanced'
   // Seeding par stratégie (aléatoire / MMR / classement circuit — design §10)
-  | 'competition_seeding_strategy';
+  | 'competition_seeding_strategy'
+  // Dérogation admin au roster lock (remplacement / échange de rôles / capitanat)
+  | 'competition_roster_changed';
 
 export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event' | 'competition' | 'circuit';
 

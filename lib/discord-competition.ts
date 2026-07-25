@@ -169,6 +169,26 @@ export async function addMemberRole(
 }
 
 /**
+ * Retire un rôle à UN membre (changement de roster : le joueur sortant perd
+ * l'accès aux salons privés de l'équipe). Même sémantique 404 tolérante que
+ * `addMemberRole` — un membre parti ou un rôle déjà retiré n'est jamais une
+ * erreur. Le rôle Participant COMMUN au circuit n'est pas retiré par cette
+ * voie (partagé — seul le déprovisionnement d'équipe le fait).
+ */
+export async function removeMemberRole(
+  guildId: string,
+  discordUserId: string,
+  roleId: string,
+): Promise<{ ok: boolean }> {
+  const res = await discordFetch(`/guilds/${guildId}/members/${discordUserId}/roles/${roleId}`, {
+    method: 'DELETE',
+    headers: AUDIT_REASON,
+  });
+  if (res.status === 204 || res.status === 404) return { ok: res.status === 204 };
+  throw await discordError(res, 'Discord remove member role failed');
+}
+
+/**
  * Le joueur est-il membre du serveur ? `null` = indéterminé (erreur API après
  * backoff) — l'appelant ne doit pas conclure à une absence.
  */
