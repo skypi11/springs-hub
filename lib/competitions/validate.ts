@@ -409,7 +409,10 @@ export function validateStages(
   return { ok: true, value: stages };
 }
 
-function validateFormat(input: unknown): ValidationResult<CompetitionFormat> {
+/** Exporté pour la saisie : le formulaire de création valide le format SEUL à
+ *  chaque frappe (bornes ET règles croisées), avec le message exact que
+ *  renverrait l'enregistrement — jamais de refus découvert après coup. */
+export function validateFormat(input: unknown): ValidationResult<CompetitionFormat> {
   if (typeof input !== 'object' || input === null) return err('Format invalide.');
   const f = input as Record<string, unknown>;
 
