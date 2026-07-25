@@ -363,6 +363,17 @@ export interface GuildAccessReport {
 
 interface GuildRoleRaw { id: string; name: string; position: number; permissions?: string }
 
+/** Identifiant du bot, mis en cache : il ne change jamais pour un token donné. */
+let cachedBotUserId: string | null = null;
+async function botUserIdOf(): Promise<string | null> {
+  if (cachedBotUserId) return cachedBotUserId;
+  const res = await discordFetch('/users/@me');
+  if (!res.ok) return null;
+  const me = await res.json() as { id?: string };
+  cachedBotUserId = me.id ?? null;
+  return cachedBotUserId;
+}
+
 /**
  * Qui a le droit de faire quoi sur ce serveur — le garde-fou de la
  * configuration Discord d'une compétition.
@@ -422,20 +433,32 @@ export async function describeGuildAccess(
   }
 
   // Le bot : ses permissions cumulées et sa position dans la hiérarchie.
-  const botRes = await discordFetch(`/guilds/${guildId}/members/@me`);
-  if (botRes.ok) {
-    const bot = await botRes.json() as { roles?: string[] };
-    // Le rôle @everyone (id = guildId) compte dans le cumul.
-    const botRoles = [guildId, ...(bot.roles ?? [])]
-      .map(id => roleById.get(id))
-      .filter((r): r is GuildRoleRaw => !!r);
-    const isAdministrator = botRoles.some(r => hasPermissionBit(r.permissions, PERM.ADMINISTRATOR));
-    report.botCanManageRoles = isAdministrator
-      || botRoles.some(r => hasPermissionBit(r.permissions, PERM.MANAGE_ROLES));
-    report.botCanManageChannels = isAdministrator
-      || botRoles.some(r => hasPermissionBit(r.permissions, PERM.MANAGE_CHANNELS));
-    report.botHighestPosition = botRoles.reduce((max, r) => Math.max(max, r.position ?? 0), 0);
+  // ATTENTION : `/guilds/{id}/members/@me` n'existe pas — Discord répond 400
+  // (« @me n'est pas un snowflake »), et la lecture échouait en silence : le
+  // bot passait pour dépourvu de tout droit alors qu'il était administrateur.
+  const botUserId = await botUserIdOf();
+  const botRes = botUserId
+    ? await discordFetch(`/guilds/${guildId}/members/${botUserId}`)
+    : null;
+  if (!botRes?.ok) {
+    // Ne jamais conclure « pas de permission » sur une lecture ratée : le
+    // message enverrait l'organisateur régler un problème qui n'existe pas.
+    report.problems.push('Impossible de lire les droits du bot sur ce serveur — réessaie.');
+    return report;
   }
+
+  const bot = await botRes.json() as { roles?: string[] };
+  // Le rôle @everyone (id = guildId) compte dans le cumul.
+  const botRoles = [guildId, ...(bot.roles ?? [])]
+    .map(id => roleById.get(id))
+    .filter((r): r is GuildRoleRaw => !!r);
+  // Administrator emporte tout le reste : inutile de chercher les bits fins.
+  const isAdministrator = botRoles.some(r => hasPermissionBit(r.permissions, PERM.ADMINISTRATOR));
+  report.botCanManageRoles = isAdministrator
+    || botRoles.some(r => hasPermissionBit(r.permissions, PERM.MANAGE_ROLES));
+  report.botCanManageChannels = isAdministrator
+    || botRoles.some(r => hasPermissionBit(r.permissions, PERM.MANAGE_CHANNELS));
+  report.botHighestPosition = botRoles.reduce((max, r) => Math.max(max, r.position ?? 0), 0);
 
   if (!report.botCanManageRoles) {
     report.problems.push("Le bot n'a pas la permission « Gérer les rôles » sur ce serveur.");
@@ -443,10 +466,13 @@ export async function describeGuildAccess(
   if (!report.botCanManageChannels) {
     report.problems.push("Le bot n'a pas la permission « Gérer les salons » sur ce serveur.");
   }
-  // Un bot placé tout en bas de la liste ne peut attribuer aucun rôle : le
-  // piège classique, invisible jusqu'au jour du tournoi.
-  if (report.botCanManageRoles && report.botHighestPosition === 0) {
-    report.problems.push('Le rôle du bot est tout en bas de la liste : remonte-le, sinon il ne pourra donner aucun rôle.');
+  // Un bot ne peut gérer QUE les rôles situés sous le sien. Posé tout en bas
+  // (position 0 = @everyone, 1 = juste au-dessus), il risque de ne pas pouvoir
+  // attribuer le rôle qu'il vient de créer — le piège classique, invisible
+  // jusqu'au jour du tournoi. Avertissement, pas blocage : la hiérarchie exacte
+  // dépend du serveur.
+  if (report.botCanManageRoles && report.botHighestPosition <= 1) {
+    report.problems.push('Le rôle du bot est tout en bas de la liste des rôles : remonte-le, sinon il risque de ne pas pouvoir attribuer le rôle participant.');
   }
 
   return report;
