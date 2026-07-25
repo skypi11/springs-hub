@@ -4,7 +4,7 @@ import { getAdminDb, verifyAuth, isCompetitionAdmin } from '@/lib/firebase-admin
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
-import { deleteChannel, deleteGuildRole } from '@/lib/discord-competition';
+import { deleteChannel, deleteGuildRole, guildIdOfChannel } from '@/lib/discord-competition';
 import { guildBlocker } from '@/lib/competitions/discord-guard';
 
 // Nettoyage Discord de fin de tournoi — JAMAIS automatique : une compétition
@@ -50,11 +50,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const guildIssue = await guildBlocker(uid, guildId);
     if (guildIssue) return NextResponse.json({ error: guildIssue }, { status: 403 });
 
+    // Registre de ce que le bot a CRÉÉ. C'est la seule preuve d'auteur : un
+    // salon désigné par l'organisateur parmi les siens n'y figure pas, et ne
+    // sera donc jamais supprimé — contrairement à l'ancien critère
+    // (`createAnnounceChannel`), qui pouvait coexister avec un identifiant
+    // fourni et faisait détruire le salon de quelqu'un d'autre.
     const options = (comp.discord?.options ?? {}) as {
-      createAnnounceChannel?: boolean;
       announceChannelId?: string | null;
-      createStaffChannel?: boolean;
       staffChannelId?: string | null;
+    };
+    const createdChannelIds: string[] = Array.isArray(comp.discord?.createdChannelIds)
+      ? (comp.discord.createdChannelIds as string[]).filter(Boolean)
+      : [];
+    const categoryIds: string[] = Array.isArray(comp.discord?.categoryIds)
+      ? (comp.discord.categoryIds as string[]).filter(Boolean)
+      : ((comp.discord?.categoryId as string | undefined) ? [comp.discord.categoryId as string] : []);
+
+    /** Supprime un salon SEULEMENT s'il appartient au serveur de la compétition
+     *  (un identifiant peut avoir été saisi à la main avant les gardes). */
+    const deleteOwnedChannel = async (channelId: string): Promise<boolean> => {
+      const owner = await guildIdOfChannel(channelId);
+      if (owner === null) return true;          // déjà supprimé : rien à faire
+      if (owner !== guildId) return false;      // appartient à un autre serveur
+      return deleteChannel(channelId);
     };
 
     const report = { channels: 0, roles: 0, categories: 0, skipped: 0, deadlineReached: false };
@@ -72,11 +90,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (!textChannelId && !voiceChannelId && !roleId) continue;
 
       const cleared: Record<string, unknown> = {};
-      if (textChannelId && await deleteChannel(textChannelId)) {
+      if (textChannelId && await deleteOwnedChannel(textChannelId)) {
         report.channels += 1;
         cleared['discord.textChannelId'] = null;
       }
-      if (voiceChannelId && await deleteChannel(voiceChannelId)) {
+      if (voiceChannelId && await deleteOwnedChannel(voiceChannelId)) {
         report.channels += 1;
         cleared['discord.voiceChannelId'] = null;
       }
@@ -92,31 +110,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
     }
 
-    // Salons créés PAR LE BOT uniquement.
+    // Salons du registre « créés par le bot » UNIQUEMENT.
     const compUpdate: Record<string, unknown> = {};
-    if (options.createAnnounceChannel && options.announceChannelId) {
-      if (await deleteChannel(options.announceChannelId)) {
+    const removedChannelIds: string[] = [];
+    for (const channelId of createdChannelIds) {
+      if (Date.now() > deadlineAtMs) { report.deadlineReached = true; break; }
+      if (await deleteOwnedChannel(channelId)) {
         report.channels += 1;
-        compUpdate['discord.options.announceChannelId'] = null;
+        removedChannelIds.push(channelId);
+        if (options.announceChannelId === channelId) compUpdate['discord.options.announceChannelId'] = null;
+        if (options.staffChannelId === channelId) compUpdate['discord.options.staffChannelId'] = null;
       }
-    } else if (options.announceChannelId) {
-      report.skipped += 1;   // salon existant de l'organisateur : on n'y touche pas
     }
-    if (options.createStaffChannel && options.staffChannelId) {
-      if (await deleteChannel(options.staffChannelId)) {
-        report.channels += 1;
-        compUpdate['discord.options.staffChannelId'] = null;
-      }
-    } else if (options.staffChannelId) {
-      report.skipped += 1;
+    if (removedChannelIds.length > 0) {
+      compUpdate['discord.createdChannelIds'] = FieldValue.arrayRemove(...removedChannelIds);
+    }
+    // Salons désignés par l'organisateur parmi les siens : jamais touchés.
+    for (const designated of [options.announceChannelId, options.staffChannelId]) {
+      if (designated && !createdChannelIds.includes(designated)) report.skipped += 1;
     }
 
-    // Catégorie du tournoi (vide à ce stade) — Discord la supprime même
-    // pleine, mais les salons sont déjà partis.
-    const categoryId = comp.discord?.categoryId as string | undefined;
-    if (categoryId && await deleteChannel(categoryId)) {
-      report.categories += 1;
-      compUpdate['discord.categoryId'] = null;
+    // Catégories du tournoi (principale + débordements), vides à ce stade.
+    const removedCategoryIds: string[] = [];
+    for (const categoryId of categoryIds) {
+      if (Date.now() > deadlineAtMs) { report.deadlineReached = true; break; }
+      if (await deleteOwnedChannel(categoryId)) {
+        report.categories += 1;
+        removedCategoryIds.push(categoryId);
+      }
+    }
+    if (removedCategoryIds.length > 0) {
+      compUpdate['discord.categoryIds'] = FieldValue.arrayRemove(...removedCategoryIds);
+      if (removedCategoryIds.includes(comp.discord?.categoryId as string)) {
+        compUpdate['discord.categoryId'] = null;
+      }
     }
 
     // Rôle participant : COMMUN au circuit (spec §7). On ne le supprime que

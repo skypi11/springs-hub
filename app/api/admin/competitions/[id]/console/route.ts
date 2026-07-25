@@ -13,6 +13,7 @@ import {
 } from '@/lib/competitions/match-flow';
 import { createNotifications, type NotificationPayload } from '@/lib/notifications';
 import { sendCompetitionChannelMessage } from '@/lib/discord-competition';
+import { phasePlanForStage } from '@/lib/competitions/schedule-plan';
 import { toFlowState, toIso, flowConfigOf, generateRoomCredentials, toEngineOutcome } from '@/lib/competitions/match-flow-server';
 import { applyMatchOutcome, applyWithdraw, applyReplacement } from '@/lib/competitions/progression';
 import { reconstructBracket, materializeMatches, type MatchDoc, type TeamDisplay } from '@/lib/competitions/bracket-store';
@@ -736,7 +737,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
       let after;
       try {
-        after = engine.generateNextRound(before, stageFormat as CompetitionFormat, comp.schedule?.phasePlan);
+        // Les entrées de l'étape COURANTE seulement (même piège que le
+        // publish : les numéros de ronde se recoupent d'une étape à l'autre).
+        after = engine.generateNextRound(
+          before,
+          stageFormat as CompetitionFormat,
+          phasePlanForStage<PhasePlanEntry>(comp.schedule?.phasePlan, cur),
+        );
       } catch (e) {
         // Erreurs moteur actionnables (re-match inévitable…) — jamais un 500.
         return NextResponse.json({ error: (e as Error).message }, { status: 409 });

@@ -37,7 +37,17 @@ export function toFirestoreCompetition(
           guildId: payload.discordGuildId,
           participantRoleId: sameGuild ? existingDiscord?.participantRoleId ?? null : null,
           categoryId: sameGuild ? existingDiscord?.categoryId ?? null : null,
-          options: payload.discordOptions,
+          // Les cibles désignées appartiennent à UN serveur : changer de
+          // serveur sans les purger faisait annoncer le bot dans l'ancien, et
+          // échouer la création des salons (rôles inconnus du nouveau).
+          options: sameGuild || !existingDiscord?.guildId
+            ? payload.discordOptions
+            : {
+                ...payload.discordOptions,
+                announceChannelId: null,
+                staffChannelId: null,
+                staffRoleIds: [],
+              },
         }
       : null,
   };

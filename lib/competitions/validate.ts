@@ -323,10 +323,14 @@ function validateDiscordOptions(input: unknown): ValidationResult<CompetitionDis
       staffRoleIds,
       participantRoleName: clampString(o.participantRoleName, 90) || null,  // limite Discord : 100
       announceChannelId: announceId || null,
-      createAnnounceChannel: o.createAnnounceChannel === true,
+      // « Créer » et « salon désigné » s'excluent : dans l'état hybride, le
+      // provisioning gardait le salon désigné pendant que le nettoyage le
+      // croyait créé par le bot — et le supprimait. L'identifiant gagne, comme
+      // au provisioning.
+      createAnnounceChannel: o.createAnnounceChannel === true && !announceId,
       announceChannelName: clampString(o.announceChannelName, 90) || null,
       staffChannelId: staffChannelId || null,
-      createStaffChannel: o.createStaffChannel === true,
+      createStaffChannel: o.createStaffChannel === true && !staffChannelId,
       staffChannelName: clampString(o.staffChannelName, 90) || null,
     },
   };

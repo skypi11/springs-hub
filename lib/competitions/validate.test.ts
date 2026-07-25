@@ -232,6 +232,35 @@ describe('validateCompetitionPayload', () => {
       expect(validateCompetitionPayload(badRole).ok).toBe(false);
     });
 
+    // Régression (review adversariale) : dans l'état hybride « créer » + « ID
+    // fourni », le provisioning gardait le salon désigné pendant que le
+    // nettoyage le croyait créé par le bot — et le supprimait.
+    it('un salon désigné l’emporte sur « créer » : jamais les deux à la fois', () => {
+      const body = competitionBody() as Record<string, unknown>;
+      body.discordOptions = {
+        announceChannelId: '123456789012345678',
+        createAnnounceChannel: true,
+        staffChannelId: '987654321098765432',
+        createStaffChannel: true,
+      };
+      const res = validateCompetitionPayload(body);
+      expect(res.ok).toBe(true);
+      if (res.ok) {
+        expect(res.value.discordOptions.createAnnounceChannel).toBe(false);
+        expect(res.value.discordOptions.announceChannelId).toBe('123456789012345678');
+        expect(res.value.discordOptions.createStaffChannel).toBe(false);
+        expect(res.value.discordOptions.staffChannelId).toBe('987654321098765432');
+      }
+    });
+
+    it('« créer » reste actif quand aucun salon n’est désigné', () => {
+      const body = competitionBody() as Record<string, unknown>;
+      body.discordOptions = { createAnnounceChannel: true, announceChannelName: 'annonces' };
+      const res = validateCompetitionPayload(body);
+      expect(res.ok).toBe(true);
+      if (res.ok) expect(res.value.discordOptions.createAnnounceChannel).toBe(true);
+    });
+
     it('refuse une liste de rôles staff démesurée', () => {
       const body = competitionBody() as Record<string, unknown>;
       body.discordOptions = {

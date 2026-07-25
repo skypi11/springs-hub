@@ -7,6 +7,8 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { materializeBracket, type TeamDisplay } from '@/lib/competitions/bracket-store';
 import { sendCompetitionChannelMessage } from '@/lib/discord-competition';
+import { phasePlanForStage } from '@/lib/competitions/schedule-plan';
+import type { PhasePlanEntry } from '@/types/competitions';
 import { roundRobinBlocker, swissBlocker, swissDefaultRounds } from '@/lib/tournament';
 import { kindOf } from '@/lib/competitions/formats-server';
 import { stagesOf, teamBoundsForKind } from '@/lib/competitions/stages';
@@ -394,7 +396,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         seeding: stored,
         bo: comp.format.bo,
         forfeitScore: comp.format.forfeitScore,
-        phasePlan: comp.schedule?.phasePlan,
+        // Étape 1 UNIQUEMENT : le plan couvre désormais toutes les étapes, et
+        // le moteur rattache les phases par (bracket, round) sans savoir de
+        // quelle étape il s'agit.
+        phasePlan: phasePlanForStage<PhasePlanEntry>(comp.schedule?.phasePlan, 1),
         registrations,
         kind: comp.format.kind,
         thirdPlace: comp.format.thirdPlace === true,

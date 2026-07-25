@@ -393,10 +393,12 @@ function CompetitionFormBody({ form, setForm, initial, circuits, saving, onCance
 // ── État ────────────────────────────────────────────────────────────────────
 
 function stateFromPreset(preset: CreationPreset, circuits: AdminCircuit[]): FormState {
-  const blocks = buildPlanBlocks(preset.format);
   const stages: TournamentStage[] = preset.stages
     ? preset.stages.map(s => ({ ...s }))
     : [{ kind: preset.format.kind, format: preset.format }];
+  // Toutes les étapes : sur « Poules puis phase finale », partir des seuls
+  // blocs de l'étape 1 donnait une répartition aussitôt jetée par fitAssignment.
+  const blocks = buildStagedBlocks(stages, stage => stage.name?.trim() || FORMAT_DEFS[stage.format.kind].label);
   // Le préréglage Legends vise un circuit : s'il n'en existe qu'un, autant le
   // pré-sélectionner plutôt que de le faire chercher.
   const circuitId = preset.wantsCircuit && circuits.length === 1 ? circuits[0].id : '';
@@ -432,7 +434,11 @@ function stateFromCompetition(comp: AdminCompetition): FormState {
   const days: ScheduleDay[] = comp.schedule?.days?.length
     ? comp.schedule.days.map(d => ({ ...d }))
     : [{ date: '', startsAt: '15:00', endsAt: '22:00' }];
-  const blocks = buildPlanBlocks(stages[0].format);
+  // MÊME source de blocs que le rendu et le payload : sur un tournoi
+  // multi-étapes, ne compter que l'étape 1 rendait la comparaison de longueur
+  // toujours fausse, et la répartition enregistrée par l'organisateur était
+  // jetée en silence à chaque ré-édition.
+  const blocks = buildStagedBlocks(stages, stage => stage.name?.trim() || FORMAT_DEFS[stage.format.kind].label);
   const stored = comp.schedule?.phasePlan ?? [];
   // On repart des journées enregistrées quand le plan correspond encore au
   // format ; sinon (format retouché hors formulaire) on répartit à neuf.

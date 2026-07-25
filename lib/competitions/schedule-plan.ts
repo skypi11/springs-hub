@@ -374,6 +374,22 @@ export function buildStagedBlocks(
   return out;
 }
 
+/**
+ * Les entrées de déroulé d'UNE étape.
+ *
+ * INDISPENSABLE avant de passer un plan à un moteur : le rattachement des
+ * phases se fait par (bracket, round) SANS notion d'étape. Un plan complet
+ * ferait écraser les phases de l'étape 1 par celles de l'étape 2, qui portent
+ * les mêmes numéros de ronde — les matchs de poule héritaient des phases de la
+ * phase finale, et la console lançait n'importe quoi.
+ */
+export function phasePlanForStage<T extends { stage?: number }>(
+  plan: T[] | undefined | null,
+  stage: number,
+): T[] {
+  return (plan ?? []).filter(e => (e.stage ?? 1) === stage);
+}
+
 /** Blocs + journée par bloc → le `phasePlan` stocké et validé. */
 export function blocksToPhasePlan(blocks: PlanBlock[], dayByPhase: number[]): PhasePlanEntry[] {
   return blocks.map((b, i) => ({

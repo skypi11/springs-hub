@@ -5,6 +5,7 @@ import {
   buildPlanBlocks,
   buildStagedBlocks,
   listBoRounds,
+  phasePlanForStage,
   poolSizes,
   spreadOverDays,
   type PlanBlock,
@@ -400,6 +401,47 @@ describe('buildStagedBlocks', () => {
     });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toContain('étape 2');
+  });
+});
+
+// Régression (review adversariale) : le publish passait le plan COMPLET au
+// moteur, qui rattache les phases par (bracket, round) sans notion d'étape —
+// les phases de l'étape 1 se faisaient écraser par celles de l'étape 2, qui
+// portent les mêmes numéros de ronde.
+describe('phasePlanForStage', () => {
+  const plan = [
+    { phase: 1, day: 1, label: 'Journée 1', rounds: [{ bracket: 'round_robin' as const, round: 1 }] },
+    { phase: 2, day: 1, label: 'Journée 2', rounds: [{ bracket: 'round_robin' as const, round: 2 }] },
+    { phase: 3, day: 2, label: 'Quarts', stage: 2, rounds: [{ bracket: 'winners' as const, round: 1 }] },
+    { phase: 4, day: 2, label: 'Demi-finales', stage: 2, rounds: [{ bracket: 'winners' as const, round: 2 }] },
+  ];
+
+  it('ne rend que les entrées de l’étape demandée', () => {
+    expect(phasePlanForStage(plan, 1).map(p => p.label)).toEqual(['Journée 1', 'Journée 2']);
+    expect(phasePlanForStage(plan, 2).map(p => p.label)).toEqual(['Quarts', 'Demi-finales']);
+    expect(phasePlanForStage(plan, 3)).toEqual([]);
+  });
+
+  it('une entrée sans étape appartient à l’étape 1 (tout l’existant)', () => {
+    const legacy = [{ phase: 1, day: 1, label: 'P1', rounds: [{ bracket: 'winners' as const, round: 1 }] }];
+    expect(phasePlanForStage(legacy, 1)).toHaveLength(1);
+    expect(phasePlanForStage(legacy, 2)).toHaveLength(0);
+  });
+
+  it('plan absent : liste vide plutôt qu’une erreur', () => {
+    expect(phasePlanForStage(undefined, 1)).toEqual([]);
+    expect(phasePlanForStage(null, 1)).toEqual([]);
+  });
+
+  it('les numéros de ronde se recoupent entre étapes — c’est bien le piège couvert', () => {
+    // « winners round 1 » existe dans l'étape 2 ; sans filtrage il volerait la
+    // phase d'un « winners round 1 » de l'étape 1.
+    const mixed = [
+      { phase: 1, day: 1, label: 'Tour 1', rounds: [{ bracket: 'winners' as const, round: 1 }] },
+      { phase: 2, day: 2, label: 'Quarts', stage: 2, rounds: [{ bracket: 'winners' as const, round: 1 }] },
+    ];
+    expect(phasePlanForStage(mixed, 1)).toHaveLength(1);
+    expect(phasePlanForStage(mixed, 1)[0].label).toBe('Tour 1');
   });
 });
 

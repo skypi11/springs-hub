@@ -13,7 +13,7 @@
 // pose `discord.provisioningStatus = 'queued'`, et le bouton console
 // « Provisionner » traite la file (route /api/admin/competitions/[id]/provision).
 
-import type { Firestore } from 'firebase-admin/firestore';
+import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 
 const DISCORD_API = 'https://discord.com/api/v10';
 
@@ -264,12 +264,33 @@ export async function createStaffChannel(
  *  provisioning casserait au 51e, le jour du tournoi. */
 export const MAX_CHANNELS_PER_CATEGORY = 50;
 
-/** Salons déjà rangés dans une catégorie (pour savoir quand déborder). */
-export async function countChannelsInCategory(guildId: string, categoryId: string): Promise<number> {
+/**
+ * Salons déjà rangés dans une catégorie (pour savoir quand déborder).
+ * `null` si Discord n'a pas répondu : renvoyer 0 éteindrait le garde-fou en
+ * silence et le provisioning casserait au 51e salon.
+ */
+export async function countChannelsInCategory(guildId: string, categoryId: string): Promise<number | null> {
   const res = await discordFetch(`/guilds/${guildId}/channels`);
-  if (!res.ok) return 0;
+  if (!res.ok) return null;
   const channels = await res.json() as Array<{ parent_id?: string | null }>;
   return channels.filter(c => c.parent_id === categoryId).length;
+}
+
+/** Serveur auquel appartient un salon — `null` si illisible ou inexistant.
+ *  Sert à refuser d'écrire (ou de supprimer) hors du serveur autorisé. */
+export async function guildIdOfChannel(channelId: string): Promise<string | null> {
+  const res = await discordFetch(`/channels/${channelId}`);
+  if (!res.ok) return null;
+  const channel = await res.json() as { guild_id?: string };
+  return channel.guild_id ?? null;
+}
+
+/** Identifiants de rôles existants sur un serveur (`null` si illisible). */
+export async function roleIdsOfGuild(guildId: string): Promise<Set<string> | null> {
+  const res = await discordFetch(`/guilds/${guildId}/roles`);
+  if (!res.ok) return null;
+  const roles = await res.json() as Array<{ id: string }>;
+  return new Set(roles.map(r => r.id));
 }
 
 /** Supprime un salon (nettoyage de fin de tournoi). 404 = déjà supprimé. */
@@ -552,7 +573,13 @@ export async function ensureCompetitionShared(
   let categoryId = input.categoryId;
   if (!categoryId && needsCategory) {
     categoryId = await createCategory(input.guildId, input.categoryLabel);
-    await compRef.update({ 'discord.categoryId': categoryId });
+    // `categoryIds` liste TOUTES les catégories créées (la principale et les
+    // débordements) : c'est ce registre qui permet de les réutiliser à la
+    // relance et de ne supprimer au nettoyage que ce que le bot a posé.
+    await compRef.update({
+      'discord.categoryId': categoryId,
+      'discord.categoryIds': FieldValue.arrayUnion(categoryId),
+    });
   }
 
   // Salon d'annonces : créé à la demande, sinon celui que l'organisateur a
@@ -564,7 +591,12 @@ export async function ensureCompetitionShared(
       categoryId,
       staffRoleIds: input.staffRoleIds,
     });
-    await compRef.update({ 'discord.options.announceChannelId': announceChannelId });
+    // Tracé comme créé PAR LE BOT : le nettoyage ne supprime que ce registre,
+    // jamais un salon que l'organisateur a désigné parmi les siens.
+    await compRef.update({
+      'discord.options.announceChannelId': announceChannelId,
+      'discord.createdChannelIds': FieldValue.arrayUnion(announceChannelId),
+    });
   }
 
   let staffChannelId = input.staffChannel?.existingId ?? null;
@@ -574,7 +606,10 @@ export async function ensureCompetitionShared(
       categoryId,
       staffRoleIds: input.staffRoleIds,
     });
-    await compRef.update({ 'discord.options.staffChannelId': staffChannelId });
+    await compRef.update({
+      'discord.options.staffChannelId': staffChannelId,
+      'discord.createdChannelIds': FieldValue.arrayUnion(staffChannelId),
+    });
   }
 
   return { guildId: input.guildId, participantRoleId, categoryId, announceChannelId, staffChannelId };

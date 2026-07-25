@@ -1638,6 +1638,14 @@ function SortableTeamRow({ id, children }: { id: string; children: React.ReactNo
 }
 
 /** Compétition clôturée : le classement final écrit, tel quel. */
+interface CleanupReport {
+  channels: number;
+  roles: number;
+  categories: number;
+  skipped: number;
+  deadlineReached: boolean;
+}
+
 /** Nettoyage Discord de fin de tournoi — sur action, jamais automatique : des
  *  équipes peuvent vouloir relire leurs échanges. Seul ce que le bot a créé
  *  est supprimé (un salon existant de l'organisateur n'est jamais touché). */
@@ -1645,7 +1653,11 @@ function DiscordCleanupCard({ competitionId }: { competitionId: string }) {
   const toast = useToast();
   const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<{ channels: number; roles: number; categories: number } | null>(null);
+  const [done, setDone] = useState<CleanupReport | null>(null);
+  // Un nettoyage coupé par la limite de temps n'est PAS terminé : le dire, et
+  // laisser le bouton pour reprendre (le registre des ressources déjà
+  // supprimées évite de retenter ce qui est parti).
+  const incomplete = done?.deadlineReached === true;
 
   return (
     <div className="panel bevel">
@@ -1653,25 +1665,26 @@ function DiscordCleanupCard({ competitionId }: { competitionId: string }) {
       <div className="panel-body flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm" style={{ color: 'var(--s-text-dim)', maxWidth: 560 }}>
           {done
-            ? `Nettoyé : ${done.channels} salons, ${done.roles} rôles, ${done.categories} catégorie${done.categories > 1 ? 's' : ''}.`
-            : 'Les salons et rôles d’équipe restent en place tant que tu ne les retires pas. Un salon d’annonces que tu avais toi-même choisi n’est jamais supprimé.'}
+            ? `${incomplete ? 'Interrompu avant la fin' : 'Nettoyé'} : ${done.channels} salons, ${done.roles} rôles, ${done.categories} catégorie${done.categories > 1 ? 's' : ''}${done.skipped > 0 ? `, ${done.skipped} laissés en place` : ''}.${incomplete ? ' Relance pour terminer.' : ''}`
+            : 'Les salons et rôles d’équipe restent en place tant que tu ne les retires pas. Un salon que tu avais toi-même choisi n’est jamais supprimé.'}
         </p>
-        {!done && (
+        {(!done || incomplete) && (
           <button className="btn-springs btn-secondary bevel-sm text-sm" disabled={busy}
             onClick={async () => {
               const ok = await confirm({
                 title: 'Nettoyer les salons du tournoi',
-                message: 'Les salons et rôles d’équipe créés par le bot, ainsi que la catégorie du tournoi, seront supprimés du serveur Discord. Les messages qu’ils contiennent seront perdus.',
+                message: 'Seront supprimés du serveur Discord : les salons d’équipe (texte et vocal) et leurs messages, les rôles d’équipe, les catégories du tournoi, et les salons d’annonces ou de staff créés par le bot. Le rôle participant part aussi si le tournoi n’appartient à aucun circuit. Rien de tout cela n’est récupérable.',
                 confirmLabel: 'Nettoyer',
                 variant: 'danger',
               });
               if (!ok) return;
               setBusy(true);
               try {
-                const res = await api<{ report: { channels: number; roles: number; categories: number } }>(
+                const res = await api<{ report: CleanupReport }>(
                   `/api/admin/competitions/${competitionId}/discord-cleanup`, { method: 'POST' });
                 setDone(res.report);
-                toast.success('Salons du tournoi nettoyés.');
+                if (res.report.deadlineReached) toast.info('Nettoyage interrompu — relance pour terminer.');
+                else toast.success('Salons du tournoi nettoyés.');
               } catch (e) {
                 toast.error(e instanceof ApiError ? e.message : 'Nettoyage impossible.');
               } finally {

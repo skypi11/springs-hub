@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth, isCompetitionAdmin } from '@/lib/firebase-admin';
-import { Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
@@ -134,11 +134,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // suivante ne tiendrait pas (jamais un échec au 51e salon, en plein
       // tournoi).
       const channelsPerTeam = teamChannels ? (discordOptions.teamVoiceChannels === true ? 2 : 1) : 0;
-      let activeCategoryId = shared.categoryId;
-      let categoryUsed = activeCategoryId
-        ? await countChannelsInCategory(guildId, activeCategoryId)
-        : 0;
-      let overflowIndex = 1;
+      // Registre des catégories créées par le bot : sans lui, chaque relance
+      // du provisioning repartait de la catégorie principale et rouvrait une
+      // « (2) » de plus, jamais nettoyée.
+      const knownCategories: string[] = Array.isArray(comp.discord?.categoryIds)
+        ? (comp.discord.categoryIds as string[]).filter(Boolean)
+        : (shared.categoryId ? [shared.categoryId] : []);
+      let activeCategoryId = knownCategories[knownCategories.length - 1] ?? shared.categoryId;
+      let overflowIndex = Math.max(1, knownCategories.length);
+
+      let categoryUsed = 0;
+      if (activeCategoryId && channelsPerTeam > 0) {
+        const counted = await countChannelsInCategory(guildId, activeCategoryId);
+        if (counted === null) {
+          // Compter est la seule façon de savoir quand déborder : sans ce
+          // chiffre, on créerait des salons jusqu'au refus de Discord au 51e,
+          // en plein tournoi. On préfère demander de réessayer.
+          return NextResponse.json(
+            { error: 'Impossible de lire les salons du serveur Discord pour le moment — réessaie dans un instant.' },
+            { status: 503 },
+          );
+        }
+        categoryUsed = counted;
+      }
+
       const categoryBaseName = discordOptions.categoryName?.trim() || competitionName;
       const categoryWithRoom = async (): Promise<string | null> => {
         if (!activeCategoryId || channelsPerTeam === 0) return activeCategoryId;
@@ -146,6 +165,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         overflowIndex += 1;
         activeCategoryId = await createCategory(guildId, `${categoryBaseName} (${overflowIndex})`.slice(0, 100));
         categoryUsed = 0;
+        await compRef.update({ 'discord.categoryIds': FieldValue.arrayUnion(activeCategoryId) });
         return activeCategoryId;
       };
 
