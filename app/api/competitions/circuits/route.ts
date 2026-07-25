@@ -5,8 +5,9 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { isCircuitHidden, isCompetitionHidden, canViewHiddenCompetition } from '@/lib/competitions/visibility';
 import { pickFocusEvent } from '@/lib/competitions/circuit-timeline';
 
-// GET /api/competitions/circuits — liste publique des circuits Aedral natifs,
-// point d'entrée de /competitions. Un circuit en brouillon (dont le circuit de
+// GET /api/competitions/circuits — ce qui se joue sur Aedral : les circuits
+// natifs ET les tournois hors circuit (un one-shot n'apparaissait nulle part).
+// Point d'entrée de /competitions. Un circuit en brouillon (dont le circuit de
 // test) n'est renvoyé qu'aux testeurs autorisés (feature gating). Chaque circuit
 // porte un résumé « focus » (état d'inscription + prochaine étape) pour la
 // stat-décision du héros de la liste — dérivé de ses étapes visibles, même gate
@@ -96,7 +97,47 @@ export async function GET(req: NextRequest) {
 
     circuits.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 
-    return NextResponse.json({ circuits });
+    // Tournois HORS CIRCUIT. Ils n'étaient listés nulle part : une compétition
+    // isolée n'existait publiquement que pour qui avait son lien direct — au
+    // point de faire croire qu'un circuit était obligatoire. Même gate de
+    // visibilité que le reste (brouillon et compétition de test masqués).
+    const standaloneSnap = await db.collection('competitions').where('circuitId', '==', null).get();
+    const tournaments = standaloneSnap.docs
+      .filter(d => isViewer || !isCompetitionHidden(d.data()))
+      .map(d => {
+        const c = d.data();
+        const opensAt = toIso(c.registration?.opensAt);
+        const closesAt = toIso(c.registration?.closesAt);
+        const days: Array<{ date: string }> = Array.isArray(c.schedule?.days) ? c.schedule.days : [];
+        return {
+          id: d.id,
+          name: (c.name as string) ?? '',
+          game: (c.game as string) ?? 'rocket_league',
+          status: (c.status as string) ?? 'draft',
+          hidden: isCompetitionHidden(c),
+          organizer: (c.organizer as { name: string; logoUrl?: string | null } | undefined) ?? null,
+          registrationOpen: c.status === 'registration'
+            && !!opensAt && !!closesAt
+            && now >= new Date(opensAt).getTime() && now <= new Date(closesAt).getTime(),
+          closesAt,
+          startDate: days[0]?.date ?? null,
+          approvedCount: (c.approvedCount as number) ?? 0,
+          maxTeams: (c.format?.maxTeams as number) ?? null,
+          createdAt: c.createdAt?.toDate?.()?.toISOString() ?? null,
+        };
+      });
+
+    // Ce qui se joue d'abord : inscriptions ouvertes, puis en cours, puis à
+    // venir, les terminés en fin de liste.
+    const rank = (t: { registrationOpen: boolean; status: string }) =>
+      t.registrationOpen ? 0
+        : t.status === 'live' ? 1
+        : t.status === 'finished' || t.status === 'archived' ? 3
+        : 2;
+    tournaments.sort((a, b) =>
+      rank(a) - rank(b) || String(b.startDate ?? b.createdAt).localeCompare(String(a.startDate ?? a.createdAt)));
+
+    return NextResponse.json({ circuits, tournaments });
   } catch (err) {
     captureApiError('API Competitions/Circuits GET error', err);
     return NextResponse.json({ error: 'server_error' }, { status: 500 });

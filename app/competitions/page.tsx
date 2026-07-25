@@ -18,6 +18,22 @@ import OrganizerCredit from '@/components/competitions/OrganizerCredit';
 import { getGameColor, getGameColorRgb, getGameBannerUrl, getGameLogoUrl } from '@/lib/games-registry';
 import { ACTIVE_LEGACY_COMPETITIONS, FINISHED_LEGACY_COMPETITIONS, type LegacyCompetition } from '@/lib/legacy-competitions';
 
+/** Tournoi hébergé sur Aedral sans circuit (un one-shot). */
+interface StandaloneTournament {
+  id: string;
+  name: string;
+  game: string;
+  status: string;
+  hidden: boolean;
+  organizer: { name: string; logoUrl?: string | null } | null;
+  registrationOpen: boolean;
+  closesAt: string | null;
+  startDate: string | null;
+  approvedCount: number;
+  maxTeams: number | null;
+  createdAt: string | null;
+}
+
 interface CircuitFocus {
   mode: string;
   registrationOpen: boolean;
@@ -62,13 +78,20 @@ function fmtPrize(p: CircuitSummary['prizePool']): string | null {
 export default function CompetitionsPage() {
   const { user, loading: authLoading } = useAuth();
   const [circuits, setCircuits] = useState<CircuitSummary[]>([]);
+  const [tournaments, setTournaments] = useState<StandaloneTournament[]>([]);
 
   useEffect(() => {
     if (authLoading) return;
+    type Payload = { circuits: CircuitSummary[]; tournaments: StandaloneTournament[] };
     const fetcher = user
-      ? api<{ circuits: CircuitSummary[] }>('/api/competitions/circuits')
-      : apiPublic<{ circuits: CircuitSummary[] }>('/api/competitions/circuits');
-    fetcher.then(r => setCircuits(r.circuits ?? [])).catch(() => setCircuits([]));
+      ? api<Payload>('/api/competitions/circuits')
+      : apiPublic<Payload>('/api/competitions/circuits');
+    fetcher
+      .then(r => {
+        setCircuits(r.circuits ?? []);
+        setTournaments(r.tournaments ?? []);
+      })
+      .catch(() => { setCircuits([]); setTournaments([]); });
   }, [user, authLoading]);
 
   return (
@@ -90,6 +113,21 @@ export default function CompetitionsPage() {
           {circuits.map(c => (
             <FlagshipCircuit key={c.id} c={c} canRegister={!!(c.focus.registrationOpen && c.focus.targetId && user)} />
           ))}
+        </section>
+      )}
+
+      {/* ── Tournois hors circuit : sans cette liste, un one-shot n'existait
+             publiquement que pour qui avait son lien direct. ── */}
+      {tournaments.length > 0 && (
+        <section className="space-y-4">
+          <p className="t-label" style={{ color: 'var(--s-text-muted)' }}>Tournois</p>
+          <div className="panel bevel">
+            <div className="panel-body p-0">
+              {tournaments.map((t, i) => (
+                <TournamentRow key={t.id} t={t} first={i === 0} />
+              ))}
+            </div>
+          </div>
         </section>
       )}
 
@@ -122,6 +160,55 @@ export default function CompetitionsPage() {
       )}
     </div>
   );
+}
+
+/** État d'un tournoi en un mot, du point de vue d'un visiteur. */
+function tournamentStatusLabel(t: StandaloneTournament): string {
+  if (t.registrationOpen) return 'Inscriptions ouvertes';
+  if (t.status === 'live') return 'En cours';
+  if (t.status === 'finished' || t.status === 'archived') return 'Terminé';
+  if (t.status === 'validation' || t.status === 'seeding') return 'Inscriptions closes';
+  return 'À venir';
+}
+
+// Rangée d'un tournoi hébergé sur Aedral (hors circuit).
+function TournamentRow({ t, first }: { t: StandaloneTournament; first: boolean }) {
+  const done = t.status === 'finished' || t.status === 'archived';
+  return (
+    <Link href={`/competitions/${t.id}`}
+      className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--s-elevated)] group"
+      style={{ borderTop: first ? 'none' : '1px solid var(--s-border)', opacity: done ? 0.8 : 1 }}>
+      <GameTag gameId={t.game} size="sm" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-semibold truncate group-hover:underline">{t.name}</span>
+          <span className="tag tag-neutral">{tournamentStatusLabel(t)}</span>
+          {t.hidden && (
+            <span className="tag tag-neutral inline-flex items-center gap-1">
+              <EyeOff size={10} /> Test
+            </span>
+          )}
+        </div>
+        {/* Séparateurs posés à la jointure : en dur, le premier « · » restait
+            orphelin dès qu'un tournoi n'avait pas d'organisateur. */}
+        <p className="text-xs mt-0.5" style={{ color: 'var(--s-text-muted)' }}>
+          {[
+            t.organizer?.name,
+            t.startDate ? formatDay(t.startDate) : null,
+            t.maxTeams !== null ? `${t.approvedCount}/${t.maxTeams} équipes` : null,
+          ].filter(Boolean).join(' · ')}
+        </p>
+      </div>
+      <ArrowRight size={15} className="flex-shrink-0 transition-transform group-hover:translate-x-0.5"
+        style={{ color: 'var(--s-text-muted)' }} />
+    </Link>
+  );
+}
+
+function formatDay(date: string): string {
+  const d = new Date(`${date}T12:00:00`);
+  if (isNaN(d.getTime())) return date;
+  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 // Rangée d'une compétition legacy (lien sortant vers l'ancien site Springs).
