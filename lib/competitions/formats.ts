@@ -43,7 +43,21 @@ export type ConfigField =
       level: ConfigFieldLevel;
       type: 'boolean';
       default: boolean;
+    }
+  | {
+      /** Valeurs imposées — un BO est impair, un champ libre laissait saisir
+       *  des valeurs que le serveur refuse. */
+      key: string;
+      label: string;
+      help?: string;
+      level: ConfigFieldLevel;
+      type: 'choice';
+      options: Array<{ value: number; label: string }>;
+      default: number;
     };
+
+/** Choix de BO : impairs uniquement (règle du serveur). */
+const BO_OPTIONS = [1, 3, 5, 7, 9].map(n => ({ value: n, label: `BO${n}` }));
 
 /** Ce que la fiche déclare au multi-étapes et au seeding (design §3a) : la
  *  composition « [étape de groupes] → top-N → [étape finale] » se construit
@@ -140,8 +154,8 @@ export const FORMAT_DEFS: Record<FormatKind, FormatDef> = {
     description: 'Deux défaites éliminent : perdre en winners fait basculer dans le bracket losers. Grande finale entre les deux finalistes, reset possible.',
     configFields: [
       { key: 'maxTeams', label: 'Équipes max', level: 'essential', type: 'number', min: 4, max: 64, default: LEGENDS_FORMAT.maxTeams },
-      { key: 'bo.default', label: 'BO par défaut', level: 'essential', type: 'number', min: 1, max: 9, default: LEGENDS_FORMAT.bo.default },
-      { key: 'bo.grandFinal', label: 'BO de la grande finale', level: 'advanced', type: 'number', min: 1, max: 9, default: LEGENDS_FORMAT.bo.grandFinal },
+      { key: 'bo.default', label: 'BO par défaut', level: 'essential', type: 'choice', options: BO_OPTIONS, default: LEGENDS_FORMAT.bo.default },
+      { key: 'bo.grandFinal', label: 'BO de la grande finale', level: 'advanced', type: 'choice', options: BO_OPTIONS, default: LEGENDS_FORMAT.bo.grandFinal },
       { key: 'bracketReset', label: 'Reset de grande finale', help: 'Si le finaliste venu des losers gagne la première grande finale, une seconde se joue.', level: 'advanced', type: 'boolean', default: LEGENDS_FORMAT.bracketReset },
     ],
     presets: [
@@ -168,8 +182,8 @@ export const FORMAT_DEFS: Record<FormatKind, FormatDef> = {
     description: 'Une défaite élimine. Le format le plus court — petite finale optionnelle pour la 3e place.',
     configFields: [
       { key: 'maxTeams', label: 'Équipes max', level: 'essential', type: 'number', min: 4, max: 64, default: SINGLE_ELIM_FORMAT.maxTeams },
-      { key: 'bo.default', label: 'BO par défaut', level: 'essential', type: 'number', min: 1, max: 9, default: SINGLE_ELIM_FORMAT.bo.default },
-      { key: 'bo.grandFinal', label: 'BO de la finale', level: 'advanced', type: 'number', min: 1, max: 9, default: SINGLE_ELIM_FORMAT.bo.grandFinal },
+      { key: 'bo.default', label: 'BO par défaut', level: 'essential', type: 'choice', options: BO_OPTIONS, default: SINGLE_ELIM_FORMAT.bo.default },
+      { key: 'bo.grandFinal', label: 'BO de la finale', level: 'advanced', type: 'choice', options: BO_OPTIONS, default: SINGLE_ELIM_FORMAT.bo.grandFinal },
       { key: 'thirdPlace', label: 'Petite finale', help: 'Les perdants des demi-finales jouent la 3e place.', level: 'essential', type: 'boolean', default: SINGLE_ELIM_FORMAT.thirdPlace === true },
     ],
     presets: [
@@ -198,7 +212,7 @@ export const FORMAT_DEFS: Record<FormatKind, FormatDef> = {
       { key: 'maxTeams', label: 'Équipes max', level: 'essential', type: 'number', min: 4, max: 64, default: ROUND_ROBIN_FORMAT.maxTeams },
       { key: 'groupCount', label: 'Nombre de poules', help: 'Les têtes de série sont réparties en serpentin, jamais dans la même poule.', level: 'essential', type: 'number', min: 1, max: 16, default: ROUND_ROBIN_FORMAT.groupCount ?? 1 },
       { key: 'doubleRound', label: 'Aller-retour', help: 'Chaque paire se rencontre deux fois, camps inversés.', level: 'essential', type: 'boolean', default: ROUND_ROBIN_FORMAT.doubleRound === true },
-      { key: 'bo.default', label: 'BO des matchs', level: 'essential', type: 'number', min: 1, max: 9, default: ROUND_ROBIN_FORMAT.bo.default },
+      { key: 'bo.default', label: 'BO des matchs', level: 'essential', type: 'choice', options: BO_OPTIONS, default: ROUND_ROBIN_FORMAT.bo.default },
       { key: 'points.win', label: 'Points par victoire', level: 'advanced', type: 'number', min: 0, max: 10, default: ROUND_ROBIN_FORMAT.points?.win ?? 3 },
       { key: 'points.loss', label: 'Points par défaite', level: 'advanced', type: 'number', min: 0, max: 10, default: ROUND_ROBIN_FORMAT.points?.loss ?? 0 },
     ],
@@ -237,7 +251,7 @@ export const FORMAT_DEFS: Record<FormatKind, FormatDef> = {
     configFields: [
       { key: 'maxTeams', label: 'Équipes max', level: 'essential', type: 'number', min: 4, max: 64, default: SWISS_FORMAT.maxTeams },
       { key: 'swissRounds', label: 'Nombre de rondes', help: 'Les rondes s\'apparient au fil des résultats. Conseillé : assez de rondes pour départager un vainqueur (log2 du nombre d\'équipes).', level: 'essential', type: 'number', min: 1, max: 12, default: SWISS_FORMAT.swissRounds ?? 4 },
-      { key: 'bo.default', label: 'BO des matchs', level: 'essential', type: 'number', min: 1, max: 9, default: SWISS_FORMAT.bo.default },
+      { key: 'bo.default', label: 'BO des matchs', level: 'essential', type: 'choice', options: BO_OPTIONS, default: SWISS_FORMAT.bo.default },
       { key: 'points.win', label: 'Points par victoire', level: 'advanced', type: 'number', min: 0, max: 10, default: SWISS_FORMAT.points?.win ?? 3 },
       { key: 'points.loss', label: 'Points par défaite', level: 'advanced', type: 'number', min: 0, max: 10, default: SWISS_FORMAT.points?.loss ?? 0 },
     ],

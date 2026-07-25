@@ -186,7 +186,10 @@ describe('buildPlanBlocks — poules et suisse', () => {
 
     const odd = buildPlanBlocks(fmt({ kind: 'swiss', maxTeams: 9, swissRounds: 3 }));
     expect(odd[1].hint).toContain('bye');
-    expect(odd[0].matchCount).toBe(5);
+    // 9 équipes : 4 rencontres et un bye. Le bye occupe une ligne du bracket
+    // mais aucun créneau — l'annoncer comme un match donnerait un volume faux
+    // (et contredirait le résumé du format).
+    expect(odd[0].matchCount).toBe(4);
   });
 });
 

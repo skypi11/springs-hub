@@ -17,6 +17,7 @@
 import { useMemo, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/ui/ConfirmModal';
 import { Switch } from '@/components/ui/Switch';
 import { validateCompetitionPayload } from '@/lib/competitions/validate';
 import { LEGENDS_CHECKIN } from '@/lib/competitions/defaults';
@@ -27,7 +28,7 @@ import {
   spreadOverDays,
   type PlanBlock,
 } from '@/lib/competitions/schedule-plan';
-import { normalizeFormat } from '@/lib/competitions/format-config';
+import { dropCircuitReseed, normalizeFormat } from '@/lib/competitions/format-config';
 import { FORMAT_DEFS } from '@/lib/competitions/formats';
 import type { CreationPreset } from '@/lib/competitions/creation-presets';
 import type { CompetitionFormat, PhasePlanEntry, TournamentStage } from '@/types/competitions';
@@ -138,6 +139,7 @@ function CompetitionFormBody({ form, setForm, initial, circuits, saving, onCance
   onRestart: () => void;
   onSubmit: (payload: Record<string, unknown>) => void;
 }) {
+  const confirm = useConfirm();
   const patch = (values: Partial<FormState>) => setForm({ ...form, ...values });
 
   // Le déroulé couvre TOUTES les étapes : la structure d'une phase finale est
@@ -166,7 +168,16 @@ function CompetitionFormBody({ form, setForm, initial, circuits, saving, onCance
       <div className="panel-header flex items-center justify-between gap-2 flex-wrap">
         <span className="t-sub">{initial ? `Éditer — ${initial.name}` : 'Nouveau tournoi'}</span>
         {!initial && (
-          <button type="button" className="btn-springs btn-ghost text-sm" onClick={onRestart}>
+          <button type="button" className="btn-springs btn-ghost text-sm"
+            onClick={async () => {
+              // Repartir de l'écran de choix efface tout ce qui a été réglé.
+              const ok = await confirm({
+                title: 'Changer de format',
+                message: 'Les réglages saisis seront perdus et tu repartiras du choix du type de tournoi.',
+                confirmLabel: 'Changer',
+              });
+              if (ok) onRestart();
+            }}>
             Changer de format
           </button>
         )}
@@ -186,7 +197,16 @@ function CompetitionFormBody({ form, setForm, initial, circuits, saving, onCance
           <div>
             <label className="t-label-soft block mb-2">Circuit</label>
             <select className="settings-input w-full" value={form.circuitId}
-              onChange={e => patch({ circuitId: e.target.value })}>
+              onChange={e => {
+                const circuitId = e.target.value;
+                // Le re-seeding par classement de circuit n'a plus de sens hors
+                // circuit : le serveur le refuse, et le menu ne l'affiche même
+                // plus — il restait pourtant enregistré.
+                patch({
+                  circuitId,
+                  stages: circuitId ? form.stages : dropCircuitReseed(form.stages),
+                });
+              }}>
               <option value="">Aucun (tournoi isolé)</option>
               {selectableCircuits.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
@@ -380,6 +400,9 @@ function CompetitionFormBody({ form, setForm, initial, circuits, saving, onCance
             </button>
             <button type="button" className="btn-springs btn-primary bevel-sm"
               disabled={saving || !check.ok}
+              // Un bouton grisé sans raison laisse chercher : on répète l'erreur
+              // au survol, en plus de l'afficher à côté.
+              title={check.ok ? undefined : check.error}
               onClick={() => onSubmit(payload)}>
               {saving ? 'Enregistrement…' : initial ? 'Enregistrer' : 'Créer le tournoi'}
             </button>

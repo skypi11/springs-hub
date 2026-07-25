@@ -554,10 +554,21 @@ export async function ensureCompetitionShared(
     if (circuitDiscord?.participantRoleId && circuitDiscord.guildId === input.guildId) {
       participantRoleId = circuitDiscord.participantRoleId;
     } else {
-      participantRoleId = await createGuildRole(input.guildId, input.participantRoleLabel, { color: 0xffb800 });
-      await circuitRef.update({
-        discord: { guildId: input.guildId, participantRoleId },
-      });
+      const created = await createGuildRole(input.guildId, input.participantRoleLabel, { color: 0xffb800 });
+      // Le rôle appartient au CIRCUIT, mais le verrou de provisioning est posé
+      // par compétition : deux étapes provisionnées en parallèle en créaient
+      // chacune un. On adopte celui qui a gagné la course et on retire le
+      // nôtre, plutôt que de laisser deux rôles identiques sur le serveur.
+      const fresh = (await circuitRef.get()).data()?.discord as { guildId?: string; participantRoleId?: string } | undefined;
+      if (fresh?.participantRoleId && fresh.guildId === input.guildId) {
+        participantRoleId = fresh.participantRoleId;
+        await deleteGuildRole(input.guildId, created).catch(() => {});
+      } else {
+        participantRoleId = created;
+        await circuitRef.update({
+          discord: { guildId: input.guildId, participantRoleId },
+        });
+      }
     }
     await compRef.update({ 'discord.participantRoleId': participantRoleId });
   } else if (!participantRoleId) {
@@ -629,6 +640,11 @@ export interface ProvisionRegistrationInput {
 export interface ProvisionResult {
   status: 'done' | 'partial';
   warnings: string[];
+  /** Salons RÉELLEMENT créés pendant ce passage. L'appelant suit ainsi le
+   *  remplissage de la catégorie : compter « ce qu'une équipe devrait avoir »
+   *  surestimait à chaque reprise (les équipes déjà provisionnées ne créent
+   *  plus rien) et faisait déborder trop tôt. */
+  channelsCreated: number;
 }
 
 // Nom de salon texte : Discord force minuscules/tirets — on slugifie nous-mêmes
@@ -678,12 +694,13 @@ export async function provisionRegistration(
 ): Promise<ProvisionResult> {
   const regRef = db.collection('competition_registrations').doc(input.registrationId);
   const warnings: string[] = [];
+  let channelsCreated = 0;
   const pastDeadline = () => opts.deadlineAtMs !== undefined && Date.now() > opts.deadlineAtMs;
 
   const bailPartial = async (): Promise<ProvisionResult> => {
     warnings.push('Interrompu par la limite de temps — relance le provisioning pour continuer');
     await regRef.update({ 'discord.provisioningStatus': 'partial', 'discord.warnings': warnings });
-    return { status: 'partial', warnings };
+    return { status: 'partial', warnings, channelsCreated };
   };
 
   let roleId = input.discord.roleId;
@@ -710,6 +727,7 @@ export async function provisionRegistration(
       staffRoleIds: opts.staffRoleIds,
     });
     await regRef.update({ 'discord.textChannelId': textChannelId });
+    channelsCreated += 1;
 
     // Message d'accueil, une seule fois : à la création du salon. Best-effort,
     // une panne d'envoi ne doit pas faire échouer le provisioning.
@@ -738,6 +756,7 @@ export async function provisionRegistration(
       staffRoleIds: opts.staffRoleIds,
     });
     await regRef.update({ 'discord.voiceChannelId': voiceChannelId });
+    channelsCreated += 1;
   }
 
   for (const member of input.roster) {
@@ -772,7 +791,7 @@ export async function provisionRegistration(
     'discord.warnings': warnings,
     'discord.errorMessage': null,
   });
-  return { status, warnings };
+  return { status, warnings, channelsCreated };
 }
 
 // Invalide un rôle participant périmé partout où son ID est stocké (docs

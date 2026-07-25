@@ -17,6 +17,8 @@ import {
   configFieldsByLevel,
   defaultFormatFor,
   getConfigValue,
+  MIN_ADVANCE_COUNT as MIN_ADVANCE,
+  reconcileStages,
   setBoForRound,
   setConfigValue,
   switchFormatKind,
@@ -27,7 +29,6 @@ const BO_CHOICES = [1, 3, 5, 7, 9];
 import type { CompetitionFormat, FormatKind, SeedingStrategy, TournamentStage } from '@/types/competitions';
 
 const MAX_STAGES = 4;
-const MIN_ADVANCE = 4;
 
 const RESEED_LABELS: Array<{ value: SeedingStrategy; label: string; help: string }> = [
   { value: 'standings', label: 'Classement de l’étape', help: 'Le premier de l’étape précédente est tête de série.' },
@@ -43,54 +44,42 @@ export default function StagesEditor({ stages, hasCircuit, onChange }: {
 }) {
   const multi = stages.length > 1;
 
+  // Toute modification repasse par `reconcileStages` : les effectifs se
+  // propagent sur TOUTE la suite (et pas seulement sur l'étape voisine), et la
+  // dernière étape perd son transfert. Sans cette cascade, réduire un effectif
+  // sur un tournoi à trois étapes — ou retirer une étape du milieu — laissait
+  // une séquence que le serveur refusait, sans explication à l'écran.
+  const apply = (next: TournamentStage[]) => onChange(reconcileStages(next));
+
   function patchStage(index: number, patch: Partial<TournamentStage>) {
-    onChange(stages.map((s, i) => (i === index ? { ...s, ...patch } : s)));
+    apply(stages.map((s, i) => (i === index ? { ...s, ...patch } : s)));
   }
 
   function setFormat(index: number, format: CompetitionFormat) {
-    const next = stages.map((s, i) => (i === index ? { ...s, kind: format.kind, format } : s));
-    // Le nombre de qualifiées ne peut pas dépasser l'effectif de son étape.
-    const transfer = next[index].transfer;
-    if (transfer && transfer.advanceCount > format.maxTeams) {
-      next[index] = { ...next[index], transfer: { ...transfer, advanceCount: format.maxTeams } };
-      next[index + 1] = withTeamCount(next[index + 1], format.maxTeams);
-    }
-    onChange(next);
+    apply(stages.map((s, i) => (i === index ? { ...s, kind: format.kind, format } : s)));
   }
 
-  function setAdvanceCount(index: number, rawCount: number) {
-    const max = stages[index].format.maxTeams;
-    const advanceCount = Math.min(max, Math.max(MIN_ADVANCE, Math.round(rawCount) || MIN_ADVANCE));
-    const next = [...stages];
-    next[index] = { ...next[index], transfer: { ...next[index].transfer!, advanceCount } };
-    // L'étape suivante accueille EXACTEMENT les qualifiées : son effectif est
-    // dicté ici, jamais saisi deux fois.
-    next[index + 1] = withTeamCount(next[index + 1], advanceCount);
-    onChange(next);
+  function setAdvanceCount(index: number, advanceCount: number) {
+    apply(stages.map((s, i) => (
+      i === index ? { ...s, transfer: { ...s.transfer!, advanceCount } } : s
+    )));
   }
 
   function addStage() {
     if (stages.length >= MAX_STAGES) return;
-    const previous = stages[stages.length - 1];
-    const advanceCount = Math.min(previous.format.maxTeams, 8);
-    const next = [...stages];
-    next[next.length - 1] = {
-      ...previous,
-      name: previous.name ?? 'Poules',
-      transfer: { advanceCount: Math.max(MIN_ADVANCE, advanceCount), reseed: 'standings' },
-    };
-    const finalFormat = withTeamCount(
-      { kind: 'single_elim', format: defaultFormatFor('single_elim'), name: 'Phase finale' },
-      Math.max(MIN_ADVANCE, advanceCount),
-    );
-    onChange([...next, finalFormat]);
+    const last = stages[stages.length - 1];
+    apply([
+      ...stages.slice(0, -1),
+      // L'étape qui devient avant-dernière garde le nom choisi par
+      // l'organisateur, sinon celui de SON format — jamais « Poules » sur un
+      // bracket, comme c'était le cas.
+      { ...last, name: last.name ?? FORMAT_DEFS[last.kind].label },
+      { kind: 'single_elim' as const, format: defaultFormatFor('single_elim'), name: 'Phase finale' },
+    ]);
   }
 
   function removeStage(index: number) {
-    const next = stages.filter((_, i) => i !== index);
-    // La dernière étape ne transfère vers personne.
-    next[next.length - 1] = { ...next[next.length - 1], transfer: undefined };
-    onChange(next);
+    apply(stages.filter((_, i) => i !== index));
   }
 
   return (
@@ -130,14 +119,15 @@ export default function StagesEditor({ stages, hasCircuit, onChange }: {
             {stage.transfer && (
               <div className="pt-3" style={{ borderTop: '1px solid var(--s-border)' }}>
                 <div className="flex flex-wrap items-end gap-3">
-                  <div>
-                    <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>
-                      Équipes qualifiées pour l’étape suivante
-                    </label>
-                    <input type="number" className="settings-input" style={{ width: 96 }}
-                      min={MIN_ADVANCE} max={stage.format.maxTeams}
+                  <div style={{ width: 200 }}>
+                    <NumberField
+                      label="Équipes qualifiées"
+                      help={`Entre ${MIN_ADVANCE} et ${stage.format.maxTeams} — elles composent l’étape suivante.`}
+                      min={MIN_ADVANCE}
+                      max={stage.format.maxTeams}
                       value={stage.transfer.advanceCount}
-                      onChange={e => setAdvanceCount(index, Number(e.target.value))} />
+                      onCommit={next => setAdvanceCount(index, next)}
+                    />
                   </div>
                   <div className="flex-1 min-w-[220px]">
                     <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>
@@ -292,29 +282,75 @@ function FieldInput({ field, format, onFormat }: {
     );
   }
 
+  if (field.type === 'choice') {
+    return (
+      <div>
+        <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>{field.label}</label>
+        <select className="settings-input w-full"
+          value={typeof value === 'number' ? value : field.default}
+          onChange={e => onFormat(setConfigValue(format, field.key, Number(e.target.value)))}>
+          {field.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        {field.help && (
+          <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>{field.help}</p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <NumberField
+      label={field.label}
+      help={field.help}
+      min={field.min}
+      max={field.max}
+      value={typeof value === 'number' ? value : field.default}
+      onCommit={next => onFormat(setConfigValue(format, field.key, next))}
+    />
+  );
+}
+
+/**
+ * Champ numérique qui laisse TAPER avant de borner.
+ *
+ * Borner à chaque frappe rendait la saisie impossible : dans un champ dont le
+ * minimum est 4, taper « 16 » transformait le « 1 » en « 4 » avant même le
+ * « 6 ». La valeur n'est recadrée qu'à la sortie du champ (ou sur Entrée).
+ */
+function NumberField({ label, help, min, max, value, onCommit }: {
+  label: string;
+  help?: string;
+  min: number;
+  max: number;
+  value: number;
+  onCommit: (next: number) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+
+  const commit = () => {
+    if (draft === null) return;
+    const raw = Number(draft);
+    setDraft(null);
+    if (!Number.isFinite(raw)) return;              // saisie vide ou illisible : on garde la valeur
+    const clamped = Math.min(max, Math.max(min, Math.round(raw)));
+    if (clamped !== value) onCommit(clamped);
+  };
+
   return (
     <div>
-      <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>{field.label}</label>
+      <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>{label}</label>
       <input
         type="number" className="settings-input w-full"
-        min={field.min} max={field.max}
-        value={typeof value === 'number' ? value : field.default}
-        onChange={e => {
-          const raw = Number(e.target.value);
-          if (!Number.isFinite(raw)) return;
-          onFormat(setConfigValue(format, field.key, Math.min(field.max, Math.max(field.min, Math.round(raw)))));
-        }}
+        min={min} max={max}
+        value={draft ?? value}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }}
       />
-      {field.help && (
-        <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>{field.help}</p>
-      )}
+      <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
+        {help ?? `Entre ${min} et ${max}.`}
+      </p>
     </div>
   );
 }
 
-/** Impose l'effectif d'une étape (dicté par les qualifiées de la précédente).
- *  Les poules et les rondes suivent — `setConfigValue` normalise. */
-function withTeamCount(stage: TournamentStage, teamCount: number): TournamentStage {
-  const format = setConfigValue(stage.format, 'maxTeams', teamCount);
-  return { ...stage, kind: format.kind, format };
-}

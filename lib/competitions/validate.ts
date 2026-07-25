@@ -526,7 +526,10 @@ export function validateFormat(input: unknown): ValidationResult<CompetitionForm
   if (!isValidBo(boGrandFinal)) return err('BO de finale invalide (impair, 1-9).');
 
   const rawOverrides = Array.isArray(bo.overrides) ? bo.overrides as unknown[] : [];
-  if (rawOverrides.length > 8) return err('Trop de règles BO spécifiques (max 8).');
+  // 20 : l'écran « BO par tour » permet de régler CHAQUE tour, et un double
+  // élim de 64 en compte 16 (6 vainqueurs + 10 perdants). La borne de 8
+  // refusait des réglages pourtant proposés à l'organisateur.
+  if (rawOverrides.length > 20) return err('Trop de règles BO spécifiques (max 20).');
   const overrides: CompetitionFormat['bo']['overrides'] = [];
   const seenOverrides = new Set<string>();
   for (const o of rawOverrides) {

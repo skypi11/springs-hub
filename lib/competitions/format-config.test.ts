@@ -2,15 +2,17 @@ import { describe, it, expect } from 'vitest';
 import {
   configFieldsByLevel,
   defaultFormatFor,
+  dropCircuitReseed,
   getConfigValue,
   normalizeFormat,
+  reconcileStages,
   setConfigValue,
   switchFormatKind,
   swissDefaultRounds,
 } from './format-config';
 import { FORMAT_KINDS } from './formats';
 import { validateFormat } from './validate';
-import type { CompetitionFormat, FormatKind } from '@/types/competitions';
+import type { CompetitionFormat, FormatKind, TournamentStage } from '@/types/competitions';
 
 function expectAccepted(format: CompetitionFormat, context: string) {
   const res = validateFormat(format);
@@ -144,6 +146,88 @@ describe('switchFormatKind', () => {
     const next = switchFormatKind(tiny, 'round_robin');
     expect(next.groupCount).toBeLessThanOrEqual(2);
     expectAccepted(next, 'simple élim 4 → poules');
+  });
+});
+
+// Régressions (review adversariale) : la cascade ne franchissait qu'une étape,
+// et le barème pouvait être refusé au nom d'un champ absent de l'écran.
+describe('reconcileStages', () => {
+  const stage = (format: CompetitionFormat, advanceCount?: number): TournamentStage => ({
+    kind: format.kind,
+    format,
+    ...(advanceCount ? { transfer: { advanceCount, reseed: 'standings' as const } } : {}),
+  });
+
+  it('propage un effectif réduit sur TOUTE la suite, pas seulement l’étape voisine', () => {
+    const chain = [
+      stage(setConfigValue(defaultFormatFor('round_robin'), 'maxTeams', 32), 16),
+      stage(setConfigValue(defaultFormatFor('single_elim'), 'maxTeams', 16), 8),
+      stage(setConfigValue(defaultFormatFor('single_elim'), 'maxTeams', 8)),
+    ];
+    // L'organisateur ramène la première étape à 8 équipes.
+    const shrunk = [...chain];
+    shrunk[0] = stage(setConfigValue(shrunk[0].format, 'maxTeams', 8), 16);
+
+    const fixed = reconcileStages(shrunk);
+    expect(fixed[0].transfer!.advanceCount).toBe(8);      // pas plus que l'effectif
+    expect(fixed[1].format.maxTeams).toBe(8);             // l'étape 2 suit
+    expect(fixed[1].transfer!.advanceCount).toBe(8);      // ...et son transfert aussi
+    expect(fixed[2].format.maxTeams).toBe(8);             // l'étape 3 aussi (la cascade)
+  });
+
+  it('retirer une étape du milieu laisse une séquence cohérente', () => {
+    const chain = reconcileStages([
+      stage(setConfigValue(defaultFormatFor('round_robin'), 'maxTeams', 32), 16),
+      stage(setConfigValue(defaultFormatFor('round_robin'), 'maxTeams', 16), 8),
+      stage(setConfigValue(defaultFormatFor('single_elim'), 'maxTeams', 8)),
+    ]);
+    const without = reconcileStages([chain[0], chain[2]]);
+    expect(without).toHaveLength(2);
+    expect(without[1].format.maxTeams).toBe(without[0].transfer!.advanceCount);
+    expect(without[1].transfer).toBeUndefined();
+  });
+
+  it('la dernière étape ne transfère jamais', () => {
+    const out = reconcileStages([
+      stage(defaultFormatFor('round_robin'), 8),
+      { ...stage(defaultFormatFor('single_elim')), transfer: { advanceCount: 4, reseed: 'standings' } },
+    ]);
+    expect(out[1].transfer).toBeUndefined();
+  });
+
+  it('mono-étape : rien à réconcilier', () => {
+    const single = [stage(defaultFormatFor('double_elim'))];
+    expect(reconcileStages(single)[0].transfer).toBeUndefined();
+  });
+});
+
+describe('dropCircuitReseed', () => {
+  it('ramène un re-seeding de circuit au classement de l’étape', () => {
+    const stages: TournamentStage[] = [
+      { kind: 'round_robin', format: defaultFormatFor('round_robin'), transfer: { advanceCount: 8, reseed: 'circuit' } },
+      { kind: 'single_elim', format: defaultFormatFor('single_elim') },
+    ];
+    expect(dropCircuitReseed(stages)[0].transfer!.reseed).toBe('standings');
+    // Les autres stratégies ne bougent pas.
+    stages[0].transfer!.reseed = 'mmr';
+    expect(dropCircuitReseed(stages)[0].transfer!.reseed).toBe('mmr');
+  });
+});
+
+describe('barème de points', () => {
+  it('le nul reste entre la défaite et la victoire, même s’il n’est pas à l’écran', () => {
+    // « Points par défaite » à 2 avec un nul par défaut à 1 : le serveur
+    // refusait le barème au nom d'un champ que l'organisateur ne voit pas.
+    const format = setConfigValue(defaultFormatFor('round_robin'), 'points.loss', 2);
+    expect(format.points!.draw).toBeGreaterThanOrEqual(format.points!.loss);
+    expect(format.points!.draw).toBeLessThanOrEqual(format.points!.win);
+    expectAccepted(format, 'poules avec défaite à 2 points');
+  });
+
+  it('la victoire rapporte toujours plus que la défaite', () => {
+    const format = setConfigValue(defaultFormatFor('round_robin'), 'points.loss', 9);
+    expect(format.points!.win).toBeGreaterThan(format.points!.loss);
+    expectAccepted(format, 'poules avec défaite à 9 points');
   });
 });
 

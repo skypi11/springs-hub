@@ -56,14 +56,20 @@ export async function notifyMatchAlert(
     const channelId = compSnap.data()?.discord?.options?.staffChannelId as string | undefined;
     if (!channelId) return;
     const staffRoleIds = (compSnap.data()?.discord?.options?.staffRoleIds as string[] | undefined) ?? [];
-    await sendCompetitionChannelMessage(channelId, {
-      title: TITLES[kind],
-      message: `${competitionName} — match ${matchLabel}. À traiter dans la console.`,
-      link: `https://aedral.com/admin/competitions/${competitionId}/console`,
-      // Une alerte silencieuse n'alerte personne : on mentionne le premier rôle
-      // staff déclaré (les suivants voient le salon de toute façon).
-      mentionRoleId: staffRoleIds[0] ?? null,
-    });
+    // BORNÉ : cette fonction est attendue au milieu d'actions joueur (ouvrir un
+    // litige). Discord peut mettre 60 s à répondre sous rate-limit — la requête
+    // du capitaine expirerait alors que son litige est déjà enregistré.
+    await Promise.race([
+      sendCompetitionChannelMessage(channelId, {
+        title: TITLES[kind],
+        message: `${competitionName} — match ${matchLabel}. À traiter dans la console.`,
+        link: `https://aedral.com/admin/competitions/${competitionId}/console`,
+        // Une alerte silencieuse n'alerte personne : on mentionne le premier
+        // rôle staff déclaré (les suivants voient le salon de toute façon).
+        mentionRoleId: staffRoleIds[0] ?? null,
+      }),
+      new Promise(resolve => setTimeout(resolve, 5_000)),
+    ]);
   } catch {
     // Discord indisponible : la notif in-app est déjà partie, on n'insiste pas.
   }

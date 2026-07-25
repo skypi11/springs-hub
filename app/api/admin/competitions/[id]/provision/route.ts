@@ -28,7 +28,11 @@ import { guildBlocker } from '@/lib/competitions/discord-guard';
 //   partiel — le passage suivant continue (pattern admin/messages).
 
 export const maxDuration = 300;
-const HARD_DEADLINE_MS = 250_000;
+// 80 s de marge : la deadline est vérifiée AVANT un appel Discord, et un seul
+// appel peut attendre jusqu'à ~60 s sous rate-limit (4 tentatives × 15 s). Avec
+// 50 s de marge, un salon pouvait être créé pendant que la fonction se faisait
+// tuer — l'identifiant n'était jamais stocké, et la relance en recréait un.
+const HARD_DEADLINE_MS = 220_000;
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -226,9 +230,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               link: `https://aedral.com/competitions/${id}`,
             },
           });
-          // Suivi du remplissage de la catégorie courante (une équipe traitée
-          // en partiel a pu créer ses salons avant de s'arrêter).
-          categoryUsed += channelsPerTeam;
+          // Salons RÉELLEMENT créés : compter « ce qu'une équipe devrait
+          // avoir » surestimait à chaque reprise (les équipes déjà
+          // provisionnées ne créent plus rien) et faisait déborder trop tôt.
+          categoryUsed += result.channelsCreated;
           if (result.status === 'done') report.done += 1;
           else report.partial += 1;
           report.teams.push({ name: (r.name as string) ?? '', status: result.status, warnings: result.warnings });

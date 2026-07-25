@@ -212,7 +212,10 @@ function roundRobinBlocks(format: CompetitionFormat): PlanBlock[] {
 
 function swissBlocks(format: CompetitionFormat): PlanBlock[] {
   const rounds = Math.max(1, format.swissRounds ?? 1);
-  const perRound = Math.ceil(Math.max(2, format.maxTeams) / 2);
+  // Matchs RÉELLEMENT joués : à effectif impair, une équipe reçoit un bye —
+  // il occupe une ligne du bracket mais aucun créneau. Compter le bye comme un
+  // match annonçait une rencontre de plus que le résumé du format.
+  const perRound = Math.floor(Math.max(2, format.maxTeams) / 2);
   const odd = format.maxTeams % 2 === 1;
   return Array.from({ length: rounds }, (_, i) => ({
     phase: i + 1,
@@ -383,11 +386,9 @@ export function buildStagedBlocks(
  * les mêmes numéros de ronde — les matchs de poule héritaient des phases de la
  * phase finale, et la console lançait n'importe quoi.
  */
-export function phasePlanForStage<T extends { stage?: number }>(
-  plan: T[] | undefined | null,
-  stage: number,
-): T[] {
-  return (plan ?? []).filter(e => (e.stage ?? 1) === stage);
+export function phasePlanForStage<T>(plan: T[] | undefined | null, stage: number): T[] {
+  // `stage` absent = étape 1 (toutes les compétitions d'avant le multi-étapes).
+  return (plan ?? []).filter(e => (((e as { stage?: number } | null)?.stage) ?? 1) === stage);
 }
 
 /** Blocs + journée par bloc → le `phasePlan` stocké et validé. */

@@ -89,7 +89,22 @@ export default function DiscordSettings({ value, competitionName, teamCount, onC
           <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Serveur (ID)</label>
           <input className="settings-input w-full" value={value.guildId}
             placeholder="Optionnel en brouillon"
-            onChange={e => { patch({ guildId: e.target.value }); setData(null); setError(null); }} />
+            onChange={e => {
+              // Les salons et rôles appartiennent à UN serveur : changer de
+              // serveur en gardant les identifiants de l'ancien faisait
+              // annoncer le bot au mauvais endroit (et échouer la création des
+              // salons, les rôles étant inconnus du nouveau).
+              patch({
+                guildId: e.target.value,
+                staffRoleIds: [],
+                announceChannelId: '',
+                createAnnounceChannel: false,
+                staffChannelId: '',
+                createStaffChannel: false,
+              });
+              setData(null);
+              setError(null);
+            }} />
         </div>
         <button type="button" className="btn-springs btn-secondary bevel-sm text-sm"
           disabled={checking || !/^\d{17,20}$/.test(guildId)}

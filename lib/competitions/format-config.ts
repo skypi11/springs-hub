@@ -7,7 +7,7 @@
 // champs déclarés par la fiche et passe par ces fonctions. Ajouter un format
 // reste « ajouter une fiche ».
 
-import type { CompetitionFormat, FormatKind } from '@/types/competitions';
+import type { CompetitionFormat, FormatKind, TournamentStage } from '@/types/competitions';
 import { FORMAT_DEFS, type ConfigField } from './formats';
 import type { BoRoundRef } from './schedule-plan';
 
@@ -87,13 +87,13 @@ export function normalizeFormat(format: CompetitionFormat): CompetitionFormat {
     // équipes sans relever les poules donnerait une poule de 64, refusée.
     next.groupCount = poolCountFor(format.maxTeams, Math.max(1, format.groupCount ?? 1));
     next.doubleRound = format.doubleRound === true;
-    next.points = format.points ?? { win: 3, draw: 1, loss: 0 };
+    next.points = clampPoints(format.points);
     delete next.swissRounds;
   } else if (kind === 'swiss') {
     // Au-delà de N−1 rondes, des re-matchs deviennent inévitables.
     const wanted = format.swissRounds ?? swissDefaultRounds(format.maxTeams);
     next.swissRounds = Math.max(1, Math.min(wanted, Math.max(2, format.maxTeams) - 1));
-    next.points = format.points ?? { win: 3, draw: 1, loss: 0 };
+    next.points = clampPoints(format.points);
     delete next.groupCount;
     delete next.doubleRound;
   } else {
@@ -138,6 +138,21 @@ export function setBoForRound(
       overrides: bo === baseline ? others : [...others, { bracket: ref.bracket, roundsFromEnd: ref.roundsFromEnd, bo }],
     },
   });
+}
+
+/**
+ * Barème d'un match, ramené dans les clous du serveur : la victoire rapporte
+ * plus que la défaite, et le nul se situe entre les deux. Le nul n'est PAS
+ * exposé à l'écran (aucun match nul en Rocket League) — sans ce recadrage,
+ * régler « points par défaite » à 2 faisait refuser le barème au nom d'un
+ * champ invisible.
+ */
+function clampPoints(points: CompetitionFormat['points']): NonNullable<CompetitionFormat['points']> {
+  const win = points?.win ?? 3;
+  const loss = points?.loss ?? 0;
+  const safeWin = Math.max(win, loss + 1);
+  const draw = points?.draw ?? 1;
+  return { win: safeWin, loss, draw: Math.min(safeWin, Math.max(loss, draw)) };
 }
 
 /** Rondes suisses par défaut : ⌈log2(N)⌉ — miroir de swissDefaultRounds du
@@ -189,12 +204,65 @@ export function poolCountFor(teamCount: number, wanted = 1): number {
   return Math.min(Math.max(wanted, minimum), maximum);
 }
 
-/** Borne une valeur numérique aux min/max déclarés par la fiche du format. */
+/** Ramène une valeur dans ce que la fiche du format autorise : bornes pour un
+ *  nombre, liste de valeurs pour un choix (un BO reste impair). */
 function clampToField(kind: FormatKind, key: string, value: unknown): number | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
   const field = FORMAT_DEFS[kind]?.configFields.find(f => f.key === key);
-  if (!field || field.type !== 'number') return undefined;
-  return Math.min(field.max, Math.max(field.min, Math.round(value)));
+  if (!field) return undefined;
+  if (field.type === 'number') return Math.min(field.max, Math.max(field.min, Math.round(value)));
+  if (field.type === 'choice') {
+    return field.options.some(o => o.value === value) ? value : field.default;
+  }
+  return undefined;
+}
+
+/**
+ * Remet une séquence d'étapes d'aplomb après une modification.
+ *
+ * Deux règles du serveur, appliquées en cascade sur TOUTE la suite (et pas
+ * seulement sur l'étape voisine) :
+ *   · on ne qualifie jamais plus d'équipes qu'il n'y en a dans l'étape ;
+ *   · l'étape suivante accueille EXACTEMENT les qualifiées de la précédente.
+ * Sans cascade, réduire l'effectif d'une étape sur un tournoi à trois étapes,
+ * ou supprimer une étape du milieu, laissait une séquence que le serveur
+ * refusait — sans que rien à l'écran n'explique pourquoi.
+ */
+export function reconcileStages(stages: TournamentStage[]): TournamentStage[] {
+  const out = stages.map(s => ({ ...s }));
+  for (let i = 0; i < out.length; i++) {
+    const isLast = i === out.length - 1;
+    if (isLast) {
+      // La dernière étape ne transfère vers personne.
+      delete out[i].transfer;
+      continue;
+    }
+    const available = out[i].format.maxTeams;
+    const wanted = out[i].transfer?.advanceCount ?? Math.min(available, 8);
+    const advanceCount = Math.max(MIN_ADVANCE_COUNT, Math.min(available, wanted));
+    out[i] = {
+      ...out[i],
+      transfer: { advanceCount, reseed: out[i].transfer?.reseed ?? 'standings' },
+    };
+    const next = out[i + 1];
+    const format = setConfigValue(next.format, 'maxTeams', advanceCount);
+    out[i + 1] = { ...next, kind: format.kind, format };
+  }
+  return out;
+}
+
+/** Minimum d'équipes qualifiées (miroir de STAGE_MIN_TEAMS côté validation). */
+export const MIN_ADVANCE_COUNT = 4;
+
+/** Retire le re-seeding par classement de circuit quand la compétition n'est
+ *  plus rattachée à un circuit — le serveur le refuse, et le menu ne propose
+ *  même plus l'option (elle restait pourtant enregistrée). */
+export function dropCircuitReseed(stages: TournamentStage[]): TournamentStage[] {
+  return stages.map(s => (
+    s.transfer?.reseed === 'circuit'
+      ? { ...s, transfer: { ...s.transfer, reseed: 'standings' as const } }
+      : s
+  ));
 }
 
 /** Champs déclarés d'un format, séparés par niveau (l'UI montre l'essentiel et
