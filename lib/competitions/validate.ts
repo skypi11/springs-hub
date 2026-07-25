@@ -420,9 +420,11 @@ function validateFormat(input: unknown): ValidationResult<CompetitionFormat> {
   if (kind === 'round_robin') return validateRoundRobinFormat(f);
   if (kind === 'swiss') return validateSwissFormat(f);
 
+  // Miroir de MIN_TEAMS/MAX_TEAMS (lib/tournament/generate) — littéraux, comme
+  // le reste de ce module partagé avec le client (jamais d'import de moteur).
   const maxTeams = asInt(f.maxTeams);
-  if (maxTeams === null || maxTeams < 4 || maxTeams > 32) {
-    return err("Nombre max d'équipes invalide (4-32).");
+  if (maxTeams === null || maxTeams < 4 || maxTeams > 64) {
+    return err("Nombre max d'équipes invalide (4-64).");
   }
 
   const bo = (typeof f.bo === 'object' && f.bo !== null) ? f.bo as Record<string, unknown> : null;

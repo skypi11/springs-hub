@@ -97,9 +97,10 @@ function playOut(b: Bracket, seed: number): Bracket {
 // ── Structure ───────────────────────────────────────────────────────────────
 
 describe('generateSingleElim — structure', () => {
-  it('refuse < 4, > 32 et les doublons', () => {
+  it('refuse < 4, > 64 et les doublons', () => {
     expect(() => gen(3)).toThrow();
-    expect(() => gen(33)).toThrow();
+    expect(() => gen(65)).toThrow();
+    expect(() => gen(64)).not.toThrow();   // cap relevé le 25/07
     expect(() => generateSingleElim(['a', 'a', 'b', 'c'], { bo: BO, forfeitScore: FORFEIT })).toThrow();
   });
 
@@ -430,7 +431,7 @@ describe('withdrawTeam / replaceTeam (simple élim)', () => {
 // ── Property : toutes les tailles, avec et sans petite finale ───────────────
 
 describe('property : simple élim joué de bout en bout', () => {
-  for (let n = 4; n <= 32; n++) {
+  for (let n = 4; n <= 64; n++) {
     it(`${n} équipes — déroulés seedés avec/sans petite finale : placements 1→N uniques`, () => {
       for (const thirdPlace of [false, true]) {
         for (const seed of [1, 2]) {
@@ -456,7 +457,7 @@ describe('property : simple élim joué de bout en bout', () => {
   }
 
   it('nombre de matchs : N−1 (+1 avec petite finale) pour une puissance de 2', () => {
-    for (const n of [4, 8, 16, 32]) {
+    for (const n of [4, 8, 16, 32, 64]) {
       expect(gen(n).order).toHaveLength(n - 1);
       expect(gen(n, true).order).toHaveLength(n);
     }

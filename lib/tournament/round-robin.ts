@@ -24,9 +24,8 @@
 import type { Bracket, BoConfig, PhasePlanEntryLike, PureMatch } from './types';
 import { attachPhasePlan } from './generate';
 
-/** Bornes propres au round robin : aucune contrainte de puissance de 2, la
- *  borne haute est plus généreuse que l'arbre (MAX_TEAMS=32 — l'extension des
- *  élims à 64+ est un chantier séparé, cf. docs/plateforme-tournois-vision.md). */
+/** Bornes propres au round robin : aucune contrainte de puissance de 2. Même
+ *  borne haute que les arbres depuis leur passage à 64 (MAX_TEAMS). */
 export const RR_MIN_TEAMS = 4;
 export const RR_MAX_TEAMS = 64;
 /** Garde-fou : au-delà, une poule unique devient un calendrier délirant

@@ -173,6 +173,25 @@ describe('validateCompetitionPayload', () => {
     expect(validateCompetitionPayload(badKind).ok).toBe(false);
   });
 
+  // Cap relevé de 32 à 64 le 25/07 (décision Matt) : les arbres s'alignent sur
+  // le round robin et le suisse. 128 refusé sciemment — un double élim de 128
+  // sortirait du budget d'un passage d'étape (2×128 > STAGE_MAX_ATOMIC_MATCHES).
+  it('accepte 64 équipes en élimination, refuse au-delà', () => {
+    const ok = competitionBody();
+    (ok.format as Record<string, unknown>).maxTeams = 64;
+    const res = validateCompetitionPayload(ok);
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.value.format.maxTeams).toBe(64);
+
+    const tooBig = competitionBody();
+    (tooBig.format as Record<string, unknown>).maxTeams = 65;
+    expect(validateCompetitionPayload(tooBig).ok).toBe(false);
+
+    const tooSmall = competitionBody();
+    (tooSmall.format as Record<string, unknown>).maxTeams = 3;
+    expect(validateCompetitionPayload(tooSmall).ok).toBe(false);
+  });
+
   it('accepte le simple élim : reset forcé à false, petite finale conservée, pas d\'override losers', () => {
     const single = competitionBody();
     (single.format as Record<string, unknown>).kind = 'single_elim';

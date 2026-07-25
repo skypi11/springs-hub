@@ -8,6 +8,7 @@ import type {
   CompetitionFormat,
   PhasePlanEntry,
 } from '@/types/competitions';
+import { roundLabel } from './round-labels';
 
 // Barème v2 (spec §11) — lu sur la place COMPRESSÉE 1→N. Propriétés calibrées :
 // 3× 10e place (51 pts) > 1 victoire isolée (40) ; 3× 16e (33) < 1 victoire.
@@ -110,15 +111,8 @@ export const SINGLE_ELIM_FORMAT: CompetitionFormat = {
 // plan (éditable) si le champ réel est bien plus petit que maxTeams.
 export function buildSingleElimPhasePlan(maxTeams: number, thirdPlace = false): PhasePlanEntry[] {
   let size = 1;
-  while (size < Math.max(4, Math.min(32, maxTeams))) size *= 2;
+  while (size < Math.max(4, Math.min(64, maxTeams))) size *= 2;
   const rounds = Math.log2(size);
-  const labelOf = (fromEnd: number): string => {
-    if (fromEnd === 0) return 'Finale';
-    if (fromEnd === 1) return 'Demi-finales';
-    if (fromEnd === 2) return 'Quarts';
-    if (fromEnd === 3) return 'Huitièmes';
-    return 'Seizièmes';
-  };
   const plan: PhasePlanEntry[] = [];
   for (let r = 1; r <= rounds; r++) {
     const isFinal = r === rounds;
@@ -127,7 +121,7 @@ export function buildSingleElimPhasePlan(maxTeams: number, thirdPlace = false): 
     plan.push({
       phase: r,
       day: 1,
-      label: `P${r} — ${labelOf(rounds - r)}${isFinal && thirdPlace ? ' + petite finale' : ''}`,
+      label: `P${r} — ${roundLabel(r, rounds)}${isFinal && thirdPlace ? ' + petite finale' : ''}`,
       rounds: isFinal && thirdPlace
         ? [{ bracket: 'winners', round: r }, { bracket: 'losers', round: 1 }]
         : [{ bracket: 'winners', round: r }],

@@ -85,7 +85,7 @@ export interface Bracket {
   kind: BracketKind;
   /** Équipes par seed (index 0 = seed 1). */
   teams: string[];
-  /** Taille nominale : puissance de 2 (4→32) pour les élims ; effectif RÉEL
+  /** Taille nominale : puissance de 2 (4→64) pour les élims ; effectif RÉEL
    *  d'équipes en round robin (aucune contrainte de puissance de 2). */
   size: number;
   /** Nombre de rondes winners (log2(size)). 0 en round robin (sans objet). */

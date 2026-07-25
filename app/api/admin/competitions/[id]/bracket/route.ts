@@ -12,8 +12,9 @@ import { stagesOf, teamBoundsForKind } from '@/lib/competitions/stages';
 import { mmrSeedValue, orderByCircuitRank, orderByMmr, type SeedableTeam } from '@/lib/competitions/seeding';
 import { circuitRankByTeamId } from '@/lib/competitions/seeding-server';
 
-/** Bornes moteur du format : arbre 4-32 ; round robin et suisse 4-64 (aucune
- *  contrainte de puissance de 2). Source unique : stages.teamBoundsForKind. */
+/** Bornes moteur du format : 4-64 pour tous (les arbres arrondissent à la
+ *  puissance de 2 supérieure, le round robin et le suisse non). Source
+ *  unique : stages.teamBoundsForKind. */
 function teamBounds(format: { kind?: string } | null | undefined): { min: number; max: number } {
   return teamBoundsForKind(kindOf(format));
 }
@@ -401,8 +402,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         swissRounds: typeof comp.format.swissRounds === 'number' ? comp.format.swissRounds : undefined,
       });
 
-      // Écriture batchée (63 matchs + ~32 ACL pour 32 équipes en double élim,
-      // N−1 (+petite finale) en simple élim → < 500).
+      // Écriture batchée : 63 matchs + ~32 ACL à 32 équipes en double élim,
+      // 127 + ~64 au cap de 64 — au-delà de 400 opérations le batch est
+      // flushé et repris (le statut ne bascule 'live' qu'au dernier).
       const aclByMatch = new Map(acls.map(a => [a.matchId, a.participantUids]));
       let batch = db.batch();
       let ops = 0;

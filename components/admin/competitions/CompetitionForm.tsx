@@ -94,7 +94,7 @@ export default function CompetitionForm({
   // incohérent avec le format).
   function changeMaxTeams(next: number) {
     setMaxTeams(next);
-    if (kind === 'single_elim' && next >= 4 && next <= 32) {
+    if (kind === 'single_elim' && next >= 4 && next <= 64) {
       setPhasePlan(buildSingleElimPhasePlan(next, thirdPlace));
     }
   }
@@ -344,7 +344,7 @@ export default function CompetitionForm({
             </div>
             <div>
               <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Équipes max</label>
-              <input type="number" min={4} max={32} className="settings-input w-full"
+              <input type="number" min={4} max={64} className="settings-input w-full"
                 value={maxTeams} onChange={e => changeMaxTeams(Number(e.target.value))} />
             </div>
             <div>

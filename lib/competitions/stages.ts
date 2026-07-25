@@ -82,9 +82,9 @@ export { parseStageMatchId, stageMatchId, stageOfMatch } from './stage-ids';
 
 // ── Bornes moteur par format (centralisées — miroir unique des constantes) ──
 
-/** Bornes d'effectif du moteur d'un format : arbres 4-32, round robin et
- *  suisse 4-64. Source unique — la route bracket et la validation des
- *  transferts la consomment. */
+/** Bornes d'effectif du moteur d'un format : 4-64 pour tous les formats depuis
+ *  l'alignement des arbres sur le round robin et le suisse. Source unique — la
+ *  route bracket et la validation des transferts la consomment. */
 export function teamBoundsForKind(kind: FormatKind): { min: number; max: number } {
   if (kind === 'round_robin') return { min: RR_MIN_TEAMS, max: RR_MAX_TEAMS };
   if (kind === 'swiss') return { min: SWISS_MIN_TEAMS, max: SWISS_MAX_TEAMS };

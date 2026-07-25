@@ -351,8 +351,8 @@ describe('adaptBracketForViewer — statuts jour de match et décorations', () =
   });
 });
 
-describe('adaptBracketForViewer — toutes tailles 4→32', () => {
-  it.each([4, 5, 8, 13, 16, 20, 27, 32])('%i équipes : données cohérentes', n => {
+describe('adaptBracketForViewer — toutes tailles 4→64', () => {
+  it.each([4, 5, 8, 13, 16, 20, 27, 32, 33, 48, 64])('%i équipes : données cohérentes', n => {
     const bracket = gen(n);
     const out = adaptBracketForViewer(publicDocs(bracket));
     // Tous les matchs du moteur sont émis (le viewer gère l'affichage).

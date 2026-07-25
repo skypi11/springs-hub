@@ -1,4 +1,4 @@
-// Génération d'un bracket double OU simple élimination 4→32 équipes
+// Génération d'un bracket double OU simple élimination 4→64 équipes
 // (archi §3). Pur et déterministe : mêmes équipes → même bracket. Le seeding
 // (aléatoire, modifiable par l'admin) se fait EN AMONT : ce module reçoit la
 // liste finale ordonnée par seed.
@@ -13,7 +13,20 @@ import type {
 import { resolveInitialVoids } from './advance';
 
 export const MIN_TEAMS = 4;
-export const MAX_TEAMS = 32;
+/**
+ * Borne haute des arbres, alignée sur le round robin et le suisse (64) — un
+ * suisse à 64 équipes était acceptable là où un simple bracket de 64 ne
+ * l'était pas. Le générateur lui-même n'a pas de plafond structurel
+ * (`nextPowerOfTwo` + `seedOrder` récursif) : la borne est un garde-fou de
+ * produit, pas une limite technique.
+ *
+ * Au-delà (128), le double élim sortirait du budget d'écriture atomique d'un
+ * passage d'étape multi-étapes (2×128 = 256 matchs > 200, cf.
+ * STAGE_MAX_ATOMIC_MATCHES) : relever encore exigerait de traiter ce cas ET
+ * une passe de vérification d'affichage (256 matchs à rendre). Décision Matt
+ * du 25/07 : on s'arrête à 64 tant que personne ne demande plus.
+ */
+export const MAX_TEAMS = 64;
 
 /** Ordre standard des seeds au round 1 (1 rencontre size, 2 rencontre size−1…
  *  avec le pliage récursif classique qui étale les têtes de série). */

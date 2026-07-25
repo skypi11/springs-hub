@@ -139,7 +139,7 @@ export const FORMAT_DEFS: Record<FormatKind, FormatDef> = {
     label: 'Double élimination',
     description: 'Deux défaites éliminent : perdre en winners fait basculer dans le bracket losers. Grande finale entre les deux finalistes, reset possible.',
     configFields: [
-      { key: 'maxTeams', label: 'Équipes max', level: 'essential', type: 'number', min: 4, max: 32, default: LEGENDS_FORMAT.maxTeams },
+      { key: 'maxTeams', label: 'Équipes max', level: 'essential', type: 'number', min: 4, max: 64, default: LEGENDS_FORMAT.maxTeams },
       { key: 'bo.default', label: 'BO par défaut', level: 'essential', type: 'number', min: 1, max: 9, default: LEGENDS_FORMAT.bo.default },
       { key: 'bo.grandFinal', label: 'BO de la grande finale', level: 'advanced', type: 'number', min: 1, max: 9, default: LEGENDS_FORMAT.bo.grandFinal },
       { key: 'bracketReset', label: 'Reset de grande finale', help: 'Si le finaliste venu des losers gagne la première grande finale, une seconde se joue.', level: 'advanced', type: 'boolean', default: LEGENDS_FORMAT.bracketReset },
@@ -167,7 +167,7 @@ export const FORMAT_DEFS: Record<FormatKind, FormatDef> = {
     label: 'Élimination directe',
     description: 'Une défaite élimine. Le format le plus court — petite finale optionnelle pour la 3e place.',
     configFields: [
-      { key: 'maxTeams', label: 'Équipes max', level: 'essential', type: 'number', min: 4, max: 32, default: SINGLE_ELIM_FORMAT.maxTeams },
+      { key: 'maxTeams', label: 'Équipes max', level: 'essential', type: 'number', min: 4, max: 64, default: SINGLE_ELIM_FORMAT.maxTeams },
       { key: 'bo.default', label: 'BO par défaut', level: 'essential', type: 'number', min: 1, max: 9, default: SINGLE_ELIM_FORMAT.bo.default },
       { key: 'bo.grandFinal', label: 'BO de la finale', level: 'advanced', type: 'number', min: 1, max: 9, default: SINGLE_ELIM_FORMAT.bo.grandFinal },
       { key: 'thirdPlace', label: 'Petite finale', help: 'Les perdants des demi-finales jouent la 3e place.', level: 'essential', type: 'boolean', default: SINGLE_ELIM_FORMAT.thirdPlace === true },

@@ -90,7 +90,7 @@ function playOut(b: Bracket, seed: number): Bracket {
 
 describe('pureMatchToDoc / docToPureMatch — round-trip fidèle', () => {
   it('chaque match d\'un bracket généré revient identique après aller-retour (toutes tailles)', () => {
-    for (let n = 4; n <= 32; n++) {
+    for (let n = 4; n <= 64; n++) {
       const b = gen(n);
       for (const id of b.order) {
         const original = b.matches[id];
@@ -120,7 +120,7 @@ function serializeAll(b: Bracket, competitionId = 'comp1'): Array<{ id: string }
 
 describe('reconstructBracket', () => {
   it('reconstruit un bracket identique (matches, teams, rounds) pour toutes les tailles', () => {
-    for (let n = 4; n <= 32; n++) {
+    for (let n = 4; n <= 64; n++) {
       const b = gen(n);
       const rebuilt = reconstructBracket({
         withdrawn: b.withdrawn,
@@ -266,7 +266,7 @@ describe('bracket-store — simple élimination', () => {
   }
 
   it('round-trip fidèle pour toutes les tailles, avec et sans petite finale', () => {
-    for (let n = 4; n <= 32; n++) {
+    for (let n = 4; n <= 64; n++) {
       for (const thirdPlace of [false, true]) {
         const b = genSingle(n, thirdPlace);
         for (const id of b.order) {
@@ -280,7 +280,7 @@ describe('bracket-store — simple élimination', () => {
   });
 
   it('reconstruit un bracket single identique — kind inféré sans grande finale', () => {
-    for (const n of [4, 11, 16, 27, 32]) {
+    for (const n of [4, 11, 16, 27, 32, 48, 64]) {
       for (const thirdPlace of [false, true]) {
         const b = genSingle(n, thirdPlace);
         const rebuilt = reconstructBracket({

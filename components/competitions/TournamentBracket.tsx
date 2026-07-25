@@ -19,6 +19,7 @@ import {
   type AdaptedBracket,
   type PublicBracketMatch,
 } from '@/lib/competitions/brackets-viewer-adapter';
+import { roundLabel } from '@/lib/competitions/round-labels';
 
 // Chaînes françaises appliquées par-dessus les bundles `en` ET `fr` du viewer
 // (addLocale = merge profond i18next) : la détection de langue du navigateur
@@ -104,12 +105,8 @@ const customRoundName: NonNullable<Config['customRoundName']> = info => {
   }
   const { roundNumber, roundCount } = info;
   if (info.groupType === 'winner-bracket' || info.groupType === 'single-bracket') {
-    if (roundNumber === roundCount) return 'Finale';
-    if (roundNumber === roundCount - 1) return 'Demi-finales';
-    if (roundNumber === roundCount - 2) return 'Quarts';
-    if (roundNumber === roundCount - 3) return 'Huitièmes';
-    if (roundNumber === roundCount - 4) return 'Seizièmes';
-    return `Tour ${roundNumber}`;
+    // Noms consacrés partagés avec le plan de phases (lib/competitions/round-labels).
+    return roundLabel(roundNumber, roundCount);
   }
   if (info.groupType === 'loser-bracket') {
     if (roundNumber === roundCount) return 'Finale du losers';

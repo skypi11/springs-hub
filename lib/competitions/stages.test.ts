@@ -137,9 +137,9 @@ describe('stagesOf / currentStageOf / formatOfStage', () => {
     expect(stageLabelOf(twoStages[1])).toBe('Élimination directe');
   });
 
-  it('teamBoundsForKind : arbres 4-32, RR et suisse 4-64', () => {
-    expect(teamBoundsForKind('double_elim')).toEqual({ min: 4, max: 32 });
-    expect(teamBoundsForKind('single_elim')).toEqual({ min: 4, max: 32 });
+  it('teamBoundsForKind : 4-64 pour tous les formats', () => {
+    expect(teamBoundsForKind('double_elim')).toEqual({ min: 4, max: 64 });
+    expect(teamBoundsForKind('single_elim')).toEqual({ min: 4, max: 64 });
     expect(teamBoundsForKind('round_robin')).toEqual({ min: 4, max: 64 });
     expect(teamBoundsForKind('swiss')).toEqual({ min: 4, max: 64 });
   });

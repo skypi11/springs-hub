@@ -115,9 +115,10 @@ describe('seedOrder', () => {
 });
 
 describe('generateDoubleElim — structure', () => {
-  it('refuse < 4, > 32 et les doublons', () => {
+  it('refuse < 4, > 64 et les doublons', () => {
     expect(() => gen(3)).toThrow();
-    expect(() => gen(33)).toThrow();
+    expect(() => gen(65)).toThrow();
+    expect(() => gen(64)).not.toThrow();   // cap relevé le 25/07
     expect(() => generateDoubleElim(['a', 'a', 'b', 'c'], { bo: LEGENDS_BO, forfeitScore: FORFEIT })).toThrow();
   });
 
@@ -392,10 +393,10 @@ describe('replaceTeam (waitlist, spec §8)', () => {
   });
 });
 
-// ── Property tests : tous les N de 4 à 32, plusieurs seeds ──────────────────
+// ── Property tests : tous les N de 4 à 64, plusieurs seeds ──────────────────
 
 describe('property : bracket joué de bout en bout', () => {
-  for (let n = 4; n <= 32; n++) {
+  for (let n = 4; n <= 64; n++) {
     it(`${n} équipes — 3 déroulés seedés : terminaison, placements 1→N uniques, groupes cohérents`, () => {
       for (const seed of [1, 42, 1337]) {
         const finished = playOut(gen(n), seed);
