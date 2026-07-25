@@ -922,21 +922,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         );
       }
 
-      // Plan de phases de l'étape suivante : entries par défaut du format,
-      // phases offsettées (jamais de collision de groupement console), jour
-      // clampé au planning existant — ajustage fin = refonte création.
+      // Plan de phases de l'étape suivante. Le formulaire de création planifie
+      // désormais TOUTES les étapes (la structure d'une phase finale est connue
+      // dès le départ — seuls les noms d'équipes manquent) : si l'organisateur
+      // a prévu ses journées, on les respecte. Sinon (compétitions créées avant,
+      // ou par script), entries par défaut du format, phases offsettées et jour
+      // clampé au planning existant.
       const existingPlan = (comp.schedule?.phasePlan as PhasePlanEntry[] | undefined) ?? [];
+      const nextEngine = engineFor(kindOf(nextStage.format));
+      const plannedEntries = existingPlan.filter(e => (e.stage ?? 1) === cur + 1);
       const phaseOffset = existingPlan.reduce((m, e) => Math.max(m, e.phase), 0);
       const dayUsed = existingPlan.reduce((m, e) => Math.max(m, e.day), 1);
       const dayMax = Array.isArray(comp.schedule?.days) ? Math.max(1, comp.schedule.days.length) : 1;
-      const nextEngine = engineFor(kindOf(nextStage.format));
-      const newEntries: PhasePlanEntry[] = nextEngine.buildDefaultPhasePlan(nextStage.format).map(e => ({
-        ...e,
-        phase: e.phase + phaseOffset,
-        day: Math.min(dayUsed + e.day, dayMax),
-        stage: cur + 1,
-        label: `${stageLabelOf(nextStage)} — ${e.label}`.slice(0, 60),
-      }));
+      const newEntries: PhasePlanEntry[] = plannedEntries.length > 0
+        ? plannedEntries
+        : nextEngine.buildDefaultPhasePlan(nextStage.format).map(e => ({
+            ...e,
+            phase: e.phase + phaseOffset,
+            day: Math.min(dayUsed + e.day, dayMax),
+            stage: cur + 1,
+            label: `${stageLabelOf(nextStage)} — ${e.label}`.slice(0, 60),
+          }));
 
       let nextBracket;
       try {
@@ -1008,7 +1014,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             // Les arbitrages de l'étape close sont archivés dans son résultat ;
             // le champ plat repart vide pour l'étape suivante (design §9c).
             tiebreakResolutions: {},
-            'schedule.phasePlan': [...existingPlan, ...newEntries],
+            // Déroulé déjà planifié : rien à ajouter, il est en place.
+            'schedule.phasePlan': plannedEntries.length > 0
+              ? existingPlan
+              : [...existingPlan, ...newEntries],
             // Révision des matérialisations (gardes concurrentes, cf. suisse).
             matchesRevision: FieldValue.increment(1),
             updatedAt: FieldValue.serverTimestamp(),

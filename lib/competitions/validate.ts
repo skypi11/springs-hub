@@ -7,6 +7,7 @@ import { clampString, LIMITS } from '@/lib/validation';
 import type {
   CircuitStatus,
   CircuitTieBreaker,
+  CompetitionDiscordOptions,
   CompetitionEligibility,
   CompetitionFormat,
   CompetitionSchedule,
@@ -188,6 +189,7 @@ export interface CompetitionPayload {
   registration: { opensAt: string; closesAt: string; waitlist: boolean };
   schedule: CompetitionSchedule;
   discordGuildId: string;
+  discordOptions: CompetitionDiscordOptions;
 }
 
 export function validateCompetitionPayload(body: unknown): ValidationResult<CompetitionPayload> {
@@ -223,41 +225,19 @@ export function validateCompetitionPayload(body: unknown): ValidationResult<Comp
   const schedule = validateSchedule(b.schedule);
   if (!schedule.ok) return schedule;
 
-  // Cohérence FORMAT ↔ PLAN DE PHASES (review adversariale : un plan double
-  // élim collé sur un simple élim rangeait la petite finale en début de jour).
-  // En simple élim : pas de grand_final, losers limité au round 1 (petite
-  // finale) et seulement si elle est activée. En round robin : uniquement des
-  // journées `round_robin` — et réciproquement, jamais de journée de poule
-  // dans un plan d'arbre.
-  if (format.value.kind === 'single_elim') {
-    for (const entry of schedule.value.phasePlan) {
-      for (const round of entry.rounds) {
-        if (round.bracket === 'grand_final') {
-          return err('Plan de phases incompatible : pas de grande finale en simple élimination.');
-        }
-        if (round.bracket === 'losers' && (round.round > 1 || format.value.thirdPlace !== true)) {
-          return err('Plan de phases incompatible : en simple élimination, le bracket losers ne porte que la petite finale (activée).');
-        }
-      }
+  // Cohérence FORMAT ↔ PLAN DE PHASES, ÉTAPE PAR ÉTAPE : le déroulé peut
+  // couvrir plusieurs étapes de formats différents (poules le samedi, phase
+  // finale le dimanche — planifiées dès la création). Chaque entrée est donc
+  // confrontée au format de SON étape, jamais à celui de la compétition.
+  const planStages = stages.value ?? [{ kind: format.value.kind, format: format.value }];
+  for (const entry of schedule.value.phasePlan) {
+    const stageNumber = entry.stage ?? 1;
+    const stage = planStages[stageNumber - 1];
+    if (!stage) {
+      return err(`Phase ${entry.phase} : elle vise une étape ${stageNumber} qui n'existe pas.`);
     }
-  }
-  if (format.value.kind === 'round_robin' || format.value.kind === 'swiss') {
-    const only = format.value.kind;
-    for (const entry of schedule.value.phasePlan) {
-      for (const round of entry.rounds) {
-        if (round.bracket !== only) {
-          return err(only === 'swiss'
-            ? 'Plan de phases incompatible : un suisse ne contient que des rondes suisses.'
-            : 'Plan de phases incompatible : un round robin ne contient que des journées de poule.');
-        }
-      }
-    }
-  } else {
-    for (const entry of schedule.value.phasePlan) {
-      if (entry.rounds.some(r => r.bracket === 'round_robin' || r.bracket === 'swiss')) {
-        return err('Plan de phases incompatible : journée de poule ou ronde suisse dans un format à élimination.');
-      }
-    }
+    const issue = phasePlanIssue(entry, stage.format);
+    if (issue) return err(issue);
   }
 
   // Snowflake Discord : chiffres uniquement (17-20), optionnel en draft.
@@ -265,6 +245,9 @@ export function validateCompetitionPayload(body: unknown): ValidationResult<Comp
   if (discordGuildId && !/^\d{17,20}$/.test(discordGuildId)) {
     return err('ID de serveur Discord invalide (snowflake attendu).');
   }
+
+  const discordOptions = validateDiscordOptions(b.discordOptions);
+  if (!discordOptions.ok) return discordOptions;
 
   return {
     ok: true,
@@ -279,8 +262,76 @@ export function validateCompetitionPayload(body: unknown): ValidationResult<Comp
       registration: registration.value,
       schedule: schedule.value,
       discordGuildId,
+      discordOptions: discordOptions.value,
     },
   };
+}
+
+/**
+ * Réglages Discord. Absents = comportement historique (salons d'équipe créés,
+ * rôle nommé d'après la compétition, aucune annonce publique) : une
+ * compétition d'avant ces réglages continue de se comporter à l'identique.
+ */
+function validateDiscordOptions(input: unknown): ValidationResult<CompetitionDiscordOptions> {
+  const defaults: CompetitionDiscordOptions = {
+    teamChannels: true,
+    participantRoleName: null,
+    announceChannelId: null,
+  };
+  if (input === null || input === undefined) return { ok: true, value: defaults };
+  if (typeof input !== 'object') return err('Réglages Discord invalides.');
+  const o = input as Record<string, unknown>;
+
+  const announceRaw = typeof o.announceChannelId === 'string' ? o.announceChannelId.trim() : '';
+  if (announceRaw && !/^\d{17,20}$/.test(announceRaw)) {
+    return err("ID de salon d'annonces invalide (snowflake attendu).");
+  }
+  const roleName = clampString(o.participantRoleName, 90); // limite Discord : 100
+
+  return {
+    ok: true,
+    value: {
+      // Le défaut reste « oui » : ne pas cocher ne doit pas priver une
+      // compétition existante de ses salons.
+      teamChannels: o.teamChannels !== false,
+      participantRoleName: roleName || null,
+      announceChannelId: announceRaw || null,
+    },
+  };
+}
+
+/**
+ * Une entrée de déroulé est-elle jouable dans ce format ? (review adversariale :
+ * un plan double élim collé sur un simple élim rangeait la petite finale en
+ * début de jour). Renvoie le message d'erreur, ou null si tout va bien.
+ */
+function phasePlanIssue(entry: PhasePlanEntry, format: CompetitionFormat): string | null {
+  const kind = format.kind;
+  if (kind === 'round_robin' || kind === 'swiss') {
+    for (const round of entry.rounds) {
+      if (round.bracket !== kind) {
+        return kind === 'swiss'
+          ? 'Plan de phases incompatible : un suisse ne contient que des rondes suisses.'
+          : 'Plan de phases incompatible : un round robin ne contient que des journées de poule.';
+      }
+    }
+    return null;
+  }
+  for (const round of entry.rounds) {
+    if (round.bracket === 'round_robin' || round.bracket === 'swiss') {
+      return 'Plan de phases incompatible : journée de poule ou ronde suisse dans un format à élimination.';
+    }
+    if (kind === 'single_elim') {
+      if (round.bracket === 'grand_final') {
+        return 'Plan de phases incompatible : pas de grande finale en simple élimination.';
+      }
+      // En simple élim, le seul match « losers » est la petite finale.
+      if (round.bracket === 'losers' && (round.round > 1 || format.thirdPlace !== true)) {
+        return 'Plan de phases incompatible : en simple élimination, le bracket losers ne porte que la petite finale (activée).';
+      }
+    }
+  }
+  return null;
 }
 
 // ── Séquence d'étapes (multi-étapes, design §9d) ─────────────────────────────
@@ -723,12 +774,12 @@ function validateSchedule(input: unknown): ValidationResult<CompetitionSchedule>
 
 function validatePhasePlan(input: unknown, dayCount: number): ValidationResult<PhasePlanEntry[]> {
   const raw = Array.isArray(input) ? input as unknown[] : [];
-  // Borne 40 : un round robin aller-retour à poule de 20 (RR_MAX_POOL_SIZE)
-  // fait 38 journées = 38 phases — la borne historique de 30 rejetait le plan
-  // par défaut de configs pourtant validées (review adversariale). Sans
-  // danger pour les arbres (8 rondes max) : une phase qui ne matche rien est
-  // ignorée par attachPhasePlan.
-  if (raw.length < 1 || raw.length > 40) return err('Le plan de phases doit compter entre 1 et 40 phases.');
+  // Borne 60 : un round robin aller-retour à poule de 20 (RR_MAX_POOL_SIZE)
+  // fait déjà 38 journées, et le déroulé couvre désormais TOUTES les étapes
+  // (poules + phase finale planifiées ensemble). Sans danger pour les arbres
+  // (8 rondes max) : une phase qui ne matche rien est ignorée par
+  // attachPhasePlan.
+  if (raw.length < 1 || raw.length > 60) return err('Le plan de phases doit compter entre 1 et 60 phases.');
   const plan: PhasePlanEntry[] = [];
   for (const p of raw) {
     if (typeof p !== 'object' || p === null) return err('Phase invalide dans le plan.');
@@ -738,6 +789,12 @@ function validatePhasePlan(input: unknown, dayCount: number): ValidationResult<P
     if (phase === null || phase < 1) return err('Numéro de phase invalide.');
     if (day === null || day < 1 || day > dayCount) return err(`Phase ${phase} : jour hors planning.`);
     const label = clampString(entry.label, 60);
+    // Étape de format visée (absent = 1, tout l'existant). Le rattachement à
+    // une étape réelle est vérifié par l'appelant, qui connaît la séquence.
+    const stage = entry.stage === undefined ? 1 : asInt(entry.stage);
+    if (stage === null || stage < 1 || stage > STAGE_MAX_COUNT) {
+      return err(`Phase ${phase} : étape invalide.`);
+    }
     const rawRounds = Array.isArray(entry.rounds) ? entry.rounds as unknown[] : [];
     if (rawRounds.length < 1 || rawRounds.length > 6) return err(`Phase ${phase} : rondes invalides.`);
     const rounds: PhasePlanEntry['rounds'] = [];
@@ -753,7 +810,7 @@ function validatePhasePlan(input: unknown, dayCount: number): ValidationResult<P
       if (num === null || num < 1 || num > 40) return err(`Phase ${phase} : numéro de ronde invalide.`);
       rounds.push({ bracket: round.bracket, round: num });
     }
-    plan.push({ phase, day, label: label || `P${phase}`, rounds });
+    plan.push({ phase, day, label: label || `P${phase}`, ...(stage > 1 ? { stage } : {}), rounds });
   }
   // Phases numérotées 1..N sans trou ni doublon, jours croissants au fil des phases.
   const sorted = [...plan].sort((a, b) => a.phase - b.phase);

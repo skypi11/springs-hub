@@ -80,13 +80,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const circuitSnap = await db.collection('circuits').doc(comp.circuitId as string).get();
         circuitName = (circuitSnap.data()?.name as string) ?? null;
       }
+      // Réglages de l'organisateur (absents = comportement historique).
+      const discordOptions = (comp.discord?.options ?? {}) as {
+        teamChannels?: boolean;
+        participantRoleName?: string | null;
+      };
+      const teamChannels = discordOptions.teamChannels !== false;
       const shared = await ensureCompetitionShared(db, id, {
         guildId,
         circuitId: (comp.circuitId as string | null) ?? null,
         participantRoleId: (comp.discord?.participantRoleId as string | null) ?? null,
         categoryId: (comp.discord?.categoryId as string | null) ?? null,
-        participantRoleLabel: `Participant · ${circuitName ?? (comp.name as string) ?? 'Compétition'}`,
+        participantRoleLabel: discordOptions.participantRoleName?.trim()
+          || `Participant · ${circuitName ?? (comp.name as string) ?? 'Compétition'}`,
         categoryLabel: (comp.name as string) || 'Compétition',
+        teamChannels,
       });
 
       // Équipes validées pas encore provisionnées ('none' inclus : approuvées
@@ -132,7 +140,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               textChannelId: (r.discord?.textChannelId as string | null) ?? null,
               voiceChannelId: (r.discord?.voiceChannelId as string | null) ?? null,
             },
-          }, { deadlineAtMs });
+          }, { deadlineAtMs, teamChannels });
           if (result.status === 'done') report.done += 1;
           else report.partial += 1;
           report.teams.push({ name: (r.name as string) ?? '', status: result.status, warnings: result.warnings });

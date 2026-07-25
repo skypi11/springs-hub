@@ -128,6 +128,9 @@ export interface Competition {
     categoryId: string | null;         // catégorie des salons d'équipe
     /** Verrou anti-concurrence du provisioning (bail à expiration). */
     provisioningLockedUntil?: Date | string | null;
+    /** Ce que le bot a le droit de faire sur ce serveur. Absent = comportement
+     *  historique (salons d'équipe créés, rôle nommé d'après la compétition). */
+    options?: CompetitionDiscordOptions;
   } | null;
   status: CompetitionStatus;
   /**
@@ -202,6 +205,23 @@ export interface FinalPlacement {
   points: number | null;       // barème circuit — null hors circuit
   goalDiff: number;            // délta normalisé du tournoi (départage §11)
   goalsFor: number;
+}
+
+/**
+ * Réglages Discord d'une compétition. Tout organisateur n'a pas le même
+ * serveur ni les mêmes habitudes : certains ne veulent pas d'un salon par
+ * équipe, d'autres ont déjà un rôle en place.
+ */
+export interface CompetitionDiscordOptions {
+  /** Salon texte + vocal privés par équipe validée (défaut : true — le
+   *  comportement historique). */
+  teamChannels: boolean;
+  /** Nom du rôle donné aux participants. null = dérivé du nom de la
+   *  compétition (ou du circuit, qui partage son rôle entre ses étapes). */
+  participantRoleName: string | null;
+  /** Salon où le bot annonce ce qui concerne tout le monde (bracket publié,
+   *  message de l'organisateur). null = le bot n'annonce rien en public. */
+  announceChannelId: string | null;
 }
 
 export type CompetitionStatus =

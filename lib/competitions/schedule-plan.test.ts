@@ -3,11 +3,15 @@ import {
   blocksToPhasePlan,
   buildDefaultPlan,
   buildPlanBlocks,
+  buildStagedBlocks,
+  listBoRounds,
   poolSizes,
   spreadOverDays,
   type PlanBlock,
 } from './schedule-plan';
+import { setBoForRound } from './format-config';
 import { validateCompetitionPayload } from './validate';
+import { generateDoubleElim, generateSingleElim } from '@/lib/tournament';
 import type { CompetitionFormat } from '@/types/competitions';
 
 const BO = { default: 5, overrides: [], grandFinal: 7 };
@@ -185,6 +189,101 @@ describe('buildPlanBlocks — poules et suisse', () => {
   });
 });
 
+// Le BO annoncé à l'organisateur doit être CELUI que le moteur pose sur les
+// matchs : afficher « Finale BO7 » pendant que le tournoi se joue en BO5
+// serait le pire des mensonges — on le prouve contre le vrai générateur.
+describe('listBoRounds — miroir du moteur', () => {
+  const teams = (n: number) => Array.from({ length: n }, (_, i) => `t${i + 1}`);
+
+  function boByRound(bracketMatches: Record<string, { bracket: string; round: number; bo: number }>) {
+    const map = new Map<string, number>();
+    for (const m of Object.values(bracketMatches)) map.set(`${m.bracket}:${m.round}`, m.bo);
+    return map;
+  }
+
+  it.each([8, 16, 32, 64])('double élimination %i équipes', n => {
+    const format = fmt({
+      maxTeams: n,
+      bracketReset: true,
+      bo: {
+        default: 5,
+        grandFinal: 7,
+        overrides: [
+          { bracket: 'winners', roundsFromEnd: 1, bo: 7 },
+          { bracket: 'winners', roundsFromEnd: 2, bo: 7 },
+          { bracket: 'losers', roundsFromEnd: 1, bo: 7 },
+        ],
+      },
+    });
+    const bracket = generateDoubleElim(teams(n), { bo: format.bo, forfeitScore: FORFEIT });
+    const actual = boByRound(bracket.matches);
+    for (const ref of listBoRounds(format)) {
+      const engineBo = actual.get(`${ref.bracket}:${ref.round}`);
+      expect(engineBo, `${n} équipes — ${ref.label}`).toBe(ref.bo);
+    }
+  });
+
+  it.each([8, 16, 32])('élimination directe %i équipes, petite finale comprise', n => {
+    const format = fmt({
+      kind: 'single_elim',
+      maxTeams: n,
+      thirdPlace: true,
+      bo: { default: 5, grandFinal: 7, overrides: [{ bracket: 'winners', roundsFromEnd: 2, bo: 7 }] },
+    });
+    const bracket = generateSingleElim(teams(n), { bo: format.bo, forfeitScore: FORFEIT, thirdPlace: true });
+    const actual = boByRound(bracket.matches);
+    for (const ref of listBoRounds(format)) {
+      expect(actual.get(`${ref.bracket}:${ref.round}`), `${n} équipes — ${ref.label}`).toBe(ref.bo);
+    }
+  });
+
+  it('poules et suisse : pas de BO par tour (BO unique)', () => {
+    expect(listBoRounds(fmt({ kind: 'round_robin', maxTeams: 8 }))).toEqual([]);
+    expect(listBoRounds(fmt({ kind: 'swiss', maxTeams: 8, swissRounds: 3 }))).toEqual([]);
+  });
+
+  it('la petite finale est affichée mais pas réglable (le moteur lit le BO par défaut)', () => {
+    const rounds = listBoRounds(fmt({ kind: 'single_elim', maxTeams: 8, thirdPlace: true }));
+    const third = rounds.find(r => r.label === 'Petite finale');
+    expect(third?.editable).toBe(false);
+  });
+});
+
+describe('setBoForRound', () => {
+  it('pose une exception, la retire quand elle rejoint le BO par défaut', () => {
+    const base = fmt({ maxTeams: 16, bracketReset: true });
+    const semis = listBoRounds(base).find(r => r.label === 'Demi-finales vainqueurs')!;
+
+    const bumped = setBoForRound(base, semis, 7);
+    expect(bumped.bo.overrides).toContainEqual({ bracket: 'winners', roundsFromEnd: 2, bo: 7 });
+    expect(listBoRounds(bumped).find(r => r.label === 'Demi-finales vainqueurs')!.bo).toBe(7);
+
+    const back = setBoForRound(bumped, semis, base.bo.default);
+    expect(back.bo.overrides).toHaveLength(0);
+  });
+
+  it('la grande finale passe par son propre réglage, jamais par une exception', () => {
+    const base = fmt({ maxTeams: 8, bracketReset: true });
+    const gf = listBoRounds(base).find(r => r.bracket === 'grand_final')!;
+    const next = setBoForRound(base, gf, 9);
+    expect(next.bo.grandFinal).toBe(9);
+    expect(next.bo.overrides).toHaveLength(0);
+  });
+
+  it('finale d’un simple élim : une seule source de vérité (le BO de finale)', () => {
+    const base = fmt({ kind: 'single_elim', maxTeams: 8, bo: { default: 5, grandFinal: 5, overrides: [] } });
+    const final = listBoRounds(base).find(r => r.label === 'Finale')!;
+    const next = setBoForRound(base, final, 7);
+    expect(next.bo.grandFinal).toBe(7);
+    expect(next.bo.overrides.some(o => o.roundsFromEnd === 1)).toBe(false);
+    // Et le moteur joue bien BO7 en finale.
+    const bracket = generateSingleElim(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'], {
+      bo: next.bo, forfeitScore: FORFEIT,
+    });
+    expect(bracket.matches['W3-1'].bo).toBe(7);
+  });
+});
+
 describe('spreadOverDays', () => {
   const blocks = (counts: number[]): PlanBlock[] =>
     counts.map((matchCount, i) => ({
@@ -216,6 +315,91 @@ describe('spreadOverDays', () => {
 
   it('plus de journées que de blocs : les journées en trop restent vides plutôt que de créer un trou', () => {
     expect(spreadOverDays(blocks([4, 2]), 5)).toEqual([1, 2]);
+  });
+});
+
+describe('buildStagedBlocks', () => {
+  const label = (s: { name?: string }, i: number) => s.name ?? `Étape ${i + 1}`;
+
+  it('mono-étape : rien ne change, aucun marqueur d’étape', () => {
+    const blocks = buildStagedBlocks([{ format: fmt({ kind: 'single_elim', maxTeams: 8 }) }], label);
+    expect(blocks.map(b => b.label)).toEqual(['Quarts', 'Demi-finales', 'Finale']);
+    expect(blocks.every(b => b.stage === undefined)).toBe(true);
+  });
+
+  it('poules puis phase finale : numérotation continue et étapes marquées', () => {
+    const blocks = buildStagedBlocks([
+      { format: fmt({ kind: 'round_robin', maxTeams: 16, groupCount: 4 }), name: 'Poules' },
+      { format: fmt({ kind: 'single_elim', maxTeams: 8 }), name: 'Phase finale' },
+    ], label);
+
+    // 3 journées de poules + 3 tours de bracket, numérotés 1..6 d'affilée.
+    expect(blocks.map(b => b.phase)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(blocks.map(b => b.stage)).toEqual([1, 1, 1, 2, 2, 2]);
+    expect(blocks.map(b => b.stageLabel)).toEqual(
+      ['Poules', 'Poules', 'Poules', 'Phase finale', 'Phase finale', 'Phase finale']);
+    expect(blocks.slice(3).map(b => b.label)).toEqual(['Quarts', 'Demi-finales', 'Finale']);
+  });
+
+  it('le plan multi-étapes est accepté par la validation serveur', () => {
+    const stages = [
+      { kind: 'round_robin' as const, format: fmt({ kind: 'round_robin', maxTeams: 16, groupCount: 4, bo: { default: 5, overrides: [], grandFinal: 5 }, points: { win: 3, draw: 1, loss: 0 } }), name: 'Poules', transfer: { advanceCount: 8, reseed: 'standings' as const } },
+      { kind: 'single_elim' as const, format: fmt({ kind: 'single_elim', maxTeams: 8 }), name: 'Phase finale' },
+    ];
+    const blocks = buildStagedBlocks(stages, label);
+    const phasePlan = blocksToPhasePlan(blocks, spreadOverDays(blocks, 2));
+    // Les entrées de la phase finale portent bien leur étape.
+    expect(phasePlan.filter(p => p.stage === 2)).toHaveLength(3);
+
+    const res = validateCompetitionPayload({
+      name: 'Poules puis playoff',
+      game: 'rocket_league',
+      circuitId: null,
+      format: stages[0].format,
+      stages,
+      eligibility: { requireVerifiedAccounts: true, minAge: null, mmr: null },
+      roster: { starters: 3, subsMax: 2 },
+      registration: { opensAt: '2026-08-29T12:00:00.000Z', closesAt: '2026-09-09T21:59:00.000Z', waitlist: true },
+      schedule: {
+        days: [
+          { date: '2026-09-12', startsAt: '15:00', endsAt: '22:00' },
+          { date: '2026-09-13', startsAt: '15:00', endsAt: '22:00' },
+        ],
+        phasePlan,
+        generalCheckinMinutes: 20,
+        matchCheckinMinutes: 5,
+        scoreCounterMinutes: 3,
+      },
+      discordGuildId: '',
+    });
+    expect(res.ok ? null : res.error).toBeNull();
+  });
+
+  it('une phase qui vise une étape inexistante est refusée', () => {
+    const format = fmt({ kind: 'single_elim', maxTeams: 8 });
+    const res = validateCompetitionPayload({
+      name: 'Étape fantôme',
+      game: 'rocket_league',
+      circuitId: null,
+      format,
+      stages: null,
+      eligibility: { requireVerifiedAccounts: true, minAge: null, mmr: null },
+      roster: { starters: 3, subsMax: 2 },
+      registration: { opensAt: '2026-08-29T12:00:00.000Z', closesAt: '2026-09-09T21:59:00.000Z', waitlist: true },
+      schedule: {
+        days: [{ date: '2026-09-12', startsAt: '15:00' }],
+        phasePlan: [
+          { phase: 1, day: 1, label: 'Finale', rounds: [{ bracket: 'winners', round: 3 }] },
+          { phase: 2, day: 1, label: 'Ailleurs', stage: 2, rounds: [{ bracket: 'winners', round: 1 }] },
+        ],
+        generalCheckinMinutes: 20,
+        matchCheckinMinutes: 5,
+        scoreCounterMinutes: 3,
+      },
+      discordGuildId: '',
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toContain('étape 2');
   });
 });
 

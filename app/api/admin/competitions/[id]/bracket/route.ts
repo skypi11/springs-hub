@@ -6,6 +6,7 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { materializeBracket, type TeamDisplay } from '@/lib/competitions/bracket-store';
+import { sendCompetitionChannelMessage } from '@/lib/discord-competition';
 import { roundRobinBlocker, swissBlocker, swissDefaultRounds } from '@/lib/tournament';
 import { kindOf } from '@/lib/competitions/formats-server';
 import { stagesOf, teamBoundsForKind } from '@/lib/competitions/stages';
@@ -439,6 +440,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await flush();
 
       await audit(db, uid, 'competition_bracket_published', id, comp, { matches: matches.length, teams: stored.length });
+
+      // Annonce publique. Sans elle, un capitaine qui ne regarde pas le site
+      // n'apprend jamais que le tournoi est lancé. Best-effort : une panne
+      // Discord ne remet pas en cause une publication déjà écrite.
+      const announceChannelId = comp.discord?.options?.announceChannelId as string | undefined;
+      if (announceChannelId && comp.isDev !== true) {
+        try {
+          await sendCompetitionChannelMessage(announceChannelId, {
+            title: `${(comp.name as string) || 'Tournoi'} — le bracket est en ligne`,
+            message: `${stored.length} équipes, ${matches.length} matchs. Retrouve ton premier adversaire et l'heure de ton match sur ta page de tournoi.`,
+            link: `https://aedral.com/competitions/${id}`,
+          });
+        } catch (e) {
+          console.warn(`[bracket] annonce Discord impossible pour ${id}`, e);
+        }
+      }
+
       return NextResponse.json({ success: true, status: 'live', matchCount: matches.length });
     }
 

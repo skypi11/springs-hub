@@ -204,7 +204,9 @@ export async function isGuildMember(guildId: string, discordUserId: string): Pro
 export interface CompetitionDiscordShared {
   guildId: string;
   participantRoleId: string;
-  categoryId: string;
+  /** null quand la compétition ne veut pas de salons d'équipe : il n'y a alors
+   *  aucune catégorie à créer sur le serveur de l'organisateur. */
+  categoryId: string | null;
 }
 
 /**
@@ -228,6 +230,8 @@ export async function ensureCompetitionShared(
     categoryId: string | null;
     participantRoleLabel: string;   // "Participant · Legends Springs Cup"
     categoryLabel: string;          // nom de la compétition
+    /** Salons privés par équipe : sans eux, pas de catégorie à créer. */
+    teamChannels?: boolean;
   },
 ): Promise<CompetitionDiscordShared> {
   const compRef = db.collection('competitions').doc(competitionId);
@@ -251,8 +255,10 @@ export async function ensureCompetitionShared(
     await compRef.update({ 'discord.participantRoleId': participantRoleId });
   }
 
+  // Catégorie : elle n'existe que pour ranger les salons d'équipe. Si
+  // l'organisateur n'en veut pas, le bot ne crée rien sur son serveur.
   let categoryId = input.categoryId;
-  if (!categoryId) {
+  if (!categoryId && input.teamChannels !== false) {
     categoryId = await createCategory(input.guildId, input.categoryLabel);
     await compRef.update({ 'discord.categoryId': categoryId });
   }
@@ -306,7 +312,7 @@ export async function provisionRegistration(
   db: Firestore,
   shared: CompetitionDiscordShared,
   input: ProvisionRegistrationInput,
-  opts: { deadlineAtMs?: number } = {},
+  opts: { deadlineAtMs?: number; teamChannels?: boolean } = {},
 ): Promise<ProvisionResult> {
   const regRef = db.collection('competition_registrations').doc(input.registrationId);
   const warnings: string[] = [];
@@ -325,8 +331,13 @@ export async function provisionRegistration(
     await regRef.update({ 'discord.roleId': roleId });
   }
 
+  // Salons d'équipe : réglage de la compétition. Coupés, le rôle d'équipe est
+  // quand même créé et assigné (il sert aux mentions et aux permissions), et
+  // les messages qui visaient le salon d'équipe sont simplement sautés côté
+  // appelant (`if (channelId)` partout).
+  const wantsChannels = opts.teamChannels !== false && shared.categoryId !== null;
   let textChannelId = input.discord.textChannelId;
-  if (!textChannelId) {
+  if (!textChannelId && wantsChannels) {
     if (pastDeadline()) return bailPartial();
     textChannelId = await createTeamChannel(shared.guildId, {
       name: textChannelName(input.teamName),
@@ -338,7 +349,7 @@ export async function provisionRegistration(
   }
 
   let voiceChannelId = input.discord.voiceChannelId;
-  if (!voiceChannelId) {
+  if (!voiceChannelId && wantsChannels) {
     if (pastDeadline()) return bailPartial();
     voiceChannelId = await createTeamChannel(shared.guildId, {
       name: input.teamName,

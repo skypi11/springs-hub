@@ -29,6 +29,10 @@ export interface PlanBlock {
    *  être plus petit : les rondes vides sont alors simplement sans match). */
   matchCount: number;
   rounds: PlanRound[];
+  /** Étape de format (1-based). Absent = étape 1 / tournoi mono-étape. */
+  stage?: number;
+  /** Nom de l'étape, pour les séparateurs du déroulé multi-étapes. */
+  stageLabel?: string;
 }
 
 function pow2AtLeast(n: number): number {
@@ -223,6 +227,83 @@ function swissBlocks(format: CompetitionFormat): PlanBlock[] {
   }));
 }
 
+// ── BO par tour ─────────────────────────────────────────────────────────────
+
+export interface BoRoundRef {
+  bracket: 'winners' | 'losers' | 'grand_final';
+  round: number;
+  /** Distance à la fin de son bracket (1 = dernier tour) — la clé des
+   *  exceptions, qui restent valables quelle que soit la taille du champ. */
+  roundsFromEnd: number;
+  label: string;
+  /** BO réellement appliqué par le moteur en l'état de la configuration. */
+  bo: number;
+  /** La petite finale suit le BO par défaut sans exception possible (le
+   *  générateur ne lit aucun override pour elle) : affichée, non réglable. */
+  editable: boolean;
+}
+
+/**
+ * Les tours d'un format à élimination avec leur BO effectif — de quoi régler
+ * « demi-finales en BO7 » sans parler de « bracket winners, roundsFromEnd 2 ».
+ * Poules et suisse : liste vide (BO unique, les exceptions y sont refusées).
+ */
+export function listBoRounds(format: CompetitionFormat): BoRoundRef[] {
+  const kind = format.kind;
+  if (kind === 'round_robin' || kind === 'swiss') return [];
+
+  const size = pow2AtLeast(Math.max(4, Math.min(64, format.maxTeams)));
+  const winnersRounds = Math.log2(size);
+  const overrideFor = (bracket: 'winners' | 'losers', roundsFromEnd: number) =>
+    format.bo.overrides.find(o => o.bracket === bracket && o.roundsFromEnd === roundsFromEnd)?.bo;
+
+  const out: BoRoundRef[] = [];
+  for (let r = 1; r <= winnersRounds; r++) {
+    const roundsFromEnd = winnersRounds - r + 1;
+    const override = overrideFor('winners', roundsFromEnd);
+    // Simple élim : la finale prend le « BO de finale » sauf exception
+    // explicite — c'est ce que fait generateSingleElim, à la lettre.
+    const isSingleFinal = kind === 'single_elim' && r === winnersRounds;
+    out.push({
+      bracket: 'winners',
+      round: r,
+      roundsFromEnd,
+      label: kind === 'single_elim' ? roundLabel(r, winnersRounds) : winnersLabel(r, winnersRounds),
+      bo: override ?? (isSingleFinal ? format.bo.grandFinal : format.bo.default),
+      editable: true,
+    });
+  }
+
+  if (kind === 'single_elim') {
+    if (format.thirdPlace === true && winnersRounds >= 2) {
+      out.push({
+        bracket: 'losers', round: 1, roundsFromEnd: 1,
+        label: 'Petite finale', bo: format.bo.default, editable: false,
+      });
+    }
+    return out;
+  }
+
+  const losersRounds = 2 * (winnersRounds - 1);
+  for (let r = 1; r <= losersRounds; r++) {
+    const roundsFromEnd = losersRounds - r + 1;
+    out.push({
+      bracket: 'losers',
+      round: r,
+      roundsFromEnd,
+      label: losersLabel(r, losersRounds),
+      bo: overrideFor('losers', roundsFromEnd) ?? format.bo.default,
+      editable: true,
+    });
+  }
+  out.push({
+    bracket: 'grand_final', round: 1, roundsFromEnd: 1,
+    label: format.bracketReset ? 'Grande finale (et belle)' : 'Grande finale',
+    bo: format.bo.grandFinal, editable: true,
+  });
+  return out;
+}
+
 // ── API ─────────────────────────────────────────────────────────────────────
 
 /** Blocs de matchs d'un format, dans l'ordre de lancement. */
@@ -268,12 +349,38 @@ export function spreadOverDays(blocks: PlanBlock[], dayCount: number): number[] 
   return assignment;
 }
 
+/**
+ * Blocs de TOUTES les étapes d'un tournoi, numérotés 1..N d'affilée.
+ *
+ * La structure d'une phase finale est connue dès la création (8 qualifiées →
+ * quarts, demies, finale) : seuls les NOMS des équipes manquent, ce qui
+ * n'empêche pas de planifier « poules le samedi, phase finale le dimanche ».
+ */
+export function buildStagedBlocks(
+  stages: Array<{ format: CompetitionFormat; name?: string }>,
+  stageLabelOf: (stage: { format: CompetitionFormat; name?: string }, index: number) => string,
+): PlanBlock[] {
+  const out: PlanBlock[] = [];
+  stages.forEach((stage, index) => {
+    const single = stages.length === 1;
+    for (const block of buildPlanBlocks(stage.format)) {
+      out.push({
+        ...block,
+        phase: out.length + 1,
+        ...(single ? {} : { stage: index + 1, stageLabel: stageLabelOf(stage, index) }),
+      });
+    }
+  });
+  return out;
+}
+
 /** Blocs + journée par bloc → le `phasePlan` stocké et validé. */
 export function blocksToPhasePlan(blocks: PlanBlock[], dayByPhase: number[]): PhasePlanEntry[] {
   return blocks.map((b, i) => ({
     phase: b.phase,
     day: Math.max(1, dayByPhase[i] ?? 1),
     label: b.label.slice(0, 60),
+    ...(b.stage && b.stage > 1 ? { stage: b.stage } : {}),
     rounds: b.rounds,
   }));
 }

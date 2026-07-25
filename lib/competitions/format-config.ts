@@ -9,6 +9,7 @@
 
 import type { CompetitionFormat, FormatKind } from '@/types/competitions';
 import { FORMAT_DEFS, type ConfigField } from './formats';
+import type { BoRoundRef } from './schedule-plan';
 
 export type ConfigValue = number | boolean;
 
@@ -102,6 +103,41 @@ export function normalizeFormat(format: CompetitionFormat): CompetitionFormat {
     delete next.points;
   }
   return next;
+}
+
+/**
+ * Règle le BO d'un tour. Les exceptions sont stockées en distance à la fin du
+ * bracket (elles restent donc valables si le champ change de taille), et
+ * disparaissent quand elles retombent sur le BO par défaut — jamais de règle
+ * fantôme en base.
+ */
+export function setBoForRound(
+  format: CompetitionFormat,
+  ref: BoRoundRef,
+  bo: number,
+): CompetitionFormat {
+  if (ref.bracket === 'grand_final') {
+    return normalizeFormat({ ...format, bo: { ...format.bo, grandFinal: bo } });
+  }
+  const isSingleFinal = format.kind === 'single_elim'
+    && ref.bracket === 'winners'
+    && ref.roundsFromEnd === 1;
+  const others = format.bo.overrides.filter(
+    o => !(o.bracket === ref.bracket && o.roundsFromEnd === ref.roundsFromEnd));
+
+  // Finale d'un simple élim : elle se règle par le « BO de finale », pas par
+  // une exception — deux sources pour la même valeur finiraient par diverger.
+  if (isSingleFinal) {
+    return normalizeFormat({ ...format, bo: { ...format.bo, grandFinal: bo, overrides: others } });
+  }
+  const baseline = format.bo.default;
+  return normalizeFormat({
+    ...format,
+    bo: {
+      ...format.bo,
+      overrides: bo === baseline ? others : [...others, { bracket: ref.bracket, roundsFromEnd: ref.roundsFromEnd, bo }],
+    },
+  });
 }
 
 /** Rondes suisses par défaut : ⌈log2(N)⌉ — miroir de swissDefaultRounds du

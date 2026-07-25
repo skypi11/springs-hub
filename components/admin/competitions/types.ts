@@ -3,6 +3,7 @@
 // lib/competitions/serialize.ts).
 
 import type {
+  CompetitionDiscordOptions,
   CompetitionEligibility,
   CompetitionFormat,
   CompetitionSchedule,
@@ -38,7 +39,12 @@ export interface AdminCompetition {
   roster: { starters: number; subsMax: number } | null;
   registration: { opensAt: string | null; closesAt: string | null; waitlist: boolean } | null;
   schedule: CompetitionSchedule | null;
-  discord: { guildId: string; participantRoleId: string | null; categoryId: string | null } | null;
+  discord: {
+    guildId: string;
+    participantRoleId: string | null;
+    categoryId: string | null;
+    options?: CompetitionDiscordOptions;
+  } | null;
   status: string;
   isDev?: boolean;
   bracketMaterializedAt?: string | null;

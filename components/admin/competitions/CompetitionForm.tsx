@@ -20,8 +20,15 @@ import { useToast } from '@/components/ui/Toast';
 import { Switch } from '@/components/ui/Switch';
 import { validateCompetitionPayload } from '@/lib/competitions/validate';
 import { LEGENDS_CHECKIN } from '@/lib/competitions/defaults';
-import { buildPlanBlocks, blocksToPhasePlan, spreadOverDays, type PlanBlock } from '@/lib/competitions/schedule-plan';
+import {
+  blocksToPhasePlan,
+  buildPlanBlocks,
+  buildStagedBlocks,
+  spreadOverDays,
+  type PlanBlock,
+} from '@/lib/competitions/schedule-plan';
 import { normalizeFormat } from '@/lib/competitions/format-config';
+import { FORMAT_DEFS } from '@/lib/competitions/formats';
 import type { CreationPreset } from '@/lib/competitions/creation-presets';
 import type { CompetitionFormat, PhasePlanEntry, TournamentStage } from '@/types/competitions';
 import TournamentTypeStep from './create/TournamentTypeStep';
@@ -53,6 +60,9 @@ interface FormState {
   matchCheckinMinutes: number;
   scoreCounterMinutes: number;
   discordGuildId: string;
+  teamChannels: boolean;
+  participantRoleName: string;
+  announceChannelId: string;
 }
 
 export default function CompetitionForm({ initial, circuits, onCancel, onSaved }: {
@@ -117,7 +127,13 @@ function CompetitionFormBody({ form, setForm, initial, circuits, saving, onCance
 }) {
   const patch = (values: Partial<FormState>) => setForm({ ...form, ...values });
 
-  const blocks = useMemo(() => buildPlanBlocks(form.stages[0].format), [form.stages]);
+  // Le déroulé couvre TOUTES les étapes : la structure d'une phase finale est
+  // connue dès la création, seuls les noms d'équipes manquent — planifier
+  // « poules le samedi, phase finale le dimanche » doit être possible ici.
+  const blocks = useMemo(
+    () => buildStagedBlocks(form.stages, stage => stage.name?.trim() || FORMAT_DEFS[stage.format.kind].label),
+    [form.stages],
+  );
   // Le déroulé se réaligne tout seul quand le format change (le nombre de
   // blocs bouge) : jamais de plan qui décrit un tournoi qui n'existe plus.
   const dayByPhase = fitAssignment(form.dayByPhase, blocks, form.days.length);
@@ -143,7 +159,9 @@ function CompetitionFormBody({ form, setForm, initial, circuits, saving, onCance
         )}
       </div>
 
-      <div className="panel-body space-y-6">
+      {/* Largeur de lecture bornée : sur un écran large, les champs s'étiraient
+          et laissaient un couloir vide entre le libellé et la valeur. */}
+      <div className="panel-body space-y-6" style={{ maxWidth: 1080 }}>
         {/* Identité */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -183,22 +201,14 @@ function CompetitionFormBody({ form, setForm, initial, circuits, saving, onCance
         <div className="divider" />
 
         {/* Déroulé */}
-        <div className="space-y-3">
-          <ScheduleBoard
-            blocks={blocks}
-            dayByPhase={dayByPhase}
-            days={form.days}
-            onDayByPhaseChange={next => patch({ dayByPhase: next })}
-            onDaysChange={next => patch({ days: next, dayByPhase: fitAssignment(dayByPhase, blocks, next.length) })}
-            onAutoSpread={() => patch({ dayByPhase: spreadOverDays(blocks, form.days.length) })}
-          />
-          {form.stages.length > 1 && (
-            <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-              Ce déroulé couvre l’étape 1. Les journées des étapes suivantes s’ajoutent
-              au moment du passage d’étape, quand les qualifiées sont connues.
-            </p>
-          )}
-        </div>
+        <ScheduleBoard
+          blocks={blocks}
+          state={{ days: form.days, dayByPhase }}
+          onChange={next => patch({
+            days: next.days,
+            dayByPhase: fitAssignment(next.dayByPhase, blocks, next.days.length),
+          })}
+        />
 
         <div className="divider" />
 
@@ -328,15 +338,60 @@ function CompetitionFormBody({ form, setForm, initial, circuits, saving, onCance
             </div>
           </div>
 
-          <div className="max-w-md mt-4">
-            <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Serveur Discord (ID de guilde)</label>
+        </div>
+
+        <div className="divider" />
+
+        {/* Discord */}
+        <div>
+          <label className="t-label-soft block mb-3">Discord</label>
+          <div className="max-w-md">
+            <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Serveur (ID de guilde)</label>
             <input className="settings-input w-full" value={form.discordGuildId}
               placeholder="Optionnel en brouillon"
               onChange={e => patch({ discordGuildId: e.target.value })} />
             <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
-              Le bot doit déjà être invité sur ce serveur pour créer les salons d&apos;équipe.
+              Le bot doit déjà être invité sur ce serveur.
             </p>
           </div>
+
+          {form.discordGuildId.trim() !== '' && (
+            <div className="mt-4 space-y-4">
+              <div>
+                <Switch label="Créer un salon par équipe" value={form.teamChannels}
+                  onChange={v => patch({ teamChannels: v })} />
+                <p className="text-xs mt-1 px-2" style={{ color: 'var(--s-text-muted)' }}>
+                  Un salon texte et un vocal privés par équipe validée, rangés dans une
+                  catégorie au nom du tournoi. Décoché, le bot ne crée aucun salon — le
+                  rôle d&apos;équipe est quand même attribué.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
+                <div>
+                  <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Nom du rôle participant</label>
+                  <input className="settings-input w-full" value={form.participantRoleName}
+                    maxLength={90}
+                    placeholder={`Participant · ${form.name.trim() || 'nom du tournoi'}`}
+                    onChange={e => patch({ participantRoleName: e.target.value })} />
+                  <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
+                    Donné à chaque joueur d&apos;une équipe validée. Sur un circuit, le rôle est
+                    partagé par toutes ses étapes.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Salon d&apos;annonces (ID)</label>
+                  <input className="settings-input w-full" value={form.announceChannelId}
+                    placeholder="Aucun"
+                    onChange={e => patch({ announceChannelId: e.target.value })} />
+                  <p className="text-xs mt-1" style={{ color: 'var(--s-text-muted)' }}>
+                    Le bot y annonce ce qui concerne tout le monde, à commencer par la
+                    publication du bracket. Vide : aucune annonce publique.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Récapitulatif + enregistrement */}
@@ -398,6 +453,9 @@ function stateFromPreset(preset: CreationPreset, circuits: AdminCircuit[]): Form
     dayByPhase: spreadOverDays(blocks, preset.dayCount),
     ...preset.checkin,
     discordGuildId: '',
+    teamChannels: true,
+    participantRoleName: '',
+    announceChannelId: '',
   };
 }
 
@@ -440,6 +498,11 @@ function stateFromCompetition(comp: AdminCompetition): FormState {
     matchCheckinMinutes: comp.schedule?.matchCheckinMinutes ?? LEGENDS_CHECKIN.matchCheckinMinutes,
     scoreCounterMinutes: comp.schedule?.scoreCounterMinutes ?? LEGENDS_CHECKIN.scoreCounterMinutes,
     discordGuildId: comp.discord?.guildId ?? '',
+    // Absent = comportement historique : salons d'équipe créés, rôle dérivé du
+    // nom, aucune annonce publique.
+    teamChannels: comp.discord?.options?.teamChannels !== false,
+    participantRoleName: comp.discord?.options?.participantRoleName ?? '',
+    announceChannelId: comp.discord?.options?.announceChannelId ?? '',
   };
 }
 
@@ -482,6 +545,11 @@ function buildPayload(form: FormState, phasePlan: PhasePlanEntry[], initial: Adm
       scoreCounterMinutes: form.scoreCounterMinutes,
     },
     discordGuildId: form.discordGuildId,
+    discordOptions: {
+      teamChannels: form.teamChannels,
+      participantRoleName: form.participantRoleName.trim() || null,
+      announceChannelId: form.announceChannelId.trim() || null,
+    },
     isDev: form.isDev,
   };
 }

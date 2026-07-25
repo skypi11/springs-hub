@@ -7,7 +7,14 @@ import type { CompetitionPayload } from '@/lib/competitions/validate';
 
 // Payload validé → doc Firestore. Les fenêtres d'inscription sont stockées en
 // Timestamp (convention repo), le reste tel quel.
-export function toFirestoreCompetition(payload: CompetitionPayload) {
+export function toFirestoreCompetition(
+  payload: CompetitionPayload,
+  /** Bloc `discord` déjà en base — ses IDs de provisioning survivent à une
+   *  édition tant que le serveur ne change pas (sinon le bot oublierait le
+   *  rôle et la catégorie qu'il a créés, et les recréerait en double). */
+  existingDiscord?: { guildId?: string; participantRoleId?: string | null; categoryId?: string | null } | null,
+) {
+  const sameGuild = !!existingDiscord?.guildId && existingDiscord.guildId === payload.discordGuildId;
   return {
     name: payload.name,
     game: payload.game,
@@ -26,7 +33,12 @@ export function toFirestoreCompetition(payload: CompetitionPayload) {
     },
     schedule: payload.schedule,
     discord: payload.discordGuildId
-      ? { guildId: payload.discordGuildId, participantRoleId: null, categoryId: null }
+      ? {
+          guildId: payload.discordGuildId,
+          participantRoleId: sameGuild ? existingDiscord?.participantRoleId ?? null : null,
+          categoryId: sameGuild ? existingDiscord?.categoryId ?? null : null,
+          options: payload.discordOptions,
+        }
       : null,
   };
 }

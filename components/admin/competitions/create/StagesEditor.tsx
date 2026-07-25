@@ -17,9 +17,13 @@ import {
   configFieldsByLevel,
   defaultFormatFor,
   getConfigValue,
+  setBoForRound,
   setConfigValue,
   switchFormatKind,
 } from '@/lib/competitions/format-config';
+import { listBoRounds } from '@/lib/competitions/schedule-plan';
+
+const BO_CHOICES = [1, 3, 5, 7, 9];
 import type { CompetitionFormat, FormatKind, SeedingStrategy, TournamentStage } from '@/types/competitions';
 
 const MAX_STAGES = 4;
@@ -184,6 +188,10 @@ function StageFields({ stage, lockedTeamCount, onFormat }: {
   // se règle à un seul endroit, jamais deux.
   const visible = (fields: ConfigField[]) =>
     lockedTeamCount === null ? fields : fields.filter(f => f.key !== 'maxTeams');
+  const boRounds = listBoRounds(stage.format);
+  // Le BO de finale a sa ligne dans « BO par tour » : le laisser aussi en
+  // champ libre donnerait deux endroits pour la même valeur.
+  const advancedFields = visible(advanced).filter(f => boRounds.length === 0 || f.key !== 'bo.grandFinal');
 
   return (
     <>
@@ -214,16 +222,46 @@ function StageFields({ stage, lockedTeamCount, onFormat }: {
         {def.summarize(stage.format, stage.format.maxTeams)}
       </p>
 
-      {visible(advanced).length > 0 && (
+      {(advancedFields.length > 0 || boRounds.length > 0) && (
         <div>
           <button type="button" className="quiet-link text-sm" onClick={() => setShowAdvanced(v => !v)}>
             {showAdvanced ? 'Masquer les réglages avancés' : 'Réglages avancés'}
           </button>
           {showAdvanced && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-              {visible(advanced).map(field => (
-                <FieldInput key={field.key} field={field} format={stage.format} onFormat={onFormat} />
-              ))}
+            <div className="mt-3 space-y-4">
+              {advancedFields.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {advancedFields.map(field => (
+                    <FieldInput key={field.key} field={field} format={stage.format} onFormat={onFormat} />
+                  ))}
+                </div>
+              )}
+              {boRounds.length > 0 && (
+                <div>
+                  <p className="t-label-soft mb-2">BO par tour</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
+                    {boRounds.map(ref => (
+                      <div key={`${ref.bracket}-${ref.round}`}
+                        className="flex items-center justify-between gap-3 py-1.5"
+                        style={{ borderBottom: '1px solid var(--s-border)' }}>
+                        <span className="text-sm truncate" style={{ color: 'var(--s-text-dim)' }}>{ref.label}</span>
+                        {ref.editable ? (
+                          <select className="settings-input" style={{ padding: '3px 8px', width: 82 }}
+                            aria-label={`BO — ${ref.label}`}
+                            value={ref.bo}
+                            onChange={e => onFormat(setBoForRound(stage.format, ref, Number(e.target.value)))}>
+                            {BO_CHOICES.map(n => <option key={n} value={n}>BO{n}</option>)}
+                          </select>
+                        ) : (
+                          <span className="t-mono" style={{ fontSize: 12, color: 'var(--s-text-muted)', width: 82, textAlign: 'right' }}>
+                            BO{ref.bo}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

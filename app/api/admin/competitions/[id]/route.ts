@@ -77,7 +77,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const batch = db.batch();
     batch.update(ref, {
-      ...toFirestoreCompetition(payload),
+      ...toFirestoreCompetition(payload, existing.discord),
       ...(resyncedStages ? { stages: resyncedStages } : {}),
       ...(clearStages ? { stages: FieldValue.delete(), currentStage: FieldValue.delete() } : {}),
       // Flag test éditable tant que la compét est en brouillon (hors schéma
