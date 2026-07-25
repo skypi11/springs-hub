@@ -1,7 +1,7 @@
 // Tests du changement de roster (dérogation admin — lib PURE).
 
 import { describe, expect, it } from 'vitest';
-import { applyRosterChange, recomputeRegistrationComputed } from './roster-change';
+import { applyRosterChange, coreGuardViolation, recomputeRegistrationComputed } from './roster-change';
 import type { RegistrationRosterEntry } from '@/types/competitions';
 
 const entry = (
@@ -103,5 +103,47 @@ describe('recomputeRegistrationComputed — mêmes règles que le wizard', () =>
     });
     expect(c.worstLineupAvg).toBe(null);
     expect(c.flags).toEqual(['underage']);
+  });
+});
+
+describe('coreGuardViolation — garde du noyau (anti-remplacement total)', () => {
+  const initial = ['discord_a', 'discord_b', 'discord_c']; // titulaires validés
+
+  it('1 titulaire d’origine remplacé : conservé ≥ 2/3, autorisé', () => {
+    const roster = [
+      entry('discord_x', 'titulaire'), entry('discord_b', 'titulaire'),
+      entry('discord_c', 'titulaire'), entry('discord_d', 'remplacant'),
+    ];
+    expect(coreGuardViolation(initial, roster, 3)).toBe(null);
+  });
+
+  it('2 titulaires d’origine partis : refus net avec message actionnable', () => {
+    const roster = [
+      entry('discord_x', 'titulaire'), entry('discord_y', 'titulaire'),
+      entry('discord_c', 'titulaire'), entry('discord_d', 'remplacant'),
+    ];
+    const violation = coreGuardViolation(initial, roster, 3);
+    expect(violation).toMatch(/noyau/);
+    expect(violation).toMatch(/retrait/);
+  });
+
+  it('un titulaire d’origine descendu REMPLAÇANT compte comme conservé (même règle que le circuit)', () => {
+    const roster = [
+      entry('discord_x', 'titulaire'), entry('discord_y', 'titulaire'),
+      entry('discord_c', 'titulaire'), entry('discord_a', 'remplacant'),
+    ];
+    expect(coreGuardViolation(initial, roster, 3)).toBe(null);
+  });
+
+  it('référence vide (inscription legacy jamais figée) : jamais bloquant', () => {
+    expect(coreGuardViolation([], [entry('discord_z', 'titulaire')], 3)).toBe(null);
+  });
+
+  it('Valorant futur (5 titulaires) : ⌈2×5/3⌉ = 4 conservés exigés', () => {
+    const init5 = ['a', 'b', 'c', 'd', 'e'];
+    const kept3 = ['a', 'b', 'c', 'x', 'y'].map(u => entry(u, 'titulaire'));
+    expect(coreGuardViolation(init5, kept3, 5)).not.toBe(null);
+    const kept4 = ['a', 'b', 'c', 'd', 'y'].map(u => entry(u, 'titulaire'));
+    expect(coreGuardViolation(init5, kept4, 5)).toBe(null);
   });
 });

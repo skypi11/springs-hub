@@ -272,32 +272,50 @@ async function main() {
     await post({ op: 'replace', outUid: uidOf('t1b'), inUid: uidOf('t1m'), declaredCurrentMmr: 1400, declaredPeakMmr: 1500, derogationNote: 'E2E : accord parental vérifié.' }, { expectStatus: 409 });
     check('replace refusé : match de l\'équipe en cours (check-in)', true);
     // Trancher le match (forfait de l'adversaire) → le changement passe.
+    // t1d (entré en [3], HORS noyau) sort, t1m (mineur) entre — et t1d étant
+    // devenu capitaine en [4], le capitanat SUIT le siège vers l'entrant.
     await api('POST', `/api/admin/competitions/${COMP}/console`, { action: 'validate_forfeit', matchId: 'W1-1', team: 'b' });
-    await post({ op: 'replace', outUid: uidOf('t1b'), inUid: uidOf('t1m'), declaredCurrentMmr: 1400, declaredPeakMmr: 1500, derogationNote: 'E2E : accord parental vérifié.' });
+    await post({ op: 'replace', outUid: uidOf('t1d'), inUid: uidOf('t1m'), declaredCurrentMmr: 1400, declaredPeakMmr: 1500, derogationNote: 'E2E : accord parental vérifié.' });
     reg = (await db.collection('competition_registrations').doc(REG).get()).data();
     check('replace mineur AVEC note : accepté, dérogation journalisée',
       reg.rosterUids.includes(uidOf('t1m'))
       && (reg.review?.derogations ?? []).some(d => d.uid === uidOf('t1m')),
       JSON.stringify(reg.review?.derogations));
     check('flag underage recalculé sur le computed', reg.computed.flags.includes('underage'), JSON.stringify(reg.computed.flags));
+    check('capitanat auto-transféré à l\'entrant (jamais un capitaine hors roster)',
+      reg.captainUid === uidOf('t1m'), reg.captainUid);
     // ACL du match NON terminal (W2-1, où team1 est montée par le forfait).
     const acl = (await db.collection('competition_matches').doc(`${COMP}__W2-1`).collection('private').doc('acl').get()).data();
     check('ACL du match à venir : sortant retiré, entrant ajouté',
-      !!acl && !acl.participantUids.includes(uidOf('t1b')) && acl.participantUids.includes(uidOf('t1m')),
+      !!acl && !acl.participantUids.includes(uidOf('t1d')) && acl.participantUids.includes(uidOf('t1m')),
       JSON.stringify(acl?.participantUids));
     // Le match TERMINAL (W1-1) garde son ACL d'époque (historique).
     const aclOld = (await db.collection('competition_matches').doc(`${COMP}__W1-1`).collection('private').doc('acl').get()).data();
     check('ACL du match joué : inchangée (historique)',
-      !!aclOld && aclOld.participantUids.includes(uidOf('t1b')), JSON.stringify(aclOld?.participantUids));
+      !!aclOld && aclOld.participantUids.includes(uidOf('t1d')), JSON.stringify(aclOld?.participantUids));
 
-    console.log('\n[6] Remplacer LE capitaine : le pilotage suit le siège…');
-    // t1d est capitaine (transféré en [4]) ; t1c, sorti plus tôt mais toujours
-    // membre de l'équipe, revient à sa place — et hérite du capitanat.
-    await post({ op: 'replace', outUid: uidOf('t1d'), inUid: uidOf('t1c'), declaredCurrentMmr: 1500, declaredPeakMmr: 1500 });
+    console.log('\n[6] Garde du noyau : jamais une AUTRE équipe que celle validée…');
+    // Noyau figé au 1er changement = titulaires VALIDÉS {a, b, c}. Roster
+    // courant : {a, b, m} — conservés {a, b} = 2/3, à la limite autorisée.
+    check('référence du noyau figée au premier changement',
+      JSON.stringify([...(reg.initialStarterUids ?? [])].sort())
+      === JSON.stringify([uidOf('t1a'), uidOf('t1b'), uidOf('t1c')].sort()),
+      JSON.stringify(reg.initialStarterUids));
+    // Sortir b (2e du noyau) vers t1d → il ne resterait que {a} → REFUS net.
+    const guard = await post({ op: 'replace', outUid: uidOf('t1b'), inUid: uidOf('t1d'), declaredCurrentMmr: 1500, declaredPeakMmr: 1500 }, { expectStatus: 409 });
+    check('2e titulaire du noyau sorti → refus net (message noyau)',
+      typeof guard.error === 'string' && guard.error.includes('noyau'), guard.error);
+    // Le RETOUR d'un membre du noyau reste autorisé (a sort, c revient :
+    // conservés {b, c} = 2/3 — la règle mesure l'équipe, pas les mouvements).
+    await post({ op: 'replace', outUid: uidOf('t1a'), inUid: uidOf('t1c'), declaredCurrentMmr: 1500, declaredPeakMmr: 1500 });
     reg = (await db.collection('competition_registrations').doc(REG).get()).data();
-    check('capitanat auto-transféré à l\'entrant (jamais un capitaine hors roster)',
-      reg.captainUid === uidOf('t1c'), reg.captainUid);
-    check('le sortant capitaine a bien quitté le roster', !reg.rosterUids.includes(uidOf('t1d')));
+    check('retour d\'un titulaire du noyau : autorisé (2/3 reconstitué)',
+      reg.rosterUids.includes(uidOf('t1c')) && !reg.rosterUids.includes(uidOf('t1a')));
+    // L'historique tracé porte les NOMS (affiché dans le Dossier).
+    check('historique : noms dénormalisés dans les traces',
+      reg.rosterChanges.length >= 3
+      && reg.rosterChanges.every(c => c.op !== 'replace' || (c.outName && c.inName)),
+      JSON.stringify(reg.rosterChanges));
   } finally {
     console.log('\nCleanup…');
     await purge();

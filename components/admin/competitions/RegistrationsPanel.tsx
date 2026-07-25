@@ -122,6 +122,12 @@ interface RegistrationRow {
   review: { byName: string; at: string | null; reason: string | null; derogations: Array<{ uid: string; note: string }> } | null;
   rulebookAccepted: { version: number; at: string | null } | null;
   circuitTeamId: string | null;
+  /** Historique des dérogations roster (remplacements/échanges/capitanat). */
+  rosterChanges: Array<{
+    at: string | null; op: string;
+    outName: string | null; inName: string | null;
+    nameA: string | null; nameB: string | null; name: string | null;
+  }>;
   discord: {
     provisioningStatus: 'none' | 'queued' | 'partial' | 'done' | 'error';
     warnings: string[];
@@ -637,6 +643,26 @@ function RegistrationRowView({
   ];
   if ((reg.review?.derogations?.length ?? 0) > 0) {
     contextItems.push({ k: 'Dérogations', v: `${reg.review!.derogations.length} accordée${reg.review!.derogations.length > 1 ? 's' : ''}` });
+  }
+  // Historique des changements de roster — chaque dérogation admin est
+  // visible d'un coup d'œil (demande Matt : traçabilité anti-abus).
+  if ((reg.rosterChanges?.length ?? 0) > 0) {
+    contextItems.push({
+      k: 'Roster modifié',
+      v: (
+        <span className="inline-flex flex-col gap-0.5">
+          {reg.rosterChanges.map((c, i) => (
+            <span key={i}>
+              {formatDate(c.at)} — {c.op === 'replace'
+                ? `${c.outName ?? '?'} remplacé par ${c.inName ?? '?'}`
+                : c.op === 'swap_roles'
+                  ? `rôles échangés : ${c.nameA ?? '?'} ↔ ${c.nameB ?? '?'}`
+                  : `capitanat transféré à ${c.name ?? '?'}`}
+            </span>
+          ))}
+        </span>
+      ),
+    });
   }
   const discordCtx: React.ReactNode = (reg.discord.errorMessage || reg.discord.warnings.length > 0)
     ? (

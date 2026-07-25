@@ -78,6 +78,28 @@ export function applyRosterChange(
 }
 
 /**
+ * GARDE DU NOYAU (anti-abus, demande Matt 25/07) : des remplacements
+ * successifs ne doivent JAMAIS aboutir à une équipe différente de celle qui a
+ * été validée — miroir de la règle noyau du circuit (spec §4 : « 2 de ses 3
+ * titulaires »). La référence est le roster VALIDÉ (titulaires à l'approve,
+ * figés au premier changement) ; le roster courant doit toujours en conserver
+ * au moins ⌈2×starters/3⌉ (3 → 2, 5 → 4), titulaires OU remplaçants.
+ * Au-delà : refus net — le chemin est le retrait + repêchage waitlist.
+ */
+export function coreGuardViolation(
+  initialStarterUids: string[],
+  newRoster: RegistrationRosterEntry[],
+  starters: number,
+): string | null {
+  if (initialStarterUids.length === 0) return null;
+  const required = Math.ceil((2 * starters) / 3);
+  const present = new Set(newRoster.map(r => r.uid));
+  const kept = initialStarterUids.filter(u => present.has(u)).length;
+  if (kept >= required) return null;
+  return `Le noyau de l'équipe validée doit être conservé (au moins ${required} des ${initialStarterUids.length} titulaires d'origine, il en resterait ${kept}). Au-delà, c'est une autre équipe : passe par un retrait et un repêchage de la liste d'attente.`;
+}
+
+/**
  * Recalcule le bloc `computed` d'une inscription après changement — MÊMES
  * règles que le wizard (source : register/route.ts) : drapeaux MMR sur toutes
  * les compos alignables, mineurs/âge inconnu, absence du serveur Discord.

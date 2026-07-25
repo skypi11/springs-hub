@@ -11,7 +11,7 @@ import {
   isGuildMember, addMemberRole, removeMemberRole,
 } from '@/lib/discord-competition';
 import { releaseCircuitClaim } from '@/lib/competitions/withdraw-registration';
-import { applyRosterChange, recomputeRegistrationComputed, type RosterChangeOp } from '@/lib/competitions/roster-change';
+import { applyRosterChange, coreGuardViolation, recomputeRegistrationComputed, type RosterChangeOp } from '@/lib/competitions/roster-change';
 import { getBlockingSanctions } from '@/lib/competitions/sanctions';
 import { computeAge } from '@/lib/age';
 import { computeRefMmr } from '@/lib/competitions/mmr';
@@ -434,6 +434,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           ? { version: r.rulebookAccepted.version ?? 0, at: r.rulebookAccepted.at?.toDate?.()?.toISOString() ?? null }
           : null,
         circuitTeamId: r.circuitTeamId ?? null,
+        // Historique des dérogations roster (noms dénormalisés à l'écriture).
+        rosterChanges: Array.isArray(r.rosterChanges)
+          ? (r.rosterChanges as Array<Record<string, unknown>>).map(c => ({
+              at: (c.at as Timestamp | undefined)?.toDate?.()?.toISOString() ?? null,
+              op: (c.op as string) ?? '',
+              outName: (c.outName as string) ?? null,
+              inName: (c.inName as string) ?? null,
+              nameA: (c.nameA as string) ?? null,
+              nameB: (c.nameB as string) ?? null,
+              name: (c.name as string) ?? null,
+            }))
+          : [],
         discord: {
           provisioningStatus: r.discord?.provisioningStatus ?? 'none',
           roleId: r.discord?.roleId ?? null,
@@ -1235,16 +1247,41 @@ async function changeRoster(db: FirebaseFirestore.Firestore, ctx: ActionContext)
         }
       }
 
+      // GARDE DU NOYAU (anti-abus) : des remplacements successifs ne doivent
+      // jamais aboutir à une équipe différente de celle qui a été VALIDÉE.
+      // La référence (titulaires du roster validé) est figée au premier
+      // changement — les inscriptions d'avant cette version la capturent ici.
+      let capturedInitialStarters: string[] | null = null;
+      if (op === 'replace') {
+        const alreadyFrozen = Array.isArray(regData?.initialStarterUids) && regData.initialStarterUids.length > 0;
+        const initialStarterUids = alreadyFrozen
+          ? (regData!.initialStarterUids as string[])
+          : roster.filter(r => r.role === 'titulaire').map(r => r.uid);
+        const violation = coreGuardViolation(initialStarterUids, applied.roster, starters);
+        if (violation) throw new Error(`core_guard:${violation}`);
+        // Posée dans la même transaction que le premier changement.
+        if (!alreadyFrozen) capturedInitialStarters = initialStarterUids;
+      }
+
+      const nameOf = (u: string) => roster.find(r => r.uid === u)?.displayName ?? u;
       const update: Record<string, unknown> = {
+        ...(capturedInitialStarters ? { initialStarterUids: capturedInitialStarters } : {}),
         updatedAt: FieldValue.serverTimestamp(),
-        // Trace publique-safe (uids joueurs déjà présents dans le doc — jamais
-        // l'identité de l'admin ici, l'audit log la porte).
+        // Trace publique-safe, NOMS dénormalisés pour l'historique du Dossier
+        // (uids joueurs déjà présents dans le doc — jamais l'identité de
+        // l'admin ici, l'audit log la porte).
         rosterChanges: FieldValue.arrayUnion({
           at: Timestamp.now(),
           op,
-          ...(op === 'replace' && inMeta ? { outUid, inUid: inMeta.uid } : {}),
-          ...(op === 'swap_roles' && change.op === 'swap_roles' ? { uidA: change.uidA, uidB: change.uidB } : {}),
-          ...(op === 'set_captain' && change.op === 'set_captain' ? { uid: change.uid } : {}),
+          ...(op === 'replace' && inMeta
+            ? { outUid, outName: nameOf(outUid), inUid: inMeta.uid, inName: inMeta.displayName }
+            : {}),
+          ...(op === 'swap_roles' && change.op === 'swap_roles'
+            ? { uidA: change.uidA, nameA: nameOf(change.uidA), uidB: change.uidB, nameB: nameOf(change.uidB) }
+            : {}),
+          ...(op === 'set_captain' && change.op === 'set_captain'
+            ? { uid: change.uid, name: nameOf(change.uid) }
+            : {}),
         }),
       };
       if (op === 'set_captain' && change.op === 'set_captain') {
@@ -1292,6 +1329,9 @@ async function changeRoster(db: FirebaseFirestore.Firestore, ctx: ActionContext)
     }
     if (msg === 'match_active') {
       return NextResponse.json({ error: 'Un match de l\'équipe vient d\'être lancé — termine-le avant de modifier le roster.' }, { status: 409 });
+    }
+    if (msg.startsWith('core_guard:')) {
+      return NextResponse.json({ error: msg.slice('core_guard:'.length) }, { status: 409 });
     }
     throw err;
   }
