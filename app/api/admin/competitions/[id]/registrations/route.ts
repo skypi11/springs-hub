@@ -261,9 +261,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           : Promise.resolve([] as FirebaseFirestore.DocumentSnapshot[]),
       ]);
       const minAge = (comp.eligibility?.minAge as number | null) ?? null;
+      // Agrégat smurf (review : le seul signal anti-smurf du flux doit être
+      // sous les yeux de l'admin AU CHOIX du remplaçant, pas après).
+      const smurfMeta = await loadPlayerMeta(db, candidateUids);
       const members = candidateUids.map((u, i) => {
         const ud = userSnaps[i]?.exists ? userSnaps[i].data()! : ({} as FirebaseFirestore.DocumentData);
         const age = computeAge((secretSnaps[i]?.data()?.dateOfBirth as string | undefined) ?? '');
+        const smurf = smurfMeta.get(u);
         return {
           uid: u,
           displayName: (ud.displayName as string) || (ud.discordUsername as string) || u,
@@ -271,9 +275,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           // Jamais l'âge exact ici — un statut suffit au choix (même règle que
           // le wizard côté structure).
           ageStatus: minAge === null ? 'ok' : age === null ? 'unknown' : age < minAge ? 'under' : 'ok',
+          smurfReports: smurf?.pendingReports ?? 0,
+          smurfFlag: smurf?.adminFlag === true,
         };
       });
-      return NextResponse.json({ members, mmrRequired: !!comp.eligibility?.mmr });
+      return NextResponse.json({
+        members,
+        mmrRequired: !!comp.eligibility?.mmr,
+        verifiedRequired: comp.eligibility?.requireVerifiedAccounts === true,
+      });
     }
 
     const regsSnap = await db.collection('competition_registrations')
@@ -692,6 +702,14 @@ async function approve(db: FirebaseFirestore.Firestore, ctx: ActionContext) {
       if (!createdAtNow || !createdAtRead || !createdAtNow.isEqual(createdAtRead)) {
         throw new Error('state_changed');
       }
+      // Un change_roster concurrent (dérogation admin) ne touche pas
+      // createdAt : sans cette garde, l'approve écrirait la copie circuit
+      // avec l'ANCIEN roster et écraserait la dérogation du remplaçant
+      // (review adversariale). Même garde que la TX de change_roster.
+      if (JSON.stringify((regData?.rosterUids as string[] | undefined) ?? [])
+        !== JSON.stringify((reg.rosterUids as string[] | undefined) ?? [])) {
+        throw new Error('state_changed');
+      }
       const approvedCount = (compNow.data()?.approvedCount as number | undefined) ?? 0;
       const maxTeams = (compNow.data()?.format?.maxTeams as number | undefined) ?? 0;
       const waitlistEnabled = compNow.data()?.registration?.waitlist === true;
@@ -1051,21 +1069,25 @@ async function changeRoster(db: FirebaseFirestore.Firestore, ctx: ActionContext)
     return NextResponse.json({ error: 'Inscription sans roster.' }, { status: 409 });
   }
 
-  // Matchs de l'équipe : un match ACTIF bloque tout changement (le camp, les
-  // saisies et la room appartiennent au roster en place). Refs apprises HORS
-  // transaction (ids immuables), re-lues fraîches DEDANS.
-  const [asA, asB] = await Promise.all([
+  // Matchs : un match ACTIF de l'équipe bloque tout changement (le camp, les
+  // saisies et la room appartiennent au roster en place). Pré-check rapide
+  // HORS transaction (message immédiat), puis la TX relit TOUS les matchs de
+  // la compétition et re-vérifie les sièges FRAIS (review, blocker) : une
+  // équipe qui vient de MONTER dans un match (progression) ou une promotion
+  // waitlist concurrente ne passent plus sous le radar. Les matchs CRÉÉS
+  // pendant la fenêtre (ronde suisse appariée, étape suivante, publication)
+  // sont couverts par la garde de RÉVISION dans la TX.
+  const [asA, asB, allMatchesSnap] = await Promise.all([
     db.collection('competition_matches').where('competitionId', '==', id).where('teamA', '==', registrationId).get(),
     db.collection('competition_matches').where('competitionId', '==', id).where('teamB', '==', registrationId).get(),
+    db.collection('competition_matches').where('competitionId', '==', id).select().get(),
   ]);
   const teamMatchDocs = [...asA.docs, ...asB.docs];
   const activeNow = teamMatchDocs.find(d => ACTIVE_MATCH_STATUSES.has((d.data().status as string) ?? 'pending'));
   if (activeNow) {
     return NextResponse.json({ error: 'Un match de l\'équipe est en cours — termine-le (ou tranche-le) avant de modifier le roster.' }, { status: 409 });
   }
-  const nonTerminalRefs = teamMatchDocs
-    .filter(d => !['completed', 'walkover', 'cancelled'].includes((d.data().status as string) ?? 'pending'))
-    .map(d => d.ref);
+  const allMatchRefs = allMatchesSnap.docs.map(d => d.ref);
 
   // ── Construction de l'opération (replace : snapshot entrant façon wizard) ──
   let change: RosterChangeOp;
@@ -1107,6 +1129,22 @@ async function changeRoster(db: FirebaseFirestore.Firestore, ctx: ActionContext)
       d.id !== registrationId && ['pending', 'approved', 'waitlisted'].includes((d.data().status as string) ?? ''));
     if (clash) {
       return NextResponse.json({ error: `Ce joueur figure déjà dans l'inscription de ${clash.data().name ?? 'une autre équipe'}.` }, { status: 409 });
+    }
+    // Équipe RETIRÉE : si ce joueur y a DÉJÀ JOUÉ dans cette compétition, il
+    // ne rejoint jamais une autre équipe du même tournoi (review : double
+    // appartenance sportive + connaissance des rooms adverses). Une équipe
+    // retirée AVANT tout match ne bloque pas ses joueurs.
+    for (const d of overlap.docs) {
+      if (d.id === registrationId || (d.data().status as string) !== 'withdrawn') continue;
+      const [gA, gB] = await Promise.all([
+        db.collection('competition_matches').where('competitionId', '==', id).where('teamA', '==', d.id).select('status').get(),
+        db.collection('competition_matches').where('competitionId', '==', id).where('teamB', '==', d.id).select('status').get(),
+      ]);
+      const played = [...gA.docs, ...gB.docs].some(m =>
+        ['completed', 'walkover'].includes((m.data().status as string) ?? ''));
+      if (played) {
+        return NextResponse.json({ error: `Ce joueur a déjà joué pour ${d.data().name ?? 'une autre équipe'} dans cette compétition (équipe retirée) — il ne peut pas rejoindre un autre roster du même tournoi.` }, { status: 409 });
+      }
     }
 
     // Sanctions bloquantes (mêmes règles que le wizard — refus net avec motif).
@@ -1217,14 +1255,29 @@ async function changeRoster(db: FirebaseFirestore.Firestore, ctx: ActionContext)
   const rosterUidsAtRead = JSON.stringify((reg.rosterUids as string[] | undefined) ?? []);
 
   // ── Transaction : re-validation fraîche + écriture atomique ──
+  // `freshTeamNonTerminal` : matchs où l'équipe siège RÉELLEMENT au commit
+  // (données de la TX) — c'est sur EUX que l'ACL post-TX est alignée.
+  let freshTeamNonTerminal: FirebaseFirestore.DocumentReference[] = [];
+  let captainTransferred = false;
   try {
     await db.runTransaction(async tx => {
+      freshTeamNonTerminal = [];
+      captainTransferred = false;
       const compRef = db.collection('competitions').doc(id);
-      const [regNow, compNow, ...matchSnaps] = await Promise.all([
-        tx.get(regRef), tx.get(compRef), ...nonTerminalRefs.map(r => tx.get(r)),
+      const stateRefForTx = (reg.circuitTeamId as string | null)
+        ? db.collection('circuit_teams').doc(reg.circuitTeamId as string).collection('private').doc('state')
+        : null;
+      const [regNow, compNow, matchSnaps, stateSnap] = await Promise.all([
+        tx.get(regRef),
+        tx.get(compRef),
+        allMatchRefs.length > 0 ? tx.getAll(...allMatchRefs) : Promise.resolve([] as FirebaseFirestore.DocumentSnapshot[]),
+        stateRefForTx ? tx.get(stateRefForTx) : Promise.resolve(null),
       ]);
       const regData = regNow.data();
-      if (!regNow.exists || (regData?.status !== 'approved' && regData?.status !== 'waitlisted')) {
+      // TOCTOU par ÉGALITÉ de statut (review, blocker) : une promotion
+      // waitlist → approved concurrente (replace_team) est un CHANGEMENT
+      // d'état — l'appartenance à {approved, waitlisted} ne la voit pas.
+      if (!regNow.exists || regData?.status !== reg.status) {
         throw new Error('state_changed');
       }
       // Doc réécrit / roster déjà modifié entre la lecture et la transaction
@@ -1237,14 +1290,34 @@ async function changeRoster(db: FirebaseFirestore.Firestore, ctx: ActionContext)
       if (JSON.stringify((regData?.rosterUids as string[] | undefined) ?? []) !== rosterUidsAtRead) {
         throw new Error('state_changed');
       }
-      const compStatusNow = (compNow.data()?.status as string) ?? 'draft';
+      const compNowData = compNow.data();
+      const compStatusNow = (compNowData?.status as string) ?? 'draft';
       if (compStatusNow === 'finished' || compStatusNow === 'archived') throw new Error('competition_closed');
-      // Un match lancé entre la lecture et la transaction : refus (le camp
-      // appartient au roster en place).
+      // Garde de RÉVISION (review, blocker) : une matérialisation concurrente
+      // (publication, ronde suisse appariée, passage d'étape) crée des matchs
+      // INVISIBLES des refs apprises hors TX — l'état des matchs n'est alors
+      // plus celui qui a été vérifié. Refus net, l'admin rejoue.
+      const bmAtRead = (comp.bracketMaterializedAt as Timestamp | undefined) ?? null;
+      const bmNow = (compNowData?.bracketMaterializedAt as Timestamp | undefined) ?? null;
+      if ((bmAtRead === null) !== (bmNow === null) || (bmAtRead !== null && bmNow !== null && !bmAtRead.isEqual(bmNow))) {
+        throw new Error('state_changed');
+      }
+      if (((compNowData?.currentStage as number | undefined) ?? 1) !== ((comp.currentStage as number | undefined) ?? 1)) {
+        throw new Error('state_changed');
+      }
+      if (((compNowData?.matchesRevision as number | undefined) ?? 0) !== ((comp.matchesRevision as number | undefined) ?? 0)) {
+        throw new Error('state_changed');
+      }
+      // Sièges FRAIS sur TOUS les matchs de la compétition : un match où
+      // l'équipe vient de monter (progression) est vu ICI, pas seulement les
+      // refs par-équipe d'avant la fenêtre.
       for (const snap of matchSnaps) {
-        if (snap.exists && ACTIVE_MATCH_STATUSES.has((snap.data()!.status as string) ?? 'pending')) {
-          throw new Error('match_active');
-        }
+        if (!snap.exists) continue;
+        const m = snap.data()!;
+        if (m.teamA !== registrationId && m.teamB !== registrationId) continue;
+        const st = (m.status as string) ?? 'pending';
+        if (ACTIVE_MATCH_STATUSES.has(st)) throw new Error('match_active');
+        if (!['completed', 'walkover', 'cancelled'].includes(st)) freshTeamNonTerminal.push(snap.ref);
       }
 
       // GARDE DU NOYAU (anti-abus) : des remplacements successifs ne doivent
@@ -1293,9 +1366,12 @@ async function changeRoster(db: FirebaseFirestore.Firestore, ctx: ActionContext)
         // Remplacer LE capitaine-joueur : le pilotage check-in/scores suit le
         // siège (hérité comme le rôle) — jamais un capitaine hors roster par
         // cette voie. Un captainUid inscripteur hors roster (dirigeant) n'est
-        // pas concerné (outUid ≠ captainUid).
+        // pas concerné (outUid ≠ captainUid). Le flag remonte au client et
+        // déclenche la notification dédiée (review : jamais un transfert de
+        // capitanat silencieux).
         if (op === 'replace' && inMeta && ((regData?.captainUid as string) ?? '') === outUid) {
           update.captainUid = inMeta.uid;
+          captainTransferred = true;
         }
       }
       if (derogationNote && inMeta) {
@@ -1304,13 +1380,16 @@ async function changeRoster(db: FirebaseFirestore.Firestore, ctx: ActionContext)
       tx.update(regRef, update);
 
       // Copie du roster dans l'état privé du circuit (base de la règle noyau
-      // au prochain Qualif) — lookup par doc id, jamais de .where en tx.
+      // au prochain Qualif) — lookup par doc id, jamais de .where en tx. Les
+      // champs existants de l'entrée (approvedAt…) sont PRÉSERVÉS (review :
+      // le write remplaçait l'entrée entière).
       const circuitTeamId = (regData?.circuitTeamId as string | null) ?? null;
-      if (op !== 'set_captain' && regData?.status === 'approved' && circuitTeamId) {
-        const stateRef = db.collection('circuit_teams').doc(circuitTeamId).collection('private').doc('state');
-        tx.set(stateRef, {
+      if (op !== 'set_captain' && regData?.status === 'approved' && circuitTeamId && stateRefForTx) {
+        const existingEntry = (stateSnap?.data()?.rosterByCompetition as Record<string, Record<string, unknown>> | undefined)?.[id] ?? {};
+        tx.set(stateRefForTx, {
           rosterByCompetition: {
             [id]: {
+              ...existingEntry,
               registrationId,
               rosterUids: newRosterUids,
               starterUids: applied.roster.filter(r => r.role === 'titulaire').map(r => r.uid),
@@ -1341,16 +1420,18 @@ async function changeRoster(db: FirebaseFirestore.Firestore, ctx: ActionContext)
 
   // ACL privées des matchs non terminaux : alignées par cohérence (l'autorité
   // d'accès reste la résolution LIVE du registration — défense en profondeur).
+  // Base = les sièges FRAIS collectés DANS la transaction, pas les refs
+  // d'avant la fenêtre.
   if (op === 'replace' && inMeta) {
     try {
       const batch = db.batch();
-      for (const ref of nonTerminalRefs) {
+      for (const ref of freshTeamNonTerminal) {
         batch.set(ref.collection('private').doc('acl'),
           { participantUids: FieldValue.arrayRemove(outUid) }, { merge: true });
       }
       await batch.commit();
       const batch2 = db.batch();
-      for (const ref of nonTerminalRefs) {
+      for (const ref of freshTeamNonTerminal) {
         batch2.set(ref.collection('private').doc('acl'),
           { participantUids: FieldValue.arrayUnion(inMeta.uid) }, { merge: true });
       }
@@ -1359,13 +1440,21 @@ async function changeRoster(db: FirebaseFirestore.Firestore, ctx: ActionContext)
       console.error('[change_roster] ACL sync failed:', err);
     }
 
-    // Discord : l'entrant gagne le rôle d'équipe (accès salons privés) + le
-    // rôle Participant du circuit ; le sortant perd le rôle d'équipe SEUL
-    // (le rôle Participant est commun au circuit — jamais retiré ici).
-    try {
-      const guildId = (comp.discord?.guildId as string | undefined) ?? null;
-      const teamRoleId = (reg.discord?.roleId as string | undefined) ?? null;
-      if (guildId && teamRoleId) {
+    // Discord : le RETRAIT du sortant passe EN PREMIER (couper l'accès prime
+    // sur l'octroi — review), chaque jambe isolée : un échec sur l'une ne
+    // saute jamais l'autre. Le sortant perd le rôle d'équipe SEUL (le rôle
+    // Participant est commun au circuit — jamais retiré ici).
+    const guildId = (comp.discord?.guildId as string | undefined) ?? null;
+    const teamRoleId = (reg.discord?.roleId as string | undefined) ?? null;
+    if (guildId && teamRoleId) {
+      if (outEntry) {
+        try {
+          await removeMemberRole(guildId, outEntry.discordId, teamRoleId);
+        } catch (err) {
+          console.error('[change_roster] Discord remove role failed:', err);
+        }
+      }
+      try {
         await addMemberRole(guildId, inMeta.discordId, teamRoleId);
         const circuitId = (comp.circuitId as string | null) ?? null;
         if (circuitId) {
@@ -1373,10 +1462,9 @@ async function changeRoster(db: FirebaseFirestore.Firestore, ctx: ActionContext)
           const participantRoleId = (circuitSnap.data()?.discord?.participantRoleId as string | undefined) ?? null;
           if (participantRoleId) await addMemberRole(guildId, inMeta.discordId, participantRoleId);
         }
-        if (outEntry) await removeMemberRole(guildId, outEntry.discordId, teamRoleId);
+      } catch (err) {
+        console.error('[change_roster] Discord add role failed:', err);
       }
-    } catch (err) {
-      console.error('[change_roster] Discord role sync failed:', err);
     }
   }
 
@@ -1417,6 +1505,29 @@ async function changeRoster(db: FirebaseFirestore.Firestore, ctx: ActionContext)
         link: `/competitions/${id}`, metadata: { competitionId: id },
       });
     }
+    // Capitanat hérité lors du remplacement du capitaine (review : jamais un
+    // transfert silencieux — l'entrant doit savoir qu'il pilote le check-in).
+    if (captainTransferred && inMeta) {
+      payloads.push({
+        userId: inMeta.uid, type: 'competition_registration',
+        title: 'Capitanat transféré',
+        message: `Tu pilotes désormais le check-in et la saisie des scores de ${reg.name ?? 'ton équipe'} sur ${compName}.`,
+        link: `/competitions/${id}`, metadata: { competitionId: id },
+      });
+    }
+    // Échange de rôles : les deux joueurs sont prévenus (le remplaçant promu
+    // titulaire doit savoir qu'il commence — review).
+    if (op === 'swap_roles' && change.op === 'swap_roles') {
+      const roleAfter = (u: string) => applied.roster.find(r => r.uid === u)?.role;
+      for (const u of [change.uidA, change.uidB]) {
+        payloads.push({
+          userId: u, type: 'competition_registration',
+          title: roleAfter(u) === 'titulaire' ? 'Tu passes titulaire' : 'Tu passes remplaçant',
+          message: `${reg.name ?? 'Ton équipe'} — ${compName} (décision de l'organisation).`,
+          link: `/competitions/${id}`, metadata: { competitionId: id },
+        });
+      }
+    }
     await createNotifications(db, payloads);
   } catch (err) {
     console.error('[change_roster] notifications failed:', err);
@@ -1437,10 +1548,11 @@ async function changeRoster(db: FirebaseFirestore.Firestore, ctx: ActionContext)
       } : {}),
       ...(op === 'swap_roles' && change.op === 'swap_roles' ? { uidA: change.uidA, uidB: change.uidB } : {}),
       ...(op === 'set_captain' && change.op === 'set_captain' ? { newCaptainUid: change.uid } : {}),
+      ...(captainTransferred ? { captainTransferred: true } : {}),
     },
   });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, captainTransferred });
 }
 
 // Libère la réservation d'identité circuit d'une inscription (reject /

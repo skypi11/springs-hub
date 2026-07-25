@@ -342,6 +342,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           if (((fresh.approvedCount as number) ?? 0) !== stored.length) throw new Error('regs_changed');
           tx.update(compRef, {
             bracketMaterializedAt: FieldValue.serverTimestamp(),
+            // Révision des matérialisations (gardes concurrentes — cf.
+            // change_roster) : le verrou EST la matérialisation qui commence.
+            matchesRevision: FieldValue.increment(1),
             updatedAt: FieldValue.serverTimestamp(),
           });
         });

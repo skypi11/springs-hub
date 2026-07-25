@@ -1322,6 +1322,8 @@ interface RosterOptionMember {
   displayName: string;
   verified: boolean;
   ageStatus: 'ok' | 'under' | 'unknown';
+  smurfReports: number;
+  smurfFlag: boolean;
 }
 
 function RosterEditor({ reg, competitionId, showMmr, onDone }: {
@@ -1336,9 +1338,12 @@ function RosterEditor({ reg, competitionId, showMmr, onDone }: {
   const [outUid, setOutUid] = useState('');
   const [inUid, setInUid] = useState('');
   const [members, setMembers] = useState<RosterOptionMember[] | null>(null);
+  const [membersError, setMembersError] = useState(false);
+  const [verifiedRequired, setVerifiedRequired] = useState(false);
   const [curMmr, setCurMmr] = useState('');
   const [peakMmr, setPeakMmr] = useState('');
   const [derogNote, setDerogNote] = useState('');
+  const [forceDerog, setForceDerog] = useState(false);
   const [swapA, setSwapA] = useState('');
   const [swapB, setSwapB] = useState('');
   const [newCaptain, setNewCaptain] = useState('');
@@ -1346,33 +1351,58 @@ function RosterEditor({ reg, competitionId, showMmr, onDone }: {
   const titulaires = reg.roster.filter(p => p.role === 'titulaire');
   const remplacants = reg.roster.filter(p => p.role === 'remplacant');
   const selectedMember = members?.find(m => m.uid === inUid) ?? null;
-  const needsDerog = selectedMember !== null && selectedMember.ageStatus !== 'ok';
+  // Le champ note s'affiche AVANT l'échec (ageStatus) — et se force si le
+  // serveur répond 422 malgré tout (ageStatus périmé, review).
+  const needsDerog = forceDerog || (selectedMember !== null && selectedMember.ageStatus !== 'ok');
+  // Bornes MMR répliquées du serveur : peak ≥ actuel, valeurs 0-5000.
+  const mmrInvalid = showMmr && (!curMmr || !peakMmr || Number(peakMmr) < Number(curMmr));
 
-  const openReplace = async () => {
-    setMode('replace');
-    setOutUid(''); setInUid(''); setCurMmr(''); setPeakMmr(''); setDerogNote('');
+  const loadMembers = async () => {
     setMembers(null);
+    setMembersError(false);
     try {
-      const r = await api<{ members: RosterOptionMember[] }>(
+      const r = await api<{ members: RosterOptionMember[]; verifiedRequired: boolean }>(
         `/api/admin/competitions/${competitionId}/registrations?rosterOptionsFor=${encodeURIComponent(reg.id)}`);
       setMembers(r.members);
+      setVerifiedRequired(r.verifiedRequired === true);
     } catch {
-      toast.error('Membres de l\'équipe introuvables — recharge la liste.');
-      setMembers([]);
+      setMembersError(true);
     }
+  };
+  const openReplace = () => {
+    setMode('replace');
+    setOutUid(''); setInUid(''); setCurMmr(''); setPeakMmr(''); setDerogNote('');
+    setForceDerog(false);
+    loadMembers();
   };
 
   const submit = async (change: Record<string, unknown>, okMsg: string) => {
     setBusy(true);
     try {
-      await api(`/api/admin/competitions/${competitionId}/registrations`, {
-        method: 'POST', body: { action: 'change_roster', registrationId: reg.id, change },
-      });
-      toast.success(okMsg);
+      const res = await api<{ captainTransferred?: boolean }>(
+        `/api/admin/competitions/${competitionId}/registrations`, {
+          method: 'POST', body: { action: 'change_roster', registrationId: reg.id, change },
+        });
+      toast.success(res.captainTransferred
+        ? `${okMsg} Il hérite aussi du capitanat : il pilote le check-in et les scores.`
+        : okMsg);
       setMode(null);
       onDone();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : 'Changement impossible.');
+      if (e instanceof ApiError) {
+        toast.error(e.message);
+        // 422 mineur : forcer le champ note SANS recharger (l'admin complète).
+        const derogFor = (e.payload as { needsDerogationFor?: string[] } | null)?.needsDerogationFor;
+        if (e.status === 422 && Array.isArray(derogFor)) {
+          setForceDerog(true);
+        } else if (e.status === 409) {
+          // L'état serveur a bougé (c'est la raison du refus) : recharger la
+          // liste — jamais un « Recharge la liste » sans bouton (review).
+          onDone();
+        }
+      } else {
+        toast.error('Changement impossible.');
+      }
     } finally {
       setBusy(false);
     }
@@ -1406,33 +1436,63 @@ function RosterEditor({ reg, competitionId, showMmr, onDone }: {
             <select className={selectCls} value={outUid} onChange={e => setOutUid(e.target.value)}>
               <option value="">—</option>
               {reg.roster.map(p => (
-                <option key={p.uid} value={p.uid}>{p.displayName} ({p.role === 'titulaire' ? 'titulaire' : 'remplaçant'})</option>
+                <option key={p.uid} value={p.uid}>
+                  {p.displayName} ({p.role === 'titulaire' ? 'titulaire' : 'remplaçant'})
+                  {p.uid === reg.captainUid ? ' · capitaine — le capitanat suivra' : ''}
+                </option>
               ))}
             </select>
           </div>
           <div>
             <label className={labelCls}>Joueur entrant (membre de l&apos;équipe)</label>
-            <select className={selectCls} value={inUid} onChange={e => setInUid(e.target.value)} disabled={members === null}>
-              <option value="">{members === null ? 'Chargement…' : members.length === 0 ? 'Aucun membre disponible' : '—'}</option>
-              {(members ?? []).map(m => (
-                <option key={m.uid} value={m.uid}>
-                  {m.displayName}{m.verified ? '' : ' · non vérifié'}{m.ageStatus === 'under' ? ' · mineur' : m.ageStatus === 'unknown' ? ' · âge inconnu' : ''}
+            {membersError ? (
+              <span className="inline-flex items-center gap-2 text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                Chargement impossible
+                <button type="button" className="reg-quiet-link" onClick={loadMembers}>Réessayer</button>
+              </span>
+            ) : (
+              <select className={selectCls} value={inUid} onChange={e => setInUid(e.target.value)} disabled={members === null}>
+                <option value="">
+                  {members === null
+                    ? 'Chargement…'
+                    : members.length === 0
+                      ? 'Aucun membre hors roster dans cette équipe'
+                      : '—'}
                 </option>
-              ))}
-            </select>
+                {(members ?? []).map(m => (
+                  <option key={m.uid} value={m.uid}
+                    disabled={verifiedRequired && !m.verified}>
+                    {m.displayName}
+                    {m.verified ? '' : verifiedRequired ? ' · non vérifié — inéligible' : ' · non vérifié'}
+                    {m.ageStatus === 'under' ? ' · mineur' : m.ageStatus === 'unknown' ? ' · âge inconnu' : ''}
+                    {m.smurfReports > 0 ? ` · ${m.smurfReports} signalement${m.smurfReports > 1 ? 's' : ''} smurf` : ''}
+                    {m.smurfFlag ? ' · flag admin' : ''}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           {showMmr && (
             <>
               <div>
                 <label className={labelCls}>MMR actuel</label>
                 <input className={selectCls} style={{ width: 90 }} inputMode="numeric" value={curMmr}
-                  onChange={e => setCurMmr(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="1500" />
+                  onChange={e => {
+                    const v = e.target.value.replace(/\D/g, '').slice(0, 4);
+                    setCurMmr(v && Number(v) > 5000 ? '5000' : v);
+                  }} placeholder="MMR" />
               </div>
               <div>
                 <label className={labelCls}>Peak</label>
                 <input className={selectCls} style={{ width: 90 }} inputMode="numeric" value={peakMmr}
-                  onChange={e => setPeakMmr(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="1600" />
+                  onChange={e => {
+                    const v = e.target.value.replace(/\D/g, '').slice(0, 4);
+                    setPeakMmr(v && Number(v) > 5000 ? '5000' : v);
+                  }} placeholder="Peak" />
               </div>
+              {curMmr && peakMmr && Number(peakMmr) < Number(curMmr) && (
+                <span className="text-xs" style={{ color: '#ffb46b' }}>Le peak ne peut pas être sous l&apos;actuel.</span>
+              )}
             </>
           )}
           {needsDerog && (
@@ -1444,7 +1504,7 @@ function RosterEditor({ reg, competitionId, showMmr, onDone }: {
             </div>
           )}
           <button type="button" className="btn-springs btn-secondary bevel-sm text-sm"
-            disabled={busy || !outUid || !inUid || (showMmr && (!curMmr || !peakMmr)) || (needsDerog && derogNote.trim().length < 3)}
+            disabled={busy || !outUid || !inUid || mmrInvalid || (needsDerog && derogNote.trim().length < 3)}
             onClick={() => submit({
               op: 'replace', outUid, inUid,
               ...(showMmr ? { declaredCurrentMmr: Number(curMmr), declaredPeakMmr: Number(peakMmr) } : {}),
@@ -1456,6 +1516,13 @@ function RosterEditor({ reg, competitionId, showMmr, onDone }: {
       )}
 
       {mode === 'swap' && (
+        remplacants.length === 0 || titulaires.length === 0 ? (
+          <p className="mt-2 text-sm" style={{ color: 'var(--s-text-dim)' }}>
+            {remplacants.length === 0
+              ? 'Pas de remplaçant dans ce roster — rien à échanger. Utilise « Remplacer un joueur ».'
+              : 'Pas de titulaire dans ce roster — rien à échanger.'}
+          </p>
+        ) : (
         <div className="mt-2 flex flex-wrap items-end gap-3">
           <div>
             <label className={labelCls}>Titulaire</label>
@@ -1477,6 +1544,7 @@ function RosterEditor({ reg, competitionId, showMmr, onDone }: {
             Échanger
           </button>
         </div>
+        )
       )}
 
       {mode === 'captain' && (

@@ -799,6 +799,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               tx.set(matchRef.collection('private').doc('acl'), { participantUids: uids, staffUids: [] });
             }
           }
+          // Révision des matérialisations : signale aux gardes concurrentes
+          // (change_roster) que des matchs invisibles de leurs refs existent.
+          tx.update(compRef, { matchesRevision: FieldValue.increment(1) });
         });
       } catch (e) {
         const msg = (e as Error).message;
@@ -1006,6 +1009,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             // le champ plat repart vide pour l'étape suivante (design §9c).
             tiebreakResolutions: {},
             'schedule.phasePlan': [...existingPlan, ...newEntries],
+            // Révision des matérialisations (gardes concurrentes, cf. suisse).
+            matchesRevision: FieldValue.increment(1),
             updatedAt: FieldValue.serverTimestamp(),
           });
         });
