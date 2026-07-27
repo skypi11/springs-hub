@@ -7,6 +7,8 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { materializeBracket, type TeamDisplay } from '@/lib/competitions/bracket-store';
 import { sendCompetitionChannelMessage } from '@/lib/discord-competition';
+import { broadcast, summarizeDelivery, type DeliveryReport } from '@/lib/competitions/tournament-broadcast';
+import { bracketPublishedTeamText } from '@/lib/competitions/broadcast-messages';
 import { phasePlanForStage } from '@/lib/competitions/schedule-plan';
 import type { PhasePlanEntry } from '@/types/competitions';
 import { roundRobinBlocker, swissBlocker, swissDefaultRounds } from '@/lib/tournament';
@@ -462,7 +464,42 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
       }
 
-      return NextResponse.json({ success: true, status: 'live', matchCount: matches.length });
+      // L'annonce publique dit que le tournoi est lancé ; elle ne dit à
+      // personne contre QUI il joue. Chaque équipe reçoit son premier
+      // adversaire dans son salon — c'est l'information qu'elle attend.
+      let delivery: DeliveryReport | null = null;
+      try {
+        const firstMatchOf = new Map<string, { opponentId: string | null; matchKey: string }>();
+        for (const { id: matchKey, doc } of matches) {
+          const m = doc as { teamA?: string | null; teamB?: string | null };
+          for (const [self, opp] of [[m.teamA, m.teamB], [m.teamB, m.teamA]] as const) {
+            if (self && !firstMatchOf.has(self)) firstMatchOf.set(self, { opponentId: opp ?? null, matchKey });
+          }
+        }
+        const day = (comp.schedule?.days as Array<{ date?: string; startsAt?: string }> | undefined)?.[0];
+        const startsAt = day?.date ? `${day.date}${day.startsAt ? ` à ${day.startsAt}` : ''}` : null;
+        delivery = await broadcast(db, id, stored.filter(rid => registrations[rid]).map(rid => {
+          const info = firstMatchOf.get(rid);
+          const opponentId = info?.opponentId ?? null;
+          return {
+            target: { kind: 'team' as const, registrationId: rid },
+            text: bracketPublishedTeamText({
+              opponentName: opponentId ? (registrations[opponentId]?.display.name ?? null) : null,
+              startsAt,
+            }),
+            link: info
+              ? `https://aedral.com/competitions/${id}/match/${info.matchKey}`
+              : `https://aedral.com/competitions/${id}`,
+          };
+        }), { competition: comp, deadlineMs: 20_000 });
+      } catch (e) {
+        console.warn(`[bracket] messages d'équipe impossibles pour ${id}`, e);
+      }
+
+      return NextResponse.json({
+        success: true, status: 'live', matchCount: matches.length,
+        delivery, deliverySummary: delivery ? summarizeDelivery(delivery) : null,
+      });
     }
 
     return NextResponse.json({ error: 'Action invalide.' }, { status: 400 });

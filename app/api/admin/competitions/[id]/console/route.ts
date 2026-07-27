@@ -13,6 +13,15 @@ import {
 } from '@/lib/competitions/match-flow';
 import { createNotifications, type NotificationPayload } from '@/lib/notifications';
 import { sendCompetitionChannelMessage } from '@/lib/discord-competition';
+import {
+  broadcast, summarizeDelivery,
+  type BroadcastItem, type DeliveryReport,
+} from '@/lib/competitions/tournament-broadcast';
+import {
+  matchCheckinText, checkinReopenedText, adminRulingText,
+  teamWithdrawnText, opponentWithdrawnText,
+  type BroadcastText,
+} from '@/lib/competitions/broadcast-messages';
 import { phasePlanForStage } from '@/lib/competitions/schedule-plan';
 import { toFlowState, toIso, flowConfigOf, generateRoomCredentials, toEngineOutcome } from '@/lib/competitions/match-flow-server';
 import { applyMatchOutcome, applyWithdraw, applyReplacement } from '@/lib/competitions/progression';
@@ -277,6 +286,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const action = body.action as string;
     const refOf = (matchKey: string) => db.collection('competition_matches').doc(`${id}__${matchKey}`);
 
+    /** Les deux camps d'un match, avec leurs noms — pour parler aux équipes. */
+    const sidesOf = async (m: Record<string, unknown>) => {
+      const aId = (m.teamA as string) ?? '';
+      const bId = (m.teamB as string) ?? '';
+      const ids = [aId, bId].filter(Boolean);
+      if (ids.length === 0) return { aId, bId, nameOf: () => 'ton adversaire' };
+      const snaps = await db.getAll(...ids.map(r => db.collection('competition_registrations').doc(r)));
+      const names = new Map(snaps.map(s => [s.id, (s.data()?.name as string) ?? '']));
+      return { aId, bId, nameOf: (rid: string) => names.get(rid) || 'ton adversaire' };
+    };
+    /** Même message aux deux camps d'un match (arbitrage : les deux le lisent). */
+    const toBothSides = (aId: string, bId: string, text: BroadcastText, link: string): BroadcastItem[] =>
+      [aId, bId].filter(Boolean).map(rid => ({
+        target: { kind: 'team' as const, registrationId: rid }, text, link,
+      }));
+
     if (action === 'launch_phase') {
       const rawIds: string[] = Array.isArray(body.matchIds)
         ? (body.matchIds as unknown[]).filter((x): x is string => typeof x === 'string')
@@ -289,8 +314,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         teams_not_ready: 'équipes pas toutes connues',
         dispute_open: 'litige en cours',
       };
-      const launched: Array<{ matchKey: string; teamA: string; teamB: string }> = [];
+      const launched: Array<{ matchKey: string; teamA: string; teamB: string; room: { name: string; password: string } | null }> = [];
       const skipped: Array<{ matchId: string; reason: string }> = [];
+      // Accusé de livraison Discord : sans lui, une équipe qui dit « on n'a
+      // rien reçu » est indiscernable d'une équipe qui n'a pas regardé.
+      let delivery: DeliveryReport | null = null;
       // Cap de sécurité tracé — jamais de troncature silencieuse.
       for (const over of rawIds.slice(40)) skipped.push({ matchId: over, reason: 'au-delà du plafond de 40 matchs par lancement' });
 
@@ -315,19 +343,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           return { ok: true, teamA: m.teamA as string, teamB: m.teamB as string };
         });
         if (!res.ok) { skipped.push({ matchId: matchKey, reason: res.reason ?? 'non lançable' }); continue; }
-        launched.push({ matchKey, teamA: res.teamA!, teamB: res.teamB! });
         // Room générée par le site (spec §8) — créée une seule fois, jamais
         // régénérée. SEUL already-exists est ignoré : tout autre échec est
         // tracé et signalé (le GET console auto-répare aussi — self-heal).
+        // Les identifiants sont RETENUS pour partir avec le message de check-in :
+        // ils sont aléatoires, donc illisibles autrement que depuis le doc.
+        let room: { name: string; password: string } | null = null;
         try {
-          await ref.collection('private').doc('room').create(generateRoomCredentials(matchKey));
+          const creds = generateRoomCredentials(matchKey);
+          await ref.collection('private').doc('room').create(creds);
+          room = creds;
         } catch (e) {
           const code = (e as { code?: number | string }).code;
-          if (code !== 6 && code !== 'already-exists') {
+          if (code === 6 || code === 'already-exists') {
+            // Relance après interruption : la room existante fait foi.
+            const existing = await ref.collection('private').doc('room').get().catch(() => null);
+            const d = existing?.data();
+            room = d ? { name: (d.name as string) ?? '', password: (d.password as string) ?? '' } : null;
+          } else {
             captureApiError('Console launch_phase room create', e);
             skipped.push({ matchId: matchKey, reason: 'room non créée — recharger la console la régénère' });
           }
         }
+        launched.push({ matchKey, teamA: res.teamA!, teamB: res.teamB!, room });
       }
 
       // Le check-in ne démarre jamais en silence (spec §8) : notif in-app à
@@ -340,37 +378,36 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           const regs = new Map(regSnaps.filter(s => s.exists).map(s => [s.id, s.data()!]));
           const compName = (comp.name as string) ?? id;
           const payloads: NotificationPayload[] = [];
-          const discordPosts: Array<Promise<unknown>> = [];
+          const items: BroadcastItem[] = [];
           for (const l of launched) {
-            const a = regs.get(l.teamA);
-            const b = regs.get(l.teamB);
-            const title = 'Check-in ouvert';
-            const message = `${a?.name ?? '?'} vs ${b?.name ?? '?'} — ${compName}. Le capitaine a ${cfg.matchCheckinMinutes} minutes pour check-in.`;
-            for (const reg of [a, b]) {
+            // Chaque camp reçoit SON message : « tu joues contre X » plutôt que
+            // « A vs B », et le lien pointe sur la page du match, pas sur la
+            // fiche du tournoi — sur une fenêtre de 5 minutes, la navigation
+            // en moins compte.
+            for (const [regId, oppId] of [[l.teamA, l.teamB], [l.teamB, l.teamA]] as const) {
+              const reg = regs.get(regId);
               if (!reg) continue;
+              const text = matchCheckinText({
+                opponentName: (regs.get(oppId)?.name as string) ?? 'ton adversaire',
+                minutes: cfg.matchCheckinMinutes,
+                room: l.room,
+              });
+              const link = `/competitions/${id}/match/${l.matchKey}`;
               for (const ruid of (reg.rosterUids as string[] | undefined) ?? []) {
                 payloads.push({
-                  userId: ruid, type: 'competition_match_checkin', title, message,
-                  link: `/competitions/${id}`, metadata: { competitionId: id, matchId: l.matchKey },
+                  userId: ruid, type: 'competition_match_checkin',
+                  title: text.title, message: `${compName} — ${text.message}`,
+                  link, metadata: { competitionId: id, matchId: l.matchKey },
                 });
               }
-              const channelId = reg.discord?.textChannelId as string | undefined;
-              if (channelId) {
-                discordPosts.push(sendCompetitionChannelMessage(channelId, {
-                  title, message, link: `https://aedral.com/competitions/${id}`,
-                  // Sans mention, le message ne notifie personne : l'équipe
-                  // découvre son match en ouvrant Discord par hasard.
-                  mentionRoleId: (reg.discord?.roleId as string | undefined) ?? null,
-                }).catch(() => null));
-              }
+              items.push({
+                target: { kind: 'team', registrationId: regId },
+                text, link: `https://aedral.com${link}`,
+              });
             }
           }
           await createNotifications(db, payloads);
-          // Salons Discord : borné à 8 s au total (pattern DM borné du repo).
-          await Promise.race([
-            Promise.allSettled(discordPosts),
-            new Promise(resolve => setTimeout(resolve, 8_000)),
-          ]);
+          delivery = await broadcast(db, id, items, { competition: comp });
         } catch (e) {
           captureApiError('Console launch_phase notifications', e);
         }
@@ -379,7 +416,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await audit(db, uid, 'competition_phase_launched', id, comp, {
         launched: launched.map(l => l.matchKey), skipped,
       });
-      return NextResponse.json({ ok: true, launched: launched.map(l => l.matchKey), skipped });
+      return NextResponse.json({
+        ok: true, launched: launched.map(l => l.matchKey), skipped,
+        delivery, deliverySummary: delivery ? summarizeDelivery(delivery) : null,
+      });
     }
 
     if (action === 'reopen_checkin') {
@@ -405,8 +445,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         return { ok: true, live: dec.bothDone };
       });
       if (!res.ok) return NextResponse.json({ error: res.reason }, { status: 409 });
+
+      // Les deux camps doivent le savoir : celui qui était en retard a une
+      // seconde chance, et celui qui attendait un forfait apprend que le match
+      // repart. Sans ce message, l'action relance une horloge que personne ne voit.
+      let reopenDelivery: DeliveryReport | null = null;
+      if (res.live !== true) {
+        try {
+          const m = (await refOf(matchKey).get()).data() ?? {};
+          const { aId, bId, nameOf } = await sidesOf(m);
+          const room = (await refOf(matchKey).collection('private').doc('room').get().catch(() => null))?.data();
+          const link = `https://aedral.com/competitions/${id}/match/${matchKey}`;
+          reopenDelivery = await broadcast(db, id, [aId, bId].filter(Boolean).map(rid => ({
+            target: { kind: 'team' as const, registrationId: rid },
+            text: checkinReopenedText({
+              opponentName: nameOf(rid === aId ? bId : aId),
+              minutes: cfg.matchCheckinMinutes,
+              room: room ? { name: (room.name as string) ?? '', password: (room.password as string) ?? '' } : null,
+            }),
+            link,
+          })), { competition: comp });
+        } catch (e) {
+          captureApiError('Console reopen_checkin notifications', e);
+        }
+      }
+
       await audit(db, uid, 'competition_checkin_reopened', id, comp, { matchId: matchKey, resumedLive: res.live === true });
-      return NextResponse.json({ ok: true, live: res.live === true });
+      return NextResponse.json({
+        ok: true, live: res.live === true,
+        delivery: reopenDelivery,
+        deliverySummary: reopenDelivery ? summarizeDelivery(reopenDelivery) : null,
+      });
     }
 
     if (action === 'validate_forfeit') {
@@ -430,8 +499,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         // le dire à l'admin plutôt que de faire semblant d'avoir tranché.
         return NextResponse.json({ error: 'Ce match est déjà finalisé — recharge la console.' }, { status: 409 });
       }
+      // Une décision d'arbitrage qui tombe en silence se découvre par
+      // l'adversaire — et le conflit commence là. Les deux camps reçoivent la
+      // même chose, avec le motif saisi par l'admin.
+      let forfeitDelivery: DeliveryReport | null = null;
+      try {
+        const { aId, bId, nameOf } = await sidesOf(snap.data()!);
+        const loserIsA = team === 'a';
+        const text = adminRulingText({
+          kind: team === 'both' ? 'double_forfeit' : 'forfeit',
+          winnerName: nameOf(loserIsA ? bId : aId),
+          loserName: nameOf(loserIsA ? aId : bId),
+          reason,
+        });
+        forfeitDelivery = await broadcast(db, id,
+          toBothSides(aId, bId, text, `https://aedral.com/competitions/${id}/match/${matchKey}`),
+          { competition: comp });
+      } catch (e) {
+        captureApiError('Console validate_forfeit notifications', e);
+      }
+
       await audit(db, uid, 'competition_forfeit_validated', id, comp, { matchId: matchKey, team, reason });
-      return NextResponse.json({ ok: true, ...result });
+      return NextResponse.json({
+        ok: true, ...result,
+        delivery: forfeitDelivery,
+        deliverySummary: forfeitDelivery ? summarizeDelivery(forfeitDelivery) : null,
+      });
     }
 
     if (action === 'force_score') {
@@ -451,8 +544,34 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (result.changedMatchIds.length === 0) {
         return NextResponse.json({ error: 'Ce match est déjà finalisé — recharge la console.' }, { status: 409 });
       }
+      // Score retenu + motif aux deux camps : c'est la décision la plus
+      // contestée d'un tournoi, elle ne peut pas rester dans la console.
+      let scoreDelivery: DeliveryReport | null = null;
+      try {
+        const { aId, bId, nameOf } = await sidesOf(snap.data()!);
+        const wonA = games.filter(g => g.a > g.b).length;
+        const wonB = games.filter(g => g.b > g.a).length;
+        const aWins = wonA >= wonB;
+        const text = adminRulingText({
+          kind: 'forced_score',
+          winnerName: nameOf(aWins ? aId : bId),
+          loserName: nameOf(aWins ? bId : aId),
+          score: `${Math.max(wonA, wonB)}-${Math.min(wonA, wonB)}`,
+          reason: resolution,
+        });
+        scoreDelivery = await broadcast(db, id,
+          toBothSides(aId, bId, text, `https://aedral.com/competitions/${id}/match/${matchKey}`),
+          { competition: comp });
+      } catch (e) {
+        captureApiError('Console force_score notifications', e);
+      }
+
       await audit(db, uid, 'competition_score_forced', id, comp, { matchId: matchKey, games, resolution });
-      return NextResponse.json({ ok: true, ...result });
+      return NextResponse.json({
+        ok: true, ...result,
+        delivery: scoreDelivery,
+        deliverySummary: scoreDelivery ? summarizeDelivery(scoreDelivery) : null,
+      });
     }
 
     if (action === 'set_cast') {
@@ -562,11 +681,53 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       try {
         await removeRegistrationFromCalendar(db, { competitionId: id, teamId: regSnap.data()!.teamId as string });
       } catch (e) { captureApiError('Console withdraw_team calendar cleanup', e); }
+      // L'équipe qui part le sait, et surtout : les équipes qui devaient
+      // l'affronter héritent d'un forfait. Sans ce message, elles attendent en
+      // lobby quelqu'un qui ne viendra jamais.
+      let withdrawDelivery: DeliveryReport | null = null;
+      const teamName = (regSnap.data()!.name as string) ?? 'L\'équipe';
+      try {
+        const items: BroadcastItem[] = [{
+          target: { kind: 'team', registrationId },
+          text: teamWithdrawnText({ teamName, reason }),
+          link: `https://aedral.com/competitions/${id}`,
+        }];
+
+        // Adversaires touchés par la cascade, dédupliqués.
+        const matchRefs = result.changedMatchIds.map(mid =>
+          db.collection('competition_matches').doc(mid.includes('__') ? mid : `${id}__${mid}`));
+        if (matchRefs.length > 0) {
+          const snaps = await db.getAll(...matchRefs);
+          const affected = new Set<string>();
+          for (const s of snaps) {
+            const m = s.data();
+            if (!m) continue;
+            for (const side of [m.teamA, m.teamB]) {
+              if (typeof side === 'string' && side && side !== registrationId) affected.add(side);
+            }
+          }
+          for (const rid of affected) {
+            items.push({
+              target: { kind: 'team', registrationId: rid },
+              text: opponentWithdrawnText({ opponentName: teamName }),
+              link: `https://aedral.com/competitions/${id}`,
+            });
+          }
+        }
+        withdrawDelivery = await broadcast(db, id, items, { competition: comp });
+      } catch (e) {
+        captureApiError('Console withdraw_team notifications', e);
+      }
+
       await audit(db, uid, 'competition_team_withdrawn', id, comp, {
         registrationId, team: regSnap.data()!.name ?? registrationId, reason,
         cascadedMatches: result.changedMatchIds,
       });
-      return NextResponse.json({ ok: true, ...result });
+      return NextResponse.json({
+        ok: true, ...result,
+        delivery: withdrawDelivery,
+        deliverySummary: withdrawDelivery ? summarizeDelivery(withdrawDelivery) : null,
+      });
     }
 
     if (action === 'replace_team') {

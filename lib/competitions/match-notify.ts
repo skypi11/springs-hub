@@ -66,7 +66,12 @@ export async function notifyMatchAlert(
         link: `https://aedral.com/admin/competitions/${competitionId}/console`,
         // Une alerte silencieuse n'alerte personne : on mentionne le premier
         // rôle staff déclaré (les suivants voient le salon de toute façon).
-        mentionRoleId: staffRoleIds[0] ?? null,
+        //
+        // SAUF `single_entry`, qui est le déroulement NORMAL : le perdant ne
+        // saisit presque jamais. Sur 63 matchs, ça faisait des dizaines de pings
+        // « tout va bien » — le staff coupe le salon, et les vrais litiges
+        // meurent avec. Le message reste, la notification part.
+        mentionRoleId: kind === 'single_entry' ? null : (staffRoleIds[0] ?? null),
       }),
       new Promise(resolve => setTimeout(resolve, 5_000)),
     ]);
