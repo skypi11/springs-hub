@@ -929,6 +929,8 @@ async function reject(db: FirebaseFirestore.Firestore, ctx: ActionContext) {
     try {
       await deprovisionRegistration(db, comp.discord.guildId as string, {
         registrationId,
+        competitionId: id,
+        circuitId: (comp.circuitId as string | null) ?? null,
         roleId: (reg.discord?.roleId as string | null) ?? null,
         textChannelId: (reg.discord?.textChannelId as string | null) ?? null,
         voiceChannelId: (reg.discord?.voiceChannelId as string | null) ?? null,

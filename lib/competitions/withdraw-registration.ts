@@ -125,6 +125,8 @@ export async function withdrawRegistration(
     if (guildId && (preData.discord?.roleId || preData.discord?.textChannelId)) {
       await deprovisionRegistration(db, guildId, {
         registrationId,
+        competitionId,
+        circuitId: (comp.circuitId as string | null) ?? null,
         roleId: (preData.discord?.roleId as string) ?? null,
         textChannelId: (preData.discord?.textChannelId as string) ?? null,
         voiceChannelId: (preData.discord?.voiceChannelId as string) ?? null,

@@ -487,15 +487,13 @@ export async function describeGuildAccess(
   if (!report.botCanManageChannels) {
     report.problems.push("Le bot n'a pas la permission « Gérer les salons » sur ce serveur.");
   }
-  // Un bot ne peut gérer QUE les rôles situés sous le sien. Posé tout en bas
-  // (position 0 = @everyone, 1 = juste au-dessus), il risque de ne pas pouvoir
-  // attribuer le rôle qu'il vient de créer — le piège classique, invisible
-  // jusqu'au jour du tournoi. Avertissement, pas blocage : la hiérarchie exacte
-  // dépend du serveur.
-  if (report.botCanManageRoles && report.botHighestPosition <= 1) {
-    report.problems.push('Le rôle du bot est tout en bas de la liste des rôles : remonte-le, sinon il risque de ne pas pouvoir attribuer le rôle participant.');
-  }
-
+  // PAS d'avertissement sur la position du rôle du bot, contrairement à ce
+  // qu'on croirait : les rôles que le bot crée arrivent eux aussi en bas de la
+  // liste, donc sous le sien, et s'attribuent normalement. Vérifié contre un
+  // vrai serveur (bot en position 1, rôle créé en position 1 → attribution
+  // 204). Le message d'origine se déclenchait sur TOUT serveur fraîchement
+  // invité — le cas le plus courant — et envoyait l'organisateur régler un
+  // problème inexistant, au milieu des vrais.
   return report;
 }
 
@@ -820,17 +818,71 @@ async function invalidateParticipantRole(
 }
 
 /**
+ * Compétitions qui partagent le MÊME rôle participant que celle-ci : elle seule
+ * si elle est isolée, toutes les étapes du circuit hébergées sur le même
+ * serveur sinon (le rôle est commun au circuit — spec §7).
+ */
+async function competitionsSharingParticipantRole(
+  db: Firestore,
+  opts: { competitionId: string; circuitId: string | null; guildId: string },
+): Promise<string[]> {
+  if (!opts.circuitId) return [opts.competitionId];
+  const snap = await db.collection('competitions').where('circuitId', '==', opts.circuitId).get();
+  const ids = snap.docs
+    .filter(d => (d.data().discord?.guildId ?? null) === opts.guildId)
+    .map(d => d.id);
+  return ids.includes(opts.competitionId) ? ids : [...ids, opts.competitionId];
+}
+
+/**
+ * Joueurs encore engagés sous ce rôle participant, une fois l'inscription
+ * `excludeRegistrationId` écartée.
+ *
+ * Le rôle participant est PARTAGÉ par les étapes d'un circuit : sans ce
+ * décompte, refuser (ou retirer) une équipe à la Qualif 2 retirait le rôle à
+ * des joueurs validés à la Qualif 1, qui perdaient l'accès aux salons du
+ * tournoi alors qu'ils y jouaient toujours.
+ */
+export async function discordIdsStillParticipating(
+  db: Firestore,
+  opts: { competitionId: string; circuitId: string | null; guildId: string; excludeRegistrationId: string },
+): Promise<Set<string>> {
+  const scope = await competitionsSharingParticipantRole(db, opts);
+  const still = new Set<string>();
+  // `in` est borné à 30 valeurs côté Firestore — un circuit en compte une
+  // poignée, mais le découpage évite une panne si un jour ce n'est plus vrai.
+  for (let i = 0; i < scope.length; i += 30) {
+    const snap = await db.collection('competition_registrations')
+      .where('competitionId', 'in', scope.slice(i, i + 30))
+      .where('status', '==', 'approved')
+      .get();
+    for (const doc of snap.docs) {
+      if (doc.id === opts.excludeRegistrationId) continue;
+      for (const m of (doc.data().roster ?? []) as Array<{ discordId?: string }>) {
+        if (m.discordId) still.add(m.discordId);
+      }
+    }
+  }
+  return still;
+}
+
+/**
  * Déprovisionne UNE équipe (reject/unapprove d'une inscription déjà
  * provisionnée) : supprime les salons privés et le rôle d'équipe, best-effort
  * — une équipe refusée ne doit pas garder l'accès à son salon ni le rôle
  * participant. Les 404 (déjà supprimé à la main) sont ignorés. Retourne les
  * échecs restants pour affichage console ; ne throw jamais.
+ *
+ * Le rôle participant n'est retiré qu'aux joueurs qui ne participent plus
+ * NULLE PART sous ce rôle (voir `discordIdsStillParticipating`).
  */
 export async function deprovisionRegistration(
   db: Firestore,
   guildId: string,
   input: {
     registrationId: string;
+    competitionId: string;
+    circuitId: string | null;
     roleId: string | null;
     textChannelId: string | null;
     voiceChannelId: string | null;
@@ -861,8 +913,25 @@ export async function deprovisionRegistration(
     });
   }
   if (input.participantRoleId) {
+    // Qui reste engagé sous ce rôle ? Une lecture ratée ne doit PAS conclure
+    // « plus personne » : on préfère laisser un rôle de trop (accès en lecture
+    // aux annonces) plutôt que couper l'accès à une équipe qui joue encore.
+    let stillParticipating: Set<string>;
+    try {
+      stillParticipating = await discordIdsStillParticipating(db, {
+        competitionId: input.competitionId,
+        circuitId: input.circuitId,
+        guildId,
+        excludeRegistrationId: input.registrationId,
+      });
+    } catch {
+      warnings.push('Rôle participant conservé : impossible de vérifier les autres inscriptions du circuit');
+      stillParticipating = new Set(input.roster.map(m => m.discordId).filter(Boolean));
+    }
+
     for (const member of input.roster) {
       if (!member.discordId) continue;
+      if (stillParticipating.has(member.discordId)) continue;   // joue encore ailleurs
       await tryStep(`retrait du rôle participant (${member.displayName})`, async () => {
         const res = await discordFetch(
           `/guilds/${guildId}/members/${member.discordId}/roles/${input.participantRoleId}`,
