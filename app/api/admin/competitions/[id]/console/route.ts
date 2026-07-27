@@ -523,6 +523,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           if (channelId) {
             discordPosts.push(sendCompetitionChannelMessage(channelId, {
               title, message, link: `https://aedral.com/competitions/${id}`,
+              // Même piège que le check-in de match : sans mention, le message
+              // ne notifie PERSONNE. C'est l'ouverture du tournoi — un capitaine
+              // qui ne le voit pas fait déclarer son équipe forfait.
+              mentionRoleId: (r.discord?.roleId as string | undefined) ?? null,
             }).catch(() => null));
           }
         }

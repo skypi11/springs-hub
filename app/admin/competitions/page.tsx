@@ -12,7 +12,7 @@ import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import Link from 'next/link';
-import { Trophy, Plus, Pencil, Trash2, UserMinus, ScrollText, ClipboardCheck, Radio } from 'lucide-react';
+import { Trophy, Plus, Pencil, Trash2, UserMinus, ScrollText, ClipboardCheck, Radio, Eye, EyeOff } from 'lucide-react';
 import GameTag from '@/components/games/GameTag';
 import CircuitForm from '@/components/admin/competitions/CircuitForm';
 import CompetitionForm from '@/components/admin/competitions/CompetitionForm';
@@ -118,6 +118,28 @@ export default function AdminCompetitionsPage() {
     try {
       await api(`/api/admin/circuits/${c.id}`, { method: 'DELETE' });
       toast.success('Circuit supprimé.');
+      await load();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau.');
+    }
+  }
+
+  async function toggleCircuitVisibility(c: AdminCircuit) {
+    const publishing = c.status !== 'active';
+    const ok = await confirm({
+      title: publishing ? 'Publier le circuit' : 'Repasser en brouillon',
+      message: publishing
+        ? `« ${c.name} » deviendra visible de tous : page publique, classement et étapes non masquées. Le barème et les règles de départage seront alors figés.`
+        : `« ${c.name} » redeviendra invisible du public. Impossible si une étape est déjà terminée.`,
+      confirmLabel: publishing ? 'Publier' : 'Repasser en brouillon',
+    });
+    if (!ok) return;
+    try {
+      await api(`/api/admin/circuits/${c.id}`, {
+        method: 'PATCH',
+        body: { action: publishing ? 'publish' : 'unpublish' },
+      });
+      toast.success(publishing ? 'Circuit publié.' : 'Circuit repassé en brouillon.');
       await load();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Erreur réseau.');
@@ -277,13 +299,25 @@ export default function AdminCompetitionsPage() {
               <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
                 Top {c.lanTeamCount} · best {c.bestResultsCount}
               </span>
-              <span className="tag tag-neutral">{STATUS_LABELS[c.status] ?? c.status}</span>
+              {/* Public ou non : l'information la plus lourde de conséquence de
+                  la ligne — un circuit publié est lisible par tout le monde. */}
+              <span className={`tag ${c.status === 'active' ? 'tag-gold' : 'tag-neutral'}`}>
+                {STATUS_LABELS[c.status] ?? c.status}
+              </span>
               <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
                 onClick={() => setView({ kind: 'rulebook', scope: { circuitId: c.id }, label: c.name })}>
                 <ScrollText size={13} /> Règlement
               </button>
               {isAdmin && (
                 <>
+                  {(c.status === 'draft' || c.status === 'active') && (
+                    <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
+                      onClick={() => toggleCircuitVisibility(c)}>
+                      {c.status === 'active'
+                        ? <><EyeOff size={13} /> Masquer</>
+                        : <><Eye size={13} /> Publier</>}
+                    </button>
+                  )}
                   <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
                     onClick={() => setView({ kind: 'circuit-form', circuit: c })}>
                     <Pencil size={13} /> Éditer
