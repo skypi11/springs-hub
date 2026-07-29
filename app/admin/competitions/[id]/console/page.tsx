@@ -30,7 +30,7 @@ import { useWorkerInterval } from '@/components/competitions/useWorkerInterval';
 import { winsOf, normalizeGameRows, isScoreValid, winsNeeded } from '@/lib/competitions/match-score';
 import type { PublicBracketMatch } from '@/lib/competitions/brackets-viewer-adapter';
 import { getGameColor } from '@/lib/games-registry';
-import { ChevronDown, ChevronLeft, Copy, GripVertical, Radio, ShieldCheck } from 'lucide-react';
+import { ChevronDown, ChevronLeft, Copy, GripVertical, Megaphone, Radio, ShieldCheck } from 'lucide-react';
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -258,6 +258,7 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [phaseOverride, setPhaseOverride] = useState<Map<string, boolean>>(new Map());
   const [showConfirmed, setShowConfirmed] = useState(false);
+  const [announceOpen, setAnnounceOpen] = useState(false);
   const [forceScoreFor, setForceScoreFor] = useState<ConsoleMatch | null>(null);
   const [forfeitFor, setForfeitFor] = useState<{ m: ConsoleMatch; preset?: 'a' | 'b' | 'both' } | null>(null);
   const [castFor, setCastFor] = useState<ConsoleMatch | null>(null);
@@ -453,8 +454,14 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
             CONSOLE — {data.competition.name.toUpperCase()}
           </h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="tag tag-neutral">{COMP_STATUS_FR[data.competition.status] ?? data.competition.status}</span>
+          {data.competition.discordConfigured && (
+            <button className="btn-springs btn-secondary bevel-sm text-sm flex items-center gap-1.5"
+              onClick={() => setAnnounceOpen(true)}>
+              <Megaphone size={14} /> Annonce
+            </button>
+          )}
           <button className="btn-springs btn-secondary bevel-sm text-sm" disabled={busy !== null}
             onClick={async () => {
               setBusy('tick');
@@ -850,6 +857,25 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
       </div>
 
       {/* Modales */}
+      {announceOpen && (
+        <AnnounceModal onClose={() => setAnnounceOpen(false)}
+          onSubmit={async (message, to) => {
+            try {
+              const r = await api<{ deliverySummary?: string }>(`/api/admin/competitions/${id}/console`, {
+                method: 'POST', body: { action: 'announce', message, to },
+              });
+              // L'accusé de livraison EST le retour utile : « 14 équipes
+              // notifiées, 2 échecs ». Un « envoyé » sec laisserait croire que
+              // tout le monde a reçu.
+              toast.success(r.deliverySummary ?? 'Annonce envoyée.');
+              setAnnounceOpen(false);
+              return true;
+            } catch (e) {
+              toast.error(e instanceof ApiError ? e.message : 'Annonce impossible.');
+              return false;
+            }
+          }} />
+      )}
       {forceScoreFor && (
         <ForceScoreModal m={forceScoreFor} onClose={() => setForceScoreFor(null)}
           onSubmit={async (games, resolution) => {
@@ -1767,6 +1793,60 @@ function ModalShell({ heading, m, onClose, children }: {
         <div className="panel-body">{children}</div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Annonce libre de l'organisateur. Le seul message que le système ne peut pas
+ * deviner : retard, incident, consigne de dernière minute. Sans lui il faut
+ * écrire à la main dans autant de salons qu'il y a d'équipes.
+ */
+function AnnounceModal({ onClose, onSubmit }: {
+  onClose: () => void;
+  onSubmit: (message: string, to: 'announce' | 'teams' | 'both') => Promise<boolean>;
+}) {
+  const [message, setMessage] = useState('');
+  const [to, setTo] = useState<'announce' | 'teams' | 'both'>('both');
+  const [sending, setSending] = useState(false);
+  const CIBLES: Array<{ id: typeof to; label: string; hint: string }> = [
+    { id: 'both', label: 'Tout le monde', hint: 'Salon d\'annonces et salons d\'équipe' },
+    { id: 'teams', label: 'Équipes seulement', hint: 'Chaque équipe validée, dans son salon' },
+    { id: 'announce', label: 'Annonces seulement', hint: 'Le salon public, sans notifier personne' },
+  ];
+  return (
+    <ModalShell heading="ANNONCE" onClose={onClose}>
+      <div className="space-y-4">
+        <textarea className="settings-input w-full" rows={4} autoFocus maxLength={1500}
+          placeholder="Le tournoi prend 20 minutes de retard, la phase 3 démarre à 18h20."
+          value={message} onChange={e => setMessage(e.target.value)} />
+        <div className="space-y-1.5">
+          {CIBLES.map(c => (
+            <label key={c.id} className="flex items-start gap-2 cursor-pointer">
+              <input type="radio" name="announce-to" className="mt-1" checked={to === c.id} onChange={() => setTo(c.id)} />
+              <span>
+                <span className="t-body block">{c.label}</span>
+                <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>{c.hint}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+        <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+          Les équipes sont mentionnées dans leur salon ; le salon d&apos;annonces ne ping jamais.
+        </p>
+        <div className="flex justify-end gap-2">
+          <button className="btn-springs btn-secondary bevel-sm" onClick={onClose}>Annuler</button>
+          <button className="btn-springs btn-primary bevel-sm"
+            disabled={message.trim().length < 3 || sending}
+            onClick={async () => {
+              setSending(true);
+              const ok = await onSubmit(message.trim(), to);
+              if (!ok) setSending(false);
+            }}>
+            {sending ? 'Envoi…' : 'Envoyer'}
+          </button>
+        </div>
+      </div>
+    </ModalShell>
   );
 }
 

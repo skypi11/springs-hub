@@ -55,6 +55,7 @@ export type AdminAuditAction =
   | 'competition_deleted'
   | 'circuit_created'
   | 'circuit_edited'
+  | 'competition_announcement_sent'
   | 'circuit_published'
   | 'circuit_unpublished'
   | 'circuit_deleted'

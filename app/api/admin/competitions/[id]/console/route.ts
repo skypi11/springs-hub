@@ -19,7 +19,7 @@ import {
 } from '@/lib/competitions/tournament-broadcast';
 import {
   matchCheckinText, checkinReopenedText, adminRulingText,
-  teamWithdrawnText, opponentWithdrawnText,
+  teamWithdrawnText, opponentWithdrawnText, organizerAnnouncementText,
   type BroadcastText,
 } from '@/lib/competitions/broadcast-messages';
 import { phasePlanForStage } from '@/lib/competitions/schedule-plan';
@@ -1271,6 +1271,53 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         ...(result.unlinked.length > 0 ? { unlinked: result.unlinked } : {}),
       });
       return NextResponse.json({ ok: true, finalPlacements: result.finalPlacements, unlinked: result.unlinked });
+    }
+
+    if (action === 'announce') {
+      // Le message que le système n'a pas prévu : retard, incident serveurs,
+      // consigne de dernière minute. C'est l'outil le plus utilisé un jour de
+      // tournoi ; sans lui, il faut écrire à la main dans 32 salons.
+      const raw = typeof body.message === 'string' ? body.message.trim() : '';
+      if (raw.length < 3) {
+        return NextResponse.json({ error: 'Le message est vide.' }, { status: 400 });
+      }
+      const to = ['announce', 'teams', 'both'].includes(body.to as string)
+        ? (body.to as 'announce' | 'teams' | 'both')
+        : 'announce';
+      const text = organizerAnnouncementText({
+        competitionName: (comp.name as string) ?? id,
+        // 1500 : marge sous la limite d'embed Discord, coupé proprement plutôt
+        // que refusé — un organisateur pressé ne compte pas ses caractères.
+        body: raw.slice(0, 1500),
+      });
+
+      const items: BroadcastItem[] = [];
+      if (to === 'announce' || to === 'both') {
+        items.push({ target: { kind: 'announce' }, text, link: `https://aedral.com/competitions/${id}` });
+      }
+      if (to === 'teams' || to === 'both') {
+        // Aux équipes VALIDÉES : ce sont elles qui jouent. Chacune est pingée
+        // dans son salon (c'est le seul canal qui réveille vraiment).
+        const regs = await db.collection('competition_registrations')
+          .where('competitionId', '==', id)
+          .where('status', '==', 'approved')
+          .get();
+        for (const d of regs.docs) {
+          items.push({
+            target: { kind: 'team', registrationId: d.id },
+            text, link: `https://aedral.com/competitions/${id}`,
+          });
+        }
+      }
+      if (items.length === 0) {
+        return NextResponse.json({ error: 'Aucun destinataire : pas de salon d\'annonces ni d\'équipe validée.' }, { status: 409 });
+      }
+
+      const delivery = await broadcast(db, id, items, { competition: comp, deadlineMs: 20_000 });
+      await audit(db, uid, 'competition_announcement_sent', id, comp, {
+        to, length: raw.length, sent: delivery.sent, failures: delivery.failures.length,
+      });
+      return NextResponse.json({ ok: true, delivery, deliverySummary: summarizeDelivery(delivery) });
     }
 
     return NextResponse.json({ error: 'Action inconnue.' }, { status: 400 });

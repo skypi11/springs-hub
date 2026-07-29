@@ -318,6 +318,29 @@ async function main() {
       (embedOf(ruling).description || '').includes('Captures vérifiées'), embedOf(ruling).description);
   }
 
+  section('Annonce libre de l’organisateur');
+  const ANNONCE = 'Le tournoi prend 20 minutes de retard, la phase 3 démarre à 18h20.';
+  const announced = await api('POST', `/api/admin/competitions/${COMP}/console`, {
+    action: 'announce', message: ANNONCE, to: 'both',
+  });
+  check('announce → 200', announced.status === 200, JSON.stringify(announced.json).slice(0, 200));
+  check('accusé de livraison : annonces + 4 équipes', announced.json?.delivery?.sent === TEAMS + 1,
+    JSON.stringify(announced.json?.delivery));
+  check('le résumé est lisible pour un humain', /message/.test(announced.json?.deliverySummary ?? ''),
+    announced.json?.deliverySummary);
+  const annMsg = (await messagesOf(announceId))[0];
+  check('le salon public a reçu l’annonce', (embedOf(annMsg).description || '').includes('20 minutes de retard'),
+    embedOf(annMsg).description);
+  check('elle NE PING PERSONNE dans le salon public', !(annMsg?.content || '').includes('<@&'),
+    `content="${annMsg?.content}"`);
+  const teamAnn = (await messagesOf(chanOf[3]))[0];
+  check('chaque équipe l’a reçue dans son salon',
+    (embedOf(teamAnn).description || '').includes('20 minutes de retard'));
+  check('ET elle ping l’équipe', (teamAnn?.content || '').includes(`<@&${roleOf[3]}>`),
+    `content="${teamAnn?.content}"`);
+  const empty = await api('POST', `/api/admin/competitions/${COMP}/console`, { action: 'announce', message: '  ' });
+  check('une annonce vide est refusée', empty.status === 400, `status ${empty.status}`);
+
   section('Garde du bac à sable');
   await db.collection('competitions').doc(COMP).update({ isDev: true });
   const before = (await messagesOf(chanOf[3])).length;
