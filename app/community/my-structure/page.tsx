@@ -744,6 +744,21 @@ export default function MyStructurePage() {
     }
   }
 
+  // Réinstaller le bot ailleurs (ou le remettre après l'avoir retiré côté
+  // Discord). Le callback REMPLACE discordIntegration : les salons et rôles
+  // choisis pointent sur l'ancien serveur et sont donc effacés — ça ne se
+  // devine pas depuis le bouton, on le dit avant.
+  async function handleChangeDiscordServer() {
+    if (!activeStructure || discordLoading) return;
+    const ok = await confirm({
+      title: 'Changer de serveur Discord',
+      message: `Le bot sera invité sur le serveur que tu choisiras, à la place de ${activeStructure.discordIntegration?.guildName ?? 'celui-ci'}. Les salons et rôles configurés seront à refaire.`,
+      confirmLabel: 'Choisir un serveur',
+    });
+    if (!ok) return;
+    await handleConnectDiscord();
+  }
+
   // Charge (ou recharge) la liste des salons Discord postables. Appelé la première
   // fois que le fondateur ouvre un picker dans une card d'équipe. On cache dans
   // discordChannels pour ne pas re-solliciter l'API à chaque ouverture.
@@ -1769,6 +1784,7 @@ export default function MyStructurePage() {
             setEditAchievements={setEditAchievements}
             discordLoading={discordLoading}
             handleConnectDiscord={handleConnectDiscord}
+            handleChangeDiscordServer={handleChangeDiscordServer}
             handleDisconnectDiscord={handleDisconnectDiscord}
             renderDiscordConfigBlock={renderDiscordConfigBlock}
             handleSave={handleSave}

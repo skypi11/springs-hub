@@ -63,6 +63,7 @@ type GeneralTabProps = {
 
   discordLoading: boolean;
   handleConnectDiscord: () => void;
+  handleChangeDiscordServer: () => void;
   handleDisconnectDiscord: () => void;
   renderDiscordConfigBlock: (opts: DiscordConfigBlockOpts) => ReactNode;
 
@@ -85,7 +86,8 @@ export function GeneralTab(props: GeneralTabProps) {
     editLogoUrl, setEditLogoUrl, editCoverFocus, setEditCoverFocus,
     editDiscordUrl, setEditDiscordUrl,
     editSocials, setEditSocials, editAchievements, setEditAchievements,
-    discordLoading, handleConnectDiscord, handleDisconnectDiscord, renderDiscordConfigBlock,
+    discordLoading, handleConnectDiscord, handleChangeDiscordServer, handleDisconnectDiscord,
+    renderDiscordConfigBlock,
     handleSave, saving, saved, error,
     isDirigeantOfActive, collapsed, toggle, teams,
   } = props;
@@ -352,6 +354,13 @@ export function GeneralTab(props: GeneralTabProps) {
                 })}
               </div>
               <div className="flex justify-end pt-2 border-t" style={{ borderColor: 'var(--s-border)' }}>
+                <button type="button"
+                  className="btn-springs btn-secondary bevel-sm flex items-center gap-2"
+                  disabled={discordLoading}
+                  onClick={handleChangeDiscordServer}>
+                  {discordLoading ? <Loader2 size={14} className="animate-spin" /> : <MessageSquare size={14} />}
+                  Changer de serveur
+                </button>
                 <button type="button"
                   className="btn-springs btn-secondary bevel-sm flex items-center gap-2"
                   disabled={discordLoading}
