@@ -53,7 +53,7 @@ const PLAYER_CHECK_DEADLINE_MS = 20_000;
 const MEMBER_PAGE = 1000;
 const MAX_MEMBER_PAGES = 10;   // 10 000 membres — au-delà, vérification unitaire
 
-async function guildMemberIds(guildId: string): Promise<Set<string> | null> {
+export async function guildMemberIds(guildId: string): Promise<Set<string> | null> {
   const ids = new Set<string>();
   let after = '0';
   for (let page = 0; page < MAX_MEMBER_PAGES; page++) {
