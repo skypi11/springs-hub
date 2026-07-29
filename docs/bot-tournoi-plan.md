@@ -57,17 +57,18 @@ litige, arbitrage — et **relit les messages réellement postés** chez Discord
 
 ## Lot 2 — l'organisateur garde la main
 
-- [ ] **action « Annonce »** (texte libre → salon d'annonces et/ou tous les
-      salons d'équipe). C'est l'outil le plus utilisé un jour de tournoi et il
-      n'existe pas : retard, incident, consigne de dernière minute. Sans lui,
-      il faut écrire à la main dans 32 salons
-- [ ] **contrôle du dispositif** avant tournoi (bot présent, droits, salons,
-      N équipes provisionnées sur N, joueurs absents du serveur) + passage
-      automatique à J-1 dans le salon staff
-- [ ] **relance du check-in général à T-5**, en ne mentionnant que les équipes
-      qui n'ont pas confirmé (zéro manquant → aucun message)
-- [ ] **joueur inscrit absent du serveur Discord** : il ne recevra rien de tout
-      ce qui précède. Aujourd'hui c'est un drapeau silencieux
+- [x] **action « Annonce »** (texte libre → salon d'annonces et/ou tous les
+      salons d'équipe), avec accusé de livraison dans le toast
+- [x] **contrôle du dispositif** (bouton « Vérifier le dispositif ») : bot
+      présent et outillé, salons vivants et sur le bon serveur, rôle participant
+      intact, N équipes provisionnées sur N, joueurs absents du serveur,
+      inscriptions sans décision. Le passage automatique à J-1 dans le salon
+      staff reste à faire
+- [x] **relance du check-in général à T-5**, aux seules équipes qui n'ont pas
+      confirmé (zéro retardataire → aucun message ; verrou atomique contre le
+      double envoi si deux consoles tickent en même temps)
+- [x] **joueur inscrit absent du serveur Discord** : remonté par le contrôle du
+      dispositif, avec son équipe
 - [ ] **qui peut faire le check-in** nommé explicitement (c'est l'inscripteur,
       pas le capitaine de jeu — à 14h30 l'équipe est là et personne ne peut
       confirmer)

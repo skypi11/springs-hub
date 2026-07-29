@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
@@ -12,6 +12,8 @@ import {
 import { toFlowState, toEngineOutcome } from '@/lib/competitions/match-flow-server';
 import { applyMatchOutcome } from '@/lib/competitions/progression';
 import { notifyMatchAlert } from '@/lib/competitions/match-notify';
+import { broadcast } from '@/lib/competitions/tournament-broadcast';
+import { generalCheckinReminderText } from '@/lib/competitions/broadcast-messages';
 
 // Tick « jour de match » (archi §5) : applique les deadlines échues —
 // check-in expiré → validation de forfait par un admin (jamais automatique),
@@ -108,7 +110,51 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
     }
 
-    return NextResponse.json({ processed });
+    // ── Dernier appel du check-in général ────────────────────────────────────
+    // Une équipe présente peut être déclarée forfait du tournoi entier parce
+    // que son capitaine n'a pas vu le message d'ouverture. On relance UNE fois,
+    // 5 minutes avant l'échéance, et seulement ceux qui n'ont pas confirmé —
+    // zéro retardataire, zéro message.
+    let remindedTeams = 0;
+    try {
+      const gc = comp.generalCheckin as { openedAt?: Timestamp; remindedAt?: Timestamp | null } | undefined;
+      const totalMinutes = (comp.schedule?.generalCheckinMinutes as number) ?? 20;
+      const LEAD_MINUTES = 5;
+      if (gc?.openedAt && !gc.remindedAt && totalMinutes > LEAD_MINUTES + 1) {
+        const dueAtMs = gc.openedAt.toMillis() + (totalMinutes - LEAD_MINUTES) * 60_000;
+        const deadlineMs = gc.openedAt.toMillis() + totalMinutes * 60_000;
+        if (Date.now() >= dueAtMs && Date.now() < deadlineMs) {
+          // Verrou atomique : deux ticks simultanés (console de deux admins)
+          // enverraient sinon la relance en double.
+          const claimed = await db.runTransaction(async tx => {
+            const fresh = await tx.get(compSnap.ref);
+            if (fresh.data()?.generalCheckin?.remindedAt) return false;
+            tx.update(compSnap.ref, { 'generalCheckin.remindedAt': Timestamp.now() });
+            return true;
+          });
+          if (claimed) {
+            const regs = await db.collection('competition_registrations')
+              .where('competitionId', '==', id).where('status', '==', 'approved').get();
+            const late = regs.docs.filter(d => {
+              const g = d.data().generalCheckin;
+              return g && g.done !== true;
+            });
+            remindedTeams = late.length;
+            if (late.length > 0) {
+              const text = generalCheckinReminderText({ minutesLeft: LEAD_MINUTES });
+              await broadcast(db, id, late.map(d => ({
+                target: { kind: 'team' as const, registrationId: d.id },
+                text, link: `https://aedral.com/competitions/${id}`,
+              })), { competition: comp, deadlineMs: 15_000 });
+            }
+          }
+        }
+      }
+    } catch (err) {
+      captureApiError('Tick general check-in reminder', err);
+    }
+
+    return NextResponse.json({ processed, remindedTeams });
   } catch (err) {
     captureApiError('API Competitions/Tick POST error', err);
     return NextResponse.json({ error: 'server_error' }, { status: 500 });

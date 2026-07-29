@@ -158,6 +158,21 @@ export function bracketPublishedTeamText(input: {
   return { title: 'Le bracket est en ligne', message: lines.join('\n') };
 }
 
+/**
+ * Dernier appel du check-in général, aux SEULES équipes qui n'ont pas confirmé.
+ * Sans lui, une équipe présente peut être déclarée forfait du tournoi entier
+ * parce que son capitaine n'a pas vu le message d'ouverture.
+ */
+export function generalCheckinReminderText(input: { minutesLeft: number }): BroadcastText {
+  return {
+    title: `Check-in — il reste ${input.minutesLeft} minutes`,
+    message: [
+      "Ton équipe n'a pas encore confirmé sa présence.",
+      'Sans check-in à la fin du compte à rebours, elle ne sera pas alignée. Le capitaine confirme depuis la page du tournoi.',
+    ].join('\n'),
+  };
+}
+
 /** Annonce publique de l'organisateur (texte libre), jamais mise en forme. */
 export function organizerAnnouncementText(input: {
   competitionName: string;

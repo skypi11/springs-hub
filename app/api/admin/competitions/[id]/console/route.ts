@@ -619,6 +619,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         });
         opened++;
       }
+      // Heure d'ouverture retenue sur la compétition : sans elle, impossible de
+      // relancer les retardataires avant l'échéance (le tick s'en sert).
+      // `remindedAt` remis à null : une réouverture doit pouvoir relancer.
+      batch.update(compRef, {
+        generalCheckin: { openedAt: Timestamp.now(), remindedAt: null },
+      });
       await batch.commit();
       // Le check-in ne démarre jamais en silence : notif aux capitaines +
       // salons Discord d'équipe (borné, best-effort).

@@ -322,6 +322,37 @@ async function main() {
       (embedOf(ruling).description || '').includes('Captures vérifiées'), embedOf(ruling).description);
   }
 
+  section('Check-in général — relance des seuls retardataires');
+  const openGc = await api('POST', `/api/admin/competitions/${COMP}/console`, { action: 'open_general_checkin' });
+  check('open_general_checkin → 200', openGc.status === 200, JSON.stringify(openGc.json).slice(0, 150));
+  const opening = findByTitle(await messagesOf(chanOf[1]), 'Check-in général');
+  check('le message d’ouverture ping l’équipe',
+    (opening?.content || '').includes(`<@&${roleOf[1]}>`), `content="${opening?.content}"`);
+
+  // L'équipe 1 confirme ; les autres non.
+  const done = await apiAs(capUid(1), 'POST', `/api/competitions/${COMP}/checkin`, {});
+  check('le capitaine 1 confirme sa présence', done.status === 200, JSON.stringify(done.json).slice(0, 150));
+
+  // On recule l'ouverture de 16 min : la fenêtre est de 20, la relance est due.
+  await db.collection('competitions').doc(COMP).update({
+    'generalCheckin.openedAt': Timestamp.fromMillis(Date.now() - 16 * 60_000),
+  });
+  const beforeReminder = (await messagesOf(chanOf[1])).length;
+  const tick = await api('POST', `/api/competitions/${COMP}/tick`);
+  check('tick → 200', tick.status === 200, JSON.stringify(tick.json).slice(0, 150));
+  check('SEULES LES ÉQUIPES SANS CHECK-IN SONT RELANCÉES', tick.json?.remindedTeams === TEAMS - 1,
+    `relancées=${tick.json?.remindedTeams} (attendu ${TEAMS - 1})`);
+  const relance = findByTitle(await messagesOf(chanOf[3]), 'il reste 5 minutes');
+  check('la relance est arrivée à une équipe en retard', !!relance);
+  check('elle dit la conséquence', /alignée|alignee/i.test(embedOf(relance).description || ''),
+    embedOf(relance).description);
+  check('l’équipe qui a confirmé n’est PAS relancée',
+    (await messagesOf(chanOf[1])).length === beforeReminder, 'elle a reçu un message de trop');
+
+  const tick2 = await api('POST', `/api/competitions/${COMP}/tick`);
+  check('un second tick ne relance pas une deuxième fois', (tick2.json?.remindedTeams ?? 0) === 0,
+    `relancées=${tick2.json?.remindedTeams}`);
+
   section('Contrôle du dispositif');
   const setupRes = await api('GET', `/api/admin/competitions/${COMP}/setup-check`);
   check('setup-check → 200', setupRes.status === 200, JSON.stringify(setupRes.json).slice(0, 200));
