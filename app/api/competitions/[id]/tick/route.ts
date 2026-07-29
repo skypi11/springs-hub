@@ -1,32 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { isCompetitionHidden, canViewHiddenCompetition } from '@/lib/competitions/visibility';
-import {
-  applyDeadlines,
-  detectUnfinalizedAgreement,
-  type FlowOutcome,
-} from '@/lib/competitions/match-flow';
-import { toFlowState, toEngineOutcome } from '@/lib/competitions/match-flow-server';
-import { applyMatchOutcome } from '@/lib/competitions/progression';
-import { notifyMatchAlert } from '@/lib/competitions/match-notify';
-import { broadcast } from '@/lib/competitions/tournament-broadcast';
-import { generalCheckinReminderText } from '@/lib/competitions/broadcast-messages';
+import { runCompetitionTick } from '@/lib/competitions/tick-runner';
 
-// Tick « jour de match » (archi §5) : applique les deadlines échues —
-// check-in expiré → validation de forfait par un admin (jamais automatique),
-// contre-saisie expirée → la saisie unique est retenue (+ notification admin).
-// Répare aussi les accords enregistrés dont la finalisation n'est pas partie
-// (crash entre deux écritures). Idempotent PAR CONSTRUCTION : chaque
-// transition passe par une transaction avec garde d'état, et la progression
-// no-op sur un pivot déjà terminal — des ticks concurrents (console admin
-// toutes les 30 s + pages de match des participants) sont sans danger.
+// Tick « jour de match » (archi §5) — déclenché par les navigateurs ouverts :
+// console admin toutes les 10 s, et page de match des participants tant qu'un
+// check-in ou une saisie court (le bracket reste vivant même console fermée).
+// La logique vit dans lib/competitions/tick-runner : le filet planifié
+// (/api/cron/competition-tick) rejoue exactement la même chose côté serveur.
 //
-// Authentifié + rate-limité : appelable par n'importe quel utilisateur
-// connecté (les pages de match tiennent le bracket vivant même console
-// fermée), mais jamais par un anonyme.
+// Authentifié + rate-limité : appelable par n'importe quel utilisateur connecté,
+// jamais par un anonyme.
+
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -43,122 +31,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (isCompetitionHidden(comp) && !(await canViewHiddenCompetition(db, uid))) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 });
     }
-    const compName = (comp.name as string) ?? id;
 
-    // ≤ 63 docs par compétition : filtre en mémoire, pas d'index composite.
-    const snap = await db.collection('competition_matches').where('competitionId', '==', id).get();
-    const candidates = snap.docs.filter(d => {
-      const s = d.data().status as string;
-      return s === 'checkin' || s === 'score_review';
-    });
-
-    const processed: Array<{ matchId: string; transition: string }> = [];
-    const outcomes: Array<{ matchId: string; outcome: FlowOutcome; kind: 'deadline' | 'repair'; submitted?: string }> = [];
-
-    for (const doc of candidates) {
-      const engineId = (doc.data().id as string) ?? doc.id;
-      // Transaction à garde d'état (relecture fraîche). AUCUN effet de bord
-      // dans le callback : une transaction peut être REJOUÉE en cas de
-      // contention — la décision est retournée, les effets sortent après.
-      type TickDecision =
-        | { t: 'checkin_expired' }
-        | { t: 'finalize'; outcome: FlowOutcome; kind: 'deadline' | 'repair' }
-        | null;
-      const decision = await db.runTransaction<TickDecision>(async tx => {
-        const fresh = await tx.get(doc.ref);
-        if (!fresh.exists) return null;
-        const st = toFlowState(engineId, fresh.data()!);
-        const t = applyDeadlines(st, Date.now());
-        if (t?.type === 'checkin_expired') {
-          tx.update(doc.ref, { status: 'awaiting_forfeit_validation', updatedAt: FieldValue.serverTimestamp() });
-          return { t: 'checkin_expired' };
-        }
-        if (t?.type === 'finalize_single_entry') {
-          // La finalisation passe par la progression (sa propre transaction,
-          // garde pivot terminal) — collectée ici, appliquée après.
-          return { t: 'finalize', outcome: t.outcome, kind: 'deadline' };
-        }
-        const repair = detectUnfinalizedAgreement(st);
-        return repair ? { t: 'finalize', outcome: repair, kind: 'repair' } : null;
-      });
-      if (decision?.t === 'checkin_expired') {
-        processed.push({ matchId: engineId, transition: 'checkin_expired' });
-        // Attendu : pas de fire-and-forget en serverless.
-        await notifyMatchAlert(db, { kind: 'checkin_expired', competitionId: id, competitionName: compName, matchLabel: engineId });
-      } else if (decision?.t === 'finalize') {
-        outcomes.push({ matchId: engineId, outcome: decision.outcome, kind: decision.kind });
-      }
-    }
-
-    for (const o of outcomes) {
-      // autoGuard : la progression re-valide la décision sur le doc pivot
-      // FRAIS dans sa transaction — une contre-saisie, une correction ou un
-      // litige arrivés dans la fenêtre annulent la finalisation périmée
-      // (règle de course archi §5, blocker de la review adversariale).
-      let r;
-      try {
-        r = await applyMatchOutcome(db, id, o.matchId, toEngineOutcome(o.outcome), { validatedBy: 'auto', autoGuard: true });
-      } catch (err) {
-        // Compétition clôturée entre la décision et l'application : no-op.
-        if (err instanceof Error && err.message === 'competition_not_live') continue;
-        throw err;
-      }
-      if (r.changedMatchIds.length === 0) continue;   // no-op (déjà fait / état périmé) : ni trace ni notif
-      processed.push({ matchId: o.matchId, transition: o.kind === 'repair' ? 'agreement_repaired' : 'single_entry_finalized' });
-      if (o.kind === 'deadline') {
-        await notifyMatchAlert(db, { kind: 'single_entry', competitionId: id, competitionName: compName, matchLabel: o.matchId });
-      }
-    }
-
-    // ── Dernier appel du check-in général ────────────────────────────────────
-    // Une équipe présente peut être déclarée forfait du tournoi entier parce
-    // que son capitaine n'a pas vu le message d'ouverture. On relance UNE fois,
-    // 5 minutes avant l'échéance, et seulement ceux qui n'ont pas confirmé —
-    // zéro retardataire, zéro message.
-    let remindedTeams = 0;
-    try {
-      const gc = comp.generalCheckin as { openedAt?: Timestamp; remindedAt?: Timestamp | null } | undefined;
-      const totalMinutes = (comp.schedule?.generalCheckinMinutes as number) ?? 20;
-      const LEAD_MINUTES = 5;
-      if (gc?.openedAt && !gc.remindedAt && totalMinutes > LEAD_MINUTES + 1) {
-        const dueAtMs = gc.openedAt.toMillis() + (totalMinutes - LEAD_MINUTES) * 60_000;
-        const deadlineMs = gc.openedAt.toMillis() + totalMinutes * 60_000;
-        if (Date.now() >= dueAtMs && Date.now() < deadlineMs) {
-          // Verrou atomique : deux ticks simultanés (console de deux admins)
-          // enverraient sinon la relance en double.
-          const claimed = await db.runTransaction(async tx => {
-            const fresh = await tx.get(compSnap.ref);
-            if (fresh.data()?.generalCheckin?.remindedAt) return false;
-            tx.update(compSnap.ref, { 'generalCheckin.remindedAt': Timestamp.now() });
-            return true;
-          });
-          if (claimed) {
-            const regs = await db.collection('competition_registrations')
-              .where('competitionId', '==', id).where('status', '==', 'approved').get();
-            const late = regs.docs.filter(d => {
-              const g = d.data().generalCheckin;
-              return g && g.done !== true;
-            });
-            remindedTeams = late.length;
-            if (late.length > 0) {
-              const text = generalCheckinReminderText({ minutesLeft: LEAD_MINUTES });
-              await broadcast(db, id, late.map(d => ({
-                target: { kind: 'team' as const, registrationId: d.id },
-                text, link: `https://aedral.com/competitions/${id}`,
-              })), { competition: comp, deadlineMs: 15_000 });
-            }
-          }
-        }
-      }
-    } catch (err) {
-      captureApiError('Tick general check-in reminder', err);
-    }
-
+    const { processed, remindedTeams } = await runCompetitionTick(db, id, comp);
     return NextResponse.json({ processed, remindedTeams });
   } catch (err) {
     captureApiError('API Competitions/Tick POST error', err);
     return NextResponse.json({ error: 'server_error' }, { status: 500 });
   }
 }
-
-export const maxDuration = 60;

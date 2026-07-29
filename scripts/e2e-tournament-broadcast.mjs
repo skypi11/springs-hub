@@ -338,6 +338,8 @@ async function main() {
     'generalCheckin.openedAt': Timestamp.fromMillis(Date.now() - 16 * 60_000),
   });
   const beforeReminder = (await messagesOf(chanOf[1])).length;
+  // Le tick tel qu'il part en vrai : depuis la console de l'organisateur, qui
+  // est ouverte au check-in général puisque c'est lui qui vient de l'ouvrir.
   const tick = await api('POST', `/api/competitions/${COMP}/tick`);
   check('tick → 200', tick.status === 200, JSON.stringify(tick.json).slice(0, 150));
   check('SEULES LES ÉQUIPES SANS CHECK-IN SONT RELANCÉES', tick.json?.remindedTeams === TEAMS - 1,
