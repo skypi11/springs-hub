@@ -47,11 +47,19 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/admin/competitions — création (statut draft imposé)
+//
+// Ouvert aux admins de COMPÉTITION : ce sont eux qui organisent, et exiger un
+// admin Aedral pour chaque tournoi en faisait un goulot d'étranglement. Ce qui
+// protège n'est pas « qui crée » mais ce qu'une compétition créée peut faire :
+// elle naît en brouillon (invisible du public), son provisioning Discord exige
+// d'être administrateur du serveur visé, et sa publication est un acte distinct.
+// Restent réservés aux admins Aedral : les CIRCUITS (barème, résultats retenus,
+// places en LAN) et la nomination d'admins.
 export async function POST(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
     if (!uid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
-    if (!(await isAdmin(uid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+    if (!(await isCompetitionAdmin(uid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
 
     const blocked = await checkRateLimit(limiters.admin, rateLimitKey(req, uid));
     if (blocked) return blocked;

@@ -48,10 +48,13 @@ function formatDate(iso: string | null): string {
 }
 
 export default function AdminCompetitionsPage() {
-  // isAdmin = admin Aedral complet (config des compétitions). Un admin de
-  // compétition (rôle scopé) voit les listes + gère le registre des bans,
-  // mais pas la création/édition ni la nomination d'admins (spec §6).
+  // isAdmin = admin Aedral complet. Un admin de COMPÉTITION (rôle scopé)
+  // organise : il crée et édite les tournois, valide, arbitre, sanctionne.
+  // Lui restent fermés : les CIRCUITS (barème, résultats retenus, places en
+  // LAN — le contrat passé avec les équipes sur plusieurs mois) et la
+  // nomination d'autres admins, qui serait une escalade de privilèges.
   const { firebaseUser, isAdmin, isCompetitionAdmin } = useAuth();
+  const canManageCompetitions = isAdmin || isCompetitionAdmin;
   const toast = useToast();
   const confirm = useConfirm();
 
@@ -338,7 +341,12 @@ export default function AdminCompetitionsPage() {
       <div className="panel bevel">
         <div className="panel-header flex items-center justify-between">
           <span className="t-sub">Compétitions ({competitions.length})</span>
-          {isAdmin && (
+          {/* Les admins de COMPÉTITION créent et éditent les tournois : ce sont
+              eux qui organisent. Les CIRCUITS restent aux admins Aedral — un
+              circuit porte le barème, le nombre de résultats retenus et les
+              places en LAN, c'est-à-dire le contrat passé avec les équipes sur
+              plusieurs mois ; il ne doit pas bouger sous elles. */}
+          {canManageCompetitions && (
             <button
               type="button"
               className="btn-springs btn-primary bevel-sm text-sm flex items-center gap-1.5"
@@ -389,7 +397,7 @@ export default function AdminCompetitionsPage() {
                 onClick={() => setView({ kind: 'rulebook', scope: { competitionId: c.id }, label: c.name })}>
                 <ScrollText size={13} /> Règlement
               </button>
-              {isAdmin && (
+              {canManageCompetitions && (
                 <>
                   <button type="button" className="btn-springs btn-ghost text-sm flex items-center gap-1"
                     onClick={() => setView({ kind: 'competition-form', competition: c })}>

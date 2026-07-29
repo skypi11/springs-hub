@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDb, verifyAuth, isAdmin } from '@/lib/firebase-admin';
+import { getAdminDb, verifyAuth, isCompetitionAdmin } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
@@ -13,11 +13,13 @@ import { discordTargetsBlocker, guildBlocker } from '@/lib/competitions/discord-
 // ouverture des inscriptions…) arrivent avec le wizard du Lot 1.
 
 // PATCH /api/admin/competitions/[id] — édition, verrouillée après draft
+// Admins de compétition inclus : ils organisent (voir le commentaire du POST
+// dans ../route.ts). Le verrou draft-only ci-dessous reste la vraie protection.
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const uid = await verifyAuth(req);
     if (!uid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
-    if (!(await isAdmin(uid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+    if (!(await isCompetitionAdmin(uid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
 
     const blocked = await checkRateLimit(limiters.admin, rateLimitKey(req, uid));
     if (blocked) return blocked;
@@ -150,7 +152,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   try {
     const uid = await verifyAuth(req);
     if (!uid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
-    if (!(await isAdmin(uid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+    if (!(await isCompetitionAdmin(uid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
 
     const blocked = await checkRateLimit(limiters.admin, rateLimitKey(req, uid));
     if (blocked) return blocked;
