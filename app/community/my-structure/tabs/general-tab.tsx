@@ -63,6 +63,7 @@ type GeneralTabProps = {
 
   discordLoading: boolean;
   handleConnectDiscord: () => void;
+  handleInviteBotElsewhere: () => void;
   handleChangeDiscordServer: () => void;
   handleDisconnectDiscord: () => void;
   renderDiscordConfigBlock: (opts: DiscordConfigBlockOpts) => ReactNode;
@@ -86,8 +87,8 @@ export function GeneralTab(props: GeneralTabProps) {
     editLogoUrl, setEditLogoUrl, editCoverFocus, setEditCoverFocus,
     editDiscordUrl, setEditDiscordUrl,
     editSocials, setEditSocials, editAchievements, setEditAchievements,
-    discordLoading, handleConnectDiscord, handleChangeDiscordServer, handleDisconnectDiscord,
-    renderDiscordConfigBlock,
+    discordLoading, handleConnectDiscord, handleInviteBotElsewhere,
+    handleChangeDiscordServer, handleDisconnectDiscord, renderDiscordConfigBlock,
     handleSave, saving, saved, error,
     isDirigeantOfActive, collapsed, toggle, teams,
   } = props;
@@ -353,7 +354,20 @@ export function GeneralTab(props: GeneralTabProps) {
                   currentRoleName: activeStructure.discordIntegration.staffRoleName ?? null,
                 })}
               </div>
-              <div className="flex justify-end pt-2 border-t" style={{ borderColor: 'var(--s-border)' }}>
+              {/* flex-wrap : le clip-path du panel coupe le surplus sur mobile
+                  (pas de scroll horizontal possible). */}
+              <div className="pt-2 border-t space-y-2" style={{ borderColor: 'var(--s-border)' }}>
+                <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                  Le bot peut vivre sur plusieurs serveurs. L&apos;inviter ailleurs ne change rien ici ;
+                  changer de serveur relie la structure à un autre Discord et les salons sont à reconfigurer.
+                </p>
+                <div className="flex flex-wrap justify-end gap-2">
+                <button type="button"
+                  className="btn-springs btn-secondary bevel-sm flex items-center gap-2"
+                  onClick={handleInviteBotElsewhere}>
+                  <Plus size={14} />
+                  Inviter sur un autre serveur
+                </button>
                 <button type="button"
                   className="btn-springs btn-secondary bevel-sm flex items-center gap-2"
                   disabled={discordLoading}
@@ -368,6 +382,7 @@ export function GeneralTab(props: GeneralTabProps) {
                   {discordLoading ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
                   Déconnecter
                 </button>
+                </div>
               </div>
             </div>
           ) : (
@@ -385,13 +400,23 @@ export function GeneralTab(props: GeneralTabProps) {
                   Nécessaire pour poster dans les salons privés des équipes. Tu peux révoquer à tout moment en retirant le bot du serveur.
                 </p>
               </div>
-              <button type="button"
-                className="btn-springs btn-primary bevel-sm flex items-center gap-2"
-                disabled={discordLoading}
-                onClick={handleConnectDiscord}>
-                {discordLoading ? <Loader2 size={14} className="animate-spin" /> : <MessageSquare size={14} />}
-                Connecter Discord
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button type="button"
+                  className="btn-springs btn-primary bevel-sm flex items-center gap-2"
+                  disabled={discordLoading}
+                  onClick={handleConnectDiscord}>
+                  {discordLoading ? <Loader2 size={14} className="animate-spin" /> : <MessageSquare size={14} />}
+                  Connecter Discord
+                </button>
+                {/* Ajouter le bot quelque part sans le relier à la structure :
+                    le serveur d'un partenaire, ou celui qui hébergera un tournoi. */}
+                <button type="button"
+                  className="btn-springs btn-secondary bevel-sm flex items-center gap-2"
+                  onClick={handleInviteBotElsewhere}>
+                  <Plus size={14} />
+                  Inviter sans relier
+                </button>
+              </div>
             </div>
           )}
         </SectionPanel>

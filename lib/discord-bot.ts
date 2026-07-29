@@ -53,6 +53,27 @@ export function buildInstallUrl(redirectUri: string, state: string): string {
   return `https://discord.com/oauth2/authorize?${params.toString()}`;
 }
 
+/**
+ * Invitation SIMPLE : ajoute le bot à un serveur, sans rien lier côté Aedral.
+ *
+ * Différent de `buildInstallUrl`, qui lie le serveur choisi À une structure (et
+ * remplace la liaison précédente). Ici on veut juste que le bot SOIT présent
+ * quelque part de plus — le cas d'une structure qui a plusieurs Discord, ou
+ * d'un serveur qui hébergera une compétition (celle-ci désigne son serveur
+ * indépendamment de la structure).
+ *
+ * Pas d'OAuth ni de state : sans `response_type=code`, Discord se contente
+ * d'afficher le sélecteur de serveur et d'y ajouter le bot.
+ */
+export function buildInviteUrl(): string {
+  const params = new URLSearchParams({
+    client_id: clientId(),
+    permissions: BOT_INVITE_PERMISSIONS,
+    scope: 'bot',
+  });
+  return `https://discord.com/oauth2/authorize?${params.toString()}`;
+}
+
 // Échange le code OAuth contre un access token (officiellement pour l'utilisateur,
 // mais on l'utilise surtout pour valider que le code est légitime). Discord
 // renvoie aussi `guild` dans la réponse quand scope=bot.

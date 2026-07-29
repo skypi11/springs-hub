@@ -744,6 +744,23 @@ export default function MyStructurePage() {
     }
   }
 
+  // Ajouter le bot à un serveur DE PLUS, sans toucher à la liaison de la
+  // structure : le bot peut vivre sur autant de serveurs qu'on veut (un Discord
+  // par jeu, celui d'un partenaire, celui qui hébergera une compétition).
+  // Nouvel onglet : l'utilisateur revient sur sa page sans rien perdre.
+  async function handleInviteBotElsewhere() {
+    try {
+      const data = await api<{ url?: string }>('/api/discord/invite-url');
+      if (!data.url) {
+        toast.error('Lien d\'invitation indisponible.');
+        return;
+      }
+      window.open(data.url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Erreur réseau');
+    }
+  }
+
   // Réinstaller le bot ailleurs (ou le remettre après l'avoir retiré côté
   // Discord). Le callback REMPLACE discordIntegration : les salons et rôles
   // choisis pointent sur l'ancien serveur et sont donc effacés — ça ne se
@@ -1784,6 +1801,7 @@ export default function MyStructurePage() {
             setEditAchievements={setEditAchievements}
             discordLoading={discordLoading}
             handleConnectDiscord={handleConnectDiscord}
+            handleInviteBotElsewhere={handleInviteBotElsewhere}
             handleChangeDiscordServer={handleChangeDiscordServer}
             handleDisconnectDiscord={handleDisconnectDiscord}
             renderDiscordConfigBlock={renderDiscordConfigBlock}
