@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAuth, isAdmin } from '@/lib/firebase-admin';
+import { verifyAuth, isCompetitionAdmin } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { discordFetch } from '@/lib/discord-competition';
@@ -29,7 +29,10 @@ export async function GET(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
     if (!uid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
-    if (!(await isAdmin(uid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+    // Admins de compétition inclus : ce sont eux qui créent les tournois, donc
+    // eux qui choisissent le serveur. Sans cette liste ils devaient recopier un
+    // identifiant à la main — précisément la friction qu'elle supprime.
+    if (!(await isCompetitionAdmin(uid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
 
     const blocked = await checkRateLimit(limiters.admin, rateLimitKey(req, uid));
     if (blocked) return blocked;

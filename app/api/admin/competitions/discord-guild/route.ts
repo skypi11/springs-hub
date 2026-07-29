@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAuth, isAdmin } from '@/lib/firebase-admin';
+import { verifyAuth, isCompetitionAdmin } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { describeGuildAccess } from '@/lib/discord-competition';
@@ -22,7 +22,12 @@ export async function POST(req: NextRequest) {
   try {
     const uid = await verifyAuth(req);
     if (!uid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
-    if (!(await isAdmin(uid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+    // Admins de compétition inclus : sans cette inspection, impossible pour eux
+    // de choisir un salon d'annonces ou un rôle staff — la configuration Discord
+    // d'un tournoi qu'ils viennent de créer serait inutilisable. La règle de
+    // fond ne change pas d'un iota : `describeGuildAccess` exige toujours d'être
+    // propriétaire ou administrateur DU SERVEUR désigné.
+    if (!(await isCompetitionAdmin(uid))) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
 
     const blocked = await checkRateLimit(limiters.admin, rateLimitKey(req, uid));
     if (blocked) return blocked;

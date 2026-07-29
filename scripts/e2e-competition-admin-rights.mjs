@@ -127,6 +127,16 @@ async function main() {
   const list = await api('GET', '/api/admin/competitions');
   check('il continue de voir la liste', list.status === 200, `status ${list.status}`);
 
+  // Le couloir derrière la porte : créer un tournoi sans pouvoir choisir son
+  // serveur Discord, ses salons et ses rôles ne sert à rien. Le compte de test
+  // n'ayant pas d'identifiant Discord, ces routes répondent 400 après la garde —
+  // c'est justement ce 400 (et non un 403) qui prouve l'accès.
+  const guildList = await api('GET', '/api/admin/competitions/discord-guilds');
+  check('LA LISTE DES SERVEURS DISCORD lui est ouverte', guildList.status !== 403, `status ${guildList.status}`);
+  const guildCheck = await api('POST', '/api/admin/competitions/discord-guild', { guildId: '123456789012345678' });
+  check('l’inspection d’un serveur (salons, rôles) lui est ouverte', guildCheck.status !== 403,
+    `status ${guildCheck.status}`);
+
   section('Ce qui lui reste fermé : le contrat du circuit');
   const newCircuit = await api('POST', '/api/admin/circuits', CIRCUIT_PAYLOAD);
   check('créer un circuit → refusé', newCircuit.status === 403, `status ${newCircuit.status}`);
