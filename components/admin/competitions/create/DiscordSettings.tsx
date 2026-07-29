@@ -14,7 +14,7 @@
 // vérification passée — pas question de servir la cartographie d'un serveur
 // qu'on n'administre pas.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
 import { Switch } from '@/components/ui/Switch';
 
@@ -60,6 +60,42 @@ export default function DiscordSettings({ value, competitionName, teamCount, onC
   const patch = (values: Partial<DiscordSettingsValue>) => onChange({ ...value, ...values });
   const guildId = value.guildId.trim();
 
+  // Serveurs proposables : ceux où le bot est présent et qu'on administre.
+  // `null` = pas encore chargés ; `[]` = aucun (on retombe sur la saisie
+  // manuelle plutôt que d'afficher une liste vide et bloquante).
+  const [guilds, setGuilds] = useState<Array<{ id: string; name: string }> | null>(null);
+  const [manualEntry, setManualEntry] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await api<{ guilds: Array<{ id: string; name: string }> }>('/api/admin/competitions/discord-guilds');
+        if (!cancelled) setGuilds(r.guilds ?? []);
+      } catch {
+        // Discord injoignable : la saisie manuelle reste un chemin valable.
+        if (!cancelled) { setGuilds([]); setManualEntry(true); }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  /** Changer de serveur OUBLIE ses salons et ses rôles : ils appartiennent à
+   *  l'ancien, et les garder faisait annoncer le bot au mauvais endroit (et
+   *  échouer la création des salons, les rôles étant inconnus du nouveau). */
+  function selectGuild(nextGuildId: string) {
+    patch({
+      guildId: nextGuildId,
+      staffRoleIds: [],
+      announceChannelId: '',
+      createAnnounceChannel: false,
+      staffChannelId: '',
+      createStaffChannel: false,
+    });
+    setData(null);
+    setError(null);
+  }
+
   async function check() {
     setChecking(true);
     setError(null);
@@ -86,25 +122,26 @@ export default function DiscordSettings({ value, competitionName, teamCount, onC
 
       <div className="flex flex-wrap items-end gap-3">
         <div style={{ minWidth: 260 }}>
-          <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Serveur (ID)</label>
-          <input className="settings-input w-full" value={value.guildId}
-            placeholder="Optionnel en brouillon"
-            onChange={e => {
-              // Les salons et rôles appartiennent à UN serveur : changer de
-              // serveur en gardant les identifiants de l'ancien faisait
-              // annoncer le bot au mauvais endroit (et échouer la création des
-              // salons, les rôles étant inconnus du nouveau).
-              patch({
-                guildId: e.target.value,
-                staffRoleIds: [],
-                announceChannelId: '',
-                createAnnounceChannel: false,
-                staffChannelId: '',
-                createStaffChannel: false,
-              });
-              setData(null);
-              setError(null);
-            }} />
+          <label className="block text-sm mb-1" style={{ color: 'var(--s-text-dim)' }}>Serveur</label>
+          {guilds === null ? (
+            <p className="text-sm" style={{ color: 'var(--s-text-muted)' }}>Chargement des serveurs…</p>
+          ) : guilds.length > 0 && !manualEntry ? (
+            <select className="settings-input w-full" value={value.guildId}
+              onChange={e => selectGuild(e.target.value)}>
+              <option value="">Aucun serveur</option>
+              {guilds.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+              {/* Un serveur enregistré avant que le bot en soit retiré ne
+                  figure plus dans la liste : sans cette option, le champ
+                  paraîtrait vide et un enregistrement l'effacerait en silence. */}
+              {value.guildId && !guilds.some(g => g.id === value.guildId) && (
+                <option value={value.guildId}>Serveur enregistré ({value.guildId})</option>
+              )}
+            </select>
+          ) : (
+            <input className="settings-input w-full" value={value.guildId}
+              placeholder="Identifiant du serveur"
+              onChange={e => selectGuild(e.target.value)} />
+          )}
         </div>
         <button type="button" className="btn-springs btn-secondary bevel-sm text-sm"
           disabled={checking || !/^\d{17,20}$/.test(guildId)}
@@ -112,6 +149,25 @@ export default function DiscordSettings({ value, competitionName, teamCount, onC
           {checking ? 'Vérification…' : 'Vérifier'}
         </button>
       </div>
+
+      {/* La liste ne peut pas tout montrer, et son absence de serveur attendu
+          s'explique de deux façons seulement — autant les donner ici plutôt que
+          de laisser chercher. */}
+      <p className="text-xs mt-2" style={{ color: 'var(--s-text-muted)' }}>
+        Seuls apparaissent les serveurs où le bot Aedral est déjà installé et dont tu es
+        propriétaire ou administrateur. Si le serveur voulu manque, invite d&apos;abord le bot
+        dessus depuis Ma structure → Bot Discord → « Inviter sur un autre serveur », puis
+        recharge cette page.
+        {guilds !== null && guilds.length > 0 && (
+          <>
+            {' '}
+            <button type="button" className="quiet-link"
+              onClick={() => setManualEntry(m => !m)}>
+              {manualEntry ? 'Revenir à la liste' : 'Saisir un identifiant à la main'}
+            </button>
+          </>
+        )}
+      </p>
 
       {error && <p className="text-sm mt-2" style={{ color: 'var(--s-text)' }}>{error}</p>}
 
