@@ -34,8 +34,10 @@ chacune à leur façon et la mention — la seule chose qui NOTIFIE réellement 
 
 ## Lot 1 — le jour de match
 
-Fait (commit `e51965c`, tests unitaires verts, **preuve d'exécution Discord à
-faire**) :
+**Lot 1 CLOS.** Prouvé contre un vrai serveur Discord par
+`scripts/e2e-tournament-broadcast.mjs` (43 vérifications) : le script déroule un
+tournoi complet — provisioning, bracket, check-in, saisie, contre-saisie,
+litige, arbitrage — et **relit les messages réellement postés** chez Discord.
 
 - [x] room (nom + mot de passe) jointe au message de check-in — le bot la
       promettait dans son mot d'accueil et ne la donnait jamais ; elle est
@@ -46,14 +48,12 @@ faire**) :
 - [x] équipe retirée → elle + chaque adversaire touché par la cascade
 - [x] bracket publié → chaque équipe reçoit SON adversaire et son heure
 
-Reste :
-
-- [ ] **litige ouvert → les deux équipes** (« match gelé, dépose tes captures »).
-      Aujourd'hui seul le staff est prévenu ; les joueurs, qui doivent produire
-      la preuve, restent devant leur écran sans consigne
-- [ ] **score en attente de contre-saisie** → au camp qui n'a pas saisi. Sans
-      ça, un score devient officiel contre une équipe qui n'a jamais su qu'on
-      l'attendait
+- [x] **litige ouvert → les deux équipes** (« match gelé, dépose tes captures »).
+      Le staff était déjà prévenu ; les joueurs, qui doivent produire la preuve,
+      restaient devant leur écran sans consigne
+- [x] **score en attente de contre-saisie** → au camp qui n'a pas saisi, avec le
+      score annoncé et le délai. Sans ça, un score devenait officiel contre une
+      équipe qui n'avait jamais su qu'on l'attendait
 
 ## Lot 2 — l'organisateur garde la main
 

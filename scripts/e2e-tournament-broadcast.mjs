@@ -65,27 +65,31 @@ function findByTitle(messages, needle) {
 const embedOf = (msg) => (msg?.embeds || [])[0] || {};
 
 let ADMIN_UID = null;
-let idToken = null;
-async function api(method, path, body) {
-  if (!idToken) {
-    const custom = await auth.createCustomToken(ADMIN_UID);
-    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${API_KEY}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Referer: 'https://aedral.com/' },
-      body: JSON.stringify({ token: custom, returnSecureToken: true }),
-    });
-    const json = await res.json();
-    if (!json.idToken) throw new Error(`token: ${JSON.stringify(json).slice(0, 140)}`);
-    idToken = json.idToken;
-  }
+const tokens = new Map();
+async function tokenFor(uid) {
+  if (tokens.has(uid)) return tokens.get(uid);
+  const custom = await auth.createCustomToken(uid);
+  const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${API_KEY}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Referer: 'https://aedral.com/' },
+    body: JSON.stringify({ token: custom, returnSecureToken: true }),
+  });
+  const json = await res.json();
+  if (!json.idToken) throw new Error(`token: ${JSON.stringify(json).slice(0, 140)}`);
+  tokens.set(uid, json.idToken);
+  return json.idToken;
+}
+async function apiAs(uid, method, path, body) {
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await tokenFor(uid)}` },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   let json = null;
   try { json = await res.json(); } catch { /* vide */ }
   return { status: res.status, json };
 }
+const api = (method, path, body) => apiAs(ADMIN_UID, method, path, body);
+const capUid = i => `discord_${P}_cap${i}`;
 
 const regId = i => `${COMP}_team${i}`;
 const teamName = i => `E2E BC ${i}`;
@@ -267,6 +271,36 @@ async function main() {
   check('il dit la conséquence (forfait)', /forfait/i.test(ciDesc));
   check('IL PING l’équipe', (ci?.content || '').includes(`<@&${roleOf[1]}>`), `content="${ci?.content}"`);
   check('LE LIEN POINTE SUR LE MATCH', ciDesc.includes(`/match/${first.id}`), ciDesc);
+
+  section('Parcours joueur — contre-saisie puis litige');
+  for (const i of [1, opp]) {
+    const ck = await apiAs(capUid(i), 'POST', `/api/competitions/${COMP}/matches/${first.id}`, { action: 'checkin' });
+    check(`check-in du capitaine ${i}`, ck.status === 200, JSON.stringify(ck.json).slice(0, 150));
+  }
+  // Le camp 1 saisit : l'adversaire doit apprendre qu'un score court contre lui.
+  const submitted = await apiAs(capUid(1), 'POST', `/api/competitions/${COMP}/matches/${first.id}`, {
+    action: 'submit_scores', games: [{ a: 3, b: 1 }, { a: 2, b: 0 }],
+  });
+  check('saisie du camp 1 → 200', submitted.status === 200, JSON.stringify(submitted.json).slice(0, 150));
+  const await1 = findByTitle(await messagesOf(chanOf[opp]), 'Score à confirmer');
+  check('L’ADVERSAIRE EST PRÉVENU QU’UN SCORE COURT CONTRE LUI', !!await1);
+  const awaitDesc = embedOf(await1).description || '';
+  check('le score annoncé y figure (2 manches à 0)', awaitDesc.includes('2-0'), awaitDesc);
+  check('le délai de contestation y figure', /minutes/.test(awaitDesc), awaitDesc);
+  check('il ping l’équipe concernée', (await1?.content || '').includes(`<@&${roleOf[opp]}>`));
+
+  // Saisie divergente → litige automatique.
+  const clash = await apiAs(capUid(opp), 'POST', `/api/competitions/${COMP}/matches/${first.id}`, {
+    action: 'submit_scores', games: [{ a: 1, b: 3 }, { a: 0, b: 2 }],
+  });
+  check('saisie divergente → litige', clash.status === 200 && clash.json?.resolution === 'mismatch',
+    JSON.stringify(clash.json).slice(0, 150));
+  for (const i of [1, opp]) {
+    const dis = findByTitle(await messagesOf(chanOf[i]), 'litige');
+    check(`l’équipe ${i} sait que son match est gelé`, !!dis);
+    check(`on lui dit quoi faire (équipe ${i})`,
+      /capture/i.test(embedOf(dis).description || ''), embedOf(dis).description);
+  }
 
   section('Arbitrage — la décision arrive aux deux camps');
   const forced = await api('POST', `/api/admin/competitions/${COMP}/console`, {

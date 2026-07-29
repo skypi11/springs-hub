@@ -16,6 +16,8 @@ import {
 import { toFlowState, toIso, flowConfigOf, toEngineOutcome } from '@/lib/competitions/match-flow-server';
 import { applyMatchOutcome } from '@/lib/competitions/progression';
 import { notifyMatchAlert } from '@/lib/competitions/match-notify';
+import { broadcast } from '@/lib/competitions/tournament-broadcast';
+import { disputeOpenedText, scoreAwaitingConfirmText } from '@/lib/competitions/broadcast-messages';
 
 // Page de match — détail public + zone privée (room, check-in, saisies) pour
 // les participants, actions capitaine/staff (spec §8-§9). Le camp est TOUJOURS
@@ -188,6 +190,38 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const cfg = flowConfigOf(comp);
     const label = matchId;
     const compName = (comp.name as string) ?? id;
+    const matchLink = `https://aedral.com/competitions/${id}/match/${matchId}`;
+    const ridOf = (s: FlowSide) => (s === 'a' ? match.teamA : match.teamB) as string | null;
+
+    /** Noms des deux camps — pour s'adresser aux équipes, pas au seul staff. */
+    const namesOf = async (): Promise<(rid: string | null) => string> => {
+      const ids = [match.teamA, match.teamB].filter((x): x is string => typeof x === 'string' && !!x);
+      if (ids.length === 0) return () => 'ton adversaire';
+      const snaps = await db.getAll(...ids.map(r => db.collection('competition_registrations').doc(r)));
+      const names = new Map(snaps.map(s => [s.id, (s.data()?.name as string) || '']));
+      return (rid) => (rid ? names.get(rid) || 'ton adversaire' : 'ton adversaire');
+    };
+
+    /**
+     * Match gelé : le staff est déjà alerté, mais ce sont les JOUEURS qui
+     * doivent produire la preuve — et qui restaient devant leur écran sans
+     * savoir ce qu'on attendait d'eux ni combien de temps ça durerait.
+     */
+    const notifyDisputeTeams = async () => {
+      try {
+        const nameOf = await namesOf();
+        await broadcast(db, id, ([['a', 'b'], ['b', 'a']] as const)
+          .map(([self, opp]) => ({ self: ridOf(self), opp: ridOf(opp) }))
+          .filter((x): x is { self: string; opp: string | null } => !!x.self)
+          .map(({ self, opp }) => ({
+            target: { kind: 'team' as const, registrationId: self },
+            text: disputeOpenedText({ opponentName: nameOf(opp) }),
+            link: matchLink,
+          })), { competition: comp, deadlineMs: 5_000 });
+      } catch (e) {
+        captureApiError('Match dispute team notifications', e);
+      }
+    };
 
     if (action === 'checkin') {
       if (!access.canCheckin) {
@@ -217,7 +251,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
       // Résolution retournée par la transaction (jamais mutée dans le
       // callback : une transaction peut être rejouée).
-      const resolution = await db.runTransaction<Extract<SubmitScoresDecision, { ok: true }>['resolution']>(async tx => {
+      const outcome = await db.runTransaction<{
+        resolution: Extract<SubmitScoresDecision, { ok: true }>['resolution'];
+        games: Extract<SubmitScoresDecision, { ok: true }>['games'];
+        counterOpened: boolean;
+      }>(async tx => {
         const snap = await tx.get(ref);
         if (!snap.exists) throw new FlowHttpError(404, 'not_found');
         const st = toFlowState(matchId, snap.data()!);
@@ -243,8 +281,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         // écrit le résultat ; en cas de crash entre les deux, le tick répare
         // (detectUnfinalizedAgreement).
         tx.update(ref, update);
-        return dec.resolution;
+        return {
+          resolution: dec.resolution,
+          games: dec.games,
+          // Le compteur vient de s'ouvrir : l'adversaire a N minutes pour
+          // confirmer ou contester, et rien ne le lui disait.
+          counterOpened: dec.resolution === null
+            && dec.counterDeadlineMs !== null
+            && st.scores.counterDeadlineMs === null,
+        };
       });
+      const { resolution, games: submittedGames, counterOpened } = outcome;
+
+      if (counterOpened) {
+        try {
+          const nameOf = await namesOf();
+          const otherSide: FlowSide = side === 'a' ? 'b' : 'a';
+          const otherRid = ridOf(otherSide);
+          if (otherRid) {
+            const wonSelf = submittedGames.filter(g => (side === 'a' ? g.a > g.b : g.b > g.a)).length;
+            const wonOther = submittedGames.filter(g => (side === 'a' ? g.b > g.a : g.a > g.b)).length;
+            await broadcast(db, id, [{
+              target: { kind: 'team', registrationId: otherRid },
+              text: scoreAwaitingConfirmText({
+                opponentName: nameOf(ridOf(side)),
+                claimedScore: `${wonSelf}-${wonOther}`,
+                minutes: cfg.scoreCounterMinutes,
+              }),
+              link: matchLink,
+            }], { competition: comp, deadlineMs: 5_000 });
+          }
+        } catch (e) {
+          captureApiError('Match counter-entry notification', e);
+        }
+      }
 
       if (resolution?.kind === 'agreement') {
         // autoGuard : la progression re-valide l'accord sur le doc frais dans
@@ -261,6 +331,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         // Attendu (pas de fire-and-forget en serverless — la fonction peut
         // être gelée dès la réponse envoyée).
         await notifyMatchAlert(db, { kind: 'dispute_auto', competitionId: id, competitionName: compName, matchLabel: label });
+        await notifyDisputeTeams();
       }
       return NextResponse.json({ ok: true, resolution: resolution?.kind ?? 'recorded' });
     }
@@ -281,6 +352,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         });
       });
       await notifyMatchAlert(db, { kind: 'dispute_manual', competitionId: id, competitionName: compName, matchLabel: label });
+      await notifyDisputeTeams();
       return NextResponse.json({ ok: true });
     }
 
