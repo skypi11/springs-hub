@@ -40,15 +40,34 @@ const MAX_PLAYER_CHECKS = 200;
 const PLAYER_CHECK_DEADLINE_MS = 20_000;
 
 /**
- * Membres du serveur en UN appel — disponible seulement si l'intent privilégié
- * « Server Members » est activé sur l'application. Sans lui, Discord répond 403
- * et on retombe sur une vérification joueur par joueur.
+ * Membres du serveur — disponible seulement si l'intent privilégié « Server
+ * Members » est activé sur l'application. Sans lui, Discord répond 403 et on
+ * retombe sur une vérification joueur par joueur.
+ *
+ * PAGINÉ : Discord plafonne à 1000 membres par page. Un serveur plus grand
+ * (celui d'une vraie structure) aurait rendu une liste tronquée, et TOUT membre
+ * au-delà du millième aurait été annoncé « absent du serveur » alors qu'il y
+ * est. On pagine, et si le serveur dépasse le plafond total on renvoie `null`
+ * (indéterminé) plutôt qu'une réponse fausse.
  */
+const MEMBER_PAGE = 1000;
+const MAX_MEMBER_PAGES = 10;   // 10 000 membres — au-delà, vérification unitaire
+
 async function guildMemberIds(guildId: string): Promise<Set<string> | null> {
-  const res = await discordFetch(`/guilds/${guildId}/members?limit=1000`);
-  if (!res.ok) return null;
-  const members = await res.json() as Array<{ user?: { id?: string } }>;
-  return new Set(members.map(m => m.user?.id).filter((id): id is string => !!id));
+  const ids = new Set<string>();
+  let after = '0';
+  for (let page = 0; page < MAX_MEMBER_PAGES; page++) {
+    const res = await discordFetch(`/guilds/${guildId}/members?limit=${MEMBER_PAGE}&after=${after}`);
+    if (!res.ok) return null;
+    const members = await res.json() as Array<{ user?: { id?: string } }>;
+    for (const m of members) if (m.user?.id) ids.add(m.user.id);
+    if (members.length < MEMBER_PAGE) return ids;      // dernière page
+    // Les membres sont rendus par identifiant croissant : on repart du dernier.
+    const last = members[members.length - 1]?.user?.id;
+    if (!last) return ids;
+    after = last;
+  }
+  return null;   // serveur plus grand que ce qu'on accepte de parcourir
 }
 
 export async function checkCompetitionSetup(
