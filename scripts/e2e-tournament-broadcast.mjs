@@ -104,7 +104,11 @@ async function setup(ownerId) {
       rosterUids: [`discord_${P}_cap${i}`],
       // Le propriétaire du serveur est dans l'équipe 1 : seul membre humain
       // disponible pour prouver l'attribution des rôles.
-      roster: i === 1 ? [{ discordId: ownerId, displayName: 'Cobaye réel' }] : [],
+      // Équipe 1 : le propriétaire du serveur (présent). Équipe 2 : un joueur
+      // qui n'est PAS sur le serveur — le contrôle du dispositif doit le voir.
+      roster: i === 1 ? [{ discordId: ownerId, displayName: 'Cobaye réel' }]
+        : i === 2 ? [{ discordId: '999999999999999901', displayName: 'Joueur fantôme' }]
+        : [],
       status: 'approved',
       discord: { provisioningStatus: 'queued' },
       createdAt: Timestamp.now(),
@@ -203,7 +207,7 @@ async function main() {
   const prov = await api('POST', `/api/admin/competitions/${COMP}/provision`);
   check('provisioning → 200', prov.status === 200, JSON.stringify(prov.json).slice(0, 200));
   const comp = (await db.collection('competitions').doc(COMP).get()).data();
-  const announceId = comp.discord?.options?.announceChannelId;
+  let announceId = comp.discord?.options?.announceChannelId;
   check('salon d’annonces créé', !!announceId);
 
   const chanOf = {};
@@ -317,6 +321,38 @@ async function main() {
     check(`elle porte le motif de l’admin (équipe ${i})`,
       (embedOf(ruling).description || '').includes('Captures vérifiées'), embedOf(ruling).description);
   }
+
+  section('Contrôle du dispositif');
+  const setupRes = await api('GET', `/api/admin/competitions/${COMP}/setup-check`);
+  check('setup-check → 200', setupRes.status === 200, JSON.stringify(setupRes.json).slice(0, 200));
+  const rep = setupRes.json?.report;
+  check('il nomme le serveur', !!rep?.guildName, JSON.stringify(rep?.guildName));
+  check('aucun blocage annoncé', (rep?.issues ?? []).filter(i => i.level === 'blocker').length === 0,
+    JSON.stringify(rep?.issues));
+  check('les 4 équipes sont vues comme provisionnées', rep?.teams?.provisioned === TEAMS,
+    JSON.stringify(rep?.teams));
+  check('IL REPÈRE LE JOUEUR ABSENT DU SERVEUR',
+    (rep?.players?.absent ?? []).some(p => p.name === 'Joueur fantôme'),
+    JSON.stringify(rep?.players));
+  check('et il l’attribue à son équipe',
+    (rep?.players?.absent ?? []).some(p => p.team === teamName(2)), JSON.stringify(rep?.players?.absent));
+
+  // Il doit aussi voir ce qui CASSE : on supprime le salon d'annonces à la main.
+  await discord(`/channels/${announceId}`, { method: 'DELETE' });
+  const broken = await api('GET', `/api/admin/competitions/${COMP}/setup-check`);
+  const brokenIssues = (broken.json?.report?.issues ?? []).filter(i => i.level === 'blocker');
+  check('UN SALON SUPPRIMÉ REMONTE COMME BLOCAGE',
+    brokenIssues.some(i => /annonces/i.test(i.label) && /n'existe plus|existe plus/i.test(i.label)),
+    JSON.stringify(brokenIssues));
+  // Remis en état pour la suite du scénario.
+  const recreated = await (await discord(`/guilds/${GUILD}/channels`, {
+    method: 'POST', body: JSON.stringify({ name: 'e2e-bc-annonces', type: 0 }),
+  })).json();
+  announceId = recreated.id;
+  await db.collection('competitions').doc(COMP).update({
+    'discord.options.announceChannelId': announceId,
+    'discord.createdChannelIds': [announceId],
+  });
 
   section('Annonce libre de l’organisateur');
   const ANNONCE = 'Le tournoi prend 20 minutes de retard, la phase 3 démarre à 18h20.';

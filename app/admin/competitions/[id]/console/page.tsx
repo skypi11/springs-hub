@@ -259,6 +259,7 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
   const [phaseOverride, setPhaseOverride] = useState<Map<string, boolean>>(new Map());
   const [showConfirmed, setShowConfirmed] = useState(false);
   const [announceOpen, setAnnounceOpen] = useState(false);
+  const [setupCheckOpen, setSetupCheckOpen] = useState(false);
   const [forceScoreFor, setForceScoreFor] = useState<ConsoleMatch | null>(null);
   const [forfeitFor, setForfeitFor] = useState<{ m: ConsoleMatch; preset?: 'a' | 'b' | 'both' } | null>(null);
   const [castFor, setCastFor] = useState<ConsoleMatch | null>(null);
@@ -457,10 +458,16 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
         <div className="flex flex-wrap items-center gap-2">
           <span className="tag tag-neutral">{COMP_STATUS_FR[data.competition.status] ?? data.competition.status}</span>
           {data.competition.discordConfigured && (
-            <button className="btn-springs btn-secondary bevel-sm text-sm flex items-center gap-1.5"
-              onClick={() => setAnnounceOpen(true)}>
-              <Megaphone size={14} /> Annonce
-            </button>
+            <>
+              <button className="btn-springs btn-secondary bevel-sm text-sm flex items-center gap-1.5"
+                onClick={() => setSetupCheckOpen(true)}>
+                <ShieldCheck size={14} /> Vérifier le dispositif
+              </button>
+              <button className="btn-springs btn-secondary bevel-sm text-sm flex items-center gap-1.5"
+                onClick={() => setAnnounceOpen(true)}>
+                <Megaphone size={14} /> Annonce
+              </button>
+            </>
           )}
           <button className="btn-springs btn-secondary bevel-sm text-sm" disabled={busy !== null}
             onClick={async () => {
@@ -857,6 +864,9 @@ export default function CompetitionConsolePage({ params }: { params: Promise<{ i
       </div>
 
       {/* Modales */}
+      {setupCheckOpen && (
+        <SetupCheckModal competitionId={id} onClose={() => setSetupCheckOpen(false)} />
+      )}
       {announceOpen && (
         <AnnounceModal onClose={() => setAnnounceOpen(false)}
           onSubmit={async (message, to) => {
@@ -1793,6 +1803,97 @@ function ModalShell({ heading, m, onClose, children }: {
         <div className="panel-body">{children}</div>
       </div>
     </div>
+  );
+}
+
+interface SetupReport {
+  guildName: string | null;
+  issues: Array<{ label: string; level: 'blocker' | 'warning' }>;
+  teams: { total: number; provisioned: number; missing: string[] };
+  players: { absent: Array<{ team: string; name: string }>; checked: number; partial: boolean };
+  pendingRegistrations: number;
+}
+
+/**
+ * Contrôle du dispositif — à faire la veille, pas à 14h35 quand une équipe ne
+ * trouve pas où check-in. Rend compte de ce qui manque, en clair.
+ */
+function SetupCheckModal({ competitionId, onClose }: { competitionId: string; onClose: () => void }) {
+  const [report, setReport] = useState<SetupReport | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await api<{ report: SetupReport }>(`/api/admin/competitions/${competitionId}/setup-check`);
+        if (!cancelled) setReport(r.report);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof ApiError ? e.message : 'Vérification impossible.');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [competitionId]);
+
+  const blockers = (report?.issues ?? []).filter(i => i.level === 'blocker');
+  const warnings = (report?.issues ?? []).filter(i => i.level === 'warning');
+
+  return (
+    <ModalShell heading="CONTRÔLE DU DISPOSITIF" onClose={onClose}>
+      {error ? (
+        <p className="t-body" style={{ color: '#ff8a8a' }}>{error}</p>
+      ) : !report ? (
+        <p className="t-body" style={{ color: 'var(--s-text-dim)' }}>Vérification en cours…</p>
+      ) : (
+        <div className="space-y-4">
+          {report.guildName && (
+            <p className="t-body" style={{ color: 'var(--s-text-dim)' }}>Serveur : {report.guildName}</p>
+          )}
+
+          {blockers.length === 0 && warnings.length === 0 ? (
+            <p className="t-body" style={{ color: 'var(--s-green)' }}>
+              Tout est en place : {report.teams.provisioned}/{report.teams.total} équipes provisionnées.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {blockers.map((i, k) => (
+                <p key={`b${k}`} className="t-body" style={{ color: '#ff8a8a' }}>{i.label}</p>
+              ))}
+              {warnings.map((i, k) => (
+                <p key={`w${k}`} className="t-body" style={{ color: 'var(--s-gold)' }}>{i.label}</p>
+              ))}
+            </div>
+          )}
+
+          <div className="divider" />
+          <div className="space-y-1 text-sm" style={{ color: 'var(--s-text-dim)' }}>
+            <div>Équipes provisionnées : {report.teams.provisioned}/{report.teams.total}</div>
+            <div>
+              Joueurs vérifiés : {report.players.checked}
+              {report.players.partial && ' (vérification partielle)'}
+            </div>
+          </div>
+
+          {report.players.absent.length > 0 && (
+            <div className="space-y-1">
+              <div className="t-label">Absents du serveur Discord</div>
+              {report.players.absent.slice(0, 12).map((p, k) => (
+                <div key={k} className="text-sm flex justify-between gap-3"
+                  style={{ borderTop: k > 0 ? '1px solid var(--s-border)' : 'none', paddingTop: k > 0 ? 4 : 0 }}>
+                  <span>{p.name}</span>
+                  <span style={{ color: 'var(--s-text-muted)' }}>{p.team}</span>
+                </div>
+              ))}
+              {report.players.absent.length > 12 && (
+                <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                  et {report.players.absent.length - 12} autre(s)
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </ModalShell>
   );
 }
 
