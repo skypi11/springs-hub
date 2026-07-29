@@ -85,7 +85,7 @@
       classement final d'un Qualif. Organisateur de la compétition : <strong>SPRINGS E-SPORT</strong>.
       Aedral est la plateforme technique d'accueil.
     </p>
-    <p class="label">État au 12 juillet 2026 — voir « État du chantier » en fin de document</p>
+    <p class="label">État au 28 juillet 2026 — voir « État du chantier » en fin de document</p>
   </header>
 
   <!-- ══════════════ 1. LE CIRCUIT ══════════════ -->
@@ -137,6 +137,7 @@
         <tr><td>Inscription soumise</td><td>Les admins reçoivent une notification + un compteur « à valider » sur leur panel. Ils voient : roster complet avec MMR/trackers/âges/comptes Discord et Epic, drapeaux automatiques, éventuels signalements smurf <em>en agrégat anonymisé</em> (jamais l'identité des signaleurs), staff et direction de la structure, historique de sanctions.</td></tr>
         <tr><td>Inscription validée</td><td>Notification à tout le roster + message Discord au capitaine et à l'inscripteur. Les <strong>créneaux du Qualif sont posés automatiquement dans le calendrier de l'équipe</strong> sur Aedral. Le bot crée sur le serveur Discord SPRINGS E-SPORT : rôle « Participant » du circuit, rôle au nom de l'équipe, <strong>salon textuel + vocal privés</strong> visibles de l'équipe et du staff seulement.</td></tr>
         <tr><td>Inscription refusée</td><td>Motif transmis à l'équipe. Créneaux calendrier et provisioning Discord retirés le cas échéant.</td></tr>
+        <tr><td>Titulaire indisponible après la validation (blessure, imprévu la veille)</td><td>Le roster reste <strong>verrouillé pour l'équipe</strong>, mais un admin de compétition peut le modifier par <strong>dérogation</strong> : remplacer un joueur, échanger titulaire et remplaçant, changer de capitaine. Tous les contrôles de l'inscription sont rejoués (comptes vérifiés, MMR, doublons, sanctions, âge). <strong>Garde anti-abus</strong> : l'équipe doit conserver <strong>deux tiers de ses titulaires validés</strong> — au-delà, le chemin est le retrait puis le repêchage, pas la reconstruction d'équipe. Chaque changement est historisé dans le dossier.</td></tr>
         <tr><td>Équipe qui suit son dossier</td><td>Onglet « Inscriptions » dans <em>Ma structure</em> : statut, roster figé, dates. La fiche du Qualif affiche aussi « ton inscription est {statut} ».</td></tr>
       </table></div>
     </div>
@@ -161,9 +162,10 @@
     <h2 class="display">4 · Seeding et bracket</h2>
     <div class="card">
       <ul>
-        <li>Seeding <strong>aléatoire</strong> (tirage cryptographique), <strong>réordonnable manuellement</strong> par un admin avant publication.</li>
+        <li>Trois manières de composer le tableau, au choix de l'admin avant publication : <strong>aléatoire</strong> (tirage cryptographique), <strong>par niveau</strong> (les meilleures compositions se rencontrent le plus tard possible), ou <strong>par classement du circuit</strong> (les équipes les mieux classées sont protégées au premier tour ; celles qui n'ont pas encore de points passent après). Dans tous les cas le résultat reste <strong>réordonnable à la main</strong>.</li>
+        <li>Le seeding ne change <strong>jamais</strong> qui est qualifié : il ne décide que de l'ordre des rencontres.</li>
         <li>À la publication : le bracket complet est généré (jusqu'à 63 matchs pour 32 équipes) et devient <strong>visible publiquement</strong> sur la fiche du Qualif — arbre professionnel à connecteurs, seeds, BO par match, mis à jour en continu.</li>
-        <li>Moins de 32 équipes → des <strong>byes</strong> (« qualifié d'office ») placés automatiquement, sans avantage au départage (voir §7).</li>
+        <li>Moins de 32 équipes → des <strong>byes</strong> (« qualifié d'office ») placés automatiquement, sans avantage au départage (voir §8).</li>
         <li>La « belle » de grande finale est prévue d'avance et ne s'affiche que si elle devient possible — si le vainqueur du winner bracket gagne la grande finale, elle n'apparaît jamais.</li>
       </ul>
     </div>
@@ -183,7 +185,8 @@
       <h3>Check-in général (14 h 30, 20 minutes)</h3>
       <div class="tablewrap"><table>
         <tr><th>Situation</th><th>Comportement</th></tr>
-        <tr><td>Ouverture</td><td>Déclenchée par un admin. Chaque <strong>capitaine</strong> (lui seul) confirme la présence de son équipe.</td></tr>
+        <tr><td>Ouverture</td><td>Déclenchée par un admin. Chaque <strong>capitaine</strong> (lui seul) confirme la présence de son équipe. Le bot le dit dans le salon Discord de chaque équipe <strong>en la mentionnant</strong> — sans mention, un message Discord ne déclenche aucune notification et personne ne le voit.</td></tr>
+        <tr><td>Il reste 5 minutes et des équipes n'ont pas confirmé</td><td><strong>Relance automatique</strong> dans le salon des seules équipes concernées. Si tout le monde a confirmé, aucun message. Une équipe présente ne peut plus être déclarée forfait du tournoi entier faute d'avoir vu le premier message.</td></tr>
         <tr><td>Équipe manquante à l'échéance</td><td>Visible immédiatement dans la console admin. <strong>Décision humaine</strong> : forfait, ou remplacement par la première équipe de la liste d'attente (possible uniquement avant le premier match).</td></tr>
       </table></div>
     </div>
@@ -203,6 +206,7 @@
       <div class="tablewrap"><table>
         <tr><th>Situation</th><th>Comportement</th></tr>
         <tr><td>Qui check-in ?</td><td>Le <strong>capitaine seul</strong>, depuis la page du match. 5 minutes.</td></tr>
+        <tr><td>Comment l'équipe l'apprend</td><td>Message dans son salon Discord, l'équipe mentionnée, avec <strong>le nom de son adversaire, le nom et le mot de passe de la room</strong>, et un lien direct vers la page du match (pas vers l'accueil du tournoi : sur cinq minutes, la navigation en moins compte).</td></tr>
         <tr><td>Les deux capitaines ont check-in</td><td>Le match passe <strong>en cours</strong>. La page de match affiche la room (nom + mot de passe) et <strong>qui doit la créer</strong> : l'équipe du haut du bracket, indiquée explicitement.</td></tr>
         <tr><td>Une équipe (ou les deux) ne check-in pas à temps</td><td>Le match passe en <strong>« en attente de validation d'un admin »</strong>. L'équipe présente voit : <em>« L'équipe adverse n'a pas check-in, attendez la validation d'un admin. »</em> <strong>Jamais de forfait automatique.</strong> Les admins sont notifiés.</td></tr>
         <tr><td>Qui voit les codes de room ?</td><td>Les deux équipes du match et les admins (pour spectater/caster). <strong>Jamais le public</strong>, jamais les autres équipes.</td></tr>
@@ -216,7 +220,7 @@
         <tr><td>Qui saisit ?</td><td>Le capitaine <strong>ou le staff</strong> de chaque équipe, chacun pour son camp. Le site détermine lui-même le camp de la personne connectée : <strong>il est techniquement impossible de saisir pour l'adversaire</strong>.</td></tr>
         <tr><td>Ce qui est saisi</td><td>Le score complet de <strong>chaque manche</strong> (ex. 3-1, 0-2, 4-2, 1-0) — indispensable au départage par délta de buts.</td></tr>
         <tr><td>Saisie impossible (mauvais BO)</td><td>Le site refuse toute saisie incohérente : vainqueur non net, manche jouée après la décision, égalité dans une manche.</td></tr>
-        <tr><td>Première équipe à saisir</td><td>L'autre équipe a <strong>3 minutes</strong> pour contre-saisir. Une équipe peut corriger sa propre saisie tant que rien n'est validé.</td></tr>
+        <tr><td>Première équipe à saisir</td><td>L'autre équipe a <strong>3 minutes</strong> pour contre-saisir, et le bot le lui dit dans son salon : le score annoncé, le délai, et le fait qu'il sera retenu sans réponse. Un score ne peut plus devenir officiel contre une équipe qui n'a jamais su qu'on l'attendait. Une équipe peut corriger sa propre saisie tant que rien n'est validé.</td></tr>
         <tr><td>Les deux saisies concordent</td><td><strong>Résultat validé automatiquement</strong>, bracket avancé dans la seconde : le vainqueur apparaît dans son match suivant, le perdant descend chez les losers, tout le monde le voit en direct.</td></tr>
         <tr><td>Les deux saisies divergent</td><td><strong>Litige automatique</strong> : match gelé, admins notifiés.</td></tr>
         <tr><td>3 minutes écoulées sans contre-saisie</td><td>La saisie unique est <strong>retenue</strong> et les admins sont <strong>notifiés</strong> (contrôle a posteriori possible).</td></tr>
@@ -228,9 +232,10 @@
       <h3>Litiges</h3>
       <div class="tablewrap"><table>
         <tr><th>Situation</th><th>Comportement</th></tr>
-        <tr><td>Litige automatique (scores divergents) ou manuel (bouton, ex. erreur de saisie)</td><td><strong>Gel total du match</strong> : plus aucune action d'équipe possible. Admins notifiés immédiatement.</td></tr>
+        <tr><td>Litige automatique (scores divergents) ou manuel (bouton, ex. erreur de saisie)</td><td><strong>Gel total du match</strong> : plus aucune action d'équipe possible. Admins notifiés immédiatement — dans la console <em>et</em> dans le salon staff du serveur Discord.</td></tr>
+        <tr><td>Ce que les deux équipes reçoivent</td><td>Un message dans leur salon : le match est gelé, où déposer leurs captures, et qu'il ne faut pas relancer de manche en attendant. Sans lui, deux équipes attendaient devant leur écran sans savoir ce qu'on attendait d'elles ni combien de temps ça durerait.</td></tr>
         <tr><td>Instruction</td><td>Les capitaines uploadent les <strong>captures d'écran de chaque manche</strong> (visibles des équipes concernées et des admins uniquement).</td></tr>
-        <tr><td>Résolution</td><td>L'admin impose le score depuis la console (« force-score ») avec un <strong>texte de résolution visible des équipes</strong>. Le match se termine, le bracket repart. La décision est journalisée — l'identité de l'admin n'apparaît jamais publiquement.</td></tr>
+        <tr><td>Résolution</td><td>L'admin impose le score depuis la console (« force-score ») avec un <strong>texte de résolution visible des équipes</strong>. Le score retenu et ce motif partent <strong>dans les salons des deux camps</strong> : c'est la décision la plus contestée d'un tournoi, elle ne peut pas rester dans la console. Le match se termine, le bracket repart. La décision est journalisée — l'identité de l'admin n'apparaît jamais publiquement.</td></tr>
       </table></div>
     </div>
 
@@ -238,9 +243,10 @@
       <h3>Forfaits, abandons, disqualifications</h3>
       <div class="tablewrap"><table>
         <tr><th>Situation</th><th>Comportement</th></tr>
-        <tr><td>Forfait d'une équipe sur un match</td><td>Toujours <strong>validé par un admin</strong> (avec motif). Score conventionnel : <strong>3-0 en BO5, 4-0 en BO7</strong> (manches 1-0), compté dans le délta des deux camps — le vainqueur du forfait n'est pas pénalisé au départage.</td></tr>
+        <tr><td>Forfait d'une équipe sur un match</td><td>Toujours <strong>validé par un admin</strong> (avec motif). Score conventionnel : <strong>3-0 en BO5, 4-0 en BO7</strong> (manches 1-0), compté dans le délta des deux camps — le vainqueur du forfait n'est pas pénalisé au départage. La décision et son motif partent <strong>aux deux camps</strong> sur Discord.</td></tr>
+        <tr><td>Une équipe en retard finit par arriver</td><td>L'admin peut <strong>relancer le check-in</strong> plutôt que de valider le forfait — le forfait n'est jamais la seule issue. Les deux camps sont prévenus que le match repart, avec la room : celui qui attendait un forfait apprend qu'il doit jouer.</td></tr>
         <tr><td>Double forfait (les deux équipes absentes)</td><td>Les <strong>deux équipes sont éliminées</strong>, délta conventionnel négatif chacune. L'adversaire du match suivant est <strong>qualifié d'office</strong> — sans score conventionnel (un match non joué ne compte pas dans son délta, l'équité du départage est préservée).</td></tr>
-        <tr><td>Équipe qui abandonne / est disqualifiée en cours de tournoi</td><td>Bouton console dédié : tous ses matchs restants passent en forfait conventionnel <strong>en cascade automatique</strong> (jour 2 : plus besoin d'attendre 5 minutes de check-in à chaque phase pour une équipe partie). Son <strong>placement est figé</strong> au stade atteint, son délta n'est plus modifié.</td></tr>
+        <tr><td>Équipe qui abandonne / est disqualifiée en cours de tournoi</td><td>Bouton console dédié : tous ses matchs restants passent en forfait conventionnel <strong>en cascade automatique</strong> (jour 2 : plus besoin d'attendre 5 minutes de check-in à chaque phase pour une équipe partie). Son <strong>placement est figé</strong> au stade atteint, son délta n'est plus modifié. L'équipe retirée est prévenue avec le motif, et <strong>chaque adversaire touché par la cascade</strong> aussi — sinon il attend en lobby quelqu'un qui ne viendra jamais.</td></tr>
         <tr><td>Équipe absente avant le premier match</td><td>Remplacement possible par la <strong>liste d'attente</strong> (bouton console). Personne en liste d'attente → la place devient un bye.</td></tr>
       </table></div>
     </div>
@@ -256,9 +262,67 @@
     </div>
   </section>
 
-  <!-- ══════════════ 6. INTÉGRITÉ ══════════════ -->
+  <!-- ══════════════ 6. LE BOT DISCORD ══════════════ -->
   <section>
-    <h2 class="display">6 · Intégrité et sécurité</h2>
+    <h2 class="display">6 · Ce que le bot Discord fait et dit</h2>
+    <div class="callout">
+      <strong>Pourquoi ça compte :</strong> pour un joueur, Discord est le seul canal qu'il regarde
+      vraiment — il ne consulte pas le site en permanence. Un tournoi où l'information ne circule
+      que sur le site est un tournoi où des équipes ratent leur créneau. À l'inverse, un bot qui
+      parle trop finit par être coupé, et les messages importants disparaissent avec lui : chaque
+      message a donc été pesé, et certains ont été volontairement supprimés.
+    </div>
+
+    <div class="card">
+      <h3>Ce qu'il installe sur le serveur</h3>
+      <ul>
+        <li>Un rôle <strong>« Participant »</strong> commun à tout le circuit : un joueur validé sur un Qualif le garde d'un Qualif à l'autre. Refuser son équipe sur une étape ne le lui retire pas s'il court encore ailleurs.</li>
+        <li>Une <strong>catégorie</strong> au nom du tournoi, et par équipe validée : un rôle à son nom et un <strong>salon privé</strong> (textuel, vocal en option) visible d'elle et du staff seulement. Au-delà de 50 salons, une catégorie supplémentaire s'ouvre d'elle-même — Discord n'en accepte pas plus par catégorie.</li>
+        <li>Un <strong>salon d'annonces</strong> visible de tout le serveur (le bot et le staff y écrivent, personne d'autre) et un <strong>salon staff privé</strong> où arrivent les alertes du jour J.</li>
+        <li>À la création de son salon, chaque équipe reçoit un message d'accueil qui dit à quoi il sert.</li>
+        <li>Le nettoyage de fin de tournoi est <strong>manuel</strong> et ne supprime que ce que le bot a créé : un salon que l'organisation avait désigné parmi les siens n'est jamais touché.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3>Ce qu'il dit, et à qui</h3>
+      <div class="tablewrap"><table>
+        <tr><th>Moment</th><th>Qui reçoit quoi</th></tr>
+        <tr><td>Inscription validée / refusée</td><td>Message privé au capitaine et à l'inscripteur, avec le motif en cas de refus.</td></tr>
+        <tr><td>Bracket publié</td><td>Annonce dans le salon public, <strong>sans mention</strong> (elle informe le serveur, elle n'a pas à réveiller deux cents personnes). Et dans le salon de <strong>chaque équipe</strong> : son premier adversaire, l'heure de début, un lien vers son match.</td></tr>
+        <tr><td>Check-in général, puis relance à T-5</td><td>Salon de chaque équipe, mentionnée. La relance ne vise que celles qui n'ont pas confirmé.</td></tr>
+        <tr><td>Check-in d'un match</td><td>Salon des deux équipes : adversaire, <strong>room et mot de passe</strong>, délai, conséquence du non-check-in.</td></tr>
+        <tr><td>Score en attente de confirmation</td><td>Salon du camp qui n'a pas encore saisi.</td></tr>
+        <tr><td>Litige ouvert</td><td>Les deux équipes (quoi faire) <em>et</em> le salon staff (à traiter).</td></tr>
+        <tr><td>Forfait validé, score imposé, check-in relancé, équipe retirée</td><td>Les deux camps concernés, avec le motif saisi par l'admin. Pour un retrait : aussi les adversaires qui héritent d'un forfait.</td></tr>
+        <tr><td>Annonce de l'organisation</td><td>Texte libre écrit par un admin : salon public, salons de toutes les équipes, ou les deux. C'est l'outil du jour J pour un retard, un incident serveurs ou une consigne de dernière minute.</td></tr>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <h3>Ce qu'il ne dira pas — volontairement</h3>
+      <ul>
+        <li>Il ne commente <strong>pas</strong> chaque victoire, chaque changement de classement, chaque capture déposée : le message de check-in du tour suivant porte déjà l'information utile.</li>
+        <li>Il ne prévient <strong>plus</strong> le staff quand une seule équipe a saisi son score. C'est le déroulement normal — le perdant ne saisit presque jamais. Sur 63 matchs, cela faisait des dizaines d'alertes « tout va bien », au risque que le salon soit coupé et que les vrais litiges passent inaperçus.</li>
+        <li>Il n'accuse <strong>pas</strong> réception d'un check-in au capitaine qui vient de le faire : son écran le lui a déjà dit.</li>
+        <li>Il ne signale <strong>pas</strong> les étapes internes de préparation (tirage, réordonnancement) : elles sont réversibles et invisibles des équipes tant que le bracket n'est pas publié.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3>Garde-fous</h3>
+      <ul>
+        <li><strong>Un accusé de livraison</strong> après chaque envoi : « 14 équipes notifiées, 2 échecs ». Sans lui, une équipe qui dit « on n'a rien reçu » est indiscernable d'une équipe qui n'a pas regardé.</li>
+        <li>Un bouton <strong>« Vérifier le dispositif »</strong> à lancer la veille : bot présent et outillé, salons en place, toutes les équipes validées provisionnées, et <strong>la liste des joueurs inscrits qui ne sont pas sur le serveur</strong> — ceux-là ne recevraient rien du tout.</li>
+        <li>Le serveur ne peut être désigné que par quelqu'un qui en est <strong>propriétaire ou administrateur</strong> : personne ne peut faire créer des salons sur le Discord d'une autre structure.</li>
+        <li>Une panne de Discord ne bloque <strong>jamais</strong> le tournoi : un message perdu n'empêche pas un check-in, un score ou une décision d'arbitrage. Le site reste la source de vérité.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ══════════════ 7. INTÉGRITÉ ══════════════ -->
+  <section>
+    <h2 class="display">7 · Intégrité et sécurité</h2>
     <div class="card">
       <ul>
         <li><strong>Le camp d'un joueur est déterminé par le serveur</strong>, jamais par ce que son navigateur prétend : impossible de check-in ou de saisir un score pour l'équipe adverse.</li>
@@ -271,9 +335,9 @@
     </div>
   </section>
 
-  <!-- ══════════════ 7. CLASSEMENT ══════════════ -->
+  <!-- ══════════════ 8. CLASSEMENT ══════════════ -->
   <section>
-    <h2 class="display">7 · Classement d'un Qualif et points de circuit</h2>
+    <h2 class="display">8 · Classement d'un Qualif et points de circuit</h2>
     <div class="card">
       <ul>
         <li>Le bracket donne le <strong>groupe d'élimination</strong> (1er, 2e, 3e, 4e, 5-6, 7-8, 9-12, 13-16, 17-24, 25-32) ; à l'intérieur d'un groupe, le départage est : <strong>délta de buts</strong> (normalisé par match réellement joué — une équipe passée par un bye n'est pas avantagée ni pénalisée) → <strong>buts marqués</strong> → <strong>face-à-face</strong> s'il a eu lieu → <strong>décision admin</strong> (interface dédiée, journalisée).</li>
@@ -285,9 +349,9 @@
     </div>
   </section>
 
-  <!-- ══════════════ 8. RÔLES ══════════════ -->
+  <!-- ══════════════ 9. RÔLES ══════════════ -->
   <section>
-    <h2 class="display">8 · Qui voit quoi, qui peut quoi</h2>
+    <h2 class="display">9 · Qui voit quoi, qui peut quoi</h2>
     <div class="card">
       <div class="tablewrap"><table>
         <tr><th>Rôle</th><th>Accès</th></tr>
@@ -295,15 +359,15 @@
         <tr><td>Joueur inscrit</td><td>Idem public + sa page de match avec la room de SON match, le statut de son inscription, ses créneaux au calendrier, son salon Discord d'équipe.</td></tr>
         <tr><td>Capitaine</td><td>Idem joueur + check-in général et de match, saisie des scores, ouverture de litige.</td></tr>
         <tr><td>Staff d'équipe / direction de structure</td><td>Suivi des inscriptions de la structure, saisie des scores et litiges (pas le check-in — capitaine seul).</td></tr>
-        <tr><td>Admin de compétition <em>(rôle scopé, nommé par Aedral)</em></td><td>File de validation (MMR, trackers, âges, drapeaux, dérogations), console live (phases, rooms de tous les matchs, forfaits, force-score, litiges, cast, disqualification, waitlist), registre des sanctions, éditeur de règlement. <strong>Aucun accès</strong> au reste de l'administration du site.</td></tr>
+        <tr><td>Admin de compétition <em>(rôle scopé, nommé par Aedral)</em></td><td>File de validation (MMR, trackers, âges, drapeaux, dérogations, changement de roster), console live (phases, rooms de tous les matchs, forfaits, force-score, litiges, cast, disqualification, waitlist, clôture), <strong>annonces Discord</strong> et <strong>contrôle du dispositif</strong>, registre des sanctions, éditeur de règlement. <strong>Aucun accès</strong> au reste de l'administration du site.</td></tr>
         <tr><td>Admin Aedral (Matt)</td><td>Tout ce qui précède, partout.</td></tr>
       </table></div>
     </div>
   </section>
 
-  <!-- ══════════════ 9. ÉTAT DU CHANTIER ══════════════ -->
+  <!-- ══════════════ 10. ÉTAT DU CHANTIER ══════════════ -->
   <section>
-    <h2 class="display">9 · État du chantier</h2>
+    <h2 class="display">10 · État du chantier</h2>
     <div class="card">
       <h3><span class="tag tag-green">En place et testé</span></h3>
       <ul>
@@ -319,12 +383,21 @@
         <li><strong>Clôture d'un Qualif</strong> : quand le bracket est résolu, un bouton unique écrit le classement final et les points au circuit, en une seule opération — refusée tant qu'une égalité n'est pas arbitrée (<strong>glisser-déposer</strong> dans la console) ou que le titre n'est pas décidé. Une équipe disqualifiée garde la place atteinte et ses points. Après clôture, le bracket est <strong>figé</strong> : plus aucune modification possible.</li>
         <li><strong>Fil de discussion par match</strong> : capitaines, staff des deux équipes et admins échangent directement sur la page du match (retard, room, imprévus) — les joueurs lisent, l'anti-flood est intégré.</li>
         <li>Moteur <strong>simple élimination</strong> (pour les tournois en ligne hors circuit, dont le tournoi test) : arbre seul, petite finale optionnelle pour la 3e place, mêmes règles de forfait/retrait/placement que le double, même console et même page de match — <strong>vérifié par un test automatisé qui déroule un tournoi entier</strong> (publication, byes, retrait en cascade, finale en BO7, classement final).</li>
+        <li><strong>Le bot Discord de bout en bout</strong> (voir §6), <strong>vérifié contre un vrai serveur Discord</strong> par deux tests automatisés : l'un installe rôles, catégories et salons puis relit chez Discord que les permissions posées sont les bonnes (y compris le débordement au-delà de 50 salons) ; l'autre déroule un tournoi complet et relit chaque message réellement publié — contenu, mention, lien, bon salon.</li>
+        <li><strong>Trois façons de composer le tableau</strong> : aléatoire, par niveau, ou par classement du circuit — pilotables depuis la console, sans intervention technique.</li>
+        <li><strong>Changement de roster après validation</strong> : dérogation réservée aux admins (titulaire malade la veille), avec garde anti-abus — l'équipe doit conserver les deux tiers de ses titulaires validés, sinon le chemin reste le retrait et le repêchage. Historique visible dans le dossier.</li>
+        <li><strong>Contrôle du dispositif</strong> avant tournoi et <strong>annonces libres</strong> de l'organisation, avec accusé de livraison (voir §6).</li>
+        <li>La page publique d'un circuit peut être <strong>publiée</strong> quand l'organisation le décide ; une fois publique, le nom, la dotation et les places en LAN restent corrigeables, mais le barème et les règles de départage sont figés — le classement en dépend.</li>
       </ul>
     </div>
     <div class="card">
       <h3><span class="tag tag-blue">En construction (avant le tournoi test)</span></h3>
       <ul>
         <li>Affichage du classement final sur la fiche publique d'un tournoi terminé (les données sont déjà écrites).</li>
+        <li>Messages de fin de parcours : « qualifié / éliminé » à la fin des poules ou d'une étape, podium en fin de tournoi, et réserve prévenue le jour J (« tiens-toi prête », puis « les places sont prises »).</li>
+        <li>Rappel la veille du tournoi dans le salon de chaque équipe.</li>
+        <li>Relais du fil de match vers Discord dans les deux sens (une équipe écrit → le staff est prévenu ; le staff répond → l'équipe est prévenue).</li>
+        <li>Passe de finition sur les écrans du module compétition (page de match, console, classements).</li>
         <li>Repêchage LAN en cascade (17e, puis 18e…) — sera câblé à l'approche de la LAN.</li>
       </ul>
       <p style="margin-top:12px;"><em>Un tournoi test grandeur nature est prévu une fois l'ensemble terminé — il servira de répétition générale (admins, capitaines, Discord) avant l'ouverture des inscriptions le 12 septembre.</em></p>
