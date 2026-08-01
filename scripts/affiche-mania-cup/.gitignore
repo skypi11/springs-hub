@@ -1,0 +1,5 @@
+# Artefacts générés par build_affiche.py — la police et les images y sont
+# embarquées en base64, le fichier pèse ~1,7 Mo. Il se régénère en une commande.
+affiche.html
+*.png
+!assets/*.png

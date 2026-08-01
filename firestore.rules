@@ -567,5 +567,15 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── Springs Mania Cup — Inscriptions à la LAN Trackmania ───────────────────
+    // Doc id = uid Aedral. Contient de la donnée personnelle (date de naissance,
+    // code d'inscription lié au paiement HelloAsso) : AUCUN accès client, même
+    // en lecture pour son propre dossier. Tout passe par /api/mania-cup/* avec
+    // l'Admin SDK, qui filtre ce qui sort — la liste publique des inscrits ne
+    // sert que le pseudo Trackmania, le pays et le statut.
+    match /mania_cup_registrations/{uid} {
+      allow read, write: if false;
+    }
+
   }
 }
