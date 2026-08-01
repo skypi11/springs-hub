@@ -41,7 +41,9 @@ export async function GET(req: NextRequest) {
         ageAtEvent: r.ageAtEvent,
         status: r.status,
         guardianConsent: r.guardianConsent,
-        guardianDocName: r.guardianDocName ?? null,
+        guardianDocs: Object.fromEntries(
+          Object.entries(r.guardianDocs ?? {}).map(([k, d]) => [k, { name: d.name }])
+        ),
         guardianRejectionReason: r.guardianRejectionReason ?? null,
         registrationCode: r.registrationCode,
       };

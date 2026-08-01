@@ -67,12 +67,49 @@ export type RegistrationStatus =
 
 export type GuardianConsentStatus =
   | 'not_required'
-  /** Mineur : document attendu. */
+  /** Mineur : au moins une des deux pièces manque. */
   | 'missing'
-  /** Document reçu, en attente de relecture par l'organisation. */
+  /** Dossier complet, en attente de relecture par l'organisation. */
   | 'pending_review'
   | 'approved'
   | 'rejected';
+
+/**
+ * Les deux pièces exigées d'un joueur de 16-17 ans.
+ *
+ * L'autorisation seule ne prouve rien — n'importe qui peut signer « le père
+ * de ». C'est la pièce d'identité du représentant légal qui rend la signature
+ * opposable. En revanche l'identité DU MINEUR se contrôle à l'accueil le jour
+ * J, sur présentation : la vérifier n'exige pas d'en conserver une copie, et
+ * on évite ainsi d'accumuler des papiers d'identité de mineurs.
+ */
+export const GUARDIAN_DOC_KINDS = ['consent', 'guardian_id'] as const;
+export type GuardianDocKind = (typeof GUARDIAN_DOC_KINDS)[number];
+
+export const GUARDIAN_DOC_LABELS: Record<GuardianDocKind, string> = {
+  consent: 'Autorisation parentale signée',
+  guardian_id: 'Pièce d’identité du représentant légal',
+};
+
+export interface GuardianDoc {
+  key: string;
+  name: string;
+  mime: string;
+  uploadedAt?: unknown;
+}
+
+export function isGuardianDossierComplete(
+  docs: Partial<Record<GuardianDocKind, GuardianDoc>> | undefined
+): boolean {
+  return GUARDIAN_DOC_KINDS.every((k) => Boolean(docs?.[k]?.key));
+}
+
+/**
+ * Combien de temps les pièces sont conservées après la LAN. Annoncé au joueur
+ * au moment du dépôt et appliqué par le cron de purge : une collecte propre se
+ * distingue d'un dossier qui traîne par sa date de fin.
+ */
+export const GUARDIAN_DOCS_RETENTION_DAYS = 14;
 
 export interface ManiaCupRegistration {
   uid: string;
@@ -89,15 +126,12 @@ export interface ManiaCupRegistration {
   countryCode: string;
   status: RegistrationStatus;
   guardianConsent: GuardianConsentStatus;
-  /** Clé de l'autorisation parentale chiffrée sur R2, si fournie. */
-  guardianDocKey?: string | null;
-  /** Nom du fichier déposé, pour l'affichage admin (jamais servi au public). */
-  guardianDocName?: string | null;
-  /** Type MIME d'origine, nécessaire pour re-servir le document déchiffré. */
-  guardianDocMime?: string | null;
-  guardianUploadedAt?: unknown;
-  /** Motif communiqué au joueur quand le document est refusé. */
+  /** Les pièces déposées, chiffrées sur R2. Jamais servies par URL publique. */
+  guardianDocs?: Partial<Record<GuardianDocKind, GuardianDoc>>;
+  /** Motif communiqué au joueur quand le dossier est refusé. */
   guardianRejectionReason?: string | null;
+  /** Date de purge des pièces, une fois l'événement passé. */
+  guardianDocsPurgedAt?: unknown;
   /**
    * Code unique à reporter dans le champ personnalisé de la billetterie
    * HelloAsso. C'est lui qui permet de relier un paiement à une inscription :

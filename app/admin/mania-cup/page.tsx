@@ -8,7 +8,7 @@ import {
 import { api, apiDownload, ApiError } from '@/lib/api-client';
 import CountryFlag from '@/components/ui/CountryFlag';
 import { countries } from '@/lib/countries';
-import { MANIA_CUP } from '@/lib/mania-cup';
+import { MANIA_CUP, GUARDIAN_DOC_KINDS, GUARDIAN_DOC_LABELS } from '@/lib/mania-cup';
 
 // Console d'organisation de la Springs Mania Cup.
 //
@@ -25,7 +25,7 @@ type Row = {
   ageAtEvent: number;
   status: 'pending_payment' | 'confirmed' | 'cancelled';
   guardianConsent: 'not_required' | 'missing' | 'pending_review' | 'approved' | 'rejected';
-  guardianDocName: string | null;
+  guardianDocs: Partial<Record<'consent' | 'guardian_id', { name: string }>>;
   guardianRejectionReason: string | null;
   registrationCode: string;
 };
@@ -65,9 +65,11 @@ export default function AdminManiaCupPage() {
     onError: (e) => setError(e instanceof ApiError ? e.message : 'Action refusée'),
   });
 
-  async function openDocument(uid: string) {
+  async function openDocument(uid: string, kind: string) {
     try {
-      const res = await apiDownload(`/api/mania-cup/guardian-consent?uid=${encodeURIComponent(uid)}`);
+      const res = await apiDownload(
+        `/api/mania-cup/guardian-consent?uid=${encodeURIComponent(uid)}&kind=${kind}`
+      );
       if (res.kind === 'blob') {
         const url = URL.createObjectURL(res.blob);
         window.open(url, '_blank', 'noopener');
@@ -186,7 +188,7 @@ function GuardianCell({
   onAct,
 }: {
   row: Row;
-  onOpen: (uid: string) => void;
+  onOpen: (uid: string, kind: string) => void;
   onAct: (b: { uid: string; action: string; reason?: string }) => void;
 }) {
   const [rejecting, setRejecting] = useState(false);
@@ -203,7 +205,12 @@ function GuardianCell({
     );
   }
   if (row.guardianConsent === 'missing') {
-    return <span className="text-[#FFB800]">En attente du document</span>;
+    const done = GUARDIAN_DOC_KINDS.filter((k) => row.guardianDocs?.[k]).length;
+    return (
+      <span className="text-[#FFB800]">
+        Dossier incomplet ({done}/{GUARDIAN_DOC_KINDS.length} pièces)
+      </span>
+    );
   }
   if (row.guardianConsent === 'rejected') {
     return (
@@ -221,12 +228,19 @@ function GuardianCell({
   // pending_review
   return (
     <div className="space-y-2">
-      <button
-        onClick={() => onOpen(row.uid)}
-        className="inline-flex items-center gap-1.5 border border-white/20 px-2.5 py-1 hover:bg-white/10"
-      >
-        <FileText size={14} aria-hidden /> Ouvrir le document
-      </button>
+      <div className="space-y-1">
+        {GUARDIAN_DOC_KINDS.map((kind) => (
+          <button
+            key={kind}
+            onClick={() => onOpen(row.uid, kind)}
+            disabled={!row.guardianDocs?.[kind]}
+            className="flex w-full items-center gap-1.5 border border-white/20 px-2.5 py-1 text-left hover:bg-white/10 disabled:opacity-40"
+          >
+            <FileText size={14} className="shrink-0" aria-hidden />
+            <span className="truncate">{GUARDIAN_DOC_LABELS[kind]}</span>
+          </button>
+        ))}
+      </div>
 
       {rejecting ? (
         <div className="space-y-2">

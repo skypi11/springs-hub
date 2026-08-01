@@ -10,7 +10,15 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { api, apiPublic, apiForm, ApiError } from '@/lib/api-client';
 import CountrySelect from '@/components/ui/CountrySelect';
-import { MANIA_CUP, SPRINGS_DISCORD_INVITE, type ManiaCupRegistration } from '@/lib/mania-cup';
+import {
+  MANIA_CUP,
+  SPRINGS_DISCORD_INVITE,
+  GUARDIAN_DOC_KINDS,
+  GUARDIAN_DOC_LABELS,
+  GUARDIAN_DOCS_RETENTION_DAYS,
+  type GuardianDocKind,
+  type ManiaCupRegistration,
+} from '@/lib/mania-cup';
 
 // Parcours d'inscription individuelle à la Springs Mania Cup.
 //
@@ -389,21 +397,22 @@ function GuardianConsent({
   reg: ManiaCupRegistration;
   onDone: () => void;
 }) {
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<GuardianDocKind | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  async function upload(file: File) {
-    setBusy(true);
+  async function upload(kind: GuardianDocKind, file: File) {
+    setBusy(kind);
     setErr(null);
     try {
       const form = new FormData();
       form.append('file', file);
+      form.append('kind', kind);
       await apiForm('/api/mania-cup/guardian-consent', form);
       onDone();
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : 'Le dépôt a échoué.');
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -412,30 +421,15 @@ function GuardianConsent({
       <div className="flex gap-3 border border-[#00D936]/40 bg-[#00D936]/10 p-6">
         <ShieldCheck size={22} className="mt-0.5 shrink-0 text-[#00D936]" aria-hidden />
         <p className="text-[#c9c5d8]">
-          <strong className="text-white">Autorisation parentale validée.</strong> Ton
-          dossier est complet de ce côté.
+          <strong className="text-white">Dossier validé.</strong> Tes pièces ont été
+          acceptées, tu n’as plus rien à fournir.
         </p>
       </div>
     );
   }
 
-  if (reg.guardianConsent === 'pending_review') {
-    return (
-      <div className="flex gap-3 border border-white/15 bg-white/[0.03] p-6">
-        <FileCheck size={22} className="mt-0.5 shrink-0 text-[#a364d9]" aria-hidden />
-        <div className="text-[#c9c5d8]">
-          <strong className="text-white">Autorisation reçue</strong>, en cours de
-          relecture par l’organisation. Tu n’as rien d’autre à faire — tu seras
-          prévenu si un document plus lisible est nécessaire.
-          {reg.guardianDocName && (
-            <div className="mt-2 text-sm text-[#8d89a8]">Fichier : {reg.guardianDocName}</div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   const rejected = reg.guardianConsent === 'rejected';
+  const inReview = reg.guardianConsent === 'pending_review';
 
   return (
     <div
@@ -444,46 +438,81 @@ function GuardianConsent({
       }`}
     >
       <h3 className="font-display text-2xl">
-        {rejected ? 'Autorisation à redéposer' : 'Autorisation parentale requise'}
+        {rejected ? 'Dossier à corriger' : 'Tu as moins de 18 ans : deux pièces à fournir'}
       </h3>
 
       {rejected ? (
         <p className="mt-3 text-[#f0d7d7]">
-          Le document transmis n’a pas pu être accepté.
+          Ton dossier n’a pas pu être accepté.
           {reg.guardianRejectionReason && (
-            <>
-              {' '}
-              Motif : <strong className="text-white">{reg.guardianRejectionReason}</strong>
-            </>
-          )}
+            <> Motif : <strong className="text-white">{reg.guardianRejectionReason}</strong></>
+          )}{' '}
+          Redépose la ou les pièces concernées.
         </p>
       ) : (
         <p className="mt-3 text-[#f2e6c8]">
-          Tu auras moins de 18 ans le jour de la LAN : une autorisation écrite et
-          signée par ton représentant légal est nécessaire pour participer.
-          Photographie-la ou scanne-la, puis dépose-la ici.
+          Une autorisation signée ne suffit pas à elle seule : il faut aussi la pièce
+          d’identité de la personne qui signe, sans quoi rien n’atteste qu’elle est
+          bien ton représentant légal.
         </p>
       )}
 
-      <label className="mt-5 inline-flex cursor-pointer items-center gap-2 bg-white px-6 py-3 font-bold text-[#07050b] transition-transform hover:scale-[1.02]">
-        {busy ? <Loader2 className="animate-spin" size={18} aria-hidden /> : <Upload size={18} aria-hidden />}
-        {busy ? 'Envoi…' : 'Choisir un fichier'}
-        <input
-          type="file"
-          className="hidden"
-          accept="image/*,application/pdf"
-          disabled={busy}
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void upload(f);
-            e.target.value = '';
-          }}
-        />
-      </label>
+      <div className="mt-6 space-y-3">
+        {GUARDIAN_DOC_KINDS.map((kind) => {
+          const doc = reg.guardianDocs?.[kind];
+          return (
+            <div
+              key={kind}
+              className="flex flex-wrap items-center justify-between gap-3 border border-white/15 bg-black/30 p-4"
+            >
+              <div className="min-w-0">
+                <div className="font-semibold">{GUARDIAN_DOC_LABELS[kind]}</div>
+                {doc ? (
+                  <div className="mt-1 flex items-center gap-2 text-sm text-[#00D936]">
+                    <FileCheck size={15} aria-hidden />
+                    <span className="truncate">{doc.name}</span>
+                  </div>
+                ) : (
+                  <div className="mt-1 text-sm text-[#8d89a8]">Aucun fichier déposé</div>
+                )}
+              </div>
 
-      <p className="mt-3 text-sm text-[#8d89a8]">
-        PDF ou photo, 10 Mo maximum. Le document est chiffré et n’est lisible que
-        par l’organisation.
+              <label className="inline-flex shrink-0 cursor-pointer items-center gap-2 bg-white px-4 py-2 text-sm font-bold text-[#07050b] transition-transform hover:scale-[1.02]">
+                {busy === kind ? (
+                  <Loader2 className="animate-spin" size={16} aria-hidden />
+                ) : (
+                  <Upload size={16} aria-hidden />
+                )}
+                {busy === kind ? 'Envoi…' : doc ? 'Remplacer' : 'Choisir un fichier'}
+                <input
+                  type="file"
+                  className="hidden"
+                  accept="image/*,application/pdf"
+                  disabled={busy !== null}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void upload(kind, f);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
+          );
+        })}
+      </div>
+
+      {inReview && (
+        <p className="mt-5 flex items-center gap-2 text-[#c9c5d8]">
+          <FileCheck size={18} className="text-[#a364d9]" aria-hidden />
+          Dossier complet, en cours de relecture par l’organisation.
+        </p>
+      )}
+
+      <p className="mt-5 text-sm text-[#8d89a8]">
+        PDF ou photo, 10 Mo maximum par pièce. Les documents sont chiffrés, lisibles
+        par la seule organisation, et supprimés {GUARDIAN_DOCS_RETENTION_DAYS} jours
+        après la LAN. Ta propre pièce d’identité n’est pas demandée ici : elle sera
+        simplement contrôlée à l’accueil le samedi.
       </p>
 
       {err && <p className="mt-3 text-sm text-red-300">{err}</p>}
