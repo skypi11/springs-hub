@@ -211,6 +211,12 @@ export const StorageKeys = {
   // (l'upload peut précéder la création du circuit), d'où une clé versionnée globale.
   competitionOrganizerLogo: (version: number) =>
     `competitions/organizer-logos/${version}.webp`,
+  // Autorisation parentale d'un mineur inscrit à la Springs Mania Cup.
+  // Document d'identité familiale : stocké CHIFFRÉ (AES-256-GCM) et jamais
+  // servi par URL publique — il ne se lit qu'à travers une route admin.
+  // Versionné : un joueur peut redéposer si le premier document est refusé.
+  maniaCupGuardianConsent: (uid: string, version: number, ext: string) =>
+    `mania-cup/guardian-consents/${uid}-${version}.${ext}`,
   // Préfixes pour calculs de quota
   structurePrefix: (structureId: string) => `structures/${structureId}/`,
   structureDocumentsPrefix: (structureId: string) => `structures/${structureId}/documents/`,

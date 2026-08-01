@@ -102,7 +102,13 @@ export type AdminAuditAction =
   // Seeding par stratégie (aléatoire / MMR / classement circuit — design §10)
   | 'competition_seeding_strategy'
   // Dérogation admin au roster lock (remplacement / échange de rôles / capitanat)
-  | 'competition_roster_changed';
+  | 'competition_roster_changed'
+  // Springs Mania Cup — autorisations parentales des mineurs. La CONSULTATION
+  // est tracée au même titre que la décision : c'est une pièce d'identité
+  // familiale, on doit pouvoir dire qui a ouvert quel dossier.
+  | 'mania_cup_guardian_consent_read'
+  | 'mania_cup_guardian_consent_approved'
+  | 'mania_cup_guardian_consent_rejected';
 
 export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event' | 'competition' | 'circuit';
 

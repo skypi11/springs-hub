@@ -91,6 +91,13 @@ export interface ManiaCupRegistration {
   guardianConsent: GuardianConsentStatus;
   /** Clé de l'autorisation parentale chiffrée sur R2, si fournie. */
   guardianDocKey?: string | null;
+  /** Nom du fichier déposé, pour l'affichage admin (jamais servi au public). */
+  guardianDocName?: string | null;
+  /** Type MIME d'origine, nécessaire pour re-servir le document déchiffré. */
+  guardianDocMime?: string | null;
+  guardianUploadedAt?: unknown;
+  /** Motif communiqué au joueur quand le document est refusé. */
+  guardianRejectionReason?: string | null;
   /**
    * Code unique à reporter dans le champ personnalisé de la billetterie
    * HelloAsso. C'est lui qui permet de relier un paiement à une inscription :

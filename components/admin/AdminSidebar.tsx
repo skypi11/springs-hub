@@ -30,6 +30,7 @@ type Props = {
 const ITEMS: NavItem[] = [
   { href: '/admin', icon: LayoutDashboard, label: 'Dashboard', description: 'Vue globale' },
   { href: '/admin/competitions', icon: Trophy, label: 'Compétitions', description: 'Circuits, tournois, admins compét' },
+  { href: '/admin/mania-cup', icon: Flag, label: 'Mania Cup', description: 'Inscriptions LAN, autorisations parentales' },
   { href: '/admin/structures', icon: Building2, label: 'Structures', description: 'Validations et gestion' },
   { href: '/admin/users', icon: Users, label: 'Utilisateurs', description: 'Profils, bans, admins' },
   { href: '/admin/teams', icon: Users2, label: 'Équipes', description: 'Vue cross-structures' },
@@ -52,7 +53,7 @@ const ITEMS: NavItem[] = [
 export default function AdminSidebar({ badges = {}, competitionsOnly = false }: Props) {
   const pathname = usePathname();
   const items = competitionsOnly
-    ? ITEMS.filter(it => it.href === '/admin/competitions')
+    ? ITEMS.filter(it => it.href === '/admin/competitions' || it.href === '/admin/mania-cup')
     : ITEMS;
   // Collapse mobile : sidebar pliée par défaut en <lg pour ne pas occuper 16
   // lignes verticales au-dessus du contenu. Toggle via le header "Panel admin".

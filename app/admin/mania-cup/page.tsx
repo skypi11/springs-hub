@@ -1,0 +1,289 @@
+'use client';
+
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  Loader2, FileText, Check, X, Euro, AlertTriangle, ShieldCheck,
+} from 'lucide-react';
+import { api, apiDownload, ApiError } from '@/lib/api-client';
+import CountryFlag from '@/components/ui/CountryFlag';
+import { countries } from '@/lib/countries';
+import { MANIA_CUP } from '@/lib/mania-cup';
+
+// Console d'organisation de la Springs Mania Cup.
+//
+// Deux tâches concrètes : relire les autorisations parentales des 16-17 ans, et
+// confirmer les règlements à la main tant que le webhook HelloAsso n'est pas
+// branché (il restera de toute façon utile pour les paiements orphelins).
+
+type Row = {
+  uid: string;
+  tmDisplayName: string;
+  tmAccountId: string;
+  discordId: string | null;
+  countryCode: string;
+  ageAtEvent: number;
+  status: 'pending_payment' | 'confirmed' | 'cancelled';
+  guardianConsent: 'not_required' | 'missing' | 'pending_review' | 'approved' | 'rejected';
+  guardianDocName: string | null;
+  guardianRejectionReason: string | null;
+  registrationCode: string;
+};
+
+type Payload = {
+  registrations: Row[];
+  counts: {
+    total: number;
+    confirmed: number;
+    pendingPayment: number;
+    guardianToReview: number;
+    guardianMissing: number;
+    minors: number;
+    seatsLeft: number;
+  };
+};
+
+const countryName = (code: string) =>
+  countries.find((c) => c.code === code)?.name ?? code;
+
+export default function AdminManiaCupPage() {
+  const qc = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin', 'mania-cup'] as const,
+    queryFn: () => api<Payload>('/api/admin/mania-cup'),
+  });
+
+  const act = useMutation({
+    mutationFn: (body: { uid: string; action: string; reason?: string }) =>
+      api('/api/admin/mania-cup', { method: 'PATCH', body }),
+    onSuccess: () => {
+      setError(null);
+      void qc.invalidateQueries({ queryKey: ['admin', 'mania-cup'] });
+    },
+    onError: (e) => setError(e instanceof ApiError ? e.message : 'Action refusée'),
+  });
+
+  async function openDocument(uid: string) {
+    try {
+      const res = await apiDownload(`/api/mania-cup/guardian-consent?uid=${encodeURIComponent(uid)}`);
+      if (res.kind === 'blob') {
+        const url = URL.createObjectURL(res.blob);
+        window.open(url, '_blank', 'noopener');
+        // Le document reste en mémoire le temps que l'onglet l'affiche.
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Document illisible');
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-3 p-8" style={{ color: 'var(--s-text-dim)' }}>
+        <Loader2 className="animate-spin" size={20} /> Chargement…
+      </div>
+    );
+  }
+
+  const rows = data?.registrations ?? [];
+  const c = data?.counts;
+
+  return (
+    <div className="px-4 py-6 sm:px-6 lg:px-8">
+      <h1 className="font-display text-4xl">Springs Mania Cup</h1>
+      <p className="mt-2" style={{ color: 'var(--s-text-dim)' }}>
+        3 &amp; 4 octobre 2026 · {MANIA_CUP.city} · {MANIA_CUP.maxPlayers} places
+      </p>
+
+      {c && (
+        <div className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-5">
+          <Stat label="Inscrits" value={c.total} />
+          <Stat label="Payés" value={c.confirmed} tone="ok" />
+          <Stat label="En attente de paiement" value={c.pendingPayment} />
+          <Stat label="Autorisations à relire" value={c.guardianToReview} tone={c.guardianToReview ? 'warn' : undefined} />
+          <Stat label="Places restantes" value={c.seatsLeft} />
+        </div>
+      )}
+
+      {error && (
+        <div className="mt-6 flex gap-3 border border-red-500/40 bg-red-500/10 p-4 text-red-100">
+          <AlertTriangle size={18} className="mt-0.5 shrink-0" aria-hidden />
+          {error}
+        </div>
+      )}
+
+      {rows.length === 0 ? (
+        <p className="mt-10" style={{ color: 'var(--s-text-dim)' }}>
+          Aucune inscription pour le moment.
+        </p>
+      ) : (
+        <div className="mt-8 overflow-x-auto">
+          <table className="w-full min-w-[900px] border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-white/10 text-left" style={{ color: 'var(--s-text-dim)' }}>
+                <th className="py-3 pr-4 font-medium">Joueur</th>
+                <th className="py-3 pr-4 font-medium">Pays</th>
+                <th className="py-3 pr-4 font-medium">Âge</th>
+                <th className="py-3 pr-4 font-medium">Code</th>
+                <th className="py-3 pr-4 font-medium">Paiement</th>
+                <th className="py-3 pr-4 font-medium">Autorisation parentale</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.uid} className="border-b border-white/5 align-top">
+                  <td className="py-4 pr-4 font-semibold">{r.tmDisplayName || '—'}</td>
+                  <td className="py-4 pr-4">
+                    <span className="flex items-center gap-2">
+                      <CountryFlag code={r.countryCode} size={20} />
+                      {countryName(r.countryCode)}
+                    </span>
+                  </td>
+                  <td className="py-4 pr-4">
+                    {r.ageAtEvent}
+                    {r.ageAtEvent < 18 && (
+                      <span className="ml-2 bg-[#FFB800]/20 px-1.5 py-0.5 text-xs text-[#FFB800]">
+                        mineur
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-4 pr-4 font-mono text-xs">{r.registrationCode}</td>
+                  <td className="py-4 pr-4">
+                    {r.status === 'confirmed' ? (
+                      <button
+                        onClick={() => act.mutate({ uid: r.uid, action: 'mark_unpaid' })}
+                        className="inline-flex items-center gap-1.5 text-[#22c55e] hover:underline"
+                      >
+                        <Check size={15} aria-hidden /> Payé
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => act.mutate({ uid: r.uid, action: 'mark_paid' })}
+                        className="inline-flex items-center gap-1.5 border border-white/20 px-2.5 py-1 hover:bg-white/10"
+                      >
+                        <Euro size={14} aria-hidden /> Marquer payé
+                      </button>
+                    )}
+                  </td>
+                  <td className="py-4 pr-4">
+                    <GuardianCell row={r} onOpen={openDocument} onAct={act.mutate} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GuardianCell({
+  row,
+  onOpen,
+  onAct,
+}: {
+  row: Row;
+  onOpen: (uid: string) => void;
+  onAct: (b: { uid: string; action: string; reason?: string }) => void;
+}) {
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState('');
+
+  if (row.guardianConsent === 'not_required') {
+    return <span style={{ color: 'var(--s-text-muted)' }}>—</span>;
+  }
+  if (row.guardianConsent === 'approved') {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[#22c55e]">
+        <ShieldCheck size={15} aria-hidden /> Validée
+      </span>
+    );
+  }
+  if (row.guardianConsent === 'missing') {
+    return <span className="text-[#FFB800]">En attente du document</span>;
+  }
+  if (row.guardianConsent === 'rejected') {
+    return (
+      <div className="text-red-300">
+        Refusée
+        {row.guardianRejectionReason && (
+          <div className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+            {row.guardianRejectionReason}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // pending_review
+  return (
+    <div className="space-y-2">
+      <button
+        onClick={() => onOpen(row.uid)}
+        className="inline-flex items-center gap-1.5 border border-white/20 px-2.5 py-1 hover:bg-white/10"
+      >
+        <FileText size={14} aria-hidden /> Ouvrir le document
+      </button>
+
+      {rejecting ? (
+        <div className="space-y-2">
+          <input
+            autoFocus
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Motif communiqué au joueur"
+            className="w-56 border border-white/20 bg-black/40 px-2 py-1 text-xs outline-none focus:border-[#FFB800]"
+          />
+          <div className="flex gap-2">
+            <button
+              disabled={!reason.trim()}
+              onClick={() => {
+                onAct({ uid: row.uid, action: 'reject_guardian', reason });
+                setRejecting(false);
+                setReason('');
+              }}
+              className="border border-red-500/40 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10 disabled:opacity-40"
+            >
+              Confirmer le refus
+            </button>
+            <button
+              onClick={() => setRejecting(false)}
+              className="px-2 py-1 text-xs"
+              style={{ color: 'var(--s-text-dim)' }}
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <button
+            onClick={() => onAct({ uid: row.uid, action: 'approve_guardian' })}
+            className="inline-flex items-center gap-1 border border-[#22c55e]/40 px-2 py-1 text-xs text-[#22c55e] hover:bg-[#22c55e]/10"
+          >
+            <Check size={13} aria-hidden /> Valider
+          </button>
+          <button
+            onClick={() => setRejecting(true)}
+            className="inline-flex items-center gap-1 border border-red-500/40 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10"
+          >
+            <X size={13} aria-hidden /> Refuser
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, value, tone }: { label: string; value: number; tone?: 'ok' | 'warn' }) {
+  const color = tone === 'ok' ? '#22c55e' : tone === 'warn' ? '#FFB800' : 'var(--s-text)';
+  return (
+    <div className="border border-white/10 bg-white/[0.02] p-4">
+      <div className="font-display text-3xl" style={{ color }}>{value}</div>
+      <div className="mt-1 text-xs" style={{ color: 'var(--s-text-dim)' }}>{label}</div>
+    </div>
+  );
+}

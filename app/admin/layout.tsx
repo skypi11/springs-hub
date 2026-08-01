@@ -51,7 +51,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       router.replace('/');
       return;
     }
-    if (compAdminOnly && !pathname.startsWith('/admin/competitions')) {
+    // La console de la Springs Mania Cup relève de l'organisation d'une
+    // compétition : elle est ouverte aux admins compét au même titre, sinon
+    // seuls les admins Aedral complets pourraient relire les autorisations
+    // parentales — un goulot d'étranglement pour rien.
+    if (
+      compAdminOnly
+      && !pathname.startsWith('/admin/competitions')
+      && !pathname.startsWith('/admin/mania-cup')
+    ) {
       router.replace('/admin/competitions');
     }
   }, [authLoading, allowed, adminessKnown, compAdminOnly, firebaseUser, router, pathname]);

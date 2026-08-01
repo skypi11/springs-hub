@@ -5,10 +5,10 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   CheckCircle2, Circle, Loader2, AlertTriangle, ExternalLink,
-  Ticket, ArrowLeft, ShieldCheck,
+  Ticket, ArrowLeft, ShieldCheck, Upload, FileCheck,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { api, apiPublic, ApiError } from '@/lib/api-client';
+import { api, apiPublic, apiForm, ApiError } from '@/lib/api-client';
 import CountrySelect from '@/components/ui/CountrySelect';
 import { MANIA_CUP, SPRINGS_DISCORD_INVITE, type ManiaCupRegistration } from '@/lib/mania-cup';
 
@@ -187,7 +187,7 @@ export default function InscriptionPage() {
 
       {/* Dossier déjà déposé : on montre le récapitulatif, pas le formulaire. */}
       {reg ? (
-        <Recap reg={reg} />
+        <Recap reg={reg} onReload={() => void load()} />
       ) : full ? (
         <Banner tone="warn">
           Les {MANIA_CUP.maxPlayers} places sont prises. Contacte l’organisation sur le
@@ -337,7 +337,7 @@ export default function InscriptionPage() {
 
 // ── Récapitulatif après dépôt ────────────────────────────────────────────────
 
-function Recap({ reg }: { reg: ManiaCupRegistration }) {
+function Recap({ reg, onReload }: { reg: ManiaCupRegistration; onReload: () => void }) {
   const minor = reg.guardianConsent !== 'not_required';
   return (
     <div className="mt-12 space-y-6">
@@ -371,18 +371,122 @@ function Recap({ reg }: { reg: ManiaCupRegistration }) {
         </div>
       </div>
 
-      {minor && (
-        <Banner tone="warn">
-          <strong>Autorisation parentale requise.</strong> Tu auras moins de 18 ans le jour
-          de la LAN : une autorisation signée par ton représentant légal doit être
-          transmise ici avant l’événement. L’espace de dépôt arrive très vite sur cette
-          page.
-        </Banner>
-      )}
+      {minor && <GuardianConsent reg={reg} onDone={onReload} />}
 
       <p className="text-sm text-[#8d89a8]">
         Pseudo Trackmania enregistré : <strong className="text-white">{reg.tmDisplayName}</strong>
       </p>
+    </div>
+  );
+}
+
+// ── Autorisation parentale (16-17 ans) ──────────────────────────────────────
+
+function GuardianConsent({
+  reg,
+  onDone,
+}: {
+  reg: ManiaCupRegistration;
+  onDone: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function upload(file: File) {
+    setBusy(true);
+    setErr(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      await apiForm('/api/mania-cup/guardian-consent', form);
+      onDone();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Le dépôt a échoué.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (reg.guardianConsent === 'approved') {
+    return (
+      <div className="flex gap-3 border border-[#00D936]/40 bg-[#00D936]/10 p-6">
+        <ShieldCheck size={22} className="mt-0.5 shrink-0 text-[#00D936]" aria-hidden />
+        <p className="text-[#c9c5d8]">
+          <strong className="text-white">Autorisation parentale validée.</strong> Ton
+          dossier est complet de ce côté.
+        </p>
+      </div>
+    );
+  }
+
+  if (reg.guardianConsent === 'pending_review') {
+    return (
+      <div className="flex gap-3 border border-white/15 bg-white/[0.03] p-6">
+        <FileCheck size={22} className="mt-0.5 shrink-0 text-[#a364d9]" aria-hidden />
+        <div className="text-[#c9c5d8]">
+          <strong className="text-white">Autorisation reçue</strong>, en cours de
+          relecture par l’organisation. Tu n’as rien d’autre à faire — tu seras
+          prévenu si un document plus lisible est nécessaire.
+          {reg.guardianDocName && (
+            <div className="mt-2 text-sm text-[#8d89a8]">Fichier : {reg.guardianDocName}</div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const rejected = reg.guardianConsent === 'rejected';
+
+  return (
+    <div
+      className={`border p-6 ${
+        rejected ? 'border-red-500/40 bg-red-500/10' : 'border-[#FFB800]/40 bg-[#FFB800]/10'
+      }`}
+    >
+      <h3 className="font-display text-2xl">
+        {rejected ? 'Autorisation à redéposer' : 'Autorisation parentale requise'}
+      </h3>
+
+      {rejected ? (
+        <p className="mt-3 text-[#f0d7d7]">
+          Le document transmis n’a pas pu être accepté.
+          {reg.guardianRejectionReason && (
+            <>
+              {' '}
+              Motif : <strong className="text-white">{reg.guardianRejectionReason}</strong>
+            </>
+          )}
+        </p>
+      ) : (
+        <p className="mt-3 text-[#f2e6c8]">
+          Tu auras moins de 18 ans le jour de la LAN : une autorisation écrite et
+          signée par ton représentant légal est nécessaire pour participer.
+          Photographie-la ou scanne-la, puis dépose-la ici.
+        </p>
+      )}
+
+      <label className="mt-5 inline-flex cursor-pointer items-center gap-2 bg-white px-6 py-3 font-bold text-[#07050b] transition-transform hover:scale-[1.02]">
+        {busy ? <Loader2 className="animate-spin" size={18} aria-hidden /> : <Upload size={18} aria-hidden />}
+        {busy ? 'Envoi…' : 'Choisir un fichier'}
+        <input
+          type="file"
+          className="hidden"
+          accept="image/*,application/pdf"
+          disabled={busy}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void upload(f);
+            e.target.value = '';
+          }}
+        />
+      </label>
+
+      <p className="mt-3 text-sm text-[#8d89a8]">
+        PDF ou photo, 10 Mo maximum. Le document est chiffré et n’est lisible que
+        par l’organisation.
+      </p>
+
+      {err && <p className="mt-3 text-sm text-red-300">{err}</p>}
     </div>
   );
 }
