@@ -11,6 +11,7 @@ import { countries } from '@/lib/countries';
 import MarkdownEditor from '@/components/ui/MarkdownEditor';
 import { LIMITS } from '@/lib/validation';
 import FaqEditor from '@/components/mania-cup/FaqEditor';
+import TicketingSettings from '@/components/mania-cup/TicketingSettings';
 import { MANIA_CUP, MANIA_CUP_DOCS, GUARDIAN_DOC_KINDS, GUARDIAN_DOC_LABELS } from '@/lib/mania-cup';
 
 // Console d'organisation de la Springs Mania Cup.
@@ -127,6 +128,7 @@ export default function AdminManiaCupPage() {
         note="Publier une nouvelle version archive la précédente. Les joueurs déjà inscrits gardent la trace de celle qu’ils ont acceptée ; les suivants devront accepter la nouvelle."
       />
       <FaqEditor />
+      <TicketingSettings />
 
       {rows.length === 0 ? (
         <p className="mt-10" style={{ color: 'var(--s-text-dim)' }}>

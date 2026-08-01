@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Users, Monitor, Radio, Coffee, MapPin, Baby, Ticket } from 'lucide-react';
 import { MANIA_CUP } from '@/lib/mania-cup';
+import TicketButton from '@/components/mania-cup/TicketButton';
 
 // Page spectateurs.
 //
@@ -89,11 +90,12 @@ export default function SpectateursPage() {
             ))}
           </div>
 
-          <p className="mt-6 flex items-start gap-3 text-[#c9c5d8]">
-            <Ticket size={20} className="mt-0.5 shrink-0 text-[#a364d9]" aria-hidden />
-            Les billets s’achètent sur la billetterie HelloAsso de Springs E-Sport. Le
-            lien sera publié ici dès l’ouverture.
-          </p>
+          <div className="mt-8">
+            <TicketButton kind="spectator" label="Prendre un billet spectateur" />
+            <p className="mt-3 text-sm text-[#8d89a8]">
+              Billetterie HelloAsso de Springs E-Sport. Aucun compte n’est nécessaire.
+            </p>
+          </div>
         </section>
 
         {/* ---- La limite à connaître avant d'acheter ---- */}
@@ -113,6 +115,13 @@ export default function SpectateursPage() {
               {MANIA_CUP.companionEuros} €</strong>. C’est le joueur qui te déclare depuis
               son espace, puis tu prends ton billet en reportant son code d’inscription.
             </p>
+            <div className="mt-5">
+              <TicketButton
+                kind="companion"
+                variant="outline"
+                label={`Billet accompagnant — ${MANIA_CUP.companionEuros} €`}
+              />
+            </div>
           </div>
         </section>
 

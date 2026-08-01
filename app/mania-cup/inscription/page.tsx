@@ -5,11 +5,12 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   CheckCircle2, Circle, Loader2, AlertTriangle, ExternalLink,
-  Ticket, ArrowLeft, ShieldCheck, Upload, FileCheck, UserPlus, Trash2, Hourglass,
+  ArrowLeft, ShieldCheck, Upload, FileCheck, UserPlus, Trash2, Hourglass,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api, apiPublic, apiForm, ApiError } from '@/lib/api-client';
 import CountrySelect from '@/components/ui/CountrySelect';
+import TicketButton from '@/components/mania-cup/TicketButton';
 import {
   MANIA_CUP,
   SPRINGS_DISCORD_INVITE,
@@ -405,14 +406,18 @@ function Recap({ reg, onReload }: { reg: ManiaCupRegistration; onReload: () => v
           </p>
         </div>
 
-        <div className="mt-6 flex flex-wrap items-center gap-4">
-          <button
-            disabled
-            className="inline-flex cursor-not-allowed items-center gap-2 bg-white/10 px-6 py-3 font-semibold text-[#8d89a8]"
-          >
-            <Ticket size={18} aria-hidden />
-            Payer sur HelloAsso — bientôt disponible
-          </button>
+        <div className="mt-6">
+          {reg.status === 'confirmed' ? (
+            <p className="flex items-center gap-2 text-[#00D936]">
+              <ShieldCheck size={18} aria-hidden />
+              Règlement reçu, ta place est acquise.
+            </p>
+          ) : (
+            <TicketButton
+              kind="player"
+              label={`Payer mon inscription — ${MANIA_CUP.priceEuros} €`}
+            />
+          )}
         </div>
       </div>
 
@@ -577,6 +582,13 @@ function Companion({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => v
             d’inscription {reg.registrationCode} doit être reporté</strong> — c’est lui
             qui rattache l’accompagnant à toi. Peu importe qui règle : toi ou lui.
           </p>
+          <div className="mt-4">
+            <TicketButton
+              kind="companion"
+              variant="outline"
+              label={`Billet accompagnant — ${MANIA_CUP.companionEuros} €`}
+            />
+          </div>
 
           {existing && !editing ? (
             <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border border-white/15 bg-black/30 p-4">

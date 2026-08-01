@@ -23,6 +23,10 @@ export default function FaqEditor() {
   // au moindre rafraîchissement de la requête.
   const [draft, setDraft] = useState<FaqItem[] | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  // Blocs repliés par défaut : treize questions dépliées font un mur de champs
+  // où l'on ne retrouve plus rien. On déplie celui qu'on veut modifier.
+  const [openIdx, setOpenIdx] = useState<number | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin', 'mania-cup', 'faq'] as const,
@@ -64,23 +68,34 @@ export default function FaqEditor() {
             {list.length} question{list.length > 1 ? 's' : ''}
           </span>
         </div>
-        <a
-          href="/mania-cup/faq"
-          target="_blank"
-          rel="noreferrer"
-          className="text-sm underline"
-          style={{ color: 'var(--s-text-dim)' }}
-        >
-          Voir la page publique
-        </a>
+        <div className="flex items-center gap-4">
+          <a
+            href="/mania-cup/faq"
+            target="_blank"
+            rel="noreferrer"
+            className="text-sm underline"
+            style={{ color: 'var(--s-text-dim)' }}
+          >
+            Voir la page publique
+          </a>
+          <button
+            onClick={() => setCollapsed((c) => !c)}
+            className="border border-white/20 px-3 py-1.5 text-sm hover:bg-white/10"
+          >
+            {collapsed ? 'Déplier' : 'Replier'}
+          </button>
+        </div>
       </div>
 
-      <p className="mt-3 text-sm" style={{ color: 'var(--s-text-dim)' }}>
-        Chaque bloc devient une question dépliable sur le site. Les réponses acceptent
-        le gras avec <code>**deux astérisques**</code> et les listes avec un tiret.
-      </p>
+      {collapsed ? null : (
+        <p className="mt-3 text-sm" style={{ color: 'var(--s-text-dim)' }}>
+          Chaque bloc devient une question dépliable sur le site. Les réponses
+          acceptent le gras avec <code>**deux astérisques**</code> et les listes avec
+          un tiret.
+        </p>
+      )}
 
-      {isLoading ? (
+      {collapsed ? null : isLoading ? (
         <div className="mt-6 flex items-center gap-3" style={{ color: 'var(--s-text-dim)' }}>
           <Loader2 className="animate-spin" size={18} /> Chargement…
         </div>
@@ -108,27 +123,46 @@ export default function FaqEditor() {
               <div key={i} className="border border-white/10 bg-black/30 p-4">
                 <div className="flex items-start gap-3">
                   <span
-                    className="mt-3 w-6 shrink-0 text-right text-sm"
+                    className="mt-2 w-6 shrink-0 text-right text-sm"
                     style={{ color: 'var(--s-text-muted)' }}
                   >
                     {i + 1}
                   </span>
-                  <div className="min-w-0 flex-1 space-y-3">
-                    <input
-                      value={it.q}
-                      maxLength={FAQ_LIMITS.question}
-                      onChange={(e) => update(i, { q: e.target.value })}
-                      placeholder="La question, telle qu’un joueur la poserait"
-                      className="w-full border border-white/15 bg-black/40 px-3 py-2 font-semibold text-white outline-none focus:border-[#00D936]"
-                    />
-                    <textarea
-                      value={it.a}
-                      rows={3}
-                      maxLength={FAQ_LIMITS.answer}
-                      onChange={(e) => update(i, { a: e.target.value })}
-                      placeholder="La réponse"
-                      className="w-full resize-y border border-white/15 bg-black/40 px-3 py-2 text-[#c9c5d8] outline-none focus:border-[#00D936]"
-                    />
+                  <div className="min-w-0 flex-1">
+                    <button
+                      onClick={() => setOpenIdx(openIdx === i ? null : i)}
+                      className="flex w-full items-center justify-between gap-3 text-left"
+                    >
+                      <span className="min-w-0 flex-1 truncate font-semibold">
+                        {it.q || <span style={{ color: 'var(--s-text-muted)' }}>Nouvelle question</span>}
+                      </span>
+                      <ChevronDown
+                        size={16}
+                        className={`shrink-0 transition-transform ${openIdx === i ? 'rotate-180' : ''}`}
+                        style={{ color: 'var(--s-text-dim)' }}
+                        aria-hidden
+                      />
+                    </button>
+
+                    {openIdx === i && (
+                      <div className="mt-3 space-y-3">
+                        <input
+                          value={it.q}
+                          maxLength={FAQ_LIMITS.question}
+                          onChange={(e) => update(i, { q: e.target.value })}
+                          placeholder="La question, telle qu’un joueur la poserait"
+                          className="w-full border border-white/15 bg-black/40 px-3 py-2 font-semibold text-white outline-none focus:border-[#00D936]"
+                        />
+                        <textarea
+                          value={it.a}
+                          rows={4}
+                          maxLength={FAQ_LIMITS.answer}
+                          onChange={(e) => update(i, { a: e.target.value })}
+                          placeholder="La réponse"
+                          className="w-full resize-y border border-white/15 bg-black/40 px-3 py-2 text-[#c9c5d8] outline-none focus:border-[#00D936]"
+                        />
+                      </div>
+                    )}
                   </div>
                   <div className="flex shrink-0 flex-col gap-1">
                     <button
@@ -162,7 +196,10 @@ export default function FaqEditor() {
 
           <div className="mt-5 flex flex-wrap items-center gap-4">
             <button
-              onClick={() => setDraft([...list, { q: '', a: '' }])}
+              onClick={() => {
+                setDraft([...list, { q: '', a: '' }]);
+                setOpenIdx(list.length);
+              }}
               disabled={list.length >= FAQ_LIMITS.items}
               className="inline-flex items-center gap-2 border border-white/20 px-4 py-2 text-sm hover:bg-white/10 disabled:opacity-40"
             >
