@@ -30,6 +30,7 @@ type Row = {
   guardianDocs: Partial<Record<'consent' | 'guardian_id', { name: string }>>;
   guardianRejectionReason: string | null;
   registrationCode: string;
+  companion: { name: string; role: string } | null;
 };
 
 type Payload = {
@@ -126,13 +127,14 @@ export default function AdminManiaCupPage() {
         </p>
       ) : (
         <div className="mt-8 overflow-x-auto">
-          <table className="w-full min-w-[900px] border-collapse text-sm">
+          <table className="w-full min-w-[1050px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-white/10 text-left" style={{ color: 'var(--s-text-dim)' }}>
                 <th className="py-3 pr-4 font-medium">Joueur</th>
                 <th className="py-3 pr-4 font-medium">Pays</th>
                 <th className="py-3 pr-4 font-medium">Âge</th>
                 <th className="py-3 pr-4 font-medium">Code</th>
+                <th className="py-3 pr-4 font-medium">Accompagnant</th>
                 <th className="py-3 pr-4 font-medium">Paiement</th>
                 <th className="py-3 pr-4 font-medium">Autorisation parentale</th>
               </tr>
@@ -156,6 +158,18 @@ export default function AdminManiaCupPage() {
                     )}
                   </td>
                   <td className="py-4 pr-4 font-mono text-xs">{r.registrationCode}</td>
+                  <td className="py-4 pr-4">
+                    {r.companion ? (
+                      <div>
+                        <div>{r.companion.name}</div>
+                        <div className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                          {r.companion.role}
+                        </div>
+                      </div>
+                    ) : (
+                      <span style={{ color: 'var(--s-text-muted)' }}>—</span>
+                    )}
+                  </td>
                   <td className="py-4 pr-4">
                     {r.status === 'confirmed' ? (
                       <button

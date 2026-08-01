@@ -46,6 +46,7 @@ export async function GET(req: NextRequest) {
         ),
         guardianRejectionReason: r.guardianRejectionReason ?? null,
         registrationCode: r.registrationCode,
+        companion: r.companion ?? null,
       };
     });
 

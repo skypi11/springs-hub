@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   CheckCircle2, Circle, Loader2, AlertTriangle, ExternalLink,
-  Ticket, ArrowLeft, ShieldCheck, Upload, FileCheck,
+  Ticket, ArrowLeft, ShieldCheck, Upload, FileCheck, UserPlus, Trash2,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api, apiPublic, apiForm, ApiError } from '@/lib/api-client';
@@ -416,12 +416,145 @@ function Recap({ reg, onReload }: { reg: ManiaCupRegistration; onReload: () => v
 
       {minor && <GuardianConsent reg={reg} onDone={onReload} />}
 
+      <Companion reg={reg} onDone={onReload} />
+
       <div className="flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6">
         <p className="text-sm text-[#8d89a8]">
           Pseudo Trackmania enregistré :{' '}
           <strong className="text-white">{reg.tmDisplayName}</strong>
         </p>
         <WithdrawButton onDone={onReload} />
+      </div>
+    </div>
+  );
+}
+
+// ── Accompagnant (billet staff) ─────────────────────────────────────────────
+
+function Companion({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => void }) {
+  const existing = reg.companion ?? null;
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(existing?.name ?? '');
+  const [role, setRole] = useState(existing?.role ?? '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function save() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api('/api/mania-cup/companion', { method: 'POST', body: { name, role } });
+      setEditing(false);
+      onDone();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Enregistrement impossible.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    setBusy(true);
+    try {
+      await api('/api/mania-cup/companion', { method: 'DELETE' });
+      setName('');
+      setRole('');
+      onDone();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Suppression impossible.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="border border-white/15 bg-white/[0.02] p-6">
+      <div className="flex items-start gap-3">
+        <UserPlus size={22} className="mt-0.5 shrink-0 text-[#a364d9]" aria-hidden />
+        <div className="min-w-0 flex-1">
+          <h3 className="font-display text-2xl">Tu viens accompagné ?</h3>
+          <p className="mt-2 text-[#c9c5d8]">
+            Une personne peut t’accompagner dans la zone joueurs — coach, parent, ami.
+            Elle doit être déclarée ici et prendre un <strong className="text-white">billet
+            staff</strong> sur HelloAsso : un billet spectateur ne donne pas accès à cette
+            zone.
+          </p>
+
+          {existing && !editing ? (
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border border-white/15 bg-black/30 p-4">
+              <div>
+                <div className="font-semibold">{existing.name}</div>
+                <div className="text-sm text-[#8d89a8]">{existing.role}</div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setEditing(true)}
+                  className="text-sm text-[#a364d9] underline"
+                >
+                  Modifier
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() => void remove()}
+                  className="inline-flex items-center gap-1.5 text-sm text-[#8d89a8] hover:text-red-300 disabled:opacity-50"
+                >
+                  <Trash2 size={14} aria-hidden /> Retirer
+                </button>
+              </div>
+            </div>
+          ) : editing ? (
+            <div className="mt-5 max-w-md space-y-4">
+              <div>
+                <label htmlFor="comp-name" className="block text-sm text-[#c9c5d8]">
+                  Nom et prénom
+                </label>
+                <input
+                  id="comp-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="mt-2 w-full border border-white/15 bg-black/40 px-4 py-3 text-white outline-none focus:border-[#00D936]"
+                />
+              </div>
+              <div>
+                <label htmlFor="comp-role" className="block text-sm text-[#c9c5d8]">
+                  En quelle qualité ? <span className="text-[#8d89a8]">(facultatif)</span>
+                </label>
+                <input
+                  id="comp-role"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  placeholder="Coach, parent, ami…"
+                  className="mt-2 w-full border border-white/15 bg-black/40 px-4 py-3 text-white outline-none focus:border-[#00D936]"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  disabled={busy || !name.trim()}
+                  onClick={() => void save()}
+                  className="inline-flex items-center gap-2 bg-[#00D936] px-5 py-2.5 font-bold text-[#07050b] disabled:opacity-50"
+                >
+                  {busy && <Loader2 className="animate-spin" size={16} aria-hidden />}
+                  Enregistrer
+                </button>
+                <button
+                  onClick={() => setEditing(false)}
+                  className="text-sm text-[#8d89a8] underline"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setEditing(true)}
+              className="mt-5 border border-white/20 px-5 py-2.5 hover:bg-white/10"
+            >
+              Déclarer un accompagnant
+            </button>
+          )}
+
+          {err && <p className="mt-3 text-sm text-red-300">{err}</p>}
+        </div>
       </div>
     </div>
   );

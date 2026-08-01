@@ -135,6 +135,14 @@ export interface ManiaCupRegistration {
   /** Version du règlement acceptée à l'inscription — trace opposable. */
   rulebookAccepted?: { version: number; at: unknown; byUid: string } | null;
   /**
+   * Accompagnant déclaré par le joueur. Il achète un billet « staff » sur
+   * HelloAsso, qui lui donne accès à la ZONE JOUEURS — contrairement à un
+   * spectateur. D'où l'obligation de le rattacher à un joueur identifié :
+   * l'accueil doit pouvoir dire qui accompagne qui, et un billet staff ne peut
+   * pas circuler librement.
+   */
+  companion?: { name: string; role: string; declaredAt?: unknown } | null;
+  /**
    * Code unique à reporter dans le champ personnalisé de la billetterie
    * HelloAsso. C'est lui qui permet de relier un paiement à une inscription :
    * l'e-mail ne suffit pas (un joueur peut payer avec l'adresse de ses parents).
