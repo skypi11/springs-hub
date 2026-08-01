@@ -4,11 +4,13 @@ import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { captureApiError } from '@/lib/sentry';
 import { isGuildMember } from '@/lib/discord-competition';
+import { canViewHiddenCompetition } from '@/lib/competitions/visibility';
 import { countries } from '@/lib/countries';
 import {
   MANIA_CUP,
   MANIA_CUP_REGISTRATIONS,
   springsGuildId,
+  isManiaCupPublic,
   ageAtEvent,
   needsGuardianConsent,
   generateRegistrationCode,
@@ -50,8 +52,13 @@ export async function GET(req: NextRequest) {
 
     const uid = await verifyAuth(req);
     if (!uid) {
-      return NextResponse.json({ authenticated: false, seats });
+      return NextResponse.json({ authenticated: false, visible: isManiaCupPublic(), seats });
     }
+
+    // Tant que l'événement n'est pas publié, seuls les admins et les comptes du
+    // bac à sable voient l'inscription — même porte que les compétitions en
+    // brouillon (canViewHiddenCompetition).
+    const visible = isManiaCupPublic() || (await canViewHiddenCompetition(db, uid));
 
     const [userSnap, regSnap] = await Promise.all([
       db.collection('users').doc(uid).get(),
@@ -75,6 +82,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       authenticated: true,
+      visible,
       seats,
       trackmania,
       discord: { id: discordId, inGuild },
@@ -95,6 +103,11 @@ export async function POST(req: NextRequest) {
 
     const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
     if (blocked) return blocked;
+
+    const db = getAdminDb();
+    if (!isManiaCupPublic() && !(await canViewHiddenCompetition(db, uid))) {
+      return NextResponse.json({ error: 'Les inscriptions ne sont pas ouvertes.' }, { status: 404 });
+    }
 
     const body = (await req.json().catch(() => null)) as {
       birthDate?: unknown;
@@ -127,7 +140,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const db = getAdminDb();
     const docRef = db.collection(MANIA_CUP_REGISTRATIONS).doc(uid);
     const [userSnap, existing] = await Promise.all([
       db.collection('users').doc(uid).get(),

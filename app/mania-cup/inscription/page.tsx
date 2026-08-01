@@ -21,6 +21,9 @@ import { MANIA_CUP, SPRINGS_DISCORD_INVITE, type ManiaCupRegistration } from '@/
 
 type Ctx = {
   authenticated: boolean;
+  /** Faux tant que l'événement n'est pas publié et que le visiteur n'est ni
+   *  admin ni compte du bac à sable. */
+  visible?: boolean;
   seats: { max: number; taken: number; remaining: number };
   trackmania?: { accountId: string; displayName: string } | null;
   discord?: { id: string | null; inGuild: boolean | null };
@@ -106,6 +109,40 @@ export default function InscriptionPage() {
           <Loader2 className="animate-spin" size={20} aria-hidden />
           Chargement…
         </div>
+      </Shell>
+    );
+  }
+
+  // Inscriptions fermées au public : même porte que les compétitions en
+  // brouillon. On l'annonce plutôt que de rendre un 404 sec — c'est une page
+  // dont l'adresse circulera avant l'ouverture.
+  if (ctx && ctx.visible === false) {
+    return (
+      <Shell>
+        <Link
+          href="/mania-cup"
+          className="inline-flex items-center gap-2 text-sm text-[#8d89a8] hover:text-white"
+        >
+          <ArrowLeft size={16} aria-hidden />
+          Retour à la présentation
+        </Link>
+        <h1 className="font-display mt-6 text-5xl leading-tight">
+          Les inscriptions ne sont pas encore ouvertes
+        </h1>
+        <p className="mt-4 text-lg text-[#c9c5d8]">
+          Elles ouvriront avec l’annonce officielle de la Springs Mania Cup.
+          Rejoins le Discord Springs E-Sport pour être prévenu le jour même —
+          il n’y aura que 64 places.
+        </p>
+        <a
+          href={SPRINGS_DISCORD_INVITE}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-8 inline-flex items-center gap-2 bg-[#5865F2] px-6 py-3 font-semibold text-white transition-opacity hover:opacity-90"
+        >
+          Rejoindre le Discord Springs
+          <ExternalLink size={16} aria-hidden />
+        </a>
       </Shell>
     );
   }

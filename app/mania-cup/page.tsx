@@ -3,8 +3,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import {
   Clock, MapPin, Monitor, Coffee, BedDouble, Trophy,
-  Ticket, ArrowRight, Lock,
+  Ticket, ArrowRight, Lock, EyeOff,
 } from 'lucide-react';
+import { isManiaCupPublic } from '@/lib/mania-cup';
 
 // Page publique de la Springs Mania Cup — LAN Trackmania des 3 et 4 octobre 2026.
 //
@@ -19,18 +20,25 @@ import {
 
 const INSCRIPTION_URL = '/mania-cup/inscription';
 
-export const metadata: Metadata = {
-  title: 'Springs Mania Cup — LAN Trackmania, 3 & 4 octobre 2026',
-  description:
-    "La première LAN Trackmania 100 % fast learn. 64 joueurs, plus de 40 maps inédites découvertes sur place, 8 épreuves, 1 200 € de cashprize. Les 3 et 4 octobre 2026 à Marzy (58).",
-  openGraph: {
-    title: 'Springs Mania Cup — LAN Trackmania',
+// Métadonnées dynamiques : tant que l'événement n'est pas publié, la page est
+// explicitement retirée des moteurs de recherche. Elle reste atteignable par
+// son adresse directe — c'est ce qui permet de la faire relire avant l'annonce.
+export async function generateMetadata(): Promise<Metadata> {
+  const published = isManiaCupPublic();
+  return {
+    title: 'Springs Mania Cup — LAN Trackmania, 3 & 4 octobre 2026',
     description:
-      "64 joueurs, +40 maps inédites, 8 épreuves, 1 200 € de cashprize. Ton talent, pas ton grind.",
-    images: ['/mania-cup/affiche.png'],
-    type: 'website',
-  },
-};
+      "La première LAN Trackmania 100 % fast learn. 64 joueurs, plus de 40 maps inédites découvertes sur place, 8 épreuves, 1 200 € de cashprize. Les 3 et 4 octobre 2026 à Marzy (58).",
+    robots: published ? undefined : { index: false, follow: false },
+    openGraph: {
+      title: 'Springs Mania Cup — LAN Trackmania',
+      description:
+        "64 joueurs, +40 maps inédites, 8 épreuves, 1 200 € de cashprize. Ton talent, pas ton grind.",
+      images: ['/mania-cup/affiche.png'],
+      type: 'website',
+    },
+  };
+}
 
 const STATS = [
   { value: '2', label: 'jours de LAN' },
@@ -76,8 +84,19 @@ const PRATIQUE = [
 ];
 
 export default function ManiaCupPage() {
+  const published = isManiaCupPublic();
+
   return (
     <main className="min-h-screen bg-[#07050b] text-[#eaeaf0]">
+
+      {/* Visible tant que MANIA_CUP_PUBLIC n'est pas passé à true. */}
+      {!published && (
+        <div className="flex items-center justify-center gap-3 bg-[#FFB800] px-6 py-3 text-center text-sm font-semibold text-[#07050b]">
+          <EyeOff size={16} aria-hidden />
+          Page non publiée — accessible par lien direct, retirée des moteurs de
+          recherche, inscriptions fermées au public.
+        </div>
+      )}
 
       {/* ---------------- HERO ---------------- */}
       <section className="relative overflow-hidden border-b border-white/10">

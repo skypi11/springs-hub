@@ -43,6 +43,20 @@ export function springsGuildId(): string {
  *  encore. Lien public : aucune raison d'en faire une variable d'environnement. */
 export const SPRINGS_DISCORD_INVITE = 'https://discord.gg/xyAr9h45eu';
 
+/**
+ * L'événement est-il ouvert au public ? Même logique que le brouillon d'une
+ * compétition Legends (`isCompetitionHidden`) : tant que c'est faux, les pages
+ * ne sont pas indexées et PERSONNE ne peut s'inscrire, hormis les admins et les
+ * comptes du bac à sable — ce qui permet de tout éprouver sur aedral.com, seul
+ * domaine où les retours OAuth Discord et Trackmania sont déclarés.
+ *
+ * Bascule : variable d'environnement `MANIA_CUP_PUBLIC=true` sur Vercel, suivie
+ * d'un redéploiement. Aucun code à toucher le jour de l'annonce.
+ */
+export function isManiaCupPublic(): boolean {
+  return process.env.MANIA_CUP_PUBLIC === 'true';
+}
+
 export type RegistrationStatus =
   /** Inscrit sur le site, en attente du règlement HelloAsso. */
   | 'pending_payment'
