@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   CheckCircle2, Circle, Loader2, AlertTriangle, ExternalLink,
-  Ticket, ArrowLeft, ShieldCheck, Upload, FileCheck, UserPlus, Trash2,
+  Ticket, ArrowLeft, ShieldCheck, Upload, FileCheck, UserPlus, Trash2, Hourglass,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api, apiPublic, apiForm, ApiError } from '@/lib/api-client';
@@ -438,46 +438,79 @@ function Recap({ reg, onReload }: { reg: ManiaCupRegistration; onReload: () => v
 // encore. Cette bande le dit en une ligne — c'est elle qui évite d'avoir à
 // relancer les gens un par un.
 
+// Trois états, pas deux : ce qui est fait, ce que le JOUEUR doit faire, et ce
+// qui ne dépend plus de lui. Un dossier parental déposé et en attente de
+// relecture n'est pas une tâche en retard — le compter comme telle laisserait
+// croire au joueur qu'il traîne alors qu'il a tout fourni.
+type ChecklistItem = { state: 'done' | 'todo' | 'waiting'; label: string };
+
 function Checklist({ reg }: { reg: ManiaCupRegistration }) {
-  const items: { done: boolean; label: string }[] = [
-    { done: true, label: 'Inscription déposée' },
-    { done: reg.status === 'confirmed', label: `Règlement de ${MANIA_CUP.priceEuros} €` },
+  const items: ChecklistItem[] = [
+    { state: 'done', label: 'Inscription déposée' },
+    {
+      state: reg.status === 'confirmed' ? 'done' : 'todo',
+      label: `Règlement de ${MANIA_CUP.priceEuros} €`,
+    },
   ];
   if (reg.guardianConsent !== 'not_required') {
-    items.push({
-      done: reg.guardianConsent === 'approved',
-      label:
-        reg.guardianConsent === 'pending_review'
-          ? 'Dossier parental — en cours de relecture'
+    items.push(
+      reg.guardianConsent === 'approved'
+        ? { state: 'done', label: 'Dossier parental validé' }
+        : reg.guardianConsent === 'pending_review'
+          ? {
+              state: 'waiting',
+              label: 'Dossier parental — en attente de validation par l’organisation',
+            }
           : reg.guardianConsent === 'rejected'
-            ? 'Dossier parental — à corriger'
-            : 'Dossier parental — pièces à déposer',
-    });
+            ? { state: 'todo', label: 'Dossier parental — à corriger' }
+            : { state: 'todo', label: 'Dossier parental — pièces à déposer' }
+    );
   }
 
-  const left = items.filter((i) => !i.done).length;
-  const allDone = left === 0;
+  const left = items.filter((i) => i.state === 'todo').length;
+  const allDone = items.every((i) => i.state === 'done');
 
   return (
     <div
       className={`border p-6 ${
-        allDone ? 'border-[#00D936]/40 bg-[#00D936]/[0.08]' : 'border-[#FFB800]/40 bg-[#FFB800]/[0.08]'
+        allDone
+          ? 'border-[#00D936]/40 bg-[#00D936]/[0.08]'
+          : left === 0
+            ? 'border-[#a364d9]/40 bg-[#7B2FBE]/[0.10]'
+            : 'border-[#FFB800]/40 bg-[#FFB800]/[0.08]'
       }`}
     >
       <h2 className="font-display text-2xl">
         {allDone
           ? 'Ta place est acquise'
-          : `Il te reste ${left} chose${left > 1 ? 's' : ''} à faire`}
+          : left === 0
+            ? 'Rien à faire de ton côté'
+            : `Il te reste ${left} chose${left > 1 ? 's' : ''} à faire`}
       </h2>
+      {left === 0 && !allDone && (
+        <p className="mt-2 text-[#c9c5d8]">
+          L’organisation traite ton dossier, tu seras prévenu.
+        </p>
+      )}
       <ul className="mt-4 space-y-2">
         {items.map((it) => (
           <li key={it.label} className="flex items-center gap-3">
-            {it.done ? (
+            {it.state === 'done' ? (
               <CheckCircle2 size={18} className="shrink-0 text-[#00D936]" aria-hidden />
+            ) : it.state === 'waiting' ? (
+              <Hourglass size={18} className="shrink-0 text-[#a364d9]" aria-hidden />
             ) : (
               <Circle size={18} className="shrink-0 text-[#FFB800]" aria-hidden />
             )}
-            <span className={it.done ? 'text-[#8d89a8] line-through' : 'text-white'}>
+            <span
+              className={
+                it.state === 'done'
+                  ? 'text-[#8d89a8] line-through'
+                  : it.state === 'waiting'
+                    ? 'text-[#c9c5d8]'
+                    : 'text-white'
+              }
+            >
               {it.label}
             </span>
           </li>

@@ -32,10 +32,19 @@ import {
 // GET  — état du dossier du visiteur + places restantes (sert à peindre la page)
 // POST — dépôt ou mise à jour de l'inscription
 
+/**
+ * Places reellement prises = inscriptions REGLEES, et elles seules.
+ *
+ * Compter les inscriptions en attente de paiement bloquerait des places pour
+ * des gens qui ne paieront peut-etre jamais : l'evenement afficherait complet
+ * avec des sieges vides. Conforme au reglement, ou les places sont attribuees
+ * par ordre de reglement. Tant qu'il reste des places, on accepte de nouvelles
+ * inscriptions, meme si plus de 64 dossiers sont ouverts.
+ */
 async function countTakenSeats(db: FirebaseFirestore.Firestore): Promise<number> {
   const snap = await db
     .collection(MANIA_CUP_REGISTRATIONS)
-    .where('status', 'in', ['pending_payment', 'confirmed'])
+    .where('status', '==', 'confirmed')
     .count()
     .get();
   return snap.data().count;
@@ -214,7 +223,10 @@ export async function POST(req: NextRequest) {
       const taken = await countTakenSeats(db);
       if (taken >= MANIA_CUP.maxPlayers) {
         return NextResponse.json(
-          { error: 'Les 64 places sont prises. Contacte l’organisation pour la liste d’attente.' },
+          {
+          error:
+            'Les 64 places sont réglées, l’événement est complet. Contacte l’organisation sur le Discord Springs pour la liste d’attente.',
+        },
           { status: 409 }
         );
       }

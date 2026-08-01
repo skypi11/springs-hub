@@ -372,7 +372,7 @@ export default function ManiaCupPage() {
               <iframe
                 title="Plan d’accès à la salle"
                 src="https://www.openstreetmap.org/export/embed.html?bbox=3.0782%2C46.9751%2C3.1082%2C46.9901&layer=mapnik&marker=46.9826369%2C3.0932185"
-                className="h-[380px] w-full"
+                className="block h-[380px] w-full border-0"
                 loading="lazy"
               />
             </div>
@@ -382,55 +382,29 @@ export default function ManiaCupPage() {
 
       {/* ---------------- SPECTATEURS ---------------- */}
       <section id="spectateurs" className="scroll-mt-20 border-t border-white/10">
-        <div className="mx-auto max-w-4xl px-6 py-20">
-          <div className="flex items-center gap-4">
-            <Users size={30} className="text-[#a364d9]" aria-hidden />
-            <h2 className="font-display text-4xl leading-tight sm:text-5xl">
-              Venir en spectateur
-            </h2>
-          </div>
-
-          <p className="mt-7 text-lg leading-relaxed text-[#c9c5d8]">
-            L’événement est ouvert au public. Une scène et un plateau accueillent les
-            présentateurs et les casteurs : on suit la compétition en direct, commentée,
-            dans la salle où elle se joue.
-          </p>
-
-          <div className="mt-8 grid gap-4 sm:grid-cols-3">
-            <div className="border border-white/10 bg-white/[0.02] p-6">
-              <div className="font-display text-4xl">{MANIA_CUP.spectatorDayEuros} €</div>
-              <div className="mt-1 text-sm text-[#8d89a8]">la journée</div>
+        <div className="mx-auto max-w-4xl px-6 py-16">
+          <div className="flex flex-wrap items-center justify-between gap-6">
+            <div className="min-w-0">
+              <div className="flex items-center gap-4">
+                <Users size={28} className="text-[#a364d9]" aria-hidden />
+                <h2 className="font-display text-3xl leading-tight sm:text-4xl">
+                  Tu peux aussi venir regarder
+                </h2>
+              </div>
+              <p className="mt-4 max-w-xl leading-relaxed text-[#c9c5d8]">
+                L’événement est ouvert au public : une scène, un plateau commenté en
+                direct, et la compétition qui se joue devant toi. À partir de{' '}
+                <strong className="text-white">{MANIA_CUP.spectatorDayEuros} €</strong>,
+                gratuit pour les moins de 12 ans. Aucun compte à créer.
+              </p>
             </div>
-            <div className="border border-[#a364d9]/40 bg-[#7B2FBE]/10 p-6">
-              <div className="font-display text-4xl">{MANIA_CUP.spectatorTwoDaysEuros} €</div>
-              <div className="mt-1 text-sm text-[#c9c5d8]">les deux jours</div>
-            </div>
-            <div className="border border-white/10 bg-white/[0.02] p-6">
-              <div className="font-display text-4xl text-[#00D936]">Gratuit</div>
-              <div className="mt-1 text-sm text-[#8d89a8]">moins de 12 ans</div>
-            </div>
-          </div>
-
-          <p className="mt-6 text-sm text-[#8d89a8]">
-            Billets spectateurs sur la billetterie HelloAsso de Springs E-Sport. Aucun
-            compte n’est nécessaire : la place de spectateur ne demande pas d’inscription
-            sur le site.
-          </p>
-
-          <div className="mt-10 border-l-4 border-[#00D936] bg-white/[0.03] p-6">
-            <h3 className="font-display text-2xl">
-              Accompagner un joueur — {MANIA_CUP.companionEuros} €
-            </h3>
-            <p className="mt-3 leading-relaxed text-[#c9c5d8]">
-              Un billet spectateur donne accès à la salle, pas à la zone de jeu. Pour
-              rester aux côtés d’un joueur — coach, parent, ami — il faut un{' '}
-              <strong className="text-white">billet accompagnant</strong>, qui ouvre
-              l’accès à la zone joueurs.
-            </p>
-            <p className="mt-3 text-sm text-[#8d89a8]">
-              Le joueur déclare son accompagnant depuis son espace d’inscription, puis
-              celui-ci prend son billet sur HelloAsso. Un accompagnant par joueur.
-            </p>
+            <Link
+              href="/mania-cup/spectateurs"
+              className="inline-flex shrink-0 items-center gap-2 border border-[#a364d9]/50 px-6 py-3 font-semibold transition-colors hover:bg-[#7B2FBE]/20"
+            >
+              Tarifs et infos spectateurs
+              <ArrowRight size={18} aria-hidden />
+            </Link>
           </div>
         </div>
       </section>

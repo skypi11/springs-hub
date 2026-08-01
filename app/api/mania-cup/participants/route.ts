@@ -58,7 +58,9 @@ export async function GET(req: NextRequest) {
         confirmed,
         pending: participants.length - confirmed,
         max: MANIA_CUP.maxPlayers,
-        seatsLeft: Math.max(0, MANIA_CUP.maxPlayers - participants.length),
+        // Seules les inscriptions réglées consomment une place : une inscription
+        // jamais payée ne doit pas priver quelqu'un d'autre de venir.
+        seatsLeft: Math.max(0, MANIA_CUP.maxPlayers - confirmed),
       },
     });
   } catch (err) {
