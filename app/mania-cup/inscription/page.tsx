@@ -475,9 +475,11 @@ function Companion({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => v
           <h3 className="font-display text-2xl">Tu viens accompagné ?</h3>
           <p className="mt-2 text-[#c9c5d8]">
             Une personne peut t’accompagner dans la zone joueurs — coach, parent, ami.
-            Elle doit être déclarée ici et prendre un <strong className="text-white">billet
-            staff</strong> sur HelloAsso : un billet spectateur ne donne pas accès à cette
-            zone.
+            Elle doit être déclarée ici et prendre un{' '}
+            <strong className="text-white">
+              billet accompagnant à {MANIA_CUP.companionEuros} €
+            </strong>{' '}
+            sur HelloAsso : un billet spectateur ne donne pas accès à cette zone.
           </p>
 
           {existing && !editing ? (

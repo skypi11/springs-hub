@@ -5,7 +5,7 @@ import {
   Clock, MapPin, Monitor, Coffee, BedDouble, Trophy,
   Ticket, ArrowRight, Lock, EyeOff, Users,
 } from 'lucide-react';
-import { isManiaCupPublic } from '@/lib/mania-cup';
+import { isManiaCupPublic, MANIA_CUP } from '@/lib/mania-cup';
 
 // Page publique de la Springs Mania Cup — LAN Trackmania des 3 et 4 octobre 2026.
 //
@@ -325,11 +325,11 @@ export default function ManiaCupPage() {
 
           <div className="mt-8 grid gap-4 sm:grid-cols-3">
             <div className="border border-white/10 bg-white/[0.02] p-6">
-              <div className="font-display text-4xl">10 €</div>
+              <div className="font-display text-4xl">{MANIA_CUP.spectatorDayEuros} €</div>
               <div className="mt-1 text-sm text-[#8d89a8]">la journée</div>
             </div>
             <div className="border border-[#a364d9]/40 bg-[#7B2FBE]/10 p-6">
-              <div className="font-display text-4xl">15 €</div>
+              <div className="font-display text-4xl">{MANIA_CUP.spectatorTwoDaysEuros} €</div>
               <div className="mt-1 text-sm text-[#c9c5d8]">les deux jours</div>
             </div>
             <div className="border border-white/10 bg-white/[0.02] p-6">
@@ -343,6 +343,22 @@ export default function ManiaCupPage() {
             compte n’est nécessaire : la place de spectateur ne demande pas d’inscription
             sur le site.
           </p>
+
+          <div className="mt-10 border-l-4 border-[#00D936] bg-white/[0.03] p-6">
+            <h3 className="font-display text-2xl">
+              Accompagner un joueur — {MANIA_CUP.companionEuros} €
+            </h3>
+            <p className="mt-3 leading-relaxed text-[#c9c5d8]">
+              Un billet spectateur donne accès à la salle, pas à la zone de jeu. Pour
+              rester aux côtés d’un joueur — coach, parent, ami — il faut un{' '}
+              <strong className="text-white">billet accompagnant</strong>, qui ouvre
+              l’accès à la zone joueurs.
+            </p>
+            <p className="mt-3 text-sm text-[#8d89a8]">
+              Le joueur déclare son accompagnant depuis son espace d’inscription, puis
+              celui-ci prend son billet sur HelloAsso. Un accompagnant par joueur.
+            </p>
+          </div>
         </div>
       </section>
 

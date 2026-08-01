@@ -17,6 +17,12 @@ export const MANIA_CUP = {
   maxPlayers: 64,
   priceEuros: 30,
   prizePoolEuros: 1200,
+  /** Billets vendus sur la billetterie HelloAsso, hors inscription joueur.
+   *  Le billet accompagnant (« staff ») donne accès à la ZONE JOUEURS, ce qui
+   *  le distingue d'un billet spectateur — d'où son tarif propre. */
+  spectatorDayEuros: 10,
+  spectatorTwoDaysEuros: 15,
+  companionEuros: 20,
   /** Âge minimum, apprécié au PREMIER JOUR de la LAN et non à l'inscription :
    *  un joueur qui a 15 ans en août mais 16 ans fin septembre peut venir. */
   minAge: 16,
