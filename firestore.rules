@@ -577,5 +577,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── Springs Mania Cup — contenus éditoriaux (FAQ) ──────────────────────────
+    // Servis publiquement par /api/mania-cup/faq et édités par les admins de
+    // compétition via la console. Aucun accès client direct : l'API contrôle qui
+    // écrit, et la lecture passe par elle pour rester alignée sur le reste.
+    match /mania_cup_content/{doc} {
+      allow read, write: if false;
+    }
+
   }
 }

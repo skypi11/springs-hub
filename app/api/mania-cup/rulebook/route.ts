@@ -5,7 +5,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { getRulebookByScope } from '@/lib/competitions/rulebooks';
 import { MANIA_CUP_DOCS } from '@/lib/mania-cup';
 
-// GET /api/mania-cup/rulebook[?doc=faq] — textes publics de la Mania Cup.
+// GET /api/mania-cup/rulebook — règlement public de la Mania Cup.
 //
 // PUBLIC et sans compte : un joueur doit pouvoir lire ce à quoi il s'engage
 // AVANT de créer un compte. Aucune raison de gater ce texte derrière le drapeau
@@ -15,10 +15,7 @@ export async function GET(req: NextRequest) {
   if (blocked) return blocked;
 
   try {
-    const doc = req.nextUrl.searchParams.get('doc') === 'faq'
-      ? MANIA_CUP_DOCS.faq
-      : MANIA_CUP_DOCS.rules;
-    const rulebook = await getRulebookByScope(getAdminDb(), { eventSlug: doc });
+    const rulebook = await getRulebookByScope(getAdminDb(), { eventSlug: MANIA_CUP_DOCS.rules });
     return NextResponse.json({ rulebook });
   } catch (err) {
     captureApiError('mania-cup/rulebook:GET', err);

@@ -1,27 +1,28 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
-import { HelpCircle, Loader2 } from 'lucide-react';
+import { HelpCircle, Loader2, ChevronDown } from 'lucide-react';
 import { apiPublic } from '@/lib/api-client';
-import { MANIA_CUP } from '@/lib/mania-cup';
+import { MANIA_CUP, SPRINGS_DISCORD_INVITE } from '@/lib/mania-cup';
+import type { FaqItem } from '@/lib/mania-cup-faq';
 
-// FAQ publique de la Springs Mania Cup.
+// FAQ publique, en accordéon.
 //
-// Même mécanique que le règlement — texte en base, éditable depuis la console,
-// versionné. Une FAQ vit précisément par ses corrections : chaque question
-// posée deux fois sur le Discord doit pouvoir y atterrir le jour même.
-
-type Rulebook = { markdown: string; version: number; updatedAt: string | null } | null;
+// Les réponses sont repliées par défaut : une FAQ se parcourt en balayant les
+// questions, pas en lisant un mur de texte. Construite sur <details>/<summary>
+// natifs — ils fonctionnent au clavier, sont correctement annoncés par les
+// lecteurs d'écran, et s'ouvrent même si le JavaScript n'a pas chargé.
 
 export default function FaqPage() {
-  const [rulebook, setRulebook] = useState<Rulebook>(null);
+  const [items, setItems] = useState<FaqItem[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiPublic<{ rulebook: Rulebook }>('/api/mania-cup/rulebook?doc=faq')
-      .then((d) => setRulebook(d.rulebook))
-      .catch(() => setRulebook(null))
+    apiPublic<{ items: FaqItem[] }>('/api/mania-cup/faq')
+      .then((d) => setItems(d.items))
+      .catch(() => setItems([]))
       .finally(() => setLoading(false));
   }, []);
 
@@ -41,51 +42,64 @@ export default function FaqPage() {
             <Loader2 className="animate-spin" size={20} aria-hidden />
             Chargement…
           </div>
-        ) : !rulebook ? (
+        ) : !items || items.length === 0 ? (
           <p className="mt-12 text-[#8d89a8]">
-            Aucune question n’a encore été publiée. Pose les tiennes sur le Discord
+            Aucune question publiée pour l’instant. Pose les tiennes sur le Discord
             Springs E-Sport, les réponses arriveront ici.
           </p>
         ) : (
-          <>
-            <p className="mt-8 text-sm text-[#8d89a8]">
-              Version {rulebook.version}
-              {rulebook.updatedAt && (
-                <> · mise à jour le {new Date(rulebook.updatedAt).toLocaleDateString('fr-FR')}</>
-              )}
-            </p>
-            <article className="mania-faq mt-8">
-              <ReactMarkdown>{rulebook.markdown}</ReactMarkdown>
-            </article>
-          </>
+          <div className="mt-10 border-t border-white/10">
+            {items.map((it, i) => (
+              <details key={`${i}-${it.q}`} className="group border-b border-white/10">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-left transition-colors hover:text-white">
+                  <span className="text-lg font-semibold">{it.q}</span>
+                  <ChevronDown
+                    size={20}
+                    className="shrink-0 text-[#8d89a8] transition-transform group-open:rotate-180"
+                    aria-hidden
+                  />
+                </summary>
+                <div className="faq-answer pr-10 pb-6">
+                  <ReactMarkdown>{it.a}</ReactMarkdown>
+                </div>
+              </details>
+            ))}
+          </div>
         )}
+
+        <div className="mt-14 border-t border-white/10 pt-8">
+          <p className="text-[#c9c5d8]">
+            Ta question n’y est pas ?{' '}
+            <a
+              href={SPRINGS_DISCORD_INVITE}
+              target="_blank"
+              rel="noreferrer"
+              className="text-[#00D936] underline"
+            >
+              Pose-la sur le Discord Springs E-Sport
+            </a>{' '}
+            — si elle revient, elle atterrira ici.
+          </p>
+          <p className="mt-4 text-sm text-[#8d89a8]">
+            Les conditions officielles de participation figurent dans le{' '}
+            <Link href="/mania-cup/reglement" className="text-[#a364d9] underline">
+              règlement
+            </Link>
+            .
+          </p>
+        </div>
       </div>
 
-      {/* Mise en forme du markdown : les balises viennent de ReactMarkdown, on
-          ne peut pas leur poser de classes une par une. */}
+      {/* Le markdown des réponses vient de ReactMarkdown : impossible de poser
+          des classes balise par balise. */}
       <style>{`
-        .mania-faq h2 {
-          font-family: var(--font-bebas), system-ui, sans-serif;
-          letter-spacing: .04em;
-          font-size: 2rem;
-          margin: 2.5rem 0 .75rem;
-          color: #fff;
-        }
-        .mania-faq h3 {
-          font-size: 1.15rem; font-weight: 600; margin: 1.75rem 0 .5rem; color: #fff;
-        }
-        .mania-faq p { margin: .85rem 0; line-height: 1.75; color: #c9c5d8; }
-        .mania-faq ul { margin: .85rem 0; padding-left: 1.4rem; list-style: disc; }
-        .mania-faq li { margin: .4rem 0; line-height: 1.7; color: #c9c5d8; }
-        .mania-faq strong { color: #fff; }
-        .mania-faq blockquote {
-          border-left: 3px solid #FFB800;
-          background: rgba(255,184,0,.08);
-          padding: .75rem 1.25rem;
-          margin: 1.25rem 0;
-          color: #f2e6c8;
-        }
-        .mania-faq a { color: #00D936; text-decoration: underline; }
+        .faq-answer p { margin: 0 0 .75rem; line-height: 1.75; color: #c9c5d8; }
+        .faq-answer p:last-child { margin-bottom: 0; }
+        .faq-answer strong { color: #fff; }
+        .faq-answer ul { margin: .5rem 0; padding-left: 1.3rem; list-style: disc; }
+        .faq-answer li { margin: .3rem 0; line-height: 1.7; color: #c9c5d8; }
+        .faq-answer a { color: #00D936; text-decoration: underline; }
+        details summary::-webkit-details-marker { display: none; }
       `}</style>
     </main>
   );

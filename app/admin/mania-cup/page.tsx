@@ -10,6 +10,7 @@ import CountryFlag from '@/components/ui/CountryFlag';
 import { countries } from '@/lib/countries';
 import MarkdownEditor from '@/components/ui/MarkdownEditor';
 import { LIMITS } from '@/lib/validation';
+import FaqEditor from '@/components/mania-cup/FaqEditor';
 import { MANIA_CUP, MANIA_CUP_DOCS, GUARDIAN_DOC_KINDS, GUARDIAN_DOC_LABELS } from '@/lib/mania-cup';
 
 // Console d'organisation de la Springs Mania Cup.
@@ -125,12 +126,7 @@ export default function AdminManiaCupPage() {
         publicHref="/mania-cup/reglement"
         note="Publier une nouvelle version archive la précédente. Les joueurs déjà inscrits gardent la trace de celle qu’ils ont acceptée ; les suivants devront accepter la nouvelle."
       />
-      <RulebookPanel
-        slug={MANIA_CUP_DOCS.faq}
-        title="Questions fréquentes"
-        publicHref="/mania-cup/faq"
-        note="Chaque question posée deux fois sur le Discord mérite d’atterrir ici. Aucune acceptation n’y est liée : tu peux corriger librement."
-      />
+      <FaqEditor />
 
       {rows.length === 0 ? (
         <p className="mt-10" style={{ color: 'var(--s-text-dim)' }}>
