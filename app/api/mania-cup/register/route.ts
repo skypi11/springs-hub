@@ -6,6 +6,7 @@ import { captureApiError } from '@/lib/sentry';
 import { isGuildMember } from '@/lib/discord-competition';
 import { canViewHiddenCompetition } from '@/lib/competitions/visibility';
 import { countries } from '@/lib/countries';
+import { deleteFileSilent } from '@/lib/storage';
 import { getRulebookByScope } from '@/lib/competitions/rulebooks';
 import {
   MANIA_CUP,
@@ -231,7 +232,9 @@ export async function POST(req: NextRequest) {
       countryCode,
       // Le statut est piloté par le paiement (webhook HelloAsso) et par la
       // relecture de l'autorisation parentale — jamais par le formulaire.
-      status: prev?.status ?? 'pending_payment',
+      // Une inscription retirée puis reprise repart à zéro : sans ça elle
+      // resterait 'cancelled' et ne compterait jamais dans la jauge.
+      status: prev?.status && prev.status !== 'cancelled' ? prev.status : 'pending_payment',
       guardianConsent: guardianNeeded
         ? prev?.guardianConsent && prev.guardianConsent !== 'not_required'
           ? prev.guardianConsent
@@ -248,6 +251,63 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ registration: saved.data() });
   } catch (err) {
     captureApiError('mania-cup/register:POST', err);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+  }
+}
+
+// ── DELETE : le joueur retire son inscription ────────────────────────────────
+//
+// Possible tant que le règlement n'est pas encaissé. Une fois payé, le retrait
+// passe par l'organisation : il y a un remboursement à traiter, ce n'est plus
+// une simple annulation.
+//
+// L'inscription n'est pas effacée mais passée en `cancelled` : la trace reste
+// (utile en cas de litige sur un paiement), et la place est immédiatement
+// rendue à la jauge, qui ne compte que `pending_payment` et `confirmed`.
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const uid = await verifyAuth(req);
+    if (!uid) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+
+    const blocked = await checkRateLimit(limiters.write, rateLimitKey(req, uid));
+    if (blocked) return blocked;
+
+    const db = getAdminDb();
+    const docRef = db.collection(MANIA_CUP_REGISTRATIONS).doc(uid);
+    const snap = await docRef.get();
+    if (!snap.exists) {
+      return NextResponse.json({ error: 'Aucune inscription à retirer.' }, { status: 404 });
+    }
+
+    const reg = snap.data() as ManiaCupRegistration;
+    if (reg.status === 'confirmed') {
+      return NextResponse.json(
+        {
+          error:
+            'Ton inscription est déjà réglée. Contacte l’organisation sur le Discord Springs pour l’annuler et demander un remboursement.',
+        },
+        { status: 409 }
+      );
+    }
+
+    // Les pièces d'un dossier retiré n'ont plus de raison d'être conservées :
+    // on ne garde pas les papiers d'identité de quelqu'un qui ne vient plus.
+    const keys = Object.values(reg.guardianDocs ?? {})
+      .map((d) => d?.key)
+      .filter((k): k is string => Boolean(k));
+    for (const key of keys) await deleteFileSilent(key);
+
+    await docRef.update({
+      status: 'cancelled',
+      guardianDocs: FieldValue.delete(),
+      guardianConsent: 'not_required',
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    captureApiError('mania-cup/register:DELETE', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

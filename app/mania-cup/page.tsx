@@ -3,7 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import {
   Clock, MapPin, Monitor, Coffee, BedDouble, Trophy,
-  Ticket, ArrowRight, Lock, EyeOff,
+  Ticket, ArrowRight, Lock, EyeOff, Users,
 } from 'lucide-react';
 import { isManiaCupPublic } from '@/lib/mania-cup';
 
@@ -303,6 +303,45 @@ export default function ManiaCupPage() {
           <p className="mt-8 text-sm text-[#8d89a8]">
             L’inscription de 30 € couvre uniquement ta participation à la compétition.
             Restauration, boissons et hébergement restent à ta charge.
+          </p>
+        </div>
+      </section>
+
+      {/* ---------------- SPECTATEURS ---------------- */}
+      <section className="border-t border-white/10">
+        <div className="mx-auto max-w-4xl px-6 py-20">
+          <div className="flex items-center gap-4">
+            <Users size={30} className="text-[#a364d9]" aria-hidden />
+            <h2 className="font-display text-4xl leading-tight sm:text-5xl">
+              Venir en spectateur
+            </h2>
+          </div>
+
+          <p className="mt-7 text-lg leading-relaxed text-[#c9c5d8]">
+            L’événement est ouvert au public. Une scène et un plateau accueillent les
+            présentateurs et les casteurs : on suit la compétition en direct, commentée,
+            dans la salle où elle se joue.
+          </p>
+
+          <div className="mt-8 grid gap-4 sm:grid-cols-3">
+            <div className="border border-white/10 bg-white/[0.02] p-6">
+              <div className="font-display text-4xl">10 €</div>
+              <div className="mt-1 text-sm text-[#8d89a8]">la journée</div>
+            </div>
+            <div className="border border-[#a364d9]/40 bg-[#7B2FBE]/10 p-6">
+              <div className="font-display text-4xl">15 €</div>
+              <div className="mt-1 text-sm text-[#c9c5d8]">les deux jours</div>
+            </div>
+            <div className="border border-white/10 bg-white/[0.02] p-6">
+              <div className="font-display text-4xl text-[#00D936]">Gratuit</div>
+              <div className="mt-1 text-sm text-[#8d89a8]">moins de 12 ans</div>
+            </div>
+          </div>
+
+          <p className="mt-6 text-sm text-[#8d89a8]">
+            Billets spectateurs sur la billetterie HelloAsso de Springs E-Sport. Aucun
+            compte n’est nécessaire : la place de spectateur ne demande pas d’inscription
+            sur le site.
           </p>
         </div>
       </section>
