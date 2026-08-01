@@ -194,7 +194,10 @@ export default function InscriptionPage() {
         <p className="mt-2 text-[#8d89a8]">
           <strong className="text-[#00D936]">{seats.remaining}</strong> place
           {seats.remaining > 1 ? 's' : ''} restante{seats.remaining > 1 ? 's' : ''} sur{' '}
-          {seats.max}
+          {seats.max} ·{' '}
+          <Link href="/mania-cup/inscrits" className="text-[#a364d9] underline">
+            voir les inscrits
+          </Link>
         </p>
       )}
 

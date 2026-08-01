@@ -364,9 +364,12 @@ export default function ManiaCupPage() {
             L’inscription se fait ici, le paiement sur HelloAsso. Ta place n’est
             confirmée qu’une fois le règlement reçu.
           </p>
-          <p className="mt-4">
+          <p className="mt-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+            <Link href="/mania-cup/inscrits" className="text-[#a364d9] underline">
+              Voir les inscrits
+            </Link>
             <Link href="/mania-cup/reglement" className="text-[#a364d9] underline">
-              Lire le règlement de la compétition
+              Lire le règlement
             </Link>
           </p>
           <Link
