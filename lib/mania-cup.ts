@@ -59,6 +59,13 @@ export const SPRINGS_DISCORD_INVITE = 'https://discord.gg/xyAr9h45eu';
  * Bascule : variable d'environnement `MANIA_CUP_PUBLIC=true` sur Vercel, suivie
  * d'un redéploiement. Aucun code à toucher le jour de l'annonce.
  */
+/** Documents éditoriaux de l'événement, stockés dans `rulebooks` et édités
+ *  depuis la console. Deux textes, un seul système : rien de neuf à maintenir. */
+export const MANIA_CUP_DOCS = {
+  rules: MANIA_CUP.slug,
+  faq: `${MANIA_CUP.slug}-faq`,
+} as const;
+
 export function isManiaCupPublic(): boolean {
   return process.env.MANIA_CUP_PUBLIC === 'true';
 }

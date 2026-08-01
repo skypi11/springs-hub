@@ -3,9 +3,10 @@ import Image from 'next/image';
 import Link from 'next/link';
 import {
   Clock, MapPin, Monitor, Coffee, BedDouble, Trophy,
-  Ticket, ArrowRight, Lock, EyeOff, Users,
+  Ticket, ArrowRight, Lock, EyeOff, Users, TrainFront, Car, ExternalLink,
 } from 'lucide-react';
 import { isManiaCupPublic, MANIA_CUP } from '@/lib/mania-cup';
+import HeroStatus from '@/components/mania-cup/HeroStatus';
 
 // Page publique de la Springs Mania Cup — LAN Trackmania des 3 et 4 octobre 2026.
 //
@@ -75,11 +76,6 @@ const PRATIQUE = [
     icon: BedDouble,
     title: 'Hébergement',
     text: "Un tarif préférentiel a été négocié avec ibis budget pour les joueurs qui viennent de loin. Le montant de la remise et les modalités de réservation seront communiqués ici avant l’événement.",
-  },
-  {
-    icon: MapPin,
-    title: 'Venir à Marzy',
-    text: "19 rue des Charrons, 58180 Marzy — dans l’agglomération de Nevers. Les infos d’accès détaillées sont envoyées à tous les inscrits.",
   },
 ];
 
@@ -152,7 +148,9 @@ export default function ManiaCupPage() {
               </span>
             </div>
 
-            <div className="mt-10 flex flex-wrap items-center gap-5">
+            <HeroStatus />
+
+            <div className="mt-8 flex flex-wrap items-center gap-5">
               <Link
                 href={INSCRIPTION_URL}
                 className="inline-flex items-center gap-2 bg-[#00D936] px-7 py-4 text-lg font-bold text-[#07050b] transition-transform hover:scale-[1.03]"
@@ -307,8 +305,83 @@ export default function ManiaCupPage() {
         </div>
       </section>
 
-      {/* ---------------- SPECTATEURS ---------------- */}
+      {/* ---------------- ACCÈS ---------------- */}
       <section className="border-t border-white/10">
+        <div className="mx-auto max-w-6xl px-6 py-20">
+          <div className="flex items-center gap-4">
+            <MapPin size={30} className="text-[#a364d9]" aria-hidden />
+            <h2 className="font-display text-4xl leading-tight sm:text-5xl">
+              Comment venir
+            </h2>
+          </div>
+
+          <div className="mt-10 grid gap-10 lg:grid-cols-[1fr_1.1fr]">
+            <div>
+              <div className="text-xs tracking-[0.24em] text-[#8d89a8] uppercase">
+                Adresse
+              </div>
+              <p className="mt-2 text-2xl leading-snug">
+                {MANIA_CUP.address}
+              </p>
+
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(MANIA_CUP.address)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-5 inline-flex items-center gap-2 border border-white/20 px-5 py-3 transition-colors hover:bg-white/10"
+              >
+                Ouvrir l’itinéraire
+                <ExternalLink size={16} aria-hidden />
+              </a>
+
+              <div className="mt-10 space-y-6">
+                <div className="flex gap-4">
+                  <TrainFront size={22} className="mt-0.5 shrink-0 text-[#a364d9]" aria-hidden />
+                  <div>
+                    <div className="font-semibold">En train</div>
+                    <p className="mt-1 leading-relaxed text-[#c9c5d8]">
+                      Gare de Nevers, à environ 5 km de la salle.
+                    </p>
+                    <p className="mt-3 border-l-2 border-[#00D936] pl-4 leading-relaxed text-[#c9c5d8]">
+                      <strong className="text-white">
+                        On vient te chercher à la gare si tu le souhaites.
+                      </strong>{' '}
+                      Signale-le sur le Discord Springs en indiquant ton horaire
+                      d’arrivée, un membre de l’organisation s’en charge. Ne prends pas
+                      de taxi sans nous avoir demandé.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4">
+                  <Car size={22} className="mt-0.5 shrink-0 text-[#a364d9]" aria-hidden />
+                  <div>
+                    <div className="font-semibold">En voiture</div>
+                    <p className="mt-1 leading-relaxed text-[#c9c5d8]">
+                      Marzy est en bordure de l’agglomération de Nevers, accessible par
+                      la N7 et l’A77. Un canal covoiturage est ouvert sur le Discord
+                      Springs pour partager les trajets.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Carte OpenStreetMap : pas de clé d'API, pas de traceur publicitaire. */}
+            <div className="overflow-hidden border border-white/10">
+              <iframe
+                title="Plan d’accès à la salle"
+                src="https://www.openstreetmap.org/export/embed.html?bbox=3.0782%2C46.9751%2C3.1082%2C46.9901&layer=mapnik&marker=46.9826369%2C3.0932185"
+                className="h-[380px] w-full"
+                loading="lazy"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------------- SPECTATEURS ---------------- */}
+      <section id="spectateurs" className="scroll-mt-20 border-t border-white/10">
         <div className="mx-auto max-w-4xl px-6 py-20">
           <div className="flex items-center gap-4">
             <Users size={30} className="text-[#a364d9]" aria-hidden />
@@ -358,6 +431,35 @@ export default function ManiaCupPage() {
               Le joueur déclare son accompagnant depuis son espace d’inscription, puis
               celui-ci prend son billet sur HelloAsso. Un accompagnant par joueur.
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------------- SPONSORS ---------------- */}
+      <section className="border-t border-white/10 bg-black/30">
+        <div className="mx-auto max-w-4xl px-6 py-14 text-center">
+          <div className="text-xs tracking-[0.28em] text-[#6f6b86] uppercase">
+            Avec le soutien de
+          </div>
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-10">
+            {/* Logo blanc : il se lit sur le fond sombre, une pastille claire
+                l'effacerait. L'inverse pour ibis, dont le logo est bleu. */}
+            <Image
+              src="/mania-cup/sponsor-page404.png"
+              alt="PAGE 404 Informatique"
+              width={220}
+              height={106}
+              className="h-14 w-auto object-contain"
+            />
+            <div className="flex items-center rounded bg-white px-5 py-3">
+              <Image
+                src="/mania-cup/sponsor-ibis.png"
+                alt="ibis budget"
+                width={120}
+                height={120}
+                className="h-12 w-auto object-contain"
+              />
+            </div>
           </div>
         </div>
       </section>

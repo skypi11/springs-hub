@@ -10,7 +10,7 @@ import CountryFlag from '@/components/ui/CountryFlag';
 import { countries } from '@/lib/countries';
 import MarkdownEditor from '@/components/ui/MarkdownEditor';
 import { LIMITS } from '@/lib/validation';
-import { MANIA_CUP, GUARDIAN_DOC_KINDS, GUARDIAN_DOC_LABELS } from '@/lib/mania-cup';
+import { MANIA_CUP, MANIA_CUP_DOCS, GUARDIAN_DOC_KINDS, GUARDIAN_DOC_LABELS } from '@/lib/mania-cup';
 
 // Console d'organisation de la Springs Mania Cup.
 //
@@ -119,7 +119,18 @@ export default function AdminManiaCupPage() {
         </div>
       )}
 
-      <RulebookPanel />
+      <RulebookPanel
+        slug={MANIA_CUP_DOCS.rules}
+        title="Règlement"
+        publicHref="/mania-cup/reglement"
+        note="Publier une nouvelle version archive la précédente. Les joueurs déjà inscrits gardent la trace de celle qu’ils ont acceptée ; les suivants devront accepter la nouvelle."
+      />
+      <RulebookPanel
+        slug={MANIA_CUP_DOCS.faq}
+        title="Questions fréquentes"
+        publicHref="/mania-cup/faq"
+        note="Chaque question posée deux fois sur le Discord mérite d’atterrir ici. Aucune acceptation n’y est liée : tu peux corriger librement."
+      />
 
       {rows.length === 0 ? (
         <p className="mt-10" style={{ color: 'var(--s-text-dim)' }}>
@@ -312,7 +323,17 @@ function GuardianCell({
 
 // ── Règlement ────────────────────────────────────────────────────────────────
 
-function RulebookPanel() {
+function RulebookPanel({
+  slug,
+  title,
+  publicHref,
+  note,
+}: {
+  slug: string;
+  title: string;
+  publicHref: string;
+  note: string;
+}) {
   const qc = useQueryClient();
   const taRef = useRef<HTMLTextAreaElement | null>(null);
   const [open, setOpen] = useState(false);
@@ -320,10 +341,10 @@ function RulebookPanel() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const { data } = useQuery({
-    queryKey: ['admin', 'mania-cup', 'rulebook'] as const,
+    queryKey: ['admin', 'mania-cup', 'rulebook', slug] as const,
     queryFn: () =>
       api<{ rulebook: { markdown: string; version: number } | null }>(
-        `/api/admin/rulebooks?eventSlug=${MANIA_CUP.slug}`
+        `/api/admin/rulebooks?eventSlug=${slug}`
       ),
   });
 
@@ -331,12 +352,12 @@ function RulebookPanel() {
     mutationFn: (markdown: string) =>
       api<{ version: number }>('/api/admin/rulebooks', {
         method: 'POST',
-        body: { eventSlug: MANIA_CUP.slug, markdown },
+        body: { eventSlug: slug, markdown },
       }),
     onSuccess: (r) => {
       setMsg(`Version ${r.version} publiée.`);
       setDraft(null);
-      void qc.invalidateQueries({ queryKey: ['admin', 'mania-cup', 'rulebook'] });
+      void qc.invalidateQueries({ queryKey: ['admin', 'mania-cup', 'rulebook', slug] });
     },
     onError: (e) => setMsg(e instanceof ApiError ? e.message : 'Publication refusée'),
   });
@@ -345,11 +366,11 @@ function RulebookPanel() {
   const value = draft ?? current?.markdown ?? '';
 
   return (
-    <section className="mt-10 border border-white/10 bg-white/[0.02] p-6">
+    <section className="mt-8 border border-white/10 bg-white/[0.02] p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <ScrollText size={22} className="text-[#a364d9]" aria-hidden />
-          <h2 className="font-display text-2xl">Règlement</h2>
+          <h2 className="font-display text-2xl">{title}</h2>
           {current ? (
             <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
               version {current.version} publiée
@@ -367,9 +388,7 @@ function RulebookPanel() {
       </div>
 
       <p className="mt-3 text-sm" style={{ color: 'var(--s-text-dim)' }}>
-        Publier une nouvelle version archive la précédente. Les joueurs déjà inscrits
-        gardent la trace de celle qu’ils ont acceptée ; les suivants devront accepter
-        la nouvelle.
+        {note}
       </p>
 
       {open && (
@@ -393,10 +412,10 @@ function RulebookPanel() {
               ) : (
                 <Save size={16} aria-hidden />
               )}
-              Publier {current ? `la version ${current.version + 1}` : 'le règlement'}
+              Publier {current ? `la version ${current.version + 1}` : 'la première version'}
             </button>
             <a
-              href="/mania-cup/reglement"
+              href={publicHref}
               target="_blank"
               rel="noreferrer"
               className="text-sm underline"

@@ -384,6 +384,8 @@ function Recap({ reg, onReload }: { reg: ManiaCupRegistration; onReload: () => v
   const minor = reg.guardianConsent !== 'not_required';
   return (
     <div className="mt-12 space-y-6">
+      <Checklist reg={reg} />
+
       <div className="border border-[#00D936]/40 bg-[#00D936]/10 p-7">
         <h2 className="font-display text-3xl">Ton inscription est enregistrée</h2>
         <p className="mt-3 text-[#c9c5d8]">
@@ -425,6 +427,62 @@ function Recap({ reg, onReload }: { reg: ManiaCupRegistration; onReload: () => v
         </p>
         <WithdrawButton onDone={onReload} />
       </div>
+    </div>
+  );
+}
+
+// ── Ce qu'il reste à faire ──────────────────────────────────────────────────
+//
+// Le récapitulatif présentait tout au même niveau : le code, le paiement, les
+// pièces, l'accompagnant. Impossible de voir d'un coup d'œil ce qui bloque
+// encore. Cette bande le dit en une ligne — c'est elle qui évite d'avoir à
+// relancer les gens un par un.
+
+function Checklist({ reg }: { reg: ManiaCupRegistration }) {
+  const items: { done: boolean; label: string }[] = [
+    { done: true, label: 'Inscription déposée' },
+    { done: reg.status === 'confirmed', label: `Règlement de ${MANIA_CUP.priceEuros} €` },
+  ];
+  if (reg.guardianConsent !== 'not_required') {
+    items.push({
+      done: reg.guardianConsent === 'approved',
+      label:
+        reg.guardianConsent === 'pending_review'
+          ? 'Dossier parental — en cours de relecture'
+          : reg.guardianConsent === 'rejected'
+            ? 'Dossier parental — à corriger'
+            : 'Dossier parental — pièces à déposer',
+    });
+  }
+
+  const left = items.filter((i) => !i.done).length;
+  const allDone = left === 0;
+
+  return (
+    <div
+      className={`border p-6 ${
+        allDone ? 'border-[#00D936]/40 bg-[#00D936]/[0.08]' : 'border-[#FFB800]/40 bg-[#FFB800]/[0.08]'
+      }`}
+    >
+      <h2 className="font-display text-2xl">
+        {allDone
+          ? 'Ta place est acquise'
+          : `Il te reste ${left} chose${left > 1 ? 's' : ''} à faire`}
+      </h2>
+      <ul className="mt-4 space-y-2">
+        {items.map((it) => (
+          <li key={it.label} className="flex items-center gap-3">
+            {it.done ? (
+              <CheckCircle2 size={18} className="shrink-0 text-[#00D936]" aria-hidden />
+            ) : (
+              <Circle size={18} className="shrink-0 text-[#FFB800]" aria-hidden />
+            )}
+            <span className={it.done ? 'text-[#8d89a8] line-through' : 'text-white'}>
+              {it.label}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -480,6 +538,11 @@ function Companion({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => v
               billet accompagnant à {MANIA_CUP.companionEuros} €
             </strong>{' '}
             sur HelloAsso : un billet spectateur ne donne pas accès à cette zone.
+          </p>
+          <p className="mt-3 border-l-2 border-[#FFB800] pl-4 text-sm text-[#f2e6c8]">
+            Au moment de payer ce billet, <strong className="text-white">ton code
+            d’inscription {reg.registrationCode} doit être reporté</strong> — c’est lui
+            qui rattache l’accompagnant à toi. Peu importe qui règle : toi ou lui.
           </p>
 
           {existing && !editing ? (

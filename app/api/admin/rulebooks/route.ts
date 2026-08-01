@@ -6,7 +6,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { clampString, LIMITS } from '@/lib/validation';
 import { rulebookDocId, getRulebookByScope, type RulebookScope } from '@/lib/competitions/rulebooks';
-import { MANIA_CUP } from '@/lib/mania-cup';
+import { MANIA_CUP_DOCS } from '@/lib/mania-cup';
 
 // Règlement de compétition versionné (spec §13bis). Rédaction/édition par les
 // admins de compétition (rôle scopé inclus — c'est leur périmètre). Chaque
@@ -24,8 +24,9 @@ function parseScope(raw: { circuitId?: unknown; competitionId?: unknown; eventSl
   }
   // Événement hors moteur de compétitions (Springs Mania Cup). Liste fermée :
   // un slug libre laisserait créer des règlements fantômes.
-  if (typeof raw.eventSlug === 'string' && raw.eventSlug.trim() === MANIA_CUP.slug) {
-    return { eventSlug: MANIA_CUP.slug };
+  const allowed: string[] = Object.values(MANIA_CUP_DOCS);
+  if (typeof raw.eventSlug === 'string' && allowed.includes(raw.eventSlug.trim())) {
+    return { eventSlug: raw.eventSlug.trim() };
   }
   return null;
 }
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
     let targetLabel: string | null = null;
     if ('eventSlug' in scope) {
       targetId = scope.eventSlug;
-      targetLabel = MANIA_CUP.name;
+      targetLabel = scope.eventSlug;
     } else {
       const targetCol = 'circuitId' in scope ? 'circuits' : 'competitions';
       targetId = 'circuitId' in scope ? scope.circuitId : scope.competitionId;

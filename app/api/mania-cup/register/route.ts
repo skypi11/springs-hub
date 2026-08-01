@@ -13,6 +13,7 @@ import {
   MANIA_CUP_REGISTRATIONS,
   springsGuildId,
   isManiaCupPublic,
+  MANIA_CUP_DOCS,
   ageAtEvent,
   needsGuardianConsent,
   generateRegistrationCode,
@@ -54,7 +55,7 @@ export async function GET(req: NextRequest) {
 
     // Le règlement en vigueur voyage avec l'état : la case d'acceptation doit
     // porter le numéro de version que le joueur a réellement sous les yeux.
-    const rulebookDoc = await getRulebookByScope(db, { eventSlug: MANIA_CUP.slug });
+    const rulebookDoc = await getRulebookByScope(db, { eventSlug: MANIA_CUP_DOCS.rules });
     const rulebook = rulebookDoc ? { version: rulebookDoc.version } : null;
 
     const uid = await verifyAuth(req);
@@ -160,7 +161,7 @@ export async function POST(req: NextRequest) {
     // Acceptation du règlement. On vérifie la VERSION et pas seulement la case :
     // un joueur ayant laissé son onglet ouvert pendant une republication
     // accepterait sinon un texte qu'il n'a jamais lu.
-    const rulebook = await getRulebookByScope(getAdminDb(), { eventSlug: MANIA_CUP.slug });
+    const rulebook = await getRulebookByScope(getAdminDb(), { eventSlug: MANIA_CUP_DOCS.rules });
     if (rulebook) {
       if (body.rulebookAccepted !== true) {
         return NextResponse.json(

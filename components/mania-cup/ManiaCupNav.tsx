@@ -20,7 +20,12 @@ import { MANIA_CUP } from '@/lib/mania-cup';
 const TABS = [
   { href: '/mania-cup', label: 'Présentation' },
   { href: '/mania-cup/reglement', label: 'Règlement' },
+  { href: '/mania-cup/faq', label: 'FAQ' },
   { href: '/mania-cup/inscrits', label: 'Inscrits' },
+  // Ancre plutôt qu'une page : un spectateur cherche un tarif, pas un dossier.
+  // Sans cet onglet, le seul appel visible est le bouton d'inscription joueur,
+  // qui ne le concerne pas.
+  { href: '/mania-cup#spectateurs', label: 'Spectateurs' },
 ];
 
 type Ctx = { registration?: { registrationCode?: string } | null };
@@ -50,7 +55,7 @@ export default function ManiaCupNav() {
 
         <div className="-mx-2 flex min-w-0 flex-1 gap-1 overflow-x-auto px-2">
           {TABS.map((t) => {
-            const active = pathname === t.href;
+            const active = pathname === t.href.split('#')[0] && !t.href.includes('#');
             return (
               <Link
                 key={t.href}
