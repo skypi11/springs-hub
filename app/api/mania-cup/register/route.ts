@@ -8,6 +8,7 @@ import { canViewHiddenCompetition } from '@/lib/competitions/visibility';
 import { countries } from '@/lib/countries';
 import { deleteFileSilent } from '@/lib/storage';
 import { getRulebookByScope } from '@/lib/competitions/rulebooks';
+import { getManiaCupSettings } from '@/lib/mania-cup-settings';
 import {
   MANIA_CUP,
   MANIA_CUP_REGISTRATIONS,
@@ -55,11 +56,14 @@ async function countTakenSeats(db: FirebaseFirestore.Firestore): Promise<number>
 export async function GET(req: NextRequest) {
   try {
     const db = getAdminDb();
-    const taken = await countTakenSeats(db);
+    const [taken, settings] = await Promise.all([
+      countTakenSeats(db),
+      getManiaCupSettings(db),
+    ]);
     const seats = {
-      max: MANIA_CUP.maxPlayers,
+      max: settings.maxPlayers,
       taken,
-      remaining: Math.max(0, MANIA_CUP.maxPlayers - taken),
+      remaining: Math.max(0, settings.maxPlayers - taken),
     };
 
     // Le règlement en vigueur voyage avec l'état : la case d'acceptation doit
@@ -220,12 +224,15 @@ export async function POST(req: NextRequest) {
     // jour d'un dossier déjà déposé (sinon un joueur inscrit ne pourrait plus
     // corriger sa date de naissance une fois les 64 places prises).
     if (!existing.exists) {
-      const taken = await countTakenSeats(db);
-      if (taken >= MANIA_CUP.maxPlayers) {
+      const [taken, settings] = await Promise.all([
+        countTakenSeats(db),
+        getManiaCupSettings(db),
+      ]);
+      if (taken >= settings.maxPlayers) {
         return NextResponse.json(
           {
           error:
-            'Les 64 places sont réglées, l’événement est complet. Contacte l’organisation sur le Discord Springs pour la liste d’attente.',
+            `Les ${settings.maxPlayers} places sont réglées, l’événement est complet. Contacte l’organisation sur le Discord Springs pour la liste d’attente.`,
         },
           { status: 409 }
         );

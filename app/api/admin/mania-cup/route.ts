@@ -5,8 +5,8 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { captureApiError } from '@/lib/sentry';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { clampString } from '@/lib/validation';
+import { getManiaCupSettings } from '@/lib/mania-cup-settings';
 import {
-  MANIA_CUP,
   MANIA_CUP_REGISTRATIONS,
   type ManiaCupRegistration,
 } from '@/lib/mania-cup';
@@ -25,10 +25,10 @@ export async function GET(req: NextRequest) {
     }
 
     const db = getAdminDb();
-    const snap = await db
-      .collection(MANIA_CUP_REGISTRATIONS)
-      .orderBy('createdAt', 'asc')
-      .get();
+    const [snap, settings] = await Promise.all([
+      db.collection(MANIA_CUP_REGISTRATIONS).orderBy('createdAt', 'asc').get(),
+      getManiaCupSettings(db),
+    ]);
 
     const registrations = snap.docs.map((d) => {
       const r = d.data() as ManiaCupRegistration;
@@ -57,11 +57,13 @@ export async function GET(req: NextRequest) {
       guardianToReview: registrations.filter((r) => r.guardianConsent === 'pending_review').length,
       guardianMissing: registrations.filter((r) => r.guardianConsent === 'missing').length,
       minors: registrations.filter((r) => r.ageAtEvent < 18).length,
+      // Même règle que le site : seules les inscriptions réglées consomment
+      // une place.
       seatsLeft: Math.max(
         0,
-        MANIA_CUP.maxPlayers -
-          registrations.filter((r) => r.status !== 'cancelled').length
+        settings.maxPlayers - registrations.filter((r) => r.status === 'confirmed').length
       ),
+      maxPlayers: settings.maxPlayers,
     };
 
     return NextResponse.json({ registrations, counts });

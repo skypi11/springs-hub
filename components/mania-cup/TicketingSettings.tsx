@@ -2,33 +2,49 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Ticket, Save, Loader2, ExternalLink } from 'lucide-react';
+import { Ticket, Save, Loader2, ExternalLink, Euro } from 'lucide-react';
 import { api, apiPublic, ApiError } from '@/lib/api-client';
-import { MANIA_CUP } from '@/lib/mania-cup';
-import type { ManiaCupSettings } from '@/app/api/mania-cup/settings/route';
+import {
+  DEFAULT_SETTINGS,
+  SETTINGS_BOUNDS,
+  type ManiaCupSettings,
+  type NumericSettingKey,
+} from '@/lib/mania-cup-settings';
 
-// Liens de billetterie HelloAsso, renseignés par l'organisateur.
+// Tarifs, jauge et liens de billetterie — tout ce que Matt doit pouvoir changer
+// sans déploiement.
 //
-// Un lien par tarif, et non un lien unique vers la billetterie : envoyer un
-// accompagnant sur la page générique lui ferait choisir le mauvais billet —
-// celui à 10 €, qui ne donne pas accès à la zone de jeu. Tant qu'un lien est
-// vide, le bouton correspondant reste visible mais désactivé sur le site.
+// Les tarifs vivaient dans les constantes du code : un cashprize revu à la
+// hausse quand un sponsor s'ajoute, une remise négociée, et il aurait fallu
+// passer par moi pour un chiffre.
 
-const FIELDS = [
+const MONEY: { key: NumericSettingKey; label: string; help?: string }[] = [
+  { key: 'priceEuros', label: 'Inscription joueur', help: 'Le tarif affiché partout sur le site.' },
+  { key: 'spectatorDayEuros', label: 'Spectateur — une journée' },
+  { key: 'spectatorTwoDaysEuros', label: 'Spectateur — deux jours' },
   {
-    key: 'ticketingPlayerUrl' as const,
-    label: `Billet joueur — ${MANIA_CUP.priceEuros} €`,
+    key: 'companionEuros',
+    label: 'Accompagnant',
+    help: 'Le billet qui donne accès à la zone joueurs.',
+  },
+  { key: 'prizePoolEuros', label: 'Cashprize total' },
+];
+
+const LINKS: { key: keyof ManiaCupSettings; label: string; help: string }[] = [
+  {
+    key: 'ticketingPlayerUrl',
+    label: 'Billet joueur',
     help: 'Utilisé par le bouton « Payer mon inscription » dans l’espace du joueur.',
   },
   {
-    key: 'ticketingSpectatorUrl' as const,
-    label: `Billets spectateurs — ${MANIA_CUP.spectatorDayEuros} € / ${MANIA_CUP.spectatorTwoDaysEuros} €`,
+    key: 'ticketingSpectatorUrl',
+    label: 'Billets spectateurs',
     help: 'Utilisé sur la page Spectateurs. Peut pointer la billetterie générale si les deux tarifs y figurent.',
   },
   {
-    key: 'ticketingCompanionUrl' as const,
-    label: `Billet accompagnant — ${MANIA_CUP.companionEuros} €`,
-    help: 'Le billet qui donne accès à la zone joueurs. Son formulaire doit demander le code d’inscription du joueur accompagné.',
+    key: 'ticketingCompanionUrl',
+    label: 'Billet accompagnant',
+    help: 'Son formulaire HelloAsso doit demander le code d’inscription du joueur accompagné.',
   },
 ];
 
@@ -50,7 +66,7 @@ export default function TicketingSettings() {
         body: next as unknown as Record<string, unknown>,
       }),
     onSuccess: () => {
-      setMsg('Liens enregistrés.');
+      setMsg('Enregistré. Le site est à jour.');
       setDraft(null);
       void qc.invalidateQueries({ queryKey: ['admin', 'mania-cup', 'settings'] });
       void qc.invalidateQueries({ queryKey: ['mania-cup', 'settings'] });
@@ -58,28 +74,26 @@ export default function TicketingSettings() {
     onError: (e) => setMsg(e instanceof ApiError ? e.message : 'Enregistrement refusé'),
   });
 
-  const current: ManiaCupSettings =
-    draft ??
-    data?.settings ?? {
-      ticketingPlayerUrl: '',
-      ticketingSpectatorUrl: '',
-      ticketingCompanionUrl: '',
-    };
+  const current: ManiaCupSettings = draft ?? data?.settings ?? DEFAULT_SETTINGS;
+  const filledLinks = LINKS.filter((f) => current[f.key]).length;
+  const isError = msg?.includes('refus') || msg?.includes('doivent');
 
-  const filled = FIELDS.filter((f) => current[f.key]).length;
+  function set<K extends keyof ManiaCupSettings>(key: K, value: ManiaCupSettings[K]) {
+    setDraft({ ...current, [key]: value });
+    setMsg(null);
+  }
 
   return (
     <section className="mt-8 border border-white/10 bg-white/[0.02] p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Ticket size={22} className="text-[#a364d9]" aria-hidden />
-          <h2 className="font-display text-2xl">Billetterie HelloAsso</h2>
+          <h2 className="font-display text-2xl">Tarifs et billetterie</h2>
           <span
             className="text-sm"
-            style={{ color: filled === FIELDS.length ? '#22c55e' : '#FFB800' }}
+            style={{ color: filledLinks === LINKS.length ? '#22c55e' : '#FFB800' }}
           >
-            {filled}/{FIELDS.length} lien{FIELDS.length > 1 ? 's' : ''} renseigné
-            {filled > 1 ? 's' : ''}
+            {filledLinks}/{LINKS.length} liens renseignés
           </span>
         </div>
         <button
@@ -90,87 +104,144 @@ export default function TicketingSettings() {
         </button>
       </div>
 
-      {!collapsed && (
-        <>
-          <p className="mt-3 text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            Tant qu’un lien est vide, le bouton correspondant s’affiche sur le site en
-            « billetterie bientôt ouverte ». Colle ici les adresses de tes tarifs et
-            tout s’active.
-          </p>
+      {!collapsed &&
+        (isLoading ? (
+          <div className="mt-6 flex items-center gap-3" style={{ color: 'var(--s-text-dim)' }}>
+            <Loader2 className="animate-spin" size={18} /> Chargement…
+          </div>
+        ) : (
+          <>
+            {/* ---- Tarifs et jauge ---- */}
+            <h3 className="mt-6 flex items-center gap-2 text-sm font-semibold tracking-wide uppercase">
+              <Euro size={15} className="text-[#a364d9]" aria-hidden />
+              Tarifs et places
+            </h3>
+            <p className="mt-2 text-sm" style={{ color: 'var(--s-text-dim)' }}>
+              Ces montants s’affichent sur tout le site — page publique, inscription,
+              page spectateurs — et dans les messages envoyés aux joueurs.
+            </p>
 
-          {isLoading ? (
-            <div className="mt-6 flex items-center gap-3" style={{ color: 'var(--s-text-dim)' }}>
-              <Loader2 className="animate-spin" size={18} /> Chargement…
-            </div>
-          ) : (
-            <>
-              <div className="mt-6 space-y-5">
-                {FIELDS.map((f) => (
-                  <div key={f.key}>
-                    <label htmlFor={f.key} className="block text-sm font-semibold">
-                      {f.label}
-                    </label>
-                    <div className="mt-2 flex items-center gap-2">
-                      <input
-                        id={f.key}
-                        value={current[f.key]}
-                        onChange={(e) => {
-                          setDraft({ ...current, [f.key]: e.target.value });
-                          setMsg(null);
-                        }}
-                        placeholder="https://www.helloasso.com/associations/..."
-                        className="w-full border border-white/15 bg-black/40 px-3 py-2 text-white outline-none focus:border-[#00D936]"
-                      />
-                      {current[f.key] && (
-                        <a
-                          href={current[f.key]}
-                          target="_blank"
-                          rel="noreferrer"
-                          aria-label="Ouvrir le lien"
-                          className="shrink-0 border border-white/15 p-2 hover:bg-white/10"
-                        >
-                          <ExternalLink size={15} aria-hidden />
-                        </a>
-                      )}
-                    </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {MONEY.map((f) => (
+                <div key={f.key}>
+                  <label htmlFor={f.key} className="block text-sm font-semibold">
+                    {f.label}
+                  </label>
+                  <div className="mt-2 flex items-center">
+                    <input
+                      id={f.key}
+                      type="number"
+                      inputMode="numeric"
+                      min={SETTINGS_BOUNDS[f.key].min}
+                      max={SETTINGS_BOUNDS[f.key].max}
+                      value={current[f.key]}
+                      onChange={(e) => set(f.key, Number(e.target.value))}
+                      className="w-full border border-white/15 bg-black/40 px-3 py-2 text-white outline-none focus:border-[#00D936]"
+                    />
+                    <span
+                      className="border border-l-0 border-white/15 px-3 py-2"
+                      style={{ color: 'var(--s-text-dim)' }}
+                    >
+                      €
+                    </span>
+                  </div>
+                  {f.help && (
                     <p className="mt-1.5 text-xs" style={{ color: 'var(--s-text-muted)' }}>
                       {f.help}
                     </p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-6 flex flex-wrap items-center gap-4">
-                <button
-                  onClick={() => save.mutate(current)}
-                  disabled={save.isPending || draft === null}
-                  className="inline-flex items-center gap-2 bg-[#00D936] px-5 py-2.5 font-bold text-[#07050b] disabled:opacity-40"
-                >
-                  {save.isPending ? (
-                    <Loader2 className="animate-spin" size={16} aria-hidden />
-                  ) : (
-                    <Save size={16} aria-hidden />
                   )}
-                  Enregistrer
-                </button>
-                {msg && (
-                  <span
-                    className="text-sm"
-                    style={{ color: msg.includes('refus') || msg.includes('doivent') ? '#ef4444' : '#22c55e' }}
-                  >
-                    {msg}
-                  </span>
-                )}
-              </div>
+                </div>
+              ))}
 
-              <p className="mt-3 text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                Seules des adresses HelloAsso en https sont acceptées : c’est une page de
-                paiement, un lien collé de travers enverrait les joueurs n’importe où.
-              </p>
-            </>
-          )}
-        </>
-      )}
+              <div>
+                <label htmlFor="maxPlayers" className="block text-sm font-semibold">
+                  Nombre de places
+                </label>
+                <input
+                  id="maxPlayers"
+                  type="number"
+                  inputMode="numeric"
+                  min={SETTINGS_BOUNDS.maxPlayers.min}
+                  max={SETTINGS_BOUNDS.maxPlayers.max}
+                  value={current.maxPlayers}
+                  onChange={(e) => set('maxPlayers', Number(e.target.value))}
+                  className="mt-2 w-full border border-white/15 bg-black/40 px-3 py-2 text-white outline-none focus:border-[#00D936]"
+                />
+                <p className="mt-1.5 text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                  La jauge se ferme quand ce nombre d’inscriptions est <em>réglé</em>.
+                </p>
+              </div>
+            </div>
+
+            {/* ---- Liens ---- */}
+            <h3 className="mt-8 flex items-center gap-2 text-sm font-semibold tracking-wide uppercase">
+              <Ticket size={15} className="text-[#a364d9]" aria-hidden />
+              Liens HelloAsso
+            </h3>
+            <p className="mt-2 text-sm" style={{ color: 'var(--s-text-dim)' }}>
+              Tant qu’un lien est vide, le bouton correspondant s’affiche en
+              « billetterie bientôt ouverte ».
+            </p>
+
+            <div className="mt-4 space-y-5">
+              {LINKS.map((f) => (
+                <div key={f.key}>
+                  <label htmlFor={f.key} className="block text-sm font-semibold">
+                    {f.label}
+                  </label>
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      id={f.key}
+                      value={current[f.key] as string}
+                      onChange={(e) => set(f.key, e.target.value as never)}
+                      placeholder="https://www.helloasso.com/associations/..."
+                      className="w-full border border-white/15 bg-black/40 px-3 py-2 text-white outline-none focus:border-[#00D936]"
+                    />
+                    {current[f.key] && (
+                      <a
+                        href={current[f.key] as string}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label="Ouvrir le lien"
+                        className="shrink-0 border border-white/15 p-2 hover:bg-white/10"
+                      >
+                        <ExternalLink size={15} aria-hidden />
+                      </a>
+                    )}
+                  </div>
+                  <p className="mt-1.5 text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                    {f.help}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 flex flex-wrap items-center gap-4">
+              <button
+                onClick={() => save.mutate(current)}
+                disabled={save.isPending || draft === null}
+                className="inline-flex items-center gap-2 bg-[#00D936] px-5 py-2.5 font-bold text-[#07050b] disabled:opacity-40"
+              >
+                {save.isPending ? (
+                  <Loader2 className="animate-spin" size={16} aria-hidden />
+                ) : (
+                  <Save size={16} aria-hidden />
+                )}
+                Enregistrer
+              </button>
+              {msg && (
+                <span className="text-sm" style={{ color: isError ? '#ef4444' : '#22c55e' }}>
+                  {msg}
+                </span>
+              )}
+            </div>
+
+            <p className="mt-3 text-xs" style={{ color: 'var(--s-text-muted)' }}>
+              Seules des adresses HelloAsso en https sont acceptées : c’est une page de
+              paiement, un lien collé de travers enverrait les joueurs n’importe où.
+            </p>
+          </>
+        ))}
     </section>
   );
 }

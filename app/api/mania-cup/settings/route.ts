@@ -5,36 +5,26 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { captureApiError } from '@/lib/sentry';
 import { clampString } from '@/lib/validation';
 import { MANIA_CUP_FAQ_COLLECTION } from '@/lib/mania-cup-faq';
+import {
+  MANIA_CUP_SETTINGS_DOC,
+  DEFAULT_SETTINGS,
+  SETTINGS_BOUNDS,
+  normalizeNumber,
+  getManiaCupSettings,
+  type ManiaCupSettings,
+  type NumericSettingKey,
+} from '@/lib/mania-cup-settings';
 
-// Réglages publics de la Springs Mania Cup — pour l'instant, les liens de
-// billetterie HelloAsso.
+// Réglages de la Springs Mania Cup : liens de billetterie, tarifs, jauge.
 //
-// Pourquoi en base et pas en variable d'environnement : Matt créera sa
-// billetterie après la mise en ligne du site. Une variable d'environnement
-// l'obligerait à redéployer ; ici il colle ses liens dans la console et tous
-// les boutons du site s'activent aussitôt.
+// GET — public (les tarifs s'affichent sur le site, ce ne sont pas des secrets)
+// PUT — admins de compétition
 //
-// Un lien par tarif : joueur, spectateur, accompagnant. HelloAsso permet de
-// pointer directement un tarif, et envoyer un accompagnant sur la page
-// générique lui ferait choisir le mauvais billet — celui à 10 €, qui ne donne
-// pas accès à la zone de jeu.
-
-const SETTINGS_DOC = 'settings';
-
-export interface ManiaCupSettings {
-  ticketingPlayerUrl: string;
-  ticketingSpectatorUrl: string;
-  ticketingCompanionUrl: string;
-}
-
-const EMPTY: ManiaCupSettings = {
-  ticketingPlayerUrl: '',
-  ticketingSpectatorUrl: '',
-  ticketingCompanionUrl: '',
-};
+// Pourquoi en base et non en constantes : un tarif change, et Matt ne code pas.
+// Les y laisser lui imposait un déploiement pour corriger un chiffre.
 
 function ref() {
-  return getAdminDb().collection(MANIA_CUP_FAQ_COLLECTION).doc(SETTINGS_DOC);
+  return getAdminDb().collection(MANIA_CUP_FAQ_COLLECTION).doc(MANIA_CUP_SETTINGS_DOC);
 }
 
 /** N'accepte que des URL HelloAsso en https : un lien collé de travers enverrait
@@ -57,18 +47,10 @@ export async function GET(req: NextRequest) {
   if (blocked) return blocked;
 
   try {
-    const snap = await ref().get();
-    const d = snap.data() ?? {};
-    return NextResponse.json({
-      settings: {
-        ticketingPlayerUrl: (d.ticketingPlayerUrl as string) ?? '',
-        ticketingSpectatorUrl: (d.ticketingSpectatorUrl as string) ?? '',
-        ticketingCompanionUrl: (d.ticketingCompanionUrl as string) ?? '',
-      } satisfies ManiaCupSettings,
-    });
+    return NextResponse.json({ settings: await getManiaCupSettings(getAdminDb()) });
   } catch (err) {
     captureApiError('mania-cup/settings:GET', err);
-    return NextResponse.json({ settings: EMPTY });
+    return NextResponse.json({ settings: DEFAULT_SETTINGS });
   }
 }
 
@@ -85,22 +67,32 @@ export async function PUT(req: NextRequest) {
     const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
     if (!body) return NextResponse.json({ error: 'Requête invalide' }, { status: 400 });
 
-    const settings: ManiaCupSettings = {
+    const urls = {
       ticketingPlayerUrl: cleanUrl(body.ticketingPlayerUrl),
       ticketingSpectatorUrl: cleanUrl(body.ticketingSpectatorUrl),
       ticketingCompanionUrl: cleanUrl(body.ticketingCompanionUrl),
     };
 
-    // Un lien non vide mais rejeté par la validation doit être signalé, sinon
-    // l'organisateur croit avoir enregistré et découvre le problème le jour J.
-    const rejected = (['ticketingPlayerUrl', 'ticketingSpectatorUrl', 'ticketingCompanionUrl'] as const)
-      .filter((k) => clampString(body[k], 400) && !settings[k]);
+    // Un lien non vide mais rejeté doit être signalé : sinon l'organisateur
+    // croit avoir enregistré et le découvre le jour de l'annonce.
+    const rejected = (Object.keys(urls) as (keyof typeof urls)[]).filter(
+      (k) => clampString(body[k], 400) && !urls[k]
+    );
     if (rejected.length > 0) {
       return NextResponse.json(
         { error: 'Les liens doivent être des adresses HelloAsso en https.' },
         { status: 400 }
       );
     }
+
+    const numbers = Object.fromEntries(
+      (Object.keys(SETTINGS_BOUNDS) as NumericSettingKey[]).map((k) => [
+        k,
+        normalizeNumber(k, body[k]),
+      ])
+    ) as Record<NumericSettingKey, number>;
+
+    const settings: ManiaCupSettings = { ...urls, ...numbers };
 
     await ref().set(
       { ...settings, updatedAt: FieldValue.serverTimestamp(), updatedBy: uid },

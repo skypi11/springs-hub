@@ -11,6 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api, apiPublic, apiForm, ApiError } from '@/lib/api-client';
 import CountrySelect from '@/components/ui/CountrySelect';
 import TicketButton from '@/components/mania-cup/TicketButton';
+import { useManiaCupSettings } from '@/components/mania-cup/useManiaCupSettings';
 import {
   MANIA_CUP,
   SPRINGS_DISCORD_INVITE,
@@ -210,7 +211,7 @@ export default function InscriptionPage() {
         <Recap reg={reg} onReload={() => void load()} />
       ) : full ? (
         <Banner tone="warn">
-          Les {MANIA_CUP.maxPlayers} places sont prises. Contacte l’organisation sur le
+          Les {seats?.max ?? MANIA_CUP.maxPlayers} places sont réglées. Contacte l’organisation sur le
           Discord Springs pour être placé sur la liste d’attente.
         </Banner>
       ) : (
@@ -382,6 +383,7 @@ export default function InscriptionPage() {
 // ── Récapitulatif après dépôt ────────────────────────────────────────────────
 
 function Recap({ reg, onReload }: { reg: ManiaCupRegistration; onReload: () => void }) {
+  const settings = useManiaCupSettings();
   const minor = reg.guardianConsent !== 'not_required';
   return (
     <div className="mt-12 space-y-6">
@@ -390,7 +392,7 @@ function Recap({ reg, onReload }: { reg: ManiaCupRegistration; onReload: () => v
       <div className="border border-[#00D936]/40 bg-[#00D936]/10 p-7">
         <h2 className="font-display text-3xl">Ton inscription est enregistrée</h2>
         <p className="mt-3 text-[#c9c5d8]">
-          Elle sera définitive une fois le règlement de {MANIA_CUP.priceEuros} € reçu.
+          Elle sera définitive une fois le règlement de {settings.priceEuros} € reçu.
         </p>
 
         <div className="mt-6 border border-white/15 bg-black/40 p-5">
@@ -415,7 +417,7 @@ function Recap({ reg, onReload }: { reg: ManiaCupRegistration; onReload: () => v
           ) : (
             <TicketButton
               kind="player"
-              label={`Payer mon inscription — ${MANIA_CUP.priceEuros} €`}
+              label={`Payer mon inscription — ${settings.priceEuros} €`}
             />
           )}
         </div>
@@ -450,11 +452,12 @@ function Recap({ reg, onReload }: { reg: ManiaCupRegistration; onReload: () => v
 type ChecklistItem = { state: 'done' | 'todo' | 'waiting'; label: string };
 
 function Checklist({ reg }: { reg: ManiaCupRegistration }) {
+  const settings = useManiaCupSettings();
   const items: ChecklistItem[] = [
     { state: 'done', label: 'Inscription déposée' },
     {
       state: reg.status === 'confirmed' ? 'done' : 'todo',
-      label: `Règlement de ${MANIA_CUP.priceEuros} €`,
+      label: `Règlement de ${settings.priceEuros} €`,
     },
   ];
   if (reg.guardianConsent !== 'not_required') {
@@ -528,6 +531,7 @@ function Checklist({ reg }: { reg: ManiaCupRegistration }) {
 // ── Accompagnant (billet staff) ─────────────────────────────────────────────
 
 function Companion({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => void }) {
+  const settings = useManiaCupSettings();
   const existing = reg.companion ?? null;
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(existing?.name ?? '');
@@ -573,7 +577,7 @@ function Companion({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => v
             Une personne peut t’accompagner dans la zone joueurs — coach, parent, ami.
             Elle doit être déclarée ici et prendre un{' '}
             <strong className="text-white">
-              billet accompagnant à {MANIA_CUP.companionEuros} €
+              billet accompagnant à {settings.companionEuros} €
             </strong>{' '}
             sur HelloAsso : un billet spectateur ne donne pas accès à cette zone.
           </p>
@@ -586,7 +590,7 @@ function Companion({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => v
             <TicketButton
               kind="companion"
               variant="outline"
-              label={`Billet accompagnant — ${MANIA_CUP.companionEuros} €`}
+              label={`Billet accompagnant — ${settings.companionEuros} €`}
             />
           </div>
 

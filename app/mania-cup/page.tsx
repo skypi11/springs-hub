@@ -5,7 +5,9 @@ import {
   Clock, MapPin, Monitor, Coffee, BedDouble, Trophy,
   Ticket, ArrowRight, Lock, EyeOff, Users, TrainFront, Car, ExternalLink,
 } from 'lucide-react';
+import { getAdminDb } from '@/lib/firebase-admin';
 import { isManiaCupPublic, MANIA_CUP } from '@/lib/mania-cup';
+import { getManiaCupSettings } from '@/lib/mania-cup-settings';
 import HeroStatus from '@/components/mania-cup/HeroStatus';
 
 // Page publique de la Springs Mania Cup — LAN Trackmania des 3 et 4 octobre 2026.
@@ -41,13 +43,6 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const STATS = [
-  { value: '2', label: 'jours de LAN' },
-  { value: '64', label: 'joueurs' },
-  { value: '+40', label: 'maps inédites' },
-  { value: '8', label: 'épreuves' },
-];
-
 const SAMEDI = [
   { h: '10h00', t: 'Ouverture de la salle', d: 'Installation, branchement des setups, essais libres.' },
   { h: '13h00', t: 'Émission d’ouverture', d: 'Une heure en direct avec les présentateurs et les casteurs.' },
@@ -79,8 +74,19 @@ const PRATIQUE = [
   },
 ];
 
-export default function ManiaCupPage() {
+// Les tarifs, la jauge et la dotation sont modifiables depuis la console : la
+// page les lit à chaque rendu plutôt que de figer des constantes au build.
+export const revalidate = 60;
+
+export default async function ManiaCupPage() {
   const published = isManiaCupPublic();
+  const settings = await getManiaCupSettings(getAdminDb());
+  const STATS = [
+    { value: '2', label: 'jours de LAN' },
+    { value: String(settings.maxPlayers), label: 'joueurs' },
+    { value: '+40', label: 'maps inédites' },
+    { value: '8', label: 'épreuves' },
+  ];
 
   return (
     <main className="min-h-screen bg-[#07050b] text-[#eaeaf0]">
@@ -156,10 +162,10 @@ export default function ManiaCupPage() {
                 className="inline-flex items-center gap-2 bg-[#00D936] px-7 py-4 text-lg font-bold text-[#07050b] transition-transform hover:scale-[1.03]"
               >
                 <Ticket size={20} aria-hidden />
-                S’inscrire — 30 €
+                S’inscrire — {settings.priceEuros} €
               </Link>
               <span className="text-sm text-[#8d89a8]">
-                64 places · billetterie&nbsp;HelloAsso
+                {settings.maxPlayers} places · billetterie&nbsp;HelloAsso
               </span>
             </div>
           </div>
@@ -265,7 +271,7 @@ export default function ManiaCupPage() {
         <div className="flex items-center gap-4">
           <Trophy size={30} className="text-[#00D936]" aria-hidden />
           <h2 className="font-display text-4xl leading-tight sm:text-5xl">
-            1 200 € de cashprize
+            {settings.prizePoolEuros.toLocaleString('fr-FR')} € de cashprize
           </h2>
         </div>
         <div className="mt-7 space-y-5 text-lg leading-relaxed text-[#c9c5d8]">
@@ -299,7 +305,7 @@ export default function ManiaCupPage() {
           </div>
 
           <p className="mt-8 text-sm text-[#8d89a8]">
-            L’inscription de 30 € couvre uniquement ta participation à la compétition.
+            L’inscription de {settings.priceEuros} € couvre uniquement ta participation à la compétition.
             Restauration, boissons et hébergement restent à ta charge.
           </p>
         </div>
@@ -394,7 +400,7 @@ export default function ManiaCupPage() {
               <p className="mt-4 max-w-xl leading-relaxed text-[#c9c5d8]">
                 L’événement est ouvert au public : une scène, un plateau commenté en
                 direct, et la compétition qui se joue devant toi. À partir de{' '}
-                <strong className="text-white">{MANIA_CUP.spectatorDayEuros} €</strong>,
+                <strong className="text-white">{settings.spectatorDayEuros} €</strong>,
                 gratuit pour les moins de 12 ans. Aucun compte à créer.
               </p>
             </div>
@@ -450,7 +456,7 @@ export default function ManiaCupPage() {
         />
         <div className="relative mx-auto max-w-3xl px-6 py-24 text-center">
           <h2 className="font-display text-5xl leading-tight sm:text-6xl">
-            64 places, pas une de plus
+            {settings.maxPlayers} places, pas une de plus
           </h2>
           <p className="mt-5 text-lg text-[#c9c5d8]">
             L’inscription se fait ici, le paiement sur HelloAsso. Ta place n’est
@@ -460,7 +466,7 @@ export default function ManiaCupPage() {
             href={INSCRIPTION_URL}
             className="mt-10 inline-flex items-center gap-3 bg-[#00D936] px-9 py-5 text-xl font-bold text-[#07050b] transition-transform hover:scale-[1.03]"
           >
-            S’inscrire — 30 €
+            S’inscrire — {settings.priceEuros} €
             <ArrowRight size={22} aria-hidden />
           </Link>
         </div>

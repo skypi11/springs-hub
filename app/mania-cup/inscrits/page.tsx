@@ -6,7 +6,7 @@ import { Loader2, Users, Ticket } from 'lucide-react';
 import { apiPublic } from '@/lib/api-client';
 import CountryFlag from '@/components/ui/CountryFlag';
 import { countries } from '@/lib/countries';
-import { MANIA_CUP } from '@/lib/mania-cup';
+import { useManiaCupSettings } from '@/components/mania-cup/useManiaCupSettings';
 
 // Liste publique des inscrits à la Springs Mania Cup.
 //
@@ -27,6 +27,7 @@ type Payload = {
 const countryName = (code: string) => countries.find((c) => c.code === code)?.name ?? code;
 
 export default function InscritsPage() {
+  const settings = useManiaCupSettings();
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [denied, setDenied] = useState(false);
@@ -98,7 +99,7 @@ export default function InscritsPage() {
                   className="inline-flex items-center gap-2 bg-[#00D936] px-7 py-4 text-lg font-bold text-[#07050b] transition-transform hover:scale-[1.03]"
                 >
                   <Ticket size={20} aria-hidden />
-                  S’inscrire — {MANIA_CUP.priceEuros} €
+                  S’inscrire — {settings.priceEuros} €
                 </Link>
               </div>
             )}

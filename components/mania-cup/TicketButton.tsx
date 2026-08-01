@@ -1,9 +1,7 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
 import { Ticket, ExternalLink } from 'lucide-react';
-import { apiPublic } from '@/lib/api-client';
-import type { ManiaCupSettings } from '@/app/api/mania-cup/settings/route';
+import { useManiaCupSettings } from './useManiaCupSettings';
 
 // Bouton vers la billetterie HelloAsso.
 //
@@ -11,15 +9,6 @@ import type { ManiaCupSettings } from '@/app/api/mania-cup/settings/route';
 // sont vides, le bouton reste visible mais désactivé, avec la raison affichée.
 // Le masquer serait pire — un joueur qui ne voit aucun bouton de paiement croit
 // que le site est cassé, là où « billetterie bientôt ouverte » se comprend.
-
-export function useTicketing() {
-  const { data } = useQuery({
-    queryKey: ['mania-cup', 'settings'] as const,
-    queryFn: () => apiPublic<{ settings: ManiaCupSettings }>('/api/mania-cup/settings'),
-    staleTime: 60_000,
-  });
-  return data?.settings;
-}
 
 export default function TicketButton({
   kind,
@@ -32,13 +21,13 @@ export default function TicketButton({
   variant?: 'primary' | 'outline';
   className?: string;
 }) {
-  const settings = useTicketing();
+  const settings = useManiaCupSettings();
   const url =
     kind === 'player'
-      ? settings?.ticketingPlayerUrl
+      ? settings.ticketingPlayerUrl
       : kind === 'spectator'
-        ? settings?.ticketingSpectatorUrl
-        : settings?.ticketingCompanionUrl;
+        ? settings.ticketingSpectatorUrl
+        : settings.ticketingCompanionUrl;
 
   const base = 'inline-flex items-center gap-2 px-6 py-3 font-bold transition-transform';
   const style =

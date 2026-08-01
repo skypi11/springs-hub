@@ -3,8 +3,8 @@ import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { captureApiError } from '@/lib/sentry';
 import { canViewHiddenCompetition } from '@/lib/competitions/visibility';
+import { getManiaCupSettings } from '@/lib/mania-cup-settings';
 import {
-  MANIA_CUP,
   MANIA_CUP_REGISTRATIONS,
   isManiaCupPublic,
   type ManiaCupRegistration,
@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const settings = await getManiaCupSettings(db);
     const snap = await db
       .collection(MANIA_CUP_REGISTRATIONS)
       .where('status', 'in', ['pending_payment', 'confirmed'])
@@ -57,10 +58,10 @@ export async function GET(req: NextRequest) {
       counts: {
         confirmed,
         pending: participants.length - confirmed,
-        max: MANIA_CUP.maxPlayers,
+        max: settings.maxPlayers,
         // Seules les inscriptions réglées consomment une place : une inscription
         // jamais payée ne doit pas priver quelqu'un d'autre de venir.
-        seatsLeft: Math.max(0, MANIA_CUP.maxPlayers - confirmed),
+        seatsLeft: Math.max(0, settings.maxPlayers - confirmed),
       },
     });
   } catch (err) {

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Users, Monitor, Radio, Coffee, MapPin, Baby, Ticket } from 'lucide-react';
 import { MANIA_CUP } from '@/lib/mania-cup';
 import TicketButton from '@/components/mania-cup/TicketButton';
+import { useManiaCupSettings } from '@/components/mania-cup/useManiaCupSettings';
 
 // Page spectateurs.
 //
@@ -14,27 +15,28 @@ import TicketButton from '@/components/mania-cup/TicketButton';
 // savoir ce qu'il va voir, combien ça coûte et où ça se passe. Mélanger les
 // deux sur une même page ne servait ni l'un ni l'autre.
 
-const TARIFS = [
-  {
-    price: `${MANIA_CUP.spectatorDayEuros} €`,
-    title: 'Une journée',
-    desc: 'Le samedi ou le dimanche, au choix.',
-  },
-  {
-    price: `${MANIA_CUP.spectatorTwoDaysEuros} €`,
-    title: 'Les deux jours',
-    desc: 'Samedi et dimanche. La formule la plus intéressante si tu suis la compétition.',
-    highlight: true,
-  },
-  {
-    price: 'Gratuit',
-    title: 'Moins de 12 ans',
-    desc: 'Accompagné d’un adulte muni de son billet.',
-    free: true,
-  },
-];
-
 export default function SpectateursPage() {
+  const settings = useManiaCupSettings();
+  const TARIFS = [
+    {
+      price: `${settings.spectatorDayEuros} €`,
+      title: 'Une journée',
+      desc: 'Le samedi ou le dimanche, au choix.',
+    },
+    {
+      price: `${settings.spectatorTwoDaysEuros} €`,
+      title: 'Les deux jours',
+      desc: 'Samedi et dimanche. La formule la plus intéressante si tu suis la compétition.',
+      highlight: true,
+    },
+    {
+      price: 'Gratuit',
+      title: 'Moins de 12 ans',
+      desc: 'Accompagné d’un adulte muni de son billet.',
+      free: true,
+    },
+  ];
+
   return (
     <main className="text-[#eaeaf0]">
       <div className="mx-auto max-w-4xl px-6 py-14">
@@ -112,14 +114,14 @@ export default function SpectateursPage() {
             <p className="mt-3 leading-relaxed text-[#f2e6c8]">
               Pour accompagner un joueur précis dans la zone de jeu — coach, parent, ami
               — il faut un <strong className="text-white">billet accompagnant à{' '}
-              {MANIA_CUP.companionEuros} €</strong>. C’est le joueur qui te déclare depuis
+              {settings.companionEuros} €</strong>. C’est le joueur qui te déclare depuis
               son espace, puis tu prends ton billet en reportant son code d’inscription.
             </p>
             <div className="mt-5">
               <TicketButton
                 kind="companion"
                 variant="outline"
-                label={`Billet accompagnant — ${MANIA_CUP.companionEuros} €`}
+                label={`Billet accompagnant — ${settings.companionEuros} €`}
               />
             </div>
           </div>
@@ -153,7 +155,7 @@ export default function SpectateursPage() {
             className="mt-4 inline-flex items-center gap-2 bg-[#00D936] px-7 py-4 text-lg font-bold text-[#07050b] transition-transform hover:scale-[1.03]"
           >
             <Ticket size={20} aria-hidden />
-            S’inscrire comme joueur — {MANIA_CUP.priceEuros} €
+            S’inscrire comme joueur — {settings.priceEuros} €
           </Link>
         </div>
       </div>
