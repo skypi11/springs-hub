@@ -48,18 +48,25 @@ export default function FaqPage() {
             Springs E-Sport, les réponses arriveront ici.
           </p>
         ) : (
-          <div className="mt-10 border-t border-white/10">
+          <div className="mt-10 space-y-3">
             {items.map((it, i) => (
-              <details key={`${i}-${it.q}`} className="group border-b border-white/10">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-left transition-colors hover:text-white">
-                  <span className="text-lg font-semibold">{it.q}</span>
-                  <ChevronDown
-                    size={20}
-                    className="shrink-0 text-[#8d89a8] transition-transform group-open:rotate-180"
-                    aria-hidden
-                  />
+              <details
+                key={`${i}-${it.q}`}
+                className="group border border-white/10 bg-white/[0.02] transition-colors open:border-[#00D936]/30 open:bg-[#00D936]/[0.04]"
+              >
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-left">
+                  <span className="font-display text-xl leading-snug tracking-wide text-white transition-colors group-open:text-[#00D936]">
+                    {it.q}
+                  </span>
+                  <span className="flex size-7 shrink-0 items-center justify-center border border-white/15 transition-colors group-open:border-[#00D936]/50">
+                    <ChevronDown
+                      size={16}
+                      className="text-[#8d89a8] transition-transform group-open:rotate-180 group-open:text-[#00D936]"
+                      aria-hidden
+                    />
+                  </span>
                 </summary>
-                <div className="faq-answer pr-10 pb-6">
+                <div className="faq-answer mx-5 mb-5 border-l-2 border-[#a364d9]/50 pl-4">
                   <ReactMarkdown>{it.a}</ReactMarkdown>
                 </div>
               </details>
@@ -93,11 +100,11 @@ export default function FaqPage() {
       {/* Le markdown des réponses vient de ReactMarkdown : impossible de poser
           des classes balise par balise. */}
       <style>{`
-        .faq-answer p { margin: 0 0 .75rem; line-height: 1.75; color: #c9c5d8; }
+        .faq-answer p { margin: 0 0 .75rem; font-size: .95rem; line-height: 1.8; color: #a9a5be; }
         .faq-answer p:last-child { margin-bottom: 0; }
         .faq-answer strong { color: #fff; }
         .faq-answer ul { margin: .5rem 0; padding-left: 1.3rem; list-style: disc; }
-        .faq-answer li { margin: .3rem 0; line-height: 1.7; color: #c9c5d8; }
+        .faq-answer li { margin: .3rem 0; font-size: .95rem; line-height: 1.75; color: #a9a5be; }
         .faq-answer a { color: #00D936; text-decoration: underline; }
         details summary::-webkit-details-marker { display: none; }
       `}</style>

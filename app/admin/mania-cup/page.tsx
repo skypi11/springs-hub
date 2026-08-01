@@ -51,9 +51,16 @@ type Payload = {
 const countryName = (code: string) =>
   countries.find((c) => c.code === code)?.name ?? code;
 
+// Deux onglets plutôt qu'une page unique : les inscriptions se consultent tous
+// les jours, la configuration une poignée de fois avant l'événement. Les
+// empiler obligeait à faire défiler trois panneaux d'édition pour atteindre le
+// tableau des inscrits.
+type Tab = 'inscriptions' | 'configuration';
+
 export default function AdminManiaCupPage() {
   const qc = useQueryClient();
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('inscriptions');
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin', 'mania-cup'] as const,
@@ -121,6 +128,33 @@ export default function AdminManiaCupPage() {
         </div>
       )}
 
+      <div className="mt-10 flex gap-1 border-b border-white/10">
+        {([
+          ['inscriptions', 'Inscriptions'],
+          ['configuration', 'Configuration'],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`-mb-px border-b-2 px-4 py-2.5 text-sm transition-colors ${
+              tab === key
+                ? 'border-[#00D936] text-white'
+                : 'border-transparent hover:text-white'
+            }`}
+            style={tab === key ? undefined : { color: 'var(--s-text-dim)' }}
+          >
+            {label}
+            {key === 'inscriptions' && c ? (
+              <span className="ml-2" style={{ color: 'var(--s-text-muted)' }}>
+                {c.total}
+              </span>
+            ) : null}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'configuration' && (
+        <>
       <RulebookPanel
         slug={MANIA_CUP_DOCS.rules}
         title="Règlement"
@@ -129,8 +163,10 @@ export default function AdminManiaCupPage() {
       />
       <FaqEditor />
       <TicketingSettings />
+        </>
+      )}
 
-      {rows.length === 0 ? (
+      {tab === 'inscriptions' && (rows.length === 0 ? (
         <p className="mt-10" style={{ color: 'var(--s-text-dim)' }}>
           Aucune inscription pour le moment.
         </p>
@@ -204,7 +240,7 @@ export default function AdminManiaCupPage() {
             </tbody>
           </table>
         </div>
-      )}
+      ))}
     </div>
   );
 }
