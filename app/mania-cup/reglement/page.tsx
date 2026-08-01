@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
-import { ScrollText, ArrowLeft, Loader2 } from 'lucide-react';
+import { ScrollText, Loader2 } from 'lucide-react';
 import { apiPublic } from '@/lib/api-client';
 import { MANIA_CUP } from '@/lib/mania-cup';
 
@@ -28,17 +27,9 @@ export default function ReglementPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-[#07050b] text-[#eaeaf0]">
-      <div className="mx-auto max-w-3xl px-6 py-16">
-        <Link
-          href="/mania-cup"
-          className="inline-flex items-center gap-2 text-sm text-[#8d89a8] hover:text-white"
-        >
-          <ArrowLeft size={16} aria-hidden />
-          Retour à la présentation
-        </Link>
-
-        <div className="mt-6 flex items-center gap-4">
+    <main className="text-[#eaeaf0]">
+      <div className="mx-auto max-w-3xl px-6 py-14">
+        <div className="flex items-center gap-4">
           <ScrollText size={32} className="text-[#a364d9]" aria-hidden />
           <h1 className="font-display text-5xl leading-tight">Règlement</h1>
         </div>

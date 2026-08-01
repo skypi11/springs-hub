@@ -184,7 +184,7 @@ export default function InscriptionPage() {
       </Link>
 
       <h1 className="font-display mt-6 text-5xl leading-tight sm:text-6xl">
-        Inscription
+        {reg ? 'Mon inscription' : 'Inscription'}
       </h1>
       <p className="mt-3 text-lg text-[#c9c5d8]">
         Springs Mania Cup · 3 &amp; 4 octobre 2026 · {MANIA_CUP.city}
