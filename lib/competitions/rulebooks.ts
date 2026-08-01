@@ -8,13 +8,27 @@
 
 import type { Firestore } from 'firebase-admin/firestore';
 
-export function rulebookDocId(scope: { circuitId: string } | { competitionId: string }): string {
-  return 'circuitId' in scope ? `circuit_${scope.circuitId}` : `competition_${scope.competitionId}`;
+/**
+ * Scope d'un règlement. `eventSlug` couvre les événements qui ne passent PAS par
+ * le moteur de compétitions — la Springs Mania Cup, dont l'inscription est
+ * individuelle et n'a donc pas d'entrée dans `competitions`. Sans lui, son
+ * règlement aurait dû vivre en dur dans le code, et Matt aurait dépendu d'un
+ * déploiement pour corriger une phrase.
+ */
+export type RulebookScope =
+  | { circuitId: string }
+  | { competitionId: string }
+  | { eventSlug: string };
+
+export function rulebookDocId(scope: RulebookScope): string {
+  if ('circuitId' in scope) return `circuit_${scope.circuitId}`;
+  if ('competitionId' in scope) return `competition_${scope.competitionId}`;
+  return `event_${scope.eventSlug}`;
 }
 
 export interface ResolvedRulebook {
   id: string;
-  scope: { circuitId: string } | { competitionId: string };
+  scope: RulebookScope;
   markdown: string;
   version: number;
   updatedAt: string | null;
@@ -48,7 +62,7 @@ export async function getRulebookForCompetition(
 
 export async function getRulebookByScope(
   db: Firestore,
-  scope: { circuitId: string } | { competitionId: string },
+  scope: RulebookScope,
 ): Promise<ResolvedRulebook | null> {
   const snap = await db.collection('rulebooks').doc(rulebookDocId(scope)).get();
   return snap.exists ? serialize(snap.id, snap.data()!) : null;

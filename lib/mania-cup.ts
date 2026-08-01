@@ -132,6 +132,8 @@ export interface ManiaCupRegistration {
   guardianRejectionReason?: string | null;
   /** Date de purge des pièces, une fois l'événement passé. */
   guardianDocsPurgedAt?: unknown;
+  /** Version du règlement acceptée à l'inscription — trace opposable. */
+  rulebookAccepted?: { version: number; at: unknown; byUid: string } | null;
   /**
    * Code unique à reporter dans le champ personnalisé de la billetterie
    * HelloAsso. C'est lui qui permet de relier un paiement à une inscription :

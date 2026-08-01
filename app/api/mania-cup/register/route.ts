@@ -6,6 +6,7 @@ import { captureApiError } from '@/lib/sentry';
 import { isGuildMember } from '@/lib/discord-competition';
 import { canViewHiddenCompetition } from '@/lib/competitions/visibility';
 import { countries } from '@/lib/countries';
+import { getRulebookByScope } from '@/lib/competitions/rulebooks';
 import {
   MANIA_CUP,
   MANIA_CUP_REGISTRATIONS,
@@ -50,9 +51,19 @@ export async function GET(req: NextRequest) {
       remaining: Math.max(0, MANIA_CUP.maxPlayers - taken),
     };
 
+    // Le règlement en vigueur voyage avec l'état : la case d'acceptation doit
+    // porter le numéro de version que le joueur a réellement sous les yeux.
+    const rulebookDoc = await getRulebookByScope(db, { eventSlug: MANIA_CUP.slug });
+    const rulebook = rulebookDoc ? { version: rulebookDoc.version } : null;
+
     const uid = await verifyAuth(req);
     if (!uid) {
-      return NextResponse.json({ authenticated: false, visible: isManiaCupPublic(), seats });
+      return NextResponse.json({
+        authenticated: false,
+        visible: isManiaCupPublic(),
+        seats,
+        rulebook,
+      });
     }
 
     // Tant que l'événement n'est pas publié, seuls les admins et les comptes du
@@ -100,6 +111,7 @@ export async function GET(req: NextRequest) {
       authenticated: true,
       visible,
       seats,
+      rulebook,
       prefill,
       trackmania,
       discord: { id: discordId, inGuild },
@@ -129,6 +141,8 @@ export async function POST(req: NextRequest) {
     const body = (await req.json().catch(() => null)) as {
       birthDate?: unknown;
       countryCode?: unknown;
+      rulebookAccepted?: unknown;
+      rulebookVersion?: unknown;
     } | null;
     if (!body) return NextResponse.json({ error: 'Requête invalide' }, { status: 400 });
 
@@ -140,6 +154,25 @@ export async function POST(req: NextRequest) {
     }
     if (!countries.some((c) => c.code === countryCode)) {
       return NextResponse.json({ error: 'Pays invalide.' }, { status: 400 });
+    }
+
+    // Acceptation du règlement. On vérifie la VERSION et pas seulement la case :
+    // un joueur ayant laissé son onglet ouvert pendant une republication
+    // accepterait sinon un texte qu'il n'a jamais lu.
+    const rulebook = await getRulebookByScope(getAdminDb(), { eventSlug: MANIA_CUP.slug });
+    if (rulebook) {
+      if (body.rulebookAccepted !== true) {
+        return NextResponse.json(
+          { error: 'Tu dois accepter le règlement pour t’inscrire.' },
+          { status: 400 }
+        );
+      }
+      if (body.rulebookVersion !== rulebook.version) {
+        return NextResponse.json(
+          { error: 'Le règlement a été mis à jour. Recharge la page et relis-le avant de valider.' },
+          { status: 409 }
+        );
+      }
     }
 
     const age = ageAtEvent(birthDate);

@@ -1,13 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Loader2, FileText, Check, X, Euro, AlertTriangle, ShieldCheck,
+  Loader2, FileText, Check, X, Euro, AlertTriangle, ShieldCheck, ScrollText, Save,
 } from 'lucide-react';
 import { api, apiDownload, ApiError } from '@/lib/api-client';
 import CountryFlag from '@/components/ui/CountryFlag';
 import { countries } from '@/lib/countries';
+import MarkdownEditor from '@/components/ui/MarkdownEditor';
+import { LIMITS } from '@/lib/validation';
 import { MANIA_CUP, GUARDIAN_DOC_KINDS, GUARDIAN_DOC_LABELS } from '@/lib/mania-cup';
 
 // Console d'organisation de la Springs Mania Cup.
@@ -115,6 +117,8 @@ export default function AdminManiaCupPage() {
           {error}
         </div>
       )}
+
+      <RulebookPanel />
 
       {rows.length === 0 ? (
         <p className="mt-10" style={{ color: 'var(--s-text-dim)' }}>
@@ -289,6 +293,108 @@ function GuardianCell({
         </div>
       )}
     </div>
+  );
+}
+
+// ── Règlement ────────────────────────────────────────────────────────────────
+
+function RulebookPanel() {
+  const qc = useQueryClient();
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const { data } = useQuery({
+    queryKey: ['admin', 'mania-cup', 'rulebook'] as const,
+    queryFn: () =>
+      api<{ rulebook: { markdown: string; version: number } | null }>(
+        `/api/admin/rulebooks?eventSlug=${MANIA_CUP.slug}`
+      ),
+  });
+
+  const publish = useMutation({
+    mutationFn: (markdown: string) =>
+      api<{ version: number }>('/api/admin/rulebooks', {
+        method: 'POST',
+        body: { eventSlug: MANIA_CUP.slug, markdown },
+      }),
+    onSuccess: (r) => {
+      setMsg(`Version ${r.version} publiée.`);
+      setDraft(null);
+      void qc.invalidateQueries({ queryKey: ['admin', 'mania-cup', 'rulebook'] });
+    },
+    onError: (e) => setMsg(e instanceof ApiError ? e.message : 'Publication refusée'),
+  });
+
+  const current = data?.rulebook;
+  const value = draft ?? current?.markdown ?? '';
+
+  return (
+    <section className="mt-10 border border-white/10 bg-white/[0.02] p-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <ScrollText size={22} className="text-[#a364d9]" aria-hidden />
+          <h2 className="font-display text-2xl">Règlement</h2>
+          {current ? (
+            <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+              version {current.version} publiée
+            </span>
+          ) : (
+            <span className="text-sm text-[#FFB800]">jamais publié</span>
+          )}
+        </div>
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="border border-white/20 px-3 py-1.5 text-sm hover:bg-white/10"
+        >
+          {open ? 'Replier' : current ? 'Modifier' : 'Rédiger'}
+        </button>
+      </div>
+
+      <p className="mt-3 text-sm" style={{ color: 'var(--s-text-dim)' }}>
+        Publier une nouvelle version archive la précédente. Les joueurs déjà inscrits
+        gardent la trace de celle qu’ils ont acceptée ; les suivants devront accepter
+        la nouvelle.
+      </p>
+
+      {open && (
+        <div className="mt-5">
+          <MarkdownEditor
+            value={value}
+            onChange={setDraft}
+            placeholder="Rédige le règlement en Markdown…"
+            maxLength={LIMITS.rulebookMarkdown}
+            rows={22}
+            taRef={taRef}
+          />
+          <div className="mt-4 flex flex-wrap items-center gap-4">
+            <button
+              disabled={!value.trim() || publish.isPending || draft === null}
+              onClick={() => publish.mutate(value)}
+              className="inline-flex items-center gap-2 bg-[#00D936] px-5 py-2.5 font-bold text-[#07050b] disabled:opacity-40"
+            >
+              {publish.isPending ? (
+                <Loader2 className="animate-spin" size={16} aria-hidden />
+              ) : (
+                <Save size={16} aria-hidden />
+              )}
+              Publier {current ? `la version ${current.version + 1}` : 'le règlement'}
+            </button>
+            <a
+              href="/mania-cup/reglement"
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm underline"
+              style={{ color: 'var(--s-text-dim)' }}
+            >
+              Voir la page publique
+            </a>
+            {msg && <span className="text-sm text-[#00D936]">{msg}</span>}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 

@@ -34,6 +34,8 @@ type Ctx = {
   visible?: boolean;
   /** Ce que le profil sait déjà (date de naissance, pays) — pré-remplit le formulaire. */
   prefill?: { birthDate: string; countryCode: string };
+  /** Règlement en vigueur. Sa version voyage avec l'acceptation. */
+  rulebook?: { version: number } | null;
   seats: { max: number; taken: number; remaining: number };
   trackmania?: { accountId: string; displayName: string } | null;
   discord?: { id: string | null; inGuild: boolean | null };
@@ -59,6 +61,7 @@ export default function InscriptionPage() {
 
   const [birthDate, setBirthDate] = useState('');
   const [countryCode, setCountryCode] = useState('FR');
+  const [rulesAccepted, setRulesAccepted] = useState(false);
 
   const tmError = params.get('tm_error');
 
@@ -104,7 +107,12 @@ export default function InscriptionPage() {
     try {
       const res = await api<{ registration: ManiaCupRegistration }>('/api/mania-cup/register', {
         method: 'POST',
-        body: { birthDate, countryCode },
+        body: {
+          birthDate,
+          countryCode,
+          rulebookAccepted: rulesAccepted,
+          rulebookVersion: ctx?.rulebook?.version,
+        },
       });
       setCtx((c) => (c ? { ...c, registration: res.registration } : c));
     } catch (e) {
@@ -320,6 +328,30 @@ export default function InscriptionPage() {
                   </div>
                 </div>
 
+                {ctx?.rulebook && (
+                  <label className="flex cursor-pointer items-start gap-3 text-[#c9c5d8]">
+                    <input
+                      type="checkbox"
+                      checked={rulesAccepted}
+                      onChange={(e) => setRulesAccepted(e.target.checked)}
+                      className="mt-1 accent-[#00D936]"
+                    />
+                    <span>
+                      J’ai lu et j’accepte le{' '}
+                      <Link
+                        href="/mania-cup/reglement"
+                        target="_blank"
+                        className="text-[#00D936] underline"
+                      >
+                        règlement de la Springs Mania Cup
+                      </Link>
+                      <span className="block text-xs text-[#8d89a8]">
+                        Version {ctx.rulebook.version} — s’ouvre dans un nouvel onglet.
+                      </span>
+                    </span>
+                  </label>
+                )}
+
                 <p className="border-l-2 border-[#a364d9] pl-4 text-sm text-[#8d89a8]">
                   Besoin d’un poste sur place ? La location se réserve et se règle
                   sur HelloAsso, en même temps que ton inscription ou plus tard.
@@ -328,7 +360,7 @@ export default function InscriptionPage() {
 
                 <button
                   type="submit"
-                  disabled={submitting || !birthDate}
+                  disabled={submitting || !birthDate || (Boolean(ctx?.rulebook) && !rulesAccepted)}
                   className="inline-flex items-center gap-2 bg-[#00D936] px-7 py-4 text-lg font-bold text-[#07050b] transition-transform hover:scale-[1.02] disabled:opacity-60"
                 >
                   {submitting && <Loader2 className="animate-spin" size={18} aria-hidden />}

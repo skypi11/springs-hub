@@ -5,22 +5,27 @@ import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { clampString, LIMITS } from '@/lib/validation';
-import { rulebookDocId, getRulebookByScope } from '@/lib/competitions/rulebooks';
+import { rulebookDocId, getRulebookByScope, type RulebookScope } from '@/lib/competitions/rulebooks';
+import { MANIA_CUP } from '@/lib/mania-cup';
 
 // Règlement de compétition versionné (spec §13bis). Rédaction/édition par les
 // admins de compétition (rôle scopé inclus — c'est leur périmètre). Chaque
 // publication archive la version précédente dans /versions/{n} : traçabilité
 // légale de la version acceptée par chaque équipe à l'inscription.
 
-function parseScope(raw: { circuitId?: unknown; competitionId?: unknown }):
-  | { circuitId: string }
-  | { competitionId: string }
+function parseScope(raw: { circuitId?: unknown; competitionId?: unknown; eventSlug?: unknown }):
+  | RulebookScope
   | null {
   if (typeof raw.circuitId === 'string' && raw.circuitId.trim()) {
     return { circuitId: raw.circuitId.trim() };
   }
   if (typeof raw.competitionId === 'string' && raw.competitionId.trim()) {
     return { competitionId: raw.competitionId.trim() };
+  }
+  // Événement hors moteur de compétitions (Springs Mania Cup). Liste fermée :
+  // un slug libre laisserait créer des règlements fantômes.
+  if (typeof raw.eventSlug === 'string' && raw.eventSlug.trim() === MANIA_CUP.slug) {
+    return { eventSlug: MANIA_CUP.slug };
   }
   return null;
 }
@@ -37,8 +42,9 @@ export async function GET(req: NextRequest) {
     const scope = parseScope({
       circuitId: req.nextUrl.searchParams.get('circuitId'),
       competitionId: req.nextUrl.searchParams.get('competitionId'),
+      eventSlug: req.nextUrl.searchParams.get('eventSlug'),
     });
-    if (!scope) return NextResponse.json({ error: 'Scope requis (circuitId ou competitionId).' }, { status: 400 });
+    if (!scope) return NextResponse.json({ error: 'Scope requis (circuitId, competitionId ou eventSlug).' }, { status: 400 });
 
     const rulebook = await getRulebookByScope(getAdminDb(), scope);
     return NextResponse.json({ rulebook });
@@ -62,7 +68,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const scope = parseScope(body);
-    if (!scope) return NextResponse.json({ error: 'Scope requis (circuitId ou competitionId).' }, { status: 400 });
+    if (!scope) return NextResponse.json({ error: 'Scope requis (circuitId, competitionId ou eventSlug).' }, { status: 400 });
 
     const markdown = clampString(body.markdown, LIMITS.rulebookMarkdown);
     if (!markdown.trim()) {
@@ -71,12 +77,23 @@ export async function POST(req: NextRequest) {
 
     const db = getAdminDb();
 
-    // Le scope doit pointer sur un doc réel (pas de règlement orphelin)
-    const targetCol = 'circuitId' in scope ? 'circuits' : 'competitions';
-    const targetId = 'circuitId' in scope ? scope.circuitId : scope.competitionId;
-    const targetSnap = await db.collection(targetCol).doc(targetId).get();
-    if (!targetSnap.exists) {
-      return NextResponse.json({ error: 'Circuit ou compétition introuvable.' }, { status: 404 });
+    // Le scope doit pointer sur un doc réel (pas de règlement orphelin).
+    // Exception : un scope `eventSlug` ne désigne aucune collection — il vise
+    // un événement hors moteur de compétitions, dont l'existence est garantie
+    // par la liste fermée de parseScope.
+    let targetId: string;
+    let targetLabel: string | null = null;
+    if ('eventSlug' in scope) {
+      targetId = scope.eventSlug;
+      targetLabel = MANIA_CUP.name;
+    } else {
+      const targetCol = 'circuitId' in scope ? 'circuits' : 'competitions';
+      targetId = 'circuitId' in scope ? scope.circuitId : scope.competitionId;
+      const targetSnap = await db.collection(targetCol).doc(targetId).get();
+      if (!targetSnap.exists) {
+        return NextResponse.json({ error: 'Circuit ou compétition introuvable.' }, { status: 404 });
+      }
+      targetLabel = (targetSnap.data()?.name as string) ?? null;
     }
 
     const ref = db.collection('rulebooks').doc(rulebookDocId(scope));
@@ -116,9 +133,10 @@ export async function POST(req: NextRequest) {
     await writeAdminAuditLog(db, {
       action: 'rulebook_published',
       adminUid: uid,
-      targetType: 'circuitId' in scope ? 'circuit' : 'competition',
+      targetType:
+        'circuitId' in scope ? 'circuit' : 'eventSlug' in scope ? 'event' : 'competition',
       targetId,
-      targetLabel: (targetSnap.data()?.name as string) ?? null,
+      targetLabel,
       metadata: { version: newVersion, length: markdown.length },
     });
 

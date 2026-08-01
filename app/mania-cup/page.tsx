@@ -322,8 +322,13 @@ export default function ManiaCupPage() {
             64 places, pas une de plus
           </h2>
           <p className="mt-5 text-lg text-[#c9c5d8]">
-            L’inscription se fait ici, le règlement sur HelloAsso. Ta place n’est
-            confirmée qu’une fois le paiement reçu.
+            L’inscription se fait ici, le paiement sur HelloAsso. Ta place n’est
+            confirmée qu’une fois le règlement reçu.
+          </p>
+          <p className="mt-4">
+            <Link href="/mania-cup/reglement" className="text-[#a364d9] underline">
+              Lire le règlement de la compétition
+            </Link>
           </p>
           <Link
             href={INSCRIPTION_URL}
