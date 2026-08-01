@@ -60,14 +60,22 @@ export async function GET(req: NextRequest) {
     // brouillon (canViewHiddenCompetition).
     const visible = isManiaCupPublic() || (await canViewHiddenCompetition(db, uid));
 
-    const [userSnap, regSnap] = await Promise.all([
+    const [userSnap, regSnap, secretSnap] = await Promise.all([
       db.collection('users').doc(uid).get(),
       db.collection(MANIA_CUP_REGISTRATIONS).doc(uid).get(),
+      db.collection('user_secrets').doc(uid).get(),
     ]);
 
     const user = userSnap.data() ?? {};
-    const trackmania = user.tmAccountId
-      ? { accountId: user.tmAccountId as string, displayName: (user.pseudoTM as string) ?? '' }
+    // ATTENTION : `tmAccountId` est aussi écrit par lib/trackmania-sync à partir
+    // de l'API publique (trophées, COTD) — il ne prouve donc RIEN. Seul
+    // `tmVerifiedAt`, posé par le callback OAuth Nadeo, atteste que le joueur
+    // s'est authentifié chez Ubisoft.
+    const trackmania = user.tmVerifiedAt
+      ? {
+          accountId: (user.tmAccountId as string) ?? '',
+          displayName: ((user.pseudoTM ?? user.tmDisplayName) as string) ?? '',
+        }
       : null;
 
     // Appartenance au Discord Springs. `null` = indéterminé (bot absent du
@@ -80,10 +88,19 @@ export async function GET(req: NextRequest) {
       inGuild = await isGuildMember(gid, discordId).catch(() => null);
     }
 
+    // Ce que le profil sait déjà : inutile de le redemander à un joueur qui a
+    // un compte depuis la Monthly Cup. La date de naissance vit dans
+    // user_secrets (server-only), le pays sur le profil public.
+    const prefill = {
+      birthDate: (secretSnap.data()?.dateOfBirth as string) ?? '',
+      countryCode: (userSnap.data()?.country as string) ?? '',
+    };
+
     return NextResponse.json({
       authenticated: true,
       visible,
       seats,
+      prefill,
       trackmania,
       discord: { id: discordId, inGuild },
       registration: regSnap.exists ? (regSnap.data() as ManiaCupRegistration) : null,
@@ -112,13 +129,11 @@ export async function POST(req: NextRequest) {
     const body = (await req.json().catch(() => null)) as {
       birthDate?: unknown;
       countryCode?: unknown;
-      needsRentalSetup?: unknown;
     } | null;
     if (!body) return NextResponse.json({ error: 'Requête invalide' }, { status: 400 });
 
     const birthDate = typeof body.birthDate === 'string' ? body.birthDate : '';
     const countryCode = typeof body.countryCode === 'string' ? body.countryCode : '';
-    const needsRentalSetup = body.needsRentalSetup === true;
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
       return NextResponse.json({ error: 'Date de naissance invalide.' }, { status: 400 });
@@ -150,7 +165,7 @@ export async function POST(req: NextRequest) {
     // le joueur à ses résultats remontés par le serveur de jeu.
     const user = userSnap.data() ?? {};
     const tmAccountId = user.tmAccountId as string | undefined;
-    if (!tmAccountId) {
+    if (!user.tmVerifiedAt || !tmAccountId) {
       return NextResponse.json(
         { error: 'Connecte d’abord ton compte Trackmania.' },
         { status: 409 }
@@ -177,11 +192,10 @@ export async function POST(req: NextRequest) {
       uid,
       discordId: discordIdFromUid(uid),
       tmAccountId,
-      tmDisplayName: (user.pseudoTM as string) ?? '',
+      tmDisplayName: ((user.pseudoTM ?? user.tmDisplayName) as string) ?? '',
       birthDate,
       ageAtEvent: age,
       countryCode,
-      needsRentalSetup,
       // Le statut est piloté par le paiement (webhook HelloAsso) et par la
       // relecture de l'autorisation parentale — jamais par le formulaire.
       status: prev?.status ?? 'pending_payment',

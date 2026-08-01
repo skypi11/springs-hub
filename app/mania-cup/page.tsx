@@ -64,7 +64,7 @@ const PRATIQUE = [
   {
     icon: Monitor,
     title: 'Tu amènes ton setup',
-    text: "La LAN se joue en BYOPC : chacun vient avec sa machine, son écran et ses périphériques. Quelques postes sont disponibles à la location sur place, en nombre très limité — précise-le à l’inscription si tu en as besoin.",
+    text: "La LAN se joue en BYOPC : chacun vient avec sa machine, son écran et ses périphériques. Quelques postes sont disponibles à la location sur place, en nombre très limité — la location se réserve et se règle sur HelloAsso, en même temps que ton inscription ou plus tard.",
   },
   {
     icon: Coffee,

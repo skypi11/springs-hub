@@ -87,8 +87,6 @@ export interface ManiaCupRegistration {
   ageAtEvent: number;
   /** Code ISO 2 lettres, issu de `lib/countries`. */
   countryCode: string;
-  /** Le joueur demande un poste en location (stock très limité sur place). */
-  needsRentalSetup: boolean;
   status: RegistrationStatus;
   guardianConsent: GuardianConsentStatus;
   /** Clé de l'autorisation parentale chiffrée sur R2, si fournie. */

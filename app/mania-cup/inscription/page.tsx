@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api, apiPublic, ApiError } from '@/lib/api-client';
-import { countries } from '@/lib/countries';
+import CountrySelect from '@/components/ui/CountrySelect';
 import { MANIA_CUP, SPRINGS_DISCORD_INVITE, type ManiaCupRegistration } from '@/lib/mania-cup';
 
 // Parcours d'inscription individuelle à la Springs Mania Cup.
@@ -24,6 +24,8 @@ type Ctx = {
   /** Faux tant que l'événement n'est pas publié et que le visiteur n'est ni
    *  admin ni compte du bac à sable. */
   visible?: boolean;
+  /** Ce que le profil sait déjà (date de naissance, pays) — pré-remplit le formulaire. */
+  prefill?: { birthDate: string; countryCode: string };
   seats: { max: number; taken: number; remaining: number };
   trackmania?: { accountId: string; displayName: string } | null;
   discord?: { id: string | null; inGuild: boolean | null };
@@ -49,7 +51,6 @@ export default function InscriptionPage() {
 
   const [birthDate, setBirthDate] = useState('');
   const [countryCode, setCountryCode] = useState('FR');
-  const [needsRentalSetup, setNeedsRentalSetup] = useState(false);
 
   const tmError = params.get('tm_error');
 
@@ -60,7 +61,10 @@ export default function InscriptionPage() {
       if (data.registration) {
         setBirthDate(data.registration.birthDate ?? '');
         setCountryCode(data.registration.countryCode ?? 'FR');
-        setNeedsRentalSetup(Boolean(data.registration.needsRentalSetup));
+      } else if (data.prefill) {
+        // Un joueur venu de la Monthly Cup a déjà renseigné tout ça sur Aedral.
+        if (data.prefill.birthDate) setBirthDate(data.prefill.birthDate);
+        if (data.prefill.countryCode) setCountryCode(data.prefill.countryCode);
       }
     } catch {
       setError('Impossible de charger l’état des inscriptions.');
@@ -92,7 +96,7 @@ export default function InscriptionPage() {
     try {
       const res = await api<{ registration: ManiaCupRegistration }>('/api/mania-cup/register', {
         method: 'POST',
-        body: { birthDate, countryCode, needsRentalSetup },
+        body: { birthDate, countryCode },
       });
       setCtx((c) => (c ? { ...c, registration: res.registration } : c));
     } catch (e) {
@@ -303,35 +307,16 @@ export default function InscriptionPage() {
                   <label htmlFor="country" className="block text-sm text-[#c9c5d8]">
                     Nationalité
                   </label>
-                  <select
-                    id="country"
-                    value={countryCode}
-                    onChange={(e) => setCountryCode(e.target.value)}
-                    className="mt-2 w-full border border-white/15 bg-black/40 px-4 py-3 text-white outline-none focus:border-[#00D936]"
-                  >
-                    {countries.map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.flag} {c.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="mt-2">
+                    <CountrySelect id="country" value={countryCode} onChange={setCountryCode} />
+                  </div>
                 </div>
 
-                <label className="flex cursor-pointer items-start gap-3 text-[#c9c5d8]">
-                  <input
-                    type="checkbox"
-                    checked={needsRentalSetup}
-                    onChange={(e) => setNeedsRentalSetup(e.target.checked)}
-                    className="mt-1 accent-[#00D936]"
-                  />
-                  <span>
-                    J’ai besoin d’un poste en location sur place
-                    <span className="block text-xs text-[#8d89a8]">
-                      Stock très limité — la demande ne vaut pas réservation, l’organisation
-                      revient vers toi.
-                    </span>
-                  </span>
-                </label>
+                <p className="border-l-2 border-[#a364d9] pl-4 text-sm text-[#8d89a8]">
+                  Besoin d’un poste sur place ? La location se réserve et se règle
+                  sur HelloAsso, en même temps que ton inscription ou plus tard.
+                  Le stock est très limité.
+                </p>
 
                 <button
                   type="submit"
