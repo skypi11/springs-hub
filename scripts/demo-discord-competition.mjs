@@ -137,7 +137,7 @@ async function cleanup() {
       }
     }
     for (const c of await dGet(`/guilds/${GUILD}/channels`)) {
-      if (/^(qualif-demonstration|annonces-qualif|staff-qualif)/i.test(c.name)
+      if (/^(qualif-demonstration|annonces-qualif|staff-qualif|resultats-qualif|general-participants)/i.test(c.name)
         || TEAMS.some(t => c.name === t.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'))) {
         await discord(`/channels/${c.id}`, { method: 'DELETE' }).catch(() => {});
       }
@@ -210,6 +210,11 @@ async function setup(ownerId, staffRoleId) {
         participantRoleName: 'Participant · Démonstration',
         createAnnounceChannel: true, announceChannelName: 'annonces-qualif', announceChannelId: null,
         createStaffChannel: true, staffChannelName: 'staff-qualif', staffChannelId: null,
+        // Salon des résultats : chaque match terminé y paraît en affiche,
+        // avec le détail des manches. Salon général : le seul où les équipes
+        // se parlent entre elles.
+        createResultsChannel: true, resultsChannelName: 'resultats-qualif', resultsChannelId: null,
+        createGeneralChannel: true, generalChannelName: 'general-participants', generalChannelId: null,
       },
     },
     // isDev FALSE le temps de la démonstration : c'est la garde qui coupe les
