@@ -40,13 +40,21 @@ export const runtime = 'nodejs';
 const WIDE = { w: 1200, h: 630 };
 const SQUARE = { w: 1080, h: 1080 };
 
-/** Visuel de fond par jeu. Sans entrée : fond sombre uni, jamais d'image d'un
- *  autre jeu — une affiche Valorant sur un décor de Rocket League ferait plus
- *  de mal que le fond nu. */
+/** Visuel de fond par jeu, dans `public/og-backgrounds/` — un dossier à part
+ *  des visuels du site (`rocket-league.webp`, `tm.webp`), qui servent les cards
+ *  de compétition et n'ont pas les mêmes contraintes.
+ *
+ *  Ce que doit être un fond d'affiche, appris à l'usage :
+ *   - du 1920×1080 au minimum (le carré 1080×1080 y découpe une fenêtre) ;
+ *   - PAS de logo du jeu incrusté (celui de `tm.webp` traversait l'affiche) ;
+ *   - une SCÈNE de jeu, pas une bannière de marque — l'ancien `valorant-banner.jpg`
+ *     était un logo sur aplat, il aurait donné un fond rouge sans intérêt.
+ *
+ *  Sans entrée : fond sombre uni, jamais l'image d'un autre jeu. */
 const GAME_ART: Record<string, string> = {
-  rocket_league: 'rocket-league.webp',
-  trackmania: 'tm.webp',
-  valorant: 'valorant-banner.jpg',
+  rocket_league: 'og-backgrounds/rocket-league.webp',
+  trackmania: 'og-backgrounds/trackmania.webp',
+  valorant: 'og-backgrounds/valorant.webp',
 };
 
 /** Manches gagnées par camp, depuis les manches finales du match. */

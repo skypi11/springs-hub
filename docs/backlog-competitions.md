@@ -50,14 +50,21 @@ Les événements « match officiel » d'une structure ont leur affiche de rencon
 mais **aucune affiche de résultat**. À faire une fois celle des compétitions au
 point : ce sera le même générateur, alimenté par le score de l'événement.
 
-### 2 quater. Trackmania n'a pas de visuel de fond exploitable (02/08)
+### 2 quater. Visuels de fond par jeu — RÉGLÉ (02/08)
 
-`public/tm.webp` fait **768×219** : le couvrir en 1200×630 demanderait un
-agrandissement ×3.7. Le garde-fou de `loadLocalBackgroundAsPngDataUri`
-(`BACKGROUND_MAX_UPSCALE`) l'écarte donc, et une affiche Trackmania sort sur
-fond uni — correcte, mais sans la matière qu'ont RL et Valorant. Il suffit de
-déposer un visuel d'au moins ~1600 px de large dans `public/` et de pointer
-`GAME_ART.trackmania` dessus ; aucun code à toucher.
+Les trois jeux ont leur visuel dans `public/og-backgrounds/`, en 1920×1080,
+tirés des sources officielles (pages Steam pour RL et Trackmania, splash de map
+Riot pour Valorant). Ce qu'ils remplacent, et pourquoi :
+- `tm.webp` faisait **768×219** — ×3.7 pour couvrir une bannière, écarté par le
+  garde-fou, donc aucune affiche Trackmania n'aurait eu de fond ;
+- `valorant-banner.jpg` est **le logo sur aplat**, pas une scène : le fond aurait
+  été un rectangle rouge ;
+- le key art RL laissait **« LEAGUE » dépasser** en haut malgré le rognage.
+
+Les anciens fichiers RESTENT en place : `games-registry` et la page profil s'en
+servent comme bannières de jeu, ce n'est pas le même besoin. Pour ajouter un
+jeu : déposer une scène de 1920×1080 sans logo incrusté dans `og-backgrounds/`
+et l'ajouter à `GAME_ART`.
 
 ### 2 ter. L'affiche de RENCONTRE est restée en arrière (02/08)
 

@@ -215,9 +215,11 @@ export async function loadLocalBackgroundAsPngDataUri(
 
     if (meta.width && meta.height) {
       const targetRatio = width / height;
-      // Le haut porte le logo du jeu : on l'écarte AVANT de choisir la fenêtre,
-      // sinon le cadrage au ratio le réintègre par le bord supérieur.
-      const usableTop = focus === 'bottom' ? Math.round(meta.height * 0.22) : 0;
+      // Marge de sécurité en haut, écartée AVANT de choisir la fenêtre (sinon
+      // le cadrage au ratio la réintègre par le bord supérieur). Modeste : les
+      // visuels de `og-backgrounds/` sont des scènes de jeu sans logo incrusté,
+      // et chaque point rogné ici se paie en agrandissement sur le carré.
+      const usableTop = focus === 'bottom' ? Math.round(meta.height * 0.12) : 0;
       const usableHeight = meta.height - usableTop;
 
       // Plus grande fenêtre au ratio de sortie qui tient dans la zone utile.
