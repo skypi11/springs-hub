@@ -35,6 +35,8 @@ export interface BroadcastItem {
   silent?: boolean;
   /** Image jointe par URL (affiche de résultat) — Discord la charge lui-même. */
   imageUrl?: string | null;
+  /** Liens secondaires ajoutés après le lien principal, sur la même ligne. */
+  extraLinks?: Array<{ label: string; url: string }> | null;
   /** Nom lisible pour l'accusé de livraison (défaut : dérivé de la cible). */
   label?: string;
 }
@@ -194,6 +196,7 @@ export async function broadcast(
           mentionRoleId,
           mentionRoleIds,
           imageUrl: item.imageUrl ?? null,
+          extraLinks: item.extraLinks ?? null,
         }).then(res => {
           if (res.ok) report.sent += 1;
           else report.failures.push({ label, reason: res.reason });

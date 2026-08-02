@@ -68,10 +68,15 @@ export async function publishMatchResults(
           winner: (m.winner as 'a' | 'b' | null) ?? null,
           forfeit: (m.forfeit as 'a' | 'b' | 'both' | null) ?? null,
         }),
-        // L'affiche 16:9 s'affiche dans l'embed ; le format carré est à un clic,
-        // dans le texte, pour qui veut la publier sur Instagram.
+        // UNE SEULE image dans le salon : le 16:9, celui que Discord rend le
+        // mieux. Envoyer les deux formats reviendrait à publier deux fois la
+        // même affiche à chaque match. Le carré (Instagram) est un lien.
         imageUrl: `${SITE}/api/og/competition/${competitionId}/match/${matchId}`,
         link: `${SITE}/competitions/${competitionId}/match/${matchId}`,
+        extraLinks: [{
+          label: 'Affiche carrée',
+          url: `${SITE}/api/og/competition/${competitionId}/match/${matchId}?format=square`,
+        }],
       }], { competition: comp, deadlineMs: 10_000 });
     }
   } catch (err) {

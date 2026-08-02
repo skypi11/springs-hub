@@ -1082,12 +1082,39 @@ export async function sendCompetitionDM(
  * pings de match, lancement des check-ins). Même format visuel que les DM de
  * compétition. Best-effort côté appelant — jamais bloquant pour l'action.
  */
+/**
+ * Pied de description d'un embed : le lien principal, puis les liens
+ * secondaires sur la MÊME ligne. Une ligne par lien alourdirait un message
+ * qu'on lit des dizaines de fois par tournoi.
+ *
+ * Fonction pure et exportée pour être testable : le reste de ce module parle à
+ * Discord, celle-ci ne fait que composer du texte.
+ */
+export function buildEmbedDescription(
+  message: string,
+  link?: string | null,
+  extraLinks?: Array<{ label: string; url: string }> | null,
+): string {
+  const body = message.slice(0, 3800);
+  const parts: string[] = [];
+  if (link) parts.push(`[Ouvrir sur Aedral →](${link})`);
+  for (const l of extraLinks ?? []) {
+    if (l?.url && l?.label) parts.push(`[${l.label}](${l.url})`);
+  }
+  // Sans lien principal, les liens secondaires n'ont rien à quoi se rattacher :
+  // on les affiche quand même plutôt que de les perdre en silence.
+  return parts.length > 0 ? `${body}\n\n${parts.join(' · ')}` : body;
+}
+
 export async function sendCompetitionChannelMessage(
   channelId: string,
   input: {
     title: string;
     message: string;
     link?: string | null;
+    /** Liens secondaires, rendus à la suite du lien principal sur la même
+     *  ligne (ex. l'affiche de résultat au format carré). */
+    extraLinks?: Array<{ label: string; url: string }> | null;
     /** Rôle à mentionner. INDISPENSABLE pour réveiller les joueurs : une
      *  mention placée dans un embed n'envoie aucune notification — seul le
      *  `content` du message ping. Les messages de check-in passaient donc
@@ -1100,12 +1127,10 @@ export async function sendCompetitionChannelMessage(
     imageUrl?: string | null;
   },
 ): Promise<{ ok: true; messageId: string } | { ok: false; reason: string }> {
-  const description = input.message.slice(0, 3800)
-    + (input.link ? `\n\n[Ouvrir sur Aedral →](${input.link})` : '');
   const embed = {
     color: 0xffb800,
     title: input.title.slice(0, 256),
-    description,
+    description: buildEmbedDescription(input.message, input.link, input.extraLinks),
     footer: { text: 'Aedral · compétitions' },
     timestamp: new Date().toISOString(),
     ...(input.imageUrl ? { image: { url: input.imageUrl } } : {}),

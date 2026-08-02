@@ -44,6 +44,19 @@ il n'y a pas de plomberie à inventer, seulement un dessin à faire.
   de résultat), et non plus élevé.
 - **Bonus naturel** : la même affiche servira pour le podium en fin de tournoi.
 
+**Précision du 02/08 — un seul format DANS le salon.** Les deux existent, mais
+publier les deux à chaque match reviendrait à poster deux fois la même affiche
+(Matt : « ça va être chiant de voir 2 fois la même chose »). Le salon reçoit le
+16:9, celui que Discord rend le mieux ; le carré est un lien à côté de « Ouvrir
+sur Aedral ».
+
+**À FAIRE au moment de la passe UI/UX de la page de match** — décidé avec Matt
+le 02/08, en complément du lien ci-dessus : un bouton **« Télécharger l'affiche »**
+sur la page publique du match, proposant les deux formats. C'est l'endroit
+naturel pour qui veut republier, et ça évite d'alourdir chaque message Discord.
+Les URLs existent déjà (`/api/og/competition/{id}/match/{key}` et son
+`?format=square`), il n'y a qu'une UI à poser.
+
 ### 2 bis. Affiche de RÉSULTAT hors compétition (plus tard)
 
 Les événements « match officiel » d'une structure ont leur affiche de rencontre,
@@ -128,6 +141,9 @@ routes, qui ne servent aujourd'hui **ni `structureId` ni `slug`** ; il faut donc
 
 Ces cinq écrans seront repris dans la **passe UI/UX du module compétition** :
 autant les traiter là plutôt que d'étendre cinq routes pour un seul lien.
+
+**À ne pas oublier dans cette même passe** : le bouton « Télécharger l'affiche »
+(deux formats) sur la page de match — voir la section 2, précision du 02/08.
 
 ---
 
