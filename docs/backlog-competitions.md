@@ -50,6 +50,23 @@ Les événements « match officiel » d'une structure ont leur affiche de rencon
 mais **aucune affiche de résultat**. À faire une fois celle des compétitions au
 point : ce sera le même générateur, alimenté par le score de l'événement.
 
+### 2 ter. L'affiche de RENCONTRE est restée en arrière (02/08)
+
+L'affiche de résultat a été recomposée après un retour de Matt (« ça manque
+d'âme, les gens scrollent sans regarder ») : visuel du jeu en fond, diagonale du
+côté du vainqueur, déséquilibre gagnant/perdant, carré empilé plutôt qu'un 16:9
+étiré. **`app/api/og/match/[eventId]/route.tsx` n'a pas suivi** — elle garde la
+composition centrée et symétrique sur fond noir, avec la texture hex et l'or
+d'Aedral. Une structure recevra donc deux images de familles différentes pour le
+même match (avant / après).
+
+Ce qu'il y a à reprendre, tout est déjà écrit et testé :
+`loadLocalBackgroundAsPngDataUri(art, w, h, 0.35, 'bottom')` pour le fond,
+`GAME_ART` pour le visuel par jeu, et le calibrage (assombrissement et vignette
+se MULTIPLIENT — voir les commentaires de la route de résultat). Reste à décider
+si l'affiche de rencontre porte aussi la couleur de la structure comme celle de
+résultat porte celle de l'organisateur.
+
 ## 3. BO de la petite finale non réglable
 
 La petite finale (3e place) prend le BO par défaut ; l'écran de création ne
