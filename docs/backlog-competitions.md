@@ -76,9 +76,25 @@ Certaines ligues laissent une semaine aux équipes pour jouer leur match.
 Sur les écrans publics **et** admin, cliquer une structure ou un joueur doit
 mener à sa page publique / son profil.
 
-- **Effort** : faible à moyen, mais dispersé — plusieurs écrans (fiche de
-  tournoi, équipes inscrites, dossier d'inscription, console, classements).
-- Pas de question. C'est aussi un bon premier geste de la passe UI/UX du module.
+**FAIT le 30/07** :
+- fiche publique d'un tournoi : joueurs du roster → profil, équipe → structure
+- Dossier d'inscription (admin) : l'était déjà (`getProfileHref` /
+  `getStructureHref`)
+
+**RESTE À FAIRE — à ne pas oublier** (ces écrans tirent leurs données d'autres
+routes, qui ne servent aujourd'hui **ni `structureId` ni `slug`** ; il faut donc
+étendre la charge utile avant de pouvoir lier) :
+
+| Écran | Ce qui doit devenir cliquable | Route à étendre |
+|---|---|---|
+| Console admin | noms d'équipes des rangées de match, panneau d'inspection | `/api/admin/competitions/[id]/console` |
+| Page de match (publique et joueur) | les deux équipes du match | `/api/competitions/[id]/matches/[matchId]` |
+| Classements (poules, rondes, final) | chaque équipe du tableau | `/api/competitions/[id]/standings` |
+| Bracket | les équipes des cases | l'adaptateur `brackets-viewer` (contrainte du composant tiers — à étudier, peut-être impossible sans surcouche) |
+| Page de circuit | équipes du classement de circuit | `/api/competitions/circuit/[id]` |
+
+Ces cinq écrans seront repris dans la **passe UI/UX du module compétition** :
+autant les traiter là plutôt que d'étendre cinq routes pour un seul lien.
 
 ---
 
