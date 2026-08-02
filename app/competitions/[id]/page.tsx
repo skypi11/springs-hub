@@ -7,6 +7,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { getStructureHrefFromId } from '@/lib/structure-slug';
+import { getProfileHrefFromId } from '@/lib/user-slug';
 import { CalendarDays, Users2, ScrollText, ArrowRight, Trophy, EyeOff, ChevronLeft, ChevronDown, ExternalLink, ShieldCheck } from 'lucide-react';
 import { api, apiPublic, ApiError } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
@@ -67,7 +69,8 @@ interface PublicCompetition {
     name: string;
     tag: string;
     logoUrl: string | null;
-    roster: Array<{ displayName: string; role: 'titulaire' | 'remplacant'; trackerUrl: string | null; verified: boolean }>;
+    structureId: string | null;
+    roster: Array<{ displayName: string; slug: string | null; role: 'titulaire' | 'remplacant'; trackerUrl: string | null; verified: boolean }>;
     staff: Array<{ name: string; role: 'manager' | 'coach' }>;
   }>;
   waitlistedCount: number;
@@ -111,10 +114,14 @@ function fmtPrize(p: PublicCompetition['competition']['prizePool']): string | nu
 // du jeu + nom plein ; le remplaçant = pastille creuse + nom atténué. Le lien
 // tracker est aligné à droite (colonne), couleur du jeu.
 function RosterRow({ player, color, starter }: {
-  player: { displayName: string; trackerUrl: string | null; verified: boolean };
+  player: { displayName: string; slug: string | null; trackerUrl: string | null; verified: boolean };
   color: string;
   starter?: boolean;
 }) {
+  // Le nom mène au profil quand le slug est connu. Les inscriptions antérieures
+  // au 30/07 n'en ont pas : le nom s'affiche alors sans lien, plutôt qu'un lien
+  // mort ou l'uid (qui porte le snowflake Discord).
+  const nameStyle = { color: starter ? 'var(--s-text)' : 'var(--s-text-dim)' };
   return (
     <div className="flex items-center gap-2.5 text-sm">
       <span aria-hidden style={{
@@ -122,7 +129,13 @@ function RosterRow({ player, color, starter }: {
         background: starter ? color : 'transparent',
         border: starter ? 'none' : '1px solid var(--s-text-muted)',
       }} />
-      <span className="font-medium truncate" style={{ color: starter ? 'var(--s-text)' : 'var(--s-text-dim)' }}>{player.displayName}</span>
+      {player.slug ? (
+        <Link href={getProfileHrefFromId(player.slug)} className="font-medium truncate hover:underline" style={nameStyle}>
+          {player.displayName}
+        </Link>
+      ) : (
+        <span className="font-medium truncate" style={nameStyle}>{player.displayName}</span>
+      )}
       {player.verified && <ShieldCheck size={12} style={{ color: 'var(--s-text-dim)', flexShrink: 0 }} aria-label="Compte vérifié" />}
       {player.trackerUrl && (
         <a href={player.trackerUrl} target="_blank" rel="noopener noreferrer"
@@ -458,6 +471,15 @@ export default function CompetitionPage() {
                           <span key={si} style={{ color: 'var(--s-text-dim)' }}>{s.name} <span style={{ color: 'var(--s-text-muted)' }}>· {s.role === 'manager' ? 'Manager' : 'Coach'}</span></span>
                         ))}
                       </div>
+                    )}
+                    {/* Lien à part plutôt que nom d'équipe cliquable : la ligne
+                        est déjà un bouton qui déplie le roster, deux cibles au
+                        même endroit se disputeraient le clic. */}
+                    {t.structureId && (
+                      <Link href={getStructureHrefFromId(t.structureId)}
+                        className="inline-flex items-center gap-1 text-xs hover:underline" style={{ color }}>
+                        Voir la structure <ExternalLink size={11} />
+                      </Link>
                     )}
                   </div>
                 )}

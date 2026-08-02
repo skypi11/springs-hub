@@ -39,8 +39,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const regsSnap = await db.collection('competition_registrations')
       .where('competitionId', '==', id)
       .get();
-    type PublicRosterPlayer = { displayName: string; role: 'titulaire' | 'remplacant'; trackerUrl: string | null; verified: boolean };
-    type PublicTeam = { teamId: string; name: string; tag: string; logoUrl: string | null; roster: PublicRosterPlayer[]; staff: Array<{ name: string; role: 'manager' | 'coach' }> };
+    // `slug` et `structureId` sont les SEULS identifiants servables : ils sont
+    // déjà publics (URL de profil, page de structure). L'uid ne sort jamais —
+    // il porte le snowflake Discord (archi §8).
+    type PublicRosterPlayer = { displayName: string; slug: string | null; role: 'titulaire' | 'remplacant'; trackerUrl: string | null; verified: boolean };
+    type PublicTeam = { teamId: string; structureId: string | null; name: string; tag: string; logoUrl: string | null; roster: PublicRosterPlayer[]; staff: Array<{ name: string; role: 'manager' | 'coach' }> };
     const teams: PublicTeam[] = [];
     let waitlisted = 0;
     for (const d of regsSnap.docs) {
@@ -52,12 +55,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         const roster: PublicRosterPlayer[] = Array.isArray(r.roster)
           ? (r.roster as Array<Record<string, unknown>>).map(p => ({
               displayName: (p.displayName as string) ?? '',
+              // Absent des inscriptions antérieures au 30/07 : le nom reste
+              // affiché, simplement sans lien.
+              slug: (p.slug as string) || null,
               role: p.role === 'titulaire' ? 'titulaire' : 'remplacant',
               trackerUrl: (p.trackerUrl as string) || null,
               verified: p.verified === true,
             }))
           : [];
-        teams.push({ teamId: (r.teamId as string) ?? '', name: r.name ?? '', tag: r.tag ?? '', logoUrl: r.logoUrl ?? null, roster, staff: [] });
+        teams.push({
+          teamId: (r.teamId as string) ?? '',
+          structureId: (r.structureId as string) ?? null,
+          name: r.name ?? '', tag: r.tag ?? '', logoUrl: r.logoUrl ?? null, roster, staff: [],
+        });
       } else if (r.status === 'waitlisted') {
         waitlisted++;
       }

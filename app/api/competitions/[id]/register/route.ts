@@ -416,6 +416,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         uid: rosterUids[i],
         role: r.role === 'titulaire' ? 'titulaire' : 'remplacant',
         displayName: (u.displayName as string) || (u.discordUsername as string) || rosterUids[i],
+        // Slug figé au snapshot : c'est le SEUL identifiant de joueur servable
+        // publiquement (l'uid porte le snowflake Discord). Sans lui, les noms du
+        // roster public ne peuvent pas mener au profil.
+        slug: (u.slug as string) || null,
         declaredCurrentMmr,
         declaredPeakMmr,
         refMmr,
