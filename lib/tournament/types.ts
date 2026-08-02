@@ -76,6 +76,9 @@ export interface BoConfig {
   default: number;
   overrides: Array<{ bracket: 'winners' | 'losers'; roundsFromEnd: number; bo: number }>;
   grandFinal: number;
+  /** Simple élim avec petite finale : son BO quand il diffère du défaut.
+   *  Absent = le défaut s'applique. */
+  thirdPlace?: number;
 }
 
 export interface PhasePlanRound { bracket: BracketSide; round: number }

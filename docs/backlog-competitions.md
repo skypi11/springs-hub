@@ -26,18 +26,29 @@ Un salon où chaque résultat paraît sous forme d'**image prête à partager** 
 les deux équipes avec leur logo, la date, le score, l'organisateur, le nom de la
 compétition, le jeu, et Aedral.
 
-- **Effort** : le plus lourd des cinq. Mais l'infrastructure existe déjà — le
-  site génère les cartes de partage de profil et de structure (story et
-  bannière), même mécanique.
-- **À trancher (important)** :
-  - **tous les matchs, ou une sélection ?** Un Qualif à 32 équipes fait 63
-    matchs. 63 affiches dans un salon consultable ne gênent personne ; 63
-    notifications, si. Proposition : salon **jamais mentionné**, l'affiche
-    paraît pour tous les matchs.
-  - **quel format ?** Carré (1:1) pour Instagram, ou 16:9 pour X/Twitter, ou
-    les deux. Le choix change le dessin.
-  - texte accompagnant l'image, ou image seule ?
+**L'INFRASTRUCTURE EXISTE DÉJÀ** — et c'est ce qui divise l'effort. Hors
+compétition, quand une structure crée un événement « match officiel », le site
+génère une affiche de RENCONTRE (`app/api/og/match/[eventId]/route.tsx`, via
+`next/og` et les helpers partagés de `lib/og-helpers.ts`) et le bot en joint
+l'URL au message du salon d'équipe. Le salon résultats reprend cette mécanique ;
+il n'y a pas de plomberie à inventer, seulement un dessin à faire.
+
+**Décidé avec Matt (30/07)** :
+- **tous les matchs**, sans exception ;
+- **mention des seules équipes concernées** par le résultat — pas de ping
+  général du salon ;
+- **les deux formats** : carré pour Instagram, 16:9 pour X ;
+- **avec du texte** : le détail du BO, manche par manche.
+
+- **Effort** : moyen désormais (le dessin, deux formats, le branchement au flux
+  de résultat), et non plus élevé.
 - **Bonus naturel** : la même affiche servira pour le podium en fin de tournoi.
+
+### 2 bis. Affiche de RÉSULTAT hors compétition (plus tard)
+
+Les événements « match officiel » d'une structure ont leur affiche de rencontre,
+mais **aucune affiche de résultat**. À faire une fois celle des compétitions au
+point : ce sera le même générateur, alimenté par le score de l'événement.
 
 ## 3. BO de la petite finale non réglable
 

@@ -185,6 +185,7 @@ export const FORMAT_DEFS: Record<FormatKind, FormatDef> = {
       { key: 'bo.default', label: 'BO par défaut', level: 'essential', type: 'choice', options: BO_OPTIONS, default: SINGLE_ELIM_FORMAT.bo.default },
       { key: 'bo.grandFinal', label: 'BO de la finale', level: 'advanced', type: 'choice', options: BO_OPTIONS, default: SINGLE_ELIM_FORMAT.bo.grandFinal },
       { key: 'thirdPlace', label: 'Petite finale', help: 'Les perdants des demi-finales jouent la 3e place.', level: 'essential', type: 'boolean', default: SINGLE_ELIM_FORMAT.thirdPlace === true },
+      { key: 'bo.thirdPlace', label: 'BO de la petite finale', help: 'Sans réglage, elle prend le BO par défaut.', level: 'advanced', type: 'choice', options: BO_OPTIONS, default: SINGLE_ELIM_FORMAT.bo.default },
     ],
     presets: [
       {

@@ -463,3 +463,20 @@ describe('property : simple élim joué de bout en bout', () => {
     }
   });
 });
+
+describe('BO de la petite finale', () => {
+  it('prend le défaut quand il n’est pas réglé (comportement historique)', () => {
+    const b = gen(8, true);
+    expect(b.matches['P3'].bo).toBe(5);
+  });
+
+  it('prend sa propre valeur quand elle est réglée', () => {
+    const b = generateSingleElim(teams(8), {
+      bo: { ...BO, thirdPlace: 3 }, forfeitScore: FORFEIT, thirdPlace: true,
+    });
+    expect(b.matches['P3'].bo).toBe(3);
+    // La finale et les demies ne bougent pas.
+    expect(b.matches['W3-1'].bo).toBe(7);
+    expect(b.matches['W2-1'].bo).toBe(5);
+  });
+});

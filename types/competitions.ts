@@ -269,6 +269,10 @@ export interface CompetitionFormat {
     default: number;
     overrides: Array<{ bracket: 'winners' | 'losers'; roundsFromEnd: number; bo: number }>;
     grandFinal: number;
+    /** Simple élim avec petite finale : son BO, quand il diffère du défaut.
+     *  Absent = le défaut s'applique (comportement historique). Elle se joue
+     *  souvent plus court que la finale — d'où le réglage séparé. */
+    thirdPlace?: number;
   };
   /** Double élim uniquement (toujours false en simple élim). */
   bracketReset: boolean;

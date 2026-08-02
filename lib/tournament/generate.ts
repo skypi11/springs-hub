@@ -269,7 +269,9 @@ export function generateSingleElim(
   // Petite finale : perdants des deux demi-finales (il faut au moins 2 rondes).
   if (thirdPlace && winnersRounds >= 2) {
     const semi = winnersRounds - 1;
-    add(makeMatch('P3', 'losers', 1, 1, opts.bo.default,
+    // BO propre à la petite finale quand il est réglé : elle se joue souvent
+    // plus court que la finale. Sans réglage, le défaut, comme avant.
+    add(makeMatch('P3', 'losers', 1, 1, opts.bo.thirdPlace ?? opts.bo.default,
       { type: 'loser_of', ref: `W${semi}-1` },
       { type: 'loser_of', ref: `W${semi}-2` }));
   }

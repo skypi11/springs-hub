@@ -551,6 +551,17 @@ export function validateFormat(input: unknown): ValidationResult<CompetitionForm
     overrides.push({ bracket: ov.bracket, roundsFromEnd, bo: boValue });
   }
 
+  // BO de la petite finale : simple élim uniquement, et seulement s'il DIFFÈRE
+  // du défaut — sinon on ne stocke rien, et le moteur retombe sur le défaut
+  // (aucun champ orphelin en base, comportement historique préservé).
+  const hasThirdPlace = kind === 'single_elim' && f.thirdPlace === true;
+  let boThirdPlace: number | null = null;
+  if (hasThirdPlace && bo.thirdPlace !== undefined && bo.thirdPlace !== null) {
+    boThirdPlace = asInt(bo.thirdPlace);
+    if (!isValidBo(boThirdPlace)) return err('BO de petite finale invalide (impair, 1-9).');
+    if (boThirdPlace === boDefault) boThirdPlace = null;
+  }
+
   // Score conventionnel de forfait dérivé du BO par défaut : ceil(bo/2) manches
   // gagnées 1-0 (spec §11 : BO5 → ±3, BO7 → ±4). Pas saisi par l'admin.
   const forfeitScore = { games: Math.ceil(boDefault / 2), goalsPerGame: 1 };
@@ -560,7 +571,10 @@ export function validateFormat(input: unknown): ValidationResult<CompetitionForm
     value: {
       kind,
       maxTeams,
-      bo: { default: boDefault, overrides, grandFinal: boGrandFinal },
+      bo: {
+        default: boDefault, overrides, grandFinal: boGrandFinal,
+        ...(boThirdPlace !== null ? { thirdPlace: boThirdPlace } : {}),
+      },
       // Reset = double élim ; petite finale = simple élim. Chacun forcé à
       // false hors de son format (jamais de champ orphelin en base).
       bracketReset: kind === 'double_elim' && f.bracketReset === true,
