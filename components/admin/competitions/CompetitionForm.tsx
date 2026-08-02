@@ -37,6 +37,7 @@ import TournamentTypeStep from './create/TournamentTypeStep';
 import StagesEditor from './create/StagesEditor';
 import ScheduleBoard, { type ScheduleDay } from './create/ScheduleBoard';
 import DiscordSettings, { type DiscordSettingsValue } from './create/DiscordSettings';
+import OrganizerLogoField from './OrganizerLogoField';
 import type { AdminCircuit, AdminCompetition } from './types';
 
 interface FormState {
@@ -249,12 +250,10 @@ function CompetitionFormBody({ form, setForm, initial, circuits, saving, onCance
                 placeholder={inheritedOrganizer?.name || 'Nom de la structure organisatrice'}
                 onChange={e => patch({ organizerName: e.target.value })} />
             </div>
-            <div>
-              <label className="t-label-soft block mb-2">Logo de l&apos;organisateur (URL)</label>
-              <input className="settings-input w-full" value={form.organizerLogoUrl}
-                placeholder="https://…" inputMode="url"
-                onChange={e => patch({ organizerLogoUrl: e.target.value })} />
-            </div>
+            <OrganizerLogoField
+              value={form.organizerLogoUrl}
+              onChange={url => patch({ organizerLogoUrl: url })}
+            />
           </div>
           <div className="flex items-end gap-3 flex-wrap">
             <div>

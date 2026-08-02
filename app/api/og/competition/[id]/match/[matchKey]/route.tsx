@@ -152,10 +152,10 @@ export async function GET(
       loadLogoAsPngDataUri(b.logoUrl as string | null),
       loadLogoAsPngDataUri(orga?.logoUrl ?? null),
       GAME_ART[gameId]
-        // 0.55 et pas plus : la vignette qui vient par-dessus assombrit ENCORE
-        // (les deux se multiplient). À 0.78 il ne restait que ~7 % de l'image —
-        // un fond noir, donc autant de matière qu'avant.
-        ? loadLocalBackgroundAsPngDataUri(GAME_ART[gameId], WIDTH, HEIGHT, 0.55, 'bottom')
+        // Attention au cumul : la vignette posée par-dessus assombrit ENCORE,
+        // les deux se multiplient. À 0.78 il ne restait que ~7 % de l'image et
+        // à 0.55 environ 25 % — dans les deux cas on ne distinguait pas le jeu.
+        ? loadLocalBackgroundAsPngDataUri(GAME_ART[gameId], WIDTH, HEIGHT, 0.35, 'bottom')
         : Promise.resolve(null),
     ]);
 
@@ -202,8 +202,8 @@ export async function GET(
                 />
               : <div style={{
                   fontSize: isWinner ? 120 : 92, fontFamily: ff, display: 'flex',
-                  color: isWinner ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.22)',
-                  letterSpacing: '4px',
+                  color: isWinner ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.3)',
+                  letterSpacing: '4px', textShadow: '0 2px 22px rgba(0,0,0,0.95)',
                 }}>{initials(name)}</div>}
           </div>
           <div style={{
@@ -211,7 +211,13 @@ export async function GET(
             color: isWinner ? '#ffffff' : 'rgba(255,255,255,0.38)',
             letterSpacing: '2px', maxWidth: (square ? 620 : 400) - 20,
             overflow: 'hidden', whiteSpace: 'nowrap',
-            ...(isWinner ? { textShadow: `0 0 40px ${accentSoft(0.5)}` } : {}),
+            // Ombre portée sur les DEUX camps : le fond est un visuel de jeu,
+            // il peut être clair juste derrière un nom (une voiture orange
+            // suffit à noyer le perdant). Le glow d'accent s'y ajoute pour le
+            // seul vainqueur.
+            textShadow: isWinner
+              ? `0 2px 18px rgba(0,0,0,0.95), 0 0 40px ${accentSoft(0.5)}`
+              : '0 2px 18px rgba(0,0,0,0.95)',
           }}>
             {name.toUpperCase()}
           </div>
@@ -268,7 +274,7 @@ export async function GET(
               <div key={i} style={{
                 display: 'flex', padding: '5px 12px', fontSize: 18, fontFamily: ff,
                 color: 'rgba(255,255,255,0.55)', letterSpacing: '1px',
-                background: 'rgba(0,0,0,0.45)',
+                background: 'rgba(0,0,0,0.62)',
                 border: '1px solid rgba(255,255,255,0.10)',
               }}>
                 {g?.a ?? 0}-{g?.b ?? 0}
@@ -306,11 +312,11 @@ export async function GET(
               équipes, et le score cesse d'être lisible. */}
           <div style={{
             position: 'absolute', top: 0, left: 0, width: WIDTH, height: HEIGHT, display: 'flex',
-            background: 'linear-gradient(180deg, rgba(5,5,9,0.95) 0%, rgba(5,5,9,0.34) 38%, rgba(5,5,9,0.42) 66%, rgba(5,5,9,0.96) 100%)',
+            background: 'linear-gradient(180deg, rgba(5,5,9,0.93) 0%, rgba(5,5,9,0.22) 38%, rgba(5,5,9,0.30) 66%, rgba(5,5,9,0.94) 100%)',
           }} />
           <div style={{
             position: 'absolute', top: 0, left: 0, width: WIDTH, height: HEIGHT, display: 'flex',
-            background: 'radial-gradient(ellipse at center, rgba(5,5,9,0.02) 0%, rgba(5,5,9,0.34) 58%, rgba(5,5,9,0.78) 100%)',
+            background: 'radial-gradient(ellipse at center, rgba(5,5,9,0.00) 0%, rgba(5,5,9,0.22) 58%, rgba(5,5,9,0.70) 100%)',
           }} />
 
           {/* Diagonale du côté du vainqueur : la seule chose qui casse la

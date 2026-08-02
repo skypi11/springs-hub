@@ -5,12 +5,13 @@
 // remplit tout d'un clic. Validation partagée avec le serveur
 // (lib/competitions/validate.ts — mêmes messages des deux côtés).
 
-import { useState, useRef, type ChangeEvent } from 'react';
-import { api, apiForm, ApiError } from '@/lib/api-client';
+import { useState } from 'react';
+import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { validateCircuitPayload } from '@/lib/competitions/validate';
 import { LEGENDS_POINTS_SCALE, LEGENDS_CIRCUIT, LEGENDS_TIE_BREAKERS } from '@/lib/competitions/defaults';
 import type { AdminCircuit } from './types';
+import OrganizerLogoField from './OrganizerLogoField';
 
 const TIE_BREAKER_LABELS: Record<string, string> = {
   best_placement: 'Meilleur placement du circuit',
@@ -36,8 +37,6 @@ export default function CircuitForm({
   const [prizeNote, setPrizeNote] = useState(initial?.prizePool?.note ?? '');
   const [organizerName, setOrganizerName] = useState(initial?.organizer?.name ?? '');
   const [organizerLogoUrl, setOrganizerLogoUrl] = useState(initial?.organizer?.logoUrl ?? '');
-  const [uploadingLogo, setUploadingLogo] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [scale, setScale] = useState<Record<string, number>>(
     initial && Object.keys(initial.pointsScale).length > 0 ? initial.pointsScale : { ...LEGENDS_POINTS_SCALE },
   );
@@ -63,25 +62,6 @@ export default function CircuitForm({
     setPrizeNote(LEGENDS_CIRCUIT.prizePool.note);
     setOrganizerName('Springs E-Sport');
     toast.success('Préréglage Legends appliqué.');
-  }
-
-  async function onLogoFile(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) {
-      setUploadingLogo(true);
-      try {
-        const fd = new FormData();
-        fd.append('file', file);
-        const res = await apiForm<{ url: string }>('/api/admin/competitions/organizer-logo', fd);
-        setOrganizerLogoUrl(res.url);
-        toast.success('Logo uploadé.');
-      } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : 'Upload échoué.');
-      } finally {
-        setUploadingLogo(false);
-      }
-    }
-    if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   async function save() {
@@ -210,33 +190,11 @@ export default function CircuitForm({
             </p>
           </div>
           <div className="md:col-span-2">
-            <label className="t-label block mb-2">Logo organisateur (optionnel)</label>
-            <div className="flex items-center gap-3 flex-wrap">
-              {organizerLogoUrl ? (
-                <div className="flex items-center justify-center bevel-sm px-3 flex-shrink-0"
-                  style={{ height: 56, minWidth: 88, maxWidth: 220, background: 'var(--s-bg)', border: '1px solid var(--s-border)' }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element -- aperçu logo arbitraire hors remotePatterns */}
-                  <img src={organizerLogoUrl} alt="" style={{ maxHeight: 40, maxWidth: 190, width: 'auto', objectFit: 'contain' }} />
-                </div>
-              ) : (
-                <div className="flex items-center justify-center bevel-sm text-xs flex-shrink-0"
-                  style={{ height: 56, width: 88, background: 'var(--s-bg)', border: '1px dashed var(--s-border)', color: 'var(--s-text-muted)' }}>
-                  Aperçu
-                </div>
-              )}
-              <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={onLogoFile} />
-              <button type="button" className="btn-springs btn-secondary bevel-sm text-sm" onClick={() => fileInputRef.current?.click()} disabled={uploadingLogo}>
-                {uploadingLogo ? 'Upload…' : organizerLogoUrl ? 'Remplacer' : 'Choisir une image'}
-              </button>
-              {organizerLogoUrl && !uploadingLogo && (
-                <button type="button" className="btn-springs btn-ghost text-sm" onClick={() => setOrganizerLogoUrl('')}>
-                  Retirer
-                </button>
-              )}
-            </div>
-            <p className="text-xs mt-1.5" style={{ color: 'var(--s-text-muted)' }}>
-              PNG à fond transparent conseillé (pas de fond noir). Max 2 Mo. Le ratio est conservé, jamais rogné.
-            </p>
+            <OrganizerLogoField
+              value={organizerLogoUrl}
+              onChange={setOrganizerLogoUrl}
+              label="Logo organisateur (optionnel)"
+            />
           </div>
         </div>
 

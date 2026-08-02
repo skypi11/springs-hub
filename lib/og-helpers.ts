@@ -208,7 +208,7 @@ export async function loadLocalBackgroundAsPngDataUri(
       // Saturation très basse : le visuel doit devenir une TEXTURE. À pleine
       // saturation il concurrence l'affiche — le logo du jeu et les couleurs
       // vives passent devant les logos d'équipe au lieu de les porter.
-      .modulate({ brightness: Math.max(0.05, 1 - darken), saturation: 0.45 })
+      .modulate({ brightness: Math.max(0.05, 1 - darken), saturation: 0.62 })
       .blur(1.5)
       .png()
       .toBuffer();
