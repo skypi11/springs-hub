@@ -93,6 +93,8 @@ const capUid = i => `discord_${P}_cap${i}`;
 
 const regId = i => `${COMP}_team${i}`;
 const teamName = i => `E2E BC ${i}`;
+/** Numéro d'équipe depuis son identifiant d'inscription. */
+const teamIndexOf = rid => Number(String(rid).replace(`${COMP}_team`, ''));
 
 async function setup(ownerId) {
   const batch = db.batch();
@@ -461,6 +463,65 @@ async function main() {
     `content="${teamAnn?.content}"`);
   const empty = await api('POST', `/api/admin/competitions/${COMP}/console`, { action: 'announce', message: '  ' });
   check('une annonce vide est refusée', empty.status === 400, `status ${empty.status}`);
+
+  section('Clôture — podium en public, sa place à chaque équipe');
+  // On règle le bracket jusqu'au bout : la clôture exige que tout soit tranché.
+  for (let pass = 0; pass < 8; pass++) {
+    const open = (await db.collection('competition_matches').where('competitionId', '==', COMP).get())
+      .docs.map(d => d.data())
+      .filter(m => m.teamA && m.teamB && !['completed', 'cancelled'].includes(m.status));
+    if (open.length === 0) break;
+    for (const m of open) {
+      if (m.status === 'pending') {
+        await api('POST', `/api/admin/competitions/${COMP}/console`, { action: 'launch_phase', matchIds: [m.id] });
+      }
+      // Un score ne s'impose pas à un match dont les deux camps n'ont pas
+      // confirmé : on check-in comme le feraient les capitaines.
+      for (const rid of [m.teamA, m.teamB]) {
+        await apiAs(capUid(teamIndexOf(rid)), 'POST', `/api/competitions/${COMP}/matches/${m.id}`, { action: 'checkin' });
+      }
+      // Le score suit le BO DU MATCH : la finale est en BO5 là où les demies
+      // sont en BO3. Un score trop court ou trop long est refusé par le moteur
+      // (« invalid_scores ») — un match ne se poursuit pas après la décision.
+      const wins = Math.ceil(((m.bo ?? 3) + 1) / 2);
+      const forced = await api('POST', `/api/admin/competitions/${COMP}/console`, {
+        action: 'force_score', matchId: m.id,
+        games: Array.from({ length: wins }, () => ({ a: 3, b: 1 })),
+        resolution: 'Réglé pour la démonstration du test.',
+      });
+      if (forced.status !== 200) {
+        console.log(`    (force_score ${m.id} [${m.status}] → ${forced.status} ${JSON.stringify(forced.json).slice(0, 140)})`);
+      }
+    }
+  }
+  const remaining = (await db.collection('competition_matches').where('competitionId', '==', COMP).get())
+    .docs.map(d => d.data())
+    .filter(m => !['completed', 'cancelled'].includes(m.status));
+  if (remaining.length > 0) {
+    console.log(`    (matchs non réglés : ${remaining.map(m => `${m.id}:${m.status}${m.teamA && m.teamB ? '' : ' [sans 2 équipes]'}`).join(', ')})`);
+  }
+
+  const closed = await api('POST', `/api/admin/competitions/${COMP}/console`, { action: 'close_competition' });
+  check('close_competition → 200', closed.status === 200, JSON.stringify(closed.json).slice(0, 220));
+  const placements = closed.json?.finalPlacements ?? [];
+  check('un classement final est écrit', placements.length > 0, `${placements.length} équipes classées`);
+  if (placements.length === 0) {
+    console.log('    (clôture impossible : les vérifications suivantes sont sautées)');
+  } else {
+
+    const podium = findByTitle(await messagesOf(announceId), 'classement final');
+    check('LE PODIUM EST ANNONCÉ EN PUBLIC', !!podium);
+    const podiumDesc = embedOf(podium).description || '';
+    check('il nomme le vainqueur', podiumDesc.includes(placements[0]?.name ?? '###'), podiumDesc);
+    check('l’annonce du podium ne ping personne', !(podium?.content || '').includes('<@&'),
+      `content="${podium?.content}"`);
+
+    const winnerIdx = Number(String(placements[0]?.registrationId ?? '').replace(`${COMP}_team`, ''));
+    const own = chanOf[winnerIdx] ? findByTitle(await messagesOf(chanOf[winnerIdx]), 'c’est terminé') : null;
+    check('CHAQUE ÉQUIPE REÇOIT SA PLACE', !!own, `salon de l'équipe ${winnerIdx}`);
+    check('la place est lisible (« 1re »)', (embedOf(own).description || '').includes('1re'),
+      embedOf(own).description);
+  }
 
   section('Garde du bac à sable');
   await db.collection('competitions').doc(COMP).update({ isDev: true });

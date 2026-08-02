@@ -9,6 +9,12 @@ import {
   opponentWithdrawnText,
   bracketPublishedTeamText,
   organizerAnnouncementText,
+  generalCheckinOpenText,
+  finalPlacementText,
+  podiumAnnounceText,
+  stageOutcomeText,
+  threadToStaffText,
+  threadToTeamsText,
 } from './broadcast-messages';
 
 const ALL = [
@@ -24,6 +30,18 @@ const ALL = [
   bracketPublishedTeamText({ opponentName: 'B', startsAt: 'samedi 15:00' }),
   bracketPublishedTeamText({ opponentName: null }),
   organizerAnnouncementText({ competitionName: 'Qualif 1', body: '  Retard de 20 minutes.  ' }),
+  generalCheckinOpenText({ teamName: 'Nova', captainName: 'Skypi', minutes: 20 }),
+  generalCheckinOpenText({ teamName: 'Nova', captainName: null, minutes: 20 }),
+  finalPlacementText({ competitionName: 'Qualif 1', placement: 1, teamCount: 32, points: 25 }),
+  finalPlacementText({ competitionName: 'Qualif 1', placement: 9, teamCount: 32, points: null }),
+  podiumAnnounceText({
+    competitionName: 'Qualif 1', teamCount: 32,
+    podium: [{ placement: 1, name: 'A' }, { placement: 2, name: 'B' }, { placement: 3, name: 'C' }],
+  }),
+  stageOutcomeText({ qualified: true, nextStageLabel: 'phase finale' }),
+  stageOutcomeText({ qualified: false, nextStageLabel: null, placement: 11 }),
+  threadToStaffText({ teamName: 'Nova', matchLabel: 'W1-2', body: 'La room ne répond pas.' }),
+  threadToTeamsText({ body: 'On relance une room.' }),
 ];
 
 describe('voix du bot', () => {
@@ -127,6 +145,78 @@ describe('retraits', () => {
 
   it('ne mentionne pas de motif quand il n’y en a pas', () => {
     expect(teamWithdrawnText({ teamName: 'Aegis' }).message).not.toContain('Motif');
+  });
+});
+
+describe('fin de parcours', () => {
+  it('dit la place en toutes lettres, pas un nombre brut', () => {
+    expect(finalPlacementText({ competitionName: 'Q1', placement: 1, teamCount: 32, points: 25 }).message)
+      .toContain('1re');
+    expect(finalPlacementText({ competitionName: 'Q1', placement: 9, teamCount: 32, points: 0 }).message)
+      .toContain('9e');
+  });
+
+  it('annonce les points quand il y en a', () => {
+    const t = finalPlacementText({ competitionName: 'Q1', placement: 2, teamCount: 32, points: 18 });
+    expect(t.message).toContain('18 points');
+  });
+
+  it('ne parle pas de points hors circuit', () => {
+    const t = finalPlacementText({ competitionName: 'Q1', placement: 2, teamCount: 8, points: null });
+    expect(t.message).not.toMatch(/point/i);
+  });
+
+  it('dit « aucun point » quand le classement n’en rapporte pas', () => {
+    const t = finalPlacementText({ competitionName: 'Q1', placement: 20, teamCount: 32, points: 0 });
+    expect(t.message).toMatch(/aucun point/i);
+  });
+
+  it('le podium ne liste que trois équipes, même si on lui en donne plus', () => {
+    const t = podiumAnnounceText({
+      competitionName: 'Q1', teamCount: 32,
+      podium: [1, 2, 3, 4, 5].map(p => ({ placement: p, name: `T${p}` })),
+    });
+    expect(t.message).toContain('T3');
+    expect(t.message).not.toContain('T4');
+  });
+
+  it('distingue qualifiée et éliminée', () => {
+    expect(stageOutcomeText({ qualified: true, nextStageLabel: 'phase finale' }).message)
+      .toContain('phase finale');
+    expect(stageOutcomeText({ qualified: false, nextStageLabel: null, placement: 11 }).message)
+      .toContain('11e');
+  });
+
+  it('reste correct quand l’étape suivante n’a pas de nom', () => {
+    const t = stageOutcomeText({ qualified: true, nextStageLabel: null });
+    expect(t.message).not.toContain('null');
+    expect(t.message).toMatch(/étape suivante/);
+  });
+});
+
+describe('relais du fil de match', () => {
+  it('cite le message sans le laisser déborder', () => {
+    const t = threadToStaffText({ teamName: 'Nova', matchLabel: 'W1-2', body: 'x'.repeat(400) });
+    expect(t.message.length).toBeLessThan(260);
+    expect(t.message).toContain('…');
+  });
+
+  it('aplatit les retours à la ligne', () => {
+    const t = threadToTeamsText({ body: 'ligne 1\n\nligne 2' });
+    expect(t.message.split('\n')[0]).toContain('ligne 1 ligne 2');
+  });
+});
+
+describe('check-in général', () => {
+  it('nomme le capitaine quand il est connu', () => {
+    expect(generalCheckinOpenText({ teamName: 'Nova', captainName: 'Skypi', minutes: 20 }).message)
+      .toContain('Skypi');
+  });
+
+  it('reste lisible quand le capitaine est introuvable', () => {
+    const t = generalCheckinOpenText({ teamName: 'Nova', captainName: null, minutes: 20 });
+    expect(t.message).toContain('Nova');
+    expect(t.message).not.toContain('null');
   });
 });
 

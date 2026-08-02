@@ -20,7 +20,7 @@ import {
 import {
   matchCheckinText, checkinReopenedText, adminRulingText,
   teamWithdrawnText, opponentWithdrawnText, organizerAnnouncementText,
-  generalCheckinOpenText,
+  generalCheckinOpenText, finalPlacementText, podiumAnnounceText, stageOutcomeText,
   type BroadcastText,
 } from '@/lib/competitions/broadcast-messages';
 import { phasePlanForStage } from '@/lib/competitions/schedule-plan';
@@ -1239,11 +1239,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         throw e;
       }
 
-      // Notifs best-effort : qualifiées et éliminées (jamais bloquant).
+      // Notifs best-effort : qualifiées et éliminées (jamais bloquant). Sur
+      // Discord aussi — une équipe qui ne sait pas si elle continue reste
+      // connectée pour rien, ou s'absente au mauvais moment.
       try {
         const compName = (comp.name as string) ?? id;
         const advancedSet = new Set(adv.advanced);
         const payloads: NotificationPayload[] = [];
+        const items: BroadcastItem[] = [];
         for (const p of adv.stageResult.placements) {
           const reg = regsSnap.docs.find(d => d.id === p.registrationId)?.data();
           if (!reg) continue;
@@ -1258,8 +1261,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               link: `/competitions/${id}`, metadata: { competitionId: id },
             });
           }
+          items.push({
+            target: { kind: 'team', registrationId: p.registrationId },
+            text: stageOutcomeText({
+              qualified,
+              nextStageLabel: qualified ? stageLabelOf(nextStage) : null,
+              placement: p.placement,
+            }),
+            link: `https://aedral.com/competitions/${id}`,
+          });
         }
         await createNotifications(db, payloads);
+        await broadcast(db, id, items, { competition: comp, deadlineMs: 20_000 });
       } catch (e) {
         captureApiError('Console advance_stage notifications', e);
       }
@@ -1290,12 +1303,46 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         };
         return NextResponse.json({ error: messages[result.code] }, { status: result.code === 'not_found' ? 404 : 409 });
       }
+      // Fin de tournoi : le podium en public, et sa place à chaque équipe.
+      // C'est l'information la plus attendue de la journée — elle n'existait
+      // jusqu'ici que sur le site.
+      let closeDelivery: DeliveryReport | null = null;
+      try {
+        const competitionName = (comp.name as string) ?? id;
+        const teamCount = result.finalPlacements.length;
+        const items: BroadcastItem[] = [{
+          target: { kind: 'announce' },
+          text: podiumAnnounceText({
+            competitionName,
+            podium: result.finalPlacements.slice(0, 3).map(p => ({ placement: p.placement, name: p.name })),
+            teamCount,
+          }),
+          link: `https://aedral.com/competitions/${id}`,
+        }];
+        for (const p of result.finalPlacements) {
+          items.push({
+            target: { kind: 'team', registrationId: p.registrationId },
+            text: finalPlacementText({
+              competitionName, placement: p.placement, teamCount, points: p.points,
+            }),
+            link: `https://aedral.com/competitions/${id}`,
+          });
+        }
+        closeDelivery = await broadcast(db, id, items, { competition: comp, deadlineMs: 20_000 });
+      } catch (e) {
+        captureApiError('Console close_competition notifications', e);
+      }
+
       await audit(db, uid, 'competition_closed', id, comp, {
         teamCount: result.finalPlacements.length,
         podium: result.finalPlacements.slice(0, 3).map(p => `${p.placement}. ${p.name}`),
         ...(result.unlinked.length > 0 ? { unlinked: result.unlinked } : {}),
       });
-      return NextResponse.json({ ok: true, finalPlacements: result.finalPlacements, unlinked: result.unlinked });
+      return NextResponse.json({
+        ok: true, finalPlacements: result.finalPlacements, unlinked: result.unlinked,
+        delivery: closeDelivery,
+        deliverySummary: closeDelivery ? summarizeDelivery(closeDelivery) : null,
+      });
     }
 
     if (action === 'announce') {

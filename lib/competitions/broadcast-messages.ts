@@ -195,6 +195,76 @@ export function generalCheckinReminderText(input: { minutesLeft: number }): Broa
   };
 }
 
+/** « 1re », « 2e », « 12e » — le classement se lit, il ne se décode pas. */
+function ordinal(place: number): string {
+  return place === 1 ? '1re' : `${place}e`;
+}
+
+/**
+ * Fin de tournoi, à chaque équipe : sa place, et ses points de circuit s'il y en
+ * a. C'est l'information la plus attendue de la journée, et elle n'existait
+ * jusqu'ici que sur le site.
+ */
+export function finalPlacementText(input: {
+  competitionName: string;
+  placement: number;
+  teamCount: number;
+  points: number | null;
+}): BroadcastText {
+  const lines = [`${ordinal(input.placement)} sur ${input.teamCount} équipes.`];
+  if (input.points !== null && input.points > 0) {
+    lines.push(`${input.points} point${input.points > 1 ? 's' : ''} de circuit pour ce tournoi.`);
+  } else if (input.points !== null) {
+    lines.push('Aucun point de circuit à ce classement.');
+  }
+  lines.push('Merci d’avoir joué.');
+  return { title: `${input.competitionName} — c’est terminé`, message: lines.join('\n') };
+}
+
+/** Podium, dans le salon public. Un seul message, en fin de tournoi. */
+export function podiumAnnounceText(input: {
+  competitionName: string;
+  podium: Array<{ placement: number; name: string }>;
+  teamCount: number;
+}): BroadcastText {
+  const lines = input.podium
+    .slice(0, 3)
+    .map(p => `${ordinal(p.placement)} — ${p.name}`);
+  lines.push(`${input.teamCount} équipes engagées. Classement complet sur la page du tournoi.`);
+  return { title: `${input.competitionName} — classement final`, message: lines.join('\n') };
+}
+
+/**
+ * Passage d'étape : qualifiée ou éliminée. Une équipe qui ne sait pas si elle
+ * continue reste connectée pour rien, ou s'absente au mauvais moment.
+ */
+export function stageOutcomeText(input: {
+  qualified: boolean;
+  nextStageLabel: string | null;
+  placement?: number | null;
+}): BroadcastText {
+  if (input.qualified) {
+    return {
+      title: 'Qualifiée pour la suite',
+      message: [
+        input.nextStageLabel
+          ? `Ton équipe passe en ${input.nextStageLabel}.`
+          : 'Ton équipe passe à l’étape suivante.',
+        'Reste joignable : le check-in du prochain match arrive dans ce salon.',
+      ].join('\n'),
+    };
+  }
+  return {
+    title: 'Parcours terminé',
+    message: [
+      input.placement
+        ? `Ton équipe s’arrête à cette étape, ${ordinal(input.placement)} au classement.`
+        : 'Ton équipe s’arrête à cette étape.',
+      'Merci d’avoir joué.',
+    ].join('\n'),
+  };
+}
+
 /** Extrait d'un message de fil : borné, sur une seule ligne. */
 function excerptOf(body: string, max = 180): string {
   const flat = body.replace(/\s+/g, ' ').trim();
