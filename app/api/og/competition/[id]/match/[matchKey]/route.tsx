@@ -6,9 +6,8 @@ import { isCompetitionHidden } from '@/lib/competitions/visibility';
 import { getGameColor, getGameLabel } from '@/lib/games-registry';
 import { roundLabel } from '@/lib/competitions/round-labels';
 import {
-  AEDRAL_PALETTE,
-  hexTextureDataUri,
   initials,
+  loadLocalBackgroundAsPngDataUri,
   loadLogoAsPngDataUri,
   loadRajdhani,
   materializeOgResponse,
@@ -19,9 +18,17 @@ import {
 // événement de structure (app/api/og/match) : une URL publique jointe au
 // message Discord, que Discord charge lui-même.
 //
-// Deux formats, parce que les réseaux n'ont pas le même :
-//   - par défaut 1200×630 (16:9), pour X et l'embed Discord ;
-//   - ?format=square → 1080×1080, pour Instagram.
+// Deux formats, parce que les réseaux n'ont pas le même — et deux COMPOSITIONS,
+// pas une seule étirée :
+//   - par défaut 1200×630 (16:9) en face-à-face horizontal, pour X et Discord ;
+//   - ?format=square → 1080×1080 EMPILÉ (vainqueur au-dessus), pour Instagram.
+// Un 16:9 recadré en carré laisse un tiers de vide en haut et en bas ; les deux
+// mises en page se partagent les données, jamais la grille.
+//
+// Parti pris visuel : l'affiche appartient à l'ORGANISATEUR, pas à Aedral. Sa
+// couleur, son logo, son nom priment ; « aedral.com » tient dans un coin. Et
+// elle doit arrêter le scroll : visuel du jeu en fond, diagonale du côté du
+// vainqueur, score qui domine — pas une fiche de score centrée et symétrique.
 //
 // Route PUBLIQUE mais gatée sur la visibilité de la compétition : une compét
 // masquée (brouillon, bac à sable) ne doit pas laisser deviner ses résultats.
@@ -32,6 +39,15 @@ export const runtime = 'nodejs';
 
 const WIDE = { w: 1200, h: 630 };
 const SQUARE = { w: 1080, h: 1080 };
+
+/** Visuel de fond par jeu. Sans entrée : fond sombre uni, jamais d'image d'un
+ *  autre jeu — une affiche Valorant sur un décor de Rocket League ferait plus
+ *  de mal que le fond nu. */
+const GAME_ART: Record<string, string> = {
+  rocket_league: 'rocket-league.webp',
+  trackmania: 'tm.webp',
+  valorant: 'valorant-banner.jpg',
+};
 
 /** Manches gagnées par camp, depuis les manches finales du match. */
 function gamesWon(scores: Array<{ a?: number; b?: number }> | null): { a: number; b: number } {
@@ -108,12 +124,12 @@ export async function GET(
     // La couleur de l'affiche est celle de l'ORGANISATEUR, à défaut celle du
     // jeu. L'or d'Aedral n'apparaît plus : une affiche republiée par une équipe
     // doit porter les couleurs du tournoi, pas celles de son hébergeur.
-    const ACCENT = accent || getGameColor((comp.game as string) ?? 'rocket_league');
-    const accentSoft = (a: number) => {
+    const ACCENT = accent || gameColor;
+    const accentSoft = (alpha: number) => {
       const m = /^#(\w{2})(\w{2})(\w{2})$/.exec(ACCENT);
-      if (!m) return `rgba(255,184,0,${a})`;
-      const [r, g, b] = [1, 2, 3].map(i => parseInt(m[i], 16));
-      return `rgba(${r},${g},${b},${a})`;
+      if (!m) return `rgba(255,184,0,${alpha})`;
+      const [r, g, bl] = [1, 2, 3].map(i => parseInt(m[i], 16));
+      return `rgba(${r},${g},${bl},${alpha})`;
     };
 
     // Nom du tour : « Quarts », « Finale »… Une affiche de résultat sans le
@@ -127,61 +143,148 @@ export async function GET(
     const roundName = (match.bracket === 'winners' && typeof match.round === 'number' && totalRounds > 0)
       ? roundLabel(match.round as number, totalRounds)
       : null;
+    const bo = typeof match.bo === 'number' && match.bo > 0 ? `BO${match.bo}` : null;
+    const stage = [roundName?.toUpperCase(), bo].filter(Boolean).join(' · ');
 
     const endedMs = match.updatedAt?.toMillis?.() ?? Date.now();
-    const [logoA, logoB, orgaLogo] = await Promise.all([
+    const [logoA, logoB, orgaLogo, bgArt] = await Promise.all([
       loadLogoAsPngDataUri(a.logoUrl as string | null),
       loadLogoAsPngDataUri(b.logoUrl as string | null),
       loadLogoAsPngDataUri(orga?.logoUrl ?? null),
+      GAME_ART[gameId]
+        // 0.55 et pas plus : la vignette qui vient par-dessus assombrit ENCORE
+        // (les deux se multiplient). À 0.78 il ne restait que ~7 % de l'image —
+        // un fond noir, donc autant de matière qu'avant.
+        ? loadLocalBackgroundAsPngDataUri(GAME_ART[gameId], WIDTH, HEIGHT, 0.55, 'bottom')
+        : Promise.resolve(null),
     ]);
 
     const font = loadRajdhani();
     const ff = font ? 'Rajdhani' : 'sans-serif';
-    const hexUri = hexTextureDataUri(WIDTH, HEIGHT);
-
-    // Le format carré est plus haut que large : mêmes proportions relatives,
-    // valeurs resserrées pour garder la même respiration dans les deux.
-    const logoSize = square ? 250 : 220;
-    const nameSize = square ? 38 : 34;
-    const scoreSize = square ? 170 : 155;
-    const sideWidth = square ? 400 : 420;
     const games = (match.scores?.final as Array<{ a?: number; b?: number }>) ?? [];
 
-    /** Un camp. Le perdant est atténué, pas effacé : on doit lire les deux. */
-    const Side = ({ name, logo, isWinner }: { name: string; logo: string | null; isWinner: boolean }) => (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: sideWidth }}>
-        {/* `boxShadow: 'none'` est rendu par satori comme une ombre noire pleine,
-            calée en haut à gauche de l'image : la propriété doit être ABSENTE
-            quand il n'y a pas de glow, pas mise à « none ». */}
+    // Le vainqueur écrase visuellement le perdant : logo plus grand, nom plus
+    // grand, pleine lumière. C'est ce déséquilibre qui fait la différence entre
+    // une affiche et un tableau de scores — mais l'ordre A/B du bracket est
+    // conservé, on ne réordonne pas les camps pour mettre le gagnant à gauche.
+    const S = square
+      ? { logoWin: 175, logoLose: 135, nameWin: 50, nameLose: 36, score: 185 }
+      : { logoWin: 210, logoLose: 165, nameWin: 46, nameLose: 34, score: 170 };
+
+    /** Un camp : le logo (ou ses initiales en très grand) puis le nom. */
+    const Side = ({ name, logo, isWinner }: { name: string; logo: string | null; isWinner: boolean }) => {
+      const size = isWinner ? S.logoWin : S.logoLose;
+      return (
         <div style={{
-          width: logoSize, height: logoSize, display: 'flex',
-          alignItems: 'center', justifyContent: 'center',
-          background: isWinner ? accentSoft(0.05) : AEDRAL_PALETTE.surface,
-          border: `2px solid ${isWinner ? ACCENT : 'rgba(255,255,255,0.08)'}`,
-          ...(isWinner ? { boxShadow: `0 0 60px ${accentSoft(0.22)}` } : {}),
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          width: square ? 620 : 400, position: 'relative',
         }}>
-          {logo
-            ? /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={logo} width={logoSize - 40} height={logoSize - 40} alt="" style={{ objectFit: 'contain' }} />
-            : <div style={{ fontSize: 72, color: isWinner ? AEDRAL_PALETTE.textDim : '#4a4a5e', fontFamily: ff, display: 'flex' }}>{initials(name)}</div>}
+          {/* Halo derrière le seul vainqueur — la lumière désigne le camp. */}
+          {isWinner && (
+            <div style={{
+              position: 'absolute', top: size / 2 - 190, left: (square ? 620 : 400) / 2 - 190,
+              width: 380, height: 380, display: 'flex',
+              background: `radial-gradient(circle, ${accentSoft(0.30)} 0%, ${accentSoft(0.08)} 45%, transparent 70%)`,
+            }} />
+          )}
+          {/* Hauteur réservée à la taille du VAINQUEUR en face-à-face, pour que
+              les deux noms restent sur la même ligne. En pile (carré) cette
+              réserve ne sert plus qu'à creuser un trou sous le perdant. */}
+          <div style={{
+            ...(square ? {} : { height: S.logoWin }),
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {logo
+              ? /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={logo} width={size} height={size} alt=""
+                  style={{ objectFit: 'contain', ...(isWinner ? {} : { opacity: 0.5 }) }}
+                />
+              : <div style={{
+                  fontSize: isWinner ? 120 : 92, fontFamily: ff, display: 'flex',
+                  color: isWinner ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.22)',
+                  letterSpacing: '4px',
+                }}>{initials(name)}</div>}
+          </div>
+          <div style={{
+            marginTop: 22, fontSize: isWinner ? S.nameWin : S.nameLose, fontFamily: ff, display: 'flex',
+            color: isWinner ? '#ffffff' : 'rgba(255,255,255,0.38)',
+            letterSpacing: '2px', maxWidth: (square ? 620 : 400) - 20,
+            overflow: 'hidden', whiteSpace: 'nowrap',
+            ...(isWinner ? { textShadow: `0 0 40px ${accentSoft(0.5)}` } : {}),
+          }}>
+            {name.toUpperCase()}
+          </div>
+          {/* Le vainqueur est NOMMÉ, pas seulement suggéré par une couleur. */}
+          <div style={{
+            marginTop: 12, display: 'flex', alignItems: 'center',
+            ...(square && !isWinner ? { height: 0 } : { height: 26 }),
+          }}>
+            {isWinner && (
+              <div style={{
+                display: 'flex', alignItems: 'center', padding: '4px 16px',
+                background: ACCENT, fontSize: 16, fontFamily: ff,
+                color: '#0a0a0a', letterSpacing: '4px',
+              }}>
+                VAINQUEUR
+              </div>
+            )}
+          </div>
         </div>
+      );
+    };
+
+    /** Le stade du tournoi : « QUARTS · BO5 ». Au-dessus du score en 16:9 ; en
+     *  carré il remonte sous l'en-tête, sinon trois badges s'empilent d'affilée
+     *  (VAINQUEUR, le stade, le score) et la pile perd toute hiérarchie. */
+    const StageBadge = () => (
+      <div style={{
+        display: 'flex', padding: '5px 18px',
+        border: `1px solid ${accentSoft(0.45)}`, background: accentSoft(0.10),
+        fontSize: 17, fontFamily: ff, color: ACCENT, letterSpacing: '5px',
+      }}>
+        {stage}
+      </div>
+    );
+
+    /** Le score, et sous lui ce que le chiffre seul ne dit pas. */
+    const Score = () => (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        {stage && !square && (
+          <div style={{ display: 'flex', marginBottom: 12 }}><StageBadge /></div>
+        )}
         <div style={{
-          marginTop: 20, fontSize: nameSize, fontFamily: ff, display: 'flex',
-          color: isWinner ? AEDRAL_PALETTE.text : AEDRAL_PALETTE.textDim,
-          letterSpacing: '2px', maxWidth: sideWidth - 20,
-          overflow: 'hidden', whiteSpace: 'nowrap',
+          fontSize: S.score, fontFamily: ff, letterSpacing: '2px', lineHeight: 1,
+          display: 'flex', alignItems: 'center', color: '#ffffff',
+          textShadow: '0 6px 40px rgba(0,0,0,0.9)',
         }}>
-          {name.toUpperCase()}
+          <span style={{ display: 'flex', color: winner === 'a' ? ACCENT : 'rgba(255,255,255,0.45)' }}>{won.a}</span>
+          <span style={{ color: 'rgba(255,255,255,0.18)', padding: '0 14px', display: 'flex' }}>–</span>
+          <span style={{ display: 'flex', color: winner === 'b' ? ACCENT : 'rgba(255,255,255,0.45)' }}>{won.b}</span>
         </div>
-        {/* Le vainqueur est NOMMÉ, pas seulement suggéré par une couleur.
-            Hauteur réservée des deux côtés pour que les noms restent alignés. */}
-        <div style={{
-          marginTop: 10, height: 22, display: 'flex', alignItems: 'center',
-          fontSize: 17, fontFamily: ff, letterSpacing: '5px',
-          color: isWinner ? ACCENT : 'transparent',
-        }}>
-          {isWinner ? 'VAINQUEUR' : '·'}
-        </div>
+        {games.length > 0 && !forfeit && (
+          <div style={{ marginTop: 14, display: 'flex', gap: 8, alignItems: 'center' }}>
+            {games.slice(0, 7).map((g, i) => (
+              <div key={i} style={{
+                display: 'flex', padding: '5px 12px', fontSize: 18, fontFamily: ff,
+                color: 'rgba(255,255,255,0.55)', letterSpacing: '1px',
+                background: 'rgba(0,0,0,0.45)',
+                border: '1px solid rgba(255,255,255,0.10)',
+              }}>
+                {g?.a ?? 0}-{g?.b ?? 0}
+              </div>
+            ))}
+          </div>
+        )}
+        {forfeit && (
+          <div style={{
+            marginTop: 14, display: 'flex', padding: '6px 18px',
+            border: '1px solid rgba(255,255,255,0.18)',
+            fontSize: 20, fontFamily: ff, color: 'rgba(255,255,255,0.6)', letterSpacing: '4px',
+          }}>
+            {forfeit === 'both' ? 'DOUBLE FORFAIT' : 'FORFAIT'}
+          </div>
+        )}
       </div>
     );
 
@@ -190,116 +293,132 @@ export async function GET(
         <div style={{
           width: WIDTH, height: HEIGHT, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center', position: 'relative',
-          background: AEDRAL_PALETTE.backgroundGradient,
+          background: '#07070b',
         }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={hexUri} width={WIDTH} height={HEIGHT} alt="" style={{ position: 'absolute', top: 0, left: 0 }} />
+          {/* Visuel du jeu en fond — c'est lui qui donne de la matière ; sans
+              image, l'affiche reste un rectangle noir qu'on scrolle. */}
+          {bgArt && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={bgArt} width={WIDTH} height={HEIGHT} alt="" style={{ position: 'absolute', top: 0, left: 0 }} />
+          )}
+          {/* Vignette en deux couches. Le visuel doit se deviner, pas se lire :
+              un fond trop présent fait passer le logo du jeu DEVANT celui des
+              équipes, et le score cesse d'être lisible. */}
+          <div style={{
+            position: 'absolute', top: 0, left: 0, width: WIDTH, height: HEIGHT, display: 'flex',
+            background: 'linear-gradient(180deg, rgba(5,5,9,0.95) 0%, rgba(5,5,9,0.34) 38%, rgba(5,5,9,0.42) 66%, rgba(5,5,9,0.96) 100%)',
+          }} />
+          <div style={{
+            position: 'absolute', top: 0, left: 0, width: WIDTH, height: HEIGHT, display: 'flex',
+            background: 'radial-gradient(ellipse at center, rgba(5,5,9,0.02) 0%, rgba(5,5,9,0.34) 58%, rgba(5,5,9,0.78) 100%)',
+          }} />
 
-          {/* Halo du côté vainqueur : c'est lui qui porte l'affiche, et ça
-              évite une image symétrique où rien ne ressort. */}
-          {winner && (
+          {/* Diagonale du côté du vainqueur : la seule chose qui casse la
+              symétrie, et donc ce qui fait qu'on voit un camp avant l'autre. */}
+          {winner && !square && (
             <div style={{
-              position: 'absolute', top: '50%',
-              ...(winner === 'a' ? { left: square ? 40 : 70 } : { right: square ? 40 : 70 }),
-              width: 540, height: 540, transform: 'translateY(-50%)',
-              background: `radial-gradient(circle, ${accentSoft(0.10)} 0%, ${accentSoft(0.03)} 45%, transparent 70%)`,
-              display: 'flex',
+              position: 'absolute', top: -60, height: HEIGHT + 120, width: 620,
+              ...(winner === 'a' ? { left: -190 } : { right: -190 }),
+              transform: 'skewX(-11deg)', display: 'flex',
+              background: winner === 'a'
+                ? `linear-gradient(90deg, ${accentSoft(0.40)} 0%, ${accentSoft(0.08)} 62%, transparent 100%)`
+                : `linear-gradient(270deg, ${accentSoft(0.40)} 0%, ${accentSoft(0.08)} 62%, transparent 100%)`,
+            }} />
+          )}
+          {winner && square && (
+            <div style={{
+              position: 'absolute', left: -60, width: WIDTH + 120, height: 520,
+              ...(winner === 'a' ? { top: -160 } : { bottom: -160 }),
+              transform: 'skewY(-6deg)', display: 'flex',
+              background: winner === 'a'
+                ? `linear-gradient(180deg, ${accentSoft(0.28)} 0%, ${accentSoft(0.05)} 70%, transparent 100%)`
+                : `linear-gradient(0deg, ${accentSoft(0.28)} 0%, ${accentSoft(0.05)} 70%, transparent 100%)`,
             }} />
           )}
 
           <div style={{
-            position: 'absolute', top: 0, left: 0, right: 0, height: 6,
-            background: `linear-gradient(90deg, ${ACCENT} 0%, ${accentSoft(0.5)} 50%, ${ACCENT} 100%)`, display: 'flex',
+            position: 'absolute', top: 0, left: 0, right: 0, height: 7, display: 'flex',
+            background: `linear-gradient(90deg, ${ACCENT} 0%, ${accentSoft(0.35)} 50%, ${ACCENT} 100%)`,
           }} />
-          {/* Coins HUD, signature des affiches Aedral */}
-          <div style={{ position: 'absolute', top: 24, left: 24, width: 40, height: 40, borderTop: `2px solid ${accentSoft(0.6)}`, borderLeft: `2px solid ${accentSoft(0.6)}`, display: 'flex' }} />
-          <div style={{ position: 'absolute', top: 24, right: 24, width: 40, height: 40, borderTop: `2px solid ${accentSoft(0.6)}`, borderRight: `2px solid ${accentSoft(0.6)}`, display: 'flex' }} />
-          <div style={{ position: 'absolute', bottom: 24, left: 24, width: 40, height: 40, borderBottom: `2px solid ${accentSoft(0.6)}`, borderLeft: `2px solid ${accentSoft(0.6)}`, display: 'flex' }} />
-          <div style={{ position: 'absolute', bottom: 24, right: 24, width: 40, height: 40, borderBottom: `2px solid ${accentSoft(0.6)}`, borderRight: `2px solid ${accentSoft(0.6)}`, display: 'flex' }} />
 
-          {/* En-tête. L'ORGANISATEUR d'abord, logo compris : c'est SON tournoi,
-              et c'est ce qu'une équipe doit republier. Puis le nom du tournoi,
-              puis le stade — trois niveaux, trois tailles, aucune ambiguïté sur
-              l'ordre de lecture. */}
+          {/* En-tête : l'ORGANISATEUR à gauche avec son logo — c'est SON tournoi
+              et c'est ce qu'une équipe republie —, le tournoi à droite. Deux
+              ancrages aux extrémités valent mieux qu'une pile centrée qui pousse
+              tout le reste vers le bas. */}
           <div style={{
-            position: 'absolute', top: square ? 58 : 44, display: 'flex',
-            flexDirection: 'column', alignItems: 'center', gap: square ? 12 : 9,
+            position: 'absolute', top: 7, left: 0, right: 0,
+            height: square ? 108 : 92, padding: square ? '0 56px' : '0 52px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            borderBottom: '1px solid rgba(255,255,255,0.09)',
+            background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%)',
           }}>
-            {(orgaLogo || organizer) && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                {orgaLogo && (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={orgaLogo} width={44} height={44} alt="" style={{ objectFit: 'contain' }} />
-                )}
-                {organizer && (
-                  <span style={{ fontSize: 22, fontFamily: ff, color: AEDRAL_PALETTE.text, letterSpacing: '4px', display: 'flex' }}>
-                    {organizer.toUpperCase()}
-                  </span>
-                )}
-              </div>
-            )}
-            <div style={{ fontSize: square ? 46 : 42, fontFamily: ff, color: AEDRAL_PALETTE.text, letterSpacing: '3px', display: 'flex' }}>
-              {[circuitName, comp.name as string].filter(Boolean).join(' · ').toUpperCase()}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              {orgaLogo && (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={orgaLogo} width={46} height={46} alt="" style={{ objectFit: 'contain' }} />
+              )}
+              {organizer && (
+                <span style={{
+                  fontSize: square ? 26 : 23, fontFamily: ff, color: '#ffffff',
+                  letterSpacing: '5px', display: 'flex',
+                }}>
+                  {organizer.toUpperCase()}
+                </span>
+              )}
             </div>
-            {roundName && (
-              <div style={{ fontSize: 19, fontFamily: ff, color: ACCENT, letterSpacing: '7px', display: 'flex' }}>
-                {roundName.toUpperCase()}
-              </div>
-            )}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              {circuitName && (
+                <span style={{
+                  fontSize: 17, fontFamily: ff, color: ACCENT, letterSpacing: '5px', display: 'flex',
+                }}>
+                  {circuitName.toUpperCase()}
+                </span>
+              )}
+              <span style={{
+                fontSize: square ? 32 : 28, fontFamily: ff, color: 'rgba(255,255,255,0.92)',
+                letterSpacing: '3px', display: 'flex',
+              }}>
+                {(comp.name as string).toUpperCase()}
+              </span>
+            </div>
           </div>
 
-          {/* Face-à-face et score */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: square ? 26 : 16 }}>
-            <Side name={nameA} logo={logoA} isWinner={winner === 'a'} />
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 16px' }}>
-              <div style={{
-                fontSize: scoreSize, fontFamily: ff, color: ACCENT,
-                letterSpacing: '2px', lineHeight: 1, display: 'flex', alignItems: 'center',
-                textShadow: `0 0 35px ${accentSoft(0.55)}, 0 0 80px ${accentSoft(0.25)}`,
-              }}>
-                {won.a}
-                <span style={{ color: 'rgba(255,255,255,0.20)', padding: '0 12px', display: 'flex' }}>–</span>
-                {won.b}
-              </div>
-              {/* Le détail des manches sous le score : ce que le chiffre seul ne
-                  dit pas, et ce qui rend l'affiche crédible pour un joueur. */}
-              {games.length > 0 && !forfeit && (
-                <div style={{ marginTop: 16, display: 'flex', gap: 8, alignItems: 'center' }}>
-                  {games.slice(0, 7).map((g, i) => (
-                    <div key={i} style={{
-                      display: 'flex', padding: '5px 11px', fontSize: 18, fontFamily: ff,
-                      color: AEDRAL_PALETTE.textDim, letterSpacing: '1px',
-                      background: 'rgba(255,255,255,0.04)',
-                      border: '1px solid rgba(255,255,255,0.07)',
-                    }}>
-                      {g?.a ?? 0}-{g?.b ?? 0}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {forfeit && (
-                <div style={{ marginTop: 16, fontSize: 20, fontFamily: ff, color: AEDRAL_PALETTE.textDim, letterSpacing: '4px', display: 'flex' }}>
-                  {forfeit === 'both' ? 'DOUBLE FORFAIT' : 'FORFAIT'}
-                </div>
-              )}
+          {/* Corps. En 16:9 le face-à-face est horizontal ; en carré il est
+              EMPILÉ — un carré rempli, pas un 16:9 avec du vide au-dessus et
+              en dessous. */}
+          {square ? (
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 56,
+            }}>
+              {stage && <div style={{ display: 'flex', marginBottom: 26 }}><StageBadge /></div>}
+              <Side name={nameA} logo={logoA} isWinner={winner === 'a'} />
+              <div style={{ margin: '10px 0 14px', display: 'flex' }}><Score /></div>
+              <Side name={nameB} logo={logoB} isWinner={winner === 'b'} />
             </div>
-            <Side name={nameB} logo={logoB} isWinner={winner === 'b'} />
-          </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 24 }}>
+              <Side name={nameA} logo={logoA} isWinner={winner === 'a'} />
+              <div style={{ display: 'flex', padding: '0 10px' }}><Score /></div>
+              <Side name={nameB} logo={logoB} isWinner={winner === 'b'} />
+            </div>
+          )}
 
           {/* Pied : le contexte du match à gauche, la plateforme à droite et en
               retrait. Aedral héberge, il n'organise pas — il n'a pas à peser
               autant que le tournoi sur une image republiée par une équipe. */}
           <div style={{
-            position: 'absolute', bottom: square ? 54 : 42, left: square ? 60 : 70, right: square ? 60 : 70,
+            position: 'absolute', bottom: 0, left: 0, right: 0,
+            height: square ? 84 : 74, padding: square ? '0 56px' : '0 52px',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            borderTop: '1px solid rgba(255,255,255,0.09)',
             fontSize: 18, fontFamily: ff, letterSpacing: '3px',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <span style={{ color: AEDRAL_PALETTE.textDim, display: 'flex' }}>{formatDate(endedMs)}</span>
+              <span style={{ color: 'rgba(255,255,255,0.55)', display: 'flex' }}>{formatDate(endedMs)}</span>
               <span style={{ color: 'rgba(255,255,255,0.15)', display: 'flex' }}>|</span>
               <span style={{ color: gameColor, display: 'flex' }}>{gameLabel}</span>
             </div>
-            <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 15, letterSpacing: '2px', display: 'flex' }}>
+            <span style={{ color: 'rgba(255,255,255,0.26)', fontSize: 15, letterSpacing: '2px', display: 'flex' }}>
               aedral.com
             </span>
           </div>

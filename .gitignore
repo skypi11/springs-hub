@@ -61,3 +61,6 @@ next-env.d.ts
 
 .env*.local
 tsc-output.txt
+
+# Sorties locales de scripts/render-poster.mjs (affiches PNG à juger)
+tmp/

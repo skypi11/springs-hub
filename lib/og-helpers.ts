@@ -171,6 +171,53 @@ export async function loadLocalIconAsPngDataUri(relPath: string | null | undefin
  * dans le catch de la route, qui peut servir sa bannière de fallback.
  * Coût : ~300-500 KB en mémoire le temps de la réponse, négligeable.
  */
+/**
+ * Image de FOND depuis `/public`, dimensionnée pour couvrir toute la bannière.
+ *
+ * Distincte de `loadLocalIconAsPngDataUri`, qui plafonne à 256 px : une texture
+ * de fond étirée depuis 256 px serait une bouillie. Ici on redimensionne en
+ * « cover » à la taille exacte demandée, et on assombrit à la source plutôt
+ * qu'avec un calque — satori empile mal les opacités, et une image déjà sombre
+ * pèse moins lourd qu'une image claire recouverte.
+ */
+export async function loadLocalBackgroundAsPngDataUri(
+  relPath: string,
+  width: number,
+  height: number,
+  darken = 0.72,
+  /** `bottom` zoome sur la partie basse avant de recadrer. Les key arts de jeu
+   *  portent presque tous leur logo en haut : sans ce zoom, « ROCKET LEAGUE »
+   *  traverse l'affiche et passe devant le logo des équipes. Un simple crop ne
+   *  suffit pas — à ratios proches il ne retire que quelques pixels. */
+  focus: 'centre' | 'bottom' = 'centre',
+): Promise<string | null> {
+  if (!relPath || relPath.includes('..')) return null;
+  try {
+    const absPath = path.join(process.cwd(), 'public', relPath.replace(/^[\\/]+/, ''));
+    const buf = fs.readFileSync(absPath);
+    let pipeline = sharp(buf, { failOn: 'error' });
+    if (focus === 'bottom') {
+      const meta = await sharp(buf).metadata();
+      if (meta.width && meta.height) {
+        const keep = Math.round(meta.height * 0.6);
+        pipeline = pipeline.extract({ left: 0, top: meta.height - keep, width: meta.width, height: keep });
+      }
+    }
+    const png = await pipeline
+      .resize(width, height, { fit: 'cover', position: 'centre' })
+      // Saturation très basse : le visuel doit devenir une TEXTURE. À pleine
+      // saturation il concurrence l'affiche — le logo du jeu et les couleurs
+      // vives passent devant les logos d'équipe au lieu de les porter.
+      .modulate({ brightness: Math.max(0.05, 1 - darken), saturation: 0.45 })
+      .blur(1.5)
+      .png()
+      .toBuffer();
+    return `data:image/png;base64,${png.toString('base64')}`;
+  } catch {
+    return null;
+  }
+}
+
 export async function materializeOgResponse(img: Response): Promise<Response> {
   const buf = await img.arrayBuffer();
   return new Response(buf, { status: img.status, headers: img.headers });

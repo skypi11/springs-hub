@@ -12,7 +12,7 @@ import {
   type GamePair,
 } from '@/lib/competitions/match-flow';
 import { createNotifications, type NotificationPayload } from '@/lib/notifications';
-import { sendCompetitionChannelMessage, sendCompetitionDM } from '@/lib/discord-competition';
+import { sendCompetitionDM } from '@/lib/discord-competition';
 import { discordIdOfUid } from '@/lib/competitions/discord-guard';
 import { publishMatchResults } from '@/lib/competitions/publish-result';
 import {
