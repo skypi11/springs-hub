@@ -62,6 +62,11 @@ export function serializeCompetition(id: string, data: FirebaseFirestore.Documen
     name: data.name ?? '',
     game: data.game ?? '',
     circuitId: data.circuitId ?? null,
+    // Identité de l'affiche. Absents du sérialiseur, ils étaient acceptés à
+    // l'écriture mais jamais relus : le formulaire d'édition renvoyait un
+    // payload sans eux et EFFAÇAIT l'organisateur à chaque enregistrement.
+    organizer: data.organizer ?? null,
+    accentColor: data.accentColor ?? null,
     format: data.format ?? null,
     eligibility: data.eligibility ?? null,
     roster: data.roster ?? null,

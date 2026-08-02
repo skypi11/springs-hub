@@ -30,6 +30,7 @@ import {
 } from '@/lib/competitions/schedule-plan';
 import { dropCircuitReseed, normalizeFormat } from '@/lib/competitions/format-config';
 import { FORMAT_DEFS } from '@/lib/competitions/formats';
+import { getGameColor } from '@/lib/games-registry';
 import type { CreationPreset } from '@/lib/competitions/creation-presets';
 import type { CompetitionFormat, PhasePlanEntry, TournamentStage } from '@/types/competitions';
 import TournamentTypeStep from './create/TournamentTypeStep';
@@ -41,6 +42,11 @@ import type { AdminCircuit, AdminCompetition } from './types';
 interface FormState {
   name: string;
   circuitId: string;
+  /** Identité de l'affiche : qui organise, son logo, la couleur du tournoi.
+   *  Vides sur une étape de circuit = repli sur ceux du circuit. */
+  organizerName: string;
+  organizerLogoUrl: string;
+  accentColor: string;
   isDev: boolean;
   stages: TournamentStage[];
   requireVerified: boolean;
@@ -162,6 +168,13 @@ function CompetitionFormBody({ form, setForm, initial, circuits, saving, onCance
     0,
   );
   const selectableCircuits = circuits.filter(c => c.game === 'rocket_league');
+  // Ce que l'affiche affichera si les champs restent vides : l'organisateur du
+  // circuit parent, et à défaut de couleur celle du jeu. Le dire évite de faire
+  // ressaisir « Springs E-Sport » sur les quatre Qualifs d'un même circuit.
+  const inheritedOrganizer = form.circuitId
+    ? circuits.find(c => c.id === form.circuitId)?.organizer ?? null
+    : null;
+  const fallbackAccent = getGameColor('rocket_league');
 
   return (
     <div className="panel bevel">
@@ -219,6 +232,54 @@ function CompetitionFormBody({ form, setForm, initial, circuits, saving, onCance
           <p className="text-xs mt-1 px-2" style={{ color: 'var(--s-text-muted)' }}>
             Reste masquée même une fois publiée : fiche, bracket et listes. Pour dérouler
             le cycle complet sans rien exposer.
+          </p>
+        </div>
+
+        <div className="divider" />
+
+        {/* Identité publique. C'est ce que porte l'affiche de résultat que les
+            équipes republient : le tournoi appartient à SON organisateur, pas
+            à la plateforme qui l'héberge. Sur une étape de circuit, laisser
+            vide suffit — l'organisateur et la couleur du circuit s'appliquent. */}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="t-label-soft block mb-2">Organisateur</label>
+              <input className="settings-input w-full" value={form.organizerName} maxLength={60}
+                placeholder={inheritedOrganizer?.name || 'Nom de la structure organisatrice'}
+                onChange={e => patch({ organizerName: e.target.value })} />
+            </div>
+            <div>
+              <label className="t-label-soft block mb-2">Logo de l&apos;organisateur (URL)</label>
+              <input className="settings-input w-full" value={form.organizerLogoUrl}
+                placeholder="https://…" inputMode="url"
+                onChange={e => patch({ organizerLogoUrl: e.target.value })} />
+            </div>
+          </div>
+          <div className="flex items-end gap-3 flex-wrap">
+            <div>
+              <label className="t-label-soft block mb-2">Couleur du tournoi</label>
+              <div className="flex items-center gap-2">
+                <input type="color" value={form.accentColor || fallbackAccent}
+                  onChange={e => patch({ accentColor: e.target.value.toUpperCase() })}
+                  className="bevel-sm"
+                  style={{ width: 44, height: 38, padding: 2, background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }} />
+                <input className="settings-input" style={{ width: 130 }} value={form.accentColor}
+                  placeholder={fallbackAccent} maxLength={7}
+                  onChange={e => patch({ accentColor: e.target.value.toUpperCase() })} />
+                {form.accentColor && (
+                  <button type="button" className="btn-springs btn-ghost bevel-sm text-xs px-3 py-2"
+                    onClick={() => patch({ accentColor: '' })}>
+                    Par défaut
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          <p className="text-xs px-2" style={{ color: 'var(--s-text-muted)' }}>
+            {inheritedOrganizer
+              ? `Laissé vide : ${inheritedOrganizer.name} et la couleur du circuit s'appliquent.`
+              : 'Sert l’affiche de résultat publiée dans le salon des résultats et sur les réseaux. Sans couleur, celle du jeu est utilisée.'}
           </p>
         </div>
 
@@ -428,6 +489,9 @@ function stateFromPreset(preset: CreationPreset, circuits: AdminCircuit[]): Form
   return {
     name: '',
     circuitId,
+    organizerName: '',
+    organizerLogoUrl: '',
+    accentColor: '',
     isDev: false,
     stages,
     requireVerified: preset.eligibility.requireVerifiedAccounts,
@@ -472,6 +536,9 @@ function stateFromCompetition(comp: AdminCompetition): FormState {
   return {
     name: comp.name ?? '',
     circuitId: comp.circuitId ?? '',
+    organizerName: comp.organizer?.name ?? '',
+    organizerLogoUrl: comp.organizer?.logoUrl ?? '',
+    accentColor: comp.accentColor ?? '',
     isDev: comp.isDev === true,
     stages,
     requireVerified: comp.eligibility?.requireVerifiedAccounts ?? true,
@@ -517,6 +584,10 @@ function buildPayload(form: FormState, phasePlan: PhasePlanEntry[], initial: Adm
     name: form.name,
     game: 'rocket_league',
     circuitId: form.circuitId || null,
+    organizer: form.organizerName.trim()
+      ? { name: form.organizerName.trim(), logoUrl: form.organizerLogoUrl.trim() || null }
+      : null,
+    accentColor: form.accentColor.trim() || null,
     // Invariant multi-étapes : le format de la compétition EST celui de
     // l'étape 1 — une seule source, aucune divergence possible.
     format: form.stages[0].format,

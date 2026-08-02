@@ -30,6 +30,10 @@ export interface AdminCompetition {
   name: string;
   game: string;
   circuitId: string | null;
+  /** Identité portée par l'affiche de résultat et les supports publics. Vide
+   *  sur une étape de circuit : celle du circuit sert alors de repli. */
+  organizer: { name: string; logoUrl?: string | null } | null;
+  accentColor: string | null;
   format: CompetitionFormat | null;
   /** Séquence d'étapes (null = tournoi à une seule étape). Servie par l'API
    *  depuis le Lot multi-étapes : sans elle, le formulaire d'édition renvoyait
