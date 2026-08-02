@@ -20,6 +20,7 @@ import {
 import {
   matchCheckinText, checkinReopenedText, adminRulingText,
   teamWithdrawnText, opponentWithdrawnText, organizerAnnouncementText,
+  generalCheckinOpenText,
   type BroadcastText,
 } from '@/lib/competitions/broadcast-messages';
 import { phasePlanForStage } from '@/lib/competitions/schedule-plan';
@@ -607,6 +608,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (action === 'open_general_checkin') {
       // Spec §8 : 14 h 30, 20 min, capitaine seul. Action admin explicite.
+      let checkinDelivery: DeliveryReport | null = null;
       const regsSnap = await db.collection('competition_registrations')
         .where('competitionId', '==', id).where('status', '==', 'approved').get();
       const batch = db.batch();
@@ -631,40 +633,57 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       try {
         const compName = (comp.name as string) ?? id;
         const minutes = (comp.schedule?.generalCheckinMinutes as number) ?? 20;
+        const pending = regsSnap.docs.filter(d => d.data().generalCheckin?.done !== true);
+
+        // Nom du capitaine, en UNE lecture groupée. Il est figé au moment de
+        // l'inscription : ce n'est pas forcément celui qui dirige l'équipe
+        // aujourd'hui, et lui seul peut confirmer. Le nommer évite l'équipe au
+        // complet bloquée devant un bouton que personne d'autre ne peut presser.
+        const captainUids = [...new Set(pending
+          .map(d => d.data().captainUid as string | undefined)
+          .filter((u): u is string => !!u))];
+        const captainNames = new Map<string, string>();
+        if (captainUids.length > 0) {
+          const snaps = await db.getAll(...captainUids.map(u => db.collection('users').doc(u)));
+          for (const s of snaps) {
+            const u = s.data();
+            const name = (u?.displayName as string) || (u?.discordUsername as string) || '';
+            if (name) captainNames.set(s.id, name);
+          }
+        }
+
         const payloads: NotificationPayload[] = [];
-        const discordPosts: Array<Promise<unknown>> = [];
-        for (const d of regsSnap.docs) {
+        const items: BroadcastItem[] = [];
+        for (const d of pending) {
           const r = d.data();
-          if (r.generalCheckin?.done === true) continue;
-          const title = 'Check-in général ouvert';
-          const message = `${compName} — le capitaine de ${r.name ?? 'ton équipe'} a ${minutes} minutes pour confirmer la présence de l'équipe.`;
+          const text = generalCheckinOpenText({
+            teamName: (r.name as string) ?? 'ton équipe',
+            captainName: captainNames.get((r.captainUid as string) ?? '') ?? null,
+            minutes,
+          });
           for (const ruid of (r.rosterUids as string[] | undefined) ?? []) {
             payloads.push({
-              userId: ruid, type: 'competition_match_checkin', title, message,
+              userId: ruid, type: 'competition_match_checkin',
+              title: text.title, message: `${compName} — ${text.message}`,
               link: `/competitions/${id}`, metadata: { competitionId: id },
             });
           }
-          const channelId = r.discord?.textChannelId as string | undefined;
-          if (channelId) {
-            discordPosts.push(sendCompetitionChannelMessage(channelId, {
-              title, message, link: `https://aedral.com/competitions/${id}`,
-              // Même piège que le check-in de match : sans mention, le message
-              // ne notifie PERSONNE. C'est l'ouverture du tournoi — un capitaine
-              // qui ne le voit pas fait déclarer son équipe forfait.
-              mentionRoleId: (r.discord?.roleId as string | undefined) ?? null,
-            }).catch(() => null));
-          }
+          items.push({
+            target: { kind: 'team', registrationId: d.id },
+            text, link: `https://aedral.com/competitions/${id}`,
+          });
         }
         await createNotifications(db, payloads);
-        await Promise.race([
-          Promise.allSettled(discordPosts),
-          new Promise(resolve => setTimeout(resolve, 8_000)),
-        ]);
+        checkinDelivery = await broadcast(db, id, items, { competition: comp });
       } catch (e) {
         captureApiError('Console open_general_checkin notifications', e);
       }
       await audit(db, uid, 'competition_general_checkin_opened', id, comp, { teams: opened });
-      return NextResponse.json({ ok: true, opened });
+      return NextResponse.json({
+        ok: true, opened,
+        delivery: checkinDelivery,
+        deliverySummary: checkinDelivery ? summarizeDelivery(checkinDelivery) : null,
+      });
     }
 
     if (action === 'withdraw_team') {

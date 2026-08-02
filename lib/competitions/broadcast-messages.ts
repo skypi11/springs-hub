@@ -159,6 +159,28 @@ export function bracketPublishedTeamText(input: {
 }
 
 /**
+ * Ouverture du check-in général. Le capitaine est NOMMÉ : il est figé au moment
+ * de l'inscription, donc ce n'est pas forcément celui qui dirige l'équipe
+ * aujourd'hui. Sans son nom, une équipe au complet peut rester bloquée devant un
+ * bouton que personne d'autre ne peut presser.
+ */
+export function generalCheckinOpenText(input: {
+  teamName: string;
+  captainName: string | null;
+  minutes: number;
+}): BroadcastText {
+  return {
+    title: 'Check-in général ouvert',
+    message: [
+      input.captainName
+        ? `${input.captainName} confirme la présence de ${input.teamName} — lui seul peut le faire.`
+        : `Le capitaine de ${input.teamName} confirme la présence de l'équipe — lui seul peut le faire.`,
+      `${input.minutes} minutes, sinon l'équipe ne sera pas alignée.`,
+    ].join('\n'),
+  };
+}
+
+/**
  * Dernier appel du check-in général, aux SEULES équipes qui n'ont pas confirmé.
  * Sans lui, une équipe présente peut être déclarée forfait du tournoi entier
  * parce que son capitaine n'a pas vu le message d'ouverture.
@@ -169,6 +191,38 @@ export function generalCheckinReminderText(input: { minutesLeft: number }): Broa
     message: [
       "Ton équipe n'a pas encore confirmé sa présence.",
       'Sans check-in à la fin du compte à rebours, elle ne sera pas alignée. Le capitaine confirme depuis la page du tournoi.',
+    ].join('\n'),
+  };
+}
+
+/** Extrait d'un message de fil : borné, sur une seule ligne. */
+function excerptOf(body: string, max = 180): string {
+  const flat = body.replace(/\s+/g, ' ').trim();
+  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
+}
+
+/**
+ * Une équipe écrit dans le fil d'un match → le staff doit le voir. Un fil que
+ * personne ne surveille oblige les deux camps à camper sur une page.
+ */
+export function threadToStaffText(input: {
+  teamName: string;
+  matchLabel: string;
+  body: string;
+}): BroadcastText {
+  return {
+    title: `Message d'équipe — match ${input.matchLabel}`,
+    message: `${input.teamName} : « ${excerptOf(input.body)} »`,
+  };
+}
+
+/** Le staff répond dans le fil → les deux équipes du match doivent le voir. */
+export function threadToTeamsText(input: { body: string }): BroadcastText {
+  return {
+    title: 'Message du staff',
+    message: [
+      `« ${excerptOf(input.body)} »`,
+      'Réponds sur la page de ton match.',
     ].join('\n'),
   };
 }

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { broadcast } from '@/lib/competitions/tournament-broadcast';
+import { threadToStaffText, threadToTeamsText } from '@/lib/competitions/broadcast-messages';
 import { getAdminDb, verifyAuth, isCompetitionAdmin } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
@@ -43,6 +45,65 @@ async function loadContext(req: NextRequest, params: Promise<{ id: string; match
     getMatchSideForUser(db, { teamA: match.teamA ?? null, teamB: match.teamB ?? null }, uid),
   ]);
   return { db, uid, ref, match, isAdmin, access };
+}
+
+/**
+ * Fenêtre de silence du relais Discord, par direction. Le premier message
+ * réveille ; les suivants, dans les minutes qui suivent, non — sinon une
+ * conversation de dix messages produit dix pings, et c'est le salon entier qu'on
+ * finit par couper. Celui qui a été réveillé regarde déjà le fil.
+ */
+const RELAY_SILENCE_MS = 10 * 60_000;
+
+/**
+ * Relaie un message du fil vers Discord : une équipe écrit → le staff est
+ * prévenu ; le staff répond → les deux camps du match le sont.
+ */
+async function relayThreadMessage(
+  db: FirebaseFirestore.Firestore,
+  input: {
+    competitionId: string;
+    matchId: string;
+    matchRef: FirebaseFirestore.DocumentReference;
+    match: FirebaseFirestore.DocumentData;
+    side: 'a' | 'b' | 'admin';
+    body: string;
+  },
+): Promise<void> {
+  const { competitionId, matchId, matchRef, match, side, body } = input;
+  const direction = side === 'admin' ? 'teams' : 'staff';
+
+  // Verrou temporel atomique : deux messages simultanés ne doivent pas produire
+  // deux relais.
+  const claimed = await db.runTransaction(async tx => {
+    const fresh = await tx.get(matchRef);
+    const last = fresh.data()?.threadRelayedAt?.[direction] as FirebaseFirestore.Timestamp | undefined;
+    if (last && Date.now() - last.toMillis() < RELAY_SILENCE_MS) return false;
+    tx.update(matchRef, { [`threadRelayedAt.${direction}`]: Timestamp.now() });
+    return true;
+  });
+  if (!claimed) return;
+
+  const link = `https://aedral.com/competitions/${competitionId}/match/${matchId}`;
+  if (direction === 'teams') {
+    const ids = [match.teamA, match.teamB].filter((x): x is string => typeof x === 'string' && !!x);
+    await broadcast(db, competitionId, ids.map(rid => ({
+      target: { kind: 'team' as const, registrationId: rid },
+      text: threadToTeamsText({ body }),
+      link,
+    })), { deadlineMs: 5_000 });
+    return;
+  }
+
+  const rid = (side === 'a' ? match.teamA : match.teamB) as string | undefined;
+  const teamName = rid
+    ? ((await db.collection('competition_registrations').doc(rid).get()).data()?.name as string) || 'Une équipe'
+    : 'Une équipe';
+  await broadcast(db, competitionId, [{
+    target: { kind: 'staff' },
+    text: threadToStaffText({ teamName, matchLabel: matchId, body }),
+    link,
+  }], { deadlineMs: 5_000 });
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string; matchId: string }> }) {
@@ -126,6 +187,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       ...(clientNonce ? { clientNonce } : {}),
       createdAt: FieldValue.serverTimestamp(),
     });
+
+    // Un fil que personne ne surveille oblige les deux camps à camper sur une
+    // page. Best-effort : un relais raté n'empêche jamais le message d'exister.
+    const { id: compId, matchId } = await params;
+    try {
+      await relayThreadMessage(db, {
+        competitionId: compId, matchId, matchRef: ref, match: ctx.match, side, body,
+      });
+    } catch (err) {
+      captureApiError('Thread relay to Discord', err);
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     captureApiError('API Competitions/Match/Thread POST error', err);

@@ -97,6 +97,13 @@ const teamName = i => `E2E BC ${i}`;
 async function setup(ownerId) {
   const batch = db.batch();
   for (let i = 1; i <= TEAMS; i++) {
+    // Le compte du capitaine : sans lui, le message d'ouverture du check-in ne
+    // peut pas le NOMMER et retombe sur « le capitaine de … ». Un vrai
+    // capitaine a forcément un compte.
+    batch.set(db.collection('users').doc(capUid(i)), {
+      uid: capUid(i), displayName: `E2E Cap ${i}`, discordUsername: `e2e_bc_cap${i}`,
+      games: ['rl'], isDev: true, createdAt: Timestamp.now(),
+    });
     batch.set(db.collection('competition_registrations').doc(regId(i)), {
       competitionId: COMP, structureId: `${P}-struct`, teamId: `${P}-team${i}`,
       name: teamName(i), tag: `B${i}`, logoUrl: null,
@@ -185,6 +192,7 @@ async function cleanupAll() {
   }
   const batch = db.batch();
   for (const doc of regs.docs) batch.delete(doc.ref);
+  for (let i = 1; i <= TEAMS; i++) batch.delete(db.collection('users').doc(capUid(i)));
   batch.delete(db.collection('competitions').doc(COMP));
   await batch.commit().catch(() => {});
   const notifs = await db.collection('notifications').where('metadata.competitionId', '==', COMP).get().catch(() => ({ docs: [] }));
@@ -208,7 +216,9 @@ async function main() {
   check('provisioning → 200', prov.status === 200, JSON.stringify(prov.json).slice(0, 200));
   const comp = (await db.collection('competitions').doc(COMP).get()).data();
   let announceId = comp.discord?.options?.announceChannelId;
+  const staffChanId = comp.discord?.options?.staffChannelId;
   check('salon d’annonces créé', !!announceId);
+  check('salon staff créé', !!staffChanId);
 
   const chanOf = {};
   const roleOf = {};
@@ -328,6 +338,10 @@ async function main() {
   const opening = findByTitle(await messagesOf(chanOf[1]), 'Check-in général');
   check('le message d’ouverture ping l’équipe',
     (opening?.content || '').includes(`<@&${roleOf[1]}>`), `content="${opening?.content}"`);
+  // Le capitaine est figé à l'inscription : le nommer évite une équipe au
+  // complet bloquée devant un bouton que personne d'autre ne peut presser.
+  check('IL NOMME LE CAPITAINE QUI DOIT CONFIRMER',
+    (embedOf(opening).description || '').includes('E2E Cap 1'), embedOf(opening).description);
 
   // L'équipe 1 confirme ; les autres non.
   const done = await apiAs(capUid(1), 'POST', `/api/competitions/${COMP}/checkin`, {});
@@ -354,6 +368,44 @@ async function main() {
   const tick2 = await api('POST', `/api/competitions/${COMP}/tick`);
   check('un second tick ne relance pas une deuxième fois', (tick2.json?.remindedTeams ?? 0) === 0,
     `relancées=${tick2.json?.remindedTeams}`);
+
+  section('Fil de match relayé dans les deux sens');
+  // Une équipe écrit : le staff doit le voir, sinon il faudrait surveiller
+  // autant de salons qu'il y a d'équipes.
+  const beforeStaff = (await messagesOf(staffChanId)).length;
+  await apiAs(capUid(1), 'POST', `/api/competitions/${COMP}/matches/${first.id}/thread`, {
+    body: 'La room ne répond pas, on est bloqués depuis 5 minutes.',
+  });
+  const staffRelay = findByTitle(await messagesOf(staffChanId), "Message d'équipe");
+  check('LE STAFF EST PRÉVENU QU’UNE ÉQUIPE ÉCRIT', !!staffRelay,
+    `${beforeStaff} → ${(await messagesOf(staffChanId)).length} messages`);
+  check('le relais nomme l’équipe et cite le message',
+    (embedOf(staffRelay).description || '').includes(teamName(1))
+    && (embedOf(staffRelay).description || '').includes('room ne répond pas'),
+    embedOf(staffRelay).description);
+
+  // Deuxième message de la même équipe : silencieux (le staff regarde déjà).
+  const staffCount = (await messagesOf(staffChanId)).length;
+  await apiAs(capUid(1), 'POST', `/api/competitions/${COMP}/matches/${first.id}/thread`, {
+    body: 'Toujours rien de notre côté.',
+  });
+  check('UNE CONVERSATION NE PRODUIT PAS UN PING PAR MESSAGE',
+    (await messagesOf(staffChanId)).length === staffCount,
+    'le second message a re-notifié le staff');
+
+  // Le staff répond : les deux camps du match doivent le voir.
+  const beforeTeam = (await messagesOf(chanOf[1])).length;
+  await api('POST', `/api/competitions/${COMP}/matches/${first.id}/thread`, {
+    body: 'On relance une room, tenez-vous prêts.',
+  });
+  const teamRelay = findByTitle(await messagesOf(chanOf[1]), 'Message du staff');
+  check('LES ÉQUIPES SONT PRÉVENUES QUAND LE STAFF RÉPOND', !!teamRelay,
+    `${beforeTeam} → ${(await messagesOf(chanOf[1])).length} messages`);
+  check('la réponse du staff est citée',
+    (embedOf(teamRelay).description || '').includes('relance une room'), embedOf(teamRelay).description);
+  check('et elle ping l’équipe', (teamRelay?.content || '').includes(`<@&${roleOf[1]}>`));
+  const oppRelay = findByTitle(await messagesOf(chanOf[opp]), 'Message du staff');
+  check('l’autre camp aussi', !!oppRelay);
 
   section('Contrôle du dispositif');
   const setupRes = await api('GET', `/api/admin/competitions/${COMP}/setup-check`);
