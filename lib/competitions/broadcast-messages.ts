@@ -297,6 +297,77 @@ export function threadToTeamsText(input: { body: string }): BroadcastText {
   };
 }
 
+/**
+ * Rappel de la veille, aux équipes engagées. Personne ne relit une fiche de
+ * tournoi trois jours après s'être inscrit.
+ */
+export function tournamentTomorrowText(input: {
+  competitionName: string;
+  startsAt: string | null;
+  checkinMinutes: number;
+}): BroadcastText {
+  return {
+    title: `${input.competitionName} — c’est demain`,
+    message: [
+      input.startsAt
+        ? `Début des matchs à ${input.startsAt}.`
+        : 'Les matchs commencent demain.',
+      `Le check-in ouvre ${input.checkinMinutes} minutes avant : seul le capitaine peut confirmer, et sans lui l’équipe n’est pas alignée.`,
+    ].join('\n'),
+  };
+}
+
+/**
+ * Liste d'attente, la veille. Une réserve qu'on n'a pas prévenue n'est pas une
+ * réserve : elle avait tourné la page.
+ */
+export function waitlistStandbyText(input: {
+  competitionName: string;
+  startsAt: string | null;
+}): BroadcastText {
+  return {
+    title: `${input.competitionName} — tu es sur la liste d’attente`,
+    message: [
+      'Une place peut se libérer jusqu’au lancement du premier tour.',
+      input.startsAt
+        ? `Sois disponible demain à ${input.startsAt} : si une équipe manque à l’appel, la tienne entre.`
+        : 'Sois disponible demain au début du tournoi : si une équipe manque à l’appel, la tienne entre.',
+    ].join('\n'),
+  };
+}
+
+/** Liste d'attente, au premier lancement : le suspense s'arrête là. */
+export function waitlistClosedText(input: { competitionName: string }): BroadcastText {
+  return {
+    title: `${input.competitionName} — les places sont prises`,
+    message: [
+      'Le tournoi est lancé au complet, ton équipe ne jouera pas cette fois.',
+      'Merci d’être restée disponible.',
+    ].join('\n'),
+  };
+}
+
+/** Bilan du contrôle du dispositif, la veille, dans le salon staff. */
+export function setupCheckStaffText(input: {
+  competitionName: string;
+  blockers: string[];
+  warnings: string[];
+  teamsProvisioned: number;
+  teamsTotal: number;
+}): BroadcastText {
+  const lines = [`${input.teamsProvisioned}/${input.teamsTotal} équipes provisionnées.`];
+  if (input.blockers.length === 0 && input.warnings.length === 0) {
+    lines.push('Rien à signaler : le dispositif est prêt.');
+  } else {
+    for (const b of input.blockers) lines.push(`À corriger : ${b}`);
+    for (const w of input.warnings.slice(0, 5)) lines.push(`À surveiller : ${w}`);
+  }
+  return {
+    title: `${input.competitionName} — contrôle de la veille`,
+    message: lines.join('\n'),
+  };
+}
+
 /** Annonce publique de l'organisateur (texte libre), jamais mise en forme. */
 export function organizerAnnouncementText(input: {
   competitionName: string;

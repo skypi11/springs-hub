@@ -7,6 +7,7 @@ import { TODO_TYPE_META, type TodoType } from '@/lib/todos';
 import { captureApiError } from '@/lib/sentry';
 import { runWeeklyAvailabilityReminders } from '@/lib/availability-reminder-server';
 import { parisYmd, isoDayOfWeek } from '@/lib/availability';
+import { sendCompetitionDayReminders } from '@/lib/competitions/daily-reminders';
 
 // GET /api/cron/todos-reminders
 // Vercel Cron 1x/jour (Hobby plan impose 1 run/jour max). Pour chaque exercice !done :
@@ -200,12 +201,24 @@ export async function GET(req: NextRequest) {
       captureApiError('cron availability reminders (grafted) error', err);
     }
 
+    // Rappels de la veille d'un tournoi, greffés ici pour la même raison que
+    // les dispos : le plan Hobby plafonne les tâches planifiées à deux, et
+    // celle-ci passe déjà tous les jours. Idempotent par verrou de date — ce
+    // cron est déclenché deux fois (Vercel + filet GitHub Actions).
+    let competitions: Array<{ competitionId: string; teamsNotified: number; waitlistNotified: number; staffBriefed: boolean }> = [];
+    try {
+      competitions = await sendCompetitionDayReminders(db);
+    } catch (err) {
+      captureApiError('cron competition day reminders (grafted) error', err);
+    }
+
     return NextResponse.json({
       ok: true,
       scanned: snap.size,
       reminders: remindersCount,
       overdue: overdueCount,
       availability,
+      competitions,
     });
   } catch (err) {
     captureApiError('API cron todos-reminders error', err);

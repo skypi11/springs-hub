@@ -464,6 +464,49 @@ async function main() {
   const empty = await api('POST', `/api/admin/competitions/${COMP}/console`, { action: 'announce', message: '  ' });
   check('une annonce vide est refusée', empty.status === 400, `status ${empty.status}`);
 
+  section('Rappels de la veille (cron quotidien)');
+  // Le tournoi est déplacé à DEMAIN, et une équipe passe en liste d'attente.
+  const tomorrow = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(Date.now() + 86_400_000));
+  await db.collection('competitions').doc(COMP).update({
+    'schedule.days': [{ date: tomorrow, startsAt: '15:00' }],
+    dayReminderSentFor: null,
+  });
+  await db.collection('competition_registrations').doc(regId(4)).update({ status: 'waitlisted' });
+
+  const beforeDayReminder = (await messagesOf(chanOf[1])).length;
+  const cron = await fetch(`${BASE}/api/cron/todos-reminders`, {
+    headers: { Authorization: `Bearer ${process.env.CRON_SECRET ?? ''}` },
+  });
+  const cronJson = await cron.json().catch(() => ({}));
+  check('cron quotidien → 200', cron.status === 200, `status ${cron.status}`);
+  const mine = (cronJson.competitions ?? []).find(c => c.competitionId === COMP);
+  check('LE TOURNOI DE DEMAIN EST DÉTECTÉ', !!mine, JSON.stringify(cronJson.competitions ?? []));
+  check('les équipes engagées sont prévenues', (mine?.teamsNotified ?? 0) >= 3, JSON.stringify(mine));
+  check('le staff reçoit le contrôle du dispositif', mine?.staffBriefed === true, JSON.stringify(mine));
+
+  const tomorrowMsg = findByTitle(await messagesOf(chanOf[1]), 'c’est demain');
+  check('le rappel est arrivé dans le salon d’équipe', !!tomorrowMsg,
+    `${beforeDayReminder} → ${(await messagesOf(chanOf[1])).length} messages`);
+  check('il donne l’heure et la règle du check-in',
+    (embedOf(tomorrowMsg).description || '').includes('15:00')
+    && /capitaine/i.test(embedOf(tomorrowMsg).description || ''), embedOf(tomorrowMsg).description);
+  const staffBrief = findByTitle(await messagesOf(staffChanId), 'contrôle de la veille');
+  check('le bilan du dispositif est dans le salon staff', !!staffBrief);
+
+  // Deuxième passage du cron : le verrou de date doit tout couper (Vercel ET
+  // le filet GitHub Actions déclenchent ce cron le même jour).
+  const cron2 = await fetch(`${BASE}/api/cron/todos-reminders`, {
+    headers: { Authorization: `Bearer ${process.env.CRON_SECRET ?? ''}` },
+  });
+  const cron2Json = await cron2.json().catch(() => ({}));
+  check('UN SECOND PASSAGE N’ENVOIE RIEN (cron déclenché deux fois par jour)',
+    !(cron2Json.competitions ?? []).some(c => c.competitionId === COMP),
+    JSON.stringify(cron2Json.competitions ?? []));
+
+  await db.collection('competition_registrations').doc(regId(4)).update({ status: 'approved' });
+
   section('Clôture — podium en public, sa place à chaque équipe');
   // On règle le bracket jusqu'au bout : la clôture exige que tout soit tranché.
   for (let pass = 0; pass < 8; pass++) {

@@ -12,7 +12,8 @@ import {
   type GamePair,
 } from '@/lib/competitions/match-flow';
 import { createNotifications, type NotificationPayload } from '@/lib/notifications';
-import { sendCompetitionChannelMessage } from '@/lib/discord-competition';
+import { sendCompetitionChannelMessage, sendCompetitionDM } from '@/lib/discord-competition';
+import { discordIdOfUid } from '@/lib/competitions/discord-guard';
 import {
   broadcast, summarizeDelivery,
   type BroadcastItem, type DeliveryReport,
@@ -21,6 +22,7 @@ import {
   matchCheckinText, checkinReopenedText, adminRulingText,
   teamWithdrawnText, opponentWithdrawnText, organizerAnnouncementText,
   generalCheckinOpenText, finalPlacementText, podiumAnnounceText, stageOutcomeText,
+  waitlistClosedText,
   type BroadcastText,
 } from '@/lib/competitions/broadcast-messages';
 import { phasePlanForStage } from '@/lib/competitions/schedule-plan';
@@ -409,6 +411,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           }
           await createNotifications(db, payloads);
           delivery = await broadcast(db, id, items, { competition: comp });
+
+          // Le tournoi part au complet : la liste d'attente doit l'apprendre.
+          // Elle n'a pas de salon (jamais provisionnée), donc message privé au
+          // capitaine — et une seule fois, au PREMIER lancement.
+          if (comp.waitlistClosedNotifiedAt == null) {
+            const claimed = await db.runTransaction(async tx => {
+              const fresh = await tx.get(compRef);
+              if (fresh.data()?.waitlistClosedNotifiedAt != null) return false;
+              tx.update(compRef, { waitlistClosedNotifiedAt: Timestamp.now() });
+              return true;
+            });
+            if (claimed) {
+              const wl = await db.collection('competition_registrations')
+                .where('competitionId', '==', id).where('status', '==', 'waitlisted').get();
+              const text = waitlistClosedText({ competitionName: (comp.name as string) ?? id });
+              for (const d of wl.docs) {
+                const discordId = discordIdOfUid((d.data().captainUid as string) ?? '');
+                if (!discordId) continue;
+                await sendCompetitionDM(discordId, {
+                  title: text.title, message: text.message,
+                  link: `https://aedral.com/competitions/${id}`,
+                }).catch(() => null);
+              }
+            }
+          }
         } catch (e) {
           captureApiError('Console launch_phase notifications', e);
         }
