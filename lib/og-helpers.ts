@@ -171,24 +171,39 @@ export async function loadLocalIconAsPngDataUri(relPath: string | null | undefin
  * dans le catch de la route, qui peut servir sa bannière de fallback.
  * Coût : ~300-500 KB en mémoire le temps de la réponse, négligeable.
  */
+/** Au-delà de cet agrandissement, un visuel de fond se voit plus qu'il ne sert :
+ *  on préfère un fond uni à une image en bouillie. `tm.webp` fait 768×219, soit
+ *  ×2.9 pour couvrir une bannière — c'est ce garde-fou qui l'écarte. */
+const BACKGROUND_MAX_UPSCALE = 1.3;
+
 /**
  * Image de FOND depuis `/public`, dimensionnée pour couvrir toute la bannière.
  *
  * Distincte de `loadLocalIconAsPngDataUri`, qui plafonne à 256 px : une texture
- * de fond étirée depuis 256 px serait une bouillie. Ici on redimensionne en
- * « cover » à la taille exacte demandée, et on assombrit à la source plutôt
- * qu'avec un calque — satori empile mal les opacités, et une image déjà sombre
- * pèse moins lourd qu'une image claire recouverte.
+ * de fond étirée depuis 256 px serait une bouillie. Ici on assombrit à la
+ * source plutôt qu'avec un calque — satori empile mal les opacités, et une
+ * image déjà sombre pèse moins lourd qu'une image claire recouverte.
+ *
+ * Deux pièges appris à l'usage, tous deux visibles à l'œil seulement :
+ *
+ * 1. LE CADRAGE DOIT ÊTRE CALCULÉ AU RATIO DE SORTIE. Extraire une bande fixe
+ *    (« les 60 % du bas ») donne un ratio quelconque : pour une sortie carrée,
+ *    sharp devait ensuite AGRANDIR ×1.67, d'où une image visiblement pixelisée.
+ *    On découpe donc la plus grande fenêtre au bon ratio, et on n'agrandit qu'en
+ *    dernier recours, sous plafond.
+ * 2. ÉCLAIRCIR RÉVÈLE LE BRUIT DE COMPRESSION, et les zones sombres d'un JPEG /
+ *    WebP sont justement les plus compressées. Remonter la luminosité du bas
+ *    d'un key art (le terrain, sombre) fait donc remonter ses artefacts avec.
+ *    D'où un `darken` prudent et un léger flou qui les noie.
  */
 export async function loadLocalBackgroundAsPngDataUri(
   relPath: string,
   width: number,
   height: number,
   darken = 0.72,
-  /** `bottom` zoome sur la partie basse avant de recadrer. Les key arts de jeu
-   *  portent presque tous leur logo en haut : sans ce zoom, « ROCKET LEAGUE »
-   *  traverse l'affiche et passe devant le logo des équipes. Un simple crop ne
-   *  suffit pas — à ratios proches il ne retire que quelques pixels. */
+  /** `bottom` ancre le cadrage en BAS. Les key arts de jeu portent presque tous
+   *  leur logo en haut : sans cet ancrage, « ROCKET LEAGUE » traverse l'affiche
+   *  et passe devant le logo des équipes. */
   focus: 'centre' | 'bottom' = 'centre',
 ): Promise<string | null> {
   if (!relPath || relPath.includes('..')) return null;
@@ -196,20 +211,41 @@ export async function loadLocalBackgroundAsPngDataUri(
     const absPath = path.join(process.cwd(), 'public', relPath.replace(/^[\\/]+/, ''));
     const buf = fs.readFileSync(absPath);
     let pipeline = sharp(buf, { failOn: 'error' });
-    if (focus === 'bottom') {
-      const meta = await sharp(buf).metadata();
-      if (meta.width && meta.height) {
-        const keep = Math.round(meta.height * 0.6);
-        pipeline = pipeline.extract({ left: 0, top: meta.height - keep, width: meta.width, height: keep });
+    const meta = await sharp(buf).metadata();
+
+    if (meta.width && meta.height) {
+      const targetRatio = width / height;
+      // Le haut porte le logo du jeu : on l'écarte AVANT de choisir la fenêtre,
+      // sinon le cadrage au ratio le réintègre par le bord supérieur.
+      const usableTop = focus === 'bottom' ? Math.round(meta.height * 0.22) : 0;
+      const usableHeight = meta.height - usableTop;
+
+      // Plus grande fenêtre au ratio de sortie qui tient dans la zone utile.
+      let cw = meta.width;
+      let ch = Math.round(cw / targetRatio);
+      if (ch > usableHeight) {
+        ch = usableHeight;
+        cw = Math.round(ch * targetRatio);
       }
+      if (Math.max(width / cw, height / ch) > BACKGROUND_MAX_UPSCALE) return null;
+
+      pipeline = pipeline.extract({
+        left: Math.max(0, Math.round((meta.width - cw) / 2)),
+        top: Math.max(0, usableTop + (usableHeight - ch)), // ancré en bas de la zone utile
+        width: Math.min(cw, meta.width),
+        height: Math.min(ch, meta.height),
+      });
     }
+
     const png = await pipeline
       .resize(width, height, { fit: 'cover', position: 'centre' })
-      // Saturation très basse : le visuel doit devenir une TEXTURE. À pleine
-      // saturation il concurrence l'affiche — le logo du jeu et les couleurs
-      // vives passent devant les logos d'équipe au lieu de les porter.
-      .modulate({ brightness: Math.max(0.05, 1 - darken), saturation: 0.62 })
-      .blur(1.5)
+      // Saturation TRÈS basse : c'est elle, plus que la luminosité, qui décide
+      // si le visuel reste un fond. À saturation franche, une carrosserie
+      // orange passe devant le nom d'une équipe ; désaturée, la même scène
+      // reste lisible tout en reculant. Rassombrir aurait juste refait
+      // disparaître le jeu.
+      .modulate({ brightness: Math.max(0.05, 1 - darken), saturation: 0.3 })
+      .blur(1.1)
       .png()
       .toBuffer();
     return `data:image/png;base64,${png.toString('base64')}`;

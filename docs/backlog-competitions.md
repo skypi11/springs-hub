@@ -50,6 +50,15 @@ Les événements « match officiel » d'une structure ont leur affiche de rencon
 mais **aucune affiche de résultat**. À faire une fois celle des compétitions au
 point : ce sera le même générateur, alimenté par le score de l'événement.
 
+### 2 quater. Trackmania n'a pas de visuel de fond exploitable (02/08)
+
+`public/tm.webp` fait **768×219** : le couvrir en 1200×630 demanderait un
+agrandissement ×3.7. Le garde-fou de `loadLocalBackgroundAsPngDataUri`
+(`BACKGROUND_MAX_UPSCALE`) l'écarte donc, et une affiche Trackmania sort sur
+fond uni — correcte, mais sans la matière qu'ont RL et Valorant. Il suffit de
+déposer un visuel d'au moins ~1600 px de large dans `public/` et de pointer
+`GAME_ART.trackmania` dessus ; aucun code à toucher.
+
 ### 2 ter. L'affiche de RENCONTRE est restée en arrière (02/08)
 
 L'affiche de résultat a été recomposée après un retour de Matt (« ça manque

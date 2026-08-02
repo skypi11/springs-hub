@@ -155,7 +155,9 @@ export async function GET(
         // Attention au cumul : la vignette posée par-dessus assombrit ENCORE,
         // les deux se multiplient. À 0.78 il ne restait que ~7 % de l'image et
         // à 0.55 environ 25 % — dans les deux cas on ne distinguait pas le jeu.
-        ? loadLocalBackgroundAsPngDataUri(GAME_ART[gameId], WIDTH, HEIGHT, 0.35, 'bottom')
+        // Mais éclaircir révèle le bruit de compression de la source : 0.45 est
+        // le point où le jeu se voit sans que ses artefacts se voient aussi.
+        ? loadLocalBackgroundAsPngDataUri(GAME_ART[gameId], WIDTH, HEIGHT, 0.45, 'bottom')
         : Promise.resolve(null),
     ]);
 
