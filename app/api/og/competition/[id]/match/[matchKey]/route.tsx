@@ -46,7 +46,10 @@ const SQUARE = { w: 1080, h: 1080 };
  *
  *  Ce que doit être un fond d'affiche, appris à l'usage :
  *   - du 1920×1080 au minimum (le carré 1080×1080 y découpe une fenêtre) ;
- *   - PAS de logo du jeu incrusté (celui de `tm.webp` traversait l'affiche) ;
+ *   - PAS de logo du jeu incrusté (celui de `tm.webp` traversait l'affiche).
+ *     C'est cette contrainte qui permet le cadrage CENTRÉ : rogner le haut pour
+ *     écarter un logo décentrait la scène — sur un key art d'action, on y
+ *     perdait le ballon et l'explosion pour ne garder qu'un bout de voiture ;
  *   - une SCÈNE de jeu, pas une bannière de marque — l'ancien `valorant-banner.jpg`
  *     était un logo sur aplat, il aurait donné un fond rouge sans intérêt.
  *
@@ -165,7 +168,7 @@ export async function GET(
         // à 0.55 environ 25 % — dans les deux cas on ne distinguait pas le jeu.
         // Mais éclaircir révèle le bruit de compression de la source : 0.45 est
         // le point où le jeu se voit sans que ses artefacts se voient aussi.
-        ? loadLocalBackgroundAsPngDataUri(GAME_ART[gameId], WIDTH, HEIGHT, 0.45, 'bottom')
+        ? loadLocalBackgroundAsPngDataUri(GAME_ART[gameId], WIDTH, HEIGHT, 0.38)
         : Promise.resolve(null),
     ]);
 
