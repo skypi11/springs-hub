@@ -95,13 +95,26 @@ export async function GET(
     // CIRCUIT quand elle en fait partie (une étape appartient à l'orga du
     // circuit). Sans ce repli, une Qualif de la Legends n'aurait affiché
     // aucun organisateur.
-    let organizer = (comp.organizer as { name?: string } | null)?.name ?? null;
+    let orga = (comp.organizer as { name?: string; logoUrl?: string | null } | null) ?? null;
     let circuitName: string | null = null;
+    let accent = (comp.accentColor as string | null) ?? null;
     if (comp.circuitId) {
       const circuit = (await db.collection('circuits').doc(comp.circuitId as string).get()).data();
       circuitName = (circuit?.name as string) ?? null;
-      if (!organizer) organizer = (circuit?.organizer as { name?: string } | null)?.name ?? null;
+      if (!orga) orga = (circuit?.organizer as { name?: string; logoUrl?: string | null } | null) ?? null;
+      if (!accent) accent = (circuit?.accentColor as string | null) ?? null;
     }
+    const organizer = orga?.name ?? null;
+    // La couleur de l'affiche est celle de l'ORGANISATEUR, à défaut celle du
+    // jeu. L'or d'Aedral n'apparaît plus : une affiche republiée par une équipe
+    // doit porter les couleurs du tournoi, pas celles de son hébergeur.
+    const ACCENT = accent || getGameColor((comp.game as string) ?? 'rocket_league');
+    const accentSoft = (a: number) => {
+      const m = /^#(\w{2})(\w{2})(\w{2})$/.exec(ACCENT);
+      if (!m) return `rgba(255,184,0,${a})`;
+      const [r, g, b] = [1, 2, 3].map(i => parseInt(m[i], 16));
+      return `rgba(${r},${g},${b},${a})`;
+    };
 
     // Nom du tour : « Quarts », « Finale »… Une affiche de résultat sans le
     // stade du tournoi ne dit pas grand-chose.
@@ -116,9 +129,10 @@ export async function GET(
       : null;
 
     const endedMs = match.updatedAt?.toMillis?.() ?? Date.now();
-    const [logoA, logoB] = await Promise.all([
+    const [logoA, logoB, orgaLogo] = await Promise.all([
       loadLogoAsPngDataUri(a.logoUrl as string | null),
       loadLogoAsPngDataUri(b.logoUrl as string | null),
+      loadLogoAsPngDataUri(orga?.logoUrl ?? null),
     ]);
 
     const font = loadRajdhani();
@@ -142,9 +156,9 @@ export async function GET(
         <div style={{
           width: logoSize, height: logoSize, display: 'flex',
           alignItems: 'center', justifyContent: 'center',
-          background: isWinner ? 'rgba(255,184,0,0.05)' : AEDRAL_PALETTE.surface,
-          border: `2px solid ${isWinner ? AEDRAL_PALETTE.gold : 'rgba(255,255,255,0.08)'}`,
-          ...(isWinner ? { boxShadow: '0 0 60px rgba(255,184,0,0.22)' } : {}),
+          background: isWinner ? accentSoft(0.05) : AEDRAL_PALETTE.surface,
+          border: `2px solid ${isWinner ? ACCENT : 'rgba(255,255,255,0.08)'}`,
+          ...(isWinner ? { boxShadow: `0 0 60px ${accentSoft(0.22)}` } : {}),
         }}>
           {logo
             ? /* eslint-disable-next-line @next/next/no-img-element */
@@ -163,8 +177,8 @@ export async function GET(
             Hauteur réservée des deux côtés pour que les noms restent alignés. */}
         <div style={{
           marginTop: 10, height: 22, display: 'flex', alignItems: 'center',
-          fontSize: 15, fontFamily: ff, letterSpacing: '4px',
-          color: isWinner ? AEDRAL_PALETTE.gold : 'transparent',
+          fontSize: 17, fontFamily: ff, letterSpacing: '5px',
+          color: isWinner ? ACCENT : 'transparent',
         }}>
           {isWinner ? 'VAINQUEUR' : '·'}
         </div>
@@ -188,40 +202,50 @@ export async function GET(
               position: 'absolute', top: '50%',
               ...(winner === 'a' ? { left: square ? 40 : 70 } : { right: square ? 40 : 70 }),
               width: 540, height: 540, transform: 'translateY(-50%)',
-              background: 'radial-gradient(circle, rgba(255,184,0,0.10) 0%, rgba(255,184,0,0.03) 45%, transparent 70%)',
+              background: `radial-gradient(circle, ${accentSoft(0.10)} 0%, ${accentSoft(0.03)} 45%, transparent 70%)`,
               display: 'flex',
             }} />
           )}
 
           <div style={{
             position: 'absolute', top: 0, left: 0, right: 0, height: 6,
-            background: AEDRAL_PALETTE.goldBarGradient, display: 'flex',
+            background: `linear-gradient(90deg, ${ACCENT} 0%, ${accentSoft(0.5)} 50%, ${ACCENT} 100%)`, display: 'flex',
           }} />
           {/* Coins HUD, signature des affiches Aedral */}
-          <div style={{ position: 'absolute', top: 24, left: 24, width: 40, height: 40, borderTop: '2px solid rgba(255,184,0,0.65)', borderLeft: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
-          <div style={{ position: 'absolute', top: 24, right: 24, width: 40, height: 40, borderTop: '2px solid rgba(255,184,0,0.65)', borderRight: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
-          <div style={{ position: 'absolute', bottom: 24, left: 24, width: 40, height: 40, borderBottom: '2px solid rgba(255,184,0,0.65)', borderLeft: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
-          <div style={{ position: 'absolute', bottom: 24, right: 24, width: 40, height: 40, borderBottom: '2px solid rgba(255,184,0,0.65)', borderRight: '2px solid rgba(255,184,0,0.65)', display: 'flex' }} />
+          <div style={{ position: 'absolute', top: 24, left: 24, width: 40, height: 40, borderTop: `2px solid ${accentSoft(0.6)}`, borderLeft: `2px solid ${accentSoft(0.6)}`, display: 'flex' }} />
+          <div style={{ position: 'absolute', top: 24, right: 24, width: 40, height: 40, borderTop: `2px solid ${accentSoft(0.6)}`, borderRight: `2px solid ${accentSoft(0.6)}`, display: 'flex' }} />
+          <div style={{ position: 'absolute', bottom: 24, left: 24, width: 40, height: 40, borderBottom: `2px solid ${accentSoft(0.6)}`, borderLeft: `2px solid ${accentSoft(0.6)}`, display: 'flex' }} />
+          <div style={{ position: 'absolute', bottom: 24, right: 24, width: 40, height: 40, borderBottom: `2px solid ${accentSoft(0.6)}`, borderRight: `2px solid ${accentSoft(0.6)}`, display: 'flex' }} />
 
-          {/* En-tête : le TOUR d'abord (il situe le match dans le tournoi),
-              puis la compétition. */}
+          {/* En-tête. L'ORGANISATEUR d'abord, logo compris : c'est SON tournoi,
+              et c'est ce qu'une équipe doit republier. Puis le nom du tournoi,
+              puis le stade — trois niveaux, trois tailles, aucune ambiguïté sur
+              l'ordre de lecture. */}
           <div style={{
-            position: 'absolute', top: square ? 64 : 50, display: 'flex',
-            flexDirection: 'column', alignItems: 'center', gap: 10,
+            position: 'absolute', top: square ? 58 : 44, display: 'flex',
+            flexDirection: 'column', alignItems: 'center', gap: square ? 12 : 9,
           }}>
-            {circuitName && (
-              <div style={{ fontSize: 20, fontFamily: ff, color: AEDRAL_PALETTE.gold, letterSpacing: '6px', display: 'flex' }}>
-                {circuitName.toUpperCase()}
+            {(orgaLogo || organizer) && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {orgaLogo && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={orgaLogo} width={44} height={44} alt="" style={{ objectFit: 'contain' }} />
+                )}
+                {organizer && (
+                  <span style={{ fontSize: 22, fontFamily: ff, color: AEDRAL_PALETTE.text, letterSpacing: '4px', display: 'flex' }}>
+                    {organizer.toUpperCase()}
+                  </span>
+                )}
               </div>
             )}
+            <div style={{ fontSize: square ? 46 : 42, fontFamily: ff, color: AEDRAL_PALETTE.text, letterSpacing: '3px', display: 'flex' }}>
+              {[circuitName, comp.name as string].filter(Boolean).join(' · ').toUpperCase()}
+            </div>
             {roundName && (
-              <div style={{ fontSize: 18, fontFamily: ff, color: gameColor, letterSpacing: '8px', display: 'flex' }}>
+              <div style={{ fontSize: 19, fontFamily: ff, color: ACCENT, letterSpacing: '7px', display: 'flex' }}>
                 {roundName.toUpperCase()}
               </div>
             )}
-            <div style={{ fontSize: square ? 44 : 40, fontFamily: ff, color: AEDRAL_PALETTE.text, letterSpacing: '3px', display: 'flex' }}>
-              {((comp.name as string) ?? '').toUpperCase()}
-            </div>
           </div>
 
           {/* Face-à-face et score */}
@@ -229,9 +253,9 @@ export async function GET(
             <Side name={nameA} logo={logoA} isWinner={winner === 'a'} />
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 16px' }}>
               <div style={{
-                fontSize: scoreSize, fontFamily: ff, color: AEDRAL_PALETTE.gold,
+                fontSize: scoreSize, fontFamily: ff, color: ACCENT,
                 letterSpacing: '2px', lineHeight: 1, display: 'flex', alignItems: 'center',
-                textShadow: '0 0 35px rgba(255,184,0,0.6), 0 0 80px rgba(255,184,0,0.28)',
+                textShadow: `0 0 35px ${accentSoft(0.55)}, 0 0 80px ${accentSoft(0.25)}`,
               }}>
                 {won.a}
                 <span style={{ color: 'rgba(255,255,255,0.20)', padding: '0 12px', display: 'flex' }}>–</span>
@@ -262,23 +286,22 @@ export async function GET(
             <Side name={nameB} logo={logoB} isWinner={winner === 'b'} />
           </div>
 
-          {/* Pied. L'ORGANISATEUR en tête et en clair : la compétition lui
-              appartient, Aedral n'est que l'hébergeur. */}
+          {/* Pied : le contexte du match à gauche, la plateforme à droite et en
+              retrait. Aedral héberge, il n'organise pas — il n'a pas à peser
+              autant que le tournoi sur une image republiée par une équipe. */}
           <div style={{
-            position: 'absolute', bottom: square ? 62 : 46, display: 'flex',
-            alignItems: 'center', gap: 16, fontSize: 20, fontFamily: ff, letterSpacing: '3px',
+            position: 'absolute', bottom: square ? 54 : 42, left: square ? 60 : 70, right: square ? 60 : 70,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            fontSize: 18, fontFamily: ff, letterSpacing: '3px',
           }}>
-            {organizer && (
-              <>
-                <span style={{ color: AEDRAL_PALETTE.text, display: 'flex' }}>{organizer.toUpperCase()}</span>
-                <span style={{ color: 'rgba(255,255,255,0.15)', display: 'flex' }}>|</span>
-              </>
-            )}
-            <span style={{ color: AEDRAL_PALETTE.textDim, display: 'flex' }}>{formatDate(endedMs)}</span>
-            <span style={{ color: 'rgba(255,255,255,0.15)', display: 'flex' }}>|</span>
-            <span style={{ color: gameColor, display: 'flex' }}>{gameLabel}</span>
-            <span style={{ color: 'rgba(255,255,255,0.15)', display: 'flex' }}>|</span>
-            <span style={{ color: AEDRAL_PALETTE.gold, display: 'flex' }}>AEDRAL</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <span style={{ color: AEDRAL_PALETTE.textDim, display: 'flex' }}>{formatDate(endedMs)}</span>
+              <span style={{ color: 'rgba(255,255,255,0.15)', display: 'flex' }}>|</span>
+              <span style={{ color: gameColor, display: 'flex' }}>{gameLabel}</span>
+            </div>
+            <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 15, letterSpacing: '2px', display: 'flex' }}>
+              aedral.com
+            </span>
           </div>
         </div>
       ),

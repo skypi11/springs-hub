@@ -111,6 +111,16 @@ export interface Competition {
   name: string;                    // "Legends Qualifier #1"
   game: CompetitionGame;
   circuitId: string | null;        // null = tournoi hors circuit
+  /** Structure organisatrice. Une compétition APPARTIENT à qui la porte —
+   *  Aedral n'est que l'hébergeur, et ses supports (affiche de résultat,
+   *  annonces) doivent le montrer. Hérité du circuit quand il y en a un ;
+   *  indispensable ici pour un tournoi isolé, qui n'a aucun circuit d'où
+   *  l'hériter. */
+  organizer?: { name: string; logoUrl?: string | null } | null;
+  /** Couleur d'accent des supports visuels (hex `#RRGGBB`). C'est la couleur de
+   *  l'ORGANISATEUR, pas celle d'Aedral : une affiche republiée par une équipe
+   *  doit porter les couleurs du tournoi. null = couleur du jeu. */
+  accentColor?: string | null;
   format: CompetitionFormat;
   eligibility: CompetitionEligibility;
   roster: { starters: number; subsMax: number };   // RL : 3 + 2

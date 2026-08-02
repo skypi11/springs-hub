@@ -19,6 +19,8 @@ export function toFirestoreCompetition(
     name: payload.name,
     game: payload.game,
     circuitId: payload.circuitId,
+    organizer: payload.organizer,
+    accentColor: payload.accentColor,
     format: payload.format,
     // Multi-étapes : présent uniquement si le payload en porte — l'absence ne
     // touche pas un champ `stages` existant (la route PATCH resynchronise ou

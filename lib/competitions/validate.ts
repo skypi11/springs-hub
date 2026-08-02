@@ -184,6 +184,8 @@ export interface CompetitionPayload {
   name: string;
   game: (typeof SUPPORTED_GAMES)[number];
   circuitId: string | null;
+  organizer: { name: string; logoUrl: string | null } | null;
+  accentColor: string | null;
   format: CompetitionFormat;
   /** Séquence d'étapes (design §9d) — null = mono-étape (tout l'existant). */
   stages: TournamentStage[] | null;
@@ -252,12 +254,26 @@ export function validateCompetitionPayload(body: unknown): ValidationResult<Comp
   const discordOptions = validateDiscordOptions(b.discordOptions);
   if (!discordOptions.ok) return discordOptions;
 
+  // Organisateur propre à la compétition : réutilise la validation des
+  // circuits, même forme et mêmes bornes.
+  const organizer = validateOrganizer(b.organizer);
+  if (!organizer.ok) return organizer;
+
+  // Couleur d'accent des supports : hex strict. Un format libre finirait en
+  // CSS invalide dans une image générée, donc en affiche cassée.
+  const rawAccent = typeof b.accentColor === 'string' ? b.accentColor.trim() : '';
+  if (rawAccent && !/^#[0-9a-fA-F]{6}$/.test(rawAccent)) {
+    return err('Couleur d\'accent invalide (format #RRGGBB attendu).');
+  }
+
   return {
     ok: true,
     value: {
       name,
       game: b.game as (typeof SUPPORTED_GAMES)[number],
       circuitId,
+      organizer: organizer.value,
+      accentColor: rawAccent ? rawAccent.toUpperCase() : null,
       format: format.value,
       stages: stages.value,
       eligibility: eligibility.value,
