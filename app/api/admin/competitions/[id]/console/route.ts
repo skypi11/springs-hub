@@ -14,6 +14,7 @@ import {
 import { createNotifications, type NotificationPayload } from '@/lib/notifications';
 import { sendCompetitionChannelMessage, sendCompetitionDM } from '@/lib/discord-competition';
 import { discordIdOfUid } from '@/lib/competitions/discord-guard';
+import { publishMatchResults } from '@/lib/competitions/publish-result';
 import {
   broadcast, summarizeDelivery,
   type BroadcastItem, type DeliveryReport,
@@ -527,6 +528,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         // le dire à l'admin plutôt que de faire semblant d'avoir tranché.
         return NextResponse.json({ error: 'Ce match est déjà finalisé — recharge la console.' }, { status: 409 });
       }
+      await publishMatchResults(db, id, result.changedMatchIds);
       // Une décision d'arbitrage qui tombe en silence se découvre par
       // l'adversaire — et le conflit commence là. Les deux camps reçoivent la
       // même chose, avec le motif saisi par l'admin.
@@ -572,6 +574,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (result.changedMatchIds.length === 0) {
         return NextResponse.json({ error: 'Ce match est déjà finalisé — recharge la console.' }, { status: 409 });
       }
+      await publishMatchResults(db, id, result.changedMatchIds);
       // Score retenu + motif aux deux camps : c'est la décision la plus
       // contestée d'un tournoi, elle ne peut pas rester dans la console.
       let scoreDelivery: DeliveryReport | null = null;

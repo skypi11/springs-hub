@@ -231,6 +231,48 @@ export async function createAnnounceChannel(
 }
 
 /**
+ * Salon des résultats : lisible de tout le serveur (les affiches sont faites
+ * pour être vues et republiées), écrit par le bot et le staff seuls. Mêmes
+ * permissions que le salon d'annonces — un fil de résultats où chacun commente
+ * devient vite illisible.
+ */
+export async function createResultsChannel(
+  guildId: string,
+  opts: { name: string; categoryId: string | null; staffRoleIds?: string[] },
+): Promise<string> {
+  return createAnnounceChannel(guildId, opts);
+}
+
+/**
+ * Salon général des participants : le seul endroit où les équipes se parlent
+ * entre elles. Réservé au rôle participant — @everyone n'y a pas accès, sinon
+ * ce n'est plus un salon de tournoi mais un salon de serveur.
+ */
+export async function createGeneralChannel(
+  guildId: string,
+  opts: { name: string; categoryId: string | null; participantRoleId: string; staffRoleIds?: string[] },
+): Promise<string> {
+  const staffRoleIds = (opts.staffRoleIds ?? []).filter(id => id && id !== guildId && id !== opts.participantRoleId);
+  const res = await discordFetch(`/guilds/${guildId}/channels`, {
+    method: 'POST',
+    headers: AUDIT_REASON,
+    body: JSON.stringify({
+      name: opts.name.slice(0, 100),
+      type: 0,
+      parent_id: opts.categoryId ?? undefined,
+      permission_overwrites: [
+        { id: guildId, type: 0, deny: String(PERM.VIEW_CHANNEL), allow: '0' },
+        { id: opts.participantRoleId, type: 0, allow: String(CHANNEL_GRANTS.playersText), deny: '0' },
+        ...staffRoleIds.map(id => ({ id, type: 0, allow: String(CHANNEL_GRANTS.staffText), deny: '0' })),
+      ],
+    }),
+  });
+  if (!res.ok) throw await discordError(res, 'Discord create general channel failed');
+  const data = await res.json();
+  return data.id as string;
+}
+
+/**
  * Salon privé du staff : ni les joueurs ni le reste du serveur n'y ont accès.
  * Sert aux alertes du jour J (litige ouvert, forfait à valider) — sans lui,
  * un litige n'existe que dans la console, et deux équipes attendent pendant
@@ -502,6 +544,8 @@ export async function describeGuildAccess(
 export interface CompetitionDiscordShared {
   guildId: string;
   participantRoleId: string;
+  /** Salon des résultats (créé ou désigné). null = pas d'affiches publiées. */
+  resultsChannelId?: string | null;
   /** null quand la compétition ne veut aucun salon créé par le bot : il n'y a
    *  alors aucune catégorie à poser sur le serveur de l'organisateur. */
   categoryId: string | null;
@@ -539,6 +583,10 @@ export async function ensureCompetitionShared(
     announce?: { create: boolean; name: string; existingId: string | null };
     /** Salon privé du staff pour les alertes du jour J. */
     staffChannel?: { create: boolean; name: string; existingId: string | null };
+    /** Salon des résultats : les affiches de fin de match. */
+    resultsChannel?: { create: boolean; name: string; existingId: string | null };
+    /** Salon général : le seul où les équipes se parlent entre elles. */
+    generalChannel?: { create: boolean; name: string; existingId: string | null };
     staffRoleIds?: string[];
   },
 ): Promise<CompetitionDiscordShared> {
@@ -621,7 +669,38 @@ export async function ensureCompetitionShared(
     });
   }
 
-  return { guildId: input.guildId, participantRoleId, categoryId, announceChannelId, staffChannelId };
+  let resultsChannelId = input.resultsChannel?.existingId ?? null;
+  if (!resultsChannelId && input.resultsChannel?.create) {
+    resultsChannelId = await createResultsChannel(input.guildId, {
+      name: input.resultsChannel.name,
+      categoryId,
+      staffRoleIds: input.staffRoleIds,
+    });
+    await compRef.update({
+      'discord.options.resultsChannelId': resultsChannelId,
+      'discord.createdChannelIds': FieldValue.arrayUnion(resultsChannelId),
+    });
+  }
+
+  // Salon général : réservé au rôle participant, donc créé APRÈS lui.
+  let generalChannelId = input.generalChannel?.existingId ?? null;
+  if (!generalChannelId && input.generalChannel?.create) {
+    generalChannelId = await createGeneralChannel(input.guildId, {
+      name: input.generalChannel.name,
+      categoryId,
+      participantRoleId,
+      staffRoleIds: input.staffRoleIds,
+    });
+    await compRef.update({
+      'discord.options.generalChannelId': generalChannelId,
+      'discord.createdChannelIds': FieldValue.arrayUnion(generalChannelId),
+    });
+  }
+
+  return {
+    guildId: input.guildId, participantRoleId, categoryId,
+    announceChannelId, staffChannelId, resultsChannelId,
+  };
 }
 
 export interface ProvisionRegistrationInput {
@@ -1014,6 +1093,11 @@ export async function sendCompetitionChannelMessage(
      *  `content` du message ping. Les messages de check-in passaient donc
      *  totalement inaperçus. */
     mentionRoleId?: string | null;
+    /** Plusieurs rôles à la fois — le salon des résultats ne réveille que les
+     *  DEUX équipes du match, pas tout le tournoi. */
+    mentionRoleIds?: string[];
+    /** Image jointe par URL (affiche de résultat) : Discord la charge lui-même. */
+    imageUrl?: string | null;
   },
 ): Promise<{ ok: true; messageId: string } | { ok: false; reason: string }> {
   const description = input.message.slice(0, 3800)
@@ -1024,15 +1108,22 @@ export async function sendCompetitionChannelMessage(
     description,
     footer: { text: 'Aedral · compétitions' },
     timestamp: new Date().toISOString(),
+    ...(input.imageUrl ? { image: { url: input.imageUrl } } : {}),
   };
+  // Rôles mentionnés : la liste explicite si elle est fournie, sinon le rôle
+  // unique. Dédupliqués — Discord refuse un rôle répété dans allowed_mentions.
+  const roles = [...new Set([
+    ...(input.mentionRoleIds ?? []),
+    ...(input.mentionRoleId ? [input.mentionRoleId] : []),
+  ].filter(Boolean))];
   const res = await discordFetch(`/channels/${channelId}/messages`, {
     method: 'POST',
     body: JSON.stringify({
       embeds: [embed],
-      ...(input.mentionRoleId
+      ...(roles.length > 0
         ? {
-            content: `<@&${input.mentionRoleId}>`,
-            allowed_mentions: { roles: [input.mentionRoleId] },
+            content: roles.map(r => `<@&${r}>`).join(' '),
+            allowed_mentions: { roles },
           }
         : {}),
     }),

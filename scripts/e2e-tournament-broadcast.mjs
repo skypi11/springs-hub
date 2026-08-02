@@ -150,6 +150,8 @@ async function setup(ownerId) {
         participantRoleName: 'E2E BC Participant',
         createAnnounceChannel: true, announceChannelName: 'e2e-bc-annonces', announceChannelId: null,
         createStaffChannel: true, staffChannelName: 'e2e-bc-staff', staffChannelId: null,
+        createResultsChannel: true, resultsChannelName: 'e2e-bc-resultats', resultsChannelId: null,
+        createGeneralChannel: true, generalChannelName: 'e2e-bc-general', generalChannelId: null,
       },
     },
     // isDev FALSE : c'est la garde qui coupe les envois du bac à sable. La
@@ -219,8 +221,12 @@ async function main() {
   const comp = (await db.collection('competitions').doc(COMP).get()).data();
   let announceId = comp.discord?.options?.announceChannelId;
   const staffChanId = comp.discord?.options?.staffChannelId;
+  const resultsChanId = comp.discord?.options?.resultsChannelId;
+  const generalChanId = comp.discord?.options?.generalChannelId;
   check('salon d’annonces créé', !!announceId);
   check('salon staff créé', !!staffChanId);
+  check('salon des résultats créé', !!resultsChanId);
+  check('salon général des participants créé', !!generalChanId);
 
   const chanOf = {};
   const roleOf = {};
@@ -463,6 +469,27 @@ async function main() {
     `content="${teamAnn?.content}"`);
   const empty = await api('POST', `/api/admin/competitions/${COMP}/console`, { action: 'announce', message: '  ' });
   check('une annonce vide est refusée', empty.status === 400, `status ${empty.status}`);
+
+  section('Salon des résultats — affiche et détail des manches');
+  const resultMsg = findByTitle(await messagesOf(resultsChanId), 'Résultat');
+  check('LE RÉSULTAT EST PUBLIÉ DANS LE SALON DÉDIÉ', !!resultMsg,
+    `${(await messagesOf(resultsChanId)).length} message(s)`);
+  const resultDesc = embedOf(resultMsg).description || '';
+  check('il donne le score en manches', /\d+–\d+/.test(resultDesc), resultDesc);
+  check('IL DONNE LE DÉTAIL MANCHE PAR MANCHE', /Manches :/.test(resultDesc), resultDesc);
+  check('L’AFFICHE EST JOINTE', !!embedOf(resultMsg).image?.url,
+    JSON.stringify(embedOf(resultMsg).image ?? null));
+  check('l’affiche pointe sur le générateur du match',
+    (embedOf(resultMsg).image?.url ?? '').includes(`/api/og/competition/${COMP}/match/`),
+    embedOf(resultMsg).image?.url);
+  // Le point qui fait la différence entre un salon suivi et un salon coupé.
+  const mentioned = resultMsg?.content ?? '';
+  check('SEULES LES DEUX ÉQUIPES DU MATCH SONT MENTIONNÉES',
+    mentioned.includes(`<@&${roleOf[1]}>`) && mentioned.includes(`<@&${roleOf[opp]}>`),
+    `content="${mentioned}"`);
+  const others = [2, 3, 4].filter(i => i !== opp && i !== 1);
+  check('les autres équipes ne sont pas réveillées',
+    others.every(i => !mentioned.includes(`<@&${roleOf[i]}>`)), `content="${mentioned}"`);
 
   section('Rappels de la veille (cron quotidien)');
   // Le tournoi est déplacé à DEMAIN, et une équipe passe en liste d'attente.

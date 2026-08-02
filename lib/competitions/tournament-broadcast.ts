@@ -21,7 +21,11 @@ export type BroadcastTarget =
    *  pas à réveiller deux cents personnes. */
   | { kind: 'announce' }
   /** Salon privé du staff — mentionne le premier rôle staff déclaré. */
-  | { kind: 'staff' };
+  | { kind: 'staff' }
+  /** Salon des résultats — ne réveille QUE les équipes du match concerné, pas
+   *  tout le tournoi : un salon consultable qui pingerait tout le monde à
+   *  chaque match serait coupé dès la première phase. */
+  | { kind: 'results'; registrationIds: string[] };
 
 export interface BroadcastItem {
   target: BroadcastTarget;
@@ -29,6 +33,8 @@ export interface BroadcastItem {
   link?: string | null;
   /** Poster sans notifier (information d'ambiance, pas d'action attendue). */
   silent?: boolean;
+  /** Image jointe par URL (affiche de résultat) — Discord la charge lui-même. */
+  imageUrl?: string | null;
   /** Nom lisible pour l'accusé de livraison (défaut : dérivé de la cible). */
   label?: string;
 }
@@ -64,6 +70,8 @@ export function summarizeDelivery(report: DeliveryReport): string {
 interface ResolvedChannel {
   channelId: string;
   mentionRoleId: string | null;
+  /** Mentions multiples (salon des résultats : les deux équipes du match). */
+  mentionRoleIds?: string[];
 }
 
 /**
@@ -96,7 +104,12 @@ export async function broadcast(
 
     const discord = (comp.discord ?? {}) as {
       guildId?: string;
-      options?: { announceChannelId?: string | null; staffChannelId?: string | null; staffRoleIds?: string[] };
+      options?: {
+        announceChannelId?: string | null;
+        staffChannelId?: string | null;
+        resultsChannelId?: string | null;
+        staffRoleIds?: string[];
+      };
     };
     if (!discord.guildId) {
       for (const item of items) {
@@ -107,9 +120,12 @@ export async function broadcast(
     const staffRoleId = discord.options?.staffRoleIds?.[0] ?? null;
 
     // Salons d'équipe : une seule lecture pour tout le lot (32 équipes = 1 aller-retour).
-    const registrationIds = [...new Set(
-      items.filter(i => i.target.kind === 'team').map(i => (i.target as { registrationId: string }).registrationId),
-    )];
+    // Inclut les équipes citées par un message du salon des résultats : c'est
+    // de cette lecture qu'on tire leurs rôles à mentionner.
+    const registrationIds = [...new Set(items.flatMap(i =>
+      i.target.kind === 'team' ? [i.target.registrationId]
+        : i.target.kind === 'results' ? i.target.registrationIds
+        : []))];
     const teamChannels = new Map<string, ResolvedChannel | null>();
     const teamNames = new Map<string, string>();
     if (registrationIds.length > 0) {
@@ -144,6 +160,21 @@ export async function broadcast(
           continue;
         }
         resolved = { channelId, mentionRoleId: null };   // jamais de ping public
+      } else if (item.target.kind === 'results') {
+        const channelId = discord.options?.resultsChannelId;
+        if (!channelId) {
+          report.unreachable.push({ label, reason: 'aucun salon de résultats' });
+          continue;
+        }
+        // Les rôles des SEULES équipes du match : le salon est consultable par
+        // tous, mais seules les deux concernées sont réveillées.
+        resolved = {
+          channelId,
+          mentionRoleId: null,
+          mentionRoleIds: item.target.registrationIds
+            .map(rid => teamChannels.get(rid)?.mentionRoleId ?? null)
+            .filter((r): r is string => !!r),
+        };
       } else {
         const channelId = discord.options?.staffChannelId;
         if (!channelId) {
@@ -154,12 +185,15 @@ export async function broadcast(
       }
 
       const mentionRoleId = item.silent ? null : resolved.mentionRoleId;
+      const mentionRoleIds = item.silent ? [] : (resolved.mentionRoleIds ?? []);
       sends.push(
         sendCompetitionChannelMessage(resolved.channelId, {
           title: item.text.title,
           message: item.text.message,
           link: item.link ?? null,
           mentionRoleId,
+          mentionRoleIds,
+          imageUrl: item.imageUrl ?? null,
         }).then(res => {
           if (res.ok) report.sent += 1;
           else report.failures.push({ label, reason: res.reason });
@@ -190,5 +224,7 @@ function labelOf(item: BroadcastItem, teamNames?: Map<string, string>): string {
   if (item.target.kind === 'team') {
     return teamNames?.get(item.target.registrationId) ?? item.target.registrationId;
   }
-  return item.target.kind === 'announce' ? 'annonces' : 'staff';
+  if (item.target.kind === 'announce') return 'annonces';
+  if (item.target.kind === 'results') return 'résultats';
+  return 'staff';
 }

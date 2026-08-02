@@ -20,6 +20,7 @@ import { toFlowState, toEngineOutcome } from '@/lib/competitions/match-flow-serv
 import { applyMatchOutcome } from '@/lib/competitions/progression';
 import { notifyMatchAlert } from '@/lib/competitions/match-notify';
 import { broadcast } from '@/lib/competitions/tournament-broadcast';
+import { publishMatchResults } from '@/lib/competitions/publish-result';
 import { generalCheckinReminderText } from '@/lib/competitions/broadcast-messages';
 
 export interface TickResult {
@@ -96,6 +97,7 @@ export async function runCompetitionTick(
     }
     if (r.changedMatchIds.length === 0) continue;   // no-op : ni trace ni notif
     processed.push({ matchId: o.matchId, transition: o.kind === 'repair' ? 'agreement_repaired' : 'single_entry_finalized' });
+    await publishMatchResults(db, competitionId, r.changedMatchIds);
     if (o.kind === 'deadline') {
       await notifyMatchAlert(db, { kind: 'single_entry', competitionId, competitionName: compName, matchLabel: o.matchId });
     }

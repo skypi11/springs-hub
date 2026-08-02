@@ -106,6 +106,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         staffChannelId?: string | null;
         createStaffChannel?: boolean;
         staffChannelName?: string | null;
+        resultsChannelId?: string | null;
+        createResultsChannel?: boolean;
+        resultsChannelName?: string | null;
+        generalChannelId?: string | null;
+        createGeneralChannel?: boolean;
+        generalChannelName?: string | null;
       };
       const teamChannels = discordOptions.teamChannels !== false;
       const staffRoleIds = Array.isArray(discordOptions.staffRoleIds) ? discordOptions.staffRoleIds : [];
@@ -129,6 +135,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           create: discordOptions.createStaffChannel === true,
           name: discordOptions.staffChannelName?.trim() || 'staff-tournoi',
           existingId: discordOptions.staffChannelId ?? null,
+        },
+        resultsChannel: {
+          create: discordOptions.createResultsChannel === true,
+          name: discordOptions.resultsChannelName?.trim() || 'resultats',
+          existingId: discordOptions.resultsChannelId ?? null,
+        },
+        generalChannel: {
+          create: discordOptions.createGeneralChannel === true,
+          name: discordOptions.generalChannelName?.trim() || 'general-participants',
+          existingId: discordOptions.generalChannelId ?? null,
         },
       });
 

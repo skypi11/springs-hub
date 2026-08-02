@@ -240,6 +240,18 @@ export interface CompetitionDiscordOptions {
   staffChannelId: string | null;
   createStaffChannel: boolean;
   staffChannelName: string | null;
+  /** Salon des RÉSULTATS : le bot y publie l'affiche de chaque match terminé,
+   *  prête à être republiée par les équipes. Lisible de tout le serveur,
+   *  écrit par le bot seul — on y consulte, on n'y discute pas. */
+  resultsChannelId: string | null;
+  createResultsChannel: boolean;
+  resultsChannelName: string | null;
+  /** Salon GÉNÉRAL des participants : le seul où ils peuvent se parler entre
+   *  équipes. Réservé au rôle participant ; le bot n'y poste rien, la
+   *  modération revient à l'organisateur. */
+  generalChannelId: string | null;
+  createGeneralChannel: boolean;
+  generalChannelName: string | null;
 }
 
 export type CompetitionStatus =

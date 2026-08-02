@@ -17,6 +17,7 @@ import { toFlowState, toIso, flowConfigOf, toEngineOutcome } from '@/lib/competi
 import { applyMatchOutcome } from '@/lib/competitions/progression';
 import { notifyMatchAlert } from '@/lib/competitions/match-notify';
 import { broadcast } from '@/lib/competitions/tournament-broadcast';
+import { publishMatchResults } from '@/lib/competitions/publish-result';
 import { disputeOpenedText, scoreAwaitingConfirmText } from '@/lib/competitions/broadcast-messages';
 
 // Page de match — détail public + zone privée (room, check-in, saisies) pour
@@ -320,7 +321,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         // autoGuard : la progression re-valide l'accord sur le doc frais dans
         // SA transaction (une correction divergente peut arriver entre-temps).
         try {
-          await applyMatchOutcome(db, id, matchId, toEngineOutcome(resolution.outcome), { validatedBy: 'auto', autoGuard: true });
+          const applied = await applyMatchOutcome(db, id, matchId, toEngineOutcome(resolution.outcome), { validatedBy: 'auto', autoGuard: true });
+          // Accord des deux capitaines : le résultat est acquis, l'affiche part.
+          await publishMatchResults(db, id, applied.changedMatchIds);
         } catch (err) {
           if (err instanceof Error && err.message === 'competition_not_live') {
             return NextResponse.json({ error: 'La compétition est clôturée — le bracket est figé.' }, { status: 409 });

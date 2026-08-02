@@ -265,6 +265,36 @@ export function stageOutcomeText(input: {
   };
 }
 
+/**
+ * Résultat d'un match pour le salon des résultats : le score en manches, puis
+ * le détail manche par manche. C'est ce détail qui rend le message utile à côté
+ * de l'affiche — il donne ce que l'image ne peut pas montrer.
+ */
+export function matchResultText(input: {
+  nameA: string;
+  nameB: string;
+  games: Array<{ a?: number; b?: number }>;
+  winner: 'a' | 'b' | null;
+  forfeit: 'a' | 'b' | 'both' | null;
+}): BroadcastText {
+  let wonA = 0, wonB = 0;
+  for (const g of input.games) {
+    if ((g?.a ?? 0) > (g?.b ?? 0)) wonA += 1;
+    else if ((g?.b ?? 0) > (g?.a ?? 0)) wonB += 1;
+  }
+  const winnerName = input.winner === 'a' ? input.nameA : input.winner === 'b' ? input.nameB : null;
+
+  const lines = [`${input.nameA} ${wonA}–${wonB} ${input.nameB}`];
+  if (input.forfeit === 'both') lines.push('Double forfait.');
+  else if (input.forfeit) lines.push(`Forfait de ${input.forfeit === 'a' ? input.nameA : input.nameB}.`);
+  else if (winnerName) lines.push(`Victoire de ${winnerName}.`);
+
+  if (input.games.length > 0 && !input.forfeit) {
+    lines.push(`Manches : ${input.games.map(g => `${g?.a ?? 0}-${g?.b ?? 0}`).join(' · ')}`);
+  }
+  return { title: 'Résultat', message: lines.join('\n') };
+}
+
 /** Extrait d'un message de fil : borné, sur une seule ligne. */
 function excerptOf(body: string, max = 180): string {
   const flat = body.replace(/\s+/g, ' ').trim();

@@ -288,6 +288,12 @@ function validateDiscordOptions(input: unknown): ValidationResult<CompetitionDis
     staffChannelId: null,
     createStaffChannel: false,
     staffChannelName: null,
+    resultsChannelId: null,
+    createResultsChannel: false,
+    resultsChannelName: null,
+    generalChannelId: null,
+    createGeneralChannel: false,
+    generalChannelName: null,
   };
   if (input === null || input === undefined) return { ok: true, value: defaults };
   if (typeof input !== 'object') return err('Réglages Discord invalides.');
@@ -301,6 +307,14 @@ function validateDiscordOptions(input: unknown): ValidationResult<CompetitionDis
   const staffChannelId = snowflake(o.staffChannelId);
   if (staffChannelId && !SNOWFLAKE.test(staffChannelId)) {
     return err('Salon du staff invalide.');
+  }
+  const resultsChannelId = snowflake(o.resultsChannelId);
+  if (resultsChannelId && !SNOWFLAKE.test(resultsChannelId)) {
+    return err('Salon des résultats invalide.');
+  }
+  const generalChannelId = snowflake(o.generalChannelId);
+  if (generalChannelId && !SNOWFLAKE.test(generalChannelId)) {
+    return err('Salon général invalide.');
   }
 
   const rawRoles = Array.isArray(o.staffRoleIds) ? o.staffRoleIds as unknown[] : [];
@@ -332,6 +346,12 @@ function validateDiscordOptions(input: unknown): ValidationResult<CompetitionDis
       staffChannelId: staffChannelId || null,
       createStaffChannel: o.createStaffChannel === true && !staffChannelId,
       staffChannelName: clampString(o.staffChannelName, 90) || null,
+      resultsChannelId: resultsChannelId || null,
+      createResultsChannel: o.createResultsChannel === true,
+      resultsChannelName: clampString(o.resultsChannelName, 90) || null,
+      generalChannelId: generalChannelId || null,
+      createGeneralChannel: o.createGeneralChannel === true,
+      generalChannelName: clampString(o.generalChannelName, 90) || null,
     },
   };
 }
