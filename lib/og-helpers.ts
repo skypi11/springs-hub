@@ -246,7 +246,7 @@ export async function loadLocalBackgroundAsPngDataUri(
       // orange passe devant le nom d'une équipe ; désaturée, la même scène
       // reste lisible tout en reculant. Rassombrir aurait juste refait
       // disparaître le jeu.
-      .modulate({ brightness: Math.max(0.05, 1 - darken), saturation: 0.38 })
+      .modulate({ brightness: Math.max(0.05, 1 - darken), saturation: 0.34 })
       .blur(1.1)
       .png()
       .toBuffer();

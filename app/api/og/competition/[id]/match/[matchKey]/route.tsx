@@ -168,7 +168,7 @@ export async function GET(
         // à 0.55 environ 25 % — dans les deux cas on ne distinguait pas le jeu.
         // Mais éclaircir révèle le bruit de compression de la source : 0.45 est
         // le point où le jeu se voit sans que ses artefacts se voient aussi.
-        ? loadLocalBackgroundAsPngDataUri(GAME_ART[gameId], WIDTH, HEIGHT, 0.38)
+        ? loadLocalBackgroundAsPngDataUri(GAME_ART[gameId], WIDTH, HEIGHT, 0.43)
         : Promise.resolve(null),
     ]);
 
