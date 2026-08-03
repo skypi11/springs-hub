@@ -28,7 +28,7 @@ Plateforme communautaire esport **propriété personnelle de l'utilisateur** (Ma
 - **Styling** : Tailwind CSS
 - **Base de données** : Firebase Firestore (projet existant `monthly-cup`)
 - **Auth** : Firebase Auth — Discord OAuth pour **tout le monde** (joueurs, fans ET admins ; scope `identify connections`) + Steam OpenID (liaison RL optionnelle). Pas de connexion Google sur Aedral — un admin est un utilisateur Discord normal dont l'UID figure dans `aedral_admins`.
-- **Hébergement** : Vercel — domaine prod `aedral.com`, fallback `springs-hub.vercel.app`
+- **Hébergement** : Vercel — domaine prod `aedral.com`. `springs-hub.vercel.app` n'est plus un fallback : il redirige en 308 vers `aedral.com` (sauf `/api` et `/monitoring`, voir `next.config.ts`)
 - **Repo GitHub** : `skypi11/springs-hub` (nommage technique conservé malgré le rebrand)
 - **Domaine** : `aedral.com` (acquis via Vercel, $11/an, live depuis 2026-04-26)
 - **Polices** : Outfit (corps) + Bebas Neue (titres display, via `font-display` CSS)
@@ -598,7 +598,7 @@ function scheduleReload() {
 
 ## URLs importantes
 - **Site prod** : `https://aedral.com`
-- **Fallback Vercel** : `https://springs-hub.vercel.app`
+- **Ancien domaine Vercel** : `https://springs-hub.vercel.app` → redirige en 308 vers `aedral.com` (les routes `/api` et `/monitoring` restent servies sur les deux domaines : elles sont appelées en POST par Discord/les crons, qui ne suivent pas les redirections)
 - **Site Springs E-Sport (archive)** : `https://springs-esport.vercel.app`
 - **GitHub** : `https://github.com/skypi11/springs-hub`
 - **Firebase console** : projet `monthly-cup`
