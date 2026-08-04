@@ -17,6 +17,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
+import { downloadCsv } from '@/lib/csv';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import Link from 'next/link';
@@ -392,19 +393,13 @@ export default function RegistrationsPanel({
         ]);
       }
     }
-    // Anti-injection de formules (CSV injection) : un nom d'équipe/pseudo saisi
-    // par un utilisateur commençant par = + - @ (ou tab/CR) serait interprété
-    // comme une formule à l'ouverture dans Sheets/Excel → on préfixe d'une
-    // apostrophe (forçage texte, masquée par le tableur) avant l'échappement.
-    const neutralize = (c: string) => (/^[=+\-@\t\r]/.test(c) ? `'${c}` : c);
-    const csv = rows.map(row => row.map(c => `"${neutralize(String(c)).replace(/"/g, '""')}"`).join(',')).join('\r\n');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `inscriptions-${competition.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    // L'échappement et la neutralisation des formules vivent dans lib/csv :
+    // un pseudo commençant par « = » est du code exécuté chez qui ouvre le
+    // fichier, et cette protection ne doit pas dépendre de l'écran qui exporte.
+    downloadCsv(
+      `inscriptions-${competition.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.csv`,
+      rows
+    );
   }
 
   if (loading) {

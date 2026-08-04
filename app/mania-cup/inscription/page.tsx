@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   CheckCircle2, Circle, Loader2, AlertTriangle, ExternalLink,
-  ArrowLeft, ShieldCheck, Upload, FileCheck, UserPlus, Trash2, Hourglass,
+  ArrowLeft, ShieldCheck, Upload, FileCheck, UserPlus, Trash2, Hourglass, IdCard,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api, apiPublic, apiForm, ApiError } from '@/lib/api-client';
@@ -17,8 +17,11 @@ import {
   SPRINGS_DISCORD_INVITE,
   GUARDIAN_DOC_KINDS,
   GUARDIAN_DOC_LABELS,
-  GUARDIAN_DOCS_RETENTION_DAYS,
+  IDENTITY_DOC_KINDS,
+  IDENTITY_DOC_LABELS,
+  ageAtEvent,
   type GuardianDocKind,
+  type IdentityDocKind,
   type ManiaCupRegistration,
 } from '@/lib/mania-cup';
 
@@ -42,7 +45,14 @@ type Ctx = {
   trackmania?: { accountId: string; displayName: string } | null;
   discord?: { id: string | null; inGuild: boolean | null };
   registration?: ManiaCupRegistration | null;
+  /** Références des titres saisies par le joueur mineur, pour relecture. */
+  guardianIdentity?: GuardianIdentity | null;
 };
+
+/** Champ de saisie de l'événement — vert Trackmania au focus, comme le reste
+ *  de la page. Factorisé parce qu'il apparaît maintenant huit fois. */
+const FIELD =
+  'mt-2 w-full border border-white/15 bg-black/40 px-4 py-3 text-white outline-none focus:border-[#00D936]';
 
 const TM_ERRORS: Record<string, string> = {
   refus: 'Tu as refusé l’autorisation côté Ubisoft. Ton compte n’a pas été lié.',
@@ -64,6 +74,13 @@ export default function InscriptionPage() {
   const [birthDate, setBirthDate] = useState('');
   const [countryCode, setCountryCode] = useState('FR');
   const [rulesAccepted, setRulesAccepted] = useState(false);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [emergencyName, setEmergencyName] = useState('');
+  const [emergencyPhone, setEmergencyPhone] = useState('');
+  const [imageConsent, setImageConsent] = useState(true);
 
   const tmError = params.get('tm_error');
 
@@ -71,9 +88,17 @@ export default function InscriptionPage() {
     try {
       const data = await apiPublic<Ctx>('/api/mania-cup/register');
       setCtx(data);
-      if (data.registration) {
-        setBirthDate(data.registration.birthDate ?? '');
-        setCountryCode(data.registration.countryCode ?? 'FR');
+      const reg = data.registration;
+      if (reg) {
+        setBirthDate(reg.birthDate ?? '');
+        setCountryCode(reg.countryCode ?? 'FR');
+        setFirstName(reg.firstName ?? '');
+        setLastName(reg.lastName ?? '');
+        setEmail(reg.email ?? '');
+        setPhone(reg.phone ?? '');
+        setEmergencyName(reg.emergencyContact?.name ?? '');
+        setEmergencyPhone(reg.emergencyContact?.phone ?? '');
+        setImageConsent(reg.imageConsent?.accepted ?? true);
       } else if (data.prefill) {
         // Un joueur venu de la Monthly Cup a déjà renseigné tout ça sur Aedral.
         if (data.prefill.birthDate) setBirthDate(data.prefill.birthDate);
@@ -110,6 +135,13 @@ export default function InscriptionPage() {
       const res = await api<{ registration: ManiaCupRegistration }>('/api/mania-cup/register', {
         method: 'POST',
         body: {
+          firstName,
+          lastName,
+          email,
+          phone,
+          emergencyName,
+          emergencyPhone,
+          imageConsent,
           birthDate,
           countryCode,
           rulebookAccepted: rulesAccepted,
@@ -175,6 +207,17 @@ export default function InscriptionPage() {
   const inGuild = ctx?.discord?.inGuild;
   const full = (seats?.remaining ?? 0) <= 0 && !reg;
 
+  // L'âge se compte au premier jour de la LAN, pas aujourd'hui : le formulaire
+  // doit demander un contact d'urgence à qui aura 17 ans le 3 octobre, même
+  // s'il en a 18 au moment où il s'inscrit — et l'inverse.
+  const age = birthDate ? ageAtEvent(birthDate) : null;
+  const isMinor = age !== null && age < 18;
+
+  // Dossier déposé avant que l'identité civile ne soit demandée : on redemande
+  // le formulaire plutôt que d'afficher un récapitulatif qui laisserait croire
+  // que tout est en ordre.
+  const mustComplete = Boolean(reg && !reg.firstName);
+
   return (
     <Shell>
       <Link
@@ -206,9 +249,17 @@ export default function InscriptionPage() {
       {tmError && TM_ERRORS[tmError] && <Banner tone="warn">{TM_ERRORS[tmError]}</Banner>}
       {error && <Banner tone="error">{error}</Banner>}
 
+      {mustComplete && (
+        <Banner tone="warn">
+          Il manque ton identité civile et ton adresse e-mail — elles sont
+          nécessaires pour te remettre ton badge le samedi matin. Complète le
+          formulaire ci-dessous, ta place et ton code sont conservés.
+        </Banner>
+      )}
+
       {/* Dossier déjà déposé : on montre le récapitulatif, pas le formulaire. */}
-      {reg ? (
-        <Recap reg={reg} onReload={() => void load()} />
+      {reg && !mustComplete ? (
+        <Recap reg={reg} identity={ctx?.guardianIdentity ?? null} onReload={() => void load()} />
       ) : full ? (
         <Banner tone="warn">
           Les {seats?.max ?? MANIA_CUP.maxPlayers} places sont réglées. Contacte l’organisation sur le
@@ -305,6 +356,73 @@ export default function InscriptionPage() {
           >
             {firebaseUser && tmLinked && (
               <form onSubmit={submit} className="max-w-md space-y-5">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="firstName" className="block text-sm text-[#c9c5d8]">
+                      Prénom
+                    </label>
+                    <input
+                      id="firstName"
+                      required
+                      autoComplete="given-name"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      className={FIELD}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="lastName" className="block text-sm text-[#c9c5d8]">
+                      Nom
+                    </label>
+                    <input
+                      id="lastName"
+                      required
+                      autoComplete="family-name"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      className={FIELD}
+                    />
+                  </div>
+                </div>
+                <p className="-mt-2 text-xs text-[#8d89a8]">
+                  Ton identité est contrôlée à l’accueil le samedi matin. Elle n’apparaît
+                  nulle part sur le site : le classement et la liste des inscrits
+                  n’affichent que ton pseudo Trackmania.
+                </p>
+
+                <div>
+                  <label htmlFor="email" className="block text-sm text-[#c9c5d8]">
+                    Adresse e-mail
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className={FIELD}
+                  />
+                  <p className="mt-2 text-xs text-[#8d89a8]">
+                    C’est là que l’organisation t’écrit. Le billet HelloAsso, lui, part à
+                    l’adresse utilisée pour payer — qui peut être celle de tes parents.
+                  </p>
+                </div>
+
+                <div>
+                  <label htmlFor="phone" className="block text-sm text-[#c9c5d8]">
+                    Téléphone <span className="text-[#8d89a8]">(facultatif)</span>
+                  </label>
+                  <input
+                    id="phone"
+                    type="tel"
+                    autoComplete="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className={FIELD}
+                  />
+                </div>
+
                 <div>
                   <label htmlFor="birth" className="block text-sm text-[#c9c5d8]">
                     Date de naissance
@@ -315,7 +433,7 @@ export default function InscriptionPage() {
                     required
                     value={birthDate}
                     onChange={(e) => setBirthDate(e.target.value)}
-                    className="mt-2 w-full border border-white/15 bg-black/40 px-4 py-3 text-white outline-none focus:border-[#00D936]"
+                    className={FIELD}
                   />
                   <p className="mt-2 text-xs text-[#8d89a8]">
                     La LAN est accessible à partir de {MANIA_CUP.minAge} ans le jour de
@@ -323,6 +441,37 @@ export default function InscriptionPage() {
                     parentale est demandée.
                   </p>
                 </div>
+
+                {/* Deux jours dans une salle sans ses parents : l'accueil doit
+                    pouvoir joindre quelqu'un qui n'est pas sur place. */}
+                {isMinor && (
+                  <div className="border border-[#FFB800]/40 bg-[#FFB800]/[0.08] p-5">
+                    <h3 className="font-semibold">Contact d’urgence</h3>
+                    <p className="mt-1 text-sm text-[#f2e6c8]">
+                      Tu as moins de 18 ans le jour de la LAN : indique une personne
+                      majeure joignable pendant tout le week-end.
+                    </p>
+                    <div className="mt-4 space-y-3">
+                      <input
+                        aria-label="Nom du contact d’urgence"
+                        placeholder="Nom et prénom"
+                        required
+                        value={emergencyName}
+                        onChange={(e) => setEmergencyName(e.target.value)}
+                        className={FIELD}
+                      />
+                      <input
+                        aria-label="Téléphone du contact d’urgence"
+                        type="tel"
+                        placeholder="Téléphone"
+                        required
+                        value={emergencyPhone}
+                        onChange={(e) => setEmergencyPhone(e.target.value)}
+                        className={FIELD}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label htmlFor="country" className="block text-sm text-[#c9c5d8]">
@@ -332,6 +481,26 @@ export default function InscriptionPage() {
                     <CountrySelect id="country" value={countryCode} onChange={setCountryCode} />
                   </div>
                 </div>
+
+                {/* Le droit à l'image se demande, il ne se présume pas. Refuser
+                    n'empêche pas de jouer : ça change le badge et la consigne
+                    donnée au cadreur. */}
+                <label className="flex cursor-pointer items-start gap-3 text-[#c9c5d8]">
+                  <input
+                    type="checkbox"
+                    checked={imageConsent}
+                    onChange={(e) => setImageConsent(e.target.checked)}
+                    className="mt-1 accent-[#00D936]"
+                  />
+                  <span>
+                    J’autorise la diffusion de mon image
+                    <span className="block text-xs text-[#8d89a8]">
+                      Photos, stream et rediffusion de l’événement. Tu peux refuser et
+                      jouer quand même : ton badge le signalera à l’équipe vidéo.
+                      {isMinor && ' Pour les moins de 18 ans, ton parent le confirme dans l’autorisation.'}
+                    </span>
+                  </span>
+                </label>
 
                 {ctx?.rulebook && (
                   <label className="flex cursor-pointer items-start gap-3 text-[#c9c5d8]">
@@ -369,7 +538,7 @@ export default function InscriptionPage() {
                   className="inline-flex items-center gap-2 bg-[#00D936] px-7 py-4 text-lg font-bold text-[#07050b] transition-transform hover:scale-[1.02] disabled:opacity-60"
                 >
                   {submitting && <Loader2 className="animate-spin" size={18} aria-hidden />}
-                  Valider mon inscription
+                  {mustComplete ? 'Compléter mon dossier' : 'Valider mon inscription'}
                 </button>
               </form>
             )}
@@ -382,7 +551,15 @@ export default function InscriptionPage() {
 
 // ── Récapitulatif après dépôt ────────────────────────────────────────────────
 
-function Recap({ reg, onReload }: { reg: ManiaCupRegistration; onReload: () => void }) {
+function Recap({
+  reg,
+  identity,
+  onReload,
+}: {
+  reg: ManiaCupRegistration;
+  identity: GuardianIdentity | null;
+  onReload: () => void;
+}) {
   const settings = useManiaCupSettings();
   const minor = reg.guardianConsent !== 'not_required';
   return (
@@ -423,7 +600,7 @@ function Recap({ reg, onReload }: { reg: ManiaCupRegistration; onReload: () => v
         </div>
       </div>
 
-      {minor && <GuardianConsent reg={reg} onDone={onReload} />}
+      {minor && <GuardianConsent reg={reg} identity={identity} onDone={onReload} />}
 
       <Companion reg={reg} onDone={onReload} />
 
@@ -733,9 +910,11 @@ function WithdrawButton({ onDone }: { onDone: () => void }) {
 
 function GuardianConsent({
   reg,
+  identity,
   onDone,
 }: {
   reg: ManiaCupRegistration;
+  identity: GuardianIdentity | null;
   onDone: () => void;
 }) {
   const [busy, setBusy] = useState<GuardianDocKind | null>(null);
@@ -842,6 +1021,8 @@ function GuardianConsent({
         })}
       </div>
 
+      <IdentityRefs identity={identity} onDone={onDone} />
+
       {inReview && (
         <p className="mt-5 flex items-center gap-2 text-[#c9c5d8]">
           <FileCheck size={18} className="text-[#a364d9]" aria-hidden />
@@ -850,14 +1031,192 @@ function GuardianConsent({
       )}
 
       <p className="mt-5 text-sm text-[#8d89a8]">
-        PDF ou photo, 10 Mo maximum par pièce. Les documents sont chiffrés, lisibles
-        par la seule organisation, et supprimés {GUARDIAN_DOCS_RETENTION_DAYS} jours
-        après la LAN. Ta propre pièce d’identité n’est pas demandée ici : elle sera
-        simplement contrôlée à l’accueil le samedi.
+        PDF ou photo, 10 Mo maximum par pièce. Les documents sont chiffrés et
+        lisibles par la seule organisation. La photo de la pièce du parent est
+        supprimée dès que le dossier est validé ; l’autorisation signée, elle, est
+        conservée un an après l’événement.
       </p>
 
       {err && <p className="mt-3 text-sm text-red-300">{err}</p>}
     </div>
+  );
+}
+
+// ── Références des titres d'identité (dossier mineur) ───────────────────────
+//
+// On note ce qui a été présenté — nature, numéro, autorité — pour le mineur et
+// pour le parent qui signe. Pas de photocopie de la pièce du mineur : ces trois
+// lignes suffisent à rendre l'autorisation exploitable, et il n'y a alors rien
+// de plus à protéger pendant un an.
+
+function IdentityRefs({
+  identity,
+  onDone,
+}: {
+  identity: GuardianIdentity | null;
+  onDone: () => void;
+}) {
+  const [name, setName] = useState(identity?.representativeName ?? '');
+  const [rep, setRep] = useState<IdentityFields>(toFields(identity?.representative));
+  const [minor, setMinor] = useState<IdentityFields>(toFields(identity?.minor));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api('/api/mania-cup/guardian-consent', {
+        method: 'PUT',
+        body: { representativeName: name, representative: rep, minor },
+      });
+      setSaved(true);
+      onDone();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Enregistrement impossible.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const complete = Boolean(name.trim()) && isFilled(rep) && isFilled(minor);
+
+  return (
+    <div className="mt-6 border border-white/15 bg-black/30 p-5">
+      <div className="flex items-start gap-3">
+        <IdCard size={20} className="mt-0.5 shrink-0 text-[#a364d9]" aria-hidden />
+        <div className="min-w-0 flex-1">
+          <h4 className="font-semibold">Références des pièces d’identité</h4>
+          <p className="mt-1 text-sm text-[#8d89a8]">
+            Recopie ce qui figure sur les titres — nous n’en gardons pas d’image.
+          </p>
+
+          <div className="mt-5 space-y-5">
+            <div>
+              <label htmlFor="rep-name" className="block text-sm text-[#c9c5d8]">
+                Nom du parent ou tuteur qui signe
+              </label>
+              <input
+                id="rep-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className={FIELD}
+              />
+            </div>
+
+            <IdentityFieldset
+              legend="Titre du représentant légal"
+              value={rep}
+              onChange={setRep}
+              idPrefix="rep"
+            />
+            <IdentityFieldset
+              legend="Ton titre d’identité"
+              value={minor}
+              onChange={setMinor}
+              idPrefix="minor"
+            />
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              disabled={busy || !complete}
+              onClick={() => void save()}
+              className="inline-flex items-center gap-2 bg-white px-5 py-2.5 text-sm font-bold text-[#07050b] disabled:opacity-50"
+            >
+              {busy && <Loader2 className="animate-spin" size={16} aria-hidden />}
+              Enregistrer les références
+            </button>
+            {saved && !busy && (
+              <span className="text-sm text-[#00D936]">Enregistré.</span>
+            )}
+          </div>
+
+          {err && <p className="mt-3 text-sm text-red-300">{err}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type IdentityFields = { kind: IdentityDocKind; number: string; authority: string };
+type GuardianIdentity = {
+  representativeName?: string;
+  representative?: Partial<IdentityFields>;
+  minor?: Partial<IdentityFields>;
+};
+
+function toFields(ref: Partial<IdentityFields> | undefined): IdentityFields {
+  return {
+    kind: ref?.kind ?? 'cni',
+    number: ref?.number ?? '',
+    authority: ref?.authority ?? '',
+  };
+}
+
+function isFilled(f: IdentityFields): boolean {
+  return Boolean(f.number.trim() && f.authority.trim());
+}
+
+function IdentityFieldset({
+  legend,
+  value,
+  onChange,
+  idPrefix,
+}: {
+  legend: string;
+  value: IdentityFields;
+  onChange: (v: IdentityFields) => void;
+  idPrefix: string;
+}) {
+  return (
+    <fieldset className="border border-white/10 p-4">
+      <legend className="px-2 text-sm text-[#c9c5d8]">{legend}</legend>
+      <div className="space-y-3">
+        <div>
+          <label htmlFor={`${idPrefix}-kind`} className="block text-xs text-[#8d89a8]">
+            Nature du titre
+          </label>
+          <select
+            id={`${idPrefix}-kind`}
+            value={value.kind}
+            onChange={(e) => onChange({ ...value, kind: e.target.value as IdentityDocKind })}
+            className={FIELD}
+          >
+            {IDENTITY_DOC_KINDS.map((k) => (
+              <option key={k} value={k} className="bg-[#07050b]">
+                {IDENTITY_DOC_LABELS[k]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor={`${idPrefix}-number`} className="block text-xs text-[#8d89a8]">
+            Numéro
+          </label>
+          <input
+            id={`${idPrefix}-number`}
+            value={value.number}
+            onChange={(e) => onChange({ ...value, number: e.target.value })}
+            className={FIELD}
+          />
+        </div>
+        <div>
+          <label htmlFor={`${idPrefix}-authority`} className="block text-xs text-[#8d89a8]">
+            Délivré par
+          </label>
+          <input
+            id={`${idPrefix}-authority`}
+            placeholder="Préfecture, mairie, ambassade…"
+            value={value.authority}
+            onChange={(e) => onChange({ ...value, authority: e.target.value })}
+            className={FIELD}
+          />
+        </div>
+      </div>
+    </fieldset>
   );
 }
 

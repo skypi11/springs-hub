@@ -4,15 +4,27 @@ import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, FileText, Check, X, Euro, AlertTriangle, ShieldCheck, ScrollText, Save,
+  Search, Download,
 } from 'lucide-react';
 import { api, apiDownload, ApiError } from '@/lib/api-client';
 import CountryFlag from '@/components/ui/CountryFlag';
 import { countries } from '@/lib/countries';
+import { downloadCsv } from '@/lib/csv';
 import MarkdownEditor from '@/components/ui/MarkdownEditor';
 import { LIMITS } from '@/lib/validation';
 import FaqEditor from '@/components/mania-cup/FaqEditor';
 import TicketingSettings from '@/components/mania-cup/TicketingSettings';
+import PaymentsPanel, { type MatchTarget } from '@/components/mania-cup/PaymentsPanel';
 import { MANIA_CUP, MANIA_CUP_DOCS, GUARDIAN_DOC_KINDS, GUARDIAN_DOC_LABELS } from '@/lib/mania-cup';
+
+/** Libellés des états du dossier parental, pour la liste d'émargement. */
+const GUARDIAN_STATUS_LABELS: Record<Row['guardianConsent'], string> = {
+  not_required: '',
+  missing: 'pièces manquantes',
+  pending_review: 'à relire',
+  approved: 'validé',
+  rejected: 'refusé',
+};
 
 // Console d'organisation de la Springs Mania Cup.
 //
@@ -25,6 +37,12 @@ type Row = {
   tmDisplayName: string;
   tmAccountId: string;
   discordId: string | null;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  emergencyContact: { name: string; phone: string } | null;
+  imageConsent: boolean | null;
   countryCode: string;
   ageAtEvent: number;
   status: 'pending_payment' | 'confirmed' | 'cancelled';
@@ -32,21 +50,57 @@ type Row = {
   guardianDocs: Partial<Record<'consent' | 'guardian_id', { name: string }>>;
   guardianRejectionReason: string | null;
   registrationCode: string;
-  companion: { name: string; role: string } | null;
+  companion: { name: string; role: string; ticketPaid?: boolean } | null;
+  payment: { amountCents: number; payerName: string } | null;
+  pcRental: { amountCents: number } | null;
+  seat: string | null;
+  checkedIn: boolean;
+  staffMessage: string | null;
 };
 
 type Payload = {
   registrations: Row[];
   counts: {
     total: number;
+    cancelled: number;
     confirmed: number;
     pendingPayment: number;
     guardianToReview: number;
     guardianMissing: number;
     minors: number;
+    checkedIn: number;
+    incomplete: number;
     seatsLeft: number;
   };
 };
+
+/** Ce que la liste des inscriptions montre. Sur 64 dossiers, tout afficher
+ *  d'un bloc oblige à chercher à l'œil ; ces filtres répondent chacun à une
+ *  question qu'on se pose vraiment. */
+type Filter = 'all' | 'unpaid' | 'guardian' | 'minors' | 'incomplete';
+
+const FILTER_LABELS: Record<Filter, string> = {
+  all: 'Tous',
+  unpaid: 'Pas encore réglés',
+  guardian: 'Dossier parental à traiter',
+  minors: 'Mineurs',
+  incomplete: 'Fiche incomplète',
+};
+
+function matchesFilter(r: Row, filter: Filter): boolean {
+  switch (filter) {
+    case 'unpaid':
+      return r.status === 'pending_payment';
+    case 'guardian':
+      return r.guardianConsent === 'pending_review' || r.guardianConsent === 'missing';
+    case 'minors':
+      return r.ageAtEvent < 18;
+    case 'incomplete':
+      return !r.firstName || !r.email;
+    default:
+      return true;
+  }
+}
 
 const countryName = (code: string) =>
   countries.find((c) => c.code === code)?.name ?? code;
@@ -55,12 +109,14 @@ const countryName = (code: string) =>
 // les jours, la configuration une poignée de fois avant l'événement. Les
 // empiler obligeait à faire défiler trois panneaux d'édition pour atteindre le
 // tableau des inscrits.
-type Tab = 'inscriptions' | 'configuration';
+type Tab = 'inscriptions' | 'paiements' | 'configuration';
 
 export default function AdminManiaCupPage() {
   const qc = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('inscriptions');
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<Filter>('all');
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin', 'mania-cup'] as const,
@@ -104,6 +160,63 @@ export default function AdminManiaCupPage() {
   const rows = data?.registrations ?? [];
   const c = data?.counts;
 
+  // La recherche porte sur tout ce par quoi on cherche quelqu'un dans la vraie
+  // vie : son pseudo, son nom, son adresse, son code. Sans accents ni casse,
+  // parce que personne ne tape « Amélie » avec l'accent dans un champ de
+  // recherche pressé.
+  const needle = search.trim().toLowerCase();
+  const visibleRows = rows.filter((r) => {
+    if (!matchesFilter(r, filter)) return false;
+    if (!needle) return true;
+    return [r.tmDisplayName, r.firstName, r.lastName, r.email, r.registrationCode, r.seat]
+      .filter(Boolean)
+      .some((v) => String(v).toLowerCase().includes(needle));
+  });
+
+  /** Cibles proposées pour rattacher un règlement orphelin. */
+  const matchTargets: MatchTarget[] = rows
+    .filter((r) => r.status !== 'cancelled')
+    .map((r) => ({
+      uid: r.uid,
+      label: r.tmDisplayName || `${r.firstName} ${r.lastName}`.trim() || r.uid,
+      code: r.registrationCode,
+      status: r.status,
+    }));
+
+  /** Liste d'émargement : ce qu'un bénévole a sous les yeux à l'accueil, et ce
+   *  qui reste lisible si le réseau tombe. */
+  function exportRoster() {
+    const header = [
+      'Nom', 'Prénom', 'Pseudo Trackmania', 'Code', 'Réglé', 'Âge', 'Mineur',
+      'Autorisation', 'Accompagnant', 'Billet accompagnant', 'Poste loué',
+      'Emplacement', 'Droit à l’image', 'E-mail', 'Téléphone', 'Contact d’urgence',
+    ];
+    const body = [...visibleRows]
+      .sort((a, b) => (a.lastName || a.tmDisplayName).localeCompare(b.lastName || b.tmDisplayName, 'fr'))
+      .map((r) => [
+        r.lastName,
+        r.firstName,
+        r.tmDisplayName,
+        r.registrationCode,
+        r.status === 'confirmed' ? 'oui' : 'non',
+        r.ageAtEvent,
+        r.ageAtEvent < 18 ? 'oui' : '',
+        r.guardianConsent === 'not_required' ? '' : GUARDIAN_STATUS_LABELS[r.guardianConsent],
+        r.companion?.name ?? '',
+        r.companion ? (r.companion.ticketPaid ? 'réglé' : 'non réglé') : '',
+        r.pcRental ? 'oui' : '',
+        r.seat ?? '',
+        r.imageConsent === false ? 'REFUSÉ' : 'accordé',
+        r.email,
+        r.phone ?? '',
+        r.emergencyContact ? `${r.emergencyContact.name} ${r.emergencyContact.phone}` : '',
+      ]);
+    downloadCsv(`mania-cup-emargement-${new Date().toISOString().slice(0, 10)}.csv`, [
+      header,
+      ...body,
+    ]);
+  }
+
   return (
     <div className="px-4 py-6 sm:px-6 lg:px-8">
       <h1 className="font-display text-4xl">Springs Mania Cup</h1>
@@ -117,7 +230,11 @@ export default function AdminManiaCupPage() {
           <Stat label="Payés" value={c.confirmed} tone="ok" />
           <Stat label="En attente de paiement" value={c.pendingPayment} />
           <Stat label="Autorisations à relire" value={c.guardianToReview} tone={c.guardianToReview ? 'warn' : undefined} />
-          <Stat label="Places restantes" value={c.seatsLeft} />
+          {c.incomplete > 0 ? (
+            <Stat label="Fiches incomplètes" value={c.incomplete} tone="warn" />
+          ) : (
+            <Stat label="Places restantes" value={c.seatsLeft} />
+          )}
         </div>
       )}
 
@@ -131,6 +248,7 @@ export default function AdminManiaCupPage() {
       <div className="mt-10 flex gap-1 border-b border-white/10">
         {([
           ['inscriptions', 'Inscriptions'],
+          ['paiements', 'Paiements'],
           ['configuration', 'Configuration'],
         ] as const).map(([key, label]) => (
           <button
@@ -166,9 +284,59 @@ export default function AdminManiaCupPage() {
         </>
       )}
 
+      {tab === 'paiements' && <PaymentsPanel targets={matchTargets} />}
+
+      {tab === 'inscriptions' && rows.length > 0 && (
+        <div className="mt-8 flex flex-wrap items-center gap-3">
+          <div className="relative min-w-[220px] flex-1">
+            <Search
+              size={15}
+              className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2"
+              style={{ color: 'var(--s-text-muted)' }}
+              aria-hidden
+            />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Nom, pseudo, e-mail, code…"
+              aria-label="Rechercher une inscription"
+              className="settings-input has-icon w-full"
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-1.5">
+            {(Object.keys(FILTER_LABELS) as Filter[]).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`bevel-sm border px-3 py-1.5 text-sm transition-colors ${
+                  filter === f ? 'border-[#00D936] text-white' : 'border-white/15'
+                }`}
+                style={filter === f ? undefined : { color: 'var(--s-text-dim)' }}
+              >
+                {FILTER_LABELS[f]}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={exportRoster}
+            className="btn-springs btn-secondary bevel-sm inline-flex items-center gap-2"
+            title="Liste triée par nom, à imprimer pour l’accueil"
+          >
+            <Download size={15} aria-hidden />
+            Liste d’émargement
+          </button>
+        </div>
+      )}
+
       {tab === 'inscriptions' && (rows.length === 0 ? (
         <p className="mt-10" style={{ color: 'var(--s-text-dim)' }}>
           Aucune inscription pour le moment.
+        </p>
+      ) : visibleRows.length === 0 ? (
+        <p className="mt-10" style={{ color: 'var(--s-text-dim)' }}>
+          Aucune inscription ne correspond à cette recherche.
         </p>
       ) : (
         <div className="mt-8 overflow-x-auto">
@@ -185,9 +353,32 @@ export default function AdminManiaCupPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
-                <tr key={r.uid} className="border-b border-white/5 align-top">
-                  <td className="py-4 pr-4 font-semibold">{r.tmDisplayName || '—'}</td>
+              {visibleRows.map((r) => (
+                <tr
+                  key={r.uid}
+                  className="border-b border-white/5 align-top"
+                  style={r.status === 'cancelled' ? { opacity: 0.45 } : undefined}
+                >
+                  <td className="py-4 pr-4">
+                    <div className="font-semibold">{r.tmDisplayName || '—'}</div>
+                    {/* L'identité civile est ce que l'accueil compare à la pièce
+                        présentée : elle passe avant le pseudo dans la colonne. */}
+                    <div className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                      {r.firstName || r.lastName ? (
+                        `${r.firstName} ${r.lastName}`.trim()
+                      ) : (
+                        <span style={{ color: 'var(--s-gold)' }}>fiche incomplète</span>
+                      )}
+                    </div>
+                    {r.email && (
+                      <div className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                        {r.email}
+                      </div>
+                    )}
+                    {r.status === 'cancelled' && (
+                      <span className="tag tag-neutral mt-1 inline-block">retirée</span>
+                    )}
+                  </td>
                   <td className="py-4 pr-4">
                     <span className="flex items-center gap-2">
                       <CountryFlag code={r.countryCode} size={20} />
@@ -210,6 +401,16 @@ export default function AdminManiaCupPage() {
                         <div className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
                           {r.companion.role}
                         </div>
+                        {/* Le billet accompagnant donne accès à la zone joueurs :
+                            savoir s'il est réglé décide de qui entre. */}
+                        <div
+                          className="text-xs"
+                          style={{
+                            color: r.companion.ticketPaid ? 'var(--s-green)' : 'var(--s-gold)',
+                          }}
+                        >
+                          {r.companion.ticketPaid ? 'billet réglé' : 'billet non réglé'}
+                        </div>
                       </div>
                     ) : (
                       <span style={{ color: 'var(--s-text-muted)' }}>—</span>
@@ -217,12 +418,24 @@ export default function AdminManiaCupPage() {
                   </td>
                   <td className="py-4 pr-4">
                     {r.status === 'confirmed' ? (
-                      <button
-                        onClick={() => act.mutate({ uid: r.uid, action: 'mark_unpaid' })}
-                        className="inline-flex items-center gap-1.5 text-[#22c55e] hover:underline"
-                      >
-                        <Check size={15} aria-hidden /> Payé
-                      </button>
+                      <div>
+                        <button
+                          onClick={() => act.mutate({ uid: r.uid, action: 'mark_unpaid' })}
+                          className="inline-flex items-center gap-1.5 text-[#22c55e] hover:underline"
+                        >
+                          <Check size={15} aria-hidden /> Payé
+                        </button>
+                        {/* D'où vient l'argent : sans ça, impossible de
+                            rapprocher une caisse ni de traiter un remboursement. */}
+                        {r.payment && (
+                          <div className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                            {(r.payment.amountCents / 100).toFixed(2).replace('.', ',')} € ·{' '}
+                            {r.payment.payerName || 'payeur inconnu'}
+                          </div>
+                        )}
+                      </div>
+                    ) : r.status === 'cancelled' ? (
+                      <span style={{ color: 'var(--s-text-muted)' }}>—</span>
                     ) : (
                       <button
                         onClick={() => act.mutate({ uid: r.uid, action: 'mark_paid' })}
@@ -230,6 +443,11 @@ export default function AdminManiaCupPage() {
                       >
                         <Euro size={14} aria-hidden /> Marquer payé
                       </button>
+                    )}
+                    {r.pcRental && (
+                      <div className="mt-1 text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                        + poste loué
+                      </div>
                     )}
                   </td>
                   <td className="py-4 pr-4">

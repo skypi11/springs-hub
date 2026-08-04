@@ -108,7 +108,13 @@ export type AdminAuditAction =
   // familiale, on doit pouvoir dire qui a ouvert quel dossier.
   | 'mania_cup_guardian_consent_read'
   | 'mania_cup_guardian_consent_approved'
-  | 'mania_cup_guardian_consent_rejected';
+  | 'mania_cup_guardian_consent_rejected'
+  | 'mania_cup_marked_paid'
+  | 'mania_cup_marked_unpaid'
+  | 'mania_cup_registration_cancelled'
+  | 'mania_cup_checked_in'
+  | 'mania_cup_payments_reconciled'
+  | 'mania_cup_payment_matched';
 
 export type AdminAuditTargetType = 'structure' | 'user' | 'team' | 'event' | 'competition' | 'circuit';
 

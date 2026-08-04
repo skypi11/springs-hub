@@ -90,10 +90,11 @@ export async function GET(req: NextRequest) {
     // brouillon (canViewHiddenCompetition).
     const visible = isManiaCupPublic() || (await canViewHiddenCompetition(db, uid));
 
-    const [userSnap, regSnap, secretSnap] = await Promise.all([
+    const [userSnap, regSnap, secretSnap, identitySnap] = await Promise.all([
       db.collection('users').doc(uid).get(),
       db.collection(MANIA_CUP_REGISTRATIONS).doc(uid).get(),
       db.collection('user_secrets').doc(uid).get(),
+      db.collection(MANIA_CUP_IDENTITY).doc(uid).get(),
     ]);
 
     const user = userSnap.data() ?? {};
@@ -135,6 +136,10 @@ export async function GET(req: NextRequest) {
       trackmania,
       discord: { id: discordId, inGuild },
       registration: regSnap.exists ? (regSnap.data() as ManiaCupRegistration) : null,
+      // Les références des titres d'identité ne sont servies qu'à leur
+      // propriétaire, pour qu'il puisse relire et corriger sa saisie. Elles ne
+      // figurent jamais dans la liste des inscrits ni dans la console.
+      guardianIdentity: identitySnap.exists ? identitySnap.data() : null,
     });
   } catch (err) {
     captureApiError('mania-cup/register:GET', err);

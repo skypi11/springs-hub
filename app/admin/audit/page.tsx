@@ -5,6 +5,7 @@ import AdminContentSkeleton from '@/components/admin/AdminContentSkeleton';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api-client';
+import { downloadCsv } from '@/lib/csv';
 import {
   History, ChevronDown, ChevronUp, Search, RefreshCw, Download,
   CheckCircle, XCircle, Ban, Shield, Trash2, Pencil, UserMinus, LogOut,
@@ -166,10 +167,6 @@ export default function AdminAuditPage() {
     // télécharge. Métadata stringifié en JSON compact pour rester lisible dans Excel.
     const headers = ['createdAt', 'source', 'action', 'actorUid', 'actorLabel',
       'targetType', 'targetId', 'targetLabel', 'structureId', 'structureLabel', 'metadata'];
-    const escape = (v: unknown) => {
-      const s = v === null || v === undefined ? '' : String(v);
-      return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
     const rows = filtered.map(l => [
       l.createdAt ?? '',
       l.source,
@@ -182,17 +179,12 @@ export default function AdminAuditPage() {
       l.structureId ?? '',
       l.structureLabel ?? '',
       Object.keys(l.metadata ?? {}).length > 0 ? JSON.stringify(l.metadata) : '',
-    ].map(escape).join(','));
-    const csv = '\ufeff' + [headers.join(','), ...rows].join('\n'); // BOM pour Excel
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `springs-audit-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    ]);
+    // Passe par lib/csv : l'\u00e9chappement maison n'emp\u00eachait pas une cellule
+    // commen\u00e7ant par \u00ab = \u00bb d'\u00eatre ex\u00e9cut\u00e9e comme une formule \u00e0 l'ouverture du
+    // fichier, et un journal d'audit contient des libell\u00e9s saisis par des
+    // utilisateurs.
+    downloadCsv(`springs-audit-${new Date().toISOString().slice(0, 10)}.csv`, [headers, ...rows]);
   }
 
   if (loading && logs.length === 0) {
