@@ -3,25 +3,29 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, Printer, ArrowLeft, CameraOff } from 'lucide-react';
+import { Loader2, Printer, ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api-client';
-import { MANIA_CUP } from '@/lib/mania-cup';
 
 // Planche de badges à imprimer.
 //
-// Un badge par personne qui entre : joueurs, accompagnants, spectateurs. Les
-// deux premières catégories viennent des inscriptions Aedral ; les spectateurs
-// n'ont pas de compte chez nous et n'existent que dans la billetterie, d'où la
-// lecture du journal des encaissements.
+// Un badge par personne qui entre : joueurs, accompagnants, spectateurs, staff.
+// Les deux premières catégories viennent des inscriptions Aedral ; les
+// spectateurs n'ont pas de compte chez nous et n'existent que dans la
+// billetterie, d'où la lecture du journal des encaissements ; le staff se saisit
+// à la main, il n'a de trace nulle part.
 //
 // Pas de génération de PDF : l'impression du navigateur suffit et évite une
-// dépendance de plus. La mise en page est calée en millimètres pour que ce qui
-// sort de l'imprimante entre dans un porte-badge standard.
+// dépendance de plus. Tout est calé en millimètres pour entrer dans un
+// porte-badge standard, et les hauteurs internes sont FIXES — c'est ce qui fait
+// que les badges se superposent exactement quand on les découpe en pile.
+//
+// La direction artistique vient de l'affiche de l'événement : damier de course,
+// violet profond, chrome et vert Trackmania.
 //
 // À quoi sert un badge, concrètement, le samedi matin :
 //   — dire d'un coup d'œil qui a le droit d'être en zone joueurs ;
-//   — donner son emplacement au joueur sans refaire le tour des tables ;
-//   — signaler à l'équipe vidéo les personnes qui ont refusé leur image.
+//   — donner sa place au joueur sans lui faire refaire le tour des tables ;
+//   — signaler à l'équipe vidéo ceux qui ont refusé d'être filmés.
 
 type Row = {
   uid: string;
@@ -40,34 +44,43 @@ type Payment = {
   ticket: string | null;
   participantName: string;
   payerName: string;
-  outcome: string;
   state: string;
 };
 
-type Category = 'player' | 'companion' | 'spectator';
+type Category = 'player' | 'companion' | 'spectator' | 'staff';
 
 interface Badge {
   key: string;
   category: Category;
   /** Ce qu'on lit à trois mètres. */
   headline: string;
-  /** Ce qu'on lit à trente centimètres. */
-  subline: string;
+  /** Ce qui identifie la personne au-delà de son nom. */
+  detail: string;
   seat?: string | null;
+  code?: string | null;
   noImage?: boolean;
 }
 
-const CATEGORY_STYLE: Record<Category, { label: string; color: string; ink: string }> = {
-  // Vert Trackmania pour les joueurs, or pour ceux qui accèdent à la zone
-  // joueurs sans y jouer, gris pour le public. Trois teintes qui se
-  // distinguent d'un bout à l'autre d'une salle.
-  player: { label: 'JOUEUR', color: '#00D936', ink: '#07050b' },
-  companion: { label: 'ACCOMPAGNANT', color: '#FFB800', ink: '#07050b' },
-  spectator: { label: 'SPECTATEUR', color: '#8d89a8', ink: '#07050b' },
+const CATEGORY: Record<Category, { label: string; color: string }> = {
+  // Vert Trackmania pour ceux qui jouent, or pour ceux qui accèdent à la zone
+  // joueurs sans y jouer, gris pour le public, violet pour l'organisation.
+  player: { label: 'JOUEUR', color: '#00D936' },
+  companion: { label: 'ACCOMPAGNANT', color: '#FFB800' },
+  spectator: { label: 'SPECTATEUR', color: '#c6c6d2' },
+  staff: { label: 'STAFF', color: '#A66BE8' },
 };
+
+/** Le nom rétrécit par palier plutôt qu'au caractère près : trois tailles
+ *  suffisent, et elles gardent les badges homogènes entre eux. */
+function nameSize(text: string): string {
+  if (text.length <= 8) return '12mm';
+  if (text.length <= 12) return '9.4mm';
+  return '7.2mm';
+}
 
 export default function BadgesPage() {
   const [showSpectators, setShowSpectators] = useState(true);
+  const [staffNames, setStaffNames] = useState('');
 
   const registrations = useQuery({
     queryKey: ['admin', 'mania-cup'] as const,
@@ -77,6 +90,7 @@ export default function BadgesPage() {
   const payments = useQuery({
     queryKey: ['admin', 'mania-cup', 'helloasso'] as const,
     queryFn: () => api<{ payments?: Payment[] }>('/api/admin/mania-cup/helloasso'),
+    retry: false,
   });
 
   const badges = useMemo<Badge[]>(() => {
@@ -88,12 +102,14 @@ export default function BadgesPage() {
       // retirée n'en a pas.
       if (r.status !== 'confirmed') continue;
 
+      const civil = `${r.firstName} ${r.lastName}`.trim();
       out.push({
         key: `p-${r.uid}`,
         category: 'player',
-        headline: r.tmDisplayName || `${r.firstName} ${r.lastName}`.trim(),
-        subline: `${r.firstName} ${r.lastName}`.trim(),
+        headline: r.tmDisplayName || civil,
+        detail: civil,
         seat: r.seat,
+        code: r.registrationCode,
         noImage: r.imageConsent === false,
       });
 
@@ -102,7 +118,11 @@ export default function BadgesPage() {
           key: `c-${r.uid}`,
           category: 'companion',
           headline: r.companion.name,
-          subline: `${r.companion.role || 'Accompagnant'} · ${r.tmDisplayName}`,
+          detail: [
+            `Accompagne ${r.tmDisplayName || civil}`,
+            r.companion.role,
+          ].filter(Boolean).join(' · '),
+          code: r.registrationCode,
         });
       }
     }
@@ -115,13 +135,26 @@ export default function BadgesPage() {
           key: `s-${p.itemId}`,
           category: 'spectator',
           headline: p.participantName || p.payerName || 'Spectateur',
-          subline: p.ticket === 'spectator_2days' ? 'Pass 2 jours' : 'Samedi ou dimanche',
+          detail: p.ticket === 'spectator_2days' ? 'Pass deux jours' : 'Une journée',
         });
       }
     }
 
-    return out.sort((a, b) => a.headline.localeCompare(b.headline, 'fr'));
-  }, [registrations.data, payments.data, showSpectators]);
+    for (const [i, line] of staffNames.split('\n').entries()) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      // « Nom · Fonction » sur une ligne, la fonction est facultative.
+      const [name, role] = trimmed.split(/\s*[·|]\s*/);
+      out.push({
+        key: `st-${i}`,
+        category: 'staff',
+        headline: name,
+        detail: role || 'Organisation',
+      });
+    }
+
+    return out;
+  }, [registrations.data, payments.data, showSpectators, staffNames]);
 
   if (registrations.isLoading) {
     return (
@@ -175,10 +208,30 @@ export default function BadgesPage() {
           )}
         </div>
 
-        <p className="mt-4 max-w-2xl text-sm" style={{ color: 'var(--s-text-muted)' }}>
-          Un badge n’est édité que pour un billet réglé. Attribue les emplacements
-          depuis la console avant d’imprimer : ils figurent sur les badges joueurs et
-          évitent de refaire le tour des tables le samedi matin.
+        <div className="mt-6 max-w-md">
+          <label htmlFor="staff" className="block text-sm font-semibold">
+            Badges staff
+          </label>
+          <textarea
+            id="staff"
+            rows={4}
+            value={staffNames}
+            onChange={(e) => setStaffNames(e.target.value)}
+            placeholder={'Matt Molines · Direction\nTeitei · Arbitrage\nRiskone'}
+            className="settings-input mt-2 w-full"
+          />
+          <p className="mt-1.5 text-xs" style={{ color: 'var(--s-text-muted)' }}>
+            Un nom par ligne. Ajoute « · » suivi de la fonction pour la faire
+            figurer sur le badge. Ton équipe n’est enregistrée nulle part, c’est
+            donc ici qu’elle se saisit.
+          </p>
+        </div>
+
+        <p className="mt-6 max-w-2xl text-sm" style={{ color: 'var(--s-text-muted)' }}>
+          Un badge n’est édité que pour un billet réglé. Attribue les places depuis
+          la console avant d’imprimer : elles figurent sur les badges joueurs.
+          Pense à cocher « graphiques d’arrière-plan » dans la fenêtre
+          d’impression, sinon les fonds sombres ne sortiront pas.
         </p>
 
         {badges.length === 0 && (
@@ -198,7 +251,172 @@ export default function BadgesPage() {
         .badge-sheet {
           display: grid;
           grid-template-columns: repeat(3, 54mm);
-          gap: 4mm;
+          gap: 5mm;
+        }
+
+        /* ══ Le badge ══ */
+        .mc-badge {
+          width: 54mm;
+          height: 86mm;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          color: #fff;
+          break-inside: avoid;
+          /* Le fond de l'affiche : violet éclairé par le haut, halo vert au sol. */
+          background:
+            radial-gradient(88% 42% at 50% -6%, rgba(150, 72, 228, 0.62) 0%, rgba(150, 72, 228, 0) 64%),
+            radial-gradient(96% 38% at 50% 106%, rgba(0, 217, 54, 0.3) 0%, rgba(0, 217, 54, 0) 62%),
+            linear-gradient(180deg, #221d3c 0%, #16132a 44%, #0b0a13 100%);
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+
+        /* Damier de course : la signature de l'affiche. */
+        .mc-checker {
+          height: 3.2mm;
+          flex: 0 0 3.2mm;
+          background-color: #08070d;
+          background-image:
+            linear-gradient(45deg, #3b3b52 25%, transparent 25%, transparent 75%, #3b3b52 75%),
+            linear-gradient(45deg, #3b3b52 25%, transparent 25%, transparent 75%, #3b3b52 75%);
+          background-size: 3.2mm 3.2mm;
+          background-position: 0 0, 1.6mm 1.6mm;
+        }
+
+        .mc-head { padding: 2.6mm 3.5mm 1.8mm; text-align: center; flex: 0 0 auto; }
+        .mc-logo { height: 4.6mm; width: auto; display: block; margin: 0 auto; }
+        .mc-lan {
+          margin-top: 2mm;
+          display: inline-flex;
+          align-items: center;
+          gap: 1.5mm;
+          font-size: 2.15mm;
+          letter-spacing: 0.3em;
+          font-weight: 700;
+        }
+        .mc-lan b {
+          background: #00d936;
+          color: #08070c;
+          padding: 0.55mm 1.5mm 0.35mm;
+          letter-spacing: 0.16em;
+        }
+        .mc-lan span { color: #00d936; }
+        .mc-event {
+          font-family: var(--font-display);
+          font-size: 7.4mm;
+          line-height: 0.92;
+          letter-spacing: 0.035em;
+          margin-top: 1mm;
+          background: linear-gradient(178deg, #ffffff 20%, #dfe3e9 48%, #8b929f 100%);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+        }
+        .mc-when {
+          font-size: 2.2mm;
+          letter-spacing: 0.16em;
+          color: #c0bad4;
+          text-transform: uppercase;
+          font-weight: 600;
+          margin-top: 0.6mm;
+        }
+
+        /* Bandeau du nom : hauteur FIXE. C'est lui qui garantit qu'aucune zone
+           ne reste morte, et que tous les badges se superposent au découpage. */
+        .mc-banner {
+          border-top: 0.4mm solid rgba(0, 217, 54, 0.75);
+          border-bottom: 0.4mm solid rgba(0, 217, 54, 0.75);
+          background-color: rgba(0, 0, 0, 0.34);
+          background-image:
+            linear-gradient(45deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.05) 75%),
+            linear-gradient(45deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.05) 75%);
+          background-size: 4mm 4mm;
+          background-position: 0 0, 2mm 2mm;
+          padding: 1.6mm 2.5mm;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 18mm;
+          flex: 0 0 18mm;
+          overflow: hidden;
+        }
+        .mc-name {
+          font-family: var(--font-display);
+          line-height: 0.86;
+          letter-spacing: 0.012em;
+          width: 100%;
+          word-break: break-word;
+          text-align: center;
+          text-shadow: 0 0.4mm 2mm rgba(0, 0, 0, 0.55);
+        }
+
+        .mc-info {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 2.2mm;
+          padding: 1.6mm 3mm;
+          min-height: 0;
+          overflow: hidden;
+        }
+        .mc-detail {
+          font-size: 3.05mm;
+          color: #c3bed4;
+          font-weight: 500;
+          text-align: center;
+        }
+        .mc-seat {
+          border: 0.3mm solid rgba(0, 217, 54, 0.65);
+          background: rgba(0, 217, 54, 0.12);
+          padding: 1.1mm 3.6mm;
+          display: inline-flex;
+          align-items: baseline;
+          gap: 1.8mm;
+        }
+        .mc-seat .k {
+          font-size: 2.1mm;
+          letter-spacing: 0.2em;
+          color: #8fe3a5;
+          text-transform: uppercase;
+          font-weight: 700;
+        }
+        .mc-seat .v {
+          font-family: var(--font-display);
+          font-size: 5.8mm;
+          line-height: 1;
+          color: #00d936;
+        }
+
+        /* Pied : la même ligne sur tous les badges. */
+        .mc-meta {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0 3.5mm 1.8mm;
+          font-size: 2.15mm;
+          color: #9c97b4;
+          letter-spacing: 0.05em;
+        }
+        .mc-meta .right { display: inline-flex; align-items: center; gap: 2mm; }
+        .mc-code {
+          font-family: var(--font-display);
+          font-size: 3.1mm;
+          letter-spacing: 0.12em;
+          color: #aaa5c0;
+        }
+        .mc-noimg { display: inline-flex; align-items: center; color: #e5737f; }
+        .mc-noimg svg { width: 2.8mm; height: 2.8mm; }
+
+        .mc-cat {
+          font-family: var(--font-display);
+          font-size: 5.2mm;
+          letter-spacing: 0.3em;
+          text-align: center;
+          padding: 1.7mm 0 1.2mm 0.3em;
+          color: #08070c;
         }
 
         @media print {
@@ -210,13 +428,8 @@ export default function BadgesPage() {
           header {
             display: none !important;
           }
-          body {
-            background: #fff;
-          }
-          .badge-sheet {
-            gap: 0;
-            margin: 0;
-          }
+          body { background: #fff; }
+          .badge-sheet { gap: 0; margin: 0; }
           @page {
             size: A4 portrait;
             margin: 6mm;
@@ -228,109 +441,72 @@ export default function BadgesPage() {
 }
 
 function BadgeCard({ badge }: { badge: Badge }) {
-  const style = CATEGORY_STYLE[badge.category];
+  const cat = CATEGORY[badge.category];
 
   return (
-    <div
-      className="badge-card"
-      style={{
-        width: '54mm',
-        height: '86mm',
-        // Bordure grise plutôt que noire : elle sert de repère de découpe sans
-        // dévorer l'encre ni salir le rendu.
-        border: '0.2mm solid #c9c9c9',
-        background: '#fff',
-        color: '#07050b',
-        display: 'flex',
-        flexDirection: 'column',
-        breakInside: 'avoid',
-        overflow: 'hidden',
-      }}
-    >
-      <div
-        style={{
-          background: style.color,
-          color: style.ink,
-          padding: '2.5mm 3mm',
-          fontWeight: 800,
-          fontSize: '3.6mm',
-          letterSpacing: '0.08em',
-          textAlign: 'center',
-        }}
-      >
-        {style.label}
+    <div className="mc-badge">
+      <div className="mc-checker" />
+
+      <div className="mc-head">
+        {/* Le logo de l'organisateur, pas celui d'Aedral : c'est SPRINGS
+            E-SPORT qui accueille ces gens.
+            next/image est écarté ici volontairement : il charge en différé et
+            enveloppe l'image dans un conteneur dimensionné en pixels. Sur une
+            page faite pour l'imprimante, cela donne des badges sans logo et une
+            mise en page en millimètres cassée. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="mc-logo" src="/springs-esport.png" alt="" />
+        <div className="mc-lan">
+          <b>LAN</b>
+          <span>TRACKMANIA</span>
+        </div>
+        <div className="mc-event">MANIA CUP</div>
+        <div className="mc-when">3–4 octobre 2026 · Marzy</div>
       </div>
 
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: '3mm',
-          textAlign: 'center',
-        }}
-      >
-        <div
-          style={{
-            fontSize: badge.headline.length > 14 ? '5mm' : '6.5mm',
-            fontWeight: 800,
-            lineHeight: 1.1,
-            wordBreak: 'break-word',
-          }}
-        >
+      <div className="mc-banner">
+        <div className="mc-name" style={{ fontSize: nameSize(badge.headline) }}>
           {badge.headline}
         </div>
-        {badge.subline && (
-          <div style={{ marginTop: '2mm', fontSize: '3.2mm', color: '#555' }}>
-            {badge.subline}
-          </div>
-        )}
+      </div>
 
+      <div className="mc-info">
+        {badge.detail && <div className="mc-detail">{badge.detail}</div>}
         {badge.seat && (
-          <div
-            style={{
-              marginTop: '4mm',
-              padding: '1.5mm 3mm',
-              border: '0.3mm solid #07050b',
-              fontSize: '4.5mm',
-              fontWeight: 800,
-            }}
-          >
-            {badge.seat}
-          </div>
-        )}
-
-        {badge.noImage && (
-          <div
-            style={{
-              marginTop: '3mm',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1.5mm',
-              fontSize: '3mm',
-              fontWeight: 700,
-              color: '#b00020',
-            }}
-          >
-            <CameraOff size={12} aria-hidden />
-            NE PAS FILMER
+          <div className="mc-seat">
+            <span className="k">Place</span>
+            <span className="v">{badge.seat}</span>
           </div>
         )}
       </div>
 
-      <div
-        style={{
-          borderTop: '0.2mm solid #e3e3e3',
-          padding: '2mm 3mm',
-          fontSize: '2.6mm',
-          color: '#777',
-          textAlign: 'center',
-        }}
-      >
-        {MANIA_CUP.name} · 3 &amp; 4 octobre 2026 · {MANIA_CUP.city}
+      <div className="mc-meta">
+        <span>aedral.com/mania-cup</span>
+        <span className="right">
+          {badge.noImage && (
+            <span className="mc-noimg" title="N’accepte pas d’être filmé">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                aria-hidden
+              >
+                <path d="M2 2l20 20" />
+                <path d="M9 5h6l2 3h3v9" />
+                <path d="M4 8v11h13" />
+              </svg>
+            </span>
+          )}
+          {badge.code && <span className="mc-code">{badge.code}</span>}
+        </span>
       </div>
+
+      <div className="mc-cat" style={{ background: cat.color }}>
+        {cat.label}
+      </div>
+      <div className="mc-checker" />
     </div>
   );
 }
