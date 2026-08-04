@@ -114,18 +114,31 @@ export async function PUT(req: NextRequest) {
     const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
     if (!body) return NextResponse.json({ error: 'Requête invalide' }, { status: 400 });
 
-    const urls = {
-      ticketingPlayerUrl: cleanUrl(body.ticketingPlayerUrl),
-      ticketingSpectatorUrl: cleanUrl(body.ticketingSpectatorUrl),
-      ticketingCompanionUrl: cleanUrl(body.ticketingCompanionUrl),
-      ticketingPcRentalUrl: cleanUrl(body.ticketingPcRentalUrl),
-    };
+    // Tout ce PUT est PARTIEL : un champ absent du corps garde sa valeur.
+    // Deux écrans de la console éditent ces réglages, et l'un ne doit pas
+    // effacer le travail de l'autre simplement parce qu'il ne le connaît pas.
+    const previous = await getManiaCupSettings(getAdminDb());
 
-    // Un lien non vide mais rejeté doit être signalé : sinon l'organisateur
-    // croit avoir enregistré et le découvre le jour de l'annonce.
-    const rejected = (Object.keys(urls) as (keyof typeof urls)[]).filter(
-      (k) => clampString(body[k], 400) && !urls[k]
-    );
+    const URL_KEYS = [
+      'ticketingPlayerUrl',
+      'ticketingSpectatorUrl',
+      'ticketingCompanionUrl',
+      'ticketingPcRentalUrl',
+    ] as const;
+
+    const urls = {} as Record<(typeof URL_KEYS)[number], string>;
+    const rejected: string[] = [];
+    for (const key of URL_KEYS) {
+      if (body[key] === undefined) {
+        urls[key] = previous[key];
+        continue;
+      }
+      const cleaned = cleanUrl(body[key]);
+      // Un lien non vide mais rejeté doit être signalé : sinon l'organisateur
+      // croit avoir enregistré et le découvre le jour de l'annonce.
+      if (clampString(body[key], 400) && !cleaned) rejected.push(key);
+      urls[key] = cleaned;
+    }
     if (rejected.length > 0) {
       return NextResponse.json(
         { error: 'Les liens doivent être des adresses HelloAsso en https.' },
@@ -136,25 +149,32 @@ export async function PUT(req: NextRequest) {
     const numbers = Object.fromEntries(
       (Object.keys(SETTINGS_BOUNDS) as NumericSettingKey[]).map((k) => [
         k,
-        normalizeNumber(k, body[k]),
+        body[k] === undefined ? previous[k] : normalizeNumber(k, body[k]),
       ])
     ) as Record<NumericSettingKey, number>;
 
     // La correspondance des tarifs décide à quoi sert chaque billet vendu :
     // l'enregistrer cassée, ce serait laisser tous les paiements suivants
     // partir en relecture manuelle sans que personne comprenne pourquoi.
-    const tierMap = clampString(body.helloAssoTierMap, 2000).trim();
-    if (tierMap) {
-      const problem = validateTierMap(tierMap);
-      if (problem) return NextResponse.json({ error: problem }, { status: 400 });
+    let tierMap = previous.helloAssoTierMap;
+    if (body.helloAssoTierMap !== undefined) {
+      tierMap = clampString(body.helloAssoTierMap, 2000).trim();
+      if (tierMap) {
+        const problem = validateTierMap(tierMap);
+        if (problem) return NextResponse.json({ error: problem }, { status: 400 });
+      }
     }
+
+    const codeField =
+      body.helloAssoCodeField !== undefined
+        ? clampString(body.helloAssoCodeField, 120).trim() || DEFAULT_SETTINGS.helloAssoCodeField
+        : previous.helloAssoCodeField;
 
     const settings: ManiaCupSettings = {
       ...urls,
       ...numbers,
       helloAssoTierMap: tierMap,
-      helloAssoCodeField:
-        clampString(body.helloAssoCodeField, 120).trim() || DEFAULT_SETTINGS.helloAssoCodeField,
+      helloAssoCodeField: codeField,
     };
 
     await ref().set(

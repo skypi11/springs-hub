@@ -66,19 +66,81 @@ Alignez le texte HelloAsso dessus, sinon les deux se contrediront.
 
 ## 6. Une fois la billetterie créée
 
-1. Copier les **trois liens** (joueur, spectateurs, accompagnant) et les coller
-   dans `aedral.com/admin/mania-cup` → onglet **Configuration** → *Tarifs et
-   billetterie*. Tous les boutons de paiement du site s'activent aussitôt.
-2. Envoyer à Claude une **capture des tarifs créés**, pour écrire la
-   correspondance exacte du webhook plutôt que de la deviner.
-3. Vérifier que les **notifications webhook** sont activables :
-   *Mon Compte → Intégrations et API*. C'est là que se déclarera l'URL qui
-   validera les inscriptions automatiquement.
+1. Copier les **quatre liens** (joueur, spectateurs, accompagnant, location de
+   poste) et les coller dans `aedral.com/admin/mania-cup` → onglet
+   **Configuration** → *Tarifs et billetterie*. Les boutons de paiement du site
+   s'activent aussitôt.
+2. Créer les **clés d'API** : *Mon Compte → Intégrations et API*. Elles donnent
+   un `clientId` et un `clientSecret`, à mettre dans Vercel (voir §7).
+3. Déclarer l'**URL de notification** au même endroit. Sans elle, les paiements
+   n'arrivent pas tout seuls sur le site.
 
-## 7. Ce qui reste après
+## 7. Ce que le serveur attend (variables Vercel)
 
-- Le **webhook** (`/api/mania-cup/webhook`, à écrire) : il validera les
-  inscriptions dès réception du paiement, en distinguant les tarifs.
+Tant que ces variables manquent, la console affiche « billetterie non
+connectée » et les règlements se confirment à la main. Rien ne casse, mais rien
+n'est automatique.
+
+| Variable | Où la trouver |
+|---|---|
+| `HELLOASSO_CLIENT_ID` | Mon Compte → Intégrations et API |
+| `HELLOASSO_CLIENT_SECRET` | idem — à marquer **Sensitive** dans Vercel |
+| `HELLOASSO_ORG_SLUG` | dans l'URL de l'association : `helloasso.com/associations/⟨ici⟩` |
+| `HELLOASSO_FORM_SLUG` | dans l'URL du formulaire : `…/evenements/⟨ici⟩` |
+| `HELLOASSO_WEBHOOK_SECRET` | **à inventer** : une longue chaîne au hasard, connue de vous seul |
+| `HELLOASSO_ALLOWED_IPS` | *facultatif* — `51.138.206.200` en production |
+
+**L'adresse à déclarer chez HelloAsso** est alors :
+
+```
+https://aedral.com/api/mania-cup/webhook/⟨HELLOASSO_WEBHOOK_SECRET⟩
+```
+
+Ce secret dans l'adresse n'est pas une coquetterie. HelloAsso ne signe pas les
+notifications envoyées aux comptes associatifs — c'est réservé à ses partenaires
+commerciaux. Sans ce segment, n'importe qui connaissant l'adresse pourrait nous
+annoncer un faux paiement. Le site ne croit d'ailleurs jamais ce qu'il reçoit :
+il rappelle HelloAsso avec les clés pour lire la vraie commande. Le secret
+évite simplement qu'on nous fasse faire ce travail à tort.
+
+## 8. La correspondance des tarifs
+
+Une fois les tarifs créés, allez dans la console → **Configuration** → *Tarifs et
+billetterie*. Le bouton **« Lire les tarifs depuis HelloAsso »** affiche les
+tarifs réels du formulaire ; associez chacun à sa catégorie :
+
+`player` · `companion` · `spectator_day` · `spectator_2days` · `pc_rental`
+
+C'est ce qui permet au site de savoir qu'un billet à 30 € confirme une place,
+alors qu'un billet à 20 € rattache un accompagnant et qu'une location de poste
+ne vaut **jamais** règlement de l'inscription.
+
+La correspondance se fait sur l'**identifiant** du tarif, pas sur son nom :
+renommer un tarif après coup ne casse donc rien.
+
+## 9. Ce qui reste après
+
 - La bascule **`MANIA_CUP_PUBLIC=true`** sur Vercel, qui rend l'événement public
   et ouvre les inscriptions. Tant qu'elle est absente, la page est masquée des
   moteurs de recherche et personne d'autre que les admins ne peut s'inscrire.
+- **Un vrai paiement de test à 30 €**, une fois tout branché : c'est le seul
+  moyen de vérifier que le code d'inscription remonte bien, et de relever au
+  passage le montant de contribution volontaire proposé par défaut.
+- Le **règlement** à publier : texte prêt dans
+  [reglement-mania-cup.md](reglement-mania-cup.md), trois blancs à combler.
+
+## 10. Le jour J
+
+Dans la console, onglet **Inscriptions** :
+
+- **Liste d'émargement** — export à imprimer, trié par nom, avec ce qu'il faut
+  savoir même si le réseau tombe : réglé ou non, mineur, autorisation parentale,
+  accompagnant, poste loué, emplacement, refus de droit à l'image, contact
+  d'urgence.
+- **Badges** — planche à imprimer, 9 par page A4, une couleur par catégorie.
+  Un badge n'est édité que pour un billet réglé. Attribuez les emplacements
+  avant d'imprimer : ils y figurent.
+
+Le contrôle des billets à l'entrée se fait avec l'application **HelloAsso Scan**,
+qui lit les QR codes hors ligne. À installer et **synchroniser la veille au
+soir**, pas sur le parking le samedi matin.

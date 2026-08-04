@@ -27,6 +27,11 @@ const MONEY: { key: NumericSettingKey; label: string; help?: string }[] = [
     label: 'Accompagnant',
     help: 'Le billet qui donne accès à la zone joueurs.',
   },
+  {
+    key: 'pcRentalEuros',
+    label: 'Location de poste',
+    help: 'Laisser à 0 tant que le prix n’est pas arrêté : le bouton reste alors muet.',
+  },
   { key: 'prizePoolEuros', label: 'Cashprize total' },
 ];
 
@@ -45,6 +50,11 @@ const LINKS: { key: keyof ManiaCupSettings; label: string; help: string }[] = [
     key: 'ticketingCompanionUrl',
     label: 'Billet accompagnant',
     help: 'Son formulaire HelloAsso doit demander le code d’inscription du joueur accompagné.',
+  },
+  {
+    key: 'ticketingPcRentalUrl',
+    label: 'Location de poste',
+    help: 'Doit aussi demander le code d’inscription. Une location ne vaut jamais règlement de l’inscription.',
   },
 ];
 

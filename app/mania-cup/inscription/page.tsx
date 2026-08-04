@@ -267,6 +267,35 @@ export default function InscriptionPage() {
         </Banner>
       ) : (
         <div className="mt-12 space-y-6">
+          {/* Ce que personne ne disait avant de s'engager : que le paiement se
+              passe ailleurs, et qu'un code fait le lien entre les deux. Le
+              découvrir après avoir rempli le dossier donne l'impression que
+              quelque chose a mal tourné. */}
+          <div className="border border-white/10 bg-white/[0.02] p-6">
+            <h2 className="font-display text-2xl">Comment ça se passe</h2>
+            <ol className="mt-4 space-y-3 text-[#c9c5d8]">
+              <li className="flex gap-3">
+                <span className="font-display shrink-0 text-xl text-[#00D936]">1</span>
+                Tu remplis ton dossier ici, et tu reçois un{' '}
+                <strong className="text-white">code d’inscription</strong>.
+              </li>
+              <li className="flex gap-3">
+                <span className="font-display shrink-0 text-xl text-[#00D936]">2</span>
+                Tu règles ton inscription sur HelloAsso, la billetterie de
+                l’association, en y recopiant ce code.
+              </li>
+              <li className="flex gap-3">
+                <span className="font-display shrink-0 text-xl text-[#00D936]">3</span>
+                Ta place est confirmée en quelques minutes, et tu reçois ton billet par
+                e-mail.
+              </li>
+            </ol>
+            <p className="mt-4 text-sm text-[#8d89a8]">
+              Les {seats?.max ?? MANIA_CUP.maxPlayers} places sont attribuées par ordre de
+              règlement : un dossier sans paiement ne réserve rien.
+            </p>
+          </div>
+
           {/* Étape 1 — compte Aedral */}
           <Step
             n={1}
@@ -592,13 +621,40 @@ function Recap({
               Règlement reçu, ta place est acquise.
             </p>
           ) : (
-            <TicketButton
-              kind="player"
-              label={`Payer mon inscription — ${settings.priceEuros} €`}
-            />
+            <>
+              <TicketButton
+                kind="player"
+                label={`Payer mon inscription — ${settings.priceEuros} €`}
+              />
+              {/* Dit avant le clic, pas découvert au moment de payer : sinon le
+                  joueur croit à une commission cachée du site. */}
+              <p className="mt-3 text-sm text-[#8d89a8]">
+                HelloAsso proposera d’ajouter une contribution à son propre
+                fonctionnement. Elle est libre et se ramène à zéro : elle ne revient
+                ni à l’association, ni à Aedral. Ton inscription coûte{' '}
+                {settings.priceEuros} €.
+              </p>
+              <p className="mt-2 text-sm text-[#8d89a8]">
+                Le rattachement prend quelques minutes après le paiement. Si cette page
+                affiche encore « en attente » une heure après, préviens l’organisation
+                sur le Discord.
+              </p>
+            </>
           )}
         </div>
       </div>
+
+      {/* Mot de l'organisation, quand il manque quelque chose. Un message privé
+          se perd ; ici, le joueur le retrouve là où il vient déjà regarder. */}
+      {reg.staffMessage && (
+        <div className="flex gap-3 border border-[#FFB800]/40 bg-[#FFB800]/10 p-5">
+          <AlertTriangle size={20} className="mt-0.5 shrink-0 text-[#FFB800]" aria-hidden />
+          <div>
+            <div className="font-semibold">Message de l’organisation</div>
+            <p className="mt-1 text-[#f2e6c8]">{reg.staffMessage}</p>
+          </div>
+        </div>
+      )}
 
       {minor && <GuardianConsent reg={reg} identity={identity} onDone={onReload} />}
 

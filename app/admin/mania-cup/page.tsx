@@ -1,10 +1,11 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, FileText, Check, X, Euro, AlertTriangle, ShieldCheck, ScrollText, Save,
-  Search, Download,
+  Search, Download, IdCard,
 } from 'lucide-react';
 import { api, apiDownload, ApiError } from '@/lib/api-client';
 import CountryFlag from '@/components/ui/CountryFlag';
@@ -14,6 +15,7 @@ import MarkdownEditor from '@/components/ui/MarkdownEditor';
 import { LIMITS } from '@/lib/validation';
 import FaqEditor from '@/components/mania-cup/FaqEditor';
 import TicketingSettings from '@/components/mania-cup/TicketingSettings';
+import TierMapping from '@/components/mania-cup/TierMapping';
 import PaymentsPanel, { type MatchTarget } from '@/components/mania-cup/PaymentsPanel';
 import { MANIA_CUP, MANIA_CUP_DOCS, GUARDIAN_DOC_KINDS, GUARDIAN_DOC_LABELS } from '@/lib/mania-cup';
 
@@ -281,6 +283,7 @@ export default function AdminManiaCupPage() {
       />
       <FaqEditor />
       <TicketingSettings />
+      <TierMapping />
         </>
       )}
 
@@ -327,6 +330,14 @@ export default function AdminManiaCupPage() {
             <Download size={15} aria-hidden />
             Liste d’émargement
           </button>
+
+          <Link
+            href="/admin/mania-cup/badges"
+            className="btn-springs btn-secondary bevel-sm inline-flex items-center gap-2"
+          >
+            <IdCard size={15} aria-hidden />
+            Badges
+          </Link>
         </div>
       )}
 
