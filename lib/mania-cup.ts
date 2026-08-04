@@ -118,11 +118,107 @@ export function isGuardianDossierComplete(
 }
 
 /**
- * Combien de temps les pièces sont conservées après la LAN. Annoncé au joueur
+ * Combien de temps chaque pièce est conservée après la LAN. Annoncé au joueur
  * au moment du dépôt et appliqué par le cron de purge : une collecte propre se
  * distingue d'un dossier qui traîne par sa date de fin.
+ *
+ * Les deux durées DIFFÈRENT, et c'est volontaire :
+ *  - l'AUTORISATION est la seule preuve qu'un parent a laissé son enfant
+ *    concourir. Si une famille conteste quoi que ce soit deux mois après la
+ *    LAN, l'effacer à J+14 revient à ne plus rien pouvoir montrer. Un an.
+ *  - le SCAN de la pièce d'identité du parent ne sert qu'une fois : vérifier,
+ *    au moment de la relecture, que la signature émane bien du titulaire. Passé
+ *    ce contrôle il ne prouve plus rien de plus que l'autorisation elle-même.
+ *    On le supprime dès la validation — garder des photos de papiers d'identité
+ *    « au cas où » est exactement ce qu'il ne faut pas faire.
  */
-export const GUARDIAN_DOCS_RETENTION_DAYS = 14;
+export const GUARDIAN_DOC_RETENTION_DAYS: Record<GuardianDocKind, number> = {
+  consent: 365,
+  guardian_id: 14,
+};
+
+/** La plus longue des deux : ce que la page d'inscription annonce au joueur. */
+export const GUARDIAN_DOCS_RETENTION_DAYS = GUARDIAN_DOC_RETENTION_DAYS.consent;
+
+// ── Références des titres d'identité (dossier mineur) ────────────────────────
+//
+// Ce qu'on consigne quand un joueur de 16-17 ans concourt : la nature du titre,
+// son numéro et l'autorité qui l'a délivré, pour le mineur ET pour le
+// représentant légal signataire.
+//
+// C'est ce que demande l'article R.321-43 du code de la sécurité intérieure —
+// et c'est aussi la seule façon de rendre l'autorisation exploitable : un
+// papier signé « la mère de » ne vaut rien si personne ne peut dire quel titre
+// a été présenté au moment de la signature.
+//
+// On note les RÉFÉRENCES, pas des photocopies. Le scan de la pièce du parent
+// ne sert qu'au contrôle visuel de la relecture et disparaît juste après.
+
+export const IDENTITY_DOC_KINDS = ['cni', 'passport', 'residence_permit', 'other'] as const;
+export type IdentityDocKind = (typeof IDENTITY_DOC_KINDS)[number];
+
+export const IDENTITY_DOC_LABELS: Record<IdentityDocKind, string> = {
+  cni: 'Carte nationale d’identité',
+  passport: 'Passeport',
+  residence_permit: 'Titre de séjour',
+  other: 'Autre titre officiel',
+};
+
+export interface IdentityRef {
+  kind: IdentityDocKind;
+  /** Numéro figurant sur le titre. */
+  number: string;
+  /** Autorité de délivrance : préfecture, mairie, ambassade… */
+  authority: string;
+}
+
+/**
+ * Les références vivent dans leur propre collection, jamais dans le dossier
+ * d'inscription.
+ *
+ * Trois raisons : c'est la donnée la plus sensible du module ; sa durée de
+ * conservation lui est propre ; et aucune route ne doit pouvoir la sérialiser
+ * par accident en renvoyant « le dossier » à son propriétaire ou à un écran
+ * d'administration. Même séparation que la date de naissance, rangée dans
+ * `user_secrets` plutôt que sur le profil.
+ */
+export const MANIA_CUP_IDENTITY = 'mania_cup_identity';
+
+export interface ManiaCupIdentityRecord {
+  uid: string;
+  /** Nom du représentant légal qui signe l'autorisation. */
+  representativeName: string;
+  representative: IdentityRef;
+  minor: IdentityRef;
+  collectedAt?: unknown;
+}
+
+/** Combien de temps les références sont conservées après la LAN. */
+export const IDENTITY_RETENTION_DAYS = 365;
+
+export function isIdentityRefComplete(ref: Partial<IdentityRef> | null | undefined): boolean {
+  return Boolean(
+    ref &&
+      typeof ref.kind === 'string' &&
+      (IDENTITY_DOC_KINDS as readonly string[]).includes(ref.kind) &&
+      ref.number?.trim() &&
+      ref.authority?.trim()
+  );
+}
+
+/** Le dossier mineur est complet quand les DEUX pièces sont déposées ET que les
+ *  références des deux titres sont saisies. */
+export function isGuardianRecordComplete(
+  docs: Partial<Record<GuardianDocKind, GuardianDoc>> | undefined,
+  identity: Partial<ManiaCupIdentityRecord> | null | undefined
+): boolean {
+  return (
+    isGuardianDossierComplete(docs) &&
+    Boolean(identity?.representativeName?.trim()) &&
+    isIdentityRefComplete(identity?.representative) &&
+    isIdentityRefComplete(identity?.minor)
+  );
+}
 
 export interface ManiaCupRegistration {
   uid: string;
@@ -131,6 +227,27 @@ export interface ManiaCupRegistration {
   /** Identité Trackmania vérifiée par OAuth Nadeo au moment de l'inscription. */
   tmAccountId: string;
   tmDisplayName: string;
+  /**
+   * Identité civile. Un pseudo ne sert à rien le samedi matin : l'accueil
+   * contrôle une carte d'identité et coche un nom sur une liste. C'est aussi la
+   * seule prise de secours quand un règlement arrive sans son code — HelloAsso
+   * nous donne le nom du PAYEUR (souvent un parent), jamais le pseudo de jeu.
+   */
+  firstName: string;
+  lastName: string;
+  /** Adresse de l'organisation vers le joueur. Distincte de celle du payeur. */
+  email: string;
+  /** Facultatif : joindre quelqu'un qui n'est pas arrivé, ou qui a laissé un sac. */
+  phone?: string | null;
+  /** Exigé des 16-17 ans : une personne à prévenir qui n'est pas dans la salle. */
+  emergencyContact?: { name: string; phone: string } | null;
+  /**
+   * Autorisation de diffuser l'image du joueur (stream, VOD, réseaux, presse).
+   * Refuser n'empêche pas de jouer : ça donne un badge distinct et une consigne
+   * au cadreur. Pour un mineur, c'est le représentant légal qui l'accorde, dans
+   * l'autorisation parentale.
+   */
+  imageConsent?: { accepted: boolean; at: unknown } | null;
   /** ISO YYYY-MM-DD. Donnée sensible : jamais servie sur la liste publique. */
   birthDate: string;
   /** Âge au premier jour de la LAN, figé à l'inscription pour l'organisation. */
@@ -154,16 +271,53 @@ export interface ManiaCupRegistration {
    * l'accueil doit pouvoir dire qui accompagne qui, et un billet staff ne peut
    * pas circuler librement.
    */
-  companion?: { name: string; role: string; declaredAt?: unknown } | null;
+  companion?: {
+    name: string;
+    role: string;
+    declaredAt?: unknown;
+    /** Passe à vrai quand le billet accompagnant a été réglé sur HelloAsso. */
+    ticketPaid?: boolean;
+    ticketPaidAt?: unknown;
+  } | null;
   /**
    * Code unique à reporter dans le champ personnalisé de la billetterie
    * HelloAsso. C'est lui qui permet de relier un paiement à une inscription :
    * l'e-mail ne suffit pas (un joueur peut payer avec l'adresse de ses parents).
    */
   registrationCode: string;
+  /**
+   * Preuve du règlement de l'inscription, recopiée depuis HelloAsso. Sans elle,
+   * `paidAt` seul ne permet ni de rapprocher une caisse, ni de traiter un
+   * remboursement, ni de repérer un double paiement.
+   */
+  payment?: RegistrationPayment | null;
+  /** Poste loué sur la billetterie. Ne vaut JAMAIS règlement de l'inscription. */
+  pcRental?: { itemId: number; amountCents: number; at?: unknown } | null;
+  /** Emplacement attribué dans la salle, imprimé sur le badge. */
+  seat?: string | null;
+  /** Passage à l'accueil le jour J. */
+  checkedInAt?: unknown;
+  checkedInBy?: string | null;
+  /** Mot de l'organisation affiché sur l'espace du joueur (« il manque… »). */
+  staffMessage?: string | null;
   createdAt?: unknown;
   updatedAt?: unknown;
   paidAt?: unknown;
+}
+
+/** Ce qu'on garde d'un règlement encaissé sur HelloAsso. */
+export interface RegistrationPayment {
+  /** Identifiants HelloAsso — `itemId` est la clé d'idempotence du rattachement. */
+  orderId: number;
+  itemId: number;
+  /** Libellé du tarif tel qu'il figure sur la billetterie. */
+  tierLabel: string;
+  /** En CENTIMES, comme HelloAsso les expose. 30 € vaut 3000. */
+  amountCents: number;
+  /** Le payeur n'est pas forcément le joueur (parent, coach, structure). */
+  payerName: string;
+  payerEmail: string;
+  at?: unknown;
 }
 
 /** Ce que la liste publique des inscrits expose — et rien d'autre.
@@ -179,6 +333,32 @@ export function ageAtEvent(birthDate: string): number | null {
   return computeAge(birthDate, new Date(`${MANIA_CUP.startDate}T00:00:00Z`));
 }
 
+/**
+ * Contrôle de forme d'une adresse e-mail.
+ *
+ * Volontairement permissif : le but n'est pas de prouver que l'adresse existe
+ * — seul un envoi le dirait — mais d'écarter les saisies qui ne peuvent
+ * manifestement pas en être une. Un contrôle trop zélé rejette des adresses
+ * parfaitement valides et bloque un joueur à la dernière étape.
+ */
+export function isPlausibleEmail(raw: string): boolean {
+  const value = raw.trim();
+  if (value.length < 5 || value.length > 254) return false;
+  if (/\s/.test(value)) return false;
+  return /^[^@]+@[^@.]+(\.[^@.]+)+$/.test(value);
+}
+
+/**
+ * Numéro de téléphone : on garde ce que la personne a tapé, on vérifie
+ * seulement qu'il reste assez de chiffres pour que ce soit appelable. Les
+ * formats varient (indicatif, espaces, points) et les normaliser ferait perdre
+ * de l'information utile au moment d'appeler.
+ */
+export function isPlausiblePhone(raw: string): boolean {
+  const digits = raw.replace(/\D/g, '');
+  return digits.length >= 9 && digits.length <= 15;
+}
+
 export function needsGuardianConsent(age: number): boolean {
   return age < MANIA_CUP.guardianConsentBelowAge;
 }
@@ -189,14 +369,100 @@ export function needsGuardianConsent(age: number): boolean {
  * joueur recopie son code à la main dans le formulaire HelloAsso.
  */
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const CODE_BODY_LENGTH = 4;
+const CODE_PREFIX = 'LAN';
 
 export function generateRegistrationCode(random: () => number = Math.random): string {
   let out = '';
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < CODE_BODY_LENGTH; i++) {
     out += CODE_ALPHABET[Math.floor(random() * CODE_ALPHABET.length)];
   }
-  return `LAN-${out}`;
+  return `${CODE_PREFIX}-${out}`;
 }
+
+/**
+ * Remet en forme un code recopié à la main dans le formulaire HelloAsso.
+ *
+ * Le payeur tape ce qu'il croit lire : minuscules, espaces, tiret oublié,
+ * préfixe absent ou doublé, parfois le tout à la fois. Refuser « lan 4b2c »
+ * alors qu'on sait parfaitement de quel dossier il s'agit obligerait
+ * l'organisation à rattacher à la main un paiement parfaitement lisible.
+ *
+ * Renvoie la forme canonique `LAN-XXXX`, ou null si l'entrée ne peut pas être
+ * un code : longueur inattendue, ou caractère que le générateur n'emploie
+ * jamais (I, O, 0 et 1 sont exclus de l'alphabet justement pour éviter les
+ * confusions de lecture — les rencontrer signifie que la saisie est fautive,
+ * et rien ne permet de deviner ce que la personne avait sous les yeux).
+ */
+export function normalizeRegistrationCode(raw: string | null | undefined): string | null {
+  if (typeof raw !== 'string') return null;
+  const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!cleaned) return null;
+
+  // Le préfixe est facultatif à la saisie, et certains le doublent en le
+  // recopiant par-dessus un champ pré-rempli.
+  let body = cleaned;
+  while (body.startsWith(CODE_PREFIX) && body.length > CODE_BODY_LENGTH) {
+    body = body.slice(CODE_PREFIX.length);
+  }
+
+  if (body.length !== CODE_BODY_LENGTH) return null;
+  for (const ch of body) {
+    if (!CODE_ALPHABET.includes(ch)) return null;
+  }
+  return `${CODE_PREFIX}-${body}`;
+}
+
+/** Distance de Levenshtein, bornée : au-delà de `max` on arrête de compter. */
+function editDistance(a: string, b: string, max: number): number {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    let best = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+      best = Math.min(best, cur[j]);
+    }
+    if (best > max) return max + 1;
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+/**
+ * Codes connus qui ressemblent à une saisie fautive, à une lettre près.
+ *
+ * Sert à PROPOSER un rattachement à l'organisation, jamais à en décider : deux
+ * dossiers peuvent être à distance 1 l'un de l'autre, et confirmer d'autorité
+ * reviendrait à créditer un joueur du paiement d'un autre. La décision reste
+ * humaine, en un clic.
+ */
+export function suggestRegistrationCodes(raw: string, known: readonly string[]): string[] {
+  const cleaned = (raw ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const body = cleaned.startsWith(CODE_PREFIX) ? cleaned.slice(CODE_PREFIX.length) : cleaned;
+  if (!body) return [];
+  return known
+    .filter((code) => {
+      const other = code.startsWith(`${CODE_PREFIX}-`) ? code.slice(CODE_PREFIX.length + 1) : code;
+      return editDistance(body, other, 1) <= 1;
+    })
+    .slice(0, 5);
+}
+
+/**
+ * Collection réservataire des codes d'inscription : un document par code, dont
+ * l'identifiant EST le code.
+ *
+ * Le générateur tire au hasard dans 32^4 possibilités ; sur 64 joueurs la
+ * probabilité de collision est faible mais réelle, et une collision ferait
+ * exactement ce que le code est censé rendre impossible — rattacher un
+ * règlement au mauvais dossier. Créer le document en transaction rend le tirage
+ * atomique : deux inscriptions simultanées ne peuvent pas repartir avec le même
+ * code.
+ */
+export const MANIA_CUP_CODES = 'mania_cup_codes';
 
 /** `discord_123456789` → `123456789`. Null pour tout autre format d'uid. */
 export function discordIdFromUid(uid: string): string | null {

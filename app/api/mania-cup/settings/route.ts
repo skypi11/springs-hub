@@ -5,6 +5,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { captureApiError } from '@/lib/sentry';
 import { clampString } from '@/lib/validation';
 import { MANIA_CUP_FAQ_COLLECTION } from '@/lib/mania-cup-faq';
+import { TICKET_KINDS } from '@/lib/helloasso/types';
 import {
   MANIA_CUP_SETTINGS_DOC,
   DEFAULT_SETTINGS,
@@ -42,15 +43,61 @@ function cleanUrl(raw: unknown): string {
   }
 }
 
+/**
+ * Ce que le site public a besoin de connaître : des tarifs et des liens.
+ *
+ * La correspondance des tarifs HelloAsso et le libellé du champ de code n'y
+ * figurent pas — ce sont des réglages de tuyauterie, sans intérêt pour un
+ * visiteur, et rien ne gagne à les publier. La console les lit par sa propre
+ * route, réservée aux administrateurs.
+ */
+function publicSettings(s: ManiaCupSettings) {
+  return {
+    ticketingPlayerUrl: s.ticketingPlayerUrl,
+    ticketingSpectatorUrl: s.ticketingSpectatorUrl,
+    ticketingCompanionUrl: s.ticketingCompanionUrl,
+    ticketingPcRentalUrl: s.ticketingPcRentalUrl,
+    priceEuros: s.priceEuros,
+    spectatorDayEuros: s.spectatorDayEuros,
+    spectatorTwoDaysEuros: s.spectatorTwoDaysEuros,
+    companionEuros: s.companionEuros,
+    pcRentalEuros: s.pcRentalEuros,
+    prizePoolEuros: s.prizePoolEuros,
+    maxPlayers: s.maxPlayers,
+  };
+}
+
+/** Contrôle de la correspondance des tarifs. Renvoie le problème à afficher,
+ *  ou null si tout est bon. */
+function validateTierMap(raw: string): string | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return 'La correspondance des tarifs n’est pas un JSON valide.';
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return 'La correspondance des tarifs doit être un objet { "tarif": "catégorie" }.';
+  }
+  const entries = Object.entries(parsed as Record<string, unknown>);
+  if (entries.length === 0) return 'La correspondance des tarifs est vide.';
+  for (const [key, value] of entries) {
+    if (typeof value !== 'string' || !(TICKET_KINDS as readonly string[]).includes(value)) {
+      return `« ${key} » pointe sur une catégorie inconnue. Attendu : ${TICKET_KINDS.join(', ')}.`;
+    }
+  }
+  return null;
+}
+
 export async function GET(req: NextRequest) {
   const blocked = await checkRateLimit(limiters.read, rateLimitKey(req));
   if (blocked) return blocked;
 
   try {
-    return NextResponse.json({ settings: await getManiaCupSettings(getAdminDb()) });
+    return NextResponse.json({ settings: publicSettings(await getManiaCupSettings(getAdminDb())) });
   } catch (err) {
     captureApiError('mania-cup/settings:GET', err);
-    return NextResponse.json({ settings: DEFAULT_SETTINGS });
+    return NextResponse.json({ settings: publicSettings(DEFAULT_SETTINGS) });
   }
 }
 
@@ -71,6 +118,7 @@ export async function PUT(req: NextRequest) {
       ticketingPlayerUrl: cleanUrl(body.ticketingPlayerUrl),
       ticketingSpectatorUrl: cleanUrl(body.ticketingSpectatorUrl),
       ticketingCompanionUrl: cleanUrl(body.ticketingCompanionUrl),
+      ticketingPcRentalUrl: cleanUrl(body.ticketingPcRentalUrl),
     };
 
     // Un lien non vide mais rejeté doit être signalé : sinon l'organisateur
@@ -92,7 +140,22 @@ export async function PUT(req: NextRequest) {
       ])
     ) as Record<NumericSettingKey, number>;
 
-    const settings: ManiaCupSettings = { ...urls, ...numbers };
+    // La correspondance des tarifs décide à quoi sert chaque billet vendu :
+    // l'enregistrer cassée, ce serait laisser tous les paiements suivants
+    // partir en relecture manuelle sans que personne comprenne pourquoi.
+    const tierMap = clampString(body.helloAssoTierMap, 2000).trim();
+    if (tierMap) {
+      const problem = validateTierMap(tierMap);
+      if (problem) return NextResponse.json({ error: problem }, { status: 400 });
+    }
+
+    const settings: ManiaCupSettings = {
+      ...urls,
+      ...numbers,
+      helloAssoTierMap: tierMap,
+      helloAssoCodeField:
+        clampString(body.helloAssoCodeField, 120).trim() || DEFAULT_SETTINGS.helloAssoCodeField,
+    };
 
     await ref().set(
       { ...settings, updatedAt: FieldValue.serverTimestamp(), updatedBy: uid },

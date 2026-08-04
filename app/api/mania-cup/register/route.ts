@@ -7,18 +7,22 @@ import { isGuildMember } from '@/lib/discord-competition';
 import { canViewHiddenCompetition } from '@/lib/competitions/visibility';
 import { countries } from '@/lib/countries';
 import { deleteFileSilent } from '@/lib/storage';
+import { clampString } from '@/lib/validation';
 import { getRulebookByScope } from '@/lib/competitions/rulebooks';
 import { getManiaCupSettings } from '@/lib/mania-cup-settings';
+import { allocateRegistrationCode, releaseRegistrationCode } from '@/lib/mania-cup-server';
 import {
   MANIA_CUP,
   MANIA_CUP_REGISTRATIONS,
+  MANIA_CUP_IDENTITY,
   springsGuildId,
   isManiaCupPublic,
   MANIA_CUP_DOCS,
   ageAtEvent,
   needsGuardianConsent,
-  generateRegistrationCode,
   discordIdFromUid,
+  isPlausibleEmail,
+  isPlausiblePhone,
   type ManiaCupRegistration,
 } from '@/lib/mania-cup';
 
@@ -154,6 +158,13 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json().catch(() => null)) as {
+      firstName?: unknown;
+      lastName?: unknown;
+      email?: unknown;
+      phone?: unknown;
+      emergencyName?: unknown;
+      emergencyPhone?: unknown;
+      imageConsent?: unknown;
       birthDate?: unknown;
       countryCode?: unknown;
       rulebookAccepted?: unknown;
@@ -169,6 +180,38 @@ export async function POST(req: NextRequest) {
     }
     if (!countries.some((c) => c.code === countryCode)) {
       return NextResponse.json({ error: 'Pays invalide.' }, { status: 400 });
+    }
+
+    // Identité civile. Le pseudo Trackmania suffit au classement, pas à
+    // l'accueil : le samedi matin on contrôle une pièce d'identité contre une
+    // liste de noms, et un règlement arrivé sans son code ne se retrouve que
+    // par le nom du payeur.
+    const firstName = clampString(body.firstName, 60).trim();
+    const lastName = clampString(body.lastName, 60).trim();
+    const email = clampString(body.email, 254).trim();
+
+    if (firstName.length < 2 || lastName.length < 2) {
+      return NextResponse.json(
+        { error: 'Indique ton prénom et ton nom — ils seront contrôlés à l’accueil.' },
+        { status: 400 }
+      );
+    }
+    if (!isPlausibleEmail(email)) {
+      return NextResponse.json({ error: 'Adresse e-mail invalide.' }, { status: 400 });
+    }
+
+    const phone = clampString(body.phone, 30).trim();
+    if (phone && !isPlausiblePhone(phone)) {
+      return NextResponse.json({ error: 'Numéro de téléphone invalide.' }, { status: 400 });
+    }
+
+    const emergencyName = clampString(body.emergencyName, 80).trim();
+    const emergencyPhone = clampString(body.emergencyPhone, 30).trim();
+    if (emergencyPhone && !isPlausiblePhone(emergencyPhone)) {
+      return NextResponse.json(
+        { error: 'Numéro du contact d’urgence invalide.' },
+        { status: 400 }
+      );
     }
 
     // Acceptation du règlement. On vérifie la VERSION et pas seulement la case :
@@ -242,11 +285,35 @@ export async function POST(req: NextRequest) {
     const prev = existing.exists ? (existing.data() as ManiaCupRegistration) : null;
     const guardianNeeded = needsGuardianConsent(age);
 
+    // Un mineur reste deux jours dans une salle sans ses parents : l'accueil
+    // doit pouvoir joindre quelqu'un qui n'est pas sur place.
+    if (guardianNeeded && (!emergencyName || !emergencyPhone)) {
+      return NextResponse.json(
+        {
+          error:
+            'Indique un contact d’urgence (nom et téléphone) — il est obligatoire pour les moins de 18 ans.',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Le code d'inscription est réservé dans une collection dédiée : c'est ce
+    // qui garantit qu'il est unique, et ce qui permettra au webhook HelloAsso
+    // de retrouver le dossier en une seule lecture.
+    const registrationCode = await allocateRegistrationCode(db, uid);
+
     const payload: Partial<ManiaCupRegistration> & { updatedAt: unknown } = {
       uid,
       discordId: discordIdFromUid(uid),
       tmAccountId,
       tmDisplayName: ((user.pseudoTM ?? user.tmDisplayName) as string) ?? '',
+      firstName,
+      lastName,
+      email,
+      phone: phone || null,
+      emergencyContact: emergencyName && emergencyPhone
+        ? { name: emergencyName, phone: emergencyPhone }
+        : null,
       birthDate,
       ageAtEvent: age,
       countryCode,
@@ -260,10 +327,29 @@ export async function POST(req: NextRequest) {
           ? prev.guardianConsent
           : 'missing'
         : 'not_required',
-      registrationCode: prev?.registrationCode ?? generateRegistrationCode(),
+      registrationCode,
       updatedAt: FieldValue.serverTimestamp(),
     };
     if (!prev) payload.createdAt = FieldValue.serverTimestamp();
+
+    // Le droit à l'image se donne et se retire : on enregistre la réponse
+    // telle qu'elle est cochée, avec sa date. Un refus n'empêche pas de jouer,
+    // il change le badge et la consigne donnée au cadreur.
+    const imageConsent = body.imageConsent === true;
+    if (imageConsent !== Boolean(prev?.imageConsent?.accepted) || !prev?.imageConsent) {
+      payload.imageConsent = { accepted: imageConsent, at: FieldValue.serverTimestamp() };
+    }
+
+    // Trace opposable de l'acceptation du règlement : la version, la date et
+    // l'auteur. Le modèle l'annonçait, mais rien ne l'écrivait — un litige sur
+    // « je n'ai jamais accepté ça » n'aurait rien eu à opposer.
+    if (rulebook && !prev?.rulebookAccepted) {
+      payload.rulebookAccepted = {
+        version: rulebook.version,
+        at: FieldValue.serverTimestamp(),
+        byUid: uid,
+      };
+    }
 
     await docRef.set(payload, { merge: true });
 
@@ -313,10 +399,13 @@ export async function DELETE(req: NextRequest) {
 
     // Les pièces d'un dossier retiré n'ont plus de raison d'être conservées :
     // on ne garde pas les papiers d'identité de quelqu'un qui ne vient plus.
+    // Les références des titres partent avec, pour la même raison — elles
+    // n'ont d'intérêt que rattachées à une participation effective.
     const keys = Object.values(reg.guardianDocs ?? {})
       .map((d) => d?.key)
       .filter((k): k is string => Boolean(k));
     for (const key of keys) await deleteFileSilent(key);
+    await db.collection(MANIA_CUP_IDENTITY).doc(uid).delete().catch(() => {});
 
     await docRef.update({
       status: 'cancelled',
@@ -324,6 +413,11 @@ export async function DELETE(req: NextRequest) {
       guardianConsent: 'not_required',
       updatedAt: FieldValue.serverTimestamp(),
     });
+
+    // Le code retourne au pot commun. Le garder réservé le retirerait du
+    // tirage pour rien, et laisserait un règlement tardif se rattacher à un
+    // dossier que le joueur a lui-même retiré.
+    await releaseRegistrationCode(db, reg.registrationCode, uid);
 
     return NextResponse.json({ ok: true });
   } catch (err) {

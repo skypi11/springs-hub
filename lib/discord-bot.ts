@@ -766,6 +766,56 @@ export async function sendRankContestedDM(
   return { ok: true, messageId: data.id as string };
 }
 
+/**
+ * DM lié à la Springs Mania Cup : règlement reçu, pièces manquantes, consignes
+ * de la veille.
+ *
+ * C'est un DM FONCTIONNEL, pas une annonce : il ne passe donc pas par
+ * l'opt-out `dmAnnouncementsOptOut`. Quelqu'un qui a payé 30 € doit être
+ * prévenu que son argent est arrivé, même s'il a coupé les annonces — de la
+ * même façon qu'on ne coupe pas les DM d'exercices ou de rang contesté.
+ */
+export async function sendManiaCupDM(
+  discordUserId: string,
+  input: { title: string; description: string; link?: string | null },
+): Promise<{ ok: true; messageId: string } | { ok: false; reason: string }> {
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bot ${botToken()}` };
+
+  const dmRes = await fetch(`${DISCORD_API}/users/@me/channels`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ recipient_id: discordUserId }),
+  });
+  if (!dmRes.ok) {
+    const body = await dmRes.text().catch(() => '');
+    return { ok: false, reason: `dm_open_${dmRes.status}: ${body.slice(0, 150)}` };
+  }
+  const channelId = (await dmRes.json()).id as string;
+
+  const embed: Record<string, unknown> = {
+    // Vert Trackmania : la Mania Cup a sa propre identité, distincte de l'or
+    // d'Aedral et du violet de Springs.
+    color: 0x00d936,
+    title: input.title.slice(0, 256),
+    description:
+      input.description.slice(0, 3800) +
+      (input.link ? `\n\n[Ouvrir sur Aedral →](${input.link})` : ''),
+    footer: { text: 'Springs Mania Cup · 3 & 4 octobre 2026 · Marzy' },
+    timestamp: new Date().toISOString(),
+  };
+
+  const res = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ embeds: [embed] }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    return { ok: false, reason: `post_${res.status}: ${body.slice(0, 150)}` };
+  }
+  return { ok: true, messageId: (await res.json()).id as string };
+}
+
 // ---------- Annonces / relances ciblées (admin → /admin/messages) ----------
 
 // Envoie un DM d'ANNONCE générique (titre + message markdown + lien optionnel)

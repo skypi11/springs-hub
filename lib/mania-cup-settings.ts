@@ -18,11 +18,27 @@ export interface ManiaCupSettings {
   ticketingPlayerUrl: string;
   ticketingSpectatorUrl: string;
   ticketingCompanionUrl: string;
+  ticketingPcRentalUrl: string;
+  /**
+   * Correspondance entre les tarifs de la billetterie et nos catégories, au
+   * format JSON `{"<identifiant ou libellé>": "player" | "companion" | …}`.
+   *
+   * Elle vit ici plutôt que dans une variable d'environnement parce qu'elle
+   * n'est connue qu'APRÈS la création de la billetterie : la console propose
+   * de lire les tarifs chez HelloAsso et d'associer chacun en un clic, sans
+   * redéploiement ni recopie d'identifiants à la main.
+   */
+  helloAssoTierMap: string;
+  /** Libellé exact du champ personnalisé qui porte le code d'inscription. */
+  helloAssoCodeField: string;
   // Tarifs et jauge
   priceEuros: number;
   spectatorDayEuros: number;
   spectatorTwoDaysEuros: number;
   companionEuros: number;
+  /** Zéro tant que le prix n'est pas arrêté : les boutons restent alors muets
+   *  plutôt que d'annoncer une location à 0 €. */
+  pcRentalEuros: number;
   prizePoolEuros: number;
   maxPlayers: number;
 }
@@ -31,10 +47,14 @@ export const DEFAULT_SETTINGS: ManiaCupSettings = {
   ticketingPlayerUrl: '',
   ticketingSpectatorUrl: '',
   ticketingCompanionUrl: '',
+  ticketingPcRentalUrl: '',
+  helloAssoTierMap: '',
+  helloAssoCodeField: 'Code d’inscription',
   priceEuros: MANIA_CUP.priceEuros,
   spectatorDayEuros: MANIA_CUP.spectatorDayEuros,
   spectatorTwoDaysEuros: MANIA_CUP.spectatorTwoDaysEuros,
   companionEuros: MANIA_CUP.companionEuros,
+  pcRentalEuros: 0,
   prizePoolEuros: MANIA_CUP.prizePoolEuros,
   maxPlayers: MANIA_CUP.maxPlayers,
 };
@@ -46,6 +66,7 @@ export const SETTINGS_BOUNDS = {
   spectatorDayEuros: { min: 0, max: 500 },
   spectatorTwoDaysEuros: { min: 0, max: 500 },
   companionEuros: { min: 0, max: 500 },
+  pcRentalEuros: { min: 0, max: 500 },
   prizePoolEuros: { min: 0, max: 100_000 },
   maxPlayers: { min: 1, max: 512 },
 } as const;
@@ -68,6 +89,14 @@ export function mergeSettings(data: FirebaseFirestore.DocumentData | undefined):
     ticketingPlayerUrl: (d.ticketingPlayerUrl as string) ?? '',
     ticketingSpectatorUrl: (d.ticketingSpectatorUrl as string) ?? '',
     ticketingCompanionUrl: (d.ticketingCompanionUrl as string) ?? '',
+    ticketingPcRentalUrl: (d.ticketingPcRentalUrl as string) ?? '',
+    helloAssoTierMap: (d.helloAssoTierMap as string) ?? '',
+    helloAssoCodeField:
+      (d.helloAssoCodeField as string) || DEFAULT_SETTINGS.helloAssoCodeField,
+    pcRentalEuros:
+      d.pcRentalEuros != null
+        ? normalizeNumber('pcRentalEuros', d.pcRentalEuros)
+        : DEFAULT_SETTINGS.pcRentalEuros,
     priceEuros: d.priceEuros != null ? normalizeNumber('priceEuros', d.priceEuros) : DEFAULT_SETTINGS.priceEuros,
     spectatorDayEuros:
       d.spectatorDayEuros != null

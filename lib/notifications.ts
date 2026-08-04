@@ -29,6 +29,7 @@ export type NotificationType =
   | 'competition_sanction'
   | 'competition_match_alert'
   | 'competition_match_checkin'
+  | 'mania_cup_payment_received'
   | 'generic';
 
 export type NotificationPayload = {

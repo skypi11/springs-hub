@@ -1,0 +1,262 @@
+import type { Firestore } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
+import { createNotification } from '@/lib/notifications';
+import { sendManiaCupDM } from '@/lib/discord-bot';
+import {
+  MANIA_CUP_REGISTRATIONS,
+  type ManiaCupRegistration,
+} from '@/lib/mania-cup';
+import { findUidByRegistrationCode } from '@/lib/mania-cup-server';
+import { decideItem, type Outcome, type OrderItemView, type RegistrationSnapshot } from './reconcile';
+import { TICKET_LABELS } from './types';
+
+// Application en base de ce qu'une ligne de commande a décidé.
+//
+// Le module `reconcile` décide, celui-ci écrit. La séparation n'est pas
+// cosmétique : la décision se teste sur des commandes réelles sans base, et
+// l'écriture reste un chemin unique, transactionnel, que le webhook comme la
+// réconciliation manuelle empruntent à l'identique. Deux chemins d'écriture
+// divergents finiraient par se contredire.
+
+/** Journal des encaissements. L'identifiant du document est celui de la LIGNE
+ *  de commande HelloAsso : c'est ce qui rend le traitement idempotent, alors
+ *  que HelloAsso rejoue ses notifications jusqu'à obtenir un 200. */
+export const MANIA_CUP_PAYMENTS = 'mania_cup_payments';
+
+export interface PaymentRecord {
+  itemId: number;
+  orderId: number;
+  ticket: string | null;
+  tierLabel: string;
+  amountCents: number;
+  state: string;
+  rawCode: string | null;
+  code: string | null;
+  participantName: string;
+  payerName: string;
+  payerEmail: string;
+  /** Dossier auquel la ligne a été rattachée, quand elle a pu l'être. */
+  matchedUid: string | null;
+  outcome: Outcome['kind'];
+  reason: string | null;
+  source: 'webhook' | 'reconcile' | 'manual';
+  receivedAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export interface ApplyResult {
+  itemId: number;
+  outcome: Outcome['kind'];
+  reason: string | null;
+  uid: string | null;
+  /** Faux quand la ligne avait déjà été traitée à l'identique. */
+  changed: boolean;
+}
+
+export interface ApplyOptions {
+  source: PaymentRecord['source'];
+  /** Montant attendu pour une inscription joueur, en centimes. */
+  expectedPlayerAmountCents: number | null;
+  /** Jauge, pour alerter si un règlement fait dépasser le nombre de places. */
+  maxPlayers: number;
+}
+
+/**
+ * Traite une ligne de commande de bout en bout : résout son code, décide, écrit.
+ *
+ * Renvoie ce qui a été fait, pour que l'appelant puisse le rapporter — un
+ * webhook silencieux qui « a marché » ne se diagnostique pas.
+ */
+export async function applyOrderItem(
+  db: Firestore,
+  item: OrderItemView,
+  opts: ApplyOptions
+): Promise<ApplyResult> {
+  const uid = item.code ? await findUidByRegistrationCode(db, item.code) : null;
+
+  let snapshot: RegistrationSnapshot | null = null;
+  if (uid) {
+    const regSnap = await db.collection(MANIA_CUP_REGISTRATIONS).doc(uid).get();
+    if (regSnap.exists) {
+      const reg = regSnap.data() as ManiaCupRegistration;
+      snapshot = {
+        uid,
+        status: reg.status,
+        paidByItemId: reg.payment?.itemId ?? null,
+      };
+    }
+  }
+
+  const outcome = decideItem(item, {
+    registration: snapshot,
+    expectedAmountCents: item.ticket === 'player' ? opts.expectedPlayerAmountCents : null,
+  });
+
+  const changed = await writeOutcome(db, item, outcome, opts);
+
+  // Le joueur est prévenu APRÈS l'écriture, et seulement si quelque chose a
+  // changé : un rejeu de notification ne doit pas lui renvoyer un message.
+  if (changed && outcome.kind === 'confirm_player') {
+    await notifyPlayerPaid(db, outcome.uid, item).catch(() => {});
+  }
+
+  return {
+    itemId: item.itemId,
+    outcome: outcome.kind,
+    reason: 'reason' in outcome ? outcome.reason : null,
+    uid: 'uid' in outcome ? outcome.uid : null,
+    changed,
+  };
+}
+
+/** Écrit le journal et applique l'effet métier, en une transaction. */
+async function writeOutcome(
+  db: Firestore,
+  item: OrderItemView,
+  outcome: Outcome,
+  opts: ApplyOptions
+): Promise<boolean> {
+  const paymentRef = db.collection(MANIA_CUP_PAYMENTS).doc(String(item.itemId));
+
+  return db.runTransaction(async (tx) => {
+    const prevSnap = await tx.get(paymentRef);
+    const prev = prevSnap.data() as PaymentRecord | undefined;
+
+    // Rejeu à l'identique : la ligne est dans le même état et a produit la même
+    // décision. On ne réécrit rien, et surtout on ne renotifie personne.
+    const isReplay =
+      prev != null && prev.state === item.state && prev.outcome === outcome.kind;
+
+    const record: PaymentRecord = {
+      itemId: item.itemId,
+      orderId: item.orderId,
+      ticket: item.ticket,
+      tierLabel: item.tierLabel,
+      amountCents: item.amountCents,
+      state: item.state,
+      rawCode: item.rawCode,
+      code: item.code,
+      participantName: item.participantName,
+      payerName: item.payerName,
+      payerEmail: item.payerEmail,
+      matchedUid: 'uid' in outcome ? outcome.uid : null,
+      outcome: outcome.kind,
+      reason: 'reason' in outcome ? outcome.reason : null,
+      source: opts.source,
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    if (!prev) record.receivedAt = FieldValue.serverTimestamp();
+
+    if (isReplay) return false;
+
+    tx.set(paymentRef, record, { merge: true });
+
+    if ('uid' in outcome) {
+      const regRef = db.collection(MANIA_CUP_REGISTRATIONS).doc(outcome.uid);
+
+      if (outcome.kind === 'confirm_player') {
+        tx.set(
+          regRef,
+          {
+            status: 'confirmed',
+            paidAt: FieldValue.serverTimestamp(),
+            payment: {
+              orderId: item.orderId,
+              itemId: item.itemId,
+              tierLabel: item.tierLabel,
+              amountCents: item.amountCents,
+              payerName: item.payerName,
+              payerEmail: item.payerEmail,
+              at: FieldValue.serverTimestamp(),
+            },
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+
+      if (outcome.kind === 'revoke') {
+        // La place repart à la vente. On efface la preuve de paiement : la
+        // laisser ferait croire à un dossier réglé sur la console.
+        tx.set(
+          regRef,
+          {
+            status: 'pending_payment',
+            paidAt: null,
+            payment: null,
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+
+      if (outcome.kind === 'companion_paid') {
+        tx.set(
+          regRef,
+          {
+            companion: { ticketPaid: true, ticketPaidAt: FieldValue.serverTimestamp() },
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+
+      if (outcome.kind === 'pc_rental') {
+        tx.set(
+          regRef,
+          {
+            pcRental: {
+              itemId: item.itemId,
+              amountCents: item.amountCents,
+              at: FieldValue.serverTimestamp(),
+            },
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+    }
+
+    return true;
+  });
+}
+
+/**
+ * Prévient le joueur que son règlement est arrivé.
+ *
+ * La notification interne est garantie ; le message privé Discord est un bonus
+ * qui ne doit jamais faire échouer le traitement d'un paiement — le joueur a
+ * déjà reçu son billet par e-mail de HelloAsso.
+ */
+async function notifyPlayerPaid(db: Firestore, uid: string, item: OrderItemView): Promise<void> {
+  const label = item.ticket ? (TICKET_LABELS[item.ticket] ?? item.tierLabel) : item.tierLabel;
+
+  await createNotification(db, {
+    userId: uid,
+    type: 'mania_cup_payment_received',
+    title: 'Ta place est confirmée',
+    message: `Règlement reçu (${label}, ${(item.amountCents / 100).toFixed(2)} €). Rendez-vous le 3 octobre à Marzy.`,
+    link: '/mania-cup/inscription',
+    metadata: { orderId: item.orderId, itemId: item.itemId },
+  });
+
+  const snap = await db.collection(MANIA_CUP_REGISTRATIONS).doc(uid).get();
+  const discordId = (snap.data() as ManiaCupRegistration | undefined)?.discordId;
+  if (!discordId) return;
+
+  // Borné à dix secondes : Discord ne doit jamais retenir la réponse au
+  // webhook, sous peine de faire rejouer la notification par HelloAsso.
+  await Promise.race([
+    sendManiaCupDM(discordId, {
+      title: 'Ta place est confirmée',
+      description: [
+        `Ton règlement de ${(item.amountCents / 100).toFixed(2)} € est bien arrivé.`,
+        '',
+        'Rendez-vous le samedi 3 octobre à Marzy. Pense à ta pièce d’identité,',
+        'ton PC, ton casque et un câble ethernet.',
+      ].join('\n'),
+      link: 'https://aedral.com/mania-cup/inscription',
+    }),
+    new Promise((resolve) => setTimeout(resolve, 10_000)),
+  ]);
+}
