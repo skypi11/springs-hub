@@ -70,12 +70,21 @@ const CATEGORY: Record<Category, { label: string; color: string }> = {
   staff: { label: 'STAFF', color: '#A66BE8' },
 };
 
-/** Le nom rétrécit par palier plutôt qu'au caractère près : trois tailles
- *  suffisent, et elles gardent les badges homogènes entre eux. */
+/**
+ * Taille du nom, dictée par le MOT LE PLUS LONG et non par la longueur totale.
+ *
+ * Un nom se coupe entre les mots : « Julien Marchand » et « Martine Dupont »
+ * ont presque la même longueur, mais choisir la taille sur le total en mettait
+ * un sur deux lignes et l'autre sur une seule. Sur une planche, cette
+ * irrégularité saute aux yeux et fait bricolé.
+ */
 function nameSize(text: string): string {
-  if (text.length <= 8) return '12mm';
-  if (text.length <= 12) return '9.4mm';
-  return '7.2mm';
+  const words = text.split(/\s+/).filter(Boolean);
+  const longest = words.reduce((m, w) => Math.max(m, w.length), 0);
+  if (text.length <= 8 && longest <= 8) return '12mm';
+  if (longest <= 10) return '9.5mm';
+  if (longest <= 13) return '7.4mm';
+  return '6mm';
 }
 
 export default function BadgesPage() {
@@ -254,116 +263,164 @@ export default function BadgesPage() {
           gap: 5mm;
         }
 
-        /* ══ Le badge ══ */
+        /* ══════════════════════════ LE BADGE ══════════════════════════
+           Structure volontairement INDÉFORMABLE :
+             — la catégorie occupe toute la hauteur à gauche : aucune police,
+               aucun zoom, aucun navigateur ne peut la rogner ;
+             — dans la colonne de droite, les damiers et le pied ne se
+               compriment jamais (flex: 0 0 auto) ;
+             — seule la zone d'identité absorbe les écarts (flex: 1, min-height: 0).
+           Une première version calait chaque bloc au millimètre : elle tombait
+           juste sur ma machine et débordait ailleurs, dès que la police mettait
+           un instant à se charger. */
         .mc-badge {
           width: 54mm;
           height: 86mm;
           display: flex;
-          flex-direction: column;
           overflow: hidden;
           color: #fff;
           break-inside: avoid;
-          /* Le fond de l'affiche : violet éclairé par le haut, halo vert au sol. */
-          background:
-            radial-gradient(88% 42% at 50% -6%, rgba(150, 72, 228, 0.62) 0%, rgba(150, 72, 228, 0) 64%),
-            radial-gradient(96% 38% at 50% 106%, rgba(0, 217, 54, 0.3) 0%, rgba(0, 217, 54, 0) 62%),
-            linear-gradient(180deg, #221d3c 0%, #16132a 44%, #0b0a13 100%);
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
 
-        /* Damier de course : la signature de l'affiche. */
+        .mc-spine {
+          flex: 0 0 9.5mm;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #08070c;
+        }
+        .mc-spine span {
+          writing-mode: vertical-rl;
+          transform: rotate(180deg);
+          font-family: var(--font-display);
+          font-size: 5.2mm;
+          letter-spacing: 0.26em;
+          line-height: 1;
+          white-space: nowrap;
+        }
+
+        .mc-main {
+          flex: 1;
+          min-width: 0;
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          background: #0f0d1c;
+        }
+        /* Un aplat dégradé faisait badge d'entreprise. Le circuit rend la carte
+           vivante — cadré sur la piste et non sur le ciel, désaturé et sombre,
+           il porte l'ambiance sans jamais disputer la lisibilité au nom. */
+        .mc-main::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: url('/og-backgrounds/trackmania.webp') center 52% / 168% no-repeat;
+          filter: saturate(0.5) contrast(1.12) brightness(0.8);
+          opacity: 0.58;
+        }
+        /* Les couleurs de l'affiche par-dessus : violet en haut, vert au sol. */
+        .mc-main::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background:
+            radial-gradient(100% 38% at 50% -4%, rgba(150, 72, 228, 0.72) 0%, rgba(150, 72, 228, 0) 64%),
+            radial-gradient(120% 32% at 50% 104%, rgba(0, 217, 54, 0.34) 0%, rgba(0, 217, 54, 0) 60%),
+            linear-gradient(180deg, rgba(24, 20, 48, 0.88) 0%, rgba(16, 13, 34, 0.58) 42%, rgba(9, 8, 17, 0.9) 100%);
+        }
+        .mc-main > * { position: relative; z-index: 1; }
+
+        /* La pointe du blason de l'affiche : trois millimètres qui font le lien. */
+        .mc-point {
+          flex: 0 0 auto;
+          height: 2.6mm;
+          background: rgba(0, 217, 54, 0.7);
+          clip-path: polygon(38% 0, 62% 0, 50% 100%);
+        }
+
+        /* Le damier de l'affiche, réduit aux deux bordures : la signature sans
+           l'envahissement. */
         .mc-checker {
-          height: 3.2mm;
-          flex: 0 0 3.2mm;
+          flex: 0 0 2.6mm;
+          height: 2.6mm;
           background-color: #08070d;
           background-image:
             linear-gradient(45deg, #3b3b52 25%, transparent 25%, transparent 75%, #3b3b52 75%),
             linear-gradient(45deg, #3b3b52 25%, transparent 25%, transparent 75%, #3b3b52 75%);
-          background-size: 3.2mm 3.2mm;
-          background-position: 0 0, 1.6mm 1.6mm;
+          background-size: 2.6mm 2.6mm;
+          background-position: 0 0, 1.3mm 1.3mm;
         }
 
-        .mc-head { padding: 2.6mm 3.5mm 1.8mm; text-align: center; flex: 0 0 auto; }
-        .mc-logo { height: 4.6mm; width: auto; display: block; margin: 0 auto; }
+        .mc-head {
+          flex: 0 0 auto;
+          padding: 2.4mm 3mm 2.2mm;
+          text-align: center;
+          border-bottom: 0.35mm solid rgba(0, 217, 54, 0.7);
+        }
+        .mc-logo { height: 5mm; width: auto; display: block; margin: 0 auto; }
         .mc-lan {
-          margin-top: 2mm;
+          margin-top: 1.8mm;
           display: inline-flex;
           align-items: center;
-          gap: 1.5mm;
-          font-size: 2.15mm;
-          letter-spacing: 0.3em;
+          gap: 1.3mm;
+          font-size: 2mm;
+          letter-spacing: 0.26em;
           font-weight: 700;
         }
         .mc-lan b {
           background: #00d936;
           color: #08070c;
-          padding: 0.55mm 1.5mm 0.35mm;
-          letter-spacing: 0.16em;
+          padding: 0.5mm 1.3mm 0.3mm;
+          letter-spacing: 0.14em;
         }
         .mc-lan span { color: #00d936; }
         .mc-event {
           font-family: var(--font-display);
-          font-size: 7.4mm;
-          line-height: 0.92;
-          letter-spacing: 0.035em;
-          margin-top: 1mm;
+          font-size: 7mm;
+          line-height: 0.94;
+          letter-spacing: 0.03em;
+          margin-top: 0.9mm;
           background: linear-gradient(178deg, #ffffff 20%, #dfe3e9 48%, #8b929f 100%);
           -webkit-background-clip: text;
           background-clip: text;
           color: transparent;
         }
         .mc-when {
-          font-size: 2.2mm;
-          letter-spacing: 0.16em;
-          color: #c0bad4;
+          font-size: 2.05mm;
+          letter-spacing: 0.14em;
+          color: #bdb7d2;
           text-transform: uppercase;
           font-weight: 600;
-          margin-top: 0.6mm;
+          margin-top: 0.5mm;
         }
 
-        /* Bandeau du nom : hauteur FIXE. C'est lui qui garantit qu'aucune zone
-           ne reste morte, et que tous les badges se superposent au découpage. */
-        .mc-banner {
-          border-top: 0.4mm solid rgba(0, 217, 54, 0.75);
-          border-bottom: 0.4mm solid rgba(0, 217, 54, 0.75);
-          background-color: rgba(0, 0, 0, 0.34);
-          background-image:
-            linear-gradient(45deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.05) 75%),
-            linear-gradient(45deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.05) 75%);
-          background-size: 4mm 4mm;
-          background-position: 0 0, 2mm 2mm;
-          padding: 1.6mm 2.5mm;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          height: 18mm;
-          flex: 0 0 18mm;
+        /* La seule zone élastique. Sans cadre : une boîte à moitié remplie se
+           lit comme un trou, le même espace sans bordure devient une marge. */
+        .mc-who {
+          flex: 1 1 auto;
+          min-height: 0;
           overflow: hidden;
-        }
-        .mc-name {
-          font-family: var(--font-display);
-          line-height: 0.86;
-          letter-spacing: 0.012em;
-          width: 100%;
-          word-break: break-word;
-          text-align: center;
-          text-shadow: 0 0.4mm 2mm rgba(0, 0, 0, 0.55);
-        }
-
-        .mc-info {
-          flex: 1;
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          gap: 2.2mm;
-          padding: 1.6mm 3mm;
-          min-height: 0;
-          overflow: hidden;
+          gap: 1.8mm;
+          padding: 2mm 2.5mm 3mm;
+        }
+        .mc-name {
+          font-family: var(--font-display);
+          line-height: 0.88;
+          letter-spacing: 0.012em;
+          width: 100%;
+          text-align: center;
+          word-break: break-word;
+          text-shadow: 0 0.4mm 2mm rgba(0, 0, 0, 0.55);
         }
         .mc-detail {
-          font-size: 3.05mm;
+          font-size: 2.9mm;
           color: #c3bed4;
           font-weight: 500;
           text-align: center;
@@ -371,53 +428,44 @@ export default function BadgesPage() {
         .mc-seat {
           border: 0.3mm solid rgba(0, 217, 54, 0.65);
           background: rgba(0, 217, 54, 0.12);
-          padding: 1.1mm 3.6mm;
+          padding: 0.9mm 3mm;
           display: inline-flex;
           align-items: baseline;
-          gap: 1.8mm;
+          gap: 1.6mm;
         }
         .mc-seat .k {
-          font-size: 2.1mm;
-          letter-spacing: 0.2em;
+          font-size: 2mm;
+          letter-spacing: 0.18em;
           color: #8fe3a5;
           text-transform: uppercase;
           font-weight: 700;
         }
         .mc-seat .v {
           font-family: var(--font-display);
-          font-size: 5.8mm;
+          font-size: 5.4mm;
           line-height: 1;
           color: #00d936;
         }
 
-        /* Pied : la même ligne sur tous les badges. */
         .mc-meta {
+          flex: 0 0 auto;
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 0 3.5mm 1.8mm;
-          font-size: 2.15mm;
+          padding: 1.6mm 3mm;
+          font-size: 2mm;
           color: #9c97b4;
-          letter-spacing: 0.05em;
+          letter-spacing: 0.04em;
         }
-        .mc-meta .right { display: inline-flex; align-items: center; gap: 2mm; }
+        .mc-meta .right { display: inline-flex; align-items: center; gap: 1.6mm; }
         .mc-code {
           font-family: var(--font-display);
-          font-size: 3.1mm;
-          letter-spacing: 0.12em;
+          font-size: 2.9mm;
+          letter-spacing: 0.1em;
           color: #aaa5c0;
         }
         .mc-noimg { display: inline-flex; align-items: center; color: #e5737f; }
-        .mc-noimg svg { width: 2.8mm; height: 2.8mm; }
-
-        .mc-cat {
-          font-family: var(--font-display);
-          font-size: 5.2mm;
-          letter-spacing: 0.3em;
-          text-align: center;
-          padding: 1.7mm 0 1.2mm 0.3em;
-          color: #08070c;
-        }
+        .mc-noimg svg { width: 2.6mm; height: 2.6mm; }
 
         @media print {
           /* L'écran d'administration entier disparaît : navigation, en-têtes,
@@ -445,68 +493,72 @@ function BadgeCard({ badge }: { badge: Badge }) {
 
   return (
     <div className="mc-badge">
-      <div className="mc-checker" />
-
-      <div className="mc-head">
-        {/* Le logo de l'organisateur, pas celui d'Aedral : c'est SPRINGS
-            E-SPORT qui accueille ces gens.
-            next/image est écarté ici volontairement : il charge en différé et
-            enveloppe l'image dans un conteneur dimensionné en pixels. Sur une
-            page faite pour l'imprimante, cela donne des badges sans logo et une
-            mise en page en millimètres cassée. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="mc-logo" src="/springs-esport.png" alt="" />
-        <div className="mc-lan">
-          <b>LAN</b>
-          <span>TRACKMANIA</span>
-        </div>
-        <div className="mc-event">MANIA CUP</div>
-        <div className="mc-when">3–4 octobre 2026 · Marzy</div>
+      {/* La catégorie occupe toute la hauteur : c'est ce qu'on lit à cinq
+          mètres, et rien ne peut la rogner. */}
+      <div className="mc-spine" style={{ background: cat.color }}>
+        <span>{cat.label}</span>
       </div>
 
-      <div className="mc-banner">
-        <div className="mc-name" style={{ fontSize: nameSize(badge.headline) }}>
-          {badge.headline}
-        </div>
-      </div>
+      <div className="mc-main">
+        <div className="mc-checker" />
 
-      <div className="mc-info">
-        {badge.detail && <div className="mc-detail">{badge.detail}</div>}
-        {badge.seat && (
-          <div className="mc-seat">
-            <span className="k">Place</span>
-            <span className="v">{badge.seat}</span>
+        <div className="mc-head">
+          {/* Le logo de l'organisateur, pas celui d'Aedral : c'est SPRINGS
+              E-SPORT qui accueille ces gens.
+              next/image est écarté ici volontairement : il charge en différé et
+              enveloppe l'image dans un conteneur dimensionné en pixels. Sur une
+              page faite pour l'imprimante, cela donne des badges sans logo et
+              une mise en page en millimètres cassée. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="mc-logo" src="/springs-esport.png" alt="" />
+          <div className="mc-lan">
+            <b>LAN</b>
+            <span>TRACKMANIA</span>
           </div>
-        )}
-      </div>
+          <div className="mc-event">MANIA CUP</div>
+          <div className="mc-when">3–4 octobre 2026 · Marzy</div>
+        </div>
 
-      <div className="mc-meta">
-        <span>aedral.com/mania-cup</span>
-        <span className="right">
-          {badge.noImage && (
-            <span className="mc-noimg" title="N’accepte pas d’être filmé">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-                aria-hidden
-              >
-                <path d="M2 2l20 20" />
-                <path d="M9 5h6l2 3h3v9" />
-                <path d="M4 8v11h13" />
-              </svg>
-            </span>
+        <div className="mc-point" />
+
+        <div className="mc-who">
+          <div className="mc-name" style={{ fontSize: nameSize(badge.headline) }}>
+            {badge.headline}
+          </div>
+          {badge.detail && <div className="mc-detail">{badge.detail}</div>}
+          {badge.seat && (
+            <div className="mc-seat">
+              <span className="k">Place</span>
+              <span className="v">{badge.seat}</span>
+            </div>
           )}
-          {badge.code && <span className="mc-code">{badge.code}</span>}
-        </span>
-      </div>
+        </div>
 
-      <div className="mc-cat" style={{ background: cat.color }}>
-        {cat.label}
+        <div className="mc-meta">
+          <span>aedral.com/mania-cup</span>
+          <span className="right">
+            {badge.noImage && (
+              <span className="mc-noimg" title="N’accepte pas d’être filmé">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  aria-hidden
+                >
+                  <path d="M2 2l20 20" />
+                  <path d="M9 5h6l2 3h3v9" />
+                  <path d="M4 8v11h13" />
+                </svg>
+              </span>
+            )}
+            {badge.code && <span className="mc-code">{badge.code}</span>}
+          </span>
+        </div>
+
+        <div className="mc-checker" />
       </div>
-      <div className="mc-checker" />
     </div>
   );
 }
