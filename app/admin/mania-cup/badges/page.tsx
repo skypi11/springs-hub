@@ -359,10 +359,13 @@ export default function BadgesPage() {
           padding: 2.4mm 3mm 2.2mm;
           text-align: center;
           border-bottom: 0.35mm solid rgba(0, 217, 54, 0.7);
+          /* Fond propre : sans lui, le ciel clair du circuit remonte derrière
+             la date et barre le titre d'une bande grise. */
+          background: linear-gradient(180deg, rgba(31, 25, 60, 0.94) 0%, rgba(23, 19, 46, 0.88) 100%);
         }
-        .mc-logo { height: 5mm; width: auto; display: block; margin: 0 auto; }
+        .mc-logo { height: 4mm; width: auto; display: block; margin: 0 auto; }
         .mc-lan {
-          margin-top: 1.8mm;
+          margin-top: 1.5mm;
           display: inline-flex;
           align-items: center;
           gap: 1.3mm;
@@ -377,12 +380,23 @@ export default function BadgesPage() {
           letter-spacing: 0.14em;
         }
         .mc-lan span { color: #00d936; }
+        /* Le nom de la compétition est SPRINGS MANIA CUP. Il se compose sur
+           deux niveaux, comme dans le blason de l'affiche. */
+        .mc-springs {
+          font-family: var(--font-display);
+          font-size: 3.4mm;
+          line-height: 1;
+          letter-spacing: 0.42em;
+          text-indent: 0.42em;
+          margin-top: 1.4mm;
+          color: #d6d1e6;
+        }
         .mc-event {
           font-family: var(--font-display);
           font-size: 7mm;
           line-height: 0.94;
           letter-spacing: 0.03em;
-          margin-top: 0.9mm;
+          margin-top: 0.2mm;
           background: linear-gradient(178deg, #ffffff 20%, #dfe3e9 48%, #8b929f 100%);
           -webkit-background-clip: text;
           background-clip: text;
@@ -515,6 +529,7 @@ function BadgeCard({ badge }: { badge: Badge }) {
             <b>LAN</b>
             <span>TRACKMANIA</span>
           </div>
+          <div className="mc-springs">SPRINGS</div>
           <div className="mc-event">MANIA CUP</div>
           <div className="mc-when">3–4 octobre 2026 · Marzy</div>
         </div>
