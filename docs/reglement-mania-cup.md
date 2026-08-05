@@ -109,8 +109,8 @@ Un billet spectateur ne se transforme pas en accès joueur sur place.
 **Chacun vient avec son matériel** : unité centrale, écran, clavier, souris,
 casque, câbles, multiprise.
 
-- Un **câble Ethernet de 5 mètres minimum** est indispensable : il n'y a pas de
-  Wi-Fi pour les joueurs.
+- Un **câble Ethernet de 10 mètres** est indispensable : il n'y a pas de Wi-Fi
+  pour les joueurs, et la longueur dépend de la place que vous occuperez.
 - Le **casque est obligatoire**. Les enceintes sont interdites.
 - L'organisation fournit l'électricité, le réseau, une table et une chaise.
 

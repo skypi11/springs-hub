@@ -26,6 +26,8 @@ export interface OrderItemView {
   ticket: TicketKind | null;
   /** Libellé brut, conservé pour l'affichage et le diagnostic. */
   tierLabel: string;
+  /** Nature déclarée par HelloAsso : billet, don, contribution… */
+  type: string;
   amountCents: number;
   state: string;
   /** Réponse brute au champ « code d'inscription », telle que saisie. */
@@ -130,6 +132,7 @@ export function parseOrder(order: HelloAssoOrder, opts: ParseOptions): OrderItem
       itemId: Number(item.id ?? 0),
       ticket: classifyTier(item, opts.tiers),
       tierLabel: item.name ?? item.tierDescription ?? '',
+      type: item.type ?? '',
       amountCents: Number(item.amount ?? 0),
       state: String(item.state ?? 'Unknown'),
       rawCode,
@@ -159,6 +162,24 @@ export function isItemValid(state: string): boolean {
 /** Une ligne annulée ou remboursée, qui doit défaire ce qu'elle avait produit. */
 export function isItemVoided(state: string): boolean {
   return state === 'Canceled' || state === 'Refused';
+}
+
+/**
+ * Cette ligne est-elle un don plutôt qu'un billet ?
+ *
+ * La billetterie propose d'ajouter un don à l'association au moment de payer,
+ * et HelloAsso ajoute sa propre contribution volontaire. Ni l'un ni l'autre
+ * n'ouvre de droit : sans cette distinction, chaque personne généreuse
+ * produirait un « tarif non reconnu » à traiter à la main.
+ *
+ * On regarde le type déclaré par HelloAsso en premier — c'est la donnée fiable —
+ * et le libellé en secours, pour les formulaires qui n'en portent pas.
+ */
+export function isDonationLike(item: Pick<OrderItemView, 'type' | 'tierLabel'>): boolean {
+  const type = (item.type ?? '').toLowerCase();
+  if (type === 'donation' || type === 'contribution') return true;
+  const label = normalizeLabel(item.tierLabel);
+  return /^(don|contribution|soutien)\b/.test(label);
 }
 
 /**
@@ -280,6 +301,15 @@ export function decideItem(item: OrderItemView, ctx: DecideContext): Outcome {
 
   if (!isItemValid(item.state)) {
     return { kind: 'ignore', reason: 'Paiement en cours d’autorisation' };
+  }
+
+  // Un don à l'association, ou la contribution volontaire au fonctionnement de
+  // HelloAsso : ce sont des lignes de commande comme les autres, mais elles
+  // n'ouvrent aucun droit et n'ont rien à faire dans la file de rattachement.
+  // La billetterie propose le don à côté des billets — sans cette porte, chaque
+  // personne généreuse produirait un « tarif non reconnu » à traiter à la main.
+  if (isDonationLike(item)) {
+    return { kind: 'ignore', reason: 'Don ou contribution, sans effet sur une inscription' };
   }
 
   if (!item.ticket) {

@@ -8,6 +8,7 @@ import {
   isItemValid,
   isItemVoided,
   assignCompanionTicket,
+  isDonationLike,
   type OrderItemView,
   type RegistrationSnapshot,
 } from './reconcile';
@@ -201,6 +202,7 @@ describe('decideItem', () => {
     itemId: 5001,
     ticket: 'player',
     tierLabel: 'Joueur',
+    type: 'Registration',
     amountCents: 3000,
     state: 'Processed',
     rawCode: 'LAN-4B2C',
@@ -438,5 +440,55 @@ describe('assignCompanionTicket', () => {
   it('survit à un billet sans nom de participant', () => {
     const out = assignCompanionTicket([], { itemId: 7005, participantName: '' }, 3);
     expect(out?.[0].name).toBe('Accompagnant');
+  });
+});
+
+describe('dons et contributions', () => {
+  const donation = (o: Partial<OrderItemView> = {}): OrderItemView => ({
+    orderId: 9001,
+    itemId: 6001,
+    ticket: null,
+    tierLabel: 'Don',
+    type: 'Donation',
+    amountCents: 500,
+    state: 'Processed',
+    rawCode: null,
+    code: null,
+    participantName: '',
+    payerName: 'Martine Dupont',
+    payerEmail: 'martine@example.org',
+    ...o,
+  });
+
+  it('reconnaît un don au type déclaré par HelloAsso', () => {
+    expect(isDonationLike({ type: 'Donation', tierLabel: 'peu importe' })).toBe(true);
+    expect(isDonationLike({ type: 'Contribution', tierLabel: '' })).toBe(true);
+  });
+
+  it('reconnaît un don à son libellé quand le type manque', () => {
+    expect(isDonationLike({ type: '', tierLabel: 'Don à l’association' })).toBe(true);
+    expect(isDonationLike({ type: '', tierLabel: 'Soutien' })).toBe(true);
+  });
+
+  it('ne prend pas un billet pour un don', () => {
+    expect(isDonationLike({ type: 'Registration', tierLabel: 'Billet Joueur' })).toBe(false);
+    // Piège : un tarif dont le nom CONTIENT « don » sans en être un.
+    expect(isDonationLike({ type: '', tierLabel: 'Billet Mondon' })).toBe(false);
+  });
+
+  it('laisse passer un don sans encombrer la file de rattachement', () => {
+    // La billetterie propose un don à côté des billets. Sans cette porte,
+    // chaque personne généreuse produirait un « tarif non reconnu » à traiter
+    // à la main.
+    const out = decideItem(donation(), { registration: null, expectedAmountCents: 3000 });
+    expect(out.kind).toBe('ignore');
+  });
+
+  it('ignore aussi un don accompagné d’un code recopié par erreur', () => {
+    const out = decideItem(donation({ code: 'LAN-4B2C', rawCode: 'LAN-4B2C' }), {
+      registration: { uid: 'discord_1', status: 'pending_payment' },
+      expectedAmountCents: 3000,
+    });
+    expect(out.kind).toBe('ignore');
   });
 });
