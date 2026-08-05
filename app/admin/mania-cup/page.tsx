@@ -52,7 +52,7 @@ type Row = {
   guardianDocs: Partial<Record<'consent' | 'guardian_id', { name: string }>>;
   guardianRejectionReason: string | null;
   registrationCode: string;
-  companion: { name: string; role: string; ticketPaid?: boolean } | null;
+  companions: { name: string; role: string; ticketItemId?: number | null }[];
   payment: { amountCents: number; payerName: string } | null;
   pcRental: { amountCents: number } | null;
   seat: string | null;
@@ -204,8 +204,10 @@ export default function AdminManiaCupPage() {
         r.ageAtEvent,
         r.ageAtEvent < 18 ? 'oui' : '',
         r.guardianConsent === 'not_required' ? '' : GUARDIAN_STATUS_LABELS[r.guardianConsent],
-        r.companion?.name ?? '',
-        r.companion ? (r.companion.ticketPaid ? 'réglé' : 'non réglé') : '',
+        r.companions.map((c) => c.name).join(' · '),
+        r.companions.length === 0
+          ? ''
+          : `${r.companions.filter((c) => c.ticketItemId != null).length}/${r.companions.length} réglé(s)`,
         r.pcRental ? 'oui' : '',
         r.seat ?? '',
         r.imageConsent === false ? 'REFUSÉ' : 'accordé',
@@ -406,23 +408,27 @@ export default function AdminManiaCupPage() {
                   </td>
                   <td className="py-4 pr-4 font-mono text-xs">{r.registrationCode}</td>
                   <td className="py-4 pr-4">
-                    {r.companion ? (
-                      <div>
-                        <div>{r.companion.name}</div>
-                        <div className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                          {r.companion.role}
-                        </div>
-                        {/* Le billet accompagnant donne accès à la zone joueurs :
-                            savoir s'il est réglé décide de qui entre. */}
-                        <div
-                          className="text-xs"
-                          style={{
-                            color: r.companion.ticketPaid ? 'var(--s-green)' : 'var(--s-gold)',
-                          }}
-                        >
-                          {r.companion.ticketPaid ? 'billet réglé' : 'billet non réglé'}
-                        </div>
-                      </div>
+                    {r.companions.length > 0 ? (
+                      <ul className="space-y-1.5">
+                        {r.companions.map((c, i) => (
+                          <li key={`${c.name}-${i}`}>
+                            <div>{c.name}</div>
+                            <div className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
+                              {c.role}
+                            </div>
+                            {/* Un billet accompagnant ouvre la zone joueurs :
+                                savoir s'il est réglé décide de qui entre. */}
+                            <div
+                              className="text-xs"
+                              style={{
+                                color: c.ticketItemId != null ? 'var(--s-green)' : 'var(--s-gold)',
+                              }}
+                            >
+                              {c.ticketItemId != null ? 'billet réglé' : 'billet non réglé'}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
                     ) : (
                       <span style={{ color: 'var(--s-text-muted)' }}>—</span>
                     )}

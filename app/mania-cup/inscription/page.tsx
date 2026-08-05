@@ -21,6 +21,7 @@ import {
   IDENTITY_DOC_KINDS,
   IDENTITY_DOC_LABELS,
   ageAtEvent,
+  MAX_COMPANIONS,
   type GuardianDocKind,
   type IdentityDocKind,
   type ManiaCupRegistration,
@@ -684,7 +685,7 @@ function Recap({
 
       {minor && <GuardianConsent reg={reg} identity={identity} onDone={onReload} />}
 
-      <Companion reg={reg} onDone={onReload} />
+      <Companions reg={reg} onDone={onReload} />
 
       <div className="flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6">
         <p className="text-sm text-[#8d89a8]">
@@ -787,23 +788,45 @@ function Checklist({ reg }: { reg: ManiaCupRegistration }) {
   );
 }
 
-// ── Accompagnant (billet staff) ─────────────────────────────────────────────
+// ── Accompagnants (billets « zone joueurs ») ────────────────────────────────
+//
+// Jusqu'à trois : beaucoup de joueurs n'en auront aucun, et une famille qui se
+// déplace n'a pas à choisir qui reste dehors.
+//
+// La déclaration sert à annoncer combien de personnes viennent. C'est le NOM DU
+// BILLET qui fera foi à l'entrée : quand le règlement arrive, il prend la place
+// du nom déclaré, parce que c'est celui qui sera contrôlé.
 
-function Companion({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => void }) {
+function Companions({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => void }) {
   const settings = useManiaCupSettings();
-  const existing = reg.companion ?? null;
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(existing?.name ?? '');
-  const [role, setRole] = useState(existing?.role ?? '');
+  const list = reg.companions ?? [];
+  const [adding, setAdding] = useState(false);
+  const [editIndex, setEditIndex] = useState<number | null>(null);
+  const [name, setName] = useState('');
+  const [role, setRole] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const full = list.length >= MAX_COMPANIONS;
+
+  function openForm(index: number | null) {
+    setEditIndex(index);
+    setName(index === null ? '' : (list[index]?.name ?? ''));
+    setRole(index === null ? '' : (list[index]?.role ?? ''));
+    setAdding(true);
+    setErr(null);
+  }
 
   async function save() {
     setBusy(true);
     setErr(null);
     try {
-      await api('/api/mania-cup/companion', { method: 'POST', body: { name, role } });
-      setEditing(false);
+      await api('/api/mania-cup/companion', {
+        method: 'POST',
+        body: editIndex === null ? { name, role } : { name, role, index: editIndex },
+      });
+      setAdding(false);
+      setEditIndex(null);
       onDone();
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : 'Enregistrement impossible.');
@@ -812,12 +835,11 @@ function Companion({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => v
     }
   }
 
-  async function remove() {
+  async function remove(index: number) {
     setBusy(true);
+    setErr(null);
     try {
-      await api('/api/mania-cup/companion', { method: 'DELETE' });
-      setName('');
-      setRole('');
+      await api(`/api/mania-cup/companion?index=${index}`, { method: 'DELETE' });
       onDone();
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : 'Suppression impossible.');
@@ -833,17 +855,18 @@ function Companion({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => v
         <div className="min-w-0 flex-1">
           <h3 className="font-display text-2xl">Tu viens accompagné ?</h3>
           <p className="mt-2 text-[#c9c5d8]">
-            Une personne peut t’accompagner dans la zone joueurs — coach, parent, ami.
-            Elle doit être déclarée ici et prendre un{' '}
+            Jusqu’à {MAX_COMPANIONS} personnes peuvent t’accompagner dans la zone
+            joueurs — parent, coach, ami. Chacune doit prendre un{' '}
             <strong className="text-white">
               billet accompagnant à {settings.companionEuros} €
             </strong>{' '}
             sur HelloAsso : un billet spectateur ne donne pas accès à cette zone.
           </p>
           <p className="mt-3 border-l-2 border-[#FFB800] pl-4 text-sm text-[#f2e6c8]">
-            Au moment de payer ce billet, <strong className="text-white">ton code
+            Au moment de payer, <strong className="text-white">ton code
             d’inscription {reg.registrationCode} doit être reporté</strong> — c’est lui
-            qui rattache l’accompagnant à toi. Peu importe qui règle : toi ou lui.
+            qui rattache l’accompagnant à toi. Peu importe qui règle, et plusieurs
+            billets peuvent être pris en une seule fois.
           </p>
           <div className="mt-4">
             <TicketButton
@@ -853,29 +876,49 @@ function Companion({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => v
             />
           </div>
 
-          {existing && !editing ? (
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border border-white/15 bg-black/30 p-4">
-              <div>
-                <div className="font-semibold">{existing.name}</div>
-                <div className="text-sm text-[#8d89a8]">{existing.role}</div>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setEditing(true)}
-                  className="text-sm text-[#a364d9] underline"
-                >
-                  Modifier
-                </button>
-                <button
-                  disabled={busy}
-                  onClick={() => void remove()}
-                  className="inline-flex items-center gap-1.5 text-sm text-[#8d89a8] hover:text-red-300 disabled:opacity-50"
-                >
-                  <Trash2 size={14} aria-hidden /> Retirer
-                </button>
-              </div>
-            </div>
-          ) : editing ? (
+          {list.length > 0 && (
+            <ul className="mt-5 space-y-3">
+              {list.map((c, i) => {
+                const paid = c.ticketItemId != null;
+                return (
+                  <li
+                    key={`${c.name}-${i}`}
+                    className="flex flex-wrap items-center justify-between gap-4 border border-white/15 bg-black/30 p-4"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-semibold">{c.name}</div>
+                      <div className="text-sm text-[#8d89a8]">{c.role}</div>
+                      <div
+                        className="mt-1 text-xs"
+                        style={{ color: paid ? '#00D936' : '#FFB800' }}
+                      >
+                        {paid ? 'Billet réglé' : 'Billet à régler'}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => openForm(i)}
+                        className="text-sm text-[#a364d9] underline"
+                      >
+                        Modifier
+                      </button>
+                      {!paid && (
+                        <button
+                          disabled={busy}
+                          onClick={() => void remove(i)}
+                          className="inline-flex items-center gap-1.5 text-sm text-[#8d89a8] hover:text-red-300 disabled:opacity-50"
+                        >
+                          <Trash2 size={14} aria-hidden /> Retirer
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {adding ? (
             <div className="mt-5 max-w-md space-y-4">
               <div>
                 <label htmlFor="comp-name" className="block text-sm text-[#c9c5d8]">
@@ -885,7 +928,7 @@ function Companion({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => v
                   id="comp-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="mt-2 w-full border border-white/15 bg-black/40 px-4 py-3 text-white outline-none focus:border-[#00D936]"
+                  className={FIELD}
                 />
               </div>
               <div>
@@ -897,7 +940,7 @@ function Companion({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => v
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
                   placeholder="Coach, parent, ami…"
-                  className="mt-2 w-full border border-white/15 bg-black/40 px-4 py-3 text-white outline-none focus:border-[#00D936]"
+                  className={FIELD}
                 />
               </div>
               <div className="flex items-center gap-3">
@@ -910,7 +953,10 @@ function Companion({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => v
                   Enregistrer
                 </button>
                 <button
-                  onClick={() => setEditing(false)}
+                  onClick={() => {
+                    setAdding(false);
+                    setEditIndex(null);
+                  }}
                   className="text-sm text-[#8d89a8] underline"
                 >
                   Annuler
@@ -918,12 +964,20 @@ function Companion({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => v
               </div>
             </div>
           ) : (
-            <button
-              onClick={() => setEditing(true)}
-              className="mt-5 border border-white/20 px-5 py-2.5 hover:bg-white/10"
-            >
-              Déclarer un accompagnant
-            </button>
+            !full && (
+              <button
+                onClick={() => openForm(null)}
+                className="mt-5 border border-white/20 px-5 py-2.5 hover:bg-white/10"
+              >
+                {list.length === 0 ? 'Déclarer un accompagnant' : 'Ajouter un accompagnant'}
+              </button>
+            )
+          )}
+
+          {full && !adding && (
+            <p className="mt-5 text-sm text-[#8d89a8]">
+              Tu as déclaré le maximum de {MAX_COMPANIONS} accompagnants.
+            </p>
           )}
 
           {err && <p className="mt-3 text-sm text-red-300">{err}</p>}

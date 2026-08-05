@@ -4,10 +4,18 @@ import { createNotification } from '@/lib/notifications';
 import { sendManiaCupDM } from '@/lib/discord-bot';
 import {
   MANIA_CUP_REGISTRATIONS,
+  MAX_COMPANIONS,
+  type ManiaCupCompanion,
   type ManiaCupRegistration,
 } from '@/lib/mania-cup';
 import { findUidByRegistrationCode } from '@/lib/mania-cup-server';
-import { decideItem, type Outcome, type OrderItemView, type RegistrationSnapshot } from './reconcile';
+import {
+  assignCompanionTicket,
+  decideItem,
+  type Outcome,
+  type OrderItemView,
+  type RegistrationSnapshot,
+} from './reconcile';
 import { TICKET_LABELS } from './types';
 
 // Application en base de ce qu'une ligne de commande a décidé.
@@ -17,6 +25,15 @@ import { TICKET_LABELS } from './types';
 // l'écriture reste un chemin unique, transactionnel, que le webhook comme la
 // réconciliation manuelle empruntent à l'identique. Deux chemins d'écriture
 // divergents finiraient par se contredire.
+
+/** Lecture tolérante : les tout premiers dossiers portaient un accompagnant
+ *  unique, sous un autre nom de champ. */
+function readCompanions(reg: ManiaCupRegistration | undefined): ManiaCupCompanion[] {
+  if (!reg) return [];
+  if (Array.isArray(reg.companions)) return reg.companions;
+  const legacy = (reg as { companion?: ManiaCupCompanion | null }).companion;
+  return legacy?.name ? [legacy] : [];
+}
 
 /** Journal des encaissements. L'identifiant du document est celui de la LIGNE
  *  de commande HelloAsso : c'est ce qui rend le traitement idempotent, alors
@@ -118,8 +135,15 @@ async function writeOutcome(
 ): Promise<boolean> {
   const paymentRef = db.collection(MANIA_CUP_PAYMENTS).doc(String(item.itemId));
 
+  const regRef =
+    'uid' in outcome ? db.collection(MANIA_CUP_REGISTRATIONS).doc(outcome.uid) : null;
+
   return db.runTransaction(async (tx) => {
+    // Toutes les lectures d'abord : Firestore l'exige, et l'attribution d'un
+    // billet accompagnant a besoin de la liste fraîche pour ne pas écraser un
+    // rattachement concurrent.
     const prevSnap = await tx.get(paymentRef);
+    const regSnap = regRef ? await tx.get(regRef) : null;
     const prev = prevSnap.data() as PaymentRecord | undefined;
 
     // Rejeu à l'identique : la ligne est dans le même état et a produit la même
@@ -151,9 +175,7 @@ async function writeOutcome(
 
     tx.set(paymentRef, record, { merge: true });
 
-    if ('uid' in outcome) {
-      const regRef = db.collection(MANIA_CUP_REGISTRATIONS).doc(outcome.uid);
-
+    if ('uid' in outcome && regRef) {
       if (outcome.kind === 'confirm_player') {
         tx.set(
           regRef,
@@ -191,14 +213,29 @@ async function writeOutcome(
       }
 
       if (outcome.kind === 'companion_paid') {
-        tx.set(
-          regRef,
-          {
-            companion: { ticketPaid: true, ticketPaidAt: FieldValue.serverTimestamp() },
-            updatedAt: FieldValue.serverTimestamp(),
-          },
-          { merge: true }
+        // Le billet porte le nom de son titulaire : c'est celui qui sera
+        // contrôlé à l'entrée, donc celui qui doit figurer sur le badge.
+        const reg = regSnap?.data() as ManiaCupRegistration | undefined;
+        const current = readCompanions(reg);
+        const next = assignCompanionTicket(
+          current,
+          { itemId: item.itemId, participantName: item.participantName },
+          MAX_COMPANIONS
         );
+        if (next) {
+          tx.set(
+            regRef,
+            {
+              companions: next.map((c) =>
+                c.ticketItemId === item.itemId
+                  ? { ...c, ticketPaidAt: FieldValue.serverTimestamp() }
+                  : c
+              ),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
       }
 
       if (outcome.kind === 'pc_rental') {

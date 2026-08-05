@@ -7,6 +7,7 @@ import {
   decideItem,
   isItemValid,
   isItemVoided,
+  assignCompanionTicket,
   type OrderItemView,
   type RegistrationSnapshot,
 } from './reconcile';
@@ -367,5 +368,75 @@ describe('decideItem', () => {
       expectedAmountCents: null,
     });
     expect(out).toMatchObject({ kind: 'needs_review' });
+  });
+});
+
+describe('assignCompanionTicket', () => {
+  const slot = (name: string, itemId: number | null = null) => ({
+    name,
+    role: 'Accompagnant',
+    ticketItemId: itemId,
+  });
+
+  it('sert la déclaration qui porte le même nom', () => {
+    const out = assignCompanionTicket(
+      [slot('Martine Dupont'), slot('Jean Martin')],
+      { itemId: 7001, participantName: 'Jean Martin' },
+      3
+    );
+    expect(out).toEqual([slot('Martine Dupont'), slot('Jean Martin', 7001)]);
+  });
+
+  it('ignore la casse et les accents du nom', () => {
+    const out = assignCompanionTicket(
+      [slot('Amélie Berthier')],
+      { itemId: 7002, participantName: 'AMELIE BERTHIER' },
+      3
+    );
+    expect(out?.[0].ticketItemId).toBe(7002);
+  });
+
+  it('adopte le nom du billet quand la déclaration était approximative', () => {
+    // Le joueur a écrit « Papa », le billet est au nom de son père. C'est ce
+    // dernier qui se présentera à l'accueil : c'est lui qui doit être sur le
+    // badge.
+    const out = assignCompanionTicket(
+      [slot('Papa')],
+      { itemId: 7003, participantName: 'Jean Martin' },
+      3
+    );
+    expect(out).toEqual([slot('Jean Martin', 7003)]);
+  });
+
+  it('ajoute un accompagnant que personne n’avait déclaré', () => {
+    const out = assignCompanionTicket([], { itemId: 7004, participantName: 'Zoé Blanc' }, 3);
+    expect(out).toEqual([slot('Zoé Blanc', 7004)]);
+  });
+
+  it('rattache trois billets à trois personnes distinctes', () => {
+    let list: ReturnType<typeof assignCompanionTicket> = [];
+    for (const [i, name] of ['Un', 'Deux', 'Trois'].entries()) {
+      list = assignCompanionTicket(list ?? [], { itemId: 8000 + i, participantName: name }, 3);
+    }
+    expect(list).toHaveLength(3);
+    expect(list?.map((c) => c.ticketItemId)).toEqual([8000, 8001, 8002]);
+  });
+
+  it('ne fait rien si le billet est déjà rattaché', () => {
+    // HelloAsso rejoue ses notifications jusqu'à obtenir un 200 : repasser
+    // deux fois ne doit pas créer un accompagnant fantôme.
+    const list = [slot('Jean Martin', 7001)];
+    expect(assignCompanionTicket(list, { itemId: 7001, participantName: 'Jean Martin' }, 3))
+      .toBeNull();
+  });
+
+  it('refuse de dépasser le quota du joueur', () => {
+    const full = [slot('A', 1), slot('B', 2), slot('C', 3)];
+    expect(assignCompanionTicket(full, { itemId: 4, participantName: 'D' }, 3)).toBeNull();
+  });
+
+  it('survit à un billet sans nom de participant', () => {
+    const out = assignCompanionTicket([], { itemId: 7005, participantName: '' }, 3);
+    expect(out?.[0].name).toBe('Accompagnant');
   });
 });

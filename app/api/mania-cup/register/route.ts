@@ -358,11 +358,58 @@ export async function POST(req: NextRequest) {
 
     await docRef.set(payload, { merge: true });
 
+    // Le formulaire de la LAN demande le pays et la date de naissance ; le
+    // profil Aedral les réclame aussi. Les reverser évite de faire saisir deux
+    // fois la même chose au joueur venu par le lien de l'événement — et lui
+    // évite de tomber sur l'assistant de complétion à sa visite suivante.
+    //
+    // On ne recouvre JAMAIS une valeur existante : le profil reste maître de
+    // ce qu'il porte déjà.
+    await backfillProfile(db, uid, { countryCode, birthDate, user });
+
     const saved = await docRef.get();
     return NextResponse.json({ registration: saved.data() });
   } catch (err) {
     captureApiError('mania-cup/register:POST', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+  }
+}
+
+/**
+ * Reverse dans le profil Aedral ce que l'inscription vient de collecter.
+ *
+ * Silencieux par construction : c'est un bonus de confort, pas une étape du
+ * parcours. Si Firestore refuse l'écriture, l'inscription reste valide — elle
+ * porte déjà toutes ces informations de son côté.
+ */
+async function backfillProfile(
+  db: FirebaseFirestore.Firestore,
+  uid: string,
+  input: { countryCode: string; birthDate: string; user: FirebaseFirestore.DocumentData }
+): Promise<void> {
+  try {
+    const patch: Record<string, unknown> = {};
+    if (!input.user.country) patch.country = input.countryCode;
+
+    // Le joueur vient s'inscrire à une LAN Trackmania : le jeu se déduit.
+    const games = Array.isArray(input.user.games) ? (input.user.games as string[]) : [];
+    if (!games.includes('trackmania')) patch.games = [...games, 'trackmania'];
+
+    // La date réelle vit dans user_secrets, le profil ne porte que le drapeau.
+    const secret = await db.collection('user_secrets').doc(uid).get();
+    if (!secret.data()?.dateOfBirth) {
+      await db
+        .collection('user_secrets')
+        .doc(uid)
+        .set({ dateOfBirth: input.birthDate }, { merge: true });
+      patch.hasDateOfBirth = true;
+    }
+
+    if (Object.keys(patch).length > 0) {
+      await db.collection('users').doc(uid).set(patch, { merge: true });
+    }
+  } catch (err) {
+    captureApiError('mania-cup/register:backfillProfile', err);
   }
 }
 

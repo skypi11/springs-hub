@@ -91,10 +91,13 @@ prévenez l'organisation : la place est rendue à la liste d'attente.
 
 ## 5. Accompagnants et spectateurs
 
-Un **accompagnant** — coach, parent, ami — peut entrer dans la **zone joueurs**.
-Il doit être déclaré par le joueur sur son espace et régler un **billet
-accompagnant à 20 €**, en reportant le code d'inscription du joueur qu'il
-accompagne. Un joueur, un accompagnant.
+**Jusqu'à trois accompagnants** — coach, parent, ami — peuvent entrer dans la
+**zone joueurs** avec un joueur. Chacun règle un **billet accompagnant à 20 €**,
+en reportant le code d'inscription du joueur qu'il accompagne. Les billets
+peuvent être pris en une seule fois.
+
+Le joueur déclare ses accompagnants depuis son espace. C'est le **nom figurant
+sur le billet** qui est contrôlé à l'entrée.
 
 Un **billet spectateur** (10 €, valable les deux jours) donne accès aux zones
 ouvertes au public, mais **pas** à la zone joueurs.
@@ -197,8 +200,8 @@ Aedral.
 ## 11. Dotation
 
 La dotation de **1 200 €** est répartie entre les mieux classés selon le barème
-publié sur la page de l'événement. Elle est versée **par virement dans les deux
-semaines** qui suivent la compétition.
+publié sur la page de l'événement. Elle est versée **par virement dans le mois**
+qui suit la compétition.
 
 Pour un joueur mineur, le versement est effectué au représentant légal.
 

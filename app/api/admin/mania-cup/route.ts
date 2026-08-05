@@ -8,8 +8,17 @@ import { clampString } from '@/lib/validation';
 import { getManiaCupSettings } from '@/lib/mania-cup-settings';
 import {
   MANIA_CUP_REGISTRATIONS,
+  type ManiaCupCompanion,
   type ManiaCupRegistration,
 } from '@/lib/mania-cup';
+
+/** Lecture tolérante : les tout premiers dossiers portaient un accompagnant
+ *  unique, sous un autre nom de champ. */
+function readCompanions(reg: ManiaCupRegistration): ManiaCupCompanion[] {
+  if (Array.isArray(reg.companions)) return reg.companions;
+  const legacy = (reg as { companion?: ManiaCupCompanion | null }).companion;
+  return legacy?.name ? [legacy] : [];
+}
 
 // Console d'organisation de la Springs Mania Cup.
 //
@@ -54,7 +63,7 @@ export async function GET(req: NextRequest) {
         ),
         guardianRejectionReason: r.guardianRejectionReason ?? null,
         registrationCode: r.registrationCode,
-        companion: r.companion ?? null,
+        companions: readCompanions(r),
         payment: r.payment ?? null,
         pcRental: r.pcRental ?? null,
         seat: r.seat ?? null,

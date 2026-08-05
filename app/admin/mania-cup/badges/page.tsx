@@ -36,7 +36,7 @@ type Row = {
   seat: string | null;
   imageConsent: boolean | null;
   registrationCode: string;
-  companion: { name: string; role: string; ticketPaid?: boolean } | null;
+  companions: { name: string; role: string; ticketItemId?: number | null }[];
 };
 
 type Payment = {
@@ -122,15 +122,17 @@ export default function BadgesPage() {
         noImage: r.imageConsent === false,
       });
 
-      if (r.companion?.ticketPaid) {
+      // Un badge par accompagnant dont le billet est réglé : chacun se présente
+      // à l'entrée avec le sien, et le nom imprimé est celui du billet.
+      for (const [i, c] of (r.companions ?? []).entries()) {
+        if (c.ticketItemId == null) continue;
         out.push({
-          key: `c-${r.uid}`,
+          key: `c-${r.uid}-${i}`,
           category: 'companion',
-          headline: r.companion.name,
-          detail: [
-            `Accompagne ${r.tmDisplayName || civil}`,
-            r.companion.role,
-          ].filter(Boolean).join(' · '),
+          headline: c.name,
+          detail: [`Accompagne ${r.tmDisplayName || civil}`, c.role]
+            .filter(Boolean)
+            .join(' · '),
           code: r.registrationCode,
         });
       }

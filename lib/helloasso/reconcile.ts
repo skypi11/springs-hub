@@ -161,6 +161,69 @@ export function isItemVoided(state: string): boolean {
   return state === 'Canceled' || state === 'Refused';
 }
 
+/**
+ * À quel accompagnant rattacher un billet qui vient d'être réglé.
+ *
+ * Deux listes se rejoignent ici : ce que le joueur a déclaré sur le site, et
+ * qui a réellement payé sur HelloAsso. Elles ne concordent pas toujours — un
+ * joueur annonce « mon père », le billet est au nom de « Jean Martin ».
+ *
+ * Règle : **le nom du billet fait foi**, parce que c'est celui qu'on
+ * contrôlera à l'entrée et qui figurera sur le badge. La déclaration sert à
+ * savoir combien de personnes viennent, pas à nommer qui entre.
+ *
+ * Renvoie la liste modifiée, ou null s'il n'y a rien à changer — ce qui rend
+ * l'opération sûre au rejeu.
+ */
+export function assignCompanionTicket(
+  companions: readonly CompanionSlot[],
+  ticket: { itemId: number; participantName: string },
+  max: number
+): CompanionSlot[] | null {
+  // Déjà rattaché : HelloAsso rejoue ses notifications, on ne double pas.
+  if (companions.some((c) => c.ticketItemId === ticket.itemId)) return null;
+
+  const wanted = normalizeLabel(ticket.participantName);
+
+  // 1. Le nom du billet correspond à une déclaration non encore réglée.
+  const byName = companions.findIndex(
+    (c) => c.ticketItemId == null && wanted && normalizeLabel(c.name) === wanted
+  );
+  if (byName !== -1) {
+    return companions.map((c, i) =>
+      i === byName ? { ...c, ticketItemId: ticket.itemId } : c
+    );
+  }
+
+  // 2. Une déclaration attend son billet : on la sert, en adoptant le nom du
+  //    porteur — c'est lui qui se présentera à l'accueil.
+  const firstFree = companions.findIndex((c) => c.ticketItemId == null);
+  if (firstFree !== -1) {
+    return companions.map((c, i) =>
+      i === firstFree
+        ? { ...c, name: ticket.participantName || c.name, ticketItemId: ticket.itemId }
+        : c
+    );
+  }
+
+  // 3. Personne n'attendait ce billet : quelqu'un a payé sans être déclaré.
+  //    On l'ajoute, tant que le joueur n'a pas dépassé son quota.
+  if (companions.length >= max) return null;
+  return [
+    ...companions,
+    { name: ticket.participantName || 'Accompagnant', role: 'Accompagnant', ticketItemId: ticket.itemId },
+  ];
+}
+
+/** Ce dont la règle d'attribution a besoin, et rien de plus. */
+export interface CompanionSlot {
+  name: string;
+  role: string;
+  ticketItemId?: number | null;
+  declaredAt?: unknown;
+  ticketPaidAt?: unknown;
+}
+
 /** L'inscription telle que la base la connaît, au moment de décider. */
 export interface RegistrationSnapshot {
   uid: string;

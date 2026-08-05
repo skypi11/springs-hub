@@ -24,7 +24,7 @@ Vue d'ensemble :
 | Nom du tarif | Prix | Stock | Code d'inscription demandé |
 |---|---|---|---|
 | `Joueur` | 30 € | 64 | **Oui, obligatoire** |
-| `Accompagnant` | 20 € | 64 | **Oui, obligatoire** (celui du joueur accompagné) |
+| `Accompagnant` | 20 € | 150 | **Oui, obligatoire** (celui du joueur accompagné) |
 | `Spectateur` | 10 € | capacité salle | Non |
 
 La **location de PC ne passe pas par la billetterie** : elle se fait dans une
@@ -58,9 +58,14 @@ dans l'ordre où il les demande. Ce qui n'est pas mentionné se laisse par défa
 | Nom du tarif | `Accompagnant` |
 | Type de tarif | Tarif payant, montant fixe |
 | Montant | `20` € |
-| Nombre de places | `64` |
-| Nombre maximum par commande | `1` |
-| Description (249 car.) | *Accès à la zone joueurs pour une personne qui accompagne un joueur inscrit : parent, coach, ami. Reporte le code d'inscription du joueur, qu'il trouve sur aedral.com/mania-cup. Un accompagnant par joueur. Un billet spectateur ne donne pas cet accès.* |
+| Nombre de places | selon la capacité de la salle |
+| Nombre maximum par commande | `3` |
+| Description (247 car.) | *Accès à la zone joueurs pour une personne qui accompagne un joueur inscrit : parent, coach, ami. Reporte le code d'inscription du joueur, qu'il trouve sur aedral.com/mania-cup. Trois par joueur au plus. Un billet spectateur ne donne pas cet accès.* |
+
+> **Trois par commande, et non un.** Une famille qui se déplace prend ses
+> billets d'un coup, avec le même code : le site les rattache tous les trois au
+> joueur, chacun avec le nom de son porteur — HelloAsso demande nom et prénom à
+> chaque billet.
 | Information complémentaire | **Oui** — voir §3 |
 
 ### Tarif 3 — `Spectateur`

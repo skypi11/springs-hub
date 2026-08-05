@@ -7,7 +7,15 @@ import { checkProfileCompletion } from '@/lib/profile-completion';
 import OnboardingWizard, { isOnboardingSkipped } from '@/components/onboarding/OnboardingWizard';
 
 // Routes toujours accessibles même profil incomplet (sinon on bloque la complétion).
-const ALLOWED_PATHS = ['/settings', '/api'];
+//
+// `/mania-cup` en fait partie, et c'est une décision, pas un oubli : le lien de
+// la LAN circule sur Discord et sur l'affiche. Quelqu'un qui le suit vient
+// s'inscrire à un événement, pas remplir un profil de plateforme — lui opposer
+// un questionnaire sur les jeux qu'il pratique et sa disponibilité au
+// recrutement, c'est le perdre entre le clic et l'inscription. Le formulaire de
+// la LAN demande de toute façon tout ce dont on a besoin, et il en reverse le
+// pays et la date de naissance dans le profil.
+const ALLOWED_PATHS = ['/settings', '/api', '/mania-cup'];
 
 export default function ProfileCompletionGate() {
   const { user, firebaseUser, loading, profileEnriched } = useAuth();

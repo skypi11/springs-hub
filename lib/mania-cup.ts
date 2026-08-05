@@ -265,20 +265,20 @@ export interface ManiaCupRegistration {
   /** Version du règlement acceptée à l'inscription — trace opposable. */
   rulebookAccepted?: { version: number; at: unknown; byUid: string } | null;
   /**
-   * Accompagnant déclaré par le joueur. Il achète un billet « staff » sur
-   * HelloAsso, qui lui donne accès à la ZONE JOUEURS — contrairement à un
-   * spectateur. D'où l'obligation de le rattacher à un joueur identifié :
-   * l'accueil doit pouvoir dire qui accompagne qui, et un billet staff ne peut
+   * Les accompagnants du joueur — trois au maximum.
+   *
+   * Un billet accompagnant donne accès à la ZONE JOUEURS, contrairement à un
+   * billet spectateur. D'où le rattachement obligatoire à un joueur identifié :
+   * l'accueil doit pouvoir dire qui accompagne qui, et un tel billet ne peut
    * pas circuler librement.
+   *
+   * La liste se remplit par deux chemins qui se rejoignent : le joueur déclare
+   * qui vient avec lui, et le règlement du billet sur HelloAsso apporte le nom
+   * du porteur. Quand les deux concordent, l'entrée est simplement marquée
+   * réglée ; sinon le nom du billet fait foi — c'est lui qui sera contrôlé à
+   * l'entrée.
    */
-  companion?: {
-    name: string;
-    role: string;
-    declaredAt?: unknown;
-    /** Passe à vrai quand le billet accompagnant a été réglé sur HelloAsso. */
-    ticketPaid?: boolean;
-    ticketPaidAt?: unknown;
-  } | null;
+  companions?: ManiaCupCompanion[];
   /**
    * Code unique à reporter dans le champ personnalisé de la billetterie
    * HelloAsso. C'est lui qui permet de relier un paiement à une inscription :
@@ -303,6 +303,34 @@ export interface ManiaCupRegistration {
   createdAt?: unknown;
   updatedAt?: unknown;
   paidAt?: unknown;
+}
+
+/**
+ * Un accompagnant : la personne, et l'état de son billet.
+ *
+ * `ticketItemId` est la ligne HelloAsso qui l'a réglé. Sa présence VAUT
+ * paiement — pas de drapeau séparé qui pourrait le contredire.
+ */
+export interface ManiaCupCompanion {
+  /** Nom tel qu'il figurera sur le badge et sur la liste d'émargement. */
+  name: string;
+  /** Lien avec le joueur : parent, coach, ami… */
+  role: string;
+  declaredAt?: unknown;
+  ticketItemId?: number | null;
+  ticketPaidAt?: unknown;
+}
+
+/**
+ * Combien d'accompagnants un joueur peut emmener.
+ *
+ * Trois, parce que beaucoup n'en auront aucun : le total reste tenable pour la
+ * salle, et une famille qui se déplace n'a pas à choisir qui reste dehors.
+ */
+export const MAX_COMPANIONS = 3;
+
+export function isCompanionPaid(c: ManiaCupCompanion): boolean {
+  return c.ticketItemId != null;
 }
 
 /** Ce qu'on garde d'un règlement encaissé sur HelloAsso. */
