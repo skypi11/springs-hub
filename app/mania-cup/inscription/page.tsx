@@ -11,6 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api, apiPublic, apiForm, ApiError } from '@/lib/api-client';
 import CountrySelect from '@/components/ui/CountrySelect';
 import TicketButton from '@/components/mania-cup/TicketButton';
+import WithdrawButton from '@/components/mania-cup/WithdrawButton';
 import { useManiaCupSettings } from '@/components/mania-cup/useManiaCupSettings';
 import {
   MANIA_CUP,
@@ -202,7 +203,15 @@ export default function InscriptionPage() {
   }
 
   const seats = ctx?.seats;
-  const reg = ctx?.registration ?? null;
+
+  // Une inscription retirée reste en base — la trace sert en cas de litige sur
+  // un paiement — mais elle ne vaut plus rien pour le joueur. Ne pas regarder
+  // son statut ici laissait le récapitulatif affiché après un retrait, avec le
+  // code et le bouton de paiement : le joueur croyait que rien ne s'était passé.
+  const storedReg = ctx?.registration ?? null;
+  const withdrawn = storedReg?.status === 'cancelled';
+  const reg = withdrawn ? null : storedReg;
+
   const tmLinked = Boolean(ctx?.trackmania?.accountId);
   const inGuild = ctx?.discord?.inGuild;
   const full = (seats?.remaining ?? 0) <= 0 && !reg;
@@ -248,6 +257,19 @@ export default function InscriptionPage() {
 
       {tmError && TM_ERRORS[tmError] && <Banner tone="warn">{TM_ERRORS[tmError]}</Banner>}
       {error && <Banner tone="error">{error}</Banner>}
+
+      {withdrawn && (
+        <div className="mt-8 flex gap-3 border border-white/15 bg-white/[0.03] p-5">
+          <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-[#00D936]" aria-hidden />
+          <div>
+            <div className="font-semibold">Ton inscription a bien été retirée</div>
+            <p className="mt-1 text-[#c9c5d8]">
+              Ta place est repartie à la vente. Tu peux te réinscrire ci-dessous tant
+              qu’il en reste — tes informations sont conservées, il n’y a qu’à valider.
+            </p>
+          </div>
+        </div>
+      )}
 
       {mustComplete && (
         <Banner tone="warn">
@@ -903,61 +925,6 @@ function Companion({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => v
           {err && <p className="mt-3 text-sm text-red-300">{err}</p>}
         </div>
       </div>
-    </div>
-  );
-}
-
-// ── Retrait d'inscription ───────────────────────────────────────────────────
-
-function WithdrawButton({ onDone }: { onDone: () => void }) {
-  const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function withdraw() {
-    setBusy(true);
-    setErr(null);
-    try {
-      await api('/api/mania-cup/register', { method: 'DELETE' });
-      onDone();
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Le retrait a échoué.');
-      setBusy(false);
-    }
-  }
-
-  if (err) {
-    return <p className="max-w-md text-sm text-red-300">{err}</p>;
-  }
-
-  if (!confirming) {
-    return (
-      <button
-        onClick={() => setConfirming(true)}
-        className="text-sm text-[#8d89a8] underline hover:text-red-300"
-      >
-        Retirer mon inscription
-      </button>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-sm text-[#c9c5d8]">Libérer ta place ?</span>
-      <button
-        disabled={busy}
-        onClick={() => void withdraw()}
-        className="inline-flex items-center gap-1.5 border border-red-500/40 px-3 py-1.5 text-sm text-red-300 hover:bg-red-500/10 disabled:opacity-50"
-      >
-        {busy && <Loader2 className="animate-spin" size={14} aria-hidden />}
-        Confirmer
-      </button>
-      <button
-        onClick={() => setConfirming(false)}
-        className="text-sm text-[#8d89a8] underline"
-      >
-        Annuler
-      </button>
     </div>
   );
 }
