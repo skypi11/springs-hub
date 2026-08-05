@@ -64,7 +64,8 @@ export async function GET(req: NextRequest) {
     });
 
     // Une inscription retirée ne compte dans aucun total : la laisser dans le
-    // « total » gonflait un chiffre que personne ne pouvait rapprocher.
+    // « total » gonflait un chiffre que personne ne pouvait rapprocher, et la
+    // faisait apparaître dans les dossiers parentaux à relire.
     const active = registrations.filter((r) => r.status !== 'cancelled');
 
     const counts = {
