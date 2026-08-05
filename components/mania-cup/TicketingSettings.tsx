@@ -20,8 +20,11 @@ import {
 
 const MONEY: { key: NumericSettingKey; label: string; help?: string }[] = [
   { key: 'priceEuros', label: 'Inscription joueur', help: 'Le tarif affiché partout sur le site.' },
-  { key: 'spectatorDayEuros', label: 'Spectateur — une journée' },
-  { key: 'spectatorTwoDaysEuros', label: 'Spectateur — deux jours' },
+  {
+    key: 'spectatorEuros',
+    label: 'Spectateur',
+    help: 'Un seul billet public, valable les deux jours.',
+  },
   {
     key: 'companionEuros',
     label: 'Accompagnant',

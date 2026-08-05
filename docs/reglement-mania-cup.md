@@ -98,8 +98,8 @@ Il doit être déclaré par le joueur sur son espace et régler un **billet
 accompagnant à 20 €**, en reportant le code d'inscription du joueur qu'il
 accompagne. Un joueur, un accompagnant.
 
-Un **billet spectateur** (10 € la journée, 15 € le week-end) donne accès aux
-zones ouvertes au public, mais **pas** à la zone joueurs.
+Un **billet spectateur** (10 €, valable les deux jours) donne accès aux zones
+ouvertes au public, mais **pas** à la zone joueurs.
 
 Un billet spectateur ne se transforme pas en accès joueur sur place.
 
@@ -113,11 +113,13 @@ casque, câbles, multiprise.
 - Le **casque est obligatoire**. Les enceintes sont interdites.
 - L'organisation fournit l'électricité, le réseau, une table et une chaise.
 
-**⟨Nombre de postes⟩ postes** peuvent être loués auprès de l'organisation, au
-tarif de **⟨prix⟩ €** pour le week-end. La réservation se fait sur HelloAsso, en
-reportant son code d'inscription. Le stock est limité et la réservation ferme
-avant les inscriptions. Les périphériques (casque, clavier, souris) ne sont pas
-inclus.
+Du matériel peut être **loué auprès de l'organisation** pour le week-end : poste
+fixe, ordinateur portable ou écran seul. La réservation et le règlement se font
+sur la boutique en ligne de l'association, en reportant son code d'inscription.
+Le stock est limité et la réservation ferme avant les inscriptions. Les
+périphériques — casque, clavier, souris — ne sont pas inclus dans la location
+d'un écran seul. Tarifs et disponibilités sont annoncés sur la page de
+l'événement.
 
 **Le matériel apporté reste sous la responsabilité de son propriétaire.**
 L'assurance de l'association ne couvre ni le vol, ni la casse, ni les dommages

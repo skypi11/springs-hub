@@ -400,7 +400,7 @@ export default async function ManiaCupPage() {
               <p className="mt-4 max-w-xl leading-relaxed text-[#c9c5d8]">
                 L’événement est ouvert au public : une scène, un plateau commenté en
                 direct, et la compétition qui se joue devant toi. À partir de{' '}
-                <strong className="text-white">{settings.spectatorDayEuros} €</strong>,
+                <strong className="text-white">{settings.spectatorEuros} €</strong> les deux jours,
                 gratuit pour les moins de 12 ans. Aucun compte à créer.
               </p>
             </div>

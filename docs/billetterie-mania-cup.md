@@ -14,7 +14,7 @@
 - Clôture des ventes : à décider — au minimum quelques jours avant, pour avoir
   le temps de préparer les postes et les badges.
 
-## 2. Les cinq tarifs, un par un
+## 2. Les trois tarifs, un par un
 
 Vue d'ensemble :
 
@@ -22,9 +22,10 @@ Vue d'ensemble :
 |---|---|---|---|
 | `Joueur` | 30 € | 64 | **Oui, obligatoire** |
 | `Accompagnant` | 20 € | 64 | **Oui, obligatoire** (celui du joueur accompagné) |
-| `Spectateur 1 jour` | 10 € | capacité salle | Non |
-| `Spectateur 2 jours` | 15 € | capacité salle | Non |
-| `Location PC` | **à définir** | nb de postes | **Oui, obligatoire** |
+| `Spectateur` | 10 € | capacité salle | Non |
+
+La **location de PC ne passe pas par la billetterie** : elle se fait dans une
+*boutique* HelloAsso à part, comme lors de la précédente LAN. Voir §2 bis.
 
 Le détail de chaque tarif suit. Les champs sont ceux du formulaire HelloAsso,
 dans l'ordre où il les demande. Ce qui n'est pas mentionné se laisse par défaut.
@@ -59,56 +60,51 @@ dans l'ordre où il les demande. Ce qui n'est pas mentionné se laisse par défa
 | Description | *Accès à la zone joueurs pour une personne qui accompagne un joueur inscrit : parent, coach ou ami. Un accompagnant par joueur. Ce billet n'est pas un billet spectateur, et un billet spectateur ne donne pas accès à cette zone.* |
 | Information complémentaire | **Oui** — voir §3 |
 
-### Tarif 3 — `Spectateur 1 jour`
+### Tarif 3 — `Spectateur`
+
+Un seul billet public, valable les deux jours. La formule à la journée a été
+abandonnée : elle compliquait le contrôle à l'entrée (deux couleurs de bracelet,
+un billet d'un jour qui devient un pass week-end) pour cinq euros d'écart.
 
 | Champ HelloAsso | Ce qu'on met |
 |---|---|
-| Nom du tarif | `Spectateur 1 jour` |
+| Nom du tarif | `Spectateur` |
 | Type de tarif | Tarif payant, montant fixe |
 | Montant | `10` € |
 | Nombre de places | La capacité que la salle autorise — **demandez le chiffre à la mairie avant d'ouvrir la vente** |
-| Description | *Accès aux zones ouvertes au public pour une journée, samedi ou dimanche. Ne donne pas accès à la zone joueurs.* |
+| Description | *Accès aux zones ouvertes au public, samedi et dimanche. Ne donne pas accès à la zone joueurs.* |
 | Information complémentaire | Non |
-
-### Tarif 4 — `Spectateur 2 jours`
-
-Identique au précédent, à trois différences près :
-
-| Champ HelloAsso | Ce qu'on met |
-|---|---|
-| Nom du tarif | `Spectateur 2 jours` |
-| Montant | `15` € |
-| Description | *Accès aux zones ouvertes au public le samedi et le dimanche. Ne donne pas accès à la zone joueurs.* |
-
-### Tarif 5 — `Location PC`
-
-À créer **quand le prix sera connu**. La billetterie peut ouvrir sans lui ; un
-tarif s'ajoute à tout moment.
-
-| Champ HelloAsso | Ce qu'on met |
-|---|---|
-| Nom du tarif | `Location PC` |
-| Type de tarif | Tarif payant, montant fixe |
-| Montant | **à définir** |
-| Nombre de places | Le nombre réel de machines disponibles, pas un chiffre rond |
-| Nombre maximum par commande | `1` |
-| Description | *Un poste complet fourni sur place pour le week-end : unité centrale et écran. Périphériques non inclus, apporte ton casque, ton clavier et ta souris. Stock très limité.* |
-| Information complémentaire | **Oui** — voir §3 |
-
-> **Fermez la vente de ce tarif plus tôt que les autres** (une à deux semaines
-> avant), le temps de réunir les machines.
-
-> **Une location n'est pas une inscription.** Le site l'enregistre sur le
-> dossier du joueur sans jamais valider sa place : quelqu'un peut réserver un
-> poste et ne jamais régler ses 30 €.
 
 ---
 
-**Reste à trancher : la gratuité des moins de 12 ans côté spectateurs.** Soit un
-tarif à 0 € (ils apparaissent alors dans les effectifs, ce qui compte pour la
-capacité de la salle), soit rien du tout et on les laisse entrer à l'accueil.
-Le site annonce déjà la gratuité sur la page spectateurs : les deux options
-tiennent, mais il faut en choisir une.
+**Reste à trancher : la gratuité des moins de 12 ans.** Soit un tarif à 0 € (ils
+apparaissent alors dans les effectifs, ce qui compte pour la capacité de la
+salle), soit rien du tout et on les laisse entrer à l'accueil. Le site annonce
+déjà la gratuité sur la page spectateurs : les deux tiennent, mais il faut en
+choisir une.
+
+## 2 bis. La location de PC — une boutique, pas un tarif
+
+La précédente LAN a vendu les locations dans une **boutique** HelloAsso
+(« Location PC Joueur Springs League Séries #2 », 9 locations, 735 €), avec un
+produit par matériel : PC fixe, PC portable, écran seul. C'est le bon outil —
+une boutique gère des produits avec photo, description détaillée et stock par
+référence, ce qu'un tarif de billetterie ne sait pas faire.
+
+On repart donc sur une boutique, à créer quand Page 404 aura confirmé le parc.
+Prix de la LAN précédente, à titre de repère : PC fixe 90 €, PC portable 60 €,
+écran 15 €, pour le week-end.
+
+**Ajoutez-y le champ `Code d'inscription`, obligatoire**, exactement comme sur
+les tarifs de la billetterie : c'est ce qui permet de savoir quel joueur a
+réservé quelle machine, et de le faire figurer sur sa fiche.
+
+> **Une location n'est jamais une inscription.** Le site la note sur le dossier
+> du joueur sans toucher à son statut : quelqu'un peut réserver un poste et ne
+> jamais régler ses 30 €.
+
+> **Fermez la boutique plus tôt que la billetterie** — une à deux semaines
+> avant — le temps de réunir les machines.
 
 ## 3. Le champ « code d'inscription » — le point critique
 
@@ -128,13 +124,15 @@ Pour chacun des trois tarifs concernés :
 | Tarif | Libellé du champ | Type | Obligatoire |
 |---|---|---|---|
 | `Joueur` | `Code d'inscription` | Texte court | **Oui** |
-| `Location PC` | `Code d'inscription` | Texte court | **Oui** |
 | `Accompagnant` | `Code d'inscription du joueur accompagné` | Texte court | **Oui** |
+
+Et, dans la **boutique** de location, le même champ `Code d'inscription` sur
+chaque produit.
 
 Textes d'aide à mettre sous le champ :
 
-- Joueur et Location PC : *Le code affiché sur ton espace d'inscription, au
-  format LAN-XXXX.*
+- Joueur et produits de location : *Le code affiché sur ton espace
+  d'inscription, au format LAN-XXXX.*
 - Accompagnant : *Le joueur que tu accompagnes te le communique depuis son
   espace d'inscription. Format LAN-XXXX.*
 
@@ -165,8 +163,8 @@ Alignez le texte HelloAsso dessus, sinon les deux se contrediront.
 
 ## 6. Une fois la billetterie créée
 
-1. Copier les **quatre liens** (joueur, spectateurs, accompagnant, location de
-   poste) et les coller dans `aedral.com/admin/mania-cup` → onglet
+1. Copier les **liens** (billetterie, et la boutique de location quand elle
+   existera) et les coller dans `aedral.com/admin/mania-cup` → onglet
    **Configuration** → *Tarifs et billetterie*. Les boutons de paiement du site
    s'activent aussitôt.
 2. Créer les **clés d'API** : *Mon Compte → Intégrations et API*. Elles donnent

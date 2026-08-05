@@ -21,12 +21,11 @@ const TIERS = parseTierMap(
   JSON.stringify({
     '101': 'player',
     '102': 'companion',
-    '103': 'spectator_day',
-    '104': 'spectator_2days',
+    '103': 'spectator',
     '105': 'pc_rental',
     Joueur: 'player',
     Accompagnant: 'companion',
-    'Spectateur 1 jour': 'spectator_day',
+    'Spectateur': 'spectator',
   })
 );
 
@@ -67,7 +66,7 @@ describe('parseTierMap / classifyTier', () => {
   });
 
   it('tolère la casse, les accents et les espaces en trop', () => {
-    expect(classifyTier({ name: 'spectateur 1 JOUR' }, TIERS)).toBe('spectator_day');
+    expect(classifyTier({ name: 'SPECTATEUR' }, TIERS)).toBe('spectator');
     expect(classifyTier({ name: '  Accompagnant  ' }, TIERS)).toBe('companion');
   });
 
@@ -238,7 +237,7 @@ describe('decideItem', () => {
   });
 
   it('range un billet spectateur sans toucher à un dossier', () => {
-    const out = decideItem(view({ ticket: 'spectator_2days', code: null, rawCode: null }), {
+    const out = decideItem(view({ ticket: 'spectator', code: null, rawCode: null }), {
       registration: null,
       expectedAmountCents: null,
     });

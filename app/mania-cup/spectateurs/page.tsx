@@ -19,14 +19,9 @@ export default function SpectateursPage() {
   const settings = useManiaCupSettings();
   const TARIFS = [
     {
-      price: `${settings.spectatorDayEuros} €`,
-      title: 'Une journée',
-      desc: 'Le samedi ou le dimanche, au choix.',
-    },
-    {
-      price: `${settings.spectatorTwoDaysEuros} €`,
+      price: `${settings.spectatorEuros} €`,
       title: 'Les deux jours',
-      desc: 'Samedi et dimanche. La formule la plus intéressante si tu suis la compétition.',
+      desc: 'Samedi et dimanche, un seul billet. Tu peux venir l’un, l’autre ou les deux.',
       highlight: true,
     },
     {

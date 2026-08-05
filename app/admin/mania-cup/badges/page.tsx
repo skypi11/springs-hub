@@ -138,13 +138,13 @@ export default function BadgesPage() {
 
     if (showSpectators) {
       for (const p of payments.data?.payments ?? []) {
-        if (p.ticket !== 'spectator_day' && p.ticket !== 'spectator_2days') continue;
+        if (p.ticket !== 'spectator') continue;
         if (p.state !== 'Processed' && p.state !== 'Registered') continue;
         out.push({
           key: `s-${p.itemId}`,
           category: 'spectator',
           headline: p.participantName || p.payerName || 'Spectateur',
-          detail: p.ticket === 'spectator_2days' ? 'Pass deux jours' : 'Une journée',
+          detail: 'Pass deux jours',
         });
       }
     }

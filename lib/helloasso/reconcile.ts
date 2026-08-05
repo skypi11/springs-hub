@@ -226,7 +226,7 @@ export function decideItem(item: OrderItemView, ctx: DecideContext): Outcome {
     return { kind: 'needs_review', reason: `Tarif non reconnu : « ${item.tierLabel} »` };
   }
 
-  if (item.ticket === 'spectator_day' || item.ticket === 'spectator_2days') {
+  if (item.ticket === 'spectator') {
     return { kind: 'spectator' };
   }
 

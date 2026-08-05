@@ -76,8 +76,7 @@ export interface HelloAssoNotification {
 export const TICKET_KINDS = [
   'player',
   'companion',
-  'spectator_day',
-  'spectator_2days',
+  'spectator',
   'pc_rental',
 ] as const;
 export type TicketKind = (typeof TICKET_KINDS)[number];
@@ -85,8 +84,7 @@ export type TicketKind = (typeof TICKET_KINDS)[number];
 export const TICKET_LABELS: Record<TicketKind, string> = {
   player: 'Joueur',
   companion: 'Accompagnant',
-  spectator_day: 'Spectateur 1 jour',
-  spectator_2days: 'Spectateur 2 jours',
+  spectator: 'Spectateur',
   pc_rental: 'Location PC',
 };
 

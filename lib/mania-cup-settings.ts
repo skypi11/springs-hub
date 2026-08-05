@@ -33,8 +33,8 @@ export interface ManiaCupSettings {
   helloAssoCodeField: string;
   // Tarifs et jauge
   priceEuros: number;
-  spectatorDayEuros: number;
-  spectatorTwoDaysEuros: number;
+  /** Billet public, valable les deux jours. */
+  spectatorEuros: number;
   companionEuros: number;
   /** Zéro tant que le prix n'est pas arrêté : les boutons restent alors muets
    *  plutôt que d'annoncer une location à 0 €. */
@@ -51,8 +51,7 @@ export const DEFAULT_SETTINGS: ManiaCupSettings = {
   helloAssoTierMap: '',
   helloAssoCodeField: 'Code d’inscription',
   priceEuros: MANIA_CUP.priceEuros,
-  spectatorDayEuros: MANIA_CUP.spectatorDayEuros,
-  spectatorTwoDaysEuros: MANIA_CUP.spectatorTwoDaysEuros,
+  spectatorEuros: MANIA_CUP.spectatorEuros,
   companionEuros: MANIA_CUP.companionEuros,
   pcRentalEuros: 0,
   prizePoolEuros: MANIA_CUP.prizePoolEuros,
@@ -63,8 +62,7 @@ export const DEFAULT_SETTINGS: ManiaCupSettings = {
  *  l'événement sans que personne comprenne pourquoi. */
 export const SETTINGS_BOUNDS = {
   priceEuros: { min: 0, max: 500 },
-  spectatorDayEuros: { min: 0, max: 500 },
-  spectatorTwoDaysEuros: { min: 0, max: 500 },
+  spectatorEuros: { min: 0, max: 500 },
   companionEuros: { min: 0, max: 500 },
   pcRentalEuros: { min: 0, max: 500 },
   prizePoolEuros: { min: 0, max: 100_000 },
@@ -98,14 +96,10 @@ export function mergeSettings(data: FirebaseFirestore.DocumentData | undefined):
         ? normalizeNumber('pcRentalEuros', d.pcRentalEuros)
         : DEFAULT_SETTINGS.pcRentalEuros,
     priceEuros: d.priceEuros != null ? normalizeNumber('priceEuros', d.priceEuros) : DEFAULT_SETTINGS.priceEuros,
-    spectatorDayEuros:
-      d.spectatorDayEuros != null
-        ? normalizeNumber('spectatorDayEuros', d.spectatorDayEuros)
-        : DEFAULT_SETTINGS.spectatorDayEuros,
-    spectatorTwoDaysEuros:
-      d.spectatorTwoDaysEuros != null
-        ? normalizeNumber('spectatorTwoDaysEuros', d.spectatorTwoDaysEuros)
-        : DEFAULT_SETTINGS.spectatorTwoDaysEuros,
+    spectatorEuros:
+      d.spectatorEuros != null
+        ? normalizeNumber('spectatorEuros', d.spectatorEuros)
+        : DEFAULT_SETTINGS.spectatorEuros,
     companionEuros:
       d.companionEuros != null
         ? normalizeNumber('companionEuros', d.companionEuros)
