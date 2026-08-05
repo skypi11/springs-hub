@@ -16,6 +16,7 @@ import {
   Download, Trash2, Link2, RefreshCw, Share2, Bell, ChevronRight,
 } from 'lucide-react';
 import SharingSection from '@/components/settings/SharingSection';
+import TrackmaniaIdentityBlock from '@/components/settings/TrackmaniaIdentityBlock';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import { checkProfileCompletion } from '@/lib/profile-completion';
 import PublicPreviewFrame from '@/components/ui/PublicPreviewFrame';
@@ -1268,20 +1269,14 @@ export default function SettingsPage() {
                           <span className="tag tag-green" style={{ fontSize: '12px' }}>TM</span>
                           <span className="t-label" style={{ color: 'var(--s-green)' }}>Config Trackmania</span>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div>
-                            <label className="t-label block mb-2">Pseudo Ubisoft/Nadeo *</label>
-                            <input type="text" value={form.pseudoTM}
-                              onChange={e => updateForm({ pseudoTM: e.target.value })}
-                              className="settings-input w-full" placeholder="Ton pseudo en jeu" />
-                          </div>
-                          <div>
-                            <label className="t-label block mb-2">Login TM (optionnel)</label>
-                            <input type="text" value={form.loginTM}
-                              onChange={e => updateForm({ loginTM: e.target.value })}
-                              className="settings-input w-full" placeholder="Identifiant Ubisoft/Nadeo" />
-                          </div>
-                        </div>
+                        <TrackmaniaIdentityBlock
+                          verified={Boolean(user?.tmVerifiedAt)}
+                          pseudo={form.pseudoTM}
+                          manualPseudo={form.pseudoTM}
+                          manualLogin={form.loginTM}
+                          onManualChange={(v: string) => updateForm({ pseudoTM: v })}
+                          onManualLoginChange={(v: string) => updateForm({ loginTM: v })}
+                        />
                         <div>
                           <label className="t-label block mb-2">URL Trackmania.io *</label>
                           <input type="url" value={form.tmIoUrl}

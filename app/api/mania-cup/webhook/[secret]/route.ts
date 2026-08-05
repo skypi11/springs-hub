@@ -190,11 +190,20 @@ function extractOrderId(eventType: string, data: Record<string, unknown> | undef
   return Number.isFinite(id) && id > 0 ? id : null;
 }
 
-/** La commande vient-elle bien de la billetterie de la Mania Cup ? */
+/**
+ * La commande relève-t-elle de la Mania Cup ?
+ *
+ * L'adresse de notification est commune à toute l'association : elle reçoit
+ * aussi ses adhésions, ses dons et ses autres événements. On ne retient que les
+ * formulaires déclarés — la billetterie, et la boutique de location quand elle
+ * existera.
+ */
 function belongsToUs(order: HelloAssoOrder, cfg: HelloAssoConfig): boolean {
-  if (order.formSlug && order.formSlug !== cfg.formSlug) return false;
   if (order.organizationSlug && order.organizationSlug !== cfg.organizationSlug) return false;
-  return true;
+  if (!order.formSlug) return true;
+  return cfg.forms.some(
+    (f) => f.slug === order.formSlug && (!order.formType || f.type === order.formType)
+  );
 }
 
 // HelloAsso teste l'adresse en GET au moment où on la déclare. Répondre 200

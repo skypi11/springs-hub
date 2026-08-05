@@ -19,13 +19,28 @@ const TOKEN_DOC = '_helloasso/oauth';
  *  que de découvrir l'expiration au milieu d'un rattachement. */
 const EXPIRY_MARGIN_MS = 60_000;
 
+/**
+ * Un formulaire HelloAsso dont on lit les commandes.
+ *
+ * L'événement en a deux, de natures différentes : la BILLETTERIE (`Event`)
+ * pour les inscriptions et les entrées, et une BOUTIQUE (`Shop`) pour la
+ * location de matériel — une boutique gère des produits avec photo,
+ * description et stock par référence, ce qu'un tarif de billetterie ne sait
+ * pas faire. Les deux vivent sous la même association et arrivent par la même
+ * notification : c'est le type et l'identifiant qui les distinguent.
+ */
+export interface HelloAssoForm {
+  type: 'Event' | 'Shop';
+  slug: string;
+}
+
 export interface HelloAssoConfig {
   clientId: string;
   clientSecret: string;
   /** Identifiant de l'association dans les URL HelloAsso. */
   organizationSlug: string;
-  /** Identifiant du formulaire de billetterie. */
-  formSlug: string;
+  /** Les formulaires du périmètre Mania Cup. Le premier est la billetterie. */
+  forms: HelloAssoForm[];
   /** Bascule vers le bac à sable pour les essais. */
   apiBase: string;
 }
@@ -39,11 +54,19 @@ export function getHelloAssoConfig(): HelloAssoConfig | null {
   const organizationSlug = (process.env.HELLOASSO_ORG_SLUG || '').trim();
   const formSlug = (process.env.HELLOASSO_FORM_SLUG || '').trim();
   if (!clientId || !clientSecret || !organizationSlug || !formSlug) return null;
+
+  const forms: HelloAssoForm[] = [{ type: 'Event', slug: formSlug }];
+
+  // La boutique de location arrivera plus tard : le connecteur la lit dès
+  // qu'elle est déclarée, sans autre changement.
+  const shopSlug = (process.env.HELLOASSO_SHOP_SLUG || '').trim();
+  if (shopSlug) forms.push({ type: 'Shop', slug: shopSlug });
+
   return {
     clientId,
     clientSecret,
     organizationSlug,
-    formSlug,
+    forms,
     apiBase: (process.env.HELLOASSO_API_BASE || 'https://api.helloasso.com').trim(),
   };
 }
@@ -182,27 +205,29 @@ export async function* iterateFormOrders(
   cfg: HelloAssoConfig,
   pageSize = 100
 ): AsyncGenerator<HelloAssoOrder> {
-  let token: string | undefined;
-  // Borne de sécurité : sans elle, un jeton de pagination qui ne bouge pas
-  // ferait tourner la réconciliation jusqu'au délai maximal de la fonction.
-  for (let page = 0; page < 50; page++) {
-    const qs = new URLSearchParams({
-      pageSize: String(pageSize),
-      withDetails: 'true',
-    });
-    if (token) qs.set('continuationToken', token);
+  for (const form of cfg.forms) {
+    let token: string | undefined;
+    // Borne de sécurité : sans elle, un jeton de pagination qui ne bouge pas
+    // ferait tourner la réconciliation jusqu'au délai maximal de la fonction.
+    for (let page = 0; page < 50; page++) {
+      const qs = new URLSearchParams({
+        pageSize: String(pageSize),
+        withDetails: 'true',
+      });
+      if (token) qs.set('continuationToken', token);
 
-    const res = await apiFetch<PagedOrders>(
-      db,
-      cfg,
-      `/v5/organizations/${cfg.organizationSlug}/forms/Event/${cfg.formSlug}/orders?${qs}`
-    );
+      const res = await apiFetch<PagedOrders>(
+        db,
+        cfg,
+        `/v5/organizations/${cfg.organizationSlug}/forms/${form.type}/${form.slug}/orders?${qs}`
+      );
 
-    for (const order of res.data ?? []) yield order;
+      for (const order of res.data ?? []) yield order;
 
-    const next = res.pagination?.continuationToken;
-    if (!next || next === token || (res.data ?? []).length === 0) return;
-    token = next;
+      const next = res.pagination?.continuationToken;
+      if (!next || next === token || (res.data ?? []).length === 0) break;
+      token = next;
+    }
   }
 }
 
@@ -210,24 +235,43 @@ export interface HelloAssoTier {
   id: number;
   label: string;
   priceCents: number;
+  /** D'où vient ce tarif : la billetterie ou la boutique. */
+  formType: HelloAssoForm['type'];
+  formSlug: string;
 }
 
 /**
- * Les tarifs du formulaire, pour que l'organisation associe chacun à sa
- * catégorie sans avoir à recopier des identifiants à la main.
+ * Les tarifs et produits de tous les formulaires du périmètre, pour que
+ * l'organisation associe chacun à sa catégorie sans recopier d'identifiants.
+ *
+ * Un formulaire injoignable n'interrompt pas les autres : la boutique peut être
+ * déclarée avant d'exister, ou archivée après l'événement.
  */
 export async function fetchFormTiers(
   db: Firestore,
   cfg: HelloAssoConfig
 ): Promise<HelloAssoTier[]> {
-  const res = await apiFetch<{ tiers?: { id?: number; label?: string; price?: number }[] }>(
-    db,
-    cfg,
-    `/v5/organizations/${cfg.organizationSlug}/forms/Event/${cfg.formSlug}/public`
-  );
-  return (res.tiers ?? []).map((t) => ({
-    id: Number(t.id ?? 0),
-    label: t.label ?? '',
-    priceCents: Number(t.price ?? 0),
-  }));
+  const out: HelloAssoTier[] = [];
+  for (const form of cfg.forms) {
+    try {
+      const res = await apiFetch<{ tiers?: { id?: number; label?: string; price?: number }[] }>(
+        db,
+        cfg,
+        `/v5/organizations/${cfg.organizationSlug}/forms/${form.type}/${form.slug}/public`
+      );
+      for (const t of res.tiers ?? []) {
+        out.push({
+          id: Number(t.id ?? 0),
+          label: t.label ?? '',
+          priceCents: Number(t.price ?? 0),
+          formType: form.type,
+          formSlug: form.slug,
+        });
+      }
+    } catch (err) {
+      if (err instanceof HelloAssoError && err.status === 404) continue;
+      throw err;
+    }
+  }
+  return out;
 }

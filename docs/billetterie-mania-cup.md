@@ -207,7 +207,8 @@ n'est automatique.
 | `HELLOASSO_CLIENT_ID` | Mon Compte → Intégrations et API |
 | `HELLOASSO_CLIENT_SECRET` | idem — à marquer **Sensitive** dans Vercel |
 | `HELLOASSO_ORG_SLUG` | dans l'URL de l'association : `helloasso.com/associations/⟨ici⟩` |
-| `HELLOASSO_FORM_SLUG` | dans l'URL du formulaire : `…/evenements/⟨ici⟩` |
+| `HELLOASSO_FORM_SLUG` | dans l'URL de la billetterie : `…/evenements/⟨ici⟩` |
+| `HELLOASSO_SHOP_SLUG` | *facultatif* — dans l'URL de la boutique de location : `…/boutiques/⟨ici⟩`. À poser le jour où elle existe ; le connecteur la lira sans autre changement. |
 | `HELLOASSO_WEBHOOK_SECRET` | **à inventer** : une longue chaîne au hasard, connue de vous seul |
 | `HELLOASSO_ALLOWED_IPS` | *facultatif* — `51.138.206.200` en production |
 
@@ -259,8 +260,12 @@ Dans la console, onglet **Inscriptions** :
   accompagnant, poste loué, emplacement, refus de droit à l'image, contact
   d'urgence.
 - **Badges** — planche à imprimer, 9 par page A4, une couleur par catégorie.
-  Un badge n'est édité que pour un billet réglé. Attribuez les emplacements
-  avant d'imprimer : ils y figurent.
+  Un badge n'est édité que pour un billet réglé.
+
+  Le champ **Place** reste facultatif : tant qu'il est vide, aucun bloc
+  d'emplacement n'apparaît sur les badges. Il ne sert que si vous décidez un
+  jour de faire un plan de salle — sinon, chacun s'installe où il veut à son
+  arrivée, et il n'y a rien à remplir.
 
 Le contrôle des billets à l'entrée se fait avec l'application **HelloAsso Scan**,
 qui lit les QR codes hors ligne. À installer et **synchroniser la veille au

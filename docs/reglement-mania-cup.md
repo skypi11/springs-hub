@@ -132,7 +132,8 @@ valeur de votre configuration le justifie.
 - **Les portes ouvrent le samedi 3 octobre à 9 h.** Présentez-vous avec une
   **pièce d'identité** : elle est contrôlée à l'entrée, et confrontée à votre
   nom d'inscription.
-- Vous recevez votre **badge** et votre **emplacement**.
+- Vous recevez votre **badge**. Les places ne sont pas attribuées : chacun
+  s'installe où il veut, dans l'ordre d'arrivée.
 - **Toutes les installations doivent être terminées à midi.** L'heure qui suit
   sert aux essais : réseau, son, périphériques. Un poste monté à midi est un
   poste dont on a le temps de régler les problèmes.

@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         configured: true,
         organizationSlug: cfg.organizationSlug,
-        formSlug: cfg.formSlug,
+        forms: cfg.forms,
         tiers,
         tierMap: settings.helloAssoTierMap,
         codeField: settings.helloAssoCodeField,
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       configured: true,
       organizationSlug: cfg.organizationSlug,
-      formSlug: cfg.formSlug,
+      forms: cfg.forms,
       tierMap: settings.helloAssoTierMap,
       codeField: settings.helloAssoCodeField,
       payments,

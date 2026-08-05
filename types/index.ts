@@ -90,6 +90,15 @@ export interface SpringsUser {
   pseudoTM?: string;           // pseudo affiché en course
   loginTM?: string;            // identifiant Ubisoft/Nadeo
   tmIoUrl?: string;            // URL trackmania.io du joueur
+  /**
+   * Identifiant de compte Ubisoft, immuable. Écrit par DEUX chemins qui ne se
+   * valent pas : l'OAuth Nadeo (`/api/auth/trackmania/callback`), qui prouve
+   * que la personne détient le compte, et la synchronisation des trophées, qui
+   * ne fait que lire une API publique. Seul `tmVerifiedAt` atteste du premier.
+   */
+  tmAccountId?: string;
+  /** Posé par l'OAuth Nadeo : le pseudo affiché est alors garanti. */
+  tmVerifiedAt?: Date | string;
   tmStats?: TMStats;           // stats auto via API
   // Valorant, rang & stats agrégées. Source : déclaratif (saisie /settings) OU
   // sync nocturne via HenrikDev API (déclenché par cron si Riot connection liée).

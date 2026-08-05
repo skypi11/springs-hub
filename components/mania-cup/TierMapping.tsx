@@ -23,13 +23,21 @@ import { TICKET_KINDS, TICKET_LABELS, type TicketKind } from '@/lib/helloasso/ty
 // identifiants numériques est exactement le genre de tâche où l'on se trompe
 // d'un chiffre sans jamais s'en apercevoir.
 
-type Tier = { id: number; label: string; priceCents: number };
+type Tier = {
+  id: number;
+  label: string;
+  priceCents: number;
+  /** D'où vient ce tarif — la même correspondance couvre les deux formulaires. */
+  formType?: 'Event' | 'Shop';
+  formSlug?: string;
+};
 
 type Payload = {
   configured: boolean;
   error?: string;
   organizationSlug?: string;
-  formSlug?: string;
+  /** Les formulaires lus : la billetterie, et la boutique quand elle existe. */
+  forms?: { type: 'Event' | 'Shop'; slug: string }[];
   tiers?: Tier[];
   tierMap?: string;
   codeField?: string;
@@ -160,9 +168,9 @@ export default function TierMapping() {
       ) : (
         <>
           <p className="mt-4 text-sm" style={{ color: 'var(--s-text-dim)' }}>
-            Billetterie <code>{data.formSlug}</code> de l’association{' '}
-            <code>{data.organizationSlug}</code> — {tiers.length} tarif
-            {tiers.length > 1 ? 's' : ''}.
+            Association <code>{data.organizationSlug}</code> —{' '}
+            {(data.forms ?? []).map((f) => f.slug).join(', ') || 'aucun formulaire'} ·{' '}
+            {tiers.length} tarif{tiers.length > 1 ? 's' : ''}.
           </p>
 
           {tiers.length === 0 ? (
@@ -180,6 +188,7 @@ export default function TierMapping() {
                     <div className="font-semibold">{t.label || `Tarif ${t.id}`}</div>
                     <div className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
                       {euros(t.priceCents)} · identifiant {t.id}
+                      {t.formType === 'Shop' && ' · boutique'}
                     </div>
                   </div>
                   <select
