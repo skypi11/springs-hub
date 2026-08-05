@@ -327,7 +327,11 @@ export default function InscriptionPage() {
           >
             {!firebaseUser && (
               <button
-                onClick={() => signInWithDiscord()}
+                /* Le chemin de retour est indispensable ici : ce lien circule
+                   sur Discord et dans la communication de la LAN. Sans lui, le
+                   joueur atterrit sur l'accueil d'Aedral après s'être connecté
+                   et doit retrouver l'inscription tout seul. */
+                onClick={() => signInWithDiscord('/mania-cup/inscription')}
                 className="bg-[#5865F2] px-5 py-3 font-semibold text-white transition-opacity hover:opacity-90"
               >
                 Se connecter avec Discord

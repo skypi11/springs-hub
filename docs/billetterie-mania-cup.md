@@ -13,8 +13,9 @@
 - Lieu : `19 rue des Charrons, 58180 Marzy`
 - Clôture des ventes : à décider — au minimum quelques jours avant, pour avoir
   le temps de préparer les postes et les badges.
-- Horaires : **accueil dès 10 h le samedi, installation jusqu'à 13 h**, puis le
-  **Springs Show** ouvre l'événement et annonce les épreuves.
+- Horaires : **portes ouvertes à 9 h le samedi, installations terminées à
+  midi**, une heure d'essais, puis le **Springs Show** ouvre l'événement à 13 h
+  et annonce les épreuves.
 
 ## 2. Les trois tarifs, un par un
 
@@ -43,7 +44,7 @@ dans l'ordre où il les demande. Ce qui n'est pas mentionné se laisse par défa
 | Montant | `30` € |
 | Nombre de places | `64` |
 | Nombre maximum par commande | `1` |
-| Description (238 car.) | *Ta place à la LAN, samedi et dimanche. Inscris-toi d'abord sur aedral.com/mania-cup : ton code d'inscription t'y attend, à reporter ci-dessous. Viens avec ton PC, ton écran, ton casque et un câble ethernet de 5 m. Accueil samedi dès 10 h.* |
+| Description (238 car.) | *Ta place à la LAN, samedi et dimanche. Inscris-toi d'abord sur aedral.com/mania-cup : ton code d'inscription t'y attend, à reporter ci-dessous. Viens avec ton PC, ton écran, ton casque et un câble ethernet de 5 m. Portes ouvertes samedi dès 9 h.* |
 | Information complémentaire | **Oui** — voir §3 |
 
 > **Le « nombre maximum par commande » à 1 n'est pas cosmétique** : un joueur qui

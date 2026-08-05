@@ -126,13 +126,13 @@ valeur de votre configuration le justifie.
 
 ## 7. Déroulement
 
-- **Accueil le samedi 3 octobre à partir de 10 h.** Présentez-vous avec une
+- **Les portes ouvrent le samedi 3 octobre à 9 h.** Présentez-vous avec une
   **pièce d'identité** : elle est contrôlée à l'entrée, et confrontée à votre
   nom d'inscription.
 - Vous recevez votre **badge** et votre **emplacement**.
-- **L'installation se fait entre 10 h et 13 h.** Passé 13 h, vous risquez de
-  monter votre configuration pendant que la compétition démarre : arrivez tôt,
-  le réseau et l'électricité se partagent à soixante-quatre.
+- **Toutes les installations doivent être terminées à midi.** L'heure qui suit
+  sert aux essais : réseau, son, périphériques. Un poste monté à midi est un
+  poste dont on a le temps de régler les problèmes.
 - **À 13 h, le Springs Show ouvre l'événement** et annonce les épreuves. Elles
   ne sont pas connues à l'avance : c'est là que tout le monde les découvre, en
   même temps.
@@ -197,8 +197,8 @@ Aedral.
 ## 11. Dotation
 
 La dotation de **1 200 €** est répartie entre les mieux classés selon le barème
-publié sur la page de l'événement. Elle est versée par virement dans le mois qui
-suit la compétition.
+publié sur la page de l'événement. Elle est versée **par virement dans les deux
+semaines** qui suivent la compétition.
 
 Pour un joueur mineur, le versement est effectué au représentant légal.
 
