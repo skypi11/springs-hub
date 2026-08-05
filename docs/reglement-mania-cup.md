@@ -5,9 +5,7 @@
 > version : les joueurs déjà inscrits gardent la trace de celle qu'ils ont
 > acceptée, les suivants acceptent la nouvelle.
 >
-> Un seul passage reste à confirmer : **l'heure d'ouverture de l'accueil**. Elle
-> est fixée à 10 h ci-dessous, d'après l'horaire déclaré sur HelloAsso — si
-> l'accueil ouvre plus tôt que la compétition, corrigez-la avant de publier.
+> Texte complet, sans blanc à combler.
 
 ---
 
@@ -132,6 +130,12 @@ valeur de votre configuration le justifie.
   **pièce d'identité** : elle est contrôlée à l'entrée, et confrontée à votre
   nom d'inscription.
 - Vous recevez votre **badge** et votre **emplacement**.
+- **L'installation se fait entre 10 h et 13 h.** Passé 13 h, vous risquez de
+  monter votre configuration pendant que la compétition démarre : arrivez tôt,
+  le réseau et l'électricité se partagent à soixante-quatre.
+- **À 13 h, le Springs Show ouvre l'événement** et annonce les épreuves. Elles
+  ne sont pas connues à l'avance : c'est là que tout le monde les découvre, en
+  même temps.
 - **Tout joueur absent 30 minutes après l'heure annoncée de son match est
   déclaré forfait**, et son adversaire passe.
 - Le format de la compétition, les horaires détaillés et les cartes jouées sont

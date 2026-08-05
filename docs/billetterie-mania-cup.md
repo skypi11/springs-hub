@@ -13,6 +13,8 @@
 - Lieu : `19 rue des Charrons, 58180 Marzy`
 - Clôture des ventes : à décider — au minimum quelques jours avant, pour avoir
   le temps de préparer les postes et les badges.
+- Horaires : **accueil dès 10 h le samedi, installation jusqu'à 13 h**, puis le
+  **Springs Show** ouvre l'événement et annonce les épreuves.
 
 ## 2. Les trois tarifs, un par un
 
@@ -41,7 +43,7 @@ dans l'ordre où il les demande. Ce qui n'est pas mentionné se laisse par défa
 | Montant | `30` € |
 | Nombre de places | `64` |
 | Nombre maximum par commande | `1` |
-| Description | *Ta place à la Springs Mania Cup, les deux jours. Tu viens avec ton PC, ton écran, ton casque et un câble ethernet de 5 m minimum. Inscription à faire d'abord sur aedral.com/mania-cup — ton code d'inscription t'y attend.* |
+| Description (238 car.) | *Ta place à la LAN, samedi et dimanche. Inscris-toi d'abord sur aedral.com/mania-cup : ton code d'inscription t'y attend, à reporter ci-dessous. Viens avec ton PC, ton écran, ton casque et un câble ethernet de 5 m. Accueil samedi dès 10 h.* |
 | Information complémentaire | **Oui** — voir §3 |
 
 > **Le « nombre maximum par commande » à 1 n'est pas cosmétique** : un joueur qui
@@ -57,7 +59,7 @@ dans l'ordre où il les demande. Ce qui n'est pas mentionné se laisse par défa
 | Montant | `20` € |
 | Nombre de places | `64` |
 | Nombre maximum par commande | `1` |
-| Description | *Accès à la zone joueurs pour une personne qui accompagne un joueur inscrit : parent, coach ou ami. Un accompagnant par joueur. Ce billet n'est pas un billet spectateur, et un billet spectateur ne donne pas accès à cette zone.* |
+| Description (249 car.) | *Accès à la zone joueurs pour une personne qui accompagne un joueur inscrit : parent, coach, ami. Reporte le code d'inscription du joueur, qu'il trouve sur aedral.com/mania-cup. Un accompagnant par joueur. Un billet spectateur ne donne pas cet accès.* |
 | Information complémentaire | **Oui** — voir §3 |
 
 ### Tarif 3 — `Spectateur`
@@ -72,7 +74,7 @@ un billet d'un jour qui devient un pass week-end) pour cinq euros d'écart.
 | Type de tarif | Tarif payant, montant fixe |
 | Montant | `10` € |
 | Nombre de places | La capacité que la salle autorise — **demandez le chiffre à la mairie avant d'ouvrir la vente** |
-| Description | *Accès aux zones ouvertes au public, samedi et dimanche. Ne donne pas accès à la zone joueurs.* |
+| Description (237 car.) | *Accès aux zones ouvertes au public, samedi et dimanche. Aucun compte à créer, aucun code à saisir : tu viens, tu regardes. Ne donne pas accès à la zone joueurs. Gratuit pour les moins de 12 ans accompagnés d'un adulte muni de son billet.* |
 | Information complémentaire | Non |
 
 ---
@@ -98,6 +100,22 @@ Prix de la LAN précédente, à titre de repère : PC fixe 90 €, PC portable 6
 **Ajoutez-y le champ `Code d'inscription`, obligatoire**, exactement comme sur
 les tarifs de la billetterie : c'est ce qui permet de savoir quel joueur a
 réservé quelle machine, et de le faire figurer sur sa fiche.
+
+Descriptions des produits, sous la limite des 250 caractères :
+
+**Location PC fixe** (220 car.)
+> Poste complet pour le week-end : tour, écran 24 pouces 144 Hz, clavier,
+> souris, câble RJ45 de 10 m et multiprise. Casque non fourni. Reporte ton code
+> d'inscription, disponible sur aedral.com/mania-cup. Stock très limité.
+
+**Location PC portable** (222 car.)
+> Ordinateur portable 15,6 pouces 144 Hz pour le week-end, avec câble RJ45 de
+> 10 m et multiprise. Casque, clavier et souris non fournis. Reporte ton code
+> d'inscription, disponible sur aedral.com/mania-cup. Stock très limité.
+
+**Location écran** (154 car.)
+> Écran 24 pouces 144 Hz pour le week-end, si tu viens avec ta tour. Reporte ton
+> code d'inscription, disponible sur aedral.com/mania-cup. Stock très limité.
 
 > **Une location n'est jamais une inscription.** Le site la note sur le dossier
 > du joueur sans toucher à son statut : quelqu'un peut réserver un poste et ne
