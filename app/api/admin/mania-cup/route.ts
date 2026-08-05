@@ -50,18 +50,24 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    // Une inscription retirée ne compte dans aucun total : la laisser dans le
+    // « total » gonflait un chiffre que personne ne pouvait rapprocher, et la
+    // faisait apparaître dans les dossiers parentaux à relire.
+    const active = registrations.filter((r) => r.status !== 'cancelled');
+
     const counts = {
-      total: registrations.length,
-      confirmed: registrations.filter((r) => r.status === 'confirmed').length,
-      pendingPayment: registrations.filter((r) => r.status === 'pending_payment').length,
-      guardianToReview: registrations.filter((r) => r.guardianConsent === 'pending_review').length,
-      guardianMissing: registrations.filter((r) => r.guardianConsent === 'missing').length,
-      minors: registrations.filter((r) => r.ageAtEvent < 18).length,
+      total: active.length,
+      cancelled: registrations.length - active.length,
+      confirmed: active.filter((r) => r.status === 'confirmed').length,
+      pendingPayment: active.filter((r) => r.status === 'pending_payment').length,
+      guardianToReview: active.filter((r) => r.guardianConsent === 'pending_review').length,
+      guardianMissing: active.filter((r) => r.guardianConsent === 'missing').length,
+      minors: active.filter((r) => r.ageAtEvent < 18).length,
       // Même règle que le site : seules les inscriptions réglées consomment
       // une place.
       seatsLeft: Math.max(
         0,
-        settings.maxPlayers - registrations.filter((r) => r.status === 'confirmed').length
+        settings.maxPlayers - active.filter((r) => r.status === 'confirmed').length
       ),
       maxPlayers: settings.maxPlayers,
     };
