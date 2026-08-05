@@ -9,6 +9,15 @@
 
 - Type : **Billetterie** (pas « Adhésion », pas « Don »)
 - Nom : `Springs Mania Cup`
+- **UNE seule campagne pour tous les tarifs**, pas une par billet : un seul lien
+  à communiquer, un seul export, et un joueur qui prend aussi un billet
+  accompagnant règle le tout en une fois.
+
+> **L'adresse web se fixe à la création et devient DÉFINITIVE à la première
+> vente.** Elle reste modifiable tant qu'aucune transaction n'est enregistrée
+> (paramètres de la campagne). Vérifiez-la avant d'ouvrir : une campagne créée
+> sous le nom « … #1 Joueur » garde ce mot dans son adresse pour toujours, et
+> laisse croire aux spectateurs qu'ils ne sont pas au bon endroit.
 - Dates de l'événement : **3 et 4 octobre 2026**
 - Lieu : `19 rue des Charrons, 58180 Marzy`
 - Clôture des ventes : à décider — au minimum quelques jours avant, pour avoir
@@ -184,6 +193,18 @@ tranchez en un clic, avec les dossiers voisins proposés.
 Le règlement publié sur le site annonce : remboursement intégral jusqu'à **14
 jours avant** l'événement (soit le 19 septembre 2026 inclus), puis plus rien.
 Alignez le texte HelloAsso dessus, sinon les deux se contrediront.
+
+## 5 bis. Le lien à communiquer
+
+Ne diffusez pas l'adresse HelloAsso. Communiquez :
+
+```
+aedral.com/mania-cup/billet
+```
+
+Elle redirige vers la billetterie et se retient. Si l'adresse HelloAsso change
+un jour, il suffit de coller la nouvelle dans la console : les affiches déjà
+imprimées et les messages déjà envoyés continuent de fonctionner.
 
 ## 6. Une fois la billetterie créée
 
