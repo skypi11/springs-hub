@@ -5,9 +5,9 @@
 > version : les joueurs déjà inscrits gardent la trace de celle qu'ils ont
 > acceptée, les suivants acceptent la nouvelle.
 >
-> Trois passages contiennent un blanc à combler avant publication, signalés par
-> `⟨…⟩` : le prix de la location de poste, les horaires et le nombre de postes.
-> Ne publiez pas avec les chevrons.
+> Un seul passage reste à confirmer : **l'heure d'ouverture de l'accueil**. Elle
+> est fixée à 10 h ci-dessous, d'après l'horaire déclaré sur HelloAsso — si
+> l'accueil ouvre plus tôt que la compétition, corrigez-la avant de publier.
 
 ---
 
@@ -128,7 +128,7 @@ valeur de votre configuration le justifie.
 
 ## 7. Déroulement
 
-- **Accueil le samedi 3 octobre à partir de ⟨heure⟩.** Présentez-vous avec une
+- **Accueil le samedi 3 octobre à partir de 10 h.** Présentez-vous avec une
   **pièce d'identité** : elle est contrôlée à l'entrée, et confrontée à votre
   nom d'inscription.
 - Vous recevez votre **badge** et votre **emplacement**.
