@@ -170,7 +170,15 @@ export default function InscriptionPage() {
   }
 
   const seats = ctx?.seats;
-  const reg = ctx?.registration ?? null;
+
+  // Une inscription retirée reste en base — la trace sert en cas de litige sur
+  // un paiement — mais elle ne vaut plus rien pour le joueur. Ne pas regarder
+  // son statut ici laissait le récapitulatif affiché après un retrait, avec le
+  // code et le bouton de paiement : le joueur croyait que rien ne s'était passé.
+  const storedReg = ctx?.registration ?? null;
+  const withdrawn = storedReg?.status === 'cancelled';
+  const reg = withdrawn ? null : storedReg;
+
   const tmLinked = Boolean(ctx?.trackmania?.accountId);
   const inGuild = ctx?.discord?.inGuild;
   const full = (seats?.remaining ?? 0) <= 0 && !reg;
@@ -205,6 +213,19 @@ export default function InscriptionPage() {
 
       {tmError && TM_ERRORS[tmError] && <Banner tone="warn">{TM_ERRORS[tmError]}</Banner>}
       {error && <Banner tone="error">{error}</Banner>}
+
+      {withdrawn && (
+        <div className="mt-8 flex gap-3 border border-white/15 bg-white/[0.03] p-5">
+          <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-[#00D936]" aria-hidden />
+          <div>
+            <div className="font-semibold">Ton inscription a bien été retirée</div>
+            <p className="mt-1 text-[#c9c5d8]">
+              Ta place est repartie à la vente. Tu peux te réinscrire ci-dessous tant
+              qu’il en reste — tes informations sont conservées, il n’y a qu’à valider.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Dossier déjà déposé : on montre le récapitulatif, pas le formulaire. */}
       {reg ? (
@@ -689,6 +710,9 @@ function WithdrawButton({ onDone }: { onDone: () => void }) {
       onDone();
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : 'Le retrait a échoué.');
+    } finally {
+      // Sans ce `finally`, le retrait qui RÉUSSIT laissait le bouton tourner
+      // indéfiniment : l'état n'était remis à zéro que dans le cas d'erreur.
       setBusy(false);
     }
   }
