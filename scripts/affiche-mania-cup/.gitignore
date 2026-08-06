@@ -3,3 +3,4 @@
 affiche.html
 *.png
 !assets/*.png
+__pycache__/

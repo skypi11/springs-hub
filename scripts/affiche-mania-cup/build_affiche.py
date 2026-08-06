@@ -79,50 +79,32 @@ html, body { background:#000; }
 .top img { width:285px; filter:drop-shadow(0 4px 14px rgba(0,0,0,.7)); }
 .top .p { margin-top:6px; font-size:22px; letter-spacing:11px; color:#9d98b3; text-indent:11px; }
 
-/* ---------- ÉCUSSON EN RELIEF ---------- */
-.crest { position:relative; margin:16px auto 0; width:850px;
-  filter:drop-shadow(0 20px 34px rgba(0,0,0,.8)); }
-.sh { clip-path:polygon(0 0, 100% 0, 100% 63%, 50% 100%, 0 63%); }
-/* couche 1 : arête métal claire */
-.sh1 { background:linear-gradient(158deg,#ffffff 0%, #b9bac8 16%, #6a6b7a 38%, #ecedf5 54%, #7d7e8d 74%, #ffffff 100%);
-  padding:7px; }
-/* couche 2 : creux sombre du biseau */
-.sh2 { background:linear-gradient(158deg,#2a2b36 0%, #101119 50%, #33343f 100%); padding:5px; }
-/* couche 3 : liseré vert lumineux */
-.sh3 { background:linear-gradient(180deg,#00D936 0%, #06802a 55%, #04471a 100%); padding:3px; }
-/* intérieur */
-.sh4 { position:relative; text-align:center; padding:24px 36px 126px;
-  background:
-    radial-gradient(ellipse at 50% 4%, rgba(0,217,54,.40) 0%, rgba(0,90,24,.12) 44%, rgba(6,10,7,0) 70%),
-    linear-gradient(178deg,#0f3018 0%, #08170d 56%, #050906 100%);
-  box-shadow: inset 0 3px 0 rgba(255,255,255,.28), inset 0 -60px 90px rgba(0,0,0,.75); }
-/* reflet verre */
-.sh4::before { content:''; position:absolute; left:0; right:0; top:0; height:46%;
-  background:linear-gradient(180deg, rgba(255,255,255,.17) 0%, rgba(255,255,255,.05) 55%, rgba(255,255,255,0) 100%); }
+/* ---------- TITRE ---------- */
+/* L'ecusson d'origine — un blason a pointe basse — faisait penser a la ZRT,
+   une autre competition : plusieurs personnes l'ont dit a l'organisateur.
+   La forme elle-meme etait en cause, on l'a donc remplacee et non retouchee.
+   Le trait sous le titre reprend son idee sans jamais refermer de contour. */
+.tt3 { position:relative; margin:40px auto 0; text-align:center; }
+.tt3 .kick { font-size:25px; letter-spacing:12px; text-indent:12px; color:#00D936; }
+.tt3 .springs { margin-top:16px; font-size:38px; letter-spacing:20px; text-indent:20px;
+  line-height:1; color:#8f8fa6; }
+.tt3 .maniacup { margin-top:4px; font-size:124px; line-height:.92; letter-spacing:1px;
+  color:#fff; filter:drop-shadow(0 4px 0 rgba(0,0,0,.55)) drop-shadow(0 14px 30px rgba(0,0,0,.8)); }
+/* Le trait reprend la barre de la variante B, mise a plat : il souligne le
+   titre sans jamais refermer une forme autour de lui. */
+.tt3 .rule { margin:22px auto 0; width:420px; height:4px;
+  background:linear-gradient(90deg, rgba(0,217,54,0) 0%, #00D936 22%, #00D936 78%, rgba(0,217,54,0) 100%); }
+.tt3 .when { margin-top:20px; display:flex; align-items:center; justify-content:center; gap:20px; }
+.tt3 .when .d { font-size:36px; letter-spacing:2px; text-indent:2px; color:#fff; white-space:nowrap; }
+.tt3 .when .dot { width:7px; height:7px; background:#00D936; transform:rotate(45deg); }
+.tt3 .when .p { font-size:22px; letter-spacing:8px; text-indent:8px; color:#00D936; white-space:nowrap; }
 
-.tm-kicker { position:relative; display:flex; align-items:center; justify-content:center; gap:14px; }
-.tm-kicker b { font-size:36px; letter-spacing:6px; color:#07050b; background:#00D936;
-  padding:5px 16px 3px; text-indent:6px; line-height:1; }
-.tm-kicker em { font-style:normal; font-size:30px; letter-spacing:10px; color:#00D936;
-  text-indent:10px; line-height:1; }
-.springs { position:relative; margin-top:8px; font-size:55px; letter-spacing:26px; text-indent:26px; line-height:1;
-  background:linear-gradient(180deg,#ffffff 24%, #b9b9c8 60%, #75758a 100%);
-  -webkit-background-clip:text; background-clip:text; color:transparent; }
-.maniacup { position:relative; margin-top:2px; font-size:134px; line-height:.94; letter-spacing:2px;
-  background:linear-gradient(180deg,
-    #ffffff 0%, #f2f3f9 12%, #a5a7b8 28%, #4e5164 43%,
-    #ffffff 51%, #cbcdd9 61%, #75778a 79%, #f4f6fb 100%);
-  -webkit-background-clip:text; background-clip:text; color:transparent;
-  filter:drop-shadow(0 3px 0 rgba(0,0,0,.6)) drop-shadow(0 9px 22px rgba(0,0,0,.75)); }
-
-/* bandeau de dates intégré au bas de l'écusson (rôle du "STADIUM" du logo TM) */
-.band { position:absolute; left:50%; transform:translateX(-50%); bottom:24px; width:50%;
-  background:linear-gradient(180deg,#f6f6fb 0%, #b6b7c5 22%, #55566a 52%, #d3d4e0 78%, #83849a 100%);
-  padding:4px; box-shadow:0 8px 18px rgba(0,0,0,.65); }
-.band .bi { text-align:center; background:linear-gradient(180deg,#0a2312 0%, #061309 100%); padding:9px 8px 7px;
-  box-shadow: inset 0 2px 0 rgba(255,255,255,.18); }
-.band .d { font-size:33px; line-height:1; letter-spacing:2.5px; text-indent:2.5px; color:#fff; white-space:nowrap; }
-.band .p { margin-top:1px; font-size:19px; letter-spacing:7px; text-indent:7px; color:#00D936; white-space:nowrap; }
+/* Les 281 px rendus aux intervalles : sans ca, tout le texte se serre dans la
+   moitie haute et le bas n'est plus qu'une photo. */
+.hook { margin-top:64px !important; }
+.stats { margin-top:52px !important; }
+.prize { margin-top:46px !important; }
+.pract { margin-top:40px !important; }
 
 /* ---------- ACCROCHE ---------- */
 .hook { margin-top:20px; text-align:center; }
@@ -188,16 +170,16 @@ html, body { background:#000; }
       <div class="p">PRÉSENTE</div>
     </div>
 
-    <div class="crest">
-      <div class="sh sh1"><div class="sh sh2"><div class="sh sh3"><div class="sh sh4">
-        <div class="tm-kicker"><b>LAN</b><em>TRACKMANIA</em></div>
-        <div class="springs">SPRINGS</div>
-        <div class="maniacup">MANIA CUP</div>
-        <div class="band"><div class="bi">
-          <div class="d">3 &amp; 4 OCTOBRE 2026</div>
-          <div class="p">MARZY (58)</div>
-        </div></div>
-      </div></div></div></div>
+    <div class="tt3">
+      <div class="kick">LAN TRACKMANIA</div>
+      <div class="springs">SPRINGS</div>
+      <div class="maniacup">MANIA CUP</div>
+      <div class="rule"></div>
+      <div class="when">
+        <div class="d">3 &amp; 4 OCTOBRE 2026</div>
+        <div class="dot"></div>
+        <div class="p">MARZY (58)</div>
+      </div>
     </div>
 
     <div class="hook">
