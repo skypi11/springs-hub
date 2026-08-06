@@ -135,6 +135,7 @@ export default function SpectateursPage() {
             <Row icon={Radio} title="Horaires">
               Samedi 3 octobre : émission d’ouverture à 13h, compétition de 14h à 21h30.
               Dimanche 4 octobre : de 9h30 à 17h, cérémonie de clôture à 16h30.
+              Heure de Paris (CEST, UTC+2).
             </Row>
             <Row icon={Baby} title="Enfants">
               L’entrée est gratuite pour les moins de 12 ans, accompagnés d’un adulte

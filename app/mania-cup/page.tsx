@@ -337,7 +337,8 @@ export default async function ManiaCupPage() {
           </h2>
           <p className="mt-4 max-w-2xl text-[#8d89a8]">
             Les horaires d’ouverture et de fin sont fermes — ils te permettent
-            d’organiser ta route et ton hébergement.
+            d’organiser ta route et ton hébergement. Tous les horaires sont en
+            heure de Paris (CEST, UTC+2).
           </p>
 
           <div className="mt-12 grid gap-12 lg:grid-cols-2">
