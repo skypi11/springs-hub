@@ -71,10 +71,10 @@ export default function TicketingSettings() {
   });
 
   const save = useMutation({
-    mutationFn: (next: ManiaCupSettings) =>
+    mutationFn: (patch: Record<string, unknown>) =>
       api<{ settings: ManiaCupSettings }>('/api/mania-cup/settings', {
         method: 'PUT',
-        body: next as unknown as Record<string, unknown>,
+        body: patch,
       }),
     onSuccess: () => {
       setMsg('Enregistré. Le site est à jour.');
@@ -85,7 +85,29 @@ export default function TicketingSettings() {
     onError: (e) => setMsg(e instanceof ApiError ? e.message : 'Enregistrement refusé'),
   });
 
-  const current: ManiaCupSettings = draft ?? data?.settings ?? DEFAULT_SETTINGS;
+  // JAMAIS de repli sur DEFAULT_SETTINGS : afficher des valeurs par défaut
+  // comme si elles étaient enregistrées, c'est proposer à l'organisation
+  // d'écraser les vrais réglages sans le savoir. Tant que la lecture n'a pas
+  // abouti, cet écran ne montre rien et n'enregistre rien (voir le rendu).
+  const saved = data?.settings ?? null;
+  const current: ManiaCupSettings = draft ?? saved ?? DEFAULT_SETTINGS;
+
+  /**
+   * Ce que l'on envoie : les champs RÉELLEMENT modifiés, jamais l'objet entier.
+   *
+   * Le PUT des réglages est partiel — un champ absent garde sa valeur. Envoyer
+   * tout l'objet faisait donc écrire par cet écran des champs qu'il ne montre
+   * même pas, au premier rang desquels `helloAssoTierMap` : la correspondance
+   * des tarifs, effacée en enregistrant un prix.
+   */
+  function buildPatch(): Record<string, unknown> {
+    if (!saved || !draft) return {};
+    const patch: Record<string, unknown> = {};
+    for (const key of Object.keys(draft) as (keyof ManiaCupSettings)[]) {
+      if (draft[key] !== saved[key]) patch[key] = draft[key];
+    }
+    return patch;
+  }
   // Seul le lien de la billetterie est indispensable : c'est lui qui décide si
   // un joueur peut payer.
   const requiredLinks = LINKS.filter((f) => !f.optional);
@@ -124,6 +146,20 @@ export default function TicketingSettings() {
         (isLoading ? (
           <div className="mt-6 flex items-center gap-3" style={{ color: 'var(--s-text-dim)' }}>
             <Loader2 className="animate-spin" size={18} /> Chargement…
+          </div>
+        ) : !saved ? (
+          // La lecture a échoué (limitation de débit, coupure réseau). On ne
+          // rend surtout pas le formulaire : rempli de valeurs par défaut, il
+          // invite à enregistrer par-dessus les vrais réglages.
+          <div className="mt-6 border border-[#ef4444]/40 bg-[#ef4444]/5 p-4">
+            <p className="text-sm font-bold" style={{ color: '#ef4444' }}>
+              Réglages illisibles
+            </p>
+            <p className="mt-1 text-sm" style={{ color: 'var(--s-text-dim)' }}>
+              Impossible de relire la configuration enregistrée. Recharge la page avant de
+              modifier quoi que ce soit — enregistrer maintenant écraserait les réglages
+              en place.
+            </p>
           </div>
         ) : (
           <>
@@ -239,8 +275,15 @@ export default function TicketingSettings() {
 
             <div className="mt-6 flex flex-wrap items-center gap-4">
               <button
-                onClick={() => save.mutate(current)}
-                disabled={save.isPending || draft === null}
+                onClick={() => {
+                  const patch = buildPatch();
+                  if (Object.keys(patch).length === 0) {
+                    setMsg('Rien à enregistrer.');
+                    return;
+                  }
+                  save.mutate(patch);
+                }}
+                disabled={save.isPending || draft === null || !saved}
                 className="inline-flex items-center gap-2 bg-[#00D936] px-5 py-2.5 font-bold text-[#07050b] disabled:opacity-40"
               >
                 {save.isPending ? (

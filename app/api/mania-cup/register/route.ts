@@ -10,6 +10,7 @@ import { deleteFileSilent } from '@/lib/storage';
 import { clampString } from '@/lib/validation';
 import { getRulebookByScope } from '@/lib/competitions/rulebooks';
 import { getManiaCupSettings } from '@/lib/mania-cup-settings';
+import { MANIA_CUP_PAYMENTS } from '@/lib/helloasso/apply';
 import { allocateRegistrationCode, releaseRegistrationCode } from '@/lib/mania-cup-server';
 import {
   MANIA_CUP,
@@ -127,6 +128,28 @@ export async function GET(req: NextRequest) {
       countryCode: (userSnap.data()?.country as string) ?? '',
     };
 
+    // Un règlement porte-t-il déjà son code sans avoir pu être appliqué ?
+    //
+    // Sans cette information, la page invite tranquillement à « Payer mon
+    // inscription » alors que l'argent est encaissé et attend une décision de
+    // l'organisation. C'est exactement ce qui a conduit un joueur à payer deux
+    // fois le jour de l'ouverture : il ne voyait aucune différence entre « tu
+    // n'as pas payé » et « ton paiement attend ».
+    const reg = regSnap.exists ? (regSnap.data() as ManiaCupRegistration) : null;
+    let paymentAwaitingReview = false;
+    if (reg?.registrationCode && reg.status !== 'confirmed') {
+      const pending = await db
+        .collection(MANIA_CUP_PAYMENTS)
+        .where('code', '==', reg.registrationCode)
+        .limit(5)
+        .get()
+        .catch(() => null);
+      paymentAwaitingReview = (pending?.docs ?? []).some((d) => {
+        const outcome = (d.data() as { outcome?: string }).outcome;
+        return outcome === 'needs_review' || outcome === 'unmatched';
+      });
+    }
+
     return NextResponse.json({
       authenticated: true,
       visible,
@@ -135,7 +158,8 @@ export async function GET(req: NextRequest) {
       prefill,
       trackmania,
       discord: { id: discordId, inGuild },
-      registration: regSnap.exists ? (regSnap.data() as ManiaCupRegistration) : null,
+      paymentAwaitingReview,
+      registration: reg,
       // Les références des titres d'identité ne sont servies qu'à leur
       // propriétaire, pour qu'il puisse relire et corriger sa saisie. Elles ne
       // figurent jamais dans la liste des inscrits ni dans la console.

@@ -7,6 +7,7 @@ import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { getManiaCupSettings } from '@/lib/mania-cup-settings';
 import {
   MANIA_CUP_REGISTRATIONS,
+  MAX_COMPANIONS,
   type ManiaCupRegistration,
 } from '@/lib/mania-cup';
 import {
@@ -15,8 +16,18 @@ import {
   iterateFormOrders,
   HelloAssoError,
 } from '@/lib/helloasso/client';
-import { parseOrder, parseTierMap, resolveManualTicket } from '@/lib/helloasso/reconcile';
-import { applyOrderItem, MANIA_CUP_PAYMENTS, type PaymentRecord } from '@/lib/helloasso/apply';
+import {
+  assignCompanionTicket,
+  parseOrder,
+  parseTierMap,
+  resolveManualTicket,
+} from '@/lib/helloasso/reconcile';
+import {
+  applyOrderItem,
+  readCompanions,
+  MANIA_CUP_PAYMENTS,
+  type PaymentRecord,
+} from '@/lib/helloasso/apply';
 
 // Pilotage de la billetterie HelloAsso depuis la console.
 //
@@ -189,13 +200,43 @@ export async function POST(req: NextRequest) {
       const paymentRef = db.collection(MANIA_CUP_PAYMENTS).doc(String(itemId));
       const regRef = db.collection(MANIA_CUP_REGISTRATIONS).doc(targetUid);
 
+      // Le dossier auquel ce règlement est DÉJÀ rattaché, s'il y en a un : il
+      // faut le relire dans la même transaction pour ne pas faire valoir un
+      // seul paiement sur deux inscriptions. Firestore interdit les requêtes en
+      // transaction, mais l'identifiant du dossier est justement `matchedUid`.
+      const preSnap = await paymentRef.get();
+      const priorUid = (preSnap.data() as PaymentRecord | undefined)?.matchedUid ?? null;
+      const priorRef =
+        priorUid && priorUid !== targetUid
+          ? db.collection(MANIA_CUP_REGISTRATIONS).doc(priorUid)
+          : null;
+
       const result = await db.runTransaction(async (tx) => {
-        const [paySnap, regSnap] = await tx.getAll(paymentRef, regRef);
+        const refs = priorRef ? [paymentRef, regRef, priorRef] : [paymentRef, regRef];
+        const [paySnap, regSnap, priorSnap] = await tx.getAll(...refs);
         if (!paySnap.exists) return { error: 'Règlement introuvable', status: 404 };
         if (!regSnap.exists) return { error: 'Inscription introuvable', status: 404 };
 
         const payment = paySnap.data() as PaymentRecord;
         const reg = regSnap.data() as ManiaCupRegistration;
+
+        // Le rattachement a-t-il bougé entre la lecture préalable et ici ?
+        if ((payment.matchedUid ?? null) !== priorUid) {
+          return { error: 'Ce règlement vient d’être modifié. Recharge la page.', status: 409 };
+        }
+
+        // Un règlement encaissé une fois ne peut pas payer deux places. S'il
+        // vaut déjà celle d'un autre dossier, il faut d'abord l'en détacher —
+        // sans quoi 30 € confirmeraient deux joueurs.
+        const prior = priorSnap?.data() as ManiaCupRegistration | undefined;
+        if (prior?.payment?.itemId === itemId) {
+          return {
+            error:
+              'Ce règlement confirme déjà une autre inscription. ' +
+              'Retire-le d’abord de ce dossier, sinon un seul paiement vaudrait deux places.',
+            status: 409,
+          };
+        }
 
         if (payment.matchedUid === targetUid && reg.status === 'confirmed') {
           return { error: 'Ce règlement est déjà rattaché à ce dossier', status: 409 };
@@ -254,10 +295,30 @@ export async function POST(req: NextRequest) {
             { merge: true }
           );
         } else if (kind === 'companion') {
+          // Exactement le chemin du traitement automatique (apply.ts) : ce bloc
+          // écrivait `companion: {ticketPaid}` au singulier, une forme héritée
+          // qu'AUCUN lecteur ne consomme plus. Le billet était donc payé, la
+          // console répondait « rattaché », et le 3 octobre l'accompagnant se
+          // présentait sans badge — `badges/page.tsx` exige `ticketItemId`.
+          const next = assignCompanionTicket(
+            readCompanions(reg),
+            { itemId: payment.itemId, participantName: payment.participantName },
+            MAX_COMPANIONS
+          );
+          if (!next) {
+            return {
+              error: `Ce joueur a déjà ${MAX_COMPANIONS} billets accompagnants réglés.`,
+              status: 409,
+            };
+          }
           tx.set(
             regRef,
             {
-              companion: { ticketPaid: true, ticketPaidAt: FieldValue.serverTimestamp() },
+              companions: next.map((c) =>
+                c.ticketItemId === payment.itemId
+                  ? { ...c, ticketPaidAt: FieldValue.serverTimestamp() }
+                  : c
+              ),
               updatedAt: FieldValue.serverTimestamp(),
             },
             { merge: true }

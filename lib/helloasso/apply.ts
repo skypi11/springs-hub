@@ -12,6 +12,7 @@ import { findUidByRegistrationCode } from '@/lib/mania-cup-server';
 import {
   assignCompanionTicket,
   decideItem,
+  isOutcomeAlreadyApplied,
   type Outcome,
   type OrderItemView,
   type RegistrationSnapshot,
@@ -27,8 +28,13 @@ import { TICKET_LABELS, type TicketKind } from './types';
 // divergents finiraient par se contredire.
 
 /** Lecture tolérante : les tout premiers dossiers portaient un accompagnant
- *  unique, sous un autre nom de champ. */
-function readCompanions(reg: ManiaCupRegistration | undefined): ManiaCupCompanion[] {
+ *  unique, sous un autre nom de champ.
+ *
+ *  Exportée, car le rattachement manuel doit lire les accompagnants EXACTEMENT
+ *  comme le traitement automatique. C'est d'avoir eu un second chemin de lecture
+ *  qui avait fait écrire la route dans ce champ hérité que plus personne ne
+ *  consomme — billet payé, aucun badge imprimé. */
+export function readCompanions(reg: ManiaCupRegistration | undefined): ManiaCupCompanion[] {
   if (!reg) return [];
   if (Array.isArray(reg.companions)) return reg.companions;
   const legacy = (reg as { companion?: ManiaCupCompanion | null }).companion;
@@ -151,10 +157,23 @@ async function writeOutcome(
     const regSnap = regRef ? await tx.get(regRef) : null;
     const prev = prevSnap.data() as PaymentRecord | undefined;
 
-    // Rejeu à l'identique : la ligne est dans le même état et a produit la même
-    // décision. On ne réécrit rien, et surtout on ne renotifie personne.
+    // Rejeu à l'identique : même état, même décision — ET l'effet est déjà
+    // inscrit sur le dossier. Cette dernière condition est ce qui fait de
+    // « Relire les commandes » un vrai bouton de réparation : sans elle, un
+    // dossier qui a dérivé (un « Marquer payé » cliqué de travers suffit)
+    // restait en attente de paiement pendant que la console annonçait « tout
+    // était déjà à jour ».
+    const reg = regSnap?.data() as ManiaCupRegistration | undefined;
     const isReplay =
-      prev != null && prev.state === item.state && prev.outcome === outcome.kind;
+      prev != null &&
+      prev.state === item.state &&
+      prev.outcome === outcome.kind &&
+      isOutcomeAlreadyApplied(outcome, item.itemId, {
+        status: reg?.status,
+        paidByItemId: reg?.payment?.itemId ?? null,
+        companionItemIds: readCompanions(reg).map((c) => c.ticketItemId),
+        pcRentalItemId: reg?.pcRental?.itemId ?? null,
+      });
 
     const record: PaymentRecord = {
       itemId: item.itemId,

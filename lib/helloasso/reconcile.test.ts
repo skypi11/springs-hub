@@ -10,6 +10,7 @@ import {
   assignCompanionTicket,
   isDonationLike,
   resolveManualTicket,
+  isOutcomeAlreadyApplied,
   type OrderItemView,
   type RegistrationSnapshot,
 } from './reconcile';
@@ -535,5 +536,51 @@ describe('resolveManualTicket — le rattachement de secours doit pouvoir conclu
   it('refuse une catégorie inventée', () => {
     expect(resolveManualTicket({ ticket: null }, 'n’importe quoi').ok).toBe(false);
     expect(resolveManualTicket({ ticket: null }, 'spectator').ok).toBe(false);
+  });
+});
+
+describe('isOutcomeAlreadyApplied — « Relire les commandes » doit réparer, pas constater', () => {
+  const player = { kind: 'confirm_player', uid: 'u1' } as const;
+
+  it('répare un dossier qui a dérivé après coup', () => {
+    // Le cas qui rendait le bouton inutile : le journal disait « confirmé », le
+    // dossier était retombé en attente (un « Marquer payé » cliqué de travers
+    // suffit), et la relecture répondait « tout était déjà à jour ».
+    expect(
+      isOutcomeAlreadyApplied(player, 42, { status: 'pending_payment', paidByItemId: null })
+    ).toBe(false);
+  });
+
+  it('ne réécrit rien quand l’effet est bien là', () => {
+    expect(
+      isOutcomeAlreadyApplied(player, 42, { status: 'confirmed', paidByItemId: 42 })
+    ).toBe(true);
+  });
+
+  it('distingue un dossier réglé par un AUTRE règlement', () => {
+    expect(
+      isOutcomeAlreadyApplied(player, 42, { status: 'confirmed', paidByItemId: 99 })
+    ).toBe(false);
+  });
+
+  it('un dossier absent n’a jamais l’effet', () => {
+    expect(isOutcomeAlreadyApplied(player, 42, undefined)).toBe(false);
+  });
+
+  it('révocation : appliquée dès que le dossier n’est plus confirmé', () => {
+    const revoke = { kind: 'revoke', uid: 'u1', reason: 'remboursé' } as const;
+    expect(isOutcomeAlreadyApplied(revoke, 42, { status: 'pending_payment' })).toBe(true);
+    expect(isOutcomeAlreadyApplied(revoke, 42, { status: 'confirmed' })).toBe(false);
+  });
+
+  it('accompagnant : reconnaît le billet déjà attribué', () => {
+    const comp = { kind: 'companion_paid', uid: 'u1' } as const;
+    expect(isOutcomeAlreadyApplied(comp, 7, { companionItemIds: [null, 7] })).toBe(true);
+    expect(isOutcomeAlreadyApplied(comp, 7, { companionItemIds: [null, null] })).toBe(false);
+  });
+
+  it('les issues sans effet métier n’ont rien à vérifier', () => {
+    const review = { kind: 'needs_review', reason: 'doublon' } as const;
+    expect(isOutcomeAlreadyApplied(review, 1, { status: 'pending_payment' })).toBe(true);
   });
 });

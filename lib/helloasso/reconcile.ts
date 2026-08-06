@@ -429,3 +429,47 @@ export function resolveManualTicket(
       `catégorie à la main.`,
   };
 }
+
+/** Vue minimale d'un dossier, pour juger si une décision y est déjà inscrite. */
+export interface AppliedView {
+  status?: RegistrationStatus;
+  paidByItemId?: number | null;
+  companionItemIds?: readonly (number | null | undefined)[];
+  pcRentalItemId?: number | null;
+}
+
+/**
+ * L'effet de cette décision est-il DÉJÀ inscrit sur le dossier ?
+ *
+ * Sert à faire porter l'idempotence sur l'EFFET plutôt que sur le journal des
+ * paiements. La différence n'est pas théorique : un dossier peut dériver après
+ * coup — un « Marquer payé » cliqué par mégarde dans la console suffit. Tant que
+ * l'idempotence se jugeait au seul journal, « Relire les commandes » ne
+ * réécrivait rien et répondait « tout était déjà à jour », laissant le joueur en
+ * attente de paiement alors que ses 30 € étaient encaissés. Le bouton de
+ * réparation ne doit pas être le deuxième à mentir.
+ *
+ * Toutes les écritures concernées sont des `merge` idempotents : réappliquer ne
+ * coûte rien, ne rien appliquer coûte une place.
+ */
+export function isOutcomeAlreadyApplied(
+  outcome: Outcome,
+  itemId: number,
+  reg: AppliedView | undefined
+): boolean {
+  if (!reg) return false;
+  switch (outcome.kind) {
+    case 'confirm_player':
+      return reg.status === 'confirmed' && reg.paidByItemId === itemId;
+    case 'revoke':
+      return reg.status !== 'confirmed';
+    case 'companion_paid':
+      return (reg.companionItemIds ?? []).includes(itemId);
+    case 'pc_rental':
+      return reg.pcRentalItemId === itemId;
+    default:
+      // Les issues sans effet métier (ignore, spectator, unmatched, needs_review)
+      // n'ont rien à vérifier sur le dossier.
+      return true;
+  }
+}

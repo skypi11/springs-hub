@@ -47,6 +47,9 @@ type Ctx = {
   trackmania?: { accountId: string; displayName: string } | null;
   discord?: { id: string | null; inGuild: boolean | null };
   registration?: ManiaCupRegistration | null;
+  /** Un règlement porte le code du joueur mais attend une décision : la page
+   *  doit alors le RETENIR de payer, pas lui remontrer le bouton. */
+  paymentAwaitingReview?: boolean;
   /** Références des titres saisies par le joueur mineur, pour relecture. */
   guardianIdentity?: GuardianIdentity | null;
 };
@@ -282,7 +285,12 @@ export default function InscriptionPage() {
 
       {/* Dossier déjà déposé : on montre le récapitulatif, pas le formulaire. */}
       {reg && !mustComplete ? (
-        <Recap reg={reg} identity={ctx?.guardianIdentity ?? null} onReload={() => void load()} />
+        <Recap
+          reg={reg}
+          identity={ctx?.guardianIdentity ?? null}
+          onReload={() => void load()}
+          paymentAwaitingReview={ctx?.paymentAwaitingReview ?? false}
+        />
       ) : full ? (
         <Banner tone="warn">
           Les {seats?.max ?? MANIA_CUP.maxPlayers} places sont réglées. Contacte l’organisation sur le
@@ -611,10 +619,13 @@ function Recap({
   reg,
   identity,
   onReload,
+  paymentAwaitingReview,
 }: {
   reg: ManiaCupRegistration;
   identity: GuardianIdentity | null;
   onReload: () => void;
+  /** Un règlement porte son code mais attend une décision de l'organisation. */
+  paymentAwaitingReview: boolean;
 }) {
   const settings = useManiaCupSettings();
   const minor = reg.guardianConsent !== 'not_required';
@@ -647,6 +658,21 @@ function Recap({
               <ShieldCheck size={18} aria-hidden />
               Règlement reçu, ta place est acquise.
             </p>
+          ) : paymentAwaitingReview ? (
+            // Un règlement portant son code est arrivé mais n'a pas pu être
+            // appliqué. Lui remontrer « Payer mon inscription » à cet instant,
+            // c'est l'inviter à payer une seconde fois — c'est arrivé.
+            <div className="border border-[#FFB800]/40 bg-[#FFB800]/10 p-5">
+              <p className="flex items-center gap-2 font-semibold text-[#FFB800]">
+                <AlertTriangle size={18} aria-hidden />
+                Ton règlement est arrivé, il est en cours de vérification.
+              </p>
+              <p className="mt-2 text-sm text-[#f2e6c8]">
+                Ne repaie pas : ton paiement a bien été reçu, l’organisation le
+                rattache à ton dossier. Si ta place n’est toujours pas confirmée
+                demain, préviens-nous sur le Discord Springs.
+              </p>
+            </div>
           ) : (
             <>
               <TicketButton
