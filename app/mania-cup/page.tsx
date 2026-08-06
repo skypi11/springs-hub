@@ -43,9 +43,14 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
+// Ces horaires font foi : ils sont aussi ceux du règlement accepté à
+// l'inscription, et les joueurs organisent leur route et leur hôtel dessus.
+// Toute correction ici doit être répercutée dans docs/reglement-mania-cup.md,
+// puis republiée depuis la console.
 const SAMEDI = [
-  { h: '10h00', t: 'Ouverture de la salle', d: 'Installation, branchement des setups, essais libres.' },
-  { h: '13h00', t: 'Émission d’ouverture', d: 'Une heure en direct avec les présentateurs et les casteurs.' },
+  { h: '09h00', t: 'Ouverture des portes', d: 'Contrôle d’identité, badge, puis installation de ton poste.' },
+  { h: '12h00', t: 'Installations terminées', d: 'Plus personne ne monte son setup : l’heure qui suit sert aux essais réseau et son.' },
+  { h: '13h00', t: 'Springs Show', d: 'Une heure en direct. C’est là que les épreuves du week-end sont dévoilées.' },
   { h: '14h00', t: 'Début de la compétition', d: 'Première épreuve.' },
   { h: '21h30', t: 'Fin de la journée', d: null },
 ];
@@ -54,6 +59,66 @@ const DIMANCHE = [
   { h: '09h30', t: 'Reprise', d: 'La compétition repart, les places se jouent.' },
   { h: '16h30', t: 'Cérémonie de clôture', d: 'Podium et remise du cashprize.' },
   { h: '17h00', t: 'Fin de l’événement', d: null },
+];
+
+/**
+ * Les huit épreuves, annoncées sans être dévoilées.
+ *
+ * On reprochait à l'événement de ne rien laisser voir : un joueur qui paie 30 €
+ * et pose deux jours de week-end veut savoir à quoi il s'engage. Mais tout dire
+ * détruirait le principe même de la LAN — des pistes découvertes par tout le
+ * monde en même temps.
+ *
+ * D'où cet entre-deux : on donne le NOMBRE, l'ORDRE et la COMPÉTENCE mise à
+ * l'épreuve. On ne donne ni le mode de jeu, ni les règles, ni les maps.
+ *
+ * Chaque indice est une promesse faite à des gens qui organisent leur week-end
+ * dessus : il doit décrire l'épreuve réelle, jamais la survendre.
+ */
+const EPREUVES_SAMEDI = [
+  {
+    heure: '14h00',
+    indice:
+      'Tu ne vas pas seulement rouler : tu vas construire. Chrono en main, puis tout le monde court ce que les autres ont bâti. Savoir piloter ne suffira pas.',
+  },
+  {
+    heure: '17h30',
+    indice:
+      'Aucun temps à battre, un chemin à trouver. Celui qui lit le terrain passe devant celui qui appuie le plus fort.',
+  },
+  {
+    heure: '18h45',
+    indice:
+      'Celle-ci ne ressemble à aucune autre du week-end, et son format ne sera annoncé qu’au Springs Show. Viens sans idée préconçue.',
+  },
+  {
+    heure: '20h30',
+    indice:
+      'La vitesse ne sert plus à rien si tu tombes. Trois pistes, et c’est la propreté qui paie.',
+  },
+];
+
+const EPREUVES_DIMANCHE = [
+  {
+    heure: '09h30',
+    indice:
+      'Le dimanche commence par un tri. Tout le monde repart de zéro, et tout le monde ne finit pas la matinée.',
+  },
+  {
+    heure: '11h30',
+    indice:
+      'Une jauge sur ton écran, qui monte et qui descend à chaque piste. Quand tu es trop bas, c’est fini — et tu le vois venir.',
+  },
+  {
+    heure: '13h30',
+    indice:
+      'Dix pistes, un seul total. Une erreur ne se rattrape pas sur la suivante, elle reste au compteur jusqu’au bout.',
+  },
+  {
+    heure: '14h30',
+    indice:
+      'La finale, dans le format que les habitués de la Monthly Cup reconnaîtront. Une dernière piste décide du titre.',
+  },
 ];
 
 const PRATIQUE = [
@@ -238,6 +303,25 @@ export default async function ManiaCupPage() {
         </div>
       </section>
 
+      {/* ---------------- LES ÉPREUVES, SANS LES RÉPONSES ---------------- */}
+      <section className="border-y border-white/10 bg-black/30">
+        <div className="mx-auto max-w-4xl px-6 py-20">
+          <h2 className="font-display text-4xl leading-tight sm:text-5xl">
+            Huit épreuves, huit indices
+          </h2>
+          <p className="mt-4 max-w-2xl text-lg text-[#c9c5d8]">
+            Tu ne sauras pas ce que tu vas jouer — mais tu sauras à quoi te préparer.
+            Voici l’ordre du week-end et, pour chaque épreuve, ce qu’elle met à
+            l’épreuve. Le reste se découvre sur place.
+          </p>
+
+          <div className="mt-12 space-y-12">
+            <EpreuveJour titre="Samedi 3 octobre" items={EPREUVES_SAMEDI} depart={1} />
+            <EpreuveJour titre="Dimanche 4 octobre" items={EPREUVES_DIMANCHE} depart={5} />
+          </div>
+        </div>
+      </section>
+
       {/* ---------------- DÉROULÉ ---------------- */}
       <section className="border-y border-white/10 bg-black/30">
         <div className="mx-auto max-w-6xl px-6 py-20">
@@ -257,10 +341,11 @@ export default async function ManiaCupPage() {
           <div className="mt-12 flex gap-4 border-l-4 border-[#00D936] bg-white/[0.03] p-6">
             <Clock size={22} className="mt-0.5 shrink-0 text-[#00D936]" aria-hidden />
             <p className="text-[#c9c5d8]">
-              <strong className="text-white">Arrive largement en avance le samedi.</strong>{' '}
-              La salle t’accueille dès 10h pour que tu aies le temps d’installer ton
-              matériel sans stress, et l’émission d’ouverture démarre à 13h — soit une
-              heure avant le début de la compétition.
+              <strong className="text-white">Vise le matin, pas midi.</strong>{' '}
+              Les portes ouvrent à 9h et toutes les installations doivent être
+              terminées à 12h — ce n’est pas une formalité : c’est l’heure qui suit
+              qui sert à régler les problèmes de réseau, de son ou de périphérique.
+              Un poste monté à midi est un poste qui roule à 14h.
             </p>
           </div>
         </div>
@@ -472,6 +557,45 @@ export default async function ManiaCupPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+/** Une journée d'épreuves : le numéro, le nom de code, et ce qu'elle éprouve.
+ *  Rangées à dividers plutôt que cards — c'est une liste, pas huit objets à
+ *  mettre en valeur un par un. */
+function EpreuveJour({
+  titre,
+  items,
+  depart,
+}: {
+  titre: string;
+  items: { heure: string; indice: string }[];
+  depart: number;
+}) {
+  return (
+    <div>
+      <h3 className="font-display border-b border-white/10 pb-4 text-3xl">{titre}</h3>
+      <ol className="mt-2">
+        {items.map((it, i) => (
+          <li key={it.heure} className="flex gap-5 border-b border-white/[0.06] py-6">
+            <span
+              className="font-display w-10 shrink-0 text-3xl leading-none"
+              style={{ color: 'var(--s-text-muted)' }}
+              aria-hidden
+            >
+              {String(depart + i).padStart(2, '0')}
+            </span>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-baseline gap-3">
+                <span className="text-lg font-semibold">Épreuve {depart + i}</span>
+                <span className="font-display text-lg text-[#00D936]">{it.heure}</span>
+              </div>
+              <p className="mt-1 text-[#8d89a8]">{it.indice}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 
