@@ -53,10 +53,8 @@ function cleanUrl(raw: unknown): string {
  */
 function publicSettings(s: ManiaCupSettings) {
   return {
-    ticketingPlayerUrl: s.ticketingPlayerUrl,
-    ticketingSpectatorUrl: s.ticketingSpectatorUrl,
-    ticketingCompanionUrl: s.ticketingCompanionUrl,
-    ticketingPcRentalUrl: s.ticketingPcRentalUrl,
+    ticketingUrl: s.ticketingUrl,
+    shopUrl: s.shopUrl,
     priceEuros: s.priceEuros,
     spectatorEuros: s.spectatorEuros,
     companionEuros: s.companionEuros,
@@ -119,10 +117,8 @@ export async function PUT(req: NextRequest) {
     const previous = await getManiaCupSettings(getAdminDb());
 
     const URL_KEYS = [
-      'ticketingPlayerUrl',
-      'ticketingSpectatorUrl',
-      'ticketingCompanionUrl',
-      'ticketingPcRentalUrl',
+      'ticketingUrl',
+      'shopUrl',
     ] as const;
 
     const urls = {} as Record<(typeof URL_KEYS)[number], string>;

@@ -14,11 +14,17 @@ import { MANIA_CUP_FAQ_COLLECTION } from '@/lib/mania-cup-faq';
 export const MANIA_CUP_SETTINGS_DOC = 'settings';
 
 export interface ManiaCupSettings {
-  // Billetterie HelloAsso, un lien par tarif
-  ticketingPlayerUrl: string;
-  ticketingSpectatorUrl: string;
-  ticketingCompanionUrl: string;
-  ticketingPcRentalUrl: string;
+  /**
+   * La billetterie HelloAsso — UNE seule campagne, qui porte les trois tarifs.
+   *
+   * Il y avait ici un lien par billet, du temps où l'on pensait créer une
+   * campagne par tarif. Trois champs pour la même adresse, donc trois
+   * occasions de se tromper et de faire atterrir un spectateur sur une page
+   * périmée.
+   */
+  ticketingUrl: string;
+  /** La boutique de location de matériel, quand elle existera. */
+  shopUrl: string;
   /**
    * Correspondance entre les tarifs de la billetterie et nos catégories, au
    * format JSON `{"<identifiant ou libellé>": "player" | "companion" | …}`.
@@ -44,10 +50,8 @@ export interface ManiaCupSettings {
 }
 
 export const DEFAULT_SETTINGS: ManiaCupSettings = {
-  ticketingPlayerUrl: '',
-  ticketingSpectatorUrl: '',
-  ticketingCompanionUrl: '',
-  ticketingPcRentalUrl: '',
+  ticketingUrl: '',
+  shopUrl: '',
   helloAssoTierMap: '',
   helloAssoCodeField: 'Code d’inscription',
   priceEuros: MANIA_CUP.priceEuros,
@@ -84,10 +88,11 @@ export function normalizeNumber(key: NumericSettingKey, raw: unknown): number {
 export function mergeSettings(data: FirebaseFirestore.DocumentData | undefined): ManiaCupSettings {
   const d = data ?? {};
   return {
-    ticketingPlayerUrl: (d.ticketingPlayerUrl as string) ?? '',
-    ticketingSpectatorUrl: (d.ticketingSpectatorUrl as string) ?? '',
-    ticketingCompanionUrl: (d.ticketingCompanionUrl as string) ?? '',
-    ticketingPcRentalUrl: (d.ticketingPcRentalUrl as string) ?? '',
+    // Lecture tolérante : un réglage enregistré du temps des quatre liens
+    // garde sa valeur, celle du billet joueur faisant foi pour la billetterie.
+    ticketingUrl:
+      (d.ticketingUrl as string) || (d.ticketingPlayerUrl as string) || '',
+    shopUrl: (d.shopUrl as string) || (d.ticketingPcRentalUrl as string) || '',
     helloAssoTierMap: (d.helloAssoTierMap as string) ?? '',
     helloAssoCodeField:
       (d.helloAssoCodeField as string) || DEFAULT_SETTINGS.helloAssoCodeField,

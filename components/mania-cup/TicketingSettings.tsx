@@ -38,26 +38,24 @@ const MONEY: { key: NumericSettingKey; label: string; help?: string }[] = [
   { key: 'prizePoolEuros', label: 'Cashprize total' },
 ];
 
-const LINKS: { key: keyof ManiaCupSettings; label: string; help: string }[] = [
+const LINKS: {
+  key: keyof ManiaCupSettings;
+  label: string;
+  help: string;
+  /** La boutique n'existera qu'au moment de louer du matériel : son absence
+   *  ne doit pas faire passer l'écran pour incomplet. */
+  optional?: boolean;
+}[] = [
   {
-    key: 'ticketingPlayerUrl',
-    label: 'Billet joueur',
-    help: 'Utilisé par le bouton « Payer mon inscription » dans l’espace du joueur.',
+    key: 'ticketingUrl',
+    label: 'Billetterie',
+    help: 'La campagne HelloAsso qui porte les trois tarifs. Un seul lien : joueurs, accompagnants et spectateurs achètent au même endroit.',
   },
   {
-    key: 'ticketingSpectatorUrl',
-    label: 'Billets spectateurs',
-    help: 'Utilisé sur la page Spectateurs. Peut pointer la billetterie générale si les deux tarifs y figurent.',
-  },
-  {
-    key: 'ticketingCompanionUrl',
-    label: 'Billet accompagnant',
-    help: 'Son formulaire HelloAsso doit demander le code d’inscription du joueur accompagné.',
-  },
-  {
-    key: 'ticketingPcRentalUrl',
-    label: 'Location de poste',
-    help: 'Doit aussi demander le code d’inscription. Une location ne vaut jamais règlement de l’inscription.',
+    key: 'shopUrl',
+    label: 'Boutique de location',
+    optional: true,
+    help: 'La boutique du matériel à louer, quand elle existera. Ses produits doivent aussi demander le code d’inscription.',
   },
 ];
 
@@ -88,7 +86,10 @@ export default function TicketingSettings() {
   });
 
   const current: ManiaCupSettings = draft ?? data?.settings ?? DEFAULT_SETTINGS;
-  const filledLinks = LINKS.filter((f) => current[f.key]).length;
+  // Seul le lien de la billetterie est indispensable : c'est lui qui décide si
+  // un joueur peut payer.
+  const requiredLinks = LINKS.filter((f) => !f.optional);
+  const filledLinks = requiredLinks.filter((f) => current[f.key]).length;
   const isError = msg?.includes('refus') || msg?.includes('doivent');
 
   function set<K extends keyof ManiaCupSettings>(key: K, value: ManiaCupSettings[K]) {
@@ -104,9 +105,11 @@ export default function TicketingSettings() {
           <h2 className="font-display text-2xl">Tarifs et billetterie</h2>
           <span
             className="text-sm"
-            style={{ color: filledLinks === LINKS.length ? '#22c55e' : '#FFB800' }}
+            style={{ color: filledLinks === requiredLinks.length ? '#22c55e' : '#FFB800' }}
           >
-            {filledLinks}/{LINKS.length} liens renseignés
+            {filledLinks === requiredLinks.length
+              ? 'Billetterie reliée'
+              : 'Billetterie à relier'}
           </span>
         </div>
         <button
@@ -192,8 +195,10 @@ export default function TicketingSettings() {
               Liens HelloAsso
             </h3>
             <p className="mt-2 text-sm" style={{ color: 'var(--s-text-dim)' }}>
-              Tant qu’un lien est vide, le bouton correspondant s’affiche en
-              « billetterie bientôt ouverte ».
+              Une seule campagne HelloAsso porte les trois billets : joueur,
+              accompagnant et spectateur mènent au même endroit. Tant que le lien
+              est vide, les boutons du site s’affichent en « billetterie bientôt
+              ouverte ».
             </p>
 
             <div className="mt-4 space-y-5">
@@ -201,6 +206,9 @@ export default function TicketingSettings() {
                 <div key={f.key}>
                   <label htmlFor={f.key} className="block text-sm font-semibold">
                     {f.label}
+                    {f.optional && (
+                      <span className="ml-2 font-normal text-[#8d89a8]">facultatif</span>
+                    )}
                   </label>
                   <div className="mt-2 flex items-center gap-2">
                     <input

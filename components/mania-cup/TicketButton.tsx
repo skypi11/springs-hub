@@ -16,18 +16,15 @@ export default function TicketButton({
   variant = 'primary',
   className = '',
 }: {
-  kind: 'player' | 'spectator' | 'companion';
+  kind: 'ticketing' | 'rental';
   label: string;
   variant?: 'primary' | 'outline';
   className?: string;
 }) {
   const settings = useManiaCupSettings();
-  const url =
-    kind === 'player'
-      ? settings.ticketingPlayerUrl
-      : kind === 'spectator'
-        ? settings.ticketingSpectatorUrl
-        : settings.ticketingCompanionUrl;
+  // Les trois billets vivent sur la MÊME campagne : joueur, accompagnant et
+  // spectateur mènent au même endroit. Seule la location a sa boutique.
+  const url = kind === 'rental' ? settings.shopUrl : settings.ticketingUrl;
 
   const base = 'inline-flex items-center gap-2 px-6 py-3 font-bold transition-transform';
   const style =
@@ -39,7 +36,7 @@ export default function TicketButton({
     return (
       <span className={`${base} cursor-not-allowed bg-white/10 text-[#8d89a8] ${className}`}>
         <Ticket size={18} aria-hidden />
-        {label} — billetterie bientôt ouverte
+        {label} — {kind === 'rental' ? 'location bientôt ouverte' : 'billetterie bientôt ouverte'}
       </span>
     );
   }

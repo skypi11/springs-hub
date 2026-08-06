@@ -88,7 +88,7 @@ export default function SpectateursPage() {
           </div>
 
           <div className="mt-8">
-            <TicketButton kind="spectator" label="Prendre un billet spectateur" />
+            <TicketButton kind="ticketing" label="Prendre un billet spectateur" />
             <p className="mt-3 text-sm text-[#8d89a8]">
               Billetterie HelloAsso de Springs E-Sport. Aucun compte n’est nécessaire.
             </p>
@@ -114,7 +114,7 @@ export default function SpectateursPage() {
             </p>
             <div className="mt-5">
               <TicketButton
-                kind="companion"
+                kind="ticketing"
                 variant="outline"
                 label={`Billet accompagnant — ${settings.companionEuros} €`}
               />

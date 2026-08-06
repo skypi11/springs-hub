@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
   const origin = req.nextUrl.origin;
   try {
     const settings = await getManiaCupSettings(getAdminDb());
-    const target = settings.ticketingPlayerUrl?.trim();
+    const target = settings.ticketingUrl?.trim();
 
     // Billetterie pas encore ouverte : on renvoie sur la présentation plutôt
     // que sur une page d'erreur. Le lien peut circuler avant l'ouverture.

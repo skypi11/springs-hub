@@ -650,7 +650,7 @@ function Recap({
           ) : (
             <>
               <TicketButton
-                kind="player"
+                kind="ticketing"
                 label={`Payer mon inscription — ${settings.priceEuros} €`}
               />
               {/* Dit avant le clic, pas découvert au moment de payer : sinon le
@@ -870,7 +870,7 @@ function Companions({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => 
           </p>
           <div className="mt-4">
             <TicketButton
-              kind="companion"
+              kind="ticketing"
               variant="outline"
               label={`Billet accompagnant — ${settings.companionEuros} €`}
             />
