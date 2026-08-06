@@ -53,7 +53,7 @@ dans l'ordre où il les demande. Ce qui n'est pas mentionné se laisse par défa
 | Montant | `30` € |
 | Nombre de places | `64` |
 | Nombre maximum par commande | `1` |
-| Description (238 car.) | *Ta place à la LAN, samedi et dimanche. Inscris-toi d'abord sur aedral.com/mania-cup : ton code d'inscription t'y attend, à reporter ci-dessous. Viens avec ton PC, ton écran, ton casque et un câble ethernet de 5 m. Portes ouvertes samedi dès 9 h.* |
+| Description (246 car.) | *Ta place à la LAN, samedi et dimanche. Inscris-toi d'abord sur aedral.com/mania-cup : ton code d'inscription t'y attend, à reporter ci-dessous. Viens avec ton PC, ton écran, ton casque et un câble ethernet de 10 m. Portes ouvertes samedi dès 9 h.* |
 | Information complémentaire | **Oui** — voir §3 |
 
 > **Le « nombre maximum par commande » à 1 n'est pas cosmétique** : un joueur qui
@@ -70,12 +70,12 @@ dans l'ordre où il les demande. Ce qui n'est pas mentionné se laisse par défa
 | Nombre de places | selon la capacité de la salle |
 | Nombre maximum par commande | `3` |
 | Description (247 car.) | *Accès à la zone joueurs pour une personne qui accompagne un joueur inscrit : parent, coach, ami. Reporte le code d'inscription du joueur, qu'il trouve sur aedral.com/mania-cup. Trois par joueur au plus. Un billet spectateur ne donne pas cet accès.* |
+| Information complémentaire | **Oui** — voir §3 |
 
 > **Trois par commande, et non un.** Une famille qui se déplace prend ses
 > billets d'un coup, avec le même code : le site les rattache tous les trois au
 > joueur, chacun avec le nom de son porteur — HelloAsso demande nom et prénom à
 > chaque billet.
-| Information complémentaire | **Oui** — voir §3 |
 
 ### Tarif 3 — `Spectateur`
 
