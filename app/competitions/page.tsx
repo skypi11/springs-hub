@@ -13,6 +13,7 @@ import { CalendarDays, ExternalLink, Trophy, ArrowRight, EyeOff, Users2 } from '
 import { api, apiPublic } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
 import GameTag from '@/components/games/GameTag';
+import ManiaCupCard from '@/components/competitions/ManiaCupCard';
 import GlanceStat from '@/components/competitions/GlanceStat';
 import OrganizerCredit from '@/components/competitions/OrganizerCredit';
 import { getGameColor, getGameColorRgb, getGameBannerUrl, getGameLogoUrl } from '@/lib/games-registry';
@@ -130,6 +131,12 @@ export default function CompetitionsPage() {
           </div>
         </section>
       )}
+
+      {/* ── Événement sur place : la LAN Trackmania ──
+          Elle a son propre module (inscription + billetterie), donc ni un
+          circuit natif ni une compétition de l'ancien site. La carte se tait
+          d'elle-même tant que l'événement n'est pas publié. */}
+      <ManiaCupCard />
 
       {/* ── Sur l'ancien site Springs (actives : récurrentes / joignables) ── */}
       {ACTIVE_LEGACY_COMPETITIONS.length > 0 && (
