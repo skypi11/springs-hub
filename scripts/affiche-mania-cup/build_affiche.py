@@ -5,7 +5,52 @@ Usage :  python build_affiche.py    ->  affiche.html
 Puis ouvrir affiche.html dans un navigateur en 1080x1527 et capturer.
 Tous les assets sont embarques en base64 : le HTML produit est autoportant.
 """
-import base64, io, os
+import base64, io, os, sys
+
+# Textes de l'affiche, par langue. Le nom de l'evenement, "LAN TRACKMANIA",
+# "SPRINGS MANIA CUP" et l'adresse du site restent identiques : ce sont des
+# noms propres.
+TEXTES = {
+    "fr": {
+        "presente":   u"PRÉSENTE",
+        "dates":      u"3 &amp; 4 OCTOBRE 2026",
+        "lieu":       u"MARZY (58)",
+        "accroche":   u"UNE PREMIÈRE : 100 % FAST LEARN",
+        "slogan":     u"TON TALENT,<br>PAS TON <b>GRIND</b>",
+        "k_jours":    u"JOURS DE LAN",
+        "k_joueurs":  u"JOUEURS",
+        "k_maps":     u"MAPS INÉDITES",
+        "k_epreuves": u"ÉPREUVES",
+        "v_maps":     u"+40",
+        "cashprize":  u"DE CASHPRIZE",
+        "montant":    u"1 200 €",
+        "prix":       u"<b>30 €</b> <em>L'INSCRIPTION</em> &nbsp;·&nbsp; <b>BYOPC</b> <em>LOCATION LIMITÉE</em>",
+        "soutien":    u"AVEC LE SOUTIEN DE",
+        "inscription": u"INSCRIPTIONS SUR",
+    },
+    "en": {
+        "presente":   u"PRESENTS",
+        "dates":      u"OCTOBER 3–4, 2026",
+        "lieu":       u"MARZY, FRANCE",
+        "accroche":   u"A FIRST: 100 % FAST LEARN",
+        "slogan":     u"YOUR TALENT,<br>NOT YOUR <b>GRIND</b>",
+        "k_jours":    u"DAYS OF LAN",
+        "k_joueurs":  u"PLAYERS",
+        "k_maps":     u"NEW MAPS",
+        "k_epreuves": u"EVENTS",
+        "v_maps":     u"40+",
+        "cashprize":  u"PRIZE POOL",
+        "montant":    u"€1,200",
+        "prix":       u"<b>€30</b> <em>ENTRY</em> &nbsp;·&nbsp; <b>BYOPC</b> <em>LIMITED RENTALS</em>",
+        "soutien":    u"SUPPORTED BY",
+        "inscription": u"REGISTER AT",
+    },
+}
+
+LANGUE = sys.argv[1] if len(sys.argv) > 1 else "fr"
+if LANGUE not in TEXTES:
+    raise SystemExit("langue inconnue : %s (fr ou en)" % LANGUE)
+T = TEXTES[LANGUE]
 
 HERE   = os.path.dirname(os.path.abspath(__file__))
 ASSETS = os.path.join(HERE, "assets")
@@ -167,7 +212,7 @@ html, body { background:#000; }
   <div class="inner">
     <div class="top">
       <img src="data:image/png;base64,__LOGO__" alt="Springs E-Sport">
-      <div class="p">PRÉSENTE</div>
+      <div class="p">__T_PRESENTE__</div>
     </div>
 
     <div class="tt3">
@@ -176,33 +221,33 @@ html, body { background:#000; }
       <div class="maniacup">MANIA CUP</div>
       <div class="rule"></div>
       <div class="when">
-        <div class="d">3 &amp; 4 OCTOBRE 2026</div>
+        <div class="d">__T_DATES__</div>
         <div class="dot"></div>
-        <div class="p">MARZY (58)</div>
+        <div class="p">__T_LIEU__</div>
       </div>
     </div>
 
     <div class="hook">
-      <div class="lab">UNE PREMIÈRE : 100 % FAST LEARN</div>
-      <div class="h1">TON TALENT,<br>PAS TON <b>GRIND</b></div>
+      <div class="lab">__T_ACCROCHE__</div>
+      <div class="h1">__T_SLOGAN__</div>
     </div>
 
     <div class="stats">
-      <div><div class="v">2</div><div class="k">JOURS DE LAN</div></div>
-      <div><div class="v">64</div><div class="k">JOUEURS</div></div>
-      <div><div class="v">+40</div><div class="k">MAPS INÉDITES</div></div>
-      <div><div class="v">8</div><div class="k">ÉPREUVES</div></div>
+      <div><div class="v">2</div><div class="k">__T_K_JOURS__</div></div>
+      <div><div class="v">64</div><div class="k">__T_K_JOUEURS__</div></div>
+      <div><div class="v">__T_V_MAPS__</div><div class="k">__T_K_MAPS__</div></div>
+      <div><div class="v">8</div><div class="k">__T_K_EPREUVES__</div></div>
     </div>
 
     <div class="prize">
-      <div class="amt">1 200 €</div>
-      <div class="lab">DE CASHPRIZE</div>
+      <div class="amt">__T_MONTANT__</div>
+      <div class="lab">__T_CASHPRIZE__</div>
     </div>
 
-    <div class="pract"><b>30 €</b> <em>L'INSCRIPTION</em> &nbsp;·&nbsp; <b>BYOPC</b> <em>LOCATION LIMITÉE</em></div>
+    <div class="pract">__T_PRIX__</div>
 
     <div class="sponsors">
-      <div class="sl">AVEC LE SOUTIEN DE</div>
+      <div class="sl">__T_SOUTIEN__</div>
       <div class="row">
         <div class="plain"><img src="data:image/png;base64,__SP404__" alt="PAGE 404"></div>
         <div class="card"><img src="data:image/png;base64,__SPIBIS__" alt="ibis budget"></div>
@@ -210,7 +255,7 @@ html, body { background:#000; }
     </div>
 
     <div class="cta">
-      <div class="l">INSCRIPTIONS SUR</div>
+      <div class="l">__T_INSCRIPTION__</div>
       <div class="u">aedral.com<b>/</b>mania-cup</div>
     </div>
   </div>
@@ -225,7 +270,10 @@ html = (HTML.replace("__FONT__", b64(FONT))
             .replace("__PHOTO__", b64(PHOTO))
             .replace("__LINES__", lines))
 
-out = os.path.join(HERE, "affiche.html")
+for cle, valeur in T.items():
+    html = html.replace("__T_%s__" % cle.upper(), valeur)
+
+out = os.path.join(HERE, "affiche.html" if LANGUE == "fr" else "affiche-%s.html" % LANGUE)
 with io.open(out, "w", encoding="utf-8") as f:
     f.write(html)
 print("OK", out, os.path.getsize(out) // 1024, "KB")
