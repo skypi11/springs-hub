@@ -473,3 +473,27 @@ export function isOutcomeAlreadyApplied(
       return true;
   }
 }
+
+/**
+ * Une relecture doit-elle s'effacer devant une décision prise à la main ?
+ *
+ * Le rattachement manuel sert quand la reconnaissance automatique échoue — et
+ * sa cause persiste souvent : un code recopié de travers chez HelloAsso le
+ * restera. À chaque relecture, `decideItem` reproduit donc le même « je ne sais
+ * pas », ce qui effaçait le `matchedUid` posé par l'organisation. Le dossier
+ * restait confirmé, mais le journal perdait le lien — et depuis qu'un règlement
+ * orphelin alerte, cela réveillait l'organisation pour un cas qu'elle avait
+ * déjà tranché.
+ *
+ * La règle : une décision humaine explicite prime sur une incertitude
+ * automatique, jamais sur un fait nouveau. Un remboursement ou une annulation
+ * chez HelloAsso reste prioritaire — l'argent est reparti, aucune décision
+ * d'organisation ne change cela.
+ */
+export function manualDecisionWins(
+  prev: { source?: string; matchedUid?: string | null } | undefined,
+  next: Outcome
+): boolean {
+  if (!prev || prev.source !== 'manual' || !prev.matchedUid) return false;
+  return next.kind === 'unmatched' || next.kind === 'needs_review';
+}

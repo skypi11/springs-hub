@@ -4,6 +4,8 @@ import { getAdminDb, verifyAuth, isCompetitionAdmin } from '@/lib/firebase-admin
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { captureApiError } from '@/lib/sentry';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
+import { createNotification } from '@/lib/notifications';
+import { sendManiaCupDM } from '@/lib/discord-bot';
 import { getManiaCupSettings } from '@/lib/mania-cup-settings';
 import {
   MANIA_CUP_REGISTRATIONS,
@@ -73,12 +75,24 @@ export async function GET(req: NextRequest) {
     }
 
     // État de la caisse : ce que HelloAsso a encaissé, vu de notre côté.
-    const paymentsSnap = await db
-      .collection(MANIA_CUP_PAYMENTS)
-      .orderBy('receivedAt', 'desc')
-      .limit(300)
-      .get();
+    //
+    // La liste est bornée — 64 joueurs, leurs accompagnants et les spectateurs
+    // finiront par dépasser un écran. Mais les COMPTEURS, eux, portent sur la
+    // collection entière : les calculer sur la page affichée faisait disparaître
+    // les règlements les plus anciens du décompte en même temps que de l'écran,
+    // et un « 0 à traiter » pouvait masquer de l'argent non rattaché.
+    const PAGE = 300;
+    const [paymentsSnap, totalSnap, toReviewSnap] = await Promise.all([
+      db.collection(MANIA_CUP_PAYMENTS).orderBy('receivedAt', 'desc').limit(PAGE).get(),
+      db.collection(MANIA_CUP_PAYMENTS).count().get(),
+      db
+        .collection(MANIA_CUP_PAYMENTS)
+        .where('outcome', 'in', ['unmatched', 'needs_review'])
+        .count()
+        .get(),
+    ]);
     const payments = paymentsSnap.docs.map((d) => d.data() as PaymentRecord);
+    const total = totalSnap.data().count;
 
     return NextResponse.json({
       configured: true,
@@ -88,11 +102,13 @@ export async function GET(req: NextRequest) {
       codeField: settings.helloAssoCodeField,
       payments,
       counts: {
-        total: payments.length,
-        toReview: payments.filter(
-          (p) => p.outcome === 'unmatched' || p.outcome === 'needs_review'
-        ).length,
+        total,
+        toReview: toReviewSnap.data().count,
       },
+      /** Vrai quand la liste ne montre pas tout : la console doit le dire, pas
+       *  laisser croire qu'elle affiche la caisse entière. */
+      truncated: total > payments.length,
+      shown: payments.length,
     });
   } catch (err) {
     if (err instanceof HelloAssoError) {
@@ -157,7 +173,6 @@ export async function POST(req: NextRequest) {
           const res = await applyOrderItem(db, item, {
             source: 'reconcile',
             expectedPlayerAmountCents: settings.priceEuros * 100,
-            maxPlayers: settings.maxPlayers,
           });
           if (res.changed) changed++;
           if (res.outcome === 'unmatched' || res.outcome === 'needs_review') {
@@ -338,11 +353,19 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        return { ok: true, label: reg.tmDisplayName ?? targetUid };
+        return { ok: true, label: reg.tmDisplayName ?? targetUid, kind, discordId: reg.discordId ?? null };
       });
 
       if ('error' in result) {
         return NextResponse.json({ error: result.error }, { status: result.status });
+      }
+
+      // Le joueur est prévenu, comme il l'aurait été par le chemin automatique.
+      // Sans ça, une place rattachée à la main restait confirmée en silence :
+      // il n'apprenait la bonne nouvelle qu'en revenant sur le site de
+      // lui-même — après avoir cru, souvent, que son paiement s'était perdu.
+      if (result.kind === 'player') {
+        await notifyPlayerPaidManually(db, targetUid, result.discordId).catch(() => {});
       }
 
       await writeAdminAuditLog(db, {
@@ -366,4 +389,46 @@ export async function POST(req: NextRequest) {
     captureApiError('admin/mania-cup/helloasso:POST', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
+}
+
+/**
+ * Prévient le joueur dont la place vient d'être confirmée à la main.
+ *
+ * Le chemin automatique le fait depuis toujours (`notifyPlayerPaid`) ; le
+ * rattachement manuel, non. Or c'est justement le cas où le joueur a le plus
+ * douté : son paiement n'était pas passé tout seul, il a peut-être écrit à
+ * l'organisation, voire payé une seconde fois. Le laisser sans nouvelle serait
+ * le pire moment pour se taire.
+ *
+ * La notification interne est garantie ; le message privé est un bonus qui ne
+ * doit jamais faire échouer la réponse à l'organisation.
+ */
+async function notifyPlayerPaidManually(
+  db: FirebaseFirestore.Firestore,
+  uid: string,
+  discordId: string | null
+): Promise<void> {
+  await createNotification(db, {
+    userId: uid,
+    type: 'mania_cup_payment_received',
+    title: 'Ta place est confirmée',
+    message:
+      'Ton règlement a été rattaché à ton dossier par l’organisation. Rendez-vous le 3 octobre à Marzy.',
+    link: '/mania-cup/inscription',
+  });
+
+  if (!discordId) return;
+  await Promise.race([
+    sendManiaCupDM(discordId, {
+      title: 'Ta place est confirmée',
+      description: [
+        'Ton règlement a bien été retrouvé et rattaché à ton dossier.',
+        '',
+        'Rendez-vous le samedi 3 octobre à Marzy. Pense à ta pièce d’identité,',
+        'ton PC, ton casque et un câble ethernet.',
+      ].join('\n'),
+      link: 'https://aedral.com/mania-cup/inscription',
+    }),
+    new Promise((resolve) => setTimeout(resolve, 10_000)),
+  ]);
 }

@@ -157,7 +157,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ secret: st
         await applyOrderItem(db, item, {
           source: 'webhook',
           expectedPlayerAmountCents: settings.priceEuros * 100,
-          maxPlayers: settings.maxPlayers,
         })
       );
     }

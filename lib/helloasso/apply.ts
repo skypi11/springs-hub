@@ -14,6 +14,7 @@ import {
   assignCompanionTicket,
   decideItem,
   isOutcomeAlreadyApplied,
+  manualDecisionWins,
   type Outcome,
   type OrderItemView,
   type RegistrationSnapshot,
@@ -86,8 +87,6 @@ export interface ApplyOptions {
   source: PaymentRecord['source'];
   /** Montant attendu pour une inscription joueur, en centimes. */
   expectedPlayerAmountCents: number | null;
-  /** Jauge, pour alerter si un règlement fait dépasser le nombre de places. */
-  maxPlayers: number;
 }
 
 /**
@@ -170,6 +169,12 @@ async function writeOutcome(
     // dossier qui a dérivé (un « Marquer payé » cliqué de travers suffit)
     // restait en attente de paiement pendant que la console annonçait « tout
     // était déjà à jour ».
+    // Une relecture ne défait pas ce qu'un humain a tranché : la cause d'un
+    // rattachement manuel (un code recopié de travers chez HelloAsso) persiste,
+    // donc chaque passage reproduirait le même « je ne sais pas » et effacerait
+    // la décision — en réveillant l'organisation au passage.
+    if (manualDecisionWins(prev, outcome)) return false;
+
     const reg = regSnap?.data() as ManiaCupRegistration | undefined;
     const isReplay =
       prev != null &&
@@ -284,6 +289,20 @@ async function writeOutcome(
                   ? { ...c, ticketPaidAt: FieldValue.serverTimestamp() }
                   : c
               ),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        } else {
+          // Plus aucune place libre : le billet est payé mais ne s'attache à
+          // personne. Le journaliser « companion_paid » l'affichait en vert
+          // dans la console, alors qu'il appelle une décision — un billet de
+          // trop, ou un accompagnant à retirer.
+          tx.set(
+            paymentRef,
+            {
+              outcome: 'needs_review',
+              reason: `Billet accompagnant en trop : ce joueur en a déjà ${MAX_COMPANIONS} réglés`,
               updatedAt: FieldValue.serverTimestamp(),
             },
             { merge: true }

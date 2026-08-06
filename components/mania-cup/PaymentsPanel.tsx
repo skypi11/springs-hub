@@ -49,7 +49,11 @@ type Payload = {
   organizationSlug?: string;
   formSlug?: string;
   payments?: Payment[];
+  /** Portent sur TOUTE la caisse, pas sur la page affichée. */
   counts?: { total: number; toReview: number };
+  /** Vrai quand la liste ne montre que les règlements les plus récents. */
+  truncated?: boolean;
+  shown?: number;
 };
 
 /** Les dossiers auxquels un règlement orphelin peut être rattaché. */
@@ -147,6 +151,14 @@ export default function PaymentsPanel({ targets }: { targets: MatchTarget[] }) {
                 <strong style={{ color: 'var(--s-gold)' }}>
                   {counts.toReview} à traiter
                 </strong>
+              </>
+            )}
+            {/* Le dire quand la liste ne montre pas tout : sans ça, l'écran
+                laisse croire qu'il affiche la caisse entière. */}
+            {data.truncated && (
+              <>
+                {' · '}
+                {data.shown} affichés, les plus récents
               </>
             )}
           </p>

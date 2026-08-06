@@ -11,6 +11,7 @@ import {
   isDonationLike,
   resolveManualTicket,
   isOutcomeAlreadyApplied,
+  manualDecisionWins,
   type OrderItemView,
   type RegistrationSnapshot,
 } from './reconcile';
@@ -582,5 +583,38 @@ describe('isOutcomeAlreadyApplied — « Relire les commandes » doit réparer, 
   it('les issues sans effet métier n’ont rien à vérifier', () => {
     const review = { kind: 'needs_review', reason: 'doublon' } as const;
     expect(isOutcomeAlreadyApplied(review, 1, { status: 'pending_payment' })).toBe(true);
+  });
+});
+
+describe('manualDecisionWins — une relecture ne défait pas ce qu’un humain a tranché', () => {
+  const manual = { source: 'manual', matchedUid: 'discord_1' };
+
+  it('conserve le rattachement quand la relecture ne sait toujours pas', () => {
+    // Cause persistante : le code reste illisible chez HelloAsso, donc chaque
+    // passage reproduit le même « je ne sais pas ». Sans cette règle, le
+    // matchedUid posé par l'organisation était effacé à chaque relecture — et
+    // depuis que les orphelins alertent, elle était réveillée pour rien.
+    expect(manualDecisionWins(manual, { kind: 'unmatched', reason: 'Code illisible' })).toBe(true);
+    expect(manualDecisionWins(manual, { kind: 'needs_review', reason: 'Tarif inconnu' })).toBe(true);
+  });
+
+  it('s’efface devant un remboursement : l’argent est reparti', () => {
+    expect(
+      manualDecisionWins(manual, { kind: 'revoke', uid: 'discord_1', reason: 'Remboursé' })
+    ).toBe(false);
+  });
+
+  it('s’efface devant une reconnaissance aboutie', () => {
+    expect(manualDecisionWins(manual, { kind: 'confirm_player', uid: 'discord_1' })).toBe(false);
+  });
+
+  it('ne protège que les décisions humaines', () => {
+    const auto = { source: 'reconcile', matchedUid: 'discord_1' };
+    expect(manualDecisionWins(auto, { kind: 'unmatched', reason: 'x' })).toBe(false);
+    expect(manualDecisionWins(undefined, { kind: 'unmatched', reason: 'x' })).toBe(false);
+    // Rattachement manuel sans cible : rien à protéger.
+    expect(
+      manualDecisionWins({ source: 'manual', matchedUid: null }, { kind: 'unmatched', reason: 'x' })
+    ).toBe(false);
   });
 });
