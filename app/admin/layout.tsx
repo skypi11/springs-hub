@@ -24,6 +24,18 @@ type DashboardBadges = {
   };
 };
 
+// Chemins ouverts à un admin de compétition (rôle scopé, spec Legends §6).
+// La console de la Springs Mania Cup relève de l'organisation d'une compétition :
+// la fermer aux seuls admins Aedral complets ferait un goulot d'étranglement
+// pour relire les autorisations parentales.
+//
+// UNE seule source : la redirection et la garde de rendu doivent rester
+// d'accord. Les avoir écrites deux fois a déjà fait rendre une page blanche aux
+// admins compét sur /admin/mania-cup — la redirection les laissait passer, la
+// garde renvoyait null.
+const COMP_ADMIN_PATHS = ['/admin/competitions', '/admin/mania-cup'];
+const isCompAdminPath = (p: string) => COMP_ADMIN_PATHS.some((base) => p.startsWith(base));
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { isAdmin, isCompetitionAdmin, loading: authLoading, profileEnriched, firebaseUser } = useAuth();
   const router = useRouter();
@@ -51,15 +63,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       router.replace('/');
       return;
     }
-    // La console de la Springs Mania Cup relève de l'organisation d'une
-    // compétition : elle est ouverte aux admins compét au même titre, sinon
-    // seuls les admins Aedral complets pourraient relire les autorisations
-    // parentales — un goulot d'étranglement pour rien.
-    if (
-      compAdminOnly
-      && !pathname.startsWith('/admin/competitions')
-      && !pathname.startsWith('/admin/mania-cup')
-    ) {
+    if (compAdminOnly && !isCompAdminPath(pathname)) {
       router.replace('/admin/competitions');
     }
   }, [authLoading, allowed, adminessKnown, compAdminOnly, firebaseUser, router, pathname]);
@@ -104,7 +108,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     // Le useEffect redirige, on évite juste un flash de contenu
     return null;
   }
-  if (compAdminOnly && !pathname.startsWith('/admin/competitions')) {
+  if (compAdminOnly && !isCompAdminPath(pathname)) {
     return null;
   }
 
