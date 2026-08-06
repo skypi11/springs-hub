@@ -33,6 +33,15 @@ const CLEANUP = process.argv.includes('--cleanup');
 // --hide : masquer la démonstration du public sans rien effacer (les salons
 // Discord gardent tout l'historique, mais les liens du site cessent de résoudre).
 const HIDE = process.argv.includes('--hide');
+// --show : l'inverse, à lancer juste avant une présentation pour que les liens
+// « Ouvrir sur Aedral » des messages Discord résolvent.
+const SHOW = process.argv.includes('--show');
+// --public : laisser la démonstration exposée en sortant. Sans ce drapeau, le
+// script se remasque tout seul. Le déroulé EXIGE isDev=false (sinon le bot est
+// muet) et publier le bracket bascule le statut en 'live' : sans masquage
+// automatique, une démonstration reste indéfiniment en vitrine sur aedral.com
+// dès que quelqu'un oublie de lancer --hide. C'est arrivé.
+const PUBLIC = process.argv.includes('--public');
 const P = 'demo_bot';
 const COMP = `${P}-qualif`;
 // La démonstration crée DEUX documents publiables : la Qualif et le circuit qui
@@ -113,6 +122,24 @@ const capUid = i => `discord_${P}_cap${i}`;
 const step = (n, t) => console.log(`\n[${n}] ${t}`);
 /** Respiration entre deux étapes : l'ordre des messages doit rester lisible. */
 const beat = (ms = 1200) => new Promise(r => setTimeout(r, ms));
+
+// ── Masquage ────────────────────────────────────────────────────────────────
+/** Retire la démonstration du public sans rien effacer.
+ *
+ *  Écrit sur chaque document le champ que SA garde regarde vraiment :
+ *  isCompetitionHidden lit `isDev`, isCircuitHidden ne lit QUE le statut. Un
+ *  `update()` sec planterait sur un document absent — et faire échouer le seul
+ *  filet, c'est laisser la démonstration en vitrine en croyant l'avoir rangée. */
+async function hide() {
+  const targets = [
+    [db.collection('competitions').doc(COMP), { isDev: true }],
+    [db.collection('circuits').doc(CIRCUIT), { status: 'draft', isDev: true }],
+  ];
+  for (const [ref, patch] of targets) {
+    const snap = await ref.get().catch(() => null);
+    if (snap?.exists) await ref.update(patch);
+  }
+}
 
 // ── Nettoyage ───────────────────────────────────────────────────────────────
 async function cleanup() {
@@ -230,9 +257,12 @@ async function setup(ownerId, staffRoleId) {
         createGeneralChannel: true, generalChannelName: 'general-participants', generalChannelId: null,
       },
     },
-    // isDev FALSE le temps de la démonstration : c'est la garde qui coupe les
-    // envois du bac à sable. Remis à true à la fin pour que la compétition
-    // n'apparaisse jamais côté public.
+    // isDev FALSE le temps du déroulé : c'est la garde qui coupe les envois du
+    // bac à sable, donc sans ça le bot reste muet et la démonstration ne montre
+    // rien. Le prix à payer est que l'étape « publier le bracket » fait passer
+    // le statut à 'live' : la compétition devient PUBLIQUE sur aedral.com.
+    // C'est pourquoi main() la remasque tout seul en sortant (voir hide()) —
+    // le laisser à la mémoire de l'opérateur l'a déjà laissée en vitrine.
     status: 'draft', isDev: false, approvedCount: TEAMS.length, createdAt: Timestamp.now(),
   });
   await batch.commit();
@@ -379,6 +409,11 @@ async function main() {
   // messages tombent sur une page introuvable, et montrer le bracket et la page
   // de match fait la moitié de la démonstration. Contrepartie assumée et
   // signalée ci-dessous : elle apparaît côté public le temps de la présentation.
+  // Le déroulé est fini, le bot n'a plus rien à envoyer : on referme la porte
+  // tout de suite. Laisser l'exposition à un geste manuel ultérieur, c'est ce
+  // qui a laissé « Legends Springs Cup » en vitrine sur /competitions.
+  if (!PUBLIC) await hide();
+
   const announceId = comp.discord?.options?.announceChannelId;
   console.log(`\n${'─'.repeat(70)}`);
   console.log('DÉMONSTRATION EN PLACE. Rien n’a été nettoyé.');
@@ -411,10 +446,16 @@ async function main() {
   console.log('attendue, ou qu’une décision touche l’équipe. Chaque salon ne contient QUE');
   console.log('ce qui concerne son équipe.');
 
-  console.log(`\n⚠ La compétition est VISIBLE sur aedral.com le temps de la présentation, pour que`);
-  console.log(`  les liens « Ouvrir sur Aedral » des messages fonctionnent (bracket, page de match).`);
-  console.log(`  Elle s'appelle « Qualif démonstration ». Pour la masquer sans rien supprimer :`);
-  console.log(`     node --env-file=.env.local scripts/demo-discord-competition.mjs --hide`);
+  if (PUBLIC) {
+    console.log(`\n⚠ VISIBLE sur aedral.com — tu as passé --public. N'importe quel visiteur voit`);
+    console.log(`  « Qualif démonstration » dans l'onglet Compétitions, et l'y laissera jusqu'à :`);
+    console.log(`     node --env-file=.env.local scripts/demo-discord-competition.mjs --hide`);
+  } else {
+    console.log(`\nMasquée du public (Qualif ET circuit). Les salons Discord gardent tout leur`);
+    console.log(`  historique ; seuls les liens « Ouvrir sur Aedral » des messages ne résolvent`);
+    console.log(`  plus. Pour les rallumer le temps de la présentation :`);
+    console.log(`     node --env-file=.env.local scripts/demo-discord-competition.mjs --show`);
+  }
   console.log(`\nPour tout effacer après la présentation (serveur et base rendus propres) :`);
   console.log(`     node --env-file=.env.local scripts/demo-discord-competition.mjs --cleanup`);
   if (announceId) console.log(`\nSalon d'annonces : https://discord.com/channels/${GUILD}/${announceId}`);
@@ -423,18 +464,23 @@ async function main() {
 
 try {
   if (CLEANUP) await cleanup();
+  else if (SHOW) {
+    await db.collection('competitions').doc(COMP).update({ isDev: false });
+    await db.collection('circuits').doc(CIRCUIT).update({ status: 'active', isDev: false });
+    console.log('Démonstration VISIBLE sur aedral.com. Les liens des messages Discord résolvent.');
+    console.log('Pense à relancer --hide après la présentation.');
+  }
   else if (HIDE) {
-    // Les deux documents, et chacun par le champ que SA garde regarde vraiment :
-    // isCircuitHidden n'inspecte que le statut, poser isDev sur un circuit ne le
-    // masque de rien. On pose quand même les deux champs — isDev dit « donnée de
-    // test » à quiconque relit la base, le statut fait le masquage.
-    await db.collection('competitions').doc(COMP).update({ isDev: true });
-    await db.collection('circuits').doc(CIRCUIT).update({ status: 'draft', isDev: true });
+    await hide();
     console.log('Démonstration masquée du public (Qualif ET circuit).');
     console.log('Les salons Discord gardent tout leur historique ; les liens « Ouvrir sur');
     console.log('Aedral » des messages ne résolvent plus.');
   } else await main();
 } catch (err) {
   console.error('\n💥', err);
+  // Un plantage en cours de route peut laisser la compétition publiée : le
+  // bracket est publié à l'étape 3, bien avant la fin. On referme avant de
+  // sortir, sans quoi un échec laisse un tournoi de test en vitrine.
+  if (!CLEANUP && !SHOW && !PUBLIC) await hide().catch(() => {});
   process.exitCode = 1;
 }

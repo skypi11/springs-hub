@@ -84,7 +84,12 @@ async function setup() {
       ],
       phasePlan: [], generalCheckinMinutes: 20, matchCheckinMinutes: 5, scoreCounterMinutes: 3,
     },
-    status: 'registration', approvedCount: 0, createdAt: FieldValue.serverTimestamp(),
+    // isDev, comme chez les scripts frères : sans lui, une compétition en
+    // fenêtre d'inscription passe les deux gardes et s'affiche EN TÊTE de
+    // /competitions — plus la bannière du tableau de bord de chaque
+    // utilisateur — pendant toute la durée du test. La base est partagée avec
+    // la production. L'admin e2e, lui, la voit via canViewHiddenCompetition.
+    status: 'registration', isDev: true, approvedCount: 0, createdAt: FieldValue.serverTimestamp(),
   });
   // Inscription PENDING (posée directement, comme après le wizard).
   batch.set(db.collection('competition_registrations').doc(REG), {
