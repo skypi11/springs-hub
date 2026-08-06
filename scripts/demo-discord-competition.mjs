@@ -35,6 +35,11 @@ const CLEANUP = process.argv.includes('--cleanup');
 const HIDE = process.argv.includes('--hide');
 const P = 'demo_bot';
 const COMP = `${P}-qualif`;
+// La démonstration crée DEUX documents publiables : la Qualif et le circuit qui
+// la porte. Ils ne se masquent pas de la même façon — isCompetitionHidden lit
+// `isDev`, isCircuitHidden ne lit que le statut. Oublier le second a laissé le
+// circuit « Legends Springs Cup » en vitrine sur /competitions pendant des jours.
+const CIRCUIT = `${P}-circuit`;
 const STAFF_ROLE_NAME = 'Staff démo';
 
 // Huit équipes aux noms crédibles : la démonstration doit ressembler à un vrai
@@ -149,10 +154,18 @@ async function cleanup() {
     for (const priv of (await m.ref.collection('private').get()).docs) await priv.ref.delete();
     await m.ref.delete();
   }
+  // Les identités de circuit d'abord : elles portent une sous-collection privée
+  // qu'un delete du parent laisserait orpheline (Firestore ne cascade pas).
+  const circuitTeams = await db.collection('circuit_teams').where('circuitId', '==', CIRCUIT).get().catch(() => ({ docs: [] }));
+  for (const t of circuitTeams.docs) {
+    for (const priv of (await t.ref.collection('private').get()).docs) await priv.ref.delete();
+    await t.ref.delete();
+  }
   const batch = db.batch();
   for (const doc of regs.docs) batch.delete(doc.ref);
   for (let i = 1; i <= TEAMS.length; i++) batch.delete(db.collection('users').doc(capUid(i)));
   batch.delete(db.collection('competitions').doc(COMP));
+  batch.delete(db.collection('circuits').doc(CIRCUIT));
   await batch.commit().catch(() => {});
   const notifs = await db.collection('notifications').where('metadata.competitionId', '==', COMP).get().catch(() => ({ docs: [] }));
   for (const n of notifs.docs) await n.ref.delete();
@@ -411,9 +424,15 @@ async function main() {
 try {
   if (CLEANUP) await cleanup();
   else if (HIDE) {
+    // Les deux documents, et chacun par le champ que SA garde regarde vraiment :
+    // isCircuitHidden n'inspecte que le statut, poser isDev sur un circuit ne le
+    // masque de rien. On pose quand même les deux champs — isDev dit « donnée de
+    // test » à quiconque relit la base, le statut fait le masquage.
     await db.collection('competitions').doc(COMP).update({ isDev: true });
-    console.log('Démonstration masquée du public. Les salons Discord gardent tout leur historique ;');
-    console.log('les liens « Ouvrir sur Aedral » des messages ne résolvent plus.');
+    await db.collection('circuits').doc(CIRCUIT).update({ status: 'draft', isDev: true });
+    console.log('Démonstration masquée du public (Qualif ET circuit).');
+    console.log('Les salons Discord gardent tout leur historique ; les liens « Ouvrir sur');
+    console.log('Aedral » des messages ne résolvent plus.');
   } else await main();
 } catch (err) {
   console.error('\n💥', err);
