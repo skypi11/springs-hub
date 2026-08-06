@@ -61,66 +61,6 @@ const DIMANCHE = [
   { h: '17h00', t: 'Fin de l’événement', d: null },
 ];
 
-/**
- * Les huit épreuves, annoncées sans être dévoilées.
- *
- * On reprochait à l'événement de ne rien laisser voir : un joueur qui paie 30 €
- * et pose deux jours de week-end veut savoir à quoi il s'engage. Mais tout dire
- * détruirait le principe même de la LAN — des pistes découvertes par tout le
- * monde en même temps.
- *
- * D'où cet entre-deux : on donne le NOMBRE, l'ORDRE et la COMPÉTENCE mise à
- * l'épreuve. On ne donne ni le mode de jeu, ni les règles, ni les maps.
- *
- * Chaque indice est une promesse faite à des gens qui organisent leur week-end
- * dessus : il doit décrire l'épreuve réelle, jamais la survendre.
- */
-const EPREUVES_SAMEDI = [
-  {
-    heure: '14h00',
-    indice:
-      'Tu ne vas pas seulement rouler : tu vas construire. Chrono en main, puis tout le monde court ce que les autres ont bâti. Savoir piloter ne suffira pas.',
-  },
-  {
-    heure: '17h30',
-    indice:
-      'Aucun temps à battre, un chemin à trouver. Celui qui lit le terrain passe devant celui qui appuie le plus fort.',
-  },
-  {
-    heure: '18h45',
-    indice:
-      'Celle-ci ne ressemble à aucune autre du week-end, et son format ne sera annoncé qu’au Springs Show. Viens sans idée préconçue.',
-  },
-  {
-    heure: '20h30',
-    indice:
-      'La vitesse ne sert plus à rien si tu tombes. Trois pistes, et c’est la propreté qui paie.',
-  },
-];
-
-const EPREUVES_DIMANCHE = [
-  {
-    heure: '09h30',
-    indice:
-      'Le dimanche commence par un tri. Tout le monde repart de zéro, et tout le monde ne finit pas la matinée.',
-  },
-  {
-    heure: '11h30',
-    indice:
-      'Une jauge sur ton écran, qui monte et qui descend à chaque piste. Quand tu es trop bas, c’est fini — et tu le vois venir.',
-  },
-  {
-    heure: '13h30',
-    indice:
-      'Dix pistes, un seul total. Une erreur ne se rattrape pas sur la suivante, elle reste au compteur jusqu’au bout.',
-  },
-  {
-    heure: '14h30',
-    indice:
-      'La finale, dans le format que les habitués de la Monthly Cup reconnaîtront. Une dernière piste décide du titre.',
-  },
-];
-
 const PRATIQUE = [
   {
     icon: Monitor,
@@ -300,25 +240,6 @@ export default async function ManiaCupPage() {
             dévoilés que sur place, au fur et à mesure. C’est la condition pour que
             tout le monde arrive à égalité — et c’est tout l’intérêt de l’événement.
           </p>
-        </div>
-      </section>
-
-      {/* ---------------- LES ÉPREUVES, SANS LES RÉPONSES ---------------- */}
-      <section className="border-y border-white/10 bg-black/30">
-        <div className="mx-auto max-w-4xl px-6 py-20">
-          <h2 className="font-display text-4xl leading-tight sm:text-5xl">
-            Huit épreuves, huit indices
-          </h2>
-          <p className="mt-4 max-w-2xl text-lg text-[#c9c5d8]">
-            Tu ne sauras pas ce que tu vas jouer — mais tu sauras à quoi te préparer.
-            Voici l’ordre du week-end et, pour chaque épreuve, ce qu’elle met à
-            l’épreuve. Le reste se découvre sur place.
-          </p>
-
-          <div className="mt-12 space-y-12">
-            <EpreuveJour titre="Samedi 3 octobre" items={EPREUVES_SAMEDI} depart={1} />
-            <EpreuveJour titre="Dimanche 4 octobre" items={EPREUVES_DIMANCHE} depart={5} />
-          </div>
         </div>
       </section>
 
@@ -557,45 +478,6 @@ export default async function ManiaCupPage() {
         </div>
       </section>
     </main>
-  );
-}
-
-/** Une journée d'épreuves : le numéro, le nom de code, et ce qu'elle éprouve.
- *  Rangées à dividers plutôt que cards — c'est une liste, pas huit objets à
- *  mettre en valeur un par un. */
-function EpreuveJour({
-  titre,
-  items,
-  depart,
-}: {
-  titre: string;
-  items: { heure: string; indice: string }[];
-  depart: number;
-}) {
-  return (
-    <div>
-      <h3 className="font-display border-b border-white/10 pb-4 text-3xl">{titre}</h3>
-      <ol className="mt-2">
-        {items.map((it, i) => (
-          <li key={it.heure} className="flex gap-5 border-b border-white/[0.06] py-6">
-            <span
-              className="font-display w-10 shrink-0 text-3xl leading-none"
-              style={{ color: 'var(--s-text-muted)' }}
-              aria-hidden
-            >
-              {String(depart + i).padStart(2, '0')}
-            </span>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-baseline gap-3">
-                <span className="text-lg font-semibold">Épreuve {depart + i}</span>
-                <span className="font-display text-lg text-[#00D936]">{it.heure}</span>
-              </div>
-              <p className="mt-1 text-[#8d89a8]">{it.indice}</p>
-            </div>
-          </li>
-        ))}
-      </ol>
-    </div>
   );
 }
 
