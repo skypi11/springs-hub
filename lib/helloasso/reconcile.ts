@@ -379,3 +379,53 @@ export function decideItem(item: OrderItemView, ctx: DecideContext): Outcome {
 
   return { kind: 'confirm_player', uid: registration.uid };
 }
+
+/**
+ * Quelle catégorie de billet appliquer lors d'un rattachement MANUEL.
+ *
+ * Le rattachement manuel est l'outil de secours : on s'en sert précisément
+ * quand la reconnaissance automatique a échoué. Le faire dépendre de
+ * `payment.ticket` le rendait donc inopérant au moment où il sert — c'est ce
+ * qui s'est produit à l'ouverture des inscriptions. La correspondance des
+ * tarifs était vide, `ticket` valait null, aucune branche ne s'exécutait,
+ * l'inscription n'était jamais confirmée, et la console répondait « ok ».
+ * Un joueur a fini par payer deux fois.
+ *
+ * Deux règles en découlent :
+ *   - l'organisation peut TRANCHER elle-même la catégorie (`requested`), sans
+ *     dépendre d'un réglage ;
+ *   - quand personne ne peut trancher, on refuse EXPLICITEMENT, avec la marche
+ *     à suivre. Jamais de succès silencieux.
+ */
+export function resolveManualTicket(
+  payment: { ticket: TicketKind | null; tierLabel?: string | null },
+  requested?: string | null
+): { ok: true; ticket: TicketKind } | { ok: false; reason: string } {
+  if (requested != null && requested !== '') {
+    if (!(TICKETS_NEEDING_CODE as readonly string[]).includes(requested)) {
+      return {
+        ok: false,
+        reason: `Catégorie « ${requested} » impossible à rattacher à une inscription.`,
+      };
+    }
+    return { ok: true, ticket: requested as TicketKind };
+  }
+
+  if (payment.ticket && (TICKETS_NEEDING_CODE as readonly string[]).includes(payment.ticket)) {
+    return { ok: true, ticket: payment.ticket };
+  }
+
+  if (payment.ticket === 'spectator') {
+    return { ok: false, reason: 'Un billet spectateur ne se rattache à aucune inscription.' };
+  }
+
+  const tier = payment.tierLabel ? ` « ${payment.tierLabel} »` : '';
+  return {
+    ok: false,
+    reason:
+      `Le tarif${tier} n’est associé à aucune catégorie de billet, ` +
+      `le rattachement ne saurait pas quoi confirmer. Renseigne la correspondance ` +
+      `des tarifs dans Configuration, puis relis les commandes — ou choisis la ` +
+      `catégorie à la main.`,
+  };
+}

@@ -9,6 +9,7 @@ import {
   isItemVoided,
   assignCompanionTicket,
   isDonationLike,
+  resolveManualTicket,
   type OrderItemView,
   type RegistrationSnapshot,
 } from './reconcile';
@@ -490,5 +491,49 @@ describe('dons et contributions', () => {
       expectedAmountCents: 3000,
     });
     expect(out.kind).toBe('ignore');
+  });
+});
+
+describe('resolveManualTicket — le rattachement de secours doit pouvoir conclure', () => {
+  it('refuse, au lieu de faire semblant, quand le tarif n’est associé à rien', () => {
+    // Le cas RÉEL du 6 août 2026 : correspondance des tarifs vide, deux
+    // règlements de 30 € impossibles à rattacher, et une console qui répondait
+    // « ok » sans rien écrire. Un joueur a payé deux fois.
+    const out = resolveManualTicket({ ticket: null, tierLabel: 'Billet Joueur' });
+    expect(out.ok).toBe(false);
+    if (!out.ok) {
+      expect(out.reason).toContain('Billet Joueur');
+      expect(out.reason).toContain('correspondance');
+    }
+  });
+
+  it('laisse l’organisation trancher la catégorie sans dépendre du réglage', () => {
+    const out = resolveManualTicket({ ticket: null, tierLabel: 'Billet Joueur' }, 'player');
+    expect(out).toEqual({ ok: true, ticket: 'player' });
+  });
+
+  it('utilise la catégorie reconnue quand elle existe', () => {
+    expect(resolveManualTicket({ ticket: 'companion' })).toEqual({
+      ok: true,
+      ticket: 'companion',
+    });
+  });
+
+  it('la demande explicite prime sur une reconnaissance erronée', () => {
+    expect(resolveManualTicket({ ticket: 'companion' }, 'player')).toEqual({
+      ok: true,
+      ticket: 'player',
+    });
+  });
+
+  it('refuse un billet spectateur : il ne se rattache à aucun dossier', () => {
+    const out = resolveManualTicket({ ticket: 'spectator' });
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.reason).toContain('spectateur');
+  });
+
+  it('refuse une catégorie inventée', () => {
+    expect(resolveManualTicket({ ticket: null }, 'n’importe quoi').ok).toBe(false);
+    expect(resolveManualTicket({ ticket: null }, 'spectator').ok).toBe(false);
   });
 });

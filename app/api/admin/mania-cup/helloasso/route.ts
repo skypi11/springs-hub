@@ -15,7 +15,7 @@ import {
   iterateFormOrders,
   HelloAssoError,
 } from '@/lib/helloasso/client';
-import { parseOrder, parseTierMap } from '@/lib/helloasso/reconcile';
+import { parseOrder, parseTierMap, resolveManualTicket } from '@/lib/helloasso/reconcile';
 import { applyOrderItem, MANIA_CUP_PAYMENTS, type PaymentRecord } from '@/lib/helloasso/apply';
 
 // Pilotage de la billetterie HelloAsso depuis la console.
@@ -110,6 +110,7 @@ export async function POST(req: NextRequest) {
       action?: unknown;
       itemId?: unknown;
       targetUid?: unknown;
+      ticket?: unknown;
     } | null;
     const action = typeof body?.action === 'string' ? body.action : '';
 
@@ -180,6 +181,7 @@ export async function POST(req: NextRequest) {
     if (action === 'match') {
       const itemId = Number(body?.itemId);
       const targetUid = typeof body?.targetUid === 'string' ? body.targetUid : '';
+      const requestedTicket = typeof body?.ticket === 'string' ? body.ticket : null;
       if (!Number.isFinite(itemId) || !targetUid) {
         return NextResponse.json({ error: 'Requête invalide' }, { status: 400 });
       }
@@ -204,13 +206,27 @@ export async function POST(req: NextRequest) {
           return { error: 'Cette inscription est déjà réglée par un autre paiement', status: 409 };
         }
 
-        const isPlayerTicket = payment.ticket === 'player';
+        // Quelle catégorie appliquer ? Surtout pas `payment.ticket` seul : quand
+        // la reconnaissance automatique a échoué il vaut null, et c'est
+        // exactement le cas où l'on se sert de ce bouton.
+        const resolved = resolveManualTicket(payment, requestedTicket);
+        if (!resolved.ok) return { error: resolved.reason, status: 409 };
+        const kind = resolved.ticket;
 
         tx.set(
           paymentRef,
           {
             matchedUid: targetUid,
-            outcome: isPlayerTicket ? 'confirm_player' : payment.outcome,
+            // La catégorie tranchée est écrite : le journal doit dire ce qui a
+            // été appliqué, sans quoi une relecture ultérieure repartirait du
+            // même « tarif non reconnu ».
+            ticket: kind,
+            outcome:
+              kind === 'player'
+                ? 'confirm_player'
+                : kind === 'companion'
+                  ? 'companion_paid'
+                  : 'pc_rental',
             reason: `Rattaché à la main par l’organisation`,
             source: 'manual',
             updatedAt: FieldValue.serverTimestamp(),
@@ -218,7 +234,7 @@ export async function POST(req: NextRequest) {
           { merge: true }
         );
 
-        if (isPlayerTicket) {
+        if (kind === 'player') {
           tx.set(
             regRef,
             {
@@ -237,7 +253,7 @@ export async function POST(req: NextRequest) {
             },
             { merge: true }
           );
-        } else if (payment.ticket === 'companion') {
+        } else if (kind === 'companion') {
           tx.set(
             regRef,
             {
@@ -246,7 +262,7 @@ export async function POST(req: NextRequest) {
             },
             { merge: true }
           );
-        } else if (payment.ticket === 'pc_rental') {
+        } else if (kind === 'pc_rental') {
           tx.set(
             regRef,
             {

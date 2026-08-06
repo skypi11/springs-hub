@@ -16,7 +16,7 @@ import {
   type OrderItemView,
   type RegistrationSnapshot,
 } from './reconcile';
-import { TICKET_LABELS } from './types';
+import { TICKET_LABELS, type TicketKind } from './types';
 
 // Application en base de ce qu'une ligne de commande a décidé.
 //
@@ -43,7 +43,12 @@ export const MANIA_CUP_PAYMENTS = 'mania_cup_payments';
 export interface PaymentRecord {
   itemId: number;
   orderId: number;
-  ticket: string | null;
+  /**
+   * Volontairement fermé sur les catégories connues, et pas `string | null` :
+   * ce laxisme laissait passer sans un mot des comparaisons du genre
+   * `payment.ticket === 'player'` alors que le champ pouvait être null.
+   */
+  ticket: TicketKind | null;
   tierLabel: string;
   amountCents: number;
   state: string;
@@ -171,7 +176,29 @@ async function writeOutcome(
     };
     if (!prev) record.receivedAt = FieldValue.serverTimestamp();
 
-    if (isReplay) return false;
+    if (isReplay) {
+      // Même état, même décision : aucun effet métier, et surtout aucune
+      // notification — c'est tout l'objet de cette porte.
+      //
+      // Mais la LECTURE de la ligne, elle, a pu changer : le tarif est désormais
+      // reconnu, ou la raison affichée n'est plus la bonne. Sans ce
+      // rafraîchissement, la console d'un règlement en doublon continuait
+      // d'afficher « Rattaché à la main par l'organisation » — la trace d'une
+      // tentative qui n'avait rien fait — au lieu du motif réel.
+      if (prev != null && (prev.reason !== record.reason || prev.ticket !== record.ticket)) {
+        tx.set(
+          paymentRef,
+          {
+            ticket: record.ticket,
+            reason: record.reason,
+            source: opts.source,
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+      return false;
+    }
 
     tx.set(paymentRef, record, { merge: true });
 
