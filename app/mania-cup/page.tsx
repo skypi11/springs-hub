@@ -61,6 +61,73 @@ const DIMANCHE = [
   { h: '17h00', t: 'Fin de l’événement', d: null },
 ];
 
+/**
+ * Les huit épreuves, annoncées sans être dévoilées.
+ *
+ * Des joueurs reprochaient à l'événement de ne pas savoir « du tout à quoi
+ * s'attendre » — on ne pose pas deux jours de week-end et 30 € à l'aveugle.
+ * Mais tout dire tuerait le principe : des pistes découvertes par tout le monde
+ * en même temps.
+ *
+ * La règle du curseur, trouvée après trois versions refusées : on donne l'heure,
+ * l'ordre, et LE RÉFLEXE QUI NE MARCHERA PAS. Jamais le mode de jeu, jamais les
+ * règles, jamais le nombre de maps, jamais les paliers d'élimination — ceux-là
+ * seront ajustés le jour J selon le nombre réel de partants.
+ *
+ * Deux garde-fous à ne pas franchir en modifiant ces textes :
+ *   · RIEN ne doit laisser deviner que certaines épreuves se jouent en ÉQUIPES
+ *     formées sur place (épreuves 1 et 3) ;
+ *   · l'épreuve 3 s'annonce par ce qu'elle a de rare — un mode qu'on ne peut
+ *     plus lancer en ligne — et surtout pas par sa composition.
+ *
+ * Le rythme est voulu : phrases amples le samedi, plus sèches le dimanche, à
+ * mesure que la journée élimine.
+ *
+ * TOUTE MODIFICATION DE CES TEXTES PASSE PAR L'ORGANISATEUR AVANT MISE EN LIGNE.
+ */
+const EPREUVES_SAMEDI = [
+  {
+    heure: '14h00',
+    indice:
+      'D’habitude, tu découvres une piste et tu l’apprends. Cette fois, ton pilotage ne suffira pas — et ce n’est pas une façon de parler.',
+  },
+  {
+    heure: '17h30',
+    indice:
+      'Gratter des centièmes ne mènera nulle part. Ceux qui foncent tête baissée perdront le plus de temps.',
+  },
+  {
+    heure: '18h45',
+    indice:
+      'Certains l’ont beaucoup joué, personne ne peut plus y toucher. Samedi soir, on le rallume.',
+  },
+  {
+    heure: '20h30',
+    indice:
+      'Une erreur ne te coûtera pas des dixièmes. Elle te coûtera tout ce que tu venais de faire.',
+  },
+];
+
+const EPREUVES_DIMANCHE = [
+  {
+    heure: '09h30',
+    indice: 'Pas d’échauffement : dès la première piste, ça compte. Tout le monde ne verra pas midi.',
+  },
+  {
+    heure: '11h30',
+    indice: 'Tu ne joueras pas pour gagner. Tu joueras pour rester.',
+  },
+  {
+    heure: '13h30',
+    indice: 'Ailleurs, une piste ratée s’oublie à la suivante. Pas ici.',
+  },
+  {
+    heure: '14h30',
+    indice:
+      'Être devant toute la journée ne met à l’abri de rien. Le titre peut basculer sur la dernière piste.',
+  },
+];
+
 const PRATIQUE = [
   {
     icon: Monitor,
@@ -240,6 +307,25 @@ export default async function ManiaCupPage() {
             dévoilés que sur place, au fur et à mesure. C’est la condition pour que
             tout le monde arrive à égalité — et c’est tout l’intérêt de l’événement.
           </p>
+        </div>
+      </section>
+
+      {/* ---------------- LES ÉPREUVES, SANS LES RÉPONSES ---------------- */}
+      <section className="border-y border-white/10 bg-black/30">
+        <div className="mx-auto max-w-4xl px-6 py-20">
+          <h2 className="font-display text-4xl leading-tight sm:text-5xl">
+            Huit épreuves, huit indices
+          </h2>
+          <p className="mt-4 max-w-2xl text-lg text-[#c9c5d8]">
+            Tu ne sauras pas ce que tu vas jouer — mais tu sauras à quoi te préparer.
+            Voici l’ordre du week-end et, pour chaque épreuve, le réflexe qui ne te
+            servira à rien. Le reste se découvre sur place.
+          </p>
+
+          <div className="mt-12 space-y-12">
+            <EpreuveJour titre="Samedi 3 octobre" items={EPREUVES_SAMEDI} depart={1} />
+            <EpreuveJour titre="Dimanche 4 octobre" items={EPREUVES_DIMANCHE} depart={5} />
+          </div>
         </div>
       </section>
 
@@ -478,6 +564,45 @@ export default async function ManiaCupPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+/** Une journée d'épreuves : le numéro, l'heure, et le réflexe qui ne marchera
+ *  pas. Rangées à dividers plutôt que cards — c'est une liste, pas huit objets
+ *  à mettre en valeur un par un. */
+function EpreuveJour({
+  titre,
+  items,
+  depart,
+}: {
+  titre: string;
+  items: { heure: string; indice: string }[];
+  depart: number;
+}) {
+  return (
+    <div>
+      <h3 className="font-display border-b border-white/10 pb-4 text-3xl">{titre}</h3>
+      <ol className="mt-2">
+        {items.map((it, i) => (
+          <li key={it.heure} className="flex gap-5 border-b border-white/[0.06] py-6">
+            <span
+              className="font-display w-10 shrink-0 text-3xl leading-none"
+              style={{ color: 'var(--s-text-muted)' }}
+              aria-hidden
+            >
+              {String(depart + i).padStart(2, '0')}
+            </span>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-baseline gap-3">
+                <span className="text-lg font-semibold">Épreuve {depart + i}</span>
+                <span className="font-display text-lg text-[#00D936]">{it.heure}</span>
+              </div>
+              <p className="mt-1 text-[#8d89a8]">{it.indice}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 
