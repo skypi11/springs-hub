@@ -81,10 +81,10 @@ const CATEGORY: Record<Category, { label: string; color: string }> = {
 function nameSize(text: string): string {
   const words = text.split(/\s+/).filter(Boolean);
   const longest = words.reduce((m, w) => Math.max(m, w.length), 0);
-  if (text.length <= 8 && longest <= 8) return '12mm';
-  if (longest <= 10) return '9.5mm';
-  if (longest <= 13) return '7.4mm';
-  return '6mm';
+  if (text.length <= 8 && longest <= 8) return '19.5mm';
+  if (longest <= 10) return '15.5mm';
+  if (longest <= 13) return '12mm';
+  return '9.8mm';
 }
 
 export default function BadgesPage() {
@@ -190,8 +190,8 @@ export default function BadgesPage() {
 
         <h1 className="font-display mt-4 text-4xl">Badges</h1>
         <p className="mt-2" style={{ color: 'var(--s-text-dim)' }}>
-          {badges.length} badge{badges.length > 1 ? 's' : ''} · 9 par page A4 ·
-          format 54 × 86 mm
+          {badges.length} badge{badges.length > 1 ? 's' : ''} · 4 par page A4 ·
+          format 100 × 140 mm
         </p>
 
         <div className="mt-6 flex flex-wrap items-center gap-4">
@@ -261,8 +261,8 @@ export default function BadgesPage() {
       <style jsx global>{`
         .badge-sheet {
           display: grid;
-          grid-template-columns: repeat(3, 54mm);
-          gap: 5mm;
+          grid-template-columns: repeat(2, 100mm);
+          gap: 8.14mm;
         }
 
         /* ══════════════════════════ LE BADGE ══════════════════════════
@@ -276,8 +276,8 @@ export default function BadgesPage() {
            juste sur ma machine et débordait ailleurs, dès que la police mettait
            un instant à se charger. */
         .mc-badge {
-          width: 54mm;
-          height: 86mm;
+          width: 100mm;
+          height: 140mm;
           display: flex;
           overflow: hidden;
           color: #fff;
@@ -287,7 +287,7 @@ export default function BadgesPage() {
         }
 
         .mc-spine {
-          flex: 0 0 9.5mm;
+          flex: 0 0 15.47mm;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -297,7 +297,7 @@ export default function BadgesPage() {
           writing-mode: vertical-rl;
           transform: rotate(180deg);
           font-family: var(--font-display);
-          font-size: 5.2mm;
+          font-size: 8.47mm;
           letter-spacing: 0.26em;
           line-height: 1;
           white-space: nowrap;
@@ -338,7 +338,7 @@ export default function BadgesPage() {
         /* La pointe du blason de l'affiche : trois millimètres qui font le lien. */
         .mc-point {
           flex: 0 0 auto;
-          height: 2.6mm;
+          height: 4.23mm;
           background: rgba(0, 217, 54, 0.7);
           clip-path: polygon(38% 0, 62% 0, 50% 100%);
         }
@@ -346,39 +346,39 @@ export default function BadgesPage() {
         /* Le damier de l'affiche, réduit aux deux bordures : la signature sans
            l'envahissement. */
         .mc-checker {
-          flex: 0 0 2.6mm;
-          height: 2.6mm;
+          flex: 0 0 4.23mm;
+          height: 4.23mm;
           background-color: #08070d;
           background-image:
             linear-gradient(45deg, #3b3b52 25%, transparent 25%, transparent 75%, #3b3b52 75%),
             linear-gradient(45deg, #3b3b52 25%, transparent 25%, transparent 75%, #3b3b52 75%);
-          background-size: 2.6mm 2.6mm;
-          background-position: 0 0, 1.3mm 1.3mm;
+          background-size: 4.23mm 4.23mm;
+          background-position: 0 0, 2.12mm 2.12mm;
         }
 
         .mc-head {
           flex: 0 0 auto;
-          padding: 2.4mm 3mm 2.2mm;
+          padding: 3.91mm 4.88mm 3.58mm;
           text-align: center;
-          border-bottom: 0.35mm solid rgba(0, 217, 54, 0.7);
+          border-bottom: 0.57mm solid rgba(0, 217, 54, 0.7);
           /* Fond propre : sans lui, le ciel clair du circuit remonte derrière
              la date et barre le titre d'une bande grise. */
           background: linear-gradient(180deg, rgba(31, 25, 60, 0.94) 0%, rgba(23, 19, 46, 0.88) 100%);
         }
-        .mc-logo { height: 4mm; width: auto; display: block; margin: 0 auto; }
+        .mc-logo { height: 6.51mm; width: auto; display: block; margin: 0 auto; }
         .mc-lan {
-          margin-top: 1.5mm;
+          margin-top: 2.44mm;
           display: inline-flex;
           align-items: center;
-          gap: 1.3mm;
-          font-size: 2mm;
+          gap: 2.12mm;
+          font-size: 3.26mm;
           letter-spacing: 0.26em;
           font-weight: 700;
         }
         .mc-lan b {
           background: #00d936;
           color: #08070c;
-          padding: 0.5mm 1.3mm 0.3mm;
+          padding: 0.81mm 2.12mm 0.49mm;
           letter-spacing: 0.14em;
         }
         .mc-lan span { color: #00d936; }
@@ -386,31 +386,31 @@ export default function BadgesPage() {
            deux niveaux, comme dans le blason de l'affiche. */
         .mc-springs {
           font-family: var(--font-display);
-          font-size: 3.4mm;
+          font-size: 5.53mm;
           line-height: 1;
           letter-spacing: 0.42em;
           text-indent: 0.42em;
-          margin-top: 1.4mm;
+          margin-top: 2.28mm;
           color: #d6d1e6;
         }
         .mc-event {
           font-family: var(--font-display);
-          font-size: 7mm;
+          font-size: 11.4mm;
           line-height: 0.94;
           letter-spacing: 0.03em;
-          margin-top: 0.2mm;
+          margin-top: 0.33mm;
           background: linear-gradient(178deg, #ffffff 20%, #dfe3e9 48%, #8b929f 100%);
           -webkit-background-clip: text;
           background-clip: text;
           color: transparent;
         }
         .mc-when {
-          font-size: 2.05mm;
+          font-size: 3.34mm;
           letter-spacing: 0.14em;
           color: #bdb7d2;
           text-transform: uppercase;
           font-weight: 600;
-          margin-top: 0.5mm;
+          margin-top: 0.81mm;
         }
 
         /* La seule zone élastique. Sans cadre : une boîte à moitié remplie se
@@ -423,8 +423,8 @@ export default function BadgesPage() {
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          gap: 1.8mm;
-          padding: 2mm 2.5mm 3mm;
+          gap: 2.93mm;
+          padding: 3.26mm 4.07mm 4.88mm;
         }
         .mc-name {
           font-family: var(--font-display);
@@ -433,24 +433,24 @@ export default function BadgesPage() {
           width: 100%;
           text-align: center;
           word-break: break-word;
-          text-shadow: 0 0.4mm 2mm rgba(0, 0, 0, 0.55);
+          text-shadow: 0 0.65mm 3.26mm rgba(0, 0, 0, 0.55);
         }
         .mc-detail {
-          font-size: 2.9mm;
+          font-size: 4.72mm;
           color: #c3bed4;
           font-weight: 500;
           text-align: center;
         }
         .mc-seat {
-          border: 0.3mm solid rgba(0, 217, 54, 0.65);
+          border: 0.49mm solid rgba(0, 217, 54, 0.65);
           background: rgba(0, 217, 54, 0.12);
-          padding: 0.9mm 3mm;
+          padding: 1.47mm 4.88mm;
           display: inline-flex;
           align-items: baseline;
-          gap: 1.6mm;
+          gap: 2.6mm;
         }
         .mc-seat .k {
-          font-size: 2mm;
+          font-size: 3.26mm;
           letter-spacing: 0.18em;
           color: #8fe3a5;
           text-transform: uppercase;
@@ -458,7 +458,7 @@ export default function BadgesPage() {
         }
         .mc-seat .v {
           font-family: var(--font-display);
-          font-size: 5.4mm;
+          font-size: 8.79mm;
           line-height: 1;
           color: #00d936;
         }
@@ -468,20 +468,20 @@ export default function BadgesPage() {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 1.6mm 3mm;
-          font-size: 2mm;
+          padding: 2.6mm 4.88mm;
+          font-size: 3.26mm;
           color: #9c97b4;
           letter-spacing: 0.04em;
         }
-        .mc-meta .right { display: inline-flex; align-items: center; gap: 1.6mm; }
+        .mc-meta .right { display: inline-flex; align-items: center; gap: 2.6mm; }
         .mc-code {
           font-family: var(--font-display);
-          font-size: 2.9mm;
+          font-size: 4.72mm;
           letter-spacing: 0.1em;
           color: #aaa5c0;
         }
         .mc-noimg { display: inline-flex; align-items: center; color: #e5737f; }
-        .mc-noimg svg { width: 2.6mm; height: 2.6mm; }
+        .mc-noimg svg { width: 4.23mm; height: 4.23mm; }
 
         @media print {
           /* L'écran d'administration entier disparaît : navigation, en-têtes,
@@ -496,7 +496,7 @@ export default function BadgesPage() {
           .badge-sheet { gap: 0; margin: 0; }
           @page {
             size: A4 portrait;
-            margin: 6mm;
+            margin: 4mm;
           }
         }
       `}</style>
