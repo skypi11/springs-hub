@@ -12,6 +12,13 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Les worktrees vivent sous .claude/worktrees/ — physiquement à l'intérieur
+    // du dépôt. Sans cette ligne, un `npm run dev` lancé dans un worktree fait
+    // remonter son .next/ dans le lint du dépôt principal : des milliers
+    // d'erreurs sur du code compilé, qui noient les vraies. Chaque worktree a
+    // sa propre copie du projet et se lint chez lui.
+    ".claude/**",
+    "**/.next/**",
   ]),
 ]);
 
