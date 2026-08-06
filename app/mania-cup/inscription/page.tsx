@@ -45,7 +45,13 @@ type Ctx = {
   rulebook?: { version: number } | null;
   seats: { max: number; taken: number; remaining: number };
   trackmania?: { accountId: string; displayName: string } | null;
-  discord?: { id: string | null; inGuild: boolean | null };
+  discord?: {
+    id: string | null;
+    inGuild: boolean | null;
+    /** 'pending' = entré sur le serveur mais bloqué derrière son écran
+     *  d'accueil : il ne voit aucun salon. */
+    membership?: 'member' | 'pending' | 'absent' | 'unknown';
+  };
   registration?: ManiaCupRegistration | null;
   /** Un règlement porte le code du joueur mais attend une décision : la page
    *  doit alors le RETENIR de payer, pas lui remontrer le bouton. */
@@ -218,6 +224,7 @@ export default function InscriptionPage() {
 
   const tmLinked = Boolean(ctx?.trackmania?.accountId);
   const inGuild = ctx?.discord?.inGuild;
+  const membership = ctx?.discord?.membership ?? (inGuild === true ? 'member' : inGuild === false ? 'absent' : 'unknown');
   const full = (seats?.remaining ?? 0) <= 0 && !reg;
 
   // L'âge se compte au premier jour de la LAN, pas aujourd'hui : le formulaire
@@ -356,7 +363,31 @@ export default function InscriptionPage() {
             title="Rejoindre le Discord Springs E-Sport"
             desc="Toutes les infos de la LAN et les consignes du jour J y passent. C’est obligatoire pour participer."
           >
-            {firebaseUser && inGuild === false && (
+            {/* Entré sur le serveur, mais resté derrière l'écran d'accueil : il
+                ne voit aucun salon. Sans ce cas distinct, il lit « tu n'es pas
+                sur le Discord » alors qu'il vient de rejoindre — et il tourne
+                en rond en cliquant sur l'invitation. */}
+            {firebaseUser && membership === 'pending' && (
+              <div className="space-y-3 border border-[#FFB800]/40 bg-[#FFB800]/10 p-4">
+                <p className="flex items-center gap-2 font-semibold text-[#FFB800]">
+                  <AlertTriangle size={18} aria-hidden />
+                  Tu as rejoint, mais il reste une étape sur Discord.
+                </p>
+                <p className="text-sm text-[#f2e6c8]">
+                  Le serveur Springs demande d’accepter son règlement avant de
+                  donner accès aux salons. Ouvre le serveur dans Discord : un
+                  écran d’accueil t’attend. Tant que tu ne l’as pas validé, tu ne
+                  vois aucun salon et tu ne recevras pas les consignes du jour J.
+                </p>
+                <button
+                  onClick={() => void load()}
+                  className="block text-sm text-[#a364d9] underline"
+                >
+                  C’est fait, revérifier
+                </button>
+              </div>
+            )}
+            {firebaseUser && membership === 'absent' && (
               <div className="space-y-3">
                 <a
                   href={SPRINGS_DISCORD_INVITE}

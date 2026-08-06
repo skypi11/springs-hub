@@ -3,7 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { captureApiError } from '@/lib/sentry';
-import { isGuildMember } from '@/lib/discord-competition';
+import { guildMembershipState, type GuildMembership } from '@/lib/discord-competition';
 import { canViewHiddenCompetition } from '@/lib/competitions/visibility';
 import { countries } from '@/lib/countries';
 import { deleteFileSilent } from '@/lib/storage';
@@ -113,12 +113,18 @@ export async function GET(req: NextRequest) {
     // Appartenance au Discord Springs. `null` = indéterminé (bot absent du
     // serveur, token manquant, Discord en vrac) : on ne bloque pas le joueur
     // sur une panne qui n'est pas la sienne, l'organisation vérifiera.
+    //
+    // `membership` distingue en plus le joueur ENTRÉ mais resté derrière
+    // l'écran d'accueil du serveur : il ne voit aucun salon et ne recevra
+    // aucune consigne du jour J. Le compter comme membre reviendrait à valider
+    // une condition qu'on exige précisément pour pouvoir le joindre.
     const gid = springsGuildId();
     const discordId = discordIdFromUid(uid);
-    let inGuild: boolean | null = null;
+    let membership: GuildMembership = 'unknown';
     if (gid && discordId) {
-      inGuild = await isGuildMember(gid, discordId).catch(() => null);
+      membership = await guildMembershipState(gid, discordId).catch(() => 'unknown' as const);
     }
+    const inGuild = membership === 'unknown' ? null : membership === 'member';
 
     // Ce que le profil sait déjà : inutile de le redemander à un joueur qui a
     // un compte depuis la Monthly Cup. La date de naissance vit dans
@@ -157,7 +163,7 @@ export async function GET(req: NextRequest) {
       rulebook,
       prefill,
       trackmania,
-      discord: { id: discordId, inGuild },
+      discord: { id: discordId, inGuild, membership },
       paymentAwaitingReview,
       registration: reg,
       // Les références des titres d'identité ne sont servies qu'à leur

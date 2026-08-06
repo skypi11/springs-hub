@@ -406,6 +406,43 @@ export async function isGuildMember(guildId: string, discordUserId: string): Pro
   return null;
 }
 
+/** Adhésion à un serveur, dans le détail. */
+export type GuildMembership =
+  /** Membre à part entière : il voit les salons et peut être joint. */
+  | 'member'
+  /** A rejoint mais n'a pas franchi l'écran d'accueil du serveur (règles à
+   *  accepter). Il ne voit AUCUN salon et ne recevra aucune information. */
+  | 'pending'
+  | 'absent'
+  /** Discord illisible : bot absent, jeton manquant, panne. Ne jamais bloquer
+   *  quelqu'un là-dessus, ce n'est pas sa faute. */
+  | 'unknown';
+
+/**
+ * Comme `isGuildMember`, mais distingue le membre en attente de validation.
+ *
+ * Un serveur avec écran d'accueil (`MEMBER_VERIFICATION_GATE_ENABLED`, ce qui
+ * est le cas du Discord de Springs) place les arrivants en `pending` tant
+ * qu'ils n'ont pas accepté les règles. Ils ne voient alors aucun salon. Répondre
+ * « tu es bien sur le Discord » à quelqu'un dans cet état, c'est valider une
+ * condition qui n'est pas remplie : on exige l'adhésion précisément pour
+ * pouvoir le joindre, et il ne recevra rien.
+ *
+ * Fonction distincte, et non un changement de `isGuildMember` : celle-ci sert
+ * aussi au module compétitions, dont ce n'est pas le sujet.
+ */
+export async function guildMembershipState(
+  guildId: string,
+  discordUserId: string
+): Promise<GuildMembership> {
+  const res = await discordFetch(`/guilds/${guildId}/members/${discordUserId}`);
+  if (res.status === 404) return 'absent';
+  if (!res.ok) return 'unknown';
+  const member = (await res.json().catch(() => null)) as { pending?: boolean } | null;
+  if (!member) return 'unknown';
+  return member.pending === true ? 'pending' : 'member';
+}
+
 // ── Contrôle d'accès au serveur ─────────────────────────────────────────────
 
 export interface GuildAccessReport {

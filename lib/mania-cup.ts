@@ -47,7 +47,12 @@ export function springsGuildId(): string {
 
 /** Invitation publique au Discord Springs, proposée au joueur qui n'y est pas
  *  encore. Lien public : aucune raison d'en faire une variable d'environnement. */
-export const SPRINGS_DISCORD_INVITE = 'https://discord.gg/xyAr9h45eu';
+// Invitation vers le salon général. La précédente ouvrait sur un salon de
+// recherche d'équipe : le serveur ayant un écran d'accueil obligatoire, un
+// nouveau venu y atterrissait sans y avoir accès — ce qui se lit exactement
+// comme un lien mort. L'adhésion au Discord étant EXIGÉE pour s'inscrire à la
+// LAN, ce lien doit toujours mener quelque part de visible.
+export const SPRINGS_DISCORD_INVITE = 'https://discord.gg/KjuzNqQvg2';
 
 /**
  * L'événement est-il ouvert au public ? Même logique que le brouillon d'une
