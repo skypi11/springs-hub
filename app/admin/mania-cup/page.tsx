@@ -125,6 +125,19 @@ export default function AdminManiaCupPage() {
     queryFn: () => api<Payload>('/api/admin/mania-cup'),
   });
 
+  // Combien de règlements attendent une décision ? L'information vivait
+  // uniquement DANS l'onglet Paiements : il fallait déjà s'y trouver pour
+  // apprendre qu'il fallait s'y rendre. De l'argent encaissé sans place
+  // confirmée mérite mieux qu'un onglet muet.
+  //
+  // Même clé que PaymentsPanel : React Query ne lance qu'une seule requête pour
+  // les deux, quel que soit l'onglet affiché.
+  const { data: helloasso } = useQuery({
+    queryKey: ['admin', 'mania-cup', 'helloasso'] as const,
+    queryFn: () => api<{ counts?: { toReview: number } }>('/api/admin/mania-cup/helloasso'),
+  });
+  const toReview = helloasso?.counts?.toReview ?? 0;
+
   const act = useMutation({
     mutationFn: (body: { uid: string; action: string; reason?: string }) =>
       api('/api/admin/mania-cup', { method: 'PATCH', body }),
@@ -269,6 +282,17 @@ export default function AdminManiaCupPage() {
             {key === 'inscriptions' && c ? (
               <span className="ml-2" style={{ color: 'var(--s-text-muted)' }}>
                 {c.total}
+              </span>
+            ) : null}
+            {key === 'paiements' && toReview > 0 ? (
+              // En or, et pas en gris comme le compteur d'inscriptions : ce
+              // n'est pas une statistique, c'est une action qui attend.
+              <span
+                className="ml-2 inline-flex min-w-5 items-center justify-center px-1.5 py-0.5 text-xs font-bold"
+                style={{ background: '#FFB800', color: '#07050b' }}
+                title={`${toReview} règlement${toReview > 1 ? 's' : ''} à traiter`}
+              >
+                {toReview}
               </span>
             ) : null}
           </button>

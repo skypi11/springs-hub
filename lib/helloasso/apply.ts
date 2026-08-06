@@ -5,6 +5,7 @@ import { sendManiaCupDM } from '@/lib/discord-bot';
 import {
   MANIA_CUP_REGISTRATIONS,
   MAX_COMPANIONS,
+  discordIdFromUid,
   type ManiaCupCompanion,
   type ManiaCupRegistration,
 } from '@/lib/mania-cup';
@@ -126,6 +127,12 @@ export async function applyOrderItem(
   // changé : un rejeu de notification ne doit pas lui renvoyer un message.
   if (changed && outcome.kind === 'confirm_player') {
     await notifyPlayerPaid(db, outcome.uid, item).catch(() => {});
+  }
+
+  // Un règlement encaissé qu'on ne sait pas rattacher ne doit jamais rester
+  // silencieux : c'est de l'argent reçu contre une place non confirmée.
+  if (changed && (outcome.kind === 'unmatched' || outcome.kind === 'needs_review')) {
+    await notifyStaffOfOrphanPayment(db, item, outcome).catch(() => {});
   }
 
   return {
@@ -340,6 +347,75 @@ async function notifyPlayerPaid(db: Firestore, uid: string, item: OrderItemView)
       ].join('\n'),
       link: 'https://aedral.com/mania-cup/inscription',
     }),
+    new Promise((resolve) => setTimeout(resolve, 10_000)),
+  ]);
+}
+
+/**
+ * Prévient l'organisation qu'un règlement encaissé n'a pas pu être rattaché.
+ *
+ * Sans ça, l'argent arrive, la place n'est pas confirmée, et PERSONNE n'est au
+ * courant : le webhook répond 200, la console range la ligne dans un onglet
+ * sans compteur, et on ne découvre le problème que si le joueur se plaint —
+ * dans le meilleur des cas. Le 6 août, celui qui n'a rien dit a simplement
+ * repayé.
+ *
+ * Le message part une seule fois par ligne de commande : `applyOrderItem` ne
+ * l'appelle que lorsque la décision vient de CHANGER, jamais sur un rejeu.
+ */
+async function notifyStaffOfOrphanPayment(
+  db: Firestore,
+  item: OrderItemView,
+  outcome: Outcome
+): Promise<void> {
+  const reason = 'reason' in outcome ? outcome.reason : 'Rattachement impossible';
+  const amount = (item.amountCents / 100).toFixed(2);
+  const who = item.payerName || item.participantName || 'payeur inconnu';
+
+  const admins = await db.collection('aedral_admins').get().catch(() => null);
+  if (!admins || admins.empty) return;
+
+  const title = 'Mania Cup — règlement à rattacher';
+  const message = `${amount} € de ${who} (${item.tierLabel}) : ${reason}`;
+
+  await Promise.all(
+    admins.docs.map((doc) =>
+      createNotification(db, {
+        userId: doc.id,
+        type: 'mania_cup_payment_orphan',
+        title,
+        message,
+        link: '/admin/mania-cup',
+        metadata: { orderId: item.orderId, itemId: item.itemId },
+      }).catch(() => {})
+    )
+  );
+
+  // Message privé en prime : l'organisation vit sur Discord, pas dans la
+  // console. Borné comme le reste — Discord ne retient jamais la réponse au
+  // webhook, sous peine de le faire rejouer par HelloAsso.
+  const discordIds = admins.docs
+    .map((doc) => discordIdFromUid(doc.id))
+    .filter((id): id is string => Boolean(id));
+
+  await Promise.race([
+    Promise.all(
+      discordIds.map((discordId) =>
+        sendManiaCupDM(discordId, {
+          title,
+          description: [
+            `**${amount} €** encaissés, mais la place n'a pas pu être confirmée.`,
+            '',
+            `Payeur : ${who}`,
+            `Tarif : ${item.tierLabel}`,
+            `Motif : ${reason}`,
+            '',
+            'À traiter dans la console — onglet Paiements.',
+          ].join('\n'),
+          link: 'https://aedral.com/admin/mania-cup',
+        }).catch(() => undefined)
+      )
+    ),
     new Promise((resolve) => setTimeout(resolve, 10_000)),
   ]);
 }

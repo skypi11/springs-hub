@@ -30,6 +30,9 @@ export type NotificationType =
   | 'competition_match_alert'
   | 'competition_match_checkin'
   | 'mania_cup_payment_received'
+  /** Destinée à l'organisation, pas au joueur : un règlement est encaissé mais
+   *  la place n'a pas pu être confirmée. */
+  | 'mania_cup_payment_orphan'
   | 'generic';
 
 export type NotificationPayload = {
