@@ -6,7 +6,7 @@
 // panneau et poussait tout le contenu en dessous.
 
 import { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import Markdown from './Markdown';
 import { Pencil, Eye } from 'lucide-react';
 
 const EMOJIS = ['🏆', '🥇', '🥈', '🥉', '⭐', '🔥', '💪', '🎮', '🎯', '🚀', '⚽', '🏎️', '🏁', '👑', '💎', '🛡️', '⚔️', '🎉', '📢', '💬', '✅', '❌', '🔵', '🟢', '🟡', '🔴', '⚡', '💥', '🌟', '🏅', '👊', '🤝', '📊', '📈', '🗓️', '🎪', '🏟️', '🎖️', '🧩', '🕹️'];
@@ -110,7 +110,7 @@ export default function MarkdownEditor({
       ) : (
         <div className="p-3" style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)', minHeight: `${rows * 24 + 20}px` }}>
           <div className="prose-springs text-sm">
-            <ReactMarkdown>{value}</ReactMarkdown>
+            <Markdown>{value}</Markdown>
           </div>
         </div>
       )}

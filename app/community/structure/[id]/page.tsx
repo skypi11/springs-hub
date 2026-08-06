@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import ReactMarkdown from 'react-markdown';
+import Markdown from '@/components/ui/Markdown';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api, apiPublic, ApiError } from '@/lib/api-client';
@@ -917,7 +917,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                   </div>
                   <div className="p-5">
                     <div className="prose-springs text-sm">
-                      <ReactMarkdown>{structure.description}</ReactMarkdown>
+                      <Markdown>{structure.description}</Markdown>
                     </div>
                   </div>
                 </div>
@@ -1152,7 +1152,7 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                     {structure.recruiting.message && (
                       <div className="prose-springs text-sm p-3"
                         style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
-                        <ReactMarkdown>{structure.recruiting.message}</ReactMarkdown>
+                        <Markdown>{structure.recruiting.message}</Markdown>
                       </div>
                     )}
                     {structure.recruiting.positions.map((p, i) => {

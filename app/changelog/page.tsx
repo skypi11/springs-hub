@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import ReactMarkdown from 'react-markdown';
+import Markdown from '@/components/ui/Markdown';
 import { Sparkles } from 'lucide-react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
 import CompactStickyHeader from '@/components/ui/CompactStickyHeader';
@@ -332,7 +332,7 @@ function ChangelogCard({ item, delayMs }: { item: ParsedItem; delayMs: number })
         {item.sections.length === 0 ? (
           // Pas de sections détectées : fallback rendu markdown brut
           <div className="prose-springs text-sm max-w-none" style={{ color: 'var(--s-text-dim)' }}>
-            <ReactMarkdown>{item.description}</ReactMarkdown>
+            <Markdown>{item.description}</Markdown>
           </div>
         ) : (
           <div className="space-y-4">
@@ -385,7 +385,7 @@ function ChangelogSectionBlock({ section }: { section: ChangelogSection }) {
       )}
       {section.body && (
         <div className="prose-springs text-sm max-w-none" style={{ color: 'var(--s-text-dim)' }}>
-          <ReactMarkdown>{section.body}</ReactMarkdown>
+          <Markdown>{section.body}</Markdown>
         </div>
       )}
     </div>

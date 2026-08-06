@@ -142,8 +142,12 @@ valeur de votre configuration le justifie.
   même temps.
 - **Tout joueur absent 30 minutes après l'heure annoncée de son match est
   déclaré forfait**, et son adversaire passe.
-- Le format de la compétition, les horaires détaillés et les cartes jouées sont
-  publiés sur la page de l'événement avant l'ouverture des inscriptions.
+- **Les épreuves, leurs règles et leurs cartes ne sont pas communiquées à
+  l'avance.** C'est le principe de l'événement : plus de 40 cartes inédites,
+  découvertes par tout le monde en même temps, le jour même. Elles sont
+  annoncées au fur et à mesure sur place, à partir du Springs Show.
+- Les horaires d'ouverture et de fin de chaque journée, eux, sont fermes et
+  publiés sur la page de l'événement.
 - Les décisions d'arbitrage sont prises par l'organisation et sont sans appel
   pendant l'événement.
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import Markdown from '@/components/ui/Markdown';
 import { ScrollText, Loader2 } from 'lucide-react';
 import { apiPublic } from '@/lib/api-client';
 import { MANIA_CUP } from '@/lib/mania-cup';
@@ -56,7 +56,7 @@ export default function ReglementPage() {
               )}
             </p>
             <article className="mania-rules mt-8">
-              <ReactMarkdown>{rulebook.markdown}</ReactMarkdown>
+              <Markdown>{rulebook.markdown}</Markdown>
             </article>
           </>
         )}
@@ -87,6 +87,27 @@ export default function ReglementPage() {
           color: #f2e6c8;
         }
         .mania-rules a { color: #00D936; text-decoration: underline; }
+        /* Le registre RGPD est un tableau : c'est le format qui convient à
+           « donnée / usage / durée », et c'est ce que l'organisation écrira si
+           elle en ajoute d'autres. Il défile dans son propre cadre — la page,
+           elle, ne part jamais en travers sur un téléphone. */
+        .mania-rules .md-table { overflow-x: auto; margin: 1.25rem 0; }
+        .mania-rules table { border-collapse: collapse; width: 100%; min-width: 32rem; }
+        .mania-rules th, .mania-rules td {
+          border: 1px solid rgba(255,255,255,.12);
+          padding: .6rem .85rem;
+          text-align: left;
+          font-size: .95rem;
+          line-height: 1.55;
+          color: #c9c5d8;
+          vertical-align: top;
+        }
+        .mania-rules th {
+          background: rgba(255,255,255,.04);
+          color: #fff;
+          font-weight: 600;
+          white-space: nowrap;
+        }
       `}</style>
     </main>
   );

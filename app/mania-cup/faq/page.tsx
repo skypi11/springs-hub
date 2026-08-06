@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import ReactMarkdown from 'react-markdown';
+import Markdown from '@/components/ui/Markdown';
 import { HelpCircle, Loader2, ChevronDown } from 'lucide-react';
 import { apiPublic } from '@/lib/api-client';
 import { MANIA_CUP, SPRINGS_DISCORD_INVITE } from '@/lib/mania-cup';
@@ -67,7 +67,7 @@ export default function FaqPage() {
                   </span>
                 </summary>
                 <div className="faq-answer mx-5 mb-5 border-l-2 border-[#a364d9]/50 pl-4">
-                  <ReactMarkdown>{it.a}</ReactMarkdown>
+                  <Markdown>{it.a}</Markdown>
                 </div>
               </details>
             ))}

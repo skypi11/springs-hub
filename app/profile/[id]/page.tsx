@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, use } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import ReactMarkdown from 'react-markdown';
+import Markdown from '@/components/ui/Markdown';
 import { useAuth } from '@/context/AuthContext';
 import VerifyAccountNudge from '@/components/verification/VerifyAccountNudge';
 import { countries } from '@/lib/countries';
@@ -482,7 +482,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
               </div>
               <div className="p-5">
                 <div className="prose-springs text-sm">
-                  <ReactMarkdown>{profile.bio}</ReactMarkdown>
+                  <Markdown>{profile.bio}</Markdown>
                 </div>
               </div>
             </div>
@@ -983,7 +983,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       )}
                       {profile.recruitmentMessage && (
                         <div className="prose-springs text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                          <ReactMarkdown>{profile.recruitmentMessage}</ReactMarkdown>
+                          <Markdown>{profile.recruitmentMessage}</Markdown>
                         </div>
                       )}
                       <InviteToStructureButton

@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import ReactMarkdown from 'react-markdown';
+import Markdown from '@/components/ui/Markdown';
 import { ChevronLeft, ChevronRight, ShieldCheck, ShieldAlert, ArrowRight, Check } from 'lucide-react';
 import { api, ApiError } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
@@ -550,7 +550,7 @@ export default function InscriptionPage() {
           <div className="panel-body space-y-4">
             <div className="prose-springs text-sm max-w-3xl overflow-y-auto px-1"
               style={{ maxHeight: '420px', border: '1px solid var(--s-border)', padding: '16px' }}>
-              <ReactMarkdown>{ctx.rulebook.markdown}</ReactMarkdown>
+              <Markdown>{ctx.rulebook.markdown}</Markdown>
             </div>
             <label className="flex items-start gap-2 text-sm" style={{ cursor: 'pointer' }}>
               <input type="checkbox" checked={rulebookAccepted}

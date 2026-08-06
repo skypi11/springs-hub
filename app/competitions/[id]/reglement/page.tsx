@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import ReactMarkdown from 'react-markdown';
+import Markdown from '@/components/ui/Markdown';
 import { ScrollText } from 'lucide-react';
 import { api, apiPublic, ApiError } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
@@ -89,7 +89,7 @@ export default function ReglementPage() {
 
       {data.rulebook ? (
         <div className="prose-springs text-sm max-w-none">
-          <ReactMarkdown>{data.rulebook.markdown}</ReactMarkdown>
+          <Markdown>{data.rulebook.markdown}</Markdown>
         </div>
       ) : (
         <p className="t-body" style={{ color: 'var(--s-text-dim)' }}>
