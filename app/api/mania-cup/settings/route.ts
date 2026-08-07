@@ -52,6 +52,9 @@ function cleanUrl(raw: unknown): string {
  * visiteur, et rien ne gagne à les publier. La console les lit par sa propre
  * route, réservée aux administrateurs.
  */
+/** Ce que voit le public : les tarifs et la jauge, qui s'affichent sur le site.
+ *  Ni la correspondance des tarifs HelloAsso, ni les identifiants Discord —
+ *  aucun écran public n'en a l'usage. */
 function publicSettings(s: ManiaCupSettings) {
   return {
     ticketingUrl: s.ticketingUrl,
@@ -92,7 +95,15 @@ export async function GET(req: NextRequest) {
   if (blocked) return blocked;
 
   try {
-    return NextResponse.json({ settings: publicSettings(await getManiaCupSettings(getAdminDb())) });
+    const settings = await getManiaCupSettings(getAdminDb());
+    // Les administrateurs reçoivent TOUT : c'est la même route qui alimente
+    // l'écran de configuration, et un champ filtré à la lecture n'aurait
+    // jamais pu être modifié — l'écran l'aurait affiché vide en permanence.
+    const uid = await verifyAuth(req);
+    if (uid && (await isCompetitionAdmin(uid))) {
+      return NextResponse.json({ settings });
+    }
+    return NextResponse.json({ settings: publicSettings(settings) });
   } catch (err) {
     captureApiError('mania-cup/settings:GET', err);
     return NextResponse.json({ settings: publicSettings(DEFAULT_SETTINGS) });

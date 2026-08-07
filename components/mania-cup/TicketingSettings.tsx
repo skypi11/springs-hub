@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ticket, Save, Loader2, ExternalLink, Euro } from 'lucide-react';
-import { api, apiPublic, ApiError } from '@/lib/api-client';
+import { api, ApiError } from '@/lib/api-client';
 import {
   DEFAULT_SETTINGS,
   SETTINGS_BOUNDS,
@@ -67,7 +67,7 @@ export default function TicketingSettings() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin', 'mania-cup', 'settings'] as const,
-    queryFn: () => apiPublic<{ settings: ManiaCupSettings }>('/api/mania-cup/settings'),
+    queryFn: () => api<{ settings: ManiaCupSettings }>('/api/mania-cup/settings'),
   });
 
   const save = useMutation({
