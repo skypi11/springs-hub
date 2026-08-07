@@ -5,6 +5,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { captureApiError } from '@/lib/sentry';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { clampString } from '@/lib/validation';
+import { countries } from '@/lib/countries';
 import { getManiaCupSettings } from '@/lib/mania-cup-settings';
 import {
   MANIA_CUP_REGISTRATIONS,
@@ -66,6 +67,11 @@ export async function GET(req: NextRequest) {
         imageConsent: r.imageConsent?.accepted ?? null,
         countryCode: paysParUid.get(d.id) || r.countryCode,
         ageAtEvent: r.ageAtEvent,
+        // Les places se prennent par ordre de règlement : savoir QUAND un
+        // dossier est arrivé, et quand il a été réglé, est ce qui permet
+        // d'arbitrer une liste d'attente ou de relancer un retardataire.
+        createdAt: r.createdAt ?? null,
+        paidAt: r.paidAt ?? null,
         status: r.status,
         guardianConsent: r.guardianConsent,
         guardianDocs: Object.fromEntries(
@@ -131,6 +137,7 @@ export async function PATCH(req: NextRequest) {
       reason?: unknown;
       seat?: unknown;
       message?: unknown;
+      countryCode?: unknown;
     } | null;
 
     const target = typeof body?.uid === 'string' ? body.uid : '';
@@ -274,6 +281,39 @@ export async function PATCH(req: NextRequest) {
         updatedAt: FieldValue.serverTimestamp(),
       });
       return NextResponse.json({ ok: true });
+    }
+
+    /** Corriger le pays d'un inscrit.
+     *
+     *  Le drapeau affiché vient du PROFIL : c'est donc lui qu'on corrige, pas
+     *  la copie de l'inscription. Le 7 août, un joueur suisse est apparu sous
+     *  drapeau français et l'organisation n'avait aucun moyen d'y remédier —
+     *  modifier le profil depuis la console des utilisateurs ne changeait rien
+     *  à la page de l'événement, faute de source unique.
+     *
+     *  La copie de l'inscription est alignée dans la foulée : elle sert de
+     *  repli, et l'accueil du jour J travaille dessus. */
+    if (action === 'set_country') {
+      const code = typeof body?.countryCode === 'string' ? body.countryCode : '';
+      if (!countries.some((c) => c.code === code)) {
+        return NextResponse.json({ error: 'Pays inconnu.' }, { status: 400 });
+      }
+      await Promise.all([
+        db.collection('users').doc(target).set(
+          { country: code, updatedAt: FieldValue.serverTimestamp() },
+          { merge: true }
+        ),
+        docRef.update({ countryCode: code, updatedAt: FieldValue.serverTimestamp() }),
+      ]);
+      await writeAdminAuditLog(db, {
+        action: 'mania_cup_country_set',
+        adminUid: uid,
+        targetType: 'user',
+        targetId: target,
+        targetLabel: reg.tmDisplayName ?? target,
+        metadata: { countryCode: code },
+      });
+      return NextResponse.json({ ok: true, countryCode: code });
     }
 
     return NextResponse.json({ error: 'Action inconnue' }, { status: 400 });

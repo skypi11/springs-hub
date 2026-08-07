@@ -8,7 +8,6 @@ import {
   Search, Download, IdCard,
 } from 'lucide-react';
 import { api, apiDownload, ApiError } from '@/lib/api-client';
-import CountryFlag from '@/components/ui/CountryFlag';
 import { countries } from '@/lib/countries';
 import { downloadCsv } from '@/lib/csv';
 import MarkdownEditor from '@/components/ui/MarkdownEditor';
@@ -57,6 +56,10 @@ type Row = {
   pcRental: { amountCents: number } | null;
   seat: string | null;
   checkedIn: boolean;
+  /** Horodatages Firestore sérialisés. L'ordre d'arrivée décide de tout quand
+   *  les places manquent : il n'était visible nulle part. */
+  createdAt: { _seconds: number } | null;
+  paidAt: { _seconds: number } | null;
   staffMessage: string | null;
 };
 
@@ -104,8 +107,13 @@ function matchesFilter(r: Row, filter: Filter): boolean {
   }
 }
 
-const countryName = (code: string) =>
-  countries.find((c) => c.code === code)?.name ?? code;
+/** Horodatage Firestore en date lisible. Le jour et l'heure suffisent : on
+ *  compare des dossiers entre eux, on ne fait pas de comptabilité. */
+function dateCourte(t: { _seconds: number }): string {
+  return new Date(t._seconds * 1000).toLocaleString('fr-FR', {
+    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+  });
+}
 
 // Deux onglets plutôt qu'une page unique : les inscriptions se consultent tous
 // les jours, la configuration une poignée de fois avant l'événement. Les
@@ -139,7 +147,7 @@ export default function AdminManiaCupPage() {
   const toReview = helloasso?.counts?.toReview ?? 0;
 
   const act = useMutation({
-    mutationFn: (body: { uid: string; action: string; reason?: string }) =>
+    mutationFn: (body: { uid: string; action: string; reason?: string; countryCode?: string }) =>
       api('/api/admin/mania-cup', { method: 'PATCH', body }),
     onSuccess: () => {
       setError(null);
@@ -397,30 +405,72 @@ export default function AdminManiaCupPage() {
                   style={r.status === 'cancelled' ? { opacity: 0.45 } : undefined}
                 >
                   <td className="py-4 pr-4">
-                    <div className="font-semibold">{r.tmDisplayName || '—'}</div>
-                    {/* L'identité civile est ce que l'accueil compare à la pièce
-                        présentée : elle passe avant le pseudo dans la colonne. */}
-                    <div className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                      {r.firstName || r.lastName ? (
-                        `${r.firstName} ${r.lastName}`.trim()
-                      ) : (
-                        <span style={{ color: 'var(--s-gold)' }}>fiche incomplète</span>
-                      )}
-                    </div>
-                    {r.email && (
-                      <div className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                        {r.email}
+                    {/* L'identité civile EN PREMIER, et lisible : c'est elle que
+                        le bénévole compare à la pièce présentée à l'accueil. Elle
+                        était en 12px gris sous le pseudo — présente, mais
+                        invisible : l'organisation croyait qu'elle manquait. */}
+                    {r.firstName || r.lastName ? (
+                      <div className="font-semibold">
+                        {`${r.firstName} ${r.lastName}`.trim()}
+                      </div>
+                    ) : (
+                      <div className="font-semibold" style={{ color: 'var(--s-gold)' }}>
+                        fiche incomplète
                       </div>
                     )}
-                    {r.status === 'cancelled' && (
-                      <span className="tag tag-neutral mt-1 inline-block">retirée</span>
-                    )}
+                    <div className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                      {r.tmDisplayName || '—'}
+                    </div>
+
+                    <div className="mt-1.5 space-y-0.5 text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                      {r.email && <div>{r.email}</div>}
+                      {/* Le téléphone n'existait que dans l'export : pour joindre
+                          quelqu'un le jour J, il fallait ouvrir un tableur. */}
+                      {r.phone && <div>{r.phone}</div>}
+                      {r.emergencyContact && (
+                        <div style={{ color: 'var(--s-text-dim)' }}>
+                          Urgence : {r.emergencyContact.name} · {r.emergencyContact.phone}
+                        </div>
+                      )}
+                      {r.ageAtEvent < 18 && !r.emergencyContact && (
+                        <div style={{ color: 'var(--s-gold)' }}>
+                          Aucun contact d’urgence — obligatoire pour un mineur
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {r.status === 'cancelled' && <span className="tag tag-neutral">retirée</span>}
+                      {/* Un refus de droit à l'image se signale à l'équipe vidéo
+                          AVANT le week-end, pas en relisant un CSV. */}
+                      {r.imageConsent === false && (
+                        <span className="tag" style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,.4)' }}>
+                          image refusée
+                        </span>
+                      )}
+                      {r.pcRental && <span className="tag tag-violet">poste loué</span>}
+                      {r.checkedIn && <span className="tag tag-green">arrivé</span>}
+                    </div>
                   </td>
                   <td className="py-4 pr-4">
-                    <span className="flex items-center gap-2">
-                      <CountryFlag code={r.countryCode} size={20} />
-                      {countryName(r.countryCode)}
-                    </span>
+                    {/* Modifiable ici : le drapeau vient du profil, et
+                        l'organisation n'avait aucun moyen de le corriger — un
+                        joueur suisse est resté sous drapeau français jusqu'à ce
+                        qu'on écrive en base. */}
+                    <select
+                      value={r.countryCode}
+                      onChange={(e) =>
+                        act.mutate({ uid: r.uid, action: 'set_country', countryCode: e.target.value })
+                      }
+                      aria-label={`Pays de ${r.tmDisplayName || r.uid}`}
+                      className="settings-input w-full max-w-[11rem] text-sm"
+                    >
+                      {countries.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.flag} {c.name}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td className="py-4 pr-4">
                     {r.ageAtEvent}
@@ -430,7 +480,21 @@ export default function AdminManiaCupPage() {
                       </span>
                     )}
                   </td>
-                  <td className="py-4 pr-4 font-mono text-xs">{r.registrationCode}</td>
+                  <td className="py-4 pr-4">
+                    <div className="font-mono text-xs">{r.registrationCode}</div>
+                    {/* Les places partent par ordre de reglement : savoir quand
+                        un dossier est arrive permet d'arbitrer et de relancer. */}
+                    {r.createdAt && (
+                      <div className="mt-1 text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                        inscrit le {dateCourte(r.createdAt)}
+                      </div>
+                    )}
+                    {r.paidAt && (
+                      <div className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                        réglé le {dateCourte(r.paidAt)}
+                      </div>
+                    )}
+                  </td>
                   <td className="py-4 pr-4">
                     {r.companions.length > 0 ? (
                       <ul className="space-y-1.5">
