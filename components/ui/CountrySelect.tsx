@@ -18,12 +18,20 @@ export default function CountrySelect({
   onChange,
   id,
   disabled,
+  variant = 'form',
 }: {
   value: string;
   onChange: (code: string) => void;
   id?: string;
   disabled?: boolean;
+  /** `form` : champ pleine largeur d'un formulaire.
+   *  `inline` : version compacte pour une fiche ou une ligne de tableau, où le
+   *  pays se lit cent fois et ne se corrige qu'une. Le cadre n'apparaît qu'au
+   *  survol : un champ encadré sur chaque ligne attire plus l'œil que le nom
+   *  du joueur. */
+  variant?: 'form' | 'inline';
 }) {
+  const inline = variant === 'inline';
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   // Volontairement null quand rien n'est choisi, au lieu de retomber sur le
@@ -57,12 +65,16 @@ export default function CountrySelect({
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 border border-white/15 bg-black/40 px-4 py-3 text-left text-white outline-none focus:border-[#00D936] disabled:opacity-50"
+        className={
+          inline
+            ? 'flex w-full items-center justify-between gap-2 border border-transparent bg-transparent px-1.5 py-1 text-left text-sm text-white outline-none hover:border-white/15 focus:border-[#00D936] disabled:opacity-50'
+            : 'flex w-full items-center justify-between gap-3 border border-white/15 bg-black/40 px-4 py-3 text-left text-white outline-none focus:border-[#00D936] disabled:opacity-50'
+        }
       >
-        <span className="flex items-center gap-3">
+        <span className={`flex items-center ${inline ? 'gap-2' : 'gap-3'}`}>
           {selected ? (
             <>
-              <CountryFlag code={selected.code} size={24} />
+              <CountryFlag code={selected.code} size={inline ? 20 : 24} />
               {selected.name}
             </>
           ) : (
@@ -70,7 +82,7 @@ export default function CountrySelect({
           )}
         </span>
         <ChevronDown
-          size={18}
+          size={inline ? 14 : 18}
           className={`shrink-0 text-[#8d89a8] transition-transform ${open ? 'rotate-180' : ''}`}
           aria-hidden
         />
@@ -79,7 +91,9 @@ export default function CountrySelect({
       {open && (
         <ul
           role="listbox"
-          className="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto border border-white/15 bg-[#111015] shadow-2xl"
+          className={`absolute z-30 mt-1 max-h-72 overflow-y-auto border border-white/15 bg-[#111015] shadow-2xl ${
+            inline ? 'w-56' : 'w-full'
+          }`}
         >
           {countries.map((c) => {
             const isSelected = c.code === value;

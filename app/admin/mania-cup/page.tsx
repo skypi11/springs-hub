@@ -4,19 +4,21 @@ import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Loader2, FileText, Check, X, Euro, AlertTriangle, ShieldCheck, ScrollText, Save,
-  Search, Download, IdCard, ExternalLink, Monitor,
+  Loader2, AlertTriangle, ScrollText, Save,
+  Search, Download, IdCard, ExternalLink,
 } from 'lucide-react';
 import { api, apiDownload, ApiError } from '@/lib/api-client';
-import { countries } from '@/lib/countries';
 import { downloadCsv } from '@/lib/csv';
+import RegistrationRow, {
+  needsAction, type ActionBody, type Row,
+} from '@/components/mania-cup/RegistrationRow';
 import MarkdownEditor from '@/components/ui/MarkdownEditor';
 import { LIMITS } from '@/lib/validation';
 import FaqEditor from '@/components/mania-cup/FaqEditor';
 import TicketingSettings from '@/components/mania-cup/TicketingSettings';
 import TierMapping from '@/components/mania-cup/TierMapping';
 import PaymentsPanel, { type MatchTarget } from '@/components/mania-cup/PaymentsPanel';
-import { MANIA_CUP, MANIA_CUP_DOCS, GUARDIAN_DOC_KINDS, GUARDIAN_DOC_LABELS } from '@/lib/mania-cup';
+import { MANIA_CUP, MANIA_CUP_DOCS } from '@/lib/mania-cup';
 
 /** Libellés des états du dossier parental, pour la liste d'émargement. */
 const GUARDIAN_STATUS_LABELS: Record<Row['guardianConsent'], string> = {
@@ -32,36 +34,6 @@ const GUARDIAN_STATUS_LABELS: Record<Row['guardianConsent'], string> = {
 // Deux tâches concrètes : relire les autorisations parentales des 16-17 ans, et
 // confirmer les règlements à la main tant que le webhook HelloAsso n'est pas
 // branché (il restera de toute façon utile pour les paiements orphelins).
-
-type Row = {
-  uid: string;
-  tmDisplayName: string;
-  tmAccountId: string;
-  discordId: string | null;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string | null;
-  emergencyContact: { name: string; phone: string } | null;
-  imageConsent: boolean | null;
-  countryCode: string;
-  ageAtEvent: number;
-  status: 'pending_payment' | 'confirmed' | 'cancelled';
-  guardianConsent: 'not_required' | 'missing' | 'pending_review' | 'approved' | 'rejected';
-  guardianDocs: Partial<Record<'consent' | 'guardian_id', { name: string }>>;
-  guardianRejectionReason: string | null;
-  registrationCode: string;
-  companions: { name: string; role: string; ticketItemId?: number | null }[];
-  payment: { amountCents: number; payerName: string } | null;
-  pcRental: { amountCents: number } | null;
-  seat: string | null;
-  checkedIn: boolean;
-  /** Horodatages Firestore sérialisés. L'ordre d'arrivée décide de tout quand
-   *  les places manquent : il n'était visible nulle part. */
-  createdAt: { _seconds: number } | null;
-  paidAt: { _seconds: number } | null;
-  staffMessage: string | null;
-};
 
 type Payload = {
   registrations: Row[];
@@ -108,14 +80,6 @@ function matchesFilter(r: Row, filter: Filter): boolean {
   }
 }
 
-/** Horodatage Firestore en date lisible. Le jour et l'heure suffisent : on
- *  compare des dossiers entre eux, on ne fait pas de comptabilité. */
-function dateCourte(t: { _seconds: number }): string {
-  return new Date(t._seconds * 1000).toLocaleString('fr-FR', {
-    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
-  });
-}
-
 // Deux onglets plutôt qu'une page unique : les inscriptions se consultent tous
 // les jours, la configuration une poignée de fois avant l'événement. Les
 // empiler obligeait à faire défiler trois panneaux d'édition pour atteindre le
@@ -148,10 +112,7 @@ export default function AdminManiaCupPage() {
   const toReview = helloasso?.counts?.toReview ?? 0;
 
   const act = useMutation({
-    mutationFn: (body: {
-      uid: string; action: string; reason?: string;
-      countryCode?: string; pcRental?: boolean;
-    }) =>
+    mutationFn: (body: ActionBody) =>
       api('/api/admin/mania-cup', { method: 'PATCH', body }),
     onSuccess: () => {
       setError(null);
@@ -192,7 +153,16 @@ export default function AdminManiaCupPage() {
   // parce que personne ne tape « Amélie » avec l'accent dans un champ de
   // recherche pressé.
   const needle = search.trim().toLowerCase();
-  const visibleRows = rows.filter((r) => {
+
+  // Ordre d'arrivée, une fois pour toutes : c'est lui qui arbitre quand les
+  // places manquent. Le rang est figé sur la liste ENTIÈRE, donc « le 12e
+  // inscrit » reste le 12e même en ne regardant que les impayés.
+  const parArrivee = [...rows].sort(
+    (a, b) => (a.createdAt?._seconds ?? 0) - (b.createdAt?._seconds ?? 0)
+  );
+  const rang = new Map(parArrivee.map((r, i) => [r.uid, i + 1]));
+
+  const visibleRows = parArrivee.filter((r) => {
     if (!matchesFilter(r, filter)) return false;
     if (!needle) return true;
     return [r.tmDisplayName, r.firstName, r.lastName, r.email, r.registrationCode, r.seat]
@@ -200,11 +170,7 @@ export default function AdminManiaCupPage() {
       .some((v) => String(v).toLowerCase().includes(needle));
   });
 
-  // Deux colonnes ne servent que si quelqu'un les remplit : un accompagnant
-  // declare, un dossier parental a suivre. Tant qu'aucune ligne n'en a, elles
-  // occupent un tiers de la largeur pour n'afficher que des tirets.
-  const colAccompagnant = visibleRows.some((r) => r.companions.length > 0);
-  const colParental = visibleRows.some((r) => r.guardianConsent !== 'not_required');
+  const aTraiter = visibleRows.filter(needsAction).length;
 
   /** Cibles proposées pour rattacher un règlement orphelin. */
   const matchTargets: MatchTarget[] = rows
@@ -447,330 +413,65 @@ export default function AdminManiaCupPage() {
           Aucune inscription ne correspond à cette recherche.
         </p>
       ) : (
-        <div className="mt-8 overflow-x-auto">
-          <table className="w-full min-w-[1050px] border-collapse text-sm">
+        <div className="mt-6 overflow-x-auto border-t border-white/10">
+          {/* Combien de dossiers portent le filet or, dans ce qui est affiché.
+              Le compte du bandeau porte sur TOUT ; ici on parle de la liste
+              qu'on a sous les yeux, filtre et recherche compris. */}
+          <p className="py-3 text-xs" style={{ color: 'var(--s-text-muted)' }}>
+            {visibleRows.length} dossier{visibleRows.length > 1 ? 's' : ''} affiché
+            {visibleRows.length > 1 ? 's' : ''}
+            {aTraiter > 0 && (
+              <>
+                {' · '}
+                <span style={{ color: 'var(--s-gold)' }}>
+                  {aTraiter} en attente d’une action de notre côté
+                </span>
+              </>
+            )}
+            {' · '}une ligne s’ouvre au clic
+          </p>
+          <table className="w-full min-w-[1100px] border-collapse text-sm">
             <thead>
-              <tr className="border-b border-white/10 text-left" style={{ color: 'var(--s-text-dim)' }}>
-                <th className="py-3 pr-4 font-medium">Joueur</th>
-                <th className="py-3 pr-4 font-medium">Pays</th>
-                <th className="py-3 pr-4 font-medium">Âge</th>
-                <th className="py-3 pr-4 font-medium">Code</th>
-                {colAccompagnant && <th className="py-3 pr-4 font-medium">Accompagnant</th>}
-                <th className="py-3 pr-4 font-medium">Paiement</th>
-                {colParental && <th className="py-3 pr-4 font-medium">Autorisation parentale</th>}
+              {/* En-tête collant : à 64 dossiers on descend loin, et sans lui
+                  on ne sait plus quelle colonne on lit. */}
+              <tr
+                className="sticky top-0 z-10 border-b border-white/10 text-left"
+                style={{ color: 'var(--s-text-muted)', background: 'var(--s-bg)' }}
+              >
+                <th className="w-12 py-2.5 pr-2 pl-3 font-medium">
+                  <span title="Ordre d’arrivée">#</span>
+                </th>
+                {/* Le panel admin mange 560 px de largeur : ce qui reste au
+                    tableau est bien plus étroit que l'écran. Tout figer laissait
+                    « Charly LEPRINCE » se couper en deux. Seules les colonnes à
+                    contenu prévisible sont bornées ; le nom et les étiquettes
+                    d'état se partagent le reste. */}
+                <th className="min-w-[150px] py-2.5 pr-4 font-medium">Joueur</th>
+                <th className="w-52 py-2.5 pr-4 font-medium">Contact</th>
+                <th className="w-32 py-2.5 pr-4 font-medium">Pays</th>
+                <th className="w-20 py-2.5 pr-4 font-medium">Âge</th>
+                <th className="w-28 py-2.5 pr-4 font-medium">Code</th>
+                <th className="w-40 py-2.5 pr-4 font-medium">Règlement</th>
+                <th className="min-w-[190px] py-2.5 pr-4 font-medium">État</th>
+                <th className="w-10 py-2.5 pr-3" aria-label="Ouvrir le dossier" />
               </tr>
             </thead>
             <tbody>
               {visibleRows.map((r) => (
-                <tr
+                <RegistrationRow
                   key={r.uid}
-                  className="border-b border-white/5 align-top"
-                  style={r.status === 'cancelled' ? { opacity: 0.45 } : undefined}
-                >
-                  <td className="py-4 pr-4">
-                    {/* Le PSEUDO en premier : c'est par lui qu'on reconnaît un
-                        joueur, c'est lui qui figure sur la page publique et
-                        dans les conversations. L'identité civile vient juste
-                        après, en taille lisible — elle ne sert qu'une fois, au
-                        contrôle de la pièce d'identité à l'accueil, mais elle
-                        était auparavant en 12 px gris, donc invisible. */}
-                    <div className="font-semibold">{r.tmDisplayName || '—'}</div>
-                    {r.firstName || r.lastName ? (
-                      <div className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-                        {`${r.firstName} ${r.lastName}`.trim()}
-                      </div>
-                    ) : (
-                      <div className="text-sm" style={{ color: 'var(--s-gold)' }}>
-                        fiche incomplète
-                      </div>
-                    )}
-
-                    <div className="mt-1.5 space-y-0.5 text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                      {r.email && <div>{r.email}</div>}
-                      {/* Le téléphone n'existait que dans l'export : pour joindre
-                          quelqu'un le jour J, il fallait ouvrir un tableur. */}
-                      {r.phone && <div>{r.phone}</div>}
-                      {r.emergencyContact && (
-                        <div style={{ color: 'var(--s-text-dim)' }}>
-                          Urgence : {r.emergencyContact.name} · {r.emergencyContact.phone}
-                        </div>
-                      )}
-                      {r.ageAtEvent < 18 && !r.emergencyContact && (
-                        <div style={{ color: 'var(--s-gold)' }}>
-                          Aucun contact d’urgence — obligatoire pour un mineur
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {r.status === 'cancelled' && <span className="tag tag-neutral">retirée</span>}
-                      {/* Un refus de droit à l'image se signale à l'équipe vidéo
-                          AVANT le week-end, pas en relisant un CSV. */}
-                      {r.imageConsent === false && (
-                        <span className="tag" style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,.4)' }}>
-                          image refusée
-                        </span>
-                      )}
-                      {/* Cliquable : les postes à louer sont en nombre très
-                          limité, et la boutique HelloAsso qui les vendra
-                          n'existe pas encore. Une location convenue sur le
-                          Discord doit pouvoir être notée ici. */}
-                      <button
-                        onClick={() =>
-                          act.mutate({ uid: r.uid, action: 'set_pc_rental', pcRental: !r.pcRental })
-                        }
-                        title={r.pcRental ? 'Retirer la location de poste' : 'Noter une location de poste'}
-                        className={`tag inline-flex items-center gap-1 transition-opacity hover:opacity-70 ${
-                          r.pcRental ? 'tag-violet' : 'tag-neutral'
-                        }`}
-                        style={r.pcRental ? undefined : { opacity: 0.45 }}
-                      >
-                        <Monitor size={11} aria-hidden />
-                        {r.pcRental ? 'poste loué' : 'poste'}
-                      </button>
-                      {r.checkedIn && <span className="tag tag-green">arrivé</span>}
-                    </div>
-                  </td>
-                  <td className="py-4 pr-4">
-                    {/* Modifiable ici : le drapeau vient du profil, et
-                        l'organisation n'avait aucun moyen de le corriger — un
-                        joueur suisse est resté sous drapeau français jusqu'à ce
-                        qu'on écrive en base. */}
-                    {/* Le champ se fait oublier tant qu'on ne le survole pas :
-                        c'est une donnée qu'on lit cent fois et qu'on corrige
-                        une fois. Un menu déroulant encadré sur chaque ligne
-                        attirait l'œil plus que le nom du joueur. */}
-                    <select
-                      value={r.countryCode}
-                      onChange={(e) =>
-                        act.mutate({ uid: r.uid, action: 'set_country', countryCode: e.target.value })
-                      }
-                      aria-label={`Pays de ${r.tmDisplayName || r.uid}`}
-                      className="mc-pays cursor-pointer border border-transparent bg-transparent py-1 pr-6 pl-1 text-sm outline-none hover:border-white/15 focus:border-[#00D936]"
-                    >
-                      {countries.map((c) => (
-                        <option key={c.code} value={c.code}>
-                          {c.flag} {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="py-4 pr-4">
-                    {r.ageAtEvent}
-                    {r.ageAtEvent < 18 && (
-                      <span className="ml-2 bg-[#FFB800]/20 px-1.5 py-0.5 text-xs text-[#FFB800]">
-                        mineur
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-4 pr-4">
-                    <div className="font-mono text-xs">{r.registrationCode}</div>
-                    {/* Les places partent par ordre de reglement : savoir quand
-                        un dossier est arrive permet d'arbitrer et de relancer. */}
-                    {r.createdAt && (
-                      <div className="mt-1 text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                        inscrit le {dateCourte(r.createdAt)}
-                      </div>
-                    )}
-                    {r.paidAt && (
-                      <div className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                        réglé le {dateCourte(r.paidAt)}
-                      </div>
-                    )}
-                  </td>
-                  {colAccompagnant && (
-                    <td className="py-4 pr-4">
-                    {r.companions.length > 0 ? (
-                      <ul className="space-y-1.5">
-                        {r.companions.map((c, i) => (
-                          <li key={`${c.name}-${i}`}>
-                            <div>{c.name}</div>
-                            <div className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                              {c.role}
-                            </div>
-                            {/* Un billet accompagnant ouvre la zone joueurs :
-                                savoir s'il est réglé décide de qui entre. */}
-                            <div
-                              className="text-xs"
-                              style={{
-                                color: c.ticketItemId != null ? 'var(--s-green)' : 'var(--s-gold)',
-                              }}
-                            >
-                              {c.ticketItemId != null ? 'billet réglé' : 'billet non réglé'}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <span style={{ color: 'var(--s-text-muted)' }}>—</span>
-                    )}
-                    </td>
-                  )}
-                  <td className="py-4 pr-4">
-                    {r.status === 'confirmed' ? (
-                      <div>
-                        <button
-                          onClick={() => act.mutate({ uid: r.uid, action: 'mark_unpaid' })}
-                          className="inline-flex items-center gap-1.5 text-[#22c55e] hover:underline"
-                        >
-                          <Check size={15} aria-hidden /> Payé
-                        </button>
-                        {/* D'où vient l'argent : sans ça, impossible de
-                            rapprocher une caisse ni de traiter un remboursement. */}
-                        {r.payment && (
-                          <div className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-                            {(r.payment.amountCents / 100).toFixed(2).replace('.', ',')} € ·{' '}
-                            {r.payment.payerName || 'payeur inconnu'}
-                          </div>
-                        )}
-                      </div>
-                    ) : r.status === 'cancelled' ? (
-                      <span style={{ color: 'var(--s-text-muted)' }}>—</span>
-                    ) : (
-                      <button
-                        onClick={() => act.mutate({ uid: r.uid, action: 'mark_paid' })}
-                        className="inline-flex items-center gap-1.5 border border-white/20 px-2.5 py-1 hover:bg-white/10"
-                      >
-                        <Euro size={14} aria-hidden /> Marquer payé
-                      </button>
-                    )}
-                    {r.pcRental && (
-                      <div className="mt-1 text-xs" style={{ color: 'var(--s-text-dim)' }}>
-                        + poste loué
-                      </div>
-                    )}
-                  </td>
-                  {colParental && (
-                    <td className="py-4 pr-4">
-                      <GuardianCell row={r} onOpen={openDocument} onAct={act.mutate} />
-                    </td>
-                  )}
-                </tr>
+                  row={r}
+                  rank={rang.get(r.uid) ?? 0}
+                  onAct={act.mutate}
+                  onOpenDocument={openDocument}
+                  pending={act.isPending}
+                />
               ))}
             </tbody>
           </table>
         </div>
       ))}
 
-      {/* Le menu déroulant natif garde le fond blanc du système sur sa liste
-          déroulée ; on ne peut pas le styler, mais on peut au moins rendre ses
-          options lisibles sur le thème sombre. */}
-      <style jsx global>{`
-        .mc-pays option {
-          background: #111015;
-          color: #eaeaf0;
-        }
-      `}</style>
-    </div>
-  );
-}
-
-function GuardianCell({
-  row,
-  onOpen,
-  onAct,
-}: {
-  row: Row;
-  onOpen: (uid: string, kind: string) => void;
-  onAct: (b: { uid: string; action: string; reason?: string }) => void;
-}) {
-  const [rejecting, setRejecting] = useState(false);
-  const [reason, setReason] = useState('');
-
-  if (row.guardianConsent === 'not_required') {
-    return <span style={{ color: 'var(--s-text-muted)' }}>—</span>;
-  }
-  if (row.guardianConsent === 'approved') {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-[#22c55e]">
-        <ShieldCheck size={15} aria-hidden /> Validée
-      </span>
-    );
-  }
-  if (row.guardianConsent === 'missing') {
-    const done = GUARDIAN_DOC_KINDS.filter((k) => row.guardianDocs?.[k]).length;
-    return (
-      <span className="text-[#FFB800]">
-        Dossier incomplet ({done}/{GUARDIAN_DOC_KINDS.length} pièces)
-      </span>
-    );
-  }
-  if (row.guardianConsent === 'rejected') {
-    return (
-      <div className="text-red-300">
-        Refusée
-        {row.guardianRejectionReason && (
-          <div className="text-xs" style={{ color: 'var(--s-text-dim)' }}>
-            {row.guardianRejectionReason}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // pending_review
-  return (
-    <div className="space-y-2">
-      <div className="space-y-1">
-        {GUARDIAN_DOC_KINDS.map((kind) => (
-          <button
-            key={kind}
-            onClick={() => onOpen(row.uid, kind)}
-            disabled={!row.guardianDocs?.[kind]}
-            className="flex w-full items-center gap-1.5 border border-white/20 px-2.5 py-1 text-left hover:bg-white/10 disabled:opacity-40"
-          >
-            <FileText size={14} className="shrink-0" aria-hidden />
-            <span className="truncate">{GUARDIAN_DOC_LABELS[kind]}</span>
-          </button>
-        ))}
-      </div>
-
-      {rejecting ? (
-        <div className="space-y-2">
-          <input
-            autoFocus
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="Motif communiqué au joueur"
-            className="w-56 border border-white/20 bg-black/40 px-2 py-1 text-xs outline-none focus:border-[#FFB800]"
-          />
-          <div className="flex gap-2">
-            <button
-              disabled={!reason.trim()}
-              onClick={() => {
-                onAct({ uid: row.uid, action: 'reject_guardian', reason });
-                setRejecting(false);
-                setReason('');
-              }}
-              className="border border-red-500/40 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10 disabled:opacity-40"
-            >
-              Confirmer le refus
-            </button>
-            <button
-              onClick={() => setRejecting(false)}
-              className="px-2 py-1 text-xs"
-              style={{ color: 'var(--s-text-dim)' }}
-            >
-              Annuler
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex gap-2">
-          <button
-            onClick={() => onAct({ uid: row.uid, action: 'approve_guardian' })}
-            className="inline-flex items-center gap-1 border border-[#22c55e]/40 px-2 py-1 text-xs text-[#22c55e] hover:bg-[#22c55e]/10"
-          >
-            <Check size={13} aria-hidden /> Valider
-          </button>
-          <button
-            onClick={() => setRejecting(true)}
-            className="inline-flex items-center gap-1 border border-red-500/40 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10"
-          >
-            <X size={13} aria-hidden /> Refuser
-          </button>
-        </div>
-      )}
     </div>
   );
 }
