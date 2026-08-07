@@ -76,6 +76,7 @@ type Payload = {
     checkedIn: number;
     incomplete: number;
     seatsLeft: number;
+    maxPlayers: number;
   };
 };
 
@@ -199,6 +200,12 @@ export default function AdminManiaCupPage() {
       .some((v) => String(v).toLowerCase().includes(needle));
   });
 
+  // Deux colonnes ne servent que si quelqu'un les remplit : un accompagnant
+  // declare, un dossier parental a suivre. Tant qu'aucune ligne n'en a, elles
+  // occupent un tiers de la largeur pour n'afficher que des tirets.
+  const colAccompagnant = visibleRows.some((r) => r.companions.length > 0);
+  const colParental = visibleRows.some((r) => r.guardianConsent !== 'not_required');
+
   /** Cibles proposées pour rattacher un règlement orphelin. */
   const matchTargets: MatchTarget[] = rows
     .filter((r) => r.status !== 'cancelled')
@@ -267,16 +274,54 @@ export default function AdminManiaCupPage() {
         </Link>
       </div>
 
+      {/* Une ligne, pas cinq pavés : cinq nombres n'ont pas besoin de 100 px de
+          hauteur. Les places restantes gardent le gros caractère — c'est le seul
+          chiffre qu'on regarde tous les jours ; les autres ne s'allument que
+          lorsqu'ils appellent une action. */}
       {c && (
-        <div className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-5">
-          <Stat label="Inscrits" value={c.total} />
-          <Stat label="Payés" value={c.confirmed} tone="ok" />
-          <Stat label="En attente de paiement" value={c.pendingPayment} />
-          <Stat label="Autorisations à relire" value={c.guardianToReview} tone={c.guardianToReview ? 'warn' : undefined} />
-          {c.incomplete > 0 ? (
-            <Stat label="Fiches incomplètes" value={c.incomplete} tone="warn" />
-          ) : (
-            <Stat label="Places restantes" value={c.seatsLeft} />
+        <div className="mt-8 flex flex-wrap items-center gap-x-8 gap-y-3 border-y border-white/10 py-4">
+          <div className="flex items-baseline gap-2">
+            <span className="font-display text-3xl leading-none">{c.seatsLeft}</span>
+            <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+              places restantes sur {c.maxPlayers ?? MANIA_CUP.maxPlayers}
+            </span>
+          </div>
+
+          <span className="hidden h-6 w-px bg-white/10 sm:block" />
+
+          <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+            <strong style={{ color: 'var(--s-text)' }}>{c.total}</strong> inscrits ·{' '}
+            <strong style={{ color: 'var(--s-green)' }}>{c.confirmed}</strong> réglés
+          </span>
+
+          {/* Ce qui demande une action, et rien d'autre : un « 0 en attente »
+              affiché en permanence est du bruit. */}
+          {c.pendingPayment > 0 && (
+            <button
+              onClick={() => setFilter('unpaid')}
+              className="text-sm hover:underline"
+              style={{ color: 'var(--s-gold)' }}
+            >
+              {c.pendingPayment} en attente de paiement
+            </button>
+          )}
+          {c.guardianToReview > 0 && (
+            <button
+              onClick={() => setFilter('guardian')}
+              className="text-sm hover:underline"
+              style={{ color: 'var(--s-gold)' }}
+            >
+              {c.guardianToReview} autorisation{c.guardianToReview > 1 ? 's' : ''} à relire
+            </button>
+          )}
+          {c.incomplete > 0 && (
+            <button
+              onClick={() => setFilter('incomplete')}
+              className="text-sm hover:underline"
+              style={{ color: 'var(--s-gold)' }}
+            >
+              {c.incomplete} fiche{c.incomplete > 1 ? 's' : ''} incomplète{c.incomplete > 1 ? 's' : ''}
+            </button>
           )}
         </div>
       )}
@@ -410,9 +455,9 @@ export default function AdminManiaCupPage() {
                 <th className="py-3 pr-4 font-medium">Pays</th>
                 <th className="py-3 pr-4 font-medium">Âge</th>
                 <th className="py-3 pr-4 font-medium">Code</th>
-                <th className="py-3 pr-4 font-medium">Accompagnant</th>
+                {colAccompagnant && <th className="py-3 pr-4 font-medium">Accompagnant</th>}
                 <th className="py-3 pr-4 font-medium">Paiement</th>
-                <th className="py-3 pr-4 font-medium">Autorisation parentale</th>
+                {colParental && <th className="py-3 pr-4 font-medium">Autorisation parentale</th>}
               </tr>
             </thead>
             <tbody>
@@ -533,7 +578,8 @@ export default function AdminManiaCupPage() {
                       </div>
                     )}
                   </td>
-                  <td className="py-4 pr-4">
+                  {colAccompagnant && (
+                    <td className="py-4 pr-4">
                     {r.companions.length > 0 ? (
                       <ul className="space-y-1.5">
                         {r.companions.map((c, i) => (
@@ -558,7 +604,8 @@ export default function AdminManiaCupPage() {
                     ) : (
                       <span style={{ color: 'var(--s-text-muted)' }}>—</span>
                     )}
-                  </td>
+                    </td>
+                  )}
                   <td className="py-4 pr-4">
                     {r.status === 'confirmed' ? (
                       <div>
@@ -593,9 +640,11 @@ export default function AdminManiaCupPage() {
                       </div>
                     )}
                   </td>
-                  <td className="py-4 pr-4">
-                    <GuardianCell row={r} onOpen={openDocument} onAct={act.mutate} />
-                  </td>
+                  {colParental && (
+                    <td className="py-4 pr-4">
+                      <GuardianCell row={r} onOpen={openDocument} onAct={act.mutate} />
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -836,12 +885,3 @@ function RulebookPanel({
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: number; tone?: 'ok' | 'warn' }) {
-  const color = tone === 'ok' ? '#22c55e' : tone === 'warn' ? '#FFB800' : 'var(--s-text)';
-  return (
-    <div className="border border-white/10 bg-white/[0.02] p-4">
-      <div className="font-display text-3xl" style={{ color }}>{value}</div>
-      <div className="mt-1 text-xs" style={{ color: 'var(--s-text-dim)' }}>{label}</div>
-    </div>
-  );
-}
