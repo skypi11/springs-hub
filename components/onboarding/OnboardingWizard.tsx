@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   User, Globe, Gamepad2, Search, Loader2, ChevronLeft, ChevronRight,
-  CheckCircle, X, Sparkles,
+  CheckCircle, X, Sparkles, ShieldCheck,
 } from 'lucide-react';
 import Portal from '@/components/ui/Portal';
 import { useAuth } from '@/context/AuthContext';
@@ -144,7 +144,12 @@ export default function OnboardingWizard({ onClose }: { onClose: () => void }) {
       }
       if (data.games.includes('trackmania')) {
         if (!data.pseudoTM.trim()) return 'Renseigne ton pseudo Ubisoft/Nadeo.';
-        if (!data.tmIoUrl.trim()) return 'Renseigne l\'URL de ton profil Trackmania.io.';
+        // L'adresse trackmania.io n'est plus exigée de qui a lié son compte
+        // Ubisoft : elle se déduit de l'identifiant vérifié. Elle reste le
+        // repli pour ceux qui n'ont pas lié.
+        if (!user?.tmAccountId?.trim() && !data.tmIoUrl.trim()) {
+          return 'Lie ton compte Ubisoft, ou colle l’adresse de ton profil Trackmania.io.';
+        }
       }
     }
     // Étape 4 : recrutement entièrement optionnel
@@ -286,7 +291,9 @@ export default function OnboardingWizard({ onClose }: { onClose: () => void }) {
           <div className="flex-1 overflow-y-auto px-6 py-4">
             {step === 1 && <StepIdentity data={data} update={update} />}
             {step === 2 && <StepCountry data={data} update={update} />}
-            {step === 3 && <StepGames data={data} update={update} />}
+            {step === 3 && (
+              <StepGames data={data} update={update} tmLie={Boolean(user?.tmAccountId?.trim())} />
+            )}
             {step === 4 && <StepRecruitment data={data} update={update} />}
           </div>
 
@@ -395,7 +402,16 @@ function StepCountry({ data, update }: { data: WizardData; update: (p: Partial<W
   );
 }
 
-function StepGames({ data, update }: { data: WizardData; update: (p: Partial<WizardData>) => void }) {
+function StepGames({
+  data,
+  update,
+  tmLie,
+}: {
+  data: WizardData;
+  update: (p: Partial<WizardData>) => void;
+  /** Le compte Ubisoft est-il déjà lié ? L'adresse trackmania.io en découle. */
+  tmLie: boolean;
+}) {
   const toggleGame = (g: string) => {
     const cur = new Set(data.games);
     if (cur.has(g)) cur.delete(g);
@@ -481,16 +497,38 @@ function StepGames({ data, update }: { data: WizardData; update: (p: Partial<Wiz
               placeholder="Ton pseudo en jeu"
             />
           </div>
-          <div>
-            <label className="t-label block mb-2">URL Trackmania.io *</label>
-            <input
-              type="url"
-              value={data.tmIoUrl}
-              onChange={e => update({ tmIoUrl: e.target.value })}
-              className="settings-input w-full"
-              placeholder="https://trackmania.io/#/player/..."
-            />
-          </div>
+          {/* Le compte Ubisoft lié tient lieu d'adresse : elle se déduit de
+              l'identifiant vérifié. On ne réclame donc la saisie qu'à ceux qui
+              n'ont rien lié — et on le dit, au lieu d'afficher un champ dont
+              personne ne devine où trouver la valeur. */}
+          {tmLie ? (
+            <div
+              className="flex items-center gap-2 p-3 text-sm"
+              style={{
+                background: 'rgba(0,217,54,0.06)',
+                border: '1px solid rgba(0,217,54,0.2)',
+                color: 'var(--s-green)',
+              }}
+            >
+              <ShieldCheck size={16} aria-hidden />
+              Compte Ubisoft lié — ta fiche Trackmania.io est déjà connue.
+            </div>
+          ) : (
+            <div>
+              <label className="t-label mb-2 block">URL Trackmania.io</label>
+              <input
+                type="url"
+                value={data.tmIoUrl}
+                onChange={e => update({ tmIoUrl: e.target.value })}
+                className="settings-input w-full"
+                placeholder="https://trackmania.io/#/player/..."
+              />
+              <p className="mt-1.5 text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                Tu peux aussi lier ton compte Ubisoft depuis les paramètres : l’adresse
+                sera remplie toute seule, et ton pseudo deviendra vérifié.
+              </p>
+            </div>
+          )}
         </div>
       )}
       {/* Config Valorant : vérification en pause (Discord a coupé les comptes

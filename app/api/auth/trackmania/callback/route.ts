@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
+import { tmIoUrlFromAccountId } from '@/lib/trackmania-identity';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { captureApiError } from '@/lib/sentry';
 import { isValidNext } from '@/lib/return-to';
@@ -81,15 +82,33 @@ export async function GET(req: NextRequest) {
       return clearCookies(back(origin, returnTo, 'deja_lie'));
     }
 
-    await db.collection('users').doc(uid).set(
-      {
-        tmAccountId: identity.accountId,
-        pseudoTM: identity.displayName,
-        loginTM: identity.accountId,
-        tmVerifiedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
+    // L'adresse de la fiche publique se déduit de l'identifiant : on la pose
+    // ici plutôt que de la faire recopier au joueur. Sans elle, deux choses
+    // cassaient — le formulaire de complétion de profil le bloquait sur
+    // l'accueil, et la synchronisation nocturne des trophées l'ignorait, car
+    // elle ne sait retrouver les joueurs que par ce champ.
+    //
+    // On n'écrase JAMAIS une adresse déjà saisie : si elle diverge de
+    // l'identifiant vérifié, c'est un sujet à regarder, pas à effacer en
+    // silence. Le repli de lecture (`tmAccountIdOf`) fait autorité de toute
+    // façon, l'identifiant vérifié passant devant.
+    const patch: Record<string, unknown> = {
+      tmAccountId: identity.accountId,
+      pseudoTM: identity.displayName,
+      loginTM: identity.accountId,
+      tmVerifiedAt: FieldValue.serverTimestamp(),
+      // Lier son compte Ubisoft, c'est déclarer qu'on joue à Trackmania.
+      // L'omettre laissait le profil incohérent — jeu non pratiqué, mais
+      // identité de jeu vérifiée — et redemandait au joueur de cocher la case.
+      games: FieldValue.arrayUnion('trackmania'),
+    };
+    const dejaSaisie = ((await db.collection('users').doc(uid).get()).data()?.tmIoUrl as string) ?? '';
+    if (!dejaSaisie.trim()) {
+      const url = tmIoUrlFromAccountId(identity.accountId);
+      if (url) patch.tmIoUrl = url;
+    }
+
+    await db.collection('users').doc(uid).set(patch, { merge: true });
 
     return clearCookies(back(origin, returnTo));
   } catch (err) {

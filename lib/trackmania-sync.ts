@@ -17,7 +17,8 @@
 
 import type { Firestore } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
-import { fetchTmStats, extractAccountId } from '@/lib/trackmania-tm-io';
+import { fetchTmStats } from '@/lib/trackmania-tm-io';
+import { tmAccountIdOf } from '@/lib/trackmania-identity';
 import { loadCronState, saveCronState } from '@/lib/cron-state';
 
 const STATE_KEY = 'trackmania_trophies_sync';
@@ -32,7 +33,7 @@ interface SyncStats {
   scanned: number;
   synced: number;
   errors: number;
-  noAccountId: number; // users TM sans tmIoUrl valide → skippés
+  noAccountId: number; // joueurs TM sans identifiant de compte exploitable → ignorés
 }
 
 /** Update une seule fiche user à la demande (bouton Settings).
@@ -44,10 +45,13 @@ export async function syncTrackmaniaTrophiesForUser(
   const snap = await db.collection('users').doc(uid).get();
   if (!snap.exists) return { ok: false, reason: 'user_not_found' };
   const data = snap.data() ?? {};
-  const tmIoUrl = typeof data.tmIoUrl === 'string' ? data.tmIoUrl : '';
-  const accountId = extractAccountId(tmIoUrl);
+  // L'identifiant vérifié par la liaison Ubisoft passe DEVANT l'adresse saisie
+  // à la main. Ne lire que `tmIoUrl` laissait de côté tout joueur ayant lié son
+  // compte sans jamais recopier son adresse — c'est-à-dire tous les inscrits de
+  // la LAN, qui n'auraient jamais vu leurs trophées se mettre à jour.
+  const accountId = tmAccountIdOf(data as { tmAccountId?: string; tmIoUrl?: string });
   if (!accountId) {
-    return { ok: false, reason: 'no_tm_io_url' };
+    return { ok: false, reason: 'no_tm_account' };
   }
   const res = await fetchTmStats(accountId);
   if (!res.ok) {
@@ -93,8 +97,7 @@ export async function syncTrackmaniaTrophiesBatch(db: Firestore): Promise<SyncSt
     stats.scanned++;
     lastProcessedUid = doc.id;
     const data = doc.data();
-    const tmIoUrl = typeof data.tmIoUrl === 'string' ? data.tmIoUrl : '';
-    const accountId = extractAccountId(tmIoUrl);
+    const accountId = tmAccountIdOf(data as { tmAccountId?: string; tmIoUrl?: string });
     if (!accountId) {
       stats.noAccountId++;
       continue;

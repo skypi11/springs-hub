@@ -1,4 +1,5 @@
 import type { SpringsUser } from '@/types';
+import { tmAccountIdOf } from './trackmania-identity';
 
 export interface ProfileCompletionStatus {
   complete: boolean;
@@ -27,7 +28,11 @@ export function checkProfileCompletion(u: SpringsUser | null): ProfileCompletion
     }
     if (u.games.includes('trackmania')) {
       if (!u.pseudoTM?.trim()) missing.push('pseudo Ubisoft/Nadeo');
-      if (!u.tmIoUrl?.trim()) missing.push('URL Trackmania.io');
+      // L'adresse trackmania.io se DÉDUIT de l'identifiant de compte, que la
+      // liaison Ubisoft nous donne. La réclamer à quelqu'un qui a déjà lié son
+      // compte, c'est lui faire recopier une information qu'on possède — et
+      // c'est ce qui bloquait les inscrits de la LAN sur l'accueil.
+      if (!tmAccountIdOf(u)) missing.push('compte Ubisoft/Nadeo lié');
     }
   }
   return { complete: missing.length === 0, missing };
