@@ -435,7 +435,11 @@ export async function POST(req: NextRequest) {
           updates.recruitmentMessage = '';
         }
 
-        await userRef.update(updates);
+        // Sans cette date, une modification par l'administration ne laisse
+        // aucune trace sur le document lui-même. Pendant l'enquête sur un
+        // drapeau erroné, le profil semblait n'avoir jamais été touché alors
+        // qu'il venait de l'être : seul le journal d'audit l'a démenti.
+        await userRef.update({ ...updates, updatedAt: FieldValue.serverTimestamp() });
         await writeAdminAuditLog(db, {
           action: 'user_edited',
           adminUid,
