@@ -896,9 +896,18 @@ function LocationPoste({ reg }: { reg: ManiaCupRegistration }) {
             pour qui.
           </p>
           <div className="mt-4">
-            {/* Le prix n'est pas écrit ici : il vit dans la boutique, et un
-                tarif recopié à la main finit toujours par diverger. */}
-            <TicketButton kind="rental" variant="outline" label="Réserver un poste" />
+            {/* Le prix vient du réglage de la console, jamais d'une constante :
+                c'est le même champ que l'organisation tient à jour, donc il ne
+                peut pas diverger tout seul. Masqué tant qu'il vaut zéro. */}
+            <TicketButton
+              kind="rental"
+              variant="outline"
+              label={
+                settings.pcRentalEuros > 0
+                  ? `Réserver un poste — ${settings.pcRentalEuros} €`
+                  : 'Réserver un poste'
+              }
+            />
           </div>
         </div>
       </div>

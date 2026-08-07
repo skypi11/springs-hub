@@ -407,7 +407,13 @@ export default async function ManiaCupPage() {
                     rel="noreferrer"
                     className="mt-5 inline-flex items-center gap-2 border border-[#a364d9]/50 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#7B2FBE]/20"
                   >
+                    {/* Le prix AVANT le clic. Quelqu'un qui hésite à louer
+                        décide sur le montant : le lui faire découvrir sur
+                        HelloAsso, c'est le faire partir pour rien. Masqué tant
+                        qu'il vaut zéro — mieux vaut se taire qu'annoncer une
+                        location gratuite. */}
                     Réserver un poste
+                    {settings.pcRentalEuros > 0 && ` — ${settings.pcRentalEuros} €`}
                     <ExternalLink size={15} aria-hidden />
                   </a>
                 )}
